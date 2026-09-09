@@ -87,6 +87,11 @@ export async function doGoogleSso({
             && !(x.disabled || x.getAttribute('aria-disabled') === 'true'));
           return { host: location.host, pathname: location.pathname, href: location.href, consent: !!c };
         }, { host: '', pathname: '', href: '', consent: false });
+        if (login.code && st.host === 'auth.openai.com' && st.pathname.startsWith('/codex/device')) {
+          const codeField = page.locator('input[name="user_code"],input[name="usercode"],input[autocomplete="one-time-code"]')
+            .filter({ visible: true }).first();
+          if (await codeField.isVisible()) { mark('device_code_ready'); return page; }
+        }
         if (await handleCodexConsentPage(page, mark)) { mark('openai_callback'); return page; }
         if (isTerminalHost(st.host, st.href)) { mark('openai_callback'); return page; }
         // OpenAI issues Codex credentials only to an identity that already has a

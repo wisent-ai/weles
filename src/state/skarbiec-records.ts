@@ -12,7 +12,7 @@ export interface WelesAccountRecord {
   context: Record<string, any>;
 }
 
-const SKARBIEC_RESOLVER = join(__dirname, '..', '..', 'scripts', '_shared', 'skarbiec-runtime.mjs');
+const SKARBIEC_RESOLVER = join(__dirname, '..', '..', 'src', '_shared', 'skarbiec-runtime.mjs');
 let resolvedSkarbiecBinary: string | undefined;
 
 function activeSkarbiecBinary(operation: string): string {
@@ -50,14 +50,19 @@ function skarbiec(args: string[], input?: string): string {
   });
 }
 
-function itemIds(kind?: string): string[] {
+export function listCredentialItems(): Array<Record<string, any>> {
   const rows = JSON.parse(skarbiec(['list'])) as Array<Record<string, any>>;
-  return rows.filter((row) => !row.deleted && (!kind || row.kind === kind))
+  if (!Array.isArray(rows)) throw new Error('Skarbiec list returned a non-array inventory');
+  return rows.filter((row) => !row.deleted && row.state !== 'deleted');
+}
+
+function itemIds(kind?: string): string[] {
+  return listCredentialItems().filter((row) => !kind || row.kind === kind)
     .map((row) => String(row.name ?? row.id ?? ''))
     .filter(Boolean);
 }
 
-function readDocument(id: string): Record<string, any> {
+export function readDocument(id: string): Record<string, any> {
   return JSON.parse(skarbiec(['get', id])) as Record<string, any>;
 }
 
@@ -152,7 +157,7 @@ export function enqueueAction(action: string, accountItem: string, params: Recor
   if (!/^[a-z][a-z0-9_]{0,127}$/.test(action)) throw new Error(`invalid Weles action: ${action}`);
   if (accountItem && !ACCOUNT_ID.test(accountItem)) throw new Error('invalid Weles account item');
   const payload = Buffer.from(JSON.stringify({ action, accountItem, params }), 'utf8').toString('base64url');
-  const runner = join(homedir(), 'weles', 'scripts', 'worker', 'stado-action-runner.mjs');
+  const runner = join(homedir(), 'weles', 'src', 'worker', 'stado-action-runner.mjs');
   const command = `${process.execPath} ${runner} ${payload}`;
   const result = spawnSync(STADO, ['submit', command], { encoding: 'utf8', maxBuffer: 1024 * 1024 });
   if (result.error || result.status !== 0) throw new Error(`Stado refused ${action}: ${(result.stderr || '').trim()}`);

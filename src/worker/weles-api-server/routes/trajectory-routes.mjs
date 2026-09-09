@@ -60,12 +60,8 @@ export async function respondToDocumentImport(req, res, importWelesTrajectoryDoc
   }
 }
 
-// reauth: run a provider's reauth trajectory ON THE HOST. Body:
-// { provider: "codex"|"claude"|"kimi", login_item?, subscription_id?,
-//   timeout_ms? }. `login_item` selects an exact row; when omitted, Weles
-// uses the one it explicitly declares primary. A supplied subscription id
-// must match that row before a browser login is spent on it.
-export async function respondToReauth(req, res, selectLoginAccount) {
+// Resolve a Skarbiec subscription first; /reauth/resolve never starts a browser.
+export async function respondToReauth(req, res, selectLoginAccount, resolveOnly = false) {
   if (!reauthAuthorized(req)) {
     json(res, BRAMA_REAUTH_TOKEN ? 401 : 500, {
       ok: false,
@@ -78,22 +74,33 @@ export async function respondToReauth(req, res, selectLoginAccount) {
   catch (e) { json(res, 400, { ok: false, error: e.message }); return; }
   const provider = typeof body.provider === 'string' ? body.provider.trim().toLowerCase() : '';
   if (!REAUTH_PROVIDERS.has(provider)) { json(res, 400, { ok: false, error: 'provider must be codex|claude|kimi' }); return; }
-  const loginItem = typeof body.login_item === 'string' ? body.login_item.trim() : '';
-  let account;
-  try { account = selectLoginAccount(provider, loginItem || undefined); }
-  catch (e) {
-    json(res, 400, { ok: false, error: e.code || 'login_item_unresolved', message: e.message, ...(e.detail || {}) });
+  const subscriptionId = typeof body.subscription_id === 'string' ? body.subscription_id.trim() : '';
+  if (!subscriptionId) {
+    json(res, 400, { ok: false, error: 'subscription_id_required', stage: 'identity',
+      message: 'An exact Skarbiec subscription id is required' });
     return;
   }
-  const subscriptionId = typeof body.subscription_id === 'string' ? body.subscription_id.trim() : '';
-  if (subscriptionId && account.subscriptionId && subscriptionId !== account.subscriptionId) {
-    json(res, 409, {
-      ok: false,
-      error: 'subscription_account_mismatch',
-      message: `${account.loginItem} renews ${account.subscriptionId}, not ${subscriptionId}`,
-      login_item: account.loginItem,
-      subscription_id: account.subscriptionId,
-    });
+  const loginItem = typeof body.login_item === 'string' ? body.login_item.trim() : '';
+  let account;
+  try { account = selectLoginAccount(provider, loginItem || undefined, subscriptionId); }
+  catch (e) {
+    json(res, 409, { ok: false, error: e.code || 'skarbiec_identity_unavailable',
+      stage: 'identity', message: e.message, ...(e.detail || {}) });
+    return;
+  }
+  const identity = {
+    subscription_id: account.subscriptionId,
+    subscription_item: account.subscriptionItem,
+    login_item: account.loginItem,
+    provider: account.provider,
+    account_ref: account.accountRef,
+    login_method: account.loginMethod,
+    source_revision: account.sourceRevision,
+  };
+  if (resolveOnly) { json(res, 200, { ok: true, source: 'skarbiec', ...identity }); return; }
+  if (body.source_revision && body.source_revision !== account.sourceRevision) {
+    json(res, 409, { ok: false, error: 'skarbiec_identity_changed', stage: 'identity',
+      message: 'Skarbiec account data changed after authentication was resolved', ...identity });
     return;
   }
   const timeoutMs = Number(body.timeout_ms) > 0 ? Number(body.timeout_ms) : TIMEOUT_MS;
@@ -101,13 +108,14 @@ export async function respondToReauth(req, res, selectLoginAccount) {
     runAdmissionKey('reauth', {
       provider,
       login_item: account.loginItem,
-      subscription_id: subscriptionId || account.subscriptionId || null,
+      subscription_id: account.subscriptionId,
+      source_revision: account.sourceRevision,
     }),
     () => runReauth(provider, timeoutMs, account),
   );
   const out = await admission.entry.promise;
   if (out.error === 'no_reauth_trajectory') { json(res, 404, out); return; }
-  json(res, out.ok ? 200 : 502, { ...out, refreshed: out.ok, coalesced: admission.joined });
+  json(res, out.ok ? 200 : 502, { ...out, ...identity, refreshed: out.ok, coalesced: admission.joined });
 }
 
 // weles-builder: instructions-only. Body = the goal string (text/plain;

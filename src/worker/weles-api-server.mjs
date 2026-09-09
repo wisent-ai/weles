@@ -62,10 +62,8 @@ import { REPO, RUN_RELEASE_IDENTITY } from './weles-api-server/release-identity.
 
 const { resolveTrajectory, paramsToEnv } = await import(`${REPO}/dist/worker/dispatch.js`);
 const { buildDeploymentVersionValue } = await import(`${REPO}/dist/worker/deployment_version.js`);
-// Account selection is one table shared with the queued path and the
-// trajectories, so /reauth, /run and a hand-run trajectory all resolve the same
-// vault login item id to the same account.
-const { LOGIN_ACCOUNTS, selectLoginAccount } = await import(`${REPO}/dist/utils/login-accounts.js`);
+// The subscription and login identities are resolved from Skarbiec per request.
+const { selectLoginAccount } = await import(`${REPO}/dist/utils/login-accounts.js`);
 const { readPrivateStadoObjectIdentity, uploadArtifacts } = await import(`${REPO}/dist/worker/upload-artifacts.js`);
 const { resolveBrowserEvidenceTarget, SPIS_BROWSER_EVIDENCE_POLICY } = await import(`${REPO}/dist/agent/browser-evidence-policy.js`);
 const { createPublicTaskService, publicTaskErrorResponse } = await import('./public-task-service.mjs');
@@ -127,7 +125,6 @@ await publicTaskService.recover();
 const server = http.createServer(createApiRequestHandler({
   buildDeploymentVersionValue,
   importWelesTrajectoryDocument,
-  LOGIN_ACCOUNTS,
   publicTaskErrorResponse,
   publicTaskService,
   runTrajectory,

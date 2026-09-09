@@ -23,24 +23,21 @@ export function applyAccountAndTaskAdmission(
   trajPath: string,
   env: Record<string, string>,
 ): void {
-  // Subscription login/reauth runs act on ONE account, and the caller names it
-  // by its vault login item id — the identifier the rest of the fleet already
-  // carries. It is translated here into <PROVIDER>_DISPLAY_NAME, the selector
-  // those trajectories already honour, plus WELES_LOGIN_ITEM so the run reports
-  // the account it was asked for. An unknown id or one belonging to another
-  // provider throws, exactly as a malformed apple_login payload does: a request
-  // that names the wrong account must never become a real sign-in.
   const subscriptionLogin = trajPath.match(/\/(claude|codex|kimi)\/(login|reauth)\.mjs$/);
   if (subscriptionLogin) {
-    const requested = params.login_item ?? params.vault_login_item;
+    const requested = params.login_item;
+    const subscriptionId = params.subscription_id;
+    if (typeof subscriptionId !== 'string' || !subscriptionId.trim()) {
+      throw new Error('subscription_id must name an exact Skarbiec subscription');
+    }
     if (requested !== undefined && typeof requested !== 'string') {
-      throw new Error('login_item must be a vault login item id string');
+      throw new Error('login_item must name an exact Skarbiec login item');
     }
-    if (typeof requested === 'string' && requested.trim()) {
-      const account = selectLoginAccount(subscriptionLogin[1], requested);
-      env.WELES_LOGIN_ITEM = account.loginItem;
-      env[`${account.provider.toUpperCase()}_DISPLAY_NAME`] = account.displayName;
-    }
+    const account = selectLoginAccount(subscriptionLogin[1], requested as string | undefined, subscriptionId);
+    env.WELES_LOGIN_ITEM = account.loginItem;
+    env.BRAMA_SUBSCRIPTION_ID = account.subscriptionId;
+    env.WELES_ACCOUNT_SOURCE_REVISION = account.sourceRevision;
+    env[`${account.provider.toUpperCase()}_DISPLAY_NAME`] = account.displayName;
   }
   if (trajPath.endsWith('/generic/browser_task.mjs') || trajPath.endsWith('/generic/keeper_task.mjs')) {
     const passthrough: Array<[string, string]> = [

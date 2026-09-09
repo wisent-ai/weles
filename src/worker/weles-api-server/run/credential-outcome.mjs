@@ -33,6 +33,14 @@ function skarbiecAcquisitionFailureReason(stderr) {
 
 export function credentialFailure(out) {
   const stderr = String(out.stderr_tail || '');
+  const structured = stderr.split('\n').reverse().find((line) => line.startsWith('AUTH_FAILURE '));
+  if (structured) {
+    try {
+      const failure = JSON.parse(structured.slice('AUTH_FAILURE '.length));
+      if (typeof failure.code === 'string' && typeof failure.stage === 'string'
+          && typeof failure.message === 'string') return failure;
+    } catch { /* The malformed marker is not a structured failure. */ }
+  }
   const stages = [...stderr.matchAll(/^STEP ([a-z][a-z0-9_-]{0,63})$/gm)];
   const stage = stages.length ? stages[stages.length - 1][1] : undefined;
   const withStage = (failure) => (stage ? { ...failure, stage } : failure);

@@ -28,6 +28,7 @@ import { join, resolve } from 'node:path';
 import { RUN_RESULTS_DIR } from '../configuration.mjs';
 import { REPO, RUN_RELEASE_IDENTITY } from '../release-identity.mjs';
 import { SAFE_RUN_ID, findResultDoc, lastJsonLine, persistRunResult } from './run-outcome.mjs';
+import { credentialFailure } from './credential-outcome.mjs';
 
 function signalRunProcess(child, signal) {
   if (process.platform !== 'win32' && child.pid) {
@@ -153,7 +154,7 @@ export const REAUTH_PROVIDERS = new Set(['codex', 'claude', 'kimi']);
 // so the run and its report agree on which account was asked for.
 export function runReauth(provider, timeoutMs, account) {
   return new Promise((resolveRun) => {
-    const trajPath = resolve(REPO, 'scripts/trajectories', provider, 'reauth.mjs');
+    const trajPath = resolve(REPO, 'src/trajectories', provider, 'reauth.mjs');
     if (!existsSync(trajPath)) { resolveRun({ ok: false, error: 'no_reauth_trajectory', provider }); return; }
     const runId = randomUUID();
     const action = `${provider}_reauth`;
@@ -188,6 +189,7 @@ export function runReauth(provider, timeoutMs, account) {
         ...(account
           ? {
             WELES_LOGIN_ITEM: account.loginItem,
+            WELES_ACCOUNT_SOURCE_REVISION: account.sourceRevision,
             [`${provider.toUpperCase()}_DISPLAY_NAME`]: account.displayName,
             ...(account.subscriptionId ? { BRAMA_SUBSCRIPTION_ID: account.subscriptionId } : {}),
           }
@@ -199,6 +201,7 @@ export function runReauth(provider, timeoutMs, account) {
     let stdout = ''; let stderr = ''; let killed = false; let settled = false;
     const finish = (result) => {
       if (settled) return;
+      result.failure = result.ok ? null : credentialFailure(result);
       settled = true;
       clearTimeout(timer);
       try {

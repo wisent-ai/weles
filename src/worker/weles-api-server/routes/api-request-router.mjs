@@ -44,7 +44,6 @@ let workerControlBusy = false;
 export function createApiRequestHandler({
   buildDeploymentVersionValue,
   importWelesTrajectoryDocument,
-  LOGIN_ACCOUNTS,
   publicTaskErrorResponse,
   publicTaskService,
   runTrajectory,
@@ -61,20 +60,10 @@ export function createApiRequestHandler({
           rawCredsAllowed: ALLOW_RAW_CREDS,
           releaseVersion: process.env.WELES_WORKER_RELEASE_VERSION || null,
           releaseSha256: process.env.WELES_WORKER_RELEASE_SHA256 || null,
-          routes: ['GET /healthz', 'GET /api/v1/version', 'POST /api/v1/tasks', 'GET /api/v1/tasks/:task_id', 'POST /api/v1/tasks/:task_id/cancel', 'GET /worker/version', 'GET /worker/status', 'POST /worker/start', 'POST /worker/restart', 'POST /run', 'GET /diagnostics/:run_id', 'GET /diagnostics/:run_id/file?path=', 'POST /weles-builder', 'POST /reauth'],
+          routes: ['GET /healthz', 'GET /api/v1/version', 'POST /api/v1/tasks', 'GET /api/v1/tasks/:task_id', 'POST /api/v1/tasks/:task_id/cancel', 'GET /worker/version', 'GET /worker/status', 'POST /worker/start', 'POST /worker/restart', 'POST /run', 'GET /diagnostics/:run_id', 'GET /diagnostics/:run_id/file?path=', 'POST /weles-builder', 'POST /reauth/resolve', 'POST /reauth'],
           publicTask: publicTaskService.health,
-          // A caller that must name an account has to know, without spawning a
-          // run, whether this build understands login_item at all: a build that
-          // does not would ignore the field and sign in to whichever row it picked
-          // itself, burning a real login on an unknown account.
-          features: ['login_item', 'fresh_profile'],
-          login_items: LOGIN_ACCOUNTS.map((a) => ({
-            login_item: a.loginItem,
-            provider: a.provider,
-            display_name: a.displayName,
-            primary: Boolean(a.primary),
-            subscription_id: a.subscriptionId || null,
-          })),
+          features: ['subscription_identity', 'fresh_profile'],
+          account_source: 'skarbiec',
         });
         return;
       }
@@ -162,8 +151,8 @@ export function createApiRequestHandler({
         await respondToDocumentImport(req, res, importWelesTrajectoryDocument);
         return;
       }
-      if (req.method === 'POST' && url.pathname === '/reauth') {
-        await respondToReauth(req, res, selectLoginAccount);
+      if (req.method === 'POST' && (url.pathname === '/reauth' || url.pathname === '/reauth/resolve')) {
+        await respondToReauth(req, res, selectLoginAccount, url.pathname === '/reauth/resolve');
         return;
       }
       if (req.method === 'POST' && url.pathname === '/weles-builder') {

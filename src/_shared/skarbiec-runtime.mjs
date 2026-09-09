@@ -53,6 +53,9 @@ function stadoJson(args, operation) {
 }
 
 export function activeSkarbiecBinary() {
+  // The managed launcher already resolved this executable through Stado.
+  const inherited = String(process.env.SKARBIEC_BIN || '').trim();
+  if (inherited) return executable(inherited, 'launcher-provided Skarbiec binary');
   const active = stadoJson(
     ['release', 'active-binary', 'skarbiec', '--json'],
     'active Skarbiec release lookup',
