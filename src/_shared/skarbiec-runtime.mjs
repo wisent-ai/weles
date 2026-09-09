@@ -43,12 +43,13 @@ function stadoJson(args, operation) {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   if (result.error || result.status !== 0) {
-    throw new Error(`Stado ${operation} failed`);
+    const detail = [result.error?.message, result.stderr?.trim(), result.stdout?.trim()].filter(Boolean).join('\n');
+    throw new Error(`Stado ${operation} failed (exit ${result.status}, signal ${result.signal ?? 'none'}): ${detail || 'no diagnostic output'}`);
   }
   try {
     return JSON.parse(result.stdout);
-  } catch {
-    throw new Error(`Stado ${operation} returned invalid JSON`);
+  } catch (error) {
+    throw new Error(`Stado ${operation} returned invalid JSON: ${error.message}; stdout: ${result.stdout}; stderr: ${result.stderr}`);
   }
 }
 
@@ -84,7 +85,7 @@ export function activeSkarbiecBinary() {
       || !exactDigest(active.artifact_sha256)
       || !exactDigest(active.manifest_sha256)
       || typeof active.path !== 'string') {
-    throw new Error('Stado has no attested active Skarbiec release');
+    throw new Error(`Stado has no attested active Skarbiec release: ${JSON.stringify(active)}`);
   }
   return executable(active.path, 'attested active Skarbiec binary');
 }
