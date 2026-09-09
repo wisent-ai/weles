@@ -25,7 +25,7 @@ const PACKAGES = {
       '06_lista_wspolnikow_podpisana_13.04.2026.pdf',
       '07_odpis_aktualny_KRS_19.06.2026.pdf',
       '08_ControlAI_Certificate_of_Incorporation.pdf',
-      '08a_tlumaczenie_przysiegle_aktu_ControlAI.pdf',
+      '08a_tlumaczenie_aktu_ControlAI.pdf',
       '09_ControlAI_EIN_147C.pdf',
       '10_sprawozdanie_finansowe_ControlAI_2024.pdf',
       '11_sprawozdanie_finansowe_ControlAI_2025.pdf',
