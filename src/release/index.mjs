@@ -15,7 +15,7 @@
  * from the product at all.
  */
 import ts from 'typescript';
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { loadManifest } from './manifest.mjs';
 
@@ -25,6 +25,32 @@ const TASK_STATUSES = ['queued', 'leased', 'running', 'succeeded', 'failed', 'ca
 /** The repository root, from this module's own location. */
 export function repositoryRoot() {
   return resolve(import.meta.dirname, '..', '..');
+}
+
+/**
+ * Every module the worker API server is written in: its entry file and the
+ * modules beside it that carry parts of the same server.
+ *
+ * The published HTTP surface is read out of these files, so the list has to
+ * follow the server's own shape rather than name one file. When the routes
+ * lived in the entry file alone, naming that file was the same thing; once the
+ * server was split into the families it serves, a single-file scan reported
+ * that this build publishes no routes at all.
+ */
+async function apiServerModules(root) {
+  const entry = join(root, 'src/worker/weles-api-server.mjs');
+  const directory = join(root, 'src/worker/weles-api-server');
+  const modules = [entry];
+  const entries = await readdir(directory, { withFileTypes: true, recursive: true })
+    .catch((error) => {
+      if (error.code === 'ENOENT') return [];
+      throw error;
+    });
+  for (const found of entries) {
+    if (!found.isFile() || !found.name.endsWith('.mjs')) continue;
+    modules.push(join(found.parentPath ?? found.path, found.name));
+  }
+  return modules.sort();
 }
 
 /**
@@ -40,9 +66,9 @@ export async function surface(root = repositoryRoot()) {
     throw new Error(ts.flattenDiagnosticMessageText(configFile.error.messageText, '\n'));
   }
   const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, root, { allowJs: true });
-  const apiServerPath = join(root, 'src/worker/weles-api-server.mjs');
+  const apiServerPaths = await apiServerModules(root);
   const program = ts.createProgram({
-    rootNames: [...parsed.fileNames, apiServerPath],
+    rootNames: [...parsed.fileNames, ...apiServerPaths],
     options: { ...parsed.options, allowJs: true, checkJs: false, noEmit: true },
   });
   const checker = program.getTypeChecker();
@@ -103,8 +129,6 @@ export async function surface(root = repositoryRoot()) {
   collectMcpTools(mcpSource);
   if (!mcpTools) throw new Error('no Weles MCP tools resolved');
 
-  const apiSource = program.getSourceFile(apiServerPath);
-  if (!apiSource) throw new Error('worker API server was not parsed');
   let routes = 0;
   const collectRoutes = (node) => {
     if (ts.isStringLiteral(node) && /^(GET|POST|PATCH|DELETE) \/[A-Za-z]/.test(node.text)) {
@@ -113,7 +137,11 @@ export async function surface(root = repositoryRoot()) {
     }
     ts.forEachChild(node, collectRoutes);
   };
-  collectRoutes(apiSource);
+  for (const path of apiServerPaths) {
+    const apiSource = program.getSourceFile(path);
+    if (!apiSource) throw new Error(`worker API server module was not parsed: ${path}`);
+    collectRoutes(apiSource);
+  }
   if (!routes) throw new Error('no worker HTTP routes resolved');
 
   const compatibility = JSON.parse(await readFile(join(root, 'release/compatibility-policy.json'), 'utf8'));
