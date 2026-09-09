@@ -12,27 +12,21 @@ const projectId = process.env.NCBR_PROJECT_ID || '7ee80d9a-67dd-4d99-becd-8dda40
 const projectUrl = `https://lsi2.ncbr.gov.pl/projekt/${projectId}`;
 const criterionNeedle = 'Załączniki potwierdzające spełnienie warunku określonego w kryterium nr 1';
 
-// Both packages of criterion-1 evidence, one file per document, in attachment order.
+// Declared criterion-1 files in attachment order; ControlAI groups sixteen documents into ten PDFs.
 const PACKAGES = {
   controlai: {
-    dir: '/Users/lukaszbartoszcze/Desktop/Wisent - wariant ControlAI 14.04.2026/',
+    dir: '/Users/lukaszbartoszcze/Desktop/FENG.05.01-IP.01-007N-26 - pakiet do wgrania/',
     files: [
-      '01_porozumienie_ControlAI_wspolnik.pdf',
-      '02_umowa_o_zarzadzanie_ControlAI.pdf',
-      '03_uchwaly_zarzadu_ControlAI.pdf',
-      '04_zawiadomienie_o_stosunku_dominacji.pdf',
+      '01-04_dokumenty_dominacji_podpisane.pdf',
       '05_umowa_zbycia_9_udzialow_13.04.2026.pdf',
       '06_lista_wspolnikow_podpisana_13.04.2026.pdf',
       '07_odpis_aktualny_KRS_19.06.2026.pdf',
       '08_ControlAI_Certificate_of_Incorporation.pdf',
       '08a_tlumaczenie_aktu_ControlAI.pdf',
-      '09_ControlAI_EIN_147C.pdf',
-      '10_sprawozdanie_finansowe_ControlAI_2024.pdf',
-      '11_sprawozdanie_finansowe_ControlAI_2025.pdf',
-      '12_ControlAI_Form_1120_2024_EN.pdf',
-      '13_ControlAI_Form_1120_2025_EN.pdf',
-      '14_oswiadczenie_o_dzialalnosci_ControlAI.pdf',
-      '15_zestawienie_dowodow_dzialalnosci.pdf',
+      '09_ControlAI_EIN_147C_PL_EN.pdf',
+      '10-11_sprawozdania_finansowe_2024-2025_PL_EN.pdf',
+      '12-13_Form_1120_2024-2025_PL_EN.pdf',
+      '14-15_dzialalnosc_ControlAI_podpisane_oswiadczenie_i_dowody.pdf',
     ],
   },
   'wisent-ai': {
