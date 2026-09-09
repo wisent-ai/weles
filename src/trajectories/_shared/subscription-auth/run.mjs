@@ -1,7 +1,5 @@
-import { createHash, createHmac } from 'node:crypto';
-import { selectLoginAccount, readLoginMaterial } from '../../../../dist/utils/login-accounts.js';
-import { requireCapabilities, loadFromSkarbiec, resolveBearer, stadoRouterUrl } from '../reauth_config.mjs';
-import { bankBody, writePool } from '../subscription_pool.mjs';
+import { selectLoginAccount, readLoginMaterial, persistSubscriptionGrant } from '../../../../dist/utils/login-accounts.js';
+import { requireCapabilities } from '../reauth_config.mjs';
 import { beginOAuth, finishOAuth, AuthenticationFailure } from './oauth.mjs';
 import { authorizeInBrowser } from './browser.mjs';
 
@@ -18,8 +16,8 @@ function selectedAccount(provider) {
   if (!subscription) throw new AuthenticationFailure('subscription_id_required', 'identity',
     'The authentication request must name the Skarbiec subscription it renews');
   const account = selectLoginAccount(provider, process.env.WELES_LOGIN_ITEM, subscription);
-  const admitted = process.env.WELES_ACCOUNT_SOURCE_REVISION;
-  if (admitted && admitted !== account.sourceRevision) {
+  const admitted = process.env.WELES_ACCOUNT_REVISION;
+  if (admitted && admitted !== account.accountRevision) {
     throw new AuthenticationFailure('skarbiec_identity_changed', 'identity',
       'Skarbiec account data changed after authentication admission');
   }
@@ -68,34 +66,9 @@ export async function reauthenticate(provider) {
   try {
     const { account, credential } = await authenticate(provider);
     mark('credential_persist');
-    const configurationProvider = provider === 'claude' ? 'claude' : provider;
-    const cfg = loadFromSkarbiec(`${configurationProvider}-reauth-config`);
-    const body = bankBody({
-      provider: provider === 'claude' ? 'claude-code' : provider,
-      subscription_id: account.subscriptionId,
-      api_key: JSON.stringify(credential),
-      label: account.displayName,
-    });
-    const stamp = String(Math.floor(Date.now() / 1000));
-    const hash = createHash('sha256').update(body).digest('hex');
-    const signature = createHmac('sha256', cfg.hmacSecret).update(`${cfg.agentId}:${stamp}:${hash}`).digest('hex');
-    const response = await writePool(stadoRouterUrl(), {
-      authorization: `Bearer ${resolveBearer(cfg.agentId)}`,
-      'content-type': 'application/json', 'x-agent-id': cfg.agentId,
-      'x-agent-timestamp': stamp, 'x-agent-signature': signature,
-    }, body);
-    if (!response.ok) {
-      throw new AuthenticationFailure('credential_persist_refused', 'credential_persist',
-        `Brama refused the credential for ${account.subscriptionId}: ${await response.text()}`, response.status);
-    }
-    const answer = await response.json();
-    const stored = answer.subscription ?? answer;
-    if (stored.id !== account.subscriptionId) {
-      throw new AuthenticationFailure('credential_coordinate_mismatch', 'credential_persist',
-        'Brama stored the grant under a different subscription than the one authenticated');
-    }
+    persistSubscriptionGrant(account, credential);
     process.stdout.write(`${JSON.stringify({ ok: true, subscription_id: account.subscriptionId,
       subscription_item: account.subscriptionItem, login_item: account.loginItem,
-      source_revision: account.sourceRevision, credential_persisted: true })}\n`);
+      account_revision: account.accountRevision, credential_persisted: true })}\n`);
   } catch (error) { fail(error, provider); }
 }

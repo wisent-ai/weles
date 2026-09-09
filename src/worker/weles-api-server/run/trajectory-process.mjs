@@ -189,7 +189,7 @@ export function runReauth(provider, timeoutMs, account) {
         ...(account
           ? {
             WELES_LOGIN_ITEM: account.loginItem,
-            WELES_ACCOUNT_SOURCE_REVISION: account.sourceRevision,
+            WELES_ACCOUNT_REVISION: account.accountRevision,
             [`${provider.toUpperCase()}_DISPLAY_NAME`]: account.displayName,
             ...(account.subscriptionId ? { BRAMA_SUBSCRIPTION_ID: account.subscriptionId } : {}),
           }

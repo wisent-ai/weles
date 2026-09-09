@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { listCredentialItems, readDocument } from '../state/skarbiec-records.js';
+import { listCredentialItems, readDocument, writeDocument } from '../state/skarbiec-records.js';
 
 export type LoginAccountProvider = 'claude' | 'codex' | 'kimi';
 
@@ -12,7 +12,7 @@ export interface LoginAccount {
   subscriptionItem: string;
   accountRef: string;
   loginMethod: string;
-  sourceRevision: string;
+  accountRevision: string;
 }
 
 export class LoginAccountSelectionError extends Error {
@@ -43,9 +43,23 @@ function fail(code: string, message: string, detail: Record<string, unknown>): n
 function metadata(item: Item): Item {
   const document = readDocument(itemId(item));
   const context = document.context ?? {};
+  let value = document.fields?.value;
+  if (typeof value === 'string') {
+    try { value = JSON.parse(value); } catch { value = undefined; }
+  }
+  let declared = value?.metadata;
+  if (typeof declared === 'string') declared = JSON.parse(declared);
+  const provider = providerName(tag(item, 'brama:provider:'));
   return {
     ...context,
+    login_item: text(context.login_item) || text(declared?.login_item)
+      || text(declared?.[`${provider.toUpperCase()}_SERVICE_CREDENTIAL_ID`]),
     account_ref: text(context.account_ref) || text(document.fields?.username),
+    credentialDigest: createHash('sha256').update(JSON.stringify([
+      document.fields?.username?.toLowerCase(), document.fields?.password,
+    ])).digest('hex'),
+    authenticatorDigest: document.fields?.totp_secret
+      ? createHash('sha256').update(document.fields.totp_secret).digest('hex') : null,
   };
 }
 
@@ -85,15 +99,22 @@ function resolveAccount(subscription: Item, inventory: Item[], requested?: strin
   // same principal. Neither provider nor principal is inferred from an item name.
   const direct = candidates.filter((candidate) =>
     providerName(text(candidate.context.provider)) === provider);
-  const eligible = direct.length ? direct : candidates.filter((candidate) => {
-    const method = text(candidate.context.login_method);
-    return method === 'google_sso' || method === 'email_password' || Boolean(named);
-  });
-  if (eligible.length !== 1) fail(eligible.length ? 'skarbiec_login_ambiguous' : 'skarbiec_login_missing',
-    `Skarbiec subscription ${subscriptionItem} identifies ${accountRef}, but ${eligible.length} login items match that identity`,
-    { subscription_id: subscriptionId, subscription_item: subscriptionItem,
-      account_ref: accountRef, requested_login_item: named || null,
-      candidates: eligible.map(({ item }) => itemId(item)) });
+  const google = candidates.filter((candidate) => candidate.context.login_method === 'google_sso');
+  const eligible = direct.length ? direct : google.length ? google : named ? candidates : [];
+  const credentials = new Set(eligible.map((candidate) => candidate.context.credentialDigest));
+  const authenticators = new Set(eligible.map((candidate) => candidate.context.authenticatorDigest).filter(Boolean));
+  if (!eligible.length || credentials.size !== 1 || authenticators.size > 1) {
+    fail(eligible.length ? 'skarbiec_login_ambiguous' : 'skarbiec_login_missing',
+      `Skarbiec subscription ${subscriptionItem} identifies ${accountRef}, but its login material is ${eligible.length ? 'inconsistent across matching records' : 'missing'}`,
+      { subscription_id: subscriptionId, subscription_item: subscriptionItem,
+        account_ref: accountRef, candidates: eligible.map(({ item }) => itemId(item)) });
+  }
+  // Equivalent records describe the same principal and credential, not
+  // different accounts. Prefer one carrying the stored authenticator, then
+  // its immutable identity so renaming does not elect a different credential.
+  eligible.sort((left, right) => Number(Boolean(right.context.authenticatorDigest))
+    - Number(Boolean(left.context.authenticatorDigest))
+    || String(left.item.item_uid ?? itemId(left.item)).localeCompare(String(right.item.item_uid ?? itemId(right.item))));
   const login = eligible[0];
   const method = text(login.context.login_method) || text(context.login_method);
   if (!['google_sso', 'email_password'].includes(method)) fail('login_method_unsupported',
@@ -110,7 +131,7 @@ function resolveAccount(subscription: Item, inventory: Item[], requested?: strin
     provider: provider as LoginAccountProvider,
     subscriptionId, subscriptionItem, loginItem: itemId(login.item),
     displayName: text(context.name) || accountRef,
-    accountRef, loginMethod: method, sourceRevision: revision,
+    accountRef, loginMethod: method, accountRevision: revision,
   };
 }
 
@@ -164,4 +185,22 @@ export function readLoginMaterial(account: LoginAccount): {
     { subscription_id: account.subscriptionId, login_item: account.loginItem });
   return { email, password: fields.password, loginMethod: account.loginMethod,
     ...(text(fields.totp_secret) ? { totpSecret: text(fields.totp_secret) } : {}) };
+}
+
+/** Persist only the grant on the selected subscription; preserve account metadata. */
+export function persistSubscriptionGrant(account: LoginAccount, credential: Record<string, unknown>): void {
+  const current = selectLoginAccount(account.provider, account.loginItem, account.subscriptionId);
+  if (current.accountRevision !== account.accountRevision) fail('skarbiec_identity_changed',
+    'Skarbiec changed while the provider authentication was running; the existing credential was not overwritten',
+    { subscription_id: account.subscriptionId, subscription_item: account.subscriptionItem });
+  const document = readDocument(account.subscriptionItem);
+  const encoded = JSON.stringify(credential);
+  document.fields.value = encoded;
+  document.context = { ...document.context, account_ref: account.accountRef,
+    provider: account.provider === 'claude' ? 'claude-code' : account.provider,
+    login_method: account.loginMethod };
+  writeDocument(account.subscriptionItem, document);
+  if (readDocument(account.subscriptionItem).fields?.value !== encoded) fail('credential_persist_unconfirmed',
+    'Skarbiec did not return the credential just written for the selected subscription',
+    { subscription_id: account.subscriptionId, subscription_item: account.subscriptionItem });
 }

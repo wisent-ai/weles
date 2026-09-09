@@ -60,6 +60,21 @@ test('doctor resolves an account from Skarbiec and survives renaming both items'
     assert.equal(initial.accounts.length, 1);
     assert.equal(initial.accounts[0].loginItem, 'login-original');
     assert.equal(initial.accounts[0].subscriptionId, 'isolated-subscription');
+    const copy = {
+      schema: 'skarbiec.item.v2', kind: 'login',
+      context: { provider: 'codex', account_ref: email, login_method: 'google_sso' },
+      fields: { username: email, password: 'isolated-fixture-password' },
+    };
+    f.vault(['set-json', 'login-copy', '--type', 'login'], copy);
+    const equivalent = f.doctor().state;
+    assert.deepEqual(equivalent.errors, []);
+    assert.equal(equivalent.accounts[0].accountRef, email);
+    copy.fields.password = 'a-different-fixture-password';
+    f.vault(['set-json', 'login-copy', '--type', 'login'], copy);
+    const conflicting = f.doctor();
+    assert.equal(conflicting.status, 1);
+    assert.equal(conflicting.state.errors[0].code, 'skarbiec_login_ambiguous');
+    f.vault(['delete', 'login-copy']);
     f.vault(['rename', 'login-original', 'login-renamed']);
     f.vault(['rename', 'subscription-original', 'subscription-renamed']);
     const renamed = f.doctor().state;

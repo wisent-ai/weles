@@ -36,7 +36,7 @@ export function applyAccountAndTaskAdmission(
     const account = selectLoginAccount(subscriptionLogin[1], requested as string | undefined, subscriptionId);
     env.WELES_LOGIN_ITEM = account.loginItem;
     env.BRAMA_SUBSCRIPTION_ID = account.subscriptionId;
-    env.WELES_ACCOUNT_SOURCE_REVISION = account.sourceRevision;
+    env.WELES_ACCOUNT_REVISION = account.accountRevision;
     env[`${account.provider.toUpperCase()}_DISPLAY_NAME`] = account.displayName;
   }
   if (trajPath.endsWith('/generic/browser_task.mjs') || trajPath.endsWith('/generic/keeper_task.mjs')) {

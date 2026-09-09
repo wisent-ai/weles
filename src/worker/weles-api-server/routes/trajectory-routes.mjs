@@ -33,6 +33,7 @@ import {
 } from '../http-exchange.mjs';
 import { coalesceRun, runAdmissionKey } from '../run/run-outcome.mjs';
 import { REAUTH_PROVIDERS, runReauth } from '../run/trajectory-process.mjs';
+import { RUN_RELEASE_IDENTITY } from '../release-identity.mjs';
 
 const BUILDER_BOOTSTRAP_URL = process.env.WELES_BUILDER_BOOTSTRAP_URL || 'https://duckduckgo.com/';
 // Prepended to the caller's instructions so the agent self-navigates: the
@@ -95,10 +96,11 @@ export async function respondToReauth(req, res, selectLoginAccount, resolveOnly 
     provider: account.provider,
     account_ref: account.accountRef,
     login_method: account.loginMethod,
-    source_revision: account.sourceRevision,
+    account_revision: account.accountRevision,
+    source_revision: RUN_RELEASE_IDENTITY.source_revision,
   };
   if (resolveOnly) { json(res, 200, { ok: true, source: 'skarbiec', ...identity }); return; }
-  if (body.source_revision && body.source_revision !== account.sourceRevision) {
+  if (body.account_revision && body.account_revision !== account.accountRevision) {
     json(res, 409, { ok: false, error: 'skarbiec_identity_changed', stage: 'identity',
       message: 'Skarbiec account data changed after authentication was resolved', ...identity });
     return;
@@ -109,7 +111,7 @@ export async function respondToReauth(req, res, selectLoginAccount, resolveOnly 
       provider,
       login_item: account.loginItem,
       subscription_id: account.subscriptionId,
-      source_revision: account.sourceRevision,
+      account_revision: account.accountRevision,
     }),
     () => runReauth(provider, timeoutMs, account),
   );

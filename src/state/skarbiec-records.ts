@@ -37,7 +37,7 @@ function activeSkarbiecBinary(operation: string): string {
   resolvedSkarbiecBinary = binary;
   return binary;
 }
-const VAULT = process.env.SKARBIEC_VAULT_FILE || join(homedir(), '.stado', 'skarbiec.vault.json');
+const VAULT = process.env.SKARBIEC_VAULT_FILE;
 const STADO = process.env.WELES_STADO_BIN || join(homedir(), '.stado', 'bin', 'stado');
 const ACCOUNT_ID = /^weles-[a-z0-9][a-z0-9-]{0,126}-account$/;
 
@@ -66,7 +66,7 @@ export function readDocument(id: string): Record<string, any> {
   return JSON.parse(skarbiec(['get', id])) as Record<string, any>;
 }
 
-function writeDocument(id: string, document: Record<string, any>): void {
+export function writeDocument(id: string, document: Record<string, any>): void {
   skarbiec(['set-json', id], JSON.stringify(document));
 }
 
