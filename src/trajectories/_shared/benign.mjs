@@ -101,7 +101,7 @@ try {
     }
   }
   console.log(`[ban-signal] ${banSignal?.signal}`);
-  console.log(`PASS: ${PLATFORM}_${VERB} ${verbCfg.scrolls}x scrolls`);
+  console.log(`PASS: ${PLATFORM}_${VERB} ${observed.scrolls}x scrolls`);
 } catch (e) {
   if (s) {
     let detResult;
