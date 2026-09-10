@@ -1,7 +1,7 @@
 // The Stado control plane as a journey transport: one POST per operation, one envelope per answer.
-import type { JourneyAssignment, JourneyBundle } from './types'
+import type { JourneyAssignment, JourneyBundle } from '../types'
 import type { JourneyAssignmentInput, JourneyRuntimeEvent, JourneyTransport } from './contracts'
-import { IDENTIFIER } from './identifiers'
+import { IDENTIFIER } from '../journey/identifiers'
 
 interface StadoEnvelope<T> {
   ok: boolean

@@ -1,10 +1,10 @@
 // The journey client: loads the bundle, keeps progress, records evidence and collects events.
-import type { JourneyBundle, JourneyDecision, JourneyEventName, JourneyEvidence, JourneyProgress } from './types'
-import type { JourneyRuntimeEvent, JourneyStorage, JourneyTransport } from './contracts'
-import { IDENTIFIER, SHA256, UUID } from './identifiers'
+import type { JourneyBundle, JourneyDecision, JourneyEventName, JourneyEvidence, JourneyProgress } from '../types'
+import type { JourneyRuntimeEvent, JourneyStorage, JourneyTransport } from '../plane/contracts'
+import { IDENTIFIER, SHA256, UUID } from '../journey/identifiers'
 import { controlAssignment, isValidAssignment, resolveExperimentAssignment } from './experiments'
-import { validateJourneyBundle } from './bundle'
-import { evaluateJourneyCondition, selectNextScreen } from './decision'
+import { validateJourneyBundle } from '../journey/bundle'
+import { evaluateJourneyCondition, selectNextScreen } from '../journey/decision'
 import { reconcileRemoteProgress } from './progress'
 
 export interface JourneyClientOptions {

@@ -1,6 +1,6 @@
 // Reconcile the progress the control plane remembers with the progress kept locally.
-import type { JourneyBundle, JourneyProgress } from './types'
-import { UUID } from './identifiers'
+import type { JourneyBundle, JourneyProgress } from '../types'
+import { UUID } from '../journey/identifiers'
 
 export function reconcileRemoteProgress(
   local: JourneyProgress,

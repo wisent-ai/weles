@@ -1,5 +1,5 @@
 // Journey storage in memory and in the browser's localStorage.
-import type { JourneyBundle, JourneyProgress } from './types'
+import type { JourneyBundle, JourneyProgress } from '../types'
 import type { JourneyRuntimeEvent, JourneyStorage } from './contracts'
 
 export class MemoryJourneyStorage implements JourneyStorage {

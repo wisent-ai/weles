@@ -1,5 +1,5 @@
 // The transport a journey client speaks to the control plane through, the storage it keeps its progress in, and the event and assignment shapes they exchange.
-import type { JourneyAssignment, JourneyBundle, JourneyEventName, JourneyProgress } from './types'
+import type { JourneyAssignment, JourneyBundle, JourneyEventName, JourneyProgress } from '../types'
 
 export interface JourneyTransport {
   readBundle(productId: string, journeyId: string, journeyVersion?: string): Promise<JourneyBundle>

@@ -1,10 +1,10 @@
-// Vendored from wisent-ai/onboarding-web@0d1289b src. Replaced by copying a newer
+// Vendored from wisent-ai/onboarding-web@6e13c7c src. Replaced by copying a newer
 // revision whole, never edited here.
 export * from './types'
-export * from './contracts'
-export { StadoJourneyTransport } from './transport'
-export { MemoryJourneyStorage, LocalStorageJourneyStorage } from './storage'
-export { validateJourneyBundle } from './bundle'
-export { evaluateJourneyCondition, selectNextScreen } from './decision'
-export { JourneyClient } from './client'
-export type { JourneyClientOptions } from './client'
+export * from './plane/contracts'
+export { StadoJourneyTransport } from './plane/transport'
+export { MemoryJourneyStorage, LocalStorageJourneyStorage } from './plane/storage'
+export { validateJourneyBundle } from './journey/bundle'
+export { evaluateJourneyCondition, selectNextScreen } from './journey/decision'
+export { JourneyClient } from './attempt/client'
+export type { JourneyClientOptions } from './attempt/client'

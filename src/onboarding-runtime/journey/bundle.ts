@@ -1,5 +1,5 @@
 // Whether a bundle is what it claims to be: identity, experiment contract, screen graph and content digest.
-import type { JourneyBundle, JourneyScreen, JourneyTransition } from './types'
+import type { JourneyBundle, JourneyScreen, JourneyTransition } from '../types'
 import { IDENTIFIER, SHA256, UUID } from './identifiers'
 import { canonical, sha256Text } from './canonical'
 

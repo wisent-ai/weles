@@ -1,5 +1,5 @@
 // Conditions over the evidence a journey has gathered, and the next screen they select.
-import type { JourneyCondition, JourneyDecision, JourneyDefinition, JourneyEvidence, JourneyScalar, JourneyScreen } from './types'
+import type { JourneyCondition, JourneyDecision, JourneyDefinition, JourneyEvidence, JourneyScalar, JourneyScreen } from '../types'
 
 function hasFact(evidence: JourneyEvidence, fact: string) {
   return Object.prototype.hasOwnProperty.call(evidence, fact) && evidence[fact] !== null

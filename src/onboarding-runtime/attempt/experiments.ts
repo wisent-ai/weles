@@ -1,6 +1,6 @@
 // Which experiment variant a subject sees on a surface, or the control when none can be assigned.
-import type { JourneyDefinition, JourneyProgress } from './types'
-import type { JourneyAssignmentInput, JourneyTransport } from './contracts'
+import type { JourneyDefinition, JourneyProgress } from '../types'
+import type { JourneyAssignmentInput, JourneyTransport } from '../plane/contracts'
 
 type AssignmentPlatform = JourneyAssignmentInput['platform']
 
