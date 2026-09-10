@@ -1,4 +1,3 @@
-// Vendored from wisent-ai/echo-web@82d46f43d65dd7435b9c0356ded164ede3e65da5 packages/onboarding-web/src.
 export type JourneyScalar = string | number | boolean | null
 export type JourneyEvidence = Readonly<Record<string, JourneyScalar | readonly JourneyScalar[]>>
 
