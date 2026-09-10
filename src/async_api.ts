@@ -7,8 +7,8 @@
 import { existsSync } from 'node:fs';
 import type { BrowserContext, LaunchOptions } from 'playwright';
 import { generate, toConfig } from './fingerprint.js';
-import { hostHardware, honestHostEnabled } from './host_hardware.js';
-import { pruneRecordings } from './prune.js';
+import { hostHardware, honestHostEnabled } from './runtime/host_hardware.js';
+import { pruneRecordings } from './runtime/prune.js';
 import { runRecordingsDir } from './session/run-recordings.js';
 import { findCustomBrowser } from './session/find_browser.js';
 import type { Persona } from './browser/persona.js';

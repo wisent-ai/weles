@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { homedir, hostname, userInfo } from 'node:os';
 import { join } from 'node:path';
-import journeyDefinition from './onboarding/journeys/weles-first-use-2026-09-05.1.json';
+import journeyDefinition from './journeys/weles-first-use-2026-09-05.1.json';
 import {
   JourneyClient,
   StadoJourneyTransport,
@@ -14,7 +14,7 @@ import {
   type JourneyRuntimeEvent,
   type JourneyStorage,
   type JourneyTransport,
-} from './onboarding-runtime';
+} from '../onboarding-runtime';
 
 const PRODUCT_ID = 'weles';
 const JOURNEY_ID = 'first-use';

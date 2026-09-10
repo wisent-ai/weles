@@ -4,7 +4,7 @@ import { basename, dirname, join } from 'node:path';
 import type { BrowserContext, BrowserContextOptions, LaunchOptions } from 'playwright';
 import type { AsyncNewBrowserOptions } from '../../async_api.js';
 import type { FingerprintConfig } from '../../fingerprint.js';
-import type { HostHardware } from '../../host_hardware.js';
+import type { HostHardware } from '../../runtime/host_hardware.js';
 
 export interface RuntimeFingerprintConfig extends FingerprintConfig {
   _honestHost?: HostHardware;

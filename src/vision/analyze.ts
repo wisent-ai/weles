@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { pruneRecordings } from '../prune.js';
+import { pruneRecordings } from '../runtime/prune.js';
 import { runRecordingsDir } from '../session/run-recordings.js';
 import { parseXY, parseElements, filterElements, centerCrop } from './escalation.js';
 import { callJeden } from '../agent/jeden.js';

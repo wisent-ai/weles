@@ -67,7 +67,7 @@ const { selectLoginAccount } = await import(`${REPO}/dist/utils/login-accounts.j
 const { readPrivateStadoObjectIdentity, uploadArtifacts } = await import(`${REPO}/dist/worker/upload-artifacts.js`);
 const { resolveBrowserEvidenceTarget, SPIS_BROWSER_EVIDENCE_POLICY } = await import(`${REPO}/dist/agent/browser-evidence-policy.js`);
 const { createPublicTaskService, publicTaskErrorResponse } = await import('./public-task-service.mjs');
-const { importWelesTrajectoryDocument } = await import(`${REPO}/dist/import.js`);
+const { importWelesTrajectoryDocument } = await import(`${REPO}/dist/runtime/import.js`);
 
 const {
   ALLOW_RAW_CREDS,

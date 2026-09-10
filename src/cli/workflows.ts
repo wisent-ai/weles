@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
-import { importWelesTrajectoryFile, type WelesImportReport } from '../import.js';
-import { runWelesOnboarding, type WelesOnboardingInput } from '../onboarding.js';
+import { importWelesTrajectoryFile, type WelesImportReport } from '../runtime/import.js';
+import { runWelesOnboarding, type WelesOnboardingInput } from '../onboarding/first-use.js';
 import type { ParsedCli } from '../cli.js';
 function readJsonFile(path: string, label: string): unknown {
   try {

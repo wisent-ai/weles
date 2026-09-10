@@ -11,7 +11,7 @@ export { CDPWeles, cdpNewBrowser } from './browser/api.js';
 export { generate, toConfig, toCppConfig } from './fingerprint.js';
 export { buildInitScript } from './page-init/loader.js';
 export { askPage, checkPage, identifyPage, findClickTarget, VisionRefusedError } from './vision/analyze.js';
-export { pruneRecordings } from './prune.js';
+export { pruneRecordings } from './runtime/prune.js';
 export { waitCloudflare, bypassCloudflare, isChallenged } from './cloudflare/challenge.js';
 export { Capture } from './capture/capture.js';
 export { SessionStore } from './session/store.js';
@@ -36,7 +36,7 @@ export { loadArtifactDeliveryClientConfig, requestSignedArtifactUrls } from './w
 export type { ArtifactDeliveryClientConfig } from './worker/artifact-delivery-client.js';
 export type { ArtifactLocatorSet, SignedArtifactResponse } from './worker/artifact-delivery.js';
 
-export { FileJourneyStorage, runWelesOnboarding, WELES_FIRST_USE_FALLBACK } from './onboarding.js';
-export type { WelesOnboardingInput, WelesOnboardingView } from './onboarding.js';
-export { importWelesTrajectoryDocument, importWelesTrajectoryFile } from './import.js';
-export type { WelesImportClientOptions, WelesImportItem, WelesImportReport } from './import.js';
+export { FileJourneyStorage, runWelesOnboarding, WELES_FIRST_USE_FALLBACK } from './onboarding/first-use.js';
+export type { WelesOnboardingInput, WelesOnboardingView } from './onboarding/first-use.js';
+export { importWelesTrajectoryDocument, importWelesTrajectoryFile } from './runtime/import.js';
+export type { WelesImportClientOptions, WelesImportItem, WelesImportReport } from './runtime/import.js';
