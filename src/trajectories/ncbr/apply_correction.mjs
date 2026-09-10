@@ -9,7 +9,7 @@ import { chromium } from 'playwright';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { loadPlan } from './correction/plan.mjs';
 import { fillPrepared, nestedFields, oneField, prepareFields, snapshotFields, verifyPrepared } from './correction/fields.mjs';
-import { closeDrawer, gotoSafe, identity, openRow, save } from './correction/ui.mjs';
+import { closeDrawer, gotoSafe, identity, openRow, openScope, save } from './correction/ui.mjs';
 
 const { plan, mode, projectUrl, planSha256 } = loadPlan();
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
@@ -39,7 +39,7 @@ try {
   report.identity = await identity(page, projectUrl, plan.project);
   retain('inspecting');
   for (const section of plan.sections.filter(selected)) {
-    await gotoSafe(page, section.url, projectUrl);
+    await openScope(page, section, projectUrl);
     const result = { scope: section.label, beforeFields: await snapshotFields(page) };
     results.push(result);
     if (mode === 'inspect') { retain('inspecting'); continue; }
@@ -47,9 +47,9 @@ try {
     retain('prepared');
     if (mode === 'apply' && result.fields.some((field) => field.before !== field.expected)) {
       await fillPrepared(page, result.fields);
-      await save(page, false, result.fields);
+      await save(page, false, result.fields, section.saveButton || null);
     }
-    await gotoSafe(page, section.url, projectUrl);
+    await openScope(page, section, projectUrl);
     await verifyPrepared(page, result.fields);
     result.afterFields = await snapshotFields(page);
     result.screenshot = join(reportDir, `section-${section.label.replace(/[^a-z0-9.-]/gi, '_')}.png`);

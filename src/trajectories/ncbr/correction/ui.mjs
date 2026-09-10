@@ -19,6 +19,15 @@ export async function gotoSafe(page, url, projectUrl) {
   }, forbidden.source);
 }
 
+// Some project pages (the KPW recommendations page) keep their fields behind a tab that must be opened after navigation.
+export async function openScope(page, scope, projectUrl) {
+  await gotoSafe(page, scope.url, projectUrl);
+  if (scope.tab) {
+    await clickSafe(page.getByText(scope.tab, { exact: true }).filter({ visible: true }).first(), scope.tab);
+    await humanIdlePause('long');
+  }
+}
+
 export async function clickSafe(locator, label) {
   if (forbidden.test(label)) throw new Error(`Refusing submission control: ${label}`);
   await locator.waitFor({ state: 'visible' });
@@ -61,12 +70,14 @@ export async function closeDrawer(page) {
   if (await close.count()) await clickSafe(close.last(), 'close side drawer');
 }
 
-export async function save(page, collection = false, expected = []) {
+export async function save(page, collection = false, expected = [], saveButton = null) {
   const selector = collection ? '#collection-obj-form-save-btn' : '#section-form-save-btn';
-  const button = page.locator(selector).filter({ visible: true });
+  const button = saveButton
+    ? page.getByRole('button', { name: saveButton, exact: true }).filter({ visible: true })
+    : page.locator(selector).filter({ visible: true });
   const [response] = await Promise.all([
     page.waitForResponse((candidate) => candidate.request().method() !== 'GET' && candidate.url().includes('/api/beneficiary/')),
-    clickSafe(button, 'Zapisz'),
+    clickSafe(button, saveButton || 'Zapisz'),
   ]);
   const body = await response.text();
   if (!response.ok()) throw new Error(`Save rejected: ${response.status()} ${body}`);
@@ -75,10 +86,12 @@ export async function save(page, collection = false, expected = []) {
   if (missing.length) throw new Error(`Save request omitted ${missing.map((field) => field.name).join(', ')}: ${sent.slice(0, 4000)}`);
   // The accepted response and the post-reload verification prove the save; the toast can vanish before it is observed.
   await page.getByText('Zapisano dane', { exact: true }).waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
-  await page.waitForFunction((selector) => {
-    const element = document.querySelector(selector);
+  await page.waitForFunction(({ selector, label }) => {
+    const element = label
+      ? Array.from(document.querySelectorAll('button')).find((candidate) => candidate.textContent.trim() === label)
+      : document.querySelector(selector);
     return !element || element.disabled || !element.getClientRects().length;
-  }, selector);
+  }, { selector, label: saveButton });
   if (collection) {
     await closeDrawer(page);
     const parent = page.locator('#section-form-save-btn').filter({ visible: true });

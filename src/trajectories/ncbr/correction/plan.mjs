@@ -27,7 +27,12 @@ export function loadPlan() {
   if (!Array.isArray(plan.sections) || !Array.isArray(plan.collections)) throw new Error('sections and collections must be arrays');
   const projectUrl = `${origin}/projekt/${project.id}`;
   for (const scope of [...plan.sections, ...plan.collections]) {
-    if (!scope.url?.startsWith(`${projectUrl}/projekt_step/`)) throw new Error(`unsafe section URL: ${scope.url}`);
+    const recommendations = scope.url === `${projectUrl}/recomendations`;
+    if (!recommendations && !scope.url?.startsWith(`${projectUrl}/projekt_step/`)) throw new Error(`unsafe section URL: ${scope.url}`);
+    // On the KPW page only the applicant's "Wyjaśnienia dot. braku poprawy" fields are writable; the reviewer's text never is.
+    if (recommendations && (scope.fields || []).some((field) => !String(field.name || '').endsWith('.beneficiaryExplanation'))) {
+      throw new Error(`${scope.label}: only beneficiaryExplanation fields may be written on the recommendations page`);
+    }
     for (const row of scope.rows || []) {
       if (!row.rowNeedle || !row.matchField || !row.matchNeedle) throw new Error(`incomplete row identity in ${scope.label}`);
     }
