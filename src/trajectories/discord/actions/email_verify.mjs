@@ -18,7 +18,7 @@
 //      tracking redirect and matching one that lands on
 //      discord.com/verify#token=...
 //   7. Navigate the WSession to the verify URL.
-import { updateAccountMetadata } from '../../_shared/skarbiec_accounts.mjs';
+import { updateAccountMetadata } from '../../_shared/skarbiec/accounts.mjs';
 //   8. Wait for the "Email Verified!" text on the page.
 //   9. Persist metadata.email_verified_at = ISO timestamp.
 

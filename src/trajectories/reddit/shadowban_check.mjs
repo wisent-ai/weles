@@ -21,7 +21,7 @@ import { probeShadowban } from '../../../dist/platforms/reddit/shadowban_probe.j
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
-import { updateAccountMetadata } from '../_shared/skarbiec_accounts.mjs';
+import { updateAccountMetadata } from '../_shared/skarbiec/accounts.mjs';
 
 const acct = await getSocialAccount('reddit');
 if (!acct) { console.log('FAIL: no active reddit account'); process.exit(1); }

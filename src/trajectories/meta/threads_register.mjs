@@ -1,6 +1,6 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { injectProviderCookies } from '../../../dist/platforms/_shared/cross_platform_oauth.js';
-import { listAccounts } from '../_shared/skarbiec_accounts.mjs';
+import { listAccounts } from '../_shared/skarbiec/accounts.mjs';
 
 async function findUsableInstagramAccount() {
   const rows = listAccounts('instagram');

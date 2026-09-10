@@ -13,7 +13,7 @@ import {
   handleOAuthConsent,
   waitForNavBackTo,
 } from '../../../dist/platforms/_shared/cross_platform_oauth.js';
-import { persistFreshCookieJar } from '../_shared/cookie-freshness.mjs';
+import { persistFreshCookieJar } from '../_shared/auth/cookie-freshness.mjs';
 
 const URL = 'https://www.threads.net/login';
 

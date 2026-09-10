@@ -4,7 +4,7 @@ import { randomBytes } from 'node:crypto';
 import { WSession } from '../../../dist/session/wsession.js';
 import { CaptchaSolver } from '../../../dist/captcha/solver.js';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
-import { writeServiceCredentials } from '../_shared/skarbiec_accounts.mjs';
+import { writeServiceCredentials } from '../_shared/skarbiec/accounts.mjs';
 
 // SadCaptcha rejects gmail aliases; use a fresh wisentmedia.com mailbox instead.
 const EMAIL = `svc.sad.${randomBytes(3).toString('hex')}@wisentmedia.com`;

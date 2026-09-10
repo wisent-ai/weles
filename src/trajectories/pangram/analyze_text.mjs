@@ -16,7 +16,7 @@ import { clickAnalyze, dismissCookieBanner, fillInput, readVisibleCreditState } 
 import { waitForPublicVerificationIfNeeded } from './analyze_text/dashboard/human_verification.mjs';
 import { injectCookies, markAccountExhausted, recordAccountUse, selectPangramAccountForRun } from './analyze_text/account/pool_rotation.mjs';
 import { autoRegisterCountToday, autoRegisterPangramAccount, maxAccountAttempts, maxAutoRegisters, readAutoRegisterLedger, registerAfterCreditFailures } from './analyze_text/account/auto_registration.mjs';
-import { CookieJarStaleError } from '../_shared/cookie-freshness.mjs';
+import { CookieJarStaleError } from '../_shared/auth/cookie-freshness.mjs';
 
 const text = inputText();
 if (!text.trim()) {

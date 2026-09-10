@@ -66,7 +66,7 @@ if (engagement) {
     // Imported here, not at the top: reading a vault record resolves the
     // attested Skarbiec binary through Stado while the module loads, and a
     // declared engagement replays a reviewed trajectory without any of that.
-    const { readWelesRecord } = await import('../_shared/skarbiec_accounts.mjs');
+    const { readWelesRecord } = await import('../_shared/skarbiec/accounts.mjs');
     const document = readWelesRecord(trajectoryItem);
     if (document.context?.status !== 'active') throw new Error(`saved trajectory is not active: ${trajectoryItem}`);
     const fields = document.fields ?? {};

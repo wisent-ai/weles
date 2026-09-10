@@ -22,8 +22,8 @@ import {
   handleOAuthConsent,
   waitForNavBackTo,
 } from '../../../../dist/platforms/_shared/cross_platform_oauth.js';
-import { assertAuthed, AuthProbeError } from '../auth-probe.mjs';
-import { persistFreshCookieJar } from '../cookie-freshness.mjs';
+import { assertAuthed, AuthProbeError } from '../auth/auth-probe.mjs';
+import { persistFreshCookieJar } from '../auth/cookie-freshness.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { humanIdlePause } from '../../../../dist/human/mouse.js';

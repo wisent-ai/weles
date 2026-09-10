@@ -1,5 +1,5 @@
 import { selectLoginAccount, readLoginMaterial, persistSubscriptionGrant } from '../../../../dist/utils/login-accounts.js';
-import { requireCapabilities } from '../reauth_config.mjs';
+import { requireCapabilities } from '../auth/reauth_config.mjs';
 import { beginOAuth, finishOAuth, AuthenticationFailure } from './oauth.mjs';
 import { authorizeInBrowser } from './browser.mjs';
 

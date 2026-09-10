@@ -16,7 +16,7 @@ import { runOutputPath } from '#run-output';
 import { WSession } from '../../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 import { getSocialAccount, resolveAccountSession } from '../../../../../dist/utils/credentials.js';
-import { updateAccountMetadata } from '../../../_shared/skarbiec_accounts.mjs';
+import { updateAccountMetadata } from '../../../_shared/skarbiec/accounts.mjs';
 
 const ACCT_USERNAME = process.env.ACCOUNT_USERNAME;
 const ACCEPT_LIMIT = parseInt(process.env.ACCEPT_LIMIT || '3', 10);

@@ -2,8 +2,8 @@ import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../..
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
-import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
-import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
+import { assertAuthed, AuthProbeError } from '../../_shared/auth/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/auth/cookie-freshness.mjs';
 
 // Reddit messaging surfaces:
 //   * legacy PM at old.reddit.com/message/compose — subject + body, persistent,

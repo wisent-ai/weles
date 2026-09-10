@@ -5,7 +5,7 @@
 // caller asked for is an error, not a substitution; a page with no labelled
 // balance returns nothing rather than the first price it happened to show.
 import { readScopedLogin } from '../../../../_shared/scoped-secrets.mjs';
-import { findWelesRecordId, updateWelesRecord } from '../../skarbiec_accounts.mjs';
+import { findWelesRecordId, updateWelesRecord } from '../../skarbiec/accounts.mjs';
 
 export function parseBalanceFromText(text) {
   // Require a "Balance:" / "Credits:" / "Wallet:" / "Funds:" labelled

@@ -5,7 +5,7 @@ import { detectInstagramBanSignals } from '../../../../dist/platforms/instagram/
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
-import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
+import { assertAuthed, AuthProbeError } from '../../_shared/auth/auth-probe.mjs';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 const acct = await getSocialAccount('instagram');

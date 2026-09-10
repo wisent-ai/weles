@@ -1,5 +1,5 @@
 import { runAction } from '../../_shared/action-runner.mjs';
-import { githubSubmitIssueComment } from '../../_shared/github-submit.mjs';
+import { githubSubmitIssueComment } from '../submit.mjs';
 import { detectGitHubBanSignals } from '../../../../dist/platforms/github/ban_signals.js';
 
 const ISSUE_URL = process.env.ISSUE_URL;

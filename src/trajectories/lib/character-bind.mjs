@@ -5,7 +5,7 @@ import {
   listAccounts,
   readWelesRecord,
   updateAccountMetadata,
-} from '../_shared/skarbiec_accounts.mjs';
+} from '../_shared/skarbiec/accounts.mjs';
 
 export async function autoBindCharacter(username, platform) {
   const account = findAccount(platform, username);

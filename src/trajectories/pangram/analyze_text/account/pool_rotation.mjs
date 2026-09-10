@@ -7,8 +7,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { getSocialAccount, markCookiesStale, resolveAccountSession } from '../../../../../dist/utils/credentials.js';
 import { LABEL } from '../scan_brief.mjs';
-import { CookieJarStaleError, loadFreshCookieJarOrFail } from '../../../_shared/cookie-freshness.mjs';
-import { listAccounts } from '../../../_shared/skarbiec_accounts.mjs';
+import { CookieJarStaleError, loadFreshCookieJarOrFail } from '../../../_shared/auth/cookie-freshness.mjs';
+import { listAccounts } from '../../../_shared/skarbiec/accounts.mjs';
 
 export function todayKey() {
   return new Date().toISOString().slice(0, 10);

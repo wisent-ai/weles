@@ -10,7 +10,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { humanMove, humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
 import { autoBindCharacter } from '../lib/character-bind.mjs';
-import { findAccount } from '../_shared/skarbiec_accounts.mjs';
+import { findAccount } from '../_shared/skarbiec/accounts.mjs';
 
 const URL = 'https://www.reddit.com/register';
 

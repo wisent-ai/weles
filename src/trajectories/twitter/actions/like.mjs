@@ -1,8 +1,8 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
-import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
-import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
+import { assertAuthed, AuthProbeError } from '../../_shared/auth/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/auth/cookie-freshness.mjs';
 
 const HOME_URL = 'https://x.com/home';
 
@@ -14,7 +14,7 @@ const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'twitter_like', proxy: proxyUrl, persona });
 
 try {
-  // Cookie freshness gate — see _shared/cookie-freshness.mjs.
+  // Cookie freshness gate — see _shared/auth/cookie-freshness.mjs.
   let prepared;
   try {
     const all = loadFreshCookieJarOrFail(acct, { platform: 'twitter', label: 'twitter_like', currentProxyUrl: proxyUrl, currentPersona: persona });
@@ -35,7 +35,7 @@ try {
   // Positive auth probe — auth_token in jar ≠ session is real. Twitter
   // serves a logged-out shell on x.com/home for cookie-injected sessions
   // it doesn't trust. URL doesn't bounce, but compose / DM / profile
-  // links are absent. See _shared/auth-probe.mjs.
+  // links are absent. See _shared/auth/auth-probe.mjs.
   try {
     await assertAuthed('twitter', s, { label: 'twitter_like' });
   } catch (probeErr) {

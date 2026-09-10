@@ -6,7 +6,7 @@ import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js'
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
-import { persistFreshCookieJar } from '../_shared/cookie-freshness.mjs';
+import { persistFreshCookieJar } from '../_shared/auth/cookie-freshness.mjs';
 import { solveLinkedinCheckpoint, injectV3LoginToken, confirmLinkedinEmail } from '../_shared/linkedin/checkpoint.mjs';
 import { captureLinkedinPxStorage, restoreLinkedinPxStorage } from '../_shared/linkedin/px_storage.mjs';
 import { pageHasLoginForm, freshProviderUrl, PROVIDER_ROTATION, gotoLoginRotating } from '../_shared/linkedin/proxy_rotation.mjs';

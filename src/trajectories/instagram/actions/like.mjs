@@ -1,8 +1,8 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
-import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
-import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
+import { assertAuthed, AuthProbeError } from '../../_shared/auth/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/auth/cookie-freshness.mjs';
 
 const TARGET_URL = process.env.TARGET_URL || 'https://www.instagram.com/explore/';
 
@@ -14,7 +14,7 @@ const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'instagram_like', proxy: proxyUrl, persona });
 
 try {
-  // Cookie freshness gate — see _shared/cookie-freshness.mjs.
+  // Cookie freshness gate — see _shared/auth/cookie-freshness.mjs.
   let stored;
   try {
     const all = loadFreshCookieJarOrFail(acct, { platform: 'instagram', label: 'instagram_like', currentProxyUrl: proxyUrl, currentPersona: persona });
@@ -30,7 +30,7 @@ try {
   await humanIdlePause('long');
   const url = s.page.url();
   if (/\/accounts\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); await markCookiesStale(acct.id); process.exitCode = 1; }
-  // Positive auth probe — see _shared/auth-probe.mjs.
+  // Positive auth probe — see _shared/auth/auth-probe.mjs.
   try { await assertAuthed('instagram', s, { label: 'instagram_like' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exitCode = 1; } throw probeErr; }
 

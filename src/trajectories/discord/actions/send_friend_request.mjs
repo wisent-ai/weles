@@ -18,7 +18,7 @@
 
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
-import { updateAccountMetadata } from '../../_shared/skarbiec_accounts.mjs';
+import { updateAccountMetadata } from '../../_shared/skarbiec/accounts.mjs';
 import { humanFill } from '../../../../dist/human/keyboard.js';
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 

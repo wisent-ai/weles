@@ -21,7 +21,7 @@ import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
-import { updateAccountMetadata } from '../../_shared/skarbiec_accounts.mjs';
+import { updateAccountMetadata } from '../../_shared/skarbiec/accounts.mjs';
 
 const ACCT_USERNAME = process.env.ACCOUNT_USERNAME;
 const NEW_DISPLAY = process.env.DISCORD_NEW_DISPLAY_NAME;

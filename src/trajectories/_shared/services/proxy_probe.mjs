@@ -13,7 +13,7 @@
 // auto-topup decisions on EFFECTIVE balance, not aspirational balance.
 
 import net from 'node:net';
-import { findProxyByDisplayName, persistProxyContext } from '../skarbiec_proxies.mjs';
+import { findProxyByDisplayName, persistProxyContext } from '../skarbiec/proxies.mjs';
 
 // CONNECT a known endpoint (api.ipify.org:443) through the proxy and report
 // the proxy's response code. 200 = auth accepted; 407 = auth rejected (no

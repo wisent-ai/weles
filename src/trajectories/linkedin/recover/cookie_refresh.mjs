@@ -6,7 +6,7 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
-import { readAccount, updateAccountMetadata } from '../../_shared/skarbiec_accounts.mjs';
+import { readAccount, updateAccountMetadata } from '../../_shared/skarbiec/accounts.mjs';
 
 const ACCOUNT_ITEM = process.env.WELES_LOGIN_ITEM || process.env.ACCOUNT_ITEM;
 if (!ACCOUNT_ITEM) { console.log('FAIL: WELES_LOGIN_ITEM required'); process.exit(1); }

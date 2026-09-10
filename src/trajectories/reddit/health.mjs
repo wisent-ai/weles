@@ -13,7 +13,7 @@ import { detectRedditBanSignals } from '../../../dist/platforms/reddit/ban_signa
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
-import { replaceAccountMetadata } from '../_shared/skarbiec_accounts.mjs';
+import { replaceAccountMetadata } from '../_shared/skarbiec/accounts.mjs';
 
 const acct = await getSocialAccount('reddit');
 if (!acct) { console.log('FAIL: no active reddit account in Skarbiec'); process.exit(1); }

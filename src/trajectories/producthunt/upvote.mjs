@@ -1,9 +1,9 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { markCookiesStale } from '../../../dist/utils/credentials.js';
-import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
-import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/cookie-freshness.mjs';
+import { assertAuthed, AuthProbeError } from '../_shared/auth/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/auth/cookie-freshness.mjs';
 import { loginViaTwitter } from './_session.mjs';
-import { listAccounts } from '../_shared/skarbiec_accounts.mjs';
+import { listAccounts } from '../_shared/skarbiec/accounts.mjs';
 
 // Upvote a Product Hunt product. Pass PRODUCTHUNT_URL=https://www.producthunt.com/products/<slug>
 // to vote on a specific product; otherwise the trajectory upvotes the first product
@@ -106,7 +106,7 @@ async function vote(s) {
   const acct = await findProductHuntAccount();
   if (!acct) throw new Error('no_producthunt_account_in_db');
 
-  // Cookie-jar freshness gate — see _shared/cookie-freshness.mjs. On stale,
+  // Cookie-jar freshness gate — see _shared/auth/cookie-freshness.mjs. On stale,
   // skip injection and route through loginViaTwitter SSO recovery, matching
   // the same recovery shape profile.mjs and comment.mjs already use.
   let cookies = [];

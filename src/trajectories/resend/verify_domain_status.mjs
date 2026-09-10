@@ -18,7 +18,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { promises as dnsp } from 'node:dns';
 import { enqueueWelesAction } from '../../_shared/stado-action-queue.mjs';
-import { writeDomainStatus } from '../_shared/skarbiec_accounts.mjs';
+import { writeDomainStatus } from '../_shared/skarbiec/accounts.mjs';
 
 const RK = process.env.RESEND_API_KEY || '';
 const RRK = process.env.RESEND_RECEIVING_API_KEY || RK;

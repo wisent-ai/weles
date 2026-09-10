@@ -20,7 +20,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
-import { findAccount, readAccount, updateAccountMetadata } from '../../_shared/skarbiec_accounts.mjs';
+import { findAccount, readAccount, updateAccountMetadata } from '../../_shared/skarbiec/accounts.mjs';
 import { launchProfileChrome } from '../../../browser/real_chrome.mjs';
 
 

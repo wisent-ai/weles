@@ -17,7 +17,7 @@
 //   rc::*         — reCAPTCHA Enterprise client state
 //   _grecaptcha   — grecaptcha enterprise marker
 
-import { updateAccountMetadata } from '../skarbiec_accounts.mjs';
+import { updateAccountMetadata } from '../skarbiec/accounts.mjs';
 
 const PX_LS_KEY_RE = /^(PXdOjV695v_|_pxvid|pxsid|_?px_|rc::|_grecaptcha)/;
 

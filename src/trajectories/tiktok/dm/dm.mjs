@@ -2,8 +2,8 @@ import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../..
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
-import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
-import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
+import { assertAuthed, AuthProbeError } from '../../_shared/auth/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/auth/cookie-freshness.mjs';
 
 const RECIPIENT = (process.env.RECIPIENT_HANDLE || 'wisent.ai').replace(/^@/, '');
 const MESSAGE = process.env.DM_MESSAGE || 'Hello from weles agent';

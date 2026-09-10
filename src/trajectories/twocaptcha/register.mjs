@@ -3,7 +3,7 @@
 import { randomBytes } from 'node:crypto';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
-import { writeServiceCredentials } from '../_shared/skarbiec_accounts.mjs';
+import { writeServiceCredentials } from '../_shared/skarbiec/accounts.mjs';
 
 const REGISTER_URL = 'https://2captcha.com/auth/register';
 const RECAPTCHA_SITEKEY = '6Lfo9qojAAAAAPqqMn9QlAY2RBSVuEW63vDJ442M';

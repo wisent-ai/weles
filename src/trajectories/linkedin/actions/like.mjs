@@ -5,7 +5,7 @@ import { detectLinkedInBanSignals } from '../../../../dist/platforms/linkedin/ba
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
-import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
+import { assertAuthed, AuthProbeError } from '../../_shared/auth/auth-probe.mjs';
 import { reloginLinkedinInline } from '../../_shared/linkedin/relogin.mjs';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 

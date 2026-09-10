@@ -146,7 +146,7 @@ async function topbarHandle(s) {
   }).catch(() => null);
 }
 
-import { findAccount, listAccounts, updateAccountMetadata } from '../_shared/skarbiec_accounts.mjs';
+import { findAccount, listAccounts, updateAccountMetadata } from '../_shared/skarbiec/accounts.mjs';
 
 // Pick a Twitter account suitable for SSO into a fresh PH registration.
 // Prefers Twitter accounts whose username is NOT already linked to any PH

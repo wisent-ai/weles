@@ -5,7 +5,7 @@
 // context and returns resultValue. Mutations stay on s; nothing else is
 // shared cross-action.
 
-import { generateOrganicComment, generatePromoteComment, generatePost } from '../llm.mjs';
+import { generateOrganicComment, generatePromoteComment, generatePost } from '../content/llm.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { humanIdlePause, humanScroll } from '../../../../dist/human/mouse.js';

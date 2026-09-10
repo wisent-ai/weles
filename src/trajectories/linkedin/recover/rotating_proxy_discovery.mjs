@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 import { generatePersona } from '../../../../dist/browser/persona.js';
 import { probeLinkedinSignup, verifyExitCountry, verifyExitReputation } from '../../../../dist/proxy/policy.js';
-import { listProxies } from '../../_shared/skarbiec_proxies.mjs';
+import { listProxies } from '../../_shared/skarbiec/proxies.mjs';
 
 const OUT = runRecordingsDir('linkedin_rotating_proxy_discovery');
 const WORK = join(process.cwd(), '.work', 'linkedin_rotating_proxy_discovery');

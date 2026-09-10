@@ -2,7 +2,7 @@ import { getSocialAccount } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
-import { persistFreshCookieJar } from '../_shared/cookie-freshness.mjs';
+import { persistFreshCookieJar } from '../_shared/auth/cookie-freshness.mjs';
 
 const URL = 'https://accounts.snapchat.com/accounts/login';
 

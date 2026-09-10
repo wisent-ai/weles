@@ -5,9 +5,9 @@ import { humanType } from '../../../dist/human/keyboard.js';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { persistFreshCookieJar } from '../_shared/cookie-freshness.mjs';
+import { persistFreshCookieJar } from '../_shared/auth/cookie-freshness.mjs';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
-import { replaceAccountMetadata } from '../_shared/skarbiec_accounts.mjs';
+import { replaceAccountMetadata } from '../_shared/skarbiec/accounts.mjs';
 
 const URL = 'https://www.reddit.com/login';
 
@@ -41,7 +41,7 @@ try {
   // Cookie-first removed — reddit serves www.reddit.com/ to logged-out
   // users too, so URL-didn't-bounce-to-/login was a false-positive PASS.
   // Login always means form login now. Action trajectories use
-  // assertAuthed() from _shared/auth-probe.mjs.
+  // assertAuthed() from _shared/auth/auth-probe.mjs.
   await s.goto(URL);
   const earlySignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
   if (earlySignal?.signal === 'ip_blocked') {

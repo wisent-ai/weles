@@ -21,7 +21,7 @@ import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { parseAccessibilityAuditParams } from '../../../dist/worker/params/capture-params.js';
 import {
   captureKeyPrefix, planFromEnv, startCaptureSession, uploadCaptureObject, welesVersion,
-} from '../_shared/capture-runtime.mjs';
+} from '../_shared/runner/capture-runtime.mjs';
 
 const label = 'generic_accessibility_audit';
 const AXE_SOURCE_PATH = new URL('../../../vendor/axe-core/axe.min.js', import.meta.url).pathname;

@@ -81,9 +81,9 @@ const EXEMPT_FILES = [
   // The fingerprint diagnostic; needs raw API access intentionally.
   '../diag/fingerprint_audit.mjs',
   // Captcha solvers operate inside Arkose/hCaptcha frames — not account-facing.
-  'github/_audio_solver.mjs',
-  'github/_coords_solver.mjs',
-  'github/_funcaptcha.mjs',
+  'github/captcha/audio_solver.mjs',
+  'github/captcha/coords_solver.mjs',
+  'github/captcha/funcaptcha.mjs',
 ];
 
 function isExempt(rel) {

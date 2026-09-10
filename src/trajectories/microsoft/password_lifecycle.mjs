@@ -12,7 +12,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { humanFill, humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
-import { persistFreshCookieJar } from '../_shared/cookie-freshness.mjs';
+import { persistFreshCookieJar } from '../_shared/auth/cookie-freshness.mjs';
 
 const MICROSOFT_PASSWORD_ID = /^weles-microsoft-[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?-password$/;
 const PASSWORD_FIELD = 'password';

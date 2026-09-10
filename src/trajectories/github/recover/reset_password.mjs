@@ -13,7 +13,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
-import { updateAccountPassword } from '../../_shared/skarbiec_accounts.mjs';
+import { updateAccountPassword } from '../../_shared/skarbiec/accounts.mjs';
 
 const acct = await getSocialAccount('github');
 if (!acct) { console.log('FAIL: no active github account'); process.exit(1); }

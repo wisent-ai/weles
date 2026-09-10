@@ -74,8 +74,8 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
 
     // 5. Arkose / "Press and Hold" captcha. Microsoft is moving from a
     // visual-puzzle Arkose to a per-puzzle "press and hold" challenge that
-    // Capsolver can solve via funcaptcha solver (same pattern as github
-    // /_funcaptcha.mjs). For now, surface a deterministic blocker so the
+    // Capsolver can solve via funcaptcha solver (same pattern as
+    // github/captcha/funcaptcha.mjs). For now, surface a deterministic blocker so the
     // operator can plug in the solver path if needed.
     const arkose = await s.page.locator('iframe[src*="arkoselabs.com"], iframe[src*="enforcement.arkoselabs"], #enforcementFrame').first().isVisible().catch(() => false);
     if (arkose) {

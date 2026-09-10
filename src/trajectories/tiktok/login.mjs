@@ -2,7 +2,7 @@ import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/cre
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
-import { persistFreshCookieJar } from '../_shared/cookie-freshness.mjs';
+import { persistFreshCookieJar } from '../_shared/auth/cookie-freshness.mjs';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
 const PASSWORD_URL = 'https://www.tiktok.com/login/phone-or-email/email?lang=en';

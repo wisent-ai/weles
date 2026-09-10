@@ -2,7 +2,7 @@ import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/cre
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanFill } from '../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
-import { persistFreshCookieJar } from '../_shared/cookie-freshness.mjs';
+import { persistFreshCookieJar } from '../_shared/auth/cookie-freshness.mjs';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
 const LOGIN_URL = 'https://x.com/i/flow/login';
@@ -26,7 +26,7 @@ async function captureCookies() {
 }
 
 // REMOVED tryCookieFirstLogin — cookies-as-login is a false-positive
-// generator. See _shared/auth-probe.mjs for the rationale. Login always
+// generator. See _shared/auth/auth-probe.mjs for the rationale. Login always
 // means form login now; action trajectories use assertAuthed() to verify
 // a real authed session before doing anything.
 async function _removedCookieFirstLogin_doNotReintroduce() {

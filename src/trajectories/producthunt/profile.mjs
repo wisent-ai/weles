@@ -1,8 +1,8 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../dist/utils/credentials.js';
 import { injectPHCookies, loginViaTwitter } from './_session.mjs';
-import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
-import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/cookie-freshness.mjs';
+import { assertAuthed, AuthProbeError } from '../_shared/auth/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/auth/cookie-freshness.mjs';
 
 // Fill a Product Hunt user profile (headline, about, location, website).
 
@@ -15,7 +15,7 @@ const LOCATION = process.env.PH_LOCATION || 'Remote';
 const WEBSITE = process.env.PH_WEBSITE || '';
 
 async function fillProfile(s, acct, sessionMeta) {
-  // Cookie-jar freshness gate — see _shared/cookie-freshness.mjs. Skip
+  // Cookie-jar freshness gate — see _shared/auth/cookie-freshness.mjs. Skip
   // injection on stale; loginViaTwitter recovers below.
   let cookies = [];
   try {

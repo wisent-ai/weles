@@ -1,5 +1,5 @@
 import { runAction } from '../../_shared/action-runner.mjs';
-import { twitterSubmitPost } from '../../_shared/twitter-submit.mjs';
+import { twitterSubmitPost } from '../submit.mjs';
 import { detectTwitterBanSignals } from '../../../../dist/platforms/twitter/ban_signals.js';
 
 // action-runner dispatches on cfg.action: 'post' (organic) or 'post_promote'

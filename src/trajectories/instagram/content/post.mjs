@@ -13,13 +13,13 @@ import { WSession } from '../../../../dist/session/wsession.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { detectInstagramBanSignals } from '../../../../dist/platforms/instagram/ban_signals.js';
-import { generatePost } from '../../_shared/llm.mjs';
-import { generateImageFile } from '../../_shared/media.mjs';
+import { generatePost } from '../../_shared/content/llm.mjs';
+import { generateImageFile } from '../../_shared/content/media.mjs';
 import { writeFileSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
-import { accountCharacter, findAccount, findProduct } from '../../_shared/skarbiec_accounts.mjs';
+import { accountCharacter, findAccount, findProduct } from '../../_shared/skarbiec/accounts.mjs';
 
 const ACTION = process.env.POST_PROMOTE === '1' ? 'post_promote' : 'post';
 

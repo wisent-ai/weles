@@ -4,7 +4,7 @@
 // SAME WSession (rather than dying + queueing a routine tick that lands
 // on a different proxy sticky and re-burns).
 
-import { assertAuthed, AuthProbeError } from '../auth-probe.mjs';
+import { assertAuthed, AuthProbeError } from '../auth/auth-probe.mjs';
 import { humanIdlePause } from '../../../../dist/human/mouse.js';
 
 const AUTH_WALL_RE = /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login)\b/;

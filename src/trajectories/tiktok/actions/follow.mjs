@@ -5,8 +5,8 @@ import { detectTikTokBanSignals } from '../../../../dist/platforms/tiktok/ban_si
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
-import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
-import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
+import { assertAuthed, AuthProbeError } from '../../_shared/auth/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/auth/cookie-freshness.mjs';
 import { markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
@@ -19,7 +19,7 @@ const acct = await getSocialAccount('tiktok');
 if (!acct) { console.log('FAIL: no active tiktok account'); process.exit(1); }
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'tiktok_follow', proxy: proxyUrl, persona });
-// Cookie freshness gate — see _shared/cookie-freshness.mjs.
+// Cookie freshness gate — see _shared/auth/cookie-freshness.mjs.
 let _stored;
 try {
   const _all = loadFreshCookieJarOrFail(acct, { platform: 'tiktok', label: 'tiktok_follow', currentProxyUrl: proxyUrl, currentPersona: persona });
@@ -36,7 +36,7 @@ try {
   checkReachable(s, 'tiktok');
   await humanIdlePause('deliberate');
   // Positive auth probe — cookies in jar ≠ TikTok server trusts session.
-  // See _shared/auth-probe.mjs.
+  // See _shared/auth/auth-probe.mjs.
   try { await assertAuthed('tiktok', s, { label: 'tiktok_follow' }); }
   catch (probeErr) {
     if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); }

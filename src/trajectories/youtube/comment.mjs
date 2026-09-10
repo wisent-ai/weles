@@ -2,8 +2,8 @@ import { getSocialAccount, markCookiesStale } from '../../../dist/utils/credenti
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
-import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
-import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/cookie-freshness.mjs';
+import { assertAuthed, AuthProbeError } from '../_shared/auth/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/auth/cookie-freshness.mjs';
 
 const VIDEO = process.env.VIDEO_URL || 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
 const COMMENT = process.env.COMMENT_TEXT || 'Great video!';
@@ -17,7 +17,7 @@ try {
   // Cookie injection — youtube_login persists Google + youtube cookies; this
   // trajectory assumes a previously-authenticated account. If logged out we
   // throw, since the YT comment form refuses anonymous submissions.
-  // Cookie freshness gate — see _shared/cookie-freshness.mjs.
+  // Cookie freshness gate — see _shared/auth/cookie-freshness.mjs.
   let stored;
   try {
     stored = loadFreshCookieJarOrFail(acct, { platform: 'youtube', label: 'youtube_comment', currentProxyUrl: proxyUrl, currentPersona: persona });
@@ -31,7 +31,7 @@ try {
   await humanIdlePause('deliberate');
   const loggedOut = await s.page.evaluate(() => !!document.querySelector('a[href^="https://accounts.google.com/ServiceLogin"]') && !document.querySelector('img#avatar-btn'));
   if (loggedOut) { await markCookiesStale(acct.id); throw new Error('not_logged_in: cookies stale — run youtube_login first'); }
-  // Positive auth probe — see _shared/auth-probe.mjs.
+  // Positive auth probe — see _shared/auth/auth-probe.mjs.
   try { await assertAuthed('youtube', s, { label: 'youtube_comment' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
 

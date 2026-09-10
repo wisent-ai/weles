@@ -1,8 +1,8 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
-import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
-import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
+import { assertAuthed, AuthProbeError } from '../../_shared/auth/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/auth/cookie-freshness.mjs';
 
 const TARGET_HANDLE = 'elonmusk';
 const TARGET_URL = `https://x.com/${TARGET_HANDLE}`;
@@ -15,7 +15,7 @@ const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'twitter_follow', proxy: proxyUrl, persona });
 
 try {
-  // Cookie freshness gate — see _shared/cookie-freshness.mjs.
+  // Cookie freshness gate — see _shared/auth/cookie-freshness.mjs.
   let prepared;
   try {
     const all = loadFreshCookieJarOrFail(acct, { platform: 'twitter', label: 'twitter_follow', currentProxyUrl: proxyUrl, currentPersona: persona });
@@ -40,7 +40,7 @@ try {
   await s.page.locator(`[data-testid$="-follow"][aria-label*="${TARGET_HANDLE}"], [data-testid$="-unfollow"][aria-label*="${TARGET_HANDLE}"]`).first().waitFor({ state: 'visible', timeout: 30000 }).catch(() => {});
   const url = s.page.url();
   if (/\/i\/flow\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); await markCookiesStale(acct.id); process.exitCode = 1; }
-  // Positive auth probe — see _shared/auth-probe.mjs.
+  // Positive auth probe — see _shared/auth/auth-probe.mjs.
   try { await assertAuthed('twitter', s, { label: 'twitter_follow' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exitCode = 1; } throw probeErr; }
 

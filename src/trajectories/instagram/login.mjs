@@ -4,7 +4,7 @@ import { humanType } from '../../../dist/human/keyboard.js';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { persistFreshCookieJar } from '../_shared/cookie-freshness.mjs';
+import { persistFreshCookieJar } from '../_shared/auth/cookie-freshness.mjs';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
 const URL = 'https://www.instagram.com/accounts/login/';

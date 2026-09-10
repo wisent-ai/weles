@@ -2,7 +2,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 import { autoBindCharacter } from '../lib/character-bind.mjs';
-import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
+import { assertAuthed, AuthProbeError } from '../_shared/auth/auth-probe.mjs';
 
 const URL = 'https://accounts.google.com/signup?continue=https%3A%2F%2Fwww.youtube.com%2F&flowName=GlifWebSignIn&flowEntry=SignUp';
 const MAX_RETRIES = 3;

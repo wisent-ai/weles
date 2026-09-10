@@ -16,7 +16,7 @@
  *
  * Used by:
  *   - src/trajectories/reddit/shadowban_check.mjs (standalone trajectory)
- *   - src/trajectories/reddit/organic_comment.mjs (post-submit verify)
+ *   - src/trajectories/reddit/actions/comment/organic_comment.mjs (post-submit verify)
  *   - src/trajectories/reddit/actions/comment.mjs (post-submit verify)
  */
 

@@ -3,8 +3,8 @@ import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../..
 import { injectPHCookies, loginViaTwitter, pickFirstProductLaunchUrl } from './_session.mjs';
 import { humanType, humanFill } from '../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
-import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
-import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/cookie-freshness.mjs';
+import { assertAuthed, AuthProbeError } from '../_shared/auth/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/auth/cookie-freshness.mjs';
 
 // Post a comment on a Product Hunt launch.
 // PRODUCTHUNT_URL=https://www.producthunt.com/products/<slug>  -> launch page
@@ -19,7 +19,7 @@ const COMMENT_TEXT = process.env.PH_COMMENT || 'Looks really clean — congrats 
 const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
 
 async function postComment(s, acct, sessionMeta) {
-  // Cookie-jar freshness gate — see _shared/cookie-freshness.mjs. On stale,
+  // Cookie-jar freshness gate — see _shared/auth/cookie-freshness.mjs. On stale,
   // skip injection and let loginViaTwitter recover below.
   let cookies = [];
   try {
@@ -48,7 +48,7 @@ async function postComment(s, acct, sessionMeta) {
     await sleep(4);
   }
 
-  // Positive auth probe — see _shared/auth-probe.mjs.
+  // Positive auth probe — see _shared/auth/auth-probe.mjs.
   try { await assertAuthed('producthunt', s, { label: 'producthunt_comment' }); }
   catch (probeErr) {
     if (probeErr instanceof AuthProbeError) { try { await markCookiesStale(acct.id); } catch {} throw new Error(`auth_probe_failed: ${probeErr.message}`); }

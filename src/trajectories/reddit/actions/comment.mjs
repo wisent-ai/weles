@@ -7,7 +7,7 @@ import { probeCommentVisibility, probeShadowban } from '../../../../dist/platfor
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
-import { findAccount, updateAccountMetadata } from '../../_shared/skarbiec_accounts.mjs';
+import { findAccount, updateAccountMetadata } from '../../_shared/skarbiec/accounts.mjs';
 
 // Use old.reddit.com — comment composer is a plain visible <textarea name="text">
 // inside a normal form. New reddit.com puts the composer inside <shreddit-composer>'s

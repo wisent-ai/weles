@@ -18,7 +18,7 @@
 //      send the invite URL as the DM body.
 //   6. Persist invite URL + targets to metadata.invites_sent[].
 
-import { updateAccountMetadata } from '../../../_shared/skarbiec_accounts.mjs';
+import { updateAccountMetadata } from '../../../_shared/skarbiec/accounts.mjs';
 import { WSession } from '../../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../dist/human/keyboard.js';

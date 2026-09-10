@@ -1,5 +1,5 @@
 import { runAction } from '../../_shared/action-runner.mjs';
-import { linkedinSubmitPost } from '../../_shared/linkedin-submit.mjs';
+import { linkedinSubmitPost } from '../submit.mjs';
 import { reloginLinkedinInline } from '../../_shared/linkedin/relogin.mjs';
 import { detectLinkedInBanSignals } from '../../../../dist/platforms/linkedin/ban_signals.js';
 

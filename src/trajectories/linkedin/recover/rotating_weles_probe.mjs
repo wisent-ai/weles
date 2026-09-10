@@ -15,7 +15,7 @@ import { humanFill } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { getLinkedinChallengeSignal } from '../../_shared/linkedin/register_guard.mjs';
 import { verifyExitCountry, verifyExitReputation } from '../../../../dist/proxy/policy.js';
-import { listProxies } from '../../_shared/skarbiec_proxies.mjs';
+import { listProxies } from '../../_shared/skarbiec/proxies.mjs';
 
 const OUT = runRecordingsDir('linkedin_rotating_weles_probe');
 const WORK = join(process.cwd(), '.work', 'linkedin_rotating_weles_probe');

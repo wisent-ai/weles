@@ -1,8 +1,8 @@
 import { WSession } from '../../../dist/session/wsession.js';
-import { solveFunCaptcha } from './_funcaptcha.mjs';
-import { solveAudioPuzzle } from './_audio_solver.mjs';
-import { solveRotationViaCoords } from './_coords_solver.mjs';
-import { requireStadoModelRouterConfig } from './_stado_model_router.mjs';
+import { solveFunCaptcha } from './captcha/funcaptcha.mjs';
+import { solveAudioPuzzle } from './captcha/audio_solver.mjs';
+import { solveRotationViaCoords } from './captcha/coords_solver.mjs';
+import { requireStadoModelRouterConfig } from './captcha/stado_model_router.mjs';
 import { humanClick, humanClickLocator, nextInterClickMs } from '../../../dist/human/mouse.js'; import { humanType } from '../../../dist/human/keyboard.js';
 import { autoBindCharacter } from '../lib/character-bind.mjs';
 

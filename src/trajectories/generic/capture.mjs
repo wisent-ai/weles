@@ -31,7 +31,7 @@ import { humanHoverDwell, humanScroll } from '../../../dist/human/mouse.js';
 import {
   captureKeyPrefix, fileAttribution, planFromEnv, pngPixelSize, screencastConnection,
   startCaptureSession, uploadCaptureObject, welesVersion, writeLocalArtifact,
-} from '../_shared/capture-runtime.mjs';
+} from '../_shared/runner/capture-runtime.mjs';
 
 const label = 'generic_capture';
 const STEP_TIMEOUT_MS = Number('30000');

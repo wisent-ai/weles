@@ -2,7 +2,7 @@
  * The subscription pool, against a real Brama gateway.
  *
  * Drives the client the three reauth runners share —
- * src/trajectories/_shared/subscription_pool.mjs, imported by codex, claude
+ * src/trajectories/_shared/auth/subscription_pool.mjs, imported by codex, claude
  * and kimi — against a real `brama serve` whose entitlements router is the
  * real `skarbiec` binary, over a vault, a state directory and a port this test
  * owns, reading the gateway's own answer and journal rather than a recording
@@ -26,7 +26,7 @@ import {
   listPool,
   retireBody,
   writePool,
-} from '../../src/trajectories/_shared/subscription_pool.mjs';
+} from '../../src/trajectories/_shared/auth/subscription_pool.mjs';
 
 const AGENT = 'weles';
 const SIGNING_SECRET = 'weles-pool-capability-signing-secret';
@@ -275,7 +275,7 @@ test('retiring writes the gateway’s own journal and removes the row from the p
 test('the pool refuses a body naming an owner, an unknown row and an unproven caller', async () => {
   // The pool derives the owner from the proof, so an agent-scoped caller that
   // sends one is refused rather than obeyed. This is why no function in
-  // src/trajectories/_shared/subscription_pool.mjs ever writes `agent_id`.
+  // src/trajectories/_shared/auth/subscription_pool.mjs ever writes `agent_id`.
   const named = JSON.stringify({ action: 'retire', agent_id: 'lem', subscription_id: 'nothing' });
   const owner = await writePool(gateway.baseUrl, signed(named), named);
   assert.equal(owner.status, 400);

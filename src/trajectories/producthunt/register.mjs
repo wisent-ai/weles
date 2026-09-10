@@ -4,8 +4,8 @@ import { injectProviderCookies, handleOAuthConsent, clickOAuthProviderButton } f
 import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { autoBindCharacter } from '../lib/character-bind.mjs';
 import { findUsableTwitterAccount, stampLinkedTwitter, extractPhHandle } from './_session.mjs';
-import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
-import { findAccount } from '../_shared/skarbiec_accounts.mjs';
+import { assertAuthed, AuthProbeError } from '../_shared/auth/auth-probe.mjs';
+import { findAccount } from '../_shared/skarbiec/accounts.mjs';
 
 // ProductHunt does not offer email/password signup — only OAuth via Twitter,
 // Google, Facebook, AngelList. This trajectory uses an existing Twitter account

@@ -14,7 +14,7 @@ import { runOutputPath } from '#run-output';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getNumber, pollCode, cancelOrder } from '../../../dist/utils/identity/sms.js';
-import { findAccount, updateAccountMetadata } from '../_shared/skarbiec_accounts.mjs';
+import { findAccount, updateAccountMetadata } from '../_shared/skarbiec/accounts.mjs';
 
 const DEFAULT_INVITES = 'python,discord-developers,reactjs,nextjs,rust-lang,godotengine,unity-developer-community';
 

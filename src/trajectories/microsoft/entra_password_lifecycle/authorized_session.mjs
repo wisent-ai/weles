@@ -15,7 +15,7 @@
 import { humanFill, humanType } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 
-import { persistFreshCookieJar } from '../../_shared/cookie-freshness.mjs';
+import { persistFreshCookieJar } from '../../_shared/auth/cookie-freshness.mjs';
 import { commitPassword, outcome } from './answer_and_custody.mjs';
 import { assertEntraIdentity } from './proven_identity.mjs';
 import {

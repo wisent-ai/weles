@@ -2,8 +2,8 @@ import { getSocialAccount, markCookiesStale } from '../../../dist/utils/credenti
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
-import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
-import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/cookie-freshness.mjs';
+import { assertAuthed, AuthProbeError } from '../_shared/auth/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/auth/cookie-freshness.mjs';
 
 const TARGET = process.env.TARGET_USERNAME || 'team.snapchat';
 const LOGIN_URL = 'https://accounts.snapchat.com/accounts/login';
@@ -16,7 +16,7 @@ console.log(`[trajectory] Using account: ${acct.username} target=${TARGET}`);
 
 const s = await WSession.start({ label: 'snapchat_add_friend', proxy: process.env.PROXY_URL || undefined });
 try {
-  // Cookie freshness gate — see _shared/cookie-freshness.mjs. On stale,
+  // Cookie freshness gate — see _shared/auth/cookie-freshness.mjs. On stale,
   // skip injection so the form-login fallback below kicks in (snapchat
   // login is part of this trajectory's recovery path).
   let stored = [];
@@ -49,7 +49,7 @@ try {
     await humanIdlePause('deliberate');
   }
 
-  // Positive auth probe — see _shared/auth-probe.mjs.
+  // Positive auth probe — see _shared/auth/auth-probe.mjs.
   try { await assertAuthed('snapchat', s, { label: 'snapchat_add_friend' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
 

@@ -15,7 +15,7 @@
 // Moved out of entra_password_lifecycle.mjs, which keeps the three trajectory
 // entry points.
 
-import { persistFreshCookieJar } from '../../../_shared/cookie-freshness.mjs';
+import { persistFreshCookieJar } from '../../../_shared/auth/cookie-freshness.mjs';
 import { outcome } from '../answer_and_custody.mjs';
 import { commitAfterFreshLogin, signIn } from '../authorized_session.mjs';
 import { assertEntraIdentity } from '../proven_identity.mjs';

@@ -5,7 +5,7 @@ import { detectRedditBanSignals } from '../../../../dist/platforms/reddit/ban_si
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
-import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
+import { assertAuthed, AuthProbeError } from '../../_shared/auth/auth-probe.mjs';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 const TARGET_USER = (process.env.TARGET_USER || '').replace(/^u\//, '').replace(/^\/u\//, '');

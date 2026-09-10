@@ -16,12 +16,12 @@
  */
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
-import { loadFreshCookieJarOrFail, CookieJarStaleError } from './cookie-freshness.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from './auth/cookie-freshness.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
-import { accountCharacter, findAccount, findProduct } from './skarbiec_accounts.mjs';
+import { accountCharacter, findAccount, findProduct } from './skarbiec/accounts.mjs';
 
 const HEADLESS = process.env.HEADLESS === '1' || process.env.WELES_HEADLESS === '1';
 
