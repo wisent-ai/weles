@@ -27,7 +27,7 @@ import {
   isEndpointListening,
   resolveSkarbiecEndpoint,
   formatEndpointErrorMessage,
-} from '../../src/worker/deploy/endpoint-resolution.mjs';
+} from '../../src/worker/deploy/acquire/endpoint-resolution.mjs';
 
 const ROOT = join(homedir(), '.stado', 'work', 'wl', `endp-${process.pid.toString(16)}`);
 

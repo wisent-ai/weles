@@ -9,7 +9,7 @@ const endpoint = process.env.WC_SKARBIEC_URL;
 const acquireScript = process.env.SKARBIEC_WELES_READER_COMMAND
   || join(import.meta.dirname, '..', 'worker', 'deploy', 'skarbiec-acquire.mjs');
 const scopeFile = process.env.SKARBIEC_WELES_ACQUISITION_SCOPES_FILE
-  || join(import.meta.dirname, '..', 'worker', 'deploy', 'skarbiec-acquisition-scopes.conf');
+  || join(import.meta.dirname, '..', 'worker', 'deploy', 'acquire', 'skarbiec-acquisition-scopes.conf');
 const repository = 'git@github.com:wisent-ai/design-assets.git';
 const deployKey = join(process.env.HOME, '.stado', 'design-assets-deploy-key');
 const checkout = join(process.env.HOME, '.stado', 'work', 'design-assets');

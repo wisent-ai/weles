@@ -1,7 +1,7 @@
 /**
  * The startup acquisition helper, against a real Skarbiec authority.
  *
- * `src/worker/deploy/skarbiec-acquire.mjs` is what the API launcher runs
+ * `src/worker/deploy/acquire/skarbiec-acquire.mjs` is what the API launcher runs
  * twelve times before it serves, and every one of those calls asks a real
  * capability broker for one field. It used to be measured against
  * `net.createServer(() => {})` on a hard-coded port — a socket that accepts
@@ -27,7 +27,7 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 const REPO = resolve(import.meta.dirname, '..', '..');
-const HELPER = join(REPO, 'src/worker/deploy/skarbiec-acquire.mjs');
+const HELPER = join(REPO, 'src/worker/deploy/acquire/skarbiec-acquire.mjs');
 const ROOT = join(homedir(), '.stado', 'work', 'wl', `acq-${process.pid.toString(16)}`);
 
 function isExecutable(path) {

@@ -82,7 +82,7 @@ function checkedTokenFile(fileName) {
 const SCRIPT_ROOT = dirname(fileURLToPath(import.meta.url));
 
 function acquisitionPaths() {
-  const deploy = join(SCRIPT_ROOT, '..', 'worker', 'deploy');
+  const deploy = join(SCRIPT_ROOT, '..', 'worker', 'deploy', 'acquire');
   return {
     helper: join(deploy, 'skarbiec-acquire.mjs'),
     scopes: join(deploy, 'skarbiec-acquisition-scopes.conf'),

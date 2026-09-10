@@ -144,7 +144,7 @@ export function readScopedField(
 // module keeps the table and its reader in the same revision by construction; the
 // two environment variables still override for deployments that relocate them.
 export function deployedFile(name: string): string {
-  return join(__dirname, '..', '..', '..', 'src', 'worker', 'deploy', name);
+  return join(__dirname, '..', '..', '..', 'src', 'worker', 'deploy', 'acquire', name);
 }
 
 function acquisitionScopesFile(tenantId?: string | null): string {

@@ -130,7 +130,7 @@ const ACQUIRED_SECRET_CONTRACTS = Object.freeze({
   // token for that principal names the Microsoft consumer tenant as its identity
   // provider and the directory does not hold its password, so its lifecycle is
   // the consumer one at account.live.com
-  // (src/worker/deploy/skarbiec-acquisition-scopes.conf:103-111).
+  // (src/worker/deploy/acquire/skarbiec-acquisition-scopes.conf:103-111).
   'weles-microsoft-lukasz-wisent-com-password': Object.freeze({
     item: 'weles-microsoft-lukasz-wisent-com-password',
     field: 'password',
