@@ -1,6 +1,7 @@
 {
   "schema": "wisent.weles-browser-task-plan.v1",
   "action": "generic_browser_task",
+  "allowlist_file": "/Users/charles/.stado/build-work/weles-api-managed/src/worker/deploy/weles-action-allowlist.txt",
   "url": "https://lsi2.ncbr.gov.pl/logowanie",
   "session_label": "ncbr-007n-readonly",
   "account_id": "platform-admin-ncbr",
