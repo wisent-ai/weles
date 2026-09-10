@@ -86,7 +86,7 @@
           {"name": "opis_metodologii", "edits": [{"from": "Wartość docelowa odpowiada 80% docelowego rocznego przychodu ze sprzedaży modeli RNM do klientów z rynku wewnętrznego UE innych niż Polska.", "to": "Wartość docelowa 24 000 000 PLN odpowiada 80% całego docelowego rocznego przychodu ze sprzedaży RNM na rynku UE, wynoszącego 30 000 000 PLN. Podstawą kalkulacji są przychody z całej UE, łącznie z Polską, a nie przychody z UE poza Polską."}]}
         ]},
         {"rowNeedle": "Redukcja ilości tokenów treningowych dla RNM 70B", "matchField": "nazwa_wskaznika", "matchNeedle": "Redukcja ilości tokenów treningowych dla RNM 70B", "fields": [
-          {"name": "opis_metodologii", "edits": [{"from": "w ramach Kamienia milowego 4.1", "to": "w ramach Kamieni milowych 4.2 i 4.3, po uzyskaniu checkpointów i krzywych uczenia"}]}
+          {"name": "opis_metodologii", "edits": [{"from": "w ramach Kamienia milowego 4.1", "to": "w ramach Kamieni milowych 4.2 i 4.3"}, {"from": "Zgodnie z hipotezą 1 przedstawioną w sekcji 2.1,", "to": "Zgodnie z hipotezą 1 z sekcji 2.1,"}]}
         ]}
       ]
     }
