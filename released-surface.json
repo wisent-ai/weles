@@ -130,5 +130,5 @@
     "task-status:running",
     "task-status:succeeded"
   ],
-  "version": "0.5.50"
+  "version": "0.6.7"
 }

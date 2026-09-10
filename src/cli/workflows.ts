@@ -108,7 +108,14 @@ export async function runRelease(parsed: ParsedCli): Promise<void> {
     return value;
   };
   if (action === 'surface') {
-    process.stdout.write(`${JSON.stringify(await release.surface(), null, 2)}\n`);
+    // `--root` reads the surface of another tree, which is how the surface a
+    // published release exposes is recovered: extract that release's source
+    // revision and read it with today's reader, rather than trusting a
+    // document the build wrote when the reader was broken.
+    const root = typeof parsed.options.root === 'string' && parsed.options.root.trim()
+      ? parsed.options.root
+      : undefined;
+    process.stdout.write(`${JSON.stringify(await release.surface(root), null, 2)}\n`);
     return;
   }
   if (action === 'enforce-version') {
