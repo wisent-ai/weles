@@ -1,0 +1,20 @@
+# Audit exclusions for `tama find-violations`: generated output and paths
+# fixed by something outside this project.
+#
+# The repository root. npm reads package.json and package-lock.json from here,
+# tsc reads tsconfig.json, git reads .gitignore and .gitattributes, GitHub reads
+# README.md and LICENSE, the release tooling of other repositories reads
+# .wisent-release.json and released-surface.json by that exact path, and the
+# weles-landing generator reads landing.brief.json, landing.config.json and
+# landing.plan.json from the product root it was pointed at.
+.
+# Resolved by npm from package.json and committed because the worker archive
+# installs from it. A person never edits it, and `npm install` rewrites it whole.
+package-lock.json
+# Written by the wisent-visuals banner bot from .github/banner.toml.
+assets/readme-banner.svg
+# A recorded map of the NCBR SMART form: every entry is one field of that
+# form, its selector and its limit, captured by src/trajectories/feng/dump_selectors.mjs
+# and read back by the fill trajectory. Splitting a recording of one form
+# would make two half-forms.
+src/trajectories/feng/field_map.json

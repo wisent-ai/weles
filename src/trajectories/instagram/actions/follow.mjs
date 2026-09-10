@@ -1,53 +1,57 @@
-import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
+import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
-import { detectInstagramBanSignals } from '../../../../dist/platforms/instagram/ban_signals.js';
-import { writeFileSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
-import { checkReachable } from '../../_shared/action-runner.mjs';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
-import { markCookiesStale } from '../../../../dist/utils/credentials.js';
-import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
 
-const TARGET_USER = (process.env.TARGET_USER || '').replace(/^@/, '');
+const TARGET_USER = (process.env.TARGET_USER || 'wisent.ai').replace(/^@/, '');
+const URL = `https://www.instagram.com/${encodeURIComponent(TARGET_USER)}/`;
 
 const acct = await getSocialAccount('instagram');
-if (!acct) { console.log('FAIL: no active instagram account'); process.exit(1); }
+if (!acct) { console.log('FAIL: no active instagram account in DB'); process.exitCode = 1; }
+console.log(`[trajectory] Using account: ${acct.username}`);
+
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'instagram_follow', proxy: proxyUrl, persona });
-const _stored = (acct.metadata?.cookies ?? []).filter(c => /instagram\.com/.test(c.domain ?? ''));
-if (_stored.length) await s.ctx.addCookies(_stored.map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
-let ban = null;
+
 try {
-  const url = TARGET_USER ? `https://www.instagram.com/${encodeURIComponent(TARGET_USER)}/` : 'https://www.instagram.com/explore/people/';
-  await s.goto(url);
-  checkReachable(s, 'instagram');
-  await humanIdlePause('deliberate');
-  try { await assertAuthed('instagram', s, { label: 'instagram_follow' }); }
-  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
-  // The follow CTA is a <button> with text "Follow" or "Follow back" in the
-  // profile header. Once clicked, its text flips to "Following" (verifies
-  // success). Filter to button-shaped follow exactly to avoid hitting
-  // "Follow this hashtag" / "Follow suggestions" links.
-  const followBtn = s.page.locator('button').filter({ hasText: /^\s*(Follow|Follow back)\s*$/ }).filter({ visible: true }).first();
-  // Already following? "Following" button visible means PASS idempotent.
-  const followingBtn = s.page.locator('button').filter({ hasText: /^\s*(Following|Requested)\s*$/ }).filter({ visible: true }).first();
-  if (await followingBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
-    ban = await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
-    console.log(`[ban-signal] ${ban?.signal}  PASS: already following`);
-  } else {
-    await followBtn.waitFor({ state: 'visible' });
-    await followBtn.scrollIntoViewIfNeeded().catch(() => {});
-    await humanClickLocator(s.page, followBtn);
-    await s.page.locator('button').filter({ hasText: /^\s*(Following|Requested)\s*$/ }).first().waitFor({ state: 'visible' });
-    ban = await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
-    console.log(`[ban-signal] ${ban?.signal}  PASS: followed`);
+  // Cookie freshness gate — see _shared/cookie-freshness.mjs.
+  let stored;
+  try {
+    const all = loadFreshCookieJarOrFail(acct, { platform: 'instagram', label: 'instagram_follow', currentProxyUrl: proxyUrl, currentPersona: persona });
+    stored = all.filter(c => /instagram\.com/.test(c.domain ?? ''));
+    if (!stored.length) throw new CookieJarStaleError('cookie_jar_no_domain_match: jar fresh but no instagram.com cookies', { platform: 'instagram' });
+  } catch (jarErr) {
+    if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); process.exitCode = 1; }
+    throw jarErr;
   }
+  await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
+
+  await s.page.goto(URL, { waitUntil: 'domcontentloaded' });
+  await humanIdlePause('long');
+  const url = s.page.url();
+  if (/\/accounts\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); await markCookiesStale(acct.id); process.exitCode = 1; }
+  // Positive auth probe — see _shared/auth-probe.mjs.
+  try { await assertAuthed('instagram', s, { label: 'instagram_follow' }); }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exitCode = 1; } throw probeErr; }
+
+  // The Follow button on a profile page is rendered as <button>Follow</button>
+  // inside the profile header. After click it becomes <button>Following</button>
+  // — verify the text-state transition. If already following, exit healthy.
+  const followBtn = s.page.locator('button').filter({ hasText: /^\s*Follow\s*$/ }).filter({ visible: true }).first();
+  const followingBtn = s.page.locator('button').filter({ hasText: /^\s*Following\s*$/ }).filter({ visible: true }).first();
+  const alreadyFollowing = await followingBtn.count().catch(() => 0);
+  if (alreadyFollowing > 0) { console.log(`PASS: already following @${TARGET_USER}`); process.exit(0); }
+  await followBtn.waitFor({ state: 'visible' });
+  await humanClickLocator(s.page, followBtn);
+  await humanIdlePause('deliberate');
+  // Verify transition: Follow → Following
+  const after = await s.page.locator('button').filter({ hasText: /^\s*Following\s*$/ }).filter({ visible: true }).count().catch(() => 0);
+  if (after === 0) { console.log(`FAIL: clicked Follow but no transition to Following — may be shadowbanned or rate-limited`); process.exitCode = 1; }
+  console.log(`PASS: followed @${TARGET_USER}`);
 } catch (e) {
-  ban = e.banSignal ?? await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
+  console.log('FAIL:', e.message?.slice(0, 200));
   process.exitCode = 1;
 } finally {
-  if (ban) { try { const dir = runRecordingsDir('instagram_follow'); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'instagram_follow', target_user: TARGET_USER, ...ban, ts: new Date().toISOString() }, null, 2)); } catch {} }
   await s.close();
 }

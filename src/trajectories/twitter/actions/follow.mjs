@@ -1,54 +1,79 @@
-import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
+import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
-import { detectTwitterBanSignals } from '../../../../dist/platforms/twitter/ban_signals.js';
-import { writeFileSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
-import { checkReachable } from '../../_shared/action-runner.mjs';
-import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
+import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
 
-const TARGET_USER = (process.env.TARGET_USER || '').replace(/^@/, '');
+const TARGET_HANDLE = 'elonmusk';
+const TARGET_URL = `https://x.com/${TARGET_HANDLE}`;
 
 const acct = await getSocialAccount('twitter');
-if (!acct) { console.log('FAIL: no active twitter account'); process.exit(1); }
+if (!acct) { console.log('FAIL: no active twitter account in DB'); process.exitCode = 1; }
+console.log(`[trajectory] Using account: ${acct.username}`);
+
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'twitter_follow', proxy: proxyUrl, persona });
-const _stored = (acct.metadata?.cookies ?? []).filter(c => /x\.com|twitter\.com/.test(c.domain ?? ''));
-if (_stored.length) await s.ctx.addCookies(_stored.map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
-let ban = null;
+
 try {
-  const url = TARGET_USER ? `https://x.com/${encodeURIComponent(TARGET_USER)}` : 'https://x.com/home';
-  await s.goto(url);
-  checkReachable(s, 'twitter');
-  await humanIdlePause('deliberate');
-  // Deterministic: data-testid="<userId>-follow" is the unfollowed state;
-  // after a successful follow the same testid switches to "<userId>-unfollow".
-  // When TARGET_USER is set we scope by aria-label to the target's button
-  // (avoids accidentally clicking a "Who to follow" sidebar suggestion).
-  const followSel = TARGET_USER
-    ? `[data-testid$="-follow"][aria-label*="${TARGET_USER}"]`
-    : `[data-testid$="-follow"]`;
-  const unfollowSel = TARGET_USER
-    ? `[data-testid$="-unfollow"][aria-label*="${TARGET_USER}"]`
-    : `[data-testid$="-unfollow"]`;
-  // If already following the target, exit clean. (Idempotent action.)
-  if (TARGET_USER && await s.page.locator(unfollowSel).first().isVisible().catch(() => false)) {
-    ban = await detectTwitterBanSignals(s.page, s.capturedResponses).catch(() => null);
-    console.log(`[ban-signal] ${ban?.signal}  PASS: already following @${TARGET_USER}`);
-  } else {
-    const followBtn = s.page.locator(followSel).filter({ visible: true }).first();
-    await followBtn.waitFor({ state: 'visible' });
-    await followBtn.scrollIntoViewIfNeeded();
-    await humanClickLocator(s.page, followBtn);
-    await s.page.locator(unfollowSel).first().waitFor({ state: 'visible' });
-    ban = await detectTwitterBanSignals(s.page, s.capturedResponses).catch(() => null);
-    console.log(`[ban-signal] ${ban?.signal}  PASS: followed${TARGET_USER ? ` @${TARGET_USER}` : ''}`);
+  // Cookie freshness gate — see _shared/cookie-freshness.mjs.
+  let prepared;
+  try {
+    const all = loadFreshCookieJarOrFail(acct, { platform: 'twitter', label: 'twitter_follow', currentProxyUrl: proxyUrl, currentPersona: persona });
+    const hasAuthToken = all.some(c => c?.name === 'auth_token' && c?.value);
+    if (!hasAuthToken) throw new CookieJarStaleError('cookie_jar_missing_auth_token: jar fresh but no auth_token', { platform: 'twitter' });
+    prepared = all.filter(c => c?.name && c?.value && (c.domain || c.url)).map(c => ({ ...c, path: c.path || '/' }));
+  } catch (jarErr) {
+    if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); process.exitCode = 1; }
+    throw jarErr;
   }
+  await s.ctx.addCookies(prepared);
+  console.log(`[trajectory] injected ${prepared.length} stored cookies (jar fresh)`);
+
+  await s.page.goto(TARGET_URL, { waitUntil: 'domcontentloaded' });
+  // x.com SPA needs ~6-8s to hydrate the profile page after domcontentloaded;
+  // a hard 4s sleep was racing the React mount and producing "no Follow
+  // button visible" with empty testid list. Use locator.waitFor on the
+  // canonical Follow / Following button selector instead — it polls until
+  // either appears or 30s expires. The selector intentionally allows BOTH
+  // states (-follow and -unfollow) so the wait succeeds even if the account
+  // already follows the target (we then branch on which one matched).
+  await s.page.locator(`[data-testid$="-follow"][aria-label*="${TARGET_HANDLE}"], [data-testid$="-unfollow"][aria-label*="${TARGET_HANDLE}"]`).first().waitFor({ state: 'visible', timeout: 30000 }).catch(() => {});
+  const url = s.page.url();
+  if (/\/i\/flow\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); await markCookiesStale(acct.id); process.exitCode = 1; }
+  // Positive auth probe — see _shared/auth-probe.mjs.
+  try { await assertAuthed('twitter', s, { label: 'twitter_follow' }); }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exitCode = 1; } throw probeErr; }
+
+  // Already following? data-testid ends with -unfollow (the button label is
+  // "Following" on hover and "Unfollow" on click). Scope to the target's
+  // user-id testid via aria-label so we don't match a sidebar "Who to follow"
+  // suggestion's button by accident.
+  const unfollowBtn = s.page.locator(`[data-testid$="-unfollow"][aria-label*="${TARGET_HANDLE}"]`).first();
+  if (await unfollowBtn.isVisible().catch(() => false)) {
+    console.log(`PASS: already following @${TARGET_HANDLE}`);
+    process.exit(0);
+  }
+  // Follow button: testid ends with "-follow", aria-label "Follow @handle".
+  // Scope to the target via aria-label to avoid the sidebar suggestion buttons.
+  let followBtn = s.page.locator(`[data-testid$="-follow"][aria-label*="${TARGET_HANDLE}"]`).first();
+  if (!(await followBtn.isVisible().catch(() => false))) {
+    followBtn = s.page.getByRole('button', { name: new RegExp(`^Follow @?${TARGET_HANDLE}$`, 'i') }).first();
+  }
+  if (!(await followBtn.isVisible().catch(() => false))) {
+    const tids = await s.page.evaluate(() => Array.from(document.querySelectorAll('[data-testid]')).map(e => e.getAttribute('data-testid')).filter(t => /follow|user/i.test(t ?? '')).slice(0, 10));
+    console.log(`FAIL: no Follow button visible at ${url}. visible testids: ${JSON.stringify(tids)}`);
+    process.exitCode = 1;
+  }
+  await humanClickLocator(s.page, followBtn);
+  await humanIdlePause('deliberate');
+  // Verify Follow → Following transition (scoped to target handle).
+  const followingBtn = s.page.locator(`[data-testid$="-unfollow"][aria-label*="${TARGET_HANDLE}"]`).filter({ visible: true }).first();
+  const ok = await followingBtn.isVisible().catch(() => false);
+  if (!ok) { console.log(`FAIL: clicked Follow but no Following state — likely shadowbanned or rate-limited`); process.exitCode = 1; }
+  console.log(`PASS: followed @${TARGET_HANDLE}`);
 } catch (e) {
-  ban = e.banSignal ?? await detectTwitterBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
+  console.log('FAIL:', e.message?.slice(0, 200));
   process.exitCode = 1;
 } finally {
-  if (ban) { try { const dir = runRecordingsDir('twitter_follow'); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'twitter_follow', target_user: TARGET_USER, ...ban, ts: new Date().toISOString() }, null, 2)); } catch {} }
   await s.close();
 }

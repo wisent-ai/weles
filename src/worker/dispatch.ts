@@ -206,24 +206,18 @@ const ROUTES: Record<string, (p: string) => string | null> = {
     // already wired, QR-recovery path). Persists as platform='google' —
     // cross_login's PROVIDER_TO_ACCOUNT_PLATFORM is aligned to that.
     if (p === 'youtube' || p === 'google') return 'src/trajectories/google/register.mjs';
-    if (p === 'github' || p === 'producthunt' || p === 'microsoft') return `src/trajectories/${p}/register.mjs`;
     if (p === 'apple') return 'src/trajectories/apple/register/run.mjs';
     if (p === 'facebook' || p === 'threads') return `src/trajectories/meta/${p}_register.mjs`;
-    return `src/trajectories/${p}_register.mjs`;
+    return `src/trajectories/${p}/register.mjs`;
   },
+  // Every platform keeps its login beside its register, in its own directory.
+  // The flat `<plat>_login.mjs` layout this replaced had left codex, claude
+  // and kimi unreachable once: the reauth path declines to log in on a burnt
+  // tick by design, so a dispatcher that cannot reach the login left no
+  // automatic way back at all.
   login: (p) => {
-    // codex and claude keep their login beside their reauth, in a directory, and
-    // the flat fallback below looked for `<plat>_login.mjs` and found nothing.
-    // Nothing could start the one trajectory that renews those subscriptions:
-    // the reauth path declines to log in on a burnt tick by design, so a
-    // dispatcher that cannot reach the login left no automatic way back at all.
-    // kimi's login has the same shape and takes the same login_item selector, so
-    // it belongs in the same branch.
-    if (p === 'apple' || p === 'microsoft' || p === 'codex' || p === 'claude' || p === 'kimi') {
-      return `src/trajectories/${p}/login.mjs`;
-    }
     if (p === 'facebook' || p === 'threads') return `src/trajectories/meta/${p}_login.mjs`;
-    return `src/trajectories/${p}_login.mjs`;
+    return `src/trajectories/${p}/login.mjs`;
   },
   create_developer_id: (p) => p === 'apple' ? 'src/trajectories/apple/create_developer_id.mjs' : null,
   login_search: (p) => p === 'gmail' ? 'src/trajectories/gmail/gmail_login_search.mjs' : null,
@@ -234,7 +228,7 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   // paramsToEnv and surfaced as PROVIDER env.
   login_via: () => 'src/trajectories/cross_login/run.mjs',
 
-  profile: (p) => p === 'producthunt' ? 'src/trajectories/producthunt/profile.mjs' : `src/trajectories/${p}_profile.mjs`,
+  profile: (p) => `src/trajectories/${p}/profile.mjs`,
   // edit_profile = write character persona content (bio, display_name, optional
   // external_url) onto the platform's /accounts/edit form. github goes under
   // <platform>/content/ because github/actions/ is at the 5-file cap;
@@ -246,17 +240,19 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   open_issue: (p) => `src/trajectories/${p}/content/open_issue.mjs`,
   submit: (p) => `src/trajectories/${p}/content/submit.mjs`,
   submit_promote: (p) => `src/trajectories/${p}/content/submit.mjs`,
-  reset_password: (p) => p === 'github' ? 'src/trajectories/github/recover/reset_password.mjs' : `src/trajectories/${p}_reset_password.mjs`,
-  verify_password: (p) => p === 'microsoft' ? 'src/trajectories/microsoft_verify_password.mjs' : null,
-  adopt_password: (p) => p === 'microsoft' ? 'src/trajectories/microsoft_adopt_password.mjs' : null,
+  // Credential recovery lives under <platform>/recover/, beside the login it
+  // repairs.
+  reset_password: (p) => `src/trajectories/${p}/recover/reset_password.mjs`,
+  verify_password: (p) => p === 'microsoft' ? 'src/trajectories/microsoft/recover/verify_password.mjs' : null,
+  adopt_password: (p) => p === 'microsoft' ? 'src/trajectories/microsoft/recover/adopt_password.mjs' : null,
   // Entra directory identities are a separate lifecycle from consumer Microsoft
   // accounts: <platform>_<verb> splits on the first underscore, so the verb here
   // is entra_adopt_password / entra_reset_password / entra_verify_password on
   // platform microsoft.
-  entra_adopt_password: (p) => p === 'microsoft' ? 'src/trajectories/microsoft_entra_adopt_password.mjs' : null,
-  entra_reset_password: (p) => p === 'microsoft' ? 'src/trajectories/microsoft_entra_reset_password.mjs' : null,
-  entra_verify_password: (p) => p === 'microsoft' ? 'src/trajectories/microsoft_entra_verify_password.mjs' : null,
-  balance: (p) => PROXY_PROVIDERS.has(p) ? `src/trajectories/${p}/balance.mjs` : `src/trajectories/${p}_balance.mjs`,
+  entra_adopt_password: (p) => p === 'microsoft' ? 'src/trajectories/microsoft/entra/adopt_password.mjs' : null,
+  entra_reset_password: (p) => p === 'microsoft' ? 'src/trajectories/microsoft/entra/reset_password.mjs' : null,
+  entra_verify_password: (p) => p === 'microsoft' ? 'src/trajectories/microsoft/entra/verify_password.mjs' : null,
+  balance: (p) => `src/trajectories/${p}/balance.mjs`,
   topup: (p) => PROXY_PROVIDERS.has(p) ? `src/trajectories/${p}/topup.mjs` : null,
   analyze_text: (p) => p === 'pangram' ? 'src/trajectories/pangram/analyze_text.mjs' : null,
   pangram_audit_new_wniosek: (p) => p === 'ncbr' ? 'src/trajectories/ncbr/pangram_audit_new_wniosek.mjs' : null,
