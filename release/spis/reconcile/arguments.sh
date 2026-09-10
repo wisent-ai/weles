@@ -5,7 +5,7 @@
 
 mode=""
 host="charless-mac-mini"
-source_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+source_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
 version=""
 trust_file=""
 generate_credential=no
