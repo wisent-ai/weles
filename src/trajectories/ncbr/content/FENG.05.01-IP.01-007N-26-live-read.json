@@ -1,0 +1,14 @@
+{
+  "schema": "wisent.weles-browser-task-plan.v1",
+  "action": "generic_browser_task",
+  "url": "https://lsi2.ncbr.gov.pl/logowanie",
+  "session_label": "ncbr-007n-readonly",
+  "account_id": "platform-admin-ncbr",
+  "flow_name": "ncbr-007n-current-readonly-inspection",
+  "allow_login": true,
+  "sign_in_origin": "https://lsi2.ncbr.gov.pl",
+  "sign_in_item": "platform-admin-ncbr",
+  "prefill_all": true,
+  "windowed": false,
+  "objective": "The account holder authorizes signing in and READING the current LSI2 application FENG.05.01-IP.01-007N/26. This is an inspection, not a correction or submission. Remain on https://lsi2.ncbr.gov.pl and project 7ee80d9a-67dd-4d99-becd-8dda407221c1.\n\nIf the login page is shown, the email and password have been prefilled by the credential integration. Do not type, disclose, or request the credential values. Use the existing login checkbox and the Zaloguj sie / Zaloguj się button to sign in. If already signed in, skip login. Do not trigger operating-system consent dialogs or notifications.\n\nRead these three views, without changing anything:\n1. Open https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1. Record the application number, title and current status shown by LSI2, so the target is proven rather than assumed.\n2. Open section 1.3 at https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/317a21dd-e798-4115-ab53-6ab5a2912fb0. Read the currently saved values, including the entire Opis działalności podmiotu text and the Spółka celowa value. Quote verbatim every sentence naming the parent company, incorporation date, share ownership, voting instructions or rights to appoint the management board. Obtain the actual field values, not placeholders or labels.\n3. Open Dokumenty from the project navigation and read the complete current list of attachment filenames for criterion 1. Record which entity each row belongs to. If a Karta Poprawy Wniosku or reviewer-recommendation view is available, read the criterion-1 and criterion-2 recommendations verbatim.\n\nOnly navigation, observation, screenshots and sign-in are permitted. Do not edit any application field, upload or remove attachments, create a collection row, save changes, withdraw the application, or click Złóż wniosek / Prześlij do oceny / any final submission control. Do not accept new agreements beyond the existing login form. Do not infer observations from local files or previous runs.\n\nReturn the actual URLs visited, the observed application identity and status, the verbatim section-1.3 passages and the full attachment filename list. Preserve screenshots and full observed text in the normal Weles run artifacts. A missing view, failed login or inaccessible value must be reported explicitly; never report success for data that was not observed. Never include credentials or tokens in the result."
+}
