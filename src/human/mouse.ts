@@ -9,6 +9,7 @@ import { cubicBezier } from '../utils/bezier.js';
 import { randomBetween, waitMs, humanRandom } from '../utils/timing.js';
 import { traceAvailable, nextPointerStepMs, nextReactionMs, nextInterClickMs, getMoveTemplate } from './trace.js';
 import { getOffsetFromPage, nativeClick, nativeBatchMove, nativeMove } from './mouse-native.js';
+import { settledTargetBox } from './pointer/target-box.js';
 
 export { nextInterClickMs };
 
@@ -177,9 +178,7 @@ export async function humanMove(page: any, x: number, y: number, startX?: number
  * Throws when the bounding box can't be resolved — no degraded path.
  */
 export async function humanClickLocator(page: any, locator: any): Promise<void> {
-  try { await locator.scrollIntoViewIfNeeded?.(); } catch { /* element may already be in view */ }
-  const box = await locator.boundingBox?.();
-  if (!box) throw new Error('humanClickLocator: bounding box unavailable (element detached or off-screen)');
+  const box = await settledTargetBox(page, locator);
   const padX = Math.max(2, Math.floor(box.width * 0.15));
   const padY = Math.max(2, Math.floor(box.height * 0.15));
   const tx = box.x + padX + Math.floor(humanRandom() * Math.max(1, box.width - padX * 2));
