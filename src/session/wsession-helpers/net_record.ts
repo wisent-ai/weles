@@ -15,7 +15,7 @@ import { platform as osPlatform, release as osRelease, arch as osArch, totalmem,
 import { attachServiceWorkers, attachCdpLifecycle, pollStorageState, buildSiblingManifest, attachStdoutCapture, sliceStdout, captureHostSnapshots, captureFinalCdpSnapshots, attachPagePlaywrightEvents } from './capture_extras.js';
 import { startPcap, attachWorkerInventory } from './pcap_sidecar.js';
 import { runRecordingsDir } from '../run-recordings.js';
-import { buildCaptureCoverage } from './capture_coverage.js';
+import { buildCaptureCoverage } from './capture/capture_coverage.js';
 
 function safeJsonStringify(value: unknown): string {
   return JSON.stringify(value, (_k, v) => {

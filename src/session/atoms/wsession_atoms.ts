@@ -7,13 +7,13 @@
  * the class is fully defined before prototype assignment runs. Side-effect
  * import was the previous shape but breaks under CJS circular load.
  */
-import type { WSession } from './wsession.js';
+import type { WSession } from '../wsession.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { runRecordingsDir } from './run-recordings.js';
-import { updateAccount } from '../state/skarbiec-records.js';
+import { runRecordingsDir } from '../run-recordings.js';
+import { updateAccount } from '../../state/skarbiec-records.js';
 
-declare module './wsession.js' {
+declare module '../wsession.js' {
   interface WSession {
     waitFor(selector: string, opts?: { state?: 'attached' | 'visible' | 'hidden' | 'detached'; timeoutMs?: number }): Promise<string>;
     fillSelector(css: string, value: string): Promise<string>;
@@ -50,7 +50,7 @@ const LOGGED_OUT_SELECTORS: Record<string, string> = {
   default:   'a[href*="/login"], a[href*="/signin"], button:has-text("Log in"), button:has-text("Sign in")',
 };
 
-export function installAtoms(W: typeof import('./wsession.js').WSession): void {
+export function installAtoms(W: typeof import('../wsession.js').WSession): void {
 W.prototype.waitFor = function (selector, opts) {
   const state = opts?.state ?? 'visible';
   const timeout = opts?.timeoutMs ?? 0;

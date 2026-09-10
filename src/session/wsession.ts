@@ -35,10 +35,10 @@ import { seedHumanTiming } from '../utils/timing.js';
 import { getEmailApiKey } from '../utils/credentials.js';
 import { findCustomBrowser } from './find_browser.js';
 import { costTracker } from '../utils/runtime/cost.js';
-import { loadOperatorCdpConfig } from './operator-cdp.js';
-import { enforceWelesServicePlacement } from './service-placement.js';
+import { loadOperatorCdpConfig } from './placement/operator-cdp.js';
+import { enforceWelesServicePlacement } from './placement/service-placement.js';
 
-import { installAtoms } from './wsession_atoms.js';  // installAtoms() is invoked at file end after WSession is declared
+import { installAtoms } from './atoms/wsession_atoms.js';  // installAtoms() is invoked at file end after WSession is declared
 import { runRecordingsDir, runRecordingsRoot } from './run-recordings.js';
 import { wsClick, wsFill, wsFillCredential, wsFillIdentity } from './wsession-helpers/finalize.js';
 import { isSkarbiecCredentialTask, wsAutoStoreCredential, wsStoreCredential } from './wsession-helpers/credential-store.js';

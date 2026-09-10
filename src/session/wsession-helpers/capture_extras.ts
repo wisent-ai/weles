@@ -7,7 +7,7 @@ import type { BrowserContext } from 'playwright';
 import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
-import { CDP_EVENTS } from './cdp_events.generated.js';
+import { CDP_EVENTS } from './capture/cdp_events.generated.js';
 
 // Service worker registration events. Fires when the page registers / activates
 // a SW; relevant because many bot-checks (PerimeterX, Akamai, hCaptcha) ship
@@ -290,7 +290,7 @@ export function buildSiblingManifest(dir: string, instFn: string): any[] {
 // time, so concurrent sessions see only their own lines and sequential
 // sessions don't double-count. Patches console once per process; safe to call
 // from every WSession.start.
-import { CONSOLE_LEVELS } from './capture_constants.js';
+import { CONSOLE_LEVELS } from './capture/capture_constants.js';
 const STDOUT_RING: Array<{ t: number; level: string; line: string }> = [];
 const STDOUT_RING_CAP = 50_000;
 let _consolePatched = false;
