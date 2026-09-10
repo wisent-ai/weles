@@ -58,14 +58,18 @@ export async function closeDrawer(page) {
   if (await close.count()) await clickSafe(close.last(), 'close side drawer');
 }
 
-export async function save(page, collection = false) {
+export async function save(page, collection = false, expected = []) {
   const selector = collection ? '#collection-obj-form-save-btn' : '#section-form-save-btn';
   const button = page.locator(selector).filter({ visible: true });
   const [response] = await Promise.all([
     page.waitForResponse((candidate) => candidate.request().method() !== 'GET' && candidate.url().includes('/api/beneficiary/')),
     clickSafe(button, 'Zapisz'),
   ]);
-  if (!response.ok()) throw new Error(`Save rejected: ${response.status()} ${await response.text()}`);
+  const body = await response.text();
+  if (!response.ok()) throw new Error(`Save rejected: ${response.status()} ${body}`);
+  const sent = response.request().postData() || '';
+  const missing = expected.filter((field) => !sent.includes(JSON.stringify(field.expected).slice(1, -1)));
+  if (missing.length) throw new Error(`Save request omitted ${missing.map((field) => field.name).join(', ')}`);
   await page.getByText('Zapisano dane', { exact: true }).waitFor({ state: 'visible' });
   await page.waitForFunction((selector) => {
     const element = document.querySelector(selector);

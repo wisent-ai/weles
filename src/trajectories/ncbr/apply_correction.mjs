@@ -47,7 +47,7 @@ try {
     retain('prepared');
     if (mode === 'apply' && result.fields.some((field) => field.before !== field.expected)) {
       await fillPrepared(page, result.fields);
-      await save(page);
+      await save(page, false, result.fields);
     }
     await gotoSafe(page, section.url, projectUrl);
     await verifyPrepared(page, result.fields);
@@ -66,7 +66,7 @@ try {
       retain('prepared');
       if (mode === 'apply' && result.fields.some((field) => field.before !== field.expected)) {
         await fillPrepared(page, result.fields);
-        await save(page, true);
+        await save(page, true, result.fields);
       } else await closeDrawer(page);
       await openRow(page, collection, row, projectUrl);
       await verifyPrepared(page, result.fields);
