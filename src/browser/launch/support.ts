@@ -26,7 +26,7 @@ export interface ContextLaunchInput {
 }
 
 export function readDiagnosticScript(name: string): string {
-  return readFileSync(join(__dirname, '..', '..', 'diagnostics', name), 'utf-8');
+  return readFileSync(join(__dirname, '..', '..', 'diagnostics', 'page', name), 'utf-8');
 }
 export const CHROMIUM_ARGS = [
   '--disable-blink-features=AutomationControlled',

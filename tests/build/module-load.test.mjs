@@ -44,9 +44,9 @@ process.env.WELES_ACTION_ALLOWLIST ??= readFileSync(
   .filter(Boolean)
   .join(',');
 
-// `dist/page-init` and `dist/diagnostics/property_trap.js` are page-side init
+// `dist/page-init` and `dist/diagnostics/page/property_trap.js` are page-side init
 // scripts injected through addInitScript, not Node modules.
-const injectedIntoPage = (path) => /\/(page-init|diagnostics\/property_trap)\b/.test(path);
+const injectedIntoPage = (path) => /\/(page-init|diagnostics\/page\/property_trap)\b/.test(path);
 
 function compiledModules(directory) {
   const found = [];

@@ -3,7 +3,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { analyzeChallengeOutcome, type ChallengeOutcome } from './challenge_outcome.js';
-import { snapshotSanitizedEnvironment } from '../utils/sanitize-env.js';
+import { snapshotSanitizedEnvironment } from '../../utils/sanitize-env.js';
 
 const RECORDINGS_ROOT = process.env.RECORDINGS_ROOT ?? 'recordings';
 
