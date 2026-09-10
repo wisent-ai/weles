@@ -31,7 +31,7 @@
       "label": "10.3",
       "id": "256ac98a-bb3c-4715-ad13-e8dbcd3f94f4",
       "url": "https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/256ac98a-bb3c-4715-ad13-e8dbcd3f94f4",
-      "fields": [{"name": "zgodnosc_z_konwencja_o_prawach_osob_niepelnosprawnych", "edits": [{"from": "Projekt przewiduje pilotaże w sektorze ochrony zdrowia (Zadanie 5), w których modele RNM mogą wspierać procesy decyzyjne. Pilotaże uwzględniają dostępność i równość pacjentów z niepełnosprawnościami.", "to": "Zadanie 7 obejmuje kontrolowaną walidację techniczną prototypu w scenariuszach ochrony zdrowia, bez komercyjnego wdrożenia. Scenariusze uwzględniają dostępność i równość pacjentów z niepełnosprawnościami; późniejsze wdrożenia nastąpią po zakończeniu prac B+R."}]}]
+      "fields": [{"name": "zgodnosc_z_konwencja_o_prawach_osob_niepelnosprawnych", "edits": [{"from": "Projekt przewiduje pilotaże w sektorze ochrony zdrowia (Zadanie 5), w których modele RNM mogą wspierać procesy decyzyjne. Pilotaże uwzględniają dostępność i równość pacjentów z niepełnosprawnościami.", "to": "Zadanie 7 obejmuje kontrolowaną walidację techniczną prototypu w ochronie zdrowia, bez wdrożenia komercyjnego, z uwzględnieniem dostępności i równości pacjentów z niepełnosprawnościami."}]}]
     }
   ],
   "collections": []
