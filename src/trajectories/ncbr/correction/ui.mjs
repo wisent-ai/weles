@@ -62,11 +62,12 @@ export async function save(page, collection = false) {
   const selector = collection ? '#collection-obj-form-save-btn' : '#section-form-save-btn';
   const button = page.locator(selector).filter({ visible: true });
   await clickSafe(button, 'Zapisz');
-  await humanIdlePause('long');
+  await page.waitForFunction((selector) => {
+    const element = document.querySelector(selector);
+    return !element || element.disabled || !element.getClientRects().length;
+  }, selector);
   if (collection) {
-    if (await button.count() && await button.isVisible()) {
-      throw new Error(`Collection save did not close its form: ${await page.locator('body').innerText()}`);
-    }
+    await closeDrawer(page);
     const parent = page.locator('#section-form-save-btn').filter({ visible: true });
     if (await parent.count() && await parent.isEnabled()) {
       await clickSafe(parent, 'Zapisz');

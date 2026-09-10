@@ -1,7 +1,6 @@
 import { editedValue, normalize, sha256 } from './plan.mjs';
 
 export async function oneField(page, name) {
-  const all = page.locator('[name]').filter({ hasNot: page.locator('[type="password"]') });
   const matching = page.locator(`[name$=${JSON.stringify(name)}]`);
   await matching.first().waitFor({ state: 'attached' });
   const visible = matching.filter({ visible: true });
@@ -17,6 +16,11 @@ export async function snapshotFields(page) {
       value: element.value, maxLength: element.getAttribute('maxlength'),
       readOnly: Boolean(element.readOnly), disabled: Boolean(element.disabled),
       options: element.tagName === 'SELECT' ? Array.from(element.options).map((option) => ({ value: option.value, label: option.label })) : undefined })));
+}
+
+function choiceInput(locator) {
+  return locator.locator('xpath=ancestor::*[.//input[@role="combobox"]][1]')
+    .locator('input[role="combobox"]').filter({ visible: true });
 }
 
 export async function prepareFields(page, declared, plan, scope) {
@@ -36,16 +40,22 @@ export async function prepareFields(page, declared, plan, scope) {
       }));
       let expected;
       let optionLabel;
-      if (field.control === 'select') {
+      let control = field.control;
+      if (field.control === 'select' && state.tag !== 'SELECT') {
+        control = 'autocomplete';
+        const display = await choiceInput(locator).inputValue();
+        optionLabel = field.labelIncludes;
+        expected = normalize(display).includes(normalize(optionLabel)) ? before : null;
+      } else if (field.control === 'select') {
         const options = state.options.filter((option) => normalize(option.label).includes(normalize(field.labelIncludes)));
         if (options.length !== 1) throw new Error(`${scope}.${name}: expected one option containing ${field.labelIncludes}, found ${options.length}`);
         expected = options[0].value;
         optionLabel = options[0].label;
       } else expected = editedValue(before, field, plan);
       const max = state.maxLength === null ? field.maxLength : Number(state.maxLength);
-      if (max && expected.length > max) throw new Error(`${scope}.${name}: ${expected.length} characters exceed the UI limit ${max}`);
+      if (max && expected !== null && expected.length > max) throw new Error(`${scope}.${name}: ${expected.length} characters exceed the UI limit ${max}`);
       if (expected !== before && (state.readOnly || state.disabled)) throw new Error(`${scope}.${name} is not editable`);
-      prepared.push({ scope, name, before, expected, optionLabel, control: field.control, sha256: sha256(expected) });
+      prepared.push({ scope, name, before, expected, optionLabel, control, sha256: sha256(expected) });
     }
   }
   return prepared;
@@ -56,7 +66,22 @@ export async function fillPrepared(page, fields) {
     if (field.before === field.expected) continue;
     const locator = await oneField(page, field.name);
     if (field.control === 'select') await locator.selectOption(field.expected);
-    else await locator.fill(field.expected);
+    else if (field.control === 'autocomplete') {
+      const input = choiceInput(locator);
+      await input.fill(field.optionLabel);
+      const option = page.getByRole('option').filter({ hasText: field.optionLabel }).filter({ visible: true });
+      await option.waitFor({ state: 'visible' });
+      if (await option.count() !== 1) throw new Error(`Ambiguous choice: ${field.optionLabel}`);
+      const selectedLabel = await option.textContent();
+      await option.dispatchEvent('click');
+      await page.waitForFunction(({ name, before }) => {
+        const element = document.querySelector(`[name=${JSON.stringify(name)}]`);
+        return element?.value && element.value !== before;
+      }, { name: field.name, before: field.before });
+      field.expected = await locator.inputValue();
+      field.optionLabel = selectedLabel;
+      field.sha256 = sha256(field.expected);
+    } else await locator.fill(field.expected);
     await locator.dispatchEvent('blur');
     if (await locator.inputValue() !== field.expected) throw new Error(`${field.scope}.${field.name}: value was not retained before saving`);
   }
@@ -71,6 +96,10 @@ export async function verifyPrepared(page, fields) {
     if (field.control === 'select') {
       field.actualLabel = await locator.locator('option:checked').textContent();
       field.persisted &&= normalize(field.actualLabel) === normalize(field.optionLabel);
+    }
+    if (field.control === 'autocomplete') {
+      field.actualLabel = await choiceInput(locator).inputValue();
+      field.persisted &&= normalize(field.actualLabel).includes(normalize(field.optionLabel));
     }
     if (!field.persisted) throw new Error(`${field.scope}.${field.name}: persisted value differs (${sha256(actual)} != ${field.sha256})`);
   }
