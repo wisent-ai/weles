@@ -45,7 +45,8 @@ test('the default root is absolute, in the product state directory, and outside 
 
 test('the override moves the whole root and creates it', () => {
   const previous = process.env[VARIABLE];
-  const chosen = join(scratch(), 'moved');
+  const root = scratch();
+  const chosen = join(root, 'moved');
   process.env[VARIABLE] = chosen;
   try {
     assert.equal(runOutputRoot(), chosen);
@@ -57,7 +58,10 @@ test('the override moves the whole root and creates it', () => {
   } finally {
     if (previous === undefined) delete process.env[VARIABLE];
     else process.env[VARIABLE] = previous;
-    rmSync(chosen, { recursive: true, force: true });
+    // The whole fixture goes, not only the override root inside it: three
+    // empty `root-*` directories had already accumulated under dist/ from
+    // earlier runs of this very case.
+    rmSync(root, { recursive: true, force: true });
   }
 });
 
