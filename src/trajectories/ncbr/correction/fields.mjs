@@ -19,8 +19,8 @@ export async function snapshotFields(page) {
 }
 
 function choiceInput(locator) {
-  return locator.locator('xpath=ancestor::*[.//input[@role="combobox"]][1]')
-    .locator('input[role="combobox"]').filter({ visible: true });
+  return locator.locator('xpath=ancestor::*[.//input[not(@name) and @type="text"]][1]')
+    .locator('input[type="text"]:not([name])').filter({ visible: true });
 }
 
 export async function prepareFields(page, declared, plan, scope) {
