@@ -9,6 +9,19 @@
     "neverSubmit": true
   },
   "editSets": {
+    "fillerSentences": [
+      {"from": " Decyzja ma próg liczbowy.", "to": ""},
+      {"from": " Dowód obejmuje log i metrykę.", "to": ""},
+      {"from": " Artefakt ma wersję i właściciela.", "to": ""},
+      {"from": " Ryzyko jest przypisane do zadania.", "to": ""},
+      {"from": " Odbiór wymaga powtórzenia testu.", "to": ""},
+      {"from": " Dane mają manifest i hash.", "to": ""},
+      {"from": " Koszt compute jest rozliczony w zadaniu.", "to": ""},
+      {"from": " Wynik ma ślad audytowy.", "to": ""},
+      {"from": " Kryterium nie jest deklaracją.", "to": ""},
+      {"from": " Próg.", "to": ""},
+      {"from": " Dowód jest.", "to": ""}
+    ],
     "taskBoilerplate": [
       {"from": " Decyzja ma próg liczbowy. Dowód obejmuje log i metrykę. Artefakt ma wersję i właściciela. Ryzyko jest przypisane do zadania. Odbiór wymaga powtórzenia testu. Dane mają manifest i hash. Koszt compute jest rozliczony w zadaniu. Wynik ma ślad audytowy. Kryterium nie jest deklaracją.", "to": ""},
       {"from": " Decyzja ma próg liczbowy. Dowód obejmuje log i metrykę. Artefakt ma wersję i właściciela. Ryzyko jest przypisane do zadania.", "to": ""},
@@ -112,22 +125,22 @@
           {"name": "zakres_planowanych_prac_br", "editSet": "taskBoilerplate"},
           {"name": "szczegolowy_opis_prac", "editSet": "taskBoilerplate"}
         ], "nestedRows": [
-          {"matchFieldSuffix": "kamienie_milowe_nazwa", "matchNeedle": "Pipeline ekstrakcji kierunków konceptów z checkpointów RNM", "fields": [{"nameSuffix": "kamienie_milowe_nazwa", "editSet": "milestoneBoilerplate"}]},
-          {"matchFieldSuffix": "kamienie_milowe_nazwa", "matchNeedle": "Katalog 1000 konceptów z metryką stabilności i ortogonalności", "fields": [{"nameSuffix": "kamienie_milowe_nazwa", "editSet": "milestoneBoilerplate"}]},
-          {"matchFieldSuffix": "kamienie_milowe_nazwa", "matchNeedle": "Interwencje reprezentacyjne potwierdzone w zadaniach UE i językach UE", "fields": [{"nameSuffix": "kamienie_milowe_nazwa", "editSet": "milestoneBoilerplate"}]}
+          {"matchFieldSuffix": "kamienie_milowe_nazwa", "matchNeedle": "Pipeline ekstrakcji kierunków konceptów z checkpointów RNM", "fields": [{"nameSuffix": "kamienie_milowe_nazwa", "editSet": "milestoneBoilerplate"}, {"nameSuffix": "kamienie_milowe_parametry", "editSet": "fillerSentences"}, {"nameSuffix": "kamienie_milowe_opis_weryfikacji", "editSet": "fillerSentences"}, {"nameSuffix": "kamienie_milowe_opis_wplywu", "editSet": "fillerSentences"}]},
+          {"matchFieldSuffix": "kamienie_milowe_nazwa", "matchNeedle": "Katalog 1000 konceptów z metryką stabilności i ortogonalności", "fields": [{"nameSuffix": "kamienie_milowe_nazwa", "editSet": "milestoneBoilerplate"}, {"nameSuffix": "kamienie_milowe_parametry", "editSet": "fillerSentences"}, {"nameSuffix": "kamienie_milowe_opis_weryfikacji", "editSet": "fillerSentences"}, {"nameSuffix": "kamienie_milowe_opis_wplywu", "editSet": "fillerSentences"}]},
+          {"matchFieldSuffix": "kamienie_milowe_nazwa", "matchNeedle": "Interwencje reprezentacyjne potwierdzone w zadaniach UE i językach UE", "fields": [{"nameSuffix": "kamienie_milowe_nazwa", "editSet": "milestoneBoilerplate"}, {"nameSuffix": "kamienie_milowe_parametry", "editSet": "fillerSentences"}, {"nameSuffix": "kamienie_milowe_opis_weryfikacji", "editSet": "fillerSentences"}, {"nameSuffix": "kamienie_milowe_opis_wplywu", "editSet": "fillerSentences"}]}
         ]},
         {"rowNeedle": "Benchmarki, walidacja porównawcza i decyzja techniczna", "matchField": "numer_zadania", "matchNeedle": "6", "matchMode": "equals", "fields": [], "nestedRows": [
-          {"matchFieldSuffix": "kamienie_milowe_nazwa", "matchNeedle": "Pakiet benchmarków RNM dla jakości, bezpieczeństwa i języków UE", "fields": [{"nameSuffix": "kamienie_milowe_nazwa", "editSet": "milestoneBoilerplate"}]},
-          {"matchFieldSuffix": "kamienie_milowe_nazwa", "matchNeedle": "Porównanie RNM z modelami referencyjnymi i analiza przewag", "fields": [{"nameSuffix": "kamienie_milowe_nazwa", "editSet": "milestoneBoilerplate"}]},
-          {"matchFieldSuffix": "kamienie_milowe_nazwa", "matchNeedle": "Decyzja techniczna o gotowości wyników do prototypu rozwojowego", "fields": [{"nameSuffix": "kamienie_milowe_nazwa", "editSet": "milestoneBoilerplate"}]}
+          {"matchFieldSuffix": "kamienie_milowe_nazwa", "matchNeedle": "Pakiet benchmarków RNM dla jakości, bezpieczeństwa i języków UE", "fields": [{"nameSuffix": "kamienie_milowe_nazwa", "editSet": "milestoneBoilerplate"}, {"nameSuffix": "kamienie_milowe_parametry", "editSet": "fillerSentences"}, {"nameSuffix": "kamienie_milowe_opis_weryfikacji", "editSet": "fillerSentences"}, {"nameSuffix": "kamienie_milowe_opis_wplywu", "editSet": "fillerSentences"}]},
+          {"matchFieldSuffix": "kamienie_milowe_nazwa", "matchNeedle": "Porównanie RNM z modelami referencyjnymi i analiza przewag", "fields": [{"nameSuffix": "kamienie_milowe_nazwa", "editSet": "milestoneBoilerplate"}, {"nameSuffix": "kamienie_milowe_parametry", "editSet": "fillerSentences"}, {"nameSuffix": "kamienie_milowe_opis_weryfikacji", "editSet": "fillerSentences"}, {"nameSuffix": "kamienie_milowe_opis_wplywu", "editSet": "fillerSentences"}]},
+          {"matchFieldSuffix": "kamienie_milowe_nazwa", "matchNeedle": "Decyzja techniczna o gotowości wyników do prototypu rozwojowego", "fields": [{"nameSuffix": "kamienie_milowe_nazwa", "editSet": "milestoneBoilerplate"}, {"nameSuffix": "kamienie_milowe_parametry", "editSet": "fillerSentences"}, {"nameSuffix": "kamienie_milowe_opis_weryfikacji", "editSet": "fillerSentences"}, {"nameSuffix": "kamienie_milowe_opis_wplywu", "editSet": "fillerSentences"}]}
         ]},
         {"rowNeedle": "Integracja prototypu RNM i kontrolowana walidacja techniczna", "matchField": "numer_zadania", "matchNeedle": "7", "matchMode": "equals", "fields": [
           {"name": "nazwa_zadania", "editSet": "taskNameTail"},
           {"name": "zakres_planowanych_prac_br", "editSet": "taskBoilerplate"},
           {"name": "szczegolowy_opis_prac", "editSet": "taskBoilerplate"}
         ], "nestedRows": [
-          {"matchFieldSuffix": "kamienie_milowe_nazwa", "matchNeedle": "Prototyp technologiczny RNM z biblioteką interwencji i raportem aktywacji", "fields": [{"nameSuffix": "kamienie_milowe_nazwa", "editSet": "milestoneBoilerplate"}]},
-          {"matchFieldSuffix": "kamienie_milowe_nazwa", "matchNeedle": "Walidacja operacyjna prototypu w scenariuszach sektorów regulowanych UE", "fields": [{"nameSuffix": "kamienie_milowe_nazwa", "editSet": "milestoneBoilerplate"}]}
+          {"matchFieldSuffix": "kamienie_milowe_nazwa", "matchNeedle": "Prototyp technologiczny RNM z biblioteką interwencji i raportem aktywacji", "fields": [{"nameSuffix": "kamienie_milowe_nazwa", "editSet": "milestoneBoilerplate"}, {"nameSuffix": "kamienie_milowe_parametry", "editSet": "fillerSentences"}, {"nameSuffix": "kamienie_milowe_opis_weryfikacji", "editSet": "fillerSentences"}, {"nameSuffix": "kamienie_milowe_opis_wplywu", "editSet": "fillerSentences"}]},
+          {"matchFieldSuffix": "kamienie_milowe_nazwa", "matchNeedle": "Walidacja operacyjna prototypu w scenariuszach sektorów regulowanych UE", "fields": [{"nameSuffix": "kamienie_milowe_nazwa", "editSet": "milestoneBoilerplate"}, {"nameSuffix": "kamienie_milowe_parametry", "editSet": "fillerSentences"}, {"nameSuffix": "kamienie_milowe_opis_weryfikacji", "editSet": "fillerSentences"}, {"nameSuffix": "kamienie_milowe_opis_wplywu", "editSet": "fillerSentences"}]}
         ]}
       ]
     }
