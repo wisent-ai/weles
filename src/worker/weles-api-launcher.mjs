@@ -168,6 +168,18 @@ async function startup() {
   if (!executable(stadoBin)) refuse(`required Stado binary is unavailable: ${stadoBin}`);
   const nodeBin = process.env.NODE_BIN || process.execPath;
 
+  // The Jeden that answers page questions is the one Stado installed beside
+  // its own binary, never a `jeden` found on PATH: on 2026-09-10 the PATH
+  // lookup on charless-mac-mini reached a copy with no signed sandbox helper
+  // beside it, and forty page questions in a row came back empty while the
+  // managed installation next door was whole. A managed Jeden that is missing
+  // is named here at startup; the page question that needs it refuses by path.
+  const jedenBin = process.env.WELES_JEDEN_BIN || join(HOME, '.stado/bin/jeden');
+  process.env.WELES_JEDEN_BIN = jedenBin;
+  process.stdout.write(executable(jedenBin)
+    ? `page questions run ${jedenBin}\n`
+    : `page questions will be refused: Stado has not installed Jeden at ${jedenBin}\n`);
+
   // The fleet service directory owns the canonical Skarbiec authority. Reading
   // an agent-ingress URL here sent a same-host workload out through Caddy and
   // made startup disagree with every local Stado verifier, so this caller's
