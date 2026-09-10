@@ -72,10 +72,13 @@ try {
         await openRow(page, collection, row, projectUrl);
         for (const field of texts) field.before = await (await oneField(page, field.name)).inputValue();
       }
-      if (mode === 'apply' && texts.some((field) => field.before !== field.expected)) {
-        await fillPrepared(page, texts);
-        await save(page, true, texts);
-      } else await closeDrawer(page);
+      const changedTexts = mode === 'apply' ? texts.filter((field) => field.before !== field.expected) : [];
+      if (!changedTexts.length) await closeDrawer(page);
+      for (const [index, field] of changedTexts.entries()) {
+        if (index) await openRow(page, collection, row, projectUrl);
+        await fillPrepared(page, [field]);
+        await save(page, true, [field]);
+      }
       await openRow(page, collection, row, projectUrl);
       await verifyPrepared(page, result.fields);
       result.afterFields = await snapshotFields(page);
