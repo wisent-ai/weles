@@ -113,7 +113,9 @@ export async function verifyPrepared(page, fields) {
       field.persisted &&= normalize(field.actualLabel) === normalize(field.optionLabel);
     }
     if (field.control === 'autocomplete') {
-      field.actualLabel = await choiceInput(locator).inputValue();
+      const display = choiceInput(locator);
+      await page.waitForFunction((element) => element.isConnected && element.value.trim() !== '', await display.elementHandle(), { timeout: 10_000 }).catch(() => {});
+      field.actualLabel = await display.inputValue();
       field.persisted &&= normalize(field.actualLabel).includes(normalize(field.optionLabel));
     }
     if (!field.persisted) throw new Error(`${field.scope}.${field.name}: persisted value differs (${sha256(actual)} != ${field.sha256})`);
