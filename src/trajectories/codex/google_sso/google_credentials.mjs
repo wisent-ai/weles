@@ -6,7 +6,7 @@
 // the Next button is clicked only when it is actually enabled, and a Google
 // refusal ("browser may not be secure", a password challenge that stays) is
 // raised as its own named error instead of being waited out.
-import { fillAndVerify, navEval, clickVisibleText, waitForEnabledThenClick } from './page_controls.mjs';
+import { fillAndVerify, navEval, waitForEnabledThenClick } from './page_controls.mjs';
 import { resolveOtp, selectAuthenticatorMethod } from './authenticator_code.mjs';
 
 export async function establishGoogleSession({
@@ -17,6 +17,61 @@ export async function establishGoogleSession({
   await page.goto('https://accounts.google.com/ServiceLogin?hl=en', { waitUntil: 'commit' });
   await humanIdlePause('deliberate');
   await enterGoogleCredentials({ page, login, mark, humanFill, humanClickLocator, humanIdlePause, humanType });
+}
+
+// The password can be an offered method, not a field yet. Selecting it takes
+// precedence over "Try another way", which would leave the usable choice.
+export async function waitForGooglePassword({ page, mark, humanClickLocator, humanIdlePause }) {
+  mark('google_password');
+  const password = page.locator('input[type="password"]').filter({ visible: true }).first();
+  const choiceName = /^(?:enter your password|use (?:your )?password|wpisz hasło|użyj hasła)$/i;
+  const choice = page.getByRole('link', { name: choiceName })
+    .or(page.getByRole('button', { name: choiceName })).filter({ visible: true }).first();
+  const alternatives = page.getByText(/^(?:try another way|wypr[oó]buj inny spos[oó]b)$/i)
+    .filter({ visible: true }).first();
+  const passkey = page.getByText(/use your passkey|użyj klucza dostępu/i)
+    .filter({ visible: true }).first();
+  const refused = page.getByText(/couldn.?t sign you in|may not be secure|too many failed attempts/i)
+    .filter({ visible: true }).first();
+  let selectedPassword = false;
+  let openedAlternatives = false;
+  for (let i = 0; i < 80; i += 1) {
+    if (await refused.isVisible()) {
+      const detail = await refused.innerText();
+      const error = new Error(`Google refused sign-in: ${detail}`);
+      error.code = /may not be secure|couldn.?t sign you in/i.test(detail)
+        ? 'BROWSER_NOT_SECURE' : 'provider_challenge_refused';
+      error.fatal2fa = true;
+      throw error;
+    }
+    if (await password.isVisible()) return password;
+    if (!selectedPassword && await choice.isVisible() && await choice.isEnabled()) {
+      selectedPassword = true;
+      mark('google_password_choice');
+      await humanClickLocator(page, choice);
+      await humanIdlePause('deliberate');
+      mark('google_password');
+      continue;
+    }
+    if (!selectedPassword && !openedAlternatives && await passkey.isVisible()
+        && await alternatives.isVisible() && await alternatives.isEnabled()) {
+      openedAlternatives = true;
+      mark('google_password_alternatives');
+      await humanClickLocator(page, alternatives);
+      await humanIdlePause('deliberate');
+      mark('google_password');
+      continue;
+    }
+    await page.waitForTimeout(500); // allow-raw-playwright: observe the selected challenge, never resubmit it
+  }
+  const observed = await navEval(page, () => ({
+    host: location.host, path: location.pathname,
+    text: (document.body?.innerText || '').replace(/\s+/g, ' ').slice(0, 500),
+  }), { state: 'page navigated before diagnosis' });
+  const error = new Error(`Google did not show the selected password challenge: ${JSON.stringify(observed)}`);
+  error.code = 'google_password_challenge_unavailable';
+  error.fatal2fa = true;
+  throw error;
 }
 
 // Email -> password -> 2FA entry on accounts.google.com. Extracted verbatim
@@ -64,36 +119,7 @@ export async function enterGoogleCredentials({
   await waitForEnabledThenClick(page, /next|continue|dalej/i);
   await humanIdlePause('deliberate');
 
-  mark('google_password');
-  // Google shows EITHER the password field OR a "Couldn't sign you in / browser
-  // may not be secure" block. With the humanized click above this should now
-  // clear; if Google still blocks, fail fast with a distinct BROWSER_NOT_SECURE
-  // signal (caught by login.mjs -> reauth rotates the LRU row) instead of
-  // waiting 30s for a password field that will never render.
-  const gPwIn = page.locator('input[type="password"]').filter({ visible: true }).first();
-  const blocked = page.getByText(/Couldn.?t sign you in|may not be secure/i).first();
-  let sawPw = false;
-  let passkeyBypassed = false;
-  for (let i = 0; i < 80; i += 1) {
-    if (await gPwIn.isVisible().catch(() => false)) { sawPw = true; break; }
-    if (await blocked.isVisible().catch(() => false)) {
-      const e = new Error('BROWSER_NOT_SECURE: Google blocked this exit at sign-in');
-      e.code = 'BROWSER_NOT_SECURE';
-      throw e;
-    }
-    const passkeyVisible = await navEval(page, () =>
-      /use your passkey|uzyj klucza dostepu/i.test(document.body?.innerText || ''), false);
-    if (passkeyVisible && !passkeyBypassed) {
-      passkeyBypassed = true;
-      await clickVisibleText(page, /try another way|wyprobuj inny sposob/i);
-      await page.waitForTimeout(800);
-      await clickVisibleText(page, /enter your password|use (?:your )?password|haslo/i);
-      await page.waitForTimeout(800);
-      continue;
-    }
-    await page.waitForTimeout(500);
-  }
-  if (!sawPw) throw new Error('google_password: neither password field nor block page appeared');
+  const gPwIn = await waitForGooglePassword({ page, mark, humanClickLocator, humanIdlePause });
   await fillAndVerify(page, gPwIn, login.password, humanClickLocator, humanType);
   try {
     await gPwIn.evaluate((el) => {

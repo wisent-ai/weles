@@ -8,6 +8,7 @@
 // being waited out against a password field that will never render.
 import { fillAndVerify, waitForEnabledThenClick } from './page_controls.mjs';
 import { resolveOtp, selectAuthenticatorMethod } from './authenticator_code.mjs';
+import { waitForGooglePassword } from '../../codex/google_sso/google_credentials.mjs';
 
 export async function enterGoogleCredentials({
   page, login, mark,
@@ -51,25 +52,7 @@ export async function enterGoogleCredentials({
   await waitForEnabledThenClick(page,/next|continue|dalej/i);
   await humanIdlePause('deliberate');
 
-  mark('google_password');
-  // Google shows EITHER the password field OR a "Couldn't sign you in / browser
-  // may not be secure" block. With the humanized click above this should now
-  // clear; if Google still blocks, fail fast with a distinct BROWSER_NOT_SECURE
-  // signal (caught by login.mjs -> reauth rotates the LRU row) instead of
-  // waiting 30s for a password field that will never render.
-  const gPwIn = page.locator('input[type="password"]').filter({ visible: true }).first();
-  const blocked = page.getByText(/Couldn.?t sign you in|may not be secure/i).first();
-  let sawPw = false;
-  for (let i = 0; i < 40; i += 1) {
-    if (await gPwIn.isVisible().catch(() => false)) { sawPw = true; break; }
-    if (await blocked.isVisible().catch(() => false)) {
-      const e = new Error('BROWSER_NOT_SECURE: Google blocked this exit at sign-in');
-      e.code = 'BROWSER_NOT_SECURE';
-      throw e;
-    }
-    await page.waitForTimeout(500); // allow-raw-playwright: password-or-block poll, not a humanized action
-  }
-  if (!sawPw) throw new Error('google_password: neither password field nor block page appeared');
+  const gPwIn = await waitForGooglePassword({ page, mark, humanClickLocator, humanIdlePause });
   await fillAndVerify(page, gPwIn, login.password, humanClickLocator, humanType);
   try {
     await gPwIn.evaluate((el) => {

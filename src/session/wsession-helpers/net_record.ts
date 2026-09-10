@@ -162,6 +162,14 @@ export function startInstrumentation(ws: any, ctx: BrowserContext, label: string
 // has been refreshing every 5 seconds with the most-recent state, so the
 // uploaded artifact contains everything up to the moment of close.
 export async function finalDump(ws: any): Promise<void> {
+  // Measurements belong to the session, not to the lifetime of its worker.
+  // Leaving any of these intervals alive turns a completed login into a timeout.
+  for (const key of ['_instFlushTimer', '_instMetricsPollId', '_instDomCountersPollId', '_instStoragePollId']) {
+    if (ws?.[key]) {
+      clearInterval(ws[key]);
+      ws[key] = null;
+    }
+  }
   if (!ws?._instFile) return;
   // End CDP Tracing + coverage tracking first so per-domain takeXxx results
   // are populated before serialization. Failures noted, not silenced.
@@ -175,10 +183,6 @@ export async function finalDump(ws: any): Promise<void> {
   try { await captureFinalCdpSnapshots(ws); } catch {}
   try { const { stopPcap } = await import('./pcap_sidecar.js'); await stopPcap(ws); } catch {}
   try {
-    if (ws._instFlushTimer) {
-      clearInterval(ws._instFlushTimer);
-      ws._instFlushTimer = null;
-    }
     if (!ws.page?.isClosed?.()) {
       for (const f of ws.page.frames?.() ?? []) {
         try {

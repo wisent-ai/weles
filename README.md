@@ -182,6 +182,11 @@ Results identify the subscription, login item, actual failed operation, HTTP sta
 and run id. `account_revision` describes Skarbiec data; `source_revision` identifies
 the Weles software. Missing source references, cycles, conflicting login material
 and changed identity are refused before credential persistence.
+Google sign-in selects a visible password choice before opening alternative
+methods. Hidden refusal templates do not count as provider refusals. A visible
+refusal or unavailable password challenge reports its observed page and stage;
+the same run never resubmits the selected challenge. Session closure also stops
+its measurement timers, so retained results do not wait for the worker timeout.
 
 Both services acquire `brama-weles-reauth/token` from Skarbiec with their own
 workload identities. Weles accepts that bearer only on the reauthentication routes.
