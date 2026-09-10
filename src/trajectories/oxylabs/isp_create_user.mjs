@@ -10,6 +10,7 @@
 //   4. Store the complete credential only through the exact ISP proxy writer
 //   5. Probe :8001 with the new creds to verify auth works
 
+import { runOutputPath } from '#run-output';
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getScopedGoogleLogin } from '../_shared/services/google_sso.mjs'
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -18,7 +19,7 @@ import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js'
 import { humanType } from '../../../dist/human/keyboard.js';
 import { assertScopedSecretWriter, writeScopedSecretItem } from '../../_shared/scoped-secrets.mjs';
 
-const OUT_DIR = '.work/keeper/oxylabs_isp_user';
+const OUT_DIR = runOutputPath('keeper', 'oxylabs_isp_user');
 mkdirSync(OUT_DIR, { recursive: true });
 const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
 async function shot(s, label) {

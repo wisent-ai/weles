@@ -12,6 +12,7 @@
 //   4. For each row up to ACCEPT_LIMIT, find the Accept button, click it.
 //   5. Append entry to metadata.friend_requests_accepted[] per success.
 
+import { runOutputPath } from '#run-output';
 import { WSession } from '../../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 import { getSocialAccount, resolveAccountSession } from '../../../../../dist/utils/credentials.js';
@@ -33,7 +34,7 @@ console.log(`[accept_friend] account=${acct.username} limit=${ACCEPT_LIMIT}`);
 
 async function fail(msg) {
   console.log(`FAIL: ${msg}`);
-  try { await s.page.screenshot({ path: `.work/accept_friend_request/fail_${Date.now()}.png` }); } catch (e) { console.log(`[accept_friend] screenshot err: ${e.message?.slice(0, 80)}`); }
+  try { await s.page.screenshot({ path: runOutputPath('accept_friend_request', `fail_${Date.now()}.png`) }); } catch (e) { console.log(`[accept_friend] screenshot err: ${e.message?.slice(0, 80)}`); }
   await s.close();
   process.exit(1);
 }

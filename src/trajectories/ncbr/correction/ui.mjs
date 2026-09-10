@@ -39,10 +39,13 @@ export async function identity(page, projectUrl, project) {
 
 export async function openRow(page, collection, row, projectUrl) {
   await gotoSafe(page, collection.url, projectUrl);
-  const rows = page.locator('table tbody tr').filter({ hasText: row.rowNeedle })
-    .filter({ has: page.locator('button[aria-label="overflow-options"]') });
-  await rows.first().waitFor({ state: 'visible' });
-  if (await rows.count() !== 1) throw new Error(`${collection.label}: row is not unique: ${row.rowNeedle}`);
+  const candidates = page.locator('table tbody tr').filter({ has: page.locator('button[aria-label="overflow-options"]') });
+  await candidates.first().waitFor({ state: 'visible' });
+  // Cells are separate elements, so a needle spanning cells (a first and last name) must match the row's visible text.
+  const texts = await candidates.evaluateAll((nodes) => nodes.map((node) => node.innerText.replace(/\s+/g, ' ').trim())); // allow-raw-playwright: read-only row texts
+  const indexes = texts.map((text, index) => (text.includes(normalize(row.rowNeedle)) ? index : -1)).filter((index) => index >= 0);
+  if (indexes.length !== 1) throw new Error(`${collection.label}: row is not unique: ${row.rowNeedle} (matched ${indexes.length} of ${texts.length})`);
+  const rows = candidates.nth(indexes[0]);
   await clickSafe(rows.locator('button[aria-label="overflow-options"]'), 'row menu');
   await clickSafe(page.getByRole('menuitem', { name: 'Edytuj', exact: true }).filter({ visible: true }), 'Edytuj');
   await page.waitForFunction(({ suffix, expected, equals }) => {

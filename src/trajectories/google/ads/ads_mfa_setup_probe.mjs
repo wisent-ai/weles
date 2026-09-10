@@ -1,5 +1,6 @@
 // Probe Google 2-Step Verification setup for the Google Ads account.
 
+import { runOutputPath } from '#run-output';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -12,7 +13,7 @@ import { assertGoogleAdsProfileNotAlreadyOpen, closeAllowedByEnv } from './_prof
 const GOOGLE_ADS_LOGIN = readScopedLogin('googleAds');
 
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'google_ads');
-const DIAG_DIR = process.env.GOOGLE_MFA_DIAG_DIR || '.work/google-mfa-setup';
+const DIAG_DIR = process.env.GOOGLE_MFA_DIAG_DIR || runOutputPath('google-mfa-setup');
 mkdirSync(USER_DATA_DIR, { recursive: true });
 mkdirSync(DIAG_DIR, { recursive: true });
 process.env.WELES_VIEWPORT ??= '1440x1000';

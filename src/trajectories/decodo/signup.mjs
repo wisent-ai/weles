@@ -2,7 +2,8 @@
 // (lukasz.bartoszcze@gmail.com via getGoogleSsoCreds/googleSso, the same one
 // every other service trajectory uses) and purchase US Dedicated Static
 // Residential (ISP) proxies, then scrape the issued proxy credentials into
-// .work/keeper/decodo_isp.json and append the endpoint to weles/.env.
+// the run-output root's `keeper/decodo_isp.json` and append the endpoint to
+// weles/.env.
 //
 // Modeled on oxylabs/isp_subscribe.mjs (the proven ISP-purchase pattern):
 //   1. WSession chromium -> dashboard.decodo.com/login -> Google sign-in
@@ -20,6 +21,7 @@
 // Presence checks use locator.count() (resolves to a number, never rejects);
 // the OAuth popup is captured via a ctx 'page' listener (no promise-rejection
 // sentinel). Real Playwright errors propagate to the outer handler.
+import { runOutputPath } from '#run-output';
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { fillStripeElements, loadTopupCardEnv } from '../_shared/services/topup_common.mjs';
@@ -32,7 +34,7 @@ import { humanType } from '../../../dist/human/keyboard.js';
 loadTopupCardEnv();
 
 const CONFIRM = process.env.DECODO_BUY_CONFIRM === '1';
-const OUT_DIR = '.work/keeper/decodo_isp_buy';
+const OUT_DIR = runOutputPath('keeper', 'decodo_isp_buy');
 mkdirSync(OUT_DIR, { recursive: true });
 const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
 const present = async (loc) => (await loc.count()) > 0;
@@ -228,8 +230,8 @@ try {
   const ips = ispOut.match(/\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b/g) || [];
   const hostPort = ispOut.match(/([a-z0-9.-]+\.(?:decodo|smartproxy)\.com):(\d{2,5})/i);
   const rec = { captured_at: new Date().toISOString(), sso: login.email, ips: [...new Set(ips)], endpoint: hostPort ? hostPort[0] : null };
-  writeFileSync('.work/keeper/decodo_isp.json', JSON.stringify(rec, null, 2));
-  console.log(`[decodo] wrote .work/keeper/decodo_isp.json ips=${rec.ips.length} endpoint=${rec.endpoint || 'none'}`);
+  writeFileSync(runOutputPath('keeper', 'decodo_isp.json'), JSON.stringify(rec, null, 2));
+  console.log(`[decodo] wrote ${runOutputPath('keeper', 'decodo_isp.json')} ips=${rec.ips.length} endpoint=${rec.endpoint || 'none'}`);
   if (rec.endpoint) {
     appendFileSync(join(process.cwd(), '.env'), `\n# Decodo ISP (added ${rec.captured_at})\nDECODO_ISP_ENDPOINT=${rec.endpoint}\n`);
     console.log('[decodo] appended DECODO_ISP_ENDPOINT to weles/.env');

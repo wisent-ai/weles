@@ -13,6 +13,7 @@
 //      connected_accounts via read-only page.evaluate.
 //   5. Write JSON to .work/discord_view_profile/<id>.json.
 
+import { runOutputPath } from '#run-output';
 import fs from 'node:fs';
 import path from 'node:path';
 import { WSession } from '../../../../../dist/session/wsession.js';
@@ -57,7 +58,7 @@ try {
   if (!profile) { console.log('FAIL: profile popout did not render'); process.exit(1); }
   console.log(`[view_profile] dump=${JSON.stringify(profile).slice(0, 200)}`);
 
-  const outDir = path.resolve(process.cwd(), '.work/discord_view_profile');
+  const outDir = runOutputPath('discord_view_profile');
   fs.mkdirSync(outDir, { recursive: true });
   const outPath = path.join(outDir, `${TARGET_ID}.json`);
   fs.writeFileSync(outPath, JSON.stringify({ ...profile, id: TARGET_ID, fetched_at: new Date().toISOString(), fetched_by: acct.username }, null, 2));

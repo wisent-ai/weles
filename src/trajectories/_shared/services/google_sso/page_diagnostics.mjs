@@ -5,6 +5,7 @@
 // Reading a page while it navigates is not the same fact as a page with nothing
 // on it, so that read has its own named answer and every caller branches on it
 // instead of matching patterns against an empty string.
+import { runOutputPath } from '#run-output';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -50,7 +51,7 @@ export async function logGooglePageDiag(page, label) {
   console.log(`[google_sso] ${label} diag=${JSON.stringify(diag).slice(0, 3000)}`);
 
   if (process.env.GOOGLE_SSO_SCREENSHOTS === '1' && process.env.GOOGLE_SSO_NO_SCREENSHOTS !== '1') {
-    const dir = process.env.GOOGLE_SSO_DIAG_DIR || '.work/google-sso-diag';
+    const dir = process.env.GOOGLE_SSO_DIAG_DIR || runOutputPath('google-sso-diag');
     mkdirSync(dir, { recursive: true });
     const file = join(dir, `${label.replace(/[^a-z0-9_-]/gi, '_')}.png`);
     await page.screenshot({ path: file, fullPage: true });

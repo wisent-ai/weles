@@ -13,6 +13,7 @@
 // Env: WHITELISTED_IPS, SEND_FROM, MESSAGE_FILE,
 //      ALLOW_ANY_IP=1 (test escape hatch).
 
+import { runOutputPath } from '#run-output';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { promises as dnsp } from 'node:dns';
@@ -23,7 +24,7 @@ const RK = process.env.RESEND_API_KEY || '';
 const RRK = process.env.RESEND_RECEIVING_API_KEY || RK;
 const SEND_FROM = process.env.SEND_FROM || 'noreply@wisent.com';
 // Absolute so the chained slack_post_message job (separate process) can read it.
-const MESSAGE_FILE = resolve(process.env.MESSAGE_FILE || '.work/resend-domains-status.txt');
+const MESSAGE_FILE = resolve(process.env.MESSAGE_FILE || runOutputPath('resend-domains-status.txt'));
 const SLACK_CHANNEL = process.env.SLACK_CHANNEL || 'jakub';   // who Swiatowid messages
 const SKIP = new Set(['wisent.com','agents.trade.wisent.ai','ralph.agents.trade.wisent.ai',
   'testagent.agents.trade.wisent.ai','influencers.wisent.ai','needher.ai','macchiavelli.ai']);

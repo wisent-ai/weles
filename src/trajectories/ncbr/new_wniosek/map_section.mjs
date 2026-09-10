@@ -8,7 +8,10 @@ import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.
 import { humanFill } from '../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || ['ht', 'tp://127.0.0.1:9223'].join('');
-const SECTION_LABEL = process.env.SECTION_LABEL || '1.1.';
+const SECTION_GROUP = process.env.SECTION_GROUP || '';
+// With a group, the section label defaults to whatever entry appears once the group is expanded.
+const SECTION_LABEL_ENV = process.env.SECTION_LABEL || (SECTION_GROUP ? '' : '1.1.');
+const navPattern = (label) => `text=/^\\s*${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/`;
 
 const browser = await chromium.connectOverCDP(endpoint);
 const context = browser.contexts()[0];
@@ -22,15 +25,56 @@ if (!page) {
 const projectUrl = process.env.NCBR_PROJECT_URL || ['https://', 'lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1'].join('');
 await page.goto(projectUrl, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
-await page.waitForSelector(`text=/^\\s*${SECTION_LABEL.replace('.', '\\.')}/`);
+// The left rail is a MUI TreeView: every top-level section is a group <li role="treeitem"> whose click toggles
+// aria-expanded, and the openable sections are child tree items inside its <ul>. A group that is already open
+// collapses on click, so the group is only clicked when it is closed, and navigation always clicks the child.
+const treeItems = page.locator('li[role="treeitem"]');
+const itemLabel = (item) => item.locator('.MuiTreeItem-label').first().evaluate((node) => node.textContent.trim().replace(/\s+/g, ' ')); // allow-raw-playwright: read-only label
+let navChildren = [];
+let SECTION_LABEL = SECTION_LABEL_ENV;
+let navLocator;
+if (SECTION_GROUP) {
+  const group = treeItems.filter({ has: page.locator(navPattern(SECTION_GROUP)) }).first();
+  await group.waitFor({ state: 'visible' });
+  if (await group.getAttribute('aria-expanded') !== 'true') {
+    await humanClickLocator(page, group.locator('.MuiTreeItem-content').first());
+    await humanIdlePause('long');
+    await page.waitForFunction((element) => element.getAttribute('aria-expanded') === 'true', await group.elementHandle(), { timeout: 15_000 });
+  }
+  const children = group.locator(':scope > ul li[role="treeitem"]');
+  navChildren = await children.evaluateAll((nodes) => nodes.map((node) => ({
+    id: node.id.replace(/^mui-tree-view-\d+-/, ''),
+    text: (node.querySelector('.MuiTreeItem-label')?.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 120),
+  }))); // allow-raw-playwright: read-only tree listing
+  if (!navChildren.length) {
+    console.log(JSON.stringify({ error: 'GROUP_HAS_NO_ENTRIES', sectionGroup: SECTION_GROUP, groupHtml: (await group.evaluate((node) => node.outerHTML)).slice(0, 3000) }, null, 2)); // allow-raw-playwright: read-only diagnostics
+    process.exit(1);
+  }
+  if (!SECTION_LABEL) SECTION_LABEL = navChildren[0].text;
+  navLocator = children.filter({ has: page.locator(navPattern(SECTION_LABEL)) }).first();
+  if (!await navLocator.count()) {
+    console.log(JSON.stringify({ error: 'SECTION_NOT_FOUND', sectionLabel: SECTION_LABEL, sectionGroup: SECTION_GROUP, navChildren }, null, 2));
+    process.exit(1);
+  }
+} else {
+  try {
+    await page.waitForSelector(navPattern(SECTION_LABEL));
+  } catch (error) {
+    const visibleNav = await treeItems.evaluateAll((nodes) => nodes
+      .filter((node) => node.getClientRects().length)
+      .map((node) => (node.querySelector('.MuiTreeItem-label')?.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 80))); // allow-raw-playwright: read-only nav listing for diagnostics
+    console.log(JSON.stringify({ error: 'SECTION_NOT_FOUND', sectionLabel: SECTION_LABEL, visibleNav: [...new Set(visibleNav)].slice(0, 80), cause: error.message.split('\n')[0] }, null, 2));
+    process.exit(1);
+  }
+  navLocator = page.locator(navPattern(SECTION_LABEL)).first();
+}
 await humanIdlePause('deliberate');
 
-const navLocator = page.locator(`text=/^\\s*${SECTION_LABEL.replace('.', '\\.')}/`).first();
-let navInfo = { found: false };
-const count = await navLocator.count();
-if (count > 0) {
-  navInfo = { found: true, text: (await navLocator.textContent())?.trim()?.slice(0, 100) };
-  await humanClickLocator(page, navLocator);
+let navInfo = { found: false, group: SECTION_GROUP || null, navChildren, sectionLabel: SECTION_LABEL };
+if (await navLocator.count()) {
+  const target = SECTION_GROUP ? navLocator.locator('.MuiTreeItem-content').first() : navLocator;
+  navInfo = { ...navInfo, found: true, text: SECTION_GROUP ? await itemLabel(navLocator) : (await navLocator.textContent())?.trim()?.slice(0, 100) };
+  await humanClickLocator(page, target);
   await humanIdlePause('long');
   await humanIdlePause('deliberate');
 }

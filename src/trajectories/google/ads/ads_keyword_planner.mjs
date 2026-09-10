@@ -7,6 +7,7 @@
 //   GOOGLE_ADS_RESULT_FILE       optional JSON output path
 //   Login identity/password/MFA are read only from the dedicated Google Ads Skarbiec item.
 
+import { runOutputPath } from '#run-output';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -21,7 +22,7 @@ import { readScopedLogin } from '../../../_shared/scoped-secrets.mjs';
 const GOOGLE_ADS_LOGIN = readScopedLogin('googleAds');
 const NAV_TIMEOUT_MS = Number(process.env.NAV_TIMEOUT_MS || 60 * 1000);
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'google_ads');
-const DIAG_DIR = process.env.GOOGLE_ADS_DIAG_DIR || '.work/google-ads-keyword-planner';
+const DIAG_DIR = process.env.GOOGLE_ADS_DIAG_DIR || runOutputPath('google-ads-keyword-planner');
 const RESULT_FILE = process.env.GOOGLE_ADS_RESULT_FILE || join(DIAG_DIR, 'keyword-planner.json');
 const CLOSE_AFTER_HARVEST = closeAllowedByEnv('GOOGLE_ADS_CLOSE_AFTER_HARVEST');
 const cid = normalizeCustomerId(process.env.GOOGLE_ADS_CUSTOMER_ID || '');

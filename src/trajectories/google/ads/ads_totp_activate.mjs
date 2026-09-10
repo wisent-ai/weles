@@ -1,6 +1,7 @@
 // Activate a Google Authenticator setup key for the Google Ads account.
 // Uses Weles browser automation only; password and MFA material come from the dedicated Google Ads Skarbiec item.
 
+import { runOutputPath } from '#run-output';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -15,7 +16,7 @@ import { readScopedLogin } from '../../../_shared/scoped-secrets.mjs';
 const GOOGLE_ADS_LOGIN = readScopedLogin('googleAds');
 const EMAIL = GOOGLE_ADS_LOGIN.email;
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'google_ads');
-const DIAG_DIR = process.env.GOOGLE_TOTP_ACTIVATION_DIAG_DIR || '.work/google-totp-activation';
+const DIAG_DIR = process.env.GOOGLE_TOTP_ACTIVATION_DIAG_DIR || runOutputPath('google-totp-activation');
 const RESULT_FILE = process.env.GOOGLE_TOTP_ACTIVATION_RESULT_FILE || join(DIAG_DIR, 'result.json');
 const NAV_TIMEOUT_MS = Number(process.env.NAV_TIMEOUT_MS || 60_000);
 

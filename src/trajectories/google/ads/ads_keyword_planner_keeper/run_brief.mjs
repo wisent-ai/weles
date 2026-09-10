@@ -3,6 +3,7 @@
 // Skarbiec identity the run signs in with, and the single JSON record it writes
 // before exiting with the code that says how far it got.
 
+import { runOutputPath } from '#run-output';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -11,7 +12,7 @@ import { readScopedLogin } from '../../../../_shared/scoped-secrets.mjs';
 const GOOGLE_ADS_LOGIN = readScopedLogin('googleAds');
 export const SESSION = process.env.SESSION || process.env.GOOGLE_ADS_KEEPER_SESSION || 'google_ads';
 export const SOCK = join(homedir(), '.weles', 'keeper', SESSION, 'socket');
-export const DIAG_DIR = process.env.GOOGLE_ADS_DIAG_DIR || '.work/google-ads-keyword-planner';
+export const DIAG_DIR = process.env.GOOGLE_ADS_DIAG_DIR || runOutputPath('google-ads-keyword-planner');
 export const RESULT_FILE = process.env.GOOGLE_ADS_RESULT_FILE || join(DIAG_DIR, `keywords-${normalizeCustomerId(process.env.GOOGLE_ADS_CUSTOMER_ID || '') || 'unknown'}.json`);
 export const cid = normalizeCustomerId(process.env.GOOGLE_ADS_CUSTOMER_ID || '');
 export const keywords = parseKeywords(process.env.GOOGLE_ADS_KEYWORDS || process.env.KEYWORDS || process.env.KEYWORD || '');

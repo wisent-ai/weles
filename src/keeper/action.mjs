@@ -9,6 +9,7 @@
 //   node action.mjs screenshot
 //   node action.mjs eval 'document.title'
 
+import { runOutputPath } from '#run-output';
 import { chromium } from 'playwright';
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -16,7 +17,7 @@ import { humanClickLocator } from '../../dist/human/mouse.js';
 import { humanFill } from '../../dist/human/keyboard.js';
 
 const CDP = 'http://localhost:9223';
-const OUT = '.work/keeper';
+const OUT = runOutputPath('keeper');
 if (!existsSync(OUT)) mkdirSync(OUT, { recursive: true });
 
 const [, , action, ...args] = process.argv;

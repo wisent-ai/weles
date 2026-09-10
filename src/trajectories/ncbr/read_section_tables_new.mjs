@@ -19,8 +19,15 @@ if (process.env.NAV_LABEL) {
 }
 if (process.env.ROW_NEEDLE) {
   const table = page.locator('table').nth(Number(process.env.ROW_TABLE_INDEX || 0));
-  const row = table.locator('tbody tr').filter({ hasText: process.env.ROW_NEEDLE });
-  if (await row.count() !== 1) throw new Error(`Expected one row matching ${process.env.ROW_NEEDLE}`);
+  await table.locator('tbody tr').first().waitFor({ state: 'visible' });
+  // Cells are separate elements, so a needle spanning cells (a first and last name) must match the row's visible text.
+  const rowTexts = await table.locator('tbody tr').evaluateAll((nodes) => nodes.map((node) => node.innerText.replace(/\s+/g, ' ').trim())); // allow-raw-playwright: read-only row texts
+  const needle = process.env.ROW_NEEDLE.replace(/\s+/g, ' ').trim();
+  const indexes = rowTexts.map((text, index) => (text.includes(needle) ? index : -1)).filter((index) => index >= 0);
+  if (indexes.length !== 1) {
+    throw new Error(`Expected one row matching ${needle}, matched ${indexes.length} of ${rowTexts.length}: ${JSON.stringify(rowTexts.map((text) => text.slice(0, 160)))}`);
+  }
+  const row = table.locator('tbody tr').nth(indexes[0]);
   await row.locator('button[aria-label*="overflow-options"]').dispatchEvent('click');
   const edit = page.getByRole('menuitem', { name: 'Edytuj', exact: true }).filter({ visible: true });
   await edit.waitFor({ state: 'visible' });

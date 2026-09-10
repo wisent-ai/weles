@@ -1,0 +1,132 @@
+{
+  "schema": "weles.ncbr.correction-plan.v1",
+  "project": {
+    "id": "7ee80d9a-67dd-4d99-becd-8dda407221c1",
+    "applicationNumber": "FENG.05.01-IP.01-007N/26",
+    "titleNeedle": "Duże modele językowe oparte na reprezentacjach",
+    "deadline": "2026-09-10T14:59:59+02:00",
+    "allowedStatusNeedles": ["Rekomendacje poprawy przekazane wnioskodawcy"],
+    "neverSubmit": true
+  },
+  "editSets": {
+    "taskBoilerplate": [
+      {"from": " Decyzja ma próg liczbowy. Dowód obejmuje log i metrykę. Artefakt ma wersję i właściciela. Ryzyko jest przypisane do zadania. Odbiór wymaga powtórzenia testu. Dane mają manifest i hash. Koszt compute jest rozliczony w zadaniu. Wynik ma ślad audytowy. Kryterium nie jest deklaracją.", "to": ""},
+      {"from": " Decyzja ma próg liczbowy. Dowód obejmuje log i metrykę. Artefakt ma wersję i właściciela. Ryzyko jest przypisane do zadania.", "to": ""},
+      {"from": " Decyzja ma próg liczbowy. Dowód obejmuje log i metrykę. Artefakt ma wersję i właściciela. Próg.", "to": ""},
+      {"from": " To usuwa wcześniejszy błąd polegający na chowaniu kosztów Z3/Z4/Z6 pod innymi zadaniami.", "to": ""},
+      {"from": "spoza UE. tworzy audytowalny katalog", "to": "spoza UE. Rezultat tworzy audytowalny katalog", "optional": true},
+      {"from": "spoza UE. pokazuje możliwość", "to": "spoza UE. Rezultat pokazuje możliwość", "optional": true},
+      {"from": ". koszt obejmuje personel analityczny", "to": ". Koszt obejmuje personel analityczny", "optional": true},
+      {"from": ". koszt obejmuje tylko personel integracyjny", "to": ". Koszt obejmuje tylko personel integracyjny", "optional": true},
+      {"from": "Zadanie 5 obejmuje Katalog konceptów, stabilność, ortogonalność i interwencje.", "to": "Zadanie 5 obejmuje katalog konceptów, ich stabilność, ortogonalność i interwencje.", "optional": true},
+      {"from": "Zadanie 7 obejmuje Integracja prototypu RNM i kontrolowana walidacja techniczna.", "to": "Zadanie 7 obejmuje integrację prototypu RNM i kontrolowaną walidację techniczną.", "optional": true},
+      {"from": "Uzasadnienie naukowo-techniczne: Katalog konceptów, stabilność, ortogonalność i interwencje jest potrzebne, ponieważ", "to": "Uzasadnienie naukowo-techniczne: zadanie jest potrzebne, ponieważ", "optional": true},
+      {"from": "Uzasadnienie naukowo-techniczne: Integracja prototypu RNM i kontrolowana walidacja techniczna jest potrzebne, ponieważ", "to": "Uzasadnienie naukowo-techniczne: zadanie jest potrzebne, ponieważ", "optional": true}
+    ],
+    "milestoneBoilerplate": [
+      {"from": " Nie jest czynnością organizacyjną; ma artefakt, metrykę, próg odbioru, właściciela i decyzję przejścia. Decyzja ma próg liczbowy. Dowód obejmuje log i metrykę. Próg.", "to": ""},
+      {"from": " Nie jest czynnością organizacyjną; ma artefakt, metrykę, próg odbioru, właściciela i decyzję przejścia. Decyzja ma próg liczbowy. Dowód obejmuje log i metrykę.", "to": ""},
+      {"from": " Nie jest czynnością organizacyjną; ma artefakt, metrykę, próg odbioru, właściciela i decyzję przejścia. Decyzja ma próg liczbowy. Dowód jest.", "to": ""},
+      {"from": " Nie jest czynnością organizacyjną; ma artefakt, metrykę, próg odbioru, właściciela i decyzję przejścia. Decyzja ma próg liczbowy. Wynik ma ślad audytowy.", "to": ""}
+    ],
+    "taskNameTail": [
+      {"from": " Dowód jest.", "to": ""}
+    ],
+    "personTasks": [
+      {"from": "audytowalności kierunków konceptów (Zadania 1–3) oraz rzetelnej walidacji porównawczej (Zadanie 4)", "to": "audytowalności kierunków konceptów (Zadania 1–5) oraz rzetelnej walidacji porównawczej (Zadanie 6)", "optional": true},
+      {"from": "budowie katalogu kierunków konceptów (Zadanie 3) oraz walidacji porównawczej względem modeli odniesienia (Zadanie 4)", "to": "budowie katalogu kierunków konceptów (Zadanie 5) oraz walidacji porównawczej względem modeli odniesienia (Zadanie 6)", "optional": true},
+      {"from": "formalną charakterystykę kierunków konceptów i ich katalogu (Zadanie 3) oraz rygor statystyczny walidacji porównawczej (Zadanie 4)", "to": "formalną charakterystykę kierunków konceptów i ich katalogu (Zadanie 5) oraz rygor statystyczny walidacji porównawczej (Zadanie 6)", "optional": true},
+      {"from": "nadzoruje funkcje celu (Zadania 1–2), katalog konceptów (Zadanie 3) oraz walidację porównawczą (Zadanie 4)", "to": "nadzoruje funkcje celu (Zadania 1–2), katalog konceptów (Zadanie 5) oraz walidację porównawczą (Zadanie 6)", "optional": true}
+    ]
+  },
+  "sections": [],
+  "collections": [
+    {
+      "label": "7",
+      "url": "https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/77be8643-1e31-4619-b266-d156a5388cf6",
+      "rows": [
+        {"rowNeedle": "Ryzyko nieosiągnięcia zakładanej redukcji liczby tokenów", "matchField": "ryzyka_nazwa_ryzyka", "matchNeedle": "Ryzyko nieosiągnięcia zakładanej redukcji liczby tokenów", "fields": [
+          {"name": "ryzyka_opis_ryzyka", "edits": [
+            {"from": "z około 15 mld tokenów", "to": "z około 15 bln tokenów"},
+            {"from": "do nie więcej niż 10 mld,", "to": "do nie więcej niż 10 bln,"},
+            {"from": "Ryzyko ujawni się przede wszystkim w Zadaniu 2.", "to": "Ryzyko ujawni się przede wszystkim w Zadaniach 2–4."}
+          ]}
+        ]}
+      ]
+    },
+    {
+      "label": "4.1",
+      "url": "https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/5af236aa-03b2-4650-b5a2-95c299dfeeaf",
+      "rows": [
+        {"rowNeedle": "Linh Le", "matchField": "nazwisko", "matchNeedle": "Le", "matchMode": "equals", "fields": [
+          {"name": "doswiadczenie_naukowe_i_zawodowe", "editSet": "personTasks"},
+          {"name": "stanowisko_i_zakres_obowiazkow_w_projekcie", "editSet": "personTasks"}
+        ]},
+        {"rowNeedle": "Łukasz Bartoszcze", "matchField": "nazwisko", "matchNeedle": "Bartoszcze", "matchMode": "equals", "fields": [
+          {"name": "doswiadczenie_naukowe_i_zawodowe", "editSet": "personTasks"},
+          {"name": "stanowisko_i_zakres_obowiazkow_w_projekcie", "editSet": "personTasks"}
+        ]},
+        {"rowNeedle": "Łukasz Szpruch", "matchField": "nazwisko", "matchNeedle": "Szpruch", "matchMode": "equals", "fields": [
+          {"name": "doswiadczenie_naukowe_i_zawodowe", "editSet": "personTasks"},
+          {"name": "stanowisko_i_zakres_obowiazkow_w_projekcie", "editSet": "personTasks"}
+        ]}
+      ]
+    },
+    {
+      "label": "4.2",
+      "url": "https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/95a9b43d-b789-479a-a60d-159b975af74d",
+      "rows": [
+        {"rowNeedle": "Klaster obliczeniowy", "matchField": "nazwa_zasobu", "matchNeedle": "Klaster obliczeniowy", "fields": [
+          {"name": "przeznaczenie", "edits": [
+            {"from": "w skali 100M parametrów (Zadanie 1, Kamień milowy 1.2)", "to": "w skali 100M parametrów (Zadanie 1, kamienie 1.2–1.3)"},
+            {"from": "kalibracji funkcji celu (Zadanie 2 blok 3)", "to": "kalibracji funkcji celu (Zadania 1 i 3)"},
+            {"from": "ekstrakcji katalogu kierunków konceptów dla mniejszych modeli (Zadanie 3)", "to": "ekstrakcji katalogu kierunków konceptów dla mniejszych modeli (Zadanie 5)"},
+            {"from": "rodziny modeli RNM 1B-70B (Zadanie 2 KM 2.2)", "to": "rodziny modeli RNM 1B–70B (Zadania 2–4)"}
+          ]}
+        ]},
+        {"rowNeedle": "Baza danych aktywacji", "matchField": "nazwa_zasobu", "matchNeedle": "Baza danych aktywacji", "fields": [
+          {"name": "przeznaczenie", "edits": [
+            {"from": "(Zadanie 1 blok 4 projektowanie korpusu kontrastywnego, Zadanie 3 cała)", "to": "(Zadanie 1 – projektowanie korpusu kontrastywnego, Zadanie 5 – cały katalog konceptów)"},
+            {"from": "(Zadanie 4 walidacja porównawcza)", "to": "(Zadanie 6 – walidacja porównawcza)"}
+          ]}
+        ]},
+        {"rowNeedle": "Biblioteka open-source wisent", "matchField": "nazwa_zasobu", "matchNeedle": "Biblioteka open-source wisent", "fields": [
+          {"name": "nazwa_zasobu", "edits": [
+            {"from": "Biblioteka open-source wisent prowadzona przez Wisent Polska od 2024 roku pod licencją Apache 2.0.", "to": "Biblioteka open-source wisent na licencji Apache 2.0, rozwijana od 2024 roku przez zespół Wisent, a od rejestracji Wisent Polska (27 marca 2026 r.) prowadzona przez tę spółkę."}
+          ]},
+          {"name": "przeznaczenie", "edits": [
+            {"from": "biblioteki klienta wisent-rnm publikowanej w Zadaniu 5.", "to": "biblioteki klienta wisent-rnm publikowanej w Zadaniu 7."}
+          ]}
+        ]}
+      ]
+    },
+    {
+      "label": "6.1",
+      "url": "https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/566c735c-8ad0-406f-a948-f3ea921c2cc7",
+      "rows": [
+        {"rowNeedle": "Katalog konceptów, stabilność, ortogonalność i interwencje", "matchField": "numer_zadania", "matchNeedle": "5", "matchMode": "equals", "fields": [
+          {"name": "nazwa_zadania", "editSet": "taskNameTail"},
+          {"name": "zakres_planowanych_prac_br", "editSet": "taskBoilerplate"},
+          {"name": "szczegolowy_opis_prac", "editSet": "taskBoilerplate"}
+        ], "nestedRows": [
+          {"matchFieldSuffix": "kamienie_milowe_nazwa", "matchNeedle": "Pipeline ekstrakcji kierunków konceptów z checkpointów RNM", "fields": [{"nameSuffix": "kamienie_milowe_nazwa", "editSet": "milestoneBoilerplate"}]},
+          {"matchFieldSuffix": "kamienie_milowe_nazwa", "matchNeedle": "Katalog 1000 konceptów z metryką stabilności i ortogonalności", "fields": [{"nameSuffix": "kamienie_milowe_nazwa", "editSet": "milestoneBoilerplate"}]},
+          {"matchFieldSuffix": "kamienie_milowe_nazwa", "matchNeedle": "Interwencje reprezentacyjne potwierdzone w zadaniach UE i językach UE", "fields": [{"nameSuffix": "kamienie_milowe_nazwa", "editSet": "milestoneBoilerplate"}]}
+        ]},
+        {"rowNeedle": "Benchmarki, walidacja porównawcza i decyzja techniczna", "matchField": "numer_zadania", "matchNeedle": "6", "matchMode": "equals", "fields": [], "nestedRows": [
+          {"matchFieldSuffix": "kamienie_milowe_nazwa", "matchNeedle": "Pakiet benchmarków RNM dla jakości, bezpieczeństwa i języków UE", "fields": [{"nameSuffix": "kamienie_milowe_nazwa", "editSet": "milestoneBoilerplate"}]},
+          {"matchFieldSuffix": "kamienie_milowe_nazwa", "matchNeedle": "Porównanie RNM z modelami referencyjnymi i analiza przewag", "fields": [{"nameSuffix": "kamienie_milowe_nazwa", "editSet": "milestoneBoilerplate"}]},
+          {"matchFieldSuffix": "kamienie_milowe_nazwa", "matchNeedle": "Decyzja techniczna o gotowości wyników do prototypu rozwojowego", "fields": [{"nameSuffix": "kamienie_milowe_nazwa", "editSet": "milestoneBoilerplate"}]}
+        ]},
+        {"rowNeedle": "Integracja prototypu RNM i kontrolowana walidacja techniczna", "matchField": "numer_zadania", "matchNeedle": "7", "matchMode": "equals", "fields": [
+          {"name": "nazwa_zadania", "editSet": "taskNameTail"},
+          {"name": "zakres_planowanych_prac_br", "editSet": "taskBoilerplate"},
+          {"name": "szczegolowy_opis_prac", "editSet": "taskBoilerplate"}
+        ], "nestedRows": [
+          {"matchFieldSuffix": "kamienie_milowe_nazwa", "matchNeedle": "Prototyp technologiczny RNM z biblioteką interwencji i raportem aktywacji", "fields": [{"nameSuffix": "kamienie_milowe_nazwa", "editSet": "milestoneBoilerplate"}]},
+          {"matchFieldSuffix": "kamienie_milowe_nazwa", "matchNeedle": "Walidacja operacyjna prototypu w scenariuszach sektorów regulowanych UE", "fields": [{"nameSuffix": "kamienie_milowe_nazwa", "editSet": "milestoneBoilerplate"}]}
+        ]}
+      ]
+    }
+  ]
+}

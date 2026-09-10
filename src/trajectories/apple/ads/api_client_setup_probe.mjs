@@ -3,6 +3,7 @@
 // Opens Apple Ads Account Settings/API only through an already authenticated session.
 // Authentication is delegated exclusively to an explicitly authorized apple_login run.
 
+import { runOutputPath } from '#run-output';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -14,7 +15,7 @@ import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'apple_ads');
 const PUBLIC_KEY_PATH = process.env.ASC_ADS_PUBLIC_KEY_PATH || join(homedir(), '.apple-ads', 'public-key.pem');
 const PRIVATE_KEY_PATH = process.env.ASC_ADS_PRIVATE_KEY_PATH || join(homedir(), '.apple-ads', 'private-key.pem');
-const DIAG_DIR = process.env.APPLE_ADS_DIAG_DIR || '.work/apple-ads-api-setup';
+const DIAG_DIR = process.env.APPLE_ADS_DIAG_DIR || runOutputPath('apple-ads-api-setup');
 const KEEP_OPEN_AFTER_LOGIN_MS = Number(process.env.APPLE_ADS_KEEP_OPEN_AFTER_LOGIN_MS || 0);
 const CLOSE_AFTER_PROBE = process.env.APPLE_ADS_CLOSE_AFTER_PROBE === '1';
 mkdirSync(USER_DATA_DIR, { recursive: true });

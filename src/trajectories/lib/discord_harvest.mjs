@@ -10,6 +10,7 @@
 // Gated by DISCORD_HARVEST_AFTER_REGISTER=1 so default register behavior
 // is unchanged.
 
+import { runOutputPath } from '#run-output';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getNumber, pollCode, cancelOrder } from '../../../dist/utils/sms.js';

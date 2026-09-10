@@ -1,6 +1,7 @@
 // Google Authenticator activation through the persistent Weles keeper.
 // No CUA. No CDP attach. No short-lived WSession loop. The keeper owns the browser/profile.
 
+import { runOutputPath } from '#run-output';
 import net from 'node:net';
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, openSync, writeFileSync } from 'node:fs';
@@ -16,7 +17,7 @@ const EMAIL = GOOGLE_ADS_LOGIN.email;
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'google_ads');
 const KEEPER = join(REPO, 'scripts', '_shared', 'keeper', 'keeper.mjs');
 const SOCK = join(homedir(), '.weles', 'keeper', SESSION, 'socket');
-const DIAG_DIR = process.env.GOOGLE_TOTP_KEEPER_DIAG_DIR || '.work/google-totp-keeper';
+const DIAG_DIR = process.env.GOOGLE_TOTP_KEEPER_DIAG_DIR || runOutputPath('google-totp-keeper');
 const RESULT_FILE = process.env.GOOGLE_TOTP_KEEPER_RESULT_FILE || join(DIAG_DIR, 'result.json');
 const AUTHENTICATOR_URL = 'https://myaccount.google.com/u/1/two-step-verification/authenticator';
 const SECURITY_URL = 'https://myaccount.google.com/u/1/security';

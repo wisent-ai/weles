@@ -10,6 +10,7 @@
 // This script does NOT charge money unless ISP_BUY_CONFIRM=1 is set.
 // Screenshots are written before each click so the caller can audit what was committed.
 
+import { runOutputPath } from '#run-output';
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getScopedGoogleLogin } from '../_shared/services/google_sso.mjs'
 import { fillStripeElements, loadTopupCardEnv } from '../_shared/services/topup_common.mjs';
@@ -23,7 +24,7 @@ import { humanType } from '../../../dist/human/keyboard.js';
 loadTopupCardEnv();
 
 if (process.env.ISP_BUY_CONFIRM !== '1') { console.log('FAIL: ISP_BUY_CONFIRM=1 required before subscribing'); process.exit(2); }
-const OUT_DIR = '.work/keeper/oxylabs_isp_buy';
+const OUT_DIR = runOutputPath('keeper', 'oxylabs_isp_buy');
 mkdirSync(OUT_DIR, { recursive: true });
 const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
 
@@ -340,7 +341,7 @@ try {
   const ipMatches = (ipsText.match(/\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b/g) ?? []);
   console.log(`[trajectory] IP-shaped strings on /overview/ISP: ${ipMatches.length} (${ipMatches.slice(0, 3).join(', ')}…)`);
   if (ipMatches.length >= 10) {
-    writeFileSync('.work/keeper/oxylabs_isp_ips.json', JSON.stringify({ captured_at: new Date().toISOString(), ips: ipMatches }, null, 2));
+    writeFileSync(runOutputPath('keeper', 'oxylabs_isp_ips.json'), JSON.stringify({ captured_at: new Date().toISOString(), ips: ipMatches }, null, 2));
     console.log(`[trajectory] wrote .work/keeper/oxylabs_isp_ips.json with ${ipMatches.length} IPs`);
   }
   console.log('[trajectory] done');

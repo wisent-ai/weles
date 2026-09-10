@@ -3,6 +3,7 @@
 // diagnostics directory it writes into, and the two filters that keep Google
 // credentials out of every child environment and out of every printed line.
 
+import { runOutputPath } from '#run-output';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -15,7 +16,7 @@ export let SESSION = process.env.SESSION || process.env.GOOGLE_ADS_KEEPER_SESSIO
 export let API_TOKEN = process.env.WELES_KEYWORD_PLANNER_API_TOKEN || process.env.WELES_CONSOLE_API_TOKEN || '';
 export let ALLOW_UNAUTH = process.env.WELES_KEYWORD_PLANNER_API_ALLOW_UNAUTH === '1';
 export let BODY_LIMIT_BYTES = Number(process.env.WELES_KEYWORD_PLANNER_API_BODY_LIMIT_BYTES || 128 * 1024);
-export let DIAG_DIR = process.env.GOOGLE_ADS_DIAG_DIR || join(REPO, '.work/google-ads-keyword-planner/api');
+export let DIAG_DIR = process.env.GOOGLE_ADS_DIAG_DIR || runOutputPath('google-ads-keyword-planner', 'api');
 export const KEEPER = join(REPO, 'src/_shared/keeper/keeper.mjs');
 export let KEEPER_START = process.env.GOOGLE_ADS_KEEPER_START !== '0';
 export let KEEPER_READY_TIMEOUT_MS = Number(process.env.GOOGLE_ADS_KEEPER_READY_TIMEOUT_MS || 90 * 1000);

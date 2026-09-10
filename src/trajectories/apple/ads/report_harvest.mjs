@@ -3,6 +3,7 @@
 // Uses a Weles browser session and reads DOM/network only. Authentication is
 // delegated exclusively to an explicitly authorized apple_login run.
 
+import { runOutputPath } from '#run-output';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -12,7 +13,7 @@ import { generatePersona } from '../../../../dist/browser/persona.js';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
 
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'apple_ads');
-const DIAG_DIR = process.env.APPLE_ADS_DIAG_DIR || '.work/apple-ads-report-harvest';
+const DIAG_DIR = process.env.APPLE_ADS_DIAG_DIR || runOutputPath('apple-ads-report-harvest');
 const APP_ID = process.env.APPLE_ADS_APP_ID || process.env.APPLE_ADS_UI_APP_ID || '19768040';
 const SESSION_LABEL = process.env.APPLE_ADS_SESSION_LABEL || 'apple_ads_report_harvest';
 const REPORT_URL = process.env.APPLE_ADS_REPORT_URL || `https://app-ads.apple.com/cm/app/${APP_ID}/report`;
