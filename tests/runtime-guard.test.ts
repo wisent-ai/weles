@@ -73,7 +73,7 @@ test('the launcher requires the payload entries it execs and reads', () => {
   const guarded = guardedEntries();
   for (const entry of [
     'package.json',
-    'src/worker/deploy/launch-weles-api-mac.sh',
+    'src/worker/weles-api-launcher.mjs',
     'src/worker/weles-api-server.mjs',
   ]) {
     assert.ok(guarded.includes(entry), `release/stado-launcher.sh does not require ${entry}`);

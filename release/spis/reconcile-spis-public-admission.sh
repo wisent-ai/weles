@@ -54,8 +54,8 @@ curl="${CURL_BIN:-/usr/bin/curl}"
 if [ -z "$version" ]; then
   version="$("$node" -p 'require(process.argv[1]).version' "$source_root/package.json")"
 fi
-reconciler="$source_root/release/spis-public-admission-reconcile.mjs"
-generator="$source_root/release/generate-spis-public-admission-credential.mjs"
+reconciler="$source_root/release/spis/spis-public-admission-reconcile.mjs"
+generator="$source_root/release/spis/generate-spis-public-admission-credential.mjs"
 [ -f "$reconciler" ] && [ -f "$generator" ] || { printf '%s\n' 'Weles onboarding artifacts are incomplete' >&2; exit 1; }
 
 work_root="$HOME/.stado/work/weles/spis-public-admission"
