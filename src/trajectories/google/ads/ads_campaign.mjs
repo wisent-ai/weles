@@ -23,51 +23,17 @@
 // flow first when the session is stale.
 
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
-import { generatePersona } from '../../../../dist/browser/persona.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
-import { humanFill, humanType } from '../../../../dist/human/keyboard.js';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { assertGoogleAdsProfileNotAlreadyOpen, closeAllowedByEnv } from './_profile_guard.mjs';
-
-const ADS_URL = process.env.ADS_URL;
-const CUSTOMER_ID = process.env.GOOGLE_ADS_CUSTOMER_ID;
-const CAMPAIGN_NAME = process.env.CAMPAIGN_NAME || `Wisent ${new Date().toISOString().slice(0, 19)}`;
-const CAMPAIGN_TYPE = process.env.CAMPAIGN_TYPE || 'Search';
-const APP_ID = process.env.APP_ID;
-const PACKAGE_NAME = process.env.PACKAGE_NAME;
-const APP_NAME = process.env.APP_NAME;
-const APP_PLATFORM = process.env.APP_PLATFORM || process.env.PLATFORM;
-const IS_APP_INSTALL = /app/i.test(process.env.CAMPAIGN_OBJECTIVE || '')
-  || /app/i.test(process.env.CAMPAIGN_TYPE || '')
-  || !!(APP_ID || PACKAGE_NAME || APP_NAME);
-const CAMPAIGN_OBJECTIVE = process.env.CAMPAIGN_OBJECTIVE || (IS_APP_INSTALL ? 'App promotion' : 'Website traffic');
-const EFFECTIVE_CAMPAIGN_TYPE = process.env.CAMPAIGN_TYPE || (IS_APP_INSTALL ? 'App' : 'Search');
-const DAILY_BUDGET_USD = process.env.DAILY_BUDGET_USD;
-const FINAL_URL = process.env.FINAL_URL || process.env.DESTINATION_URL;
-const HEADLINE = process.env.HEADLINE;
-const DESCRIPTION = process.env.DESCRIPTION;
-const KEYWORDS = process.env.KEYWORDS;
-const LOCATIONS = process.env.LOCATIONS;
-const SUBMIT = process.env.SUBMIT === '1';
-const WAIT_FOR_LOGIN = process.env.WAIT_FOR_LOGIN === '1';
-const LOGIN_WAIT_MS = Number(process.env.LOGIN_WAIT_MS || 10 * 60 * 1000);
-const NAV_TIMEOUT_MS = Number(process.env.NAV_TIMEOUT_MS || 60 * 1000);
-const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'google_ads');
-mkdirSync(USER_DATA_DIR, { recursive: true });
-process.env.WELES_VIEWPORT ??= '1280x900';
-process.env.WELES_DISABLE_RECORDING ??= '1';
-process.env.WELES_NO_INSTRUMENT ??= '1';
-
-function stableProfilePersona() {
-  const p = join(USER_DATA_DIR, 'persona.json');
-  if (existsSync(p)) return JSON.parse(readFileSync(p, 'utf8'));
-  const persona = generatePersona({ os: 'macos', browser: 'chromium' });
-  writeFileSync(p, JSON.stringify(persona, null, 2));
-  return persona;
-}
+import {
+  ADS_URL, APP_ID, APP_NAME, APP_PLATFORM, CAMPAIGN_NAME, CAMPAIGN_OBJECTIVE, CUSTOMER_ID, DAILY_BUDGET_USD, DESCRIPTION,
+  EFFECTIVE_CAMPAIGN_TYPE, FINAL_URL, HEADLINE, IS_APP_INSTALL, KEYWORDS, LOCATIONS, LOGIN_WAIT_MS, PACKAGE_NAME, SUBMIT,
+  USER_DATA_DIR, WAIT_FOR_LOGIN,
+} from './ads_campaign/settings.mjs';
+import {
+  bringBrowserToFront, clickAny, clickText, ensureCustomer, fillAny, fillTextNearLabel, gotoWithTimeout, isLoginUrl, pageText,
+  stableProfilePersona, typeListIntoFirstVisible, waitForPageText,
+} from './ads_campaign/page.mjs';
 
 if (!ADS_URL && !CUSTOMER_ID && !WAIT_FOR_LOGIN) {
   console.log('FAIL: GOOGLE_ADS_CUSTOMER_ID or ADS_URL required');
@@ -78,188 +44,6 @@ const acct = await getSocialAccount('google');
 const session = acct ? await resolveAccountSession(acct) : { proxyUrl: undefined, persona: undefined };
 const profilePersona = process.env.ADS_PROFILE_PERSONA === 'account' && session.persona ? session.persona : stableProfilePersona();
 
-async function clickAny(s, selectors, label, timeoutMs = 5000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    for (const sel of selectors) {
-      const loc = s.page.locator(sel).filter({ visible: true }).first();
-      if (await withTimeout(loc.isVisible(), 1500, false).catch(() => false)) {
-        const clicked = await withTimeout(humanClickLocator(s.page, loc), 5000, false).catch(() => false);
-        if (!clicked) {
-          console.log(`[google-ads] WARN: click timed out: ${label} (${sel})`);
-          continue;
-        }
-        console.log(`[google-ads] clicked: ${label}`);
-        await humanIdlePause('short');
-        return true;
-      }
-    }
-    await s.wait(1);
-  }
-  return false;
-}
-
-async function clickText(s, text, label = text, timeoutMs = 5000) {
-  const escaped = String(text).replaceAll('"', '\\"');
-  const clicked = await clickAny(s, [
-    `[role="radio"]:has-text("${escaped}")`,
-    `material-radio:has-text("${escaped}")`,
-    `material-list-item:has-text("${escaped}")`,
-  ], label, timeoutMs);
-  if (clicked) return true;
-  const fallback = s.page.locator('button,[role="button"],[role="radio"],material-radio,material-list-item')
-    .filter({ hasText: text, visible: true }).first();
-  if (await fallback.count() === 0) return false;
-  const fallbackClicked = await withTimeout(humanClickLocator(s.page, fallback), 5000, false).catch(() => false);
-  if (fallbackClicked) {
-    console.log(`[google-ads] clicked: ${label}`);
-    await humanIdlePause('short');
-  }
-  return fallbackClicked;
-}
-
-async function fillAny(s, selectors, value, label) {
-  if (!value) return false;
-  for (const sel of selectors) {
-    const loc = s.page.locator(sel).filter({ visible: true }).first();
-    if (await withTimeout(loc.isVisible(), 1500, false).catch(() => false)) {
-      const filled = await withTimeout(humanFill(s.page, loc, String(value)), 6000, false).catch(() => false);
-      if (!filled) {
-        console.log(`[google-ads] WARN: fill timed out: ${label} (${sel})`);
-        continue;
-      }
-      console.log(`[google-ads] filled: ${label}`);
-      await humanIdlePause('short');
-      return true;
-    }
-  }
-  console.log(`[google-ads] WARN: field not found: ${label}`);
-  return false;
-}
-
-async function fillTextNearLabel(s, labelPattern, value, label) {
-  if (!value) return false;
-  const filled = await s.page.evaluate(({ pattern, value }) => {
-    const re = new RegExp(pattern, 'i');
-    const norm = (text) => String(text || '').replace(/\s+/g, ' ').trim();
-    const roots = Array.from(document.querySelectorAll('material-input, material-textarea, label, div, section, form'))
-      .filter((el) => re.test(norm(el.innerText || el.textContent || el.getAttribute('aria-label'))));
-    for (const root of roots) {
-      const input = root.querySelector?.('input,textarea,[contenteditable="true"]');
-      if (!input) continue;
-      input.focus();
-      if (input.isContentEditable) input.textContent = value;
-      else input.value = value;
-      input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }));
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-      return true;
-    }
-    return false;
-  }, { pattern: labelPattern.source, value: String(value) }).catch(() => false);
-  if (filled) {
-    console.log(`[google-ads] filled: ${label}`);
-    await humanIdlePause('short');
-  } else {
-    console.log(`[google-ads] WARN: field not found: ${label}`);
-  }
-  return filled;
-}
-
-async function typeListIntoFirstVisible(s, selectors, csv, label) {
-  if (!csv) return false;
-  const values = csv.split(',').map((v) => v.trim()).filter(Boolean);
-  if (!values.length) return false;
-  for (const sel of selectors) {
-    const loc = s.page.locator(sel).filter({ visible: true }).first();
-    if (!(await withTimeout(loc.isVisible(), 1500, false).catch(() => false))) continue;
-    const clicked = await withTimeout(humanClickLocator(s.page, loc), 5000, false).catch(() => false);
-    if (!clicked) continue;
-    for (const value of values) {
-      await humanType(s.page, value);
-      await s.page.keyboard.press('Enter');
-      await humanIdlePause('short');
-    }
-    console.log(`[google-ads] entered: ${label} (${values.length})`);
-    return true;
-  }
-  console.log(`[google-ads] WARN: list field not found: ${label}`);
-  return false;
-}
-
-async function pageText(s) {
-  return await s.page.evaluate(() => document.body?.innerText || '').catch(() => '');
-}
-
-async function waitForPageText(s, pattern, timeoutMs = 15000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const text = await pageText(s);
-    if (pattern.test(text)) return true;
-    await s.wait(1);
-  }
-  return false;
-}
-
-async function gotoWithTimeout(s, url, label) {
-  const ok = await withTimeout(
-    s.page.goto(url, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS }).then(() => true),
-    NAV_TIMEOUT_MS,
-    false,
-  ).catch(() => false);
-  if (!ok) {
-    console.log(`[google-ads] WARN: navigation timed out: ${label}`);
-    return false;
-  }
-  return true;
-}
-
-function withTimeout(promise, timeoutMs, fallback) {
-  return Promise.race([
-    promise,
-    new Promise((resolve) => setTimeout(() => resolve(fallback), timeoutMs)),
-  ]);
-}
-
-async function bringBrowserToFront(s) {
-  await s.page.bringToFront().catch(() => {});
-}
-
-function isLoginUrl(url) {
-  return /accounts\.google\.com|ServiceLogin|signin/i.test(url);
-}
-
-function normalizeCustomerId(id) {
-  return id ? String(id).replace(/\D/g, '') : null;
-}
-
-function currentCustomerId(url) {
-  try {
-    const u = new URL(url);
-    return normalizeCustomerId(u.searchParams.get('ocid') || u.searchParams.get('customerId') || u.searchParams.get('authuser'));
-  } catch {
-    return null;
-  }
-}
-
-async function ensureCustomer(s) {
-  const target = normalizeCustomerId(CUSTOMER_ID);
-  const before = currentCustomerId(s.page.url?.() ?? '');
-  console.log(`[google-ads] current customer=${before || 'unknown'} target=${target || 'unspecified'}`);
-  if (!target) return before;
-  if (before === target) return before;
-
-  const switchUrl = `https://ads.google.com/aw/campaigns?ocid=${encodeURIComponent(target)}`;
-  console.log(`[google-ads] switching customer -> ${target}`);
-  await gotoWithTimeout(s, switchUrl, `customer ${target}`);
-  await s.wait(8);
-  const after = currentCustomerId(s.page.url?.() ?? '');
-  console.log(`[google-ads] customer after switch=${after || 'unknown'}`);
-  if (after && after !== target) {
-    console.log(`FAIL: wrong Google Ads customer selected; expected=${target} actual=${after} url=${s.page.url?.() ?? ''}`);
-    process.exit(1);
-  }
-  return after;
-}
 
 const baseUrl = ADS_URL || (CUSTOMER_ID
   ? `https://ads.google.com/aw/campaigns/new?ocid=${encodeURIComponent(CUSTOMER_ID)}`
