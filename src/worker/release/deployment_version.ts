@@ -1,6 +1,6 @@
 import os from 'node:os';
-import { captureVersions } from '../diagnostics/versions.js';
-import { writeSetting } from '../state/skarbiec-records.js';
+import { captureVersions } from '../../diagnostics/versions.js';
+import { writeSetting } from '../../state/skarbiec-records.js';
 
 const PRODUCTION_SETTING_KEY = 'weles_deployment_version';
 const DEFAULT_HEARTBEAT_MS = 60_000;

@@ -13,7 +13,7 @@
 import { readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import { join, extname } from 'node:path'
 import { createHash } from 'node:crypto'
-import type { ArtifactLocatorSet } from './artifact-delivery.js'
+import type { ArtifactLocatorSet } from './artifacts/artifact-delivery.js'
 
 const RECORDINGS_ROOT = process.env.WELES_RECORDINGS_ROOT ?? process.env.RECORDINGS_ROOT ?? 'recordings'
 const OBJECT_NAMESPACE = 'weles'

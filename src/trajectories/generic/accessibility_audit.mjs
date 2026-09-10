@@ -18,7 +18,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
-import { parseAccessibilityAuditParams } from '../../../dist/worker/capture-params.js';
+import { parseAccessibilityAuditParams } from '../../../dist/worker/params/capture-params.js';
 import {
   captureKeyPrefix, planFromEnv, startCaptureSession, uploadCaptureObject, welesVersion,
 } from '../_shared/capture-runtime.mjs';

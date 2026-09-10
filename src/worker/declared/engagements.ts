@@ -43,14 +43,14 @@ export type DeclaredEngagement = {
 
 /**
  * The checkout this build reads its declaration from: the one the launcher
- * named, or the one this module was compiled into — `dist/worker/` and
- * `src/worker/` are both two directories below the repository root, so the
+ * named, or the one this module was compiled into — `dist/worker/declared/` and
+ * `src/worker/declared/` are both three directories below the repository root, so the
  * queued path, the API and a test against an isolated root all resolve the
  * same file without any of them passing a path.
  */
 export function welesRepositoryRoot(): string {
   const declared = (process.env.WELES_REPO ?? '').trim();
-  return declared ? resolve(declared) : resolve(__dirname, '..', '..');
+  return declared ? resolve(declared) : resolve(__dirname, '..', '..', '..');
 }
 
 function field(entry: Record<string, unknown>, name: string): string {

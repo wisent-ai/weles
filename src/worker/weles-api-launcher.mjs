@@ -198,9 +198,9 @@ async function startup() {
   process.env.SKARBIEC_BIN = skarbiecBin;
   process.env.WELES_ACTION_ALLOWLIST = actionAllowlist();
   process.env.WELES_ENGAGEMENT_DECLARATION =
-    await declaredNames('dist/worker/engagements.js', 'loadDeclaredEngagements');
+    await declaredNames('dist/worker/declared/engagements.js', 'loadDeclaredEngagements');
   process.env.WELES_OBSERVATION_DECLARATION =
-    await declaredNames('dist/worker/observations.js', 'loadDeclaredObservations');
+    await declaredNames('dist/worker/declared/observations.js', 'loadDeclaredObservations');
 
   const acquireHelper = join(REPO, 'src/worker/deploy/skarbiec-acquire.mjs');
   const acquireScopes = join(REPO, 'src/worker/deploy/skarbiec-acquisition-scopes.conf');

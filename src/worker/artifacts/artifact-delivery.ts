@@ -2,7 +2,7 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { readSetting } from '../state/skarbiec-records.js';
+import { readSetting } from '../../state/skarbiec-records.js';
 
 const SIGN_PATH = '/v1/artifacts/sign';
 const OBJECT_PATH = '/v1/artifacts/object';

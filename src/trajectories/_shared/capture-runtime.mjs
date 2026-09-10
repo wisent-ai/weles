@@ -25,7 +25,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { putPrivateStadoObject } from '../../../dist/worker/upload-artifacts.js';
 import { captureVersions } from '../../../dist/diagnostics/versions.js';
-import { CAPTURE_ARTIFACT_ROOT } from '../../../dist/worker/capture-params.js';
+import { CAPTURE_ARTIFACT_ROOT } from '../../../dist/worker/params/capture-params.js';
 
 export const CAPTURE_NAMESPACE = 'weles-captures';
 

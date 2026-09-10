@@ -15,11 +15,11 @@
 // WELES_LOGIN_ITEM), so the sequence below is part of the contract and a family
 // must be applied where its blocks already stood.
 
-import { applyAccountAndTaskAdmission } from './params-to-env/account-and-task-admission.js';
-import { applyActionNameDispatch } from './params-to-env/action-name-dispatch.js';
-import { applyAppleActionParams } from './params-to-env/apple-actions.js';
-import { applyContentActionParams } from './params-to-env/content-actions.js';
-import { applyPaidAdsActionParams } from './params-to-env/paid-ads-actions.js';
+import { applyAccountAndTaskAdmission } from '../params-to-env/account-and-task-admission.js';
+import { applyActionNameDispatch } from '../params-to-env/action-name-dispatch.js';
+import { applyAppleActionParams } from '../params-to-env/apple-actions.js';
+import { applyContentActionParams } from '../params-to-env/content-actions.js';
+import { applyPaidAdsActionParams } from '../params-to-env/paid-ads-actions.js';
 
 // Translate the per-row params JSON from account_action_logs into the env vars
 // that the spawned trajectory subprocess reads.

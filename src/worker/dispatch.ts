@@ -40,12 +40,12 @@
 // A verb that survives here MUST add a branch; otherwise resolveTrajectory
 // returns null and the queued row is silently skipped at the claim step.
 
-import { ANALYTICS_SERVICE_ACTIONS } from './analytics-actions.js';
+import { ANALYTICS_SERVICE_ACTIONS } from './params/analytics-actions.js';
 
 // The env translator is ./params-to-env.ts, re-exported here so
 // `dist/worker/dispatch.js` stays the one module the API server, the Stado
 // runner and the published measurement import.
-export { paramsToEnv } from './params-to-env.js';
+export { paramsToEnv } from './params/params-to-env.js';
 
 const analyticsServicePath = 'src/trajectories/_shared/analytics-service.mjs';
 

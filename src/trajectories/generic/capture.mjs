@@ -26,7 +26,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CDPScreencast } from '../../../dist/cdp/page/screencast.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
-import { parseCaptureParams } from '../../../dist/worker/capture-params.js';
+import { parseCaptureParams } from '../../../dist/worker/params/capture-params.js';
 import { humanHoverDwell, humanScroll } from '../../../dist/human/mouse.js';
 import {
   captureKeyPrefix, fileAttribution, planFromEnv, pngPixelSize, screencastConnection,

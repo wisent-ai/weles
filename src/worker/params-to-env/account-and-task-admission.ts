@@ -15,8 +15,8 @@
 // the exact sentence instead of a browser launched to discover the problem.
 
 import { selectLoginAccount } from '../../utils/login-accounts.js';
-import { parseAccessibilityAuditParams, parseCaptureParams } from '../capture-params.js';
-import { applyDeclaredEnv } from '../declarations.js';
+import { parseAccessibilityAuditParams, parseCaptureParams } from '../params/capture-params.js';
+import { applyDeclaredEnv } from '../declared/declarations.js';
 
 export function applyAccountAndTaskAdmission(
   params: Record<string, unknown>,

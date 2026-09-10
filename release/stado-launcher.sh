@@ -30,15 +30,15 @@ runtime_required=(
   src/worker/weles-api-launcher.mjs
   src/worker/weles-api-server.mjs
   dist/worker/dispatch.js
-  dist/worker/params-to-env.js
+  dist/worker/params/params-to-env.js
   dist/worker/params-to-env/account-and-task-admission.js
   dist/worker/params-to-env/action-name-dispatch.js
   dist/worker/params-to-env/apple-actions.js
   dist/worker/params-to-env/content-actions.js
   dist/worker/params-to-env/paid-ads-actions.js
-  dist/worker/engagements.js
-  dist/worker/analytics-actions.js
-  dist/worker/deployment_version.js
+  dist/worker/declared/engagements.js
+  dist/worker/params/analytics-actions.js
+  dist/worker/release/deployment_version.js
   dist/utils/login-accounts.js
 )
 
