@@ -1,11 +1,11 @@
 // Slack-post trajectory. TWO paths:
-//   FAST (default): post directly via chat.postMessage with a stored bot token
+//   TOKEN (default): post directly via chat.postMessage with a stored bot token
 //     (the Oko app already exists — Member ID U0B5SU2CULS, team Wisent).
 //     No browser, no Google SSO, no app re-creation. This is what runs on the
 //     mac-mini worker.
-//   FALLBACK (no token): the original browser flow — Google-SSO into
-//     wisent-workspace.slack.com, create the app via manifest, scrape a fresh
-//     xoxb, post. Only used when no bot token is configured.
+//   BROWSER (no token): Google-SSO into wisent-workspace.slack.com, create the
+//     app via manifest, scrape a fresh xoxb, post. Only used when no bot token
+//     is configured.
 // Token source: SLACK_BOT_TOKEN env, else ~/.oko/bot-token, else ~/.oko/slack.json.
 // IMPORTANT: do NOT re-create the app when a token exists — that spawns a
 // duplicate (logo-less) "Oko" and posts from the wrong identity.
@@ -13,175 +13,40 @@
 //      SLACK_TARGET_CHANNEL (id) | SLACK_TARGET_CHANNEL_NAME | SLACK_TARGET_USER_ID,
 //      SLACK_TARGET_USER_MATCHERS (csv, default jakub,kuba,towarek),
 //      SLACK_ENABLE_TAGGING=0 | SLACK_MENTION_USER_IDS | SLACK_MENTION_USER_MATCHERS,
-//      SLACK_EMAIL/SLACK_PASS (fallback browser flow only).
+//      SLACK_EMAIL/SLACK_PASS (browser path only).
 
 import { existsSync, readFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { homedir } from 'node:os';
+import { slackPost, storedBotToken, workspaceApi } from './post_message/api.mjs';
+import { applyMentions, listMembers, mentionIdsForTarget, parseCsv, resolveTargets, resolveUsersFromMembers } from './post_message/recipients.mjs';
+import { readClientToken, signInThroughGoogle } from './post_message/browser_signin.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WELES = join(__dirname, '..', '..', '..');
-const OKO = join(WELES, '..', 'oko');
-const MESSAGE_FILE = process.env.MESSAGE_FILE
-  || join(OKO, '.work', 'jakub-status.txt');
 const TARGET_NAME = (process.env.SLACK_TARGET_CHANNEL_NAME || 'jakub').toLowerCase();
 const TARGET_CHAN = process.env.SLACK_TARGET_CHANNEL || '';
-const TAGGING_ENABLED = process.env.SLACK_ENABLE_TAGGING !== '0';
-const MENTION_MODE = (process.env.SLACK_MENTION_MODE || 'prefix').toLowerCase();
 
 // Message source: inline MESSAGE_TEXT (machine-independent — survives being
 // enqueued on one host and run on another) takes precedence over MESSAGE_FILE
 // (a path, only valid on the enqueuing machine's filesystem).
 const INLINE_MESSAGE = process.env.MESSAGE_TEXT || '';
-if (!INLINE_MESSAGE && !existsSync(MESSAGE_FILE)) {
-  console.error(`no MESSAGE_TEXT and MESSAGE_FILE not found: ${MESSAGE_FILE}`);
+const MESSAGE_FILE = process.env.MESSAGE_FILE || '';
+if (!INLINE_MESSAGE && !(MESSAGE_FILE && existsSync(MESSAGE_FILE))) {
+  console.error(`no MESSAGE_TEXT and no readable MESSAGE_FILE: ${MESSAGE_FILE || '(unset)'}`);
   process.exit(2);
 }
 const MESSAGE_BODY = INLINE_MESSAGE || readFileSync(MESSAGE_FILE, 'utf8');
 
-// ---- FAST PATH: stored bot token -> chat.postMessage (no browser) -----------
-function storedBotToken() {
-  if (process.env.SLACK_BOT_TOKEN?.trim()) return process.env.SLACK_BOT_TOKEN.trim();
-  const okoDir = join(homedir(), '.oko');
-  const botFile = join(okoDir, 'bot-token');
-  try {
-    const token = readFileSync(botFile, 'utf8').split('\n')[0].trim();
-    if (token.startsWith('xoxb-')) return token;
-  } catch {}
-  try {
-    const cfg = JSON.parse(readFileSync(join(okoDir, 'slack.json'), 'utf8'));
-    for (const key of ['bot_token', 'botToken', 'SLACK_BOT_TOKEN']) {
-      const token = typeof cfg?.[key] === 'string' ? cfg[key].trim() : '';
-      if (token.startsWith('xoxb-')) return token;
-    }
-  } catch {}
-  return '';
-}
-function encodeForm(form) {
-  return Object.entries(form).map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join('&');
-}
-async function slackPost(method, form, token) {
-  const body = encodeForm(form);
-  const r = await fetch(`https://slack.com/api/${method}`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-    body,
-  });
-  const j = await r.json();
-  if (!j.ok) throw new Error(`${method}: ${j.error}${j.needed ? ` (needed ${j.needed})` : ''}`);
-  return j;
-}
-// Default recipients: one user per matcher-group. We DM BOTH Jakub and Łukasz.
-// chat.postMessage to a user id opens/uses the DM, so no im:write needed.
-const RECIPIENT_GROUPS = [
-  ['jakub', 'towarek', 'kuba'],
-  ['lukasz', 'bartoszcze', 'łukasz'],
-];
-
-function parseCsv(value) {
-  return String(value || '').split(',').map((x) => x.trim()).filter(Boolean);
-}
-
-function parseMatcherGroups(value, fallback = RECIPIENT_GROUPS) {
-  if (!value) return fallback;
-  return String(value)
-    .toLowerCase()
-    .split(/[;|]/)
-    .map((group) => group.split(',').map((x) => x.trim()).filter(Boolean))
-    .filter((group) => group.length);
-}
-
-function memberFields(user) {
-  const profile = user.profile || {};
-  return [user.name, user.real_name, profile.email, profile.display_name]
-    .filter(Boolean)
-    .map((x) => String(x).toLowerCase());
-}
-
-function resolveUsersFromMembers(members, groups) {
-  const hits = [];
-  for (const group of groups) {
-    const hit = members.find((user) => {
-      const fields = memberFields(user);
-      return group.some((matcher) => fields.some((field) => field.includes(matcher)));
-    });
-    if (hit && !hits.some((u) => u.id === hit.id)) hits.push(hit);
-    else if (!hit) console.log(`[slack] WARN no user matched ${group.join('/')}`);
-  }
-  return hits;
-}
-
-function isChannelTarget(target) {
-  return /^[CG][A-Z0-9]+$/.test(String(target || ''));
-}
-
-function alreadyMentioned(text, id) {
-  return new RegExp(`<@${id}(?:\\|[^>]+)?>`).test(text);
-}
-
-function applyMentions(text, ids) {
-  if (!TAGGING_ENABLED || MENTION_MODE === 'none' || !ids.length) return text;
-  const missing = ids.filter((id) => !alreadyMentioned(text, id));
-  if (!missing.length) return text;
-  const prefix = missing.map((id) => `<@${id}>`).join(' ');
-  if (MENTION_MODE === 'append') return `${text.trimEnd()}\n\n${prefix}\n`;
-  return `${prefix}\n\n${text}`;
-}
-
-async function mentionIdsForTarget(target, loadMembers) {
-  if (!TAGGING_ENABLED || MENTION_MODE === 'none' || !isChannelTarget(target)) return [];
-  const explicit = parseCsv(process.env.SLACK_MENTION_USER_IDS || process.env.SLACK_MENTION_USER_ID);
-  if (explicit.length) return [...new Set(explicit)];
-
-  const groups = parseMatcherGroups(process.env.SLACK_MENTION_USER_MATCHERS, RECIPIENT_GROUPS);
-  const members = await loadMembers();
-  const hits = resolveUsersFromMembers(members, groups);
-  for (const hit of hits) console.log(`[slack] mention ${hit.real_name || hit.name} -> ${hit.id}`);
-  return hits.map((hit) => hit.id);
-}
-
-
-async function resolveTargets(token) {
-  if (TARGET_CHAN) return [TARGET_CHAN];                                 // explicit channel id wins
-  if (process.env.SLACK_TARGET_USER_IDS)                                 // explicit csv of DM targets
-    return process.env.SLACK_TARGET_USER_IDS.split(',').map((x) => x.trim()).filter(Boolean);
-  if (process.env.SLACK_TARGET_USER_ID) return [process.env.SLACK_TARGET_USER_ID];
-  // a real channel by name only if it actually resolves (the default 'jakub'
-  // is a DM, not a channel, so this falls through to the recipient groups).
-  if (process.env.SLACK_TARGET_CHANNEL_NAME) {
-    try {
-      const list = await slackPost('conversations.list', { types: 'public_channel,private_channel', limit: '1000' }, token);
-      const c = (list.channels || []).find((x) => (x.name || '').toLowerCase() === TARGET_NAME);
-      if (c) return [c.id];
-      console.log(`[slack] no visible channel named "${TARGET_NAME}" — falling through to user targets`);
-    } catch (e) { console.log(`[slack] conversations.list skipped: ${e.message}`); }
-  }
-  // DM one user per recipient group, resolved by name/email matcher.
-  const groups = process.env.SLACK_TARGET_USER_MATCHERS
-    ? [process.env.SLACK_TARGET_USER_MATCHERS.toLowerCase().split(',').map((x) => x.trim()).filter(Boolean)]
-    : RECIPIENT_GROUPS;
-  const ul = await slackPost('users.list', { limit: '1000' }, token);
-  const members = (ul.members || []).filter((u) => !u.deleted && !u.is_bot);
-  const ids = [];
-  for (const group of groups) {
-    const hit = resolveUsersFromMembers(members, [group])[0];
-    if (hit && !ids.includes(hit.id)) { ids.push(hit.id); console.log(`[slack] recipient ${hit.real_name || hit.name} -> ${hit.id}`); }
-    else if (!hit) console.log(`[slack] WARN no user matched ${group.join('/')}`);
-  }
-  if (!ids.length) throw new Error(`no channel "${TARGET_NAME}" and no recipients matched`);
-  return ids;
-}
+// ---- TOKEN PATH: stored bot token -> chat.postMessage (no browser) ----------
 const BOT_TOKEN = storedBotToken();
 if (BOT_TOKEN) {
   const who = await slackPost('auth.test', {}, BOT_TOKEN);
-  console.log(`[slack] fast path: bot=${who.user} user_id=${who.user_id} team=${who.team}`);
+  console.log(`[slack] token path: bot=${who.user} user_id=${who.user_id} team=${who.team}`);
   const targets = await resolveTargets(BOT_TOKEN);
-  let memberCache = null;
+  let memberCache = false;
   const loadMembers = async () => {
-    if (memberCache) return memberCache;
-    const ul = await slackPost('users.list', { limit: '1000' }, BOT_TOKEN);
-    memberCache = (ul.members || []).filter((u) => !u.deleted && !u.is_bot);
+    if (!memberCache) memberCache = await listMembers(BOT_TOKEN);
     return memberCache;
   };
   const plans = [];
@@ -201,17 +66,20 @@ if (BOT_TOKEN) {
   console.log(`[slack] ✓ delivered to ${posted}/${targets.length} recipient(s)`);
   process.exit(0);
 }
-console.log('[slack] no stored bot token — falling back to browser SSO + app creation');
+console.log('[slack] no stored bot token — signing in through the browser and creating the app');
 
+// ---- BROWSER PATH -----------------------------------------------------------
 const { WSession } = await import(`${WELES}/dist/session/wsession.js`);
 const { humanFill } = await import(`${WELES}/dist/human/keyboard.js`);
 const { humanClickLocator, humanIdlePause } = await import(`${WELES}/dist/human/mouse.js`);
+const { runRecordingsDir } = await import(`${WELES}/dist/session/run-recordings.js`);
+const atoms = { humanFill, humanClickLocator, humanIdlePause };
 
 const headless = process.env.HEADLESS === '1';
 const s = await WSession.start({ label: 'slack-post', headless });
 console.log('[slack] WSession started');
 
-const SHOT_DIR = join(WELES, '.work', 'slack-post');
+const SHOT_DIR = runRecordingsDir('slack_post');
 mkdirSync(SHOT_DIR, { recursive: true });
 async function shot(label) {
   const fp = join(SHOT_DIR, `${label}_${Date.now()}.png`);
@@ -224,66 +92,17 @@ async function safeShutdown() {
   try { await s.shutdown(); } catch (e) { console.log(`[slack] shutdown WARN: ${e.message?.slice(0, 80)}`); }
 }
 
-// --- Step 1: Google SSO with workspace-member @wisent.ai credentials -------
-// User provided lukasz.bartoszcze@wisent.ai + the @wisent.ai Google
-// Workspace password. Wisent Slack admits members by Google SSO, so this
-// path lands the user as a workspace member (the prior gmail attempt
-// failed at membership; this one shouldn't).
+async function fail(code, message) {
+  console.error(message);
+  await safeShutdown();
+  process.exit(code);
+}
+
 const SLACK_EMAIL = process.env.SLACK_EMAIL || '';
 const SLACK_PASS = process.env.SLACK_PASS || '';
-if (!SLACK_EMAIL || !SLACK_PASS) {
-  console.error('SLACK_EMAIL / SLACK_PASS env required');
-  await safeShutdown(); process.exit(2);
-}
+if (!SLACK_EMAIL || !SLACK_PASS) await fail(2, 'SLACK_EMAIL / SLACK_PASS env required');
 
-console.log(`[slack] step 1: Google SSO as ${SLACK_EMAIL}`);
-await s.page.goto('https://wisent-workspace.slack.com', { waitUntil: 'domcontentloaded' });
-await humanIdlePause('deliberate');
-await shot('01-slack-landing');
-
-const googleBtn = s.page.getByRole('button', { name: /^\s*google\s*$/i })
-  .or(s.page.getByRole('link', { name: /^\s*google\s*$/i }));
-await humanClickLocator(s.page, googleBtn.first(), { timeoutMs: 15000 });
-await humanIdlePause('long');
-await shot('02-google-email');
-
-await humanFill(s.page, s.page.locator('input[type="email"]').first(), SLACK_EMAIL);
-await s.page.keyboard.press('Enter');
-await humanIdlePause('long');
-
-async function fillPasswordWhenAvailable() {
-  const pwd = s.page.locator('input[type="password"]');
-  if (await pwd.count() === 0) return false;
-  await humanFill(s.page, pwd, SLACK_PASS);
-  await s.page.keyboard.press('Enter');
-  await humanIdlePause('long');
-  return true;
-}
-if (!await fillPasswordWhenAvailable()) {
-  console.log('[slack] passkey challenge — Try another way → Enter your password');
-  const tryOther = s.page.getByRole('button', { name: /try another way/i })
-    .or(s.page.getByRole('link', { name: /try another way/i }));
-  if (await tryOther.count() > 0) {
-    await humanClickLocator(s.page, tryOther.first(), { timeoutMs: 10000 });
-    await humanIdlePause('long');
-    const enterPwd = s.page.getByText(/enter your password/i).first();
-    if (await enterPwd.count() > 0) {
-      await humanClickLocator(s.page, enterPwd, { timeoutMs: 10000 });
-      await humanIdlePause('long');
-      await fillPasswordWhenAvailable();
-    }
-  }
-}
-
-// Google's OAuth consent screen "Continue" button completes the handshake.
-const continueBtn = s.page.getByRole('button', { name: /^\s*continue\s*$/i });
-if (await continueBtn.count() > 0) {
-  console.log('[slack] consent — clicking Continue');
-  await humanClickLocator(s.page, continueBtn.first(), { timeoutMs: 10000 });
-  await humanIdlePause('long');
-  await shot('04d-after-consent');
-}
-console.log(`[slack] post-signin url=${s.page.url()}`);
+await signInThroughGoogle(s, { email: SLACK_EMAIL, password: SLACK_PASS, shot, atoms });
 
 // --- Step 2: extract xoxc- + create the Swiatowid bot app + post as bot ---
 // The user wants messages from a "Swiatowid" bot, not from their account.
@@ -291,52 +110,22 @@ console.log(`[slack] post-signin url=${s.page.url()}`);
 // api.slack.com/apps → create app via manifest → install + Authorize →
 // scrape xoxb-, post as the bot. api.slack.com auth is per-workspace; we
 // go via wisent-workspace.slack.com/apps/manage to trigger the handoff.
-console.log('[slack] step 2: load Slack web client + extract xoxc-');
-await s.page.goto('https://wisent-workspace.slack.com/messages', { waitUntil: 'domcontentloaded' });
-await humanIdlePause('long');
-const xoxc = await s.page.evaluate(() => {
-  function findInLS() {
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      const v = localStorage.getItem(k);
-      if (typeof v !== 'string') continue;
-      const m = v.match(/xoxc-[\d]+-[\d]+-[\d]+-[a-f0-9]+/);
-      if (m) return m[0];
-    }
-    return null;
-  }
-  const bd = (typeof window !== 'undefined') ? window.boot_data : null;
-  if (bd && bd.api_token) return bd.api_token;
-  return findInLS();
-});
-if (!xoxc) {
-  console.error('[slack] no xoxc- in boot_data or localStorage; screenshots in .work/slack-post/');
-  await safeShutdown(); process.exit(6);
-}
+const xoxc = await readClientToken(s, atoms);
+if (!xoxc) await fail(6, `[slack] no xoxc- in boot_data or localStorage; screenshots in ${SHOT_DIR}`);
 console.log(`[slack] xoxc=${xoxc.slice(0, 24)}… len=${xoxc.length}`);
 
-// --- Step 2b: create the Swiatowid bot app, scrape xoxb- -------------------
 console.log('[slack] step 2b: api.slack.com app creation');
 const { createBotApp } = await import('./steps/create_bot_app.mjs');
 const xoxb = await createBotApp({ page: s.page, weles: WELES, shot });
-if (!xoxb) {
-  console.error('[slack] bot created but no xoxb on OAuth page — failing rather than posting as user');
-  await safeShutdown(); process.exit(7);
-}
+if (!xoxb) await fail(7, '[slack] bot created but no xoxb on OAuth page — failing rather than posting as user');
 console.log(`[slack] ✓ xoxb=${xoxb.slice(0, 18)}… len=${xoxb.length}`);
 
 // --- Step 3: resolve channel + post via Slack API using browser cookies ----
-const ctxReq = s.page.context().request;
-async function slackApi(method, form) {
-  const body = encodeForm(form);
-  const r = await ctxReq.post(`https://wisent-workspace.slack.com/api/${method}?_x_id=${Date.now()}`, {
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    data: body,
-  });
-  const j = await r.json();
-  if (!j.ok) throw new Error(`${method}: ${j.error || JSON.stringify(j).slice(0, 80)}`);
-  return j;
-}
+const slackApi = workspaceApi(s.page.context().request);
+const workspaceMembers = async () => {
+  const ul = await slackApi('users.list', { token: xoxc, limit: '1000' });
+  return (ul.members || []).filter((u) => !u.deleted && !u.is_bot);
+};
 
 let channelId = TARGET_CHAN;
 if (!channelId) {
@@ -352,35 +141,21 @@ if (!channelId) {
     console.log(`[slack] sample: ${list.channels.slice(0, 6).map((c) => c.name).join(', ')}`);
   }
 }
-// If still no channel, open a DM with Jakub by name (xoxc can list users).
+// Still no channel: open a DM with the first user the matchers name.
 if (!channelId) {
-  const matchers = (process.env.SLACK_TARGET_USER_MATCHERS || 'jakub,kuba,towarek')
-    .toLowerCase().split(',').map((s) => s.trim()).filter(Boolean);
+  const matchers = parseCsv((process.env.SLACK_TARGET_USER_MATCHERS || 'jakub,kuba,towarek').toLowerCase());
   console.log(`[slack] users.list to find ${matchers.join('/')}`);
-  const ul = await slackApi('users.list', { token: xoxc, limit: '1000' });
-  const hit = (ul.members || []).find((u) => {
-    if (u.deleted || u.is_bot) return false;
-    const fields = [u.name, u.real_name, u.profile && u.profile.email,
-                    u.profile && u.profile.display_name].filter(Boolean).map((x) => x.toLowerCase());
-    return matchers.some((m) => fields.some((f) => f.includes(m)));
-  });
-  if (!hit) {
-    console.error(`[slack] no user matched ${matchers.join('/')} in ${ul.members?.length || 0} workspace members`);
-    await safeShutdown(); process.exit(4);
-  }
+  const members = await workspaceMembers();
+  const hit = resolveUsersFromMembers(members, [matchers])[0];
+  if (!hit) await fail(4, `[slack] no user matched ${matchers.join('/')} in ${members.length} workspace members`);
   console.log(`[slack] opening DM with user ${hit.id} (${hit.real_name || hit.name})`);
   const dm = await slackApi('conversations.open', { token: xoxc, users: hit.id });
   channelId = dm.channel.id;
 }
-if (!channelId) { console.error('[slack] no channel id'); await safeShutdown(); process.exit(4); }
+if (!channelId) await fail(4, '[slack] no channel id');
 
-const messageText = INLINE_MESSAGE || readFileSync(MESSAGE_FILE, 'utf8');
-const fallbackMembers = async () => {
-  const ul = await slackApi('users.list', { token: xoxc, limit: '1000' });
-  return (ul.members || []).filter((u) => !u.deleted && !u.is_bot);
-};
-const fallbackMentionIds = await mentionIdsForTarget(channelId, fallbackMembers);
-const finalMessageText = applyMentions(messageText, fallbackMentionIds);
+const mentionIds = await mentionIdsForTarget(channelId, workspaceMembers);
+const finalMessageText = applyMentions(MESSAGE_BODY, mentionIds);
 const post = await slackApi('chat.postMessage', { token: xoxb, channel: channelId, text: finalMessageText, mrkdwn: true });
 console.log(`[slack] ✓ posted as Swiatowid bot ts=${post.ts} channel=${channelId}`);
 
