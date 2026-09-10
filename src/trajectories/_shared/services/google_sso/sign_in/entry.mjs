@@ -27,17 +27,41 @@ export async function reachGooglePasswordStep(page, creds) {
   }
 
   if (/signin\/accountchooser/.test(page.url())) {
-    const accountOption = page.locator('[data-identifier]')
-      .filter({ hasText: new RegExp(creds.email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') })
-      .or(page.getByText(creds.email, { exact: true }))
+    // The chooser lists an account as a row whose text is the display name and
+    // the address. Older markup carried `data-identifier` on that row; the
+    // current one carries `data-email` or no attribute at all. Measured on
+    // charless-mac-mini on 2026-09-02: the page read "Choose an account to
+    // continue to Figma Łukasz Bartoszcze lukasz.bartoszcze@gmail.com Use
+    // another account", exposed no input and one button, and a locator bound to
+    // `data-identifier` matched nothing, so this step walked on to the
+    // identifier field that the chooser does not have. Match the row by the
+    // address it shows, whatever wraps it, and take the innermost match rather
+    // than the container that also contains it.
+    const address = creds.email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const accountOption = page.locator('[data-identifier], [data-email], li, [role="link"], [role="button"], div')
+      .filter({ hasText: new RegExp(`^\\s*[^\\n]{0,120}${address}\\s*$`, 'i') })
       .filter({ visible: true })
-      .first();
+      .last()
+      .or(page.getByText(creds.email, { exact: true }).filter({ visible: true }).first());
     if (await accountOption.isVisible().catch(() => false)) {
       console.log(`[google_sso] selecting known account (${creds.email})`);
       await humanClickLocator(page, accountOption).catch(() => accountOption.click({ force: true }));
       for (let i = 0; i < 30; i++) {
         await humanIdlePause('short');
         if (!/signin\/accountchooser/.test(page.url())) break;
+      }
+    } else {
+      // The declared account is not on the list. "Use another account" leads to
+      // the identifier step this function already knows how to drive; without
+      // it the run sits on the chooser until it times out.
+      const another = page.getByText(/use another account/i).filter({ visible: true }).first();
+      if (await another.isVisible().catch(() => false)) {
+        console.log('[google_sso] account not listed on the chooser; choosing another account');
+        await humanClickLocator(page, another).catch(() => another.click({ force: true }));
+        for (let i = 0; i < 30; i++) {
+          await humanIdlePause('short');
+          if (!/signin\/accountchooser/.test(page.url())) break;
+        }
       }
     }
   }

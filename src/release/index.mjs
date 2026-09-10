@@ -54,6 +54,27 @@ async function apiServerModules(root) {
 }
 
 /**
+ * The MCP entry file and the modules beside it that carry parts of the same
+ * server, for the same reason `apiServerModules` exists: the tool list moved
+ * from `src/mcp.ts` into `src/mcp/tools.ts`, and a scan that named the entry
+ * file alone then reported that this build publishes no MCP tools at all —
+ * which is a refusal, so no revision could be judged.
+ */
+async function mcpModules(root) {
+  const modules = [join(root, 'src/mcp.ts')];
+  const entries = await readdir(join(root, 'src/mcp'), { withFileTypes: true, recursive: true })
+    .catch((error) => {
+      if (error.code === 'ENOENT') return [];
+      throw error;
+    });
+  for (const found of entries) {
+    if (!found.isFile() || !found.name.endsWith('.ts')) continue;
+    modules.push(join(found.parentPath ?? found.path, found.name));
+  }
+  return modules.sort();
+}
+
+/**
  * Everything this build publishes, plus the version the repository declares as
  * released. The set is derived from the program the compiler sees, so a surface
  * that changed without a version change cannot pass unnoticed.
@@ -104,30 +125,33 @@ export async function surface(root = repositoryRoot()) {
   }
   if (!cliCommands) throw new Error('no Weles CLI commands resolved');
 
-  const mcpSource = program.getSourceFile(join(root, 'src/mcp.ts'));
-  if (!mcpSource) throw new Error('src/mcp.ts was not parsed');
+  const mcpPaths = await mcpModules(root);
   let mcpTools = 0;
-  const collectMcpTools = (node) => {
-    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)
-      && node.name.text === 'welesMcpTools' && node.initializer
-      && ts.isArrayLiteralExpression(node.initializer)) {
-      for (const element of node.initializer.elements) {
-        if (!ts.isObjectLiteralExpression(element)) {
-          throw new Error('welesMcpTools contains a non-object member');
+  for (const path of mcpPaths) {
+    const mcpSource = program.getSourceFile(path);
+    if (!mcpSource) throw new Error(`MCP module was not parsed: ${path}`);
+    const collectMcpTools = (node) => {
+      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)
+        && node.name.text === 'welesMcpTools' && node.initializer
+        && ts.isArrayLiteralExpression(node.initializer)) {
+        for (const element of node.initializer.elements) {
+          if (!ts.isObjectLiteralExpression(element)) {
+            throw new Error('welesMcpTools contains a non-object member');
+          }
+          const name = element.properties.find((property) => ts.isPropertyAssignment(property)
+            && property.name?.getText(mcpSource) === 'name');
+          if (!name || !ts.isPropertyAssignment(name) || !ts.isStringLiteral(name.initializer)) {
+            throw new Error('MCP tool has no static string name');
+          }
+          published.add(`mcp:${name.initializer.text}`);
+          mcpTools += 1;
         }
-        const name = element.properties.find((property) => ts.isPropertyAssignment(property)
-          && property.name?.getText(mcpSource) === 'name');
-        if (!name || !ts.isPropertyAssignment(name) || !ts.isStringLiteral(name.initializer)) {
-          throw new Error('MCP tool has no static string name');
-        }
-        published.add(`mcp:${name.initializer.text}`);
-        mcpTools += 1;
       }
-    }
-    ts.forEachChild(node, collectMcpTools);
-  };
-  collectMcpTools(mcpSource);
-  if (!mcpTools) throw new Error('no Weles MCP tools resolved');
+      ts.forEachChild(node, collectMcpTools);
+    };
+    collectMcpTools(mcpSource);
+  }
+  if (!mcpTools) throw new Error(`no Weles MCP tools resolved in ${mcpPaths.length} module(s)`);
 
   let routes = 0;
   const collectRoutes = (node) => {

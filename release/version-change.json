@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.5.72",
-  "candidate": "0.5.73",
+  "current": "0.5.49",
+  "candidate": "0.5.50",
   "breaking": false,
-  "reason": "0.5.73 carries the source-bound Apple Developer ID issuance journey and defers Apple credential resolution until the exact worker source executes, without changing the released public surface."
+  "reason": "0.5.50 is the first version declared against what release 0.5.49 actually published. The recorded baseline named 0.5.72, a version no tag and no GitHub release ever carried, and the manifest had reached 0.6.7 the same way, so the version gate refused every revision instead of judging it. Against the published 0.5.49 surface this tree is additive: the import, release and figma CLI commands, the trajectory import exports, the task and version HTTP routes and the reauth resolve route are new, and nothing published was removed."
 }

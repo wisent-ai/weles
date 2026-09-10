@@ -26,6 +26,7 @@ Usage:
   weles release surface
   weles release enforce-version --decision <file> --baseline <file> --declaration <file> --manifest <file>
   weles release validate-manifest --manifest <file> --source-revision <sha> --candidate-tag <tag>
+  weles release adopt-baseline --released <version> --published-surface <file> --reason <text> [--correcting <version>]
   weles figma export-design-assets
   weles doctor
   weles version
@@ -115,7 +116,7 @@ function normalizeCommand(command?: string): CliCommand {
 }
 
 function optionTakesValue(key: string): boolean {
-  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'timeout', 'subject', 'receipt', 'keys', 'state-dir', 'host', 'decision', 'baseline', 'declaration', 'manifest', 'source-revision', 'candidate-tag'].includes(key);
+  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'timeout', 'subject', 'receipt', 'keys', 'state-dir', 'host', 'decision', 'baseline', 'declaration', 'manifest', 'source-revision', 'candidate-tag', 'released', 'published-surface', 'reason', 'correcting'].includes(key);
 }
 
 function cliOptionsToBrowserOptions(options: Record<string, string | boolean>): AsyncNewBrowserOptions {

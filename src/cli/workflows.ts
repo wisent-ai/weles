@@ -92,8 +92,9 @@ export async function runOnboarding(parsed: ParsedCli): Promise<void> {
 }
 
 /**
- * `weles release <surface|enforce-version|validate-manifest>` — the three
- * judgements the release pipeline asks this product to make about itself.
+ * `weles release <surface|enforce-version|validate-manifest|adopt-baseline>` —
+ * the judgements the release pipeline asks this product to make about itself,
+ * and the write-back that keeps the documents those judgements read truthful.
  */
 export async function runRelease(parsed: ParsedCli): Promise<void> {
   // The release judgements are ES modules and this CLI compiles to CommonJS,
@@ -120,6 +121,25 @@ export async function runRelease(parsed: ParsedCli): Promise<void> {
     process.stdout.write(`${JSON.stringify(release.enforceVersion(inputs), null, 2)}\n`);
     return;
   }
+  if (action === 'adopt-baseline') {
+    // ES module, same reason as the load above: this file compiles to
+    // CommonJS, which cannot static-import it.
+    const baseline = await import('../release/baseline.mjs');
+    const optional = (name: string): string | undefined => {
+      const value = parsed.options[name];
+      return typeof value === 'string' && value.trim() ? value : undefined;
+    };
+    const written = await baseline.adoptBaseline({
+      publishedSurfacePath: option('published-surface'),
+      released: option('released'),
+      reason: option('reason'),
+      correcting: optional('correcting'),
+      baselinePath: optional('baseline'),
+      declarationPath: optional('declaration'),
+    });
+    process.stdout.write(`${JSON.stringify(written, null, 2)}\n`);
+    return;
+  }
   if (action === 'validate-manifest') {
     const verdict = await release.validateCandidateManifest({
       manifestPath: option('manifest'),
@@ -129,7 +149,10 @@ export async function runRelease(parsed: ParsedCli): Promise<void> {
     process.stdout.write(`${JSON.stringify(verdict, null, 2)}\n`);
     return;
   }
-  throw new Error(`weles release takes surface, enforce-version or validate-manifest, not ${action ?? '<nothing>'}`);
+  throw new Error(
+    'weles release takes surface, enforce-version, validate-manifest or adopt-baseline, '
+    + `not ${action ?? '<nothing>'}`,
+  );
 }
 
 /**

@@ -2,7 +2,7 @@
 // waits for you to sign in to Google manually (handle 2FA/passkey/phone).
 // After this completes, every service-balance trajectory that uses
 // launchRealChrome will inherit the Google session.
-import { launchRealChrome } from './real_chrome.mjs';
+import { launchRealChrome } from '../../../browser/real_chrome.mjs';
 import { humanIdlePause } from '../../../../dist/human/mouse.js';
 
 console.log('[setup] Opening Chrome. Sign in to Google with lukasz.bartoszcze@gmail.com.');
