@@ -1,6 +1,6 @@
 {
   "name": "weles",
-  "version": "0.5.50",
+  "version": "0.6.8",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "imports": {

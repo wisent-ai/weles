@@ -23,7 +23,7 @@ Usage:
   weles open <url> [--headless] [--browser chromium|firefox] [--wait-for-text <text>] [--text] [--screenshot <file>] [--timeout <ms>]
   weles screenshot <url> <file> [--headless] [--browser chromium|firefox] [--wait-for-text <text>] [--timeout <ms>]
   weles mcp
-  weles release surface
+  weles release surface [--root <directory>]
   weles release enforce-version --decision <file> --baseline <file> --declaration <file> --manifest <file>
   weles release validate-manifest --manifest <file> --source-revision <sha> --candidate-tag <tag>
   weles release adopt-baseline --released <version> --published-surface <file> --reason <text> [--correcting <version>]
@@ -116,7 +116,7 @@ function normalizeCommand(command?: string): CliCommand {
 }
 
 function optionTakesValue(key: string): boolean {
-  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'timeout', 'subject', 'receipt', 'keys', 'state-dir', 'host', 'decision', 'baseline', 'declaration', 'manifest', 'source-revision', 'candidate-tag', 'released', 'published-surface', 'reason', 'correcting'].includes(key);
+  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'timeout', 'subject', 'receipt', 'keys', 'state-dir', 'host', 'decision', 'baseline', 'declaration', 'manifest', 'source-revision', 'candidate-tag', 'released', 'published-surface', 'reason', 'correcting', 'root'].includes(key);
 }
 
 function cliOptionsToBrowserOptions(options: Record<string, string | boolean>): AsyncNewBrowserOptions {
