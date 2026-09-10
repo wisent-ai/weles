@@ -12,27 +12,26 @@
  */
 
 import type { Frame } from 'playwright';
-import { writeFileSync, mkdirSync, copyFileSync, existsSync, readFileSync } from 'node:fs';
+import { writeFileSync, mkdirSync, copyFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { costTracker } from '../../utils/runtime/cost.js';
-import { FP_SCRIPT, NETWORK_FP_URL, parseNetworkFingerprint } from '../../diagnostics/fingerprint_probe.js';
-import { analyze, pickBaseline } from '../../diagnostics/fingerprint_analyzer.js';
-import { markSignupSuccess } from '../../utils/email/domain.js';
-import { assertNonCredentialInput, withCapability } from '../../utils/capability.js';
-import type { CapabilityRef } from '../../utils/capability.js';
-import { getEmailApiKey } from '../../utils/credentials.js';
+import { assertNonCredentialInput } from '../../utils/capability.js';
 import { humanClick, humanClickLocator } from '../../human/mouse.js';
 import { humanFill, humanType } from '../../human/keyboard.js';
 import { findClickTarget, type ScreenshottablePage } from '../../vision/analyze.js';
 import type { WSession } from '../wsession.js';
-import { runRecordingsDir, runRecordingsRoot } from '../run-recordings.js';
-import { putAccount } from '../../state/skarbiec-records.js';
+import { runRecordingsDir } from '../run-recordings.js';
+import { recordingsDir, wsCaptureFingerprint } from './close/fingerprint_capture.js';
+
+export { CREDENTIAL_FIELD_ABSENT, wsFillCredential, wsFillIdentity } from './close/credential_fill.js';
+export { wsCheckEmail, wsSaveAccount } from './close/account_record.js';
+
 
 const VISIBILITY_PROBE_MS = 1500;
 
 const asV = (p: any) => p as unknown as ScreenshottablePage;
 
-function childFrames(s: WSession, allowedOrigin?: string): Frame[] {
+export function childFrames(s: WSession, allowedOrigin?: string): Frame[] {
   try {
     const frames: Frame[] = s.page.frames?.() ?? [];
     const mainFrame = s.page.mainFrame?.();
@@ -47,7 +46,7 @@ function childFrames(s: WSession, allowedOrigin?: string): Frame[] {
   }
 }
 
-async function firstVisible(loc: any): Promise<any | null> {
+export async function firstVisible(loc: any): Promise<any | null> {
   try {
     const first = loc?.first?.() ?? loc;
     let count = 1;
@@ -59,23 +58,6 @@ async function firstVisible(loc: any): Promise<any | null> {
 
 
 // G17: per-run layout — recordings/<run_uuid>/<label>/.
-function recordingsDir(label?: string): string {
-  return label ? runRecordingsDir(label) : runRecordingsRoot();
-}
-
-function profileUrl(platform: string, username: string, name?: string): string {
-  const urls: Record<string, string> = {
-    reddit: `https://reddit.com/u/${username}`,
-    tiktok: `https://tiktok.com/@${username}`,
-    github: `https://github.com/${username}`,
-    discord: `https://discord.com/users/${username}`,
-    linkedin: `https://linkedin.com/in/${(name ?? username).toLowerCase().replace(/\s+/g, '-')}`,
-    instagram: `https://instagram.com/${username}`,
-    twitter: `https://x.com/${username}`,
-  };
-  return urls[platform] ?? '';
-}
-
 export async function wsClick(s: WSession, target: string): Promise<string> {
   return s.runStep(`click_${target}`, async () => {
     const tryLoc = async (loc: any, descPrefix: string): Promise<string | null> => {
@@ -144,7 +126,7 @@ export async function wsClick(s: WSession, target: string): Promise<string> {
   });
 }
 
-async function fillPage(s: WSession, target: string, value: string, allowedOrigin?: string): Promise<string> {
+export async function fillPage(s: WSession, target: string, value: string, allowedOrigin?: string): Promise<string> {
   const v = value;
   const explicitSelector = target.trim().match(/^(?:input|textarea)(?:\[[^\]]+\])+/)?.[0];
   const description = explicitSelector ? target.slice(explicitSelector.length) : target;
@@ -186,297 +168,6 @@ export async function wsFill(s: WSession, target: string, value: string): Promis
   if (!['https:', 'http:'].includes(pageUrl.protocol)) throw new Error('fill requires an HTTP(S) origin');
   const literal = assertNonCredentialInput(value, target);
   return s.runStep(`fill_${target}`, () => fillPage(s, target, literal, pageUrl.origin));
-}
-
-type CredentialFieldClass = 'password' | 'email' | 'username' | 'token' | 'api-key';
-type IdentityField = 'email' | 'password' | 'username' | 'first_name' | 'last_name' | 'birth_month' | 'birth_day' | 'birth_year';
-
-const CREDENTIAL_FIELD_HINTS: Record<CredentialFieldClass, RegExp> = {
-  password: /password|passcode|secret/,
-  email: /email|e-mail/,
-  username: /username|user name|login/,
-  token: /token|verification code|one-time code|otp/,
-  'api-key': /api.?key|access key/,
-};
-
-async function fillProtectedValue(
-  s: WSession,
-  target: string,
-  value: string,
-  expectedHint: RegExp,
-): Promise<string> {
-  const pageUrl = new URL(s.page.url());
-  const origin = pageUrl.origin;
-  if (!['https:', 'http:'].includes(pageUrl.protocol)) throw new Error('credential fill requires an HTTP(S) origin');
-  if (!expectedHint.test(target.toLowerCase())) throw new Error('credential field class mismatch');
-  try {
-    const result = await fillPage(s, target, value, origin);
-    return result.startsWith('filled') ? `credential ${result}` : result;
-  } catch {
-    throw new Error('credential fill failed');
-  }
-}
-
-// How long a credential field is given to appear before the fill is declined.
-// A sign-in page renders its input after load, and a two-step flow puts the
-// password on a page that does not exist yet, so "not there this millisecond"
-// is not the same answer as "not there".
-const CREDENTIAL_FIELD_WAIT_MS = 10_000;
-
-// The marker a declined credential fill returns. Not an error: the capability
-// is still unspent, so the field can be filled when it exists.
-export const CREDENTIAL_FIELD_ABSENT = 'credential-field-absent';
-
-// Does a field this fill could land in exist yet? The locator half of
-// `fillPage`, run before anything is redeemed. A false negative costs only a
-// prefill the agent can still do itself; a false positive costs a burnt
-// one-shot capability and a plaintext secret with nowhere to go.
-async function credentialFieldPresent(
-  s: WSession,
-  target: string,
-  allowedOrigin: string,
-): Promise<boolean> {
-  const explicitSelector = target.trim().match(/^(?:input|textarea)(?:\[[^\]]+\])+/)?.[0];
-  const description = explicitSelector ? target.slice(explicitSelector.length) : target;
-  const kws = description.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
-  const sels = kws.flatMap(k => ['input', 'textarea', '[contenteditable]'].flatMap(t => [`${t}[name*="${k}"]`, `${t}[placeholder*="${k}" i]`, `${t}[aria-label*="${k}" i]`]));
-  if (/\b(email|e-mail)\b/i.test(target)) {
-    sels.unshift('input[type="email"], input[name*="email" i], input[name*="mail" i], input[autocomplete*="email" i]');
-  }
-  if (/password|passcode|secret/i.test(target)) {
-    sels.unshift('input[type="password"], input[name*="password" i], input[autocomplete*="current-password" i]');
-  }
-  if (explicitSelector) sels.unshift(explicitSelector);
-  const deadline = Date.now() + CREDENTIAL_FIELD_WAIT_MS;
-  do {
-    for (const frame of childFrames(s, allowedOrigin)) {
-      try { if (await firstVisible(frame.getByLabel?.(target, { exact: false }))) return true; } catch {}
-      for (const sel of sels) {
-        try { if (await firstVisible(frame.locator?.(sel))) return true; } catch {}
-      }
-    }
-    try { if (await firstVisible(s.page.getByLabel?.(target, { exact: false }))) return true; } catch {}
-    for (const sel of sels) {
-      try { if (await firstVisible(s.page.locator?.(sel))) return true; } catch {}
-    }
-  } while (Date.now() < deadline);
-  return false;
-}
-
-export async function wsFillCredential(
-  s: WSession,
-  target: string,
-  fieldClass: CredentialFieldClass,
-  capability: CapabilityRef,
-): Promise<string> {
-  // Validate the origin, the field class and the field's EXISTENCE before
-  // withCapability: redeeming burns a one-shot capability and materializes the
-  // plaintext secret. A bad target, a non-HTTP(S) page, or a field that is not
-  // on this page must be refused while no secret exists.
-  //
-  // The existence check is not fussiness. Google's sign-in puts the password on
-  // a second page, so prefilling both at load spent the password capability on
-  // a field that could not exist yet, and the agent that reached the password
-  // page was then denied for a capability it had never used.
-  const pageUrl = new URL(s.page.url());
-  const origin = pageUrl.origin;
-  if (!['https:', 'http:'].includes(pageUrl.protocol)) throw new Error('credential fill requires an HTTP(S) origin');
-  const expectedHint = CREDENTIAL_FIELD_HINTS[fieldClass];
-  if (!expectedHint.test(target.toLowerCase())) throw new Error('credential field class mismatch');
-  if (!await credentialFieldPresent(s, target, origin)) return CREDENTIAL_FIELD_ABSENT;
-  const expected = { purpose: 'weles.browser.fill' as const, resource: `origin:${origin}/${fieldClass}` };
-  return withCapability(capability, expected, (secret) =>
-    fillProtectedValue(s, target, secret, expectedHint));
-}
-
-export async function wsFillIdentity(
-  s: WSession,
-  target: string,
-  field: IdentityField,
-  value: string,
-): Promise<string> {
-  const expectedHints: Record<IdentityField, RegExp> = {
-    email: /email|e-mail/,
-    password: /password|passcode|secret/,
-    username: /username|user name|login/,
-    first_name: /first.?name|given.?name/,
-    last_name: /last.?name|family.?name|surname/,
-    birth_month: /birth.*month|month/,
-    birth_day: /birth.*day|day/,
-    birth_year: /birth.*year|year/,
-  };
-  return fillProtectedValue(s, target, value, expectedHints[field]);
-}
-
-export async function wsCheckEmail(s: WSession, email: string, sender: string): Promise<string> {
-  const key = await getEmailApiKey() ?? '';
-  if (!key) return 'error: no RESEND_RECEIVING_API_KEY';
-  const addr = s.resolveEnv(email).toLowerCase();
-  const senderHint = sender.toLowerCase();
-  const earliestAcceptMs = Date.now() - 90_000;
-  for (let attempt = 0; attempt < 18; attempt++) {
-    const r = await fetch('https://api.resend.com/emails/receiving?limit=10', { headers: { Authorization: `Bearer ${key}` } });
-    for (const em of ((await r.json()) as any).data ?? []) {
-      const to = (em.to ?? []).map((t: any) => (typeof t === 'string' ? t : t.email ?? '').toLowerCase());
-      if (!to.includes(addr)) continue;
-      if (senderHint && !(em.from ?? '').toLowerCase().includes(senderHint)) continue;
-      const emAt = em.created_at ? new Date(em.created_at).getTime() : 0;
-      if (emAt < earliestAcceptMs) continue;
-      const d = await (await fetch(`https://api.resend.com/emails/receiving/${em.id}`, { headers: { Authorization: `Bearer ${key}` } })).json() as any;
-      const content = `${d.subject ?? ''}\n${d.text ?? ''}\n${d.html ?? ''}`;
-      const verificationMatch = content.match(/https:\/\/api-dashboard\.search\.brave\.com\/verification[^\s"'<>\]]+/);
-      if (verificationMatch) {
-        const verificationURL = verificationMatch[0].replace(/&amp;/g, '&').replace(/[),.;]+$/, '');
-        const target = new URL(verificationURL);
-        if (target.hostname === 'api-dashboard.search.brave.com' && target.pathname === '/verification') {
-          await s.page.goto(target.href, { waitUntil: 'domcontentloaded' });
-          return `verification email opened on ${target.origin}${target.pathname}`;
-        }
-      }
-      const codes = content.match(/\b\d{5,6}\b/g);
-      if (codes) return codes[0];
-      return `email received without numeric code: ${content.replace(/\s+/g, ' ').trim().slice(0, 2000)}`;
-    }
-    await new Promise(r => setTimeout(r, 10000));  // allow-raw-playwright: bounded polling/rate-limit loop
-  }
-  return 'no matching email received within timeout';
-}
-
-export async function wsSaveAccount(
-  s: WSession,
-  platform: string,
-  data: { username: string; email: string; password: string; name?: string; status?: string },
-): Promise<string> {
-  // The account item is the durable result of this trajectory.
-  const username = s.resolveEnv(data.username);
-  const email = s.resolveEnv(data.email);
-  const password = s.resolveEnv(data.password);
-  const name = data.name ? s.resolveEnv(data.name) : undefined;
-  const storageState = await s.ctx.storageState().catch(() => ({ cookies: [] as any[], origins: [] as any[] }));
-  const cookies = (storageState as any).cookies ?? [];
-  const metadata = {
-    email,
-    status: data.status ?? 'created',
-    created_via: 'weles',
-    cookies,
-    storage_state: storageState,
-    cookies_updated_at: new Date().toISOString(),
-    cookies_minted_at: new Date().toISOString(),
-    cookies_minted_proxy: (s as any)._proxySignature(),
-    cookies_minted_persona: (s as any)._personaSignature(),
-    proxy: s.proxyConfig ?? null,
-    persona: (s as any).personaConfig ?? null,
-    profile_url: profileUrl(platform, username, name),
-  };
-  try {
-    const item = putAccount({
-      platform,
-      username,
-      password,
-      metadata,
-      displayName: name,
-    });
-    writeFileSync(join(recordingsDir(s.label || undefined), 'account.json'), JSON.stringify({ item, platform, username }, null, 2));
-    await markSignupSuccess(email, platform).catch(() => {});
-    return `account saved: ${item}`;
-  } catch (error) {
-    return `error: ${error instanceof Error ? error.message : String(error)}`;
-  }
-}
-
-async function wsCaptureFingerprint(s: WSession): Promise<void> {
-  if (!s.label) return;
-  if (process.env.WELES_FINGERPRINT === '0') return;
-  try {
-    const js = await s.page.evaluate(FP_SCRIPT);
-    let network: any = null;
-    try {
-      await s.page.goto(NETWORK_FP_URL, { waitUntil: 'domcontentloaded' });
-      const raw = await s.page.evaluate(`document.body.innerText || document.body.textContent || ''`);
-      network = parseNetworkFingerprint(raw);
-    } catch (e: any) {
-      network = { _err: String(e?.message ?? e).slice(0, 200) };
-    }
-    const payload = {
-      capturedAt: new Date().toISOString(),
-      source: 'weles-auto',
-      browser: (s as any)._browserProvenance?.browser ?? 'unknown',
-      js,
-      network,
-    };
-    const fpPath = join(recordingsDir(s.label), 'fingerprint.json');
-    writeFileSync(fpPath, JSON.stringify(payload, null, 2));
-    console.log(`[wsession] fingerprint saved ${fpPath}`);
-
-    const baselineDir = process.env.WELES_BASELINE_DIR || join(process.cwd(), 'recordings', 'baselines');
-    if (existsSync(baselineDir)) {
-      const { path: baselinePath, data: baseline } = pickBaseline(baselineDir, payload);
-      let report = analyze(payload, baseline);
-      report.meta.subjectPath = fpPath;
-      report.meta.baselinePath = baselinePath;
-
-      // Detect network fingerprint drift between early (pre-action) and final
-      // (close-time) captures. If the only change is the appearance of the TLS
-      // 1.3 pre_shared_key extension after the target site was visited, the
-      // drift is expected session resumption — not a detection signal. The
-      // target saw the early JA4; the close-time JA4 is a measurement artifact.
-      const earlyPath = join(recordingsDir(s.label), 'early_fingerprint.json');
-      let pskDrift = false;
-      const driftFields: string[] = [];
-      if (existsSync(earlyPath)) {
-        try {
-          const early = JSON.parse(readFileSync(earlyPath, 'utf-8'));
-          const earlyExts = new Set((early?.network?.extensions || []) as string[]);
-          const finalExts = new Set((network?.extensions || []) as string[]);
-          const isGrease = (x: string) => x.startsWith('TLS_GREASE');
-          const added = [...finalExts].filter((x) => !earlyExts.has(x) && !isGrease(x));
-          const removed = [...earlyExts].filter((x) => !finalExts.has(x) && !isGrease(x));
-          pskDrift = added.length === 1 && added[0] === 'pre_shared_key (41)' && removed.length === 0;
-          for (const f of ['ja4', 'peetprint_hash', 'akamaiH2'] as const) {
-            const e = early?.network?.[f] ?? null;
-            const fin = network?.[f] ?? null;
-            if (e && fin && e !== fin) driftFields.push(f);
-          }
-          if (driftFields.length) {
-            const drift: Record<string, { early: string | null; final: string | null; pskExpected?: boolean }> = {};
-            for (const f of driftFields) {
-              drift[f] = { early: early?.network?.[f] ?? null, final: network?.[f] ?? null, pskExpected: pskDrift };
-            }
-            const driftPath = join(recordingsDir(s.label), 'network_drift.json');
-            writeFileSync(driftPath, JSON.stringify({ capturedAt: new Date().toISOString(), pskDrift, drift }, null, 2));
-            console.log(`[wsession] network drift detected: ${driftFields.join(', ')}${pskDrift ? ' (expected PSK resumption)' : ''} — saved ${driftPath}`);
-          }
-        } catch (e: any) {
-          console.log(`[wsession] network drift compare error: ${e?.message?.slice(0, 200)}`);
-        }
-      }
-
-      if (pskDrift) {
-        const pskFindingIds = new Set(['tls_ja4_mismatch', 'tls_peetprint_mismatch']);
-        const before = report.summary.riskScore;
-        report.findings = report.findings.filter((f) => !pskFindingIds.has(f.id));
-        // Recompute summary.
-        const counts = { critical: 0, warning: 0, info: 0 };
-        const byCategory: Record<string, number> = {};
-        const SEVERITY_WEIGHT: Record<string, number> = { critical: 10, warning: 5, info: 2 };
-        let riskScore = 0;
-        for (const f of report.findings) {
-          counts[f.severity]++;
-          riskScore += SEVERITY_WEIGHT[f.severity];
-          byCategory[f.category] = (byCategory[f.category] || 0) + 1;
-        }
-        report.summary = { totalFindings: report.findings.length, ...counts, riskScore, byCategory };
-        report.meta.pskDriftExplained = true;
-        console.log(`[wsession] PSK drift explained: removed TLS mismatch findings, risk ${before} -> ${report.summary.riskScore}`);
-      }
-
-      const reportPath = join(recordingsDir(s.label), 'detection_report.json');
-      writeFileSync(reportPath, JSON.stringify(report, null, 2));
-      console.log(`[wsession] detection report saved ${reportPath} risk=${report.summary.riskScore} critical=${report.summary.critical}`);
-    }
-  } catch (e: any) {
-    console.log(`[wsession] fingerprint capture error: ${e?.message?.slice(0, 200)}`);
-  }
 }
 
 export async function wsClose(s: WSession): Promise<void> {
