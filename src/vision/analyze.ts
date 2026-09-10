@@ -98,6 +98,12 @@ export async function askJedenAboutImage(screenshot: Buffer, question: string, t
     } catch { /* skip */ }
   }
 
+  // A question Jeden could not answer is reported as the failure it is, after
+  // the vision log has recorded it. On 2026-09-10 a keeper run on the
+  // dedicated host asked forty questions in a row, received an empty string
+  // for each because every Jeden session died before producing output, and
+  // ended with "browser agent exceeded 40 steps" - the only place the cause
+  // was written was this directory's json files, which nobody reads mid-run.
   let answer = '';
   let error: string | null = null;
   try {
@@ -105,7 +111,6 @@ export async function askJedenAboutImage(screenshot: Buffer, question: string, t
     answer = (await callJeden(prompt, { modelOnly: false, maxSteps: Number('4'), timeoutMs: VISION_TIMEOUT_MS })).raw;
   } catch (e: any) {
     error = String(e);
-    answer = '';
   }
 
   try {
@@ -121,6 +126,9 @@ export async function askJedenAboutImage(screenshot: Buffer, question: string, t
     pruneRecordings(dir, budget);
   } catch { /* skip */ }
 
+  if (error !== null) {
+    throw new Error(`the page question "${question.slice(0, 120)}" got no answer from Jeden: ${error}`);
+  }
   return answer;
 }
 
