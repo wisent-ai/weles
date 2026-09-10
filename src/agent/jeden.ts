@@ -1,16 +1,18 @@
 import { execFile } from 'node:child_process';
+import { createHash, createHmac } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../session/run-recordings.js';
 
-// `best` is Brama's subscription route: the agent's HMAC identity selects the
-// subscription that pays. Drafting browser trajectories needs a frontier
-// instruction-following model, and every other Brama alias is bound to a
-// provider Brama holds a direct credential for, so `best` is the only alias
-// that reaches a subscription-funded model. It also removes the dependency on
-// a local deployment being up: `weles/agent/primary` resolved to the
-// `chat-primary` GPU host, so Weles stopped working whenever that box did.
-const WELES_AGENT_MODEL = 'best';
+// Weles asks Brama for its own alias, `weles`. Which model that is — a local
+// deployment, a subscription route, a frontier provider — is the route
+// table's decision and is read with `brama aliases` or `GET /v1/aliases`; it
+// is not encoded in this name. The previous name, `weles/agent/primary`,
+// carried a purpose and a rank that both changed underneath it while the
+// string stayed, and callers were told it was "not in the catalog" whenever
+// the route behind it could not be served. Brama now answers with the alias's
+// state and reason instead, so this caller can report that sentence verbatim.
+export const WELES_AGENT_MODEL = 'weles';
 const WELES_AGENT_ID = 'weles';
 
 type ModelRouterConfig = {
@@ -140,6 +142,63 @@ function runJedenProcess(
   return promise;
 }
 
+/**
+ * One completion from Brama, asked for directly.
+ *
+ * A single-turn decision needs no agent runtime: it needs the alias, the
+ * bearer and the signature this caller already holds. Spawning `jeden` for it
+ * put an unmanaged binary from the host's PATH on the browser loop's critical
+ * path, and on 2026-09-07 that binary asked Brama for a subscription instead
+ * of this alias: every browser task on the dedicated host died with
+ * `subscription_unavailable`, while the same alias through the same resolver
+ * answered on the first try. Multi-step calls still go to the agent runtime,
+ * which is what reads files and drives tools.
+ */
+async function completeThroughRouter(
+  cfg: ModelRouterConfig,
+  prompt: string,
+  timeoutMs: number,
+): Promise<string> {
+  const body = JSON.stringify({
+    model: cfg.model,
+    messages: [{ role: 'user', content: prompt }],
+  });
+  const timestamp = Math.floor(Date.now() / Number('1000')).toString();
+  const bodyHash = createHash('sha256').update(body).digest('hex');
+  const signature = createHmac('sha256', cfg.agentAuthSecret)
+    .update(`${cfg.agentId}:${timestamp}:${bodyHash}`)
+    .digest('hex');
+  const response = await fetch(`${cfg.routerUrl.replace(/\/+$/, '')}/v1/chat/completions`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${cfg.routerToken}`,
+      'content-type': 'application/json',
+      'x-agent-id': cfg.agentId,
+      'x-agent-timestamp': timestamp,
+      'x-agent-body-sha256': bodyHash,
+      'x-agent-signature': signature,
+    },
+    body,
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`model router ${response.status} for ${cfg.model}: ${text.slice(0, 500)}`);
+  }
+  let payload: { choices?: Array<{ message?: { content?: unknown } }> };
+  try {
+    payload = JSON.parse(text) as typeof payload;
+  } catch {
+    throw new Error(`model router returned invalid JSON: ${text.slice(0, 500)}`);
+  }
+  const content = payload.choices?.[0]?.message?.content;
+  const answer = typeof content === 'string' ? content.trim() : '';
+  if (!answer) {
+    throw new Error(`model router returned no content for ${cfg.model}: ${text.slice(0, 500)}`);
+  }
+  return answer;
+}
+
 export async function callJeden(prompt: string, options: JedenCallOptions = {}): Promise<JedenResult> {
   const cfg = loadModelRouterConfig();
   const configuredTimeout = Number.parseInt(process.env.WELES_JEDEN_TIMEOUT_MS ?? '', Number('10'));
@@ -150,6 +209,13 @@ export async function callJeden(prompt: string, options: JedenCallOptions = {}):
   );
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= Number('0')) {
     throw new Error('Jeden timeout must be a positive integer number of milliseconds');
+  }
+  // The default is one turn, which is the browser loop's decision call: ask
+  // Brama and be done. Only a caller that explicitly wants the agent runtime's
+  // tools (`modelOnly: false`) spawns it.
+  if (options.modelOnly !== false) {
+    const raw = await completeThroughRouter(cfg, prompt, timeoutMs);
+    return { raw, model: cfg.model, routerUrl: cfg.routerUrl };
   }
   const binary = nonEmpty(process.env.WELES_JEDEN_BIN) ?? 'jeden';
   const sessionRoot = nonEmpty(process.env.WELES_JEDEN_SESSION_ROOT)
@@ -166,7 +232,6 @@ export async function callJeden(prompt: string, options: JedenCallOptions = {}):
     '--cwd',
     process.cwd(),
   ];
-  if (options.modelOnly !== false) args.splice(3, 0, '--model-only');
   // Give the child only process mechanics plus the dedicated Brama
   // model-routing capability. Browser-session, provider, and sibling Stado
   // credentials must never become ambient CLI environment.

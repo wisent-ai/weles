@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.5.54",
-  "candidate": "0.5.55",
+  "current": "0.5.72",
+  "candidate": "0.5.73",
   "breaking": false,
-  "reason": "0.5.55 records the immutable Weles release identity in every detached run result so post-release activity and diagnostics attribute pre-browser failures to the exact worker. CLI and library surfaces are unchanged."
+  "reason": "0.5.73 carries the source-bound Apple Developer ID issuance journey and defers Apple credential resolution until the exact worker source executes, without changing the released public surface."
 }

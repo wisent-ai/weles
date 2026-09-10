@@ -1,8 +1,8 @@
 // Shared fingerprint probe.
 //
 // Single source of truth for "what does my browser look like to a fingerprinter".
-// Called by scripts/debug/capture_fingerprint.mjs (Bright Data reference Chrome),
-// scripts/debug/capture_fingerprint_local.mjs (our weles Chromium), and the TikTok
+// Called by the fingerprint capture path (Bright Data reference Chrome and our
+// weles Chromium) and by the TikTok
 // instrumented probes. Any field added here shows up in every downstream diff.
 //
 // Goal: measure the full JS-accessible fingerprint surface that anti-bot SDKs

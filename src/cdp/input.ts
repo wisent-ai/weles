@@ -1,5 +1,5 @@
 import { CDPConnection } from './connection.js';
-import { bezierPath as _bezierPath } from '../utils/bezier.js';
+import { bezierPath as _bezierPath } from '../utils/motion/bezier.js';
 
 function _instantMode(): boolean {
   return process.env.WELES_INSTANT_INPUT === '1';

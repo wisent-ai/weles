@@ -5,10 +5,11 @@
 //   click-to-click gaps: rapid 187–213ms; deliberate 2961–10584ms
 // ---------------------------------------------------------------------------
 
-import { cubicBezier } from '../utils/bezier.js';
+import { cubicBezier } from '../utils/motion/bezier.js';
 import { randomBetween, waitMs, humanRandom } from '../utils/timing.js';
 import { traceAvailable, nextPointerStepMs, nextReactionMs, nextInterClickMs, getMoveTemplate } from './trace.js';
 import { getOffsetFromPage, nativeClick, nativeBatchMove, nativeMove } from './mouse-native.js';
+import { settledTargetBox } from './pointer/target-box.js';
 
 export { nextInterClickMs };
 
@@ -36,8 +37,17 @@ function sampleReactionMs(): number {
   return randomBetween(250, 500);
 }
 
-export async function humanIdlePause(kind: 'short' | 'deliberate' | 'long' = 'deliberate'): Promise<void> {
-  const ms = kind === 'short' ? randomBetween(180, 400)
+/**
+ * The three named kinds are the reaction-shaped defaults. A `[min, max]` pair
+ * is a dwell budget somebody declared — a declared observation carries its own
+ * millisecond range, and passing it here is what makes that column real rather
+ * than a number in a file nobody applied.
+ */
+export type IdlePause = 'short' | 'deliberate' | 'long' | readonly [number, number];
+
+export async function humanIdlePause(kind: IdlePause = 'deliberate'): Promise<void> {
+  const ms = typeof kind !== 'string' ? randomBetween(kind[0], kind[1])
+    : kind === 'short' ? randomBetween(180, 400)
     : kind === 'long' ? randomBetween(5000, 11000)
     : randomBetween(2500, 5500);
   await waitMs(ms);
@@ -168,9 +178,7 @@ export async function humanMove(page: any, x: number, y: number, startX?: number
  * Throws when the bounding box can't be resolved — no degraded path.
  */
 export async function humanClickLocator(page: any, locator: any): Promise<void> {
-  try { await locator.scrollIntoViewIfNeeded?.(); } catch { /* element may already be in view */ }
-  const box = await locator.boundingBox?.();
-  if (!box) throw new Error('humanClickLocator: bounding box unavailable (element detached or off-screen)');
+  const box = await settledTargetBox(page, locator);
   const padX = Math.max(2, Math.floor(box.width * 0.15));
   const padY = Math.max(2, Math.floor(box.height * 0.15));
   const tx = box.x + padX + Math.floor(humanRandom() * Math.max(1, box.width - padX * 2));
@@ -205,7 +213,7 @@ export async function humanClickLocator(page: any, locator: any): Promise<void> 
  *   Bots that nav -> click -> type -> submit never trigger the ~600ms
  *   hovercard delay; flagging them post-submit is reliable.
  *
- *   This same pattern is duplicated in scripts/trajectories/reddit/
+ *   This same pattern is duplicated in src/trajectories/reddit/
  *   organic_comment.mjs (raw page.mouse.move + humanIdlePause). One atom,
  *   one place to tune timings.
  *

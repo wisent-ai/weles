@@ -63,7 +63,7 @@ jobs:
           fi
           npm ci
           npm run build
-          node scripts/release/surface.mjs > "$RUNNER_TEMP/released-surface.json"
+          node dist/cli.js release surface > "$RUNNER_TEMP/released-surface.json"
           npm sbom --omit=dev --sbom-format cyclonedx > "$RUNNER_TEMP/sbom.cyclonedx.json"
           npm prune --omit=dev
           stage="$RUNNER_TEMP/weles-worker"

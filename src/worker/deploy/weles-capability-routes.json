@@ -1,0 +1,34 @@
+{
+  "origin:https://accounts.google.com/email": {
+    "item": "weles-google-sso-login",
+    "field": "username"
+  },
+  "origin:https://accounts.google.com/password": {
+    "item": "weles-google-sso-login",
+    "field": "password"
+  },
+  "origin:https://dash.cloudflare.com/email": {
+    "item": "platform-admin-cloudflare",
+    "field": "username"
+  },
+  "origin:https://dash.cloudflare.com/password": {
+    "item": "platform-admin-cloudflare",
+    "field": "password"
+  },
+  "origin:https://lsi2.ncbr.gov.pl/email": {
+    "item": "platform-admin-ncbr",
+    "field": "username"
+  },
+  "origin:https://lsi2.ncbr.gov.pl/password": {
+    "item": "platform-admin-ncbr",
+    "field": "password"
+  },
+  "origin:https://idmsa.apple.com/email": {
+    "item": "weles-apple-control-account",
+    "field": "email"
+  },
+  "origin:https://idmsa.apple.com/password": {
+    "item": "weles-apple-control-account",
+    "field": "password"
+  }
+}

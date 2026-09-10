@@ -2,7 +2,12 @@ __pycache__/
 *.pyc
 *.egg-info/
 dist/
-build/
+# Build output at the root, and only there. As `build/` this pattern also
+# matched `tests/build/`, so `tests/build/module-load.test.mjs` — the check
+# `.github/workflows/build-check.yml` runs on every push — could never be
+# committed: the workflow named a path git was silently refusing to add, and
+# build-check failed on main for a file nobody could see was missing.
+/build/
 .eggs/
 *.so
 .venv/
@@ -21,7 +26,14 @@ scripts/lib/cgevent_postpid
 # Database DDL lives only in wisent-ai/wisent-supabase-echo. A local
 # `supabase`-CLI link or init must never reintroduce schema files or
 # .temp/linked-project.json into this repo.
-supabase/
+#
+# Root-only, like /build/ above. Written as `supabase/` this pattern also
+# matched `src/trajectories/supabase/`, so two real trajectories — login.mjs
+# and list_projects.mjs — could never be committed: git hid them, the
+# published trajectory catalog counted 429 files on a checkout that carried
+# 431, and main could not rebuild either number. A rule aimed at the
+# CLI-created root directory must name it.
+/supabase/
 
 # Build output written by release/stado-build.sh (WISENT_OUTPUT_DIR).
 # stado-build.sh:6 already excludes it from the release source, and a
@@ -31,3 +43,6 @@ supabase/
 
 # Test-runner scratch: run records and TAP output, never source.
 .tap/
+
+# macOS Finder metadata: written by the OS on any folder view, never source.
+.DS_Store

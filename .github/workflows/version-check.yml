@@ -21,7 +21,7 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - name: Extract candidate surface
-        run: node scripts/release/surface.mjs > "$RUNNER_TEMP/candidate-surface.json"
+        run: npm run build && node dist/cli.js release surface > "$RUNNER_TEMP/candidate-surface.json"
       - name: Install and identify AutoVersion
         run: |
           set -euo pipefail
@@ -61,13 +61,13 @@ jobs:
             --published-surface released-surface.json \
             --candidate-surface "$RUNNER_TEMP/candidate-surface.json" \
             "${breaking[@]}" --json > "$RUNNER_TEMP/version-decision.json"
-          node scripts/release/enforce-version.mjs \
+          node dist/cli.js release enforce-version \
             --decision "$RUNNER_TEMP/version-decision.json" \
             --baseline released-surface.json \
             --declaration release/version-change.json \
             --manifest package.json
           jq '.candidate = "9.9.9"' release/version-change.json > "$RUNNER_TEMP/invalid-declaration.json"
-          if node scripts/release/enforce-version.mjs \
+          if node dist/cli.js release enforce-version \
             --decision "$RUNNER_TEMP/version-decision.json" \
             --baseline released-surface.json \
             --declaration "$RUNNER_TEMP/invalid-declaration.json" \

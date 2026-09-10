@@ -7,6 +7,7 @@
 import type { WSession } from '../session/wsession.js';
 import type { CapabilityRef, WelesCapabilityPurpose } from '../utils/capability.js';
 import { assertNonCredentialInput } from '../utils/capability.js';
+import { enforceBrowserEvidenceToolPolicy } from './browser-evidence-policy.js';
 
 export type ToolArgs = Record<string, unknown>;
 type CredentialFieldClass = 'password' | 'email' | 'username' | 'token' | 'api-key';
@@ -82,6 +83,8 @@ function capabilityArg(value: unknown): CapabilityRef {
 }
 
 export async function dispatch(session: WSession, tool: string, args: ToolArgs): Promise<string> {
+  const authorization = await enforceBrowserEvidenceToolPolicy(session, tool, args);
+  if (authorization) return authorization.invoke();
   switch (tool) {
     case 'click': return session.click(stringArg(args, 'target'));
     case 'fill': {

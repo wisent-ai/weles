@@ -1,15 +1,13 @@
 #!/usr/bin/env node
-import { existsSync, readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { runWelesOnboarding } from './onboarding.js';
-import { resolveSkarbiecEndpoint } from './utils/endpoint-resolution.js';
-import type { WelesOnboardingInput } from './onboarding.js';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { AsyncNewBrowserOptions } from './async_api.js';
+import { runDoctor } from './cli/diagnostics.js';
+import { runImport, runOnboarding, runRelease, runFigma } from './cli/workflows.js';
 
-type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding';
+type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import' | 'release' | 'figma';
 
-type ParsedCli = {
+export type ParsedCli = {
   command: CliCommand;
   positional: string[];
   options: Record<string, string | boolean>;
@@ -18,11 +16,17 @@ type ParsedCli = {
 const HELP = `Weles CLI
 
 Usage:
-  weles onboarding [status|next|verify|reset] [--subject <stable-id>]
+  weles onboarding [status|next|import|verify|reset] [--subject <stable-id>]
+  weles onboarding import <trajectory-export.json> --host <managed-worker-hostname> [--subject <stable-id>]
   weles onboarding verify --receipt <receipt.json> --keys <receipt-keys.json> [--subject <stable-id>]
+  weles import <trajectory-export.json> --host <managed-worker-hostname>
   weles open <url> [--headless] [--browser chromium|firefox] [--wait-for-text <text>] [--text] [--screenshot <file>] [--timeout <ms>]
   weles screenshot <url> <file> [--headless] [--browser chromium|firefox] [--wait-for-text <text>] [--timeout <ms>]
   weles mcp
+  weles release surface
+  weles release enforce-version --decision <file> --baseline <file> --declaration <file> --manifest <file>
+  weles release validate-manifest --manifest <file> --source-revision <sha> --candidate-tag <tag>
+  weles figma export-design-assets
   weles doctor
   weles version
 
@@ -31,6 +35,7 @@ Options:
   --receipt <file>        Real terminal Weles service receipt JSON to verify.
   --keys <file>           JSON map of trusted receipt key IDs to PEM public keys.
   --state-dir <dir>       Override the durable onboarding state directory.
+  --host <hostname>       Exact managed Weles worker hostname for imported definitions.
   --headless              Launch without a visible browser window.
   --browser <name>        Browser engine passed to AsyncNewBrowser (default: chromium).
   --os <name>             Persona OS passed to AsyncNewBrowser (default: macos).
@@ -43,9 +48,11 @@ Options:
   --wait-for-text <text>  Wait for matching visible text before reading or capturing.
   --timeout <ms>          Navigation timeout in milliseconds.
 
-Onboarding explains the authorization boundary and approved host execution. It
-does not launch browser automation. Completion requires cryptographic verification
-of a real workflow receipt and its bound evidence digest.
+Onboarding explains the authorization boundary, optionally imports existing Weles
+trajectory API exports, and explains approved host execution. Importing writes
+host-bound drafts but does not launch browser automation or grant a new action.
+Completion still requires cryptographic verification of a real workflow receipt
+and its bound evidence digest.
 `;
 
 function readPackageJson(): { version?: string; bin?: unknown } {
@@ -103,12 +110,12 @@ export function parseCliArgs(argv: string[]): ParsedCli {
 function normalizeCommand(command?: string): CliCommand {
   if (!command || command === '--help' || command === '-h' || command === 'help') return 'help';
   if (command === '--version' || command === '-v' || command === 'version') return 'version';
-  if (command === 'doctor' || command === 'open' || command === 'screenshot' || command === 'mcp' || command === 'onboarding') return command;
+  if (command === 'doctor' || command === 'open' || command === 'screenshot' || command === 'mcp' || command === 'onboarding' || command === 'import' || command === 'release' || command === 'figma') return command;
   throw new Error(`unknown command: ${command}`);
 }
 
 function optionTakesValue(key: string): boolean {
-  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'timeout', 'subject', 'receipt', 'keys', 'state-dir'].includes(key);
+  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'timeout', 'subject', 'receipt', 'keys', 'state-dir', 'host', 'decision', 'baseline', 'declaration', 'manifest', 'source-revision', 'candidate-tag'].includes(key);
 }
 
 function cliOptionsToBrowserOptions(options: Record<string, string | boolean>): AsyncNewBrowserOptions {
@@ -176,203 +183,7 @@ async function runScreenshot(parsed: ParsedCli): Promise<void> {
   await runOpen(parsed);
 }
 
-async function runDoctor(): Promise<void> {
 
-  const pkg = readPackageJson();
-  const report: Record<string, unknown> = {
-    ok: true,
-    version: pkg.version ?? null,
-    node: process.version,
-    bin: pkg.bin ?? null,
-    env: {
-      CHROMIUM_PATH: process.env.CHROMIUM_PATH ? 'set' : 'unset',
-      WELES_USE_STOCK_CHROMIUM: process.env.WELES_USE_STOCK_CHROMIUM ? 'set' : 'unset',
-    },
-    dependencies: {
-      skarbiec: null as unknown,
-      browserRuntime: null as unknown,
-    },
-  };
-
-  try {
-    const skarbiecResult = await resolveSkarbiecEndpoint();
-    if (skarbiecResult.resolved) {
-      report.dependencies = {
-        skarbiec: {
-          resolved: skarbiecResult.resolved.url,
-          source: skarbiecResult.resolved.source,
-          sourceDetail: skarbiecResult.resolved.sourceDetail,
-          isListening: skarbiecResult.resolved.isListening,
-        },
-      };
-      if (!skarbiecResult.resolved.isListening) {
-        report.ok = false;
-      }
-    }
-  } catch (error) {
-    report.dependencies = {
-      skarbiec: {
-        error: error instanceof Error ? error.message : String(error),
-      },
-    };
-    report.ok = false;
-  }
-
-  // A worker that will die on its first browser task should say so here
-  // rather than at the fourth failed job. `browserContext.newPage` needs the
-  // recording dependency before it will open a page at all, so an absent
-  // ffmpeg is not a degraded run, it is every browser task on the host
-  // failing -- and it reported itself only as a run failure hours later.
-  const runtime = inspectBrowserRuntime();
-  report.dependencies = {
-    ...(report.dependencies as Record<string, unknown>),
-    browserRuntime: runtime,
-  };
-  if (!runtime.ok) {
-    report.ok = false;
-  }
-
-  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-  if (!report.ok) {
-    process.exitCode = 1;
-  }
-}
-
-/// The components this worker takes from Playwright's own cache.
-///
-/// Not every browser Playwright pins: the worker launches its own Chromium
-/// and Firefox releases, pinned by digest, so Playwright's bundled browsers
-/// are absent on a healthy host. `ffmpeg` is what the recording path uses and
-/// what its absence breaks.
-const REQUIRED_PLAYWRIGHT_COMPONENTS = ['ffmpeg'] as const;
-
-type BrowserRuntimeReport = {
-  ok: boolean;
-  components?: Array<{ name: string; revision: string; expectedPath: string; present: boolean }>;
-  error?: string;
-};
-
-/// Whether the browser runtime this release pins is actually on disk.
-///
-/// The revisions are read from the Playwright the release itself carries,
-/// never hardcoded: the cache directory is `<name>-<revision>` with
-/// underscores for hyphenated names, so a constant would check the wrong path
-/// the moment the dependency moved. Presence is Playwright's own
-/// `INSTALLATION_COMPLETE` marker, so a directory left behind by an
-/// interrupted download is reported missing rather than present.
-function inspectBrowserRuntime(): BrowserRuntimeReport {
-  let declared: Array<{ name: string; revision: string }>;
-  try {
-    // Resolved through the package's main entry and then walked up to the
-    // manifest beside it. `require.resolve('playwright-core/browsers.json')`
-    // is refused: the package's `exports` map does not publish that subpath,
-    // even though the file is what Playwright itself reads for its revisions.
-    // Asking the resolver for the entry point and walking from there uses the
-    // same copy the runtime will load, which a hardcoded node_modules path
-    // would not.
-    const manifestPath = findPlaywrightManifest();
-    const parsed = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
-      browsers?: Array<{ name?: string; revision?: string }>;
-    };
-    declared = (parsed.browsers ?? [])
-      .filter((entry): entry is { name: string; revision: string } =>
-        typeof entry.name === 'string' && typeof entry.revision === 'string')
-      .map((entry) => ({ name: entry.name, revision: entry.revision }));
-  } catch (error) {
-    return {
-      ok: false,
-      error: `cannot read playwright-core/browsers.json, so the browser runtime this release needs is unknown: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    };
-  }
-
-  const cacheRoot = playwrightCacheRoot();
-  const components = REQUIRED_PLAYWRIGHT_COMPONENTS.map((name) => {
-    const found = declared.find((entry) => entry.name === name);
-    const revision = found?.revision ?? 'unknown';
-    const expectedPath = join(cacheRoot, `${name.replace(/-/g, '_')}-${revision}`, 'INSTALLATION_COMPLETE');
-    return { name, revision, expectedPath, present: found ? existsSync(expectedPath) : false };
-  });
-  return { ok: components.every((component) => component.present), components };
-}
-
-/// The `browsers.json` beside the resolved `playwright-core`.
-function findPlaywrightManifest(): string {
-  let directory = dirname(require.resolve('playwright-core'));
-  for (let depth = 0; depth < 6; depth += 1) {
-    const candidate = join(directory, 'browsers.json');
-    if (existsSync(candidate)) return candidate;
-    const parent = dirname(directory);
-    if (parent === directory) break;
-    directory = parent;
-  }
-  throw new Error('no browsers.json beside the resolved playwright-core');
-}
-
-/// Where Playwright keeps its downloads on this platform.
-function playwrightCacheRoot(): string {
-  const override = process.env.PLAYWRIGHT_BROWSERS_PATH?.trim();
-  if (override) return override;
-  const home = homedir();
-  if (process.platform === 'darwin') return join(home, 'Library', 'Caches', 'ms-playwright');
-  if (process.platform === 'win32') return join(home, 'AppData', 'Local', 'ms-playwright');
-  return join(home, '.cache', 'ms-playwright');
-}
-
-function readJsonFile(path: string, label: string): unknown {
-  try {
-    return JSON.parse(readFileSync(path, 'utf8')) as unknown;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`cannot read ${label}: ${message}`);
-  }
-}
-
-function readReceiptKeys(path: string): Readonly<Record<string, string>> {
-  const value = readJsonFile(path, 'receipt key map');
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error('receipt key map must be a JSON object');
-  }
-  const entries = Object.entries(value);
-  if (entries.length === 0) throw new Error('receipt key map must not be empty');
-  const keys: Record<string, string> = {};
-  for (const [key, publicKey] of entries) {
-    if (!key || typeof publicKey !== 'string' || !publicKey.trim()) {
-      throw new Error('receipt key map must contain non-empty key IDs and PEM public keys');
-    }
-    keys[key] = publicKey;
-  }
-  return keys;
-}
-
-function isOnboardingAction(value: string): value is NonNullable<WelesOnboardingInput['action']> {
-  return value === 'status' || value === 'next' || value === 'verify' || value === 'reset';
-}
-
-async function runOnboarding(parsed: ParsedCli): Promise<void> {
-  const action = parsed.positional[0] ?? 'status';
-  if (!isOnboardingAction(action) || parsed.positional.length > 1) {
-    throw new Error('onboarding action must be status, next, verify, or reset');
-  }
-  const receiptPath = parsed.options.receipt;
-  const keysPath = parsed.options.keys;
-  if (action === 'verify' && (typeof receiptPath !== 'string' || typeof keysPath !== 'string')) {
-    throw new Error('onboarding verify requires --receipt <file> and --keys <file>');
-  }
-  const receiptDocument = typeof receiptPath === 'string' ? readJsonFile(receiptPath, 'workflow receipt') : undefined;
-  const receipt = receiptDocument && typeof receiptDocument === 'object' && 'receipt' in receiptDocument
-    ? receiptDocument.receipt
-    : receiptDocument;
-  const view = await runWelesOnboarding({
-    action,
-    subject: typeof parsed.options.subject === 'string' ? parsed.options.subject : undefined,
-    stateDirectory: typeof parsed.options['state-dir'] === 'string' ? parsed.options['state-dir'] : undefined,
-    receipt,
-    receiptKeys: typeof keysPath === 'string' ? readReceiptKeys(keysPath) : undefined,
-  });
-  process.stdout.write(`${JSON.stringify(view, null, 2)}\n`);
-}
 
 export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   const parsed = parseCliArgs(argv);
@@ -385,7 +196,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
     return;
   }
   if (parsed.command === 'doctor') {
-    await runDoctor();
+    await runDoctor(readPackageJson());
     return;
   }
   if (parsed.command === 'open') {
@@ -396,8 +207,20 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
     await runScreenshot(parsed);
     return;
   }
+  if (parsed.command === 'import') {
+    await runImport(parsed);
+    return;
+  }
   if (parsed.command === 'onboarding') {
     await runOnboarding(parsed);
+    return;
+  }
+  if (parsed.command === 'release') {
+    await runRelease(parsed);
+    return;
+  }
+  if (parsed.command === 'figma') {
+    await runFigma(parsed);
     return;
   }
   if (parsed.command === 'mcp') {

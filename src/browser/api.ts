@@ -5,7 +5,7 @@ import { connect } from 'node:net';
 import { CDPConnection } from '../cdp/connection.js';
 import { launchChromium } from '../cdp/launcher.js';
 import { generate, toConfig, toCppConfig, type FingerprintConfig } from '../fingerprint.js';
-import { buildInitScript } from '../scripts/loader.js';
+import { buildInitScript } from '../page-init/loader.js';
 import { CDPBrowserContext } from './context.js';
 
 export interface WelesLaunchOptions {

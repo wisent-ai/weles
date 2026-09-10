@@ -8,9 +8,9 @@ export type { ToolCall, LoopResult } from './loop.js';
 export { dispatch } from './tools.js';
 
 // Declarative task API
-export { FetchAccountValue, Trajectory } from './tasks.js';
+export { FetchAccountValue, Trajectory } from './flows/tasks.js';
 
 // Vision extractors
-export * as vision from './vision.js';
-export * as login from './login.js';
-export * as discover from './discover.js';
+export * as vision from './flows/vision.js';
+export * as login from './flows/login.js';
+export * as discover from './flows/discover.js';

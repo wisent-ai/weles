@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 
 export interface WelesAccountRecord {
   id: string;
@@ -12,13 +12,37 @@ export interface WelesAccountRecord {
   context: Record<string, any>;
 }
 
-const SKARBIEC = process.env.SKARBIEC_BIN || join(homedir(), '.stado', 'bin', 'skarbiec');
-const VAULT = process.env.SKARBIEC_VAULT_FILE || join(homedir(), '.stado', 'skarbiec.vault.json');
+const SKARBIEC_RESOLVER = join(__dirname, '..', '..', 'src', '_shared', 'skarbiec-runtime.mjs');
+let resolvedSkarbiecBinary: string | undefined;
+
+function activeSkarbiecBinary(operation: string): string {
+  if (resolvedSkarbiecBinary) return resolvedSkarbiecBinary;
+  const result = spawnSync(process.execPath, [SKARBIEC_RESOLVER, 'active-binary'], {
+    encoding: 'utf8',
+    env: process.env,
+    maxBuffer: 1024 * 1024,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const binary = String(result.stdout ?? '').trim();
+  if (result.error || result.status !== 0 || !isAbsolute(binary)) {
+    const detail = result.error?.message
+      || String(result.stderr ?? '').trim()
+      || (result.status !== 0
+        ? `resolver exited with status ${result.status ?? 'unknown'}`
+        : binary
+          ? 'resolver returned a non-absolute path'
+          : 'resolver returned no path');
+    throw new Error(`cannot ${operation}: Stado returned no attested active Skarbiec binary: ${detail}`);
+  }
+  resolvedSkarbiecBinary = binary;
+  return binary;
+}
+const VAULT = process.env.SKARBIEC_VAULT_FILE;
 const STADO = process.env.WELES_STADO_BIN || join(homedir(), '.stado', 'bin', 'stado');
 const ACCOUNT_ID = /^weles-[a-z0-9][a-z0-9-]{0,126}-account$/;
 
 function skarbiec(args: string[], input?: string): string {
-  return execFileSync(SKARBIEC, args, {
+  return execFileSync(activeSkarbiecBinary(`run Skarbiec ${args[0] ?? 'operation'}`), args, {
     input,
     encoding: 'utf8',
     maxBuffer: 4 * 1024 * 1024,
@@ -26,18 +50,23 @@ function skarbiec(args: string[], input?: string): string {
   });
 }
 
-function itemIds(kind?: string): string[] {
+export function listCredentialItems(): Array<Record<string, any>> {
   const rows = JSON.parse(skarbiec(['list'])) as Array<Record<string, any>>;
-  return rows.filter((row) => !row.deleted && (!kind || row.kind === kind))
+  if (!Array.isArray(rows)) throw new Error('Skarbiec list returned a non-array inventory');
+  return rows.filter((row) => !row.deleted && row.state !== 'deleted');
+}
+
+function itemIds(kind?: string): string[] {
+  return listCredentialItems().filter((row) => !kind || row.kind === kind)
     .map((row) => String(row.name ?? row.id ?? ''))
     .filter(Boolean);
 }
 
-function readDocument(id: string): Record<string, any> {
+export function readDocument(id: string): Record<string, any> {
   return JSON.parse(skarbiec(['get', id])) as Record<string, any>;
 }
 
-function writeDocument(id: string, document: Record<string, any>): void {
+export function writeDocument(id: string, document: Record<string, any>): void {
   skarbiec(['set-json', id], JSON.stringify(document));
 }
 
@@ -128,7 +157,7 @@ export function enqueueAction(action: string, accountItem: string, params: Recor
   if (!/^[a-z][a-z0-9_]{0,127}$/.test(action)) throw new Error(`invalid Weles action: ${action}`);
   if (accountItem && !ACCOUNT_ID.test(accountItem)) throw new Error('invalid Weles account item');
   const payload = Buffer.from(JSON.stringify({ action, accountItem, params }), 'utf8').toString('base64url');
-  const runner = join(homedir(), 'weles', 'scripts', 'worker', 'stado-action-runner.mjs');
+  const runner = join(homedir(), 'weles', 'src', 'worker', 'stado-action-runner.mjs');
   const command = `${process.execPath} ${runner} ${payload}`;
   const result = spawnSync(STADO, ['submit', command], { encoding: 'utf8', maxBuffer: 1024 * 1024 });
   if (result.error || result.status !== 0) throw new Error(`Stado refused ${action}: ${(result.stderr || '').trim()}`);
