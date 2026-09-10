@@ -55,10 +55,9 @@ jobs:
           gh release download "$TAG" --repo wisent-ai/weles-firefox \
             --pattern "weles-firefox-${VERSION}-macos-arm64.tar.gz" --dir /tmp
           tar -xzf /tmp/weles-firefox-${VERSION}-macos-arm64.tar.gz -C "$INSTALL_DIR"
-          # Strip macOS quarantine (extracted unsigned .app fails dyld load otherwise).
-          xattr -dr com.apple.quarantine "$INSTALL_DIR/Firefox.app" || true
-          # Ad-hoc codesign so dylibs load cleanly on the runner.
-          codesign --force --deep --sign - "$INSTALL_DIR/Firefox.app" || true
+          # Test exactly the publisher's signed bytes. Re-signing here changes
+          # the browser's privacy identity and invalidates release evidence.
+          codesign --verify --strict --deep -R '=anchor apple generic' "$INSTALL_DIR/Firefox.app"
           ls "$INSTALL_DIR"
           echo "WELES_FIREFOX_RELEASE=$TAG" >> "$GITHUB_ENV"
 

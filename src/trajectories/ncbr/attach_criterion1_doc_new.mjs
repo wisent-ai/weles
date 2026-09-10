@@ -4,7 +4,9 @@
 // DIAG=1 opens the criterion-1 subform and dumps controls without uploading.
 
 import { chromium } from 'playwright';
-import { statSync } from 'node:fs';
+import { statSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { join } from 'node:path';
 import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
@@ -57,6 +59,9 @@ const PACKAGES = {
 const MAX_FILES = Number('10');
 const MAX_FILE_BYTES = Number('10000000');
 const MODE = process.env.MODE || 'read';
+if (!['read', 'apply'].includes(MODE)) throw new Error(`Unsupported MODE=${MODE}`);
+const resumeStaged = process.env.RESUME_STAGED === '1';
+if (resumeStaged && MODE !== 'apply') throw new Error('RESUME_STAGED requires MODE=apply');
 const PACKAGE = process.env.PACKAGE || 'controlai';
 const pack = PACKAGES[PACKAGE];
 if (!pack) throw new Error(`unknown PACKAGE=${PACKAGE}, expected one of ${Object.keys(PACKAGES).join(', ')}`);
@@ -67,6 +72,9 @@ for (const file of declared) {
   try {
     const info = statSync(file.path);
     if (info.size > MAX_FILE_BYTES) oversizeFiles.push(`${file.name} (${info.size} B)`);
+    if (!info.isFile()) throw new Error('not a regular file');
+    file.bytes = info.size;
+    file.sha256 = createHash('sha256').update(readFileSync(file.path)).digest('hex');
   } catch (error) {
     missingFiles.push(`${file.name}: ${String(error?.message || error).slice(0, Number('70'))}`);
   }
@@ -78,56 +86,82 @@ if (MODE === 'apply' && declared.length > MAX_FILES) {
 }
 
 const browser = await chromium.connectOverCDP(endpoint);
-const page = browser.contexts()[0]?.pages()[0];
+const page = browser.contexts()[0]?.pages().find((candidate) => candidate.url().startsWith('https://lsi2.ncbr.gov.pl/'));
 if (!page) {
   console.log(JSON.stringify({ error: 'NO_PAGE' }, null, 2));
   process.exit(1);
 }
 page.setDefaultTimeout(20000);
 
-await page.goto(projectUrl, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: navigate to draft
-await humanIdlePause('long');
-if (page.url().includes('/logowanie')) {
-  throw new Error(`sesja LSI2 wygasla i przegladarka jest na ${page.url()}; zaloguj sie ponownie w tym oknie i powtorz przebieg`);
+if (!resumeStaged) {
+  await page.goto(projectUrl, { waitUntil: 'domcontentloaded' });
+  await humanIdlePause('long');
+  if (page.url().includes('/logowanie')) throw new Error(`LSI2 login required at ${page.url()}`);
+  const documentsButton = page.getByText('Dokumenty', { exact: true }).filter({ visible: true }).first();
+  if (!await documentsButton.count()) throw new Error('Dokumenty control not found');
+  await documentsButton.click();
+  await humanIdlePause('long');
+} else if (!page.url().startsWith(`${projectUrl}/dokumenty/`)
+  || await page.locator('#collection-obj-form-save-btn').count() !== 1) {
+  throw new Error('RESUME_STAGED requires the existing open attachment drawer; nothing changed');
 }
-await page.evaluate(() => {
-  const b = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies'));
-  if (b) b.style.pointerEvents = 'none';
-}); // allow-raw-playwright: neutralise cookie overlay
 
-const documentsButton = page.getByText('Dokumenty', { exact: true }).filter({ visible: true }).first();
-if (!await documentsButton.count()) throw new Error('Dokumenty control not found');
-await humanClickLocator(page, documentsButton);
-await humanIdlePause('long');
+const declaredNames = declared.map((file) => file.name);
+const reportDir = process.env.REPORT_DIR;
+const report = { mode: MODE, resumeStaged, package: PACKAGE, projectId, startedAt: new Date().toISOString(), files: declared, events: [], submitted: false };
+function record(phase, data = {}) {
+  report.events.push({ at: new Date().toISOString(), phase, ...data });
+  if (reportDir) {
+    mkdirSync(reportDir, { recursive: true });
+    writeFileSync(join(reportDir, 'report.json'), JSON.stringify(report, null, 2));
+  }
+  console.log(JSON.stringify({ phase, ...data }));
+}
 
-if (MODE === 'read') {
-  const view = await page.evaluate(() => {
-    const text = document.body.innerText || '';
-    const names = text.match(/[\wĄĆĘŁŃÓŚŹŻąćęłńóśźż\-. ]+\.pdf/gi) || [];
-    return { url: location.href, pdfs: Array.from(new Set(names.map((name) => name.trim()))) };
-  }); // allow-raw-playwright: read-only list of attachment names visible in the Dokumenty view
-  const declaredNames = declared.map((file) => file.name);
-  console.log(JSON.stringify({
-    mode: MODE,
-    paczka: PACKAGE,
-    url: view.url,
-    limity: { maxPlikow: MAX_FILES, maxBajtowNaPlik: MAX_FILE_BYTES },
-    zadeklarowanePliki: declaredNames.length,
-    widoczneZalaczniki: view.pdfs,
-    brakuje: declaredNames.filter((name) => !view.pdfs.includes(name)),
-    nadmiarowe: view.pdfs.filter((name) => !declaredNames.includes(name)),
-  }, null, Number('2')));
-  process.exit(0);
+function fileLabel(name) {
+  return page.locator(`p[title=${JSON.stringify(name)}]`).filter({ visible: true });
+}
+
+async function readUploaded() {
+  return page.locator('p[title$=".pdf"]').filter({ visible: true }).evaluateAll((labels) => labels.map((label) => ({
+    name: label.getAttribute('title'),
+    detail: label.parentElement.innerText,
+    ready: Boolean(label.parentElement.querySelector('svg[data-testid="CheckCircleIcon"]')),
+  })));
+}
+
+function compareFiles(rows) {
+  const names = rows.map((row) => row.name);
+  return {
+    rows,
+    missing: declaredNames.filter((name) => !names.includes(name)),
+    extra: names.filter((name) => !declaredNames.includes(name)),
+    complete: names.length === declaredNames.length && new Set(names).size === names.length
+      && declaredNames.every((name) => names.includes(name)) && rows.every((row) => row.ready),
+  };
+}
+
+async function downloadFile(name, folder) {
+  mkdirSync(folder, { recursive: true });
+  const pending = page.waitForEvent('download', { timeout: 60000 });
+  await fileLabel(name).click();
+  const download = await pending;
+  const path = join(folder, name);
+  await download.saveAs(path);
+  const failure = await download.failure();
+  if (failure) throw new Error(`Download failed for ${name}: ${failure}`);
+  const bytes = readFileSync(path);
+  return { name, path, bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') };
 }
 
 async function openExistingCriterion1Edit() {
-  const menu = page.locator('button[aria-label*="overflow-options"], [role="button"][aria-label*="overflow-options"]').filter({ visible: true }).first();
-  if (!await menu.count()) throw new Error('no existing criterion-1 row menu found');
-  await humanClickLocator(page, menu);
-  await humanIdlePause('short');
-  const item = page.getByText(/^Edytuj$/i, { exact: true }).filter({ visible: true }).first();
-  if (!await item.count()) throw new Error('Edytuj menu item not found');
-  await humanClickLocator(page, item);
+  const menu = page.locator('table tbody tr').filter({ hasText: 'Wisent Polska' })
+    .locator('button[aria-label="overflow-options"]').filter({ visible: true });
+  if (await menu.count() !== 1) throw new Error('Expected one existing Wisent Polska criterion-1 attachment row');
+  await menu.click();
+  const item = page.getByRole('menuitem', { name: 'Edytuj', exact: true });
+  await item.waitFor({ state: 'visible' });
+  await item.click();
   await humanIdlePause('long');
 }
 
@@ -147,36 +181,21 @@ async function openCriterion1Add() {
   await humanIdlePause('long');
 }
 
-if (process.env.EDIT_EXISTING) await openExistingCriterion1Edit();
-else await openCriterion1Add();
-
-if (process.env.DIAG) {
-  const out = await page.evaluate(() => {
-    const text = (document.body.innerText || '').slice(0, 12000);
-    const controls = Array.from(document.querySelectorAll('input, textarea, select')).map((e) => {
-      const label = e.id ? document.querySelector(`label[for="${CSS.escape(e.id)}"]`)?.textContent?.trim() : null;
-      const wrap = e.closest('label, .MuiFormControl-root, .MuiBox-root, form, section');
-      return {
-        tag: e.tagName,
-        type: e.type || null,
-        name: e.name || null,
-        role: e.getAttribute('role'),
-        accept: e.accept || null,
-        multiple: Boolean(e.multiple),
-        value: (e.value || '').slice(0, 140),
-        label,
-        nearby: wrap ? wrap.textContent.trim().replace(/\s+/g, ' ').slice(0, 600) : null,
-      };
-    }).filter((e) => e.name || e.type === 'file' || e.label || e.nearby);
-    const buttons = Array.from(document.querySelectorAll('button, [role="button"]')).map((b) => ({
-      text: (b.textContent || b.getAttribute('aria-label') || '').trim().replace(/\s+/g, ' ').slice(0, 160),
-      disabled: Boolean(b.disabled || b.getAttribute('aria-disabled') === 'true'),
-    })).filter((b) => b.text);
-    return { url: location.href, text, controls, buttons };
-  }); // allow-raw-playwright: read-only subform inspection
-  console.log(JSON.stringify(out, null, 2));
-  process.exit(0);
+if (!resumeStaged) {
+  if (MODE === 'read' || process.env.EDIT_EXISTING) await openExistingCriterion1Edit();
+  else await openCriterion1Add();
 }
+const before = await readUploaded();
+record('before', { state: compareFiles(before) });
+if (MODE === 'read') {
+  const state = compareFiles(before);
+  if (reportDir) await page.screenshot({ path: join(reportDir, 'page.png'), fullPage: true });
+  await page.getByRole('button', { name: 'close side drawer', exact: true }).click();
+  console.log(JSON.stringify(state, null, 2));
+  process.exit(state.complete ? 0 : 1);
+}
+
+if (process.env.DIAG) { record('diagnostic', { url: page.url(), text: await page.locator('body').innerText(), buttons: await page.locator('button').evaluateAll((buttons) => buttons.map((button) => ({ id: button.id, text: button.innerText, label: button.getAttribute('aria-label'), disabled: button.disabled }))) }); process.exit(0); }
 
 async function selectApplicant() {
   const input = page.locator("input[name*='nazwa_skrocona']").first();
@@ -191,55 +210,90 @@ async function selectApplicant() {
   return 'selected';
 }
 
-const applicant = await selectApplicant();
-async function attachDeclared() {
-  const paths = declared.map((file) => file.path);
-  const zones = page.getByText('Upuść plik lub pobierz z dysku');
-  const zoneCount = await zones.count();
-  if (zoneCount > 0) {
-    const chooserPromise = page.waitForEvent('filechooser', { timeout: 5000 });
-    await humanClickLocator(page, zones.nth(zoneCount - 1));
-    const chooser = await chooserPromise;
-    await chooser.setFiles(paths); // allow-raw-playwright: attach the declared criterion-1 documents through the chooser
-    return;
+if (!reportDir) throw new Error('MODE=apply requires REPORT_DIR to retain the original attachment and upload evidence');
+const replaceName = process.env.REPLACE_FILE || '';
+const unexpected = before.filter((file) => !declaredNames.includes(file.name) && file.name !== replaceName);
+if (unexpected.length) throw new Error(`Unexpected attachments; nothing changed: ${unexpected.map((file) => file.name).join(', ')}`);
+const applicant = process.env.EDIT_EXISTING ? 'existing Wisent Polska row' : await selectApplicant();
+const documentsUrl = page.url();
+
+try {
+  let changed = resumeStaged;
+  if (replaceName && before.some((file) => file.name === replaceName)) {
+    const backup = await downloadFile(replaceName, join(reportDir, 'previous'));
+    record('backed-up-original', backup);
+    const row = fileLabel(replaceName).locator('..');
+    await row.locator('button:has(svg[data-testid="CloseIcon"])').click();
+    await fileLabel(replaceName).waitFor({ state: 'detached' });
+    changed = true;
+    record('removed-from-form', { name: replaceName });
   }
-  const fileInput = page.locator('input[type="file"][accept*=".pdf"]').last();
-  if (await fileInput.count() === 0) throw new Error('PDF file input not found in criterion-1 subform');
-  await fileInput.setInputFiles(paths); // allow-raw-playwright: attach the declared criterion-1 documents through the input
+
+  for (const file of declared) {
+    const existing = (await readUploaded()).find((row) => row.name === file.name);
+    if (existing?.ready) continue;
+    if (existing) throw new Error(`Existing attachment is not ready: ${file.name}`);
+    // This widget accepts one file per selection even though the row holds ten PDFs.
+    await page.locator('input[type="file"][accept*=".pdf"]').last().setInputFiles(file.path);
+    await page.waitForFunction((name) => {
+      const label = Array.from(document.querySelectorAll('p[title]')).find((element) => element.title === name);
+      return Boolean(label?.parentElement.querySelector('svg[data-testid="CheckCircleIcon"]'));
+    }, file.name, { timeout: 120000 });
+    changed = true;
+    record('uploaded', { name: file.name, bytes: file.bytes, sha256: file.sha256 });
+  }
+
+  const staged = compareFiles(await readUploaded());
+  record('staged', { state: staged });
+  if (!staged.complete) throw new Error('The staged attachments do not match the complete declared package');
+  await page.screenshot({ path: join(reportDir, 'staged.png'), fullPage: true });
+
+  if (changed) {
+    const save = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true }).last();
+    if (!await save.isEnabled()) throw new Error('The attachment-row Save button is disabled');
+    await save.press('Enter'); // activate only this Save button; the cookie notice covers its click target
+    await page.getByRole('button', { name: 'close side drawer', exact: true }).waitFor({ state: 'hidden' });
+    record('saved-row');
+    await humanIdlePause('long');
+    const parentSave = page.locator('#section-form-save-btn');
+    await parentSave.waitFor({ state: 'visible' });
+    await page.screenshot({ path: join(reportDir, 'parent-before-save.png'), fullPage: true });
+    if (await parentSave.isEnabled()) {
+      await parentSave.press('Enter');
+      await page.waitForFunction(() => {
+        const button = Array.from(document.querySelectorAll('button')).find((element) => element.innerText.trim() === 'Zapisz');
+        return button?.disabled === true;
+      });
+      record('saved-document-section');
+    }
+  } else {
+    await page.getByRole('button', { name: 'close side drawer', exact: true }).click();
+  }
+
+  // Prove persistence from a newly loaded page, not the unsaved drawer's local state.
+  await page.goto(documentsUrl, { waitUntil: 'domcontentloaded' });
+  await humanIdlePause('long');
+  const status = await page.locator('body').innerText();
+  if (!status.includes('Rekomendacje poprawy przekazane wnioskodawcy')) {
+    throw new Error('Unexpected application status after attachment save; no submission was requested');
+  }
+  await openExistingCriterion1Edit();
+  const persisted = compareFiles(await readUploaded());
+  record('persisted', { state: persisted });
+  if (!persisted.complete) throw new Error('Reloaded LSI2 attachments do not match the declared package');
+  await page.screenshot({ path: join(reportDir, 'persisted.png'), fullPage: true });
+
+  for (const file of declared) {
+    const downloaded = await downloadFile(file.name, join(reportDir, 'downloaded'));
+    if (downloaded.sha256 !== file.sha256 || downloaded.bytes !== file.bytes) {
+      throw new Error(`The saved PDF bytes differ from the declared source: ${file.name}`);
+    }
+    record('download-verified', downloaded);
+  }
+  await page.getByRole('button', { name: 'close side drawer', exact: true }).click();
+  record('complete', { applicant, url: page.url(), attachmentCount: persisted.rows.length, submitted: false });
+} catch (error) {
+  record('failed', { error: String(error?.message || error), url: page.url() });
+  throw error;
 }
-await attachDeclared();
-await humanIdlePause('long');
-await humanIdlePause('deliberate');
-const declaredNames = declared.map((file) => file.name);
-const uploadState = await page.evaluate(({ names, needle }) => {
-  const text = document.body.innerText || '';
-  const start = Math.max(Number('0'), text.indexOf(needle));
-  return {
-    widoczne: names.filter((name) => text.includes(name)),
-    brakuje: names.filter((name) => !text.includes(name)),
-    snippet: text.slice(start, start + Number('1800')),
-  };
-}, { names: declaredNames, needle: criterionNeedle }); // allow-raw-playwright: verify the declared files entered the widget before saving
-if (uploadState.brakuje.length) {
-  throw new Error(`widget nie pokazuje ${uploadState.brakuje.length} zadeklarowanych plikow (${uploadState.brakuje.join(', ')}): ${uploadState.snippet}`);
-}
-
-let saveResult = 'saved';
-const saves = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
-const saveCount = await saves.count();
-if (!saveCount) saveResult = 'NOT SAVED: no enabled Zapisz';
-else await humanClickLocator(page, saves.nth(saveCount - 1)).catch((e) => { saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 90)}`; });
-await humanIdlePause('long');
-
-const readback = await page.evaluate(({ needle, names }) => {
-  const body = document.body.innerText || '';
-  const idx = body.indexOf(needle);
-  return {
-    zapisanePliki: names.filter((name) => body.includes(name)),
-    brakujacePliki: names.filter((name) => !body.includes(name)),
-    criterionBlock: idx >= Number('0') ? body.slice(idx, idx + Number('2500')) : body.slice(Number('0'), Number('2500')),
-  };
-}, { needle: criterionNeedle, names: declaredNames }); // allow-raw-playwright: read the persisted visible document rows
-
-console.log(JSON.stringify({ applicant, uploadState, saveResult, readback }, null, 2));
 process.exit(0);

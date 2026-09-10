@@ -52,7 +52,11 @@ missing_runtime_entry() {
       return 0
     fi
   done
-  return 1
+  for entry in "$tree"/browser-runtime/ffmpeg-*/ffmpeg-mac; do
+    if [ -x "$entry" ]; then return 1; fi
+  done
+  printf 'browser-runtime recording executable\n'
+  return 0
 }
 
 # `.ready` on its own used to be the whole test, and the unpack guard behind it
@@ -118,6 +122,8 @@ payload_sha256="${payload_sha256%% *}"
 ln -sfn "$runtime" "$HOME/weles"
 export WELES_WORKER_RELEASE_VERSION="$version"
 export WELES_WORKER_RELEASE_SHA256="$payload_sha256"
+# Recording support belongs to the signed release, not an evictable host cache.
+export PLAYWRIGHT_BROWSERS_PATH="$runtime/browser-runtime"
 # Recordings are runtime state, not release payload. Keeping them under the
 # immutable release directory made the authenticated diagnostics endpoint lose
 # every run as soon as Stado advanced `current`.
