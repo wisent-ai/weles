@@ -83,12 +83,13 @@ export async function fillPrepared(page, fields) {
       field.optionLabel = selectedLabel;
       field.sha256 = sha256(field.expected);
     } else {
-      await locator.fill(field.expected);
+      await locator.focus();
+      await locator.selectText();
+      await page.keyboard.press('Backspace');
+      await locator.type(field.expected);
       await locator.press('End');
+      await locator.press('Tab');
     }
-    await locator.dispatchEvent('input');
-    await locator.dispatchEvent('change');
-    await locator.dispatchEvent('blur');
     await page.waitForFunction(({ name, expected }) => {
       const element = Array.from(document.querySelectorAll('[name]')).find((candidate) => candidate.name.endsWith(name) && candidate.getClientRects().length);
       return element?.value === expected;
