@@ -82,14 +82,23 @@ export async function fillPrepared(page, fields) {
       field.expected = await locator.inputValue();
       field.optionLabel = selectedLabel;
       field.sha256 = sha256(field.expected);
-    } else await locator.fill(field.expected);
+    } else {
+      await locator.fill(field.expected);
+      await locator.press('End');
+    }
+    await locator.dispatchEvent('input');
+    await locator.dispatchEvent('change');
     await locator.dispatchEvent('blur');
+    await page.waitForFunction(({ name, expected }) => {
+      const element = Array.from(document.querySelectorAll('[name]')).find((candidate) => candidate.name.endsWith(name) && candidate.getClientRects().length);
+      return element?.value === expected;
+    }, { name: field.name, expected: field.expected });
     if (await locator.inputValue() !== field.expected) throw new Error(`${field.scope}.${field.name}: value was not retained before saving`);
   }
-  for (const field of fields) {
-    const locator = await oneField(page, field.name);
-    if (await locator.inputValue() !== field.expected) throw new Error(`${field.scope}.${field.name}: value changed before saving`);
-  }
+  await page.waitForFunction((entries) => entries.every(([name, expected]) => {
+    const element = Array.from(document.querySelectorAll('[name]')).find((candidate) => candidate.name.endsWith(name) && candidate.getClientRects().length);
+    return element?.value === expected;
+  }), fields.map((field) => [field.name, field.expected]));
 }
 
 export async function verifyPrepared(page, fields) {

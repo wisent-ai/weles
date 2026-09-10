@@ -61,7 +61,12 @@ export async function closeDrawer(page) {
 export async function save(page, collection = false) {
   const selector = collection ? '#collection-obj-form-save-btn' : '#section-form-save-btn';
   const button = page.locator(selector).filter({ visible: true });
-  await clickSafe(button, 'Zapisz');
+  const [response] = await Promise.all([
+    page.waitForResponse((candidate) => candidate.request().method() !== 'GET' && candidate.url().includes('/api/beneficiary/')),
+    clickSafe(button, 'Zapisz'),
+  ]);
+  if (!response.ok()) throw new Error(`Save rejected: ${response.status()} ${await response.text()}`);
+  await page.getByText('Zapisano dane', { exact: true }).waitFor({ state: 'visible' });
   await page.waitForFunction((selector) => {
     const element = document.querySelector(selector);
     return !element || element.disabled || !element.getClientRects().length;
