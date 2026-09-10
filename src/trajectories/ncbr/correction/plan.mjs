@@ -45,5 +45,6 @@ export function editedValue(before, field, plan) {
     if (value.includes(edit.from)) value = value.replaceAll(edit.from, edit.to);
     else if (edit.to && !value.includes(edit.to) && !edit.optional) throw new Error(`Expected text not found: ${edit.from}`);
   }
+  if (value === before) return before;
   return field.editSet ? value.replace(/ {2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim() : value;
 }
