@@ -9,7 +9,7 @@ const PROJECT_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8d
 
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
-if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' })); process.exit(0); }
+if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' })); process.exit(1); }
 page.setDefaultTimeout(15000);
 const responses = [];
 page.on('response', async (res) => {
@@ -25,11 +25,14 @@ page.on('response', async (res) => {
 
 await page.goto(PROJECT_URL, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
-await page.evaluate(() => { const b = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies')); if (b) b.style.pointerEvents = 'none'; }); // allow-raw-playwright: cookie banner
 
 const validateButton = page.getByRole('button', { name: 'Sprawdź wniosek', exact: true }).filter({ visible: true }).first();
 if (await validateButton.count() === 0) throw new Error('Sprawdź wniosek button not found');
-await humanClickLocator(page, validateButton);
+const [validationResponse] = await Promise.all([
+  page.waitForResponse((response) => response.url().includes('/validate-project')),
+  validateButton.dispatchEvent('click'), // React button activation without changing page hit-testing or native focus.
+]);
+await validationResponse.finished();
 
 await humanIdlePause('long');
 await humanIdlePause('long');
@@ -110,6 +113,11 @@ if (validateResponse) {
     out.validationParseError = String(e?.message || e);
   }
 }
+if (!validateResponse) throw new Error('LSI2 did not return a validation result');
+const validationFailed = out.validationStatus !== 200 || out.validationParseError
+  || out.validationErrors?.length || out.expressionErrors?.length
+  || out.sectionCorrectionValidationErrors?.length;
+process.exitCode = validationFailed ? 1 : 0;
 
 if (process.env.ERRORS_ONLY) {
   console.log(JSON.stringify({
@@ -121,7 +129,7 @@ if (process.env.ERRORS_ONLY) {
     sectionCorrectionValidationErrors: out.sectionCorrectionValidationErrors || [],
     validationParseError: out.validationParseError || null,
   }, null, 2));
-  process.exit(0);
+  process.exit(process.exitCode);
 }
 
 if (process.env.BUTTONS_ONLY) {
@@ -130,8 +138,8 @@ if (process.env.BUTTONS_ONLY) {
     submitButtons: out.buttons.filter((b) => b.text === 'Złóż wniosek'),
     dialogs: out.dialogs,
   }, null, 2));
-  process.exit(0);
+  process.exit(process.exitCode);
 }
 
 console.log(JSON.stringify(out, null, 2));
-process.exit(0);
+process.exit(process.exitCode);
