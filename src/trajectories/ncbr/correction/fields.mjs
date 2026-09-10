@@ -62,7 +62,8 @@ export async function prepareFields(page, declared, plan, scope) {
 }
 
 export async function fillPrepared(page, fields) {
-  for (const field of fields) {
+  const ordered = [...fields].sort((a, b) => Number(b.control === 'autocomplete') - Number(a.control === 'autocomplete'));
+  for (const field of ordered) {
     if (field.before === field.expected) continue;
     const locator = await oneField(page, field.name);
     if (field.control === 'select') await locator.selectOption(field.expected);
@@ -84,6 +85,10 @@ export async function fillPrepared(page, fields) {
     } else await locator.fill(field.expected);
     await locator.dispatchEvent('blur');
     if (await locator.inputValue() !== field.expected) throw new Error(`${field.scope}.${field.name}: value was not retained before saving`);
+  }
+  for (const field of fields) {
+    const locator = await oneField(page, field.name);
+    if (await locator.inputValue() !== field.expected) throw new Error(`${field.scope}.${field.name}: value changed before saving`);
   }
 }
 
