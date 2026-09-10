@@ -21,8 +21,10 @@ if (process.env.ROW_NEEDLE) {
   const table = page.locator('table').nth(Number(process.env.ROW_TABLE_INDEX || 0));
   const row = table.locator('tbody tr').filter({ hasText: process.env.ROW_NEEDLE });
   if (await row.count() !== 1) throw new Error(`Expected one row matching ${process.env.ROW_NEEDLE}`);
-  await row.locator('button[aria-label*="overflow-options"]').click();
-  await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).click();
+  await row.locator('button[aria-label*="overflow-options"]').dispatchEvent('click');
+  const edit = page.getByRole('menuitem', { name: 'Edytuj', exact: true }).filter({ visible: true });
+  await edit.waitFor({ state: 'visible' });
+  await edit.dispatchEvent('click');
   await humanIdlePause('long');
 }
 const bodyLimit = Number(process.env.BODY_LIMIT || 2500);

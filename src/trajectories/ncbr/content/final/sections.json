@@ -1,0 +1,38 @@
+{
+  "schema": "weles.ncbr.correction-plan.v1",
+  "project": {
+    "id": "7ee80d9a-67dd-4d99-becd-8dda407221c1",
+    "applicationNumber": "FENG.05.01-IP.01-007N/26",
+    "titleNeedle": "Duże modele językowe oparte na reprezentacjach",
+    "deadline": "2026-09-10T14:59:59+02:00",
+    "allowedStatusNeedles": ["Rekomendacje poprawy przekazane wnioskodawcy"],
+    "neverSubmit": true
+  },
+  "sections": [
+    {
+      "label": "2.2",
+      "id": "80ebca16-a9dd-4798-a334-5ac007cecbf7",
+      "url": "https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/80ebca16-a9dd-4798-a334-5ac007cecbf7",
+      "fields": [{"name": "innowacja_produktowa_powiazanie_rezultatu_prac_br_z_lancuchem_wartosci", "value": ""}]
+    },
+    {
+      "label": "4.1",
+      "id": "5af236aa-03b2-4650-b5a2-95c299dfeeaf",
+      "url": "https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/5af236aa-03b2-4650-b5a2-95c299dfeeaf",
+      "fields": [{"name": "personel_planowany_br", "edits": [{"from": "Łączny wymiar wynosi 6,4 FTE", "to": "Łączny wymiar wynosi 6,9 FTE"}]}]
+    },
+    {
+      "label": "10.2",
+      "id": "51455d27-6e3d-4629-9cc6-2a124f5432c8",
+      "url": "https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/51455d27-6e3d-4629-9cc6-2a124f5432c8",
+      "fields": [{"name": "zgodnosc_z_karta_praw_podstawowych", "value": "Projekt Wisent RNM, realizowany przez Wisent Polska jako wnioskodawcę samodzielnego, jest zgodny z Kartą Praw Podstawowych UE (KPP). Przestrzeganie praw dotyczy organizacji pracy, prowadzenia badań, danych, publikowanych modeli i późniejszych wdrożeń.\n\nArt. 1 – Godność człowieka. Projekt respektuje godność osób uczestniczących w badaniach i użytkowników. Model nie zastępuje odpowiedzialności człowieka; raport aktywacji i dokumentacja ograniczeń wspierają kontrolę jego działania.\n\nArt. 3–8 – Integralność, wolność, prywatność i ochrona danych. Projekt ma charakter B+R w zakresie oprogramowania i nie przewiduje działań naruszających integralność człowieka, zakaz tortur, niewolnictwa lub pracy przymusowej ani wolność osobistą. Dane treningowe podlegają kontroli pochodzenia, licencji i danych osobowych. Przetwarzanie danych jest zgodne z RODO, a zbędne dane identyfikujące są usuwane. Inferencja i przechowywanie logów uwzględniają prywatność oraz ograniczenie dostępu.\n\nArt. 10 i 11 – Wolność myśli, sumienia i religii oraz wolność wypowiedzi i informacji. Rekrutacja, współpraca i dostęp do rezultatów nie zależą od przekonań ani wyznania. Publikacje naukowe oraz udostępnianie modeli i bibliotek na otwartych licencjach wspierają wymianę wiedzy. Raportowanie ograniczeń modeli umożliwia świadome korzystanie z informacji.\n\nArt. 15 i 16 – Wolność wyboru zawodu i prawo do podejmowania pracy oraz wolność prowadzenia działalności gospodarczej. Dobór personelu opiera się na kompetencjach, z poszanowaniem praw pracowniczych. Wisent Polska komercjalizuje wyniki na zasadach rynkowych przez licencje, dostęp API i wdrożenia asystowane. Otwarte komponenty umożliwiają przedsiębiorcom z UE budowę własnych zastosowań RNM.\n\nArt. 20–23 – Równość i niedyskryminacja. Projekt zapewnia równe traktowanie, poszanowanie różnorodności oraz równość kobiet i mężczyzn. Procedury rekrutacji, wynagradzania, awansów i szkoleń opisano w 10.1. Testy reprezentacji i raporty aktywacji służą wykrywaniu ryzyka dyskryminacji w modelach.\n\nArt. 25 i 26 – Prawa osób w podeszłym wieku i integracja osób z niepełnosprawnościami. Interfejsy, dokumentacja i organizacja pracy uwzględniają dostępność, technologie asystujące oraz indywidualne potrzeby użytkowników i personelu, zgodnie z opisem w 10.1 i 10.3.\n\nArt. 27 i 28 – Informowanie pracowników, konsultacje oraz rokowania i działania zbiorowe. Organizacja projektu respektuje te prawa; zasady pracy i komunikacji nie ograniczają uprawnień pracowników.\n\nArt. 30–33 – Ochrona w przypadku nieuzasadnionego zwolnienia, należyte warunki pracy, zakaz pracy dzieci i ochrona młodocianych oraz życie rodzinne i zawodowe. Stosowane są procedury antydyskryminacyjne i antymobbingowe, równe zasady wynagradzania, elastyczne godziny i rozwiązania opiekuńcze. Projekt nie zatrudnia osób poniżej 18 lat.\n\nZgodność z KPP i AI Act będzie sprawdzana przed publikacją modeli oraz przed wdrożeniami w sektorach regulowanych. Przegląd obejmie dane, bezpieczeństwo, dostępność, przejrzystość i nadzór człowieka, w tym wymagania art. 13 i 14 rozporządzenia 2024/1689, gdy mają zastosowanie. Konsultacje prawne i ewentualny audyt zewnętrzny wspierają ocenę. Rejestr zgodności zachowa zakres przeglądu, dowody, datę, osobę odpowiedzialną i decyzję o udostępnieniu modelu. Pozostałe postanowienia KPP pozostają neutralne dla zakresu prac B+R."}]
+    },
+    {
+      "label": "10.3",
+      "id": "256ac98a-bb3c-4715-ad13-e8dbcd3f94f4",
+      "url": "https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/256ac98a-bb3c-4715-ad13-e8dbcd3f94f4",
+      "fields": [{"name": "zgodnosc_z_konwencja_o_prawach_osob_niepelnosprawnych", "edits": [{"from": "Projekt przewiduje pilotaże w sektorze ochrony zdrowia (Zadanie 5), w których modele RNM mogą wspierać procesy decyzyjne. Pilotaże uwzględniają dostępność i równość pacjentów z niepełnosprawnościami.", "to": "Zadanie 7 obejmuje kontrolowaną walidację techniczną prototypu w scenariuszach ochrony zdrowia, bez komercyjnego wdrożenia. Scenariusze uwzględniają dostępność i równość pacjentów z niepełnosprawnościami; późniejsze wdrożenia nastąpią po zakończeniu prac B+R."}]}]
+    }
+  ],
+  "collections": []
+}

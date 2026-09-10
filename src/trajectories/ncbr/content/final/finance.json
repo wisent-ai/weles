@@ -1,0 +1,94 @@
+{
+  "schema": "weles.ncbr.correction-plan.v1",
+  "project": {"id": "7ee80d9a-67dd-4d99-becd-8dda407221c1", "applicationNumber": "FENG.05.01-IP.01-007N/26", "titleNeedle": "Duże modele językowe oparte na reprezentacjach", "deadline": "2026-09-10T14:59:59+02:00", "allowedStatusNeedles": ["Rekomendacje poprawy przekazane wnioskodawcy"], "neverSubmit": true},
+  "sections": [],
+  "editSets": {
+    "costText": [
+      {"from": "Efekt mierzalny.", "to": ""},
+      {"from": "Powiązane z metrykami.", "to": ""},
+      {"from": "Bez kosztów pośrednich.", "to": ""},
+      {"from": "Bez sprzedaży.", "to": ""},
+      {"from": "Bez administracji.", "to": ""},
+      {"from": "Bez marketingu.", "to": ""},
+      {"from": "Bez utrzymania produkcyjnego.", "to": ""},
+      {"from": "Dowody: logi, raporty i artefakty.", "to": ""},
+      {"from": "Zakres zgodny z kamieniami.", "to": ""},
+      {"from": "Tylko prace B+R.", "to": ""},
+      {"from": "Koszt kwalifikowalny.", "to": ""},
+      {"from": "Bez rezerwy ogólnej.", "to": ""},
+      {"from": "Wynik odbierany technicznie.", "to": ""},
+      {"from": "Wpis do 6.3.", "to": ""},
+      {"from": "Bez zarządu.", "to": ""},
+      {"from": "Koszt jest proporcjonalny do długości zadania, liczby ról technicznych i liczby kamieni milowych wymagających dowodów w repozytorium, logach, raportach i tabelach metryk.", "to": ""},
+      {"from": "Rezultatem nie jest deklaracja wykonania czynności, tylko sprawdzalny artefakt B+R powiązany z parametrami, kryterium odbioru i decyzją przejścia do kolejnego etapu.", "to": ""},
+      {"from": "Zakres odpowiada harmonogramowi bez nakładania zadań: zespół przechodzi do następnego etapu dopiero po zakończeniu poprzedniego okresu i zamknięciu wymaganych dowodów.", "to": ""},
+      {"from": "Opis obejmuje tylko prace wykonawcze: projektowanie, implementację, eksperymenty, analizę wyników, review techniczne i przygotowanie artefaktów odbioru.", "to": ""},
+      {"from": "Nie obejmuje zarządu, sprzedaży, administracji, księgowości, HR, obsługi prawnej ani zwykłego utrzymania infrastruktury, bo te funkcje są ujęte w kosztach pośrednich.", "to": ""},
+      {"from": "Wydatek jest kosztem operacyjnym B+R, nie zakupem produkcyjnym, marketingowym ani utrzymaniowym; zasób jest zużywany w eksperymentach i walidacji.", "to": ""},
+      {"from": "Zakres obejmuje instancje GPU, CPU pomocnicze, storage checkpointów, transfer danych, monitoring przebiegów, powtórzenia po awariach i zapis logów eksperymentalnych.", "to": ""},
+      {"from": "Bez tej pozycji zadanie nie osiąga parametrów kamieni milowych, bo eksperyment wymaga uruchomień na danych, modelach i benchmarkach większych niż zasoby lokalne.", "to": ""},
+      {"from": "Koszt przypisano do zadania, w którym powstaje dany rezultat, aby nie chować compute dla Z3-Z6 w kosztach Z2 ani w katalogu pośrednim.", "to": ""},
+      {"from": "Koszt jest proporcjonalny do długości zadania, liczby ról technicznych.", "to": ""},
+      {"from": "Koszt jest proporcjonalny do długości zadania, liczby ról.", "to": ""},
+      {"from": "Koszt jest proporcjonalny do długości zadania, liczby.", "to": ""},
+      {"from": "Koszt jest proporcjonalny do długości zadania,", "to": ""},
+      {"from": "Koszt jest proporcjonalny do długości.", "to": ""},
+      {"from": "Bez tej pozycji zadanie nie osiąga parametrów kamieni milowych, bo eksperyment wymaga uruchomień na danych, modelach i benchmarkach większych niż 70B.", "to": ""},
+      {"from": "Bez tej pozycji zadanie nie osiąga parametrów kamieni milowych, bo eaksperyment wymaga uruchomień na danych, modelach i benchmarkach większych niż zasoby lokalne.", "to": ""},
+      {"from": "Bez tej pozycji zadanie nie osiąga parametrów kamieni milowych, bo eksperyment wymaga uruchomień na danych, modelach i.", "to": ""},
+      {"from": "Bez tej pozycji zadanie nie osiąga parametrów kamieni milowych, bo eksperyment wymaga uruchomień na danych, modelach i benchmarkach.", "to": ""},
+      {"from": "Bez tej pozycji zadanie nie osiąga parametrów kamieni milowych, bo eksperyment wymaga uruchomień na danych, modelach i benchmarkach większych niż zasoby.", "to": ""},
+      {"from": "Kalkulacja przyjmuje koszt pracodawcy lub kontraktowy koszt miesięczny 1,0 FTE dla ról wykonawczych oraz przemnożenie przez FTE i liczbę miesięcy zadania. Stawki należy.", "to": ""}
+    ]
+  },
+  "collections": [
+    {
+      "label": "6.3", "sectionId": "fb417879-403e-4241-a202-ec23c6a6b866",
+      "url": "https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/fb417879-403e-4241-a202-ec23c6a6b866",
+      "rows": [
+        {"rowNeedle": "Personel wykonawczy B+R dla architektury RNM", "matchField": "nazwa_kosztu", "matchNeedle": "Personel wykonawczy B+R dla architektury RNM", "fields": [{"namePattern": "^(nazwa_kosztu|uzasadnienie_kosztu|metoda_szacowania)$", "editSet": "costText"}]},
+        {"rowNeedle": "GPU/compute dla prototypów 100M", "matchField": "nazwa_kosztu", "matchNeedle": "GPU/compute dla prototypów 100M", "fields": [{"namePattern": "^(nazwa_kosztu|uzasadnienie_kosztu|metoda_szacowania)$", "editSet": "costText"}]},
+        {"rowNeedle": "Personel wykonawczy B+R dla stosu treningowego", "matchField": "nazwa_kosztu", "matchNeedle": "Personel wykonawczy B+R dla stosu treningowego", "fields": [{"namePattern": "^(nazwa_kosztu|uzasadnienie_kosztu|metoda_szacowania)$", "editSet": "costText"}]},
+        {"rowNeedle": "GPU/compute dla treningu RNM 1B/8B", "matchField": "nazwa_kosztu", "matchNeedle": "GPU/compute dla treningu RNM 1B/8B", "fields": [{"namePattern": "^(nazwa_kosztu|uzasadnienie_kosztu|metoda_szacowania)$", "editSet": "costText"}]},
+        {"rowNeedle": "Personel wykonawczy B+R dla treningu RNM 70B", "matchField": "nazwa_kosztu", "matchNeedle": "Personel wykonawczy B+R dla treningu RNM 70B", "fields": [
+          {"name": "nazwa_zadania", "control": "select", "labelIncludes": "4. Badania przemysłowe: Trening RNM 70B"},
+          {"namePattern": "^(nazwa_kosztu|uzasadnienie_kosztu)$", "editSet": "costText"},
+          {"name": "metoda_szacowania", "value": "Kwota 1 135 433,34 zł odpowiada sześciu miesiącom pracy wykonawczego zespołu B+R przy koszcie 189 238,89 zł miesięcznie. W Zadaniu 4 obejmuje przygotowanie i prowadzenie treningu RNM 70B, konfigurację FSDP/ZeRO, sharding, checkpointing, testy recovery, monitoring aktywacji i analizę kosztu oraz jakości modelu. Kalkulacja przypisuje udziały FTE architektowi RNM, inżynierom treningu, runtime i HPC oraz ewaluacji, mnożąc pełny koszt pracodawcy lub stawkę kontraktową przez czas pracy w zadaniu. Stawki będą udokumentowane umowami, danymi płacowymi lub porównaniem rynku AI/ML. Nie obejmuje zarządzania, administracji ani sprzedaży. Koszt weryfikują ewidencja czasu, konfiguracje klastra, logi treningu i awarii, manifesty checkpointów oraz odbiór kamieni 4.1-4.3."}
+        ]},
+        {"rowNeedle": "GPU/compute dla pełnoskalowego treningu RNM 70B", "matchField": "nazwa_kosztu", "matchNeedle": "GPU/compute dla pełnoskalowego treningu RNM 70B", "fields": [
+          {"name": "nazwa_zadania", "control": "select", "labelIncludes": "4. Badania przemysłowe: Trening RNM 70B"},
+          {"namePattern": "^(nazwa_kosztu|uzasadnienie_kosztu|metoda_szacowania)$", "editSet": "costText"}
+        ]},
+        {"rowNeedle": "GPU/compute dla skalowania RNM 8B/30B", "matchField": "nazwa_kosztu", "matchNeedle": "GPU/compute dla skalowania RNM 8B/30B", "fields": [
+          {"name": "nazwa_zadania", "control": "select", "labelIncludes": "3. Badania przemysłowe: Skalowanie RNM 8B/30B"},
+          {"namePattern": "^(nazwa_kosztu|uzasadnienie_kosztu)$", "editSet": "costText"},
+          {"name": "metoda_szacowania", "value": "Kwota 1 500 000,00 zł obejmuje sześciomiesięczny etap skalowania RNM 8B/30B w Zadaniu 3. Szacunek wynika z liczby planowanych treningów RNM i modeli referencyjnych, ablacji wag funkcji celu, tokenów oraz GPU-godzin wymaganych dla obu skal. Obejmuje również pamięć masową checkpointów, transfer danych, zasoby CPU pomocnicze, pomiary aktywacji, walidację i powtórzenia eksperymentalne. Wartość oblicza się jako sumę ilości zasobów pomnożonych przez ceny jednostkowe z ofert lub cenników dostawców GPU/HPC. Zakres nie obejmuje wynagrodzeń personelu ani hostingu produkcyjnego. Rozliczenie będzie oparte na fakturach, billingu, logach klastra, identyfikatorach eksperymentów, manifestach checkpointów, tablicach ablacji i protokołach odbioru kamieni 3.1-3.3. Porównanie GPU-godzin z planem eksperymentów pozwoli oddzielić koszty skalowania i walidacji od użycia niezwiązanego z Zadaniem 3."}
+        ]},
+        {"rowNeedle": "Personel wykonawczy B+R dla skalowania RNM 8B/30B", "matchField": "nazwa_kosztu", "matchNeedle": "Personel wykonawczy B+R dla skalowania RNM 8B/30B", "fields": [
+          {"name": "nazwa_zadania", "control": "select", "labelIncludes": "3. Badania przemysłowe: Skalowanie RNM 8B/30B"},
+          {"namePattern": "^(nazwa_kosztu|uzasadnienie_kosztu|metoda_szacowania)$", "editSet": "costText"}
+        ]},
+        {"rowNeedle": "Personel wykonawczy B+R dla katalogu 1000 konceptów", "matchField": "nazwa_kosztu", "matchNeedle": "Personel wykonawczy B+R dla katalogu 1000 konceptów", "fields": [{"namePattern": "^(nazwa_kosztu|uzasadnienie_kosztu|metoda_szacowania)$", "editSet": "costText"}]},
+        {"rowNeedle": "GPU/compute dla ekstrakcji aktywacji", "matchField": "nazwa_kosztu", "matchNeedle": "GPU/compute dla ekstrakcji aktywacji", "fields": [{"namePattern": "^(nazwa_kosztu|uzasadnienie_kosztu|metoda_szacowania)$", "editSet": "costText"}]},
+        {"rowNeedle": "Personel wykonawczy B+R dla benchmarków", "matchField": "nazwa_kosztu", "matchNeedle": "Personel wykonawczy B+R dla benchmarków", "fields": [{"namePattern": "^(nazwa_kosztu|uzasadnienie_kosztu|metoda_szacowania)$", "editSet": "costText"}]},
+        {"rowNeedle": "GPU/compute dla replay inferencji", "matchField": "nazwa_kosztu", "matchNeedle": "GPU/compute dla replay inferencji", "fields": [{"namePattern": "^(nazwa_kosztu|uzasadnienie_kosztu|metoda_szacowania)$", "editSet": "costText"}]},
+        {"rowNeedle": "Personel B+R dla integracji prototypu RNM", "matchField": "nazwa_kosztu", "matchNeedle": "Personel B+R dla integracji prototypu RNM", "fields": [{"namePattern": "^(nazwa_kosztu|uzasadnienie_kosztu|metoda_szacowania)$", "editSet": "costText"}]}
+      ]
+    },
+    {
+      "label": "9.2", "sectionId": "e95d0c23-8a39-4d56-96fa-ace3e4f0d23a",
+      "url": "https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/e95d0c23-8a39-4d56-96fa-ace3e4f0d23a",
+      "rows": [
+        {"rowNeedle": "Liczba wdrożonych wyników prac B+R", "matchField": "nazwa_wskaznika", "matchNeedle": "Liczba wdrożonych wyników prac B+R", "fields": [
+          {"name": "opis_metodologii", "value": "Wskaźnik liczy dwa odrębne, udokumentowane wdrożenia wyników B+R projektu RNM po zakończeniu prac, w działalności Wisent Polska albo u licencjobiorców z UE. Każde wdrożenie musi obejmować rzeczywiste użycie rodziny modeli RNM, biblioteki interwencji lub katalogu konceptów oraz mieć własny identyfikator, wersję modelu, manifest artefaktów, datę uruchomienia, zakres funkcji i dowód wykorzystania. Kolejnych wersji tego samego wdrożenia nie liczy się ponownie. Nie wlicza się demonstracji, testów jednorazowych, publikacji repozytorium ani materiałów promocyjnych. Wartość docelowa wynosi 2."}
+        ]},
+        {"rowNeedle": "Wartość importu usług modeli generatywnych spoza UE", "matchField": "nazwa_wskaznika", "matchNeedle": "Wartość importu usług modeli generatywnych spoza UE", "fields": [
+          {"name": "opis_metodologii", "edits": [{"from": "Wartość docelowa odpowiada 80% docelowego rocznego przychodu ze sprzedaży modeli RNM do klientów z rynku wewnętrznego UE innych niż Polska.", "to": "Wartość docelowa 24 000 000 PLN odpowiada 80% całego docelowego rocznego przychodu ze sprzedaży RNM na rynku UE, wynoszącego 30 000 000 PLN. Podstawą kalkulacji są przychody z całej UE, łącznie z Polską, a nie przychody z UE poza Polską."}]}
+        ]},
+        {"rowNeedle": "Redukcja ilości tokenów treningowych dla RNM 70B", "matchField": "nazwa_wskaznika", "matchNeedle": "Redukcja ilości tokenów treningowych dla RNM 70B", "fields": [
+          {"name": "opis_metodologii", "edits": [{"from": "w ramach Kamienia milowego 4.1", "to": "w ramach Kamieni milowych 4.2 i 4.3, po uzyskaniu checkpointów i krzywych uczenia"}]}
+        ]}
+      ]
+    }
+  ]
+}
