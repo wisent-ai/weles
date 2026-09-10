@@ -1,7 +1,7 @@
 // Criterion-1 attachments for the NCBR wniosek (project 7ee80d9a). Never submits.
-// MODE=read (default) lists what the Dokumenty view shows and compares it with the
-// declared package. MODE=apply uploads the declared files. PACKAGE selects the package.
-// DIAG=1 opens the criterion-1 subform and dumps controls without uploading.
+// MODE=read compares the saved attachment row; MODE=apply saves attachments and verifies downloaded bytes.
+// EDIT_EXISTING=1 selects the current row; REPLACE_FILE names its exact superseded PDF; REPORT_DIR retains evidence.
+// DIAG=1 only inspects. RESUME_STAGED=1 continues an interrupted open drawer without navigating or duplicating uploads.
 
 import { chromium } from 'playwright';
 import { statSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
