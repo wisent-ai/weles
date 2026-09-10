@@ -1,40 +1,35 @@
-import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { homedir, hostname, userInfo } from 'node:os';
 import { join } from 'node:path';
-import journeyDefinition from './journeys/weles-first-use-2026-09-05.1.json';
 import {
   JourneyClient,
   StadoJourneyTransport,
-  type JourneyAssignment,
-  type JourneyAssignmentInput,
-  type JourneyBundle,
-  type JourneyDefinition,
   type JourneyProgress,
-  type JourneyRuntimeEvent,
   type JourneyStorage,
   type JourneyTransport,
 } from '../onboarding-runtime';
 
-const PRODUCT_ID = 'weles';
-const JOURNEY_ID = 'first-use';
-const JOURNEY_VERSION = '2026-09-05.1';
-const JOURNEY_VERSION_ID = 'a707bb29-3848-4b1d-a868-84fc7ae3978e';
-const SOURCE_REVISION_PATTERN = /^[0-9a-f]{40}$/;
+import { FileJourneyStorage } from './journey-storage.js';
+import { OfflineJourneyTransport, VersionPinnedTransport } from './journey-transport.js';
+import { loadReceiptVerifier, requireVerifiedClaims, type ReceiptClaims } from './receipt.js';
+import {
+  CONTENT,
+  JOURNEY_ID,
+  JOURNEY_VERSION,
+  PRODUCT_ID,
+  SOURCE_REVISION,
+  WELES_FIRST_USE_FALLBACK,
+  definition,
+  hasPinnedProductSurface,
+} from './journey-surface.js';
+
+export { FileJourneyStorage } from './journey-storage.js';
+export { WELES_FIRST_USE_FALLBACK } from './journey-surface.js';
+
 const TOKEN_ENVIRONMENT_KEY = 'WELES_STADO_INTEGRATION_TOKEN';
 const SHA256 = /^[0-9a-f]{64}$/i;
 
 type OnboardingAction = 'status' | 'next' | 'import' | 'verify' | 'reset';
-
-type ReceiptClaims = {
-  taskId: string;
-  organizationId: string;
-  origin: string;
-  action: string;
-  outcome: string;
-  evidenceDigest: string;
-  keyId: string;
-};
 
 export type WelesOnboardingInput = {
   action?: OnboardingAction;
@@ -68,226 +63,6 @@ export type WelesOnboardingView = {
   };
 };
 
-const definition = journeyDefinition as unknown as JourneyDefinition;
-if (definition.product_id !== PRODUCT_ID
-  || definition.journey_id !== JOURNEY_ID
-  || definition.journey_version !== JOURNEY_VERSION
-  || !SOURCE_REVISION_PATTERN.test(definition.source_revision)) {
-  throw new Error('bundled Weles first-use journey identity is invalid');
-}
-const SOURCE_REVISION = definition.source_revision;
-
-function canonicalize(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, entry]) => [key, canonicalize(entry)]));
-  }
-  return value;
-}
-
-const canonicalDefinition = JSON.stringify(canonicalize(definition));
-export const WELES_FIRST_USE_FALLBACK: JourneyBundle = {
-  journey_version_id: JOURNEY_VERSION_ID,
-  definition,
-  canonical_definition: canonicalDefinition,
-  content_sha256: createHash('sha256').update(canonicalDefinition).digest('hex'),
-  source_revision: SOURCE_REVISION,
-};
-
-const CONTENT: Readonly<Record<string, Readonly<{ title: string; body: string }>>> = {
-  'authorization-boundary': {
-    title: 'Confirm the authorization boundary',
-    body: 'Weles executes only an already-authorized, allowlisted workflow. Possessing credentials does not authorize a new origin or action; organization, origin, action, credential references, justification, idempotency, and evidence policy must be admitted through the safe Weles client before this host runs anything.',
-  },
-  'existing-data': {
-    title: 'Bring your existing Weles workflows',
-    body: 'Optional: run weles onboarding import <trajectory-export.json> --host <managed-worker-hostname>. Weles validates the complete API export, preserves existing rows, and stores accepted definitions as host-bound drafts. It never starts a workflow, scans or copies a browser profile, or grants a new action. Run onboarding next to keep an empty usable setup.',
-  },
-  'host-execution': {
-    title: 'Run on the approved Weles host',
-    body: 'The scheduler owns task admission and terminal state, the supervised host runs the reviewed trajectory with deployment-selected browsers, and the secret boundary resolves only scoped credential references. Do not start browser automation from onboarding; submit the real approved workflow through @wisent-ai/weles-client and wait for its terminal service response.',
-  },
-  'receipt-verification': {
-    title: 'Verify the real workflow receipt',
-    body: 'Export the terminal service receipt and the trusted public-key map, then run: weles onboarding verify --receipt <receipt.json> --keys <receipt-keys.json>. Weles completes first use only after @wisent-ai/weles-client verifies the signature and bound task, organization, origin, action, outcome, and evidence digest.',
-  },
-};
-
-class OfflineJourneyTransport implements JourneyTransport {
-  async readBundle(): Promise<JourneyBundle> { throw new Error('Stado onboarding is offline'); }
-  async readState(): Promise<null> { throw new Error('Stado onboarding is offline'); }
-  async collectEvent(): Promise<void> { throw new Error('Stado onboarding is offline'); }
-  async assignExperiment(_input: JourneyAssignmentInput): Promise<JourneyAssignment> {
-    throw new Error('Stado onboarding is offline');
-  }
-}
-
-function hasPinnedProductSurface(bundle: JourneyBundle): boolean {
-  const screenIds = bundle.definition.screens.map((screen) => screen.screen_id).sort();
-  const expectedScreenIds = Object.keys(CONTENT).sort();
-  const actionsMatch = bundle.definition.screens.every((screen) => {
-    if (screen.screen_id === 'receipt-verification') {
-      return screen.actions.length === 1 && screen.actions[0] === 'verify';
-    }
-    if (screen.screen_id === 'existing-data') {
-      return screen.actions.length === 2 && screen.actions[0] === 'import' && screen.actions[1] === 'next';
-    }
-    return screen.actions.length === 1 && screen.actions[0] === 'next';
-  });
-  return bundle.definition.journey_version === JOURNEY_VERSION
-    && bundle.definition.first_success_fact === 'authorized_browser_workflow_completed'
-    && bundle.definition.entry_screen_id === definition.entry_screen_id
-    && screenIds.length === expectedScreenIds.length
-    && screenIds.every((screenId, index) => screenId === expectedScreenIds[index])
-    && actionsMatch;
-}
-
-class VersionPinnedTransport implements JourneyTransport {
-  constructor(private readonly transport: JourneyTransport) {}
-
-  async readBundle(productId: string, journeyId: string): Promise<JourneyBundle> {
-    const bundle = await this.transport.readBundle(productId, journeyId, JOURNEY_VERSION);
-    if (!isStoredBundle(bundle) || !hasPinnedProductSurface(bundle)) {
-      throw new Error('central Weles journey identity or product surface is invalid');
-    }
-    return bundle;
-  }
-
-  readState(productId: string, attemptId: string, subjectHash: string): Promise<unknown | null> {
-    return this.transport.readState(productId, attemptId, subjectHash);
-  }
-
-  collectEvent(event: JourneyRuntimeEvent): Promise<void> {
-    return this.transport.collectEvent(event);
-  }
-
-  assignExperiment(input: JourneyAssignmentInput): Promise<JourneyAssignment> {
-    return this.transport.assignExperiment(input);
-  }
-}
-
-function storedProperty(value: unknown, field: string): unknown {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return undefined;
-  return Object.getOwnPropertyDescriptor(value, field)?.value;
-}
-
-function isStoredBundle(value: unknown): value is JourneyBundle {
-  const storedDefinition = storedProperty(value, 'definition');
-  const screens = storedProperty(storedDefinition, 'screens');
-  return typeof storedProperty(value, 'journey_version_id') === 'string'
-    && typeof storedProperty(value, 'canonical_definition') === 'string'
-    && typeof storedProperty(value, 'content_sha256') === 'string'
-    && typeof storedProperty(value, 'source_revision') === 'string'
-    && storedProperty(storedDefinition, 'schema_version') === 1
-    && typeof storedProperty(storedDefinition, 'product_id') === 'string'
-    && typeof storedProperty(storedDefinition, 'journey_id') === 'string'
-    && Array.isArray(screens)
-    && screens.every((screen) => typeof storedProperty(screen, 'screen_id') === 'string'
-      && Array.isArray(storedProperty(screen, 'actions'))
-      && Array.isArray(storedProperty(screen, 'transitions')));
-}
-
-function isStoredProgress(value: unknown): value is JourneyProgress {
-  const scopeKind = storedProperty(value, 'scope_kind');
-  const status = storedProperty(value, 'status');
-  const completedScreenIds = storedProperty(value, 'completed_screen_ids');
-  const answers = storedProperty(value, 'answers');
-  return typeof storedProperty(value, 'attempt_id') === 'string'
-    && typeof storedProperty(value, 'product_id') === 'string'
-    && typeof storedProperty(value, 'journey_version_id') === 'string'
-    && typeof storedProperty(value, 'subject_hash') === 'string'
-    && (scopeKind === 'user' || scopeKind === 'organization' || scopeKind === 'device' || scopeKind === 'workload')
-    && typeof storedProperty(value, 'current_screen_id') === 'string'
-    && Array.isArray(completedScreenIds)
-    && completedScreenIds.every((screenId) => typeof screenId === 'string')
-    && (status === 'in_progress' || status === 'skipped' || status === 'completed'
-      || status === 'abandoned' || status === 'reset')
-    && typeof storedProperty(value, 'evidence_revision') === 'string'
-    && Array.isArray(answers);
-}
-
-function isStoredEvent(value: unknown): value is JourneyRuntimeEvent {
-  const properties = storedProperty(value, 'properties');
-  return typeof storedProperty(value, 'event_id') === 'string'
-    && typeof storedProperty(value, 'event_name') === 'string'
-    && typeof storedProperty(value, 'attempt_id') === 'string'
-    && typeof storedProperty(value, 'product_id') === 'string'
-    && typeof storedProperty(value, 'journey_version_id') === 'string'
-    && typeof storedProperty(value, 'subject_hash') === 'string'
-    && typeof storedProperty(value, 'screen_id') === 'string'
-    && typeof storedProperty(value, 'occurred_at') === 'string'
-    && typeof storedProperty(value, 'evidence_revision') === 'string'
-    && properties !== null && typeof properties === 'object' && !Array.isArray(properties)
-    && Array.isArray(storedProperty(value, 'answers'));
-}
-
-export class FileJourneyStorage implements JourneyStorage {
-  constructor(private readonly directory: string) {}
-
-  private bundlePath(productId: string, journeyId: string): string {
-    return join(this.directory, `${productId}-${journeyId}-bundle.json`);
-  }
-
-  private progressPath(productId: string, journeyId: string, subjectHash: string): string {
-    return join(this.directory, `${productId}-${journeyId}-${subjectHash}-progress.json`);
-  }
-
-  private eventsPath(): string {
-    return join(this.directory, 'events.json');
-  }
-
-  private async load(path: string): Promise<unknown | null> {
-    try {
-      const parsed: unknown = JSON.parse(await readFile(path, 'utf8'));
-      return parsed;
-    } catch {
-      return null;
-    }
-  }
-
-  private async save(path: string, value: unknown): Promise<void> {
-    await mkdir(this.directory, { recursive: true, mode: 0o700 });
-    const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
-    await writeFile(temporary, `${JSON.stringify(value)}\n`, { encoding: 'utf8', mode: 0o600 });
-    await rename(temporary, path);
-  }
-
-  async loadBundle(productId: string, journeyId: string): Promise<JourneyBundle | null> {
-    const bundle = await this.load(this.bundlePath(productId, journeyId));
-    return isStoredBundle(bundle) && hasPinnedProductSurface(bundle) ? bundle : null;
-  }
-
-  saveBundle(bundle: JourneyBundle): Promise<void> {
-    return this.save(this.bundlePath(bundle.definition.product_id, bundle.definition.journey_id), bundle);
-  }
-
-  async loadProgress(productId: string, journeyId: string, subjectHash: string): Promise<JourneyProgress | null> {
-    const progress = await this.load(this.progressPath(productId, journeyId, subjectHash));
-    return isStoredProgress(progress) ? progress : null;
-  }
-
-  saveProgress(productId: string, journeyId: string, progress: JourneyProgress): Promise<void> {
-    return this.save(this.progressPath(productId, journeyId, progress.subject_hash), progress);
-  }
-
-  async pendingEvents(): Promise<readonly JourneyRuntimeEvent[]> {
-    const events = await this.load(this.eventsPath());
-    return Array.isArray(events) ? events.filter(isStoredEvent) : [];
-  }
-
-  async appendEvent(event: JourneyRuntimeEvent): Promise<void> {
-    const events = await this.pendingEvents();
-    await this.save(this.eventsPath(), [...events.filter((entry) => entry.event_id !== event.event_id), event]);
-  }
-
-  async removeEvent(eventId: string): Promise<void> {
-    const events = await this.pendingEvents();
-    await this.save(this.eventsPath(), events.filter((entry) => entry.event_id !== eventId));
-  }
-}
-
 function stableSubject(input: WelesOnboardingInput, environment: NodeJS.ProcessEnv): string {
   const subject = input.subject?.trim()
     || environment.WELES_ONBOARDING_SUBJECT?.trim()
@@ -300,37 +75,6 @@ function stateDirectory(input: WelesOnboardingInput, environment: NodeJS.Process
   return input.stateDirectory
     || environment.WELES_ONBOARDING_STATE_DIR?.trim()
     || join(homedir(), '.weles', 'onboarding');
-}
-
-
-async function loadReceiptVerifier(): Promise<{
-  verifyReceipt(receipt: unknown, keys: Readonly<Record<string, string>>): unknown;
-}> {
-  // The official receipt verifier is ESM-only while the Weles CLI is CommonJS, so it must cross the module boundary asynchronously.
-  return await import('@wisent-ai/weles-client');
-}
-
-function requiredStringProperty(value: object, field: string): string {
-  if (!(field in value)) throw new Error(`verified receipt claim ${field} is missing`);
-  const descriptor = Object.getOwnPropertyDescriptor(value, field);
-  const candidate = descriptor?.value;
-  if (typeof candidate !== 'string' || !candidate.trim()) {
-    throw new Error(`verified receipt claim ${field} is missing`);
-  }
-  return candidate;
-}
-
-function requireVerifiedClaims(value: unknown): ReceiptClaims {
-  if (!value || typeof value !== 'object') throw new Error('verified receipt claims are invalid');
-  return {
-    taskId: requiredStringProperty(value, 'taskId'),
-    organizationId: requiredStringProperty(value, 'organizationId'),
-    origin: requiredStringProperty(value, 'origin'),
-    action: requiredStringProperty(value, 'action'),
-    outcome: requiredStringProperty(value, 'outcome'),
-    evidenceDigest: requiredStringProperty(value, 'evidenceDigest'),
-    keyId: requiredStringProperty(value, 'keyId'),
-  };
 }
 
 function render(client: { progress: JourneyProgress | null; screen: { screen_id: string; actions: readonly string[] } | null }, connected: boolean, claims?: ReceiptClaims): WelesOnboardingView {
@@ -382,8 +126,8 @@ export async function runWelesOnboarding(input: WelesOnboardingInput = {}): Prom
         fetch: input.fetch,
       })
     : new OfflineJourneyTransport();
-  const transport = new VersionPinnedTransport(baseTransport);
-  const storage = new FileJourneyStorage(stateDirectory(input, environment));
+  const transport = new VersionPinnedTransport(baseTransport, JOURNEY_VERSION, hasPinnedProductSurface);
+  const storage = new FileJourneyStorage(stateDirectory(input, environment), hasPinnedProductSurface);
   const client = new JourneyClient({
     productId: PRODUCT_ID,
     journeyId: JOURNEY_ID,
