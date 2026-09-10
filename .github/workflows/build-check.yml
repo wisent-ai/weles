@@ -32,3 +32,10 @@ jobs:
 
       - name: every dist/ module load-check
         run: node --test tests/build/module-load.test.mjs
+
+      # The trajectory modules are not compiled into dist/, so the load-check
+      # above never reads them. They are what a fleet host runs, and a stale
+      # relative path or a name the compiled tree stopped exporting fails on
+      # the first line of that run instead of in any check.
+      - name: every trajectory module's imports
+        run: node --test tests/trajectories/module-imports.test.mjs
