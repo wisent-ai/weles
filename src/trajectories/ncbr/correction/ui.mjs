@@ -67,9 +67,9 @@ export async function save(page, collection = false, expected = []) {
   ]);
   const body = await response.text();
   if (!response.ok()) throw new Error(`Save rejected: ${response.status()} ${body}`);
-  const sent = response.request().postData() || '';
-  const missing = expected.filter((field) => !sent.includes(JSON.stringify(field.expected).slice(1, -1)));
-  if (missing.length) throw new Error(`Save request omitted ${missing.map((field) => field.name).join(', ')}`);
+  const sent = JSON.stringify(JSON.parse(response.request().postData() || 'null'));
+  const missing = expected.filter((field) => !sent.includes(JSON.stringify(field.expected)));
+  if (missing.length) throw new Error(`Save request omitted ${missing.map((field) => field.name).join(', ')}: ${sent.slice(0, 4000)}`);
   await page.getByText('Zapisano dane', { exact: true }).waitFor({ state: 'visible' });
   await page.waitForFunction((selector) => {
     const element = document.querySelector(selector);
