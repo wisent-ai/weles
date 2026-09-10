@@ -59,9 +59,11 @@ if (process.env.TEXT_PATH) {
   writeFileSync(process.env.TEXT_PATH, await page.locator('body').innerText());
 }
 if (process.env.DOWNLOAD_CURRENT_PDF) {
+  // The in-app viewer renders the whole application before its download button appears; the download itself
+  // starts only after the server has assembled the PDF, so both waits get a minute rather than the page default.
   const button = page.getByRole('button', { name: 'Pobierz PDF', exact: true }).filter({ visible: true });
-  await button.waitFor({ state: 'visible' });
-  const pending = page.waitForEvent('download');
+  await button.waitFor({ state: 'visible', timeout: 60_000 });
+  const pending = page.waitForEvent('download', { timeout: 60_000 });
   await button.click();
   const download = await pending;
   await download.saveAs(process.env.DOWNLOAD_CURRENT_PDF);

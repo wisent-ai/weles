@@ -32,6 +32,12 @@
       "id": "256ac98a-bb3c-4715-ad13-e8dbcd3f94f4",
       "url": "https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/256ac98a-bb3c-4715-ad13-e8dbcd3f94f4",
       "fields": [{"name": "zgodnosc_z_konwencja_o_prawach_osob_niepelnosprawnych", "edits": [{"from": "Projekt przewiduje pilotaże w sektorze ochrony zdrowia (Zadanie 5), w których modele RNM mogą wspierać procesy decyzyjne. Pilotaże uwzględniają dostępność i równość pacjentów z niepełnosprawnościami.", "to": "Zadanie 7 obejmuje kontrolowaną walidację techniczną prototypu w ochronie zdrowia, bez wdrożenia komercyjnego, z uwzględnieniem dostępności i równości pacjentów z niepełnosprawnościami."}]}]
+    },
+    {
+      "label": "3.5",
+      "id": "41b2184d-76e9-4b79-8ece-b2e227dc471f",
+      "url": "https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/41b2184d-76e9-4b79-8ece-b2e227dc471f",
+      "fields": [{"name": "przedmiot_ochrony", "edits": [{"from": "procedury ekstrakcji kierunków konceptów (Zadanie 3)", "to": "procedury ekstrakcji kierunków konceptów (Zadanie 5)"}]}]
     }
   ],
   "collections": []
