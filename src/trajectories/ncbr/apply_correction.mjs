@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { chromium } from 'playwright';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { loadPlan } from './correction/plan.mjs';
-import { fillPrepared, nestedFields, prepareFields, snapshotFields, verifyPrepared } from './correction/fields.mjs';
+import { fillPrepared, nestedFields, oneField, prepareFields, snapshotFields, verifyPrepared } from './correction/fields.mjs';
 import { closeDrawer, gotoSafe, identity, openRow, save } from './correction/ui.mjs';
 
 const { plan, mode, projectUrl, planSha256 } = loadPlan();
@@ -64,9 +64,17 @@ try {
       if (mode === 'inspect') { await closeDrawer(page); retain('inspecting'); continue; }
       result.fields = await prepareFields(page, await nestedFields(page, row), plan, collection.label);
       retain('prepared');
-      if (mode === 'apply' && result.fields.some((field) => field.before !== field.expected)) {
-        await fillPrepared(page, result.fields);
-        await save(page, true, result.fields);
+      const choices = result.fields.filter((field) => field.control && field.before !== field.expected);
+      const texts = result.fields.filter((field) => !field.control);
+      if (mode === 'apply' && choices.length) {
+        await fillPrepared(page, choices);
+        await save(page, true, choices);
+        await openRow(page, collection, row, projectUrl);
+        for (const field of texts) field.before = await (await oneField(page, field.name)).inputValue();
+      }
+      if (mode === 'apply' && texts.some((field) => field.before !== field.expected)) {
+        await fillPrepared(page, texts);
+        await save(page, true, texts);
       } else await closeDrawer(page);
       await openRow(page, collection, row, projectUrl);
       await verifyPrepared(page, result.fields);
