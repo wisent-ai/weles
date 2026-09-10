@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.6.7",
+  "current": "0.6.8",
   "candidate": "0.6.8",
   "breaking": false,
-  "reason": "0.6.8 carries the repaired release reader, the write-back that records what a release published, the packaged tree the task dispatcher actually names, and the two trajectory modules a host could not load. The published surface is unchanged against what Stado published as 0.6.7 from a776533d, which is why this is an internal change. The baseline had recorded 0.5.50 from the GitHub worker tags, a second publisher off the same package.json; recording the newest published version keeps the next release from renumbering this product backwards."
+  "reason": "Release 0.6.8 published this surface from 7256a1cc12cf5dac29b88972960a0d0ca9770f52; recorded by https://github.com/wisent-ai/weles/actions/runs/34523413804."
 }
