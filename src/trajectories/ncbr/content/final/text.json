@@ -49,7 +49,8 @@
           {"name": "ryzyka_opis_ryzyka", "edits": [
             {"from": "z około 15 mld tokenów", "to": "z około 15 bln tokenów"},
             {"from": "do nie więcej niż 10 mld,", "to": "do nie więcej niż 10 bln,"},
-            {"from": "Ryzyko ujawni się przede wszystkim w Zadaniu 2.", "to": "Ryzyko ujawni się przede wszystkim w Zadaniach 2–4."}
+            {"from": "Ryzyko ujawni się przede wszystkim w Zadaniu 2.", "to": "Ryzyko ujawni się przede wszystkim w Zadaniach 2–4."},
+            {"from": "Prawdopodobieństwo wystąpienia oceniamy na średnie.", "to": "Prawdopodobieństwo oceniamy na średnie."}
           ]}
         ]}
       ]
