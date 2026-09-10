@@ -45,9 +45,12 @@ try {
     if (mode === 'inspect') { retain('inspecting'); continue; }
     result.fields = await prepareFields(page, section.fields, plan, section.label);
     retain('prepared');
-    if (mode === 'apply' && result.fields.some((field) => field.before !== field.expected)) {
-      await fillPrepared(page, result.fields);
-      await save(page, false, result.fields, section.saveButton || null);
+    // LSI2 drops text typed into a second field before the first is saved; save every changed field separately.
+    const changed = mode === 'apply' ? result.fields.filter((field) => field.before !== field.expected) : [];
+    for (const [index, field] of changed.entries()) {
+      if (index) await openScope(page, section, projectUrl);
+      await fillPrepared(page, [field]);
+      await save(page, false, [field], section.saveButton || null);
     }
     await openScope(page, section, projectUrl);
     await verifyPrepared(page, result.fields);
