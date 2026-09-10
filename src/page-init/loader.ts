@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { FingerprintConfig } from '../fingerprint.js';
 
 const SCRIPT_DIR = __dirname;
 
@@ -41,8 +42,24 @@ export function buildInitScript(
   const parts: string[] = [`const __weles = ${JSON.stringify(config)};`];
   for (const name of scripts) {
     if (excludeSet.has(name)) continue;
-    const filePath = join(SCRIPT_DIR, name);
-    parts.push(readFileSync(filePath, 'utf-8'));
+    parts.push(readPageInitScript(name));
   }
   return parts.join('\n');
+}
+
+/** Read source and packaged assets from the same page-init directory. */
+export function readPageInitScript(name: string): string {
+  return readFileSync(join(SCRIPT_DIR, name), 'utf-8');
+}
+
+/** C++ Chromium needs these supplements, not the stock automation overrides. */
+export function buildChromiumSupplementScripts(fpConfig: FingerprintConfig): string[] {
+  const screenPreamble = `const __weles = { screen: ${JSON.stringify(fpConfig.screen ?? {})} };`;
+  const screenPatch = screenPreamble + '\n' + readPageInitScript('screen_webrtc_patch.js');
+  const navPreamble = `const __weles = ${JSON.stringify(fpConfig)};` +
+    `if (typeof _nativeOverrides === 'undefined') { var _nativeOverrides = new Set(); }` +
+    `if (!window.__welesDefine) { window.__welesDefine = function(obj, prop, getter) { try { Object.defineProperty(obj, prop, { get: getter, configurable: true, enumerable: true }); } catch {} }; };` +
+    `if (!window.__welesNativeString) { const _ns=new Set(); window.__welesNativeString=function(fn,name){_ns.add(fn);}; const _ots=Function.prototype.toString; Function.prototype.toString=function(){ if(_ns.has(this)) return 'function '+(this.name||'')+'() { [native code] }'; return _ots.call(this); }; }`;
+  const navScript = navPreamble + '\n' + readPageInitScript('navigator.js');
+  return [...CHROMIUM_ONLY_SCRIPTS.map(readPageInitScript), screenPatch, navScript];
 }

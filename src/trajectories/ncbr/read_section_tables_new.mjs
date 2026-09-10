@@ -13,12 +13,33 @@ if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' })); process.exit(0);
 
 await page.goto(url, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
+if (process.env.NAV_LABEL) {
+  await page.getByText(process.env.NAV_LABEL, { exact: true }).filter({ visible: true }).first().click();
+  await humanIdlePause('long');
+}
+if (process.env.ROW_NEEDLE) {
+  const table = page.locator('table').nth(Number(process.env.ROW_TABLE_INDEX || 0));
+  const row = table.locator('tbody tr').filter({ hasText: process.env.ROW_NEEDLE });
+  if (await row.count() !== 1) throw new Error(`Expected one row matching ${process.env.ROW_NEEDLE}`);
+  await row.locator('button[aria-label*="overflow-options"]').click();
+  await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).click();
+  await humanIdlePause('long');
+}
 const bodyLimit = Number(process.env.BODY_LIMIT || 2500);
 const rowLimit = Number(process.env.ROW_LIMIT || 220);
 const includeHtml = Boolean(process.env.HTML);
 const out = await page.evaluate(({ limit, rowLimit, includeHtml }) => ({
   url: location.href,
   body: (document.body.innerText || '').slice(0, limit),
+  fields: Array.from(document.querySelectorAll('textarea[name], input[name]:not([type="password"]):not([type="hidden"]), select[name]'))
+    .filter((el) => el.name !== 'table_search')
+    .map((el) => ({
+      name: el.name,
+      type: el.getAttribute('type'),
+      value: el.value || '',
+      checked: el.matches('input[type="checkbox"], input[type="radio"]') ? el.checked : undefined,
+      muiChecked: el.matches('input[type="radio"]') ? el.closest('.MuiRadio-root')?.classList.contains('Mui-checked') : undefined,
+    })),
   tables: Array.from(document.querySelectorAll('table')).map((table, i) => ({
     i,
     rows: table.querySelectorAll('tbody tr').length,
@@ -26,5 +47,11 @@ const out = await page.evaluate(({ limit, rowLimit, includeHtml }) => ({
     html: includeHtml ? Array.from(table.querySelectorAll('tbody tr')).map((r) => r.outerHTML.slice(0, 1200)) : undefined,
   })),
 }), { limit: bodyLimit, rowLimit, includeHtml });
+if (process.env.SCREENSHOT_PATH) {
+  await page.screenshot({ path: process.env.SCREENSHOT_PATH, fullPage: true });
+}
 console.log(JSON.stringify(out, null, 2));
+if (process.env.ROW_NEEDLE) {
+  await page.getByRole('button', { name: 'close side drawer', exact: true }).filter({ visible: true }).last().click();
+}
 process.exit(0);

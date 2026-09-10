@@ -40,7 +40,7 @@ function fail(code: string, message: string, detail: Record<string, unknown>): n
   throw new LoginAccountSelectionError(code, message, detail);
 }
 
-function metadata(item: Item): Item {
+function metadata(item: Item, provider = providerName(tag(item, 'brama:provider:'))): Item {
   const document = readDocument(itemId(item));
   const context = document.context ?? {};
   let value = document.fields?.value;
@@ -49,7 +49,6 @@ function metadata(item: Item): Item {
   }
   let declared = value?.metadata;
   if (typeof declared === 'string') declared = JSON.parse(declared);
-  const provider = providerName(tag(item, 'brama:provider:'));
   return {
     ...context,
     login_item: text(context.login_item) || text(declared?.login_item)
@@ -63,11 +62,40 @@ function metadata(item: Item): Item {
   };
 }
 
+/** A subscription can name a canonical descriptor which names its login. */
+function subscriptionMetadata(subscription: Item, inventory: Item[], provider: string): Item {
+  const result = metadata(subscription);
+  const visited = new Set([itemId(subscription)]);
+  const revisions: unknown[] = [];
+  let source = text(result.source_item);
+  while (source && !text(result.account_ref) && !text(result.login_item)) {
+    if (visited.has(source)) fail('subscription_source_cycle',
+      `Skarbiec subscription ${itemId(subscription)} has a cyclic source reference at ${source}`,
+      { subscription_item: itemId(subscription), source_item: source });
+    visited.add(source);
+    const item = inventory.find(candidate => itemId(candidate) === source || candidate.item_uid === source);
+    if (!item) fail('subscription_source_missing',
+      `Skarbiec subscription ${itemId(subscription)} names missing source item ${source}`,
+      { subscription_item: itemId(subscription), source_item: source });
+    const declared = metadata(item, provider);
+    revisions.push([item.item_uid ?? itemId(item), item.revision]);
+    if (item.kind === 'login' || item.type === 'login') {
+      result.login_item = itemId(item);
+    } else {
+      result.login_item = text(declared.login_item);
+    }
+    result.account_ref = text(declared.account_ref);
+    source = text(declared.source_item);
+  }
+  result.source_revisions = revisions;
+  return result;
+}
+
 function resolveAccount(subscription: Item, inventory: Item[], requested?: string | null): LoginAccount {
   const subscriptionItem = itemId(subscription);
   const subscriptionId = tag(subscription, 'brama:id:');
   const provider = providerName(tag(subscription, 'brama:provider:'));
-  const context = metadata(subscription);
+  const context = subscriptionMetadata(subscription, inventory, provider);
   let accountRef = text(context.account_ref);
   const explicit = text(requested) || text(context.login_item) || tag(subscription, 'brama:login:');
   const sourceItem = text(context.source_item);
@@ -125,7 +153,7 @@ function resolveAccount(subscription: Item, inventory: Item[], requested?: strin
     { subscription_id: subscriptionId, provider });
   const revision = createHash('sha256').update(JSON.stringify([
     subscription.item_uid ?? subscriptionItem, subscription.revision,
-    login.item.item_uid ?? itemId(login.item), login.item.revision, method,
+    login.item.item_uid ?? itemId(login.item), login.item.revision, method, context.source_revisions,
   ])).digest('hex');
   return {
     provider: provider as LoginAccountProvider,

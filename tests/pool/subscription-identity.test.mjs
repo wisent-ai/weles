@@ -95,3 +95,40 @@ test('doctor resolves an account from Skarbiec and survives renaming both items'
     rmSync(f.root, { recursive: true, force: true });
   }
 });
+
+test('doctor follows a subscription source and refuses a broken reference', () => {
+  const f = fixture();
+  try {
+    f.vault(['set-json', 'source-login', '--type', 'login'], {
+      schema: 'skarbiec.item.v2', kind: 'login',
+      context: { login_method: 'google_sso' },
+      fields: { username: 'source-account@example.invalid', password: 'isolated-fixture-password' },
+    });
+    const descriptor = {
+      schema: 'skarbiec.item.v2', kind: 'bundle', context: {},
+      fields: { value: { metadata: JSON.stringify({ CODEX_SERVICE_CREDENTIAL_ID: 'source-login' }) } },
+    };
+    f.vault(['set-json', 'source-descriptor', '--type', 'bundle'], descriptor);
+    f.vault(['set-json', 'source-subscription', '--type', 'bundle', '--tags',
+      'brama:subscription,brama:provider:codex,brama:id:source-subscription,brama:agent:isolated-agent'], {
+      schema: 'skarbiec.item.v2', kind: 'bundle', context: { source_item: 'source-descriptor' },
+      fields: { value: { type: 'oauth_account' } },
+    });
+    const resolved = f.doctor().state;
+    assert.deepEqual(resolved.errors, []);
+    assert.equal(resolved.accounts[0].accountRef, 'source-account@example.invalid');
+    assert.equal(resolved.accounts[0].loginItem, 'source-login');
+    f.vault(['delete', 'source-descriptor']);
+    const missing = f.doctor().state;
+    assert.equal(missing.errors[0].code, 'subscription_source_missing');
+    assert.equal(missing.errors[0].source_item, 'source-descriptor');
+    f.vault(['set-json', 'source-descriptor', '--type', 'bundle'], {
+      ...descriptor, context: { source_item: 'source-descriptor' }, fields: { value: {} },
+    });
+    assert.equal(f.doctor().state.errors[0].code, 'subscription_source_cycle');
+    assert.equal(JSON.parse(f.vault(['get', 'source-login'])).fields.username, 'source-account@example.invalid');
+  } finally {
+    spawnSync('gpgconf', ['--kill', 'all'], { env: f.environment });
+    rmSync(f.root, { recursive: true, force: true });
+  }
+});

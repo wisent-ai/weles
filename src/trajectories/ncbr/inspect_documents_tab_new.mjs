@@ -8,7 +8,9 @@ const projectId = process.env.NCBR_PROJECT_ID || '7ee80d9a-67dd-4d99-becd-8dda40
 const projectUrl = `https://lsi2.ncbr.gov.pl/projekt/${projectId}`;
 
 const browser = await chromium.connectOverCDP(endpoint);
-const page = browser.contexts()[0]?.pages()[0];
+const context = browser.contexts()[0];
+const page = context?.pages().find((candidate) => candidate.url().startsWith('https://lsi2.ncbr.gov.pl/'))
+  || (context ? await context.newPage() : null);
 if (!page) {
   console.log(JSON.stringify({ error: 'NO_PAGE' }, null, 2));
   process.exit(1);
@@ -17,14 +19,11 @@ page.setDefaultTimeout(15000);
 
 await page.goto(projectUrl, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: read-only navigation
 await humanIdlePause('long');
-await page.evaluate(() => {
-  const b = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies'));
-  if (b) b.style.pointerEvents = 'none';
-}); // allow-raw-playwright: neutralise cookie overlay for read-only inspection
 
-const documents = page.getByText('Dokumenty', { exact: true }).filter({ visible: true }).first();
-if (await documents.count() === 0) throw new Error('Dokumenty control not found');
-await humanClickLocator(page, documents);
+const viewLabel = process.env.VIEW_LABEL || 'Dokumenty';
+const documents = page.getByText(viewLabel, { exact: true }).filter({ visible: true }).first();
+if (await documents.count() === 0) throw new Error(`${viewLabel} control not found at ${page.url()}`);
+await documents.click(); // allow-raw-playwright: read-only project-view navigation with hit testing
 await humanIdlePause('long');
 
 if (process.env.OPEN_FIRST_ROW_MENU) {
@@ -65,6 +64,9 @@ const out = await page.evaluate(() => {
   const links = Array.from(document.querySelectorAll('a[href]')).map((a) => ({ text: a.textContent.trim().replace(/\s+/g, ' ').slice(0, 160), href: a.href })).slice(0, 80);
   return { url: location.href, visibleText, buttons, inputs, links };
 }); // allow-raw-playwright: read-only DOM inspection
+if (process.env.SCREENSHOT_PATH) {
+  await page.screenshot({ path: process.env.SCREENSHOT_PATH, fullPage: true });
+}
 
 console.log(JSON.stringify(out, null, 2));
 process.exit(0);

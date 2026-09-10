@@ -114,7 +114,7 @@ async function clickEl(loc) {
 }
 
 async function readDeclared(name, value, scope) {
-  const locator = page.locator(`[name$="${name}"]`).first();
+  const locator = page.locator(`[name$="${name}"]`).filter({ visible: true }).first();
   await locator.waitFor({ state: 'visible' });
   const actual = await locator.inputValue();
   return `${scope} ${name}: ${actual === value ? 'zgodne' : `ROZBIEZNE (${actual.length} vs ${value.length})`}`;
@@ -173,6 +173,12 @@ async function openRow(row) {
   await edit.waitFor({ state: 'visible' });
   await clickEl(edit);
   await page.waitForSelector(`[name$="${row.matchField}"]`);
+  await page.waitForFunction(({ field, needle, mode }) => {
+    const element = document.querySelector(`[name$="${CSS.escape(field)}"]`);
+    const actual = String(element?.value || '').replace(/\s+/g, ' ').trim();
+    const expected = String(needle).replace(/\s+/g, ' ').trim();
+    return mode === 'equals' ? actual === expected : actual.includes(expected);
+  }, { field: row.matchField, needle: row.matchNeedle, mode: row.matchMode }); // allow-raw-playwright: wait for the selected row's identity, not an unpopulated drawer
   await humanIdlePause('short');
 }
 
@@ -188,9 +194,9 @@ async function nestedPrefix(nested) {
 }
 
 async function closeDrawer() {
-  const cancel = page.getByRole('button', { name: 'Anuluj', exact: true }).filter({ visible: true });
+  const cancel = page.getByRole('button', { name: 'close side drawer', exact: true }).filter({ visible: true });
   if (await cancel.count() > 0) {
-    await clickEl(cancel.last());
+    await cancel.last().click(); // allow-raw-playwright: close a read-only drawer without the cookie banner covering the target
     await humanIdlePause('long');
   }
 }

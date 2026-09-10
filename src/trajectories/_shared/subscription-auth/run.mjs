@@ -39,13 +39,14 @@ async function authenticate(provider) {
 }
 
 function fail(error, provider) {
+  const observedBrowser = Object.hasOwn(error, 'browser_started') ? error.browser_started : browserStarted;
   const failure = {
     code: error.code || (error.fatal2fa ? 'provider_challenge_refused' : 'authentication_failed'),
     stage: error.stage || stage,
     message: error.message,
     provider,
-    browser_started: browserStarted,
-    retryable: !browserStarted || error.code === 'oauth_transport_failed',
+    browser_started: observedBrowser,
+    retryable: observedBrowser === false || error.code === 'oauth_transport_failed',
     http_status: error.status || null,
     subscription_id: process.env.BRAMA_SUBSCRIPTION_ID || null,
   };

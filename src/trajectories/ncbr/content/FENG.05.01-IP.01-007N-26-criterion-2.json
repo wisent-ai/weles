@@ -116,7 +116,7 @@
         },
         {
           "matchField": "cecha_funkcjonalnosc_rezultatu_projektu",
-          "matchNeedle": "Model generuje dla każdej decyzji raport aktywacji konceptów",
+          "matchNeedle": "Model RNM generuje dla każdej decyzji raport aktywacji konceptów",
           "fields": [
             {
               "name": "produkt_proces_referencyjny",
@@ -134,7 +134,7 @@
               "value": "Na co najmniej 10 000 wywołań RNM mechanicznie sprawdzamy obecność wymaganych pól, zgodność wersji katalogu, powiązanie raportowanych konceptów z zapisanymi aktywacjami i odtworzenie zastosowanej interwencji. Dla Transformer, Diffusion-LM, S4/Mamba i Titans dokumentujemy dostępne artefakty audytowe według tego samego schematu i wskazujemy pola nieobsługiwane. Sukces RNM: kompletny i poprawny raport dla 100% próby, z sumą kontrolną i identyfikatorem przebiegu; przypadki niezgodności są liczone jako błędy."
             }
           ],
-          "rowNeedle": "Model generuje dla każdej decyzji raport aktywacji konceptów",
+          "rowNeedle": "Model RNM generuje dla każdej decyzji raport aktywacji konceptów",
           "matchMode": "includes"
         }
       ]
@@ -145,7 +145,7 @@
       "url": "https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/566c735c-8ad0-406f-a948-f3ea921c2cc7",
       "rows": [
         {
-          "matchField": "nr_zadania",
+          "matchField": "numer_zadania",
           "matchNeedle": "6",
           "fields": [
             {
