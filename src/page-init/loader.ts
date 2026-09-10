@@ -49,7 +49,7 @@ export function buildInitScript(
 
 /** Read source and packaged assets from the same page-init directory. */
 export function readPageInitScript(name: string): string {
-  return readFileSync(join(SCRIPT_DIR, name), 'utf-8');
+  return readFileSync(join(SCRIPT_DIR, 'page', name), 'utf-8');
 }
 
 /** C++ Chromium needs these supplements, not the stock automation overrides. */

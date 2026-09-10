@@ -5,8 +5,8 @@
 // Element screenshots track live cell replacement between rounds.
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { runRecordingsDir } from '../session/run-recordings.js';
-import { askJedenAboutImage } from '../vision/analyze.js';
+import { runRecordingsDir } from '../../session/run-recordings.js';
+import { askJedenAboutImage } from '../../vision/analyze.js';
 
 const CATEGORY_CODES: Record<string, string> = {
   taxi: '/m/0pg52', taxis: '/m/0pg52', bus: '/m/01bjv', buses: '/m/01bjv',
@@ -47,7 +47,7 @@ export async function classifyGrid(bframe: any, instruction: string, gridSize: n
   const diagDir = runRecordingsDir('vision'); // G17: recordings/<run_uuid>/vision/
   mkdirSync(diagDir, { recursive: true });
   writeFileSync(join(diagDir, 'extracted_grid_latest.png'), Buffer.from(gridImgB64, 'base64'));
-  const { getCaptchaCredentials: getCreds } = await import('../utils/credentials.js');
+  const { getCaptchaCredentials: getCreds } = await import('../../utils/credentials.js');
   const creds = await getCreds();
   const instr = instruction.replace(/\n/g, ' ').trim();
 

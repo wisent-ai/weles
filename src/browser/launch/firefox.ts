@@ -1,10 +1,10 @@
 import type { BrowserContext } from 'playwright';
 import { buildInitScript } from '../../page-init/loader.js';
 import { findCustomBrowser } from '../../session/find_browser.js';
-import { launchWelesFirefox } from '../firefox_launch.js';
+import { launchWelesFirefox } from './firefox_launch.js';
 import { browserProvenance, attachProtocolHandlerWatcher, readDiagnosticScript } from './support.js';
 import type { ContextLaunchInput } from './support.js';
-import { WEBAUTHN_REJECT_SCRIPT, ARKOSE_OBSERVER_SCRIPT_STOCK, FETCH_REGISTER_INTERCEPT_SCRIPT } from '../init_scripts.js';
+import { WEBAUTHN_REJECT_SCRIPT, ARKOSE_OBSERVER_SCRIPT_STOCK, FETCH_REGISTER_INTERCEPT_SCRIPT } from './init_scripts.js';
 
 export async function launchFirefoxContext(input: ContextLaunchInput): Promise<BrowserContext> {
   const { options, fpConfig, ctxOpts, launchOpts, pageDiagnostics, browserType } = input;

@@ -176,7 +176,7 @@ async function classifyGrid(bframe: any, instruction: string, gridSize: number):
   const majority = [...tally.entries()].filter(([, c]) => c >= 2).map(([p]) => p).sort((a, b) => a - b);
   console.log(`[recaptcha] No model answer; consensus (≥2 of ${answers.length}): ${JSON.stringify(majority)}`);
   const minT = gridSize === 3 ? 1 : 2;
-  if (majority.length < minT) { const { disagreementTiebreaker } = await import('./consensus.js'); const t = await disagreementTiebreaker(answers, gridImgB64, instr, gridSize, minT); if (t && t.length > 0) return t; }
+  if (majority.length < minT) { const { disagreementTiebreaker } = await import('./grid/consensus.js'); const t = await disagreementTiebreaker(answers, gridImgB64, instr, gridSize, minT); if (t && t.length > 0) return t; }
   return majority.length > 0 ? majority : answers[0].positions;
 }
 

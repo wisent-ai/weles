@@ -11,7 +11,7 @@
     "weles-mcp": "dist/mcp.js"
   },
   "scripts": {
-    "build": "tsc && cp src/page-init/*.js dist/page-init/ && mkdir -p dist/page-init/firefox && cp src/page-init/firefox/*.js dist/page-init/firefox/ && mkdir -p dist/release && cp src/release/*.mjs dist/release/ && mkdir -p dist/figma && cp src/figma/export-design-assets.mjs src/figma/parse-figma-document.py dist/figma/ && mkdir -p dist/diagnostics && (mkdir -p dist/diagnostics/page && cp -f src/diagnostics/page/*.js dist/diagnostics/page/ 2>/dev/null || true) && chmod u+x,go+x dist/cli.js dist/mcp.js",
+    "build": "tsc && mkdir -p dist/page-init/page && cp src/page-init/page/*.js dist/page-init/page/ && mkdir -p dist/page-init/firefox && cp src/page-init/firefox/*.js dist/page-init/firefox/ && mkdir -p dist/release && cp src/release/*.mjs dist/release/ && mkdir -p dist/figma && cp src/figma/export-design-assets.mjs src/figma/parse-figma-document.py dist/figma/ && mkdir -p dist/diagnostics && (mkdir -p dist/diagnostics/page && cp -f src/diagnostics/page/*.js dist/diagnostics/page/ 2>/dev/null || true) && chmod u+x,go+x dist/cli.js dist/mcp.js",
     "test": "tap tests/**/*.test.ts && node --test tests/build/*.test.mjs tests/engagement/*.test.mjs tests/observation/*.test.mjs tests/output/*.test.mjs tests/pool/*.test.mjs tests/worker/*.test.mjs tests/release/*.test.mjs tests/agent/*.test.mjs",
     "dev": "tsc --watch",
     "lint:trusted-events": "node tests/policy/trusted-events.check.mjs",

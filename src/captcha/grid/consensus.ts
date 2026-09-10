@@ -3,7 +3,7 @@
 // When specialist solvers disagree, use the authenticated Stado-routed vision
 // model as an independent signal. Intersect with the specialist answer having
 // the strongest overlap; when no overlap meets minTiles, use the model result.
-import { askJedenAboutImage } from '../vision/analyze.js';
+import { askJedenAboutImage } from '../../vision/analyze.js';
 
 export interface SolverAnswer { name: string; positions: number[] }
 

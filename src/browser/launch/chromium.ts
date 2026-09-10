@@ -8,7 +8,7 @@ import { runRecordingsDir } from '../../session/run-recordings.js';
 import { buildChromiumSupplementScripts } from '../../page-init/loader.js';
 import { browserProvenance, chromiumNetlogConfig, redactContextOpts, attachProtocolHandlerWatcher, readDiagnosticScript } from './support.js';
 import type { ContextLaunchInput } from './support.js';
-import { WEBAUTHN_REJECT_SCRIPT, ARKOSE_OBSERVER_SCRIPT, FETCH_REGISTER_INTERCEPT_SCRIPT, MODERN_API_HOOKS_SCRIPT, SURFACE_INVENTORY_SCRIPT } from '../init_scripts.js';
+import { WEBAUTHN_REJECT_SCRIPT, ARKOSE_OBSERVER_SCRIPT, FETCH_REGISTER_INTERCEPT_SCRIPT, MODERN_API_HOOKS_SCRIPT, SURFACE_INVENTORY_SCRIPT } from './init_scripts.js';
 
 export async function launchChromiumContext(input: ContextLaunchInput & {
   args: string[]; chromiumPath: string; targetOs: string; captureHar: boolean;

@@ -10,8 +10,8 @@
 //      AND context proxy is the documented fix.
 
 import { firefox, type Browser } from 'playwright';
-import { toFirefoxWelesPrefs, type FingerprintConfig } from '../fingerprint.js';
-import { customBrowserSearchHint, findCustomBrowser } from '../session/find_browser.js';
+import { toFirefoxWelesPrefs, type FingerprintConfig } from '../../fingerprint.js';
+import { customBrowserSearchHint, findCustomBrowser } from '../../session/find_browser.js';
 
 interface FirefoxLaunchInput {
   launchOpts: Record<string, any>;
