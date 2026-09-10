@@ -7,7 +7,7 @@
  */
 
 import * as vision from './vision.js';
-import { waitCloudflare } from '../cloudflare/challenge.js';
+import { waitCloudflare } from '../../cloudflare/challenge.js';
 
 const DEFAULT_DEPTH = 4;
 

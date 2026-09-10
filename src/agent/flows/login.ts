@@ -7,7 +7,7 @@
  */
 
 import * as vision from './vision.js';
-import { waitCloudflare } from '../cloudflare/challenge.js';
+import { waitCloudflare } from '../../cloudflare/challenge.js';
 
 function getUrl(page: any): string {
   try { return page.url(); } catch { /* skip */ }

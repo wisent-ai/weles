@@ -5,8 +5,8 @@
  * plain English. No selectors, no regex, no per-site code.
  */
 
-import { askPage, findClickTarget, type ScreenshottablePage } from '../vision/analyze.js';
-import { humanType } from '../human/keyboard.js';
+import { askPage, findClickTarget, type ScreenshottablePage } from '../../vision/analyze.js';
+import { humanType } from '../../human/keyboard.js';
 
 const NONE_MARKERS = ['none', 'null', 'n/a', 'not visible', 'no balance', 'not found'];
 

@@ -11,9 +11,9 @@ import { homedir } from 'node:os';
 import * as discover from './discover.js';
 import * as login from './login.js';
 import * as vision from './vision.js';
-import { waitCloudflare } from '../cloudflare/challenge.js';
-import { SessionStore } from '../session/store.js';
-import { readOptionalWelesServiceSecret, type WelesServiceSecret } from '../secrets/scoped-service.js';
+import { waitCloudflare } from '../../cloudflare/challenge.js';
+import { SessionStore } from '../../session/store.js';
+import { readOptionalWelesServiceSecret, type WelesServiceSecret } from '../../secrets/scoped-service.js';
 
 // ---------------------------------------------------------------------------
 // Trajectory cache
@@ -240,7 +240,7 @@ function _getProxy(): { server: string; username: string; password: string } | u
 }
 
 async function openSession(osTarget: string): Promise<any> {
-  const { AsyncNewBrowser } = await import('../async_api.js');
+  const { AsyncNewBrowser } = await import('../../async_api.js');
   const proxy = _getProxy();
   const context = await AsyncNewBrowser({
     os: osTarget,
