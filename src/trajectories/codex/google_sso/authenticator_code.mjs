@@ -6,6 +6,7 @@
 // and answered from the account's own stored secret.
 import crypto from 'node:crypto';
 import { humanClick } from '../../../../dist/human/mouse.js';
+import { navEval } from './page_controls.mjs';
 
 // RFC 6238 TOTP (SHA1, 6-digit, 30s) from a base32 secret. Verified against the
 // RFC test vectors. Used to answer a Google 2FA prompt from a stored secret
@@ -38,12 +39,37 @@ export function resolveOtp(login) {
   return process.env.CODEX_2FA_CODE || null;
 }
 
-// On a Google 2FA challenge, switch to the authenticator-app (TOTP) method:
-// click "Try another way", then the authenticator option. Returns true if a
-// method switch was performed, false if no method-chooser is present (e.g. the
-// account has no 2FA at all). This lets the login answer 2FA from a stored TOTP
-// secret instead of a push/SMS prompt the headless automation can't complete.
-export async function selectAuthenticatorMethod(page) {
+async function googleChallengeState(page) {
+  return navEval(page, () => ({
+    host: location.host,
+    path: location.pathname,
+    text: (document.querySelector('main')?.innerText || document.body?.innerText || '')
+      .replace(/\s+/g, ' ').slice(0, 500),
+    challenge: location.hostname === 'accounts.google.com'
+      && (/\/challenge(?:\/|$)/.test(location.pathname)
+        || /2-step verification|get a code to sign in|verify it.s you|weryfikacja dwuetapowa/i.test(document.body?.innerText || '')),
+  }), { challenge: null, state: 'navigation in progress' });
+}
+
+function challengeFailure(code, message, observed) {
+  const error = new Error(`${message}: ${JSON.stringify(observed)}`);
+  error.code = code;
+  error.fatal2fa = true;
+  return error;
+}
+
+export async function waitForGoogleChallengeExit(page) {
+  let observed;
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    observed = await googleChallengeState(page);
+    if (observed.challenge === false) return;
+    await page.waitForTimeout(500); // allow-raw-playwright: observe the submitted code without submitting it again
+  }
+  throw challengeFailure('provider_challenge_refused', 'Google did not accept the submitted verification code', observed);
+}
+
+// Select only an authenticator method the supplied login can answer.
+export async function selectAuthenticatorMethod(page, hasCode) {
   // Click the SMALLEST visible element matching `matchSrc`. Exact mode anchors
   // the whole label (so "Try another way" never matches a parent card whose
   // text is "Resend it\nTry another way" — clicking that centered the wrong
@@ -70,11 +96,16 @@ export async function selectAuthenticatorMethod(page) {
     }
     return false;
   };
-  // Every Google 2FA page is labelled "2-Step Verification"; absent it, there
-  // is no challenge to answer.
-  const challengePresent = await page.evaluate(() =>
-    /2-step verification|weryfikacja dwuetapowa/i.test(document.body ? document.body.innerText : ''));
-  if (!challengePresent) return 'no-2fa';
+  const observed = await googleChallengeState(page);
+  if (observed.challenge === false) return 'no-2fa';
+  if (observed.challenge === null) {
+    throw challengeFailure('google_sign_in_state_unavailable', 'Google sign-in state could not be read', observed);
+  }
+  if (!hasCode) {
+    throw challengeFailure('google_2fa_material_missing',
+      'Google requires a sign-in code, but the selected Skarbiec login has no authenticator seed or supplied one-time code',
+      observed);
+  }
   const opened = await clickBest('^try another way$|^wyprobuj inny sposob$|^more ways to verify$', 'exact', 30);
   if (!opened) return 'stuck';
   await page.waitForTimeout(1200); // allow-raw-playwright: method-list render

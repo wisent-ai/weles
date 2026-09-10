@@ -7,7 +7,7 @@
 // refusal ("browser may not be secure", a password challenge that stays) is
 // raised as its own named error instead of being waited out.
 import { fillAndVerify, navEval, waitForEnabledThenClick } from './page_controls.mjs';
-import { resolveOtp, selectAuthenticatorMethod } from './authenticator_code.mjs';
+import { resolveOtp, selectAuthenticatorMethod, waitForGoogleChallengeExit } from './authenticator_code.mjs';
 
 export async function establishGoogleSession({
   page, login, mark,
@@ -175,7 +175,7 @@ export async function enterGoogleCredentials({
     // No code field yet. Either Google defaulted to push/SMS (switch to the
     // authenticator method to force a TOTP field) or this account has no 2FA
     // (no method-chooser present) — then there is nothing to answer.
-    const result = await selectAuthenticatorMethod(page);
+    const result = await selectAuthenticatorMethod(page, Boolean(login.totpSecret || process.env.CODEX_2FA_CODE));
     if (result === 'no-2fa') {
       console.log('[google_sso] no 2fa challenge present — nothing to answer');
       return;
@@ -205,4 +205,5 @@ export async function enterGoogleCredentials({
   await humanFill(page, gOtp(), otp);
   await humanClickLocator(page, page.locator('#totpNext button, button:has-text("Next"), button[type="submit"]').filter({ visible: true }).first());
   await humanIdlePause('long');
+  await waitForGoogleChallengeExit(page);
 }

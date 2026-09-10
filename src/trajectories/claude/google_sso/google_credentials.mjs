@@ -7,7 +7,8 @@
 // "browser may not be secure" block is raised as its own named error instead of
 // being waited out against a password field that will never render.
 import { fillAndVerify, waitForEnabledThenClick } from './page_controls.mjs';
-import { resolveOtp, selectAuthenticatorMethod } from './authenticator_code.mjs';
+import { resolveOtp } from './authenticator_code.mjs';
+import { selectAuthenticatorMethod, waitForGoogleChallengeExit } from '../../codex/google_sso/authenticator_code.mjs';
 import { waitForGooglePassword } from '../../codex/google_sso/google_credentials.mjs';
 
 export async function enterGoogleCredentials({
@@ -92,7 +93,7 @@ export async function enterGoogleCredentials({
       });
       console.log(`[google_sso] 2fa-diag host=${diag.host} path=${diag.path} clickables=${JSON.stringify(diag.texts)}`);
     } catch (e) { console.log(`[google_sso] 2fa-diag failed: ${e.message.slice(0, 80)}`); }
-    const result = await selectAuthenticatorMethod(page);
+    const result = await selectAuthenticatorMethod(page, Boolean(login.totpSecret || process.env.CLAUDE_2FA_CODE));
     if (result === 'no-2fa') {
       console.log('[google_sso] no 2fa challenge present — nothing to answer');
       return;
@@ -119,4 +120,5 @@ export async function enterGoogleCredentials({
   await humanFill(page, gOtp(), otp);
   await humanClickLocator(page, page.locator('#totpNext button, button:has-text("Next"), button[type="submit"]').filter({ visible: true }).first());
   await humanIdlePause('long');
+  await waitForGoogleChallengeExit(page);
 }

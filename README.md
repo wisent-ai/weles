@@ -187,6 +187,10 @@ methods. Hidden refusal templates do not count as provider refusals. A visible
 refusal or unavailable password challenge reports its observed page and stage;
 the same run never resubmits the selected challenge. Session closure also stops
 its measurement timers, so retained results do not wait for the worker timeout.
+`Get a code to sign in` remains an unfinished Google challenge. Weles reports
+`google_2fa_material_missing` when the selected login has no authenticator seed
+or supplied one-time code, without selecting notification or SMS alternatives.
+A supplied code must leave the challenge before the provider handoff continues.
 
 Both services acquire `brama-weles-reauth/token` from Skarbiec with their own
 workload identities. Weles accepts that bearer only on the reauthentication routes.
