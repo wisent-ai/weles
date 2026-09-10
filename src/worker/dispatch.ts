@@ -89,20 +89,18 @@ const ROUTES: Record<string, (p: string) => string | null> = {
     : p === 'google' ? 'src/trajectories/google/ads/ads_verify_access.mjs'
     : null,
   ads_cli_campaign: (p) => p === 'meta' ? 'src/trajectories/meta/ads_cli_campaign.mjs' : null,
-  ads_api_campaign: (p) => p === 'meta' ? 'src/trajectories/meta/ads_api_campaign.mjs'
-    : p === 'google' ? 'src/trajectories/google/ads/ads_api_campaign.mjs'
-    : null,
+  // Google's API campaign, performance and update trajectories were deleted in
+  // 5c639794 while these three entries kept resolving to them, so a queued
+  // google task passed dispatch and then died on the host with a
+  // module-not-found. Resolving to nothing is the refusal the caller can read.
+  ads_api_campaign: (p) => p === 'meta' ? 'src/trajectories/meta/ads_api_campaign.mjs' : null,
   ads_api_catalog: (p) => p === 'meta' ? 'src/trajectories/meta/ads_api_catalog.mjs' : null,
   ads_api_audience: (p) => p === 'meta' ? 'src/trajectories/meta/ads_api_audience.mjs' : null,
   ads_api_creative: (p) => p === 'meta' ? 'src/trajectories/meta/ads_api_creative.mjs' : null,
   ads_api_lead_form: (p) => p === 'meta' ? 'src/trajectories/meta/ads_api_lead_form.mjs' : null,
   ads_api_messaging: (p) => p === 'meta' ? 'src/trajectories/meta/ads_api_messaging.mjs' : null,
-  ads_performance: (p) => p === 'meta' ? 'src/trajectories/meta/ads_performance.mjs'
-    : p === 'google' ? 'src/trajectories/google/ads/ads_performance.mjs'
-    : null,
-  ads_update_campaign: (p) => p === 'meta' ? 'src/trajectories/meta/ads_update_campaign.mjs'
-    : p === 'google' ? 'src/trajectories/google/ads/ads_update_campaign.mjs'
-    : null,
+  ads_performance: (p) => p === 'meta' ? 'src/trajectories/meta/ads_performance.mjs' : null,
+  ads_update_campaign: (p) => p === 'meta' ? 'src/trajectories/meta/ads_update_campaign.mjs' : null,
   ads_cli: (p) => p === 'apple' ? 'src/trajectories/apple/ads/run.mjs' : null,
   ads_auth_status: (p) => p === 'apple' ? 'src/trajectories/apple/ads/run.mjs' : null,
   ads_auth_doctor: (p) => p === 'apple' ? 'src/trajectories/apple/ads/run.mjs' : null,

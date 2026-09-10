@@ -68,7 +68,13 @@ jobs:
           npm prune --omit=dev
           stage="$RUNNER_TEMP/weles-worker"
           mkdir -p "$stage"
-          cp -R dist scripts node_modules release "$stage/"
+          # `src`, not `scripts`: the trajectory and worker modules moved there,
+          # `src/` is what `src/worker/dispatch.ts` names for every task type,
+          # and the modules import `../../../dist/...` relative to their own
+          # place, which only resolves when that layout is kept. Staging the
+          # deleted `scripts` directory is what failed this release for 0.5.50
+          # with "cp: scripts: No such file or directory".
+          cp -R dist src node_modules release "$stage/"
           cp package.json package-lock.json LICENSE README.md "$stage/"
           cp "$RUNNER_TEMP/released-surface.json" "$stage/released-surface.json"
           cp "$RUNNER_TEMP/sbom.cyclonedx.json" "$stage/sbom.cyclonedx.json"
