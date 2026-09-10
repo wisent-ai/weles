@@ -11,7 +11,7 @@ import {
   resolveSkarbiecEndpoint,
   formatEndpointErrorMessage,
   EndpointInfo,
-} from '../dist/utils/endpoint-resolution.js';
+} from '../dist/utils/runtime/endpoint-resolution.js';
 
 // The shipped resolver, measured against a real Skarbiec.
 //

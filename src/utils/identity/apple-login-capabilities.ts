@@ -1,4 +1,4 @@
-import { assertCapability, type CapabilityRef } from './capability.js';
+import { assertCapability, type CapabilityRef } from '../capability.js';
 
 export type AppleTwoFactorSource =
   { mode: 'capability'; capability: CapabilityRef };

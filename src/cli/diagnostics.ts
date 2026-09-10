@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { WELES_AGENT_MODEL } from '../agent/jeden.js';
-import { resolveSkarbiecEndpoint } from '../utils/endpoint-resolution.js';
+import { resolveSkarbiecEndpoint } from '../utils/runtime/endpoint-resolution.js';
 import { listLoginAccounts } from '../utils/login-accounts.js';
 export async function runDoctor(pkg: { version?: string; bin?: unknown }): Promise<void> {
 

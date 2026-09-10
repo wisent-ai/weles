@@ -19,7 +19,7 @@ import { writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import type { Persona } from '../../browser/persona.js';
-import type { Identity } from '../../utils/identity.js';
+import type { Identity } from '../../utils/identity/identity.js';
 import type { ExitReputation } from '../../proxy/policy.js';
 import { snapshotSanitizedEnvironment } from '../../utils/sanitize-env.js';
 import type { WSession } from '../wsession.js';

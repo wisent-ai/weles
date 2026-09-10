@@ -14,7 +14,7 @@
 import type { Frame } from 'playwright';
 import { writeFileSync, mkdirSync, copyFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { costTracker } from '../../utils/cost.js';
+import { costTracker } from '../../utils/runtime/cost.js';
 import { FP_SCRIPT, NETWORK_FP_URL, parseNetworkFingerprint } from '../../diagnostics/fingerprint_probe.js';
 import { analyze, pickBaseline } from '../../diagnostics/fingerprint_analyzer.js';
 import { markSignupSuccess } from '../../utils/email/domain.js';

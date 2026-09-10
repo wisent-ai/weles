@@ -3,8 +3,8 @@
  * Plain HTTP GET calls, no external dependencies.
  */
 
-import { costTracker } from './cost.js';
-import { readOptionalWelesServiceSecret } from '../secrets/scoped-service.js';
+import { costTracker } from '../runtime/cost.js';
+import { readOptionalWelesServiceSecret } from '../../secrets/scoped-service.js';
 
 const JUICY_BASE = 'https://juicysms.com/api';
 function juicyApiKey(): string | undefined {

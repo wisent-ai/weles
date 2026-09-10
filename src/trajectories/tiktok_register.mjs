@@ -4,7 +4,7 @@ import { generatePersona } from '../../dist/browser/persona.js';
 import { humanClickLocator, humanIdlePause } from '../../dist/human/mouse.js';
 import { humanType } from '../../dist/human/keyboard.js';
 import { reportBlocked } from '../../dist/utils/email/domain.js';
-import { generateIdentity } from '../../dist/utils/identity.js';
+import { generateIdentity } from '../../dist/utils/identity/identity.js';
 import { autoBindCharacter } from './lib/character-bind.mjs';
 import { syncReactInputValue, installNetworkLogger, runUsernameStep } from './lib/tiktok-register-helpers.mjs';
 

@@ -5,7 +5,7 @@
 //   click-to-click gaps: rapid 187–213ms; deliberate 2961–10584ms
 // ---------------------------------------------------------------------------
 
-import { cubicBezier } from '../utils/bezier.js';
+import { cubicBezier } from '../utils/motion/bezier.js';
 import { randomBetween, waitMs, humanRandom } from '../utils/timing.js';
 import { traceAvailable, nextPointerStepMs, nextReactionMs, nextInterClickMs, getMoveTemplate } from './trace.js';
 import { getOffsetFromPage, nativeClick, nativeBatchMove, nativeMove } from './mouse-native.js';

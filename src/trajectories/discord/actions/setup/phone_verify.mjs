@@ -23,7 +23,7 @@ import { WSession } from '../../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../dist/human/keyboard.js';
 import { getSocialAccount, resolveAccountSession } from '../../../../../dist/utils/credentials.js';
-import { getNumber, pollCode, cancelOrder } from '../../../../../dist/utils/sms.js';
+import { getNumber, pollCode, cancelOrder } from '../../../../../dist/utils/identity/sms.js';
 
 const ACCT_USERNAME = process.env.ACCOUNT_USERNAME;
 const COUNTRY = process.env.DISCORD_PHONE_COUNTRY || 'US';

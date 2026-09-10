@@ -10,7 +10,7 @@ import {
   withCapabilityPendingRetry,
   cancelCapability,
 } from '../../../dist/utils/capability.js';
-import { parseAppleLoginCapabilities } from '../../../dist/utils/apple-login-capabilities.js';
+import { parseAppleLoginCapabilities } from '../../../dist/utils/identity/apple-login-capabilities.js';
 import { completeAppleTwoFactorChallenge } from './two_factor.mjs';
 import { getSocialAccount } from '../../../dist/utils/credentials.js';
 import {

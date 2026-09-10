@@ -4,7 +4,7 @@
  */
 
 import { randomBytes } from 'node:crypto';
-import { pickDomain } from './email/domain.js';
+import { pickDomain } from '../email/domain.js';
 
 // faker is ESM-only, use dynamic import
 let _faker: any = null;

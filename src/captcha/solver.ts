@@ -5,7 +5,7 @@
 
 import { solveRecaptchaV2 } from './recaptcha.js';
 import { getCaptchaCredentials } from '../utils/credentials.js';
-import { costTracker } from '../utils/cost.js';
+import { costTracker } from '../utils/runtime/cost.js';
 import { markCaptchaChallenge, markAllProvidersFailed } from './events.js';
 
 type Page = any;

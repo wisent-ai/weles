@@ -12,7 +12,7 @@ import {
   CostTracker as SharedCostTracker,
   PRICES as SHARED_PRICES,
 } from '@wisent/cost-tracker';
-import { recordCaptchaSolved } from '../captcha/events.js';
+import { recordCaptchaSolved } from '../../captcha/events.js';
 
 // Re-export the canonical PRICES table for any in-repo code that read it.
 export const PRICES = SHARED_PRICES;

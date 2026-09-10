@@ -13,7 +13,7 @@
 // tabular-verb dispatch in ./action-name-dispatch.ts, which moves when a new
 // analytics platform or OAuth provider pair is added without a new trajectory.
 
-import { parseAppleLoginCapabilities } from '../../utils/apple-login-capabilities.js';
+import { parseAppleLoginCapabilities } from '../../utils/identity/apple-login-capabilities.js';
 
 export function applyAppleActionParams(
   params: Record<string, unknown>,
