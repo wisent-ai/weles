@@ -76,7 +76,7 @@ test('a trajectory resolves the same root through the package import', async () 
     // `#run-output` from five directories below the package root: the
     // specifier has to resolve there, not only from this test.
     const settings = await import(
-      '../../src/trajectories/google/ads/ads_keyword_planner_api_server/service_settings.mjs'
+      '../../src/trajectories/google/ads/keyword_planner/api_server/service_settings.mjs'
     );
     assert.equal(
       settings.DIAG_DIR,

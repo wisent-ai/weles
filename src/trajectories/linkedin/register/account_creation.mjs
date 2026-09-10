@@ -6,7 +6,7 @@
  */
 import { humanFill, humanType } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause, humanScroll } from '../../../../dist/human/mouse.js';
-import { assertLinkedinAuthenticatedRegistration, assertLinkedinProxyStable, assertNoLinkedinChallengePage, ensureLinkedinSignupForm } from '../../_shared/linkedin/register_guard.mjs';
+import { assertLinkedinAuthenticatedRegistration, assertLinkedinProxyStable, assertNoLinkedinChallengePage, ensureLinkedinSignupForm } from '../../_shared/linkedin/signup/register_guard.mjs';
 import { fillPostRegisterOnboarding } from '../../_shared/linkedin/onboarding/work_school.mjs';
 import { confirmLinkedinEmail } from '../../_shared/linkedin/checkpoint.mjs';
 import { autoBindCharacter } from '../../lib/character-bind.mjs';

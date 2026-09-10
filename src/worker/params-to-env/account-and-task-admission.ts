@@ -71,12 +71,12 @@ export function applyAccountAndTaskAdmission(
     const taskEnv = params.env;
     if (taskEnv && typeof taskEnv === 'object') env.GENERIC_TASK_ENV = JSON.stringify(taskEnv);
   }
-  if (trajPath.endsWith('/microsoft_reset_password.mjs')
-      || trajPath.endsWith('/microsoft_verify_password.mjs')
-      || trajPath.endsWith('/microsoft_adopt_password.mjs')
-      || trajPath.endsWith('/microsoft_entra_adopt_password.mjs')
-      || trajPath.endsWith('/microsoft_entra_reset_password.mjs')
-      || trajPath.endsWith('/microsoft_entra_verify_password.mjs')) {
+  if (trajPath.endsWith('/microsoft/recover/reset_password.mjs')
+      || trajPath.endsWith('/microsoft/recover/verify_password.mjs')
+      || trajPath.endsWith('/microsoft/recover/adopt_password.mjs')
+      || trajPath.endsWith('/microsoft/entra/adopt_password.mjs')
+      || trajPath.endsWith('/microsoft/entra/reset_password.mjs')
+      || trajPath.endsWith('/microsoft/entra/verify_password.mjs')) {
     const constraints = params.constraints;
     if (constraints && typeof constraints === 'object') {
       env.WELES_CREDENTIAL_CONSTRAINTS = JSON.stringify(constraints);

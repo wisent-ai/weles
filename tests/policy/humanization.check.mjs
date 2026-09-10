@@ -36,7 +36,6 @@
  *     pingproxies,nopecha,twocaptcha,sadcaptcha,anticaptcha,capmonster,
  *     capsolver,brightdata,unusualwhales,vast,volumeleaders,apple}/
  *   - src/trajectories/_shared/services/topup_common.mjs (vendor topup helper)
- *   - src/trajectories/_shared/services/real_chrome.mjs (one-off attach helper)
  *   - src/trajectories/google/gcp_credits.mjs (GCP console)
  *
  * Files explicitly checked: every other .mjs in src/trajectories/.
@@ -76,10 +75,7 @@ const EXEMPT_DIRS = [
 
 const EXEMPT_FILES = [
   '_shared/services/topup_common.mjs',
-  '_shared/services/real_chrome.mjs',
   'google/gcp_credits.mjs',
-  // The fingerprint diagnostic; needs raw API access intentionally.
-  '../diag/fingerprint_audit.mjs',
   // Captcha solvers operate inside Arkose/hCaptcha frames — not account-facing.
   'github/captcha/audio_solver.mjs',
   'github/captcha/coords_solver.mjs',

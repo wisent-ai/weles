@@ -8,8 +8,8 @@ import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { persistFreshCookieJar } from '../_shared/auth/cookie-freshness.mjs';
 import { solveLinkedinCheckpoint, injectV3LoginToken, confirmLinkedinEmail } from '../_shared/linkedin/checkpoint.mjs';
-import { captureLinkedinPxStorage, restoreLinkedinPxStorage } from '../_shared/linkedin/px_storage.mjs';
-import { pageHasLoginForm, freshProviderUrl, PROVIDER_ROTATION, gotoLoginRotating } from '../_shared/linkedin/proxy_rotation.mjs';
+import { captureLinkedinPxStorage, restoreLinkedinPxStorage } from '../_shared/linkedin/signup/px_storage.mjs';
+import { pageHasLoginForm, freshProviderUrl, PROVIDER_ROTATION, gotoLoginRotating } from '../_shared/linkedin/signup/proxy_rotation.mjs';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 
