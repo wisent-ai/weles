@@ -68,7 +68,7 @@ export async function fillPrepared(page, fields) {
     if (field.control === 'select') await locator.selectOption(field.expected);
     else if (field.control === 'autocomplete') {
       const input = choiceInput(locator);
-      await input.fill(field.optionLabel);
+      await input.locator('xpath=ancestor::*[contains(@class,"MuiInputBase-root")][1]').dispatchEvent('mousedown');
       const option = page.getByRole('option').filter({ hasText: field.optionLabel }).filter({ visible: true });
       await option.waitFor({ state: 'visible' });
       if (await option.count() !== 1) throw new Error(`Ambiguous choice: ${field.optionLabel}`);
