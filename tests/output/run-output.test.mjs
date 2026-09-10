@@ -65,6 +65,31 @@ test('the override moves the whole root and creates it', () => {
   }
 });
 
+test('a trajectory resolves the same root through the package import', async () => {
+  const previous = process.env[VARIABLE];
+  const previousDiag = process.env.GOOGLE_ADS_DIAG_DIR;
+  const root = scratch();
+  process.env[VARIABLE] = root;
+  delete process.env.GOOGLE_ADS_DIAG_DIR;
+  try {
+    // Imported for its top-level `DIAG_DIR`, which calls the resolver through
+    // `#run-output` from five directories below the package root: the
+    // specifier has to resolve there, not only from this test.
+    const settings = await import(
+      '../../src/trajectories/google/ads/ads_keyword_planner_api_server/service_settings.mjs'
+    );
+    assert.equal(
+      settings.DIAG_DIR,
+      join(root, 'google-ads-keyword-planner', 'api'),
+    );
+  } finally {
+    if (previous === undefined) delete process.env[VARIABLE];
+    else process.env[VARIABLE] = previous;
+    if (previousDiag !== undefined) process.env.GOOGLE_ADS_DIAG_DIR = previousDiag;
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('a relative override is refused, because that is the defect being removed', () => {
   const previous = process.env[VARIABLE];
   process.env[VARIABLE] = '.work/keeper';
