@@ -87,13 +87,15 @@
         ]},
         {"rowNeedle": "Baza danych aktywacji", "matchField": "nazwa_zasobu", "matchNeedle": "Baza danych aktywacji", "fields": [
           {"name": "przeznaczenie", "edits": [
-            {"from": "(Zadanie 1 blok 4 projektowanie korpusu kontrastywnego, Zadanie 3 cała)", "to": "(Zadanie 1 – projektowanie korpusu kontrastywnego, Zadanie 5 – cały katalog konceptów)"},
+            {"from": "(Zadanie 1 blok 4 projektowanie korpusu kontrastywnego, Zadanie 3 cała)", "to": "(Zadanie 1 – korpus kontrastywny, Zadanie 5 – katalog konceptów)"},
             {"from": "(Zadanie 4 walidacja porównawcza)", "to": "(Zadanie 6 – walidacja porównawcza)"}
           ]}
         ]},
         {"rowNeedle": "Biblioteka open-source wisent", "matchField": "nazwa_zasobu", "matchNeedle": "Biblioteka open-source wisent", "fields": [
           {"name": "nazwa_zasobu", "edits": [
-            {"from": "Biblioteka open-source wisent prowadzona przez Wisent Polska od 2024 roku pod licencją Apache 2.0.", "to": "Biblioteka open-source wisent na licencji Apache 2.0, rozwijana od 2024 roku przez zespół Wisent, a od rejestracji Wisent Polska (27 marca 2026 r.) prowadzona przez tę spółkę."}
+            {"from": "Biblioteka open-source wisent prowadzona przez Wisent Polska od 2024 roku pod licencją Apache 2.0.", "to": "Biblioteka open-source wisent (Apache 2.0), rozwijana od 2024 r. przez zespół Wisent, a od rejestracji Wisent Polska (27.03.2026) prowadzona przez tę spółkę."},
+            {"from": "(v0.11.43 z 18 maja 2026 jako bieżąca wersja stabilna)", "to": "(v0.11.43 z 18.05.2026)"},
+            {"from": "Udostępnione narzędzia umożliwiają niezależny rozwój AI w UE, wspierając transparentność, audytowalność i ograniczenie zależności od zamkniętych stosów.", "to": "Narzędzia wspierają niezależny rozwój AI w UE, transparentność, audytowalność i ograniczenie zależności od zamkniętych stosów."}
           ]},
           {"name": "przeznaczenie", "edits": [
             {"from": "biblioteki klienta wisent-rnm publikowanej w Zadaniu 5.", "to": "biblioteki klienta wisent-rnm publikowanej w Zadaniu 7."}
