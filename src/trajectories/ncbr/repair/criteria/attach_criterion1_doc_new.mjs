@@ -99,7 +99,7 @@ if (!resumeStaged) {
   if (page.url().includes('/logowanie')) throw new Error(`LSI2 login required at ${page.url()}`);
   const documentsButton = page.getByText('Dokumenty', { exact: true }).filter({ visible: true }).first();
   if (!await documentsButton.count()) throw new Error('Dokumenty control not found');
-  await documentsButton.click();
+  await humanClickLocator(page, documentsButton);
   await humanIdlePause('long');
 } else if (!page.url().startsWith(`${projectUrl}/dokumenty/`)
   || await page.locator('#collection-obj-form-save-btn').count() !== 1) {
@@ -144,7 +144,7 @@ function compareFiles(rows) {
 async function downloadFile(name, folder) {
   mkdirSync(folder, { recursive: true });
   const pending = page.waitForEvent('download', { timeout: 60000 });
-  await fileLabel(name).click();
+  await humanClickLocator(page, fileLabel(name));
   const download = await pending;
   const path = join(folder, name);
   await download.saveAs(path);
@@ -158,10 +158,10 @@ async function openExistingCriterion1Edit() {
   const menu = page.locator('table tbody tr').filter({ hasText: 'Wisent Polska' })
     .locator('button[aria-label="overflow-options"]').filter({ visible: true });
   if (await menu.count() !== 1) throw new Error('Expected one existing Wisent Polska criterion-1 attachment row');
-  await menu.click();
+  await humanClickLocator(page, menu);
   const item = page.getByRole('menuitem', { name: 'Edytuj', exact: true });
   await item.waitFor({ state: 'visible' });
-  await item.click();
+  await humanClickLocator(page, item);
   await humanIdlePause('long');
 }
 
@@ -190,7 +190,7 @@ record('before', { state: compareFiles(before) });
 if (MODE === 'read') {
   const state = compareFiles(before);
   if (reportDir) await page.screenshot({ path: join(reportDir, 'page.png'), fullPage: true });
-  await page.getByRole('button', { name: 'close side drawer', exact: true }).click();
+  await humanClickLocator(page, page.getByRole('button', { name: 'close side drawer', exact: true }));
   console.log(JSON.stringify(state, null, 2));
   process.exit(state.complete ? 0 : 1);
 }
@@ -223,7 +223,7 @@ try {
     const backup = await downloadFile(replaceName, join(reportDir, 'previous'));
     record('backed-up-original', backup);
     const row = fileLabel(replaceName).locator('..');
-    await row.locator('button:has(svg[data-testid="CloseIcon"])').click();
+    await humanClickLocator(page, row.locator('button:has(svg[data-testid="CloseIcon"])'));
     await fileLabel(replaceName).waitFor({ state: 'detached' });
     changed = true;
     record('removed-from-form', { name: replaceName });
@@ -267,7 +267,7 @@ try {
       record('saved-document-section');
     }
   } else {
-    await page.getByRole('button', { name: 'close side drawer', exact: true }).click();
+    await humanClickLocator(page, page.getByRole('button', { name: 'close side drawer', exact: true }));
   }
 
   // Prove persistence from a newly loaded page, not the unsaved drawer's local state.
@@ -290,7 +290,7 @@ try {
     }
     record('download-verified', downloaded);
   }
-  await page.getByRole('button', { name: 'close side drawer', exact: true }).click();
+  await humanClickLocator(page, page.getByRole('button', { name: 'close side drawer', exact: true }));
   record('complete', { applicant, url: page.url(), attachmentCount: persisted.rows.length, submitted: false });
 } catch (error) {
   record('failed', { error: String(error?.message || error), url: page.url() });

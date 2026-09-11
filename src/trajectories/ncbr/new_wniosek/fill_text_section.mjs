@@ -196,7 +196,7 @@ async function nestedPrefix(nested) {
 async function closeDrawer() {
   const cancel = page.getByRole('button', { name: 'close side drawer', exact: true }).filter({ visible: true });
   if (await cancel.count() > 0) {
-    await cancel.last().click(); // allow-raw-playwright: close a read-only drawer without the cookie banner covering the target
+    await humanClickLocator(page, cancel.last());
     await humanIdlePause('long');
   }
 }

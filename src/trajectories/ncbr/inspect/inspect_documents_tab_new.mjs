@@ -25,19 +25,19 @@ await humanIdlePause('long');
 const viewLabel = process.env.VIEW_LABEL || 'Dokumenty';
 const documents = page.getByText(viewLabel, { exact: true }).filter({ visible: true }).first();
 if (await documents.count() === 0) throw new Error(`${viewLabel} control not found at ${page.url()}`);
-await documents.click(); // allow-raw-playwright: read-only project-view navigation with hit testing
+await humanClickLocator(page, documents);
 await humanIdlePause('long');
 if (process.env.OPEN_PROJECT_MENU || process.env.OPEN_PDF_VERSIONS) {
-  await page.locator('#overflow-button').click();
+  await humanClickLocator(page, page.locator('#overflow-button'));
   await humanIdlePause('short');
   if (process.env.OPEN_PDF_VERSIONS) {
-    await page.getByText('PDF i wersje wniosku', { exact: true }).click();
+    await humanClickLocator(page, page.getByText('PDF i wersje wniosku', { exact: true }));
     await humanIdlePause('long');
     if (process.env.DOWNLOAD_CURRENT_PDF) {
       const row = page.getByText('Wersja B (najnowsza)', { exact: true })
         .locator('xpath=ancestor::*[.//a[normalize-space()="Pobierz PDF"]][1]');
       if (await row.count() !== 1 || await row.getByText('Pobierz PDF', { exact: true }).count() !== 1) throw new Error('The latest application version was not uniquely identified');
-      await row.getByText('Pobierz PDF', { exact: true }).click();
+      await humanClickLocator(page, row.getByText('Pobierz PDF', { exact: true }));
     }
   }
 }
@@ -64,7 +64,7 @@ if (process.env.DOWNLOAD_CURRENT_PDF) {
   const button = page.getByRole('button', { name: 'Pobierz PDF', exact: true }).filter({ visible: true });
   await button.waitFor({ state: 'visible', timeout: 60_000 });
   const pending = page.waitForEvent('download', { timeout: 60_000 });
-  await button.click();
+  await humanClickLocator(page, button);
   const download = await pending;
   await download.saveAs(process.env.DOWNLOAD_CURRENT_PDF);
   const failure = await download.failure();

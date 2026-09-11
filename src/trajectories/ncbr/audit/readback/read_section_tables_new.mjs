@@ -1,7 +1,7 @@
 // Read-only table dump for a NEW NCBR section. SECTION_URL env required.
 
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const url = process.env.SECTION_URL;
@@ -14,7 +14,7 @@ if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' })); process.exit(0);
 await page.goto(url, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
 if (process.env.NAV_LABEL) {
-  await page.getByText(process.env.NAV_LABEL, { exact: true }).filter({ visible: true }).first().click();
+  await humanClickLocator(page, page.getByText(process.env.NAV_LABEL, { exact: true }).filter({ visible: true }).first());
   await humanIdlePause('long');
 }
 if (process.env.ROW_NEEDLE) {
@@ -61,6 +61,6 @@ if (process.env.SCREENSHOT_PATH) {
 }
 console.log(JSON.stringify(out, null, 2));
 if (process.env.ROW_NEEDLE) {
-  await page.getByRole('button', { name: 'close side drawer', exact: true }).filter({ visible: true }).last().click();
+  await humanClickLocator(page, page.getByRole('button', { name: 'close side drawer', exact: true }).filter({ visible: true }).last());
 }
 process.exit(0);
