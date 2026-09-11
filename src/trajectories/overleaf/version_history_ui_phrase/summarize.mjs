@@ -1,6 +1,5 @@
 // Reading what the History UI shows about the phrase.
 
-
 export async function summarizeVisible(page, queryText) {
   return await page.evaluate((queryText) => {
     const normalize = (s) => String(s || '').replace(/\s+/g, ' ').trim();
