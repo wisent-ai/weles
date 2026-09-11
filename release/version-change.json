@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.6.8",
+  "current": "0.6.9",
   "candidate": "0.6.9",
   "breaking": false,
-  "reason": "0.6.9 carries the trajectory tree split into modules under 300 lines and folders under five files, the keeper path the 2.2 repair spawns, and the run-recordings home for the Overleaf, LinkedIn probe and Oxylabs evidence; the exported surface is unchanged."
+  "reason": "Release 0.6.9 published this surface from 0d144599a3eb7e1f38a2ef4cde150572c5dd46d3; recorded by https://github.com/wisent-ai/weles/actions/runs/34551436929."
 }
