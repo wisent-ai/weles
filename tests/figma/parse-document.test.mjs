@@ -66,7 +66,17 @@ function document() {
                   gradientStops: [{ color: white, position: 0 }, { color: brand, position: 1 }],
                 },
               ],
-              effects: [{ type: 'BACKGROUND_BLUR', visible: true, radius: 9 }],
+              layoutMode: 'VERTICAL',
+              paddingTop: 16,
+              paddingRight: 24,
+              paddingBottom: 16,
+              paddingLeft: 24,
+              itemSpacing: 8,
+              effects: [
+                { type: 'BACKGROUND_BLUR', visible: true, radius: 9 },
+                { type: 'DROP_SHADOW', visible: true, radius: 12, spread: 0, offset: { x: 0, y: 4 }, color: { r: 0.04, g: 0.05, b: 0.07, a: 0.04 } },
+                { type: 'DROP_SHADOW', visible: false, radius: 30, spread: 0, offset: { x: 0, y: 12 }, color: { r: 0, g: 0, b: 0, a: 0.2 } },
+              ],
               children: [
                 {
                   id: '2:2',
@@ -172,7 +182,7 @@ test('gradients, blurs, radii, pills and unbound fills are counted per page, on 
   assert.deepEqual(vocabulary.pages, ['Landing', 'Archive']);
   const landing = vocabulary.byPage.Landing;
   assert.deepEqual(landing.paints, { GRADIENT_LINEAR: 1 });
-  assert.deepEqual(landing.effects, { BACKGROUND_BLUR: 1 });
+  assert.deepEqual(landing.effects, { BACKGROUND_BLUR: 1, DROP_SHADOW: 1 });
   assert.deepEqual(landing.radii, [12, 50]);
   assert.equal(landing.pills, 2);
   assert.deepEqual(landing.unboundFills, { '#6941c6': 1 });
@@ -182,6 +192,10 @@ test('gradients, blurs, radii, pills and unbound fills are counted per page, on 
   assert.deepEqual(vocabulary.fonts, { 'Hubot Sans': 1 });
   assert.deepEqual(vocabulary.textSizes, { 14: 1 });
   assert.deepEqual(vocabulary.textSettings, { 'Hubot Sans|14|20|500': 1 });
+  // The Hero frame's paddings and gap, and its one visible shadow as CSS
+  // would write it; the hidden shadow and the blur are not shadows.
+  assert.deepEqual(vocabulary.spacings, { 8: 1, 16: 2, 24: 2 });
+  assert.deepEqual(vocabulary.shadows, { 'drop|0|4|12|0|#0a0d12|0.04': 1 });
 });
 
 test('a named style is resolved from the first node that uses it', () => {

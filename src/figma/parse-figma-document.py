@@ -105,6 +105,8 @@ variables = defaultdict(new_variable)
 style_examples = {}
 text_sizes = Counter()
 text_settings = Counter()
+spacings = Counter()
+shadows = Counter()
 fonts = Counter()
 by_page = defaultdict(new_page)
 
@@ -165,6 +167,23 @@ while stack:
     for effect in node.get('effects') or []:
         if visible(effect) and isinstance(effect.get('type'), str):
             stats['effects'][effect['type']] += 1
+            # A shadow as CSS would write it, so a token can be held to one
+            # the designer drew: x y blur spread colour alpha.
+            if effect['type'] in ('DROP_SHADOW', 'INNER_SHADOW') and isinstance(effect.get('color'), dict):
+                offset = effect.get('offset') if isinstance(effect.get('offset'), dict) else {}
+                shadows['%s|%s|%s|%s|%s|%s|%s' % (
+                    'inset' if effect['type'] == 'INNER_SHADOW' else 'drop',
+                    plain_number(offset.get('x', 0)), plain_number(offset.get('y', 0)),
+                    plain_number(effect.get('radius', 0)), plain_number(effect.get('spread', 0)),
+                    hex_of(effect['color']), round(float(effect['color'].get('a', 1)), 3),
+                )] += 1
+    # The spacing an auto-layout frame sets: its paddings and the gap between
+    # its children, the lengths a stylesheet's padding and gap may take.
+    if node.get('layoutMode') in ('HORIZONTAL', 'VERTICAL'):
+        for key in ('paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'itemSpacing', 'counterAxisSpacing'):
+            length = radius_of(node.get(key))
+            if length is not None:
+                spacings[plain_number(length)] += 1
     for value in [node.get('cornerRadius')] + list(node.get('rectangleCornerRadii') or []):
         radius = radius_of(value)
         if radius is None:
@@ -241,6 +260,8 @@ if vocabulary_path:
         'fonts': dict(fonts.most_common()),
         'textSizes': {size: count for size, count in sorted(text_sizes.items(), key=lambda item: float(item[0]))},
         'textSettings': dict(text_settings.most_common()),
+        'spacings': {length: count for length, count in sorted(spacings.items(), key=lambda item: float(item[0]))},
+        'shadows': dict(shadows.most_common()),
         'byPage': {
             page: {
                 'radii': sorted(stats['radii']),
