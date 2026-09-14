@@ -107,6 +107,7 @@ text_sizes = Counter()
 text_settings = Counter()
 spacings = Counter()
 shadows = Counter()
+gradient_stops = Counter()
 fonts = Counter()
 by_page = defaultdict(new_page)
 
@@ -151,6 +152,12 @@ while stack:
                 continue
             if paint_type.startswith('GRADIENT'):
                 stats['paints'][paint_type] += 1
+                # The colours a gradient runs through are drawn as surely as
+                # a solid fill: the glass buttons' strokes are #f2f2f2 to
+                # #818181 to white, and no variable names them.
+                for stop in paint.get('gradientStops') or []:
+                    if isinstance(stop, dict) and isinstance(stop.get('color'), dict):
+                        gradient_stops[hex_of(stop['color'])] += 1
             if paint_type != 'SOLID' or not isinstance(paint.get('color'), dict):
                 continue
             colour = hex_of(paint['color'])
@@ -262,6 +269,7 @@ if vocabulary_path:
         'textSettings': dict(text_settings.most_common()),
         'spacings': {length: count for length, count in sorted(spacings.items(), key=lambda item: float(item[0]))},
         'shadows': dict(shadows.most_common()),
+        'gradientStops': dict(gradient_stops.most_common()),
         'byPage': {
             page: {
                 'radii': sorted(stats['radii']),

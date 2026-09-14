@@ -196,6 +196,8 @@ test('gradients, blurs, radii, pills and unbound fills are counted per page, on 
   // would write it; the hidden shadow and the blur are not shadows.
   assert.deepEqual(vocabulary.spacings, { 8: 1, 16: 2, 24: 2 });
   assert.deepEqual(vocabulary.shadows, { 'drop|0|4|12|0|#0a0d12|0.04': 1 });
+  // The Hero's gradient stroke runs white to brand: both are drawn colours.
+  assert.deepEqual(vocabulary.gradientStops, { '#ffffff': 1, '#9ecca0': 1 });
 });
 
 test('a named style is resolved from the first node that uses it', () => {
