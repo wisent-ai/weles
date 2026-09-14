@@ -77,6 +77,11 @@ def radius_of(value):
     return number if number > 0 else None
 
 
+def plain_number(value):
+    """14, not 14.0, so a size reads as the designer typed it."""
+    return str(int(value)) if float(value).is_integer() else str(value)
+
+
 def new_variable():
     return {'hexes': Counter(), 'uses': 0, 'pages': Counter()}
 
@@ -98,6 +103,8 @@ top_level_nodes = []
 pages = []
 variables = defaultdict(new_variable)
 style_examples = {}
+text_sizes = Counter()
+text_settings = Counter()
 fonts = Counter()
 by_page = defaultdict(new_page)
 
@@ -167,7 +174,16 @@ while stack:
         else:
             stats['radii'].add(radius)
     if node.get('type') == 'TEXT' and isinstance(node.get('style'), dict) and node['style'].get('fontFamily'):
-        fonts[node['style']['fontFamily']] += 1
+        style = node['style']
+        fonts[style['fontFamily']] += 1
+        # The text set on visible layers: which sizes, line heights and
+        # weights the designer typed, so a stylesheet's 13 px can be told
+        # from a scale the library names and a size no page carries.
+        size = radius_of(style.get('fontSize'))
+        if size is not None:
+            line_height = radius_of(style.get('lineHeightPx'))
+            text_sizes[plain_number(size)] += 1
+            text_settings['%s|%s|%s|%s' % (style['fontFamily'], plain_number(size), plain_number(line_height) if line_height is not None else '', style.get('fontWeight', ''))] += 1
     for kind, style_id in (node.get('styles') or {}).items():
         if not isinstance(style_id, str) or style_id in style_examples:
             continue
@@ -223,6 +239,8 @@ if vocabulary_path:
             if isinstance(meta, dict)
         },
         'fonts': dict(fonts.most_common()),
+        'textSizes': {size: count for size, count in sorted(text_sizes.items(), key=lambda item: float(item[0]))},
+        'textSettings': dict(text_settings.most_common()),
         'byPage': {
             page: {
                 'radii': sorted(stats['radii']),

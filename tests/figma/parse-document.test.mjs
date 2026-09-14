@@ -99,6 +99,13 @@ function document() {
                       type: 'RECTANGLE',
                       fills: [{ blendMode: 'NORMAL', type: 'IMAGE', imageRef: 'hidden-image' }],
                     },
+                    {
+                      id: '2:6',
+                      name: 'Kit label',
+                      type: 'TEXT',
+                      style: { fontFamily: 'Inter', fontWeight: 600, fontSize: 13, lineHeightPx: 18, letterSpacing: 0 },
+                      fills: [{ blendMode: 'NORMAL', type: 'SOLID', color: purple }],
+                    },
                   ],
                 },
               ],
@@ -170,7 +177,11 @@ test('gradients, blurs, radii, pills and unbound fills are counted per page, on 
   assert.equal(landing.pills, 2);
   assert.deepEqual(landing.unboundFills, { '#6941c6': 1 });
   assert.deepEqual(vocabulary.byPage.Archive.paints, {});
+  // The text set is what is shown: the kit's Inter 13 px on the hidden
+  // variant is in neither the fonts, the sizes nor the settings.
   assert.deepEqual(vocabulary.fonts, { 'Hubot Sans': 1 });
+  assert.deepEqual(vocabulary.textSizes, { 14: 1 });
+  assert.deepEqual(vocabulary.textSettings, { 'Hubot Sans|14|20|500': 1 });
 });
 
 test('a named style is resolved from the first node that uses it', () => {
@@ -188,7 +199,7 @@ test('a named style is resolved from the first node that uses it', () => {
 test('the node index and the summary keep every node, hidden or not, and a gzipped document reads the same', () => {
   const plain = parse('plain.json', JSON.stringify(document()));
   const zipped = parse('zipped.json.gz', gzipSync(JSON.stringify(document())));
-  assert.deepEqual(plain.nodes.map((node) => node.id), ['0:0', '1:1', '2:1', '2:2', '2:3', '2:4', '2:5', '3:1', '3:2']);
+  assert.deepEqual(plain.nodes.map((node) => node.id), ['0:0', '1:1', '2:1', '2:2', '2:3', '2:4', '2:5', '2:6', '3:1', '3:2']);
   assert.deepEqual(plain.summary.imageRefs, ['hidden-image', 'shown-image']);
   assert.deepEqual(plain.summary.exportNodes, [{ id: '3:2', name: 'Old', settings: [{ format: 'PNG' }] }]);
   assert.deepEqual(plain.summary.topLevelNodes, [
