@@ -48,7 +48,7 @@ async function figmaJson(path) {
   });
   return response.json();
 }
-async function figmaDocument(fileKey, nodesPath) {
+async function figmaDocument(fileKey, nodesPath, vocabularyPath) {
   mkdirSync(cacheRoot, { recursive: true });
   const cachePath = join(cacheRoot, `${fileKey}.json`);
   if (!existsSync(cachePath)) {
@@ -59,11 +59,16 @@ async function figmaDocument(fileKey, nodesPath) {
     writeFileSync(cachePath, Buffer.from(await response.arrayBuffer()));
   }
   const summaryPath = join(cacheRoot, `${fileKey}.summary.json`);
+  // One parse writes the node index and the design vocabulary — the colour
+  // variables, named styles, fonts, radii, gradients and blurs the designer
+  // defined on visible layers — which wisent-components merges into the set
+  // its design lint holds every web repository to.
   run('/usr/bin/python3', [
     join(import.meta.dirname, 'parse-figma-document.py'),
     cachePath,
     summaryPath,
     nodesPath,
+    vocabularyPath,
   ]);
   return {
     cachePath,
@@ -136,7 +141,7 @@ try {
     mkdirSync(fileRoot, { recursive: true });
     console.error(`exporting ${file.name}: document`);
     const nodesPath = join(fileRoot, 'nodes.json');
-    const documentResponse = await figmaDocument(file.key, nodesPath);
+    const documentResponse = await figmaDocument(file.key, nodesPath, join(fileRoot, 'vocabulary.json'));
     const collected = {
       nodes: JSON.parse(readFileSync(nodesPath, 'utf8')),
       topLevelNodes: documentResponse.summary.topLevelNodes,
