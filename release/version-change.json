@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.7.0",
-  "candidate": "0.7.1",
+  "current": "0.7.1",
+  "candidate": "0.7.2",
   "breaking": false,
-  "reason": "Native page reading uses read_image and supplies its pixels through the qualified Jeden 0.1.7 runtime. The Stado publisher records the current source-derived public surface in its payload. Public interfaces are unchanged."
+  "reason": "Page questions pass actual screenshot bytes through the existing authenticated single-turn Brama route instead of asking an agent to open a path. Transport and native invocation refusals retain their observed causes and process state. Public interfaces are unchanged."
 }

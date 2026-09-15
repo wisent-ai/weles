@@ -8,9 +8,9 @@
  * the browser loop kept asking until "browser agent exceeded 40 steps". The
  * only place the cause was written was the vision directory's json files.
  *
- * This drives the real helper with a Jeden binary path that cannot run - the
- * multi-step path the helper takes - and reads back what the loop and the
- * vision log now see.
+ * This drives the real image helper against a destination Fetch refuses,
+ * then reads what the loop and retained vision log report. Native process
+ * refusals are exercised separately through the same inference interface.
  *
  * Run: node --test tests/observation/page-question.test.mjs
  */
@@ -33,7 +33,7 @@ const report = {
     || execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim(),
   source_patch: process.env.WISENT_SOURCE_COMMIT ? null : 'source.patch',
   command: [process.execPath, ...process.execArgv, ...process.argv.slice(1)],
-  compiled_sha256: Object.fromEntries(['vision/analyze', 'agent/jeden', 'session/flows'].map(name => [
+  compiled_sha256: Object.fromEntries(['vision/analyze', 'agent/jeden', 'agent/model/message', 'session/flows'].map(name => [
     name, createHash('sha256').update(readFileSync(resolve(repo, `dist/${name}.js`))).digest('hex'),
   ])),
   observations: {},
@@ -62,6 +62,7 @@ process.env.WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET = 'unused-signing-secret-
 
 const { askJedenAboutImage, PageQuestionError } = require(resolve(repo, 'dist/vision/analyze.js'));
 const { loadFlow, saveFlow, replayFlow } = require(resolve(repo, 'dist/session/flows.js'));
+const { callJeden } = require(resolve(repo, 'dist/agent/jeden.js'));
 
 // The smallest valid PNG: a 1x1 image, enough for the helper to write.
 const PNG_1X1 = Buffer.from(
@@ -70,14 +71,15 @@ const PNG_1X1 = Buffer.from(
 );
 const QUESTION = 'Which character name is shown in the chat header?';
 
-test('an unavailable native page read reports its question and actual cause', async () => {
+test('a refused image request reports its question, operation and actual cause', async () => {
   await assert.rejects(
     () => askJedenAboutImage(PNG_1X1, QUESTION, 'tier_0_bare'),
     (error) => {
       report.observations.direct_failure = String(error);
       assert.ok(error instanceof PageQuestionError);
       assert.ok(error.message.includes(QUESTION));
-      assert.match(error.message, /no-such-jeden|ENOENT|spawn/i);
+      assert.match(error.message, /Brama POST http:\/\/127\.0\.0\.1:9\/v1\/chat\/completions/);
+      assert.match(error.message, /bad port/);
       return true;
     },
   );
@@ -85,22 +87,22 @@ test('an unavailable native page read reports its question and actual cause', as
   const record = JSON.parse(readFileSync(resolve(process.env.WELES_VISION_DIR, logs[0]), 'utf8'));
   assert.equal(record.question, QUESTION);
   assert.equal(record.answer, '');
-  assert.match(String(record.error), /no-such-jeden|ENOENT|spawn/i);
+  assert.match(String(record.error), /bad port/);
 });
 
-test('cached replay retains a native read failure instead of reaching done', async () => {
-  saveFlow('native-read', [
+test('cached replay retains an image request failure instead of reaching done', async () => {
+  saveFlow('page-read', [
     { tool: 'read', args: { question: QUESTION } },
     { tool: 'done', args: { value: 'unverified' } },
   ]);
-  const flow = loadFlow('native-read');
+  const flow = loadFlow('page-read');
   const result = await replayFlow(flow, (_tool, args) =>
     askJedenAboutImage(PNG_1X1, args.question, 'tier_1_crop'));
   report.observations.replay = { ...result, error: String(result.error) };
   assert.equal(result.success, false);
   assert.equal(result.failedAtStep, 0);
   assert.ok(result.error instanceof PageQuestionError);
-  assert.match(String(result.error), /no-such-jeden|ENOENT|spawn/i);
+  assert.match(String(result.error), /bad port/);
 });
 
 test('legacy caches are not reused and an unfinished replay cannot succeed', async () => {
@@ -114,4 +116,34 @@ test('legacy caches are not reused and an unfinished replay cannot succeed', asy
     askJedenAboutImage(PNG_1X1, args.question));
   report.observations.unfinished_replay = result;
   assert.equal(result.success, false);
+});
+
+test('a missing native executable retains the operating-system refusal', async () => {
+  await assert.rejects(
+    () => callJeden('Read the input', { modelOnly: false, cwd: scratch }),
+    error => {
+      report.observations.native_spawn_failure = String(error);
+      assert.match(error.message, /no-such-jeden/);
+      assert.match(error.message, /code=ENOENT/);
+      return true;
+    },
+  );
+});
+
+test('a native executable that rejects the invocation retains its exit and stderr', async () => {
+  const prior = process.env.WELES_JEDEN_BIN;
+  process.env.WELES_JEDEN_BIN = process.execPath;
+  try {
+    await assert.rejects(
+      () => callJeden('Read the input', { modelOnly: false, cwd: scratch }),
+      error => {
+        report.observations.native_exit_failure = String(error);
+        assert.match(error.message, /code=1/);
+        assert.match(error.message, /Cannot find module/);
+        return true;
+      },
+    );
+  } finally {
+    process.env.WELES_JEDEN_BIN = prior;
+  }
 });

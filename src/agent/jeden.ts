@@ -3,6 +3,7 @@ import { createHash, createHmac } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../session/run-recordings.js';
+import { modelMessageContent } from './model/message.js';
 
 // Weles asks Brama for its own alias, `weles`. Which model that is — a local
 // deployment, a subscription route, a frontier provider — is the route
@@ -32,7 +33,7 @@ export type JedenResult = {
 export type JedenCallOptions = {
   maxSteps?: number;
   timeoutMs?: number;
-} & ({ modelOnly?: true } | { modelOnly: false; cwd: string });
+} & ({ modelOnly?: true; images?: readonly Buffer[] } | { modelOnly: false; cwd: string });
 
 let modelRouterConfig: ModelRouterConfig | null = null;
 
@@ -133,7 +134,8 @@ function runJedenProcess(
     timeout: timeoutMs,
   }, (error, stdout, stderr) => {
     if (error) {
-      reject(new Error(`Jeden failed: ${String(stderr || error.message).trim().slice(Number('0'), Number('500'))}`));
+      const detail = String(stderr || stdout).trim();
+      reject(new Error(`Jeden ${binary} failed: code=${error.code ?? 'none'} signal=${error.signal ?? 'none'} killed=${error.killed ?? false} deadline_ms=${timeoutMs}${detail ? `; ${detail.slice(Number('0'), Number('500'))}` : ''}`, { cause: error }));
       return;
     }
     resolve({ stdout, stderr });
@@ -157,10 +159,11 @@ async function completeThroughRouter(
   cfg: ModelRouterConfig,
   prompt: string,
   timeoutMs: number,
+  images?: readonly Buffer[],
 ): Promise<string> {
   const body = JSON.stringify({
     model: cfg.model,
-    messages: [{ role: 'user', content: prompt }],
+    messages: [{ role: 'user', content: await modelMessageContent(prompt, images) }],
   });
   const timestamp = Math.floor(Date.now() / Number('1000')).toString();
   const bodyHash = createHash('sha256').update(body).digest('hex');
@@ -179,6 +182,9 @@ async function completeThroughRouter(
     },
     body,
     signal: AbortSignal.timeout(timeoutMs),
+  }).catch(error => {
+    const cause = error instanceof Error ? error.cause : undefined;
+    throw new Error(`Brama POST ${cfg.routerUrl.replace(/\/+$/, '')}/v1/chat/completions for ${cfg.model} failed (deadline ${timeoutMs} ms): ${String(error)}${cause ? `; cause: ${String(cause)}` : ''}`, { cause: error });
   });
   const text = await response.text();
   if (!response.ok) {
@@ -213,7 +219,7 @@ export async function callJeden(prompt: string, options: JedenCallOptions = {}):
   // Brama and be done. Only a caller that explicitly wants the agent runtime's
   // tools (`modelOnly: false`) spawns it.
   if (options.modelOnly !== false) {
-    const raw = await completeThroughRouter(cfg, prompt, timeoutMs);
+    const raw = await completeThroughRouter(cfg, prompt, timeoutMs, options.images);
     return { raw, model: cfg.model, routerUrl: cfg.routerUrl };
   }
   const binary = nonEmpty(process.env.WELES_JEDEN_BIN)
