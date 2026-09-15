@@ -7,7 +7,10 @@ import { managedWeles } from '../support/managed-weles.mjs';
 const measurementUrl = 'https://www.wisent.com/docs/components/figma-measurement';
 const exportUrl = 'https://www.wisent.com/docs/components/figma-export';
 
-test('an observed link navigates and its obsolete description is refused on the new page', async () => {
+test('an indexed observed link navigates and its obsolete description is refused', () => runObservedClick(true));
+test('an unindexed observed link navigates and its obsolete description is refused', () => runObservedClick(false));
+
+async function runObservedClick(indexed) {
   const client = managedWeles('observed-click');
   const label = `observed-click-${randomUUID()}`;
   client.retain('test-command.json', {
@@ -26,7 +29,10 @@ test('an observed link navigates and its obsolete description is refused on the 
     objective: [
       'Run this read-only browser regression in order. Do not log in, edit data, request permissions, open system dialogs or send notifications.',
       `On ${measurementUrl}, find the version-pinned export workflow link in the current CONTROLS observation.`,
-      'Keep its complete observed description, including the [index], tag, label and href. Do not invent or shorten the description.',
+      'Keep the complete observed tag, label, href and any other reported fields. Do not invent or shorten any field.',
+      indexed
+        ? 'Include the leading [index] exactly as the current observation reports it.'
+        : 'Omit only the leading [index]; pass the complete remaining description beginning with the tag.',
       'Call click(target) with exactly that complete description. Do not replace this click with navigate, js_click, a CSS selector or a plain label.',
       `Wait until CURRENT URL is ${exportUrl}.`,
       'Now call click(target) once with exactly the old complete description from the measurement page. It is obsolete on this new page and must be refused.',
@@ -61,7 +67,7 @@ test('an observed link navigates and its obsolete description is refused on the 
   assert.equal(task.body.final_url, exportUrl);
   const clicks = task.body.history.filter(step => step.tool === 'click');
   assert.equal(clicks.length, 2, 'both the live target and obsolete target must actually be attempted');
-  assert.match(clicks[0].args.target, /^\[\d+\]\s+a\s/);
+  assert.match(clicks[0].args.target, indexed ? /^\[\d+\]\s*a\s/ : /^a\s/);
   assert.ok(clicks[0].args.target.endsWith(`href=${exportUrl}`));
   assert.equal(clicks[0].error, undefined, JSON.stringify(clicks[0]));
   assert.equal(clicks[1].args.target, clicks[0].args.target);
@@ -69,4 +75,4 @@ test('an observed link navigates and its obsolete description is refused on the 
   assert.equal(task.body.history.some(step => ['navigate', 'js_click'].includes(step.tool)), false,
     'direct navigation must not substitute for the observed link click');
   console.error(`real observed-click evidence: ${client.evidence}`);
-});
+}

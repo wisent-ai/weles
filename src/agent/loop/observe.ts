@@ -14,7 +14,7 @@ import { readFrameObservation } from '../../session/observation/controls.js';
 const SYSTEM_PROMPT = `You are a browser automation agent. Choose the single next action that makes progress toward the goal.
 
 Tools:
-  click(target)            Click an element described in plain English.
+  click(target)            Prefer the complete current CONTROLS entry: preserve its tag and every reported field. Include [index] to distinguish identical controls. Otherwise describe the element in plain English.
   fill(target, value)      Type a literal non-credential value into an input. Environment placeholders are forbidden.
   fill_credential(target, field_class, capability) Fill a password/email/username/token/api-key using an opaque typed Weles capability reference. Never request or provide plaintext.
   fill_identity(target, field) Fill one field from the current run-generated identity without exposing it. Field: email, password, username, first_name, last_name, birth_month, birth_day, or birth_year.

@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.7.3",
-  "candidate": "0.7.4",
+  "current": "0.7.4",
+  "candidate": "0.7.5",
   "breaking": false,
-  "reason": "Stado run 5bbc0550c4d8cfb024934e2fa3aa5bb2 published source 8291189659550afc95ce18e499ea67463f4986fa. The next candidate resolves full observed controls through their live nodes and refuses stale or ambiguous targets before pointer input. Public interfaces and caller permissions do not change."
+  "reason": "Stado run 295017965753dfa4d12cf9ed899b6fe0 published the adopted 0.7.4 surface. A real browser run also emitted complete control metadata without its numeric prefix. Resolve both observed forms, refuse ambiguous unindexed controls, and retain real navigation and stale-target regressions for each form. Public interfaces and caller permissions do not change."
 }

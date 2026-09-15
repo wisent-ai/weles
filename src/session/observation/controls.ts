@@ -13,7 +13,7 @@ export interface FrameObservation {
 function captureFrame(request: { target?: string; index?: number }): FrameObservation | Element | null {
   const elements = Array.from(document.querySelectorAll('input, textarea, select, button, a, [role="button"], [role="link"]'))
     .slice(0, 80);
-  const describe = (el: Element, index: number): string => {
+  const describe = (el: Element): string => {
     const control = el as HTMLElement & { value?: string; type?: string; name?: string; href?: string; checked?: boolean; selectedOptions?: HTMLCollectionOf<HTMLOptionElement> };
     let label = control.getAttribute('aria-label');
     if (!label) label = control.getAttribute('placeholder');
@@ -33,17 +33,25 @@ function captureFrame(request: { target?: string; index?: number }): FrameObserv
       valueState && `value=${valueState}`, typeof control.checked === 'boolean' && `checked=${control.checked}`,
       control.href && `href=${control.href}`,
     ].filter(Boolean);
-    return `[${index}] ${bits.join(' ')}`;
+    return bits.join(' ');
   };
   if (request.target !== undefined) {
-    const index = request.index!;
-    const element = elements[index];
-    return element && describe(element, index) === request.target ? element : null;
+    if (request.index !== undefined) {
+      const element = elements[request.index];
+      return element && describe(element) === request.target ? element : null;
+    }
+    let match: Element | null = null;
+    for (const element of elements) {
+      if (describe(element) !== request.target) continue;
+      if (match) throw new Error(`[observed_target_ambiguous] Multiple controls share this description; include the observed index: ${request.target}`);
+      match = element;
+    }
+    return match;
   }
   return {
     title: document.title,
     text: document.body?.innerText.replace(/\s+/g, ' ').trim().slice(0, 4000),
-    controls: elements.map(describe),
+    controls: elements.map((element, index) => `[${index}] ${describe(element)}`),
   };
 }
 
@@ -57,16 +65,17 @@ export async function readFrameObservation(frame: Pick<Frame, 'evaluate'>): Prom
 
 export async function clickObservedControl(page: Page, description: string): Promise<string | null> {
   const target = description.trim();
-  const indexed = /^\[(\d+)\](?:\s|$)/.exec(target);
-  if (!indexed) return null;
-  const index = Number(indexed[1]);
-  if (!Number.isSafeInteger(index)) throw new Error(`[observed_target_invalid] Invalid control index: ${target}`);
+  const indexed = /^\[(\d+)\]\s*/.exec(target);
+  const control = indexed ? target.slice(indexed[0].length) : target;
+  if (!indexed && !/^[a-z][a-z0-9-]* (?:role|name|type|label|value|checked|href)=/.test(control)) return null;
+  const index = indexed ? Number(indexed[1]) : undefined;
+  if (index !== undefined && !Number.isSafeInteger(index)) throw new Error(`[observed_target_invalid] Invalid control index: ${target}`);
   const matches: ElementHandle[] = [];
   try {
     for (const frame of page.frames()) {
       // Bind the actual node in the same browser operation that checks its
       // description; a later DOM replacement cannot retarget this handle.
-      const handle = await frame.evaluateHandle(captureFrame, { target, index });
+      const handle = await frame.evaluateHandle(captureFrame, { target: control, index });
       const element = handle.asElement();
       if (element) matches.push(element);
       else await handle.dispose();
