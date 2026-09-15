@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.6.10",
-  "candidate": "0.7.0",
-  "breaking": true,
-  "reason": "Native page failures stop live and cached execution. Replay results now distinguish success from failure and expose unchecked values as unknown, so TypeScript callers must narrow their result. Legacy success caches are not reused."
+  "current": "0.7.0",
+  "candidate": "0.7.1",
+  "breaking": false,
+  "reason": "Native page reading uses read_image and supplies its pixels through the qualified Jeden 0.1.7 runtime. The Stado publisher records the current source-derived public surface in its payload. Public interfaces are unchanged."
 }

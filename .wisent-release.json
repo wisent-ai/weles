@@ -39,6 +39,7 @@
     "state_schema": 1,
     "minimum_stado_version": "0.15.9",
     "rollback_compatible_with": [
+      "0.7.0",
       "0.6.10",
       "0.6.9",
       "0.6.8",
@@ -63,14 +64,14 @@
   },
   "inputs": {
     "jeden-runtime": {
-      "uri": "stado://releases/jeden/0.1.6/darwin-arm64/release.tar.gz",
-      "sha256": "426ec46fbb67112774afc82a292028ed96a8d343012ab69d2a5d6dbae1d57ec6",
+      "uri": "stado://releases/jeden/0.1.7/darwin-arm64/release.tar.gz",
+      "sha256": "3b9cf2c6c6566dae7c3ae8fbcf2fecb37593906de0b146141db1857931d5f64e",
       "mount": "jeden-runtime",
       "extract": true
     },
     "jeden-runtime-linux": {
-      "uri": "stado://releases/jeden/0.1.6/linux-amd64/release.tar.gz",
-      "sha256": "305804e3c34b992e96178e84a6caf5345c5b7ef27f3c4ab670016389320e6b6f",
+      "uri": "stado://releases/jeden/0.1.7/linux-amd64/release.tar.gz",
+      "sha256": "ddd3304c55775a88eb104a6f1e59bde2a468e4b8cb9be6921bee36018b05a113",
       "mount": "jeden-runtime-linux",
       "extract": true
     },
