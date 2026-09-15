@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.7.2",
-  "candidate": "0.7.3",
+  "current": "0.7.3",
+  "candidate": "0.7.4",
   "breaking": false,
-  "reason": "Image questions use Brama's best selector under the existing Weles identity so an image-capable model can answer them. Text decisions keep the weles alias, and failures retain the actual selected route. No caller permissions or public interfaces are broadened."
+  "reason": "Stado run 5bbc0550c4d8cfb024934e2fa3aa5bb2 published source 8291189659550afc95ce18e499ea67463f4986fa. The next candidate resolves full observed controls through their live nodes and refuses stale or ambiguous targets before pointer input. Public interfaces and caller permissions do not change."
 }

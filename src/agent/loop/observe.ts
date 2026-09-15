@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { runRecordingsDir } from '../../session/run-recordings.js';
 import { callJeden } from '../jeden.js';
 import type { ToolCall } from '../loop.js';
+import { readFrameObservation } from '../../session/observation/controls.js';
 
 const SYSTEM_PROMPT = `You are a browser automation agent. Choose the single next action that makes progress toward the goal.
 
@@ -95,50 +96,20 @@ export async function askLlm(goal: string, state: string, screenshotPath: string
 }
 
 async function pageObservation(page: any): Promise<string> {
-  const summarizeControls = (controls: any[]): string => (controls ?? []).map((el: any, i: number) => {
-    const bits = [el.tag, el.role && `role=${el.role}`, el.name && `name=${el.name}`, el.type && `type=${el.type}`, el.label && `label=${el.label}`, el.value_state && `value=${el.value_state}`, typeof el.checked === 'boolean' && `checked=${el.checked}`, el.href && `href=${el.href}`].filter(Boolean);
-    return `  [${i}] ${bits.join(' ')}`;
-  }).join('\n') || '  (none)';
-  const readFrame = async (frame: any): Promise<{ title?: string; text?: string; controls?: any[]; error?: string }> => {
-    try {
-      return await frame.evaluate(() => {
-        const text = (document.body?.innerText ?? '').replace(/\s+/g, ' ').trim().slice(0, 4000);
-        const controls = Array.from(document.querySelectorAll('input, textarea, select, button, a, [role="button"], [role="link"]'))
-          .slice(0, 80)
-          .map((el) => {
-            const anyEl = el as HTMLElement & { value?: string; type?: string; name?: string; href?: string; checked?: boolean; selectedOptions?: HTMLCollectionOf<HTMLOptionElement> };
-            const label = anyEl.getAttribute('aria-label') || anyEl.getAttribute('placeholder') || anyEl.innerText || anyEl.getAttribute('title') || '';
-            const type = anyEl.type || '';
-            const name = anyEl.name || '';
-            const value = typeof anyEl.value === 'string' ? anyEl.value.replace(/\s+/g, ' ').trim() : '';
-            const sensitive = /password|token|key|secret|email|captcha|cookie|authorization/i.test(`${type} ${name} ${label}`);
-            const selected = anyEl.tagName.toLowerCase() === 'select' && anyEl.selectedOptions?.[0]?.text
-              ? anyEl.selectedOptions[0].text.replace(/\s+/g, ' ').trim().slice(0, 80)
-              : '';
-            const value_state = !value ? '' : (sensitive ? `[set len=${value.length}]` : (selected || `[set len=${value.length}]`));
-            return {
-              tag: anyEl.tagName.toLowerCase(),
-              role: anyEl.getAttribute('role') || '',
-              name,
-              type,
-              label: label.replace(/\s+/g, ' ').trim().slice(0, 120),
-              value_state,
-              checked: typeof anyEl.checked === 'boolean' ? anyEl.checked : undefined,
-              href: anyEl.href || '',
-            };
-          });
-        return { title: document.title, text, controls };
-      });
-    } catch (e: any) {
-      return { error: String(e.message ?? e).slice(0, 160) };
-    }
-  };
+  const summarizeControls = (controls: string[]): string => controls.length
+    ? controls.map(control => `  ${control}`).join('\n')
+    : '  (none)';
   try {
-    const data = await readFrame(page.mainFrame?.() ?? page);
+    const data = await readFrameObservation(page.mainFrame?.() ?? page);
+    if (data.error) return `PAGE OBSERVATION ERROR: ${data.error}`;
     const frameSummaries: string[] = [];
     const frames = (page.frames?.() ?? []).filter((frame: any) => frame !== page.mainFrame?.()).slice(0, 12);
     for (const frame of frames) {
-      const frameData = await readFrame(frame);
+      const frameData = await readFrameObservation(frame);
+      if (frameData.error) {
+        frameSummaries.push(`FRAME url=${frame.url()}\nERROR: ${frameData.error}`);
+        continue;
+      }
       const controls = summarizeControls(frameData.controls ?? []);
       if (frameData.text || controls !== '  (none)') {
         frameSummaries.push(`FRAME name=${frame.name?.() ?? ''} url=${frame.url?.() ?? ''}\nTEXT: ${frameData.text ?? ''}\nCONTROLS:\n${controls}`);

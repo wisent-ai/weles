@@ -22,6 +22,7 @@ import { findClickTarget, type ScreenshottablePage } from '../../vision/analyze.
 import type { WSession } from '../wsession.js';
 import { runRecordingsDir } from '../run-recordings.js';
 import { recordingsDir, wsCaptureFingerprint } from './close/fingerprint_capture.js';
+import { clickObservedControl } from '../observation/controls.js';
 
 export { CREDENTIAL_FIELD_ABSENT, wsFillCredential, wsFillIdentity } from './close/credential_fill.js';
 export { wsCheckEmail, wsSaveAccount } from './close/account_record.js';
@@ -60,6 +61,8 @@ export async function firstVisible(loc: any): Promise<any | null> {
 // G17: per-run layout — recordings/<run_uuid>/<label>/.
 export async function wsClick(s: WSession, target: string): Promise<string> {
   return s.runStep(`click_${target}`, async () => {
+    const observed = await clickObservedControl(s.page, target);
+    if (observed !== null) return observed;
     const tryLoc = async (loc: any, descPrefix: string): Promise<string | null> => {
       try {
         if ((await loc.count?.()) > 0 && await loc.first().isVisible({ timeout: VISIBILITY_PROBE_MS }).catch(() => false)) {

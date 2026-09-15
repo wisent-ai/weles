@@ -1,6 +1,7 @@
 // Tests talk to the real Weles service through Stado's managed forward.
 // This module never starts a browser or substitutes a product component.
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -37,5 +38,30 @@ export function managedWeles(area) {
     retain(`${name}.json`, { method: options.method, path, request: document, status: response.status, body });
     return { status: response.status, body };
   }
-  return { evidence, retain, request };
+  async function download(name, path) {
+    const url = new URL(path, endpoint);
+    assert.equal(url.origin, endpoint.origin, 'diagnostic artifacts must remain on the managed Weles endpoint');
+    const response = await fetch(url, { headers });
+    assert.equal(response.status, 200, `artifact ${path}: HTTP ${response.status}`);
+    const bytes = Buffer.from(await response.arrayBuffer());
+    writeFileSync(join(evidence, name), bytes);
+    retain(`${name}.json`, {
+      path, status: response.status, bytes: bytes.length,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+    });
+  }
+  function runBrowserPlan(name, plan) {
+    const path = join(evidence, `${name}-plan.json`);
+    retain(`${name}-plan.json`, plan);
+    const argv = ['workload', 'run', 'weles-browser-task', '--plan', path, '--json'];
+    console.error(`real browser plan: ${path}`);
+    const result = spawnSync(stado, argv, { encoding: 'utf8' });
+    retain(`${name}-command.json`, {
+      executable: stado, argv, exit_code: result.status, signal: result.signal,
+      stdout: result.stdout, stderr: result.stderr, error: result.error?.message,
+    });
+    assert.ifError(result.error);
+    return { exit_code: result.status, body: JSON.parse(result.stdout) };
+  }
+  return { evidence, retain, request, download, runBrowserPlan };
 }
