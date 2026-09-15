@@ -9,8 +9,50 @@ concurrency:
   group: weles-worker-release
   cancel-in-progress: false
 
+env:
+  WELES_RELEASE_OUTPUT: ${{ github.workspace }}/.wisent-output/github-release
+
 jobs:
+  native-inputs:
+    runs-on: weles-builder
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Require allowlisted release operator
+        env:
+          ACTOR: ${{ github.actor }}
+          APPROVERS: ${{ vars.WELES_RELEASE_APPROVERS }}
+        run: |
+          test -n "$APPROVERS" || {
+            echo "WELES_RELEASE_APPROVERS repository variable is empty" >&2
+            exit 1
+          }
+          printf '%s\n' "$APPROVERS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
+            | grep -Fqx "$ACTOR" || {
+              echo "$ACTOR is not an allowlisted Weles release operator" >&2
+              exit 1
+            }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.23.2
+      - name: Fetch declared native inputs through Stado
+        run: node release/native/runtime.mjs fetch
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: jeden-native-darwin-arm64
+          path: .wisent-output/native-inputs/darwin-arm64/
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: jeden-native-linux-x64
+          path: .wisent-output/native-inputs/linux-x64/
+          if-no-files-found: error
+          retention-days: 7
+
   build:
+    needs: native-inputs
     strategy:
       fail-fast: false
       matrix:
@@ -33,29 +75,25 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Require allowlisted release operator
-        env:
-          ACTOR: ${{ github.actor }}
-          APPROVERS: ${{ vars.WELES_RELEASE_APPROVERS }}
-        run: |
-          test -n "$APPROVERS" || {
-            echo "WELES_RELEASE_APPROVERS repository variable is empty" >&2
-            exit 1
-          }
-          printf '%s\n' "$APPROVERS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
-            | grep -Fqx "$ACTOR" || {
-              echo "$ACTOR is not an allowlisted Weles release operator" >&2
-              exit 1
-            }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22.23.2
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: jeden-native-${{ matrix.platform }}
+          path: ${{ env.WELES_RELEASE_OUTPUT }}/native-input
+      - name: Verify macOS native startup against the published dependency
+        if: matrix.platform == 'darwin-arm64'
+        env:
+          WELES_TEST_JEDEN_ARCHIVE: ${{ env.WELES_RELEASE_OUTPUT }}/native-input/release.tar.gz
+        run: node --test tests/release/packaging.test.mjs
       - name: Build immutable worker bytes
         shell: bash
         env:
           PLATFORM: ${{ matrix.platform }}
         run: |
           set -euo pipefail
+          mkdir -p "$WELES_RELEASE_OUTPUT"
           version="${GITHUB_REF_NAME#worker-v}"
           if ! [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
             echo "::error::tag $GITHUB_REF_NAME does not contain a valid worker version"
@@ -63,10 +101,10 @@ jobs:
           fi
           npm ci
           npm run build
-          node dist/cli.js release surface > "$RUNNER_TEMP/released-surface.json"
-          npm sbom --omit=dev --sbom-format cyclonedx > "$RUNNER_TEMP/sbom.cyclonedx.json"
+          node dist/cli.js release surface > "$WELES_RELEASE_OUTPUT/released-surface.json"
+          npm sbom --omit=dev --sbom-format cyclonedx > "$WELES_RELEASE_OUTPUT/sbom.cyclonedx.json"
           npm prune --omit=dev
-          stage="$RUNNER_TEMP/weles-worker"
+          stage="$WELES_RELEASE_OUTPUT/weles-worker"
           mkdir -p "$stage"
           # `src`, not `scripts`: the trajectory and worker modules moved there,
           # `src/` is what `src/worker/dispatch.ts` names for every task type,
@@ -76,8 +114,13 @@ jobs:
           # with "cp: scripts: No such file or directory".
           cp -R dist src node_modules release "$stage/"
           cp package.json package-lock.json LICENSE README.md "$stage/"
-          cp "$RUNNER_TEMP/released-surface.json" "$stage/released-surface.json"
-          cp "$RUNNER_TEMP/sbom.cyclonedx.json" "$stage/sbom.cyclonedx.json"
+          cp "$WELES_RELEASE_OUTPUT/released-surface.json" "$stage/released-surface.json"
+          cp "$WELES_RELEASE_OUTPUT/sbom.cyclonedx.json" "$stage/sbom.cyclonedx.json"
+          node release/native/runtime.mjs stage "$stage/native/jeden/bin" "$WELES_RELEASE_OUTPUT/native-input/release.tar.gz"
+          if [ -d .wisent-output/native-runtime-tests ]; then
+            mkdir -p "$stage/evidence"
+            cp -R .wisent-output/native-runtime-tests "$stage/evidence/"
+          fi
           jq -n \
             --arg schema "weles.worker-component.v1" \
             --arg product "weles-worker" \
@@ -98,13 +141,14 @@ jobs:
             --arg platform "$PLATFORM" \
             --arg nodeVersion "$(node --version)" \
             --arg builtAt "$built_at" \
-            '{buildDefinition:{buildType:$buildType,externalParameters:{tag:$tag,platform:$platform,nodeVersion:$nodeVersion},internalParameters:{},resolvedDependencies:[{uri:$source,digest:{gitCommit:$sourceRevision}}]},runDetails:{builder:{id:$builder},metadata:{invocationId:$invocationId,startedOn:$builtAt,finishedOn:$builtAt}}}' \
-            > "$RUNNER_TEMP/worker-provenance.json"
-          cp "$RUNNER_TEMP/worker-provenance.json" "$stage/provenance.json"
-          archive="weles-worker-$version-$PLATFORM.tar.gz"
-          tar -C "$RUNNER_TEMP" -chzf "$archive" weles-worker
+            --slurpfile native "$stage/native/jeden/runtime.json" \
+            '{buildDefinition:{buildType:$buildType,externalParameters:{tag:$tag,platform:$platform,nodeVersion:$nodeVersion},internalParameters:{},resolvedDependencies:[{uri:$source,digest:{gitCommit:$sourceRevision}},{uri:$native[0].input.uri,digest:{sha256:$native[0].input.sha256}}]},runDetails:{builder:{id:$builder},metadata:{invocationId:$invocationId,startedOn:$builtAt,finishedOn:$builtAt}}}' \
+            > "$WELES_RELEASE_OUTPUT/worker-provenance.json"
+          cp "$WELES_RELEASE_OUTPUT/worker-provenance.json" "$stage/provenance.json"
+          archive="$WELES_RELEASE_OUTPUT/weles-worker-$version-$PLATFORM.tar.gz"
+          tar -C "$WELES_RELEASE_OUTPUT" -chzf "$archive" weles-worker
           openssl dgst -sha256 -r "$archive" > "$archive.sha256"
-          printf 'ARCHIVE=%s\nPROVENANCE=%s\n' "$archive" "$RUNNER_TEMP/worker-provenance.json" >> "$GITHUB_ENV"
+          printf 'ARCHIVE=%s\nPROVENANCE=%s\n' "$archive" "$WELES_RELEASE_OUTPUT/worker-provenance.json" >> "$GITHUB_ENV"
       # The surface this build publishes, kept as its own artifact so the
       # publish job can write it back into the repository. Uploaded from one
       # platform: the document is read from the TypeScript program, so both
@@ -113,7 +157,7 @@ jobs:
         if: matrix.platform == 'linux-x64'
         with:
           name: worker-surface
-          path: ${{ runner.temp }}/released-surface.json
+          path: ${{ env.WELES_RELEASE_OUTPUT }}/released-surface.json
           if-no-files-found: error
           retention-days: 7
       - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
@@ -154,12 +198,11 @@ jobs:
         with:
           node-version: 22.23.2
           cache: npm
-      # Outside the checkout, so nothing downloaded here can be mistaken for a
-      # tracked file or removed by a later checkout.
+      # Retained release inputs stay inside this checkout's ignored output.
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: worker-*
-          path: ${{ runner.temp }}/artifacts
+          path: ${{ env.WELES_RELEASE_OUTPUT }}/artifacts
           merge-multiple: true
       - name: Publish immutable worker release
         env:
@@ -171,7 +214,7 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --title "Weles worker ${GITHUB_REF_NAME#worker-v}" \
             --generate-notes \
-            "$RUNNER_TEMP"/artifacts/weles-worker-*
+            "$WELES_RELEASE_OUTPUT"/artifacts/weles-worker-*
 
       # What the release published is now what the repository says was
       # published. Without this step both documents the version gate reads were
@@ -187,7 +230,7 @@ jobs:
           npm run build
           node dist/cli.js release adopt-baseline \
             --released "$version" \
-            --published-surface "$RUNNER_TEMP/artifacts/released-surface.json" \
+            --published-surface "$WELES_RELEASE_OUTPUT/artifacts/released-surface.json" \
             --reason "Release $version published this surface from $GITHUB_SHA; recorded by $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID."
           if git diff --quiet -- released-surface.json release/version-change.json; then
             echo "main already records $version as published"

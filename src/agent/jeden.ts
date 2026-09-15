@@ -217,7 +217,8 @@ export async function callJeden(prompt: string, options: JedenCallOptions = {}):
     const raw = await completeThroughRouter(cfg, prompt, timeoutMs);
     return { raw, model: cfg.model, routerUrl: cfg.routerUrl };
   }
-  const binary = nonEmpty(process.env.WELES_JEDEN_BIN) ?? 'jeden';
+  const binary = nonEmpty(process.env.WELES_JEDEN_BIN)
+    ?? join(__dirname, '..', '..', 'native', 'jeden', 'bin', 'jeden');
   const sessionRoot = nonEmpty(process.env.WELES_JEDEN_SESSION_ROOT)
     ?? join(runRecordingsDir('jeden'), 'sessions');
   mkdirSync(sessionRoot, { recursive: true });

@@ -1,21 +1,13 @@
 /**
  * The Weles API launcher's startup contract, through the real program.
  *
- * Both paths here took a production host down. A launcher that starts without
- * its Stado binary or without a Skarbiec endpoint used to reach the point of
- * spawning children and then serve an API with no credential half, and a
- * launcher that cleared the capability socket while another instance owned the
- * port left every trajectory reading ECONNREFUSED with no restart able to
- * repair it. So: an unmet prerequisite refuses before anything is spawned, and
- * an already-served port stands by having touched nothing.
+ * Missing Stado refuses before anything is spawned. Native dependency and
+ * missing-directory refusals live in tests/release/packaging.test.mjs, where
+ * the real signed native pair is available. An already-served port stands by
+ * without clearing the capability socket that its incumbent owns.
  *
- * Every sibling product here is the real binary. The endpoint refusal used to
- * be produced by a `#!/bin/sh exit 1` script named `stado` — which proves only
- * that the launcher notices a non-zero exit, never that the real fleet tool
- * refuses. It now runs the real `stado` over an isolated HOME and a config
- * path that does not exist, so the refusal is the one the product actually
- * produces. The incumbent that owns the port and the capability socket is a
- * real `skarbiec`, not a bare listener.
+ * The incumbent that owns the port and capability socket is real Skarbiec,
+ * not a listener or script imitating the service.
  *
  * Run: node --test tests/worker/launcher-startup.test.mjs
  */
@@ -105,14 +97,15 @@ function accepting(port) {
 }
 
 /**
- * The launcher derives the broker socket from HOME, and a unix socket path may
- * not exceed 104 bytes on macOS — a limit the default temporary root already
- * spends most of. So the isolated home for these tests is short by
- * construction.
+ * State stays inside the checkout's ignored build directory. The capability
+ * broker binds a relative socket from that directory: an absolute path under
+ * a long checkout would exceed macOS's Unix socket path limit.
  */
 const homes = [];
-function isolatedHome(tag) {
-  const home = mkdtempSync(join('/tmp', `wl-${tag}-`));
+function isolatedHome() {
+  const root = join(REPO, 'build');
+  mkdirSync(root, { recursive: true });
+  const home = mkdtempSync(join(root, 'w-'));
   mkdirSync(join(home, '.stado', 'run'), { recursive: true });
   homes.push(home);
   return home;
@@ -134,7 +127,7 @@ after(() => {
 });
 
 test('startup refuses before spawning anything when Stado is unavailable', async () => {
-  const home = isolatedHome('no-stado');
+  const home = isolatedHome();
   const absent = join(home, 'no-stado-here');
   const result = spawnSync(process.execPath, [LAUNCHER], {
     cwd: REPO,
@@ -142,29 +135,7 @@ test('startup refuses before spawning anything when Stado is unavailable', async
     env: launcherEnv(home, { STADO_BIN: absent, WELES_API_PORT: String(await reservePort()) }),
   });
   assert.equal(result.status, 1, `expected a refusal, got ${result.status}: ${result.stderr}`);
-  assert.equal(result.stderr.trim(), `required Stado binary is unavailable: ${absent}`);
-  assert.equal(
-    existsSync(join(home, '.stado/run/weles-api-capability.sock')),
-    false,
-    'a refused startup must not have created the broker socket',
-  );
-});
-
-test('startup refuses when the real fleet tool cannot name a Skarbiec endpoint', async () => {
-  const home = isolatedHome('no-endpoint');
-  // The real Stado, over data it has never seen: no registry document, so it
-  // cannot name an endpoint. The component is real; only the data is isolated.
-  const result = spawnSync(process.execPath, [LAUNCHER], {
-    cwd: REPO,
-    encoding: 'utf8',
-    env: launcherEnv(home, {
-      STADO_BIN: productBinary('stado', 'STADO_BIN'),
-      STADO_CONFIG: join(home, 'no-such-stado-config.toml'),
-      WELES_API_PORT: String(await reservePort()),
-    }),
-  });
-  assert.equal(result.status, 1, `expected a refusal, got ${result.status}: ${result.stderr}`);
-  assert.match(result.stderr, /Skarbiec endpoint resolution refused/);
+  assert.ok(result.stderr.includes(absent), result.stderr);
   assert.equal(
     existsSync(join(home, '.stado/run/weles-api-capability.sock')),
     false,
@@ -173,7 +144,7 @@ test('startup refuses when the real fleet tool cannot name a Skarbiec endpoint',
 });
 
 test('a launcher that loses the port stands by and leaves the broker socket alone', async () => {
-  const home = isolatedHome('port-taken');
+  const home = isolatedHome();
   const skarbiec = productBinary('skarbiec', 'SKARBIEC_BIN');
   const gnupg = join(home, 'gnupg');
   mkdirSync(gnupg, { recursive: true, mode: 0o700 });
@@ -195,8 +166,8 @@ test('a launcher that loses the port stands by and leaves the broker socket alon
   // launcher itself starts. The losing launcher must not remove it, which is
   // the whole reason the port is claimed before anything shared is touched.
   const socketPath = join(home, '.stado/run/weles-api-capability.sock');
-  const liveBroker = spawn(skarbiec, ['capability-serve', '--socket', socketPath],
-    { stdio: ['ignore', 'pipe', 'pipe'], env: brokerEnv });
+  const liveBroker = spawn(skarbiec, ['capability-serve', '--socket', '.stado/run/weles-api-capability.sock'],
+    { cwd: home, stdio: ['ignore', 'pipe', 'pipe'], env: brokerEnv });
   running.push(liveBroker);
   let brokerOutput = '';
   liveBroker.stdout.on('data', (chunk) => { brokerOutput += String(chunk); });
@@ -232,8 +203,8 @@ test('a launcher that loses the port stands by and leaves the broker socket alon
   }
 
   const child = spawn(process.execPath, [LAUNCHER], {
-    cwd: REPO,
-    env: launcherEnv(home, { STADO_BIN: productBinary('stado', 'STADO_BIN'), WELES_API_PORT: String(port) }),
+    cwd: home,
+    env: launcherEnv('.', { STADO_BIN: productBinary('stado', 'STADO_BIN'), WELES_API_PORT: String(port) }),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   running.push(child);

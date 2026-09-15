@@ -216,6 +216,34 @@ The Weles package includes its recording executable rather than relying on an
 evictable host cache. `weles doctor` reports the expected recording component and
 whether it is present; successful browser execution proves that it actually works.
 
+**Jeden.** macOS workers carry the signed `jeden` and `jeden-sandbox-helper`
+together under `native/jeden/bin/`; Linux worker archives carry their native CLI.
+Both publishers use `release/native/runtime.mjs` and the URI/SHA-256 pins in
+`.wisent-release.json`. Missing, non-executable or incorrectly hashed inputs are
+refused. No host installation or inherited `WELES_JEDEN_BIN` replaces this runtime.
+
+Startup runs each required binary with `--version` before acquiring credentials
+or starting the API. A refusal names the binary, operation and observed error,
+including exit status and signal. Stado's release launcher derives missing or
+non-executable cached files again from its payload and refuses an incomplete
+payload. Page reading and diagnosis use these binaries; model-only calls stay
+on Brama.
+
+The macOS regression runs real native staging and startup with real Stado.
+It covers a missing helper, a corrupt executable, the real missing-directory
+refusal after native preflight, and an archive outside the declared digest:
+
+```sh
+node release/native/runtime.mjs fetch
+WELES_TEST_JEDEN_ARCHIVE=.wisent-output/native-inputs/darwin-arm64/release.tar.gz \
+  STADO_BIN="$HOME/.stado/bin/stado" node --test tests/release/packaging.test.mjs
+```
+
+Both publishers retain the regression reports in the macOS worker archive.
+Local `.wisent-output/native-runtime-tests/` reports retain source identity,
+native digests, commands, exit statuses and output. These checks do not replace
+a real page-reading journey on the Stado-selected browser host.
+
 ### Mobile egress managed by Stado
 
 Weles may use a phone's mobile connection as its browser exit. Stado owns the

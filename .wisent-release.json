@@ -10,7 +10,12 @@
   "platforms": {
     "darwin-arm64": {
       "runner_platform": "darwin-arm64",
-      "quality": [],
+      "quality": [
+        {
+          "name": "native-runtime-startup",
+          "argv": ["node", "--test", "tests/release/packaging.test.mjs"]
+        }
+      ],
       "build": {
         "argv": [
           "bash",
@@ -21,7 +26,8 @@
         "payload/weles-worker.tar.gz": "payload/weles-worker.tar.gz",
         "bin/start": "bin/start",
         "weles-api-launcher": "weles-api-launcher",
-        "evidence/DIGESTS": "evidence/DIGESTS"
+        "evidence/DIGESTS": "evidence/DIGESTS",
+        "native-runtime-tests": "evidence/native-runtime-tests"
       }
     }
   },
@@ -32,6 +38,7 @@
     "state_schema": 1,
     "minimum_stado_version": "0.15.9",
     "rollback_compatible_with": [
+      "0.6.9",
       "0.6.8",
       "0.6.7",
       "0.6.6",
@@ -53,6 +60,18 @@
     ]
   },
   "inputs": {
+    "jeden-runtime": {
+      "uri": "stado://releases/jeden/0.1.3/darwin-arm64/release.tar.gz",
+      "sha256": "df8b73dd1ad23f332c4a5473524813df589e8e6b73eb475ae9ff44cd9f43a359",
+      "mount": "jeden-runtime",
+      "extract": true
+    },
+    "jeden-runtime-linux": {
+      "uri": "stado://releases/jeden/0.1.3/linux-amd64/release.tar.gz",
+      "sha256": "32c54d1d15e8ace44f96cca9fe5e8fdd2dfc1798258109f933a1b4cb5c5add9e",
+      "mount": "jeden-runtime-linux",
+      "extract": true
+    },
     "weles-client-bundle": {
       "uri": "stado://sources/weles-worker/weles-client/60d19e769a742cff377d5e5b59762b3696e2ea1403d8e578f52f681a8a6a350a/weles-client.bundle",
       "sha256": "60d19e769a742cff377d5e5b59762b3696e2ea1403d8e578f52f681a8a6a350a",

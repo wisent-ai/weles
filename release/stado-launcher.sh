@@ -55,6 +55,12 @@ missing_runtime_entry() {
       return 0
     fi
   done
+  for entry in native/jeden/bin/jeden native/jeden/bin/jeden-sandbox-helper; do
+    if [ ! -f "$tree/$entry" ] || [ ! -x "$tree/$entry" ]; then
+      printf '%s (required native executable)\n' "$entry"
+      return 0
+    fi
+  done
   for entry in "$tree"/browser-runtime/ffmpeg-*/ffmpeg-mac; do
     if [ -x "$entry" ]; then return 1; fi
   done

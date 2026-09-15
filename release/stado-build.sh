@@ -2,6 +2,7 @@
 set -euo pipefail
 : "${WISENT_SOURCE_DIR:?WISENT_SOURCE_DIR is required}"; : "${WISENT_OUTPUT_DIR:?WISENT_OUTPUT_DIR is required}"
 : "${WISENT_INPUT_WELES_CLIENT_BUNDLE_DIR:?WISENT_INPUT_WELES_CLIENT_BUNDLE_DIR is required}"; : "${WISENT_INPUT_WISENT_COST_TRACKER_BUNDLE_DIR:?WISENT_INPUT_WISENT_COST_TRACKER_BUNDLE_DIR is required}"
+: "${WISENT_INPUT_JEDEN_RUNTIME_DIR:?WISENT_INPUT_JEDEN_RUNTIME_DIR is required}"
 work="$WISENT_OUTPUT_DIR/work"; source="$work/source"; rm -rf "$work"; mkdir -p "$source" "$WISENT_OUTPUT_DIR/payload" "$WISENT_OUTPUT_DIR/bin" "$WISENT_OUTPUT_DIR/evidence"
 # Throwaway state is removed by the code that made it: the source copy, its node_modules and the git config end with the run.
 trap 'rm -rf "$work"' EXIT
@@ -55,7 +56,8 @@ PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci --ignore-scripts
 chmod 0755 node_modules/node-pty/prebuilds/*/spawn-helper
 npm run build
 PLAYWRIGHT_BROWSERS_PATH="$source/browser-runtime" node node_modules/playwright-core/cli.js install ffmpeg
-COPYFILE_DISABLE=1 tar --dereference --format=ustar -czf "$WISENT_OUTPUT_DIR/payload/weles-worker.tar.gz" dist node_modules src browser-runtime package.json package-lock.json release released-surface.json tsconfig.json LICENSE
+node release/native/runtime.mjs stage "$source/native/jeden/bin" "$WISENT_INPUT_JEDEN_RUNTIME_DIR"
+COPYFILE_DISABLE=1 tar --dereference --format=ustar -czf "$WISENT_OUTPUT_DIR/payload/weles-worker.tar.gz" dist node_modules src native browser-runtime package.json package-lock.json release released-surface.json tsconfig.json LICENSE
 install -m 0755 "$WISENT_SOURCE_DIR/release/stado-launcher.sh" "$WISENT_OUTPUT_DIR/bin/start"
 install -m 0755 "$WISENT_SOURCE_DIR/release/stado-launcher.sh" "$WISENT_OUTPUT_DIR/weles-api-launcher"
 shasum -a 256 "$WISENT_OUTPUT_DIR/payload/weles-worker.tar.gz" "$WISENT_OUTPUT_DIR/bin/start" "$WISENT_OUTPUT_DIR/weles-api-launcher" > "$WISENT_OUTPUT_DIR/evidence/DIGESTS"
