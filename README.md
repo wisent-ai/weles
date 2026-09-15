@@ -222,6 +222,8 @@ Both publishers use `release/native/runtime.mjs` and the URI/SHA-256 pins in
 `.wisent-release.json`. Missing, non-executable or incorrectly hashed inputs are
 refused. No host installation or inherited `WELES_JEDEN_BIN` replaces this runtime.
 
+Native tasks read their own screenshot or frame directory through Jeden's `--cwd`, without write or command grants. An unanswered page question stops live execution and cached replay with its cause. Successful caches use `weles.successful-flow.v1`; earlier caches are rediscovered because they could contain failed reads. `generic_keeper_task` always observes the current page instead of replaying a saved result.
+
 Startup runs each required binary with `--version` before acquiring credentials
 or starting the API. A refusal names the binary, operation and observed error,
 including exit status and signal. Stado's release launcher derives missing or

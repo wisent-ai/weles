@@ -30,10 +30,9 @@ export type JedenResult = {
 };
 
 export type JedenCallOptions = {
-  modelOnly?: boolean;
   maxSteps?: number;
   timeoutMs?: number;
-};
+} & ({ modelOnly?: true } | { modelOnly: false; cwd: string });
 
 let modelRouterConfig: ModelRouterConfig | null = null;
 
@@ -231,7 +230,7 @@ export async function callJeden(prompt: string, options: JedenCallOptions = {}):
     '--max-steps',
     String(options.maxSteps ?? 1),
     '--cwd',
-    process.cwd(),
+    options.cwd,
   ];
   // Give the child only process mechanics plus the dedicated Brama
   // model-routing capability. Browser-session, provider, and sibling Stado

@@ -188,6 +188,7 @@ export async function diagnoseCapture(
     try {
       const routed = await callJeden(prompt, {
         modelOnly: false,
+        cwd: framesDir,
         maxSteps: Number('4'),
         timeoutMs: DIAGNOSIS_TIMEOUT_MS,
       });

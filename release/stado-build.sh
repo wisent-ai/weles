@@ -55,6 +55,8 @@ cd "$source"
 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci --ignore-scripts
 chmod 0755 node_modules/node-pty/prebuilds/*/spawn-helper
 npm run build
+WISENT_SOURCE_COMMIT="$source_revision" node --test tests/observation/page-question.test.mjs
+cp -R .wisent-output/page-question-tests "$WISENT_OUTPUT_DIR/"
 PLAYWRIGHT_BROWSERS_PATH="$source/browser-runtime" node node_modules/playwright-core/cli.js install ffmpeg
 node release/native/runtime.mjs stage "$source/native/jeden/bin" "$WISENT_INPUT_JEDEN_RUNTIME_DIR"
 COPYFILE_DISABLE=1 tar --dereference --format=ustar -czf "$WISENT_OUTPUT_DIR/payload/weles-worker.tar.gz" dist node_modules src native browser-runtime package.json package-lock.json release released-surface.json tsconfig.json LICENSE

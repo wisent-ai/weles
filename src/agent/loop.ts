@@ -10,10 +10,11 @@
 import type { WSession } from '../session/wsession.js';
 import { dispatch } from './tools.js';
 import { Capture } from '../capture/capture.js';
-import { loadFlow, saveFlow, replayFlow, type FlowStep } from '../session/flows.js';
+import { loadFlow, saveFlow, replayFlow } from '../session/flows.js';
 import { humanIdlePause } from '../human/mouse.js';
 import { callJeden } from './jeden.js';
 import { askLlm, buildState, parseJsonFrom, type ModelDecisionProvider } from './loop/observe.js';
+import { PageQuestionError } from '../vision/analyze.js';
 
 export interface ToolCall {
   tool: string;
@@ -61,6 +62,12 @@ export async function execute(
       if (result.success) {
         const v = typeof result.value === 'string' ? session.resolveEnv(result.value) : result.value;
         return { value: v, history: saved.steps as any };
+      }
+      if (result.error instanceof PageQuestionError) {
+        const failed = saved.steps[result.failedAtStep];
+        throw new AgentFailure(String(result.error), [{
+          tool: failed.tool, args: failed.args, error: String(result.error),
+        }]);
       }
       console.log(`[loop] Replay failed at step ${result.failedAtStep}, switching to LLM`);
     }
@@ -114,7 +121,7 @@ export async function execute(
       call.result = 'done';
       history.push(call);
       if (flowName && !options?.disableFlowPersistence) {
-        const steps = history.map(h => ({ tool: h.tool, args: h.args, result: h.result }));
+        const steps = history.filter(h => !h.error).map(h => ({ tool: h.tool, args: h.args, result: h.result }));
         saveFlow(flowName, steps);
         console.log(`[loop] Flow saved: ${flowName} (${steps.length} steps)`);
       }
@@ -134,6 +141,9 @@ export async function execute(
       call.error = String(e).slice(0, 500);
       console.log(`[loop] step ${step} error: ${call.error}`);
       history.push(call);
+      if (e instanceof PageQuestionError) {
+        throw new AgentFailure(String(e), history);
+      }
       if (replay && options?.replayOnly) {
         throw new AgentFailure(`replay failed at step ${step}: ${call.error}`, history);
       }

@@ -52,6 +52,13 @@ export class VisionRefusedError extends Error {
   }
 }
 
+export class PageQuestionError extends Error {
+  constructor(question: string, cause: string) {
+    super(`the page question "${question.slice(0, 120)}" got no answer from Jeden: ${cause}`);
+    this.name = 'PageQuestionError';
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------
@@ -108,7 +115,7 @@ export async function askJedenAboutImage(screenshot: Buffer, question: string, t
   let error: string | null = null;
   try {
     const prompt = `Read the image file at ${imgPath}, then answer the question below. Use the DOM snapshot at ${join(dir, `vision_${ts}_${tier}.dom.html`)} only as supporting context when it exists. Return only the answer.\n\n${question}`;
-    answer = (await callJeden(prompt, { modelOnly: false, maxSteps: Number('4'), timeoutMs: VISION_TIMEOUT_MS })).raw;
+    answer = (await callJeden(prompt, { modelOnly: false, cwd: dir, maxSteps: Number('4'), timeoutMs: VISION_TIMEOUT_MS })).raw;
   } catch (e: any) {
     error = String(e);
   }
@@ -127,7 +134,7 @@ export async function askJedenAboutImage(screenshot: Buffer, question: string, t
   } catch { /* skip */ }
 
   if (error !== null) {
-    throw new Error(`the page question "${question.slice(0, 120)}" got no answer from Jeden: ${error}`);
+    throw new PageQuestionError(question, error);
   }
   return answer;
 }
