@@ -5,14 +5,9 @@ import { join } from 'node:path';
 import { runRecordingsDir } from '../session/run-recordings.js';
 import { modelMessageContent } from './model/message.js';
 
-// Weles asks Brama for its own alias, `weles`. Which model that is — a local
-// deployment, a subscription route, a frontier provider — is the route
-// table's decision and is read with `brama aliases` or `GET /v1/aliases`; it
-// is not encoded in this name. The previous name, `weles/agent/primary`,
-// carried a purpose and a rank that both changed underneath it while the
-// string stayed, and callers were told it was "not in the catalog" whenever
-// the route behind it could not be served. Brama now answers with the alias's
-// state and reason instead, so this caller can report that sentence verbatim.
+// Text decisions use this workload's Brama alias. Image questions use `best`,
+// which selects an image-capable model from the same caller's authorized pool.
+// Brama owns provider choice and permissions; Weles never substitutes a vendor.
 export const WELES_AGENT_MODEL = 'weles';
 const WELES_AGENT_ID = 'weles';
 
@@ -160,9 +155,10 @@ async function completeThroughRouter(
   prompt: string,
   timeoutMs: number,
   images?: readonly Buffer[],
-): Promise<string> {
+): Promise<JedenResult> {
+  const model = images?.length ? 'best' : cfg.model;
   const body = JSON.stringify({
-    model: cfg.model,
+    model,
     messages: [{ role: 'user', content: await modelMessageContent(prompt, images) }],
   });
   const timestamp = Math.floor(Date.now() / Number('1000')).toString();
@@ -184,11 +180,11 @@ async function completeThroughRouter(
     signal: AbortSignal.timeout(timeoutMs),
   }).catch(error => {
     const cause = error instanceof Error ? error.cause : undefined;
-    throw new Error(`Brama POST ${cfg.routerUrl.replace(/\/+$/, '')}/v1/chat/completions for ${cfg.model} failed (deadline ${timeoutMs} ms): ${String(error)}${cause ? `; cause: ${String(cause)}` : ''}`, { cause: error });
+    throw new Error(`Brama POST ${cfg.routerUrl.replace(/\/+$/, '')}/v1/chat/completions for ${model} failed (deadline ${timeoutMs} ms): ${String(error)}${cause ? `; cause: ${String(cause)}` : ''}`, { cause: error });
   });
   const text = await response.text();
   if (!response.ok) {
-    throw new Error(`model router ${response.status} for ${cfg.model}: ${text.slice(0, 500)}`);
+    throw new Error(`model router ${response.status} for ${model}: ${text.slice(0, 500)}`);
   }
   let payload: { choices?: Array<{ message?: { content?: unknown } }> };
   try {
@@ -199,9 +195,9 @@ async function completeThroughRouter(
   const content = payload.choices?.[0]?.message?.content;
   const answer = typeof content === 'string' ? content.trim() : '';
   if (!answer) {
-    throw new Error(`model router returned no content for ${cfg.model}: ${text.slice(0, 500)}`);
+    throw new Error(`model router returned no content for ${model}: ${text.slice(0, 500)}`);
   }
-  return answer;
+  return { raw: answer, model, routerUrl: cfg.routerUrl };
 }
 
 export async function callJeden(prompt: string, options: JedenCallOptions = {}): Promise<JedenResult> {
@@ -219,8 +215,7 @@ export async function callJeden(prompt: string, options: JedenCallOptions = {}):
   // Brama and be done. Only a caller that explicitly wants the agent runtime's
   // tools (`modelOnly: false`) spawns it.
   if (options.modelOnly !== false) {
-    const raw = await completeThroughRouter(cfg, prompt, timeoutMs, options.images);
-    return { raw, model: cfg.model, routerUrl: cfg.routerUrl };
+    return completeThroughRouter(cfg, prompt, timeoutMs, options.images);
   }
   const binary = nonEmpty(process.env.WELES_JEDEN_BIN)
     ?? join(__dirname, '..', '..', 'native', 'jeden', 'bin', 'jeden');

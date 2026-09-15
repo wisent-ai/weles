@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.7.1",
-  "candidate": "0.7.2",
+  "current": "0.7.2",
+  "candidate": "0.7.3",
   "breaking": false,
-  "reason": "Page questions pass actual screenshot bytes through the existing authenticated single-turn Brama route instead of asking an agent to open a path. Transport and native invocation refusals retain their observed causes and process state. Public interfaces are unchanged."
+  "reason": "Image questions use Brama's best selector under the existing Weles identity so an image-capable model can answer them. Text decisions keep the weles alias, and failures retain the actual selected route. No caller permissions or public interfaces are broadened."
 }
