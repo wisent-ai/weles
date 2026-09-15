@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.6.9",
+  "current": "0.6.10",
   "candidate": "0.6.10",
   "breaking": false,
-  "reason": "Package the declared native Jeden runtime through both worker publishers and refuse incomplete or unusable runtime dependencies before credentials or API startup."
+  "reason": "Release 0.6.10 published this surface from 3b3bbb480ee6e860a61d1c9fbebc380ef9855b94; recorded by https://github.com/wisent-ai/weles/actions/runs/34966252577."
 }
