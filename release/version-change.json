@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.7.5",
-  "candidate": "0.7.6",
+  "current": "0.7.6",
+  "candidate": "0.7.7",
   "breaking": false,
-  "reason": "Use Brama's existing required-function interface for browser decisions, keep visual questions limited to the actual screenshot, and retain successful action histories. Real 0.7.5 runs recorded a truncated free-text decision, a 289085-token Figma request with an empty answer, and a successful observed click whose history was missing from its result. No browser action or public SDK entry point is removed."
+  "reason": "Use typed browser functions, refuse missing targets, share the active action page with observations, and retain adequately allocated visual answers and precise credential target refusals."
 }

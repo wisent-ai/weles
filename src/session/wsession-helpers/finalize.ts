@@ -61,6 +61,7 @@ export async function firstVisible(loc: any): Promise<any | null> {
 // G17: per-run layout — recordings/<run_uuid>/<label>/.
 export async function wsClick(s: WSession, target: string): Promise<string> {
   return s.runStep(`click_${target}`, async () => {
+    if (typeof target !== 'string' || !target.trim()) throw new Error('[target_empty] A click requires a non-empty target; no pointer input was sent');
     const observed = await clickObservedControl(s.page, target);
     if (observed !== null) return observed;
     const tryLoc = async (loc: any, descPrefix: string): Promise<string | null> => {
@@ -130,6 +131,7 @@ export async function wsClick(s: WSession, target: string): Promise<string> {
 }
 
 export async function fillPage(s: WSession, target: string, value: string, allowedOrigin?: string): Promise<string> {
+  if (typeof target !== 'string' || !target.trim()) throw new Error('[target_empty] A fill requires a non-empty target; no input was sent');
   const v = value;
   const explicitSelector = target.trim().match(/^(?:input|textarea)(?:\[[^\]]+\])+/)?.[0];
   const description = explicitSelector ? target.slice(explicitSelector.length) : target;

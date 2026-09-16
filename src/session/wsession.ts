@@ -56,7 +56,7 @@ export type { WSessionOptions };
 const asV = (p: any) => p as unknown as ScreenshottablePage;
 
 export class WSession {
-  readonly page: any;
+  page: any;
   readonly ctx: BrowserContext;
   readonly label: string;
   private _cap: Capture;

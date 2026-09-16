@@ -26,7 +26,7 @@ async function fillProtectedValue(
   const pageUrl = new URL(s.page.url());
   const origin = pageUrl.origin;
   if (!['https:', 'http:'].includes(pageUrl.protocol)) throw new Error('credential fill requires an HTTP(S) origin');
-  if (!expectedHint.test(target.toLowerCase())) throw new Error('credential field class mismatch');
+  if (!expectedHint.test(target.toLowerCase())) throw new Error(`[credential_target_description_mismatch] Target ${JSON.stringify(target)} lacks the required field description (${expectedHint.source}); no input was sent`);
   try {
     const result = await fillPage(s, target, value, origin);
     return result.startsWith('filled') ? `credential ${result}` : result;
@@ -100,7 +100,7 @@ export async function wsFillCredential(
   const origin = pageUrl.origin;
   if (!['https:', 'http:'].includes(pageUrl.protocol)) throw new Error('credential fill requires an HTTP(S) origin');
   const expectedHint = CREDENTIAL_FIELD_HINTS[fieldClass];
-  if (!expectedHint.test(target.toLowerCase())) throw new Error('credential field class mismatch');
+  if (!expectedHint.test(target.toLowerCase())) throw new Error(`[credential_target_description_mismatch] fill_credential field_class=${fieldClass} requires a target description matching ${expectedHint.source}; received ${JSON.stringify(target)}. The field was not inspected and the capability was not consumed`);
   if (!await credentialFieldPresent(s, target, origin)) return CREDENTIAL_FIELD_ABSENT;
   const expected = { purpose: 'weles.browser.fill' as const, resource: `origin:${origin}/${fieldClass}` };
   return withCapability(capability, expected, (secret) =>

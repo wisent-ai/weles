@@ -86,6 +86,8 @@ export async function execute(
   let activePage = page;
   for (let step = 0; step < maxSteps; step++) {
     activePage = getActivePage(activePage);
+    // Observations and dispatched actions must use the same popup or surviving tab.
+    session.page = activePage;
     let decision: Record<string, any>;
 
     if (replay && step < replay.length && (options?.replayOnly || !['read', 'done'].includes(replay[step].tool))) {

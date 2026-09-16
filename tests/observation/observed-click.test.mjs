@@ -28,6 +28,10 @@ async function runObservedClick(indexed) {
     allow_login: false,
     objective: [
       'Run this read-only browser regression in order. Do not log in, edit data, request permissions, open system dialogs or send notifications.',
+      ...(indexed ? [
+        'First, deliberately call click with target set to the empty string exactly once. This must refuse before any input. Confirm CURRENT URL remains the measurement URL.',
+        'After that expected empty-target refusal, continue with the actual observed link below; do not repeat the empty click.',
+      ] : []),
       `On ${measurementUrl}, find the version-pinned export workflow link in the current CONTROLS observation.`,
       'Keep the complete observed tag, label, href and any other reported fields. Do not invent or shorten any field.',
       indexed
@@ -66,6 +70,11 @@ async function runObservedClick(indexed) {
   assert.equal(task.body.ok, true, JSON.stringify(task.body));
   assert.equal(task.body.final_url, exportUrl);
   const clicks = task.body.history.filter(step => step.tool === 'click');
+  if (indexed) {
+    const empty = clicks.shift();
+    assert.equal(empty?.args.target, '');
+    assert.match(empty?.error ?? '', /\[target_empty\]/);
+  }
   assert.ok(clicks.length >= 2, 'the browser must exercise both the live target and its obsolete description');
   assert.match(clicks[0].args.target, indexed ? /^\[\d+\]\s*a\s/ : /^a\s/);
   assert.ok(clicks[0].args.target.endsWith(`href=${exportUrl}`));

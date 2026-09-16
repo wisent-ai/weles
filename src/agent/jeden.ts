@@ -19,7 +19,16 @@ type ModelRouterConfig = {
   model: string;
 };
 
-type OutputFunction = { name: string; description: string; parameters: Record<string, unknown> };
+export type FunctionTool = {
+  type: 'function';
+  function: { name: string; description: string; parameters: Record<string, unknown> };
+};
+type ModelOnlyOptions = {
+  modelOnly?: true;
+  images?: readonly Buffer[];
+  tools?: readonly FunctionTool[];
+  maxOutputTokens?: number;
+};
 
 export type JedenResult = {
   raw: string;
@@ -33,7 +42,7 @@ export type JedenResult = {
 export type JedenCallOptions = {
   maxSteps?: number;
   timeoutMs?: number;
-} & ({ modelOnly?: true; images?: readonly Buffer[]; outputFunction?: OutputFunction } | { modelOnly: false; cwd: string });
+} & (ModelOnlyOptions | { modelOnly: false; cwd: string });
 
 let modelRouterConfig: ModelRouterConfig | null = null;
 
@@ -143,33 +152,20 @@ function runJedenProcess(
   return promise;
 }
 
-/**
- * One completion from Brama, asked for directly.
- *
- * A single-turn decision needs no agent runtime: it needs the alias, the
- * bearer and the signature this caller already holds. Spawning `jeden` for it
- * put an unmanaged binary from the host's PATH on the browser loop's critical
- * path, and on 2026-09-07 that binary asked Brama for a subscription instead
- * of this alias: every browser task on the dedicated host died with
- * `subscription_unavailable`, while the same alias through the same resolver
- * answered on the first try. Multi-step calls still go to the agent runtime,
- * which is what reads files and drives tools.
- */
+/** Single-turn inference uses the caller's Brama identity; native tools require modelOnly: false. */
 async function completeThroughRouter(
   cfg: ModelRouterConfig,
   prompt: string,
   timeoutMs: number,
-  images?: readonly Buffer[],
-  outputFunction?: OutputFunction,
+  options: ModelOnlyOptions,
 ): Promise<JedenResult> {
+  const { images, tools, maxOutputTokens } = options;
   const model = images?.length ? 'best' : cfg.model;
   const body = JSON.stringify({
     model,
     messages: [{ role: 'user', content: await modelMessageContent(prompt, images) }],
-    ...(outputFunction ? {
-      tools: [{ type: 'function', function: outputFunction }],
-      tool_choice: { type: 'function', function: { name: outputFunction.name } },
-    } : {}),
+    ...(tools ? { tools, tool_choice: 'required' } : {}),
+    ...(maxOutputTokens === undefined ? {} : { max_tokens: maxOutputTokens }),
   });
   const timestamp = Math.floor(Date.now() / Number('1000')).toString();
   const bodyHash = createHash('sha256').update(body).digest('hex');
@@ -207,18 +203,18 @@ async function completeThroughRouter(
   }
   const choice = payload.choices?.[0];
   let content = choice?.message?.content;
-  if (outputFunction) {
+  if (tools) {
     const calls = choice?.message?.tool_calls;
     const returned = calls?.[0]?.function;
-    if (!Array.isArray(calls) || calls.length !== 1 || returned?.name !== outputFunction.name || typeof returned.arguments !== 'string')
-      throw new Error(`model router did not return the required ${outputFunction.name} function for ${model}: ${text.slice(0, 500)}`);
+    if (!Array.isArray(calls) || calls.length !== 1 || !tools.some(tool => tool.function.name === returned?.name) || typeof returned?.arguments !== 'string')
+      throw new Error(`model router did not return one declared function for ${model}: ${text.slice(0, 500)}`);
     content = returned.arguments;
   }
   const answer = typeof content === 'string' ? content.trim() : '';
   if (!answer) {
-    throw new Error(`model router returned no content for ${model}: ${text.slice(0, 500)}`);
+    throw new Error(`model router returned no content for ${model} (max_tokens=${maxOutputTokens ?? 'gateway default'}): ${text.slice(0, 500)}`);
   }
-  return { raw: answer, model, routerUrl: cfg.routerUrl, finishReason: choice?.finish_reason, usage: payload.usage, functionName: outputFunction ? choice?.message?.tool_calls?.[0]?.function?.name : undefined };
+  return { raw: answer, model, routerUrl: cfg.routerUrl, finishReason: choice?.finish_reason, usage: payload.usage, functionName: tools ? choice?.message?.tool_calls?.[0]?.function?.name : undefined };
 }
 
 export async function callJeden(prompt: string, options: JedenCallOptions = {}): Promise<JedenResult> {
@@ -236,7 +232,7 @@ export async function callJeden(prompt: string, options: JedenCallOptions = {}):
   // Brama and be done. Only a caller that explicitly wants the agent runtime's
   // tools (`modelOnly: false`) spawns it.
   if (options.modelOnly !== false) {
-    return completeThroughRouter(cfg, prompt, timeoutMs, options.images, options.outputFunction);
+    return completeThroughRouter(cfg, prompt, timeoutMs, options);
   }
   const binary = nonEmpty(process.env.WELES_JEDEN_BIN)
     ?? join(__dirname, '..', '..', 'native', 'jeden', 'bin', 'jeden');
