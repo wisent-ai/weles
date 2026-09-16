@@ -49,7 +49,7 @@ import { type WSessionOptions } from './wsession/session-request.js';
 import { adoptLaunchedBrowser, openSessionBrowser } from './wsession/browser-launch.js';
 import { observeSessionNetwork } from './wsession/network-observers.js';
 import { captureStepArtifacts, type StepArtifactFailure } from './wsession/run-provenance.js';
-import { wsClickSelector, wsFocus, wsJsClick, wsScroll, wsSetControl } from './wsession/page-actions.js';
+import { assertFocusedLiteralInput, wsClickSelector, wsFocus, wsJsClick, wsScroll, wsSetControl } from './wsession/page-actions.js';
 
 export type { WSessionOptions };
 
@@ -181,7 +181,11 @@ export class WSession {
   async clickSelector(selector: string): Promise<string> { return wsClickSelector(this, selector); }
   async type(value: string): Promise<string> {
     const literal = assertNonCredentialInput(value);
-    return this.runStep('type', async () => { await humanType(this.page, literal); return 'typed'; });
+    return this.runStep('type', async () => {
+      await assertFocusedLiteralInput(this, literal);
+      await humanType(this.page, literal);
+      return 'typed';
+    });
   }
   async press(key: string): Promise<string> { return this.runStep(`press_${key}`, async () => { await this.page.keyboard.press(key); return `pressed ${key}`; }); }
   async select(target: string, value: string): Promise<string> { return this.runStep(`select_${target}_${value}`, async () => { const result = await selectOption(this.page, target, this.resolveEnv(value)); return result ? `selected: ${result}` : 'no-select-found'; }); }

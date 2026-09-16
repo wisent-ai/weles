@@ -10,7 +10,7 @@ const exportUrl = 'https://www.wisent.com/docs/components/figma-export';
 test('an indexed observed link navigates and its obsolete description is refused', () => runObservedClick(true));
 test('an unindexed observed link navigates and its obsolete description is refused', () => runObservedClick(false));
 
-test('a scoped sign-in credential fills the existing account without registration', {
+test('a scoped sign-in credential stays unchanged when literal input is refused', {
   skip: !process.env.WELES_REAL_LOGIN_ITEM && 'requires an authorized real login item and expected account',
 }, async () => {
   assert.ok(process.env.WELES_REAL_LOGIN_EMAIL, 'WELES_REAL_LOGIN_EMAIL is required');
@@ -31,14 +31,72 @@ test('a scoped sign-in credential fills the existing account without registratio
     allow_login: true,
     sign_in_origin: 'https://accounts.google.com',
     sign_in_item: process.env.WELES_REAL_LOGIN_ITEM,
-    objective: 'Read the exact account address already present in the Email or phone field. Use read to inspect the rendered field, then call done with {"account": "<observed field value>"}. Do not type, fill, click, press keys, navigate, register, submit the form, or request approval, system permissions or notifications. Do not invent an account. If the field is empty or unreadable, report that failure instead.',
+    objective: [
+      'Verify the protected, already-prefilled Email or phone field without submitting it.',
+      'Exercise these three literal-input requests, in order, and record their actual outcomes:',
+      'type_text with {"value":"unexpected-entry"};',
+      'fill with {"target":"input[id=\\"identifierId\\"]","value":"unexpected-entry"};',
+      'set_control with {"selector":"#identifierId","value":"unexpected-entry"}.',
+      'Each should refuse because a credential field requires fill_credential. A deliberate refusal is an expected test outcome; do not retry, fix it or use another action.',
+      'Then use read to inspect the exact rendered account address and call done with {"account":"<observed field value>"}. Report the actual value, even if an input changed it.',
+      'Do not click, focus, press keys, navigate, register, submit the form, request approval, open system dialogs or send notifications. Do not invent an account.',
+    ].join('\n'),
   });
   const task = await client.captureBrowserRun(run, label);
   assert.equal(task.value?.account, process.env.WELES_REAL_LOGIN_EMAIL);
   assert.equal(new URL(task.final_url).origin, 'https://accounts.google.com');
-  assert.ok(task.history.every(step => ['read', 'wait', 'done'].includes(step.tool)),
-    'observation after protected prefill must not mutate or submit the login form');
+  for (const tool of ['type_text', 'fill', 'set_control']) {
+    const attempts = task.history.filter(step => step.tool === tool);
+    assert.ok(attempts[0], `the real browser did not exercise ${tool}`);
+    for (const attempt of attempts) {
+      assert.match(attempt.error, /credential fields require fill_credential/,
+        `${tool} must refuse before changing the protected field`);
+    }
+  }
+  assert.ok(task.history.every(step => ['type_text', 'fill', 'set_control', 'read', 'wait', 'done'].includes(step.tool)),
+    'the credential regression must not submit or navigate the login form');
   console.error(`real credential-prefill evidence: ${client.evidence}`);
+});
+
+test('ordinary search fields accept literal keyboard, fill and control edits', async () => {
+  const client = managedWeles('literal-input');
+  const label = `literal-input-${randomUUID()}`;
+  client.retain('test-command.json', {
+    argv: process.argv, execArgv: process.execArgv,
+    test_sha256: createHash('sha256').update(readFileSync(import.meta.filename)).digest('hex'),
+  });
+  process.once('exit', code => client.retain('exit.json', { exit_code: code }));
+  const run = client.runBrowserPlan('browser-run', {
+    schema: 'wisent.weles-browser-task-plan.v1',
+    action: 'generic_keeper_task',
+    url: 'https://skarbiec.wisent.com/docs',
+    session_label: label,
+    flow_name: label,
+    fresh_profile: true,
+    allow_login: false,
+    objective: [
+      'Exercise the public documentation search input without submitting a form or opening a search result.',
+      'First call fill with {"target":"input[type=\\"search\\"]","value":"weles"}. Read its actual displayed value.',
+      'Then call type_text with {"value":" docs"} to append to the focused search input. Read its actual displayed value.',
+      'Then call set_control with {"selector":"input[type=\\"search\\"]","value":"weles search"}. Read its actual displayed value.',
+      'For each read, ask only what text is displayed in the search field; do not supply an expected answer.',
+      'Call done with {"values":[<first observation>,<second observation>,<third observation>]}. Report actual observations, not intended values.',
+      'Do not click, navigate, press keys, log in, submit a form, open system dialogs, request permissions or send notifications.',
+    ].join('\n'),
+  });
+  const task = await client.captureBrowserRun(run, label);
+  assert.deepEqual(task.value?.values, ['weles', 'weles docs', 'weles search']);
+  assert.equal(task.final_url, 'https://skarbiec.wisent.com/docs');
+  for (const tool of ['fill', 'type_text', 'set_control']) {
+    const calls = task.history.filter(step => step.tool === tool);
+    assert.ok(calls[0], `the real search did not exercise ${tool}`);
+    for (const call of calls) assert.equal(call.error, undefined, JSON.stringify(call));
+  }
+  assert.ok(task.history.filter(step => step.tool === 'read').length >= 3,
+    'each input outcome must be observed on the real page');
+  assert.ok(task.history.every(step => ['fill', 'type_text', 'set_control', 'read', 'wait', 'done'].includes(step.tool)),
+    'the search regression must not submit or leave the public page');
+  console.error(`real literal-input evidence: ${client.evidence}`);
 });
 
 async function runObservedClick(indexed) {

@@ -11,7 +11,7 @@
  * sum against the budget shows real BD spend.
  */
 
-import type { Frame } from 'playwright';
+import type { Frame, Locator } from 'playwright';
 import { writeFileSync, mkdirSync, copyFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { costTracker } from '../../utils/runtime/cost.js';
@@ -22,7 +22,8 @@ import { findClickTarget, type ScreenshottablePage } from '../../vision/analyze.
 import type { WSession } from '../wsession.js';
 import { runRecordingsDir } from '../run-recordings.js';
 import { recordingsDir, wsCaptureFingerprint } from './close/fingerprint_capture.js';
-import { clickObservedControl, clickSelectorControl } from '../observation/controls.js';
+import { clickObservedControl, clickSelectorControl, describeInputTarget } from '../observation/controls.js';
+import { assertFocusedLiteralInput } from '../wsession/page-actions.js';
 
 export { CREDENTIAL_FIELD_ABSENT, wsFillCredential, wsFillIdentity } from './close/credential_fill.js';
 export { wsCheckEmail, wsSaveAccount } from './close/account_record.js';
@@ -113,42 +114,47 @@ export async function wsClick(s: WSession, target: string): Promise<string> {
   });
 }
 
-export async function fillPage(s: WSession, target: string, value: string, allowedOrigin?: string): Promise<string> {
+export async function fillPage(s: WSession, target: string, value: string, allowedOrigin?: string, credentialAuthorized = false): Promise<string> {
   if (typeof target !== 'string' || !target.trim()) throw new Error('[target_empty] A fill requires a non-empty target; no input was sent');
-  const v = value;
+  const fill = async (control: Locator) => {
+    if (credentialAuthorized) { await humanFill(s.page, control, value); return; }
+    const element = await control.elementHandle();
+    if (!element) throw new Error('[input_target_stale] The field disappeared before literal input');
+    try {
+      assertNonCredentialInput(value, await element.evaluate(describeInputTarget));
+      await humanFill(s.page, element, value);
+    } finally {
+      await element.dispose();
+    }
+  };
   const explicitSelector = target.trim().match(/^(?:input|textarea)(?:\[[^\]]+\])+/)?.[0];
   const description = explicitSelector ? target.slice(explicitSelector.length) : target;
   const kws = description.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
   const sels = kws.flatMap(k => ['input','textarea','[contenteditable]'].flatMap(t => [`${t}[name*="${k}"]`,`${t}[placeholder*="${k}" i]`,`${t}[aria-label*="${k}" i]`]));
   if (/\b(email|e-mail)\b/i.test(target)) {
-    sels.unshift('input[type="email"], input[name*="email" i], input[name*="mail" i], input[autocomplete*="email" i]');
+    sels.unshift('input[type="email"], input[name*="email" i], input[autocomplete*="email" i]');
   }
-  for (const frame of childFrames(s, allowedOrigin)) {
+  for (const frame of [...childFrames(s, allowedOrigin), s.page]) {
     if (explicitSelector) {
-      try {
-        const explicit = await firstVisible(frame.locator?.(explicitSelector));
-        if (explicit) { await humanFill(s.page, explicit, v); return `filled frame ${explicitSelector}`; }
-      } catch {}
+      const explicit = await firstVisible(frame.locator?.(explicitSelector));
+      if (explicit) { await fill(explicit); return `filled ${explicitSelector}`; }
     }
-    try { const lbl = await firstVisible(frame.getByLabel?.(target, { exact: false })); if (lbl) { await humanFill(s.page, lbl, v); return 'filled frame label'; } } catch {}
-    for (const sel of sels) {
-      try { const el = await firstVisible(frame.locator?.(sel)); if (el) { await humanFill(s.page, el, v); return `filled frame ${sel}`; } } catch {}
+    const label = await firstVisible(frame.getByLabel?.(target, { exact: false }));
+    if (label) { await fill(label); return 'filled label'; }
+    for (const selector of sels) {
+      const control = await firstVisible(frame.locator?.(selector));
+      if (control) { await fill(control); return `filled ${selector}`; }
     }
   }
-  if (explicitSelector) {
-    try {
-      const explicit = s.page.locator?.(explicitSelector)?.first?.();
-      if (explicit && await explicit.isVisible()) { await humanFill(s.page, explicit, v); return `filled ${explicitSelector}`; }
-    } catch {}
-  }
-  try { const lbl = s.page.getByLabel?.(target, { exact: false })?.first?.(); if (lbl && await lbl.isVisible({ timeout: VISIBILITY_PROBE_MS }).catch(() => false)) { await humanFill(s.page, lbl, v); return 'filled'; } } catch {}
-  for (const sel of sels) { try { const el = s.page.locator?.(sel)?.first?.(); if (el && await el.isVisible()) { await humanFill(s.page, el, v); return 'filled'; } } catch {} }
   const tgt = JSON.stringify(target.toLowerCase());
-  const c = await s.page.evaluate(`(()=>{var t=${tgt};for(var el of document.querySelectorAll('*')){var r=el.getBoundingClientRect();var ph=(el.getAttribute('placeholder')||'').toLowerCase();if(r.width>50&&r.height>10&&r.x>0&&ph&&ph.indexOf(t)>=0)return{x:r.x+r.width/2,y:r.y+r.height/2}}return null})()`).catch(() => null);
-  if (c) { await humanClick(s.page, c.x, c.y); await s.page.keyboard.press('Meta+a').catch(() => {}); await humanType(s.page, v); return 'filled'; }
-  const vc = await findClickTarget(asV(s.page), target);
-  if (vc) { await humanClick(s.page, vc.x, vc.y); await s.page.keyboard.press('Meta+a').catch(() => {}); await humanType(s.page, v); return 'filled'; }
-  return 'no-field-found';
+  const byPlaceholder = await s.page.evaluate(`(()=>{var t=${tgt};for(var el of document.querySelectorAll('*')){var r=el.getBoundingClientRect();var ph=(el.getAttribute('placeholder')||'').toLowerCase();if(r.width>50&&r.height>10&&r.x>0&&ph&&ph.indexOf(t)>=0)return{x:r.x+r.width/2,y:r.y+r.height/2}}return null})()`).catch(() => null);
+  const point = byPlaceholder ?? await findClickTarget(asV(s.page), target);
+  if (!point) return 'no-field-found';
+  await humanClick(s.page, point.x, point.y);
+  if (!credentialAuthorized) await assertFocusedLiteralInput(s, value);
+  await s.page.keyboard.press('Meta+a').catch(() => {});
+  await humanType(s.page, value);
+  return 'filled';
 }
 
 export async function wsFill(s: WSession, target: string, value: string): Promise<string> {

@@ -43,7 +43,7 @@ function validResource(purpose: WelesCapabilityPurpose, resource: string): boole
   if (typeof resource !== 'string' || resource.trim() !== resource || /[*\u0000\r\n]/.test(resource)) return false;
   return RESOURCE_PREFIXES[purpose]?.some((prefix) => resource.startsWith(prefix) && resource.length > prefix.length) ?? false;
 }
-const CREDENTIAL_TARGET_RE = /\b(password|passcode|secret|token|api[\s_-]*key|access[\s_-]*key|credential|verification[\s_-]*code|otp|username|user[\s_-]*name|e-?mail|login)\b/i;
+const CREDENTIAL_TARGET_RE = /\b(password|passcode|secret|token|api[\s_-]*key|access[\s_-]*key|credential|verification[\s_-]*code|one[\s_-]*time[\s_-]*code|otp|username|user[\s_-]*name|e-?mail|login)\b/i;
 const SECRET_PREFIX_RE = /^(?:sk|pk|ghp|gho|github_pat|xox[baprs]|eyJ)[-_A-Za-z0-9.]+$/;
 
 export function assertNonCredentialInput(value: string, target?: string): string {

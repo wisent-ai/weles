@@ -15,7 +15,8 @@ import { humanIdlePause } from '../human/mouse.js';
 import { callJeden } from './jeden.js';
 import { askLlm, buildState, parseJsonFrom, type ModelDecisionProvider } from './loop/observe.js';
 import { PageQuestionError } from '../vision/analyze.js';
-import { CapabilityTransportError } from '../utils/capability/broker.js';
+import { CapabilityDeniedError, CapabilityTransportError } from '../utils/capability/broker.js';
+import { CredentialFillError } from '../session/wsession-helpers/close/credential_fill.js';
 
 export interface ToolCall {
   tool: string;
@@ -64,7 +65,8 @@ export async function execute(
         const v = typeof result.value === 'string' ? session.resolveEnv(result.value) : result.value;
         return { value: v, history: saved.steps as any };
       }
-      if (result.error instanceof PageQuestionError || result.error instanceof CapabilityTransportError) {
+      if (result.error instanceof PageQuestionError || result.error instanceof CapabilityTransportError
+        || result.error instanceof CapabilityDeniedError || result.error instanceof CredentialFillError) {
         const failed = saved.steps[result.failedAtStep];
         throw new AgentFailure(String(result.error), [{
           tool: failed.tool, args: failed.args, error: String(result.error),
@@ -125,8 +127,8 @@ export async function execute(
       history.push(call);
       if (flowName && !options?.disableFlowPersistence) {
         const steps = history.filter(h => !h.error).map(h => ({ tool: h.tool, args: h.args, result: h.result }));
-        saveFlow(flowName, steps);
-        console.log(`[loop] Flow saved: ${flowName} (${steps.length} steps)`);
+        if (saveFlow(flowName, steps)) console.log(`[loop] Flow saved: ${flowName} (${steps.length} steps)`);
+        else console.log(`[loop] Flow not cached: ${flowName} uses a one-shot credential capability`);
       }
       const resolved = typeof call.args.value === 'string' ? session.resolveEnv(call.args.value) : call.args.value;
       return { value: resolved, history };
@@ -144,7 +146,8 @@ export async function execute(
       call.error = String(e).slice(0, 500);
       console.log(`[loop] step ${step} error: ${call.error}`);
       history.push(call);
-      if (e instanceof PageQuestionError || e instanceof CapabilityTransportError) {
+      if (e instanceof PageQuestionError || e instanceof CapabilityTransportError
+        || e instanceof CapabilityDeniedError || e instanceof CredentialFillError) {
         throw new AgentFailure(String(e), history);
       }
       if (replay && options?.replayOnly) {

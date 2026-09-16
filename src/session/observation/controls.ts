@@ -63,7 +63,7 @@ export async function readFrameObservation(frame: Pick<Frame, 'evaluate'>): Prom
   }
 }
 
-export async function clickObservedControl(page: Page, description: string): Promise<string | null> {
+export async function resolveObservedControl(page: Page, description: string, allowedOrigin?: string): Promise<ElementHandle | null> {
   const target = description.trim();
   const indexed = /^\[(\d+)\]\s*/.exec(target);
   const control = indexed ? target.slice(indexed[0].length) : target;
@@ -73,6 +73,7 @@ export async function clickObservedControl(page: Page, description: string): Pro
   const matches: ElementHandle[] = [];
   try {
     for (const frame of page.frames()) {
+      if (allowedOrigin && new URL(frame.url()).origin !== allowedOrigin) continue;
       // Bind the actual node in the same browser operation that checks its
       // description; a later DOM replacement cannot retarget this handle.
       const handle = await frame.evaluateHandle(captureFrame, { target: control, index });
@@ -82,10 +83,21 @@ export async function clickObservedControl(page: Page, description: string): Pro
     }
     if (matches.length === 0) throw new Error(`[observed_target_stale] The control is stale or absent; observe again: ${target}`);
     if (matches.length !== 1) throw new Error(`[observed_target_ambiguous] The control matches multiple frames; use a frame-specific description: ${target}`);
-    await humanClickLocator(page, matches[0]);
-    return `clicked observed control: ${target}`;
-  } finally {
+    return matches[0];
+  } catch (error) {
     await Promise.all(matches.map(element => element.dispose()));
+    throw error;
+  }
+}
+
+export async function clickObservedControl(page: Page, description: string): Promise<string | null> {
+  const control = await resolveObservedControl(page, description);
+  if (!control) return null;
+  try {
+    await humanClickLocator(page, control);
+    return `clicked observed control: ${description.trim()}`;
+  } finally {
+    await control.dispose();
   }
 }
 
@@ -119,4 +131,19 @@ export async function clickSelectorControl(page: Page, description: string): Pro
   } finally {
     await Promise.all(handles.map(handle => handle.dispose()));
   }
+}
+
+// Browser-side metadata only; a literal-input check must never read the value.
+export function describeInputTarget(element: Element): string {
+  if (!element.matches('input, textarea, [contenteditable], [role="textbox"]')
+    || element.matches('input[type="checkbox"], input[type="radio"]')) return '';
+  const input = element as HTMLInputElement;
+  return [
+    element.getAttribute('type'), element.getAttribute('name'), element.getAttribute('id'),
+    element.getAttribute('autocomplete'), element.getAttribute('aria-label'),
+    element.getAttribute('placeholder'),
+    ...Array.from(input.labels ?? [], label => label.textContent ?? ''),
+    ...(element.getAttribute('aria-labelledby') ?? '').split(/\s+/)
+      .map(id => element.ownerDocument.getElementById(id)?.textContent ?? ''),
+  ].filter(Boolean).join(' ');
 }

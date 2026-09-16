@@ -12,6 +12,30 @@
 
 import { humanClick, humanClickLocator } from '../../human/mouse.js';
 import type { WSession } from '../wsession.js';
+import { assertNonCredentialInput } from '../../utils/capability.js';
+import { describeInputTarget } from '../observation/controls.js';
+
+export async function assertFocusedLiteralInput(s: WSession, value: string): Promise<void> {
+  let frame = s.page.mainFrame();
+  while (frame) {
+    const handle = await frame.evaluateHandle(() => {
+      let active = document.activeElement;
+      while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+      return active;
+    });
+    try {
+      const element = handle.asElement();
+      if (!element) throw new Error('literal input requires an observable focused element');
+      const child = await element.contentFrame();
+      if (child) { frame = child; continue; }
+      assertNonCredentialInput(value, await element.evaluate(describeInputTarget));
+      return;
+    } finally {
+      await handle.dispose();
+    }
+  }
+  throw new Error('literal input requires an observable focused frame');
+}
 
 export async function wsFocus(s: WSession, selector: string): Promise<string> {
   return s.runStep(`focus_${selector}`, async () => {
@@ -62,15 +86,19 @@ export async function wsJsClick(s: WSession, selector?: string, text?: string): 
 export async function wsSetControl(s: WSession, selector: string, value?: unknown, checked?: unknown): Promise<string> {
   return s.runStep(`setControl_${selector.slice(0, 60)}`, async () => {
     if (!selector.trim()) return 'no-selector';
-    const resolvedValue = typeof value === 'string' ? s.resolveEnv(value) : value;
+    const resolvedValue = typeof value === 'string' ? assertNonCredentialInput(value, selector) : value;
     const desiredChecked = typeof checked === 'boolean' ? checked : undefined;
     const frames = [s.page.mainFrame?.(), ...(s.page.frames?.() ?? [])]
       .filter((frame, index, all) => frame && all.indexOf(frame) === index);
     for (const frame of frames) {
-      const result = await frame.evaluate((args: { selector: string; value: unknown; checked?: boolean }) => {
-        const { selector, value, checked } = args;
-        const el = document.querySelector(selector) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null;
-        if (!el) return null;
+      const handle = await frame.evaluateHandle((target: string) => document.querySelector(target), selector);
+      try {
+        const control = handle.asElement();
+        if (!control) continue;
+        assertNonCredentialInput(String(resolvedValue ?? ''), await control.evaluate(describeInputTarget));
+        const result = await control.evaluate((element: Element, args: { value: unknown; checked?: boolean }) => {
+        const { value, checked } = args;
+        const el = element as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
         el.scrollIntoView?.({ block: 'center', inline: 'center' });
         const tag = el.tagName.toLowerCase();
         const input = el as HTMLInputElement;
@@ -122,8 +150,11 @@ export async function wsSetControl(s: WSession, selector: string, value?: unknow
           checked: typeof input.checked === 'boolean' ? input.checked : undefined,
           validation,
         };
-      }, { selector, value: resolvedValue, checked: desiredChecked }).catch((error: Error) => ({ error: error.message.slice(0, 160) }));
-      if (result) return `set_control ${JSON.stringify(result).slice(0, 500)}`;
+        }, { value: resolvedValue, checked: desiredChecked }).catch((error: Error) => ({ error: error.message.slice(0, 160) }));
+        if (result) return `set_control ${JSON.stringify(result).slice(0, 500)}`;
+      } finally {
+        await handle.dispose();
+      }
     }
     return 'no-element-found';
   });

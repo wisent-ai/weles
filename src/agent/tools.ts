@@ -99,7 +99,7 @@ function browserTool(name: string, description: string, properties: Record<strin
 
 export const BROWSER_TOOLS: readonly FunctionTool[] = [
   browserTool('click', 'Click an element. Prefer the complete current CONTROLS entry; preserve its tag and every reported field, including [index] when present. An explicit selector must match exactly one visible control and never falls back to an image guess. Otherwise describe the actual element in plain English.', { target: TARGET }),
-  browserTool('fill', 'Fill a literal non-credential value. Credential values and environment placeholders are forbidden.', { target: TARGET, value: TEXT }),
+  browserTool('fill', 'Fill a literal value only into a non-credential field. The actual field is checked; a selector cannot bypass its credential requirement. Environment placeholders are forbidden.', { target: TARGET, value: TEXT }),
   browserTool('fill_credential', 'Fill an authorized credential field using its supplied opaque capability. Describe the actual field, including its class. Never request or provide plaintext credentials.', {
     target: TARGET,
     field_class: { type: 'string', enum: Object.keys(CREDENTIAL_FIELD_CLASSES), description: 'Use the class bound by the supplied capability, not a class guessed from its value. Keep its resource unchanged.' },
@@ -108,14 +108,14 @@ export const BROWSER_TOOLS: readonly FunctionTool[] = [
   browserTool('fill_identity', 'Fill one field from the current run-generated identity without exposing its value.', { target: TARGET, field: { type: 'string', enum: Object.keys(IDENTITY_FIELDS) } }),
   browserTool('store_credential', 'Store a newly issued token or API key directly in the task-authorized Skarbiec item. Never read or return its value.', { target: TARGET, field_class: { type: 'string', enum: ['token', 'api-key'] } }),
   browserTool('focus', 'Focus an input by name, type or placeholder, including shadow DOM.', { selector: TEXT }),
-  browserTool('type_text', 'Type literal non-credential text after focusing. Environment placeholders are forbidden.', { value: TEXT }),
+  browserTool('type_text', 'Type literal non-credential text after focusing a non-credential field. The focused field is checked, including inside frames and shadow roots. Never use this to work around fill_credential refusal.', { value: TEXT }),
   browserTool('press_key', 'Press a keyboard key such as Enter, Tab or Escape.', { key: TEXT }, []),
   browserTool('navigate', 'Navigate to the supplied URL.', { url: TEXT }),
   browserTool('scroll', 'Scroll the actual page up or down by a number of pixels.', { direction: { type: 'string', enum: ['up', 'down'] }, amount: NUMBER }, []),
   browserTool('wait', 'Wait for the requested number of seconds.', { seconds: NUMBER }, []),
   browserTool('read', 'Answer a question using only the current screenshot. This cannot click, scroll, navigate or change page state.', { question: TEXT }),
   browserTool('select_option', 'Select a dropdown option, including date pickers.', { target: TARGET, value: TEXT }),
-  browserTool('set_control', 'Set and verify an input, select or textarea by CSS selector in the page or an iframe. Use when normal fill, click or selection does not stick.', { selector: TEXT, value: {}, checked: { type: 'boolean' } }, ['selector']),
+  browserTool('set_control', 'Set and verify a non-credential input, select or textarea by CSS selector in the page or an iframe. The actual field is checked; this is not a workaround for a credential refusal.', { selector: TEXT, value: {}, checked: { type: 'boolean' } }, ['selector']),
   browserTool('js_click', 'Last resort: click by selector or text only after click, set_control, and focus with press_key cannot reach the element.', { selector: TEXT, text: TEXT }, []),
   browserTool('solve_captcha', 'Solve a detected supported CAPTCHA and wait for automatic submission. Report failed or absent challenges honestly.', {}),
   browserTool('check_email', 'Poll for the authorized email verification code.', { email: TEXT, sender: TEXT }),

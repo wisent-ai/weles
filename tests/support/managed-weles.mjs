@@ -65,7 +65,7 @@ export function managedWeles(area) {
       `stado workload run returned no JSON (exit ${result.status}, signal ${result.signal ?? 'none'}): ${result.stderr}`);
     return { exit_code: result.status, body: JSON.parse(result.stdout) };
   }
-  async function captureBrowserRun(run, label) {
+  async function captureBrowserRun(run, label, { success = true } = {}) {
     assert.equal(typeof run.body.run_id, 'string', JSON.stringify(run.body));
     const manifest = await request('artifact-inventory', `/diagnostics/${encodeURIComponent(run.body.run_id)}`);
     assert.equal(manifest.status, 200, JSON.stringify(manifest.body));
@@ -80,8 +80,8 @@ export function managedWeles(area) {
     const screenshot = files.filter(file => file.path.endsWith('.png')
       && (file.path.startsWith(`${label}/`) || /^loop_step\d+_/.test(file.path)))
       .sort((left, right) => left.modified_at.localeCompare(right.modified_at)).at(-1);
-    assert.ok(recording, 'the real browser recording is missing');
-    assert.ok(screenshot, 'the final rendered browser state is missing');
+    assert.ok(recording, `the real browser recording is missing: ${JSON.stringify(task.body)}`);
+    assert.ok(screenshot, `the final rendered browser state is missing: ${JSON.stringify(task.body)}`);
     await download('journey.webm', recording.download_url);
     await download('final-page.png', screenshot.download_url);
     assert.equal(task.status, 200);
@@ -89,9 +89,9 @@ export function managedWeles(area) {
     if (process.env.WELES_REAL_EXPECTED_REVISION) {
       assert.equal(runtime.body.source_revision, process.env.WELES_REAL_EXPECTED_REVISION);
     }
-    assert.equal(run.body.ok, true, JSON.stringify(run.body));
-    assert.equal(run.exit_code, 0);
-    assert.equal(task.body.ok, true, JSON.stringify(task.body));
+    assert.equal(run.body.ok, success, JSON.stringify(run.body));
+    assert.equal(run.exit_code, success ? 0 : 1);
+    assert.equal(task.body.ok, success, JSON.stringify(task.body));
     return task.body;
   }
   return { evidence, retain, request, download, runBrowserPlan, captureBrowserRun };

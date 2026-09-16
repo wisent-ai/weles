@@ -23,6 +23,15 @@ export class CapabilityPendingError extends Error {
   }
 }
 
+export class CapabilityDeniedError extends Error {
+  readonly code = 'CAPABILITY_DENIED';
+
+  constructor(operation: string) {
+    super(`broker refused ${operation}: capability denied; no retry is permitted`);
+    this.name = this.code;
+  }
+}
+
 export class CapabilityTransportError extends Error {
   readonly code = 'CAPABILITY_TRANSPORT_FAILED';
 
@@ -137,10 +146,10 @@ export async function requestCapability(
       if (!ended) { fail(new CapabilityTransportError(operation, socketPath, new Error('response truncated'))); return; }
       const response = Buffer.concat(chunks, total);
       wipe();
-      const rejectResponse = (message: string) => {
+      const rejectResponse = (error: string | Error) => {
         response.fill(0);
         settled = true;
-        reject(new Error(message));
+        reject(typeof error === 'string' ? new Error(error) : error);
       };
       const newline = response.indexOf(0x0a);
       if (newline < 1 || newline > CONTROL_LIMIT || response.subarray(0, newline).includes(0x0d)) {
@@ -165,7 +174,7 @@ export async function requestCapability(
           reject(new CapabilityPendingError());
           return;
         }
-        rejectResponse('capability denied'); return;
+        rejectResponse(new CapabilityDeniedError(operation)); return;
       }
       if (record.status !== 'ok') { rejectResponse('invalid broker status'); return; }
       if (Object.keys(record).some((key) => !['version', 'status', 'secret_len'].includes(key))

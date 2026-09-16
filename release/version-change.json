@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.7.8",
-  "candidate": "0.7.9",
+  "current": "0.7.9",
+  "candidate": "0.7.10",
   "breaking": false,
-  "reason": "Preserve credential transport operation, socket and kernel cause, and stop browser execution when the scoped broker is unreachable."
+  "reason": "Bind and verify scoped credential input before reporting success; stop denied or failed fills without caching one-shot credentials. Preserve literal input refusals on protected fields and ordinary text input."
 }
