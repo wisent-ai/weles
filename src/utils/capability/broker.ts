@@ -23,6 +23,15 @@ export class CapabilityPendingError extends Error {
   }
 }
 
+export class CapabilityTransportError extends Error {
+  readonly code = 'CAPABILITY_TRANSPORT_FAILED';
+
+  constructor(operation: string, socketPath: string, cause: NodeJS.ErrnoException) {
+    super(`broker ${operation} transport failure: ${cause.code ?? cause.message} at ${socketPath}`, { cause });
+    this.name = this.code;
+  }
+}
+
 export function requiredConfig(name: string): string {
   const value = process.env[name];
   if (!value || value.trim() !== value) throw new Error(`invalid ${name}`);
@@ -116,20 +125,16 @@ export async function requestCapability(
       if (total > RESPONSE_LIMIT + CONTROL_LIMIT) { chunk.fill(0); fail(new Error('broker response oversized')); return; }
       chunks.push(chunk);
     });
-    socket.once('timeout', () => fail(new Error('broker response missing EOF')));
-    // The cause used to be discarded here, and `broker transport failure`
-    // cannot be acted on: ENOENT means no broker ever bound this path,
-    // ECONNREFUSED means the file outlived the process that bound it, and
-    // EACCES means the socket belongs to another account. Three different
-    // repairs behind one sentence, which is how a Developer ID run spent an
-    // afternoon being diagnosed as the wrong problem.
+    socket.once('timeout', () => fail(new CapabilityTransportError(operation, socketPath, new Error('response missing EOF'))));
+    // Preserve the operation and kernel cause. A live broker process alone
+    // does not prove that a listener is reachable through this socket path.
     socket.once('error', (error: NodeJS.ErrnoException) => fail(
-      new Error(`broker transport failure: ${error.code ?? error.message} at ${socketPath}`),
+      new CapabilityTransportError(operation, socketPath, error),
     ));
     socket.once('end', () => { ended = true; });
     socket.once('close', (hadError) => {
       if (settled || hadError) return;
-      if (!ended) { fail(new Error('broker response truncated')); return; }
+      if (!ended) { fail(new CapabilityTransportError(operation, socketPath, new Error('response truncated'))); return; }
       const response = Buffer.concat(chunks, total);
       wipe();
       const rejectResponse = (message: string) => {

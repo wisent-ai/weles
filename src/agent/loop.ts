@@ -15,6 +15,7 @@ import { humanIdlePause } from '../human/mouse.js';
 import { callJeden } from './jeden.js';
 import { askLlm, buildState, parseJsonFrom, type ModelDecisionProvider } from './loop/observe.js';
 import { PageQuestionError } from '../vision/analyze.js';
+import { CapabilityTransportError } from '../utils/capability/broker.js';
 
 export interface ToolCall {
   tool: string;
@@ -63,7 +64,7 @@ export async function execute(
         const v = typeof result.value === 'string' ? session.resolveEnv(result.value) : result.value;
         return { value: v, history: saved.steps as any };
       }
-      if (result.error instanceof PageQuestionError) {
+      if (result.error instanceof PageQuestionError || result.error instanceof CapabilityTransportError) {
         const failed = saved.steps[result.failedAtStep];
         throw new AgentFailure(String(result.error), [{
           tool: failed.tool, args: failed.args, error: String(result.error),
@@ -143,7 +144,7 @@ export async function execute(
       call.error = String(e).slice(0, 500);
       console.log(`[loop] step ${step} error: ${call.error}`);
       history.push(call);
-      if (e instanceof PageQuestionError) {
+      if (e instanceof PageQuestionError || e instanceof CapabilityTransportError) {
         throw new AgentFailure(String(e), history);
       }
       if (replay && options?.replayOnly) {
