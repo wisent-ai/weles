@@ -61,6 +61,8 @@ export function managedWeles(area) {
       stdout: result.stdout, stderr: result.stderr, error: result.error?.message,
     });
     assert.ifError(result.error);
+    assert.ok(result.stdout.trim(),
+      `stado workload run returned no JSON (exit ${result.status}, signal ${result.signal ?? 'none'}): ${result.stderr}`);
     return { exit_code: result.status, body: JSON.parse(result.stdout) };
   }
   async function captureBrowserRun(run, label) {
