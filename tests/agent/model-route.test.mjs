@@ -127,6 +127,10 @@ test('a detailed screenshot question distinguishes visible facts from content be
   const question = 'Read the measurement command, incomplete-measurement exit code, unresolved-identifier meaning, recorded source revision, and export-link href from the screenshot. Return only JSON with fields measurement_command (string), incomplete_exit_code (number), unresolved_proves_absence (boolean), source_revision (string or null), export_href (string or null). Use null when the revision or href is not visible; do not infer it.';
   try {
     const answer = await askJedenAboutImage(image, question, 'tier_0_bare');
+    const originalQuestion = "Read the rendered heading at the top of the page and the measurement command beginning 'node src/cli.mjs figma-variables --components', the saved-result and recorded-result sections (nonzero exit behavior, unresolved identifiers, source revision, statement about not proving visual parity), and identify the visible 'version-pinned export workflow' link including its href attribute value.";
+    const originalAnswer = await askJedenAboutImage(image, originalQuestion, 'tier_0_bare');
+    report.observations.original_scrolled_question = { question: originalQuestion, answer: originalAnswer };
+    assert.match(originalAnswer, /node src\/cli\.mjs figma-variables --components --only iyYN8q8ZJMRy6oSKjjQIYo/);
     report.observations.scrolled_image = { question, answer };
     const facts = parseJsonFrom(answer);
     assert.equal(facts.measurement_command, 'node src/cli.mjs figma-variables --components --only iyYN8q8ZJMRy6oSKjjQIYo');
