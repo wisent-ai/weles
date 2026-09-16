@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.7.9",
-  "candidate": "0.7.10",
+  "current": "0.7.10",
+  "candidate": "0.7.11",
   "breaking": false,
-  "reason": "Bind and verify scoped credential input before reporting success; stop denied or failed fills without caching one-shot credentials. Preserve literal input refusals on protected fields and ordinary text input."
+  "reason": "Observe late OAuth pages before acting and carry completed prefill state forward without offering consumed capabilities again."
 }
