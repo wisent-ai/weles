@@ -18,7 +18,7 @@ function writeJson(name, value) {
   writeFileSync(join(dir, name), JSON.stringify(value, null, 2));
 }
 
-async function applyCredentialPrefill(activeSession, taskConstraints) {
+async function applyCredentialPrefill(activeSession, taskConstraints, initialHistory) {
   const entries = Array.isArray(taskConstraints.credential_prefill)
     ? taskConstraints.credential_prefill
     : [];
@@ -41,6 +41,11 @@ async function applyCredentialPrefill(activeSession, taskConstraints) {
       console.log(`[generic] prefill deferred: no ${fieldClass} field on this page; its capability is unspent`);
     } else if (outcome.startsWith('credential filled')) {
       completed.push({ target, field_class: fieldClass });
+      initialHistory.push({
+        tool: 'fill_credential',
+        args: { target, field_class: fieldClass },
+        result: outcome,
+      });
     } else {
       throw new Error(`credential prefill for ${fieldClass} did not fill its target after redemption: ${outcome}`);
     }
@@ -139,36 +144,40 @@ function draftSummary(trajectoryDraft) {
 let session = null;
 let result = null;
 let trajectoryDraft = null;
+const initialHistory = [];
 try {
   console.log(`[generic] url=${url} flow=${flowName} browser=${browser} mode=${keeperFirst ? 'keeper_first' : replay ? 'saved_replay' : 'draft_first'}`);
   trajectoryDraft = await initialDraft();
   session = await WSession.start({ label, proxy, targetHost: new URL(url).hostname, headless, browser, os, locale, platform: sessionPlatformFromConstraints(constraints) || undefined, pageDiagnostics: keeperFirst ? false : undefined });
-  await session.goto(url);
-  const completedPrefills = await applyCredentialPrefill(session, constraints);
+  initialHistory.push({ tool: 'navigate', args: { url }, result: await session.goto(url) });
+  const completedPrefills = await applyCredentialPrefill(session, constraints, initialHistory);
   await ensureSupabaseSession(session, constraints);
   await ensureFigmaSession(session, constraints);
   result = await execute(session, goalFor(trajectoryDraft, completedPrefills), {
     envHints,
+    initialHistory,
     flowName,
     replay,
     replayOnly,
     skipSavedFlowReplay,
-    disableFlowPersistence: browserEvidencePolicyActive,
+    disableFlowPersistence: browserEvidencePolicyActive || completedPrefills.length > 0,
     disableArtifacts: browserEvidencePolicyActive,
   });
+  const history = result.history.slice(initialHistory.length);
   if (browserEvidencePolicyActive) await captureRequiredBrowserEvidence(session);
   const payload = browserEvidencePolicyActive ? {
     ok: true,
     url,
     final_url: session.page.url?.() ?? null,
-    step_count: result.history.length,
+    step_count: history.length,
     completed_at: new Date().toISOString(),
   } : {
     ok: true,
     url,
     final_url: session.page.url?.() ?? null,
     value: result.value ?? null,
-    history: result.history,
+    initialization_history: initialHistory,
+    history,
     trajectory_draft: draftSummary(trajectoryDraft),
     completed_at: new Date().toISOString(),
   };
@@ -177,13 +186,13 @@ try {
     action: label,
     healthy: true,
     signal: 'healthy',
-    details: { final_url: payload.final_url, steps: result.history.length },
+    details: { final_url: payload.final_url, steps: history.length },
     ts: new Date().toISOString(),
   });
   console.log(`PASS: ${label}`);
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
-  const history = error instanceof AgentFailure ? error.history : result?.history ?? [];
+  const history = (error instanceof AgentFailure ? error.history : result?.history ?? []).slice(initialHistory.length);
   const finalUrl = session?.page?.url?.() ?? null;
   const needsHumanApproval = /needs_human_approval/i.test(message) || history.some((step) => /needs_human_approval/i.test(String(step?.args?.reason ?? '')));
   writeJson('generic_task_result.json', browserEvidencePolicyActive ? {
@@ -198,6 +207,7 @@ try {
     url,
     final_url: finalUrl,
     error: message,
+    initialization_history: initialHistory,
     history,
     trajectory_draft: draftSummary(trajectoryDraft),
     completed_at: new Date().toISOString(),

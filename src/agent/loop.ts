@@ -42,9 +42,10 @@ export class AgentFailure extends Error {
 export async function execute(
   session: WSession,
   goal: string,
-  options?: { envHints?: Record<string, string>; replay?: ToolCall[]; flowName?: string; replayOnly?: boolean; skipSavedFlowReplay?: boolean; disableFlowPersistence?: boolean; disableArtifacts?: boolean; modelDecision?: ModelDecisionProvider; maxSteps?: number },
+  options?: { envHints?: Record<string, string>; replay?: ToolCall[]; flowName?: string; replayOnly?: boolean; skipSavedFlowReplay?: boolean; disableFlowPersistence?: boolean; disableArtifacts?: boolean; modelDecision?: ModelDecisionProvider; maxSteps?: number; initialHistory?: ToolCall[] },
 ): Promise<LoopResult> {
-  const history: ToolCall[] = [];
+  // Initialization is observed history, not a draft the model should execute again.
+  const history: ToolCall[] = options?.initialHistory ? [...options.initialHistory] : [];
   const envHints = options?.envHints ?? {};
   let replay = options?.replay ?? null;
   const page = session.page;
@@ -63,12 +64,12 @@ export async function execute(
       const result = await replayFlow(saved, (tool, args) => dispatch(session, tool, args));
       if (result.success) {
         const v = typeof result.value === 'string' ? session.resolveEnv(result.value) : result.value;
-        return { value: v, history: saved.steps as any };
+        return { value: v, history: history.concat(saved.steps as ToolCall[]) };
       }
       if (result.error instanceof PageQuestionError || result.error instanceof CapabilityTransportError
         || result.error instanceof CapabilityDeniedError || result.error instanceof CredentialFillError) {
         const failed = saved.steps[result.failedAtStep];
-        throw new AgentFailure(String(result.error), [{
+        throw new AgentFailure(String(result.error), [...history, {
           tool: failed.tool, args: failed.args, error: String(result.error),
         }]);
       }
@@ -141,7 +142,8 @@ export async function execute(
       call.result = 'done';
       history.push(call);
       if (flowName && !options?.disableFlowPersistence) {
-        const steps = history.filter(h => !h.error).map(h => ({ tool: h.tool, args: h.args, result: h.result }));
+        const steps = history.slice(options?.initialHistory?.length ?? 0)
+          .filter(h => !h.error).map(h => ({ tool: h.tool, args: h.args, result: h.result }));
         if (saveFlow(flowName, steps)) console.log(`[loop] Flow saved: ${flowName} (${steps.length} steps)`);
         else console.log(`[loop] Flow not cached: ${flowName} uses a one-shot credential capability`);
       }

@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.7.10",
-  "candidate": "0.7.11",
+  "current": "0.7.11",
+  "candidate": "0.7.12",
   "breaking": false,
-  "reason": "Observe late OAuth pages before acting and carry completed prefill state forward without offering consumed capabilities again."
+  "reason": "Carry actual initialization actions into browser decisions and retain safe continuation evidence."
 }

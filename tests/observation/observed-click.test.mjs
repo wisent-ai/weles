@@ -73,6 +73,50 @@ test('a scoped sign-in credential stays unchanged when literal input is refused'
   console.error(`real credential-prefill evidence: ${client.evidence}`);
 });
 
+test('prefilled sign-in continues without reopening or refilling the account', {
+  skip: !process.env.WELES_REAL_LOGIN_ITEM && 'requires an authorized real login item',
+}, async () => {
+  const client = managedWeles('prefill-continuation');
+  const label = `prefill-continuation-${randomUUID()}`;
+  client.retain('test-command.json', {
+    argv: process.argv, execArgv: process.execArgv,
+    test_sha256: createHash('sha256').update(readFileSync(import.meta.filename)).digest('hex'),
+  });
+  process.once('exit', code => client.retain('exit.json', { exit_code: code }));
+  const run = client.runBrowserPlan('browser-run', {
+    schema: 'wisent.weles-browser-task-plan.v1',
+    action: 'generic_browser_task',
+    url: 'https://myaccount.google.com/apppasswords',
+    session_label: label,
+    flow_name: label,
+    fresh_profile: true,
+    allow_login: true,
+    sign_in_origin: 'https://accounts.google.com',
+    sign_in_item: process.env.WELES_REAL_LOGIN_ITEM,
+    objective: [
+      'Continue from the current Google sign-in page and its already-prefilled account address.',
+      'Use the Next button once to submit only that existing identifier, then read the resulting page and report its visible authentication methods.',
+      'Stop after observing that next page. Do not fill or submit a password, start a passkey, request approval or send a notification.',
+      'Do not navigate, refill any field, change the selected account, register, recover the account, alter security settings or create an app password.',
+      'If the identifier is empty, stop and report the actual state rather than substituting an account or retrying a consumed credential.',
+      'A form submission for the account identifier is the only permitted change. No system dialogs, SMS, email or trusted-device prompts.',
+    ].join('\n'),
+  });
+  const task = await client.captureBrowserRun(run, label);
+  const finalUrl = new URL(task.final_url);
+  assert.equal(finalUrl.origin, 'https://accounts.google.com');
+  assert.match(finalUrl.pathname, /\/challenge\//,
+    'the real provider must advance beyond the identifier page');
+  assert.ok(task.history.some(step => step.tool === 'click' && !step.error),
+    'the identifier must be submitted through its observed Next control');
+  const observation = task.history.findLast(step => step.tool === 'read');
+  assert.match(observation?.result ?? '', /password|passkey|verification|verify|security key|authenticator/i,
+    'the resulting authentication page must actually be observed');
+  assert.ok(task.history.every(step => ['click', 'read', 'wait', 'done'].includes(step.tool)),
+    'continuation must not repeat initialization or supply another credential');
+  console.error(`real prefill-continuation evidence: ${client.evidence}`);
+});
+
 test('ordinary search fields accept literal keyboard, fill and control edits', async () => {
   const client = managedWeles('literal-input');
   const label = `literal-input-${randomUUID()}`;
