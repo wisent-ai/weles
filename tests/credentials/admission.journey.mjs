@@ -1,18 +1,25 @@
 import assert from 'node:assert/strict';
 import { constants as http } from 'node:http2';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { resolveWelesEndpoint, readCredentialAdmissionBearer } from '../../node_modules/@wisent-ai/weles-client/src/stado-admission.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
-const source = JSON.parse(readFileSync(join(root, 'release/source-identity.json'), 'utf8'));
-const endpoint = new URL('credential-operations', `${resolveWelesEndpoint().replace(/\/$/, '')}/`);
-const bearer = readCredentialAdmissionBearer();
+const identityPath = join(root, 'release/source-identity.json');
+const packaged = existsSync(identityPath);
+const source = packaged ? JSON.parse(readFileSync(identityPath, 'utf8')) : {
+  version: JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version,
+  source_revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
+};
+let endpoint;
+let bearer;
 const id = createHash('sha256').update(randomUUID()).digest('hex');
 const evidence = join(root, '.wisent-output', 'credential-admission-tests', id);
 mkdirSync(evidence, { recursive: true });
-const report = { source, endpoint: endpoint.href, commands: [], verdict: 'running' };
+const report = { source, commands: [], verdict: 'running', command: [process.execPath, ...process.argv.slice(1)] };
+if (!packaged) writeFileSync(join(evidence, 'source.patch'), execFileSync('git', ['diff', '--binary', 'HEAD'], { cwd: root }));
 const request = {
   version: 'skarbiec.credential-operation.v3', request_id: id,
   mode: 'submit', action_log_id: null, approval_id: null, resume_token: null,
@@ -38,6 +45,9 @@ async function call(body, authenticated = true) {
 }
 
 try {
+  endpoint = new URL('/api/v1/credential-operations', resolveWelesEndpoint());
+  report.endpoint = endpoint.href;
+  bearer = readCredentialAdmissionBearer();
   const health = await fetch(new URL('/healthz', endpoint));
   const identity = await health.json();
   report.deployed = identity;
