@@ -15,9 +15,9 @@
  * the process, and launchd's KeepAlive starts a fresh pair.
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, copyFileSync, chmodSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, copyFileSync, chmodSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 
 const REPO = resolve(import.meta.dirname, '..', '..');
 const HOME = process.env.HOME || homedir();
@@ -136,20 +136,14 @@ if (releaseVersion && releaseSha256) {
 process.env.WELES_API_HOST = process.env.WELES_API_HOST || '0.0.0.0';
 process.env.WELES_API_PORT = process.env.WELES_API_PORT || '8788';
 const port = process.env.WELES_API_PORT;
-const capabilitySocket = join(HOME, '.stado/run/weles-api-capability.sock');
-process.env.SKARBIEC_CAP_SOCKET = capabilitySocket;
 
-// The API port is the only thing that says which instance is the live one, so
-// it is decided first — before this process reads a single credential. Clearing
-// the broker socket is safe only for the instance that owns the port: a restart
-// that cleared it first took the path from the instance still serving, whose
-// trajectories then read ECONNREFUSED at every credential fill, and no restart
-// could repair it because each retry repeated the theft. A losing instance
-// stands by having changed nothing and having asked Skarbiec for nothing.
+// Avoid acquiring credentials when another API already serves this port.
+// This observation is not a lock: launchers that race past it must have
+// separate broker sockets, so a losing instance cannot disconnect the winner.
 const lsof = existsSync('/usr/sbin/lsof') ? '/usr/sbin/lsof' : 'lsof';
 const served = spawnSync(lsof, ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN'], { encoding: 'utf8' });
 if (served.status === 0 && served.stdout.trim()) {
-  process.stderr.write(`weles api port ${port} is already served: standing by, ${capabilitySocket} untouched\n`);
+  process.stderr.write(`weles api port ${port} is already served: standing by without changing broker state\n`);
   setTimeout(() => process.exit(0), 30_000);
 } else {
   await startup();
@@ -227,21 +221,21 @@ async function startup() {
   process.env.STADO_API_TOKEN = process.env.WELES_STADO_OBJECT_API_TOKEN;
   process.env.SKARBIEC_VAULT_FILE = join(HOME, '.stado/skarbiec.vault.json');
   process.env.SKARBIEC_CAPABILITY_FILE = join(HOME, '.stado/weles-api-capabilities.json');
+  mkdirSync(join(HOME, '.stado/run'), { recursive: true });
+  const brokerDirectory = mkdtempSync(join(HOME, '.stado/run/weles-api-'));
+  const capabilitySocket = join(brokerDirectory, 'capability.sock');
+  process.env.SKARBIEC_CAP_SOCKET = capabilitySocket;
+  process.once('exit', () => rmSync(brokerDirectory, { recursive: true, force: true }));
 
   const capabilityRoutes = join(HOME, '.stado/weles-api-capability-routes.json');
   copyFileSync(join(REPO, 'src/worker/deploy/weles-capability-routes.json'), capabilityRoutes);
   chmodSync(capabilityRoutes, 0o600);
   process.env.SKARBIEC_CAPABILITY_ROUTES_FILE = capabilityRoutes;
 
-  mkdirSync(dirname(capabilitySocket), { recursive: true });
-  // A unix socket outlives the process that bound it, so the launcher that owns
-  // the port clears it; otherwise bind answers EADDRINUSE and the file is left
-  // pointing at nothing.
-  rmSync(capabilitySocket, { force: true });
-  await start(nodeBin);
+  await start(nodeBin, capabilitySocket);
 }
 
-async function start(nodeBin) {
+async function start(nodeBin, capabilitySocket) {
   const broker = spawn(process.env.SKARBIEC_BIN, ['capability-serve', '--socket', capabilitySocket],
     { stdio: 'inherit', env: process.env });
   let brokerAlive = true;

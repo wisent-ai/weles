@@ -98,7 +98,7 @@ function browserTool(name: string, description: string, properties: Record<strin
 }
 
 export const BROWSER_TOOLS: readonly FunctionTool[] = [
-  browserTool('click', 'Click an element. Prefer the complete current CONTROLS entry; preserve its tag and every reported field, including [index] when present. Otherwise describe the actual element in plain English.', { target: TARGET }),
+  browserTool('click', 'Click an element. Prefer the complete current CONTROLS entry; preserve its tag and every reported field, including [index] when present. An explicit selector must match exactly one visible control and never falls back to an image guess. Otherwise describe the actual element in plain English.', { target: TARGET }),
   browserTool('fill', 'Fill a literal non-credential value. Credential values and environment placeholders are forbidden.', { target: TARGET, value: TEXT }),
   browserTool('fill_credential', 'Fill an authorized credential field using its supplied opaque capability. Describe the actual field, including its class. Never request or provide plaintext credentials.', {
     target: TARGET,

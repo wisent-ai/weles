@@ -88,3 +88,35 @@ export async function clickObservedControl(page: Page, description: string): Pro
     await Promise.all(matches.map(element => element.dispose()));
   }
 }
+
+export async function clickSelectorControl(page: Page, description: string): Promise<string | null> {
+  const target = description.trim();
+  const labelledButton = /^button\[label=(['"])(.*?)\1\]$/.exec(target);
+  const selectorSyntax = /^(?:css=|xpath=|text=|id=|[.#\[]|[a-z][\w-]*[.#\[:]|(?:a|button|input|label|select|textarea)$)/i;
+  if (!labelledButton && !selectorSyntax.test(target)) return null;
+  const label = labelledButton
+    ? new RegExp(`^\\s*${labelledButton[2].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'i')
+    : null;
+  const handles: ElementHandle[] = [];
+  try {
+    for (const frame of page.frames()) {
+      const locator = label ? frame.getByRole('button', { name: label }) : frame.locator(target);
+      try {
+        handles.push(...await locator.elementHandles());
+      } catch (error) {
+        throw new Error(`[selector_target_invalid] Cannot resolve ${target}: ${String(error)}; no pointer input was sent`);
+      }
+    }
+    let match: ElementHandle | undefined;
+    for (const handle of handles) {
+      if (!await handle.isVisible()) continue;
+      if (match) throw new Error(`[selector_target_ambiguous] Multiple visible controls match ${target}; no pointer input was sent`);
+      match = handle;
+    }
+    if (!match) throw new Error(`[selector_target_absent] No visible control matches ${target}; no pointer input was sent. Use a current observed control or a correct selector`);
+    await humanClickLocator(page, match);
+    return `clicked selector: ${target}`;
+  } finally {
+    await Promise.all(handles.map(handle => handle.dispose()));
+  }
+}

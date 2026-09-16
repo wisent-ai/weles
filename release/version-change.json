@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.7.6",
-  "candidate": "0.7.7",
+  "current": "0.7.7",
+  "candidate": "0.7.8",
   "breaking": false,
-  "reason": "Use typed browser functions, refuse missing targets, share the active action page with observations, and retain adequately allocated visual answers and precise credential target refusals."
+  "reason": "Keep runtime state outside immutable installs, isolate each launcher's credential socket, and preserve scoped identity in browser drafts."
 }

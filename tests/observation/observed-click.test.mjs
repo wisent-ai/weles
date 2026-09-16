@@ -10,6 +10,37 @@ const exportUrl = 'https://www.wisent.com/docs/components/figma-export';
 test('an indexed observed link navigates and its obsolete description is refused', () => runObservedClick(true));
 test('an unindexed observed link navigates and its obsolete description is refused', () => runObservedClick(false));
 
+test('a scoped sign-in credential fills the existing account without registration', {
+  skip: !process.env.WELES_REAL_LOGIN_ITEM && 'requires an authorized real login item and expected account',
+}, async () => {
+  assert.ok(process.env.WELES_REAL_LOGIN_EMAIL, 'WELES_REAL_LOGIN_EMAIL is required');
+  const client = managedWeles('credential-prefill');
+  const label = `credential-prefill-${randomUUID()}`;
+  client.retain('test-command.json', {
+    argv: process.argv, execArgv: process.execArgv,
+    test_sha256: createHash('sha256').update(readFileSync(import.meta.filename)).digest('hex'),
+  });
+  process.once('exit', code => client.retain('exit.json', { exit_code: code }));
+  const run = client.runBrowserPlan('browser-run', {
+    schema: 'wisent.weles-browser-task-plan.v1',
+    action: 'generic_browser_task',
+    url: 'https://accounts.google.com/',
+    session_label: label,
+    flow_name: label,
+    fresh_profile: true,
+    allow_login: true,
+    sign_in_origin: 'https://accounts.google.com',
+    sign_in_item: process.env.WELES_REAL_LOGIN_ITEM,
+    objective: 'Read the exact account address already present in the Email or phone field. Use read to inspect the rendered field, then call done with {"account": "<observed field value>"}. Do not type, fill, click, press keys, navigate, register, submit the form, or request approval, system permissions or notifications. Do not invent an account. If the field is empty or unreadable, report that failure instead.',
+  });
+  const task = await client.captureBrowserRun(run, label);
+  assert.equal(task.value?.account, process.env.WELES_REAL_LOGIN_EMAIL);
+  assert.equal(new URL(task.final_url).origin, 'https://accounts.google.com');
+  assert.ok(task.history.every(step => ['read', 'wait', 'done'].includes(step.tool)),
+    'observation after protected prefill must not mutate or submit the login form');
+  console.error(`real credential-prefill evidence: ${client.evidence}`);
+});
+
 async function runObservedClick(indexed) {
   const client = managedWeles('observed-click');
   const label = `observed-click-${randomUUID()}`;
@@ -43,33 +74,9 @@ async function runObservedClick(indexed) {
       'After this expected refusal, do not retry it, navigate elsewhere, or click a replacement. Call done with the observed result. This deliberate refusal is the final test step, not a reason to improvise another action.',
     ].join('\n'),
   });
-  assert.equal(typeof run.body.run_id, 'string', JSON.stringify(run.body));
-  const manifest = await client.request('artifact-inventory', `/diagnostics/${encodeURIComponent(run.body.run_id)}`);
-  assert.equal(manifest.status, 200, JSON.stringify(manifest.body));
-  const files = manifest.body.files;
-  const taskFile = files.find(file => file.path.endsWith('/generic_task_result.json'));
-  const runtimeFile = files.find(file => file.path === 'run-result.json');
-  assert.ok(taskFile, 'the browser did not retain its final state');
-  assert.ok(runtimeFile, 'the worker did not retain its exact runtime revision');
-  const task = await client.request('browser-state', taskFile.download_url);
-  const runtime = await client.request('runtime-source', runtimeFile.download_url);
-  const recording = files.find(file => file.path.startsWith(`${label}/`) && file.path.endsWith('.webm'));
-  const screenshot = files.filter(file => file.path.startsWith(`${label}/`) && file.path.endsWith('.png'))
-    .sort((left, right) => left.modified_at.localeCompare(right.modified_at)).at(-1);
-  assert.ok(recording, 'the real browser recording is missing');
-  assert.ok(screenshot, 'the final rendered browser state is missing');
-  await client.download('journey.webm', recording.download_url);
-  await client.download('final-page.png', screenshot.download_url);
-  assert.equal(task.status, 200);
-  assert.equal(runtime.status, 200);
-  if (process.env.WELES_REAL_EXPECTED_REVISION) {
-    assert.equal(runtime.body.source_revision, process.env.WELES_REAL_EXPECTED_REVISION);
-  }
-  assert.equal(run.body.ok, true, JSON.stringify(run.body));
-  assert.equal(run.exit_code, 0);
-  assert.equal(task.body.ok, true, JSON.stringify(task.body));
-  assert.equal(task.body.final_url, exportUrl);
-  const clicks = task.body.history.filter(step => step.tool === 'click');
+  const task = await client.captureBrowserRun(run, label);
+  assert.equal(task.final_url, exportUrl);
+  const clicks = task.history.filter(step => step.tool === 'click');
   if (indexed) {
     const empty = clicks.shift();
     assert.equal(empty?.args.target, '');
@@ -83,7 +90,7 @@ async function runObservedClick(indexed) {
     assert.equal(refused.args.target, clicks[0].args.target);
     assert.match(refused.error, /\[observed_target_stale\]/);
   }
-  assert.equal(task.body.history.some(step => ['navigate', 'js_click'].includes(step.tool)), false,
+  assert.equal(task.history.some(step => ['navigate', 'js_click'].includes(step.tool)), false,
     'direct navigation must not substitute for the observed link click');
   console.error(`real observed-click evidence: ${client.evidence}`);
 }

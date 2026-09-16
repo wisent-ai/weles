@@ -22,7 +22,7 @@ import { findClickTarget, type ScreenshottablePage } from '../../vision/analyze.
 import type { WSession } from '../wsession.js';
 import { runRecordingsDir } from '../run-recordings.js';
 import { recordingsDir, wsCaptureFingerprint } from './close/fingerprint_capture.js';
-import { clickObservedControl } from '../observation/controls.js';
+import { clickObservedControl, clickSelectorControl } from '../observation/controls.js';
 
 export { CREDENTIAL_FIELD_ABSENT, wsFillCredential, wsFillIdentity } from './close/credential_fill.js';
 export { wsCheckEmail, wsSaveAccount } from './close/account_record.js';
@@ -64,6 +64,8 @@ export async function wsClick(s: WSession, target: string): Promise<string> {
     if (typeof target !== 'string' || !target.trim()) throw new Error('[target_empty] A click requires a non-empty target; no pointer input was sent');
     const observed = await clickObservedControl(s.page, target);
     if (observed !== null) return observed;
+    const selected = await clickSelectorControl(s.page, target);
+    if (selected !== null) return selected;
     const tryLoc = async (loc: any, descPrefix: string): Promise<string | null> => {
       try {
         if ((await loc.count?.()) > 0 && await loc.first().isVisible({ timeout: VISIBILITY_PROBE_MS }).catch(() => false)) {
@@ -73,25 +75,6 @@ export async function wsClick(s: WSession, target: string): Promise<string> {
       } catch {}
       return null;
     };
-    const labelledButton = target.trim().match(/^button\[label=['"]([^'"]+)['"]\]/)?.[1];
-    if (labelledButton) {
-      const labelledExact = new RegExp(`^\\s*${labelledButton.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'i');
-      for (const frame of childFrames(s)) {
-        const clicked = await tryLoc(frame.getByRole('button', { name: labelledExact }), 'frame button label: ');
-        if (clicked) return clicked;
-      }
-      const clicked = await tryLoc(s.page.getByRole('button', { name: labelledExact }), 'button label: ');
-      if (clicked) return clicked;
-    }
-    const explicitSelector = target.trim().match(/^(?:button|a|input|label|select|textarea|\[[^\]]+\])(?:\[[^\]]+\])*/)?.[0];
-    if (explicitSelector) {
-      for (const frame of childFrames(s)) {
-        const clicked = await tryLoc(frame.locator(explicitSelector), 'frame selector: ');
-        if (clicked) return clicked;
-      }
-      const clicked = await tryLoc(s.page.locator(explicitSelector), 'selector: ');
-      if (clicked) return clicked;
-    }
     const tEsc = target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const reExact = new RegExp(`^\\s*${tEsc}\\s*$`, 'i');
     const reLoose = new RegExp(tEsc, 'i');

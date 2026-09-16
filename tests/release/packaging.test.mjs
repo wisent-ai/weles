@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import {
-  copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, truncateSync, writeFileSync,
+  copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, truncateSync, writeFileSync,
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { stadoBinary } from '../../src/_shared/skarbiec-runtime.mjs';
@@ -17,6 +17,7 @@ import { stadoBinary } from '../../src/_shared/skarbiec-runtime.mjs';
 const REPO = resolve(import.meta.dirname, '..', '..');
 const input = process.env.WISENT_INPUT_JEDEN_RUNTIME_DIR;
 const archive = input ? null : process.env.WELES_TEST_JEDEN_ARCHIVE;
+const workerPayload = process.env.WELES_TEST_WORKER_PAYLOAD;
 const stado = stadoBinary();
 assert.ok((input || archive) && existsSync(input || archive),
   'WISENT_INPUT_JEDEN_RUNTIME_DIR or WELES_TEST_JEDEN_ARCHIVE must name the real published native input');
@@ -29,6 +30,8 @@ const report = {
   native_input_directory: input ? resolve(input) : null,
   native_archive: archive ? resolve(archive) : null,
   native_archive_sha256: archive ? createHash('sha256').update(readFileSync(archive)).digest('hex') : null,
+  worker_payload: workerPayload ? resolve(workerPayload) : null,
+  worker_payload_sha256: workerPayload ? createHash('sha256').update(readFileSync(workerPayload)).digest('hex') : null,
   native_binary_sha256: {},
   commands: [],
 };
@@ -116,8 +119,10 @@ function startup({ root, home }) {
 }
 
 function noBroker(home) {
-  assert.equal(existsSync(join(home, '.stado/run/weles-api-capability.sock')), false,
-    'a refused startup created a capability broker');
+  const root = join(home, '.stado/run');
+  const sockets = existsSync(root) ? readdirSync(root, { withFileTypes: true })
+    .filter(entry => entry.isSocket() || entry.isDirectory()) : [];
+  assert.deepEqual(sockets, [], 'a refused startup created capability broker state');
 }
 
 test('a missing bundled helper refuses despite a complete external Jeden', () => {
@@ -156,4 +161,37 @@ test('an archive outside the declared digest is refused before staging bytes', (
   assert.equal(result.status, 1, result.stderr);
   assert.match(result.stderr, /SHA-256/);
   assert.equal(existsSync(destination), false, 'unverified input reached the staged runtime');
+});
+
+test('worker startup and repeated startup preserve the installed release tree', {
+  skip: !workerPayload && 'requires the real compiled WELES_TEST_WORKER_PAYLOAD',
+}, () => {
+  const root = join(scratch, 'immutable-release');
+  const expected = join(scratch, 'expected-release');
+  const home = join(scratch, 'release-owner');
+  mkdirSync(join(root, 'payload'), { recursive: true });
+  mkdirSync(home);
+  copyFileSync(workerPayload, join(root, 'payload', 'weles-worker.tar.gz'));
+  copyFileSync(join(REPO, 'release', 'stado-launcher.sh'), join(root, 'weles-api-launcher'));
+  cpSync(root, expected, { recursive: true });
+  const options = {
+    cwd: home,
+    env: {
+      HOME: home,
+      PATH: process.env.PATH,
+      NODE_BIN: process.execPath,
+      STADO_BIN: resolve(stado),
+      STADO_CONFIG: join(home, 'absent-stado-config.json'),
+      WELES_API_PORT: '0',
+    },
+  };
+  for (const phase of ['initial startup', 'repeated startup']) {
+    const result = command('bash', [join(root, 'weles-api-launcher')], options);
+    assert.equal(result.status, 1, result.stderr);
+    assert.match(result.stderr, /Skarbiec endpoint resolution refused/);
+    noBroker(home);
+    const difference = command('diff', ['-qr', expected, root]);
+    assert.equal(difference.status, 0,
+      `${phase} changed the installed release: ${difference.stdout}${difference.stderr}`);
+  }
 });

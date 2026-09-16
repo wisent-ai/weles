@@ -63,5 +63,33 @@ export function managedWeles(area) {
     assert.ifError(result.error);
     return { exit_code: result.status, body: JSON.parse(result.stdout) };
   }
-  return { evidence, retain, request, download, runBrowserPlan };
+  async function captureBrowserRun(run, label) {
+    assert.equal(typeof run.body.run_id, 'string', JSON.stringify(run.body));
+    const manifest = await request('artifact-inventory', `/diagnostics/${encodeURIComponent(run.body.run_id)}`);
+    assert.equal(manifest.status, 200, JSON.stringify(manifest.body));
+    const files = manifest.body.files;
+    const taskFile = files.find(file => file.path.endsWith('/generic_task_result.json'));
+    const runtimeFile = files.find(file => file.path === 'run-result.json');
+    assert.ok(taskFile, 'the browser did not retain its final state');
+    assert.ok(runtimeFile, 'the worker did not retain its exact runtime revision');
+    const task = await request('browser-state', taskFile.download_url);
+    const runtime = await request('runtime-source', runtimeFile.download_url);
+    const recording = files.find(file => file.path.startsWith(`${label}/`) && file.path.endsWith('.webm'));
+    const screenshot = files.filter(file => file.path.startsWith(`${label}/`) && file.path.endsWith('.png'))
+      .sort((left, right) => left.modified_at.localeCompare(right.modified_at)).at(-1);
+    assert.ok(recording, 'the real browser recording is missing');
+    assert.ok(screenshot, 'the final rendered browser state is missing');
+    await download('journey.webm', recording.download_url);
+    await download('final-page.png', screenshot.download_url);
+    assert.equal(task.status, 200);
+    assert.equal(runtime.status, 200);
+    if (process.env.WELES_REAL_EXPECTED_REVISION) {
+      assert.equal(runtime.body.source_revision, process.env.WELES_REAL_EXPECTED_REVISION);
+    }
+    assert.equal(run.body.ok, true, JSON.stringify(run.body));
+    assert.equal(run.exit_code, 0);
+    assert.equal(task.body.ok, true, JSON.stringify(task.body));
+    return task.body;
+  }
+  return { evidence, retain, request, download, runBrowserPlan, captureBrowserRun };
 }

@@ -7,7 +7,6 @@ if [ "$(basename "$script_dir")" = "bin" ]; then
 else
   root="$script_dir"
 fi
-runtime="$root/runtime"
 payload="$root/payload/weles-worker.tar.gz"
 node_bin="${NODE_BIN:-/opt/homebrew/bin/node}"
 
@@ -19,6 +18,12 @@ if [ ! -x "$node_bin" ]; then
   printf 'required Node runtime is unavailable: %s\n' "$node_bin" >&2
   exit 1
 fi
+payload_sha256="$(/usr/bin/shasum -a 256 "$payload")"
+payload_sha256="${payload_sha256%% *}"
+# Derived files must never change Stado's immutable installed archive.
+runtime_cache="$HOME/.stado/var/weles/runtime"
+runtime="$runtime_cache/$payload_sha256"
+mkdir -p "$runtime_cache"
 
 # Everything src/worker/weles-api-server.mjs loads out of the runtime root
 # before it binds its port. `dist/` is the part that matters: the server
@@ -90,8 +95,8 @@ if [ "$needs_unpack" = yes ]; then
   # of this launcher while the first is still unpacking, and one shared
   # staging directory let each instance delete the tree the other was
   # extracting into and then publish whatever was left of it.
-  staging="$root/.runtime-staging.$$"
-  replaced="$root/.runtime-replaced.$$"
+  staging="$runtime.staging.$$"
+  replaced="$runtime.replaced.$$"
   rm -rf "$staging" "$replaced"
   mkdir -p "$staging"
   tar -xzf "$payload" -C "$staging"
@@ -125,8 +130,6 @@ version="$("$node_bin" -e '
   }
   process.stdout.write(value);
 ' "$runtime/package.json")"
-payload_sha256="$(/usr/bin/shasum -a 256 "$payload")"
-payload_sha256="${payload_sha256%% *}"
 
 ln -sfn "$runtime" "$HOME/weles"
 export WELES_WORKER_RELEASE_VERSION="$version"

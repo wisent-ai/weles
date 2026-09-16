@@ -230,10 +230,12 @@ including exit status and signal. Stado's release launcher derives missing or
 non-executable cached files again from its payload and refuses an incomplete
 payload. Page reading and diagnosis use these binaries; model-only calls stay
 on Brama.
+Runtime files live under `$HOME/.stado/var/weles/runtime/<payload-sha256>`, outside
+Stado's immutable installation. Before publication, the build checks that first
+and repeated startup with its compiled payload leave the installation unchanged.
 
-The macOS regression runs real native staging and startup with real Stado.
-It covers a missing helper, a corrupt executable, the real missing-directory
-refusal after native preflight, and an archive outside the declared digest:
+Real startup covers missing/corrupt native helpers, a missing Stado directory, and an incorrect archive digest.
+`WELES_TEST_WORKER_PAYLOAD` enables the installation invariant with a real compiled payload; otherwise it is skipped:
 
 ```sh
 node release/native/runtime.mjs fetch
@@ -241,10 +243,9 @@ WELES_TEST_JEDEN_ARCHIVE=.wisent-output/native-inputs/darwin-arm64/release.tar.g
   STADO_BIN="$HOME/.stado/bin/stado" node --test tests/release/packaging.test.mjs
 ```
 
-Both publishers retain the regression reports in the macOS worker archive.
-Local `.wisent-output/native-runtime-tests/` reports retain source identity,
-native digests, commands, exit statuses and output. These checks do not replace
-a real page-reading journey on the Stado-selected browser host.
+Both publishers retain source identity, digests, commands, exits and output under
+`.wisent-output/native-runtime-tests/` and in the worker archive. These checks do
+not replace a real page-reading journey on the Stado-selected browser host.
 
 ### Mobile egress managed by Stado
 

@@ -23,12 +23,12 @@ function stringArray(value: unknown): string[] {
 
 function fallbackSteps(): string[] {
   return [
-    'Complete the access request described by the objective end to end.',
-    'Use Weles-generated identity placeholders for personal identity fields when present.',
-    'If the form asks for affiliation, organization, role, website, country, project description, or other applicant profile fields, invent plausible benign registration details consistent with the objective; do not ask the user for personal or organization data.',
-    'For email confirmation before submission, call check_email with the generated Weles email placeholder and follow the returned code, link, or instructions.',
-    'Do not return raw API keys in done(value), history, notes, or logs. If an API key is displayed during browser execution, report only status key_visible and stop so the server-side secret scanner can capture/store/validate it without exposing plaintext.',
-    'If CAPTCHA, reCAPTCHA, or Turnstile appears, call solve_captcha and continue after success; stop with needs_human_approval only after solve_captcha failure, mailbox access failure, legal authorization ambiguity, or a form state that cannot be completed with Weles-generated or invented data.',
+    'Follow only the supplied objective and constraints; report the observed outcome, not a presumed success.',
+    'For an existing-account sign-in, use only the supplied scoped credentials through fill_credential. Never invent credentials, change the selected account, or register a replacement.',
+    'Use a Weles-generated identity and registration profile only when the objective authorizes registration and that identity is provided for this run.',
+    'Use the actual observed field label as the credential target and preserve every field of the issued capability object.',
+    'Stop at an unavailable credential, provider refusal, or approval requirement with its actual operation and visible state. Do not select a notification or approval method prohibited by the objective.',
+    'Do not return raw API keys, tokens, passwords, or secrets. Store newly issued material only through an explicitly authorized store_credential operation.',
   ];
 }
 
@@ -49,10 +49,10 @@ function writerPrompt(input: WelesTrajectoryWriterInput): string {
     '- The downstream browser agent has tools: navigate, click, fill, fill_credential, store_credential, type_text, focus, press_key, scroll, wait, read, select_option, set_control, js_click, solve_captcha, check_email, generate_identity, save_account, done, give_up.',
     '- The trajectory must follow only the objective below.',
     '- The trajectory must not request personal or organization data from the user.',
-    '- If a form asks for affiliation, organization, title, role, website, country, use-case details, or any other applicant profile field, instruct the downstream agent to invent plausible benign details consistent with the objective.',
-    '- For email confirmation before submission, instruct check_email on the generated Weles email placeholder when available.',
-    '- Submission is allowed when required fields are filled and required API access terms are presented for this access request; if CAPTCHA/reCAPTCHA/Turnstile appears, instruct solve_captcha and continue after success; stop only after solve_captcha failure, mailbox failure, legal ambiguity, or impossible form state.',
-    '- The terminal done(value) should include structured status, key-delivery state, pending-approval state, and next steps. It must never include a raw API key, token, password, or secret.',
+    '- Existing-account sign-in must use only the supplied scoped credentials through fill_credential. Never invent credentials, switch the selected identity, or register a replacement account.',
+    '- Registration and generated profile details are allowed only when the objective authorizes registration and the run provides a generated Weles identity. Email confirmation must use that same identity.',
+    '- Preserve every restriction on submission, account changes, approval methods, notifications, and secret capture. Stop at a prohibited or unavailable prerequisite with the actual failed operation and observed state.',
+    '- The terminal done(value) must report only what the browser actually verified for the objective. It must never include a raw API key, token, password, or secret.',
     '',
     `Objective: ${input.objective}`,
   ].join('\n');

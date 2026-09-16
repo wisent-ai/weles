@@ -14,7 +14,7 @@
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { accessSync, constants, existsSync, mkdirSync, mkdtempSync, rmSync, statSync } from 'node:fs';
+import { accessSync, constants, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { connect, createServer } from 'node:net';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -136,11 +136,8 @@ test('startup refuses before spawning anything when Stado is unavailable', async
   });
   assert.equal(result.status, 1, `expected a refusal, got ${result.status}: ${result.stderr}`);
   assert.ok(result.stderr.includes(absent), result.stderr);
-  assert.equal(
-    existsSync(join(home, '.stado/run/weles-api-capability.sock')),
-    false,
-    'a refused startup must not have created the broker socket',
-  );
+  assert.deepEqual(readdirSync(join(home, '.stado/run')), [],
+    'a refused startup must not have created capability broker state');
 });
 
 test('a launcher that loses the port stands by and leaves the broker socket alone', async () => {
@@ -162,9 +159,8 @@ test('a launcher that loses the port stands by and leaves the broker socket alon
   assert.equal(initialized.status, 0,
     `real skarbiec could not create the isolated vault: ${initialized.stderr || initialized.stdout}`);
 
-  // The socket the live instance owns, bound by the same capability broker the
-  // launcher itself starts. The losing launcher must not remove it, which is
-  // the whole reason the port is claimed before anything shared is touched.
+  // The incumbent may still use the former shared socket path. A new launcher
+  // must leave that real broker alone when another process serves the API port.
   const socketPath = join(home, '.stado/run/weles-api-capability.sock');
   const liveBroker = spawn(skarbiec, ['capability-serve', '--socket', '.stado/run/weles-api-capability.sock'],
     { cwd: home, stdio: ['ignore', 'pipe', 'pipe'], env: brokerEnv });
