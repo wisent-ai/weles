@@ -107,8 +107,10 @@ test('prefilled sign-in continues without reopening or refilling the account', {
   assert.equal(finalUrl.origin, 'https://accounts.google.com');
   assert.match(finalUrl.pathname, /\/challenge\//,
     'the real provider must advance beyond the identifier page');
-  assert.ok(task.history.some(step => step.tool === 'click' && !step.error),
-    'the identifier must be submitted through its observed Next control');
+  const clicks = task.history.filter(step => step.tool === 'click' && !step.error);
+  assert.equal(clicks.length, 1, 'only the account identifier may be submitted');
+  assert.match(String(clicks[0].args.target), /\bNext\b/i,
+    'the only successful click must be the identifier Next control');
   const observation = task.history.findLast(step => step.tool === 'read');
   assert.match(observation?.result ?? '', /password|passkey|verification|verify|security key|authenticator/i,
     'the resulting authentication page must actually be observed');
