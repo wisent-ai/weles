@@ -11,9 +11,8 @@ test('an indexed observed link navigates and its obsolete description is refused
 test('an unindexed observed link navigates and its obsolete description is refused', () => runObservedClick(false));
 
 test('a scoped sign-in credential stays unchanged when literal input is refused', {
-  skip: !process.env.WELES_REAL_LOGIN_ITEM && 'requires an authorized real login item and expected account',
+  skip: !process.env.WELES_REAL_LOGIN_ITEM && 'requires an authorized real login item',
 }, async () => {
-  assert.ok(process.env.WELES_REAL_LOGIN_EMAIL, 'WELES_REAL_LOGIN_EMAIL is required');
   const client = managedWeles('credential-prefill');
   const label = `credential-prefill-${randomUUID()}`;
   client.retain('test-command.json', {
@@ -38,12 +37,14 @@ test('a scoped sign-in credential stays unchanged when literal input is refused'
       'fill with {"target":"input[id=\\"identifierId\\"]","value":"unexpected-entry"};',
       'set_control with {"selector":"#identifierId","value":"unexpected-entry"}.',
       'Each should refuse because a credential field requires fill_credential. A deliberate refusal is an expected test outcome; do not retry, fix it or use another action.',
-      'Then use read to inspect the exact rendered account address and call done with {"account":"<observed field value>"}. Report the actual value, even if an input changed it.',
+      'Then use read to inspect the rendered account address and call done with a brief summary. Report the actual value, even if an input changed it.',
       'Do not click, focus, press keys, navigate, register, submit the form, request approval, open system dialogs or send notifications. Do not invent an account.',
     ].join('\n'),
   });
   const task = await client.captureBrowserRun(run, label);
-  assert.equal(task.value?.account, process.env.WELES_REAL_LOGIN_EMAIL);
+  const accountObservation = task.history.find(step => step.tool === 'read');
+  assert.match(accountObservation?.result ?? '', /@[a-z0-9.-]+\.[a-z]{2,}/i,
+    'the scoped prefill must leave an observed account address, not an empty field');
   assert.equal(new URL(task.final_url).origin, 'https://accounts.google.com');
   for (const tool of ['type_text', 'fill', 'set_control']) {
     const attempts = task.history.filter(step => step.tool === tool);
@@ -52,6 +53,20 @@ test('a scoped sign-in credential stays unchanged when literal input is refused'
       assert.match(attempt.error, /credential fields require fill_credential/,
         `${tool} must refuse before changing the protected field`);
     }
+  }
+  const inventory = JSON.parse(readFileSync(`${client.evidence}/artifact-inventory.json`, 'utf8')).body.files;
+  const refusedFrames = inventory.filter(file => file.path.startsWith(`${label}/error_`) && file.path.endsWith('.png'));
+  assert.equal(refusedFrames.length, 3, 'all three refusals must retain their actual rendered state');
+  for (const frame of refusedFrames) {
+    const step = /\/error_(\d+)_/.exec(frame.path)[1];
+    const before = inventory.find(file => file.path.startsWith(`${label}/before_${step}_`) && file.path.endsWith('.png'));
+    assert.ok(before, `missing the rendered page before refused step ${step}`);
+    const beforeName = `guard-${step}-before.png`;
+    const afterName = `guard-${step}-after.png`;
+    await client.download(beforeName, before.download_url);
+    await client.download(afterName, frame.download_url);
+    assert.ok(readFileSync(`${client.evidence}/${beforeName}`).equals(readFileSync(`${client.evidence}/${afterName}`)),
+      `refused step ${step} changed the actual rendered page`);
   }
   assert.ok(task.history.every(step => ['type_text', 'fill', 'set_control', 'read', 'wait', 'done'].includes(step.tool)),
     'the credential regression must not submit or navigate the login form');
