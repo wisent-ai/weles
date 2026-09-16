@@ -1,3 +1,6 @@
+import { constants, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { runRecordingsDir } from '../run-recordings.js';
 import type { WSession } from '../wsession.js';
 import {
   acquiredSecretContract,
@@ -236,6 +239,14 @@ export async function wsStoreCredential(
         declaredOrigin: constraints.declaredOrigin,
       },
     );
+    writeFileSync(join(runRecordingsDir(), 'credential_capture.json'), JSON.stringify({
+      requestId: constraints.requestId,
+      operation: constraints.operation,
+      vaultItemId: constraints.itemId,
+      field: constraints.field,
+      sourceOrigin: captureOrigin,
+      storedAt: new Date().toISOString(),
+    }), { mode: constants.S_IRUSR | constants.S_IWUSR });
   } finally {
     secret.fill(Number('0'));
   }

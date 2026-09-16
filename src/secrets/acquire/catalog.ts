@@ -18,7 +18,7 @@
 // definition was built from; a second copy of those patterns could disagree with
 // the definition that uses them.
 
-import { isWelesManagedPasswordItem } from '../scoped-service.js';
+import { acquiredSecretContract, isWelesManagedPasswordItem } from '../scoped-service.js';
 import type { AcquireSecretRequest } from './request.js';
 import {
   entraPasswordDefinition,
@@ -99,6 +99,7 @@ export function definitionFor(request: AcquireSecretRequest): SecretDefinition |
   }
   const registered = normalized
     ? SECRET_REGISTRY[normalized] ?? SECRET_REGISTRY[normalized.replace(/\./g, '_')] ?? null
-    : null;
+    : Object.values(SECRET_REGISTRY).find((definition) =>
+      acquiredSecretContract(definition.secret)?.item === request.credentialId) ?? null;
   return registered ?? genericDefinition(request);
 }

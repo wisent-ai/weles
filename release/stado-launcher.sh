@@ -48,6 +48,17 @@ runtime_required=(
   dist/agent/browser-evidence-policy.js
   dist/runtime/import.js
   dist/utils/login-accounts.js
+  dist/secrets/acquire.js
+  dist/secrets/acquire/catalog.js
+  dist/secrets/scoped-service/contracts.js
+  dist/secrets/scoped-service.js
+  dist/secrets/scoped-service/transport.js
+  src/worker/weles-api-server/credentials/service.mjs
+  src/worker/weles-api-server/credentials/authority.mjs
+  src/worker/weles-api-server/credentials/store.mjs
+  src/worker/weles-api-server/credentials/outcome.mjs
+  node_modules/@wisent-ai/weles-client/src/credential/input.mjs
+  node_modules/@wisent-ai/weles-client/src/credential/response.mjs
 )
 
 # The first required entry missing from the tree at $1, or nothing when the

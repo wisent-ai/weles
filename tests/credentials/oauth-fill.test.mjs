@@ -29,7 +29,7 @@ for (const repeat of [false, true]) {
       windowed: false,
       objective: [
         'This is a protected-input regression, not a completed sign-in or a Figma edit.',
-        'Click Continue with Google once on the normal Figma login page, then wait for its Google identifier field.',
+        'On the normal Figma login page, click the observed control with target="button type=button label=Continue with Google" once, then wait for its Google identifier field. Never pass a bare control index such as "0"; a current complete control description is required. Do not ask the screenshot reader for a URL or DOM attributes; use CURRENT URL and CONTROLS.',
         'Use fill_credential with field_class=email and the supplied accounts.google.com/email capability.',
         repeat
           ? 'For target, copy the entire current CONTROLS entry for the Email or phone input, including its index and every field. Never change the capability.'

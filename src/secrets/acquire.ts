@@ -25,13 +25,16 @@
 import { isWelesAcquiredSourceOrigin } from './scoped-service.js';
 import type { AcquireSecretRequest, AcquireSecretResult } from './acquire/request.js';
 import { definitionFor, normalizeSecret, ENTRA_PROVIDER, ENTRA_UPN, LOWER_UUID } from './acquire/catalog.js';
-import { paramsFor } from './acquire/queued-job.js';
+import { paramsFor, queueAction } from './acquire/queued-job.js';
 import { queueEntraPasswordOperation, queueMicrosoftPasswordOperation } from './acquire/password-lifecycle.js';
 import { queueAcquisition } from './acquire/api-key-acquisition.js';
 
 export type { AcquireSecretRequest, AcquireSecretResult, CredentialOperation } from './acquire/request.js';
 
-export async function acquireSecret(request: AcquireSecretRequest): Promise<AcquireSecretResult> {
+export async function acquireSecret(
+  request: AcquireSecretRequest,
+  enqueue: typeof queueAction = queueAction,
+): Promise<AcquireSecretResult> {
   const def = definitionFor(request);
   if (!def) {
     // Name what the caller asked for. An id that matches no declaration
@@ -60,10 +63,10 @@ export async function acquireSecret(request: AcquireSecretRequest): Promise<Acqu
     };
   }
   if (def.provider === ENTRA_PROVIDER) {
-    return queueEntraPasswordOperation(def, request);
+    return queueEntraPasswordOperation(def, request, enqueue);
   }
   if (def.provider === 'microsoft') {
-    return queueMicrosoftPasswordOperation(def, request);
+    return queueMicrosoftPasswordOperation(def, request, enqueue);
   }
   if (operation !== 'acquire') {
     return {
@@ -76,7 +79,7 @@ export async function acquireSecret(request: AcquireSecretRequest): Promise<Acqu
   }
 
 
-  return queueAcquisition(def, request);
+  return queueAcquisition(def, request, enqueue);
 }
 
 export function buildSecretAcquisitionPlan(request: AcquireSecretRequest): AcquireSecretResult {

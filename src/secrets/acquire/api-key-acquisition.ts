@@ -20,7 +20,11 @@ import type { AcquireSecretRequest, AcquireSecretResult } from './request.js';
 import type { SecretDefinition } from './catalog.js';
 import { paramsFor, queueAction } from './queued-job.js';
 
-export async function queueAcquisition(def: SecretDefinition, request: AcquireSecretRequest): Promise<AcquireSecretResult> {
+export async function queueAcquisition(
+  def: SecretDefinition,
+  request: AcquireSecretRequest,
+  enqueue: typeof queueAction = queueAction,
+): Promise<AcquireSecretResult> {
   const params = paramsFor(def, request);
   let vaultItemId: string | undefined;
   if (params.constraints && typeof params.constraints === 'object' && !Array.isArray(params.constraints)) {
@@ -56,7 +60,7 @@ export async function queueAcquisition(def: SecretDefinition, request: AcquireSe
   }
 
   const buildId = request.requestId!;
-  const actionLogId = queueAction(
+  const actionLogId = enqueue(
     'generic_keeper_task',
     '',
     { ...params, trajectory_build_id: buildId },

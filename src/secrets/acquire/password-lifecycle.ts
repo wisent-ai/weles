@@ -32,6 +32,7 @@ import { entraAccountBinding, microsoftAccountBinding } from './password-lifecyc
 export async function queueMicrosoftPasswordOperation(
   def: SecretDefinition,
   request: AcquireSecretRequest,
+  enqueue: typeof queueAction = queueAction,
 ): Promise<AcquireSecretResult> {
   const operation = request.operation ?? 'acquire';
   if (operation !== 'adopt' && operation !== 'rotate' && operation !== 'verify') {
@@ -89,7 +90,7 @@ export async function queueMicrosoftPasswordOperation(
     : operation === 'verify'
       ? 'microsoft_verify_password'
       : 'microsoft_reset_password';
-  const actionLogId = queueAction(action, accountId!, params, request.priority ?? 10);
+  const actionLogId = enqueue(action, accountId!, params, request.priority ?? 10);
   return {
     status: 'operation_queued',
     operation,
@@ -106,6 +107,7 @@ export async function queueMicrosoftPasswordOperation(
 export async function queueEntraPasswordOperation(
   def: SecretDefinition,
   request: AcquireSecretRequest,
+  enqueue: typeof queueAction = queueAction,
 ): Promise<AcquireSecretResult> {
   const operation = request.operation ?? 'acquire';
   if (operation !== 'adopt' && operation !== 'rotate' && operation !== 'reset' && operation !== 'verify') {
@@ -169,7 +171,7 @@ export async function queueEntraPasswordOperation(
     : operation === 'adopt'
       ? 'microsoft_entra_adopt_password'
       : 'microsoft_entra_reset_password';
-  const actionLogId = queueAction(action, binding.accountId!, params, request.priority ?? 10);
+  const actionLogId = enqueue(action, binding.accountId!, params, request.priority ?? 10);
   return {
     status: 'operation_queued',
     operation,

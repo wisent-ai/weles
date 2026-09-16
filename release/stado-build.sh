@@ -60,7 +60,7 @@ cp -R .wisent-output/page-question-tests "$WISENT_OUTPUT_DIR/"
 PLAYWRIGHT_BROWSERS_PATH="$source/browser-runtime" node node_modules/playwright-core/cli.js install ffmpeg
 node release/native/runtime.mjs stage "$source/native/jeden/bin" "$WISENT_INPUT_JEDEN_RUNTIME_DIR"
 node dist/cli.js release surface > "$source/released-surface.json"
-COPYFILE_DISABLE=1 tar --dereference --format=ustar -czf "$WISENT_OUTPUT_DIR/payload/weles-worker.tar.gz" dist node_modules src native browser-runtime package.json package-lock.json release released-surface.json tsconfig.json LICENSE
+COPYFILE_DISABLE=1 tar --dereference --format=ustar -czf "$WISENT_OUTPUT_DIR/payload/weles-worker.tar.gz" dist node_modules src native browser-runtime package.json package-lock.json release released-surface.json tsconfig.json LICENSE tests/credentials/admission.journey.mjs
 install -m 0755 "$WISENT_SOURCE_DIR/release/stado-launcher.sh" "$WISENT_OUTPUT_DIR/bin/start"
 install -m 0755 "$WISENT_SOURCE_DIR/release/stado-launcher.sh" "$WISENT_OUTPUT_DIR/weles-api-launcher"
 WELES_TEST_WORKER_PAYLOAD="$WISENT_OUTPUT_DIR/payload/weles-worker.tar.gz" WISENT_SOURCE_COMMIT="$source_revision" \

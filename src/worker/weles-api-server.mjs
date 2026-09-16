@@ -68,6 +68,11 @@ const { readPrivateStadoObjectIdentity, uploadArtifacts } = await import(`${REPO
 const { resolveBrowserEvidenceTarget, SPIS_BROWSER_EVIDENCE_POLICY } = await import(`${REPO}/dist/agent/browser-evidence-policy.js`);
 const { createPublicTaskService, publicTaskErrorResponse } = await import('./public-task-service.mjs');
 const { importWelesTrajectoryDocument } = await import(`${REPO}/dist/runtime/import.js`);
+const { acquireSecret } = await import(`${REPO}/dist/secrets/acquire.js`);
+const { definitionFor } = await import(`${REPO}/dist/secrets/acquire/catalog.js`);
+const { resolvedAcquiredSecretContract } = await import(`${REPO}/dist/secrets/scoped-service/contracts.js`);
+const { checkedTokenFile, skarbiecEndpoint } = await import(`${REPO}/dist/secrets/scoped-service/transport.js`);
+const { createCredentialOperationService } = await import('./weles-api-server/credentials/service.mjs');
 
 const {
   ALLOW_RAW_CREDS,
@@ -78,6 +83,7 @@ const {
   PUBLIC_TASK_TIMEOUT_MS,
   RECORDINGS_ROOT,
   RUN_RESULTS_DIR,
+  TIMEOUT_MS,
   TOKEN,
 } = await import('./weles-api-server/configuration.mjs');
 const { redactSecrets } = await import('./weles-api-server/http-exchange.mjs');
@@ -121,9 +127,24 @@ const publicTaskService = createPublicTaskService({
 });
 await publicTaskService.recover();
 
+const credentialOperationService = createCredentialOperationService({
+  acquireSecret,
+  definitionFor,
+  resolvedAcquiredSecretContract,
+  checkedTokenFile,
+  skarbiecEndpoint,
+  runResultsRoot: RUN_RESULTS_DIR,
+  releaseIdentity: RUN_RELEASE_IDENTITY,
+  runTrajectory: ({ action, params, accountId, runId, signal }) => runTrajectory(
+    action, params, accountId, false, TIMEOUT_MS, { runId, signal },
+  ),
+});
+credentialOperationService.recover();
+
 
 const server = http.createServer(createApiRequestHandler({
   buildDeploymentVersionValue,
+  credentialOperationService,
   importWelesTrajectoryDocument,
   publicTaskErrorResponse,
   publicTaskService,
@@ -143,7 +164,7 @@ async function shutdownApi(signal) {
   server.close();
   const forcedExit = setTimeout(() => process.exit(1), 30_000);
   forcedExit.unref();
-  await publicTaskService.shutdown();
+  await Promise.all([publicTaskService.shutdown(), credentialOperationService.shutdown()]);
   clearTimeout(forcedExit);
   process.exit(0);
 }

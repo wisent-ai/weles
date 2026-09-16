@@ -86,8 +86,8 @@
       "extract": true
     },
     "weles-client-bundle": {
-      "uri": "stado://sources/weles-worker/weles-client/60d19e769a742cff377d5e5b59762b3696e2ea1403d8e578f52f681a8a6a350a/weles-client.bundle",
-      "sha256": "60d19e769a742cff377d5e5b59762b3696e2ea1403d8e578f52f681a8a6a350a",
+      "uri": "stado://sources/weles-worker/weles-client/0cb5dffbeb8698729de048c7bbdf2e6d420ba7f39c373dfc93a169998285816d/weles-client.bundle",
+      "sha256": "0cb5dffbeb8698729de048c7bbdf2e6d420ba7f39c373dfc93a169998285816d",
       "mount": "weles-client.bundle",
       "extract": false
     },

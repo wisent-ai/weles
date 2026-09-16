@@ -43,6 +43,7 @@ let workerControlBusy = false;
 
 export function createApiRequestHandler({
   buildDeploymentVersionValue,
+  credentialOperationService,
   importWelesTrajectoryDocument,
   publicTaskErrorResponse,
   publicTaskService,
@@ -60,11 +61,16 @@ export function createApiRequestHandler({
           rawCredsAllowed: ALLOW_RAW_CREDS,
           releaseVersion: process.env.WELES_WORKER_RELEASE_VERSION || null,
           releaseSha256: process.env.WELES_WORKER_RELEASE_SHA256 || null,
-          routes: ['GET /healthz', 'GET /api/v1/version', 'POST /api/v1/tasks', 'GET /api/v1/tasks/:task_id', 'POST /api/v1/tasks/:task_id/cancel', 'GET /worker/version', 'GET /worker/status', 'POST /worker/start', 'POST /worker/restart', 'POST /run', 'GET /diagnostics/:run_id', 'GET /diagnostics/:run_id/file?path=', 'POST /weles-builder', 'POST /reauth/resolve', 'POST /reauth'],
+          routes: ['GET /healthz', 'GET /api/v1/version', 'POST /api/v1/credential-operations', 'POST /api/v1/tasks', 'GET /api/v1/tasks/:task_id', 'POST /api/v1/tasks/:task_id/cancel', 'GET /worker/version', 'GET /worker/status', 'POST /worker/start', 'POST /worker/restart', 'POST /run', 'GET /diagnostics/:run_id', 'GET /diagnostics/:run_id/file?path=', 'POST /weles-builder', 'POST /reauth/resolve', 'POST /reauth'],
           publicTask: publicTaskService.health,
           features: ['subscription_identity', 'fresh_profile'],
           account_source: 'skarbiec',
         });
+        return;
+      }
+      const credentialResponse = await credentialOperationService.handle(req, url);
+      if (credentialResponse) {
+        json(res, credentialResponse.status, credentialResponse.payload, { redact: false });
         return;
       }
       try {
