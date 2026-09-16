@@ -77,7 +77,8 @@ export function managedWeles(area) {
     const task = await request('browser-state', taskFile.download_url);
     const runtime = await request('runtime-source', runtimeFile.download_url);
     const recording = files.find(file => file.path.startsWith(`${label}/`) && file.path.endsWith('.webm'));
-    const screenshot = files.filter(file => file.path.startsWith(`${label}/`) && file.path.endsWith('.png'))
+    const screenshot = files.filter(file => file.path.endsWith('.png')
+      && (file.path.startsWith(`${label}/`) || /^loop_step\d+_/.test(file.path)))
       .sort((left, right) => left.modified_at.localeCompare(right.modified_at)).at(-1);
     assert.ok(recording, 'the real browser recording is missing');
     assert.ok(screenshot, 'the final rendered browser state is missing');
