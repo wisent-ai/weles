@@ -76,14 +76,20 @@ export async function execute(
     }
   }
 
-  const mainPage = page; // Store reference to original main page
-  function getActivePage(p: any): any {
-    try {
-      const pages = p.context?.().pages?.() ?? [];
-      if (p.isClosed?.()) return pages.find((pg: any) => !pg.isClosed?.()) ?? mainPage;
-      if (pages.length === 1 && pages[0] !== p) return pages[0];
-    } catch { /* skip */ }
-    return p;
+  const mainPage = page;
+  const knownPages = new Set(mainPage.context().pages());
+  function getActivePage(current: any): any {
+    const pages = mainPage.context().pages();
+    let opened: any;
+    for (const candidate of pages) {
+      if (!knownPages.has(candidate) && !candidate.isClosed()) opened = candidate;
+      knownPages.add(candidate);
+    }
+    if (opened) return opened;
+    if (!current.isClosed()) return current;
+    const surviving = pages.find((candidate: any) => !candidate.isClosed());
+    if (surviving) return surviving;
+    throw new AgentFailure('all browser session pages are closed', history);
   }
 
   let activePage = page;
@@ -91,6 +97,7 @@ export async function execute(
     activePage = getActivePage(activePage);
     // Observations and dispatched actions must use the same popup or surviving tab.
     session.page = activePage;
+    const observedUrl = activePage.url();
     let decision: Record<string, any>;
 
     if (replay && step < replay.length && (options?.replayOnly || !['read', 'done'].includes(replay[step].tool))) {
@@ -112,6 +119,14 @@ export async function execute(
         options?.modelDecision,
         options?.disableArtifacts,
       );
+    }
+
+    const dispatchPage = getActivePage(activePage);
+    if (dispatchPage !== activePage || activePage.url() !== observedUrl) {
+      activePage = dispatchPage;
+      session.page = activePage;
+      console.log('[loop] page changed while choosing a tool; observing the current page before input');
+      continue;
     }
 
     const call: ToolCall = {
@@ -159,16 +174,13 @@ export async function execute(
       }
       continue;
     }
-    // Detect popup (Google SSO opens in new window)
-    try {
-      const pages = activePage.context?.().pages?.() ?? [];
-      if (pages.length > 1 && pages[pages.length - 1] !== activePage) {
-        activePage = pages[pages.length - 1];
-        console.log(`[loop] popup detected: ${(typeof activePage.url === 'function' ? activePage.url() : activePage.url) ?? ''}`.slice(0, 120));
-        await humanIdlePause('deliberate');
-      }
-    } catch { /* skip */ }
     history.push(call);
+    const afterAction = getActivePage(activePage);
+    if (afterAction !== activePage) {
+      activePage = afterAction;
+      console.log(`[loop] popup detected: ${activePage.url()}`.slice(0, 120));
+      await humanIdlePause('deliberate');
+    }
   }
 
   throw new AgentFailure(`browser agent exceeded ${maxSteps} steps`, history);

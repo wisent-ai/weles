@@ -22,6 +22,8 @@ async function applyCredentialPrefill(activeSession, taskConstraints) {
   const entries = Array.isArray(taskConstraints.credential_prefill)
     ? taskConstraints.credential_prefill
     : [];
+  const pending = [];
+  const completed = [];
   for (const entry of entries) {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
       throw new Error('credential_prefill entries must be objects');
@@ -32,14 +34,19 @@ async function applyCredentialPrefill(activeSession, taskConstraints) {
     if (!target || !fieldClass || !capability || typeof capability !== 'object' || Array.isArray(capability)) {
       throw new Error('credential_prefill entry is incomplete');
     }
-    // A field that is not on this page leaves its capability unspent, for the
-    // agent to fill when the flow reaches it. Said out loud: the alternative
-    // reading of a quiet skip is that the credential was refused.
+    // Only a missing field leaves the capability available to the agent.
     const outcome = await activeSession.fillCredential(target, fieldClass, capability);
     if (outcome === CREDENTIAL_FIELD_ABSENT) {
+      pending.push(entry);
       console.log(`[generic] prefill deferred: no ${fieldClass} field on this page; its capability is unspent`);
+    } else if (outcome.startsWith('credential filled')) {
+      completed.push({ target, field_class: fieldClass });
+    } else {
+      throw new Error(`credential prefill for ${fieldClass} did not fill its target after redemption: ${outcome}`);
     }
   }
+  taskConstraints.credential_prefill = pending;
+  return completed;
 }
 
 const url = requireHttpUrl(envString('GENERIC_TASK_URL'));
@@ -98,13 +105,19 @@ async function initialDraft() {
 }
 
 /** The goal text handed to the agent. */
-function goalFor(trajectoryDraft) {
+function goalFor(trajectoryDraft, completedPrefills) {
   return [
     objective,
     '',
     ...identityInstructions(identityPlatformFromConstraints(constraints)),
     '',
     trajectoryDraft.guidance,
+    'Draft guidance remains subordinate to the objective, constraints and current page:',
+    ...trajectoryDraft.steps.filter(step => typeof step === 'string'),
+    ...(completedPrefills.length ? [
+      'Already completed credential fills: ' + JSON.stringify(completedPrefills),
+      'Their single-use capabilities are consumed and are not available to fill again. Continue from the current page instead of repeating initialization. Navigation may clear these fields; if no unspent capability remains, stop and report that state rather than inventing credentials.',
+    ] : []),
     '',
     'Initial URL: ' + url,
     'Constraints: ' + JSON.stringify(constraints),
@@ -131,10 +144,10 @@ try {
   trajectoryDraft = await initialDraft();
   session = await WSession.start({ label, proxy, targetHost: new URL(url).hostname, headless, browser, os, locale, platform: sessionPlatformFromConstraints(constraints) || undefined, pageDiagnostics: keeperFirst ? false : undefined });
   await session.goto(url);
-  await applyCredentialPrefill(session, constraints);
+  const completedPrefills = await applyCredentialPrefill(session, constraints);
   await ensureSupabaseSession(session, constraints);
   await ensureFigmaSession(session, constraints);
-  result = await execute(session, goalFor(trajectoryDraft), {
+  result = await execute(session, goalFor(trajectoryDraft, completedPrefills), {
     envHints,
     flowName,
     replay,

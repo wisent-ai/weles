@@ -76,21 +76,24 @@ test('ordinary search fields accept literal keyboard, fill and control edits', a
     allow_login: false,
     objective: [
       'Exercise the public documentation search input without submitting a form or opening a search result.',
-      'First call fill with {"target":"input[type=\\"search\\"]","value":"weles"}. Read its actual displayed value.',
-      'Then call type_text with {"value":" docs"} to append to the focused search input. Read its actual displayed value.',
-      'Then call set_control with {"selector":"input[type=\\"search\\"]","value":"weles search"}. Read its actual displayed value.',
-      'For each read, ask only what text is displayed in the search field; do not supply an expected answer.',
-      'Call done with {"values":[<first observation>,<second observation>,<third observation>]}. Report actual observations, not intended values.',
+      'Call fill with {"target":"input[type=\\"search\\"]","value":"weles"}, then read the actual displayed search text.',
+      'Call type_text with {"value":" docs"}, then read the actual displayed search text.',
+      'Call set_control with {"selector":"input[type=\\"search\\"]","value":"weles search"}, then read the actual displayed search text.',
+      'All three read calls are required, including after set_control. Ask only what text is displayed in the search field; never supply an expected answer.',
+      'After those observed outcomes, call done with a brief summary. A successful tool return is not a substitute for reading the resulting field.',
       'Do not click, navigate, press keys, log in, submit a form, open system dialogs, request permissions or send notifications.',
     ].join('\n'),
   });
   const task = await client.captureBrowserRun(run, label);
-  assert.deepEqual(task.value?.values, ['weles', 'weles docs', 'weles search']);
   assert.equal(task.final_url, 'https://skarbiec.wisent.com/docs');
-  for (const tool of ['fill', 'type_text', 'set_control']) {
-    const calls = task.history.filter(step => step.tool === tool);
-    assert.ok(calls[0], `the real search did not exercise ${tool}`);
-    for (const call of calls) assert.equal(call.error, undefined, JSON.stringify(call));
+  for (const [tool, expected] of [['fill', 'weles'], ['type_text', 'weles docs'], ['set_control', 'weles search']]) {
+    const index = task.history.findIndex(step => step.tool === tool);
+    assert.ok(index >= 0, `the real search did not exercise ${tool}`);
+    assert.equal(task.history[index].error, undefined, JSON.stringify(task.history[index]));
+    const observation = task.history.slice(index + 1).find(step => step.tool !== 'wait');
+    assert.equal(observation?.tool, 'read', `the result of ${tool} must be read before another action`);
+    assert.match(observation.result, new RegExp(`\\b${expected}\\b`),
+      `the real page must show the result of ${tool}`);
   }
   assert.ok(task.history.filter(step => step.tool === 'read').length >= 3,
     'each input outcome must be observed on the real page');

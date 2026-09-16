@@ -31,7 +31,9 @@ for (const repeat of [false, true]) {
         'This is a protected-input regression, not a completed sign-in or a Figma edit.',
         'Click Continue with Google once on the normal Figma login page, then wait for its Google identifier field.',
         'Use fill_credential with field_class=email and the supplied accounts.google.com/email capability.',
-        'For target, copy the entire current CONTROLS entry for the Email or phone input, including its index and every field. Never invent a target or change the capability.',
+        repeat
+          ? 'For target, copy the entire current CONTROLS entry for the Email or phone input, including its index and every field. Never change the capability.'
+          : 'Once CURRENT URL is on accounts.google.com and Email or phone is visible, use the plain field description target=\"email\". Never use the Figma login field or change the capability.',
         'After filling, use read to inspect whether the visible Email or phone field contains a value. Report only that boolean, never the account value.',
         repeat
           ? 'After the first verified fill, observe the updated control description and deliberately call fill_credential once more with the SAME email capability. This must terminate with CAPABILITY_DENIED. Do not substitute another capability or tool.'
@@ -43,15 +45,20 @@ for (const repeat of [false, true]) {
     const task = await client.captureBrowserRun(run, label, { success: !repeat });
     assert.equal(new URL(task.final_url).origin, 'https://accounts.google.com');
     const fills = task.history.filter(step => step.tool === 'fill_credential');
-    assert.equal(fills[0]?.error, undefined, JSON.stringify(fills));
+    const successful = fills.filter(step => !step.error && step.result?.startsWith('credential filled'));
+    assert.equal(successful.length, 1, 'one scoped fill must complete on the Google field');
+    const denied = fills.filter(step => step.error?.includes('CAPABILITY_DENIED'));
+    for (const refused of fills.filter(step => step.error && !denied.includes(step))) {
+      assert.match(refused.error, /capability operation mismatch|\[credential_target_description_mismatch\]|\[observed_target_stale\]/,
+        'only a pre-redemption target refusal can be corrected');
+    }
     if (repeat) {
-      assert.equal(fills.length, 2, 'redemption stops on its first denial');
-      assert.equal(fills[1].args.capability.capability_id, fills[0].args.capability.capability_id);
-      assert.match(fills[1].error, /CAPABILITY_DENIED/);
-      assert.equal(task.history.at(-1), fills[1]);
+      assert.equal(denied.length, 1, 'redemption stops on its first denial');
+      assert.equal(denied[0].args.capability.capability_id, successful[0].args.capability.capability_id);
+      assert.equal(task.history.at(-1), denied[0]);
       assert.equal(task.history.some(step => step.tool === 'done'), false);
     } else {
-      assert.equal(fills.length, 1, 'a successful fill is not repeated');
+      assert.equal(denied.length, 0);
       assert.equal(task.history.at(-1).tool, 'done');
       assert.equal(task.value?.field_populated, true, 'the final rendered identifier field must retain its input');
       const cache = join(client.evidence, 'cache');

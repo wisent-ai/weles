@@ -207,8 +207,8 @@ pre-browser failures, and lists retained DOM, video and trajectory logs when pre
 A completed diagnostic journey is not proof that the website operation succeeded;
 read the recorded result and final state.
 
-**Skarbiec.** Exact `consumer|item|field` scopes supply credentials for approved
-operations. Identity resolution reads the same canonical items used by execution.
+**Skarbiec.** Exact `consumer|item|field` scopes supply approved credentials. Literal `type_text`, `fill` and `set_control` inspect the actual field and refuse credential edits; selectors do not bypass this check.
+Generic tasks remove consumed prefill capabilities from the agent's available inputs and report completed fills. Deferred, absent fields keep their unspent capabilities; an invented account is never a substitute.
 
 **Stado.** Stado places and operates the approved host and verifies browser release
 coordinates. Synchronous reauthentication uses the same trajectory as queued work.
