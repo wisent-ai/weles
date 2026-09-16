@@ -36,7 +36,7 @@ for (const repeat of [false, true]) {
           : 'Once CURRENT URL is on accounts.google.com and Email or phone is visible, use the plain field description target=\"email\". Never use the Figma login field or change the capability.',
         'After filling, use read to inspect whether the visible Email or phone field contains a value. Report only that boolean, never the account value.',
         repeat
-          ? 'After the first verified fill, observe the updated control description and deliberately call fill_credential once more with the SAME email capability. This must terminate with CAPABILITY_DENIED. Do not substitute another capability or tool.'
+          ? 'After the first verified fill, deliberately call fill_credential once more with target="email", field_class="email", and the SAME email capability. The plain visible field description avoids replaying a DOM description that changed when the field gained a value. This must terminate with CAPABILITY_DENIED. Do not substitute another capability, use the old indexed description, call done, or treat observed_target_stale as a broker denial.'
           : 'After that visual check, call done with value {\"field_populated\": true or false}, using the observed boolean even if the field is empty. Do not submit the identifier form.',
         'Never click Next, submit a form, use the password capability, register, request approval, open system dialogs, send notifications or edit Figma data.',
         'Do not clear the field or use fill, type_text, set_control or js_click.',
