@@ -11,6 +11,21 @@ import { callJeden } from '../jeden.js';
 import type { ToolCall } from '../loop.js';
 import { readFrameObservation } from '../../session/observation/controls.js';
 
+const BROWSER_ACTION = {
+  name: 'browser_action',
+  description: 'Choose the single next browser action from the available tools.',
+  parameters: {
+    type: 'object',
+    properties: {
+      thought: { type: 'string' },
+      tool: { type: 'string' },
+      args: { type: 'object', additionalProperties: true },
+    },
+    required: ['tool', 'args'],
+    additionalProperties: false,
+  },
+};
+
 const SYSTEM_PROMPT = `You are a browser automation agent. Choose the single next action that makes progress toward the goal.
 
 Tools:
@@ -25,7 +40,7 @@ Tools:
   navigate(url)            Go to a URL.
   scroll(direction, amount) Scroll up/down by pixels.
   wait(seconds)            Pause.
-  read(question)           Ask a question about the current page.
+  read(question)           Read only the current screenshot. This cannot click, scroll, navigate, or change page state.
   select_option(target, value) Select dropdown option. Use for date pickers.
   set_control(selector, value?, checked?) Set and verify an input/select/textarea by CSS selector in the main page or any iframe; dispatches input/change and reports resulting state plus visible validation text. Use when fill/click/select_option cannot make a form control stick.
   js_click(selector, text)   LAST RESORT click via selector or text. Prefer click(target) — js_click historically used a JS-evaluated el.click() which produces isTrusted=false events that bot classifiers (PerimeterX/Arkose/TikTok) reject. Use only when click(target), set_control(), and focus()+press_key() can't reach the element (Reddit shadow-DOM vote buttons being the canonical case).
@@ -36,10 +51,11 @@ Tools:
   done(value)              Terminal — you have the answer.
   give_up(reason)          Terminal — you cannot proceed.
 
-Reply with ONLY a JSON object:
+Return one browser_action function call with arguments shaped as:
   {"thought": "...", "tool": "<tool_name>", "args": {...}}
 
 Credentials: use fill_identity only for the current run-generated identity; use fill_credential with an opaque capability reference whose target is weles for all externally supplied credentials. Never place secrets or $ENV_VAR placeholders in fill/type_text. For task-authorized credential acquisition, use store_credential on the newly issued page element and never read or return its value.
+Only count an action as completed when ACTION HISTORY records its successful tool result. A question asking for an action does not execute it. If information is not visible, use the actual scroll or navigation tool before reading again. Call done only after each goal condition is confirmed by observed results and the current URL.
 If a step fails, try something different. Do not repeat the same failing action.`;
 
 function visionDir(label?: string): string {
@@ -63,21 +79,21 @@ export function parseJsonFrom(raw: string): Record<string, any> {
   return { tool: 'give_up', args: { reason: `unparseable LLM output: ${raw.slice(0, 200)}` } };
 }
 
-export type ModelDecisionProvider = (prompt: string) => Promise<{ raw: string; model: string; routerUrl: string }>;
+export type ModelDecisionProvider = typeof callJeden;
 
 export async function askLlm(goal: string, state: string, screenshotPath: string | null, step: number, label?: string, modelDecision: ModelDecisionProvider = callJeden, disableArtifacts = false): Promise<Record<string, any>> {
   const dir = disableArtifacts ? null : visionDir(label);
   const imgBlock = screenshotPath ? `The current screenshot is saved locally at ${screenshotPath}; use the page observation below if image access is unavailable.\n\n` : '';
-  const prompt = `${SYSTEM_PROMPT}\n\nGOAL: ${goal}\n\n${state}\n${imgBlock}Respond with ONLY the JSON object.`;
+  const prompt = `${SYSTEM_PROMPT}\n\nGOAL: ${goal}\n\n${state}\n${imgBlock}Respond with one browser_action function call.`;
 
   let raw = '';
   let routerMeta: Record<string, unknown> = {};
   let lastRouterError = '';
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const routed = await modelDecision(prompt);
+      const routed = await modelDecision(prompt, { outputFunction: BROWSER_ACTION });
       raw = routed.raw;
-      routerMeta = { model: routed.model, router_url: routed.routerUrl, attempt };
+      routerMeta = { model: routed.model, router_url: routed.routerUrl, attempt, finish_reason: routed.finishReason, usage: routed.usage, function_name: routed.functionName };
       break;
     } catch (e: any) {
       lastRouterError = String(e.message ?? e).slice(0, 300);

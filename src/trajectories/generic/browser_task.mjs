@@ -155,6 +155,7 @@ try {
     url,
     final_url: session.page.url?.() ?? null,
     value: result.value ?? null,
+    history: result.history,
     trajectory_draft: draftSummary(trajectoryDraft),
     completed_at: new Date().toISOString(),
   };

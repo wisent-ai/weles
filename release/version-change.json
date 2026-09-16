@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.7.4",
-  "candidate": "0.7.5",
+  "current": "0.7.5",
+  "candidate": "0.7.6",
   "breaking": false,
-  "reason": "Stado run 295017965753dfa4d12cf9ed899b6fe0 published the adopted 0.7.4 surface. A real browser run also emitted complete control metadata without its numeric prefix. Resolve both observed forms, refuse ambiguous unindexed controls, and retain real navigation and stale-target regressions for each form. Public interfaces and caller permissions do not change."
+  "reason": "Use Brama's existing required-function interface for browser decisions, keep visual questions limited to the actual screenshot, and retain successful action histories. Real 0.7.5 runs recorded a truncated free-text decision, a 289085-token Figma request with an empty answer, and a successful observed click whose history was missing from its result. No browser action or public SDK entry point is removed."
 }

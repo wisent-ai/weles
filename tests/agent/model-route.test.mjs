@@ -70,6 +70,28 @@ test('a single-turn decision is answered by the gateway for this agent’s alias
   assert.match(routed.raw.toLowerCase(), /ready/);
 });
 
+test('a required function response is accepted without assistant text', async () => {
+  const outputFunction = {
+    name: 'confirm_ready',
+    description: 'Confirm that this inference request is ready.',
+    parameters: {
+      type: 'object',
+      properties: { ready: { type: 'boolean' } },
+      required: ['ready'],
+      additionalProperties: false,
+    },
+  };
+  try {
+    const result = await callJeden('Call confirm_ready with ready set to true. Do not write assistant text.', { outputFunction });
+    report.observations.function_response = result;
+    assert.equal(result.functionName, outputFunction.name);
+    assert.deepEqual(JSON.parse(result.raw), { ready: true });
+  } catch (error) {
+    report.observations.function_failure = String(error);
+    throw error;
+  }
+});
+
 test('an image question reads the actual screenshot through an authorized visual route', async () => {
   const image = readFileSync(resolve(import.meta.dirname, 'fixtures/page.png'));
   report.input_sha256 = createHash('sha256').update(image).digest('hex');

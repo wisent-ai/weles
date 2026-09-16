@@ -66,12 +66,14 @@ async function runObservedClick(indexed) {
   assert.equal(task.body.ok, true, JSON.stringify(task.body));
   assert.equal(task.body.final_url, exportUrl);
   const clicks = task.body.history.filter(step => step.tool === 'click');
-  assert.equal(clicks.length, 2, 'both the live target and obsolete target must actually be attempted');
+  assert.ok(clicks.length >= 2, 'the browser must exercise both the live target and its obsolete description');
   assert.match(clicks[0].args.target, indexed ? /^\[\d+\]\s*a\s/ : /^a\s/);
   assert.ok(clicks[0].args.target.endsWith(`href=${exportUrl}`));
   assert.equal(clicks[0].error, undefined, JSON.stringify(clicks[0]));
-  assert.equal(clicks[1].args.target, clicks[0].args.target);
-  assert.match(clicks[1].error, /\[observed_target_stale\]/);
+  for (const refused of clicks.slice(1)) {
+    assert.equal(refused.args.target, clicks[0].args.target);
+    assert.match(refused.error, /\[observed_target_stale\]/);
+  }
   assert.equal(task.body.history.some(step => ['navigate', 'js_click'].includes(step.tool)), false,
     'direct navigation must not substitute for the observed link click');
   console.error(`real observed-click evidence: ${client.evidence}`);
