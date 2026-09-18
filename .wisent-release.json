@@ -76,14 +76,14 @@
   },
   "inputs": {
     "jeden-runtime": {
-      "uri": "stado://releases/jeden/0.1.7/darwin-arm64/release.tar.gz",
-      "sha256": "3b9cf2c6c6566dae7c3ae8fbcf2fecb37593906de0b146141db1857931d5f64e",
+      "uri": "stado://releases/jeden/0.1.9/darwin-arm64/release.tar.gz",
+      "sha256": "79262dba547f57b3e0eb213ddc7f27d415de89bcd31b553619b507693426e12d",
       "mount": "jeden-runtime",
       "extract": true
     },
     "jeden-runtime-linux": {
-      "uri": "stado://releases/jeden/0.1.7/linux-amd64/release.tar.gz",
-      "sha256": "ddd3304c55775a88eb104a6f1e59bde2a468e4b8cb9be6921bee36018b05a113",
+      "uri": "stado://releases/jeden/0.1.9/linux-amd64/release.tar.gz",
+      "sha256": "233781b400d9fc80f6dcf8b9bf6c8306228c4c415d4979ec70d75031a46b8aa1",
       "mount": "jeden-runtime-linux",
       "extract": true
     },
