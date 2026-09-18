@@ -264,6 +264,9 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   scrape: (p) => (p === 'unusualwhales' || p === 'volumeleaders' || p === 'tradingview')
     ? `src/trajectories/${p}/scrape.mjs`
     : null,
+  // google_authenticator_enrol: enrol a Google Authenticator for one
+  // Skarbiec login item and store its seed there (params.login_item).
+  authenticator_enrol: (p) => p === 'google' ? 'src/trajectories/google/authenticator/enrol.mjs' : null,
 };
 
 export function resolveTrajectory(action: string): string | null {

@@ -39,6 +39,15 @@ export function applyAccountAndTaskAdmission(
     env.WELES_ACCOUNT_REVISION = account.accountRevision;
     env[`${account.provider.toUpperCase()}_DISPLAY_NAME`] = account.displayName;
   }
+  if (trajPath.endsWith('/google/authenticator/enrol.mjs')) {
+    // The enrolment names the Skarbiec login item itself: it is what gains
+    // the seed, whether or not a subscription rides on it yet.
+    const requested = params.login_item;
+    if (typeof requested !== 'string' || !requested.trim()) {
+      throw new Error('login_item must name the exact Skarbiec login item to enrol an authenticator for');
+    }
+    env.WELES_LOGIN_ITEM = requested.trim();
+  }
   if (trajPath.endsWith('/generic/browser_task.mjs') || trajPath.endsWith('/generic/keeper_task.mjs')) {
     const passthrough: Array<[string, string]> = [
       ['url', 'GENERIC_TASK_URL'],
