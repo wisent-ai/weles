@@ -13,7 +13,8 @@
 // Input: WELES_LOGIN_ITEM, the Skarbiec login item (username, password,
 // totp_secret). Output: one JSON result on stdout and in the run's output
 // directory; every stop is named.
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { runOutputPath } from '#run-output';
 import { WSession } from '../../../../dist/session/wsession.js';
@@ -93,16 +94,27 @@ async function main() {
     process.exit(2);
   }
   const login = loginMaterial(loginItem);
-  const session = await WSession.start({ label: `google-authenticator-enrol-${loginItem}`, browser: 'chromium', headless: false });
+  // One persistent profile per login item: the session the operator's one
+  // approval established survives a later step's refusal, so a rerun after
+  // a fixed page continues from a signed-in account instead of asking for a
+  // second approval.
+  const userDataDir = join(homedir(), '.weles', 'browser_profiles', 'google-authenticator', loginItem);
+  mkdirSync(userDataDir, { recursive: true });
+  const session = await WSession.start({
+    label: `google-authenticator-enrol-${loginItem}`, browser: 'chromium', headless: false, userDataDir,
+  });
   const page = session.page;
   const wait = (seconds) => session.wait(seconds);
   try {
-    const signedIn = await signIn(page, wait, login);
-    if (!signedIn.ok) {
-      report({ ok: false, login_item: loginItem, email: login.email, ...signedIn });
-      process.exit(3);
+    let opened = await openAuthenticatorSetup(page, wait, NAV_TIMEOUT_MS);
+    if (!opened.ok && opened.blocked === 'google_sign_in_required') {
+      const signedIn = await signIn(page, wait, login);
+      if (!signedIn.ok) {
+        report({ ok: false, login_item: loginItem, email: login.email, ...signedIn });
+        process.exit(3);
+      }
+      opened = await openAuthenticatorSetup(page, wait, NAV_TIMEOUT_MS);
     }
-    const opened = await openAuthenticatorSetup(page, wait, NAV_TIMEOUT_MS);
     if (!opened.ok) {
       report({ ok: false, login_item: loginItem, email: login.email, ...opened });
       process.exit(4);
