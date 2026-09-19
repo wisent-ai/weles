@@ -3,6 +3,7 @@
 // and provider words in the request, shuffled unless static.
 import type { WelesServiceSecret } from '../../secrets/scoped-service.js';
 import { listServiceMetadata } from '../../state/skarbiec-records.js';
+import { ALL_PROVIDERS } from '../capability.js';
 
 export type ProviderRow = {
   display_name: string;
@@ -41,7 +42,10 @@ export async function providerCandidates(proxy: string): Promise<ProviderCandida
   // ('residential us', 'residential br') to override the row's stored country.
   // The Oxylabs Residential row defaults to 'br' for Discord — Reddit/LinkedIn
   // need 'us'. Caller passes the country it wants instead of relying on the row.
-  const ccOverride = (typeFilter.match(/\b([a-z]{2})\b/g) ?? []).find(t => !['oxylabs', 'mobile', 'residential', 'datacenter', 'sticky'].includes(t) && /^[a-z]{2}$/.test(t));
+  // `\b([a-z]{2})\b` already yields two-letter tokens only, so the country
+  // code is the first of them. The list of provider and pool words this
+  // line used to exclude could never match a two-letter token.
+  const ccOverride = (typeFilter.match(/\b([a-z]{2})\b/g) ?? [])[0];
   const isResidential = /\bresidential\b/.test(typeFilter);
   const isMobile = /\bmobile\b/.test(typeFilter);
   const isIsp = /\bisp\b/.test(typeFilter);
@@ -51,8 +55,10 @@ export async function providerCandidates(proxy: string): Promise<ProviderCandida
     : isMobile ? providers.filter(p => p.display_name.toLowerCase().includes('mobile'))
     : providers;
 
-  // Allow explicit provider name targeting (e.g. 'pingproxies', 'packetstream', 'oxylabs')
-  const KNOWN_PROVIDERS = ['oxylabs', 'packetstream', 'pingproxies', 'iproyal', 'brightdata', 'decodo'];
+  // Explicit provider targeting, e.g. 'pingproxies residential'. The names
+  // are the ones `proxy/capability.ts` declares; this line used to carry
+  // its own copy, which already disagreed with it about Decodo.
+  const KNOWN_PROVIDERS = ALL_PROVIDERS;
   const explicit = KNOWN_PROVIDERS.find(n => typeFilter.includes(n));
   if (explicit) {
     // Strip spaces / underscores from display_name so 'brightdata' matches 'Bright Data'.

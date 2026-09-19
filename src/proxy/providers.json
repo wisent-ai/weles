@@ -1,0 +1,11 @@
+{
+  "why": "Every proxy provider Weles can route through. Declared as data rather than in code because a list of names inside code is the shape the operator refused on 2026-09-19 ('to dodaj do tamy hook ktory blokuje jakikolweik uzycie keywordsow albo czegokolwiek hardcodowanego'), and because the resolver kept a second copy of it that already disagreed: it knew Decodo and the capability matrix did not. A provider listed here without an entry in the proxy_rate_cards Skarbiec setting is skipped by selectByCapability, so adding a name here does not route traffic to it until it is priced.",
+  "providers": [
+    "oxylabs",
+    "packetstream",
+    "pingproxies",
+    "iproyal",
+    "brightdata",
+    "decodo"
+  ]
+}

@@ -1,4 +1,5 @@
 import { readSetting, writeSetting } from '../state/skarbiec-records.js';
+import declaredProviders from './providers.json';
 
 /**
  * Cost × capability proxy selection.
@@ -36,8 +37,13 @@ const DEFAULT_RATES: Record<string, { per_gb: number }> = {
   packetstream: { per_gb: 1.00 },
 };
 
-export const ALL_PROVIDERS = ['oxylabs', 'packetstream', 'pingproxies', 'iproyal', 'brightdata'] as const;
-export type ProviderName = (typeof ALL_PROVIDERS)[number];
+// Every provider Weles can route through, from `providers.json` beside this
+// file. Decodo is among them because `proxy/resolve` offers its ISP rows;
+// it carries no default rate, and `selectByCapability` skips a provider the
+// rate card says nothing about, so it becomes selectable the moment
+// `proxy_rate_cards` prices it.
+export const ALL_PROVIDERS = declaredProviders.providers as readonly string[];
+export type ProviderName = string;
 
 const HEALTHY_SIGNALS = new Set<string>([
   'healthy',

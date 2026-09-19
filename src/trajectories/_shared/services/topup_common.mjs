@@ -1,7 +1,7 @@
 // Shared scaffolding for service-credential topup trajectories.
 // TOPUP_CONFIRM=1 is required before any provider topup flow can continue.
 
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import { spawn } from 'node:child_process';
@@ -154,7 +154,21 @@ export const TOPUP_ENV_FILES = [
 ];
 const TOPUP_ENV_FILE = TOPUP_ENV_FILES[0];
 const TOPUP_REQUIRED = ['TOPUP_CARD_NUMBER', 'TOPUP_CARD_EXP', 'TOPUP_CARD_CVC'];
-const TOPUP_PROVIDERS = ['iproyal', 'oxylabs', 'pingproxies', 'brightdata'];
+/// The services a topup can run for: the ones that actually carry a
+/// `topup.mjs` beside this shared scaffolding.
+///
+/// This was a list of four names while thirteen trajectories carried a
+/// `topup.mjs`: `capsolver`, `packetstream`, `anticaptcha` and six more
+/// were refused by the orchestrator although their flow was right there.
+/// The directory is the answer, and a trajectory is allowed the day it is
+/// added.
+function topupProviders(currentFileUrl) {
+  const root = join(dirname(fileURLToPath(currentFileUrl)), '..', '..');
+  return readdirSync(root, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && existsSync(join(root, entry.name, 'topup.mjs')))
+    .map((entry) => entry.name)
+    .sort();
+}
 
 /// Source the card into process.env from the first file that carries it, and
 /// report which one answered. An environment variable already set always wins,
@@ -212,8 +226,9 @@ function loadCardEnvFile() {
 }
 
 export async function runTopupOrchestrator(provider, usd, currentFileUrl) {
-  if (!TOPUP_PROVIDERS.includes(provider)) {
-    console.log(`BLOCKER: unknown provider ${provider}. Allowed: ${TOPUP_PROVIDERS.join(', ')}`);
+  const allowed = topupProviders(currentFileUrl);
+  if (!allowed.includes(provider)) {
+    console.log(`BLOCKER: unknown provider ${provider}. Allowed: ${allowed.join(', ')}`);
     process.exit(1);
   }
   const usdNum = Number(usd ?? '30');
@@ -264,7 +279,9 @@ export async function runTopupOrchestrator(provider, usd, currentFileUrl) {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [, , provider, usd] = process.argv;
   if (!provider) {
-    console.log(`Usage: node ${process.argv[1]} <${TOPUP_PROVIDERS.join('|')}> <usd>`);
+    console.log(
+      `Usage: node ${process.argv[1]} <${topupProviders(import.meta.url).join('|')}> <usd>`,
+    );
     process.exit(1);
   }
   const code = await runTopupOrchestrator(provider, usd ?? '30', import.meta.url);
