@@ -9,7 +9,7 @@
  *
  *   <base>.png        the still (viewport or full page)
  *   <base>.png.json   its sidecar
- *   <base>.webm       the screencast, only when record_seconds > 0
+ *   <base>.webm       the recording, only when record_seconds > 0
  *   <base>.webm.json  its sidecar
  *
  * <base> encodes site, axis, viewport, full-page flag and a digest of
@@ -20,17 +20,14 @@
  * upload that does not come back acknowledged fails the action — an artifact
  * left on the host is not evidence.
  */
-import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { writeFileSync } from 'node:fs';
+import { readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CDPScreencast } from '../../../dist/cdp/page/screencast.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { parseCaptureParams } from '../../../dist/worker/params/capture-params.js';
 import { humanHoverDwell, humanScroll } from '../../../dist/human/mouse.js';
-import { resolveMediaTool } from '../../../dist/runtime/media-tools.js';
 import {
-  captureKeyPrefix, fileAttribution, planFromEnv, pngPixelSize, screencastConnection,
+  captureKeyPrefix, fileAttribution, planFromEnv, pngPixelSize,
   startCaptureSession, uploadCaptureObject, welesVersion, writeLocalArtifact,
 } from '../_shared/runner/capture-runtime.mjs';
 
@@ -70,25 +67,25 @@ async function runStep(session, step) {
   return session.goto(step.value);
 }
 
-// The video's real pixel size and duration come from the file, not from what
-// we asked for. ffprobe is resolved by path for the same reason ffmpeg is:
-// a launchd-managed worker's PATH does not carry a Homebrew install, and a
-// bare word here fails after the recording already succeeded.
-function probeVideo(path) {
-  const raw = execFileSync(resolveMediaTool('ffprobe'), [
-    '-v', 'error', '-select_streams', 'v:0',
-    '-show_entries', 'stream=width,height:format=duration',
-    '-of', 'json', path,
-  ], { encoding: 'utf8', timeout: Number('30000') });
-  const parsed = JSON.parse(raw);
-  const stream = parsed.streams?.[0] ?? {};
-  const duration = Number(parsed.format?.duration);
-  if (!stream.width || !stream.height) throw new Error(`ffprobe reported no video stream for ${path}`);
-  return {
-    width: Number(stream.width),
-    height: Number(stream.height),
-    duration_seconds: Number.isFinite(duration) ? Math.round(duration * 1000) / 1000 : null,
-  };
+// The WebM the browser's recorder left behind, by modification time.
+//
+// `WSession.close()` saves it as `<label>_<iso>.webm` in this run's own
+// recordings directory; nothing else in that directory is a video. Reading
+// the file back, rather than trusting the name the session chose, keeps the
+// attribution about the object that actually exists.
+//
+// There is no ffprobe here on purpose. A managed worker carries none, and
+// the two facts a sidecar needs are already known without one: the frame
+// size is the viewport the recorder was given, and the duration is the wall
+// clock the recording was held open for.
+function recordedVideo(directory) {
+  const videos = readdirSync(directory)
+    .filter((name) => name.endsWith('.webm'))
+    .map((name) => join(directory, name))
+    .map((path) => ({ path, at: statSync(path).mtimeMs }))
+    .sort((left, right) => right.at - left.at);
+  if (videos.length === Number(false)) return null;
+  return videos[Number(false)].path;
 }
 
 const plan = planFromEnv('GENERIC_CAPTURE_PLAN', parseCaptureParams);
@@ -106,37 +103,27 @@ const base = [
 ].join('--');
 
 let started = null;
-let screencast = null;
+let closed = false;
 const stepsExecuted = [];
 const artifacts = [];
 try {
   console.log(`[capture] ${plan.batch}/${plan.site_slug}/${plan.axis} url=${plan.source_url} viewport=${plan.viewport.width}x${plan.viewport.height}@${plan.viewport.device_scale_factor}x full_page=${plan.full_page} record=${plan.record_seconds}s steps=${plan.steps.length}`);
   started = await startCaptureSession(label, plan);
-  const { session, cdp, renderer } = started;
+  const { session, renderer } = started;
   const version = welesVersion();
   await session.goto(plan.source_url);
   await session.page.waitForLoadState('load').catch(() => {});
 
   const recordStartedAt = Date.now();
-  if (plan.record_seconds > 0) {
-    screencast = new CDPScreencast(screencastConnection(cdp), '', { outputDir: runRecordingsDir(label), everyNthFrame: 1 });
-    await screencast.start();
-  }
   for (const step of plan.steps) {
     const outcome = await runStep(session, step);
     stepsExecuted.push({ op: step.op, value: step.value, outcome: String(outcome).slice(Number('0'), Number('200')) });
   }
-  // The recording covers the scripted interaction and nothing else: it is sealed
-  // before the still is taken, so a full-page screenshot's scroll/resize never
-  // ends up in the video and the still is never a frame of it.
-  let videoPath = null;
-  if (screencast) {
+  let recordedSeconds = null;
+  if (plan.record_seconds > 0) {
     const remainingMs = plan.record_seconds * 1000 - (Date.now() - recordStartedAt);
     if (remainingMs > 0) await session.page.waitForTimeout(remainingMs);  // allow-raw-playwright: hold the recording open for the requested duration
-    videoPath = await screencast.stop();
-    // `stop` now throws ffmpeg's own words when the stitch fails, so a null
-    // here has exactly one meaning left: the page sent no screencast frames.
-    if (!videoPath) throw new Error(`record_seconds ${plan.record_seconds} produced no video: the browser sent no screencast frames for ${plan.source_url}`);
+    recordedSeconds = Math.round((Date.now() - recordStartedAt) / Number('100')) / Number('10');
   }
 
   const capturedAt = new Date().toISOString();
@@ -171,9 +158,20 @@ try {
     sha256: still.sha256,
   });
 
-  if (videoPath) {
+  // The recorder seals its file when the session closes, so the close has to
+  // happen before the video can be read at all. Everything the still needed
+  // from the live page is already captured above.
+  if (plan.record_seconds > 0) {
+    await started.session.close();
+    closed = true;
+    const videoPath = recordedVideo(runRecordingsDir(label));
+    if (!videoPath) {
+      throw new Error(
+        `record_seconds ${plan.record_seconds} produced no video: the browser's recorder `
+        + `left no .webm in ${runRecordingsDir(label)} for ${plan.source_url}`,
+      );
+    }
     const video = fileAttribution(videoPath);
-    const probed = probeVideo(videoPath);
     const videoSidecar = {
       source_url: plan.source_url,
       axis: plan.axis,
@@ -184,12 +182,12 @@ try {
       renderer,
       weles_version: version,
       media_kind: 'video-webm',
-      width: probed.width,
-      height: probed.height,
-      duration_seconds: probed.duration_seconds,
+      width: plan.viewport.width,
+      height: plan.viewport.height,
+      duration_seconds: recordedSeconds,
       bytes: video.bytes,
       sha256: video.sha256,
-      capture_method: `Recorded ${plan.source_url} in ${renderer} on the Stado-selected Weles host for ${plan.record_seconds}s at ${plan.viewport.width}x${plan.viewport.height} CSS px and device scale factor ${plan.viewport.device_scale_factor} while executing ${stepsExecuted.length} scripted step(s), capturing CDP Page.startScreencast PNG frames stitched into WebM with ffmpeg.`,
+      capture_method: `Recorded ${plan.source_url} in ${renderer} on the Stado-selected Weles host for ${recordedSeconds}s at ${plan.viewport.width}x${plan.viewport.height} CSS px and device scale factor ${plan.viewport.device_scale_factor} while executing ${stepsExecuted.length} scripted step(s), written as WebM by the browser's own recorder.`,
     };
     artifacts.push({
       key: `${keyPrefix}${base}.webm`,
@@ -218,7 +216,7 @@ try {
   console.log(`PASS: ${label} ${artifacts.map((artifact) => artifact.uri).join(' ')}`);
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
-  if (screencast && !screencast._stopped) await screencast.stop().catch(() => {});
+  // The recording path closes the session itself to seal the video.
   writeFileSync(join(runRecordingsDir(label), 'capture_result.json'), JSON.stringify({
     ok: false,
     batch: plan.batch,
@@ -234,7 +232,7 @@ try {
   console.log('FAIL:', message.slice(Number('0'), Number('300')));
   process.exitCode = 1;
 } finally {
-  if (started) await started.session.close();
+  if (started && !closed) await started.session.close();
 }
 
 process.exit(process.exitCode ?? 0);
