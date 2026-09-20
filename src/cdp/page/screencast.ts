@@ -96,27 +96,37 @@ export class CDPScreencast {
    * which is how the missing start number was finally readable.
    */
   private _stitch(): string {
-    mkdirSync(this._outputDir, { recursive: true });
-    const ts = new Date().toISOString().replace(/[:.]/g, '_');
-    const outPath = join(this._outputDir, `screencast_${ts}.webm`);
-    const pattern = join(this._frameDir, 'frame_%06d.png');
-    const ffmpeg = resolveMediaTool('ffmpeg');
-    try {
-      execFileSync(ffmpeg, [
-        '-y', '-framerate', '5', '-start_number', '1', '-i', pattern,
-        '-c:v', 'libvpx', '-pix_fmt', 'yuv420p', '-b:v', '1M', outPath,
-      ], { encoding: 'utf-8', stdio: 'pipe', timeout: Number('300000') });
-    } catch (error) {
-      const captured = error && typeof error === 'object' && 'stderr' in error
-        ? String(error.stderr ?? '').trim()
-        : '';
-      const cause = captured || (error instanceof Error ? error.message : String(error));
-      throw new Error(
-        `${ffmpeg} could not stitch ${this._frameCount} frame(s) from ${this._frameDir} `
-        + `into ${outPath}: ${cause.slice(-Number('600'))}`,
-        { cause: error },
-      );
-    }
-    return outPath;
+    return stitchFrames(this._frameDir, this._outputDir, this._frameCount);
   }
+}
+
+/**
+ * Turn one directory of `frame_NNNNNN.png` into one WebM, or say why not.
+ *
+ * Exported because this is the step that has never worked and the only one
+ * a test can drive without a browser: hand it real PNGs, get a real video.
+ */
+export function stitchFrames(frameDir: string, outputDir: string, frameCount: number): string {
+  mkdirSync(outputDir, { recursive: true });
+  const ts = new Date().toISOString().replace(/[:.]/g, '_');
+  const outPath = join(outputDir, `screencast_${ts}.webm`);
+  const pattern = join(frameDir, 'frame_%06d.png');
+  const ffmpeg = resolveMediaTool('ffmpeg');
+  try {
+    execFileSync(ffmpeg, [
+      '-y', '-framerate', '5', '-start_number', '1', '-i', pattern,
+      '-c:v', 'libvpx', '-pix_fmt', 'yuv420p', '-b:v', '1M', outPath,
+    ], { encoding: 'utf-8', stdio: 'pipe', timeout: Number('300000') });
+  } catch (error) {
+    const captured = error && typeof error === 'object' && 'stderr' in error
+      ? String(error.stderr ?? '').trim()
+      : '';
+    const cause = captured || (error instanceof Error ? error.message : String(error));
+    throw new Error(
+      `${ffmpeg} could not stitch ${frameCount} frame(s) from ${frameDir} `
+      + `into ${outPath}: ${cause.slice(-Number('600'))}`,
+      { cause: error },
+    );
+  }
+  return outPath;
 }

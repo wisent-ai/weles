@@ -103,6 +103,17 @@ export function mediaToolCandidates(tool: MediaTool): string[] {
 const REQUIRED_FFMPEG_ENCODER = 'libvpx';
 
 /**
+ * The demuxer that reads the captured PNG sequence back in.
+ *
+ * Playwright's bundled build has the libvpx encoder and no image sequence
+ * demuxer: it exists to encode frames Playwright pipes it, not to read a
+ * directory. Handed one it answers `Error opening input: No such file or
+ * directory` about a directory that is demonstrably full of frames, which
+ * on 2026-09-20 read as a missing recording four separate times.
+ */
+const REQUIRED_FFMPEG_DEMUXER = 'image2';
+
+/**
  * The executable this host will run for one tool, proven able to do the job.
  *
  * An explicit `WELES_<TOOL>_BIN` is the answer, not a suggestion: when it
@@ -112,10 +123,10 @@ const REQUIRED_FFMPEG_ENCODER = 'libvpx';
  * this host has; there is no second one, so a binary that is present and
  * unfit is reported as unfit rather than passed over.
  *
- * For ffmpeg the proof is the encoder list, not `-version`. Playwright's
- * bundled build answers `-version` and carries `--enable-encoder=png` and
- * nothing else useful; resolving to it cost a 5,355-frame recording of
- * app.wisent.com on 2026-09-20, discovered at the last step.
+ * For ffmpeg the proof is both halves of the job — read a frame sequence,
+ * write VP8 — because a build that can do one and not the other fails at
+ * the last step, after the frames are already captured and the browser is
+ * already gone.
  */
 export function resolveMediaTool(tool: MediaTool): string {
   const variable = `WELES_${tool.toUpperCase()}_BIN`;
@@ -128,26 +139,45 @@ export function resolveMediaTool(tool: MediaTool): string {
       + `Install it, or name it in ${variable}.`,
     );
   }
-  const probe = tool === 'ffmpeg' ? ['-hide_banner', '-encoders'] : ['-version'];
-  let answer = '';
-  try {
-    answer = execFileSync(installed, probe, {
-      encoding: 'utf8',
-      timeout: Number('10000'),
-    });
-  } catch (error) {
-    throw new Error(
-      `${installed} is the ${tool} this host holds and it did not answer `
-      + `${probe.join(' ')}: ${error instanceof Error ? error.message : String(error)}`,
-      { cause: error },
-    );
+  if (tool === 'ffprobe') {
+    ffmpegAnswer(installed, tool, variable, ['-version']);
+    return installed;
   }
-  if (tool === 'ffmpeg' && !answer.includes(REQUIRED_FFMPEG_ENCODER)) {
+  const encoders = ffmpegAnswer(installed, tool, variable, ['-hide_banner', '-encoders']);
+  if (!encoders.includes(REQUIRED_FFMPEG_ENCODER)) {
     throw new Error(
       `${installed} is an ffmpeg without the ${REQUIRED_FFMPEG_ENCODER} encoder, so it `
       + `cannot write the WebM a recording is stitched into. Install a full ffmpeg, or `
       + `name one in ${variable}.`,
     );
   }
+  const demuxers = ffmpegAnswer(installed, tool, variable, ['-hide_banner', '-demuxers']);
+  if (!demuxers.includes(REQUIRED_FFMPEG_DEMUXER)) {
+    throw new Error(
+      `${installed} is an ffmpeg without the ${REQUIRED_FFMPEG_DEMUXER} demuxer, so it `
+      + `cannot read the captured frame sequence back and answers "No such file or `
+      + `directory" about a directory that holds every frame. Install a full ffmpeg, `
+      + `or name one in ${variable}.`,
+    );
+  }
   return installed;
+}
+
+/** One probe of a resolved tool, with its own refusal when it will not run. */
+function ffmpegAnswer(
+  binary: string,
+  tool: MediaTool,
+  variable: string,
+  probe: string[],
+): string {
+  try {
+    return execFileSync(binary, probe, { encoding: 'utf8', timeout: Number('10000') });
+  } catch (error) {
+    throw new Error(
+      `${binary} is the ${tool} this host holds (${variable} pins another) and it did `
+      + `not answer ${probe.join(' ')}: `
+      + `${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    );
+  }
 }
