@@ -88,6 +88,23 @@ test('a member id names its account when the item records none', () => {
   assert.equal(account.loginItem, 'login-wisent');
 });
 
+// This fleet's own vault, on 2026-09-20: its login rows declare no provider
+// at all, so the provider-narrowed match had nothing to compare and every
+// held member stayed `subscription_identity_missing` while its own id named
+// the account exactly.
+test('a member id names its account when no login declares a provider', () => {
+  run(['set-json', 'login-plain', '--type', 'login'], JSON.stringify({
+    schema: 'skarbiec.item.v2',
+    kind: 'login',
+    context: { account_ref: 'someone@example.org', login_method: 'email_password' },
+    fields: { username: 'someone@example.org', password: 'not-a-real-password' },
+  }));
+  subscription('brama-sub-held-claude-code-someone-example-org');
+  const account = select('brama-sub-held-claude-code-someone-example-org');
+  assert.equal(account.accountRef, 'someone@example.org');
+  assert.equal(account.loginItem, 'login-plain');
+});
+
 test('a member id that matches no login is still refused', () => {
   subscription('brama-sub-held-claude-code-nobody-example-com');
   assert.throws(

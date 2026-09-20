@@ -155,6 +155,16 @@ function resolveAccount(subscription: Item, inventory: Item[], requested?: strin
     const sameProvider = available.filter((candidate) =>
       providerName(text(candidate.context.provider)) === provider);
     accountRef = accountFromSubscriptionId(subscriptionId, sameProvider);
+    // A login row that declares no provider — every row in this fleet's
+    // vault on 2026-09-20 — is invisible to the filter above, and every
+    // member imported before accounts were recorded beside their grants
+    // stayed `subscription_identity_missing` however exactly its own id
+    // named the account. The suffix match is exact and yields nothing
+    // unless one login's account matches it, so it is asked of every
+    // login when the narrowed field answered nothing.
+    if (!accountRef) {
+      accountRef = accountFromSubscriptionId(subscriptionId, available);
+    }
   }
   if (!accountRef) {
     const names = available.map(({ item }) => itemId(item));
@@ -198,7 +208,20 @@ function resolveAccount(subscription: Item, inventory: Item[], requested?: strin
   const direct = candidates.filter((candidate) =>
     providerName(text(candidate.context.provider)) === provider);
   const google = candidates.filter((candidate) => candidate.context.login_method === 'google_sso');
-  const eligible = direct.length ? direct : google.length ? google : named ? candidates : [];
+  // A row that declares no provider is not a row for another provider. When
+  // the account is settled and nothing of this provider or of Google claims
+  // it, the rows that carry that account ARE its login material: on
+  // 2026-09-20 this fleet's vault held exactly such rows and every held
+  // member was refused `skarbiec_login_missing` one step after its account
+  // had been resolved from its own id.
+  const unclaimed = candidates.filter((candidate) => !text(candidate.context.provider));
+  const eligible = direct.length
+    ? direct
+    : google.length
+      ? google
+      : named
+        ? candidates
+        : unclaimed;
   const credentials = new Set(eligible.map((candidate) => candidate.context.credentialDigest));
   const authenticators = new Set(eligible.map((candidate) => candidate.context.authenticatorDigest).filter(Boolean));
   if (!eligible.length || credentials.size !== 1 || authenticators.size > 1) {
