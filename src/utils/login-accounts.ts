@@ -170,12 +170,20 @@ function resolveAccount(subscription: Item, inventory: Item[], requested?: strin
     const ofProvider = available
       .filter((candidate) => providerName(text(candidate.context.provider)) === provider)
       .map(({ item }) => itemId(item));
+    // Naming the way out is not the same as naming the command that takes
+    // it: on 2026-09-20 three `brama-sub-wisent-app-claude-*` subscriptions
+    // failed here every pass, and the sentence left the reader to discover
+    // that a subscription item's account is recorded as a tag on that item.
+    const recordIt = `record the account on the subscription item itself — `
+      + `stado credentials item retag --host <VAULT HOST> ${subscriptionItem} --tags `
+      + `"<its current tags>,brama:login:<login item>" (omit --tags to read them first)`;
     const remedy = ofProvider.length
-      ? `name one of this provider's logins with --login-item: ${ofProvider.join(', ')}`
+      ? `name one of this provider's logins with --login-item: ${ofProvider.join(', ')}; `
+        + `or ${recordIt}`
       : names.length
         ? `no login item in this vault declares provider ${provider}, so none can be chosen `
-          + `for it: record the account on the subscription item, declare the provider on its `
-          + `login, or name one of the ${names.length} logins explicitly with --login-item`
+          + `for it: ${recordIt}, declare the provider on its login, or name one of the `
+          + `${names.length} logins explicitly with --login-item`
         : 'this vault holds no login item to name';
     fail('subscription_identity_missing',
       `Skarbiec subscription ${subscriptionItem} has neither an account identity nor an `
