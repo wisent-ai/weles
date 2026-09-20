@@ -11,6 +11,7 @@ import {
   listServiceSubscriptions,
   requestJson,
 } from './delivery-http.js';
+import declaredKinds from './artifact-kinds.json';
 
 export { loadArtifactDeliveryConfig, type ArtifactDeliveryConfig } from './delivery-config.js';
 
@@ -18,20 +19,21 @@ const SIGN_PATH = '/v1/artifacts/sign';
 const OBJECT_PATH = '/v1/artifacts/object';
 const SUBSCRIPTIONS_PATH = '/v1/subscriptions';
 const WELES_ARTIFACT_PREFIX = 'stado://weles/recordings/';
-const ARTIFACT_KINDS = ['screenshots', 'videos', 'dom', 'logs'] as const;
+// The four kinds of artifact a run produces, from `artifact-kinds.json`
+// beside this module. Exported because the uploading client used to keep
+// its own copy of the same names, so a kind added here was signed by the
+// server and never uploaded by the client.
+export const ARTIFACT_KINDS = declaredKinds.kinds as readonly string[];
 const MILLIS_PER_SECOND = Number('1000');
 const MAX_ARTIFACT_COUNT = Number('10000');
 const MAX_LOCATOR_LENGTH = Number('4096');
 const HMAC_HEX_LENGTH = Number('64');
 
-export type ArtifactKind = typeof ARTIFACT_KINDS[number];
+/// A kind is whatever the declaration lists; the locator set carries one
+/// list of locators per kind.
+export type ArtifactKind = string;
 
-export type ArtifactLocatorSet = {
-  screenshots: string[];
-  videos: string[];
-  dom: string[];
-  logs: string[];
-};
+export type ArtifactLocatorSet = Record<ArtifactKind, string[]>;
 
 export type SignedArtifactResponse = {
   artifacts: ArtifactLocatorSet;

@@ -1,5 +1,6 @@
 import {
   normalizeArtifactLocators,
+  ARTIFACT_KINDS,
   type ArtifactKind,
   type ArtifactLocatorSet,
   type SignedArtifactResponse,
@@ -7,7 +8,7 @@ import {
 
 const SIGN_PATH = '/v1/artifacts/sign';
 const OBJECT_PATH = '/v1/artifacts/object';
-const ARTIFACT_KINDS: ArtifactKind[] = ['screenshots', 'videos', 'dom', 'logs'];
+// The server's declaration, not a second copy of it.
 const MAX_TTL_MILLISECONDS = Number('300000');
 const HMAC_HEX_LENGTH = Number('64');
 const MIN_SECRET_BYTES = Number('32');

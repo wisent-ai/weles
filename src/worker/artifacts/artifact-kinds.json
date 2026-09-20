@@ -1,0 +1,9 @@
+{
+  "why": "What a run produces and the delivery path carries: the screenshots, the videos, the DOM snapshots and the logs. The signing server and the uploading client each kept their own copy of these four names, so a kind added on one side is signed and never uploaded, or uploaded and never signed. Declared as data because a list of names inside code is the shape the operator refused on 2026-09-19 ('to dodaj do tamy hook ktory blokuje jakikolweik uzycie keywordsow albo czegokolwiek hardcodowanego'); adding a kind here changes both sides at once, and the locator set's type follows it.",
+  "kinds": [
+    "screenshots",
+    "videos",
+    "dom",
+    "logs"
+  ]
+}
