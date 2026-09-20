@@ -158,23 +158,28 @@ function resolveAccount(subscription: Item, inventory: Item[], requested?: strin
   }
   if (!accountRef) {
     const names = available.map(({ item }) => itemId(item));
-    // The way out belongs in the sentence, and it is this provider's logins:
-    // on 2026-09-20 `brama subscription sign-in claude-code
-    // --subscription-id brama-sub-wisent-app-claude-secondary` printed the
-    // bare refusal, so the two claude logins this vault holds had to be found
-    // with `skarbiec list`, and listing all twenty-three — captcha solvers,
-    // proxies, an example row — would have hidden them again.
+    // The way out belongs in the sentence. On 2026-09-20
+    // `brama subscription sign-in claude-code --subscription-id
+    // brama-sub-wisent-app-claude-secondary` printed the bare refusal, so the
+    // logins had to be found with `skarbiec list`; and this vault's rows
+    // declare no provider at all, so naming all twenty-three — captcha
+    // solvers, proxies, an example row — would hide them again. A provider's
+    // own logins are named when the vault declares any, and when it declares
+    // none that is the finding, because it is what has to be repaired before
+    // any sign-in can choose.
     const ofProvider = available
       .filter((candidate) => providerName(text(candidate.context.provider)) === provider)
       .map(({ item }) => itemId(item));
-    const offer = ofProvider.length ? ofProvider : names;
+    const remedy = ofProvider.length
+      ? `name one of this provider's logins with --login-item: ${ofProvider.join(', ')}`
+      : names.length
+        ? `no login item in this vault declares provider ${provider}, so none can be chosen `
+          + `for it: record the account on the subscription item, declare the provider on its `
+          + `login, or name one of the ${names.length} logins explicitly with --login-item`
+        : 'this vault holds no login item to name';
     fail('subscription_identity_missing',
       `Skarbiec subscription ${subscriptionItem} has neither an account identity nor an `
-      + 'unambiguous login reference; '
-      + (offer.length
-        ? `name one of ${ofProvider.length ? `this provider's` : `this vault's`} logins with `
-          + `--login-item: ${offer.join(', ')}`
-        : 'this vault holds no login item to name'),
+      + `unambiguous login reference; ${remedy}`,
       { subscription_id: subscriptionId, subscription_item: subscriptionItem,
         login_items: names, provider_login_items: ofProvider });
   }

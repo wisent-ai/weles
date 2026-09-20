@@ -6,9 +6,9 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { runRecordingsDir } from '../../session/run-recordings.js';
 import { resolveMediaTool } from '../../runtime/media-tools.js';
 import type { CDPConnection } from '../connection.js';
 
@@ -29,12 +29,26 @@ export class CDPScreencast {
   video = new CDPVideo();
   private _listener: (params: any) => void;
 
+  /**
+   * The frames used to be written into `$TMPDIR`, and on 2026-09-20 that is
+   * where a recording of app.wisent.com died: 5,355 frames were captured and
+   * ffmpeg then answered `Error opening input: No such file or directory` for
+   * the very directory they had been written to. macOS empties a user's
+   * `/var/folders` temporary area under disk pressure, which is exactly the
+   * state a host is in when a recording matters, and nothing in this product
+   * owns that directory.
+   *
+   * Frames now live beside the video they become, inside the run's own
+   * recordings directory: the store this worker owns, the one its budget
+   * prunes, and the one its evidence is read from. They are removed once the
+   * WebM exists.
+   */
   constructor(conn: CDPConnection, sessionId: string, options?: { outputDir?: string; everyNthFrame?: number }) {
     this._conn = conn;
     this._sid = sessionId;
     this._everyNth = options?.everyNthFrame ?? 2;
-    this._frameDir = mkdtempSync(join(tmpdir(), 'weles_screencast_'));
-    this._outputDir = options?.outputDir ?? mkdtempSync(join(tmpdir(), 'weles_video_'));
+    this._outputDir = options?.outputDir ?? runRecordingsDir('screencast');
+    this._frameDir = mkdtempSync(join(this._outputDir, 'frames_'));
     this._listener = (params: any) => this._onFrame(params);
   }
 
@@ -64,6 +78,10 @@ export class CDPScreencast {
     this._conn.off('Page.screencastFrame', this._listener, this._sid);
     if (this._frameCount === 0) return null;
     const videoPath = this._stitch();
+    // The frames are the video's raw material, not evidence of their own,
+    // and they are large: a ninety-second capture leaves several thousand
+    // PNGs beside the WebM they became.
+    rmSync(this._frameDir, { recursive: true, force: true });
     this.video._path = videoPath;
     return videoPath;
   }

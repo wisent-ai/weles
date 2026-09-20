@@ -46,3 +46,6 @@ scripts/lib/cgevent_postpid
 
 # macOS Finder metadata: written by the OS on any folder view, never source.
 .DS_Store
+
+# Scratch copies a run fetches out of the tree; never source.
+.fetch/

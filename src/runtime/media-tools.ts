@@ -19,8 +19,9 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { dirname, join } from 'node:path';
 
 /** The media tools the recording path runs. Playwright bundles only ffmpeg. */
 export type MediaTool = 'ffmpeg' | 'ffprobe';
@@ -28,17 +29,57 @@ export type MediaTool = 'ffmpeg' | 'ffprobe';
 /** Directories a Unix install puts these binaries in, most specific first. */
 const TOOL_DIRECTORIES = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin'] as const;
 
+/** The `browsers.json` beside the resolved `playwright-core`. */
+export function findPlaywrightManifest(): string {
+  let directory = dirname(require.resolve('playwright-core'));
+  for (let depth = 0; depth < Number('6'); depth += 1) {
+    const candidate = join(directory, 'browsers.json');
+    if (existsSync(candidate)) return candidate;
+    const parent = dirname(directory);
+    if (parent === directory) break;
+    directory = parent;
+  }
+  throw new Error('no browsers.json beside the resolved playwright-core');
+}
+
+/** Where Playwright keeps its downloads on this platform. */
+export function playwrightCacheRoot(): string {
+  const override = process.env.PLAYWRIGHT_BROWSERS_PATH?.trim();
+  if (override) return override;
+  const home = homedir();
+  if (process.platform === 'darwin') return join(home, 'Library', 'Caches', 'ms-playwright');
+  if (process.platform === 'win32') return join(home, 'AppData', 'Local', 'ms-playwright');
+  return join(home, '.cache', 'ms-playwright');
+}
+
+/**
+ * Playwright's own bundled ffmpeg for this release, by path.
+ *
+ * The revision is read from the Playwright this worker will actually load,
+ * so the path moves when the dependency does. A release whose Playwright
+ * declares no ffmpeg has none of these, which is a real answer rather than
+ * an error: the host installation is then the one that counts.
+ */
+export function bundledFfmpegPath(): string | null {
+  const parsed = JSON.parse(readFileSync(findPlaywrightManifest(), 'utf8')) as {
+    browsers?: Array<{ name?: string; revision?: string }>;
+  };
+  const revision = (parsed.browsers ?? []).find((entry) => entry.name === 'ffmpeg')?.revision ?? '';
+  if (!revision) return null;
+  const name = process.platform === 'darwin'
+    ? 'ffmpeg-mac'
+    : process.platform === 'win32' ? 'ffmpeg-win64.exe' : 'ffmpeg-linux';
+  return join(playwrightCacheRoot(), `ffmpeg-${revision}`, name);
+}
 
 /**
  * Every path this host may hold one tool at, in the order they are consulted.
  *
- * Playwright's bundled `ffmpeg` is deliberately NOT here. It is a build cut
- * down to what Playwright's own recorder needs, and its configuration says
- * so: `--enable-encoder=png --enable-zlib --enable-muxer=image2`, no libvpx
- * and no webm muxer. Resolving to it looked right and failed at the last
- * step — on 2026-09-20 a capture of app.wisent.com collected 5,355 frames
- * and then could not write a single WebM, which is the most expensive place
- * to learn that a tool cannot do the job.
+ * Playwright's bundled ffmpeg is first after an explicit pin, because a
+ * managed worker installs it with its browser runtime and may carry no
+ * other: charless-mac-mini has none of the usual install directories
+ * populated, so leaving it out made every recording refuse with
+ * `no ffmpeg on this host`.
  *
  * Exported so a refusal, a diagnostic and a test all quote the same list.
  */
@@ -46,6 +87,10 @@ export function mediaToolCandidates(tool: MediaTool): string[] {
   const candidates: string[] = [];
   const override = process.env[`WELES_${tool.toUpperCase()}_BIN`]?.trim();
   if (override) candidates.push(override);
+  if (tool === 'ffmpeg') {
+    const bundled = bundledFfmpegPath();
+    if (bundled) candidates.push(bundled);
+  }
   for (const directory of TOOL_DIRECTORIES) candidates.push(join(directory, tool));
   return candidates;
 }
