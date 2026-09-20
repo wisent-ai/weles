@@ -158,20 +158,25 @@ function resolveAccount(subscription: Item, inventory: Item[], requested?: strin
   }
   if (!accountRef) {
     const names = available.map(({ item }) => itemId(item));
-    // The way out belongs in the sentence. The candidate logins were already
-    // in the refusal's detail and nowhere an operator reads: on 2026-09-20
-    // `brama subscription sign-in claude-code --subscription-id
-    // brama-sub-wisent-app-claude-secondary` printed this message alone, and
-    // the two claude logins this vault holds had to be found with
-    // `skarbiec list`.
+    // The way out belongs in the sentence, and it is this provider's logins:
+    // on 2026-09-20 `brama subscription sign-in claude-code
+    // --subscription-id brama-sub-wisent-app-claude-secondary` printed the
+    // bare refusal, so the two claude logins this vault holds had to be found
+    // with `skarbiec list`, and listing all twenty-three — captcha solvers,
+    // proxies, an example row — would have hidden them again.
+    const ofProvider = available
+      .filter((candidate) => providerName(text(candidate.context.provider)) === provider)
+      .map(({ item }) => itemId(item));
+    const offer = ofProvider.length ? ofProvider : names;
     fail('subscription_identity_missing',
       `Skarbiec subscription ${subscriptionItem} has neither an account identity nor an `
       + 'unambiguous login reference; '
-      + (names.length
-        ? `name one of its logins with --login-item: ${names.join(', ')}`
+      + (offer.length
+        ? `name one of ${ofProvider.length ? `this provider's` : `this vault's`} logins with `
+          + `--login-item: ${offer.join(', ')}`
         : 'this vault holds no login item to name'),
       { subscription_id: subscriptionId, subscription_item: subscriptionItem,
-        login_items: names });
+        login_items: names, provider_login_items: ofProvider });
   }
   const candidates = available.filter((candidate) =>
     sameAccount(text(candidate.context.account_ref), accountRef));
