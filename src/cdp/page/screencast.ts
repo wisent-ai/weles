@@ -30,18 +30,11 @@ export class CDPScreencast {
   private _listener: (params: any) => void;
 
   /**
-   * The frames used to be written into `$TMPDIR`, and on 2026-09-20 that is
-   * where a recording of app.wisent.com died: 5,355 frames were captured and
-   * ffmpeg then answered `Error opening input: No such file or directory` for
-   * the very directory they had been written to. macOS empties a user's
-   * `/var/folders` temporary area under disk pressure, which is exactly the
-   * state a host is in when a recording matters, and nothing in this product
-   * owns that directory.
-   *
-   * Frames now live beside the video they become, inside the run's own
-   * recordings directory: the store this worker owns, the one its budget
-   * prunes, and the one its evidence is read from. They are removed once the
-   * WebM exists.
+   * Frames live inside the run's own recordings directory, beside the video
+   * they become: the store this worker owns, the one its budget prunes, and
+   * the one its evidence is read from. They used to be written into
+   * `$TMPDIR`, which no part of this product owns and which this workshop
+   * forbids work from touching. They are removed once the WebM exists.
    */
   constructor(conn: CDPConnection, sessionId: string, options?: { outputDir?: string; everyNthFrame?: number }) {
     this._conn = conn;
@@ -89,11 +82,18 @@ export class CDPScreencast {
   /**
    * Stitch the captured frames into one WebM, or say exactly why not.
    *
-   * This used to shell out to a bare `ffmpeg` and return an empty string on
-   * any failure, so a worker whose PATH does not carry ffmpeg — which is
-   * every launchd-managed worker on a Homebrew host — reported the same
-   * nothing as a browser that sent no frames. The binary is resolved by
-   * path now, and ffmpeg's own stderr is what a failure carries.
+   * `-start_number 1` is the whole reason a recording never existed.
+   * Frames are written `frame_000001.png` upward, and ffmpeg's image
+   * demuxer begins looking at `frame_000000.png`, so every stitch this
+   * product ever attempted answered `Error opening input: No such file or
+   * directory` and every capture reported no video. On 2026-09-20 that
+   * swallowed 6,032 frames of app.wisent.com in one run.
+   *
+   * The failure used to be discarded: a bare `ffmpeg` through a shell,
+   * returning an empty string on any error, so a worker whose PATH has no
+   * ffmpeg looked exactly like a browser that sent no frames. The binary is
+   * resolved by path now and ffmpeg's own stderr is what a failure carries,
+   * which is how the missing start number was finally readable.
    */
   private _stitch(): string {
     mkdirSync(this._outputDir, { recursive: true });
@@ -103,7 +103,7 @@ export class CDPScreencast {
     const ffmpeg = resolveMediaTool('ffmpeg');
     try {
       execFileSync(ffmpeg, [
-        '-y', '-framerate', '5', '-i', pattern,
+        '-y', '-framerate', '5', '-start_number', '1', '-i', pattern,
         '-c:v', 'libvpx', '-pix_fmt', 'yuv420p', '-b:v', '1M', outPath,
       ], { encoding: 'utf-8', stdio: 'pipe', timeout: Number('300000') });
     } catch (error) {
