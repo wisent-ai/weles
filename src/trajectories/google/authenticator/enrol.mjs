@@ -34,6 +34,8 @@ const NAV_TIMEOUT_MS = 60_000;
 /** A heading is a label, not a page: enough to recognise which screen Google
  * showed, never enough to carry its contents. */
 const MAX_HEADING_CHARS = 200;
+/** Google's password-only challenge: the account is known, the session is not. */
+const PASSWORD_CHALLENGE = /\/signin\/challenge\/pwd/;
 const RESULT_DIR = runOutputPath('google-authenticator-enrol');
 const RESULT_FILE = join(RESULT_DIR, 'result.json');
 
@@ -87,18 +89,29 @@ async function signIn(page, wait, login) {
   // established may still be live: Google then answers the sign-in address
   // with the account itself, and there is no form to fill.
   if (!onSignIn(page.url())) return { ok: true };
-  const email = page.locator('input[type="text"][autocomplete*="username"], input#identifierId, input[name="identifier"], input[type="email"]')
-    .filter({ visible: true }).first();
-  try {
-    await email.waitFor({ state: 'visible' });
-  } catch (error) {
-    if (error?.name !== 'TimeoutError') throw error;
-    if (!onSignIn(page.url())) return { ok: true };
-    return { ok: false, blocked: 'google_sign_in_page_unrecognised', ...(await pageDescription(page)) };
+  // Google remembers the account on this persistent profile and asks only for
+  // the password again, on `/v3/signin/challenge/pwd`, whose `continue` is
+  // already the authenticator setup page. That screen carries no email field,
+  // so the identifier step must be skipped rather than waited for: measured on
+  // 2026-09-20 in run 58bbd595-f53d-4314-a33d-18606c32e232.
+  if (!PASSWORD_CHALLENGE.test(page.url())) {
+    const email = page.locator('input[type="text"][autocomplete*="username"], input#identifierId, input[name="identifier"], input[type="email"]')
+      .filter({ visible: true }).first();
+    try {
+      await email.waitFor({ state: 'visible' });
+    } catch (error) {
+      if (error?.name !== 'TimeoutError') throw error;
+      if (!onSignIn(page.url())) return { ok: true };
+      if (!PASSWORD_CHALLENGE.test(page.url())) {
+        return { ok: false, blocked: 'google_sign_in_page_unrecognised', ...(await pageDescription(page)) };
+      }
+    }
+    if (await email.isVisible().catch(() => false)) {
+      await fillAndVerify(page, email, login.email, humanClickLocator, humanType);
+      await waitForEnabledThenClick(page, /next|continue|dalej/i);
+      await humanIdlePause('deliberate');
+    }
   }
-  await fillAndVerify(page, email, login.email, humanClickLocator, humanType);
-  await waitForEnabledThenClick(page, /next|continue|dalej/i);
-  await humanIdlePause('deliberate');
   const password = await waitForGooglePassword({ page, mark: () => {}, humanClickLocator, humanIdlePause });
   await fillAndVerify(page, password, login.password, humanClickLocator, humanType);
   await waitForEnabledThenClick(page, /next|sign in|continue|dalej/i);
