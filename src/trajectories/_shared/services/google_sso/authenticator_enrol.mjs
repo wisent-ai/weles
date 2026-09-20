@@ -22,8 +22,15 @@ const CODE_INPUT_TIMEOUT_MS = 20_000;
 /** How much of a page is kept in a refusal, after the key is redacted. */
 const PREVIEW_CHARS = 1600;
 
-/** The authenticator settings page, by its direct address. */
-export const AUTHENTICATOR_SETUP_URL = 'https://myaccount.google.com/two-step-verification/authenticator';
+/** The authenticator settings page, by its direct address.
+ *
+ * `hl=en` is load-bearing, not decoration: every step below recognises the
+ * page by its English labels, and Google renders this page in the account's
+ * own language. On 2026-09-20 `controlyourai@gmail.com` answered in Polish —
+ * "Skonfiguruj aplikację" where this module looks for "Set up authenticator" —
+ * so a run that had signed in correctly still refused with
+ * `setup_action_not_found` (run 104832e3-adc2-49eb-880e-d67c974298f3). */
+export const AUTHENTICATOR_SETUP_URL = 'https://myaccount.google.com/two-step-verification/authenticator?hl=en';
 
 export async function bodyText(page) {
   return await page.evaluate(() => document.body?.innerText || '');
