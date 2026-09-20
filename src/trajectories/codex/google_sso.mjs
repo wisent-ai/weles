@@ -44,6 +44,16 @@ export async function doGoogleSso({
   let inviteTried = false;
   const onPopup = (p) => { if (!popupPage) popupPage = p; };
   page.context().on('page', onPopup);
+  // Where the handoff actually went. The failure below used to carry only the
+  // page it ended on, and an operator reading "no consent/code after 4
+  // attempts" at auth.openai.com/log-in could not tell a Google button that
+  // was never found from one that was clicked and did nothing, nor see the
+  // pages walked in between. Hosts and paths only — no query strings, which
+  // is where OAuth puts codes and tokens.
+  const trail = [];
+  const step = (label) => {
+    if (trail[trail.length - 1] !== label) trail.push(label);
+  };
   try {
     for (let attempt = 0; attempt < 4; attempt += 1) {
       // "Continue with Google" is a GIS button: when it has no usable session
@@ -67,8 +77,13 @@ export async function doGoogleSso({
           }
         }
       }
-      try { await waitForEnabledThenClick(page, /continue with google|^google$/i); }
-      catch (e) { console.log(`[google_sso] no continue-with-google a${attempt}: ${e.message.slice(0, 50)}`); }
+      try {
+        await waitForEnabledThenClick(page, /continue with google|^google$/i);
+        step(`a${attempt}:clicked-continue-with-google`);
+      } catch (e) {
+        step(`a${attempt}:no-continue-with-google`);
+        console.log(`[google_sso] no continue-with-google a${attempt}: ${e.message.slice(0, 50)}`);
+      }
       let popupHandled = false;
       for (let i = 0; i < 200; i += 1) {
         if (popupPage && !popupHandled) {
@@ -87,6 +102,7 @@ export async function doGoogleSso({
             && !(x.disabled || x.getAttribute('aria-disabled') === 'true'));
           return { host: location.host, pathname: location.pathname, href: location.href, consent: !!c };
         }, { host: '', pathname: '', href: '', consent: false });
+        step(`${st.host}${st.pathname}`);
         if (login.code && st.host === 'auth.openai.com' && st.pathname.startsWith('/codex/device')) {
           const codeField = page.locator('input[name="user_code"],input[name="usercode"],input[autocomplete="one-time-code"]')
             .filter({ visible: true }).first();
@@ -166,6 +182,7 @@ export async function doGoogleSso({
       await humanIdlePause('deliberate');
     }
     const d = await navEval(page, () => ({ url: location.href, body: (document.body?.innerText || '').replace(/\s+/g, ' ').slice(0, 220) }), { url: '?', body: 'context destroyed' });
+    d.trail = trail;
     throw new Error(`gis_continue: no consent/code after 4 attempts diag=${JSON.stringify(d)}`);
   } finally {
     page.context().off('page', onPopup);
