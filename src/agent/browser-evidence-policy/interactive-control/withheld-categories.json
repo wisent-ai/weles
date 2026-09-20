@@ -1,0 +1,72 @@
+{
+  "why": "What a page control has to look like before a browser-evidence run refuses to touch it. An evidence run reads a site; it does not sign anybody in, does not spend money, does not delete anything and does not post in the operator's name. The only thing it has to go on is the wording on the control, the form around it and the address of the page, so each category here is a set of phrasings that has actually appeared on a control of that kind. The order matters and is the order below: a control that says both 'notification' and 'allow' is a notification control, and a recovery link that also says 'sign in' is recovery, because the narrower reading is the one that keeps the run out of an account. Kept as a record so a phrasing found on a new site is a line added here, with its category, rather than a regex edited in the classifier.",
+  "categories": [
+    {
+      "name": "notification_control",
+      "pattern": "\\b(notifications?|notify me|push alerts?|browser alerts?)\\b",
+      "reason": "notification permission/control withheld",
+      "why": "A notification prompt leaves state in the operator's browser profile that outlives the run. The plurals are here because the wording Chrome itself shows is 'Allow notifications', which the singular missed — the control was still withheld, as a browser permission, so the ledger recorded the wrong category for the commonest prompt on the web."
+    },
+    {
+      "name": "browser_permission_control",
+      "pattern": "\\b(allow|enable|grant|turn on|permission|camera|microphone|location|geolocation|clipboard)\\b",
+      "reason": "browser permission control withheld",
+      "why": "Camera, microphone, location and clipboard are the operator's to grant, not an evidence run's."
+    },
+    {
+      "name": "system_ui_download",
+      "pattern": "\\b(download|export|save (?:as|file)|open (?:in|with)|launch (?:app|application))\\b",
+      "reason": "download or external application control withheld",
+      "why": "A download or a handoff to another application leaves the page and the browser entirely."
+    },
+    {
+      "name": "mfa_2fa",
+      "pattern": "\\b(mfa|2fa|two[ -]?factor|multi[ -]?factor|one[ -]?time|verification code|security code|authenticator|passkey|otp)\\b",
+      "reason": "MFA/2FA control withheld",
+      "why": "A second factor is a credential; spending one is never evidence gathering."
+    },
+    {
+      "name": "trusted_device",
+      "pattern": "\\b(trust(?:ed)? (?:this )?device|remember (?:this )?device|don['’]?t ask again|keep me signed in)\\b",
+      "reason": "trusted-device control withheld",
+      "why": "Marking a machine trusted changes what the account will accept later, long after the run ends."
+    },
+    {
+      "name": "account_recovery_submission",
+      "pattern": "\\b(forgot|reset|recover|recovery|restore access|unlock account)\\b",
+      "reason": "account recovery submission withheld",
+      "why": "Recovery sends mail and can lock the operator out of his own account. Tested before the sign-in family, because a recovery link usually sits on a sign-in page and says so."
+    },
+    {
+      "name": "authentication_submission",
+      "pattern": "\\b(sign[ -]?in|log[ -]?in|sign[ -]?up|create (?:an )?account|register|continue with (?:google|apple|facebook|microsoft)|authenticate)\\b",
+      "reason": "sign-in/sign-up submission withheld",
+      "why": "An evidence run reads what a signed-out visitor sees; signing in is the operator's act."
+    },
+    {
+      "name": "purchase_subscription_payment",
+      "pattern": "\\b(buy|purchase|subscribe|checkout|pay|payment|place order|confirm order|upgrade plan|start trial)\\b",
+      "reason": "purchase/subscription/payment control withheld",
+      "why": "Money is the one boundary that always stays with the operator."
+    },
+    {
+      "name": "destructive_confirmation",
+      "pattern": "\\b(delete|destroy|erase|remove permanently|revoke|deactivate|terminate|close account|cancel account|confirm deletion)\\b",
+      "reason": "final destructive confirmation withheld",
+      "why": "Nothing an evidence run learns is worth a deletion it cannot undo."
+    },
+    {
+      "name": "messaging_submission",
+      "pattern": "\\b(send|submit message|post|publish|comment|reply|contact|invite|share)\\b",
+      "reason": "message-capable form submission withheld",
+      "why": "Anything that leaves the page as a message is published in the operator's name. Tested last: 'send' and 'share' appear as decoration on pages that submit nothing."
+    }
+  ],
+  "flag_categories": {
+    "download": "system_ui_download",
+    "formHasOneTimeCode": "mfa_2fa",
+    "formHasPassword": "authentication_submission",
+    "formHasMessage": "messaging_submission"
+  },
+  "flag_categories_why": "Facts read off the control itself, which beat wording: a form carrying a password field is a sign-in form whatever its button says."
+}

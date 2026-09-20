@@ -34,16 +34,17 @@ export const ALWAYS_WITHHELD_TOOLS: Record<string, { category: string; reason: s
   set_control: { category: 'unresolved_interactive_control', reason: 'generic control mutation is unavailable to browser-evidence tasks' },
 };
 
-const PERMISSION_RE = /\b(allow|enable|grant|turn on|permission|camera|microphone|location|geolocation|clipboard)\b/i;
-const NOTIFICATION_RE = /\b(notification|notify me|push alert|browser alert)\b/i;
-const DOWNLOAD_RE = /\b(download|export|save (?:as|file)|open (?:in|with)|launch (?:app|application))\b/i;
-const AUTH_RE = /\b(sign[ -]?in|log[ -]?in|sign[ -]?up|create (?:an )?account|register|continue with (?:google|apple|facebook|microsoft)|authenticate)\b/i;
-const RECOVERY_RE = /\b(forgot|reset|recover|recovery|restore access|unlock account)\b/i;
-const MFA_RE = /\b(mfa|2fa|two[ -]?factor|multi[ -]?factor|one[ -]?time|verification code|security code|authenticator|passkey|otp)\b/i;
-const TRUSTED_DEVICE_RE = /\b(trust(?:ed)? (?:this )?device|remember (?:this )?device|don['’]?t ask again|keep me signed in)\b/i;
-const MESSAGE_RE = /\b(send|submit message|post|publish|comment|reply|contact|invite|share)\b/i;
-const COMMERCE_RE = /\b(buy|purchase|subscribe|checkout|pay|payment|place order|confirm order|upgrade plan|start trial)\b/i;
-const DESTRUCTIVE_RE = /\b(delete|destroy|erase|remove permanently|revoke|deactivate|terminate|close account|cancel account|confirm deletion)\b/i;
+// What a page control has to look like before an evidence run refuses it,
+// declared in `withheld-categories.json` beside this file: one family per
+// category, in the order they are tested, each with the reason the run
+// keeps its hands off and the reason it sits where it sits.
+import declaredWithholding from './withheld-categories.json';
+
+const WITHHELD_CATEGORIES = declaredWithholding.categories.map((declared) => ({
+  name: declared.name,
+  reason: declared.reason,
+  test: new RegExp(declared.pattern, 'i'),
+}));
 
 export function targetText(tool: string, args: Record<string, unknown>): string {
   const parts = [args.target, args.selector, args.text, tool === 'press_key' ? args.key : undefined];
@@ -63,16 +64,22 @@ export function matchingControl(target: string, descriptors: ControlDescriptor[]
 
 export function classify(text: string, control: ControlDescriptor | null, pageUrl: string): { category: string; reason: string } | null {
   const combined = `${text} ${control?.label ?? ''} ${control?.href ?? ''} ${control?.formText ?? ''} ${control?.formAction ?? ''} ${pageUrl}`;
-  if (NOTIFICATION_RE.test(combined)) return { category: 'notification_control', reason: 'notification permission/control withheld' };
-  if (PERMISSION_RE.test(combined)) return { category: 'browser_permission_control', reason: 'browser permission control withheld' };
-  if (DOWNLOAD_RE.test(combined) || control?.download) return { category: 'system_ui_download', reason: 'download or external application control withheld' };
-  if (MFA_RE.test(combined) || control?.formHasOneTimeCode) return { category: 'mfa_2fa', reason: 'MFA/2FA control withheld' };
-  if (TRUSTED_DEVICE_RE.test(combined)) return { category: 'trusted_device', reason: 'trusted-device control withheld' };
-  if (RECOVERY_RE.test(combined)) return { category: 'account_recovery_submission', reason: 'account recovery submission withheld' };
-  if (AUTH_RE.test(combined) || control?.formHasPassword) return { category: 'authentication_submission', reason: 'sign-in/sign-up submission withheld' };
-  if (COMMERCE_RE.test(combined)) return { category: 'purchase_subscription_payment', reason: 'purchase/subscription/payment control withheld' };
-  if (DESTRUCTIVE_RE.test(combined)) return { category: 'destructive_confirmation', reason: 'final destructive confirmation withheld' };
-  if (MESSAGE_RE.test(combined) || control?.formHasMessage) return { category: 'messaging_submission', reason: 'message-capable form submission withheld' };
+  const flags: Record<string, boolean> = {
+    download: Boolean(control?.download),
+    formHasOneTimeCode: Boolean(control?.formHasOneTimeCode),
+    formHasPassword: Boolean(control?.formHasPassword),
+    formHasMessage: Boolean(control?.formHasMessage),
+  };
+  const flagged = new Set(
+    Object.entries(declaredWithholding.flag_categories)
+      .filter(([flag]) => flags[flag])
+      .map(([, category]) => category),
+  );
+  for (const category of WITHHELD_CATEGORIES) {
+    if (category.test.test(combined) || flagged.has(category.name)) {
+      return { category: category.name, reason: category.reason };
+    }
+  }
   return null;
 }
 
