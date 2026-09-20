@@ -156,10 +156,23 @@ function resolveAccount(subscription: Item, inventory: Item[], requested?: strin
       providerName(text(candidate.context.provider)) === provider);
     accountRef = accountFromSubscriptionId(subscriptionId, sameProvider);
   }
-  if (!accountRef) fail('subscription_identity_missing',
-    `Skarbiec subscription ${subscriptionItem} has neither an account identity nor an unambiguous login reference`,
-    { subscription_id: subscriptionId, subscription_item: subscriptionItem,
-      login_items: available.map(({ item }) => itemId(item)) });
+  if (!accountRef) {
+    const names = available.map(({ item }) => itemId(item));
+    // The way out belongs in the sentence. The candidate logins were already
+    // in the refusal's detail and nowhere an operator reads: on 2026-09-20
+    // `brama subscription sign-in claude-code --subscription-id
+    // brama-sub-wisent-app-claude-secondary` printed this message alone, and
+    // the two claude logins this vault holds had to be found with
+    // `skarbiec list`.
+    fail('subscription_identity_missing',
+      `Skarbiec subscription ${subscriptionItem} has neither an account identity nor an `
+      + 'unambiguous login reference; '
+      + (names.length
+        ? `name one of its logins with --login-item: ${names.join(', ')}`
+        : 'this vault holds no login item to name'),
+      { subscription_id: subscriptionId, subscription_item: subscriptionItem,
+        login_items: names });
+  }
   const candidates = available.filter((candidate) =>
     sameAccount(text(candidate.context.account_ref), accountRef));
   // A provider-specific login takes precedence over a shared SSO login for the

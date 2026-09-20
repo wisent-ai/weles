@@ -96,6 +96,19 @@ test('a member id that matches no login is still refused', () => {
   );
 });
 
+// The refusal is read by a person holding a burnt grant, and until it named
+// the logins this vault holds and the flag that binds one, the candidates had
+// to be found with `skarbiec list` before the sign-in could be retried.
+test('the refusal names the logins it could not choose between', () => {
+  subscription('brama-sub-held-claude-code-nobody-example-com');
+  assert.throws(
+    () => select('brama-sub-held-claude-code-nobody-example-com'),
+    (error) => error.message.includes('--login-item')
+      && error.message.includes('login-wisent')
+      && error.message.includes('login-gmail'),
+  );
+});
+
 test('the operator keeps their vault', () => {
   assert.notEqual(vault, join(homedir(), '.stado', 'skarbiec.vault.json'));
   rmSync(vaultDir, { recursive: true, force: true });

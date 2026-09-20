@@ -1,7 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
-import { findPlaywrightManifest, playwrightCacheRoot } from '../runtime/media-tools.js';
+import { dirname, join } from 'node:path';
 import { WELES_AGENT_MODEL } from '../agent/jeden.js';
 import { resolveSkarbiecEndpoint } from '../utils/runtime/endpoint-resolution.js';
 import { listLoginAccounts } from '../utils/login-accounts.js';
@@ -219,4 +218,27 @@ function inspectBrowserRuntime(): BrowserRuntimeReport {
     return { name, revision, expectedPath, present: found ? existsSync(expectedPath) : false };
   });
   return { ok: components.every((component) => component.present), components };
+}
+
+/// The `browsers.json` beside the resolved `playwright-core`.
+function findPlaywrightManifest(): string {
+  let directory = dirname(require.resolve('playwright-core'));
+  for (let depth = 0; depth < 6; depth += 1) {
+    const candidate = join(directory, 'browsers.json');
+    if (existsSync(candidate)) return candidate;
+    const parent = dirname(directory);
+    if (parent === directory) break;
+    directory = parent;
+  }
+  throw new Error('no browsers.json beside the resolved playwright-core');
+}
+
+/// Where Playwright keeps its downloads on this platform.
+function playwrightCacheRoot(): string {
+  const override = process.env.PLAYWRIGHT_BROWSERS_PATH?.trim();
+  if (override) return override;
+  const home = homedir();
+  if (process.platform === 'darwin') return join(home, 'Library', 'Caches', 'ms-playwright');
+  if (process.platform === 'win32') return join(home, 'AppData', 'Local', 'ms-playwright');
+  return join(home, '.cache', 'ms-playwright');
 }
