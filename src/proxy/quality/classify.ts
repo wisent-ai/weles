@@ -1,6 +1,10 @@
 // Classify an IPv4 address as residential, datacenter, or unknown.
-// Uses whois netname/org matching against the lists in ./lists.ts. Results
-// are cached to .work/ip_classifier_cache.json so repeat lookups are free.
+// Uses whois netname/org matching against the record in ./org-lists.json.
+// Results are cached to ~/.weles/ip_classifier_cache.json so repeat lookups
+// are free — the same state home `cidr.ts` keeps its ASN cache in. The cache
+// used to sit in `.work/` under whatever directory the process happened to
+// start in, so a worker launched from elsewhere re-ran every lookup and left
+// a stray directory behind in each checkout it passed through.
 
 import { execFile } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -9,7 +13,7 @@ import { promisify } from 'node:util';
 import { DATACENTER_ORGS, RESIDENTIAL_ORGS, WHOIS_FIELDS } from './lists.js';
 
 const exec = promisify(execFile);
-const CACHE_PATH = join(process.cwd(), '.work', 'ip_classifier_cache.json');
+const CACHE_PATH = join(process.env.HOME ?? '', '.weles', 'ip_classifier_cache.json');
 const WHOIS_DEADLINE_MS = 10_000;
 
 export type IpQuality = 'residential' | 'datacenter' | 'unknown';
