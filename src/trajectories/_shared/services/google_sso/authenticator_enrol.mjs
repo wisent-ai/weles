@@ -133,13 +133,19 @@ async function freshCode(secret, wait) {
  * @returns {{ ok: true, url: string } | { ok: false, blocked: string, textPreview: string }}
  */
 export async function confirmSetupCode(page, wait, secret) {
-  if (!/Enter the code|verification code|code from|6-digit/i.test(await bodyText(page))) {
-    await clickByText(page, /^Next$/i, 'next');
-    await wait(3);
-  }
   const input = page.locator('input[type="tel"], input[type="text"], input[name="totpPin"], input[aria-label*="code" i]')
     .filter({ visible: true })
     .first();
+  // Whether the code field is on screen is decided by the field, never by the
+  // page's prose. This page always explains that an authenticator app "gets
+  // verification codes", so a text test for that phrase reported the field as
+  // already shown, skipped the Next that reveals it, and refused with
+  // `setup_code_input_not_found` while Google was still showing the setup key
+  // — measured on 2026-09-20 in run 32d5fc5a-1d20-42e1-9d2d-752733ef86d0.
+  if (!(await input.isVisible().catch(() => false))) {
+    await clickByText(page, /^Next$/i, 'next');
+    await wait(3);
+  }
   try {
     await input.waitFor({ state: 'visible', timeout: CODE_INPUT_TIMEOUT_MS });
   } catch (error) {
