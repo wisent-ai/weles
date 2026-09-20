@@ -5,10 +5,11 @@
  * a .webm video with ffmpeg when recording stops.
  */
 
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { resolveMediaTool } from '../../runtime/media-tools.js';
 import type { CDPConnection } from '../connection.js';
 
 export class CDPVideo {
@@ -67,18 +68,37 @@ export class CDPScreencast {
     return videoPath;
   }
 
+  /**
+   * Stitch the captured frames into one WebM, or say exactly why not.
+   *
+   * This used to shell out to a bare `ffmpeg` and return an empty string on
+   * any failure, so a worker whose PATH does not carry ffmpeg — which is
+   * every launchd-managed worker on a Homebrew host — reported the same
+   * nothing as a browser that sent no frames. The binary is resolved by
+   * path now, and ffmpeg's own stderr is what a failure carries.
+   */
   private _stitch(): string {
     mkdirSync(this._outputDir, { recursive: true });
     const ts = new Date().toISOString().replace(/[:.]/g, '_');
     const outPath = join(this._outputDir, `screencast_${ts}.webm`);
     const pattern = join(this._frameDir, 'frame_%06d.png');
+    const ffmpeg = resolveMediaTool('ffmpeg');
     try {
-      execSync(`ffmpeg -y -framerate 5 -i ${JSON.stringify(pattern)} -c:v libvpx -pix_fmt yuv420p -b:v 1M ${JSON.stringify(outPath)}`, {
-        encoding: 'utf-8', stdio: 'pipe',
-      });
-      return outPath;
-    } catch {
-      return '';
+      execFileSync(ffmpeg, [
+        '-y', '-framerate', '5', '-i', pattern,
+        '-c:v', 'libvpx', '-pix_fmt', 'yuv420p', '-b:v', '1M', outPath,
+      ], { encoding: 'utf-8', stdio: 'pipe', timeout: Number('300000') });
+    } catch (error) {
+      const captured = error && typeof error === 'object' && 'stderr' in error
+        ? String(error.stderr ?? '').trim()
+        : '';
+      const cause = captured || (error instanceof Error ? error.message : String(error));
+      throw new Error(
+        `${ffmpeg} could not stitch ${this._frameCount} frame(s) from ${this._frameDir} `
+        + `into ${outPath}: ${cause.slice(-Number('600'))}`,
+        { cause: error },
+      );
     }
+    return outPath;
   }
 }

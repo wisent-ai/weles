@@ -28,6 +28,7 @@ import { CDPScreencast } from '../../../dist/cdp/page/screencast.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { parseCaptureParams } from '../../../dist/worker/params/capture-params.js';
 import { humanHoverDwell, humanScroll } from '../../../dist/human/mouse.js';
+import { resolveMediaTool } from '../../../dist/runtime/media-tools.js';
 import {
   captureKeyPrefix, fileAttribution, planFromEnv, pngPixelSize, screencastConnection,
   startCaptureSession, uploadCaptureObject, welesVersion, writeLocalArtifact,
@@ -69,10 +70,12 @@ async function runStep(session, step) {
   return session.goto(step.value);
 }
 
-// ffprobe ships with the ffmpeg the screencast already stitches with. The video's
-// real pixel size and duration come from the file, not from what we asked for.
+// The video's real pixel size and duration come from the file, not from what
+// we asked for. ffprobe is resolved by path for the same reason ffmpeg is:
+// a launchd-managed worker's PATH does not carry a Homebrew install, and a
+// bare word here fails after the recording already succeeded.
 function probeVideo(path) {
-  const raw = execFileSync('ffprobe', [
+  const raw = execFileSync(resolveMediaTool('ffprobe'), [
     '-v', 'error', '-select_streams', 'v:0',
     '-show_entries', 'stream=width,height:format=duration',
     '-of', 'json', path,
@@ -131,7 +134,9 @@ try {
     const remainingMs = plan.record_seconds * 1000 - (Date.now() - recordStartedAt);
     if (remainingMs > 0) await session.page.waitForTimeout(remainingMs);  // allow-raw-playwright: hold the recording open for the requested duration
     videoPath = await screencast.stop();
-    if (!videoPath) throw new Error(`record_seconds ${plan.record_seconds} produced no video: the screencast captured no frames or ffmpeg could not stitch them`);
+    // `stop` now throws ffmpeg's own words when the stitch fails, so a null
+    // here has exactly one meaning left: the page sent no screencast frames.
+    if (!videoPath) throw new Error(`record_seconds ${plan.record_seconds} produced no video: the browser sent no screencast frames for ${plan.source_url}`);
   }
 
   const capturedAt = new Date().toISOString();
