@@ -83,17 +83,24 @@ async function pageDescription(page) {
 }
 
 async function signIn(page, wait, login) {
-  await page.goto('https://accounts.google.com/ServiceLogin?hl=en', { waitUntil: 'commit', timeout: NAV_TIMEOUT_MS });
-  await humanIdlePause('deliberate');
-  // The profile is persistent on purpose, so the session an earlier run
-  // established may still be live: Google then answers the sign-in address
-  // with the account itself, and there is no form to fill.
-  if (!onSignIn(page.url())) return { ok: true };
-  // Google remembers the account on this persistent profile and asks only for
-  // the password again, on `/v3/signin/challenge/pwd`, whose `continue` is
-  // already the authenticator setup page. That screen carries no email field,
-  // so the identifier step must be skipped rather than waited for: measured on
-  // 2026-09-20 in run 58bbd595-f53d-4314-a33d-18606c32e232.
+  // Where this is called from matters. The setup page is what asked for a
+  // sign-in, and Google answers a request for the two-step-verification
+  // settings of an already-signed-in account with a password re-challenge on
+  // `/v3/signin/challenge/pwd`, leaving the browser on that page. Navigating
+  // to ServiceLogin from there throws the challenge away: the session cookie
+  // is live, so Google sends the profile straight back to the account, this
+  // function reports success, and the setup page demands re-authentication
+  // again — measured on 2026-09-20 in runs 58bbd595 and a4ccd398, both of
+  // which enrolled nothing while reporting a sign-in was required. So a
+  // challenge already on screen is answered where it stands.
+  if (!PASSWORD_CHALLENGE.test(page.url())) {
+    await page.goto('https://accounts.google.com/ServiceLogin?hl=en', { waitUntil: 'commit', timeout: NAV_TIMEOUT_MS });
+    await humanIdlePause('deliberate');
+    // The profile is persistent on purpose, so the session an earlier run
+    // established may still be live: Google then answers the sign-in address
+    // with the account itself, and there is no form to fill.
+    if (!onSignIn(page.url())) return { ok: true };
+  }
   if (!PASSWORD_CHALLENGE.test(page.url())) {
     const email = page.locator('input[type="text"][autocomplete*="username"], input#identifierId, input[name="identifier"], input[type="email"]')
       .filter({ visible: true }).first();
