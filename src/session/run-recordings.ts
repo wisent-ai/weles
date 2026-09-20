@@ -34,7 +34,12 @@ export function runRecordingsRoot(): string {
 // repo root). WELES_RECORDINGS_ROOT relocates the whole store — e.g. onto a
 // larger data volume. The host service environment owns this deployment
 // setting; the worker does not read a fleet registry.
-function recordingsBase(): string {
+//
+// Exported because the store's size is a property of the store, not of one
+// run: pruning was pointed at `runRecordingsDir()`, a directory created empty
+// moments earlier, so a 2 GiB budget never removed a byte and the worker's
+// host filled until Stado refused every placement on it.
+export function recordingsBase(): string {
   return process.env.WELES_RECORDINGS_ROOT || join(process.cwd(), 'recordings');
 }
 

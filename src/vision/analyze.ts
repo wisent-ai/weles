@@ -1,6 +1,5 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { pruneRecordings } from '../runtime/prune.js';
 import { runRecordingsDir } from '../session/run-recordings.js';
 import { parseXY, parseElements, filterElements, centerCrop } from './escalation.js';
 import { callJeden } from '../agent/jeden.js';
@@ -123,11 +122,11 @@ export async function askJedenAboutImage(screenshot: Buffer, question: string, t
     }, null, 2));
   } catch { /* skip */ }
 
-  // Prune vision dir to stay under budget
-  try {
-    const budget = parseInt(process.env.WELES_VISION_MAX_BYTES ?? String(500 * 1024 * 1024), 10);
-    pruneRecordings(dir, budget);
-  } catch { /* skip */ }
+  // No prune here. This used to trim `dir`, the current run's own vision
+  // folder, against a second 500 MB budget — a directory minutes old, so it
+  // never removed anything, while a second budget over one store would fight
+  // the first. The recordings store has one budget and it is applied where
+  // the store is, in `AsyncNewBrowser`.
 
   if (error !== null) {
     throw new PageQuestionError(question, error);

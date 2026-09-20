@@ -9,7 +9,7 @@ import type { BrowserContext, LaunchOptions } from 'playwright';
 import { generate, toConfig } from './fingerprint.js';
 import { hostHardware, honestHostEnabled } from './runtime/host_hardware.js';
 import { pruneRecordings } from './runtime/prune.js';
-import { runRecordingsDir } from './session/run-recordings.js';
+import { recordingsBase, runRecordingsDir } from './session/run-recordings.js';
 import { findCustomBrowser } from './session/find_browser.js';
 import type { Persona } from './browser/persona.js';
 import { CHROMIUM_ARGS } from './browser/launch/support.js';
@@ -177,10 +177,13 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     // Frame size 1280x720 by default — at 1920x1080 each Arkose canvas repaint sends ~2MB RGBA over Playwright→webm pipe and saturates the CDP channel.
     const [vw, vh] = (process.env.WELES_VIDEO_SIZE ?? '1280x720').split('x').map(n => parseInt(n, 10));
     ctxOpts.recordVideo = { dir: recDir, size: { width: vw || 1280, height: vh || 720 } };
-    try {
-      const budget = parseInt(process.env.WELES_RECORDINGS_MAX_BYTES ?? String(2 * 1024 * 1024 * 1024), 10);
-      pruneRecordings(recDir, budget);
-    } catch { /* skip */ }
+    // The budget belongs to the store, not to this run. Pruning used to be
+    // pointed at `recDir`, which was created empty a line earlier, so it
+    // never removed anything and the worker's host filled until Stado
+    // refused every placement on it. Oldest-first deletion leaves the run
+    // that is starting alone.
+    const budget = parseInt(process.env.WELES_RECORDINGS_MAX_BYTES ?? String(2 * 1024 * 1024 * 1024), 10);
+    pruneRecordings(recordingsBase(), budget);
   }
 
   // Launch only the checksum-verified, deployment-selected browser release.
