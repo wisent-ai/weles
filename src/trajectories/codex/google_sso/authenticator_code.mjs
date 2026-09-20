@@ -102,8 +102,19 @@ export async function selectAuthenticatorMethod(page, hasCode) {
     throw challengeFailure('google_sign_in_state_unavailable', 'Google sign-in state could not be read', observed);
   }
   if (!hasCode) {
+    // The refusal used to end at "has no authenticator seed", which left the
+    // reader to discover on their own which item, which field and which
+    // command. Every automatic sign-in for this pool failed on it through
+    // 2026-09-20, and the gateway above reported only "no working
+    // subscription model for signed agent".
     throw challengeFailure('google_2fa_material_missing',
-      'Google requires a sign-in code, but the selected Skarbiec login has no authenticator seed or supplied one-time code',
+      'Google requires a sign-in code, and the selected Skarbiec login carries no authenticator '
+      + 'seed: this sign-in reads the login item\'s `totp_secret` field, and nothing else can '
+      + 'answer this screen. Write that field on the login item in the vault that owns it '
+      + '(stado credentials item put --host <vault host> --type login <login-item>, with the '
+      + 'seed as totp_secret) and this account signs itself in again; without it every '
+      + 'automatic sign-in for this account stops here and the pool reports no working '
+      + 'subscription.',
       observed);
   }
   const opened = await clickBest('^try another way$|^wyprobuj inny sposob$|^more ways to verify$', 'exact', 30);
