@@ -31,6 +31,9 @@ import { generateTotp } from '../../_shared/services/google_sso/totp_secret.mjs'
 /** How long the operator has to approve Google's push prompt on the phone. */
 const PUSH_APPROVAL_TIMEOUT_MS = 5 * 60 * 1000;
 const NAV_TIMEOUT_MS = 60_000;
+/** A heading is a label, not a page: enough to recognise which screen Google
+ * showed, never enough to carry its contents. */
+const MAX_HEADING_CHARS = 200;
 const RESULT_DIR = runOutputPath('google-authenticator-enrol');
 const RESULT_FILE = join(RESULT_DIR, 'result.json');
 
@@ -60,12 +63,39 @@ function loginMaterial(loginItem) {
   return { document, email: fields.username, password: fields.password, seed: String(fields.totp_secret || '').trim() };
 }
 
+/// What Google is showing, in the words a reader can act on: the address and
+/// the first visible heading, bounded and redacted. A timeout that says only
+/// "locator.waitFor: Timeout 30000ms exceeded" names the selector this code
+/// chose and nothing about the page that was actually there.
+async function pageDescription(page) {
+  const heading = await page
+    .locator('h1, h2, [role="heading"]')
+    .filter({ visible: true })
+    .first()
+    .textContent({ timeout: 2_000 })
+    .catch(() => '');
+  return {
+    url: redactKeys(String(page.url())),
+    heading: redactKeys(String(heading || '').trim().slice(0, MAX_HEADING_CHARS)),
+  };
+}
+
 async function signIn(page, wait, login) {
   await page.goto('https://accounts.google.com/ServiceLogin?hl=en', { waitUntil: 'commit', timeout: NAV_TIMEOUT_MS });
   await humanIdlePause('deliberate');
+  // The profile is persistent on purpose, so the session an earlier run
+  // established may still be live: Google then answers the sign-in address
+  // with the account itself, and there is no form to fill.
+  if (!onSignIn(page.url())) return { ok: true };
   const email = page.locator('input[type="text"][autocomplete*="username"], input#identifierId, input[name="identifier"], input[type="email"]')
     .filter({ visible: true }).first();
-  await email.waitFor({ state: 'visible' });
+  try {
+    await email.waitFor({ state: 'visible' });
+  } catch (error) {
+    if (error?.name !== 'TimeoutError') throw error;
+    if (!onSignIn(page.url())) return { ok: true };
+    return { ok: false, blocked: 'google_sign_in_page_unrecognised', ...(await pageDescription(page)) };
+  }
   await fillAndVerify(page, email, login.email, humanClickLocator, humanType);
   await waitForEnabledThenClick(page, /next|continue|dalej/i);
   await humanIdlePause('deliberate');
