@@ -1,5 +1,5 @@
 // Classify an IPv4 address as residential, datacenter, or unknown.
-// Uses whois netname/org matching against the record in ./org-lists.json.
+// Uses whois netname/org matching against the record in ./data/org-lists.json.
 // Results are cached to ~/.weles/ip_classifier_cache.json so repeat lookups
 // are free — the same state home `cidr.ts` keeps its ASN cache in. The cache
 // used to sit in `.work/` under whatever directory the process happened to

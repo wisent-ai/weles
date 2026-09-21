@@ -1,5 +1,5 @@
 // The organisation strings `classify.ts` matches on, read from
-// `org-lists.json` beside this file. They are a record of what WHOIS has
+// `data/org-lists.json` beside this file. They are a record of what WHOIS has
 // actually answered for the addresses Weles routes through, so the file says
 // where each family came from and why it is matched at all.
 //
@@ -7,7 +7,7 @@
 // split that small only to stay under an inline-array-size hook. Data in a
 // data file has no such problem.
 
-import declaredOrgs from './org-lists.json';
+import declaredOrgs from './data/org-lists.json';
 
 export const DATACENTER_ORGS: ReadonlyArray<string> = declaredOrgs.datacenter_orgs;
 export const RESIDENTIAL_ORGS: ReadonlyArray<string> = declaredOrgs.residential_orgs;
