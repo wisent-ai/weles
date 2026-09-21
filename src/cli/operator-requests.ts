@@ -140,5 +140,7 @@ export async function runOperatorRequests(parsed: ParsedCli): Promise<void> {
   if (action === 'show') return showRequest(parsed);
   if (action === 'open') return openRequest(parsed);
   if (action === 'close') return closeRequest(parsed);
-  throw new Error(`unknown operator-requests action: ${action}`);
+  throw new Error(
+    `unknown operator-requests action: ${action}; weles operator-requests takes list, show, open or close`,
+  );
 }
