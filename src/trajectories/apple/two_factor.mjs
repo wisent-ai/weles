@@ -26,26 +26,23 @@ export async function fillAppleTwoFactorCode(scope, page, code) {
   return { ok: false, mode: 'no_inputs', count: inputs.length };
 }
 
-async function clickExactText(scope, pattern, timeoutMs) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const locator = scope.getByText(pattern).filter({ visible: true }).first();
-    if (await locator.isVisible().catch(() => false)) {
-      await humanClickLocator(page, locator);
-      return true;
-    }
-    const fallback = scope.locator('button, [role="button"], a').filter({ hasText: pattern }).filter({ visible: true }).first();
-    const clicked = await humanClickLocator(page, fallback).then(() => true).catch(() => false);
-    if (clicked) return true;
-    await new Promise((resolve) => setTimeout(resolve, 500));
+// Click the control if the page is showing it. The old shape polled for
+// fifteen seconds and called the absence of a button a timeout; what this
+// asks is a fact the page either states now or does not, and the caller
+// treats `false` as "Apple did not offer the trust prompt".
+async function clickExactText(scope, page, pattern) {
+  const locator = scope.getByText(pattern).filter({ visible: true }).first();
+  if (await locator.isVisible().catch(() => false)) {
+    await humanClickLocator(page, locator);
+    return true;
   }
-  return false;
+  const fallback = scope.locator('button, [role="button"], a').filter({ hasText: pattern }).filter({ visible: true }).first();
+  return await humanClickLocator(page, fallback).then(() => true).catch(() => false);
 }
 
-export async function clickAppleTrustBrowser(page, frame, options = {}) {
-  const timeoutMs = options.timeoutMs || 15000;
-  if (frame && await clickExactText(frame, /^Trust$/i, timeoutMs).catch(() => false)) return true;
-  if (page && await clickExactText(page, /^Trust$/i, timeoutMs).catch(() => false)) return true;
+export async function clickAppleTrustBrowser(page, frame) {
+  if (frame && await clickExactText(frame, page, /^Trust$/i).catch(() => false)) return true;
+  if (page && await clickExactText(page, page, /^Trust$/i).catch(() => false)) return true;
   return false;
 }
 
@@ -63,7 +60,7 @@ async function completeAppleTwoFactorCode(session, frame, options, code) {
     };
   }
   if (session?.wait) await session.wait(2);
-  const trustClicked = await clickAppleTrustBrowser(page, frame, options).catch(() => false);
+  const trustClicked = await clickAppleTrustBrowser(page, frame).catch(() => false);
   if (trustClicked && options.logPrefix) console.log(`${options.logPrefix} clicked trust browser`);
   return {
     ok: true,

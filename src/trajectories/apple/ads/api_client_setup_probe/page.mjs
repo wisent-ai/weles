@@ -76,19 +76,17 @@ export async function pageDiag(page, label) {
   return data;
 }
 
-export async function clickText(page, pattern, label, timeoutMs = 8000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const loc = page.getByText(pattern).filter({ visible: true }).first();
-    if (await loc.isVisible().catch(() => false)) {
-      await humanClickLocator(page, loc);
-      console.log(`[apple-ads-api-setup] clicked ${label}`);
-      await humanIdlePause('deliberate');
-      return true;
-    }
-    await page.waitForTimeout(500);
-  }
-  return false;
+// Click the control if the page is showing it. Polling for eight seconds
+// reported "not there" about a page that was still rendering and "there"
+// about one that had just rendered it; the presence of the control is the
+// fact this probe reports, and it reads it once.
+export async function clickText(page, pattern, label) {
+  const loc = page.getByText(pattern).filter({ visible: true }).first();
+  if (!await loc.isVisible().catch(() => false)) return false;
+  await humanClickLocator(page, loc);
+  console.log(`[apple-ads-api-setup] clicked ${label}`);
+  await humanIdlePause('deliberate');
+  return true;
 }
 export async function keepOpen(session, loggedIn) {
   if (!loggedIn || CLOSE_AFTER_PROBE) {

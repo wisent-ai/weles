@@ -58,8 +58,8 @@ async function main() {
       if (/API|Public Key|Generate API client|Client ID|Team ID|Key ID/i.test(text)) break;
     }
 
-    await clickText(s.page, /Account Settings|Settings/i, 'settings', 6000).catch(() => false);
-    await clickText(s.page, /^API$|API Access|Campaign Management API|Public Key/i, 'api', 6000).catch(() => false);
+    await clickText(s.page, /Account Settings|Settings/i, 'settings').catch(() => false);
+    await clickText(s.page, /^API$|API Access|Campaign Management API|Public Key/i, 'api').catch(() => false);
     const finalState = await pageDiag(s.page, 'final');
     const existing = await inspectExistingAppleAdsApi(s.page, finalState);
 
