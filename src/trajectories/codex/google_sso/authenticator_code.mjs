@@ -107,14 +107,27 @@ export async function selectAuthenticatorMethod(page, hasCode) {
     // command. Every automatic sign-in for this pool failed on it through
     // 2026-09-20, and the gateway above reported only "no working
     // subscription model for signed agent".
+    //
+    // It then named the field but not the capability that fills it, so the
+    // only reading left was "somebody must paste a secret in". There is a
+    // product that makes one: this same worker's `authenticator_enrol`
+    // trajectory signs the account in, adds an authenticator, and writes the
+    // seed back to the login item. It needs one thing no automation can
+    // supply — a single approval of Google's prompt on the account owner's
+    // phone — and it opens an operator request for exactly that, so the
+    // person is paged instead of waited on in silence.
     throw challengeFailure('google_2fa_material_missing',
       'Google requires a sign-in code, and the selected Skarbiec login carries no authenticator '
       + 'seed: this sign-in reads the login item\'s `totp_secret` field, and nothing else can '
-      + 'answer this screen. Write that field on the login item in the vault that owns it '
-      + '(stado credentials item put --host <vault host> --type login <login-item>, with the '
-      + 'seed as totp_secret) and this account signs itself in again; without it every '
-      + 'automatic sign-in for this account stops here and the pool reports no working '
-      + 'subscription.',
+      + 'answer this screen. Create that seed with this worker\'s own enrolment — '
+      + 'stado workload run weles-browser-task --target <weles host> --plan <plan naming action '
+      + 'authenticator_enrol, provider google and this login item> — which signs the account in, '
+      + 'adds an authenticator and writes `totp_secret` back to the login item; it asks the '
+      + 'account owner to approve one Google prompt on the phone and opens an operator request '
+      + '(weles operator-requests list) while it waits. A seed already held elsewhere can be '
+      + 'written directly instead (stado credentials item put --host <vault host> --type login '
+      + '<login-item>). Without either, every automatic sign-in for this account stops here and '
+      + 'the pool reports no working subscription.',
       observed);
   }
   const opened = await clickBest('^try another way$|^wyprobuj inny sposob$|^more ways to verify$', 'exact', 30);
