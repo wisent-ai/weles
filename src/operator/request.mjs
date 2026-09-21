@@ -39,6 +39,8 @@ const MILLISECONDS_PER_SECOND = 1000;
 /** `list` answers the recent past, not the whole history of the host. */
 const DEFAULT_LIST_LIMIT = 20;
 const PAGE_CHANNEL = 'stado-alerts';
+/** The word `stado alerts send` prints for a channel the provider accepted. */
+const DELIVERED_WORD = 'delivered';
 
 /** Where the requests live. One directory per host, overridable for tests. */
 export function operatorRequestDir() {
@@ -127,7 +129,20 @@ function page(request) {
     const detail = result.error?.message || result.stderr || result.stdout || `exit ${result.status}`;
     return { at, ok: false, channel: PAGE_CHANNEL, detail: truncate(`stado alerts send refused: ${detail}`) };
   }
-  return { at, ok: true, channel: PAGE_CHANNEL, detail: truncate(result.stdout || 'paged every configured channel') };
+  // Stado names each channel and what it did: `resend\tdelivered\t<address>`.
+  // A pager that exits zero saying nothing is not evidence that anyone was
+  // reached — older Stado releases exited zero even when every provider
+  // refused — so the record says exactly that instead of claiming delivery.
+  const named = String(result.stdout || '')
+    .split('\n')
+    .filter((line) => line.includes(`\t${DELIVERED_WORD}\t`));
+  if (named.length === 0) {
+    return {
+      at, ok: false, channel: PAGE_CHANNEL,
+      detail: 'stado alerts send exited successfully without naming a channel that took the message',
+    };
+  }
+  return { at, ok: true, channel: PAGE_CHANNEL, detail: truncate(named.join('; ')) };
 }
 
 /**

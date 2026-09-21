@@ -102,6 +102,24 @@ test('a pager that cannot be reached is named, not swallowed', () => {
   assert.match(record.pages[0].detail, /Stado pager unavailable/);
 });
 
+// Stado releases before 0.21.37 exited zero whether the mail left the machine
+// or every provider refused it, and a page that claims delivery from silence
+// is the defect this capability exists to remove. `/usr/bin/true` is exactly
+// that pager: it runs, it succeeds, it names no channel.
+test('a pager that succeeds without naming a channel is not treated as delivery', () => {
+  const directory = scratch();
+  const opened = weles(
+    ['open', '--kind', 'google-push-approval', '--account', ACCOUNT,
+      '--run', 'enrol', '--instruction', INSTRUCTION, '--minutes', '5'],
+    directory,
+    { WELES_OPERATOR_REQUEST_PAGING: 'on', WELES_STADO_BIN: '/usr/bin/true' },
+  );
+  assert.equal(opened.status, 2, 'silence is not delivery');
+  const record = onlyRecord(directory);
+  assert.equal(record.pages[0].ok, false);
+  assert.match(record.pages[0].detail, /without naming a channel/);
+});
+
 test('closing a request says whether the person did it and how long the run waited', () => {
   const directory = scratch();
   weles(
