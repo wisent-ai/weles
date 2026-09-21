@@ -62,9 +62,40 @@ async function fetchInputs() {
   }
 }
 
-async function stage(destination, source) {
+/** The platform this host is, and the input declared for it. */
+function localPlatform() {
   const platform = PLATFORMS.find((value) => value.os === process.platform && value.arch === process.arch);
   if (!platform) throw new Error(`no native worker input is declared for ${process.platform}-${process.arch}`);
+  return platform;
+}
+
+/**
+ * Put this host's native runtime where the server looks for it.
+ *
+ * The two-step `fetch` then `stage` belongs to a release publisher that has
+ * already unpacked its inputs. A managed runtime built from a git checkout —
+ * what `stado workload run weles-api-runtime` maintains — has neither, and
+ * without the binaries `weles-api-launcher.mjs` refuses to start with
+ * `required Weles native runtime is unavailable`, which is how
+ * charless-mac-mini's API sat in a restart loop while every report called the
+ * unit restarted. One command, one platform, the declared digest verified.
+ */
+async function install(destination) {
+  const platform = localPlatform();
+  const input = declaredInput(platform);
+  const directory = join(OUTPUT, 'native-inputs', platform.name);
+  mkdirSync(directory, { recursive: true });
+  const archive = join(directory, 'release.tar.gz');
+  if (!existsSync(archive) || await digest(archive) !== input.sha256) {
+    command(stadoBinary(), ['storage', 'get', input.uri, archive]);
+  }
+  await verifyArchive(archive, input);
+  writeFileSync(join(directory, 'input.json'), `${JSON.stringify(input, null, 2)}\n`);
+  await stage(destination, archive);
+}
+
+async function stage(destination, source) {
+  const platform = localPlatform();
   const input = declaredInput(platform);
   let unpacked;
   try {
@@ -101,7 +132,14 @@ try {
   const [action, destination, input] = process.argv.slice(2);
   if (action === 'fetch' && !destination) await fetchInputs();
   else if (action === 'stage' && destination && input) await stage(destination, input);
-  else throw new Error('usage: node release/native/runtime.mjs fetch | stage <destination-bin-directory> <input-directory-or-archive>');
+  else if (action === 'install' && destination && !input) await install(destination);
+  else {
+    throw new Error(
+      'usage: node release/native/runtime.mjs fetch '
+      + '| stage <destination-bin-directory> <input-directory-or-archive> '
+      + '| install <destination-bin-directory>',
+    );
+  }
 } catch (error) {
   process.stderr.write(`native runtime: ${error.message}\n`);
   process.exitCode = 1;

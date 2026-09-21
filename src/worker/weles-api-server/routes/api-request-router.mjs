@@ -22,6 +22,7 @@ import { createReadStream } from 'node:fs';
 
 import { ALLOW_RAW_CREDS, ALLOW_UNAUTH, HOST, PORT, TOKEN } from '../configuration.mjs';
 import { json, readBody, requireTokenAuthorization } from '../http-exchange.mjs';
+import { RUN_RELEASE_IDENTITY } from '../release-identity.mjs';
 import {
   decodeRunId,
   diagnosticFile,
@@ -61,6 +62,11 @@ export function createApiRequestHandler({
           rawCredsAllowed: ALLOW_RAW_CREDS,
           releaseVersion: process.env.WELES_WORKER_RELEASE_VERSION || null,
           releaseSha256: process.env.WELES_WORKER_RELEASE_SHA256 || null,
+          // Which sources answer here. A deployer that moved this host to a
+          // revision has no other way to prove the process serving the port
+          // is the one it built, and `stado workload run weles-api-runtime`
+          // used to report a revision from a launchctl restart alone.
+          sourceRevision: RUN_RELEASE_IDENTITY.source_revision,
           routes: ['GET /healthz', 'GET /api/v1/version', 'POST /api/v1/credential-operations', 'POST /api/v1/tasks', 'GET /api/v1/tasks/:task_id', 'POST /api/v1/tasks/:task_id/cancel', 'GET /worker/version', 'GET /worker/status', 'POST /worker/start', 'POST /worker/restart', 'POST /run', 'GET /diagnostics/:run_id', 'GET /diagnostics/:run_id/file?path=', 'POST /weles-builder', 'POST /reauth/resolve', 'POST /reauth'],
           publicTask: publicTaskService.health,
           features: ['subscription_identity', 'fresh_profile'],
