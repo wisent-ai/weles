@@ -18,13 +18,15 @@ import { findProxyByDisplayName, persistProxyContext } from '../skarbiec/proxies
 // CONNECT a known endpoint (api.ipify.org:443) through the proxy and report
 // the proxy's response code. 200 = auth accepted; 407 = auth rejected (no
 // money / KYC / suspended); other = network/upstream issue.
-export async function probeProxyAuth({ host, port, username, password, timeoutMs = 10_000 }) {
+export async function probeProxyAuth({ host, port, username, password }) {
   return new Promise((resolve) => {
-    const sock = net.connect({ host, port, timeout: timeoutMs });
+    // The proxy answers the CONNECT, or the socket errors. Both are events;
+    // a ten-second cap on top of them reported a working proxy on a slow
+    // route as dead.
+    const sock = net.connect({ host, port });
     let done = false;
     const finish = (result) => { if (done) return; done = true; try { sock.destroy(); } catch {} resolve(result); };
     sock.on('error', (e) => finish({ ok: false, code: 0, error: `connect: ${e.code ?? e.message}` }));
-    sock.on('timeout', () => finish({ ok: false, code: 0, error: 'timeout' }));
     sock.on('connect', () => {
       const auth = Buffer.from(`${username}:${password}`).toString('base64');
       const req = `CONNECT api.ipify.org:443 HTTP/1.1\r\nHost: api.ipify.org:443\r\nProxy-Authorization: Basic ${auth}\r\n\r\n`;

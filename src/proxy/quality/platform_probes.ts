@@ -47,14 +47,13 @@ function linkedinProbeHeaders(persona?: LinkedInProbePersona): Record<string, st
   };
 }
 
-export async function probeLinkedinSignup(proxyUrl: string, secs = 8, persona?: LinkedInProbePersona): Promise<{
+export async function probeLinkedinSignup(proxyUrl: string, persona?: LinkedInProbePersona): Promise<{
   result: LinkedInProbeResult;
   bytes?: number;
   request?: {
     tool: 'curl';
     target_url: string;
     method: 'GET';
-    timeout_secs: number;
     header_order: string[];
     headers: Record<string, string>;
     persona?: {
@@ -102,7 +101,6 @@ export async function probeLinkedinSignup(proxyUrl: string, secs = 8, persona?: 
     tool: 'curl' as const,
     target_url: targetUrl,
     method: 'GET' as const,
-    timeout_secs: secs,
     header_order: headerOrder,
     headers,
     persona: persona ? {
@@ -122,7 +120,7 @@ export async function probeLinkedinSignup(proxyUrl: string, secs = 8, persona?: 
     const features = lines.find(l => l.startsWith('Features:'));
     curlFeatures = features ? features.replace(/^Features:\s*/, '').split(/\s+/).filter(Boolean) : [];
 
-    const args = ['-sS', '--compressed', '--max-time', String(secs), '-x', proxyUrl,
+    const args = ['-sS', '--compressed', '-x', proxyUrl,
       ...headerOrder.flatMap((name) => ['-H', `${name}: ${headers[name]}`]),
       '-w', '\n__CURL_META__%{json}',
       targetUrl];
@@ -190,7 +188,7 @@ export async function probeLinkedinSignup(proxyUrl: string, secs = 8, persona?: 
 // Reject US-TTP2 stickies in preflight; resolveProxy 8-attempt loop
 // walks past them before binding the browser.
 export type RoutingResult = 'standard' | 'high_risk' | 'unknown';
-async function probeOnce(proxyUrl: string, secs: number): Promise<{ vregion: string | null; bytes: number }> {
+async function probeOnce(proxyUrl: string): Promise<{ vregion: string | null; bytes: number }> {
   try {
     const { execSync } = await import('node:child_process');
     const ua = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36';
@@ -198,7 +196,7 @@ async function probeOnce(proxyUrl: string, secs: number): Promise<{ vregion: str
     // a plain UA-only curl can pass while real Chromium fails — TikTok's
     // edge gates on sec-ch-ua + Accept-Language too. Match what Chromium
     // actually sends so probe verdict tracks browser behaviour.
-    const args = ['-s', '--max-time', String(secs), '-x', proxyUrl,
+    const args = ['-s', '-x', proxyUrl,
       '-H', `User-Agent: ${ua}`,
       '-H', 'sec-ch-ua: "Google Chrome";v="147", "Not.A/Brand";v="8", "Chromium";v="147"',
       '-H', 'sec-ch-ua-mobile: ?0', '-H', 'sec-ch-ua-platform: "macOS"',
@@ -210,7 +208,7 @@ async function probeOnce(proxyUrl: string, secs: number): Promise<{ vregion: str
     return { vregion: m ? m[1] : null, bytes: body.length };
   } catch { return { vregion: null, bytes: 0 }; }
 }
-export async function verifyTikTokRouting(proxyUrl: string, secs = 12): Promise<{ result: RoutingResult; vregion?: string }> {
+export async function verifyTikTokRouting(proxyUrl: string): Promise<{ result: RoutingResult; vregion?: string }> {
   if (!proxyUrl) return { result: 'unknown' };
   // Dual probe with Chromium-realistic headers: BrightData sticky sessions
   // can rotate exit IPs between requests, so two back-to-back probes catch
@@ -218,10 +216,10 @@ export async function verifyTikTokRouting(proxyUrl: string, secs = 12): Promise<
   // (b) returns TTP2, (c) shows mobile-redirect markers
   // (/login/download-app referenced in /signup body == 1340 at
   // register_verify_login), or (d) drifts vregion across probes.
-  const a = await probeOnce(proxyUrl, secs);
+  const a = await probeOnce(proxyUrl);
   if (!a.vregion) return { result: 'unknown' };
   if (/-TTP2$/i.test(a.vregion)) return { result: 'high_risk', vregion: a.vregion };
-  const b = await probeOnce(proxyUrl, secs);
+  const b = await probeOnce(proxyUrl);
   if (!b.vregion) return { result: 'unknown', vregion: a.vregion };
   if (a.vregion !== b.vregion) return { result: 'high_risk', vregion: `${a.vregion}!=${b.vregion}` };
   if (/-TTP2$/i.test(b.vregion)) return { result: 'high_risk', vregion: b.vregion };

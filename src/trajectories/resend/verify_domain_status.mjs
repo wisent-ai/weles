@@ -33,7 +33,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 // ---- 0. IP whitelist gate ---------------------------------------------------
 async function egressIp() {
   for (const u of ['https://api.ipify.org', 'https://ifconfig.me/ip', 'https://ip.oxylabs.io/ip']) {
-    try { const r = await fetch(u, { signal: AbortSignal.timeout(8000) }); if (r.ok) return (await r.text()).trim(); } catch {}
+    try { const r = await fetch(u); if (r.ok) return (await r.text()).trim(); } catch {}
   }
   return null;
 }

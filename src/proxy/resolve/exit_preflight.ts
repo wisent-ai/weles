@@ -55,7 +55,7 @@ export async function preflightExit(input: ExitPreflightInput): Promise<ExitPref
       try {
         const { execSync } = await import('node:child_process');
         const proxyAuth = `http://${encodeURIComponent(stickyUser)}:${encodeURIComponent(stickyPass)}@${host}:${p.proxy_port}`;
-        exitIp = execSync(`curl -s --max-time 6 -x "${proxyAuth}" https://api.ipify.org`, { encoding: 'utf8' }).trim();
+        exitIp = execSync(`curl -s -x "${proxyAuth}" https://api.ipify.org`, { encoding: 'utf8' }).trim();
       } catch (e: any) { console.log(`[proxy] exit-ip probe err: ${e.message?.slice(0, 80)}`); }
       console.log(`[proxy] sampled exit_ip="${exitIp}" sticky=${sessId}`);
       attemptDiag.exit_ip_present = !!exitIp;
@@ -91,7 +91,7 @@ export async function preflightExit(input: ExitPreflightInput): Promise<ExitPref
             attemptDiag.linkedin_probe_result = 'skipped_warm_profile';
           } else {
             const url = `http://${encodeURIComponent(stickyUser)}:${encodeURIComponent(stickyPass)}@${host}:${p.proxy_port}`;
-            const probe = await probeLinkedinSignup(url, 8, preflightPersona);
+            const probe = await probeLinkedinSignup(url, preflightPersona);
             console.log(`[proxy] linkedin-probe exit=${exitIp} -> ${probe.result}${probe.bytes ? ` (${probe.bytes}B)` : ''}`);
             attemptDiag.linkedin_probe_result = probe.result;
             attemptDiag.linkedin_probe_bytes = probe.bytes;

@@ -140,7 +140,7 @@ test('startup refuses before spawning anything when Stado is unavailable', async
     'a refused startup must not have created capability broker state');
 });
 
-test('a launcher that loses the port stands by and leaves the broker socket alone', async () => {
+test('a launcher whose port is held by a stranger refuses by name and leaves the broker socket alone', async () => {
   const home = isolatedHome();
   const skarbiec = productBinary('skarbiec', 'SKARBIEC_BIN');
   const gnupg = join(home, 'gnupg');
@@ -182,9 +182,10 @@ test('a launcher that loses the port stands by and leaves the broker socket alon
   }
   assert.equal(statSync(socketPath).isSocket(), true, 'the capability broker did not bind a socket');
 
-  // The port the live instance owns. What the launcher measures is whether the
-  // port is served at all — it never speaks to the holder — so the holder here
-  // is a second real Skarbiec rather than anything imitating a Weles API.
+  // The port the live instance owns. The holder here is a second real
+  // Skarbiec: it is not a Weles, it does not answer /healthz as one, and
+  // that is the case this asserts — the launcher must say so rather than
+  // stand by while `stado service status` reports the unit active.
   const port = await reservePort();
   const liveApi = spawn(skarbiec, ['serve', '--port', String(port)],
     { stdio: ['ignore', 'pipe', 'pipe'], env: brokerEnv });
@@ -207,12 +208,17 @@ test('a launcher that loses the port stands by and leaves the broker socket alon
   let stderr = '';
   child.stderr.on('data', (chunk) => { stderr += String(chunk); });
 
-  // It stands by for thirty seconds rather than exiting immediately, so the
-  // check is on what it says and on the socket surviving, not on its exit.
-  const observed = Promise.withResolvers();
-  setTimeout(() => observed.resolve(), 3_000);
-  await observed.promise;
-  assert.match(stderr, new RegExp(`weles api port ${port} is already served`));
+  // A stranger on the port ends the unit: it exits nonzero, names the
+  // process holding the port and the repair, and touches nothing the
+  // incumbent owns.
+  const exited = Promise.withResolvers();
+  child.on('exit', (code) => exited.resolve(code));
+  const code = await exited.promise;
+  assert.notEqual(code, 0, `a held port must end the unit: ${stderr}`);
+  assert.match(stderr, new RegExp(`weles api port ${port} is held by `));
+  assert.match(stderr, /pid \d+/);
+  assert.match(stderr, /is not a Weles API/);
+  assert.match(stderr, /stado service restart weles-api/);
   assert.equal(statSync(socketPath).isSocket(), true, 'the live broker socket was removed');
   child.kill('SIGKILL');
   liveApi.kill('SIGKILL');

@@ -154,7 +154,7 @@ for (const row of rows) {
     const exitIp = sampleExitIp(proxyUrl);
     const geo = exitIp ? await verifyExitCountry(exitIp, TARGET_CC) : { result: 'unknown' };
     const reputation = exitIp ? await verifyExitReputation(exitIp).catch(() => ({ result: 'unknown' })) : { result: 'unknown' };
-    const probe = exitIp ? await probeLinkedinSignup(proxyUrl, TIMEOUT_SECS, persona) : { result: 'unknown', error: 'exit_ip_missing' };
+    const probe = exitIp ? await probeLinkedinSignup(proxyUrl, persona) : { result: 'unknown', error: 'exit_ip_missing' };
     const item = {
       provider,
       display_name: row.display_name,

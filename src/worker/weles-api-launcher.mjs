@@ -140,13 +140,69 @@ const port = process.env.WELES_API_PORT;
 // Avoid acquiring credentials when another API already serves this port.
 // This observation is not a lock: launchers that race past it must have
 // separate broker sockets, so a losing instance cannot disconnect the winner.
+//
+// What it says matters as much as what it does. On 2026-09-21 Brama's
+// sign-in for one of the operator's five accounts died with
+// `hyper::Error(IncompleteMessage)` against this port, and this unit's whole
+// log was `port 8788 is already served: standing by`, once a minute, for
+// hours: no holder, no health, and `stado service status weles-api` reading
+// `active` the entire time. So the holder is named, and it is asked whether
+// it is a Weles at all. A stranger on this port is not a reason to stand by
+// quietly — the unit exits nonzero so the fleet sees a service that is not
+// serving.
 const lsof = existsSync('/usr/sbin/lsof') ? '/usr/sbin/lsof' : 'lsof';
 const served = spawnSync(lsof, ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN'], { encoding: 'utf8' });
 if (served.status === 0 && served.stdout.trim()) {
-  process.stderr.write(`weles api port ${port} is already served: standing by without changing broker state\n`);
-  setTimeout(() => process.exit(0), 30_000);
+  const holder = portHolder(served.stdout);
+  const health = await holderHealth(port);
+  if (health.weles) {
+    process.stderr.write(
+      `weles api port ${port} is already served by ${holder}, which answers /healthz as ${health.source}` +
+        `${health.version ? ` version ${health.version}` : ''}: standing by without changing broker state\n`,
+    );
+    setTimeout(() => process.exit(0), 30_000);
+  } else {
+    refuse(
+      `weles api port ${port} is held by ${holder}, which is not a Weles API: ${health.detail}. ` +
+        'This unit cannot serve while that process holds the port, and standing by would leave the ' +
+        'service reported as active while every caller of /reauth and /run fails. Stop or re-place the ' +
+        'holder, then let this unit start: `stado service restart weles-api`.',
+    );
+  }
 } else {
   await startup();
+}
+
+/** The first listening process in an `lsof` listing, as `command pid (user)`. */
+function portHolder(listing) {
+  const row = listing
+    .split('\n')
+    .slice(1)
+    .map((line) => line.trim())
+    .find((line) => line.length > 0);
+  if (!row) return 'an unidentified process';
+  const [command, pid, user] = row.split(/\s+/);
+  return `${command} pid ${pid} (${user})`;
+}
+
+/**
+ * What the process on this port says it is. A Weles answers `/healthz` with
+ * its own source name; anything else - a forward, a stale build, another
+ * product - is a stranger, and the reason is kept for the refusal.
+ */
+async function holderHealth(apiPort) {
+  try {
+    const response = await fetch(`http://127.0.0.1:${apiPort}/healthz`);
+    if (!response.ok) return { weles: false, detail: `it answered /healthz with HTTP ${response.status}` };
+    const body = await response.json();
+    const source = typeof body?.source === 'string' ? body.source : '';
+    if (!source.startsWith('weles')) {
+      return { weles: false, detail: `its /healthz names ${source || 'no source'}` };
+    }
+    return { weles: true, source, version: typeof body?.version === 'string' ? body.version : '' };
+  } catch (error) {
+    return { weles: false, detail: `/healthz could not be read: ${error.message}` };
+  }
 }
 
 async function startup() {
