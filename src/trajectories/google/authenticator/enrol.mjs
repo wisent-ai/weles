@@ -17,6 +17,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { runOutputPath } from '#run-output';
+import { closeOperatorRequest, openOperatorRequest } from '#operator-request';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanFill, humanType } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
@@ -30,6 +31,7 @@ import { generateTotp } from '../../_shared/services/google_sso/totp_secret.mjs'
 
 /** How long the operator has to approve Google's push prompt on the phone. */
 const PUSH_APPROVAL_TIMEOUT_MS = 5 * 60 * 1000;
+const MILLISECONDS_PER_SECOND = 1000;
 const NAV_TIMEOUT_MS = 60_000;
 /** A heading is a label, not a page: enough to recognise which screen Google
  * showed, never enough to carry its contents. */
@@ -134,14 +136,28 @@ async function signIn(page, wait, login) {
       if (!onSignIn(page.url())) return { ok: true };
     }
   }
-  // Google's push to the operator's phone: one approval, waited for once.
-  console.log(`[google-authenticator-enrol] waiting up to ${PUSH_APPROVAL_TIMEOUT_MS / 1000}s for the operator to approve Google's prompt on the phone`);
+  // Google's push to the operator's phone: one approval, waited for once —
+  // and the operator is actually told, instead of the run waiting in silence
+  // and dying with a blocked verdict nobody saw.
+  const request = openOperatorRequest({
+    kind: 'google-push-approval',
+    account: login.email,
+    run: `google-authenticator-enrol ${loginItem}`,
+    instruction: `Open the Gmail or Google app on your phone, find the "Is it you?" prompt for ${login.email} and tap Yes. Weles is signing that account in on this host to enrol an authenticator, and this is the only step it cannot do itself.`,
+    deadlineSeconds: PUSH_APPROVAL_TIMEOUT_MS / MILLISECONDS_PER_SECOND,
+  });
+  console.log(`[google-authenticator-enrol] operator request ${request.id} opened; ${request.pages.some((attempt) => attempt.ok) ? 'the operator was paged' : 'nobody could be paged'}`);
   try {
     await page.waitForURL((url) => !/accounts\.google\.com/.test(String(url)), { timeout: PUSH_APPROVAL_TIMEOUT_MS });
   } catch (error) {
-    if (error?.name !== 'TimeoutError') throw error;
-    return { ok: false, blocked: 'google_push_not_approved', url: page.url() };
+    if (error?.name !== 'TimeoutError') {
+      closeOperatorRequest(request.id, false, `the run failed while waiting: ${String(error?.message || error)}`);
+      throw error;
+    }
+    closeOperatorRequest(request.id, false, 'nobody approved the prompt before the deadline');
+    return { ok: false, blocked: 'google_push_not_approved', url: page.url(), operator_request: request.id };
   }
+  closeOperatorRequest(request.id, true, 'the prompt was approved and the session signed in');
   return { ok: true };
 }
 

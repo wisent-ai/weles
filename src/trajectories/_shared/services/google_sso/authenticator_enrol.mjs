@@ -8,7 +8,7 @@
 // Every step is one attempt: a page that does not show what the step needs is
 // reported with what it showed instead, never clicked at again, and a browser
 // error is the caller's to see.
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../dist/human/keyboard.js';
 import { generateTotp } from './totp_secret.mjs';
 
@@ -47,14 +47,14 @@ export async function clickByText(page, pattern, label) {
     .first();
   if (await role.isVisible()) {
     console.log(`[google-authenticator-enrol] clicking ${label} via role`);
-    await role.click({ force: true });
+    await humanClickLocator(page, role);
     await humanIdlePause('deliberate');
     return true;
   }
   const textual = page.locator(CLICKABLE).filter({ hasText: pattern }).filter({ visible: true }).first();
   if (await textual.isVisible()) {
     console.log(`[google-authenticator-enrol] clicking ${label} via text`);
-    await textual.click({ force: true });
+    await humanClickLocator(page, textual);
     await humanIdlePause('deliberate');
     return true;
   }

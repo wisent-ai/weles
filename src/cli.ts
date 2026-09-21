@@ -4,8 +4,9 @@ import { join } from 'node:path';
 import type { AsyncNewBrowserOptions } from './async_api.js';
 import { runDoctor } from './cli/diagnostics.js';
 import { runImport, runOnboarding, runRelease, runFigma } from './cli/workflows.js';
+import { runOperatorRequests } from './cli/operator-requests.js';
 
-type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import' | 'release' | 'figma';
+type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import' | 'release' | 'figma' | 'operator-requests';
 
 export type ParsedCli = {
   command: CliCommand;
@@ -28,6 +29,10 @@ Usage:
   weles release validate-manifest --manifest <file> --source-revision <sha> --candidate-tag <tag>
   weles release adopt-baseline --released <version> --published-surface <file> --reason <text> [--correcting <version>]
   weles figma export-design-assets
+  weles operator-requests list [--open] [--limit <n>] [--json]
+  weles operator-requests show <id> [--json]
+  weles operator-requests open --kind <kind> --account <account> --run <run> --instruction <text> --minutes <n>
+  weles operator-requests close <id> --approved|--unapproved --detail <text>
   weles doctor
   weles version
 
@@ -48,6 +53,17 @@ Options:
   --screenshot <file>     Save a screenshot after navigation.
   --wait-for-text <text>  Wait for matching visible text before reading or capturing.
   --timeout <ms>          Navigation timeout in milliseconds.
+  --open                  List only requests still waiting for the operator.
+  --limit <n>             How many operator requests to list (default 20).
+  --json                  Print the operator request records as JSON.
+  --kind <kind>           What kind of action the run needs from the operator.
+  --account <account>     The account the operator action belongs to.
+  --run <run>             The run that is waiting.
+  --instruction <text>    What the operator has to do, in his own terms.
+  --minutes <n>           How long the run will wait before giving up.
+  --approved              The operator did the thing this request asked for.
+  --unapproved            The wait ended without the operator doing it.
+  --detail <text>         One sentence saying how the wait ended.
 
 Onboarding explains the authorization boundary, optionally imports existing Weles
 trajectory API exports, and explains approved host execution. Importing writes
@@ -111,12 +127,12 @@ export function parseCliArgs(argv: string[]): ParsedCli {
 function normalizeCommand(command?: string): CliCommand {
   if (!command || command === '--help' || command === '-h' || command === 'help') return 'help';
   if (command === '--version' || command === '-v' || command === 'version') return 'version';
-  if (command === 'doctor' || command === 'open' || command === 'screenshot' || command === 'mcp' || command === 'onboarding' || command === 'import' || command === 'release' || command === 'figma') return command;
+  if (command === 'doctor' || command === 'open' || command === 'screenshot' || command === 'mcp' || command === 'onboarding' || command === 'import' || command === 'release' || command === 'figma' || command === 'operator-requests') return command;
   throw new Error(`unknown command: ${command}`);
 }
 
 function optionTakesValue(key: string): boolean {
-  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'timeout', 'subject', 'receipt', 'keys', 'state-dir', 'host', 'decision', 'baseline', 'declaration', 'manifest', 'source-revision', 'candidate-tag', 'released', 'published-surface', 'reason', 'correcting', 'root'].includes(key);
+  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'timeout', 'subject', 'receipt', 'keys', 'state-dir', 'host', 'decision', 'baseline', 'declaration', 'manifest', 'source-revision', 'candidate-tag', 'released', 'published-surface', 'reason', 'correcting', 'root', 'limit', 'kind', 'account', 'run', 'instruction', 'minutes', 'detail'].includes(key);
 }
 
 function cliOptionsToBrowserOptions(options: Record<string, string | boolean>): AsyncNewBrowserOptions {
@@ -222,6 +238,10 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   }
   if (parsed.command === 'figma') {
     await runFigma(parsed);
+    return;
+  }
+  if (parsed.command === 'operator-requests') {
+    await runOperatorRequests(parsed);
     return;
   }
   if (parsed.command === 'mcp') {
