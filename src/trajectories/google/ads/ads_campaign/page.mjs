@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { generatePersona } from '../../../../../dist/browser/persona.js';
 import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 import { humanFill, humanType } from '../../../../../dist/human/keyboard.js';
-import { CUSTOMER_ID, NAV_TIMEOUT_MS, USER_DATA_DIR } from './settings.mjs';
+import { CUSTOMER_ID, USER_DATA_DIR } from './settings.mjs';
 
 export function stableProfilePersona() {
   const p = join(USER_DATA_DIR, 'persona.json');
@@ -13,39 +13,35 @@ export function stableProfilePersona() {
   writeFileSync(p, JSON.stringify(persona, null, 2));
   return persona;
 }
-export async function clickAny(s, selectors, label, timeoutMs = 5000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    for (const sel of selectors) {
-      const loc = s.page.locator(sel).filter({ visible: true }).first();
-      if (await withTimeout(loc.isVisible(), 1500, false).catch(() => false)) {
-        const clicked = await withTimeout(humanClickLocator(s.page, loc), 5000, false).catch(() => false);
-        if (!clicked) {
-          console.log(`[google-ads] WARN: click timed out: ${label} (${sel})`);
-          continue;
-        }
-        console.log(`[google-ads] clicked: ${label}`);
-        await humanIdlePause('short');
-        return true;
-      }
-    }
-    await s.wait(1);
+// Click the first of these selectors the page is showing. The old shape
+// polled for five seconds, raced every click against another five, and
+// logged "click timed out" about a page that was merely busy; what the page
+// shows is a fact it states now.
+export async function clickAny(s, selectors, label) {
+  for (const sel of selectors) {
+    const loc = s.page.locator(sel).filter({ visible: true }).first();
+    if (!(await loc.isVisible().catch(() => false))) continue;
+    const clicked = await humanClickLocator(s.page, loc).then(() => true).catch(() => false);
+    if (!clicked) continue;
+    console.log(`[google-ads] clicked: ${label}`);
+    await humanIdlePause('short');
+    return true;
   }
   return false;
 }
 
-export async function clickText(s, text, label = text, timeoutMs = 5000) {
+export async function clickText(s, text, label = text) {
   const escaped = String(text).replaceAll('"', '\\"');
   const clicked = await clickAny(s, [
     `[role="radio"]:has-text("${escaped}")`,
     `material-radio:has-text("${escaped}")`,
     `material-list-item:has-text("${escaped}")`,
-  ], label, timeoutMs);
+  ], label);
   if (clicked) return true;
   const fallback = s.page.locator('button,[role="button"],[role="radio"],material-radio,material-list-item')
     .filter({ hasText: text, visible: true }).first();
   if (await fallback.count() === 0) return false;
-  const fallbackClicked = await withTimeout(humanClickLocator(s.page, fallback), 5000, false).catch(() => false);
+  const fallbackClicked = await humanClickLocator(s.page, fallback).then(() => true).catch(() => false);
   if (fallbackClicked) {
     console.log(`[google-ads] clicked: ${label}`);
     await humanIdlePause('short');
@@ -57,10 +53,10 @@ export async function fillAny(s, selectors, value, label) {
   if (!value) return false;
   for (const sel of selectors) {
     const loc = s.page.locator(sel).filter({ visible: true }).first();
-    if (await withTimeout(loc.isVisible(), 1500, false).catch(() => false)) {
-      const filled = await withTimeout(humanFill(s.page, loc, String(value)), 6000, false).catch(() => false);
+    if (await loc.isVisible().catch(() => false)) {
+      const filled = await humanFill(s.page, loc, String(value)).then(() => true).catch(() => false);
       if (!filled) {
-        console.log(`[google-ads] WARN: fill timed out: ${label} (${sel})`);
+        console.log(`[google-ads] WARN: fill failed: ${label} (${sel})`);
         continue;
       }
       console.log(`[google-ads] filled: ${label}`);
@@ -106,8 +102,8 @@ export async function typeListIntoFirstVisible(s, selectors, csv, label) {
   if (!values.length) return false;
   for (const sel of selectors) {
     const loc = s.page.locator(sel).filter({ visible: true }).first();
-    if (!(await withTimeout(loc.isVisible(), 1500, false).catch(() => false))) continue;
-    const clicked = await withTimeout(humanClickLocator(s.page, loc), 5000, false).catch(() => false);
+    if (!(await loc.isVisible().catch(() => false))) continue;
+    const clicked = await humanClickLocator(s.page, loc).then(() => true).catch(() => false);
     if (!clicked) continue;
     for (const value of values) {
       await humanType(s.page, value);
@@ -125,34 +121,28 @@ export async function pageText(s) {
   return await s.page.evaluate(() => document.body?.innerText || '').catch(() => '');
 }
 
-export async function waitForPageText(s, pattern, timeoutMs = 15000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
+// The page shows the text when it has rendered it; polling until it does is
+// what this wait is for, and the fifteen seconds it used to carry made a
+// slow Google Ads screen look like a screen that never loaded.
+export async function waitForPageText(s, pattern) {
+  for (;;) {
     const text = await pageText(s);
     if (pattern.test(text)) return true;
     await s.wait(1);
   }
-  return false;
 }
 
-export async function gotoWithTimeout(s, url, label) {
-  const ok = await withTimeout(
-    s.page.goto(url, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS }).then(() => true),
-    NAV_TIMEOUT_MS,
-    false,
-  ).catch(() => false);
+export async function navigate(s, url, label) {
+  // `timeout: 0` is how Playwright is told to carry no deadline of its own.
+  const ok = await s.page
+    .goto(url, { waitUntil: 'domcontentloaded', timeout: 0 })
+    .then(() => true)
+    .catch(() => false);
   if (!ok) {
-    console.log(`[google-ads] WARN: navigation timed out: ${label}`);
+    console.log(`[google-ads] WARN: navigation failed: ${label}`);
     return false;
   }
   return true;
-}
-
-export function withTimeout(promise, timeoutMs, fallback) {
-  return Promise.race([
-    promise,
-    new Promise((resolve) => setTimeout(() => resolve(fallback), timeoutMs)),
-  ]);
 }
 
 export async function bringBrowserToFront(s) {
@@ -185,7 +175,7 @@ export async function ensureCustomer(s) {
 
   const switchUrl = `https://ads.google.com/aw/campaigns?ocid=${encodeURIComponent(target)}`;
   console.log(`[google-ads] switching customer -> ${target}`);
-  await gotoWithTimeout(s, switchUrl, `customer ${target}`);
+  await navigate(s, switchUrl, `customer ${target}`);
   await s.wait(8);
   const after = currentCustomerId(s.page.url?.() ?? '');
   console.log(`[google-ads] customer after switch=${after || 'unknown'}`);

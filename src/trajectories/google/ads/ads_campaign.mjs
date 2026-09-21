@@ -31,7 +31,7 @@ import {
   USER_DATA_DIR, WAIT_FOR_LOGIN,
 } from './ads_campaign/settings.mjs';
 import {
-  bringBrowserToFront, clickAny, clickText, ensureCustomer, fillAny, fillTextNearLabel, gotoWithTimeout, isLoginUrl, pageText,
+  bringBrowserToFront, clickAny, clickText, ensureCustomer, fillAny, fillTextNearLabel, isLoginUrl, navigate, pageText,
   stableProfilePersona, typeListIntoFirstVisible, waitForPageText,
 } from './ads_campaign/page.mjs';
 
@@ -53,7 +53,7 @@ assertGoogleAdsProfileNotAlreadyOpen(USER_DATA_DIR, 'google_ads_campaign');
 const s = await WSession.start({ label: 'google_ads_campaign', browser: process.env.BROWSER || 'chromium', proxy: process.env.PROXY_URL || session.proxyUrl || 'direct', persona: profilePersona, userDataDir: USER_DATA_DIR });
 try {
   await bringBrowserToFront(s);
-  await gotoWithTimeout(s, baseUrl, 'campaign builder');
+  await navigate(s, baseUrl, 'campaign builder');
   await s.wait(10);
   let url = s.page.url?.() ?? '';
   if (isLoginUrl(url)) {
@@ -73,7 +73,7 @@ try {
       console.log(`FAIL: manual login did not complete (${url})`);
       process.exit(2);
     }
-    await gotoWithTimeout(s, baseUrl, 'campaign builder after login');
+    await navigate(s, baseUrl, 'campaign builder after login');
     await s.wait(8);
   }
 
@@ -83,17 +83,17 @@ try {
     'button:has-text("New campaign")',
     'material-button:has-text("New campaign")',
     '[aria-label*="New campaign" i]',
-  ], 'New campaign', 12000);
-  await clickText(s, CAMPAIGN_OBJECTIVE, `objective ${CAMPAIGN_OBJECTIVE}`, 8000);
-  await waitForPageText(s, /Select a campaign type|Drive website traffic from Google Search|Performance Max|App installs|App engagement|App promotion/i, 15000);
+  ], 'New campaign');
+  await clickText(s, CAMPAIGN_OBJECTIVE, `objective ${CAMPAIGN_OBJECTIVE}`);
+  await waitForPageText(s, /Select a campaign type|Drive website traffic from Google Search|Performance Max|App installs|App engagement|App promotion/i);
   if (EFFECTIVE_CAMPAIGN_TYPE && !/app$/i.test(EFFECTIVE_CAMPAIGN_TYPE)) {
-    await clickText(s, EFFECTIVE_CAMPAIGN_TYPE, `campaign type ${EFFECTIVE_CAMPAIGN_TYPE}`, 8000);
+    await clickText(s, EFFECTIVE_CAMPAIGN_TYPE, `campaign type ${EFFECTIVE_CAMPAIGN_TYPE}`);
   }
   if (IS_APP_INSTALL) {
-    await clickText(s, process.env.APP_CAMPAIGN_SUBTYPE || 'App installs', `app campaign subtype ${process.env.APP_CAMPAIGN_SUBTYPE || 'App installs'}`, 5000);
-    if (APP_PLATFORM) await clickText(s, APP_PLATFORM, `app platform ${APP_PLATFORM}`, 5000);
+    await clickText(s, process.env.APP_CAMPAIGN_SUBTYPE || 'App installs', `app campaign subtype ${process.env.APP_CAMPAIGN_SUBTYPE || 'App installs'}`);
+    if (APP_PLATFORM) await clickText(s, APP_PLATFORM, `app platform ${APP_PLATFORM}`);
   }
-  await clickAny(s, ['button:has-text("Continue")', 'material-button:has-text("Continue")'], 'Continue', 6000);
+  await clickAny(s, ['button:has-text("Continue")', 'material-button:has-text("Continue")'], 'Continue');
   await s.wait(10);
 
   let filledCount = 0;
@@ -148,7 +148,7 @@ try {
     'input[aria-label*="Description" i]',
   ], DESCRIPTION, 'description')) filledCount += 1;
 
-  await clickAny(s, ['button:has-text("Save and continue")', 'button:has-text("Next")'], 'Save and continue', 5000);
+  await clickAny(s, ['button:has-text("Save and continue")', 'button:has-text("Next")'], 'Save and continue');
 
   if (!newCampaignClicked || filledCount === 0) {
     console.log(`FAIL: Google Ads campaign form was not reached (newCampaignClicked=${newCampaignClicked}, filled=${filledCount}, url=${s.page.url?.() ?? ''})`);

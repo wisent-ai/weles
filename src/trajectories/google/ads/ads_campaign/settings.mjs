@@ -25,7 +25,6 @@ export const LOCATIONS = process.env.LOCATIONS;
 export const SUBMIT = process.env.SUBMIT === '1';
 export const WAIT_FOR_LOGIN = process.env.WAIT_FOR_LOGIN === '1';
 export const LOGIN_WAIT_MS = Number(process.env.LOGIN_WAIT_MS || 10 * 60 * 1000);
-export const NAV_TIMEOUT_MS = Number(process.env.NAV_TIMEOUT_MS || 60 * 1000);
 export const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'google_ads');
 mkdirSync(USER_DATA_DIR, { recursive: true });
 process.env.WELES_VIEWPORT ??= '1280x900';
