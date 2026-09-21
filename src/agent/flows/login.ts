@@ -9,17 +9,30 @@
 import * as vision from './vision.js';
 import { waitCloudflare } from '../../cloudflare/challenge.js';
 
-function getUrl(page: any): string {
-  try { return page.url(); } catch { /* skip */ }
-  try { return page.url; } catch { /* skip */ }
+/** The page surface this flow uses, named rather than left untyped. */
+interface LoginPage {
+  url: (() => string) | string;
+  waitForFunction: (expression: string, options?: { timeout?: number }) => Promise<unknown>;
+  keyboard: { press: (key: string) => Promise<void> };
+  evaluate: (expression: string) => Promise<unknown>;
+  context: () => unknown;
+}
+
+function getUrl(page: LoginPage): string {
+  try { return typeof page.url === 'function' ? page.url() : page.url; } catch { /* skip */ }
   return '';
 }
 
-async function waitNavigation(page: any, preUrl: string, timeoutMs: number): Promise<boolean> {
+/**
+ * Wait until the page leaves the URL it was on. `timeout: 0` is how Playwright
+ * is told to carry no deadline of its own: the navigation is the event this
+ * waits for, and a page that is slow to answer is still answering.
+ */
+async function waitNavigation(page: LoginPage, preUrl: string): Promise<boolean> {
   try {
     await page.waitForFunction(
       `() => window.location.href !== ${JSON.stringify(preUrl)}`,
-      { timeout: timeoutMs },
+      { timeout: 0 },
     );
     return true;
   } catch {
@@ -28,10 +41,9 @@ async function waitNavigation(page: any, preUrl: string, timeoutMs: number): Pro
 }
 
 export async function run(
-  page: any,
+  page: LoginPage,
   username: string,
   password: string,
-  postLoginTimeoutMs = 30000,
 ): Promise<boolean> {
   await waitCloudflare(page);
 
@@ -56,20 +68,25 @@ export async function run(
     return false;
   }
 
-  await page.keyboard.press('Enter');
-  console.log('[login] submitted form via Enter, waiting for navigation');
-
-  if (!await waitNavigation(page, preLoginUrl, 8000)) {
-    console.log('[login] Enter did not navigate, scrolling and clicking submit');
-    try { await page.evaluate('window.scrollBy(0, 600)'); } catch { /* skip */ }
-    if (!await vision.click(page, 'the submit button of the login form (Log In, Sign In, Continue, Submit, etc.)')) {
-      console.log('[login] could not find submit button after scroll');
-      return false;
-    }
-    if (!await waitNavigation(page, preLoginUrl, postLoginTimeoutMs)) {
-      console.log('[login] navigation timed out after submit click');
-      return false;
-    }
+  // Submit by the control the form actually offers, and only fall back to
+  // Enter when the page shows none. The old order pressed Enter, waited eight
+  // seconds for a navigation that had not happened yet, and used that silence
+  // as the reason to look for a button — so a slow site took the fallback
+  // path, and a site that never navigates was declared failed at thirty
+  // seconds. Nothing here reads a clock now: what the page shows decides, and
+  // the navigation itself ends the wait.
+  const submitted = await vision.click(
+    page,
+    'the submit button of the login form (Log In, Sign In, Continue, Submit, etc.)',
+  );
+  if (!submitted) {
+    console.log('[login] no submit control found, submitting with Enter');
+    await page.keyboard.press('Enter');
+  }
+  console.log('[login] submitted, waiting for navigation');
+  if (!await waitNavigation(page, preLoginUrl)) {
+    console.log('[login] the page never navigated away from the login URL');
+    return false;
   }
 
   await waitCloudflare(page);

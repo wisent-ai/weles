@@ -8,8 +8,6 @@
 import { askPage, checkPage, findClickTarget, type ScreenshottablePage } from '../vision/analyze.js';
 import { humanIdlePause } from '../human/mouse.js';
 
-const CF_CHECK_INTERVAL_MS = 3000;
-
 // Fast-path DOM check: real Cloudflare challenge pages always contain one of
 // these strings in title/body. If none match, skip the vision call entirely
 // (the authenticated vision route adds latency on every page, even on
@@ -29,7 +27,7 @@ async function looksLikeCloudflareDom(page: any): Promise<boolean> {
   } catch { return false; }
 }
 
-export async function waitCloudflare(page: any, timeoutMs = 72000, settleMs = 5000): Promise<boolean> {
+export async function waitCloudflare(page: any, settleMs = 5000): Promise<boolean> {
   await humanIdlePause();
 
   // Cheap DOM probe before the expensive vision call. If the page has zero
@@ -59,18 +57,20 @@ export async function waitCloudflare(page: any, timeoutMs = 72000, settleMs = 50
     console.log(`  [cloudflare] clicked at (${target.x}, ${target.y})`);
   }
 
-  const checks = Math.floor(timeoutMs / CF_CHECK_INTERVAL_MS);
-  for (let i = 0; i < checks; i++) {
+  // The challenge clearing is the event this waits for. The old budget of
+  // seventy-two seconds ended the wait while Cloudflare was still deciding,
+  // and the run then reported the page as challenged when it was about to
+  // pass. Each check is a vision call, so the loop is already paced by its own
+  // cost, and an operator cancelling the run still ends it.
+  for (let check = 1; ; check += 1) {
     await humanIdlePause();
     const stillCf = await checkPage(
       page as ScreenshottablePage,
       'Is this a Cloudflare security verification or challenge page?',
     );
-    console.log(`  [cloudflare] check ${i + 1}/${checks}: still challenged = ${stillCf}`);
+    console.log(`  [cloudflare] check ${check}: still challenged = ${stillCf}`);
     if (!stillCf) return true;
   }
-
-  return false;
 }
 
 export async function isChallenged(page: any): Promise<boolean> {
@@ -80,8 +80,8 @@ export async function isChallenged(page: any): Promise<boolean> {
   );
 }
 
-export async function bypassCloudflare(page: any, timeoutMs = 72000): Promise<boolean> {
-  return waitCloudflare(page, timeoutMs);
+export async function bypassCloudflare(page: any): Promise<boolean> {
+  return waitCloudflare(page);
 }
 
 export type { ScreenshottablePage as CFPage };
