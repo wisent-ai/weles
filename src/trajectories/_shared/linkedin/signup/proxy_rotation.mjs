@@ -69,11 +69,11 @@ export const PROVIDER_ROTATION = (() => {
 // 2026-05-04 04:41: a clean exit serves an HTML body containing
 // `name="session_key"` and an email input; a flagged exit serves a stripped
 // shell missing both.
-export async function curlProbeLoginForm(proxyUrl, timeoutSecs = 12) {
+export async function curlProbeLoginForm(proxyUrl) {
   const { execFile } = await import('node:child_process');
   return await new Promise((resolve) => {
     const ua = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36';
-    const args = ['-s', '--max-time', String(timeoutSecs), '-x', proxyUrl, '-H', `User-Agent: ${ua}`, 'https://www.linkedin.com/login'];
+    const args = ['-s', '-x', proxyUrl, '-H', `User-Agent: ${ua}`, 'https://www.linkedin.com/login'];
     execFile('curl', args, { maxBuffer: 8 * 1024 * 1024 }, (err, stdout) => {
       if (err) return resolve({ ok: false, reason: err.message?.slice(0, 80) });
       const body = (stdout ?? '').toString();
