@@ -52,7 +52,7 @@ function getMachineId(): string | null {
 let _publicIp: string | null = null;
 void (async () => {
   try {
-    const r = await fetch('https://api.ipify.org', { signal: AbortSignal.timeout(5000) });
+    const r = await fetch('https://api.ipify.org');
     if (r.ok) _publicIp = (await r.text()).trim() || null;
   } catch { /* best-effort; remains null */ }
 })();

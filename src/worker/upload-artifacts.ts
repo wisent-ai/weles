@@ -111,7 +111,6 @@ export async function putPrivateStadoObject(
       'Content-Length': String(bytes.byteLength),
     },
     body: bytes as unknown as BodyInit,
-    signal: AbortSignal.timeout(Number('60000')),
   })
   const responseText = await response.text()
   if (!response.ok) {
@@ -153,7 +152,6 @@ export async function readPrivateStadoObjectIdentity(
   const response = await fetch(`${config.apiUrl}/api/object?uri=${encodeURIComponent(uri)}`, {
     method: 'GET',
     headers: { Authorization: `Bearer ${config.token}` },
-    signal: AbortSignal.timeout(Number('60000')),
   })
   if (!response.ok || !response.body) {
     const message = await response.text().catch(() => '')

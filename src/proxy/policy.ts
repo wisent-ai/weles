@@ -150,11 +150,10 @@ export function blockedProvidersForPlatform(platform: string): string[] {
 // 1340 run had subtleCrypto.count=0 + mssdk-ttp2.tiktokw.us. Differentiator
 // was geo: success ran from US exit, failure from BR exit (186.195.52.156).
 export type GeoCheckResult = 'match' | 'mismatch' | 'unknown';
-export async function verifyExitCountry(exitIp: string, expectedCc: string, timeoutMs = 3500): Promise<{ result: GeoCheckResult; exitCc?: string }> {
+export async function verifyExitCountry(exitIp: string, expectedCc: string): Promise<{ result: GeoCheckResult; exitCc?: string }> {
   if (!exitIp || !expectedCc) return { result: 'unknown' };
   try {
-    const ctl = AbortSignal.timeout(timeoutMs);
-    const r = await fetch(`http://ip-api.com/json/${exitIp}?fields=countryCode`, { signal: ctl });
+    const r = await fetch(`http://ip-api.com/json/${exitIp}?fields=countryCode`);
     const j = (await r.json()) as { countryCode?: string };
     const exitCc = (j?.countryCode || '').toLowerCase();
     if (!exitCc) return { result: 'unknown' };
