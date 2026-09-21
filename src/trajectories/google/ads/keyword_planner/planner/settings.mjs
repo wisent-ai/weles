@@ -7,7 +7,6 @@ import { closeAllowedByEnv } from '../../_profile_guard.mjs';
 import { readScopedLogin } from '../../../../../_shared/scoped-secrets.mjs';
 
 export const GOOGLE_ADS_LOGIN = readScopedLogin('googleAds');
-export const NAV_TIMEOUT_MS = Number(process.env.NAV_TIMEOUT_MS || 60 * 1000);
 export const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'google_ads');
 export const DIAG_DIR = process.env.GOOGLE_ADS_DIAG_DIR || runOutputPath('google-ads-keyword-planner');
 export const RESULT_FILE = process.env.GOOGLE_ADS_RESULT_FILE || join(DIAG_DIR, 'keyword-planner.json');

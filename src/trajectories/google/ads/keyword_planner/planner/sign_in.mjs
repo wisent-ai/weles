@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { generatePersona } from '../../../../../../dist/browser/persona.js';
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { googleSso } from '../../../../_shared/services/google_sso.mjs';
-import { GOOGLE_ADS_LOGIN, NAV_TIMEOUT_MS, USER_DATA_DIR } from './settings.mjs';
+import { GOOGLE_ADS_LOGIN, USER_DATA_DIR } from './settings.mjs';
 
 let authFailure = null;
 /** Why the last sign-in did not end signed in, or null. */
@@ -73,7 +73,7 @@ export async function navigateGoogleIdentifier(page, email, returnUrl) {
   login.searchParams.set('flowName', 'GlifWebSignIn');
   login.searchParams.set('flowEntry', 'ServiceLogin');
   login.searchParams.set('Email', email);
-  await page.goto(login.toString(), { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS }).catch((error) => {
+  await page.goto(login.toString(), { waitUntil: 'domcontentloaded', timeout: 0 }).catch((error) => {
     console.log(`[google-ads-keyword-planner] WARN: identifier navigation failed ${String(error?.message || error).slice(0, 240)}`);
   });
   await humanIdlePause('deliberate');
@@ -123,7 +123,7 @@ export async function runPreferredGoogleSso(s, returnUrl) {
     return false;
   }
   if (!/ads\.google\.com/.test(s.page.url?.() || '')) {
-    await s.page.goto(returnUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS }).catch((error) => {
+    await s.page.goto(returnUrl, { waitUntil: 'domcontentloaded', timeout: 0 }).catch((error) => {
       console.log(`[google-ads-keyword-planner] WARN: post-SSO return navigation failed ${String(error?.message || error).slice(0, 240)}`);
     });
   }
@@ -147,7 +147,7 @@ export async function ensurePreferredGoogleAccount(s, returnUrl) {
   chooser.searchParams.set('Email', email);
   chooser.searchParams.set('continue', returnUrl);
   chooser.searchParams.set('service', 'adwords');
-  await s.page.goto(chooser.toString(), { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS }).catch((error) => {
+  await s.page.goto(chooser.toString(), { waitUntil: 'domcontentloaded', timeout: 0 }).catch((error) => {
     console.log(`[google-ads-keyword-planner] WARN: account chooser navigation failed ${String(error?.message || error).slice(0, 240)}`);
   });
   await s.wait(5);

@@ -10,7 +10,7 @@
 import { writeFileSync } from 'node:fs';
 import { WSession } from '../../../../../dist/session/wsession.js';
 import { assertGoogleAdsProfileNotAlreadyOpen } from '../_profile_guard.mjs';
-import { CLOSE_AFTER_HARVEST, NAV_TIMEOUT_MS, RESULT_FILE, USER_DATA_DIR, cid, keywords, norm } from './planner/settings.mjs';
+import { CLOSE_AFTER_HARVEST, RESULT_FILE, USER_DATA_DIR, cid, keywords, norm } from './planner/settings.mjs';
 import { continueFromAccountChooser, ensurePreferredGoogleAccount, isLoginUrl, lastAuthFailure, stableProfilePersona } from './planner/sign_in.mjs';
 import { campaignsUrl, installKeywordPlannerCapture } from './planner/capture.mjs';
 import { collectKeywordPlanner, openKeywordPlanner } from './planner/page.mjs';
@@ -29,7 +29,7 @@ async function main() {
   });
   const captured = installKeywordPlannerCapture(s.page);
   try {
-    await s.page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS }).catch((error) => {
+    await s.page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 0 }).catch((error) => {
       console.log(`[google-ads-keyword-planner] WARN: initial navigation failed ${String(error?.message || error).slice(0, 240)}`);
     });
     await s.wait(8);

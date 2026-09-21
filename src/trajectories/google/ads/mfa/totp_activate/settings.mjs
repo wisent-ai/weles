@@ -11,7 +11,6 @@ export const EMAIL = GOOGLE_ADS_LOGIN.email;
 export const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'google_ads');
 export const DIAG_DIR = process.env.GOOGLE_TOTP_ACTIVATION_DIAG_DIR || runOutputPath('google-totp-activation');
 export const RESULT_FILE = process.env.GOOGLE_TOTP_ACTIVATION_RESULT_FILE || join(DIAG_DIR, 'result.json');
-export const NAV_TIMEOUT_MS = Number(process.env.NAV_TIMEOUT_MS || 60_000);
 
 process.env.WELES_VIEWPORT ??= '1440x1000';
 process.env.WELES_DISABLE_RECORDING ??= '1';
