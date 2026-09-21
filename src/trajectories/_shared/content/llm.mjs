@@ -19,26 +19,16 @@ function routerConfig() {
 
 async function callGenerate(body) {
   const { endpoint, token } = routerConfig();
-  const timeoutMs = Number(process.env.LLM_GENERATE_TIMEOUT_MS ?? '380000');
-  const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), timeoutMs);
-  let res;
-  try {
-    res = await fetch(`${endpoint}/v1/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({
-        model: MODEL_ALIAS,
-        messages: [{ role: 'user', content: JSON.stringify(body) }],
-      }),
-      signal: ac.signal,
-    });
-  } catch (error) {
-    if (error?.name === 'AbortError') throw new Error(`Stado model generation timed out after ${timeoutMs}ms`);
-    throw error;
-  } finally {
-    clearTimeout(timer);
-  }
+  // The gateway answers or the connection ends. A generation that is still
+  // producing is not a generation that failed.
+  const res = await fetch(`${endpoint}/v1/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      model: MODEL_ALIAS,
+      messages: [{ role: 'user', content: JSON.stringify(body) }],
+    }),
+  });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`Stado model generation ${res.status}: ${String(data.error?.message ?? '').slice(Number('0'), Number('200'))}`);
   const text = String(data.choices?.[Number('0')]?.message?.content ?? '').trim();

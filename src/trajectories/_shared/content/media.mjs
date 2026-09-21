@@ -58,10 +58,11 @@ export async function generateImageFile(params) {
 
 /**
  * Generate a video (WanVideo/wavespeed/etc.) and return a local file path.
- * Video gen is async — poll the job until done or timeout (default 8 minutes).
+ * Video gen is async — poll the job until the router reports it completed or
+ * failed, which are the two ends this wait is about.
  * @param {{prompt: string, mode?: string, pipeline?: string, reference_image_url?: string, character_id?: string, account_id?: string}} params
  */
-export async function generateVideoFile(params, { timeoutMs = Number('480000'), pollMs = Number('5000') } = {}) {
+export async function generateVideoFile(params, { pollMs = Number('5000') } = {}) {
   const config = mediaConfig();
   const r = await fetch(`${config.endpoint}/video`, {
     method: 'POST',
@@ -71,8 +72,7 @@ export async function generateVideoFile(params, { timeoutMs = Number('480000'), 
   const data = await r.json().catch(() => ({}));
   if (!r.ok || !data.success || !data.job_id) throw new Error(`video submit ${r.status}: ${data.error ?? 'no job_id'}`);
   const jobId = data.job_id;
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
+  for (;;) {
     await new Promise((resolve) => setTimeout(resolve, pollMs));
     const status = await fetch(`${config.endpoint}/video/${encodeURIComponent(jobId)}`, { headers: authHeaders(config.token) });
     const state = await status.json().catch(() => ({}));
@@ -81,5 +81,4 @@ export async function generateVideoFile(params, { timeoutMs = Number('480000'), 
     }
     if (state.status === 'failed') throw new Error(`video generation failed: ${state.error ?? 'unknown'}`);
   }
-  throw new Error(`video generation timed out after ${timeoutMs}ms`);
 }

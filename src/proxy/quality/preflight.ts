@@ -11,7 +11,7 @@ import { classifyIp, type ClassifyResult, type IpQuality, isAcceptableForRegiste
 
 const exec = promisify(execFile);
 const PROBE_URL = 'https://api.ipify.org';
-const PROBE_DEADLINE_MS = 15_000;
+
 
 export interface PreflightResult {
   ok: boolean;
@@ -21,16 +21,16 @@ export interface PreflightResult {
 }
 
 function buildCurlArgs(proxyUrl: string): string[] {
-  const baseFlags = ['-sS', '--max-time', '15'];
-  const proxyFlags = ['--proxy', proxyUrl];
-  return [...baseFlags, ...proxyFlags, PROBE_URL];
+  // curl ends on a refused or closed connection; an exit that is slow is
+  // still an exit, and reporting it as a dead proxy is how a working sticky
+  // session was thrown away.
+  return ['-sS', '--proxy', proxyUrl, PROBE_URL];
 }
 
 export async function preflightProxy(proxyUrl: string): Promise<PreflightResult> {
   if (!proxyUrl) return { ok: false, ip: '', error: 'empty proxy url' };
   try {
-    const opts = Object.assign({}, { timeout: PROBE_DEADLINE_MS });
-    const { stdout } = await exec('curl', buildCurlArgs(proxyUrl), opts);
+    const { stdout } = await exec('curl', buildCurlArgs(proxyUrl));
     const ip = stdout.trim();
     if (!/^\d+\.\d+\.\d+\.\d+$/.test(ip)) {
       return { ok: false, ip, error: `probe returned non-IPv4: ${ip.slice(0, 60)}` };
