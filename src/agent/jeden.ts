@@ -41,7 +41,6 @@ export type JedenResult = {
 
 export type JedenCallOptions = {
   maxSteps?: number;
-  timeoutMs?: number;
 } & (ModelOnlyOptions | { modelOnly: false; cwd: string });
 
 let modelRouterConfig: ModelRouterConfig | null = null;
@@ -132,7 +131,6 @@ function runJedenProcess(
   binary: string,
   args: string[],
   env: NodeJS.ProcessEnv,
-  timeoutMs: number,
 ): Promise<{ stdout: string; stderr: string }> {
   const { promise, resolve, reject } = Promise.withResolvers<{ stdout: string; stderr: string }>();
   execFile(binary, args, {
@@ -140,11 +138,10 @@ function runJedenProcess(
     env,
     encoding: 'utf8',
     maxBuffer: Number('10') * Number('1024') * Number('1024'),
-    timeout: timeoutMs,
   }, (error, stdout, stderr) => {
     if (error) {
       const detail = String(stderr || stdout).trim();
-      reject(new Error(`Jeden ${binary} failed: code=${error.code ?? 'none'} signal=${error.signal ?? 'none'} killed=${error.killed ?? false} deadline_ms=${timeoutMs}${detail ? `; ${detail.slice(Number('0'), Number('500'))}` : ''}`, { cause: error }));
+      reject(new Error(`Jeden ${binary} failed: code=${error.code ?? 'none'} signal=${error.signal ?? 'none'} killed=${error.killed ?? false}${detail ? `; ${detail.slice(Number('0'), Number('500'))}` : ''}`, { cause: error }));
       return;
     }
     resolve({ stdout, stderr });
@@ -156,7 +153,6 @@ function runJedenProcess(
 async function completeThroughRouter(
   cfg: ModelRouterConfig,
   prompt: string,
-  timeoutMs: number,
   options: ModelOnlyOptions,
 ): Promise<JedenResult> {
   const { images, tools, maxOutputTokens } = options;
@@ -183,10 +179,9 @@ async function completeThroughRouter(
       'x-agent-signature': signature,
     },
     body,
-    signal: AbortSignal.timeout(timeoutMs),
   }).catch(error => {
     const cause = error instanceof Error ? error.cause : undefined;
-    throw new Error(`Brama POST ${cfg.routerUrl.replace(/\/+$/, '')}/v1/chat/completions for ${model} failed (deadline ${timeoutMs} ms): ${String(error)}${cause ? `; cause: ${String(cause)}` : ''}`, { cause: error });
+    throw new Error(`Brama POST ${cfg.routerUrl.replace(/\/+$/, '')}/v1/chat/completions for ${model} failed: ${String(error)}${cause ? `; cause: ${String(cause)}` : ''}`, { cause: error });
   });
   const text = await response.text();
   if (!response.ok) {
@@ -219,20 +214,15 @@ async function completeThroughRouter(
 
 export async function callJeden(prompt: string, options: JedenCallOptions = {}): Promise<JedenResult> {
   const cfg = loadModelRouterConfig();
-  const configuredTimeout = Number.parseInt(process.env.WELES_JEDEN_TIMEOUT_MS ?? '', Number('10'));
-  const timeoutMs = options.timeoutMs ?? (
-    Number.isFinite(configuredTimeout) && configuredTimeout > Number('0')
-      ? configuredTimeout
-      : Number('300000')
-  );
-  if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= Number('0')) {
-    throw new Error('Jeden timeout must be a positive integer number of milliseconds');
-  }
-  // The default is one turn, which is the browser loop's decision call: ask
-  // Brama and be done. Only a caller that explicitly wants the agent runtime's
-  // tools (`modelOnly: false`) spawns it.
+  // A turn ends when the gateway answers or the process exits. The browser
+  // loop's decision call takes as long as the model takes to think, and a
+  // reasoning route that needed six minutes was reported here as a failure of
+  // ours.
+  //
+  // Only a caller that explicitly wants the agent runtime's tools
+  // (`modelOnly: false`) spawns the binary.
   if (options.modelOnly !== false) {
-    return completeThroughRouter(cfg, prompt, timeoutMs, options);
+    return completeThroughRouter(cfg, prompt, options);
   }
   const binary = nonEmpty(process.env.WELES_JEDEN_BIN)
     ?? join(__dirname, '..', '..', 'native', 'jeden', 'bin', 'jeden');
@@ -280,7 +270,7 @@ export async function callJeden(prompt: string, options: JedenCallOptions = {}):
     WISENT_APP_AGENT_ID: cfg.agentId,
     WISENT_APP_AGENT_AUTH_SECRET: cfg.agentAuthSecret,
     JEDEN_SESSION_ROOT: sessionRoot,
-  }, timeoutMs);
+  });
   let envelope: { ok?: boolean; text?: unknown; originalError?: unknown };
   try {
     envelope = JSON.parse(stdout) as typeof envelope;

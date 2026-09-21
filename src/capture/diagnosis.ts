@@ -7,7 +7,6 @@ import { join } from 'node:path';
 import { callJeden } from '../agent/jeden.js';
 import type { ResponseRecord } from './capture.js';
 
-const DIAGNOSIS_TIMEOUT_MS = Number('120000');
 const ARTIFACT_READ_LIMIT_BYTES = Number('32768');
 const MAX_CONSOLE_LINES = Number('80');
 const MAX_NETWORK_RECORDS = Number('40');
@@ -190,7 +189,7 @@ export async function diagnoseCapture(
         modelOnly: false,
         cwd: framesDir,
         maxSteps: Number('4'),
-        timeoutMs: DIAGNOSIS_TIMEOUT_MS,
+
       });
       const diagnosis = parseDiagnosisOutput(routed.raw);
       if (!diagnosis) return 'Diagnosis unavailable: model output failed schema validation.';
