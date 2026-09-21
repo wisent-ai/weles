@@ -36,7 +36,10 @@ export async function launchFirefoxContext(input: ContextLaunchInput): Promise<B
     stockOverride: false,
     version: (() => { try { return pwBrowser.version(); } catch { return null; } })(),
   });
+  // The same single statement as the Chromium launcher: Playwright's own
+  // thirty seconds, cleared once here instead of in every flow.
   context.setDefaultNavigationTimeout(0);
+  context.setDefaultTimeout(0);
 
   // Strip Accept-Language on TikTok same-origin sub-requests (Chrome 147 default-on ReduceAcceptLanguage omits it; weles emits unconditionally; webmssdk signs into x-mssdk-info). EXCEPTION: passport/web/* CORS preflight needs it.
   await context.route('**/*', async route => {

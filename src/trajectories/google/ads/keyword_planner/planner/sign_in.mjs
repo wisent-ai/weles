@@ -73,7 +73,7 @@ export async function navigateGoogleIdentifier(page, email, returnUrl) {
   login.searchParams.set('flowName', 'GlifWebSignIn');
   login.searchParams.set('flowEntry', 'ServiceLogin');
   login.searchParams.set('Email', email);
-  await page.goto(login.toString(), { waitUntil: 'domcontentloaded', timeout: 0 }).catch((error) => {
+  await page.goto(login.toString(), { waitUntil: 'domcontentloaded' }).catch((error) => {
     console.log(`[google-ads-keyword-planner] WARN: identifier navigation failed ${String(error?.message || error).slice(0, 240)}`);
   });
   await humanIdlePause('deliberate');
@@ -123,7 +123,7 @@ export async function runPreferredGoogleSso(s, returnUrl) {
     return false;
   }
   if (!/ads\.google\.com/.test(s.page.url?.() || '')) {
-    await s.page.goto(returnUrl, { waitUntil: 'domcontentloaded', timeout: 0 }).catch((error) => {
+    await s.page.goto(returnUrl, { waitUntil: 'domcontentloaded' }).catch((error) => {
       console.log(`[google-ads-keyword-planner] WARN: post-SSO return navigation failed ${String(error?.message || error).slice(0, 240)}`);
     });
   }
@@ -147,7 +147,7 @@ export async function ensurePreferredGoogleAccount(s, returnUrl) {
   chooser.searchParams.set('Email', email);
   chooser.searchParams.set('continue', returnUrl);
   chooser.searchParams.set('service', 'adwords');
-  await s.page.goto(chooser.toString(), { waitUntil: 'domcontentloaded', timeout: 0 }).catch((error) => {
+  await s.page.goto(chooser.toString(), { waitUntil: 'domcontentloaded' }).catch((error) => {
     console.log(`[google-ads-keyword-planner] WARN: account chooser navigation failed ${String(error?.message || error).slice(0, 240)}`);
   });
   await s.wait(5);

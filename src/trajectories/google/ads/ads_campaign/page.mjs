@@ -133,9 +133,8 @@ export async function waitForPageText(s, pattern) {
 }
 
 export async function navigate(s, url, label) {
-  // `timeout: 0` is how Playwright is told to carry no deadline of its own.
   const ok = await s.page
-    .goto(url, { waitUntil: 'domcontentloaded', timeout: 0 })
+    .goto(url, { waitUntil: 'domcontentloaded' })
     .then(() => true)
     .catch(() => false);
   if (!ok) {

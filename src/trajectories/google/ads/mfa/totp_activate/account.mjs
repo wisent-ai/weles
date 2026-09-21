@@ -10,7 +10,7 @@ export async function navigateIdentifier(page, email, continueUrl = 'https://mya
   login.searchParams.set('flowName', 'GlifWebSignIn');
   login.searchParams.set('flowEntry', 'ServiceLogin');
   login.searchParams.set('Email', email);
-  await page.goto(login.toString(), { waitUntil: 'domcontentloaded', timeout: 0 }).catch((error) => {
+  await page.goto(login.toString(), { waitUntil: 'domcontentloaded' }).catch((error) => {
     console.log(`[google-totp-activate] WARN identifier navigation failed ${String(error?.message || error).slice(0, 240)}`);
   });
   await humanIdlePause('deliberate');
@@ -38,7 +38,7 @@ export async function switchToCorrectGoogleAccount(s, creds, continueUrl = 'http
   const chooser = new URL('https://accounts.google.com/AccountChooser');
   chooser.searchParams.set('Email', creds.email || EMAIL);
   chooser.searchParams.set('continue', continueUrl);
-  await s.page.goto(chooser.toString(), { waitUntil: 'domcontentloaded', timeout: 0 }).catch((error) => {
+  await s.page.goto(chooser.toString(), { waitUntil: 'domcontentloaded' }).catch((error) => {
     console.log(`[google-totp-activate] WARN account chooser navigation failed ${String(error?.message || error).slice(0, 240)}`);
   });
   await s.wait(5);
@@ -56,7 +56,7 @@ export async function switchToCorrectGoogleAccount(s, creds, continueUrl = 'http
   }
   if (/accountchooser/i.test(s.page.url?.() || '')) {
     const direct = continueUrl.replace('https://myaccount.google.com/', 'https://myaccount.google.com/u/1/');
-    await s.page.goto(direct, { waitUntil: 'domcontentloaded', timeout: 0 }).catch((error) => {
+    await s.page.goto(direct, { waitUntil: 'domcontentloaded' }).catch((error) => {
       console.log(`[google-totp-activate] WARN direct u/1 navigation failed ${String(error?.message || error).slice(0, 240)}`);
     });
     await s.wait(5);

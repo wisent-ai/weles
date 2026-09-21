@@ -14,7 +14,7 @@ export async function gotoAuthenticatorSettingsLink(s) {
   }).catch(() => '');
   if (!href) return false;
   console.log(`[google-totp-activate] navigating authenticator settings href=${href.split('?')[0]}`);
-  await s.page.goto(href, { waitUntil: 'domcontentloaded', timeout: 0 }).catch((error) => {
+  await s.page.goto(href, { waitUntil: 'domcontentloaded' }).catch((error) => {
     console.log(`[google-totp-activate] WARN authenticator href navigation failed ${String(error?.message || error).slice(0, 240)}`);
   });
   await s.wait(6);
@@ -31,7 +31,7 @@ export async function openAuthenticatorSetup(s, creds) {
     'https://myaccount.google.com/security',
   ];
   for (const url of urls) {
-    await s.page.goto(url, { waitUntil: 'domcontentloaded', timeout: 0 }).catch((error) => {
+    await s.page.goto(url, { waitUntil: 'domcontentloaded' }).catch((error) => {
       console.log(`[google-totp-activate] WARN navigation failed ${url} ${String(error?.message || error).slice(0, 240)}`);
     });
     await s.wait(6);

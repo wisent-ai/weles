@@ -119,7 +119,7 @@ export async function openKeywordPlanner(s) {
   const attempts = [];
   for (const path of candidates) {
     const url = buildGoogleAdsPath(s.page.url?.() || campaignsUrl('cid', cid), path);
-    await s.page.goto(url, { waitUntil: 'domcontentloaded', timeout: 0 }).catch((error) => {
+    await s.page.goto(url, { waitUntil: 'domcontentloaded' }).catch((error) => {
       console.log(`[google-ads-keyword-planner] WARN: planner navigation failed ${path} ${String(error?.message || error).slice(0, 240)}`);
     });
     await s.wait(8);

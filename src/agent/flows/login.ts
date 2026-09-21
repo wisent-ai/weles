@@ -24,15 +24,14 @@ function getUrl(page: LoginPage): string {
 }
 
 /**
- * Wait until the page leaves the URL it was on. `timeout: 0` is how Playwright
- * is told to carry no deadline of its own: the navigation is the event this
- * waits for, and a page that is slow to answer is still answering.
+ * Wait until the page leaves the URL it was on. The browser launcher clears
+ * Playwright's own deadlines for the whole context, so this waits for the
+ * navigation and nothing else.
  */
 async function waitNavigation(page: LoginPage, preUrl: string): Promise<boolean> {
   try {
     await page.waitForFunction(
       `() => window.location.href !== ${JSON.stringify(preUrl)}`,
-      { timeout: 0 },
     );
     return true;
   } catch {

@@ -118,7 +118,12 @@ export async function launchChromiumContext(input: ContextLaunchInput & {
     });
     if (persistentProfile) Object.assign(provenance, { user_data_dir: persistentProfile });
     Object.assign(context, { _welesFingerprintConfig: realizedFingerprint, _welesBrowserProvenance: provenance });
+    // Playwright imposes thirty seconds on every navigation and every locator
+    // action unless a context says otherwise. This is the one place that says
+    // otherwise, so no flow repeats it and no flow carries a number of its
+    // own: a page that is still loading is still loading.
     context.setDefaultNavigationTimeout(0);
+    context.setDefaultTimeout(0);
     console.log(`[async_api] Context created`);
     const origClose = context.close.bind(context);
     context.close = async () => {

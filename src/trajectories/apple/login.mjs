@@ -96,14 +96,11 @@ try {
   // The unauthenticated root shell references protected /access/static assets.
   // ASC redirects those asset requests to HTML login responses, so the shell
   // cannot bootstrap and never inserts the idmsa iframe. Load the login
-  // document directly, with bounded navigation, instead.
-  await s.page.goto(LOGIN_URL, {
-    waitUntil: 'domcontentloaded',
-    timeout: Number(process.env.WELES_APPLE_NAV_TIMEOUT_MS ?? '60000'),
-  });
+  // document directly.
+  await s.page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded' });
   await s.wait(5);
 
-  const authFrame = await s.page.waitForSelector('iframe[src*="idmsa.apple.com"]', { timeout: 30_000 }).catch(() => null);
+  const authFrame = await s.page.waitForSelector('iframe[src*="idmsa.apple.com"]').catch(() => null);
   if (!authFrame) throw new Error('no idmsa auth iframe found');
   const frame = await authFrame.contentFrame();
   if (!frame) throw new Error('could not access auth iframe');
@@ -111,7 +108,7 @@ try {
   // Step 1: fill email (Apple ID)
   console.log('[apple-login] > waitForSelector email');
   const emailField = frame.locator('#account_name_text_field');
-  await emailField.waitFor({ state: 'visible', timeout: 15_000 });
+  await emailField.waitFor({ state: 'visible' });
   const emailActionability = await emailField.evaluate((el) => {
     const rect = el.getBoundingClientRect();
     const style = getComputedStyle(el);
@@ -204,7 +201,7 @@ try {
   const signInEnabled = await frame.waitForFunction(() => {
     const button = document.querySelector('#sign-in');
     return button && !button.disabled && button.getAttribute('aria-disabled') !== 'true';
-  }, null, { timeout: 10_000 }).then(() => true).catch(() => false);
+  }).then(() => true).catch(() => false);
   if (!signInEnabled) throw new Error('Apple password form stayed disabled after credential entry');
 
   // Playwright's actionability-checked click hangs on Apple's Angular-bound
