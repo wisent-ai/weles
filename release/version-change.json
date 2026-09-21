@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.7.11",
-  "candidate": "0.7.12",
+  "current": "0.7.29",
+  "candidate": "0.7.30",
   "breaking": false,
-  "reason": "Carry actual initialization actions into browser decisions and retain safe continuation evidence."
+  "reason": "Serve POST /reauth/enrol-authenticator on Brama's reauth admission, so the product that reports google_2fa_material_missing can order the authenticator enrolment that repairs it."
 }
