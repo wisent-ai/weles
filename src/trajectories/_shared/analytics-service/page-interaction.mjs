@@ -50,7 +50,7 @@ async function clickFirst(page, names) {
   for (const name of names) {
     const loc = page.getByRole('button', { name }).or(page.getByRole('link', { name })).or(page.getByText(name)).filter({ visible: true }).first();
     if (await loc.isVisible().catch(() => false)) {
-      await humanClickLocator(page, loc, { timeoutMs: 10000 });
+      await humanClickLocator(page, loc);
       await humanIdlePause('deliberate');
       return true;
     }
@@ -64,23 +64,22 @@ async function clickCardLike(page, name) {
     .filter({ visible: true })
     .first();
   if (await loc.isVisible().catch(() => false)) {
-    await humanClickLocator(page, loc, { timeoutMs: 10000 });
+    await humanClickLocator(page, loc);
     await humanIdlePause('deliberate');
     return true;
   }
   return false;
 }
 
-async function clickLocator(page, loc, timeoutMs = 10000) {
+// The element is visible, so the click is an action that finishes; the ten
+// seconds it used to carry only turned a busy page into a failed click, and
+// the retry underneath it was that number's own doing.
+async function clickLocator(page, loc) {
   if (!await loc.isVisible().catch(() => false)) return false;
   try {
-    await humanClickLocator(page, loc, { timeoutMs });
+    await humanClickLocator(page, loc);
   } catch {
-    try {
-      await humanClickLocator(page, loc);
-    } catch {
-      return false;
-    }
+    return false;
   }
   await humanIdlePause('deliberate');
   return true;

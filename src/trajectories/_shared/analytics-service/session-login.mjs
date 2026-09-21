@@ -33,7 +33,7 @@ async function clickGoogleAccountIfVisible(page, email) {
   const tile = page.locator(`div[data-identifier="${email}"], [data-email="${email}"]`)
     .or(page.getByText(email, { exact: true })).filter({ visible: true }).first();
   if (await tile.isVisible().catch(() => false)) {
-    await humanClickLocator(page, tile, { timeoutMs: 10000 });
+    await humanClickLocator(page, tile);
     await humanIdlePause('long');
     return true;
   }
@@ -47,7 +47,7 @@ async function googleAnalyticsLogin(s) {
   if (!/accounts\.google\.com|ServiceLogin|signin/i.test(s.page.url())) {
     const signIn = s.page.getByRole('link', { name: /sign in/i }).or(s.page.getByRole('button', { name: /sign in/i })).first();
     if (await signIn.isVisible().catch(() => false)) {
-      await humanClickLocator(s.page, signIn, { timeoutMs: 10000 });
+      await humanClickLocator(s.page, signIn);
       await humanIdlePause('long');
     }
   }

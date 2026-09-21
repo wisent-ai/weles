@@ -63,7 +63,7 @@ async function verifyTargetSite(s, cfg) {
   await humanIdlePause('long');
   if (action === 'umami_track_custom_event' && process.env.SELECTOR_OR_CODE_PATH) {
     const target = s.page.locator(process.env.SELECTOR_OR_CODE_PATH).first();
-    await humanClickLocator(s.page, target, { timeoutMs: 10000 });
+    await humanClickLocator(s.page, target);
     await humanIdlePause('deliberate');
   }
   const data = await s.page.evaluate(() => ({

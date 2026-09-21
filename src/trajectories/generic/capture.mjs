@@ -32,11 +32,12 @@ import {
 } from '../_shared/runner/capture-runtime.mjs';
 
 const label = 'generic_capture';
-const STEP_TIMEOUT_MS = Number('30000');
 
 async function runStep(session, step) {
   if (step.op === 'wait_selector') {
-    const outcome = await session.waitFor(step.value, { timeoutMs: STEP_TIMEOUT_MS });
+    // `waitFor` carries no deadline of its own, which is the point of a
+    // `wait_selector` step: the element appearing is what the step waits for.
+    const outcome = await session.waitFor(step.value);
     if (outcome.startsWith('wait failed')) throw new Error(`step wait_selector ${JSON.stringify(step.value)} never became visible`);
     return outcome;
   }
