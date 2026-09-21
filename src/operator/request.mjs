@@ -146,16 +146,35 @@ function page(request) {
 }
 
 /**
+ * The request already waiting on this person for the same thing, if any.
+ *
+ * Two runs that hit the same wall — every account in a pool failing the same
+ * sign-in, say — would otherwise page the operator once each for one action.
+ * A request is the same when it asks the same kind of thing about the same
+ * account and nobody has closed it.
+ */
+export function openRequestFor(kind, account) {
+    const wanted = String(kind).trim();
+    const who = String(account).trim();
+    return listOperatorRequests({ openOnly: true, limit: Number.MAX_SAFE_INTEGER })
+        .find((request) => request.kind === wanted && request.account === who);
+}
+
+/**
  * Open a request and tell the operator about it.
  *
  * The caller keeps waiting for its own condition; this records the wait and
- * makes it visible. `closeOperatorRequest` is what says how it ended.
+ * makes it visible. `closeOperatorRequest` is what says how it ended. An
+ * identical request already waiting is returned as it stands: the person is
+ * asked once, not once per run that needs the same hand.
  */
 export function openOperatorRequest(input) {
   const seconds = Number(input.deadlineSeconds);
   if (!Number.isFinite(seconds) || seconds <= 0) {
     throw new Error(`operator request needs a positive deadlineSeconds, got ${input.deadlineSeconds}`);
   }
+  const waiting = openRequestFor(input.kind, input.account);
+  if (waiting && !isOverdue(waiting)) return waiting;
   const opened = new Date();
   const request = {
     schema: OPERATOR_REQUEST_SCHEMA,

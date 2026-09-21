@@ -120,6 +120,36 @@ test('a pager that succeeds without naming a channel is not treated as delivery'
   assert.match(record.pages[0].detail, /without naming a channel/);
 });
 
+// A pool of accounts failing the same sign-in is still one action for the
+// person. Asking per run is how a mechanism meant to reach him becomes the
+// reason he stops reading what it sends.
+test('a second run needing the same thing joins the request already waiting', () => {
+  const directory = scratch();
+  const first = weles(
+    ['open', '--kind', 'google-push-approval', '--account', ACCOUNT,
+      '--run', 'first enrol', '--instruction', INSTRUCTION, '--minutes', '5'],
+    directory,
+  );
+  const second = weles(
+    ['open', '--kind', 'google-push-approval', '--account', ACCOUNT,
+      '--run', 'second enrol', '--instruction', INSTRUCTION, '--minutes', '5'],
+    directory,
+  );
+  const record = onlyRecord(directory);
+  assert.equal(record.run, 'first enrol', 'the waiting request stands as it was opened');
+  assert.match(second.stdout, new RegExp(record.id.slice(0, 8)), 'the second run is told which request it joined');
+  assert.equal(record.pages.length, 1, 'the operator is paged once for one action');
+
+  // A different account is a different action, and is asked for separately.
+  weles(
+    ['open', '--kind', 'google-push-approval', '--account', 'other@wisent.ai',
+      '--run', 'third enrol', '--instruction', INSTRUCTION, '--minutes', '5'],
+    directory,
+  );
+  assert.equal(weles(['list', '--open', '--json'], directory).stdout.match(/"id"/g).length, 2);
+  assert.equal(first.status, 2, 'paging was off, so neither open reported success');
+});
+
 test('closing a request says whether the person did it and how long the run waited', () => {
   const directory = scratch();
   weles(
