@@ -32,6 +32,7 @@ import {
 import { controlWorker, workerStatus } from '../worker-control.mjs';
 import { respondToRun } from './run-route.mjs';
 import {
+  respondToAuthenticatorEnrolment,
   respondToBuilder,
   respondToDocumentImport,
   respondToReauth,
@@ -67,7 +68,7 @@ export function createApiRequestHandler({
           // is the one it built, and `stado workload run weles-api-runtime`
           // used to report a revision from a launchctl restart alone.
           sourceRevision: RUN_RELEASE_IDENTITY.source_revision,
-          routes: ['GET /healthz', 'GET /api/v1/version', 'POST /api/v1/credential-operations', 'POST /api/v1/tasks', 'GET /api/v1/tasks/:task_id', 'POST /api/v1/tasks/:task_id/cancel', 'GET /worker/version', 'GET /worker/status', 'POST /worker/start', 'POST /worker/restart', 'POST /run', 'GET /diagnostics/:run_id', 'GET /diagnostics/:run_id/file?path=', 'POST /weles-builder', 'POST /reauth/resolve', 'POST /reauth'],
+          routes: ['GET /healthz', 'GET /api/v1/version', 'POST /api/v1/credential-operations', 'POST /api/v1/tasks', 'GET /api/v1/tasks/:task_id', 'POST /api/v1/tasks/:task_id/cancel', 'GET /worker/version', 'GET /worker/status', 'POST /worker/start', 'POST /worker/restart', 'POST /run', 'GET /diagnostics/:run_id', 'GET /diagnostics/:run_id/file?path=', 'POST /weles-builder', 'POST /reauth/resolve', 'POST /reauth', 'POST /reauth/enrol-authenticator'],
           publicTask: publicTaskService.health,
           features: ['subscription_identity', 'fresh_profile'],
           account_source: 'skarbiec',
@@ -165,6 +166,10 @@ export function createApiRequestHandler({
       }
       if (req.method === 'POST' && (url.pathname === '/reauth' || url.pathname === '/reauth/resolve')) {
         await respondToReauth(req, res, selectLoginAccount, url.pathname === '/reauth/resolve');
+        return;
+      }
+      if (req.method === 'POST' && url.pathname === '/reauth/enrol-authenticator') {
+        await respondToAuthenticatorEnrolment(req, res, selectLoginAccount, runTrajectory);
         return;
       }
       if (req.method === 'POST' && url.pathname === '/weles-builder') {

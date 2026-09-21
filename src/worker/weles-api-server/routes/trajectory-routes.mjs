@@ -1,15 +1,19 @@
-// The three routes that order one named trajectory rather than one the caller
+// The routes that order one named trajectory rather than one the caller
 // names itself.
 //
-// POST /run takes an action and its parameters and is elsewhere. These three
-// each decide the action on the caller's behalf, and each has its own idea of
+// POST /run takes an action and its parameters and is elsewhere. These each
+// decide the action on the caller's behalf, and each has its own idea of
 // who may ask. /imports does not run anything at all: it validates a trajectory
 // document and persists it against a host, so a draft becomes an action /run
 // can later name. /reauth is admitted by Brama's own token and never by the
 // general API token, because it spends a real browser sign-in on exactly one
-// vault row and the broker -- not the operator -- decides which. /weles-builder
-// takes prose instead of parameters and its answer is a new reusable
-// trajectory, so its body is text and not a JSON envelope.
+// vault row and the broker -- not the operator -- decides which.
+// /reauth/enrol-authenticator is admitted the same way and for the same
+// reason: it is the repair for the refusal /reauth returns when a login
+// carries no authenticator seed, and asking Brama to hold the general worker
+// token for it would widen a credential that exists to be narrow.
+// /weles-builder takes prose instead of parameters and its answer is a new
+// reusable trajectory, so its body is text and not a JSON envelope.
 //
 // They sit together because they share one refusal: a request that names an
 // account it is not entitled to, or a provider Weles does not run on the host,
@@ -34,6 +38,12 @@ import {
 import { coalesceRun, runAdmissionKey } from '../run/run-outcome.mjs';
 import { REAUTH_PROVIDERS, runReauth } from '../run/trajectory-process.mjs';
 import { RUN_RELEASE_IDENTITY } from '../release-identity.mjs';
+
+/// The dispatch name of the trajectory that enrols a Google Authenticator for
+/// one Skarbiec login and writes the seed back to it.
+const AUTHENTICATOR_ENROL_ACTION = 'google_authenticator_enrol';
+/// The one login method that has an authenticator to enrol.
+const GOOGLE_LOGIN_METHOD = 'google_sso';
 
 const BUILDER_BOOTSTRAP_URL = process.env.WELES_BUILDER_BOOTSTRAP_URL || 'https://duckduckgo.com/';
 // Prepended to the caller's instructions so the agent self-navigates: the
@@ -118,6 +128,92 @@ export async function respondToReauth(req, res, selectLoginAccount, resolveOnly 
   const out = await admission.entry.promise;
   if (out.error === 'no_reauth_trajectory') { json(res, 404, out); return; }
   json(res, out.ok ? 200 : 502, { ...out, ...identity, refreshed: out.ok, coalesced: admission.joined });
+}
+
+// The repair for the one refusal a sign-in cannot repair itself.
+//
+// `google_2fa_material_missing` means the login Weles holds carries no
+// authenticator seed, and no sign-in can invent one: Google shows a setup key
+// only inside a signed-in session. The enrolment trajectory does exactly that
+// once -- one approval on the operator's phone, then it reads the key, proves
+// the first code, and writes it to the login item -- and every later sign-in
+// for that account answers Google by itself. Until this route existed the
+// trajectory could be reached only through the general worker token, so the
+// product that reports the refusal could not order its own repair, and a
+// person pasted a one-time code instead.
+export async function respondToAuthenticatorEnrolment(req, res, selectLoginAccount, runTrajectory) {
+  if (!reauthAuthorized(req)) {
+    json(res, BRAMA_REAUTH_TOKEN ? 401 : 500, {
+      ok: false,
+      error: BRAMA_REAUTH_TOKEN ? 'unauthorized' : 'missing_BRAMA_WELES_REAUTH_TOKEN',
+    });
+    return;
+  }
+  let body;
+  try { body = await readBody(req); }
+  catch (e) { json(res, 400, { ok: false, error: e.message }); return; }
+  const provider = typeof body.provider === 'string' ? body.provider.trim().toLowerCase() : '';
+  if (!REAUTH_PROVIDERS.has(provider)) {
+    json(res, 400, { ok: false, error: `provider must be one of ${[...REAUTH_PROVIDERS].join(', ')}` });
+    return;
+  }
+  const subscriptionId = typeof body.subscription_id === 'string' ? body.subscription_id.trim() : '';
+  if (!subscriptionId) {
+    json(res, 400, { ok: false, error: 'subscription_id_required', stage: 'identity',
+      message: 'An exact Skarbiec subscription id is required' });
+    return;
+  }
+  const loginItem = typeof body.login_item === 'string' ? body.login_item.trim() : '';
+  let account;
+  try { account = selectLoginAccount(provider, loginItem || undefined, subscriptionId); }
+  catch (e) {
+    json(res, 409, { ok: false, error: e.code || 'skarbiec_identity_unavailable',
+      stage: 'identity', message: e.message, ...(e.detail || {}) });
+    return;
+  }
+  const identity = {
+    subscription_id: account.subscriptionId,
+    subscription_item: account.subscriptionItem,
+    login_item: account.loginItem,
+    provider: account.provider,
+    account_ref: account.accountRef,
+    login_method: account.loginMethod,
+    account_revision: account.accountRevision,
+    source_revision: RUN_RELEASE_IDENTITY.source_revision,
+  };
+  // The enrolment Weles ships is Google's. A password-only login has no
+  // authenticator to enrol, and answering `ok` for it would leave the seed
+  // absent under a verdict that says otherwise.
+  if (account.loginMethod !== GOOGLE_LOGIN_METHOD) {
+    json(res, 409, {
+      ok: false,
+      error: 'authenticator_enrolment_unsupported_login_method',
+      stage: 'identity',
+      message: `Skarbiec login ${account.loginItem} signs in with ${account.loginMethod}; an authenticator is enrolled only on a ${GOOGLE_LOGIN_METHOD} login`,
+      ...identity,
+    });
+    return;
+  }
+  const timeoutMs = Number(body.timeout_ms) > 0 ? Number(body.timeout_ms) : TIMEOUT_MS;
+  // One enrolment per login at a time: two browsers racing the same Google
+  // account would each enrol a key and the second would overwrite the first,
+  // leaving the vault holding a seed the account no longer accepts.
+  const admission = coalesceRun(
+    runAdmissionKey('authenticator-enrol', {
+      provider,
+      login_item: account.loginItem,
+      account_revision: account.accountRevision,
+    }),
+    () => runTrajectory(
+      AUTHENTICATOR_ENROL_ACTION,
+      { login_item: account.loginItem },
+      null,
+      false,
+      timeoutMs,
+    ),
+  );
+  const out = await admission.entry.promise;
+  json(res, out.ok ? 200 : 502, { ...out, ...identity, coalesced: admission.joined });
 }
 
 // weles-builder: instructions-only. Body = the goal string (text/plain;

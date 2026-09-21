@@ -1,6 +1,12 @@
 // The worker's dispatch for google_authenticator_enrol, through the compiled
 // worker: the action resolves to the enrolment trajectory, a login_item is
 // admitted as WELES_LOGIN_ITEM, and a request without one is refused by name.
+//
+// The route that orders it, `POST /reauth/enrol-authenticator`, is admitted
+// by Brama's reauth bearer rather than the general worker token, because the
+// product that reports `google_2fa_material_missing` is the one that has to
+// order its repair. That route is exercised against a deployed worker, not
+// here: its module reads the release identity a checkout does not carry.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveTrajectory } from '../../dist/worker/dispatch.js';
