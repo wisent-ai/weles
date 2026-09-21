@@ -152,11 +152,17 @@ async function main() {
     process.exit(2);
   }
   const login = loginMaterial(loginItem);
-  // One persistent profile per login item: the session the operator's one
-  // approval established survives a later step's refusal, so a rerun after
-  // a fixed page continues from a signed-in account instead of asking for a
-  // second approval.
-  const userDataDir = join(homedir(), '.weles', 'browser_profiles', 'google-authenticator', loginItem);
+  // One persistent profile per GOOGLE ACCOUNT, not per login item. Google
+  // answers the first sign-in from a profile it has never seen with a push to
+  // the account owner's phone, and only a person can approve that. Keyed by
+  // the login item, every row of the same account asked for its own approval:
+  // on 2026-09-21 `claude-wisent-google-sso` stopped at
+  // `google_push_not_approved` for an account that had already been signed in
+  // from this host under another row. Keyed by the account, the approval is
+  // asked once and every later enrolment and rerun continues from the session
+  // it established.
+  const account = (login.email || loginItem).toLowerCase().replace(/[^a-z0-9._@-]+/g, '_');
+  const userDataDir = join(homedir(), '.weles', 'browser_profiles', 'google-account', account);
   mkdirSync(userDataDir, { recursive: true });
   const session = await WSession.start({
     label: `google-authenticator-enrol-${loginItem}`, browser: 'chromium', headless: false, userDataDir,
