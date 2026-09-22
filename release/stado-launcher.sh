@@ -33,6 +33,15 @@ mkdir -p "$runtime_cache"
 runtime_required=(
   package.json
   src/worker/weles-api-launcher.mjs
+  src/worker/weles-api-launcher/configuration.mjs
+  src/worker/weles-api-launcher/port.mjs
+  src/worker/weles-api-launcher/running.mjs
+  src/worker/weles-api-launcher/startup.mjs
+  src/_shared/skarbiec-runtime.mjs
+  src/worker/deploy/acquire/skarbiec-acquire.mjs
+  src/worker/deploy/acquire/skarbiec-acquisition-scopes.conf
+  src/worker/deploy/weles-capability-routes.json
+  src/worker/deploy/weles-action-allowlist.txt
   src/worker/weles-api-server.mjs
   dist/worker/dispatch.js
   dist/worker/params/params-to-env.js
@@ -42,6 +51,7 @@ runtime_required=(
   dist/worker/params-to-env/content-actions.js
   dist/worker/params-to-env/paid-ads-actions.js
   dist/worker/declared/engagements.js
+  dist/worker/declared/observations.js
   dist/worker/params/analytics-actions.js
   dist/worker/release/deployment_version.js
   dist/worker/upload-artifacts.js

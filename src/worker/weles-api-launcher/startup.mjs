@@ -1,11 +1,11 @@
 /**
  * Bringing the service up: the workload identity it acquires secrets as, the
- * fields it must hold before it answers anything, and the two children the
- * unit needs - the capability broker and the HTTP API.
+ * fields it must hold before it answers anything, and the HTTP API hosted in
+ * this same process.
  */
-import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, copyFileSync, chmodSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { HOME, REPO, STARTUP_FIELDS, actionAllowlist, declaredNames } from './configuration.mjs';
 import { executable, refuse, run } from './running.mjs';
@@ -46,9 +46,8 @@ export async function startup() {
   if (!skarbiecUrl) refuse('fleet service directory has no Skarbiec endpoint for this host');
   process.env.WC_SKARBIEC_URL = skarbiecUrl;
 
-  // The capability broker must come from the same signed release state Stado
-  // committed for this host, never a mutable convenience path that can belong
-  // to a different Skarbiec generation.
+  // Finite credential commands use the same signed release Stado committed
+  // for this host. Weles does not start another Skarbiec service.
   const skarbiecBin = run(nodeBin, [runtimeResolver, 'active-binary'], 'Skarbiec binary resolution');
   if (!skarbiecBin) refuse('Stado has no attested active Skarbiec binary for this host');
   process.env.SKARBIEC_BIN = skarbiecBin;
@@ -81,70 +80,26 @@ export async function startup() {
   process.env.STADO_API_URL = 'http://127.0.0.1:17603';
   process.env.STADO_API_TOKEN = process.env.WELES_STADO_OBJECT_API_TOKEN;
   process.env.SKARBIEC_VAULT_FILE = join(HOME, '.stado/skarbiec.vault.json');
-  process.env.SKARBIEC_CAPABILITY_FILE = join(HOME, '.stado/weles-api-capabilities.json');
-  mkdirSync(join(HOME, '.stado/run'), { recursive: true });
-  const brokerDirectory = mkdtempSync(join(HOME, '.stado/run/weles-api-'));
-  const capabilitySocket = join(brokerDirectory, 'capability.sock');
-  process.env.SKARBIEC_CAP_SOCKET = capabilitySocket;
-  process.once('exit', () => rmSync(brokerDirectory, { recursive: true, force: true }));
+  delete process.env.SKARBIEC_CAPABILITY_FILE;
+  delete process.env.SKARBIEC_CAPABILITY_ROUTES_FILE;
+  process.env.SKARBIEC_CAP_SOCKET ||= join(HOME, '.stado/skarbiec.vault.sock');
+  const brokerStatus = run(skarbiecBin,
+    ['capability-status', '--socket', process.env.SKARBIEC_CAP_SOCKET],
+    'shared Skarbiec capability broker inspection');
+  process.stdout.write(`shared capability broker: ${brokerStatus}\n`);
 
-  const capabilityRoutes = join(HOME, '.stado/weles-api-capability-routes.json');
-  copyFileSync(join(REPO, 'src/worker/deploy/weles-capability-routes.json'), capabilityRoutes);
-  chmodSync(capabilityRoutes, 0o600);
-  process.env.SKARBIEC_CAPABILITY_ROUTES_FILE = capabilityRoutes;
-
-  await start(nodeBin, capabilitySocket);
-}
-
-async function start(nodeBin, capabilitySocket) {
-  const broker = spawn(process.env.SKARBIEC_BIN, ['capability-serve', '--socket', capabilitySocket],
-    { stdio: 'inherit', env: process.env });
-  let brokerAlive = true;
-  broker.on('exit', () => { brokerAlive = false; });
-
-  // Starting the API server before the broker accepts is a race the API loses
-  // once, silently, on the first trajectory that asks for a credential.
-  let ready = false;
-  for (let attempt = 0; attempt < 50 && brokerAlive; attempt += 1) {
-    try {
-      if (statSync(capabilitySocket).isSocket()) { ready = true; break; }
-    } catch { /* not bound yet */ }
-    await new Promise((settle) => setTimeout(settle, 200));
+  // Declare only Weles's origin routes. Copying its table over the shared
+  // authority would erase every route another consumer already declared.
+  const routes = JSON.parse(readFileSync(
+    join(REPO, 'src/worker/deploy/weles-capability-routes.json'), 'utf8'));
+  for (const [resource, { item, field }] of Object.entries(routes)) {
+    run(skarbiecBin, [
+      'route', 'declare', '--resource', resource, '--item', item, '--field', field,
+      '--reason', 'Weles declares the credential field used by this sign-in origin.',
+    ], `shared Skarbiec route ${resource}`);
   }
-  if (!ready) {
-    broker.kill();
-    refuse(`capability broker never bound ${capabilitySocket}`);
-  }
-  process.stdout.write(`capability broker listening on ${capabilitySocket}\n`);
 
-  const server = spawn(nodeBin, [join(REPO, 'src/worker/weles-api-server.mjs')],
-    { stdio: 'inherit', env: process.env });
-
-  // launchd replaces this job with `launchctl kickstart -k`, which signals the
-  // job and immediately starts its successor, so shutting down means ending
-  // BOTH children and waiting for them: otherwise the successor finds the API
-  // port still held by an orphan and times out its readiness.
-  let shuttingDown = false;
-  const shutdown = (signal) => {
-    if (shuttingDown) return;
-    shuttingDown = true;
-    for (const child of [server, broker]) {
-      if (child.exitCode === null) child.kill(signal === 'exit' ? 'SIGTERM' : signal);
-    }
-  };
-  for (const signal of ['SIGHUP', 'SIGINT', 'SIGTERM']) process.on(signal, () => shutdown(signal));
-
-  // The job used to wait on the API server alone. On 2026-09-05 the broker had
-  // exited within two minutes of a clean start, the API kept answering for a
-  // day, launchd reported the unit active, and every credential fill read
-  // ECONNREFUSED. A unit whose credential half is dead is down, so the first
-  // child to exit ends this process and KeepAlive starts a fresh pair.
-  const ended = await new Promise((settle) => {
-    server.on('exit', (code, signal) => settle({ who: 'weles api server', code, signal }));
-    broker.on('exit', (code, signal) => settle({ who: 'capability broker', code, signal }));
-  });
-  process.stderr.write(`${ended.who} exited with ${ended.signal ?? `status ${ended.code}`};`
-    + ' ending the other child so launchd restarts both\n');
-  shutdown('SIGTERM');
-  process.exit(ended.code ?? 1);
+  // Acquisition configures the environment before the API module reads it.
+  // The server owns its listener and draining in this process, not a child Node.
+  await import(pathToFileURL(join(REPO, 'src/worker/weles-api-server.mjs')).href);
 }

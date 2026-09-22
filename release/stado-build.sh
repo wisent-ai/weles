@@ -64,7 +64,7 @@ COPYFILE_DISABLE=1 tar --dereference --format=ustar -czf "$WISENT_OUTPUT_DIR/pay
 install -m 0755 "$WISENT_SOURCE_DIR/release/stado-launcher.sh" "$WISENT_OUTPUT_DIR/bin/start"
 install -m 0755 "$WISENT_SOURCE_DIR/release/stado-launcher.sh" "$WISENT_OUTPUT_DIR/weles-api-launcher"
 WELES_TEST_WORKER_PAYLOAD="$WISENT_OUTPUT_DIR/payload/weles-worker.tar.gz" WISENT_SOURCE_COMMIT="$source_revision" \
-  node --test --test-name-pattern='worker startup and repeated startup' tests/release/packaging.test.mjs
+  node --test --test-name-pattern='worker startup and repeated startup|a healthy API refuses a second launcher' tests/release/packaging.test.mjs
 mkdir -p "$WISENT_OUTPUT_DIR/native-runtime-tests"
 cp -R .wisent-output/native-runtime-tests/. "$WISENT_OUTPUT_DIR/native-runtime-tests/"
 shasum -a 256 "$WISENT_OUTPUT_DIR/payload/weles-worker.tar.gz" "$WISENT_OUTPUT_DIR/bin/start" "$WISENT_OUTPUT_DIR/weles-api-launcher" > "$WISENT_OUTPUT_DIR/evidence/DIGESTS"

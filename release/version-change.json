@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
   "current": "0.7.29",
-  "candidate": "0.7.30",
+  "candidate": "0.7.31",
   "breaking": false,
-  "reason": "Serve POST /reauth/enrol-authenticator on Brama's reauth admission, so the product that reports google_2fa_material_missing can order the authenticator enrolment that repairs it."
+  "reason": "Retain the authenticator-enrolment route and host the HTTP API in its launcher process, using the shared Skarbiec broker. Refuse duplicate launchers and restore incomplete cached startup modules from the verified payload."
 }

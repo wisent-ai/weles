@@ -6,7 +6,7 @@
  */
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, truncateSync, writeFileSync,
@@ -93,6 +93,8 @@ function fixture(name, helper = true, input = native) {
     mkdirSync(dirname(destination), { recursive: true });
     copyFileSync(join(REPO, relative), destination);
   }
+  cpSync(join(REPO, 'src/worker/weles-api-launcher'),
+    join(root, 'src/worker/weles-api-launcher'), { recursive: true });
   const bin = join(root, 'native', 'jeden', 'bin');
   const staged = command(process.execPath, [
     join(REPO, 'release/native/runtime.mjs'), 'stage', bin, input,
@@ -163,7 +165,7 @@ test('an archive outside the declared digest is refused before staging bytes', (
   assert.equal(existsSync(destination), false, 'unverified input reached the staged runtime');
 });
 
-test('worker startup and repeated startup preserve the installed release tree', {
+test('worker startup and repeated startup restore an incomplete cache without changing the installed release tree', {
   skip: !workerPayload && 'requires the real compiled WELES_TEST_WORKER_PAYLOAD',
 }, () => {
   const root = join(scratch, 'immutable-release');
@@ -185,6 +187,9 @@ test('worker startup and repeated startup preserve the installed release tree', 
       WELES_API_PORT: '0',
     },
   };
+  const configuration = join(home, '.stado/var/weles/runtime', report.worker_payload_sha256,
+    'src/worker/weles-api-launcher/configuration.mjs');
+  let originalConfiguration;
   for (const phase of ['initial startup', 'repeated startup']) {
     const result = command('bash', [join(root, 'weles-api-launcher')], options);
     assert.equal(result.status, 1, result.stderr);
@@ -193,5 +198,78 @@ test('worker startup and repeated startup preserve the installed release tree', 
     const difference = command('diff', ['-qr', expected, root]);
     assert.equal(difference.status, 0,
       `${phase} changed the installed release: ${difference.stdout}${difference.stderr}`);
+    if (phase === 'initial startup') {
+      originalConfiguration = readFileSync(configuration);
+      rmSync(configuration);
+    } else {
+      assert.deepEqual(readFileSync(configuration), originalConfiguration,
+        'a marked-ready runtime with a missing launcher module was not restored from the payload');
+    }
+  }
+});
+
+test('a healthy API refuses a second launcher without losing its listener', {
+  skip: !workerPayload && 'requires the real compiled WELES_TEST_WORKER_PAYLOAD',
+}, async () => {
+  const root = join(scratch, 'existing-api');
+  const home = join(scratch, 'api-owner');
+  mkdirSync(root);
+  mkdirSync(home);
+  const unpacked = command('tar', ['-xzf', resolve(workerPayload), '-C', root]);
+  assert.equal(unpacked.status, 0, unpacked.stderr);
+  const version = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
+  const env = {
+    HOME: home, PATH: process.env.PATH, NODE_BIN: process.execPath,
+    STADO_BIN: resolve(stado), STADO_CONFIG: join(home, 'absent-stado-config.json'),
+    WELES_API_HOST: '127.0.0.1', WELES_API_PORT: '0', WELES_API_TOKEN: randomUUID(),
+    WELES_WORKER_RELEASE_VERSION: version,
+    WELES_WORKER_RELEASE_SHA256: report.worker_payload_sha256,
+  };
+  const args = [join(root, 'src/worker/weles-api-server.mjs')];
+  const api = spawn(process.execPath, args, { cwd: home, env, stdio: ['ignore', 'pipe', 'pipe'] });
+  let stdout = '';
+  let stderr = '';
+  api.stderr.on('data', chunk => { stderr += String(chunk); });
+  const closed = new Promise(resolveClose => {
+    api.once('close', (exit_code, signal) => resolveClose({ exit_code, signal }));
+  });
+  const ready = new Promise((resolveReady, reject) => {
+    api.stdout.on('data', chunk => {
+      stdout += String(chunk);
+      if (stdout.includes('[weles-api] listening ')) resolveReady();
+    });
+    api.once('error', reject);
+    api.once('exit', code => reject(new Error(`real Weles API exited ${code}: ${stderr}`)));
+  });
+  try {
+    await ready;
+    const sockets = command(existsSync('/usr/sbin/lsof') ? '/usr/sbin/lsof' : 'lsof',
+      ['-nP', '-a', '-p', String(api.pid), '-iTCP', '-sTCP:LISTEN', '-Fn']);
+    assert.equal(sockets.status, 0, sockets.stderr);
+    const port = /^n127\.0\.0\.1:(\d+)$/m.exec(sockets.stdout)?.[1];
+    assert.ok(port, `the real API process owns no loopback listener: ${sockets.stdout}`);
+    const endpoint = `http://127.0.0.1:${port}/healthz`;
+    const health = await fetch(endpoint);
+    assert.equal(health.status, 200);
+    const reported = await health.json();
+    assert.equal(reported.sourceRevision, report.source_revision);
+    const duplicate = command(process.execPath, [join(root, 'src/worker/weles-api-launcher.mjs')], {
+      cwd: home, env: { ...env, WELES_API_PORT: port },
+    });
+    assert.equal(duplicate.status, 1, duplicate.stderr);
+    assert.ok(duplicate.stderr.includes(`pid ${api.pid}`), duplicate.stderr);
+    assert.ok(duplicate.stderr.includes(reported.source), duplicate.stderr);
+    const stillServing = await fetch(endpoint);
+    assert.equal(stillServing.status, 200);
+    assert.equal((await stillServing.json()).sourceRevision, report.source_revision);
+  } finally {
+    if (api.exitCode === null) api.kill('SIGTERM');
+    const result = await closed;
+    const index = report.commands.length;
+    writeFileSync(join(output, `${index}.stdout`), stdout);
+    writeFileSync(join(output, `${index}.stderr`), stderr);
+    report.commands.push({ program: process.execPath, args, cwd: home, pid: api.pid,
+      ...result, stdout: `${index}.stdout`, stderr: `${index}.stderr` });
+    writeFileSync(join(output, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
   }
 });

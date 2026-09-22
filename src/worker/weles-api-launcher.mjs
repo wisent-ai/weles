@@ -6,13 +6,10 @@
  * the service's startup contract — which env files it reads, which Skarbiec
  * fields it must hold before it serves, which port decides who is live — lived
  * in a file nobody compiled and everybody could run by hand. It is product
- * code, so it lives here and starts the same two children the unit needs:
- *
- *   1. the Skarbiec capability broker on its unix socket, and
- *   2. the HTTP API server on WELES_API_PORT.
- *
- * A unit whose credential half is dead is down: the first child to exit ends
- * the process, and launchd's KeepAlive starts a fresh pair.
+ * code, so it lives here and imports the HTTP API into this Node process after
+ * acquiring its startup credentials. The API owns its listener and drains its
+ * tasks on shutdown. Startup inspects the shared Skarbiec broker; subsequent
+ * credential operations report their actual dependency failures.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -36,9 +33,9 @@ process.env.WELES_API_HOST = process.env.WELES_API_HOST || '0.0.0.0';
 process.env.WELES_API_PORT = process.env.WELES_API_PORT || '8788';
 const port = process.env.WELES_API_PORT;
 
-// Avoid acquiring credentials when another API already serves this port.
-// This observation is not a lock: launchers that race past it must have
-// separate broker sockets, so a losing instance cannot disconnect the winner.
+// Refuse another service process before acquiring credentials. This observation
+// is not a lock: the API's bind arbitrates racing starts. Neither contender
+// creates, removes, or stops the shared Skarbiec broker.
 //
 // What it says matters as much as what it does. On 2026-09-21 Brama's
 // sign-in for one of the operator's five accounts died with
@@ -55,11 +52,11 @@ if (served.status === 0 && served.stdout.trim()) {
   const holder = portHolder(served.stdout);
   const health = await holderHealth(port);
   if (health.weles) {
-    process.stderr.write(
+    refuse(
       `weles api port ${port} is already served by ${holder}, which answers /healthz as ${health.source}` +
-        `${health.version ? ` version ${health.version}` : ''}: standing by without changing broker state\n`,
+        `${health.version ? ` version ${health.version}` : ''}: refusing a duplicate service process. ` +
+        'The existing API was not stopped. Retire the duplicate service declaration through Stado.',
     );
-    setTimeout(() => process.exit(0), 30_000);
   } else {
     refuse(
       `weles api port ${port} is held by ${holder}, which is not a Weles API: ${health.detail}. ` +
