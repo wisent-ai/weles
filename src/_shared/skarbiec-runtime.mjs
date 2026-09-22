@@ -10,8 +10,8 @@ function executable(path, label, allowSymlink = false) {
   try {
     metadata = allowSymlink ? statSync(path) : lstatSync(path);
     accessSync(path, constants.X_OK);
-  } catch {
-    throw new Error(`${label} is unavailable or not executable`);
+  } catch (error) {
+    throw new Error(`${label} ${JSON.stringify(path)} is unavailable or not executable: ${error.message}`, { cause: error });
   }
   if (!metadata.isFile() || (!allowSymlink && metadata.isSymbolicLink())) {
     throw new Error(`${label} must be ${allowSymlink ? 'a regular executable' : 'a regular non-symlink executable'}`);
@@ -22,17 +22,18 @@ function executable(path, label, allowSymlink = false) {
 export function stadoBinary() {
   const configured = String(process.env.WELES_STADO_BIN || process.env.STADO_BIN || '').trim();
   if (configured) return executable(configured, 'Stado binary', true);
+  let failures;
   for (const candidate of [
     join(homedir(), '.stado', 'bin', 'stado'),
     join(homedir(), '.local', 'bin', 'stado'),
   ]) {
     try {
       return executable(candidate, 'Stado binary', true);
-    } catch {
-      // Keep looking: Stado has two supported per-user install locations.
+    } catch (error) {
+      (failures ??= []).push(error.message);
     }
   }
-  throw new Error('Stado binary is unavailable or not executable');
+  throw new Error(`Stado binary is unavailable or not executable:\n${failures.join('\n')}`);
 }
 
 function stadoJson(args, operation) {
