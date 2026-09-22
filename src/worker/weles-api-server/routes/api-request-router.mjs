@@ -51,6 +51,7 @@ export function createApiRequestHandler({
   publicTaskService,
   runTrajectory,
   selectLoginAccount,
+  validateAccountSecurityParams,
 }) {
   return async (req, res) => {
     try {
@@ -180,7 +181,7 @@ export function createApiRequestHandler({
         json(res, 404, { ok: false, error: 'not_found' });
         return;
       }
-      await respondToRun(req, res, runTrajectory);
+      await respondToRun(req, res, runTrajectory, validateAccountSecurityParams);
     } catch (error) {
       json(res, 500, { ok: false, error: String(error && error.message ? error.message : error).slice(0, 300) });
     }

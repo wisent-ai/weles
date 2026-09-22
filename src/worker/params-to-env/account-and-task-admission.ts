@@ -18,6 +18,17 @@ import { selectLoginAccount } from '../../utils/login-accounts.js';
 import { parseAccessibilityAuditParams, parseCaptureParams } from '../params/capture-params.js';
 import { applyDeclaredEnv } from '../declared/declarations.js';
 
+export function validateAccountSecurityParams(params: Record<string, unknown>): string {
+  if (!params || typeof params !== 'object' || Array.isArray(params)
+    || typeof params.login_item !== 'string' || !params.login_item.trim()) {
+    throw new Error('login_item must name the exact Skarbiec account to inspect');
+  }
+  if (Object.keys(params).some((key) => key !== 'login_item')) {
+    throw new Error('2FA status accepts only login_item; sign-in and account changes are not supported');
+  }
+  return params.login_item.trim();
+}
+
 export function applyAccountAndTaskAdmission(
   params: Record<string, unknown>,
   trajPath: string,
@@ -49,14 +60,7 @@ export function applyAccountAndTaskAdmission(
     env.WELES_LOGIN_ITEM = requested.trim();
   }
   if (trajPath.endsWith('/google/authenticator/status.mjs')) {
-    const requested = params.login_item;
-    if (typeof requested !== 'string' || !requested.trim()) {
-      throw new Error('login_item must name the exact Skarbiec account to inspect');
-    }
-    if (Object.keys(params).some((key) => key !== 'login_item')) {
-      throw new Error('2FA status accepts only login_item; sign-in and account changes are not supported');
-    }
-    env.WELES_LOGIN_ITEM = requested.trim();
+    env.WELES_LOGIN_ITEM = validateAccountSecurityParams(params);
   }
   if (trajPath.endsWith('/generic/browser_task.mjs') || trajPath.endsWith('/generic/keeper_task.mjs')) {
     const passthrough: Array<[string, string]> = [

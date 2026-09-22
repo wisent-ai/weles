@@ -15,29 +15,41 @@ function required(value: string | undefined, name: string): string {
   return normalized;
 }
 
-export function welesApiConnection(path: string, options: WelesApiOptions = {}) {
+function apiConnection(path: string, options: WelesApiOptions, endpointName: string, bearerName: string) {
   const environment = options.environment ?? process.env;
-  const raw = required(options.endpoint ?? environment.WELES_API_BASE, 'WELES_API_BASE');
+  const raw = required(options.endpoint ?? environment[endpointName], endpointName);
   let base: URL;
   try { base = new URL(raw); }
-  catch { throw new Error('WELES_API_BASE must be a URL'); }
+  catch { throw new Error(`${endpointName} must be a URL`); }
   if (base.username || base.password || base.search || base.hash) {
-    throw new Error('WELES_API_BASE must not contain credentials, query parameters, or a fragment');
+    throw new Error(`${endpointName} must not contain credentials, query parameters, or a fragment`);
   }
   const loopback = base.hostname === 'localhost' || base.hostname === '127.0.0.1' || base.hostname === '[::1]';
   if (base.protocol !== 'https:' && !(base.protocol === 'http:' && loopback)) {
-    throw new Error('WELES_API_BASE must use HTTPS unless it names a loopback host');
+    throw new Error(`${endpointName} must use HTTPS unless it names a loopback host`);
   }
-  const bearer = required(options.bearer ?? environment.WELES_TOKEN, 'WELES_TOKEN');
+  const bearer = required(options.bearer ?? environment[bearerName], bearerName);
+  return {
+    endpoint: new URL(path, base), fetch: options.fetch ?? fetch,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearer}` },
+  };
+}
+
+export function welesOperatorConnection(path: string, options: WelesApiOptions = {}) {
+  return apiConnection(path, options, 'WELES_WORKER_API_BASE', 'WELES_WORKER_TOKEN');
+}
+
+export function welesApiConnection(path: string, options: WelesApiOptions = {}) {
+  const connection = apiConnection(path, options, 'WELES_API_BASE', 'WELES_TOKEN');
+  const environment = options.environment ?? process.env;
   const organizationId = required(options.organizationId ?? environment.WISENT_ORGANIZATION_ID, 'WISENT_ORGANIZATION_ID').toLowerCase();
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(organizationId)) {
     throw new Error('WISENT_ORGANIZATION_ID must be a UUID');
   }
   return {
-    endpoint: new URL(path, base), organizationId, fetch: options.fetch ?? fetch,
+    ...connection, organizationId,
     headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${bearer}`,
+      ...connection.headers,
       'X-Wisent-Organization-ID': organizationId,
     },
   };

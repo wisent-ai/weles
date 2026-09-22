@@ -33,7 +33,7 @@ import {
 } from '../run/credential-outcome.mjs';
 import { coalesceRun, persistRunResult, runAdmissionKey } from '../run/run-outcome.mjs';
 
-export async function respondToRun(req, res, runTrajectory) {
+export async function respondToRun(req, res, runTrajectory, validateAccountSecurityParams) {
   if (!authorized(req)) {
     json(res, TOKEN || ALLOW_UNAUTH ? 401 : 500, {
       ok: false,
@@ -56,6 +56,15 @@ export async function respondToRun(req, res, runTrajectory) {
     return;
   }
   const params = body.params && typeof body.params === 'object' ? body.params : {};
+  let requestBinding = {};
+  if (action === 'google_mfa_status') {
+    try {
+      requestBinding = { params: { login_item: validateAccountSecurityParams(params) } };
+    } catch (error) {
+      json(res, 400, { ok: false, error: error.message });
+      return;
+    }
+  }
   const accountId = typeof body.account_id === 'string' ? body.account_id : null;
   const freshProfile = body.fresh_profile === true;
   if (freshProfile && !accountId) {
@@ -94,13 +103,13 @@ export async function respondToRun(req, res, runTrajectory) {
     if (!admission.joined) {
       persistRunResult(
         admittedPath,
-        { ok: null, action, status: 'running', started_at: new Date().toISOString() },
+        { ok: null, action, ...requestBinding, status: 'running', started_at: new Date().toISOString() },
       );
       admission.entry.promise
         .then((result) => {
           persistRunResult(
             admittedPath,
-            { ...result, action, status: 'finished', completed_at: new Date().toISOString() },
+            { ...result, action, ...requestBinding, status: 'finished', completed_at: new Date().toISOString() },
           );
         })
         .catch((error) => {
@@ -109,6 +118,7 @@ export async function respondToRun(req, res, runTrajectory) {
             {
               ok: false,
               action,
+              ...requestBinding,
               status: 'failed',
               error: String(error && error.message ? error.message : error).slice(0, 300),
               completed_at: new Date().toISOString(),
@@ -119,6 +129,7 @@ export async function respondToRun(req, res, runTrajectory) {
     json(res, 202, {
       ok: true,
       action,
+      ...requestBinding,
       detached_run: admittedId,
       result_path: admittedPath,
       coalesced: admission.joined,

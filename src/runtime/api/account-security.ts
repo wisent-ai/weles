@@ -1,5 +1,4 @@
-import { randomUUID } from 'node:crypto';
-import { welesApiConnection, type WelesApiOptions } from './connection.js';
+import { welesOperatorConnection, type WelesApiOptions } from './connection.js';
 
 export type AccountSecurityResult = {
   schema: 'weles.account-security.v1';
@@ -53,16 +52,32 @@ export async function accountSecurityRun(
   const creating = 'loginItem' in input;
   const value = (creating ? input.loginItem : input.runId).trim();
   if (!value) throw new Error(creating ? 'login_item_required' : 'run_id_required');
-  const connection = welesApiConnection(creating ? '/api/v1/runs' : `/api/v1/runs/${encodeURIComponent(value)}`, options);
-  const response = await connection.fetch(connection.endpoint, {
-    method: creating ? 'POST' : 'GET', headers: connection.headers, redirect: 'error',
-    ...(creating ? { body: JSON.stringify({
-      action: 'google_mfa_status', params: { login_item: value }, idempotency_key: randomUUID(),
-    }) } : {}),
-  });
-  const body = await response.json() as { row?: unknown; error?: string };
-  if (!response.ok) throw new Error(body.error || `Weles account-security request failed with HTTP ${response.status}`);
-  const row = parseRun(creating ? body.row : body);
-  if (creating ? row.params.login_item !== value : row.id !== value) throw new Error('Weles returned a different account-security request');
-  return row;
+  const path = creating ? '/run' : `/diagnostics/${encodeURIComponent(value)}/file?path=run-result.json`;
+  const connection = welesOperatorConnection(path, options);
+  const operation = creating ? 'submit_account_security' : 'read_account_security_result';
+  try {
+    const response = await connection.fetch(connection.endpoint, {
+      method: creating ? 'POST' : 'GET', headers: connection.headers, redirect: 'error',
+      ...(creating ? { body: JSON.stringify({
+        action: 'google_mfa_status', params: { login_item: value }, detached: true,
+      }) } : {}),
+    });
+    const body = await response.json() as Record<string, unknown>;
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${typeof body.error === 'string' ? body.error : 'Weles refused the account-security request'}`);
+    if (creating && body.ok !== true) throw new Error('Weles did not accept the account-security request');
+    const row = parseRun(creating ? {
+      id: body.detached_run, action: body.action, params: body.params,
+      status: 'running', completed_at: null, result: null, error: null,
+    } : {
+      id: value, action: body.action, params: body.params, status: body.status,
+      completed_at: body.completed_at ?? null, result: body.result ?? null,
+      error: body.error ?? (body.ok === false ? body.stderr_tail ?? 'Account security execution failed' : null),
+    });
+    if (creating ? row.params.login_item !== value : row.id !== value) throw new Error('Weles returned a different account-security request');
+    return row;
+  } catch (cause) {
+    const error = cause instanceof Error ? cause.message : String(cause);
+    const detail = cause instanceof Error && cause.cause ? `: ${String(cause.cause)}` : '';
+    throw new Error(`${operation} ${connection.endpoint}: ${error}${detail}`, { cause });
+  }
 }

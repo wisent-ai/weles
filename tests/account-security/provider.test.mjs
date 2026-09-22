@@ -68,18 +68,17 @@ test('real accounts retain enabled, disabled and unknown provider observations',
 });
 
 test('the deployed run API refuses mutation parameters before execution', async () => {
-  assert.ok(process.env.WELES_API_BASE && process.env.WELES_TOKEN && process.env.WISENT_ORGANIZATION_ID,
+  assert.ok(process.env.WELES_WORKER_API_BASE && process.env.WELES_WORKER_TOKEN,
     'The real authenticated Weles deployment is required');
-  const response = await fetch(new URL('/api/v1/runs', process.env.WELES_API_BASE), {
+  const response = await fetch(new URL('/run', process.env.WELES_WORKER_API_BASE), {
     method: 'POST', redirect: 'error',
     headers: {
-      'Content-Type': 'application/json', Authorization: `Bearer ${process.env.WELES_TOKEN}`,
-      'X-Wisent-Organization-ID': process.env.WISENT_ORGANIZATION_ID,
+      'Content-Type': 'application/json', Authorization: `Bearer ${process.env.WELES_WORKER_TOKEN}`,
     },
     body: JSON.stringify({ action: 'google_mfa_status', params: { login_item: 'unused', enable: true } }),
   });
   const body = await response.json();
   writeFileSync(resolve(evidence, 'mutation-refusal.json'), JSON.stringify({ status: response.status, body }, null, 2));
   assert.equal(response.status, 400);
-  assert.equal(body.row, undefined, 'A refused mutation must not become a queued run');
+  assert.equal(body.ok, false, 'A refused mutation must not be accepted for execution');
 });
