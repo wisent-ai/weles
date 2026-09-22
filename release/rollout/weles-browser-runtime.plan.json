@@ -1,0 +1,5 @@
+{
+  "schema": "wisent.weles-browser-runtime-plan.v1",
+  "components": ["chromium"],
+  "repair": true
+}
