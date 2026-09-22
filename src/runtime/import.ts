@@ -1,9 +1,8 @@
 import { readFile, stat } from 'node:fs/promises';
+import { welesApiConnection } from './api/connection.js';
 
 const MAX_IMPORT_BYTES = 2 * 1024 * 1024;
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const HOST_RE = /^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?$/;
-const CONTROL_RE = /[\u0000-\u001f\u007f]/u;
 const MAX_IMPORT_REQUEST_BYTES = MAX_IMPORT_BYTES + 4 * 1024;
 const IMPORT_STATES: Record<string, true> = {
   imported: true,
@@ -40,29 +39,6 @@ export type WelesImportClientOptions = {
   fetch?: typeof fetch;
 };
 
-function requiredConfiguration(value: string | undefined, name: string): string {
-  const normalized = value?.trim();
-  if (!normalized) throw new Error(`${name} is required`);
-  if (value !== normalized || CONTROL_RE.test(value)) throw new Error(`${name} contains invalid whitespace or control characters`);
-  return normalized;
-}
-
-function importEndpoint(raw: string): URL {
-  let endpoint: URL;
-  try {
-    endpoint = new URL(raw);
-  } catch {
-    throw new Error('WELES_API_BASE must be a URL');
-  }
-  if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
-    throw new Error('WELES_API_BASE must not contain credentials, query parameters, or a fragment');
-  }
-  const loopback = endpoint.hostname === 'localhost' || endpoint.hostname === '127.0.0.1' || endpoint.hostname === '[::1]';
-  if (endpoint.protocol !== 'https:' && !(endpoint.protocol === 'http:' && loopback)) {
-    throw new Error('WELES_API_BASE must use HTTPS unless it names a loopback host');
-  }
-  return new URL('/api/v1/imports', endpoint);
-}
 
 function parseReport(value: unknown, organizationId: string, targetHost: string): WelesImportReport {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Weles returned an invalid import result');
@@ -101,14 +77,7 @@ export async function importWelesTrajectoryDocument(
   targetHost: string,
   options: WelesImportClientOptions = {},
 ): Promise<WelesImportReport> {
-  const environment = options.environment ?? process.env;
-  const endpoint = importEndpoint(requiredConfiguration(options.endpoint ?? environment.WELES_API_BASE, 'WELES_API_BASE'));
-  const bearer = requiredConfiguration(options.bearer ?? environment.WELES_TOKEN, 'WELES_TOKEN');
-  const organizationId = requiredConfiguration(
-    options.organizationId ?? environment.WISENT_ORGANIZATION_ID,
-    'WISENT_ORGANIZATION_ID',
-  ).toLowerCase();
-  if (!UUID_RE.test(organizationId)) throw new Error('WISENT_ORGANIZATION_ID must be a UUID');
+  const connection = welesApiConnection('/api/v1/imports', options);
   const host = targetHost.trim().toLowerCase().replace(/\.+$/, '');
   if (!HOST_RE.test(host)) throw new Error('--host must be the exact managed Weles worker hostname');
 
@@ -123,13 +92,9 @@ export async function importWelesTrajectoryDocument(
   const requestBody = `{"source":${sourceJson},"target_host":${JSON.stringify(host)}}`;
   if (Buffer.byteLength(requestBody, 'utf8') > MAX_IMPORT_REQUEST_BYTES) throw new Error('trajectory import request exceeds its 2 MiB source limit');
 
-  const response = await (options.fetch ?? fetch)(endpoint, {
+  const response = await connection.fetch(connection.endpoint, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${bearer}`,
-      'X-Wisent-Organization-ID': organizationId,
-    },
+    headers: connection.headers,
     body: requestBody,
   });
   const text = await response.text();
@@ -149,7 +114,7 @@ export async function importWelesTrajectoryDocument(
       : `Weles import failed with HTTP ${response.status}`;
     throw new Error(error);
   }
-  return parseReport(body, organizationId, host);
+  return parseReport(body, connection.organizationId, host);
 }
 
 export async function importWelesTrajectoryFile(

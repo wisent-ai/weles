@@ -40,3 +40,5 @@ export { FileJourneyStorage, runWelesOnboarding, WELES_FIRST_USE_FALLBACK } from
 export type { WelesOnboardingInput, WelesOnboardingView } from './onboarding/first-use.js';
 export { importWelesTrajectoryDocument, importWelesTrajectoryFile } from './runtime/import.js';
 export type { WelesImportClientOptions, WelesImportItem, WelesImportReport } from './runtime/import.js';
+export { accountSecurityRun } from './runtime/api/account-security.js';
+export type { AccountSecurityRun, AccountSecurityResult } from './runtime/api/account-security.js';

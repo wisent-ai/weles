@@ -19,6 +19,7 @@ gmail_login_search
 github_health
 github_login
 github_register
+google_mfa_status
 instagram_health
 instagram_login
 instagram_register

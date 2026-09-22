@@ -5,8 +5,9 @@ import type { AsyncNewBrowserOptions } from './async_api.js';
 import { runDoctor } from './cli/diagnostics.js';
 import { runImport, runOnboarding, runRelease, runFigma } from './cli/workflows.js';
 import { runOperatorRequests } from './cli/operator-requests.js';
+import { runAccountSecurity } from './cli/security/account-security.js';
 
-type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import' | 'release' | 'figma' | 'operator-requests';
+type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import' | 'release' | 'figma' | 'operator-requests' | 'account-security';
 
 export type ParsedCli = {
   command: CliCommand;
@@ -33,6 +34,8 @@ Usage:
   weles operator-requests show <id> [--json]
   weles operator-requests open --kind <kind> --account <account> --run <run> --instruction <text> --minutes <n>
   weles operator-requests close <id> --approved|--unapproved --detail <text>
+  weles account-security --login-item <skarbiec-item>
+  weles account-security --run <run-id>
   weles doctor
   weles version
 
@@ -42,6 +45,7 @@ Options:
   --keys <file>           JSON map of trusted receipt key IDs to PEM public keys.
   --state-dir <dir>       Override the durable onboarding state directory.
   --host <hostname>       Exact managed Weles worker hostname for imported definitions.
+  --login-item <item>     Exact Skarbiec Google account; read 2FA without signing in or changing it.
   --headless              Launch without a visible browser window.
   --browser <name>        Browser engine passed to AsyncNewBrowser (default: chromium).
   --os <name>             Persona OS passed to AsyncNewBrowser (default: macos).
@@ -127,11 +131,13 @@ export function parseCliArgs(argv: string[]): ParsedCli {
 function normalizeCommand(command?: string): CliCommand {
   if (!command || command === '--help' || command === '-h' || command === 'help') return 'help';
   if (command === '--version' || command === '-v' || command === 'version') return 'version';
+  if (command === 'account-security') return command;
   if (command === 'doctor' || command === 'open' || command === 'screenshot' || command === 'mcp' || command === 'onboarding' || command === 'import' || command === 'release' || command === 'figma' || command === 'operator-requests') return command;
   throw new Error(`unknown command: ${command}`);
 }
 
 function optionTakesValue(key: string): boolean {
+  if (key === 'login-item') return true;
   return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'timeout', 'subject', 'receipt', 'keys', 'state-dir', 'host', 'decision', 'baseline', 'declaration', 'manifest', 'source-revision', 'candidate-tag', 'released', 'published-surface', 'reason', 'correcting', 'root', 'limit', 'kind', 'account', 'run', 'instruction', 'minutes', 'detail'].includes(key);
 }
 
@@ -242,6 +248,10 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   }
   if (parsed.command === 'operator-requests') {
     await runOperatorRequests(parsed);
+    return;
+  }
+  if (parsed.command === 'account-security') {
+    await runAccountSecurity(parsed);
     return;
   }
   if (parsed.command === 'mcp') {

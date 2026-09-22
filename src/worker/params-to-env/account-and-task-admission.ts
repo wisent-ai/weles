@@ -48,6 +48,16 @@ export function applyAccountAndTaskAdmission(
     }
     env.WELES_LOGIN_ITEM = requested.trim();
   }
+  if (trajPath.endsWith('/google/authenticator/status.mjs')) {
+    const requested = params.login_item;
+    if (typeof requested !== 'string' || !requested.trim()) {
+      throw new Error('login_item must name the exact Skarbiec account to inspect');
+    }
+    if (Object.keys(params).some((key) => key !== 'login_item')) {
+      throw new Error('2FA status accepts only login_item; sign-in and account changes are not supported');
+    }
+    env.WELES_LOGIN_ITEM = requested.trim();
+  }
   if (trajPath.endsWith('/generic/browser_task.mjs') || trajPath.endsWith('/generic/keeper_task.mjs')) {
     const passthrough: Array<[string, string]> = [
       ['url', 'GENERIC_TASK_URL'],

@@ -8,6 +8,7 @@ dist/
 # committed: the workflow named a path git was silently refusing to add, and
 # build-check failed on main for a file nobody could see was missing.
 /build/
+/.build/
 .eggs/
 *.so
 .venv/

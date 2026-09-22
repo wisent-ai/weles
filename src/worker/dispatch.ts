@@ -267,6 +267,7 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   // google_authenticator_enrol: enrol a Google Authenticator for one
   // Skarbiec login item and store its seed there (params.login_item).
   authenticator_enrol: (p) => p === 'google' ? 'src/trajectories/google/authenticator/enrol.mjs' : null,
+  mfa_status: (p) => p === 'google' ? 'src/trajectories/google/authenticator/status.mjs' : null,
 };
 
 export function resolveTrajectory(action: string): string | null {

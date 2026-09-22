@@ -24,7 +24,7 @@ to rediscover how the website works. When a run fails, Weles records videos
 showing the points of failure to give you a clear understanding of what happened
 and how it can be fixed.
 
-Give your AI the keys to the internet. The browser-use experience your AI deserves.
+Read Google 2FA without changing it: `weles account-security --login-item <skarbiec-item>`, then `weles account-security --run <run-id>`. The [account-security reference](https://weles.wisent.com/docs/account-security) distinguishes a provider-confirmed boolean from an unknown state; a saved seed proves neither.
 
 [Documentation](https://weles.wisent.com/docs) · [Releases](https://github.com/wisent-ai/weles/releases) · [MIT licence](LICENSE)
 
