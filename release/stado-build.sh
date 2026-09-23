@@ -51,6 +51,8 @@ git config --global url."file://$WISENT_INPUT_WELES_CLIENT_BUNDLE_DIR".insteadOf
 git config --global --add url."file://$WISENT_INPUT_WELES_CLIENT_BUNDLE_DIR".insteadOf "git@github.com:wisent-ai/weles-client.git"
 git config --global url."file://$WISENT_INPUT_WISENT_COST_TRACKER_BUNDLE_DIR".insteadOf "ssh://git@github.com/wisent-ai/wisent-cost-tracker.git"
 git config --global --add url."file://$WISENT_INPUT_WISENT_COST_TRACKER_BUNDLE_DIR".insteadOf "git@github.com:wisent-ai/wisent-cost-tracker.git"
+install -m 0644 "$WISENT_INPUT_WELES_CLIENT_BUNDLE_DIR" "$WISENT_OUTPUT_DIR/inputs/weles-client.bundle"
+install -m 0644 "$WISENT_INPUT_WISENT_COST_TRACKER_BUNDLE_DIR" "$WISENT_OUTPUT_DIR/inputs/wisent-cost-tracker.bundle"
 cd "$source"
 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci --ignore-scripts
 chmod 0755 node_modules/node-pty/prebuilds/*/spawn-helper
