@@ -60,6 +60,8 @@ export function createDispatcher({
   let dispatching = false;
   let dispatcherHealthy = true;
   let draining = false;
+  let recovering = false;
+  let failure = null;
 
   function dispatcherStatus() {
     return {
@@ -68,6 +70,10 @@ export function createDispatcher({
       active: active.size,
       queued: queue.length,
       healthy: dispatcherHealthy,
+      dispatching,
+      draining,
+      recovering,
+      failure,
     };
   }
 
@@ -103,7 +109,7 @@ export function createDispatcher({
     let controller = null;
     await withTaskLock(taskId, async () => {
       const task = await loadTask(taskId);
-      if (draining || task.receipt || task.completion) return;
+      if (draining || recovering || task.receipt || task.completion) return;
       if (task.cancellation) {
         task.completion = {
           ...terminalCompletion(null, true, redact, task.executionInput.url),
@@ -115,10 +121,14 @@ export function createDispatcher({
       }
       if (task.status !== 'queued' || active.has(task.id)) return;
       controller = new AbortController();
-      active.set(task.id, { controller, promise: Promise.resolve() });
       task.status = 'running';
       task.startedAt = new Date().toISOString();
       await persistTask(task);
+      if (draining || recovering) {
+        controller = null;
+        return;
+      }
+      active.set(task.id, { controller, promise: Promise.resolve() });
     });
     if (!controller) return;
     const running = active.get(taskId);
@@ -131,19 +141,21 @@ export function createDispatcher({
   }
 
   async function dispatchQueue() {
-    if (dispatching || draining) return;
+    if (dispatching || draining || recovering) return;
     dispatching = true;
     try {
-      while (!draining && active.size < concurrency && queue.length > 0) {
+      while (!draining && !recovering && active.size < concurrency && queue.length > 0) {
         const taskId = queue.shift();
         queued.delete(taskId);
         try {
           await startTask(taskId);
           dispatcherHealthy = true;
-        } catch {
+          failure = null;
+        } catch (error) {
           queue.unshift(taskId);
           queued.add(taskId);
           dispatcherHealthy = false;
+          failure = { operation: 'start-task', taskId, message: redact(String(error?.message ?? error)) };
           break;
         }
       }
@@ -166,6 +178,24 @@ export function createDispatcher({
     if (index >= 0) queue.splice(index, 1);
   }
 
+  function beginRecovery() {
+    if (draining || dispatching || active.size > 0 || (recovering && !failure)) return false;
+    recovering = true;
+    failure = null;
+    queue.length = 0;
+    queued.clear();
+    return true;
+  }
+
+  async function finishRecovery(error = null) {
+    failure = error
+      ? { operation: 'recover-tasks', message: redact(String(error?.message ?? error)) }
+      : null;
+    dispatcherHealthy = !error;
+    recovering = Boolean(error);
+    if (!error) await dispatchQueue();
+  }
+
   async function shutdown() {
     draining = true;
     queue.length = 0;
@@ -183,6 +213,8 @@ export function createDispatcher({
     enqueue,
     removeQueued,
     dispatchQueue,
+    beginRecovery,
+    finishRecovery,
     shutdown,
   });
 }

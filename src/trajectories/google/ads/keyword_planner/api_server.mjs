@@ -1,53 +1,36 @@
-// Google Ads Keyword Planner API facade for a Mac mini running Weles.
-// This HTTP server is only a transport wrapper around ads_keyword_planner_keeper.mjs.
+// Google Ads Keyword Planner routes of the Weles API process.
+// This module is only a transport wrapper around ads_keyword_planner_keeper.mjs.
 // It must not call Google Ads REST/developer-token APIs; metrics remain UI-observed
-// through the persistent Weles keeper and its logged-in browser profile.
+// through the Weles keeper session and its logged-in browser profile.
 //
-// Env:
+// There is no separate keyword-planner server or unit. POST /google-ads/keyword-volume
+// and POST /google-ads/keyword-report are answered by the one Weles process
+// (src/worker/weles-api-server.mjs), authenticated with this facade's own bearer.
+//
+// Env of the Weles process:
 //   WELES_KEYWORD_PLANNER_API_TOKEN required unless WELES_KEYWORD_PLANNER_API_ALLOW_UNAUTH=1
-//   WELES_KEYWORD_PLANNER_API_HOST  optional, default 127.0.0.1
-//   WELES_KEYWORD_PLANNER_API_PORT  optional, default 8787
 //   SESSION                         optional, default google_ads
 //   STADO_MODEL_ROUTER_URL          required model-router endpoint
 //   WELES_STADO_MODEL_ROUTER_TOKEN  required server-side model-router bearer
 //   WELES_STADO_MODEL_ROUTER_AGENT_ID required Brama caller identity
 //   WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET required Brama request-signing secret
-//
-// Example on Mac mini:
-//   cd ~/Documents/CodingProjects/Wisent/weles
-//   WELES_KEYWORD_PLANNER_API_HOST=0.0.0.0 \
-//   WELES_KEYWORD_PLANNER_API_TOKEN="$WELES_CONSOLE_API_TOKEN" \
-//   node src/trajectories/google/ads/keyword_planner/api_server.mjs
 
-import http from 'node:http';
 import { existsSync } from 'node:fs';
-import { ALLOW_UNAUTH, API_TOKEN, HOST, PORT, RUNNER, SESSION, redact } from './api_server/service_settings.mjs';
+import { ALLOW_UNAUTH, API_TOKEN, RUNNER, redact } from './api_server/service_settings.mjs';
 import { authorized, json, readJsonBody, validateReportRequest, validateRequest } from './api_server/request_intake.mjs';
 import { runKeywordPlanner } from './api_server/keeper_harvest.mjs';
 import { generateKeywordsWithRouter } from './api_server/model_router.mjs';
 import { buildKeywordReport, runKeywordReport } from './api_server/saturation_report.mjs';
 
-const server = http.createServer(async (req, res) => {
+const KEYWORD_VOLUME = '/google-ads/keyword-volume';
+const KEYWORD_REPORT = '/google-ads/keyword-report';
+
+export function isKeywordPlannerRoute(req, url) {
+  return req.method === 'POST' && (url.pathname === KEYWORD_VOLUME || url.pathname === KEYWORD_REPORT);
+}
+
+export async function respondToKeywordPlanner(req, res, url) {
   try {
-    const url = new URL(req.url || '/', `http://${req.headers.host || `${HOST}:${PORT}`}`);
-    if (req.method === 'GET' && url.pathname === '/healthz') {
-      json(res, 200, {
-        ok: true,
-        source: 'weles_keyword_planner_api',
-        authConfigured: Boolean(API_TOKEN || ALLOW_UNAUTH),
-        session: SESSION,
-        runner: RUNNER,
-      });
-      return;
-    }
-
-    const isKeywordVolume = req.method === 'POST' && url.pathname === '/google-ads/keyword-volume';
-    const isKeywordReport = req.method === 'POST' && url.pathname === '/google-ads/keyword-report';
-    if (!isKeywordVolume && !isKeywordReport) {
-      json(res, 404, { ok: false, error: 'not_found' });
-      return;
-    }
-
     if (!authorized(req)) {
       json(res, API_TOKEN || ALLOW_UNAUTH ? 401 : 500, {
         ok: false,
@@ -64,7 +47,7 @@ const server = http.createServer(async (req, res) => {
     const body = await readJsonBody(req);
     const startedAt = new Date().toISOString();
 
-    if (isKeywordVolume) {
+    if (url.pathname === KEYWORD_VOLUME) {
       const input = validateRequest(body);
       const run = await runKeywordPlanner(input);
       const response = {
@@ -109,8 +92,4 @@ const server = http.createServer(async (req, res) => {
   } catch (error) {
     json(res, 400, { ok: false, error: String(error?.message || error) });
   }
-});
-
-server.listen(PORT, HOST, () => {
-  console.log(`[weles-keyword-planner-api] listening http://${HOST}:${PORT} session=${SESSION} auth=${Boolean(API_TOKEN || ALLOW_UNAUTH)}`);
-});
+}

@@ -9,7 +9,7 @@
 //
 // Three small route families stay written out here rather than in files of
 // their own, because each is the router repeating what it already knows: what
-// this build is (liveness), what the launchd worker is doing, and which
+// this build is (liveness), what its resident task dispatcher is doing, and which
 // artifact of a finished run may be downloaded. The routes that order a
 // trajectory are the ones that carry real subjects of their own, and they live
 // beside this file.
@@ -20,6 +20,8 @@
 
 import { createReadStream } from 'node:fs';
 
+import { isKeywordPlannerRoute, respondToKeywordPlanner } from '../../../trajectories/google/ads/keyword_planner/api_server.mjs';
+
 import { ALLOW_RAW_CREDS, ALLOW_UNAUTH, HOST, PORT, TOKEN } from '../configuration.mjs';
 import { json, readBody, requireTokenAuthorization } from '../http-exchange.mjs';
 import { RUN_RELEASE_IDENTITY } from '../release-identity.mjs';
@@ -29,7 +31,7 @@ import {
   diagnosticsContentType,
   diagnosticsManifest,
 } from '../run/run-evidence.mjs';
-import { controlWorker, workerStatus } from '../worker-control.mjs';
+import { createWorkerControl, workerActions } from '../worker-control.mjs';
 import { respondToRun } from './run-route.mjs';
 import {
   respondToAuthenticatorEnrolment,
@@ -37,11 +39,6 @@ import {
   respondToDocumentImport,
   respondToReauth,
 } from './trajectory-routes.mjs';
-
-// Starting or restarting the worker is a launchd transaction that must not
-// overlap with another one, so a second control request is refused rather than
-// queued behind the first.
-let workerControlBusy = false;
 
 export function createApiRequestHandler({
   buildDeploymentVersionValue,
@@ -53,6 +50,9 @@ export function createApiRequestHandler({
   selectLoginAccount,
   validateAccountSecurityParams,
 }) {
+  const { controlWorker, workerStatus } = createWorkerControl(publicTaskService);
+  // Recovery changes one durable queue. Concurrent control requests are refused.
+  let workerControlBusy = false;
   return async (req, res) => {
     try {
       const url = new URL(req.url || '/', `http://${req.headers.host || `${HOST}:${PORT}`}`);
@@ -69,7 +69,7 @@ export function createApiRequestHandler({
           // is the one it built, and `stado workload run weles-api-runtime`
           // used to report a revision from a launchctl restart alone.
           sourceRevision: RUN_RELEASE_IDENTITY.source_revision,
-          routes: ['GET /healthz', 'GET /api/v1/version', 'POST /api/v1/credential-operations', 'POST /api/v1/tasks', 'GET /api/v1/tasks/:task_id', 'POST /api/v1/tasks/:task_id/cancel', 'GET /worker/version', 'GET /worker/status', 'POST /worker/start', 'POST /worker/restart', 'POST /run', 'GET /diagnostics/:run_id', 'GET /diagnostics/:run_id/file?path=', 'POST /weles-builder', 'POST /reauth/resolve', 'POST /reauth', 'POST /reauth/enrol-authenticator'],
+          routes: ['GET /healthz', 'GET /api/v1/version', 'POST /api/v1/credential-operations', 'POST /api/v1/tasks', 'GET /api/v1/tasks/:task_id', 'POST /api/v1/tasks/:task_id/cancel', 'GET /worker/version', 'GET /worker/status', 'POST /worker/start', 'POST /worker/restart', 'POST /run', 'GET /diagnostics/:run_id', 'GET /diagnostics/:run_id/file?path=', 'POST /weles-builder', 'POST /reauth/resolve', 'POST /reauth', 'POST /reauth/enrol-authenticator', 'POST /google-ads/keyword-volume', 'POST /google-ads/keyword-report'],
           publicTask: publicTaskService.health,
           features: ['subscription_identity', 'fresh_profile'],
           account_source: 'skarbiec',
@@ -105,11 +105,12 @@ export function createApiRequestHandler({
       if (req.method === 'GET' && url.pathname === '/worker/status') {
         if (!requireTokenAuthorization(req, res)) return;
         const status = await workerStatus();
-        json(res, status.supported ? 200 : 501, { ok: status.supported, worker: status });
+        json(res, 200, { ok: true, worker: status });
         return;
       }
-      const workerControlMatch = /^\/worker\/(start|restart)$/.exec(url.pathname);
-      if (req.method === 'POST' && workerControlMatch) {
+      const workerAction = url.pathname.startsWith('/worker/') ? url.pathname.slice('/worker/'.length) : '';
+      if (Object.hasOwn(workerActions, workerAction)
+          && workerActions[workerAction].mutation && req.method === workerActions[workerAction].method) {
         if (!requireTokenAuthorization(req, res)) return;
         if (workerControlBusy) {
           json(res, 409, { ok: false, error: 'worker_control_in_progress' });
@@ -117,7 +118,7 @@ export function createApiRequestHandler({
         }
         workerControlBusy = true;
         try {
-          const action = workerControlMatch[1];
+          const action = workerAction;
           const out = await controlWorker(action);
           console.log(JSON.stringify({
             event: 'worker_control',
@@ -128,7 +129,7 @@ export function createApiRequestHandler({
             before: out.before,
             after: out.after,
           }));
-          const statusCode = out.ok ? 200 : (out.error === 'worker_control_requires_macos' ? 501 : 502);
+          const statusCode = out.ok ? 200 : (out.error === 'worker_busy' ? 409 : 502);
           json(res, statusCode, out);
         } finally {
           workerControlBusy = false;
@@ -171,6 +172,10 @@ export function createApiRequestHandler({
       }
       if (req.method === 'POST' && url.pathname === '/reauth/enrol-authenticator') {
         await respondToAuthenticatorEnrolment(req, res, selectLoginAccount, runTrajectory);
+        return;
+      }
+      if (isKeywordPlannerRoute(req, url)) {
+        await respondToKeywordPlanner(req, res, url);
         return;
       }
       if (req.method === 'POST' && url.pathname === '/weles-builder') {

@@ -1,19 +1,16 @@
-// Getting one harvest onto this machine. The persistent keeper owns the
-// logged-in Google Ads browser profile, so this module proves the keeper is
-// answering on its socket, starts it against that profile when it is not, then
-// runs ads_keyword_planner_keeper.mjs as a child and reads back the result file
-// it wrote — rewritten with credentials redacted before anyone else sees it.
+// Getting one harvest onto this machine. The keeper session owns the logged-in
+// Google Ads browser profile, so this module proves the keeper is answering on
+// its socket, then runs ads_keyword_planner_keeper.mjs as a child for this one
+// request and reads back the result file it wrote — rewritten with credentials
+// redacted before anyone else sees it. It never starts a keeper: a detached
+// keeper would outlive the request as a second permanent Weles process.
 
 import net from 'node:net';
 import { spawn } from 'node:child_process';
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   DIAG_DIR,
-  KEEPER,
-  KEEPER_READY_TIMEOUT_MS,
-  KEEPER_START,
-  KEEPER_USER_DATA_DIR,
   REPO,
   RUNNER,
   redact,
@@ -56,53 +53,14 @@ function keeperAction(session, cmd) {
   });
 }
 
-async function waitForKeeper(session, readyWindowMs = KEEPER_READY_TIMEOUT_MS) {
-  const deadline = Date.now() + readyWindowMs;
-  let last = { ok: false, error: 'keeper_not_checked', socket: keeperSocketPath(session) };
-  while (Date.now() < deadline) {
-    last = await keeperAction(session, { action: 'url' });
-    if (last?.ok) return { ready: true, socket: keeperSocketPath(session) };
-    await new Promise((resolveWait) => setTimeout(resolveWait, 500));
-  }
-  return { ready: false, socket: keeperSocketPath(session), lastError: last?.error || 'keeper_not_ready' };
-}
-
 async function ensureKeeper(session) {
   const existing = await keeperAction(session, { action: 'url' });
-  if (existing?.ok) return { ready: true, started: false, socket: keeperSocketPath(session) };
-  if (!KEEPER_START) {
-    return { ready: false, started: false, disabled: true, socket: keeperSocketPath(session), lastError: existing?.error || 'keeper_start_disabled' };
-  }
-  if (!existsSync(KEEPER)) {
-    return { ready: false, started: false, socket: keeperSocketPath(session), lastError: 'keeper_script_missing', keeper: KEEPER };
-  }
-
-  mkdirSync(DIAG_DIR, { recursive: true });
-  mkdirSync(dirname(KEEPER_USER_DATA_DIR), { recursive: true });
-  const logPath = join(DIAG_DIR, `keeper-${session}.log`);
-  const fd = openSync(logPath, 'a');
-  try {
-    const child = spawn(process.execPath, [KEEPER], {
-      cwd: REPO,
-      detached: true,
-      stdio: ['ignore', fd, fd],
-      env: stripAmbientCredentialEnv({
-        ...process.env,
-        WELES_REPO: REPO,
-        SESSION: session,
-        KEEPER_FLOW_ACTION: process.env.GOOGLE_ADS_KEEPER_FLOW_ACTION || 'google_ads_keyword_planner_keeper',
-        KEEPER_USER_DATA_DIR,
-        WELES_USER_DATA_DIR: KEEPER_USER_DATA_DIR,
-        URL: process.env.GOOGLE_ADS_KEEPER_START_URL || 'https://ads.google.com/aw/overview',
-      }),
-    });
-    child.unref();
-  } finally {
-    closeSync(fd);
-  }
-
-  const waited = await waitForKeeper(session);
-  return { ...waited, started: true, logPath, userDataDir: KEEPER_USER_DATA_DIR };
+  if (existing?.ok) return { ready: true, socket: keeperSocketPath(session) };
+  return {
+    ready: false,
+    socket: keeperSocketPath(session),
+    lastError: existing?.error || 'keeper_not_running',
+  };
 }
 
 // The child writes its metrics unredacted; nobody reads that file until it has
@@ -140,7 +98,6 @@ export async function runKeywordPlanner(input) {
         blocked: 'keeper_not_ready',
         session: input.session,
         socket: keeper.socket,
-        started: Boolean(keeper.started),
         lastError: keeper.lastError || null,
       },
     };

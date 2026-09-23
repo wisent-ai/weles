@@ -75,7 +75,11 @@ export function createPublicTaskService(options) {
   });
 
   const health = Object.freeze({
-    get ready() { return deployedIdentity.staticReady && deployedIdentity.identityReady(); },
+    get ready() {
+      const state = dispatcher.dispatcherStatus();
+      return !state.draining && !state.recovering && state.healthy
+        && deployedIdentity.staticReady && deployedIdentity.identityReady();
+    },
     get prerequisites() { return deployedIdentity.readinessStatus(); },
     get serviceIdentity() { return deployedIdentity.lastServiceIdentity(); },
     get dispatcher() { return dispatcher.dispatcherStatus(); },
@@ -110,7 +114,7 @@ export function createPublicTaskService(options) {
           },
         };
       }
-      const admissionReady = deployedIdentity.staticReady && deployedIdentity.identityReady();
+      const admissionReady = health.ready;
       return {
         status: admissionReady ? 200 : 503,
         payload: {
@@ -145,9 +149,31 @@ export function createPublicTaskService(options) {
     if (!bearerAuthorized(request, config.bearer)) {
       throw new PublicTaskError(401, 'unauthorized', 'unauthorized');
     }
+    if (isSubmit && dispatcher.dispatcherStatus().recovering) {
+      throw new PublicTaskError(503, 'worker-recovering', 'task admission is paused while the worker recovers its durable state');
+    }
     if (isSubmit) return operations.submit(request, await readBody(request));
     if (isGet) return operations.getTask(taskMatch[1]);
     return operations.cancel(request, cancelMatch[1], await readBody(request));
+  }
+
+  async function restartWorker() {
+    if (!dispatcher.beginRecovery()) {
+      return { ok: false, error: 'worker_busy', dispatcher: dispatcher.dispatcherStatus() };
+    }
+    try {
+      await operations.recover();
+    } catch (error) {
+      await dispatcher.finishRecovery(error);
+      return { ok: false, error: 'worker_recovery_failed', dispatcher: dispatcher.dispatcherStatus() };
+    }
+    await dispatcher.finishRecovery();
+    const state = dispatcher.dispatcherStatus();
+    return {
+      ok: state.healthy && !state.draining,
+      ...(state.healthy && !state.draining ? {} : { error: 'worker_not_running_after_control_action' }),
+      dispatcher: state,
+    };
   }
 
   return Object.freeze({
@@ -155,5 +181,6 @@ export function createPublicTaskService(options) {
     handle,
     recover: operations.recover,
     shutdown: dispatcher.shutdown,
+    restartWorker,
   });
 }

@@ -1,7 +1,8 @@
-// Where this facade runs and what it may say out loud: the listening address,
-// the caller's token, the keeper session and browser profile it supervises, the
-// diagnostics directory it writes into, and the two filters that keep Google
-// credentials out of every child environment and out of every printed line.
+// What this facade may say out loud inside the Weles process: the caller's
+// token, the keeper session it asks for, the diagnostics directory it writes
+// into, and the two filters that keep Google credentials out of every child
+// environment and out of every printed line. It binds no port and starts no
+// keeper: the Weles API process serves its routes.
 
 import { runOutputPath } from '#run-output';
 import { dirname, join, resolve } from 'node:path';
@@ -10,34 +11,16 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 export const REPO = resolve(here, '../../../../..');
 export const RUNNER = join(here, '../ads_keyword_planner_keeper.mjs');
-export let HOST = process.env.WELES_KEYWORD_PLANNER_API_HOST || '127.0.0.1';
-export let PORT = Number(process.env.WELES_KEYWORD_PLANNER_API_PORT || 8787);
 export let SESSION = process.env.SESSION || process.env.GOOGLE_ADS_KEEPER_SESSION || 'google_ads';
 export let API_TOKEN = process.env.WELES_KEYWORD_PLANNER_API_TOKEN || process.env.WELES_CONSOLE_API_TOKEN || '';
 export let ALLOW_UNAUTH = process.env.WELES_KEYWORD_PLANNER_API_ALLOW_UNAUTH === '1';
 export let BODY_LIMIT_BYTES = Number(process.env.WELES_KEYWORD_PLANNER_API_BODY_LIMIT_BYTES || 128 * 1024);
 export let DIAG_DIR = process.env.GOOGLE_ADS_DIAG_DIR || runOutputPath('google-ads-keyword-planner', 'api');
-export const KEEPER = join(REPO, 'src/_shared/keeper/keeper.mjs');
-export let KEEPER_START = process.env.GOOGLE_ADS_KEEPER_START !== '0';
-export let KEEPER_READY_TIMEOUT_MS = Number(process.env.GOOGLE_ADS_KEEPER_READY_TIMEOUT_MS || 90 * 1000);
-export let KEEPER_USER_DATA_DIR = process.env.GOOGLE_ADS_KEEPER_USER_DATA_DIR
-  || process.env.KEEPER_USER_DATA_DIR
-  || process.env.WELES_USER_DATA_DIR
-  || join(process.env.HOME || '', '.weles', 'browser_profiles', 'google_ads');
-
-HOST = process.env.WELES_KEYWORD_PLANNER_API_HOST || HOST;
-PORT = Number(process.env.WELES_KEYWORD_PLANNER_API_PORT || PORT);
 SESSION = process.env.SESSION || process.env.GOOGLE_ADS_KEEPER_SESSION || SESSION;
 API_TOKEN = process.env.WELES_KEYWORD_PLANNER_API_TOKEN || process.env.WELES_CONSOLE_API_TOKEN || API_TOKEN;
 ALLOW_UNAUTH = process.env.WELES_KEYWORD_PLANNER_API_ALLOW_UNAUTH === '1' || ALLOW_UNAUTH;
 BODY_LIMIT_BYTES = Number(process.env.WELES_KEYWORD_PLANNER_API_BODY_LIMIT_BYTES || BODY_LIMIT_BYTES);
 DIAG_DIR = process.env.GOOGLE_ADS_DIAG_DIR || DIAG_DIR;
-KEEPER_START = process.env.GOOGLE_ADS_KEEPER_START !== '0' && KEEPER_START;
-KEEPER_READY_TIMEOUT_MS = Number(process.env.GOOGLE_ADS_KEEPER_READY_TIMEOUT_MS || KEEPER_READY_TIMEOUT_MS);
-KEEPER_USER_DATA_DIR = process.env.GOOGLE_ADS_KEEPER_USER_DATA_DIR
-  || process.env.KEEPER_USER_DATA_DIR
-  || process.env.WELES_USER_DATA_DIR
-  || KEEPER_USER_DATA_DIR;
 
 export function redact(text) {
   return String(text || '')

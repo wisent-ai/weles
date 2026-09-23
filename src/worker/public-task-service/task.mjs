@@ -214,6 +214,7 @@ export function createTaskOperations({
       return byCreatedAt || left.taskId.localeCompare(right.taskId);
     });
     for (const entry of recoveredQueue) {
+      if (queued.has(entry.taskId)) continue;
       queue.push(entry.taskId);
       queued.add(entry.taskId);
     }

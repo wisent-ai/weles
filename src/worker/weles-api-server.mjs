@@ -21,11 +21,13 @@
 //   WELES_API_TOKEN  (or WELES_CONSOLE_API_TOKEN) required for the general API
 //   BRAMA_WELES_REAUTH_TOKEN required for Brama's POST /reauth admission
 //   WELES_API_HOST   default 127.0.0.1  (set 0.0.0.0 to expose on the LAN/Tailscale)
-//   WELES_API_PORT   default 8788       (keyword-planner-api already owns 8787)
+//   WELES_API_PORT   default 8788
 //   WELES_API_TIMEOUT_MS  default 900000
 //   WELES_API_BODY_LIMIT_BYTES default 262144
 //   WELES_API_ALLOW_RAW_CREDS  default "1"
 //   WELES_API_BASE, WELES_TOKEN, WISENT_ORGANIZATION_ID for destination imports
+//   WELES_KEYWORD_PLANNER_API_TOKEN and the model-router variables for the
+//                    keyword-planner routes (see keyword_planner/api_server.mjs)
 //   plus the worker browser, proxy, Stado, and Skarbiec configuration
 //
 // Routes:
@@ -34,9 +36,11 @@
 //   POST /imports                         -> validate and persist host-bound draft trajectories
 //   GET  /diagnostics/:run_id             -> authenticated artifact manifest
 //   GET  /diagnostics/:run_id/file?path=  -> authenticated artifact download
-//   GET  /worker/status                   -> authenticated launchd worker state
+//   GET  /worker/status                   -> authenticated resident dispatcher state
 //   POST /worker/start                    -> authenticated idempotent start
-//   POST /worker/restart                  -> authenticated forced restart
+//   POST /worker/restart                  -> recover an idle dispatcher without another process
+//   POST /google-ads/keyword-volume       -> keyword planner harvest (planner bearer)
+//   POST /google-ads/keyword-report       -> keyword planner report (planner bearer)
 //
 // What this file keeps is the release boundary and the process. It is the only
 // module allowed to name a path inside the deployed runtime tree: the six
@@ -52,7 +56,7 @@
 // assembled from the routes, the port is bound, and a termination signal drains
 // public tasks before the process exits. `weles-api-server/` holds the
 // subjects: what release this is, what the environment configured, who is
-// admitted and what an answer may contain, what the launchd worker is doing,
+// admitted and what an answer may contain, what the resident worker is doing,
 // which published service this host may be, what a run leaves behind and how
 // its child is supervised, and which route answers a request.
 

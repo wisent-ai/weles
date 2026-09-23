@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
   "current": "0.7.29",
-  "candidate": "0.7.31",
+  "candidate": "0.7.32",
   "breaking": false,
-  "reason": "Retain the authenticator-enrolment route and host the HTTP API in its launcher process, using the shared Skarbiec broker. Refuse duplicate launchers and restore incomplete cached startup modules from the verified payload."
+  "reason": "Run the task dispatcher and the Google Ads keyword-planner routes inside the one Weles API process: /worker controls address the resident dispatcher instead of a launchd worker job, the keyword planner has no server of its own, and no route or trajectory starts a detached keeper. Retain the authenticator-enrolment route, the shared Skarbiec broker and the duplicate-launcher refusal."
 }

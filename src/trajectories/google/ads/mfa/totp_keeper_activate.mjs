@@ -1,9 +1,11 @@
-// Google Authenticator activation through the persistent Weles keeper.
-// No CUA. No CDP attach. No short-lived WSession loop. The keeper owns the browser/profile.
+// Google Authenticator activation through a running Weles keeper session.
+// No CUA. No CDP attach. No short-lived WSession loop. The keeper owns the
+// browser/profile; this finite run never starts one, because a detached keeper
+// would outlive the run as a second permanent Weles process.
 
 import { assertScopedSecretWriter } from '../../../../_shared/scoped-secrets.mjs';
 import { EMAIL, GOOGLE_ADS_LOGIN, RESULT_FILE, SESSION, SOCK, USER_DATA_DIR, writeResult } from './totp_keeper_activate/settings.mjs';
-import { startKeeperIfNeeded, waitForKeeper } from './totp_keeper_activate/keeper.mjs';
+import { waitForKeeper } from './totp_keeper_activate/keeper.mjs';
 import { activateSetup } from './totp_keeper_activate/setup.mjs';
 
 async function main() {
@@ -14,8 +16,7 @@ async function main() {
   }
   assertScopedSecretWriter('googleAds');
 
-  const started = startKeeperIfNeeded();
-  if (!await waitForKeeper()) writeResult({ ok: false, blocked: 'keeper_not_ready', session: SESSION, socket: SOCK, started }, 3);
+  if (!await waitForKeeper()) writeResult({ ok: false, blocked: 'keeper_not_ready', session: SESSION, socket: SOCK }, 3);
 
   const report = await activateSetup({ ...creds, email: EMAIL });
   report.session = SESSION;

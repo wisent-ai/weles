@@ -222,6 +222,7 @@ test('a healthy API refuses a second launcher without losing its listener', {
     HOME: home, PATH: process.env.PATH, NODE_BIN: process.execPath,
     STADO_BIN: resolve(stado), STADO_CONFIG: join(home, 'absent-stado-config.json'),
     WELES_API_HOST: '127.0.0.1', WELES_API_PORT: '0', WELES_API_TOKEN: randomUUID(),
+    WELES_KEYWORD_PLANNER_API_TOKEN: randomUUID(),
     WELES_WORKER_RELEASE_VERSION: version,
     WELES_WORKER_RELEASE_SHA256: report.worker_payload_sha256,
   };
@@ -253,6 +254,44 @@ test('a healthy API refuses a second launcher without losing its listener', {
     assert.equal(health.status, 200);
     const reported = await health.json();
     assert.equal(reported.sourceRevision, report.source_revision);
+    // The keyword planner has no server of its own: the same process and port
+    // answer its routes, behind the planner's own bearer.
+    assert.ok(reported.routes.includes('POST /google-ads/keyword-volume'), JSON.stringify(reported.routes));
+    assert.ok(reported.routes.includes('POST /google-ads/keyword-report'), JSON.stringify(reported.routes));
+    for (const route of ['/google-ads/keyword-volume', '/google-ads/keyword-report']) {
+      const planner = await fetch(`http://127.0.0.1:${port}${route}`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${env.WELES_API_TOKEN}`, 'content-type': 'application/json' },
+        body: '{}',
+      });
+      assert.equal(planner.status, 401, route);
+      assert.equal((await planner.json()).error, 'unauthorized', route);
+    }
+    const workerHeaders = { authorization: `Bearer ${env.WELES_API_TOKEN}` };
+    const refused = await fetch(`http://127.0.0.1:${port}/worker/restart`, { method: 'POST' });
+    assert.equal(refused.status, 401);
+    report.worker_control = [{ action: 'unauthenticated-restart', status: refused.status, body: await refused.json() }];
+    const worker = await fetch(`http://127.0.0.1:${port}/worker/status`, { headers: workerHeaders });
+    assert.equal(worker.status, 200);
+    const workerBody = await worker.json();
+    report.worker_control.push({ action: 'status', status: worker.status, body: workerBody });
+    assert.equal(workerBody.worker.pid, api.pid);
+    assert.equal(workerBody.worker.running, true);
+    for (const action of ['start', 'restart']) {
+      const response = await fetch(`http://127.0.0.1:${port}/worker/${action}`, { method: 'POST', headers: workerHeaders });
+      const body = await response.json();
+      report.worker_control.push({ action, status: response.status, body });
+      assert.equal(response.status, 200, JSON.stringify(body));
+      assert.equal(body.ok, true);
+      assert.equal(body.changed, action === 'restart');
+      assert.equal(body.after.pid, api.pid);
+      assert.equal(body.after.running, true);
+    }
+    const cli = command(process.execPath, [join(root, 'dist/cli.js'), 'worker', 'status', '--json'], {
+      cwd: home, env: { ...env, WELES_WORKER_API_BASE: `http://127.0.0.1:${port}`, WELES_WORKER_TOKEN: env.WELES_API_TOKEN },
+    });
+    assert.equal(cli.status, 0, cli.stderr);
+    assert.equal(JSON.parse(cli.stdout).worker.pid, api.pid);
     const duplicate = command(process.execPath, [join(root, 'src/worker/weles-api-launcher.mjs')], {
       cwd: home, env: { ...env, WELES_API_PORT: port },
     });
