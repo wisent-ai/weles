@@ -19,7 +19,7 @@ import { ENV_FILES, PATH_PREFIX, loadEnvFile } from './weles-api-launcher/config
 import { holderHealth, portHolder } from './weles-api-launcher/port.mjs';
 import { refuse } from './weles-api-launcher/running.mjs';
 import { startup } from './weles-api-launcher/startup.mjs';
-import { retirePredecessors } from './weles-api-server/predecessors.mjs';
+import { retirePredecessors } from './weles-api-launcher/predecessors.mjs';
 
 process.env.PATH = `${PATH_PREFIX}:${process.env.PATH ?? ''}`;
 const releaseVersion = process.env.WELES_WORKER_RELEASE_VERSION ?? '';

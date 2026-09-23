@@ -37,7 +37,7 @@ runtime_required=(
   src/worker/weles-api-launcher/port.mjs
   src/worker/weles-api-launcher/running.mjs
   src/worker/weles-api-launcher/startup.mjs
-  src/worker/weles-api-server/predecessors.mjs
+  src/worker/weles-api-launcher/predecessors.mjs
   src/_shared/skarbiec-runtime.mjs
   src/worker/deploy/acquire/skarbiec-acquire.mjs
   src/worker/deploy/acquire/skarbiec-acquisition-scopes.conf
