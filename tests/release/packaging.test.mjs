@@ -7,7 +7,7 @@
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, generateKeyPairSync, randomBytes, randomUUID } from 'node:crypto';
 import {
   copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, truncateSync, writeFileSync,
 } from 'node:fs';
@@ -178,11 +178,27 @@ test('a healthy API refuses a second launcher without losing its listener', {
   const unpacked = command('tar', ['-xzf', resolve(workerPayload), '-C', root]);
   assert.equal(unpacked.status, 0, unpacked.stderr);
   const version = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
+  // The server builds its public task admission before it binds, and the
+  // launcher supplies that admission's bearer, organization and receipt key
+  // from Skarbiec. This process is started without the launcher, so it is
+  // handed a complete admission of its own: a server missing any of these
+  // exits with `missing required <NAME>` before it listens.
+  const receiptKey = generateKeyPairSync('ed25519');
+  const receiptKeyId = `packaging-${randomUUID()}`;
   const env = {
     HOME: home, PATH: process.env.PATH, NODE_BIN: process.execPath,
     STADO_BIN: resolve(stado), STADO_CONFIG: join(home, 'absent-stado-config.json'),
     WELES_API_HOST: '127.0.0.1', WELES_API_PORT: '0', WELES_API_TOKEN: randomUUID(),
     WELES_KEYWORD_PLANNER_API_TOKEN: randomUUID(),
+    WELES_PUBLIC_API_BEARER: randomBytes(32).toString('hex'),
+    WELES_PUBLIC_API_ORGANIZATION_ID: randomUUID(),
+    WELES_PUBLIC_API_ALLOWED_ORIGINS: 'https://spis.wisent.com',
+    WELES_RECEIPT_KEY_ID: receiptKeyId,
+    WELES_RECEIPT_KEY_SET_VERSION: receiptKeyId,
+    WELES_RECEIPT_PRIVATE_KEY: receiptKey.privateKey.export({ format: 'pem', type: 'pkcs8' }),
+    WELES_RECEIPT_PUBLIC_KEYS_JSON: JSON.stringify({
+      [receiptKeyId]: receiptKey.publicKey.export({ format: 'pem', type: 'spki' }),
+    }),
     WELES_WORKER_RELEASE_VERSION: version,
     WELES_WORKER_RELEASE_SHA256: report.worker_payload_sha256,
   };
