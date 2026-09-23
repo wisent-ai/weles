@@ -19,6 +19,7 @@ import { ENV_FILES, PATH_PREFIX, loadEnvFile } from './weles-api-launcher/config
 import { holderHealth, portHolder } from './weles-api-launcher/port.mjs';
 import { refuse } from './weles-api-launcher/running.mjs';
 import { startup } from './weles-api-launcher/startup.mjs';
+import { retirePredecessors } from './weles-api-server/predecessors.mjs';
 
 process.env.PATH = `${PATH_PREFIX}:${process.env.PATH ?? ''}`;
 const releaseVersion = process.env.WELES_WORKER_RELEASE_VERSION ?? '';
@@ -32,6 +33,11 @@ if (releaseVersion && releaseSha256) {
 process.env.WELES_API_HOST = process.env.WELES_API_HOST || '0.0.0.0';
 process.env.WELES_API_PORT = process.env.WELES_API_PORT || '8788';
 const port = process.env.WELES_API_PORT;
+
+// Started as com.wisent.weles-admission, this is the host's one Weles process.
+// The units whose work it took over leave first, so a retired API still
+// holding this port does not turn the one process away below.
+retirePredecessors();
 
 // Refuse another service process before acquiring credentials. This observation
 // is not a lock: the API's bind arbitrates racing starts. Neither contender

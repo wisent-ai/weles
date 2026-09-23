@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.7.29",
-  "candidate": "0.7.32",
+  "current": "0.7.32",
+  "candidate": "0.7.33",
   "breaking": false,
-  "reason": "Run the task dispatcher and the Google Ads keyword-planner routes inside the one Weles API process: /worker controls address the resident dispatcher instead of a launchd worker job, the keyword planner has no server of its own, and no route or trajectory starts a detached keeper. Retain the authenticator-enrolment route, the shared Skarbiec broker and the duplicate-launcher refusal."
+  "reason": "Started as com.wisent.weles-admission, the launcher retires the Weles units whose work runs in this one process (the launchd worker job, the keyword-planner server, earlier API and worker labels, the checkout auto-deploy job and the release cutover service) before it checks its port, and reports a system LaunchDaemon it cannot retire."
 }
