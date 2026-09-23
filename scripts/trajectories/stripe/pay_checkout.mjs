@@ -10,34 +10,22 @@
 // Inputs:
 //   STRIPE_CHECKOUT_URL   the https://checkout.stripe.com/c/pay/cs_... page
 //   STRIPE_PAY_CONFIRM=1  required: this spends real money
-//   TOPUP_CARD_*          card, sourced from ~/.weles/topup_card.env
+//   TOPUP_CARD_*          card, sourced from the host's topup_card.env
 //   STRIPE_PAY_NAME       optional cardholder name override
+//   STRIPE_PAY_EMAIL      contact email the hosted page requires
 //
 // Output: PASS-CHARGED with the final URL, or FAIL with the reason Stripe or
 // the page gave. Screenshots land in the session directory at every decision
 // point, because a refused card and a refused form look identical in a log.
 
-import { readFileSync, existsSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { WSession } from '../../../dist/session/wsession.js';
+import { fillStripeElements, loadTopupCardEnv, TOPUP_ENV_FILES } from '../_shared/services/topup_common.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 
-// Same file every other purchase trajectory reads, same precedence: an
-// explicit environment variable wins over the file.
-const TOPUP_ENV_FILE = join(homedir(), '.weles', 'topup_card.env');
-if (existsSync(TOPUP_ENV_FILE)) {
-  for (const raw of readFileSync(TOPUP_ENV_FILE, 'utf8').split('\n')) {
-    const line = raw.trim();
-    if (!line || line.startsWith('#')) continue;
-    const eq = line.indexOf('=');
-    if (eq < 0) continue;
-    const k = line.slice(0, eq).trim();
-    const v = line.slice(eq + 1).trim().replace(/^["']|["']$/g, '');
-    if (k && v && !process.env[k]) process.env[k] = v;
-  }
-}
+// One loader, so this works on a host that keeps the card under ~/.weles and
+// on a host that keeps it under ~/.stado.
+const cardFile = loadTopupCardEnv();
 
 const url = process.env.STRIPE_CHECKOUT_URL ?? '';
 if (!/^https:\/\/checkout\.stripe\.com\//.test(url)) {
@@ -56,7 +44,7 @@ const card = {
   name: process.env.STRIPE_PAY_NAME ?? process.env.TOPUP_CARD_NAME ?? '',
 };
 if (!card.num || !card.exp || !card.cvc) {
-  console.log(`FAIL: TOPUP_CARD_NUMBER/EXP/CVC missing (looked in env and ${TOPUP_ENV_FILE})`);
+  console.log(`FAIL: TOPUP_CARD_NUMBER/EXP/CVC missing (card file: ${cardFile ?? 'none of ' + TOPUP_ENV_FILES.join(', ')})`);
   process.exit(2);
 }
 
@@ -90,32 +78,129 @@ try {
     await humanIdlePause('short');
   }
 
+  // A checkout for a European account opens on a payment-method chooser -
+  // Card, iDEAL, Bancontact, EPS - and renders no card fields until Card is
+  // selected. It also asks for an email before it will submit, and pre-checks
+  // "Save my information for faster checkout", which turns the flow into Link
+  // and demands a phone number. Answer all three before looking for a card
+  // form, or the page looks like it has none.
+  const email = process.env.STRIPE_PAY_EMAIL?.trim();
+  if (email) {
+    const emailIn = s.page.locator('input[name="email"], input#email, input[type="email"]').filter({ visible: true }).first();
+    if (await emailIn.isVisible().catch(() => false)) {
+      await emailIn.click();
+      await humanType(s.page, email, { delay: 40 });
+      console.log('[stripe-checkout] contact email filled');
+    }
+  }
+
+  // Selecting a payment method has to be verified by its effect. The first
+  // attempt clicked a locator that matched and changed nothing: the radio stayed
+  // empty, the card fields never rendered, and the page reported having no card
+  // form. Try the ways a person could click that row, and stop at the one that
+  // makes a card field appear.
+  const cardField = s.page.locator('input[name="cardNumber"], input#cardNumber').filter({ visible: true }).first();
+  const cardVisible = async () => cardField.isVisible().catch(() => false);
+  if (!(await cardVisible())) {
+    const attempts = [
+      ['hidden radio', async () => {
+        const radios = s.page.locator('input[type="radio"]');
+        if ((await radios.count().catch(() => 0)) > 0) await radios.first().check({ force: true });
+      }],
+      ['row text', async () => {
+        await s.page.getByText('Card', { exact: true }).first().click({ force: true });
+      }],
+      ['accordion button', async () => {
+        await s.page.locator('[data-testid*="card"], [id*="card-tab"]').filter({ visible: true }).first().click({ force: true });
+      }],
+    ];
+    for (const [name, attempt] of attempts) {
+      await attempt().catch(() => {});
+      for (let i = 0; i < 10; i++) {
+        if (await cardVisible()) break;
+        await humanIdlePause('short');
+      }
+      if (await cardVisible()) {
+        console.log(`[stripe-checkout] card method selected by ${name}`);
+        break;
+      }
+      console.log(`[stripe-checkout] ${name} did not open the card form`);
+    }
+  }
+
+  // Link saves the card to a phone number nobody can confirm from here.
+  const saveInfo = s.page.locator('input[type="checkbox"]').filter({ visible: true });
+  const saveCount = await saveInfo.count().catch(() => 0);
+  for (let i = 0; i < saveCount; i++) {
+    const box = saveInfo.nth(i);
+    if (await box.isChecked().catch(() => false)) {
+      await box.uncheck({ force: true }).catch(() => {});
+      console.log('[stripe-checkout] declined "save my information"');
+    }
+  }
+  await s.screenshot('method_selected');
+
+  // A hosted checkout comes in two layouts and the difference is invisible in
+  // a log: the older one puts card inputs on the page, the current one puts
+  // each field in its own Stripe iframe. Try the page first, then the frames
+  // through the shared Elements filler every other purchase trajectory uses.
   console.log(`[stripe-checkout] filling ****${card.num.slice(-4)} exp=${card.exp}`);
   const cardIn = s.page.locator('input[name="cardNumber"], input#cardNumber').filter({ visible: true }).first();
-  await cardIn.waitFor({ state: 'visible' });
-  await cardIn.click();
-  await humanType(s.page, card.num, { delay: 50 });
-
-  const expIn = s.page.locator('input[name="cardExpiry"], input#cardExpiry').filter({ visible: true }).first();
-  await expIn.click();
-  await humanType(s.page, card.exp, { delay: 50 });
-
-  const cvcIn = s.page.locator('input[name="cardCvc"], input#cardCvc').filter({ visible: true }).first();
-  await cvcIn.click();
-  await humanType(s.page, card.cvc, { delay: 50 });
-
-  const nameIn = s.page.locator('input[name="billingName"], input#billingName').filter({ visible: true }).first();
-  if (card.name && (await nameIn.isVisible().catch(() => false))) {
-    await nameIn.click();
-    await humanType(s.page, card.name, { delay: 50 });
+  let onPage = false;
+  for (let i = 0; i < 20; i++) {
+    onPage = await cardIn.isVisible().catch(() => false);
+    if (onPage) break;
+    const inFrame = s.page.frames().some((f) => /stripe\.com|m\.stripe\.network/.test(f.url()));
+    if (inFrame && i > 4) break;
+    await humanIdlePause('short');
   }
-  const zipIn = s.page
-    .locator('input[name="billingPostalCode"], input#billingPostalCode')
-    .filter({ visible: true })
-    .first();
-  if (card.zip && (await zipIn.isVisible().catch(() => false))) {
-    await zipIn.click();
-    await humanType(s.page, card.zip, { delay: 50 });
+
+  if (onPage) {
+    await cardIn.click();
+    await humanType(s.page, card.num, { delay: 50 });
+    const expIn = s.page.locator('input[name="cardExpiry"], input#cardExpiry').filter({ visible: true }).first();
+    await expIn.click();
+    await humanType(s.page, card.exp, { delay: 50 });
+    const cvcIn = s.page.locator('input[name="cardCvc"], input#cardCvc').filter({ visible: true }).first();
+    await cvcIn.click();
+    await humanType(s.page, card.cvc, { delay: 50 });
+    const nameIn = s.page.locator('input[name="billingName"], input#billingName').filter({ visible: true }).first();
+    if (card.name && (await nameIn.isVisible().catch(() => false))) {
+      await nameIn.click();
+      await humanType(s.page, card.name, { delay: 50 });
+    }
+    const zipIn = s.page
+      .locator('input[name="billingPostalCode"], input#billingPostalCode')
+      .filter({ visible: true })
+      .first();
+    if (card.zip && (await zipIn.isVisible().catch(() => false))) {
+      await zipIn.click();
+      await humanType(s.page, card.zip, { delay: 50 });
+    }
+    console.log('[stripe-checkout] filled the page form');
+  } else {
+    const filled = await fillStripeElements(s.page, {
+      num: card.num, exp: card.exp, cvc: card.cvc, zip: card.zip,
+    });
+    console.log(`[stripe-checkout] elements fill: ${JSON.stringify(filled)}`);
+    if (!filled.ok) {
+      await s.screenshot('card_form_not_found');
+      const offered = await s.page.locator('button, [role="button"]').allInnerTexts().catch(() => []);
+      console.log(`FAIL: no card form to fill (${filled.reason ?? 'partial'}); the page offered: ${offered.filter(Boolean).slice(0, 8).join(' | ').slice(0, 200)}`);
+      process.exit(1);
+    }
+    // The hosted page keeps name and postal code outside the Elements frames.
+    for (const [selector, value] of [
+      ['input[name="billingName"], input#billingName', card.name],
+      ['input[name="billingPostalCode"], input#billingPostalCode', card.zip],
+    ]) {
+      if (!value) continue;
+      const input = s.page.locator(selector).filter({ visible: true }).first();
+      if (await input.isVisible().catch(() => false)) {
+        await input.click();
+        await humanType(s.page, value, { delay: 50 });
+      }
+    }
   }
   await s.screenshot('before_submit');
 

@@ -1,0 +1,267 @@
+{
+  "date": "2026-08-31T21:35:56.941Z",
+  "argv": [
+    "/Users/lukaszbartoszcze/.nvm/versions/node/v22.20.0/bin/node",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/tests/credential-prefill.test.ts"
+  ],
+  "execArgv": [
+    "--import=file:///Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@isaacs/ts-node-temp-fork-for-pr-2009/import.mjs",
+    "--import=file:///Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/mock/dist/esm/import.mjs",
+    "--enable-source-maps",
+    "--import=file:///Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/processinfo/dist/esm/import.mjs"
+  ],
+  "NODE_OPTIONS": "\"--import=file:///Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/processinfo/dist/esm/import.mjs\"",
+  "cwd": "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles",
+  "pid": 14513,
+  "ppid": 14495,
+  "parent": null,
+  "uuid": "e4a79717-a6cd-4db6-80d7-a0e50590e5cd",
+  "files": [
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/tests/credential-prefill.test.ts",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@isaacs/ts-node-temp-fork-for-pr-2009/import.mjs",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@isaacs/ts-node-temp-fork-for-pr-2009/import-loader.mjs",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/mock/dist/esm/import.mjs",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/mock/dist/esm/mock-service.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/stack/dist/esm/index.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/index.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/is-relative-require.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/mock/dist/esm/export-line.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/mock/dist/esm/munge-mocks.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/mock/dist/esm/resolve-mock-entry-point.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/mock/dist/esm/service-key.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/stack/dist/esm/call-site-like.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/stack/dist/esm/require-resolve.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/get-all-conditional-values.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/get-all-conditions.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/get-unique-condition-sets.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/resolve-all-exports.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/resolve-all-local-imports.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/resolve-conditional-value.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/resolve-import.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/is-windows.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/stack/dist/esm/parse.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/get-conditional-values-list.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/errors.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/get-named-exports-list.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/read-pkg.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/resolve-export.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/star-glob.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/to-path.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/file-exists.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/resolve-dependency-export.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/resolve-package-import.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/to-file-url.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/find-dep-package.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/read-json.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/find-star-match.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/glob/dist/esm/index.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/walk-up-path/dist/mjs/index.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/minimatch/dist/esm/index.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/glob/dist/esm/glob.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/glob/dist/esm/has-magic.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/glob/dist/esm/ignore.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/path-scurry/dist/esm/index.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/glob/dist/esm/pattern.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/glob/dist/esm/walker.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/minimatch/dist/esm/assert-valid-pattern.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/minimatch/dist/esm/ast.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/minimatch/dist/esm/escape.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/minimatch/dist/esm/unescape.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/lru-cache/dist/esm/index.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/minipass/dist/esm/index.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/glob/dist/esm/processor.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/minimatch/dist/esm/brace-expressions.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/mock/dist/esm/loader.mjs",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/mock/dist/esm/hooks.mjs",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/mock/dist/esm/mock-service-client.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/session/wsession-helpers/finalize.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/utils/cost.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/captcha/events.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/diagnostics/fingerprint_probe.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/diagnostics/fingerprint_analyzer.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/diagnostics/detection_vectors.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/utils/email/domain.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/state/skarbiec-records.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/utils/capability.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/utils/credentials.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/secrets/scoped-service.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/account/session.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/browser/persona.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/proxy/config.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/session/run-recordings.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/proxy/policy.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/proxy/burned.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/proxy/capability.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/proxy/sticky.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/human/mouse.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/utils/bezier.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/utils/timing.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/human/trace.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/human/mouse-native.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/human/keyboard.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/vision/analyze.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/prune.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/vision/escalation.js",
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/dist/agent/jeden.js"
+  ],
+  "sources": {
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/mock/dist/esm/import.mjs": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/mock/src/import.mts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/mock/dist/esm/mock-service.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/mock/src/mock-service.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/stack/dist/esm/index.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/stack/src/index.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/index.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/src/index.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/is-relative-require.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/src/is-relative-require.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/mock/dist/esm/export-line.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/mock/src/export-line.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/mock/dist/esm/munge-mocks.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/mock/src/munge-mocks.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/mock/dist/esm/resolve-mock-entry-point.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/mock/src/resolve-mock-entry-point.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/mock/dist/esm/service-key.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/mock/src/service-key.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/stack/dist/esm/call-site-like.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/stack/src/call-site-like.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/stack/dist/esm/require-resolve.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/stack/src/require-resolve.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/get-all-conditional-values.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/src/get-all-conditional-values.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/get-all-conditions.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/src/get-all-conditions.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/get-unique-condition-sets.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/src/get-unique-condition-sets.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/resolve-all-exports.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/src/resolve-all-exports.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/resolve-all-local-imports.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/src/resolve-all-local-imports.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/resolve-conditional-value.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/src/resolve-conditional-value.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/resolve-import.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/src/resolve-import.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/is-windows.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/src/is-windows.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/stack/dist/esm/parse.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/@tapjs/stack/src/parse.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/get-conditional-values-list.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/src/get-conditional-values-list.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/errors.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/src/errors.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/get-named-exports-list.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/src/get-named-exports-list.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/read-pkg.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/src/read-pkg.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/resolve-export.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/src/resolve-export.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/star-glob.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/src/star-glob.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/to-path.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/src/to-path.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/file-exists.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/src/file-exists.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/resolve-dependency-export.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/src/resolve-dependency-export.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/resolve-package-import.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/src/resolve-package-import.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/to-file-url.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/src/to-file-url.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/find-dep-package.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/src/find-dep-package.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/read-json.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/src/read-json.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/dist/esm/find-star-match.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/resolve-import/src/find-star-match.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/glob/dist/esm/index.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/glob/src/index.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/walk-up-path/dist/mjs/index.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/walk-up-path/src/index.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/minimatch/dist/esm/index.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/minimatch/src/index.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/glob/dist/esm/glob.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/glob/src/glob.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/glob/dist/esm/has-magic.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/glob/src/has-magic.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/glob/dist/esm/ignore.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/glob/src/ignore.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/path-scurry/dist/esm/index.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/path-scurry/src/index.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/glob/dist/esm/pattern.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/glob/src/pattern.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/glob/dist/esm/walker.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/glob/src/walker.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/minimatch/dist/esm/assert-valid-pattern.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/minimatch/src/assert-valid-pattern.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/minimatch/dist/esm/ast.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/minimatch/src/ast.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/minimatch/dist/esm/escape.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/minimatch/src/escape.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/minimatch/dist/esm/unescape.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/minimatch/src/unescape.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/lru-cache/dist/esm/index.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/lru-cache/src/index.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/minipass/dist/esm/index.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/minipass/src/index.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/glob/dist/esm/processor.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/glob/src/processor.ts"
+    ],
+    "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/minimatch/dist/esm/brace-expressions.js": [
+      "/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/node_modules/minimatch/src/brace-expressions.ts"
+    ]
+  },
+  "root": "e4a79717-a6cd-4db6-80d7-a0e50590e5cd",
+  "externalID": "tests/credential-prefill.test.ts",
+  "code": 0,
+  "signal": null,
+  "runtime": 10519.211875
+}
