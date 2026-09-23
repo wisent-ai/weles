@@ -42,7 +42,7 @@ service_snapshot="${WELES_PUBLIC_SERVICE_DIRECTORY_FILE:-$HOME/.stado/forwards/w
 self_target="$("$stado" registry self 2>/dev/null | /usr/bin/awk 'NR==1 {print $1}')"
 "$stado" credentials ls --json >"$temporary/credentials.json"
 credential_present=0
-if host_vault_present; then
+if "$node" "$reconciler" credential-present "$temporary/credentials.json"; then
   credential_present=1
 else
   result=$?
@@ -67,13 +67,14 @@ if [ "$credential_present" -eq 0 ]; then
   fi
 fi
 
-# The document is assembled ON `$host`, by the renderer, out of `$host`'s own
-# live Skarbiec. No field value -- not the four public ones, and above all not
-# `receipt_private_key` beside them -- is ever pulled to this station; only the
-# finished five-field public document crosses, and `accept-trust` judges it here
-# by the same rules its consumers apply.
-"$stado" host render-spis-admission-trust "$host" "$renderer" >"$temporary/rendered-trust.json"
-"$node" "$reconciler" accept-trust "$temporary/rendered-trust.json" "$temporary/receipt-trust.json"
+"$stado" credentials get weles-spis-public-admission --field organization_id >"$temporary/organization-id"
+"$stado" credentials get weles-spis-public-admission --field receipt_key_set_version >"$temporary/key-set-version"
+"$stado" credentials get weles-spis-public-admission --field receipt_public_keys_json >"$temporary/public-keys.json"
+"$node" "$reconciler" render-trust \
+  "$temporary/organization-id" \
+  "$temporary/key-set-version" \
+  "$temporary/public-keys.json" \
+  "$temporary/receipt-trust.json"
 
 if [ "$mode" = "prepare" ]; then
   [ ! -L "$trust_file" ] || { printf 'refusing symlinked Spis trust file: %s\n' "$trust_file" >&2; exit 1; }
@@ -104,112 +105,23 @@ case "$source_revision" in *[!0-9a-f]*|'') printf '%s\n' 'source revision is not
   printf '%s\n' 'activation requires an exact clean committed Weles source tree' >&2
   exit 1
 }
-# An immutable coordinate that is already published is not re-published.
-#
-# This step used to submit unconditionally, and on 2026-09-03 that is what
-# stopped the activation twice in a row: 0.5.62 was already published from a
-# revision without the key-set fix, 0.5.63 from `main`'s revision, and
-# `release submit` refused both -- correctly, because release objects are
-# immutable and one version can never mean two builds. The activation does not
-# need to be the publisher; it needs the coordinate it activates to be
-# published from a revision this tree actually contains, which is a weaker and
-# truer requirement. So: publish when the coordinate is empty, adopt when it is
-# already filled from an ancestor of this checkout, and refuse only when it is
-# filled from a revision this tree does not contain -- the one case where
-# activating would attest a build nobody here can account for.
-published_revision=""
-if "$stado" storage get "stado://releases/weles-worker/$version/darwin-arm64/release.json" \
-    "$temporary/published-release.json" >/dev/null 2>&1; then
-  published_revision="$("$node" -e '
-    const fs = require("node:fs");
-    const value = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-    const revision = value.source_revision ?? value.sourceRevision ?? "";
-    if (!/^[0-9a-f]{40}$/.test(revision)) process.exit(1);
-    process.stdout.write(revision);
-  ' "$temporary/published-release.json")" || published_revision=""
-fi
-if [ -n "$published_revision" ]; then
-  if [ "$published_revision" = "$source_revision" ]; then
-    printf 'weles-worker %s is already published from this exact revision; adopting it\n' "$version"
-  elif git -C "$source_root" merge-base --is-ancestor "$published_revision" "$source_revision"; then
-    printf 'weles-worker %s is already published from %s, which this tree contains; adopting it\n' \
-      "$version" "$published_revision"
-    source_revision="$published_revision"
-  else
-    printf 'weles-worker %s is published from %s, which this tree does not contain; publish a new version instead\n' \
-      "$version" "$published_revision" >&2
-    exit 1
-  fi
-else
-  "$stado" release submit --source "$source_root" --version "$version" --channel stable --json \
-    >"$temporary/release-submit.json"
-fi
-# Convergence, from the rollout record OR from the service itself.
-#
-# `release-settled` reads the rollout's OBSERVED state, and that observation
-# comes from the host's software inventory. On 2026-09-03 that inventory was
-# 19 hours stale on this host and could not be refreshed -- `host software`
-# does not return on a box this loaded -- so the check could never pass while
-# the service in question was demonstrably running the exact release and
-# saying so on its own version route:
-#
-#   {"releaseId":"weles-worker@0.5.63",
-#    "sourceRevision":"553bc8af...","deploymentManifestSha256":"e14ba225..."}
-#
-# An inventory that cannot be read is an absence of evidence; the service's own
-# answer is evidence, and it is the stronger of the two because it comes from
-# the process that would serve the traffic. So the rollout record is tried
-# first, and `--service-url` supplies a direct second witness. Neither is
-# waived: if both are silent, this still refuses.
+"$stado" release submit --source "$source_root" --version "$version" --channel stable --json \
+  >"$temporary/release-submit.json"
 release_ready=0
-release_evidence=""
 for attempt in $(seq 1 120); do
-  if "$stado" release status weles-worker --json >"$temporary/release-status.json" 2>/dev/null \
+  if "$stado" release status weles-worker --json >"$temporary/release-status.json" \
       && "$node" "$reconciler" release-settled \
         "$temporary/release-status.json" "$host" "$version" "$source_revision" \
         >"$temporary/release-identity.json"; then
     release_ready=1
-    release_evidence="rollout record"
-    break
-  fi
-  # Identity only, deliberately NOT readiness. `version-ready` demands the
-  # service's `serviceIdentity` object, which is precisely what the registry
-  # entry below supplies -- asking for it here would be asking the service to
-  # already be what this run is about to make it. What convergence needs from
-  # the service is narrower and available now: that the process answering is
-  # this exact release, revision and manifest digest.
-  if [ -n "$service_url" ] \
-      && "$curl" --silent --show-error --max-time 5 \
-        "${service_url%/}/api/v1/version" >"$temporary/service-version.json" \
-      && "$node" -e '
-        const fs = require("node:fs");
-        const seen = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-        const [, , version, revision] = process.argv;
-        const releaseId = String(seen.releaseId ?? "");
-        if (releaseId !== `weles-worker@${version}`) {
-          process.stderr.write(`service reports releaseId ${releaseId}, expected weles-worker@${version}\n`);
-          process.exit(1);
-        }
-        if (String(seen.sourceRevision ?? "") !== revision) {
-          process.stderr.write(`service reports sourceRevision ${seen.sourceRevision}, expected ${revision}\n`);
-          process.exit(1);
-        }
-        if (!/^[0-9a-f]{64}$/.test(String(seen.deploymentManifestSha256 ?? ""))) {
-          process.stderr.write("service reports no deployment manifest digest\n");
-          process.exit(1);
-        }
-      ' "$temporary/service-version.json" "$version" "$source_revision"; then
-    release_ready=1
-    release_evidence="the service's own version route at $service_url"
     break
   fi
   sleep 5
 done
 [ "$release_ready" -eq 1 ] || {
-  printf '%s\n' 'neither the rollout record nor the service itself could show the exact healthy version, source and digest' >&2
+  printf '%s\n' 'managed release did not converge to the exact healthy version, source, and digest' >&2
   exit 1
 }
-printf 'release %s (%s) confirmed by %s\n' "$version" "$source_revision" "$release_evidence"
 # `stado registry push --if-generation` is the registry authority's real
 # compare-and-swap: it refuses a write whose document has moved since the read
 # that produced the token, with exit 75 and a typed `conflict` receipt. Read the
