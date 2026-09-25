@@ -50,12 +50,13 @@ export function applyAccountAndTaskAdmission(
     env.WELES_ACCOUNT_REVISION = account.accountRevision;
     env[`${account.provider.toUpperCase()}_DISPLAY_NAME`] = account.displayName;
   }
-  if (trajPath.endsWith('/google/authenticator/enrol.mjs')) {
-    // The enrolment names the Skarbiec login item itself: it is what gains
-    // the seed, whether or not a subscription rides on it yet.
+  if (trajPath.endsWith('/google/authenticator/enrol.mjs') || trajPath.endsWith('/google/app_password/create.mjs')) {
+    // The enrolment and the app password name the Skarbiec login item itself:
+    // it is what gains the seed or signs in to issue the password, whether or
+    // not a subscription or a mailbox rides on it yet.
     const requested = params.login_item;
     if (typeof requested !== 'string' || !requested.trim()) {
-      throw new Error('login_item must name the exact Skarbiec login item to enrol an authenticator for');
+      throw new Error('login_item must name the exact Skarbiec Google login item this action signs in');
     }
     env.WELES_LOGIN_ITEM = requested.trim();
   }

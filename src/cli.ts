@@ -6,9 +6,10 @@ import { runDoctor } from './cli/diagnostics.js';
 import { runImport, runOnboarding, runRelease, runFigma } from './cli/workflows.js';
 import { runOperatorRequests } from './cli/operator-requests.js';
 import { runAccountSecurity } from './cli/security/account-security.js';
+import { runAppPassword } from './cli/security/app-password.js';
 import { runWorker } from './cli/worker/index.js';
 
-type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import' | 'release' | 'figma' | 'operator-requests' | 'account-security' | 'worker';
+type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import' | 'release' | 'figma' | 'operator-requests' | 'account-security' | 'app-password' | 'worker';
 
 export type ParsedCli = {
   command: CliCommand;
@@ -37,6 +38,8 @@ Usage:
   weles operator-requests close <id> --approved|--unapproved --detail <text>
   weles account-security --login-item <skarbiec-item>
   weles account-security --run <run-id>
+  weles app-password --login-item <skarbiec-item>
+  weles app-password --run <run-id>
   weles worker <status|start|restart> [--json]
   weles doctor
   weles version
@@ -47,7 +50,8 @@ Options:
   --keys <file>           JSON map of trusted receipt key IDs to PEM public keys.
   --state-dir <dir>       Override the durable onboarding state directory.
   --host <hostname>       Exact managed Weles worker hostname for imported definitions.
-  --login-item <item>     Exact Skarbiec Google account; read 2FA without signing in or changing it.
+  --login-item <item>     Exact Skarbiec Google account. account-security reads 2FA without signing in;
+                          app-password signs in, creates a Google app password and hands it to Skrzynka.
   WELES_WORKER_API_BASE and WELES_WORKER_TOKEN configure authenticated worker controls.
   --headless              Launch without a visible browser window.
   --browser <name>        Browser engine passed to AsyncNewBrowser (default: chromium).
@@ -134,7 +138,7 @@ export function parseCliArgs(argv: string[]): ParsedCli {
 function normalizeCommand(command?: string): CliCommand {
   if (!command || command === '--help' || command === '-h' || command === 'help') return 'help';
   if (command === '--version' || command === '-v' || command === 'version') return 'version';
-  if (command === 'account-security' || command === 'worker') return command;
+  if (command === 'account-security' || command === 'app-password' || command === 'worker') return command;
   if (command === 'doctor' || command === 'open' || command === 'screenshot' || command === 'mcp' || command === 'onboarding' || command === 'import' || command === 'release' || command === 'figma' || command === 'operator-requests') return command;
   throw new Error(`unknown command: ${command}`);
 }
@@ -255,6 +259,10 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   }
   if (parsed.command === 'account-security') {
     await runAccountSecurity(parsed);
+    return;
+  }
+  if (parsed.command === 'app-password') {
+    await runAppPassword(parsed);
     return;
   }
   if (parsed.command === 'worker') {

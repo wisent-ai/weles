@@ -65,6 +65,16 @@ export async function respondToRun(req, res, runTrajectory, validateAccountSecur
       return;
     }
   }
+  // An app-password run is read back by the login it signed in, so the result
+  // file carries that login from the moment it is admitted.
+  if (action === 'google_app_password') {
+    const loginItem = typeof params.login_item === 'string' ? params.login_item.trim() : '';
+    if (!loginItem) {
+      json(res, 400, { ok: false, error: 'login_item_required' });
+      return;
+    }
+    requestBinding = { params: { login_item: loginItem } };
+  }
   const accountId = typeof body.account_id === 'string' ? body.account_id : null;
   const freshProfile = body.fresh_profile === true;
   if (freshProfile && !accountId) {
