@@ -32,9 +32,9 @@ test('managed installation provides the current CLI and refuses account mutation
   writeFileSync(resolve(evidence, 'source-revision.txt'), `${revision}\n`);
   writeFileSync(resolve(evidence, 'working.patch'), patch);
   const manifest = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
-  const install = successful('wisent-products', ['install', 'weles', '--surface', 'cli', '--json']);
+  const install = successful('stado', ['product', 'install', 'weles', '--surface', 'cli', '--json']);
   writeFileSync(resolve(evidence, 'installation-output.txt'), install);
-  const status = successful('wisent-products', ['status', 'weles', '--surface', 'cli', '--json']);
+  const status = successful('stado', ['product', 'status', 'weles', '--surface', 'cli', '--json']);
   writeFileSync(resolve(evidence, 'installed-status.json'), status);
 
   const executable = resolve(homedir(), '.local/bin/weles');
