@@ -10,18 +10,19 @@
   "platforms": {
     "darwin-arm64": {
       "runner_platform": "darwin-arm64",
-      "quality": [
-        {
-          "name": "native-runtime-startup",
-          "argv": ["node", "--test", "tests/release/packaging.test.mjs"]
-        }
-      ],
+      "quality": [],
       "build": {
         "argv": [
           "bash",
           "release/stado-build.sh"
         ]
       },
+      "tests": [
+        {
+          "name": "native-runtime-startup",
+          "argv": ["node", "--test", "tests/release/packaging.test.mjs"]
+        }
+      ],
       "stage": {
         "payload/weles-worker.tar.gz": "payload/weles-worker.tar.gz",
         "bin/start": "bin/start",
