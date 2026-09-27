@@ -1,10 +1,48 @@
+import { execFileSync } from 'node:child_process';
+
 export type WelesApiOptions = {
   endpoint?: string;
   bearer?: string;
   organizationId?: string;
   environment?: NodeJS.ProcessEnv;
   fetch?: typeof fetch;
+  /** Runs one `stado` command and returns its standard output. */
+  stado?: (args: string[]) => string;
 };
+
+/** The executor's route as the service directory places it, for an operator shell. */
+const EXECUTOR_SERVICE = 'weles-admission';
+const EXECUTOR_CONSUMER = 'operator';
+/** The Skarbiec item and field holding the executor's bearer. */
+const EXECUTOR_TOKEN_ITEM = 'echo-weles-api';
+const EXECUTOR_TOKEN_FIELD = 'token';
+
+function runStado(args: string[]): string {
+  try {
+    return execFileSync('stado', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  } catch (error) {
+    const detail = error instanceof Error && 'stderr' in error ? String(error.stderr).trim() : String(error);
+    throw new Error(`stado ${args.join(' ')} failed: ${detail || 'no diagnostic'}`);
+  }
+}
+
+/**
+ * The executor's base URL and bearer when the shell names neither: the route
+ * `stado service directory connect` works out from where the executor is
+ * placed, and the token Skarbiec holds for it. An explicit variable still wins.
+ */
+function executorFromStado(options: WelesApiOptions): { endpoint: string; bearer: string } {
+  const stado = options.stado ?? runStado;
+  const route = JSON.parse(stado([
+    'service', 'directory', 'connect', EXECUTOR_SERVICE,
+    '--consumer', EXECUTOR_CONSUMER, '--no-verify', '--json',
+  ])) as { url?: unknown };
+  if (typeof route.url !== 'string' || !route.url) {
+    throw new Error(`stado service directory connect ${EXECUTOR_SERVICE} answered no url`);
+  }
+  const bearer = stado(['credentials', 'get', EXECUTOR_TOKEN_ITEM, '--field', EXECUTOR_TOKEN_FIELD]).trim();
+  return { endpoint: route.url, bearer };
+}
 
 function required(value: string | undefined, name: string): string {
   const normalized = value?.trim();
@@ -36,7 +74,10 @@ function apiConnection(path: string, options: WelesApiOptions, endpointName: str
 }
 
 export function welesOperatorConnection(path: string, options: WelesApiOptions = {}) {
-  return apiConnection(path, options, 'WELES_WORKER_API_BASE', 'WELES_WORKER_TOKEN');
+  const environment = options.environment ?? process.env;
+  const named = options.endpoint ?? environment.WELES_WORKER_API_BASE;
+  const resolved = named ? options : { ...options, ...executorFromStado(options) };
+  return apiConnection(path, resolved, 'WELES_WORKER_API_BASE', 'WELES_WORKER_TOKEN');
 }
 
 export function welesApiConnection(path: string, options: WelesApiOptions = {}) {

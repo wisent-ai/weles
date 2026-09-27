@@ -52,7 +52,9 @@ Options:
   --host <hostname>       Exact managed Weles worker hostname for imported definitions.
   --login-item <item>     Exact Skarbiec Google account. account-security reads 2FA without signing in;
                           app-password signs in, creates a Google app password and hands it to Skrzynka.
-  WELES_WORKER_API_BASE and WELES_WORKER_TOKEN configure authenticated worker controls.
+  Worker controls reach the executor at the route 'stado service directory connect weles-admission'
+  gives and with the Skarbiec token echo-weles-api#token; WELES_WORKER_API_BASE and
+  WELES_WORKER_TOKEN override both.
   --headless              Launch without a visible browser window.
   --browser <name>        Browser engine passed to AsyncNewBrowser (default: chromium).
   --os <name>             Persona OS passed to AsyncNewBrowser (default: macos).
