@@ -9,6 +9,7 @@ import { humanType } from '../../../dist/human/keyboard.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
+import { getReceived, listReceived } from '../../_shared/resend-receiving.mjs';
 
 const LOGIN_URL = 'https://2captcha.com/auth/login';
 const DISPLAY_NAME = '2Captcha';
@@ -65,11 +66,10 @@ try {
   // If account not yet confirmed, fetch the code from Resend and submit it.
   if (/\/auth\/confirm-email/.test(s.page.url())) {
     console.log('[trajectory] account needs email confirmation; fetching code from Resend');
-    const RESEND_KEY = '***REMOVED-RESEND-KEY***';
-    const list = await fetch('https://api.resend.com/emails/receiving?limit=10', { headers: { Authorization: `Bearer ${RESEND_KEY}` } }).then(r => r.json()).catch(() => null);
-    const msg = list?.data?.find(m => m.to?.[0] === login.email && /2captcha/i.test(m.from || ''));
+    const list = await listReceived(10, login.email);
+    const msg = list.data.find(m => m.to?.[0] === login.email && /2captcha/i.test(m.from || ''));
     if (!msg) { console.log('FAIL: no 2Captcha email found in Resend inbox'); process.exit(1); }
-    const full = await fetch(`https://api.resend.com/emails/receiving/${msg.id}`, { headers: { Authorization: `Bearer ${RESEND_KEY}` } }).then(r => r.json()).catch(() => null);
+    const full = await getReceived(msg.id);
     const code = (full?.text || '').match(/\b(\d{6})\b/)?.[1];
     if (!code) { console.log('FAIL: could not extract 6-digit code from email'); process.exit(1); }
     console.log(`[trajectory] confirmation code=${code}`);

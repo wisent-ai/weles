@@ -3,6 +3,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { persistFreshCookieJar } from '../_shared/auth/cookie-freshness.mjs';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
+import { getReceived, listReceived } from '../../_shared/resend-receiving.mjs';
 
 const URL = 'https://github.com/login';
 
@@ -135,16 +136,15 @@ try {
   // Check for device verification (email code)
   if (url2.includes('sessions/verified-device') || url2.includes('launch_code') || url2.includes('two-factor')) {
     console.log('[login] Device verification required, polling Resend for code...');
-    const resendKey = process.env.RESEND_RECEIVING_API_KEY;
     const emailAddr = process.env.SVC_EMAIL;
     let otp = null;
     for (let poll = 0; poll < 20 && !otp; poll++) {
       await s.wait(5);
-      const emails = await (await fetch('https://api.resend.com/emails/receiving?limit=10', { headers: { Authorization: `Bearer ${resendKey}` } })).json();
-      for (const em of emails.data ?? []) {
+      const emails = await listReceived(10, emailAddr);
+      for (const em of emails.data) {
         const to = (em.to ?? []).map(t => typeof t === 'string' ? t : t.email).join(',');
         if (!to.includes(emailAddr) || !em.from?.toLowerCase().includes('github')) continue;
-        const full = await (await fetch(`https://api.resend.com/emails/receiving/${em.id}`, { headers: { Authorization: `Bearer ${resendKey}` } })).json();
+        const full = await getReceived(em.id);
         const body = (full.html ?? '') + (full.text ?? '');
         const m = body.match(/\b(\d{6,8})\b/);
         if (m) { otp = m[1]; break; }

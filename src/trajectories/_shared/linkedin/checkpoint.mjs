@@ -2,7 +2,7 @@ import { CaptchaSolver } from '../../../../dist/captcha/solver.js';
 import { solveRecaptchaV2 as solveRecaptchaV2InPage } from '../../../../dist/captcha/recaptcha.js';
 import { humanIdlePause, humanClickLocator } from '../../../../dist/human/mouse.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
-import { readScopedSecret } from '../../../_shared/scoped-secrets.mjs';
+import { getReceived, listReceived, receivingConfigured } from '../../../_shared/resend-receiving.mjs';
 
 const RECAPTCHA_SITEKEY = '6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC';
 const CHECKPOINT_RE = /\/(checkpoint|uas\/login|login\/recovery)/;
@@ -15,8 +15,7 @@ async function solveEmailPinChallenge({ page }, email) {
   const pageKey = await page.evaluate(`(()=>document.querySelector('meta[name="pageKey"]')?.content||'')()`).catch(() => '');
   if (!pageKey.includes('emailPinChallenge')) return { ok: false, reason: 'not_email_pin_challenge' };
   console.log(`[linkedin_login] emailPinChallenge detected for ${email} — fetching code from Resend`);
-  const RESEND_KEY = readScopedSecret('resendReceiving', 'api_key');
-  if (!RESEND_KEY) return { ok: false, reason: 'no_resend_api_key' };
+  if (!receivingConfigured()) return { ok: false, reason: 'no_inbox_route' };
   // Only accept emails that arrived AFTER /checkpoint was loaded — earlier
   // PINs from prior login attempts are expired. LinkedIn issues a fresh
   // 6-digit PIN per /checkpoint instance.
@@ -24,15 +23,19 @@ async function solveEmailPinChallenge({ page }, email) {
   let code = null;
   for (let i = 0; i < 18; i++) {
     await humanIdlePause('long');
-    const list = await fetch(`https://api.resend.com/emails/receiving?limit=20`, { headers: { Authorization: `Bearer ${RESEND_KEY}` } }).then((r) => r.json()).catch(() => null);
-    const matches = (list?.data ?? []).filter((m) => m.to?.[0] === email && /linkedin/i.test(m.from || '') && new Date(m.created_at).getTime() >= challengeStart - 5000);
+    let list;
+    try { list = await listReceived(20, email); }
+    catch (e) { console.log(`[linkedin_login] inbox read failed: ${String(e?.message || e).slice(0, 160)}`); continue; }
+    const matches = list.data.filter((m) => m.to?.[0] === email && /linkedin/i.test(m.from || '') && new Date(m.created_at).getTime() >= challengeStart - 5000);
     matches.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     const msg = matches[0];
     if (!msg) continue;
     const subj = msg.subject || '';
     const m = subj.match(/\b(\d{6})\b/);
     if (m) { code = m[1]; console.log(`[linkedin_login] PIN ${code} from subject (sent ${msg.created_at})`); break; }
-    const full = await fetch(`https://api.resend.com/emails/receiving/${msg.id}`, { headers: { Authorization: `Bearer ${RESEND_KEY}` } }).then((r) => r.json()).catch(() => null);
+    let full;
+    try { full = await getReceived(msg.id); }
+    catch (e) { console.log(`[linkedin_login] message read failed: ${String(e?.message || e).slice(0, 160)}`); continue; }
     const body = (full?.text || full?.html || '').match(/\b(\d{6})\b/);
     if (body) { code = body[1]; console.log(`[linkedin_login] PIN ${code} from body (sent ${msg.created_at})`); break; }
   }
@@ -171,16 +174,17 @@ export async function solveLinkedinCheckpoint({ ctx, page }, reason, email) {
 // the banner.
 const CONFIRM_GOTO_MS = 30 * 1000;
 export async function confirmLinkedinEmail(page, email) {
-  const RESEND_KEY = readScopedSecret('resendReceiving', 'api_key');
-  if (!RESEND_KEY) { console.log('[linkedin_register] exact Resend receiving grant unavailable'); return { ok: false, reason: 'no_resend_key' }; }
+  if (!receivingConfigured()) { console.log('[linkedin_register] the wisent-integrations inbox route is not configured'); return { ok: false, reason: 'no_inbox_route' }; }
   const start = Date.now() - 10 * 60 * 1000;
   let confirmUrl = null;
   for (let i = 0; i < 18; i++) {
-    const list = await fetch(`https://api.resend.com/emails/receiving?limit=20`, { headers: { Authorization: `Bearer ${RESEND_KEY}` } }).then((r) => r.json()).catch(() => null);
-    const matches = (list?.data ?? []).filter((m) => m.to?.[0] === email && /confirm your email/i.test(m.subject || '') && new Date(m.created_at).getTime() >= start);
+    let list;
+    try { list = await listReceived(20, email); }
+    catch (e) { console.log(`[linkedin_register] inbox read failed: ${String(e?.message || e).slice(0, 160)}`); await humanIdlePause('long'); continue; }
+    const matches = list.data.filter((m) => m.to?.[0] === email && /confirm your email/i.test(m.subject || '') && new Date(m.created_at).getTime() >= start);
     matches.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     if (matches[0]) {
-      const full = await fetch(`https://api.resend.com/emails/receiving/${matches[0].id}`, { headers: { Authorization: `Bearer ${RESEND_KEY}` } }).then((r) => r.json()).catch(() => null);
+      const full = await getReceived(matches[0].id);
       const body = full?.text || full?.html || '';
       const m = body.match(/https:\/\/www\.linkedin\.com\/comm\/psettings\/email\/confirm\?[^\s<>"]+/);
       if (m) { confirmUrl = m[0]; break; }

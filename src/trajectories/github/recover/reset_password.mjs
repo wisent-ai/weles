@@ -14,13 +14,13 @@ import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 import { updateAccountPassword } from '../../_shared/skarbiec/accounts.mjs';
+import { getReceived, listReceived, receivingConfigured } from '../../../_shared/resend-receiving.mjs';
 
 const acct = await getSocialAccount('github');
 if (!acct) { console.log('FAIL: no active github account'); process.exit(1); }
 if (!acct.metadata?.email) { console.log(`FAIL: account ${acct.username} has no email`); process.exit(1); }
 const email = acct.metadata.email;
-const resendKey = process.env.RESEND_RECEIVING_API_KEY;
-if (!resendKey) { console.log('FAIL: RESEND_RECEIVING_API_KEY not set'); process.exit(1); }
+if (!receivingConfigured()) { console.log('FAIL: the wisent-integrations inbox route (STADO_INTEGRATION_API_URL, WELES_STADO_INTEGRATION_TOKEN) is not configured'); process.exit(1); }
 // Reset emails go to Resend inbound MX which is bound to wisentmedia.com.
 // Any account whose email is on a different domain (e.g. throwaway domains
 // like hubbold730.com, mailcom, tutanota) cannot have its reset link claimed
@@ -83,16 +83,14 @@ try {
   let resetUrl = null;
   for (let poll = 0; poll < 30 && !resetUrl; poll++) {
     await s.wait(4);
-    const res = await fetch('https://api.resend.com/emails/receiving?limit=20', {
-      headers: { Authorization: `Bearer ${resendKey}` },
-    });
-    if (!res.ok) { console.log(`[reset] resend list ${res.status}`); continue; }
-    const emails = (await res.json()).data ?? [];
+    let emails;
+    try { emails = (await listReceived(20, email)).data; }
+    catch (e) { console.log(`[reset] inbox read failed: ${String(e?.message || e).slice(0, 160)}`); continue; }
     for (const em of emails) {
       const to = (em.to ?? []).map(t => typeof t === 'string' ? t : t.email).join(',');
       if (!to.includes(email)) continue;
       if (!/github|noreply@github/i.test(em.from ?? '')) continue;
-      const full = await (await fetch(`https://api.resend.com/emails/receiving/${em.id}`, { headers: { Authorization: `Bearer ${resendKey}` } })).json();
+      const full = await getReceived(em.id);
       const body = (full.html ?? '') + (full.text ?? '');
       const m = body.match(/https:\/\/github\.com\/password_reset\/[A-Za-z0-9_-]+/);
       if (m) { resetUrl = m[0]; break; }

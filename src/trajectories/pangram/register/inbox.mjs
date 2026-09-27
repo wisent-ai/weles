@@ -1,19 +1,16 @@
-const RESEND_KEY = process.env.RESEND_RECEIVING_API_KEY || '';
+import { getReceived, listReceived, receivingConfigured } from '../../../_shared/resend-receiving.mjs';
 
 /** Whether an inbox is configured for the verification mail at all. */
 export function inboxConfigured() {
-  return Boolean(RESEND_KEY);
+  return receivingConfigured();
 }
 
 async function fetchInboxRecent() {
-  const r = await fetch('https://api.resend.com/emails/receiving?limit=20', { headers: { Authorization: `Bearer ${RESEND_KEY}` } });
-  const j = await r.json();
-  return Array.isArray(j.data) ? j.data : [];
+  return (await listReceived(20)).data;
 }
 
 async function fetchEmailBody(id) {
-  const r = await fetch(`https://api.resend.com/emails/receiving/${id}`, { headers: { Authorization: `Bearer ${RESEND_KEY}` } });
-  return r.json();
+  return getReceived(id);
 }
 
 /**

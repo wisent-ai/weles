@@ -3,6 +3,7 @@ import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { autoBindCharacter } from '../lib/character-bind.mjs';
 import { harvestAfterRegister } from '../lib/discord_harvest.mjs';
 import { accountItemId } from '../_shared/skarbiec/accounts.mjs';
+import { getReceived, listReceived } from '../../_shared/resend-receiving.mjs';
 // burned.js is CommonJS; default-import then destructure (named ESM import
 // of a CJS export is fragile across rebuilds). This lineage exposes
 // markBurned(host,signal,platform) — no multi-level markBurnedIp.
@@ -221,15 +222,14 @@ try {
             // Verify email: find the verify link and open it in the browser
             const emailAddr = s.resolveEnv('$DISCORD_NEW_EMAIL');
             console.log(`[test] Polling for verify email to ${emailAddr}...`);
-            const resendKey = process.env.RESEND_RECEIVING_API_KEY;
             let verified = false;
             for (let poll = 0; poll < 20 && !verified; poll++) {
               await s.wait(5);
-              const emails = await (await fetch('https://api.resend.com/emails/receiving?limit=10', { headers: { Authorization: `Bearer ${resendKey}` } })).json();
+              const emails = await listReceived(10, emailAddr);
               for (const em of emails.data || []) {
                 const to = (em.to || []).map(t => typeof t === 'string' ? t : t.email).join(',');
                 if (!to.includes(emailAddr) || !em.from?.includes('discord') || !em.subject?.includes('Verify')) continue;
-                const full = await (await fetch(`https://api.resend.com/emails/receiving/${em.id}`, { headers: { Authorization: `Bearer ${resendKey}` } })).json();
+                const full = await getReceived(em.id);
                 const links = (full.html || '').match(/https:\/\/click\.discord\.com[^\s"]+/g);
                 if (!links?.length) continue;
                 // Find the verify link (resolves to /verify#token=...)

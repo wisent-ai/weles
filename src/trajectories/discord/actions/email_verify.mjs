@@ -25,12 +25,11 @@ import { updateAccountMetadata } from '../../_shared/skarbiec/accounts.mjs';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
-import { readScopedSecret } from '../../../_shared/scoped-secrets.mjs';
+import { getReceived, listReceived, receivingConfigured } from '../../../_shared/resend-receiving.mjs';
 
 const ACCT_USERNAME = process.env.ACCOUNT_USERNAME;
 const TIMEOUT_S = parseInt(process.env.DISCORD_EMAIL_VERIFY_TIMEOUT || '90', 10);
-const RESEND_KEY = readScopedSecret('resendReceiving', 'api_key');
-if (!RESEND_KEY) { console.log('FAIL: exact Resend receiving grant unavailable'); process.exit(Number('1')); }
+if (!receivingConfigured()) { console.log('FAIL: the wisent-integrations inbox route is not configured'); process.exit(Number('1')); }
 
 const acct = ACCT_USERNAME
   ? await getSocialAccount('discord', { username: ACCT_USERNAME })
@@ -46,16 +45,12 @@ async function getVerifiedText(s) {
   catch (e) { console.log(`[email_verify] verify-text probe err: ${e.message?.slice(0, 80)}`); return null; }
 }
 
-async function fetchInboxRecent(key) {
-  const r = await fetch('https://api.resend.com/emails/receiving?limit=10', { headers: { Authorization: `Bearer ${key}` } });
-  const j = await r.json();
-  if (!j || !Array.isArray(j.data)) throw new Error(`resend inbox shape unexpected: ${JSON.stringify(j).slice(0, 120)}`);
-  return j.data;
+async function fetchInboxRecent() {
+  return (await listReceived(10)).data;
 }
 
-async function fetchEmailBody(key, id) {
-  const r = await fetch(`https://api.resend.com/emails/receiving/${id}`, { headers: { Authorization: `Bearer ${key}` } });
-  const j = await r.json();
+async function fetchEmailBody(id) {
+  const j = await getReceived(id);
   const body = j?.html ?? j?.text;
   if (!body) throw new Error(`resend email ${id} has no html/text`);
   return body;
@@ -101,7 +96,7 @@ try {
   for (let i = 0; i < Math.ceil(TIMEOUT_S / 5); i++) {
     await new Promise(r => setTimeout(r, 5000)); // allow-raw-playwright: Resend polling cadence
     let inbox = null;
-    try { inbox = await fetchInboxRecent(RESEND_KEY); }
+    try { inbox = await fetchInboxRecent(); }
     catch (e) { console.log(`[email_verify] inbox fetch err: ${e.message?.slice(0, 100)}`); continue; }
     const candidate = inbox.find(m => {
       const toList = Array.isArray(m.to) ? m.to : [];
@@ -112,7 +107,7 @@ try {
     });
     if (!candidate) { console.log(`[email_verify] poll ${i + 1}: no new verify email yet`); continue; }
     let body = null;
-    try { body = await fetchEmailBody(RESEND_KEY, candidate.id); }
+    try { body = await fetchEmailBody(candidate.id); }
     catch (e) { console.log(`[email_verify] body fetch err: ${e.message?.slice(0, 100)}`); continue; }
     const links = body.match(/https:\/\/click\.discord\.com[^\s"<>]+/g);
     if (!links) { console.log(`[email_verify] candidate ${candidate.id} has no click.discord.com links`); continue; }

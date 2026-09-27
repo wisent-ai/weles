@@ -3,6 +3,7 @@ import { resolveAccountSession } from '../../../dist/account/session.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { persistFreshCookieJar } from '../_shared/auth/cookie-freshness.mjs';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
+import { getReceived, listReceived } from '../../_shared/resend-receiving.mjs';
 
 const URL = 'https://discord.com/login';
 
@@ -145,19 +146,18 @@ try {
         // Login location verification — click verify link, go back to login, re-submit through the form
         if (result?.data?.errors?.login?._errors?.some(e => e.code === 'ACCOUNT_LOGIN_VERIFICATION_EMAIL')) {
           console.log('[login] New location verification required, checking email...');
-          const resendKey = process.env.RESEND_RECEIVING_API_KEY;
           const email = formData.login;
           const loginAttemptTs = Date.now() - 30000; // 30s buffer
           let verifyDone = false;
           for (let poll = 0; poll < 15 && !verifyDone; poll++) {
             await new Promise(r => setTimeout(r, 5000));  // allow-raw-playwright: polling/rate-limit loop
-            const emails2 = await (await fetch('https://api.resend.com/emails/receiving?limit=10', { headers: { Authorization: `Bearer ${resendKey}` } })).json();
+            const emails2 = await listReceived(10, email);
             for (const em of emails2.data || []) {
               const to = (em.to || []).map(t => typeof t === 'string' ? t : t.email).join(',');
               if (!to.includes(email) || !em.subject?.includes('Login')) continue;
               // Only accept emails newer than this login attempt
               if (new Date(em.created_at).getTime() < loginAttemptTs) { continue; }
-              const full2 = await (await fetch(`https://api.resend.com/emails/receiving/${em.id}`, { headers: { Authorization: `Bearer ${resendKey}` } })).json();
+              const full2 = await getReceived(em.id);
               const links = (full2.html || '').match(/https:\/\/click\.discord\.com[^\s"]+/g);
               if (links?.length) {
                 // Find the authorize-ip link (not reject-ip or generic links)

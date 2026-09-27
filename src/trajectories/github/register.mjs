@@ -5,6 +5,7 @@ import { solveRotationViaCoords } from './captcha/coords_solver.mjs';
 import { requireStadoModelRouterConfig } from './captcha/stado_model_router.mjs';
 import { humanClick, humanClickLocator, nextInterClickMs } from '../../../dist/human/mouse.js'; import { humanType } from '../../../dist/human/keyboard.js';
 import { autoBindCharacter } from '../lib/character-bind.mjs';
+import { getReceived, listReceived } from '../../_shared/resend-receiving.mjs';
 
 const URL = 'https://github.com/signup';
 
@@ -238,17 +239,16 @@ try {
   }
 
   // Email OTP
-  const resendKey = process.env.RESEND_RECEIVING_API_KEY;
   const emailAddr = s.resolveEnv('$GITHUB_NEW_EMAIL');
   console.log(`[register] Polling for OTP to ${emailAddr}...`);
   let otp = null;
   for (let poll = 0; poll < 20 && !otp; poll++) {
     await s.wait(5);
-    const emails = await (await fetch('https://api.resend.com/emails/receiving?limit=10', { headers: { Authorization: `Bearer ${resendKey}` } })).json();
-    for (const em of emails.data ?? []) {
+    const emails = await listReceived(10, emailAddr);
+    for (const em of emails.data) {
       const to = (em.to ?? []).map(t => typeof t === 'string' ? t : t.email).join(',');
       if (!to.includes(emailAddr) || !em.from?.toLowerCase().includes('github')) continue;
-      const full = await (await fetch(`https://api.resend.com/emails/receiving/${em.id}`, { headers: { Authorization: `Bearer ${resendKey}` } })).json();
+      const full = await getReceived(em.id);
       const body = (full.html ?? '') + (full.text ?? '');
       const m = body.match(/\b(\d{6,8})\b/);
       if (m) { otp = m[1]; break; }
