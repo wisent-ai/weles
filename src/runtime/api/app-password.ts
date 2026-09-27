@@ -1,4 +1,4 @@
-import { welesOperatorConnection, type WelesApiOptions } from './connection.js';
+import { operatorJson, welesOperatorConnection, type WelesApiOptions } from './connection.js';
 
 /** One google_app_password run as the managed executor records it. */
 export type AppPasswordRun = {
@@ -41,7 +41,7 @@ export async function appPasswordRun(
         action: 'google_app_password', params: { login_item: value }, detached: true,
       }) } : {}),
     });
-    const body = await response.json() as Record<string, unknown>;
+    const body = await operatorJson(response);
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${typeof body.error === 'string' ? body.error : 'Weles refused the app-password request'}`);
     if (creating && body.ok !== true) throw new Error('Weles did not accept the app-password request');
     const row = parseRun(creating ? {

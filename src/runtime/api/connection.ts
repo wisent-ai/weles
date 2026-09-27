@@ -80,6 +80,25 @@ export function welesOperatorConnection(path: string, options: WelesApiOptions =
   return apiConnection(path, resolved, 'WELES_WORKER_API_BASE', 'WELES_WORKER_TOKEN');
 }
 
+/**
+ * The executor's JSON answer. Whatever stands between the operator and the
+ * executor (the Stado forward, a proxy) answers in plain text when it cannot
+ * reach it, so a body that is not JSON is reported as the status and text it
+ * was, not as a parse error.
+ */
+export async function operatorJson(response: Response): Promise<Record<string, unknown>> {
+  const text = await response.text();
+  let body: unknown;
+  try { body = JSON.parse(text); }
+  catch {
+    throw new Error(`HTTP ${response.status} ${response.headers.get('content-type') ?? 'without a content type'} is not the executor's JSON: ${text.trim().slice(0, 400) || 'empty body'}`);
+  }
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+    throw new Error(`HTTP ${response.status}: the executor answered JSON that is not an object`);
+  }
+  return body as Record<string, unknown>;
+}
+
 export function welesApiConnection(path: string, options: WelesApiOptions = {}) {
   const connection = apiConnection(path, options, 'WELES_API_BASE', 'WELES_TOKEN');
   const environment = options.environment ?? process.env;

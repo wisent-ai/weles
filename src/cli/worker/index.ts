@@ -1,5 +1,5 @@
 import type { ParsedCli } from '../../cli.js';
-import { welesOperatorConnection } from '../../runtime/api/connection.js';
+import { operatorJson, welesOperatorConnection } from '../../runtime/api/connection.js';
 import protocol from '../../worker/weles-api-server/worker-control/actions.json';
 
 type WorkerAction = keyof typeof protocol.actions;
@@ -28,8 +28,8 @@ async function request(action: WorkerAction) {
       headers: connection.headers,
       redirect: 'error',
     });
-    const body: unknown = await response.json();
-    if (!object(body) || typeof body.ok !== 'boolean') throw new Error('invalid worker response');
+    const body = await operatorJson(response);
+    if (typeof body.ok !== 'boolean') throw new Error(`HTTP ${response.status}: invalid worker response`);
     if (response.ok && body.ok) {
       const state = checkedState(declaration.mutation ? body.after : body.worker);
       if (declaration.mutation && checkedState(body.before).pid !== state.pid) {

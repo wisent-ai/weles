@@ -1,4 +1,4 @@
-import { welesOperatorConnection, type WelesApiOptions } from './connection.js';
+import { operatorJson, welesOperatorConnection, type WelesApiOptions } from './connection.js';
 
 export type AccountSecurityResult = {
   schema: 'weles.account-security.v1';
@@ -62,7 +62,7 @@ export async function accountSecurityRun(
         action: 'google_mfa_status', params: { login_item: value }, detached: true,
       }) } : {}),
     });
-    const body = await response.json() as Record<string, unknown>;
+    const body = await operatorJson(response);
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${typeof body.error === 'string' ? body.error : 'Weles refused the account-security request'}`);
     if (creating && body.ok !== true) throw new Error('Weles did not accept the account-security request');
     const row = parseRun(creating ? {
