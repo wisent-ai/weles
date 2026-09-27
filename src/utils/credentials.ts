@@ -48,10 +48,6 @@ export async function getCaptchaCredentials(): Promise<{ anticaptcha?: string; t
   return credentials;
 }
 
-export async function getEmailApiKey(): Promise<string | undefined> {
-  return readOptionalWelesServiceSecret('resendReceiving', 'api_key');
-}
-
 export interface SocialAccount {
   id?: string;
   platform: string;

@@ -1,8 +1,6 @@
 import { enqueueAction, readRunRecord, readSetting, writeSetting } from '../state/skarbiec-records.js';
-import { acquiredSecretContract, readOptionalWelesServiceSecret, writeWelesAcquiredSecret } from './scoped-service.js';
-function resendReceivingKey(): string | undefined {
-  return readOptionalWelesServiceSecret('resendReceiving', 'api_key');
-}
+import { acquiredSecretContract, writeWelesAcquiredSecret } from './scoped-service.js';
+import { getReceived, listReceived, receivingConfigured, type ReceivedSummary } from '../utils/email/resend-receiving.js';
 
 type ActionLogRow = {
   id: string;
@@ -14,13 +12,6 @@ type ActionLogRow = {
   tenant_id?: string | null;
 };
 
-type ResendMessage = {
-  id: string;
-  to?: Array<string | { email?: string | null }>;
-  from?: string | null;
-  subject?: string | null;
-  created_at?: string | null;
-};
 
 
 
@@ -108,27 +99,10 @@ async function loadSourceSubmission(sourceActionLogId: string | undefined, tenan
   return isSemanticSubmission(normalized) && (normalized.tenant_id ?? null) === tenantId ? normalized : null;
 }
 
-function messageRecipients(message: ResendMessage): string[] {
+function messageRecipients(message: ReceivedSummary): string[] {
   return (message.to ?? []).map((entry) => typeof entry === 'string' ? entry : text(entry.email)).map((entry) => entry.toLowerCase());
 }
 
-async function listReceivedEmails(after?: string): Promise<{ data: ResendMessage[]; has_more?: boolean }> {
-  const params = new URLSearchParams({ limit: '100' });
-  if (after) params.set('after', after);
-  const response = await fetch(`https://api.resend.com/emails/receiving?${params.toString()}`, {
-    headers: { Authorization: `Bearer ${resendReceivingKey()}` },
-  });
-  if (!response.ok) throw new Error(`Resend receiving list failed HTTP ${response.status}`);
-  return await response.json() as { data: ResendMessage[]; has_more?: boolean };
-}
-
-async function loadReceivedEmail(id: string): Promise<Record<string, unknown>> {
-  const response = await fetch(`https://api.resend.com/emails/receiving/${encodeURIComponent(id)}`, {
-    headers: { Authorization: `Bearer ${resendReceivingKey()}` },
-  });
-  if (!response.ok) throw new Error(`Resend receiving message failed HTTP ${response.status}`);
-  return await response.json() as Record<string, unknown>;
-}
 
 function contentForCandidateExtraction(message: Record<string, unknown>): string {
   return [message.subject, message.text, message.html].map(text).join('\n');
@@ -178,7 +152,7 @@ async function scanMailboxForValidKey(source: ActionLogRow): Promise<{ stored: t
   let emailsScanned = 0;
   let matchedEmails = 0;
   for (let pageIndex = 0; pageIndex < maxPages; pageIndex++) {
-    const page = await listReceivedEmails(after);
+    const page = await listReceived(Number('100'), undefined, after);
     const data = page.data ?? [];
     emailsScanned += data.length;
     for (const message of data) {
@@ -186,7 +160,7 @@ async function scanMailboxForValidKey(source: ActionLogRow): Promise<{ stored: t
       if (Number.isFinite(createdAt) && createdAt < minCreatedAt) continue;
       if (!messageRecipients(message).includes(target)) continue;
       matchedEmails += 1;
-      const full = await loadReceivedEmail(message.id);
+      const full = await getReceived(message.id);
       const content = contentForCandidateExtraction(full);
       for (const candidate of extractSemanticScholarKeyCandidates(content)) {
         const secret = Buffer.from(candidate, 'utf8');
@@ -240,8 +214,8 @@ function nextBackoffMs(attempt: number): number {
 }
 
 export async function runSemanticScholarKeyFollowup(sourceActionLogId?: string, attemptArg?: number, tenantId: string | null = null): Promise<ScannerResult> {
-  if (!resendReceivingKey()) {
-    return { status: 'needs_configuration', validated: false, reason: 'missing exact Weles Resend receiving grant', next_scheduled_at: null };
+  if (!receivingConfigured()) {
+    return { status: 'needs_configuration', validated: false, reason: 'the wisent-integrations inbox route (STADO_INTEGRATION_API_URL, WELES_STADO_INTEGRATION_TOKEN) is not configured', next_scheduled_at: null };
   }
   const source = await loadSourceSubmission(sourceActionLogId, tenantId);
   if (!source) return { status: 'source_not_found', validated: false, reason: 'no completed Semantic Scholar submission found', next_scheduled_at: null };

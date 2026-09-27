@@ -4,7 +4,7 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { markSignupSuccess } from '../../../utils/email/domain.js';
-import { getEmailApiKey } from '../../../utils/credentials.js';
+import { getReceived, listReceived, receivingConfigured } from '../../../utils/email/resend-receiving.js';
 import type { WSession } from '../../wsession.js';
 import { putAccount } from '../../../state/skarbiec-records.js';
 import { recordingsDir } from './fingerprint_capture.js';
@@ -23,20 +23,18 @@ function profileUrl(platform: string, username: string, name?: string): string {
 }
 
 export async function wsCheckEmail(s: WSession, email: string, sender: string): Promise<string> {
-  const key = await getEmailApiKey() ?? '';
-  if (!key) return 'error: no RESEND_RECEIVING_API_KEY';
+  if (!receivingConfigured()) return 'error: the wisent-integrations inbox route (STADO_INTEGRATION_API_URL, WELES_STADO_INTEGRATION_TOKEN) is not configured';
   const addr = s.resolveEnv(email).toLowerCase();
   const senderHint = sender.toLowerCase();
   const earliestAcceptMs = Date.now() - 90_000;
   for (let attempt = 0; attempt < 18; attempt++) {
-    const r = await fetch('https://api.resend.com/emails/receiving?limit=10', { headers: { Authorization: `Bearer ${key}` } });
-    for (const em of ((await r.json()) as any).data ?? []) {
+    for (const em of (await listReceived(10, addr)).data) {
       const to = (em.to ?? []).map((t: any) => (typeof t === 'string' ? t : t.email ?? '').toLowerCase());
       if (!to.includes(addr)) continue;
       if (senderHint && !(em.from ?? '').toLowerCase().includes(senderHint)) continue;
       const emAt = em.created_at ? new Date(em.created_at).getTime() : 0;
       if (emAt < earliestAcceptMs) continue;
-      const d = await (await fetch(`https://api.resend.com/emails/receiving/${em.id}`, { headers: { Authorization: `Bearer ${key}` } })).json() as any;
+      const d = await getReceived(em.id) as { subject?: string; text?: string; html?: string };
       const content = `${d.subject ?? ''}\n${d.text ?? ''}\n${d.html ?? ''}`;
       const verificationMatch = content.match(/https:\/\/api-dashboard\.search\.brave\.com\/verification[^\s"'<>\]]+/);
       if (verificationMatch) {
