@@ -43,6 +43,7 @@
 //   POST /google-ads/keyword-report       -> keyword planner report (planner bearer)
 //   POST /pages/snapshot                  -> rendered public page as text, structure, image
 //   POST /pages/form-export               -> file a public page downloads after a form fill
+//   POST /records/...                     -> Skarbiec-held accounts, action queue, runtime settings
 //
 // What this file keeps is the release boundary and the process. It is the only
 // module allowed to name a path inside the deployed runtime tree: every
@@ -73,6 +74,7 @@ const { selectLoginAccount } = await import(`${REPO}/dist/utils/login-accounts.j
 const { readPrivateStadoObjectIdentity, uploadArtifacts } = await import(`${REPO}/dist/worker/upload-artifacts.js`);
 const { publicAddresses, resolveBrowserEvidenceTarget, SPIS_BROWSER_EVIDENCE_POLICY } = await import(`${REPO}/dist/agent/browser-evidence-policy.js`);
 const { AsyncNewBrowser } = await import(`${REPO}/dist/async_api.js`);
+const accountRecords = await import(`${REPO}/dist/state/skarbiec-records.js`);
 const { createPublicTaskService, publicTaskErrorResponse } = await import('./public-task-service.mjs');
 const { importWelesTrajectoryDocument } = await import(`${REPO}/dist/runtime/import.js`);
 const { acquireSecret } = await import(`${REPO}/dist/secrets/acquire.js`);
@@ -155,6 +157,7 @@ const server = http.createServer(createApiRequestHandler({
   importWelesTrajectoryDocument,
   publicTaskErrorResponse,
   pageBrowser: { openBrowser: AsyncNewBrowser, publicAddresses },
+  accountRecords,
   publicTaskService,
   runTrajectory,
   selectLoginAccount,

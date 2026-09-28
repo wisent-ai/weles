@@ -58,6 +58,7 @@ runtime_required=(
   dist/worker/upload-artifacts.js
   dist/agent/browser-evidence-policy.js
   dist/async_api.js
+  dist/state/skarbiec-records.js
   dist/runtime/import.js
   dist/utils/login-accounts.js
   dist/secrets/acquire.js
