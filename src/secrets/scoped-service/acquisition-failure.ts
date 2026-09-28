@@ -21,6 +21,7 @@ const REASONS: ReadonlySet<string> = new Set<AcquisitionReason>([
 const REASON_LINE = 'SKARBIEC_ACQUIRE_REASON ';
 
 export class SkarbiecAcquisitionError extends Error {
+  readonly code = 'skarbiec_acquisition_failed';
   readonly reason: AcquisitionReason | null;
 
   constructor(message: string, reason: AcquisitionReason | null) {

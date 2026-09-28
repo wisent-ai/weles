@@ -56,32 +56,6 @@ export function credentialFailure(out) {
       ...(reason ? { reason } : {}),
     });
   }
-
-  if (/no login material for '/.test(stderr)) {
-    return withStage({ code: 'login_material_unavailable' });
-  }
-  if (/claude binary not at /.test(stderr)) {
-    return withStage({ code: 'claude_binary_missing' });
-  }
-
-  match = stderr.match(/needs capability '([A-Za-z0-9._-]+)'/);
-  if (match) {
-    return withStage({ code: 'capability_unavailable', capability: match[1] });
-  }
-  if (/loginMethod=.*expected google_sso/.test(stderr)) {
-    return withStage({ code: 'login_method_mismatch' });
-  }
-  if (/authorization code never displayed/.test(stderr)) {
-    return withStage({ code: 'authorization_code_unavailable' });
-  }
-  if (/auth login: .* not seen in /.test(stderr)) {
-    return withStage({ code: 'claude_auth_prompt_unavailable' });
-  }
-
-  match = stderr.match(/auth login exited early \(code (-?\d+)\)/);
-  if (match) {
-    return withStage({ code: 'claude_auth_exited_early', exit_code: Number(match[1]) });
-  }
   return withStage({ code: 'trajectory_failed' });
 }
 

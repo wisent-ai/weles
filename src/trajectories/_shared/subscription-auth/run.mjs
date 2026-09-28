@@ -49,6 +49,8 @@ function fail(error, provider) {
     retryable: observedBrowser === false || error.code === 'oauth_transport_failed',
     http_status: error.status || null,
     subscription_id: process.env.BRAMA_SUBSCRIPTION_ID || null,
+    ...(typeof error.capability === 'string' ? { capability: error.capability } : {}),
+    ...(typeof error.reason === 'string' ? { reason: error.reason } : {}),
   };
   process.stderr.write(`AUTH_FAILURE ${JSON.stringify(failure)}\n`);
   process.exitCode = 1;

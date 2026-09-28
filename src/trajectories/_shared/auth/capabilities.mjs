@@ -159,10 +159,12 @@ export function requireCapabilities(trajectory) {
     const result = measure();
     measured[capability] = result;
     if (!result.value) {
-      throw new Error(
+      // code, stage and capability are what the AUTH_FAILURE line reports
+      // (subscription-auth/run.mjs fail()); the sentence is for the reader.
+      throw Object.assign(new Error(
         `${trajectory} needs capability '${capability}', declared in ${REQUIREMENTS_FILE}, `
         + `and this host measures ${capability}=false: ${result.detail}. ${result.remedy}`,
-      );
+      ), { code: 'capability_unavailable', stage: 'capability', capability });
     }
   }
   return measured;
