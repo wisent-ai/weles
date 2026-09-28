@@ -4,7 +4,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "imports": {
-    "#run-output": "./src/_shared/run-output.mjs",
+    "#run-output": "./src/_shared/run-output/index.mjs",
     "#operator-request": "./src/operator/request.mjs"
   },
   "bin": {
