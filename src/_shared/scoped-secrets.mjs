@@ -36,8 +36,6 @@ const SERVICES = Object.freeze({
   capmonster: Object.freeze({ consumer: 'weles-capmonster-client', item: 'weles-capmonster-api', tokenFile: 'weles-capmonster-client-skarbiec-token', fields: API_KEY_FIELDS }),
   noCaptcha: Object.freeze({ consumer: 'weles-nocaptcha-client', item: 'weles-nocaptcha-api', tokenFile: 'weles-nocaptcha-client-skarbiec-token', fields: API_KEY_FIELDS }),
   nopecha: Object.freeze({ consumer: 'weles-nopecha-client', item: 'weles-nopecha-api', tokenFile: 'weles-nopecha-client-skarbiec-token', fields: API_KEY_FIELDS }),
-  resendReceiving: Object.freeze({ consumer: 'weles-resend-receiving-client', item: 'weles-resend-receiving-api', tokenFile: 'weles-resend-receiving-client-skarbiec-token', fields: API_KEY_FIELDS }),
-  resendManagement: Object.freeze({ consumer: 'weles-resend-management-client', item: 'weles-resend-management-api', tokenFile: 'weles-resend-management-client-skarbiec-token', fields: API_KEY_FIELDS }),
   juicySms: Object.freeze({ consumer: 'weles-juicysms-client', item: 'weles-juicysms-api', tokenFile: 'weles-juicysms-client-skarbiec-token', fields: API_KEY_FIELDS }),
   smsActivate: Object.freeze({ consumer: 'weles-sms-activate-client', item: 'weles-sms-activate-api', tokenFile: 'weles-sms-activate-client-skarbiec-token', fields: API_KEY_FIELDS }),
   discordBot: Object.freeze({ consumer: 'weles-discord-bot-client', item: 'weles-discord-bot', tokenFile: 'weles-discord-bot-client-skarbiec-token', fields: API_KEY_FIELDS }),

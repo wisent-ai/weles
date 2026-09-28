@@ -1,143 +1,61 @@
 import { readDomainRows, writeDomainRows } from './domain.js';
-import { readOptionalWelesServiceSecret } from '../../secrets/scoped-service.js';
+import { integrationAction } from '../integrations.js';
 
 /**
  * Auto-provisioner for new inbound email domains.
  *
- * Pipeline:
+ * Pipeline (every provider call goes through wisent-integrations'
+ * `email-domains` actions, which hold the Namecheap and Resend keys):
  *   1. Namecheap availability check
- *   2. Namecheap register (MAX_PRICE guarded)
- *   3. Resend POST /v1/domains with receiving enabled
- *   4. Resend returns DNS records; set them via Namecheap
+ *   2. Namecheap register (premium and taken names refused by the boundary;
+ *      a charge above its limit is reported and stops the pipeline)
+ *   3. Resend domain created with receiving enabled
+ *   4. Resend's DNS records set via Namecheap
  *   5. Poll Resend until status=verified
  *   6. Insert into inbound_email_domains as active
  */
 
-const MAX_PRICE_USD = 20;
-function resendManagementKey(): string | undefined {
-  return readOptionalWelesServiceSecret('resendManagement', 'api_key');
-}
-
-type NcEnv = { apiKey: string; apiUser: string; username: string; clientIp: string };
-
-function ncEnv(): NcEnv {
-  return {
-    apiKey: readOptionalWelesServiceSecret('namecheap', 'api_key') ?? '',
-    apiUser: readOptionalWelesServiceSecret('namecheap', 'api_user') ?? '',
-    username: readOptionalWelesServiceSecret('namecheap', 'username') ?? '',
-    clientIp: readOptionalWelesServiceSecret('namecheap', 'client_ip') ?? '',
-  };
-}
-
-function ncBase(sandbox = false): string {
-  return sandbox ? 'https://api.sandbox.namecheap.com/xml.response' : 'https://api.namecheap.com/xml.response';
-}
-
-async function ncCall(command: string, extra: Record<string, string>, sandbox = false): Promise<string> {
-  const env = ncEnv();
-  const url = new URL(ncBase(sandbox));
-  url.searchParams.set('ApiUser', env.apiUser);
-  url.searchParams.set('ApiKey', env.apiKey);
-  url.searchParams.set('UserName', env.username);
-  url.searchParams.set('ClientIp', env.clientIp);
-  url.searchParams.set('Command', command);
-  for (const [k, v] of Object.entries(extra)) url.searchParams.set(k, v);
-  const res = await fetch(url.toString());
-  const body = await res.text();
-  if (!res.ok) throw new Error(`Namecheap ${command} HTTP ${res.status}: ${body.slice(0, 300)}`);
-  const errorMatch = body.match(/<Error[^>]*>([^<]+)<\/Error>/);
-  if (errorMatch) throw new Error(`Namecheap ${command} error: ${errorMatch[1]}`);
-  return body;
-}
-
 export async function checkDomain(domain: string): Promise<{ available: boolean; premium: boolean }> {
-  const xml = await ncCall('namecheap.domains.check', { DomainList: domain });
-  const available = /Available="true"/i.test(xml);
-  const premium = /IsPremiumName="true"/i.test(xml);
-  return { available, premium };
+  return integrationAction<{ available: boolean; premium: boolean }>('email-domains', 'namecheap.domain.check', { domain });
 }
 
-export async function registerDomain(domain: string, years = 1, contact?: Partial<Record<string, string>>): Promise<{ chargedUsd: number; domainId: string | null }> {
-  const avail = await checkDomain(domain);
-  if (!avail.available) throw new Error(`${domain} is not available`);
-  if (avail.premium) throw new Error(`${domain} is a premium domain — refusing to buy`);
-
-  const c = {
-    FirstName: 'Wisent', LastName: 'Media',
-    Address1: '548 Market St', City: 'San Francisco',
-    StateProvince: 'CA', PostalCode: '94104',
-    Country: 'US', Phone: '+1.4155551234',
-    EmailAddress: 'ops@wisentmedia.com',
-    ...contact,
-  };
-  const params: Record<string, string> = { DomainName: domain, Years: String(years) };
-  for (const prefix of ['Registrant', 'Tech', 'Admin', 'AuxBilling']) {
-    for (const [k, v] of Object.entries(c)) params[`${prefix}${k}`] = v as string;
-  }
-  const xml = await ncCall('namecheap.domains.create', params);
-  const registered = /Registered="true"/i.test(xml);
-  if (!registered) throw new Error('Registration response did not report Registered=true');
-  const charged = parseFloat(xml.match(/ChargedAmount="([\d.]+)"/)?.[1] ?? '0');
-  if (charged > MAX_PRICE_USD) throw new Error(`Charged $${charged} exceeds max $${MAX_PRICE_USD}`);
-  const domainId = xml.match(/DomainID="(\d+)"/)?.[1] ?? null;
-  return { chargedUsd: charged, domainId };
+export async function registerDomain(domain: string, years = 1): Promise<{ chargedUsd: number; domainId: string | null }> {
+  const registered = await integrationAction<{ domain_id: string | null; charged_usd: number; over_limit: boolean }>(
+    'email-domains', 'namecheap.domain.register', { domain, years },
+  );
+  if (registered.over_limit) throw new Error(`Registering ${domain} charged $${registered.charged_usd}, above the boundary's limit`);
+  return { chargedUsd: registered.charged_usd, domainId: registered.domain_id };
 }
 
 interface ResendDnsRecord { record: string; name: string; type: string; value: string; ttl?: string | number; priority?: number; status?: string }
 interface ResendDomain { id: string; name: string; status: string; records: ResendDnsRecord[] }
 
 export async function createResendDomain(domain: string, region = 'us-east-1'): Promise<ResendDomain> {
-  const key = resendManagementKey();
-  if (!key) throw new Error('Missing exact Weles Resend management grant');
-  const res = await fetch('https://api.resend.com/domains', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: domain, region }),
-  });
-  const body = await res.json() as ResendDomain & { message?: string };
-  if (!res.ok) throw new Error(`Resend create domain: ${res.status} ${body.message ?? JSON.stringify(body)}`);
-  return body;
+  return integrationAction<ResendDomain>('email-domains', 'resend.domain.create', { domain, region });
 }
 
 export async function enableResendReceiving(domainId: string): Promise<ResendDomain> {
-  const key = resendManagementKey();
-  if (!key) throw new Error('Missing exact Weles Resend management grant');
-  const res = await fetch(`https://api.resend.com/domains/${domainId}`, {
-    method: 'PATCH',
-    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ capabilities: { receiving: 'enabled' } }),
-  });
-  if (!res.ok) throw new Error(`Resend enable receiving: ${res.status} ${await res.text()}`);
-  return getResendDomain(domainId);
+  return integrationAction<ResendDomain>('email-domains', 'resend.domain.receiving.enable', { id: domainId });
 }
 
 export async function getResendDomain(domainId: string): Promise<ResendDomain> {
-  const key = resendManagementKey();
-  if (!key) throw new Error('Missing exact Weles Resend management grant');
-  const res = await fetch(`https://api.resend.com/domains/${domainId}`, { headers: { Authorization: `Bearer ${key}` } });
-  const body = await res.json() as ResendDomain & { message?: string };
-  if (!res.ok) throw new Error(`Resend get domain: ${res.status} ${body.message ?? ''}`);
-  return body;
+  return integrationAction<ResendDomain>('email-domains', 'resend.domain.get', { id: domainId });
 }
 
 export async function setNamecheapHosts(domain: string, records: ResendDnsRecord[]): Promise<void> {
-  const parts = domain.split('.');
-  if (parts.length < 2) throw new Error('Invalid domain');
-  const SLD = parts[0];
-  const TLD = parts.slice(1).join('.');
-  // EmailType=MX tells Namecheap to honor custom MX records in the hosts list
-  const params: Record<string, string> = { SLD, TLD, EmailType: 'MX' };
-  records.forEach((r, i) => {
-    const n = i + 1;
-    const host = r.name.endsWith(`.${domain}`) ? r.name.slice(0, -domain.length - 1) : r.name === domain ? '@' : r.name;
-    params[`HostName${n}`] = host || '@';
-    params[`RecordType${n}`] = r.type.toUpperCase();
-    params[`Address${n}`] = r.value;
-    if (r.type.toUpperCase() === 'MX') params[`MXPref${n}`] = String(r.priority ?? 10);
-    const numericTtl = typeof r.ttl === 'number' ? r.ttl : parseInt(String(r.ttl ?? ''), 10);
-    params[`TTL${n}`] = String(Number.isFinite(numericTtl) && numericTtl > 0 ? numericTtl : 1800);
+  await integrationAction('email-domains', 'namecheap.dns.hosts.set', {
+    domain,
+    records: records.map((record) => {
+      const numericTtl = typeof record.ttl === 'number' ? record.ttl : parseInt(String(record.ttl ?? ''), 10);
+      return {
+        name: record.name,
+        type: record.type,
+        value: record.value,
+        ...(Number.isFinite(numericTtl) && numericTtl > 0 ? { ttl: numericTtl } : {}),
+        ...(record.priority !== undefined ? { priority: record.priority } : {}),
+      };
+    }),
   });
-  await ncCall('namecheap.domains.dns.setHosts', params);
 }
 
 export async function verifyResendDomain(domainId: string, pollSeconds = 20, maxAttempts = 30): Promise<boolean> {
