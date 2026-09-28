@@ -2,7 +2,7 @@
 // between runs: one directory of JSON files, each written whole and renamed
 // into place, each checked for shape before it is believed.
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type {
   JourneyBundle,
@@ -74,10 +74,25 @@ type Journal = { progress: Record<string, JourneyProgress>; events: JourneyRunti
 const JOURNAL_FILE = 'journal.json';
 const LEGACY_EVENTS_FILE = 'events.json';
 const LEGACY_PROGRESS_SUFFIX = '-progress.json';
+const JOURNAL_LOCK_FILE = 'journal.lock';
+// How often a waiting writer looks at journal.lock again; a journal write
+// takes milliseconds, so a waiter never idles long behind one.
+const JOURNAL_LOCK_POLL_MS = 25;
+
+// Signal 0 asks the kernel whether the process exists without touching it;
+// EPERM means it exists under another user.
+function processAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
 
 export class FileJourneyStorage implements JourneyStorage {
-  // Every read-modify-write of the journal runs after the previous one, so a
-  // stale copy of the queue can never overwrite events committed meanwhile.
+  // Writes from this instance queue behind each other before taking the
+  // cross-process journal.lock, so the lock is never contended by itself.
   private chain: Promise<unknown> = Promise.resolve();
 
   /**
@@ -113,18 +128,32 @@ export class FileJourneyStorage implements JourneyStorage {
     await rename(temporary, path);
   }
 
-  // The journal, or - before its first write - the separate progress files
-  // and events.json earlier releases kept, which the first write replaces.
+  // The journal, or - only when journal.json does not exist yet - the separate
+  // progress files and events.json earlier releases kept, which the first
+  // write replaces. An unreadable or malformed journal is an error, never an
+  // empty one: treating it as empty would let the next write erase its queue.
   private async readJournal(): Promise<Journal> {
-    const stored = await this.load(join(this.directory, JOURNAL_FILE));
-    if (stored !== null) {
+    const path = join(this.directory, JOURNAL_FILE);
+    let text: string | null;
+    try {
+      text = await readFile(path, 'utf8');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      text = null;
+    }
+    if (text !== null) {
+      const stored: unknown = JSON.parse(text);
       const progress = storedProperty(stored, 'progress');
       const events = storedProperty(stored, 'events');
-      return {
-        progress: Object.fromEntries(Object.entries(progress !== null && typeof progress === 'object' ? progress : {})
-          .filter((entry): entry is [string, JourneyProgress] => isStoredProgress(entry[1]))),
-        events: Array.isArray(events) ? events.filter(isStoredEvent) : [],
-      };
+      if (progress === null || typeof progress !== 'object' || Array.isArray(progress) || !Array.isArray(events)) {
+        throw new Error(`${path} is not a journey journal (progress map and events list)`);
+      }
+      const entries = Object.entries(progress);
+      const badProgress = entries.find(([, value]) => !isStoredProgress(value));
+      if (badProgress) throw new Error(`${path}: progress ${badProgress[0]} is malformed`);
+      const badEvent = events.findIndex((event) => !isStoredEvent(event));
+      if (badEvent >= 0) throw new Error(`${path}: queued event ${badEvent} is malformed`);
+      return { progress: Object.fromEntries(entries) as Record<string, JourneyProgress>, events };
     }
     const names = await readdir(this.directory).catch((error: NodeJS.ErrnoException) => {
       if (error.code === 'ENOENT') return [] as string[];
@@ -140,12 +169,42 @@ export class FileJourneyStorage implements JourneyStorage {
     return journal;
   }
 
+  // Holds journal.lock for one read-modify-write, across instances and
+  // processes: two CLI runs on the same directory take turns instead of the
+  // later rename discarding the other's events. A lock whose recorded process
+  // is gone is taken over.
+  private async lockJournal(): Promise<() => Promise<void>> {
+    await mkdir(this.directory, { recursive: true, mode: 0o700 });
+    const lockPath = join(this.directory, JOURNAL_LOCK_FILE);
+    for (;;) {
+      try {
+        await writeFile(lockPath, String(process.pid), { flag: 'wx', mode: 0o600 });
+        return () => rm(lockPath, { force: true });
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+      }
+      const holder = Number.parseInt(await readFile(lockPath, 'utf8').catch(() => ''), 10);
+      if (Number.isInteger(holder) && !processAlive(holder)) {
+        await rm(lockPath, { force: true });
+        continue;
+      }
+      const { promise, resolve } = Promise.withResolvers<void>();
+      setTimeout(resolve, JOURNAL_LOCK_POLL_MS);
+      await promise;
+    }
+  }
+
   private withJournal<T>(change: (journal: Journal) => T): Promise<T> {
     const run = this.chain.then(async () => {
-      const journal = await this.readJournal();
-      const result = change(journal);
-      await this.save(join(this.directory, JOURNAL_FILE), journal);
-      return result;
+      const unlock = await this.lockJournal();
+      try {
+        const journal = await this.readJournal();
+        const result = change(journal);
+        await this.save(join(this.directory, JOURNAL_FILE), journal);
+        return result;
+      } finally {
+        await unlock();
+      }
     });
     this.chain = run.catch(() => undefined);
     return run;
