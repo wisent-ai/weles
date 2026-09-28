@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // Automatyczny login do lsi.parp.gov.pl przez reset hasła.
-// Email idzie na lukasz.bartoszcze@wisent.ai (Gmail OAuth dostępne).
+// Email idzie na lukasz.bartoszcze@wisent.ai; link resetu czyta Skrzynka (skrzynka sync / message list).
 // Po reset: zapisuje nowe hasło do ~/.weles/parp_login.json i loguje się.
 
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { randomBytes } from 'node:crypto';
@@ -16,9 +17,8 @@ import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.
 const EMAIL = process.env.PARP_EMAIL || 'lukasz.bartoszcze@wisent.ai';
 const STORE = join(homedir(), '.weles', 'parp_login.json');
 const NEW_PASSWORD = randomBytes(16).toString('base64url').slice(0, 24) + 'Aa1!';
-const GMAIL_QUERY = process.env.PARP_GMAIL_QUERY || 'from:lsi@parp.gov.pl subject:hasło';
-const DRIVE_DIR = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/growth-tactics/google_drive';
-const PY = '/Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12';
+const RESET_SENDER = process.env.PARP_RESET_SENDER || 'lsi@parp.gov.pl';
+const SKRZYNKA = process.env.SKRZYNKA_BIN || 'skrzynka';
 
 const RESET_TRIGGERS = ['Zapomniałem hasła', 'Nie pamiętam hasła', 'Reset hasła', 'Przypomnij hasło'];
 const EMAIL_SELECTORS = ['input[type="email"]', 'input[name="email"]', 'input[id*="email" i]', 'input[placeholder*="email" i]'];
@@ -64,23 +64,31 @@ async function fillByAnySelector(s, selectors, value) {
   return false;
 }
 
-function pollGmailForResetLink(maxIterations) {
+function skrzynka(args) {
+  return JSON.parse(execFileSync(SKRZYNKA, args, { encoding: 'utf8' }));
+}
+
+function resetMailbox() {
+  const mailbox = skrzynka(['mailbox', 'list']).find((m) => m.email.toLowerCase() === EMAIL.toLowerCase());
+  if (!mailbox) {
+    throw new Error(`Skrzynka has no mailbox ${EMAIL}; import its Skarbiec item with skrzynka mailbox import`);
+  }
+  return mailbox.id;
+}
+
+async function pollMailForResetLink(maxIterations) {
+  const mailboxId = resetMailbox();
   for (let i = 0; i < maxIterations; i++) {
-    try {
-      const list = execSync(`cd ${JSON.stringify(DRIVE_DIR)} && ${PY} search_drive.py gmail-search ${JSON.stringify(GMAIL_QUERY)} 2>&1`, { encoding: 'utf8' });
-      const firstId = list.split('\n').find(l => l.match(/^[0-9a-f]{16}\s+\|/))?.split(' ')[0];
-      if (firstId) {
-        const body = execSync(`cd ${JSON.stringify(DRIVE_DIR)} && ${PY} search_drive.py gmail-read ${firstId} 2>&1`, { encoding: 'utf8' });
-        const m = body.match(/https?:\/\/[^\s<>"]+(?:reset|password|hasło|token)[^\s<>"]*/i);
-        if (m) {
-          logn(`znalazłem link reset: ${m[0].slice(0, 80)}...`);
-          return m[0];
-        }
-      }
-    } catch (e) {
-      logn(`gmail poll error: ${(e.message || '').slice(0, 100)}`);
+    skrzynka(['sync', '--mailbox', mailboxId]);
+    const newest = skrzynka(['message', 'list', '--mailbox', mailboxId, '--limit', '100'])
+      .filter((m) => m.sender.toLowerCase().includes(RESET_SENDER.toLowerCase()))
+      .sort((a, b) => b.received_at.localeCompare(a.received_at))[0];
+    const link = newest?.body_text.match(/https?:\/\/[^\s<>"]+/i);
+    if (link) {
+      logn(`znalazłem link reset: ${link[0].slice(0, 80)}...`);
+      return link[0];
     }
-    execSync('sleep 10');
+    await sleep(10_000);
   }
   return null;
 }
@@ -121,8 +129,8 @@ async function main() {
   await humanIdlePause('deliberate');
   await screenshot(s, 'reset_submitted');
 
-  logn('poll Gmail na link reset');
-  const link = pollGmailForResetLink(30);
+  logn('czekam na mail resetu w Skrzynce');
+  const link = await pollMailForResetLink(30);
   if (!link) {
     logn('FAIL: nie dostałem maila resetowego. Może PARP ma captcha, blokadę reset, albo email idzie indziej.');
     process.exitCode = 1;
