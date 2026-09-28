@@ -1,15 +1,15 @@
 // Slack-post trajectory. TWO paths:
-//   TOKEN (default): post directly via chat.postMessage with a stored bot token
-//     (the Oko app already exists — Member ID U0B5SU2CULS, team Wisent).
+//   BOT (default): post as the Swiatowid bot through wisent-integrations'
+//     slack domain (identity swiatowid-bot), which holds the bot token.
 //     No browser, no Google SSO, no app re-creation. This is what runs on the
 //     mac-mini worker.
-//   BROWSER (no token): Google-SSO into wisent-workspace.slack.com, create the
-//     app via manifest, scrape a fresh xoxb, post. Only used when no bot token
-//     is configured.
-// Token source: SLACK_BOT_TOKEN env, else ~/.oko/bot-token, else ~/.oko/slack.json.
-// IMPORTANT: do NOT re-create the app when a token exists — that spawns a
-// duplicate (logo-less) "Oko" and posts from the wrong identity.
-// Env: SLACK_BOT_TOKEN, MESSAGE_TEXT | MESSAGE_FILE,
+//   BROWSER (integrations not configured): Google-SSO into
+//     wisent-workspace.slack.com, create the app via manifest, scrape a fresh
+//     xoxb, post.
+// IMPORTANT: do NOT re-create the app when the bot is reachable — that spawns
+// a duplicate (logo-less) "Oko" and posts from the wrong identity.
+// Env: STADO_INTEGRATION_API_URL + WELES_STADO_INTEGRATION_TOKEN (bot path),
+//      MESSAGE_TEXT | MESSAGE_FILE,
 //      SLACK_TARGET_CHANNEL (id) | SLACK_TARGET_CHANNEL_NAME | SLACK_TARGET_USER_ID,
 //      SLACK_TARGET_USER_MATCHERS (csv, default jakub,kuba,towarek),
 //      SLACK_ENABLE_TAGGING=0 | SLACK_MENTION_USER_IDS | SLACK_MENTION_USER_MATCHERS,
@@ -18,7 +18,7 @@
 import { existsSync, readFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { slackPost, storedBotToken, workspaceApi } from './post_message/api.mjs';
+import { botConfigured, slackPost, workspaceApi } from './post_message/api.mjs';
 import { applyMentions, listMembers, mentionIdsForTarget, parseCsv, resolveTargets, resolveUsersFromMembers } from './post_message/recipients.mjs';
 import { readClientToken, signInThroughGoogle } from './post_message/browser_signin.mjs';
 
@@ -38,15 +38,14 @@ if (!INLINE_MESSAGE && !(MESSAGE_FILE && existsSync(MESSAGE_FILE))) {
 }
 const MESSAGE_BODY = INLINE_MESSAGE || readFileSync(MESSAGE_FILE, 'utf8');
 
-// ---- TOKEN PATH: stored bot token -> chat.postMessage (no browser) ----------
-const BOT_TOKEN = storedBotToken();
-if (BOT_TOKEN) {
-  const who = await slackPost('auth.test', {}, BOT_TOKEN);
-  console.log(`[slack] token path: bot=${who.user} user_id=${who.user_id} team=${who.team}`);
-  const targets = await resolveTargets(BOT_TOKEN);
+// ---- BOT PATH: wisent-integrations slack/* as swiatowid-bot (no browser) ----
+if (botConfigured()) {
+  const who = await slackPost('auth.test', {});
+  console.log(`[slack] bot path: bot=${who.user} user_id=${who.user_id} team=${who.team}`);
+  const targets = await resolveTargets();
   let memberCache = false;
   const loadMembers = async () => {
-    if (!memberCache) memberCache = await listMembers(BOT_TOKEN);
+    if (!memberCache) memberCache = await listMembers();
     return memberCache;
   };
   const plans = [];
@@ -57,7 +56,7 @@ if (BOT_TOKEN) {
   let posted = 0;
   for (const plan of plans) {
     try {
-      const post = await slackPost('chat.postMessage', { channel: plan.target, text: plan.text, mrkdwn: true }, BOT_TOKEN);
+      const post = await slackPost('chat.postMessage', { channel: plan.target, text: plan.text });
       console.log(`[slack] ✓ posted to ${plan.target} ts=${post.ts}`);
       posted++;
     } catch (e) { console.error(`[slack] post to ${plan.target} failed: ${e.message}`); }
@@ -66,7 +65,7 @@ if (BOT_TOKEN) {
   console.log(`[slack] ✓ delivered to ${posted}/${targets.length} recipient(s)`);
   process.exit(0);
 }
-console.log('[slack] no stored bot token — signing in through the browser and creating the app');
+console.log('[slack] wisent-integrations is not configured — signing in through the browser and creating the app');
 
 // ---- BROWSER PATH -----------------------------------------------------------
 const { WSession } = await import(`${WELES}/dist/session/wsession.js`);

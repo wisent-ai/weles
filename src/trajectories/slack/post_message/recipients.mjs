@@ -79,8 +79,8 @@ export async function mentionIdsForTarget(target, loadMembers) {
 }
 
 /** Every workspace member that is neither deleted nor a bot. */
-export async function listMembers(token) {
-  const ul = await slackPost('users.list', { limit: '1000' }, token);
+export async function listMembers() {
+  const ul = await slackPost('users.list', { limit: '1000' });
   return (ul.members || []).filter((u) => !u.deleted && !u.is_bot);
 }
 
@@ -88,7 +88,7 @@ export async function listMembers(token) {
  * Where the message goes: an explicit channel id, explicit DM user ids, a
  * channel by name when one resolves, else one DM per recipient group.
  */
-export async function resolveTargets(token) {
+export async function resolveTargets() {
   if (TARGET_CHAN) return [TARGET_CHAN];
   if (process.env.SLACK_TARGET_USER_IDS) return parseCsv(process.env.SLACK_TARGET_USER_IDS);
   if (process.env.SLACK_TARGET_USER_ID) return [process.env.SLACK_TARGET_USER_ID];
@@ -96,7 +96,7 @@ export async function resolveTargets(token) {
   // is a DM, not a channel, so it is answered by the recipient groups below.
   if (process.env.SLACK_TARGET_CHANNEL_NAME) {
     try {
-      const list = await slackPost('conversations.list', { types: 'public_channel,private_channel', limit: '1000' }, token);
+      const list = await slackPost('conversations.list', { types: 'public_channel,private_channel', limit: '1000' });
       const c = (list.channels || []).find((x) => (x.name || '').toLowerCase() === TARGET_NAME);
       if (c) return [c.id];
       console.log(`[slack] no visible channel named "${TARGET_NAME}" — resolving user targets instead`);
@@ -106,7 +106,7 @@ export async function resolveTargets(token) {
   const groups = process.env.SLACK_TARGET_USER_MATCHERS
     ? [parseCsv(process.env.SLACK_TARGET_USER_MATCHERS.toLowerCase())]
     : RECIPIENT_GROUPS;
-  const members = await listMembers(token);
+  const members = await listMembers();
   const ids = [];
   for (const group of groups) {
     const hit = resolveUsersFromMembers(members, [group])[0];

@@ -1,44 +1,35 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { homedir } from 'node:os';
+import { integrationAction, integrationsConfigured } from '../../../_shared/integrations.mjs';
 
 /**
- * The stored bot token: SLACK_BOT_TOKEN, else ~/.oko/bot-token, else the
- * bot token field of ~/.oko/slack.json. '' when none is stored.
+ * The Slack identity Weles posts as when it does not drive the browser: the
+ * Swiatowid bot, whose token is wisent-integrations' provider item
+ * `slack-swiatowid-bot`. Weles itself holds no Slack token.
  */
-export function storedBotToken() {
-  if (process.env.SLACK_BOT_TOKEN?.trim()) return process.env.SLACK_BOT_TOKEN.trim();
-  const okoDir = join(homedir(), '.oko');
-  const botFile = join(okoDir, 'bot-token');
-  try {
-    const token = readFileSync(botFile, 'utf8').split('\n')[0].trim();
-    if (token.startsWith('xoxb-')) return token;
-  } catch {}
-  try {
-    const cfg = JSON.parse(readFileSync(join(okoDir, 'slack.json'), 'utf8'));
-    for (const key of ['bot_token', 'botToken', 'SLACK_BOT_TOKEN']) {
-      const token = typeof cfg?.[key] === 'string' ? cfg[key].trim() : '';
-      if (token.startsWith('xoxb-')) return token;
-    }
-  } catch {}
-  return '';
-}
+export const BOT_IDENTITY = 'swiatowid-bot';
+
+/** Whether the bot can be reached through wisent-integrations at all. */
+export const botConfigured = integrationsConfigured;
 
 export function encodeForm(form) {
   return Object.entries(form).map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join('&');
 }
 
-/** One Slack Web API call with a bearer token; throws with Slack's own error name. */
-export async function slackPost(method, form, token) {
-  const body = encodeForm(form);
-  const r = await fetch(`https://slack.com/api/${method}`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-    body,
-  });
-  const j = await r.json();
-  if (!j.ok) throw new Error(`${method}: ${j.error}${j.needed ? ` (needed ${j.needed})` : ''}`);
-  return j;
+/**
+ * One Slack call as the bot, through wisent-integrations' `slack` domain.
+ * `auth.test`, `users.list` and `conversations.list` answer Slack's own
+ * fields; `chat.postMessage` answers `ts`, `channel` and `user`. A refusal
+ * carries Slack's own error word.
+ */
+export async function slackPost(method, form) {
+  const identity = { identity: BOT_IDENTITY };
+  if (method === 'auth.test') return integrationAction('slack', 'auth.test', identity);
+  if (method === 'users.list' || method === 'conversations.list') {
+    return integrationAction('slack', method, { ...identity, limit: Number(form.limit || 1000), ...(form.types ? { types: form.types } : {}) });
+  }
+  if (method === 'chat.postMessage') {
+    return integrationAction('slack', 'chat.post_message', { ...identity, channel: form.channel, text: form.text });
+  }
+  throw new Error(`${method}: not a Slack method Weles reaches through wisent-integrations`);
 }
 
 /** The same call through the signed-in browser context, for the client (xoxc) token. */
