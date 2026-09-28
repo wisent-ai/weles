@@ -39,6 +39,7 @@ if (acquired.status !== 0) throw new Error('Figma token acquisition failed');
 const tokenBuffer = acquired.stdout;
 
 import { collectNodes, download, extensionFor, gzipFile, request, sha256, slugify } from './transfer.mjs';
+import { parseFigmaDocument } from './document/parse-figma-document.mjs';
 
 
 async function figmaJson(path) {
@@ -63,13 +64,7 @@ async function figmaDocument(fileKey, nodesPath, vocabularyPath) {
   // variables, named styles, fonts, radii, gradients and blurs the designer
   // defined on visible layers — which wisent-components merges into the set
   // its design lint holds every web repository to.
-  run(process.execPath, [
-    join(import.meta.dirname, 'document', 'parse-figma-document.mjs'),
-    cachePath,
-    summaryPath,
-    nodesPath,
-    vocabularyPath,
-  ]);
+  parseFigmaDocument(cachePath, summaryPath, nodesPath, vocabularyPath);
   return {
     cachePath,
     bytes: statSync(cachePath).size,

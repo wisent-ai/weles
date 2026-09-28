@@ -32,6 +32,7 @@ Usage:
   weles release validate-manifest --manifest <file> --source-revision <sha> --candidate-tag <tag>
   weles release adopt-baseline --released <version> --published-surface <file> --reason <text> [--correcting <version>]
   weles figma export-design-assets
+  weles figma parse-document <document.json[.gz]> <summary.json> <nodes.json> [<vocabulary.json>]
   weles operator-requests list [--open] [--limit <n>] [--json]
   weles operator-requests show <id> [--json]
   weles operator-requests open --kind <kind> --account <account> --run <run> --instruction <text> --minutes <n>

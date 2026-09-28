@@ -1,14 +1,15 @@
-#!/usr/bin/env node
 /**
  * Walk a Figma document file and write its summary, node list and vocabulary.
  *
- *     node parse-figma-document.mjs <document.json[.gz]> <summary.json> <nodes.json> [<vocabulary.json>]
+ *     weles figma parse-document <document.json[.gz]> <summary.json> <nodes.json> [<vocabulary.json>]
  *
- * `src/figma/export-design-assets.mjs` calls it at export time, and
- * `wisent-components` runs it once more over a committed `document.json.gz`
- * whose export predates the vocabulary. A Figma file routinely exceeds the
- * longest string Node can hold, so the document is read from its bytes
- * (`json-bytes.mjs`) and never becomes one string.
+ * Part of the Weles program, never a second one: `weles figma
+ * export-design-assets` calls `parseFigmaDocument` in process at export
+ * time, and `wisent-components` runs `weles figma parse-document` once more
+ * over a committed `document.json.gz` whose export predates the vocabulary.
+ * A Figma file routinely exceeds the longest string Node can hold, so the
+ * document is read from its bytes (`json-bytes.mjs`) and never becomes one
+ * string.
  *
  * The vocabulary is what the designer defined, resolved to values, and
  * nothing a regex over the raw file could tell apart from a pasted
@@ -31,10 +32,8 @@ import { FloatNumber, parseJsonBytes, stringifyOrdered } from './json-bytes.mjs'
 const SCHEMA_VERSION = 1;
 /** Spaces per level in the vocabulary, which is committed and read by people. */
 const VOCABULARY_INDENT = 2;
-/** The arguments before the optional vocabulary path. */
-const REQUIRED_ARGUMENTS = 3;
-/** The exit status of a call without its required paths. */
-const USAGE_EXIT = 2;
+/** The paths `weles figma parse-document` needs before the optional vocabulary. */
+export const REQUIRED_PATHS = 3;
 
 function sizeOf(value) {
   if (!isRecord(value)) return 0;
@@ -118,12 +117,12 @@ function vocabularyOf(payload, walk) {
   };
 }
 
-function main(argv) {
-  if (argv.length < REQUIRED_ARGUMENTS) {
-    process.stderr.write('usage: parse-figma-document.mjs <document.json[.gz]> <summary.json> <nodes.json> [<vocabulary.json>]\n');
-    process.exit(USAGE_EXIT);
-  }
-  const [source, summaryPath, nodesPath, vocabularyPath] = argv;
+/**
+ * Parse `source` (JSON, or gzipped JSON when it ends in `.gz`) and write the
+ * summary and the node index, and the vocabulary when `vocabularyPath` is
+ * given.
+ */
+export function parseFigmaDocument(source, summaryPath, nodesPath, vocabularyPath) {
   const raw = readFileSync(source);
   const payload = parseJsonBytes(source.endsWith('.gz') ? gunzipSync(raw) : raw);
   const walk = walkDocument(payload);
@@ -133,5 +132,3 @@ function main(argv) {
     writeFileSync(vocabularyPath, `${stringifyOrdered(vocabularyOf(payload, walk), VOCABULARY_INDENT)}\n`);
   }
 }
-
-main(process.argv.slice(2));

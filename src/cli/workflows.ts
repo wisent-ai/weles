@@ -168,13 +168,28 @@ export async function runRelease(parsed: ParsedCli): Promise<void> {
  * exporter reads its Figma credential through the fleet's Skarbiec endpoint,
  * which is why `WC_SKARBIEC_URL` is the one coordinate it still takes from the
  * environment.
+ *
+ * `weles figma parse-document <document.json[.gz]> <summary.json> <nodes.json>
+ * [<vocabulary.json>]` — the exporter's one parse of a document, on its own,
+ * for a committed document whose export predates its vocabulary. It reads no
+ * credential and reaches no network.
  */
 export async function runFigma(parsed: ParsedCli): Promise<void> {
-  const [action] = parsed.positional;
-  if (action !== 'export-design-assets') {
-    throw new Error(`weles figma takes export-design-assets, not ${action ?? '<nothing>'}`);
-  }
-  // The exporter is an ES module and this CLI compiles to CommonJS, which
+  const [action, ...paths] = parsed.positional;
+  // The figma modules are ES modules and this CLI compiles to CommonJS, which
   // cannot static-import ESM.
-  await import('../figma/export-design-assets.mjs');
+  if (action === 'export-design-assets') {
+    await import('../figma/export-design-assets.mjs');
+    return;
+  }
+  if (action === 'parse-document') {
+    const parser = await import('../figma/document/parse-figma-document.mjs');
+    if (paths.length < parser.REQUIRED_PATHS) {
+      throw new Error('weles figma parse-document takes <document.json[.gz]> <summary.json> <nodes.json> [<vocabulary.json>]');
+    }
+    const [source, summaryPath, nodesPath, vocabularyPath] = paths;
+    parser.parseFigmaDocument(source, summaryPath, nodesPath, vocabularyPath);
+    return;
+  }
+  throw new Error(`weles figma takes export-design-assets or parse-document, not ${action ?? '<nothing>'}`);
 }

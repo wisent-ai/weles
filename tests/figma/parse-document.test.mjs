@@ -15,14 +15,13 @@
  */
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { parseFigmaDocument } from '../../src/figma/document/parse-figma-document.mjs';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 const REPO = resolve(import.meta.dirname, '..', '..');
-const PARSER = join(REPO, 'src/figma/document/parse-figma-document.mjs');
 const WORK = join(REPO, 'build', `figma-parse-${process.pid}-${randomUUID().slice(0, 8)}`);
 
 const brand = { r: 0.4627451, g: 0.6, b: 0.4705882, a: 1 };
@@ -147,8 +146,7 @@ function parse(sourceName, bytes) {
   const summary = join(WORK, `${sourceName}.summary.json`);
   const nodes = join(WORK, `${sourceName}.nodes.json`);
   const vocabulary = join(WORK, `${sourceName}.vocabulary.json`);
-  const result = spawnSync(process.execPath, [PARSER, source, summary, nodes, vocabulary], { encoding: 'utf8' });
-  assert.equal(result.status, 0, result.stderr);
+  parseFigmaDocument(source, summary, nodes, vocabulary);
   return {
     summary: JSON.parse(readFileSync(summary, 'utf8')),
     nodes: JSON.parse(readFileSync(nodes, 'utf8')),
