@@ -1,17 +1,21 @@
-// resend_verify_domain_status — email-domain health + auto-repair (no browser; Resend API + Skarbiec state).
+// resend_verify_domain_status — email-domain health + auto-repair (no browser;
+// wisent-integrations' Resend actions + Skarbiec state).
 //
 // Runs on a whitelisted mac-mini runner (enqueued by wisent-compute cron). It:
 //   0. IP GATE — refuses to run unless the runner's egress IP is whitelisted.
 //   1. re-verifies any Resend domain whose status drifted to `failed` (the stale-status
 //      bug that silently kills receiving — a re-verify trigger flips it back).
-//   2. CONFIRMS REAL RECEIVING (status labels lie): one live probe per domain from a
-//      verified sender, then a single batched inbox poll. Landed = healthy.
+//   2. CONFIRMS REAL RECEIVING (status labels lie): one live probe per domain
+//      (email-domains/resend.domain.probe), then a batched inbox poll
+//      (content/resend.receiving.list). Landed = healthy.
 //   3. reconciles per-domain status in Skarbiec (active / mx_broken).
 //   4. emits a Slack-ready summary and queues delivery through Stado.
 //
+// The Resend key stays in wisent-integrations; this journey holds only Weles'
+// integration bearer (WELES_STADO_INTEGRATION_TOKEN, STADO_INTEGRATION_API_URL).
+//
 // Exit: 0 all healthy · 3 a domain needs a human · 4 IP not whitelisted · 2 misconfig.
-// Env: WHITELISTED_IPS, SEND_FROM, MESSAGE_FILE,
-//      ALLOW_ANY_IP=1 (test escape hatch).
+// Env: WHITELISTED_IPS, MESSAGE_FILE, ALLOW_ANY_IP=1 (test escape hatch).
 
 import { runOutputPath } from '#run-output';
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -19,10 +23,9 @@ import { dirname, resolve } from 'node:path';
 import { promises as dnsp } from 'node:dns';
 import { enqueueWelesAction } from '../../_shared/stado-action-queue.mjs';
 import { writeDomainStatus } from '../_shared/skarbiec/accounts.mjs';
+import { integrationAction, integrationsConfigured } from '../../_shared/integrations.mjs';
+import { listReceived } from '../../_shared/resend-receiving.mjs';
 
-const RK = process.env.RESEND_API_KEY || '';
-const RRK = process.env.RESEND_RECEIVING_API_KEY || RK;
-const SEND_FROM = process.env.SEND_FROM || 'noreply@wisent.com';
 // Absolute so the chained slack_post_message job (separate process) can read it.
 const MESSAGE_FILE = resolve(process.env.MESSAGE_FILE || runOutputPath('resend-domains-status.txt'));
 const SLACK_CHANNEL = process.env.SLACK_CHANNEL || 'jakub';   // who Swiatowid messages
@@ -46,16 +49,12 @@ async function ipGate() {
   console.log(`[gate] egress IP ${ip} is whitelisted ✓`);
 }
 
-async function rj(method, path, body, key = RK) {
-  const r = await fetch('https://api.resend.com' + path, {
-    method, headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-  const t = await r.text(); try { return { ok: r.ok, status: r.status, body: JSON.parse(t) }; } catch { return { ok: r.ok, status: r.status, body: t }; }
+function domains(action, body) {
+  return integrationAction('email-domains', action, body);
 }
 async function reverify(id) {
-  await rj('POST', `/domains/${id}/verify`);
-  for (let i = 0; i < 6; i++) { await sleep(20_000); const d = (await rj('GET', `/domains/${id}`)).body; if (d.status === 'verified') return true; }
+  await domains('resend.domain.verify', { id });
+  for (let i = 0; i < 6; i++) { await sleep(20_000); const d = await domains('resend.domain.get', { id }); if (d.status === 'verified') return true; }
   return false;
 }
 function updateRow(domain, status) {
@@ -84,11 +83,11 @@ async function diagnoseBroken(domain) {
 }
 
 const main = async () => {
-  if (!RK) { console.error('missing RESEND_API_KEY'); process.exit(2); }
+  if (!integrationsConfigured()) { console.error('missing STADO_INTEGRATION_API_URL or WELES_STADO_INTEGRATION_TOKEN'); process.exit(2); }
   await ipGate();
 
-  const domains = (((await rj('GET', '/domains?limit=100')).body) || {}).data || [];
-  const targets = domains.filter(d => !SKIP.has(d.name));
+  const listed = (await domains('resend.domain.list', {})).data || [];
+  const targets = listed.filter(d => !SKIP.has(d.name));
   const out = { checked: targets.length, healthy: [], repaired: [], broken: [] };
 
   // 1. re-verify any stale domains
@@ -97,23 +96,20 @@ const main = async () => {
   }
   // 2. receiving probe. Resend rate-limits sends (~2/s); firing all probes in a
   // tight loop trips 429s, and a DROPPED SEND looks exactly like a broken domain.
-  // So throttle (~2/s) and retry 429s before giving up on a send.
+  // So throttle (~2/s) and retry a refused send before giving up on it.
   const verifiedTargets = targets.filter(x => x.status === 'verified');
-  const sendProbe = async (dom, kind) => {
-    const marker = `${kind}-${Date.now()}-${Math.floor(Math.random()*1e6)}`;
+  const sendProbe = async (dom) => {
+    let refusal = '';
     for (let attempt = 0; attempt < 4; attempt++) {
-      const send = await rj('POST', '/emails', { from: SEND_FROM, to: `${marker}@${dom}`, subject: `domain-health ${marker}`, text: marker });
-      if (send.ok) return marker;
-      if (send.status === 429) { await sleep(1500); continue; }   // rate-limited: back off + retry
-      console.log(`[probe] ${dom} send failed: ${JSON.stringify(send.body).slice(0,80)}`);
-      return null;
+      try { return (await domains('resend.domain.probe', { domain: dom })).marker; }
+      catch (error) { refusal = error.message; await sleep(1500); }
     }
-    console.log(`[probe] ${dom} send failed: rate-limited after retries`);
+    console.log(`[probe] ${dom} send failed after retries: ${refusal.slice(0, 160)}`);
     return null;
   };
   const probes = {};            // domain -> marker
   for (const d of verifiedTargets) {
-    probes[d.name] = await sendProbe(d.name, 'health');
+    probes[d.name] = await sendProbe(d.name);
     await sleep(600);           // stay under Resend's ~2 req/s
   }
   const landed = new Set();
@@ -121,7 +117,7 @@ const main = async () => {
     const want = Object.values(markers).filter(Boolean).length;
     for (let i = 0; i < maxIters && [...Object.keys(markers)].filter(d => landed.has(d)).length < want; i++) {
       await sleep(10_000);
-      const inbox = ((await rj('GET', '/emails/receiving?limit=50', undefined, RRK)).body || {}).data || [];
+      const inbox = (await listReceived(50)).data || [];
       for (const [dom, mk] of Object.entries(markers)) {
         if (!mk || landed.has(dom)) continue;
         if (inbox.some(m => String(m.subject||'').includes(mk) || (Array.isArray(m.to)?m.to:[]).map(x=>typeof x==='string'?x:x.email).join(',').includes(mk))) landed.add(dom);
@@ -137,7 +133,7 @@ const main = async () => {
   if (suspects.length) {
     console.log(`[probe] re-confirming ${suspects.length} not-yet-landed: ${suspects.join(', ')}`);
     const reprobes = {};
-    for (const dom of suspects) { reprobes[dom] = await sendProbe(dom, 'recheck'); await sleep(600); }
+    for (const dom of suspects) { reprobes[dom] = await sendProbe(dom); await sleep(600); }
     await pollInbox(reprobes, 12);
   }
   // 3. classify + reconcile (diagnose the cause for anything broken)

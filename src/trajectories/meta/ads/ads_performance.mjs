@@ -17,6 +17,7 @@ import { join } from 'node:path';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { generatePersona } from '../../../../dist/browser/persona.js';
 import { graphRequest } from './api/marketing_api.mjs';
+import { integrationsConfigured } from '../../../_shared/integrations.mjs';
 
 const CAMPAIGN_ID = process.env.CAMPAIGN_ID;
 const AD_ACCOUNT_ID = (process.env.AD_ACCOUNT_ID || process.env.META_ADS_COMPANY_ACCOUNT_ID || '').replace(/^act_/, '');
@@ -28,7 +29,7 @@ const META_ADS_CLI_ARGS = process.env.META_ADS_CLI_ARGS;
 const META_CLI_BIN = process.env.META_CLI_BIN || 'meta';
 const META_CLI_REQUIRED = process.env.META_CLI_REQUIRED === '1';
 const META_API_ONLY = process.env.META_API_ONLY === '1';
-const HAS_META_TOKEN = !!(process.env.META_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN || process.env.META_SYSTEM_USER_ACCESS_TOKEN);
+const HAS_META_API = integrationsConfigured();
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
 mkdirSync(USER_DATA_DIR, { recursive: true });
 
@@ -139,7 +140,7 @@ async function apiPerformance() {
   console.log('PASS: Meta Ads performance read completed (api)');
 }
 
-if (HAS_META_TOKEN || META_API_ONLY) {
+if (HAS_META_API || META_API_ONLY) {
   try {
     await apiPerformance();
     process.exit(0);

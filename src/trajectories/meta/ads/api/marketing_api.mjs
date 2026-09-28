@@ -1,19 +1,10 @@
+// Meta Marketing API objects, reached through wisent-integrations
+// (`echo-paid-ads/meta.graph.*`): the access token and the Graph version stay
+// in the integrations service's `meta-ads-api` item, and a journey names only
+// an object id, or an owner id and one edge.
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
-
-export function apiVersion() {
-  return process.env.META_GRAPH_API_VERSION || process.env.META_MARKETING_API_VERSION || 'v25.0';
-}
-
-export function graphBase() {
-  return `https://graph.facebook.com/${apiVersion()}`;
-}
-
-export function accessToken({ required = true } = {}) {
-  const token = process.env.META_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN || process.env.META_SYSTEM_USER_ACCESS_TOKEN;
-  if (!token && required) throw new Error('META_ACCESS_TOKEN required for SUBMIT=1 or live read');
-  return token || '';
-}
+import { integrationAction } from '../../../../_shared/integrations.mjs';
 
 export function adAccountId() {
   const raw = process.env.AD_ACCOUNT_ID || process.env.META_ADS_COMPANY_ACCOUNT_ID;
@@ -68,10 +59,9 @@ export function compactObject(obj) {
   }));
 }
 
-export function stringifyGraphValue(v) {
-  if (Array.isArray(v) || (v && typeof v === 'object')) return JSON.stringify(v);
-  if (typeof v === 'boolean') return v ? 'true' : 'false';
-  return String(v);
+/** Graph parameters without the unset ones; the service sends each as Meta reads it. */
+function graphParams(params) {
+  return Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null));
 }
 
 export function withValidateOnly(params, { submit = submitEnabled(), validateOnly = true } = {}) {
@@ -85,58 +75,44 @@ function requestEnabled(opts = {}) {
   return submitEnabled();
 }
 
-export async function graphRequest(method, path, params = {}, opts = {}) {
-  const execute = requestEnabled(opts);
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  if (!execute) throw new Error('SUBMIT=1 required for Meta Marketing API request');
+/** `/id` or `/owner/edge`, as the journeys write their Graph paths. */
+function graphTarget(path) {
+  const parts = path.split('/').filter(Boolean);
+  if (parts.length === 1) return { id: parts[0] };
+  if (parts.length === 2) return { owner_id: parts[0], edge: parts[1] };
+  throw new Error(`Meta Graph path ${path} is neither /<id> nor /<owner>/<edge>`);
+}
 
-  const token = accessToken();
-  const url = new URL(`${graphBase()}${normalizedPath}`);
-  const headers = {};
-  const fetchOpts = { method, headers };
-  const bodyParams = { ...params, access_token: token };
-
-  if (method === 'GET' || method === 'DELETE') {
-    for (const [k, v] of Object.entries(bodyParams)) {
-      if (v !== undefined && v !== null) url.searchParams.set(k, stringifyGraphValue(v));
-    }
+function graphAction(method, target) {
+  if (target.id) {
+    if (method === 'GET') return 'meta.graph.read';
+    if (method === 'POST') return 'meta.graph.update';
+    if (method === 'DELETE') return 'meta.graph.delete';
   } else {
-    const form = new URLSearchParams();
-    for (const [k, v] of Object.entries(bodyParams)) {
-      if (v !== undefined && v !== null) form.set(k, stringifyGraphValue(v));
-    }
-    fetchOpts.body = form;
+    if (method === 'GET') return 'meta.graph.list';
+    if (method === 'POST') return 'meta.graph.create';
   }
+  throw new Error(`Meta Graph ${method} is not an action on ${JSON.stringify(target)}`);
+}
 
-  const res = await fetch(url, fetchOpts);
-  const text = await res.text();
-  let json;
-  try { json = text ? JSON.parse(text) : null; } catch { json = { raw: text }; }
-  if (!res.ok) {
-    const err = new Error(`Meta Marketing API ${res.status}: ${text.slice(0, 1600)}`);
-    err.response = json;
-    throw err;
-  }
+export async function graphRequest(method, path, params = {}, opts = {}) {
+  if (!requestEnabled(opts)) throw new Error('SUBMIT=1 required for Meta Marketing API request');
+  const target = graphTarget(path);
+  const json = await integrationAction('echo-paid-ads', graphAction(method, target), { ...target, params: graphParams(params) });
   console.log(JSON.stringify(json, null, 2).slice(0, 20000));
   return json;
 }
 
-export async function graphUpload(path, fields, fileField, filePath, opts = {}) {
-  const execute = requestEnabled(opts);
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  if (!execute) throw new Error('SUBMIT=1 required for Meta Marketing API upload');
-
-  const form = new FormData();
-  for (const [k, v] of Object.entries({ ...fields, access_token: accessToken() })) {
-    if (v !== undefined && v !== null) form.set(k, stringifyGraphValue(v));
-  }
-  const bytes = readFileSync(filePath);
-  form.set(fileField, new Blob([bytes]), basename(filePath));
-  const res = await fetch(`${graphBase()}${normalizedPath}`, { method: 'POST', body: form });
-  const text = await res.text();
-  let json;
-  try { json = text ? JSON.parse(text) : null; } catch { json = { raw: text }; }
-  if (!res.ok) throw new Error(`Meta Marketing API upload ${res.status}: ${text.slice(0, 1600)}`);
+export async function graphUpload(path, fields, _fileField, filePath, opts = {}) {
+  if (!requestEnabled(opts)) throw new Error('SUBMIT=1 required for Meta Marketing API upload');
+  const target = graphTarget(path);
+  if (!target.edge) throw new Error(`Meta Graph upload path ${path} names no edge`);
+  const json = await integrationAction('echo-paid-ads', 'meta.graph.upload', {
+    ...target,
+    params: graphParams(fields),
+    filename: basename(filePath),
+    content_base64: readFileSync(filePath).toString('base64'),
+  });
   console.log(JSON.stringify(json, null, 2).slice(0, 20000));
   return json;
 }

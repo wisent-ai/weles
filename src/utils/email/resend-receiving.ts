@@ -1,7 +1,8 @@
 // The Resend receiving inbox for Weles' compiled code, read through
-// wisent-integrations (`content/resend.receiving.list`, `.get`) instead of
-// api.resend.com. The journeys' JavaScript twin is src/_shared/resend-receiving.mjs;
-// both speak the same integrations actions and return Resend's own shapes.
+// wisent-integrations (`content/resend.receiving.list`, `.get`); Weles never
+// holds the Resend key. The journeys' JavaScript twin is
+// src/_shared/resend-receiving.mjs; both speak the same integrations actions
+// and return Resend's own shapes.
 import { integrationAction, integrationsConfigured } from '../integrations.js';
 
 export type ReceivedSummary = {

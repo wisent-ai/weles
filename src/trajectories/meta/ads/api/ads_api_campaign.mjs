@@ -1,6 +1,6 @@
 // Meta Marketing API: dedicated campaign/ad set/ad stack wrapper.
 //
-// SUBMIT=1 mutates using META_ACCESS_TOKEN.
+// SUBMIT=1 mutates through wisent-integrations' Meta actions.
 // Set RESOURCE=campaign|adset|ad|stack and ACTION=create|update|read|delete.
 
 import {

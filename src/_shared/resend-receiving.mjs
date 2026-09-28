@@ -1,7 +1,7 @@
 // The Resend receiving inbox, read through wisent-integrations
-// (`content/resend.receiving.list`, `content/resend.receiving.get`) instead of
-// api.resend.com with a key in the journey's environment. The Resend key stays
-// in the integrations service; a journey holds only Weles' integration bearer.
+// (`content/resend.receiving.list`, `content/resend.receiving.get`). The
+// Resend key stays in the integrations service; a journey holds only Weles'
+// integration bearer.
 //
 // The answers keep Resend's own shapes — `{ data: [{ id, from, to, subject,
 // created_at }] }` for a list and `{ id, from, to, subject, text, html,

@@ -59,9 +59,11 @@ function credential(provider, tokens, expectedEmail) {
       throw new AuthenticationFailure('oauth_identity_mismatch', 'grant_validation',
         'The OpenAI grant belongs to a different account than the selected Skarbiec login');
     }
+    // Banked as OpenAI returned it; Brama reads the ChatGPT account from the
+    // identity token when it calls the provider.
     return { auth_mode: 'chatgpt', tokens: {
       access_token: tokens.access_token, refresh_token: tokens.refresh_token,
-      id_token: tokens.id_token, account_id: identity['https://api.openai.com/auth']?.chatgpt_account_id,
+      id_token: tokens.id_token,
     }, last_refresh: new Date().toISOString() };
   }
   if (provider === 'claude') {
