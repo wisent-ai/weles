@@ -101,7 +101,9 @@ export function parseJsonBytes(bytes) {
       skip();
       if (bytes[at] !== COLON) fail('expected a colon');
       at += 1;
-      result[key] = value();
+      // A key such as `__proto__` is data in JSON; assignment would change
+      // the object's prototype instead of adding the member.
+      Object.defineProperty(result, key, { value: value(), writable: true, enumerable: true, configurable: true });
       skip();
       if (bytes[at] === COMMA) {
         at += 1;

@@ -68,3 +68,20 @@ export async function submitWelesRun(request: WelesRunRequest): Promise<string> 
   }
   return answer.detached_run;
 }
+
+const HTTP_NOT_FOUND = 404;
+
+/**
+ * The persisted result of one detached run (GET /diagnostics/<run id>/file?path=run-result.json),
+ * or null while the API has no result file for that run.
+ */
+export async function readWelesRun<T>(runId: string): Promise<T | null> {
+  const endpoint = `${apiBase()}/diagnostics/${encodeURIComponent(runId)}/file?path=run-result.json`;
+  const response = await fetch(endpoint, { headers: { authorization: `Bearer ${apiToken()}` } });
+  if (response.status === HTTP_NOT_FOUND) return null;
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`${endpoint} answered HTTP ${response.status}: ${text.slice(BODY_START, QUOTED_BODY_CHARS)}`);
+  }
+  return JSON.parse(text) as T;
+}

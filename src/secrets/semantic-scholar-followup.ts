@@ -1,5 +1,5 @@
-import { readRunRecord, readSetting, writeSetting } from '../state/skarbiec-records.js';
-import { submitWelesRun } from '../worker/run-submit/index.js';
+import { readSetting, writeSetting } from '../state/skarbiec-records.js';
+import { readWelesRun, submitWelesRun } from '../worker/run-submit/index.js';
 import { acquiredSecretContract, writeWelesAcquiredSecret } from './scoped-service.js';
 import { getReceived, listReceived, receivingConfigured, type ReceivedSummary } from '../utils/email/resend-receiving.js';
 
@@ -94,7 +94,7 @@ function identityEmail(row: ActionLogRow): string {
 
 async function loadSourceSubmission(sourceActionLogId: string | undefined, tenantId: string | null): Promise<ActionLogRow | null> {
   if (!sourceActionLogId) return null;
-  const row = readRunRecord<ActionLogRow>(sourceActionLogId);
+  const row = await readWelesRun<ActionLogRow>(sourceActionLogId);
   if (!row) return null;
   const normalized = { ...row, id: row.id || sourceActionLogId };
   return isSemanticSubmission(normalized) && (normalized.tenant_id ?? null) === tenantId ? normalized : null;
