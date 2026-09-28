@@ -1,8 +1,8 @@
 /**
- * What parse-figma-document.py writes for a Figma document.
+ * What parse-figma-document.mjs writes for a Figma document.
  *
- * The exporter parses every document once, in Python, because a Figma file
- * exceeds the string Node can hold. That one parse is where the design
+ * The exporter parses every document once, from its bytes, because a Figma
+ * file exceeds the string Node can hold. That one parse is where the design
  * vocabulary is read: the colour variables bound to visible fills and
  * strokes resolved to their values, the named styles resolved from the first
  * node that uses them, the fonts, the radii, and the gradients and blurs per
@@ -22,7 +22,7 @@ import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 const REPO = resolve(import.meta.dirname, '..', '..');
-const PARSER = join(REPO, 'src/figma/parse-figma-document.py');
+const PARSER = join(REPO, 'src/figma/parse-figma-document.mjs');
 const WORK = join(REPO, 'build', `figma-parse-${process.pid}-${randomUUID().slice(0, 8)}`);
 
 const brand = { r: 0.4627451, g: 0.6, b: 0.4705882, a: 1 };
@@ -147,7 +147,7 @@ function parse(sourceName, bytes) {
   const summary = join(WORK, `${sourceName}.summary.json`);
   const nodes = join(WORK, `${sourceName}.nodes.json`);
   const vocabulary = join(WORK, `${sourceName}.vocabulary.json`);
-  const result = spawnSync('python3', [PARSER, source, summary, nodes, vocabulary], { encoding: 'utf8' });
+  const result = spawnSync(process.execPath, [PARSER, source, summary, nodes, vocabulary], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
   return {
     summary: JSON.parse(readFileSync(summary, 'utf8')),

@@ -63,8 +63,8 @@ async function figmaDocument(fileKey, nodesPath, vocabularyPath) {
   // variables, named styles, fonts, radii, gradients and blurs the designer
   // defined on visible layers — which wisent-components merges into the set
   // its design lint holds every web repository to.
-  run('/usr/bin/python3', [
-    join(import.meta.dirname, 'parse-figma-document.py'),
+  run(process.execPath, [
+    join(import.meta.dirname, 'parse-figma-document.mjs'),
     cachePath,
     summaryPath,
     nodesPath,
