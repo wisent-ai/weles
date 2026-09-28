@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
-import { accessSync, constants, lstatSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { accessSync, constants, lstatSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -54,6 +55,54 @@ function stadoJson(args, operation) {
   }
 }
 
+const exactDigest = (value) => typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);
+const exactName = (value) => typeof value === 'string'
+  && /^[A-Za-z0-9][A-Za-z0-9._-]{0,252}$/.test(value);
+const sameKeys = (value, keys) => value && typeof value === 'object' && !Array.isArray(value)
+  && Object.keys(value).sort().join('|') === [...keys].sort().join('|');
+
+/** A signed release Stado attests for this host. */
+function attestedRelease(active) {
+  const keys = ['artifact_sha256', 'manifest_sha256', 'path', 'platform', 'product', 'state', 'target', 'version'];
+  return sameKeys(active, keys)
+    && active.state === 'active'
+    && active.product === 'skarbiec'
+    && exactName(active.target)
+    && exactName(active.version)
+    && exactName(active.platform)
+    && exactDigest(active.artifact_sha256)
+    && exactDigest(active.manifest_sha256)
+    && typeof active.path === 'string';
+}
+
+/**
+ * The program the host itself declares and reports for Skarbiec, when no
+ * signed release targets it. That is the fleet's vault owner: on
+ * charless-mac-mini the running vault is a host-declared program, not a
+ * rollout, and requiring a release there kept weles-admission down for days
+ * (defect 641f08db). The bytes on disk must still be the bytes Stado's host
+ * report names, so a replaced or tampered file is refused.
+ */
+function declaredProgram(active) {
+  const keys = ['path', 'product', 'sha256', 'state', 'target', 'version'];
+  if (!sameKeys(active, keys)
+      || active.state !== 'declared'
+      || active.product !== 'skarbiec'
+      || !exactName(active.target)
+      || !exactName(active.version)
+      || !exactDigest(active.sha256)
+      || typeof active.path !== 'string') {
+    return false;
+  }
+  const managed = join(homedir(), '.stado', 'bin', 'skarbiec');
+  if (active.path !== managed) return false;
+  const onDisk = createHash('sha256').update(readFileSync(active.path)).digest('hex');
+  if (onDisk !== active.sha256) {
+    throw new Error(`Skarbiec at ${active.path} has digest ${onDisk}, not the ${active.sha256} Stado's host report names`);
+  }
+  return true;
+}
+
 export function activeSkarbiecBinary() {
   // The managed launcher already resolved this executable through Stado.
   const inherited = String(process.env.SKARBIEC_BIN || '').trim();
@@ -62,33 +111,9 @@ export function activeSkarbiecBinary() {
     ['release', 'active-binary', 'skarbiec', '--json'],
     'active Skarbiec release lookup',
   );
-  const expectedKeys = [
-    'artifact_sha256',
-    'manifest_sha256',
-    'path',
-    'platform',
-    'product',
-    'state',
-    'target',
-    'version',
-  ];
-  const exactKeys = active && typeof active === 'object' && !Array.isArray(active)
-    && Object.keys(active).sort().join('|') === expectedKeys.join('|');
-  const exactDigest = (value) => typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);
-  const exactName = (value) => typeof value === 'string'
-    && /^[A-Za-z0-9][A-Za-z0-9._-]{0,252}$/.test(value);
-  if (!exactKeys
-      || active.state !== 'active'
-      || active.product !== 'skarbiec'
-      || !exactName(active.target)
-      || !exactName(active.version)
-      || !exactName(active.platform)
-      || !exactDigest(active.artifact_sha256)
-      || !exactDigest(active.manifest_sha256)
-      || typeof active.path !== 'string') {
-    throw new Error(`Stado has no attested active Skarbiec release: ${JSON.stringify(active)}`);
-  }
-  return executable(active.path, 'attested active Skarbiec binary');
+  if (attestedRelease(active)) return executable(active.path, 'attested active Skarbiec binary');
+  if (declaredProgram(active)) return executable(active.path, 'host-declared Skarbiec binary');
+  throw new Error(`Stado names neither an attested Skarbiec release nor the host's own declared Skarbiec: ${JSON.stringify(active)}`);
 }
 
 export function skarbiecDirectoryEndpoint() {
