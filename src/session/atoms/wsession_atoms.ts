@@ -18,26 +18,11 @@ declare module '../wsession.js' {
     waitFor(selector: string, opts?: { state?: 'attached' | 'visible' | 'hidden' | 'detached'; timeoutMs?: number }): Promise<string>;
     fillSelector(css: string, value: string): Promise<string>;
     writeBanSignal(banSignal: Record<string, unknown>, extras?: Record<string, unknown>): void;
-    dismissCookieBanner(platform?: string): Promise<string>;
     dwell(scrolls: number, dwellMsRange?: [number, number]): Promise<string>;
     patchAccount(accountId: string, patch: Record<string, unknown>): Promise<boolean>;
     isLoggedOut(platform?: string): Promise<boolean>;
   }
 }
-
-// Per-platform button-text lookup for dismissCookieBanner. First match wins.
-// Kept narrow (≤4 entries each) to respect the inline-array budget; if a new
-// platform needs more variants, promote them to a constants file.
-const COOKIE_BANNER_TEXTS: Record<string, string[]> = {
-  reddit:    ['refuse non-essential cookies', 'accept all', 'accept'],
-  tiktok:    ['decline optional cookies', 'accept all'],
-  instagram: ['allow essential', 'allow all cookies', 'decline optional'],
-  linkedin:  ['accept cookies', 'decline'],
-  discord:   ['accept cookies', 'ok'],
-  github:    ['accept cookies'],
-  twitter:   ['refuse non-essential cookies', 'accept all cookies'],
-  default:   ['refuse non-essential cookies', 'decline optional', 'allow essential', 'accept all'],
-};
 
 const LOGGED_OUT_SELECTORS: Record<string, string> = {
   reddit:    'a[href*="/login"]',
@@ -81,16 +66,6 @@ W.prototype.writeBanSignal = function (banSignal, extras) {
       JSON.stringify({ ...banSignal, ...(extras ?? {}), ts: new Date().toISOString() }, null, 2),
     );
   } catch { /* swallow — best-effort sidecar write */ }
-};
-
-W.prototype.dismissCookieBanner = async function (platform) {
-  const key = (platform ?? (this as WSession).label.split('_')[0]).toLowerCase();
-  const texts = COOKIE_BANNER_TEXTS[key] ?? COOKIE_BANNER_TEXTS.default;
-  for (const t of texts) {
-    const r = await (this as WSession).jsClick('button, [role="button"], a', t).catch(() => 'no-element-found');
-    if (r && !/no-element-found/.test(r)) return `dismissed (${key}: ${t})`;
-  }
-  return 'no-banner-found';
 };
 
 W.prototype.dwell = async function (scrolls, dwellMsRange) {
