@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { randomBytes, sign } from 'node:crypto';
-import { readFileSync, lstatSync } from 'node:fs';
+import { readFileSync, lstatSync, writeSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { resolveSkarbiecEndpoint, formatEndpointErrorMessage } from './endpoint-resolution.mjs';
 
@@ -9,8 +9,10 @@ import { resolveSkarbiecEndpoint, formatEndpointErrorMessage } from './endpoint-
 // machine line naming that cause (refused, scope_not_declared,
 // authority_unreachable, workload_not_authorized, field_not_present), so the
 // caller reads the line instead of the words of the sentence above it.
+// The write is synchronous: stderr is a pipe to the reader, where Node's
+// process.stderr.write is asynchronous and process.exit may drop the line.
 function stop(reason, message) {
-  process.stderr.write(`${message}\nSKARBIEC_ACQUIRE_REASON ${reason}\n`);
+  writeSync(process.stderr.fd, `${message}\nSKARBIEC_ACQUIRE_REASON ${reason}\n`);
   process.exit(Number('1'));
 }
 

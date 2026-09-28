@@ -19,13 +19,11 @@ export function isCredentialTrajectory(action) {
   return /(?:^|_)(?:login|reauth|register)$/.test(action);
 }
 
-// The reason Weles' acquisition reader appends as `[reason=<cause>]`
-// (src/secrets/scoped-service/acquisition-failure.ts), taken from the helper's
-// own SKARBIEC_ACQUIRE_REASON line; nothing is inferred from the sentence.
-function skarbiecAcquisitionFailureReason(stderr) {
-  const declared = stderr.match(/\[reason=([a-z_]+)\]/);
-  return declared ? declared[1] : undefined;
-}
+// The one machine record both acquisition readers write
+// (src/secrets/scoped-service/acquisition-failure.ts acquisitionRecord and
+// src/_shared/scoped-secrets.mjs): nothing is read from the sentence around it.
+const ACQUISITION_RECORD =
+  /\[skarbiec_acquisition item=([A-Za-z0-9._-]+) field=([A-Za-z0-9._-]+) consumer=([A-Za-z0-9._-]+)(?: reason=([a-z_]+))?\]/;
 
 export function credentialFailure(out) {
   const stderr = String(out.stderr_tail || '');
@@ -43,17 +41,14 @@ export function credentialFailure(out) {
 
   if (out.timed_out) return withStage({ code: 'trajectory_timeout' });
 
-  let match = stderr.match(
-    /workload-bound Skarbiec acquisition failed for ([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+) as consumer ([A-Za-z0-9._-]+)/,
-  );
-  if (match) {
-    const reason = skarbiecAcquisitionFailureReason(stderr);
+  const record = stderr.match(ACQUISITION_RECORD);
+  if (record) {
     return withStage({
       code: 'skarbiec_acquisition_failed',
-      item: match[1],
-      field: match[2],
-      consumer: match[3],
-      ...(reason ? { reason } : {}),
+      item: record[1],
+      field: record[2],
+      consumer: record[3],
+      ...(record[4] ? { reason: record[4] } : {}),
     });
   }
   return withStage({ code: 'trajectory_failed' });

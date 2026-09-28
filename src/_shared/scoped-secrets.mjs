@@ -126,12 +126,15 @@ export function readScopedSecret(serviceName, field) {
   const output = Buffer.isBuffer(result.stdout) ? result.stdout : Buffer.alloc(Number('0'));
   try {
     if (result.error || result.status !== Number('0')) {
-      // The helper names its cause on its last SKARBIEC_ACQUIRE_REASON line;
-      // carried as [reason=...] so credential-outcome.mjs reads it, not words.
+      // The same machine record the TypeScript reader writes
+      // (src/secrets/scoped-service/acquisition-failure.ts acquisitionRecord),
+      // with the cause the helper declared on its SKARBIEC_ACQUIRE_REASON line.
       const stderr = Buffer.isBuffer(result.stderr) ? result.stderr.toString('utf8') : '';
       const declared = stderr.match(/^SKARBIEC_ACQUIRE_REASON ([a-z_]+)$/m);
+      const reason = declared ? ` reason=${declared[1]}` : '';
       throw new Error(`scoped Skarbiec read failed for ${serviceName}/${field}`
-        + (declared ? ` [reason=${declared[1]}]` : ` (helper exited ${result.status ?? 'without status'})`));
+        + ` (helper exited ${result.status ?? 'without status'})`
+        + ` [skarbiec_acquisition item=${service.item} field=${field} consumer=${consumer}${reason}]`);
     }
     const value = output.toString('utf8').replace(/[\r\n]+$/, '');
     if (!value || /[\r\n]/.test(value) || value.includes(String.fromCharCode(Number('0')))) {

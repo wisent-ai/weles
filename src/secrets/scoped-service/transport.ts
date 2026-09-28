@@ -282,6 +282,7 @@ export function readAcquiredField(
         `workload-bound Skarbiec acquisition failed for ${item}/${field} as consumer ${consumer}`
         + ` against ${endpoint}`
         + `${diagnosis ? `: ${diagnosis}` : `: helper exited ${result.status ?? 'without status'} with no diagnosis`}`,
+        { item, field, consumer },
         reason,
       );
     }

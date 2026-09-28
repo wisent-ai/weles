@@ -20,14 +20,29 @@ const REASONS: ReadonlySet<string> = new Set<AcquisitionReason>([
 
 const REASON_LINE = 'SKARBIEC_ACQUIRE_REASON ';
 
+export interface AcquisitionTarget {
+  item: string;
+  field: string;
+  consumer: string;
+}
+
+/**
+ * The one machine record of a refused acquisition, shared by the TypeScript
+ * reader and src/_shared/scoped-secrets.mjs, and the only thing
+ * credential-outcome.mjs reads from a trajectory's stderr about it:
+ * `[skarbiec_acquisition item=<i> field=<f> consumer=<c>[ reason=<r>]]`.
+ */
+export function acquisitionRecord(target: AcquisitionTarget, reason: AcquisitionReason | null): string {
+  const declared = reason ? ` reason=${reason}` : '';
+  return `[skarbiec_acquisition item=${target.item} field=${target.field} consumer=${target.consumer}${declared}]`;
+}
+
 export class SkarbiecAcquisitionError extends Error {
   readonly code = 'skarbiec_acquisition_failed';
   readonly reason: AcquisitionReason | null;
 
-  constructor(message: string, reason: AcquisitionReason | null) {
-    // The bracketed reason is the machine-readable form a trajectory's stderr
-    // carries to credential-outcome.mjs, which reads it instead of the words.
-    super(reason ? `${message} [reason=${reason}]` : message);
+  constructor(message: string, target: AcquisitionTarget, reason: AcquisitionReason | null) {
+    super(`${message} ${acquisitionRecord(target, reason)}`);
     this.name = 'SkarbiecAcquisitionError';
     this.reason = reason;
   }
