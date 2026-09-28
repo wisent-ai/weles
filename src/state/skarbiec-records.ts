@@ -82,26 +82,70 @@ export function listServiceMetadata(category?: string): Array<Record<string, any
     .filter((record) => !category || record.category === category);
 }
 
-export function listAccounts(platform?: string): WelesAccountRecord[] {
-  return itemIds().filter((id) => ACCOUNT_ID.test(id)).map((id) => {
-    const document = readDocument(id);
-    const fields = document.fields ?? {};
-    const context = document.context ?? {};
-    return {
-      id,
-      platform: String(context.platform ?? ''),
-      username: String(fields.username ?? ''),
-      password: String(fields.password ?? ''),
-      active: context.active !== false,
-      metadata: fields.metadata_json ? JSON.parse(String(fields.metadata_json)) : {},
-      context,
-    };
-  }).filter((account) => account.active && (!platform || account.platform === platform));
+function accountFromDocument(id: string, document: Record<string, any>): WelesAccountRecord {
+  const fields = document.fields ?? {};
+  const context = document.context ?? {};
+  return {
+    id,
+    platform: String(context.platform ?? ''),
+    username: String(fields.username ?? ''),
+    password: String(fields.password ?? ''),
+    active: context.active !== false,
+    metadata: fields.metadata_json ? JSON.parse(String(fields.metadata_json)) : {},
+    context,
+  };
 }
 
+/** Active trajectory accounts, optionally of one platform. */
+export function listAccounts(platform?: string): WelesAccountRecord[] {
+  return itemIds().filter((id) => ACCOUNT_ID.test(id))
+    .map((id) => accountFromDocument(id, readDocument(id)))
+    .filter((account) => account.active && (!platform || account.platform === platform));
+}
+
+/** One account record whether active or not, or null when no such item exists. */
+export function readAccount(id: string): WelesAccountRecord | null {
+  if (!ACCOUNT_ID.test(id) || !itemIds().includes(id)) return null;
+  return accountFromDocument(id, readDocument(id));
+}
+
+/** One active account a trajectory may use; an inactive (banned, deleted) account is not returned. */
 export function getAccount(id: string): WelesAccountRecord | null {
-  if (!ACCOUNT_ID.test(id)) return null;
-  try { return listAccounts().find((account) => account.id === id) ?? null; } catch { return null; }
+  const account = readAccount(id);
+  return account?.active ? account : null;
+}
+
+/**
+ * Write an account's profile without touching its credential fields: an
+ * existing item keeps username and password and gains the metadata, display
+ * name and active flag; a new item holds the username and metadata only, and
+ * its credential is written later through credential intake.
+ */
+export function putAccountProfile(record: {
+  platform: string;
+  username: string;
+  metadata: Record<string, unknown>;
+  displayName?: string;
+}): string {
+  const id = accountItemId(record.platform, record.username);
+  if (!itemIds().includes(id)) {
+    skarbiec(['set', id, '--type', 'bundle', `username=${record.username}`, `metadata_json=${JSON.stringify(record.metadata)}`]);
+  }
+  const document = readDocument(id);
+  const fields = document.fields ?? {};
+  const current = fields.metadata_json ? JSON.parse(String(fields.metadata_json)) : {};
+  fields.metadata_json = JSON.stringify({ ...current, ...record.metadata });
+  document.fields = fields;
+  document.context = {
+    ...(document.context ?? {}),
+    owner: 'weles',
+    record_kind: 'trajectory-account',
+    platform: record.platform,
+    display_name: record.displayName ?? document.context?.display_name ?? record.username,
+    active: true,
+  };
+  writeDocument(id, document);
+  return id;
 }
 
 export function accountItemId(platform: string, username: string): string {

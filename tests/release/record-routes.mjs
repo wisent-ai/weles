@@ -1,4 +1,4 @@
-// Record routes of a real, running Weles API: accounts, the action queue and
+// Record routes of a real, running Weles API: the trajectory accounts and
 // runtime settings Weles keeps in Skarbiec, behind the general API bearer.
 // Called by the packaging test against the process it started from the
 // compiled payload; every answer is kept in the report.
@@ -9,7 +9,6 @@ const RECORD_ROUTES = [
   '/records/accounts/get',
   '/records/accounts/upsert',
   '/records/accounts/update',
-  '/records/jobs/enqueue',
   '/records/settings/get',
   '/records/settings/set',
 ];

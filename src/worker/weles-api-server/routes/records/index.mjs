@@ -1,12 +1,13 @@
-// The record routes of the one Weles process: the trajectory accounts, action
-// queue and runtime settings Weles keeps in Skarbiec, served to products that
-// manage them (echo-web) without a database.
+// The record routes of the one Weles process: the trajectory accounts and
+// runtime settings Weles keeps in Skarbiec, served to products that manage
+// them (echo-web) without a database. Actions are started through POST /run
+// with detached: true, the process's own execution path.
 //
 //   POST /records/accounts/list    { platform? }                     -> { accounts }
 //   POST /records/accounts/get     { account_id }                    -> { account }
-//   POST /records/accounts/upsert  { account: { platform, username, password, metadata?, display_name? } } -> { account }
+//   POST /records/accounts/upsert  { account: { platform, username, password?, metadata?, display_name? } } -> { account }
+//                                  (without a password only the profile is written; an existing credential is kept)
 //   POST /records/accounts/update  { account_id, patch: { metadata?, active? } } -> { account }
-//   POST /records/jobs/enqueue     { action, account_id?, params? }  -> { job_id }
 //   POST /records/settings/get     { keys: [...] }                   -> { settings: [{ key, value }] }
 //   POST /records/settings/set     { key, value }                    -> { key }
 //
@@ -28,7 +29,6 @@ import {
   accountId,
   accountInput,
   accountPatch,
-  jobInput,
   platformFilter,
   RecordRequestRefused,
   settingInput,
@@ -54,7 +54,7 @@ function publicAccount(record) {
 }
 
 function existing(records, id) {
-  const record = records.getAccount(id);
+  const record = records.readAccount(id);
   if (!record) throw new RecordNotFound(`no Weles account record ${id}`);
   return record;
 }
@@ -63,7 +63,8 @@ const ROUTES = {
   '/records/accounts/list': (records, body) => ({ accounts: records.listAccounts(platformFilter(body)).map(publicAccount) }),
   '/records/accounts/get': (records, body) => ({ account: publicAccount(existing(records, accountId(body))) }),
   '/records/accounts/upsert': (records, body) => {
-    const id = records.putAccount(accountInput(body));
+    const input = accountInput(body);
+    const id = input.password ? records.putAccount(input) : records.putAccountProfile(input);
     return { account: publicAccount(existing(records, id)) };
   },
   '/records/accounts/update': (records, body) => {
@@ -72,11 +73,6 @@ const ROUTES = {
     existing(records, id);
     records.updateAccount(id, patch);
     return { account: publicAccount(existing(records, id)) };
-  },
-  '/records/jobs/enqueue': (records, body) => {
-    const job = jobInput(body);
-    if (job.accountId) existing(records, job.accountId);
-    return { job_id: records.enqueueAction(job.action, job.accountId, job.params) };
   },
   '/records/settings/get': (records, body) => ({
     settings: settingKeys(body).map((key) => ({ key, value: records.readSetting(key, null) })),

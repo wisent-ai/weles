@@ -49,7 +49,7 @@ export function accountInput(body) {
   return {
     platform: text(account.platform, 'account.platform', MAX_PLATFORM_CHARS, { required: true }),
     username: text(account.username, 'account.username', MAX_USERNAME_CHARS, { required: true }),
-    password: text(account.password, 'account.password', MAX_PASSWORD_CHARS, { required: true }),
+    password: text(account.password, 'account.password', MAX_PASSWORD_CHARS, { required: false }),
     displayName: text(account.display_name, 'account.display_name', MAX_DISPLAY_NAME_CHARS, { required: false }),
     metadata,
   };
@@ -65,15 +65,6 @@ export function accountPatch(body) {
   }
   if (!Object.keys(result).length) throw new RecordRequestRefused('patch', 'names neither metadata nor active');
   return result;
-}
-
-export function jobInput(body) {
-  const input = object(body, 'body');
-  return {
-    action: text(input.action, 'action', MAX_PLATFORM_CHARS, { required: true }),
-    accountId: text(input.account_id, 'account_id', MAX_USERNAME_CHARS, { required: false }) ?? '',
-    params: Object.hasOwn(input, 'params') ? object(input.params, 'params') : {},
-  };
 }
 
 export function settingKeys(body) {

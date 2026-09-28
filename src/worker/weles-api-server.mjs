@@ -43,7 +43,7 @@
 //   POST /google-ads/keyword-report       -> keyword planner report (planner bearer)
 //   POST /pages/snapshot                  -> rendered public page as text, structure, image
 //   POST /pages/form-export               -> file a public page downloads after a form fill
-//   POST /records/...                     -> Skarbiec-held accounts, action queue, runtime settings
+//   POST /records/...                     -> Skarbiec-held trajectory accounts and runtime settings
 //
 // What this file keeps is the release boundary and the process. It is the only
 // module allowed to name a path inside the deployed runtime tree: every
