@@ -69,16 +69,17 @@ export class LocalStorageJourneyStorage implements JourneyStorage {
     return this.#read<JourneyProgress>(this.#key('progress', productId, journeyId, subjectHash))
   }
 
-  // Both values are serialized before either is written, and a refused queue
-  // write puts the previous progress back, so a transition is stored whole or
-  // not at all (a full quota refuses the larger write, never the restore).
+  // Read, both writes and any restore run in one synchronous step, so no
+  // other operation interleaves and nothing can stop between the writes; a
+  // refused queue write puts the previous progress back (a full quota refuses
+  // the larger write, never the restore).
   async commitProgress(
     productId: string,
     journeyId: string,
     progress: JourneyProgress,
     events: readonly JourneyRuntimeEvent[],
   ) {
-    const queued = await this.pendingEvents()
+    const queued = this.#read<JourneyRuntimeEvent[]>(this.#key('events')) ?? []
     const known = new Set(queued.map((entry) => entry.event_id))
     const nextEvents = JSON.stringify([...queued, ...events.filter((event) => !known.has(event.event_id))])
     const progressKey = this.#key('progress', productId, journeyId, progress.subject_hash)
@@ -99,13 +100,13 @@ export class LocalStorageJourneyStorage implements JourneyStorage {
   }
 
   async appendEvent(event: JourneyRuntimeEvent) {
-    const events = await this.pendingEvents()
+    const events = this.#read<JourneyRuntimeEvent[]>(this.#key('events')) ?? []
     const next = [...events.filter((entry) => entry.event_id !== event.event_id), event]
     this.#storage.setItem(this.#key('events'), JSON.stringify(next))
   }
 
   async removeEvent(eventId: string) {
-    const events = await this.pendingEvents()
+    const events = this.#read<JourneyRuntimeEvent[]>(this.#key('events')) ?? []
     this.#storage.setItem(
       this.#key('events'),
       JSON.stringify(events.filter((event) => event.event_id !== eventId)),

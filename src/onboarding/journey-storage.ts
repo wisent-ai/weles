@@ -2,7 +2,7 @@
 // between runs: one directory of JSON files, each written whole and renamed
 // into place, each checked for shape before it is believed.
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type {
   JourneyBundle,
@@ -66,7 +66,20 @@ function isStoredEvent(value: unknown): value is JourneyRuntimeEvent {
     && Array.isArray(storedProperty(value, 'answers'));
 }
 
+// Progress and the events it owes live in one record, published by one
+// rename, so no crash or refused write can leave a step recorded without its
+// events (or the reverse).
+type Journal = { progress: Record<string, JourneyProgress>; events: JourneyRuntimeEvent[] };
+
+const JOURNAL_FILE = 'journal.json';
+const LEGACY_EVENTS_FILE = 'events.json';
+const LEGACY_PROGRESS_SUFFIX = '-progress.json';
+
 export class FileJourneyStorage implements JourneyStorage {
+  // Every read-modify-write of the journal runs after the previous one, so a
+  // stale copy of the queue can never overwrite events committed meanwhile.
+  private chain: Promise<unknown> = Promise.resolve();
+
   /**
    * @param surfaceIsPinned whether a stored bundle still describes the product
    *   surface this build renders; a bundle that does not is treated as absent.
@@ -80,12 +93,8 @@ export class FileJourneyStorage implements JourneyStorage {
     return join(this.directory, `${productId}-${journeyId}-bundle.json`);
   }
 
-  private progressPath(productId: string, journeyId: string, subjectHash: string): string {
-    return join(this.directory, `${productId}-${journeyId}-${subjectHash}-progress.json`);
-  }
-
-  private eventsPath(): string {
-    return join(this.directory, 'events.json');
+  private progressKey(productId: string, journeyId: string, subjectHash: string): string {
+    return `${productId}-${journeyId}-${subjectHash}`;
   }
 
   private async load(path: string): Promise<unknown | null> {
@@ -97,15 +106,49 @@ export class FileJourneyStorage implements JourneyStorage {
     }
   }
 
-  private async stage(path: string, value: unknown): Promise<string> {
+  private async save(path: string, value: unknown): Promise<void> {
     await mkdir(this.directory, { recursive: true, mode: 0o700 });
     const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
     await writeFile(temporary, `${JSON.stringify(value)}\n`, { encoding: 'utf8', mode: 0o600 });
-    return temporary;
+    await rename(temporary, path);
   }
 
-  private async save(path: string, value: unknown): Promise<void> {
-    await rename(await this.stage(path, value), path);
+  // The journal, or - before its first write - the separate progress files
+  // and events.json earlier releases kept, which the first write replaces.
+  private async readJournal(): Promise<Journal> {
+    const stored = await this.load(join(this.directory, JOURNAL_FILE));
+    if (stored !== null) {
+      const progress = storedProperty(stored, 'progress');
+      const events = storedProperty(stored, 'events');
+      return {
+        progress: Object.fromEntries(Object.entries(progress !== null && typeof progress === 'object' ? progress : {})
+          .filter((entry): entry is [string, JourneyProgress] => isStoredProgress(entry[1]))),
+        events: Array.isArray(events) ? events.filter(isStoredEvent) : [],
+      };
+    }
+    const names = await readdir(this.directory).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') return [] as string[];
+      throw error;
+    });
+    const journal: Journal = { progress: {}, events: [] };
+    for (const name of names.filter((entry) => entry.endsWith(LEGACY_PROGRESS_SUFFIX))) {
+      const progress = await this.load(join(this.directory, name));
+      if (isStoredProgress(progress)) journal.progress[name.slice(0, -LEGACY_PROGRESS_SUFFIX.length)] = progress;
+    }
+    const events = await this.load(join(this.directory, LEGACY_EVENTS_FILE));
+    if (Array.isArray(events)) journal.events = events.filter(isStoredEvent);
+    return journal;
+  }
+
+  private withJournal<T>(change: (journal: Journal) => T): Promise<T> {
+    const run = this.chain.then(async () => {
+      const journal = await this.readJournal();
+      const result = change(journal);
+      await this.save(join(this.directory, JOURNAL_FILE), journal);
+      return result;
+    });
+    this.chain = run.catch(() => undefined);
+    return run;
   }
 
   async loadBundle(productId: string, journeyId: string): Promise<JourneyBundle | null> {
@@ -118,57 +161,38 @@ export class FileJourneyStorage implements JourneyStorage {
   }
 
   async loadProgress(productId: string, journeyId: string, subjectHash: string): Promise<JourneyProgress | null> {
-    const progress = await this.load(this.progressPath(productId, journeyId, subjectHash));
-    return isStoredProgress(progress) ? progress : null;
+    await this.chain;
+    const journal = await this.readJournal();
+    return journal.progress[this.progressKey(productId, journeyId, subjectHash)] ?? null;
   }
 
-  // A transition is stored whole: both files are written aside first, and a
-  // refused move of the queue puts the previous progress back, so progress
-  // never records a step whose events were lost.
-  async commitProgress(
+  commitProgress(
     productId: string,
     journeyId: string,
     progress: JourneyProgress,
     events: readonly JourneyRuntimeEvent[],
   ): Promise<void> {
-    const queued = await this.pendingEvents();
-    const known = new Set(queued.map((entry) => entry.event_id));
-    const progressPath = this.progressPath(productId, journeyId, progress.subject_hash);
-    const previous = await this.load(progressPath);
-    const staged: string[] = [];
-    try {
-      const stagedProgress = await this.stage(progressPath, progress);
-      staged.push(stagedProgress);
-      const stagedEvents = await this.stage(
-        this.eventsPath(),
-        [...queued, ...events.filter((event) => !known.has(event.event_id))],
-      );
-      staged.push(stagedEvents);
-      await rename(stagedProgress, progressPath);
-      try {
-        await rename(stagedEvents, this.eventsPath());
-      } catch (error) {
-        if (previous === null) await rm(progressPath, { force: true });
-        else await this.save(progressPath, previous);
-        throw error;
-      }
-    } finally {
-      await Promise.all(staged.map((path) => rm(path, { force: true })));
-    }
+    return this.withJournal((journal) => {
+      journal.progress[this.progressKey(productId, journeyId, progress.subject_hash)] = progress;
+      const known = new Set(journal.events.map((entry) => entry.event_id));
+      journal.events.push(...events.filter((event) => !known.has(event.event_id)));
+    });
   }
 
   async pendingEvents(): Promise<readonly JourneyRuntimeEvent[]> {
-    const events = await this.load(this.eventsPath());
-    return Array.isArray(events) ? events.filter(isStoredEvent) : [];
+    await this.chain;
+    return (await this.readJournal()).events;
   }
 
-  async appendEvent(event: JourneyRuntimeEvent): Promise<void> {
-    const events = await this.pendingEvents();
-    await this.save(this.eventsPath(), [...events.filter((entry) => entry.event_id !== event.event_id), event]);
+  appendEvent(event: JourneyRuntimeEvent): Promise<void> {
+    return this.withJournal((journal) => {
+      journal.events = [...journal.events.filter((entry) => entry.event_id !== event.event_id), event];
+    });
   }
 
-  async removeEvent(eventId: string): Promise<void> {
-    const events = await this.pendingEvents();
-    await this.save(this.eventsPath(), events.filter((entry) => entry.event_id !== eventId));
+  removeEvent(eventId: string): Promise<void> {
+    return this.withJournal((journal) => {
+      journal.events = journal.events.filter((entry) => entry.event_id !== eventId);
+    });
   }
 }
