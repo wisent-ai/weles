@@ -18,6 +18,7 @@ const EMAIL = process.env.PARP_EMAIL || 'lukasz.bartoszcze@wisent.ai';
 const STORE = join(homedir(), '.weles', 'parp_login.json');
 const NEW_PASSWORD = randomBytes(16).toString('base64url').slice(0, 24) + 'Aa1!';
 const RESET_SENDER = process.env.PARP_RESET_SENDER || 'lsi@parp.gov.pl';
+const LOGIN_URL = 'https://lsi.parp.gov.pl/';
 const SKRZYNKA = process.env.SKRZYNKA_BIN || 'skrzynka';
 
 const RESET_TRIGGERS = ['Zapomniałem hasła', 'Nie pamiętam hasła', 'Reset hasła', 'Przypomnij hasło'];
@@ -76,17 +77,30 @@ function resetMailbox() {
   return mailbox.id;
 }
 
-async function pollMailForResetLink(maxIterations) {
+// A reset link is one that leads back into the site being logged into, below
+// its front page, in mail from the reset sender received after `requestedAt`;
+// older mail and homepage or footer links never qualify.
+function resetLink(body) {
+  const host = new URL(LOGIN_URL).host;
+  return [...body.matchAll(/https?:\/\/[^\s<>"]+/gi)].map((m) => m[0]).find((candidate) => {
+    const url = new URL(candidate);
+    return url.host === host && (url.pathname.length > 1 || url.search.length > 0);
+  });
+}
+
+async function pollMailForResetLink(maxIterations, requestedAt) {
   const mailboxId = resetMailbox();
   for (let i = 0; i < maxIterations; i++) {
     skrzynka(['sync', '--mailbox', mailboxId]);
-    const newest = skrzynka(['message', 'list', '--mailbox', mailboxId, '--limit', '100'])
-      .filter((m) => m.sender.toLowerCase().includes(RESET_SENDER.toLowerCase()))
-      .sort((a, b) => b.received_at.localeCompare(a.received_at))[0];
-    const link = newest?.body_text.match(/https?:\/\/[^\s<>"]+/i);
+    const link = skrzynka(['message', 'list', '--mailbox', mailboxId, '--limit', '100'])
+      .filter((m) => m.sender.toLowerCase().includes(RESET_SENDER.toLowerCase())
+        && Date.parse(m.received_at) >= requestedAt)
+      .sort((a, b) => b.received_at.localeCompare(a.received_at))
+      .map((m) => resetLink(m.body_text))
+      .find(Boolean);
     if (link) {
-      logn(`znalazłem link reset: ${link[0].slice(0, 80)}...`);
-      return link[0];
+      logn(`znalazłem link reset: ${link.slice(0, 80)}...`);
+      return link;
     }
     await sleep(10_000);
   }
@@ -97,7 +111,7 @@ async function main() {
   const s = await WSession.start({ label: 'parp_login', proxy: process.env.PROXY_URL });
 
   logn('otwieram lsi.parp.gov.pl');
-  await s.goto('https://lsi.parp.gov.pl/');
+  await s.goto(LOGIN_URL);
   await humanIdlePause('deliberate');
   await screenshot(s, 'login_page');
 
@@ -120,6 +134,7 @@ async function main() {
   }
   await humanIdlePause('short');
 
+  const requestedAt = Date.now();
   if (!(await clickByAnyText(s, SUBMIT_TEXTS))) {
     logn('FAIL: nie znalazłem przycisku submit');
     process.exitCode = 1;
@@ -130,7 +145,7 @@ async function main() {
   await screenshot(s, 'reset_submitted');
 
   logn('czekam na mail resetu w Skrzynce');
-  const link = await pollMailForResetLink(30);
+  const link = await pollMailForResetLink(30, requestedAt);
   if (!link) {
     logn('FAIL: nie dostałem maila resetowego. Może PARP ma captcha, blokadę reset, albo email idzie indziej.');
     process.exitCode = 1;
