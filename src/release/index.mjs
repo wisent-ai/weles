@@ -130,13 +130,17 @@ export async function surface(root = repositoryRoot()) {
   for (const path of mcpPaths) {
     const mcpSource = program.getSourceFile(path);
     if (!mcpSource) throw new Error(`MCP module was not parsed: ${path}`);
+    // Tool declarations are array literals typed ToolDefinition[]; the
+    // exported welesMcpTools joins them by spreading, so a spread member is a
+    // reference to a list this scan reads where it is declared.
     const collectMcpTools = (node) => {
       if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)
-        && node.name.text === 'welesMcpTools' && node.initializer
+        && node.type?.getText(mcpSource) === 'ToolDefinition[]' && node.initializer
         && ts.isArrayLiteralExpression(node.initializer)) {
         for (const element of node.initializer.elements) {
+          if (ts.isSpreadElement(element)) continue;
           if (!ts.isObjectLiteralExpression(element)) {
-            throw new Error('welesMcpTools contains a non-object member');
+            throw new Error(`${node.name.text} contains a non-object member`);
           }
           const name = element.properties.find((property) => ts.isPropertyAssignment(property)
             && property.name?.getText(mcpSource) === 'name');

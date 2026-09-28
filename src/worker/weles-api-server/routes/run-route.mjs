@@ -113,13 +113,13 @@ export async function respondToRun(req, res, runTrajectory, validateAccountSecur
     if (!admission.joined) {
       persistRunResult(
         admittedPath,
-        { ok: null, action, ...requestBinding, status: 'running', started_at: new Date().toISOString() },
+        { ok: null, action, account_id: accountId, ...requestBinding, status: 'running', started_at: new Date().toISOString() },
       );
       admission.entry.promise
         .then((result) => {
           persistRunResult(
             admittedPath,
-            { ...result, action, ...requestBinding, status: 'finished', completed_at: new Date().toISOString() },
+            { ...result, action, account_id: accountId, ...requestBinding, status: 'finished', completed_at: new Date().toISOString() },
           );
         })
         .catch((error) => {
@@ -128,6 +128,7 @@ export async function respondToRun(req, res, runTrajectory, validateAccountSecur
             {
               ok: false,
               action,
+              account_id: accountId,
               ...requestBinding,
               status: 'failed',
               error: String(error && error.message ? error.message : error).slice(0, 300),

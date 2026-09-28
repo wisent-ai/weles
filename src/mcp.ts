@@ -2,8 +2,18 @@
 import { Buffer } from 'node:buffer';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { BrowserContext, Page } from 'playwright';
 import type { AsyncNewBrowserOptions } from './async_api.js';
+import { callPageOperation } from './mcp/page-ops.js';
+import {
+  addBrowser,
+  addPage,
+  asOptionalNumber,
+  asString,
+  dropBrowser,
+  getPage,
+  getBrowser,
+  textResult,
+} from './mcp/state.js';
 
 type JsonRpcRequest = {
   jsonrpc?: string;
@@ -23,15 +33,6 @@ import { welesMcpTools } from './mcp/tools.js';
 
 export { welesMcpTools } from './mcp/tools.js';
 
-type BrowserSlot = {
-  context: BrowserContext;
-  pages: Set<string>;
-};
-
-const browsers = new Map<string, BrowserSlot>();
-const pages = new Map<string, Page>();
-let nextBrowserId = 1;
-let nextPageId = 1;
 let consoleRoutedToStderr = false;
 
 // MCP stdio is a protocol stream. Weles launch/session diagnostics use console.log;
@@ -51,17 +52,6 @@ function packageVersion(): string {
   }
 }
 
-function asString(value: unknown, name: string): string {
-  if (typeof value !== 'string' || value.length === 0) throw new Error(`${name} must be a non-empty string`);
-  return value;
-}
-
-function asOptionalNumber(value: unknown, name: string): number | undefined {
-  if (value === undefined) return undefined;
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) throw new Error(`${name} must be a positive number`);
-  return value;
-}
-
 function browserOptions(args: Record<string, unknown>): AsyncNewBrowserOptions {
   const options: AsyncNewBrowserOptions = {};
   if (typeof args.headless === 'boolean') options.headless = args.headless;
@@ -74,51 +64,24 @@ function browserOptions(args: Record<string, unknown>): AsyncNewBrowserOptions {
   return options;
 }
 
-function getBrowser(browserId: unknown): BrowserSlot {
-  const id = asString(browserId, 'browserId');
-  const browser = browsers.get(id);
-  if (!browser) throw new Error(`unknown browserId: ${id}`);
-  return browser;
-}
-
-function getPage(pageId: unknown): Page {
-  const id = asString(pageId, 'pageId');
-  const page = pages.get(id);
-  if (!page) throw new Error(`unknown pageId: ${id}`);
-  return page;
-}
-
-function textResult(value: unknown) {
-  return { content: [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value, null, 2) }] };
-}
-
 export async function callWelesMcpTool(name: string, args: Record<string, unknown> = {}) {
   if (name === 'weles_browser_start') {
     routeConsoleToStderr();
     const { AsyncNewBrowser } = await import('./async_api.js');
     const context = await AsyncNewBrowser(browserOptions(args));
-    const browserId = `browser-${nextBrowserId++}`;
-    browsers.set(browserId, { context, pages: new Set() });
-    return textResult({ browserId });
+    return textResult({ browserId: addBrowser(context) });
   }
 
   if (name === 'weles_browser_close') {
     const browserId = asString(args.browserId, 'browserId');
-    const browser = getBrowser(browserId);
-    for (const pageId of browser.pages) pages.delete(pageId);
-    browsers.delete(browserId);
-    await browser.context.close();
+    await dropBrowser(browserId).context.close();
     return textResult({ closed: browserId });
   }
 
   if (name === 'weles_page_new') {
     const browserId = asString(args.browserId, 'browserId');
-    const browser = getBrowser(browserId);
-    const page = await browser.context.newPage();
-    const pageId = `page-${nextPageId++}`;
-    pages.set(pageId, page);
-    browser.pages.add(pageId);
-    return textResult({ pageId });
+    const page = await getBrowser(browserId).context.newPage();
+    return textResult({ pageId: addPage(browserId, page) });
   }
 
   if (name === 'weles_page_goto') {
@@ -152,17 +115,23 @@ export async function callWelesMcpTool(name: string, args: Record<string, unknow
   if (name === 'weles_page_screenshot') {
     const page = getPage(args.pageId);
     const path = typeof args.path === 'string' ? args.path : undefined;
-    const shot = await page.screenshot({ path, fullPage: args.fullPage === true });
-    return textResult(path ? { path } : { mimeType: 'image/png', base64: Buffer.from(shot).toString('base64') });
+    const type = args.type === 'jpeg' ? 'jpeg' : 'png';
+    const quality = type === 'jpeg' && typeof args.quality === 'number' ? args.quality : undefined;
+    const shot = await page.screenshot({ path, type, quality, fullPage: args.fullPage === true });
+    return textResult(path ? { path } : { mimeType: `image/${type}`, base64: Buffer.from(shot).toString('base64') });
   }
 
   if (name === 'weles_page_evaluate') {
     const page = getPage(args.pageId);
     const expression = asString(args.expression, 'expression');
     const value = await page.evaluate((source) => (0, eval)(source), expression);
-    return textResult(value ?? null);
+    // Always JSON text: a string value would otherwise reach the caller
+    // unquoted and be indistinguishable from a JSON document.
+    return textResult(JSON.stringify(value === undefined ? null : value));
   }
 
+  const result = await callPageOperation(name, args);
+  if (result) return result;
   throw new Error(`unknown tool: ${name}`);
 }
 

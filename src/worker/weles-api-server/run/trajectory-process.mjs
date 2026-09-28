@@ -25,9 +25,9 @@ import { existsSync } from 'node:fs';
 import { userInfo } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import { RUN_RESULTS_DIR } from '../configuration.mjs';
+import { RECORDINGS_ROOT, RUN_RESULTS_DIR } from '../configuration.mjs';
 import { REPO, RUN_RELEASE_IDENTITY } from '../release-identity.mjs';
-import { SAFE_RUN_ID, findResultDoc, lastJsonLine, persistRunResult } from './run-outcome.mjs';
+import { SAFE_RUN_ID, findResultDoc, lastJsonLine, persistRunResult, runOutputs } from './run-outcome.mjs';
 import { credentialFailure } from './credential-outcome.mjs';
 
 function signalRunProcess(child, signal) {
@@ -66,6 +66,13 @@ function boundedOutputTail(current, chunk, maximumCharacters) {
   return next.length <= maximumCharacters ? next : next.slice(-maximumCharacters);
 }
 
+// `outputs` are the named documents the run left in its recording tree;
+// `output_errors` appears only when one of them could not be read.
+function recordedOutputs(runId) {
+  const { outputs, errors } = runOutputs(runId);
+  return Object.keys(errors).length ? { outputs, output_errors: errors } : { outputs };
+}
+
 // `resolveTrajectory` and `paramsToEnv` are the deployed runtime's own dispatch
 // table, resolved by the entry point: this module is never the one that names a
 // path inside the release tree.
@@ -91,6 +98,10 @@ export function createTrajectoryRunner({ resolveTrajectory, paramsToEnv }) {
         ...(accountId ? { ACCOUNT_ID: String(accountId) } : {}),
         ...(freshProfile ? { WELES_FRESH_PROFILE: '1' } : {}),
         ...(runOptions.extraEnv || {}),
+        // The child writes recordings where this server reads them back
+        // (findResultDoc, runOutputs, diagnostics); without it a trajectory
+        // falls to <cwd>/recordings and every recorded output reads as absent.
+        WELES_RECORDINGS_ROOT: RECORDINGS_ROOT,
         ACTION_LOG_ID: runId,
         ACTION: action,
       };
@@ -131,12 +142,12 @@ export function createTrajectoryRunner({ resolveTrajectory, paramsToEnv }) {
       child.stdout.on('data', (chunk) => { stdout = boundedOutputTail(stdout, chunk, 2 * 1024 * 1024); });
       child.stderr.on('data', (chunk) => { stderr = boundedOutputTail(stderr, chunk, 512 * 1024); });
       child.once('error', (error) => {
-        finish({ ok: false, exitCode: -1, action, run_id: runId, result: null, stdout_tail: stdout.slice(-4000), stderr_tail: `${stderr}\n${String(error?.message || error)}`.slice(-2000), timed_out: false, cancelled });
+        finish({ ok: false, exitCode: -1, action, run_id: runId, result: null, ...recordedOutputs(runId), stdout_tail: stdout.slice(-4000), stderr_tail: `${stderr}\n${String(error?.message || error)}`.slice(-2000), timed_out: false, cancelled });
       });
       child.on('close', (code) => {
         const exitCode = timedOut || cancelled ? 137 : (code ?? -1);
         const result = lastJsonLine(stdout) ?? findResultDoc(runId);
-        finish({ ok: exitCode === 0, exitCode, action, run_id: runId, result, stdout_tail: stdout.slice(-4000), stderr_tail: stderr.slice(-2000), timed_out: timedOut, cancelled });
+        finish({ ok: exitCode === 0, exitCode, action, run_id: runId, result, ...recordedOutputs(runId), stdout_tail: stdout.slice(-4000), stderr_tail: stderr.slice(-2000), timed_out: timedOut, cancelled });
       });
     });
   };
@@ -184,6 +195,7 @@ export function runReauth(provider, timeoutMs, account) {
       env: {
         ...process.env,
         WELES_FULL_DIAGNOSTICS: process.env.WELES_FULL_DIAGNOSTICS ?? '1',
+        WELES_RECORDINGS_ROOT: RECORDINGS_ROOT,
         ACTION_LOG_ID: runId,
         ACTION: action,
         ...(account

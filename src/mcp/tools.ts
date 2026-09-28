@@ -1,21 +1,14 @@
 // The tools the Weles MCP server advertises: one entry per browser operation,
 // each with the exact JSON schema its arguments must satisfy. The server in
-// `../mcp.ts` dispatches by these names.
+// `../mcp.ts` dispatches by these names; the page operations beyond
+// navigate/read/click/fill are declared in ./page-tools.ts.
 
-export type ToolDefinition = {
-  name: string;
-  description: string;
-  inputSchema: Record<string, unknown>;
-};
+import { welesPageTools } from './page-tools.js';
+import { objectSchema, type ToolDefinition } from './schema.js';
 
-const objectSchema = (properties: Record<string, unknown>, required: string[] = []) => ({
-  type: 'object',
-  properties,
-  required,
-  additionalProperties: false,
-});
+export type { ToolDefinition } from './schema.js';
 
-export const welesMcpTools: ToolDefinition[] = [
+const browserTools: ToolDefinition[] = [
   {
     name: 'weles_browser_start',
     description: 'Launch a Weles browser context via AsyncNewBrowser and return a browserId.',
@@ -84,6 +77,8 @@ export const welesMcpTools: ToolDefinition[] = [
       pageId: { type: 'string' },
       path: { type: 'string' },
       fullPage: { type: 'boolean' },
+      type: { type: 'string', enum: ['png', 'jpeg'] },
+      quality: { type: 'number', description: 'JPEG quality 0-100; only with type jpeg.' },
     }, ['pageId']),
   },
   {
@@ -95,3 +90,5 @@ export const welesMcpTools: ToolDefinition[] = [
     }, ['pageId', 'expression']),
   },
 ];
+
+export const welesMcpTools: ToolDefinition[] = [...browserTools, ...welesPageTools];

@@ -17,6 +17,7 @@ import { readdirSync, lstatSync, realpathSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { extname, join, resolve, sep } from 'node:path';
 
+import { RECORDINGS_ROOT } from '../configuration.mjs';
 import { REPO } from '../release-identity.mjs';
 import { SAFE_RUN_ID, runResultFile } from './run-outcome.mjs';
 
@@ -58,8 +59,9 @@ function diagnosticsCandidates() {
   };
 
   // New releases write outside their immutable runtime so an activation cannot
-  // strand the previous release's evidence.
-  add(process.env.WELES_RECORDINGS_ROOT);
+  // strand the previous release's evidence. RECORDINGS_ROOT is the root every
+  // trajectory child is given, including the default when the variable is unset.
+  add(RECORDINGS_ROOT);
   add(join(REPO, 'recordings'));
 
   // Managed releases before the stable recordings root wrote beside their
