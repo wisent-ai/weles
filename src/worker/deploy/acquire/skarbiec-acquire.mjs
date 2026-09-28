@@ -5,6 +5,15 @@ import { readFileSync, lstatSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { resolveSkarbiecEndpoint, formatEndpointErrorMessage } from './endpoint-resolution.mjs';
 
+// A refusal whose cause the caller must act on differently ends with one
+// machine line naming that cause (refused, scope_not_declared,
+// authority_unreachable, workload_not_authorized, field_not_present), so the
+// caller reads the line instead of the words of the sentence above it.
+function stop(reason, message) {
+  process.stderr.write(`${message}\nSKARBIEC_ACQUIRE_REASON ${reason}\n`);
+  process.exit(Number('1'));
+}
+
 const [scopeFile, consumer, item, field, ...extraArgs] = process.argv.slice(Number('2'));
 if (extraArgs.length > 0 || [scopeFile, consumer, item, field].some((value) => !value)) {
   throw new Error('usage: skarbiec-acquire.mjs <scope-file> <consumer> <item> <field>');
@@ -15,7 +24,7 @@ if (!resolved) {
   throw new Error('WC_SKARBIEC_URL must come from the Stado service directory');
 }
 if (!resolved.isListening) {
-  throw new Error(formatEndpointErrorMessage(resolved));
+  stop('authority_unreachable', formatEndpointErrorMessage(resolved));
 }
 const endpointText = resolved.url;
 
@@ -43,7 +52,8 @@ if (!scopeKeys.includes([consumer, item, field].join('|'))) {
   // Name the table that was read and how big it is: this refusal is produced
   // before the authority is contacted, so when it fires the interesting fact is
   // WHICH copy of the catalogue is in force, not the grant.
-  throw new Error(
+  stop(
+    'scope_not_declared',
     `undeclared Skarbiec acquisition scope for ${consumer} on ${item}#${field}`
     + ` in ${scopeFile} (${scopeKeys.length} declared scopes)`,
   );
@@ -108,7 +118,7 @@ if (workloadSignature.length !== Number('128') || !validHex) {
 // of a refusal carries the authority's reason and never carries a field value —
 // a successful read is the only response that does, and it is not routed here —
 // but any `value` key is dropped anyway before the text is repeated.
-async function refusal(stage, response, consumer, item, field) {
+async function refuse(stage, response, consumer, item, field) {
   let detail = '';
   try {
     const text = (await response.text()).slice(Number('0'), Number('2048'));
@@ -118,7 +128,8 @@ async function refusal(stage, response, consumer, item, field) {
   } catch {
     detail = '<body unreadable>';
   }
-  return new Error(
+  const reason = REFUSAL_BY_STATUS[response.status] ?? 'refused';
+  stop(reason,
     `Skarbiec ${stage} at ${endpoint.origin} refused ${consumer} for ${item}#${field}: HTTP ${response.status}`
     + `${detail ? ` ${detail}` : ''}`
     // The issue call carries no bearer: the authority authorizes the tuple
@@ -130,6 +141,10 @@ async function refusal(stage, response, consumer, item, field) {
     + ` [asserted workload_id=${workloadId}, proof over ${consumer}\0${item}\0${field}]`,
   );
 }
+
+// Skarbiec's statuses for a proved workload: 404 is a field the item does not
+// carry (skarbiec README, acquisition), 401 a tuple no grant covers.
+const REFUSAL_BY_STATUS = { 404: 'field_not_present', 401: 'workload_not_authorized' };
 
 const body = JSON.stringify({ id: item, field });
 const issueBody = JSON.stringify({
@@ -153,16 +168,17 @@ async function post(path, headers, payload) {
   try {
     return await fetch(target, { method: 'POST', headers, body: payload });
   } catch (cause) {
-    throw new Error(
+    stop(
+      'authority_unreachable',
       `Skarbiec at ${endpoint.origin} is unreachable for ${consumer} on ${item}#${field}`
-      + ` (${path}): ${cause?.cause?.code ?? cause?.code ?? cause?.message ?? 'connection failed'}`,
+      + ` (${path}): ${cause?.cause?.code ?? cause?.code ?? String(cause)}`,
     );
   }
 }
 
 const issueResponse = await post('/v1/acquisitions', commonHeaders, issueBody);
 if (!issueResponse.ok) {
-  throw await refusal('acquisition issue', issueResponse, consumer, item, field);
+  await refuse('acquisition issue', issueResponse, consumer, item, field);
 }
 const issued = await issueResponse.json();
 const issuedKeys = ['consumer', 'expires_at', 'field', 'item', 'token'];
@@ -179,7 +195,7 @@ const readResponse = await post(
   body,
 );
 if (!readResponse.ok) {
-  throw await refusal('one-time read', readResponse, consumer, item, field);
+  await refuse('one-time read', readResponse, consumer, item, field);
 }
 const result = await readResponse.json();
 // Skarbiec returns the bound field and optional declared provider metadata.

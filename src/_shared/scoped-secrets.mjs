@@ -114,7 +114,7 @@ export function readScopedSecret(serviceName, field) {
   ], {
     encoding: 'buffer',
     maxBuffer: Number('65536'),
-    stdio: ['ignore', 'pipe', 'ignore'],
+    stdio: 'pipe',
     env: {
       HOME: homedir(),
       PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
@@ -125,7 +125,14 @@ export function readScopedSecret(serviceName, field) {
   });
   const output = Buffer.isBuffer(result.stdout) ? result.stdout : Buffer.alloc(Number('0'));
   try {
-    if (result.error || result.status !== Number('0')) throw new Error(`scoped Skarbiec read failed for ${serviceName}/${field}`);
+    if (result.error || result.status !== Number('0')) {
+      // The helper names its cause on its last SKARBIEC_ACQUIRE_REASON line;
+      // carried as [reason=...] so credential-outcome.mjs reads it, not words.
+      const stderr = Buffer.isBuffer(result.stderr) ? result.stderr.toString('utf8') : '';
+      const declared = stderr.match(/^SKARBIEC_ACQUIRE_REASON ([a-z_]+)$/m);
+      throw new Error(`scoped Skarbiec read failed for ${serviceName}/${field}`
+        + (declared ? ` [reason=${declared[1]}]` : ` (helper exited ${result.status ?? 'without status'})`));
+    }
     const value = output.toString('utf8').replace(/[\r\n]+$/, '');
     if (!value || /[\r\n]/.test(value) || value.includes(String.fromCharCode(Number('0')))) {
       throw new Error(`scoped Skarbiec returned an invalid value for ${serviceName}/${field}`);

@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { resolvedAcquiredSecretContract, SERVICE_CONTRACTS } from './contracts.js';
 import type { InternalAcquiredSecretContract } from './contracts.js';
+import { acquisitionStderr, SkarbiecAcquisitionError } from './acquisition-failure.js';
 const TENANT_HEX_RE = /^[a-f\d-]+$/i;
 const TENANT_PART_LENGTHS = Object.freeze([
   'xxxxxxxx'.length,
@@ -273,17 +274,15 @@ export function readAcquiredField(
       // Repeat the authority's own words. Collapsing every refusal into one
       // sentence made an unregistered consumer, an out-of-window grant and a
       // missing scope line indistinguishable, and each needs a different fix.
-      const diagnosis = (Buffer.isBuffer(result.stderr) ? result.stderr.toString('utf8') : '')
-        .split('\n')
-        .map((line) => line.trim())
-        .filter((line) => line && !/^\s*at\s/.test(line))
-        .slice(-Number('2'))
-        .join(' | ')
-        .slice(Number('0'), Number('600'));
-      throw new Error(
+      const { reason, lines } = acquisitionStderr(
+        Buffer.isBuffer(result.stderr) ? result.stderr.toString('utf8') : '',
+      );
+      const diagnosis = lines.slice(-Number('2')).join(' | ').slice(Number('0'), Number('600'));
+      throw new SkarbiecAcquisitionError(
         `workload-bound Skarbiec acquisition failed for ${item}/${field} as consumer ${consumer}`
         + ` against ${endpoint}`
         + `${diagnosis ? `: ${diagnosis}` : `: helper exited ${result.status ?? 'without status'} with no diagnosis`}`,
+        reason,
       );
     }
     const value = output.toString('utf8').replace(/[\r\n]+$/, '');

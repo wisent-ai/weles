@@ -6,6 +6,7 @@ import { SERVICE_CONTRACTS, resolvedAcquiredSecretContract, isWelesAcquiredSourc
 import type { WelesAcquiredSecret } from './scoped-service/contracts.js';
 import { checkedTokenFile, skarbiecEndpoint, readScopedField, readAcquiredField, deployedFile,
   welesManagedCredentialReaderMismatch } from './scoped-service/transport.js';
+import { SkarbiecAcquisitionError } from './scoped-service/acquisition-failure.js';
 import type { WelesServiceSecret } from './scoped-service/transport.js';
 export { acquiredSecretContract, isWelesAcquiredSourceOrigin, isWelesManagedPasswordItem } from './scoped-service/contracts.js';
 export type { WelesAcquiredSecret, WelesAcquiredSecretContract } from './scoped-service/contracts.js';
@@ -65,9 +66,7 @@ export function readOptionalPinnedProxyCredential(reference: string): PinnedProx
 }
 
 function isMissingOptionalAcquisitionField(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return message.includes('acquisition field does not exist on item')
-    || message.includes('canonical item has no field:');
+  return error instanceof SkarbiecAcquisitionError && error.reason === 'field_not_present';
 }
 
 export function readOptionalWelesServiceLogin(serviceName: WelesServiceSecret): { email: string; password: string; totpSecret?: string } | null {

@@ -19,16 +19,12 @@ export function isCredentialTrajectory(action) {
   return /(?:^|_)(?:login|reauth|register)$/.test(action);
 }
 
+// The reason Weles' acquisition reader appends as `[reason=<cause>]`
+// (src/secrets/scoped-service/acquisition-failure.ts), taken from the helper's
+// own SKARBIEC_ACQUIRE_REASON line; nothing is inferred from the sentence.
 function skarbiecAcquisitionFailureReason(stderr) {
-  if (/acquisition field does not exist on item|canonical item has no field:/.test(stderr)) {
-    return 'field_not_present';
-  }
-  if (/undeclared Skarbiec acquisition scope/.test(stderr)) return 'scope_not_declared';
-  if (/Skarbiec .* is unreachable|endpoint .* is not listening/.test(stderr)) {
-    return 'authority_unreachable';
-  }
-  if (/\bHTTP 401\b/.test(stderr)) return 'workload_not_authorized';
-  return undefined;
+  const declared = stderr.match(/\[reason=([a-z_]+)\]/);
+  return declared ? declared[1] : undefined;
 }
 
 export function credentialFailure(out) {
