@@ -14,7 +14,7 @@
 // settles inside the viewport is refused by name instead of clicked blindly.
 // ---------------------------------------------------------------------------
 
-import { waitMs } from '../../utils/timing.js';
+import { waitMs } from '../../utils/motion/timing.js';
 
 export interface TargetBox { x: number; y: number; width: number; height: number }
 

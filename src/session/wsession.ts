@@ -31,7 +31,7 @@ import { startInstrumentation } from './wsession-helpers/net_record.js';
 import { join } from 'node:path';
 import { userInfo } from 'node:os';
 import { resolveProxy } from '../proxy/config.js';
-import { seedHumanTiming } from '../utils/timing.js';
+import { seedHumanTiming } from '../utils/motion/timing.js';
 import { findCustomBrowser } from './find_browser.js';
 import { costTracker } from '../utils/runtime/cost.js';
 import { loadOperatorCdpConfig } from './placement/operator-cdp.js';

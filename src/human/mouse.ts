@@ -6,7 +6,7 @@
 // ---------------------------------------------------------------------------
 
 import { cubicBezier } from '../utils/motion/bezier.js';
-import { randomBetween, waitMs, humanRandom } from '../utils/timing.js';
+import { randomBetween, waitMs, humanRandom } from '../utils/motion/timing.js';
 import { traceAvailable, nextPointerStepMs, nextReactionMs, nextInterClickMs, getMoveTemplate } from './trace.js';
 import { getOffsetFromPage, nativeClick, nativeBatchMove, nativeMove } from './mouse-native.js';
 import { settledTargetBox } from './pointer/target-box.js';

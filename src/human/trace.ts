@@ -7,7 +7,7 @@
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { humanRandom } from '../utils/timing.js';
+import { humanRandom } from '../utils/motion/timing.js';
 
 interface TraceEvent { t: number; type: string; x?: number|null; y?: number|null; code?: string|null; }
 

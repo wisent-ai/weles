@@ -24,7 +24,7 @@ import { type Persona, generatePersona } from '../../browser/persona.js';
 import { Capture } from '../../capture/capture.js';
 import { installBrowserEvidencePolicy } from '../../agent/browser-evidence-policy.js';
 import { resolveProxy } from '../../proxy/config.js';
-import { seedHumanTiming } from '../../utils/timing.js';
+import { seedHumanTiming } from '../../utils/motion/timing.js';
 import type { WSession } from '../wsession.js';
 import { SessionStore } from '../store.js';
 import { findCustomBrowser } from '../find_browser.js';

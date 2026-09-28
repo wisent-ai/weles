@@ -8,7 +8,7 @@
 // This module is the ONLY mouse/keyboard path for humanized atoms.
 
 import { execFileSync, execSync, spawnSync } from 'node:child_process';
-import { randomBetween, waitMs } from '../utils/timing.js';
+import { randomBetween, waitMs } from '../utils/motion/timing.js';
 
 export interface NativeOffset { winX: number; winY: number; chromeY: number; }
 

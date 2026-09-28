@@ -8,7 +8,7 @@
 
 import { nativeType, nativeSelectAllAndDelete } from './mouse-native.js';
 import { cdpInput, humanClickLocator } from './mouse.js';
-import { humanRandom, waitMs } from '../utils/timing.js';
+import { humanRandom, waitMs } from '../utils/motion/timing.js';
 interface HumanKeyboardPage {
   keyboard: {
     press(key: string): Promise<void>;
