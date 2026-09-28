@@ -22,7 +22,7 @@ import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 const REPO = resolve(import.meta.dirname, '..', '..');
-const PARSER = join(REPO, 'src/figma/parse-figma-document.mjs');
+const PARSER = join(REPO, 'src/figma/document/parse-figma-document.mjs');
 const WORK = join(REPO, 'build', `figma-parse-${process.pid}-${randomUUID().slice(0, 8)}`);
 
 const brand = { r: 0.4627451, g: 0.6, b: 0.4705882, a: 1 };

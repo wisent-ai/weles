@@ -64,7 +64,7 @@ async function figmaDocument(fileKey, nodesPath, vocabularyPath) {
   // defined on visible layers — which wisent-components merges into the set
   // its design lint holds every web repository to.
   run(process.execPath, [
-    join(import.meta.dirname, 'parse-figma-document.mjs'),
+    join(import.meta.dirname, 'document', 'parse-figma-document.mjs'),
     cachePath,
     summaryPath,
     nodesPath,
