@@ -134,7 +134,9 @@ export class FileJourneyStorage implements JourneyStorage {
   private async readJournal(): Promise<{ journal: Journal; version: number }> {
     for (;;) {
       const names = await this.listing();
-      const version = Math.max(0, ...names.map((name) => Number(JOURNAL_VERSION.exec(name)?.[1] ?? 0)));
+      // reduce, not Math.max(...names): tombstones accumulate, and one
+      // argument per file would outgrow the engine's argument limit.
+      const version = names.reduce((newest, name) => Math.max(newest, Number(JOURNAL_VERSION.exec(name)?.[1] ?? 0)), 0);
       if (version === 0) return { journal: await this.readLegacy(names), version };
       const path = this.journalPath(version);
       let text: string;
