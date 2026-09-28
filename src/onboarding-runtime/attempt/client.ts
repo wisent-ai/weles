@@ -22,6 +22,8 @@ export class JourneyClient {
   #bundle: JourneyBundle | null = null
   #progress: JourneyProgress | null = null
   readonly #event = journeyEvent
+  // Transitions run one at a time, each from the progress the last one published.
+  #turn: Promise<unknown> = Promise.resolve()
 
   constructor(options: JourneyClientOptions) {
     if (!IDENTIFIER.test(options.productId) || !IDENTIFIER.test(options.journeyId) || !SHA256.test(options.subjectHash)) {
@@ -37,7 +39,8 @@ export class JourneyClient {
     return this.#bundle.definition.screens.find((screen) => screen.screen_id === this.#progress!.current_screen_id) ?? null
   }
 
-  async start(evidenceRevision: string) {
+  start(evidenceRevision: string) {
+    return this.#serialized(async () => {
     const { productId, journeyId, subjectHash, canonicalFallback, storage, transport } = this.#options
     let bundle: JourneyBundle | null = null
     try {
@@ -102,13 +105,15 @@ export class JourneyClient {
       this.#event(progress, isResume ? 'onboarding_resumed' : 'onboarding_started', {}, evidenceRevision),
     ])
     return { bundle, progress: this.#progress }
+    })
   }
 
   async expose(evidenceRevision: string) {
     await this.emit('onboarding_step_viewed', {}, evidenceRevision)
   }
 
-  async advance(evidence: JourneyEvidence, evidenceRevision: string) {
+  advance(evidence: JourneyEvidence, evidenceRevision: string) {
+    return this.#serialized(async () => {
     if (!this.#bundle || !this.#progress) throw new Error('journey client has not started')
     const routingEvidence = this.#progress.variant_id !== undefined
       && !Object.prototype.hasOwnProperty.call(evidence, 'experiment_variant')
@@ -128,13 +133,15 @@ export class JourneyClient {
       this.#event(next, 'onboarding_step_completed', {}, evidenceRevision, decision, completedScreenId),
     ])
     return decision
+    })
   }
 
-  async complete(
+  complete(
     evidence: JourneyEvidence,
     evidenceRevision: string,
     properties: Readonly<Record<string, unknown>> = {},
   ) {
+    return this.#serialized(async () => {
     if (!this.#bundle || !this.#progress) throw new Error('journey client has not started')
     const screen = this.screen
     if (!screen || screen.transitions.length > 0
@@ -153,12 +160,14 @@ export class JourneyClient {
       this.#event(next, 'onboarding_completed', properties, evidenceRevision, undefined, completedScreenId),
     ])
     return true
+    })
   }
 
-  async observeFirstAction(
+  observeFirstAction(
     evidenceRevision: string,
     properties: Readonly<Record<string, unknown>> = {},
   ) {
+    return this.#serialized(async () => {
     if (!this.#progress) throw new Error('journey client has not started')
     if (this.#progress.first_action_completed) return false
     const next = {
@@ -170,13 +179,15 @@ export class JourneyClient {
       this.#event(next, 'onboarding_first_action_completed', properties, evidenceRevision),
     ])
     return true
+    })
   }
 
-  async observeFirstSuccess(
+  observeFirstSuccess(
     evidence: JourneyEvidence,
     evidenceRevision: string,
     properties: Readonly<Record<string, unknown>> = {},
   ) {
+    return this.#serialized(async () => {
     if (!this.#bundle || !this.#progress) throw new Error('journey client has not started')
     if (evidence[this.#bundle.definition.first_success_fact] !== true) return false
     if (this.#progress.first_success_observed) return false
@@ -189,27 +200,31 @@ export class JourneyClient {
       this.#event(next, 'onboarding_first_success_observed', properties, evidenceRevision),
     ])
     return true
+    })
   }
 
   async skip(evidenceRevision: string) {
-    if (!this.#progress) throw new Error('journey client has not started')
-    const next: JourneyProgress = { ...this.#progress, status: 'skipped', evidence_revision: evidenceRevision }
-    await this.#commit(next, [this.#event(next, 'onboarding_step_skipped', {}, evidenceRevision)])
+    await this.#moved('skipped', 'onboarding_step_skipped', evidenceRevision)
   }
 
   async abandon(evidenceRevision: string) {
-    if (!this.#progress) throw new Error('journey client has not started')
-    const next: JourneyProgress = { ...this.#progress, status: 'abandoned', evidence_revision: evidenceRevision }
-    await this.#commit(next, [this.#event(next, 'onboarding_abandoned', {}, evidenceRevision)])
+    await this.#moved('abandoned', 'onboarding_abandoned', evidenceRevision)
   }
 
   async resume(evidenceRevision: string) {
-    if (!this.#progress) throw new Error('journey client has not started')
-    const next: JourneyProgress = { ...this.#progress, status: 'in_progress', evidence_revision: evidenceRevision }
-    await this.#commit(next, [this.#event(next, 'onboarding_resumed', {}, evidenceRevision)])
+    await this.#moved('in_progress', 'onboarding_resumed', evidenceRevision)
   }
 
-  async reset(evidenceRevision: string) {
+  #moved(status: JourneyProgress['status'], eventName: JourneyEventName, evidenceRevision: string) {
+    return this.#serialized(async () => {
+    if (!this.#progress) throw new Error('journey client has not started')
+    const next: JourneyProgress = { ...this.#progress, status, evidence_revision: evidenceRevision }
+    await this.#commit(next, [this.#event(next, eventName, {}, evidenceRevision)])
+    })
+  }
+
+  reset(evidenceRevision: string) {
+    return this.#serialized(async () => {
     if (!this.#bundle || !this.#progress) throw new Error('journey client has not started')
     const next: JourneyProgress = {
       ...this.#progress,
@@ -226,6 +241,7 @@ export class JourneyClient {
       this.#event(next, 'onboarding_reset', {}, evidenceRevision),
       this.#event(next, 'onboarding_started', {}, evidenceRevision),
     ])
+    })
   }
 
   // An event that changes no progress (a screen being viewed): queued, then
@@ -243,9 +259,7 @@ export class JourneyClient {
     await this.#deliver([event])
   }
 
-  // Sends every queued event. The ones the control plane took are removed;
-  // the first refusal is thrown with it and every later event still queued,
-  // so the caller can say that first-use events were not sent.
+  // Sends every queued event; the first refusal is thrown with it and every later event still queued.
   async flush() {
     for (const event of await this.#options.storage.pendingEvents()) {
       await this.#options.transport.collectEvent(event)
@@ -253,10 +267,15 @@ export class JourneyClient {
     }
   }
 
-  // Stores a transition whole - the new progress and every event it owes -
-  // and only then moves this client onto it. A refused write leaves both the
-  // stored and the in-memory walk where they were, so a retry repeats the
-  // whole transition.
+  // Runs `step` after every transition queued before it, whether that one
+  // succeeded or was refused; the caller still receives its own outcome.
+  #serialized<T>(step: () => Promise<T>): Promise<T> {
+    const run = this.#turn.then(step, step)
+    this.#turn = Promise.allSettled([run])
+    return run
+  }
+
+  // Stores a transition whole, then moves this client onto it; a refused write moves nothing.
   async #commit(next: JourneyProgress, events: readonly JourneyRuntimeEvent[]) {
     const { productId, journeyId, storage } = this.#options
     await storage.commitProgress(productId, journeyId, next, events)
@@ -264,9 +283,7 @@ export class JourneyClient {
     await this.#deliver(events)
   }
 
-  // Offers freshly queued events to the control plane. They are already
-  // stored, so one it does not take now stays queued for flush(), which
-  // reports the refusal; first use must not depend on the control plane.
+  // Freshly queued events; one the control plane refuses stays queued for flush(), which reports it.
   async #deliver(events: readonly JourneyRuntimeEvent[]) {
     for (const event of events) {
       try {
