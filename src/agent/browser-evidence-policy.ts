@@ -35,7 +35,7 @@ import {
   writeBrowserEvidencePolicy,
 } from './browser-evidence-policy/withheld-ledger.js';
 
-export { SPIS_BROWSER_EVIDENCE_POLICY, resolveBrowserEvidenceTarget, writeBrowserEvidencePolicy };
+export { SPIS_BROWSER_EVIDENCE_POLICY, publicAddresses, resolveBrowserEvidenceTarget, writeBrowserEvidencePolicy };
 
 function attachPageEdgeGuards(context: BrowserContext, label: string): void {
   const attach = (page: Page) => {

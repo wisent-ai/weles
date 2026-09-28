@@ -32,6 +32,7 @@ import {
   diagnosticsManifest,
 } from '../run/run-evidence.mjs';
 import { createWorkerControl, workerActions } from '../worker-control.mjs';
+import { isPageRoute, respondToPage } from './pages/index.mjs';
 import { respondToRun } from './run-route.mjs';
 import {
   respondToAuthenticatorEnrolment,
@@ -45,6 +46,7 @@ export function createApiRequestHandler({
   credentialOperationService,
   importWelesTrajectoryDocument,
   publicTaskErrorResponse,
+  pageBrowser,
   publicTaskService,
   runTrajectory,
   selectLoginAccount,
@@ -69,7 +71,7 @@ export function createApiRequestHandler({
           // is the one it built, and `stado workload run weles-api-runtime`
           // used to report a revision from a launchctl restart alone.
           sourceRevision: RUN_RELEASE_IDENTITY.source_revision,
-          routes: ['GET /healthz', 'GET /api/v1/version', 'POST /api/v1/credential-operations', 'POST /api/v1/tasks', 'GET /api/v1/tasks/:task_id', 'POST /api/v1/tasks/:task_id/cancel', 'GET /worker/version', 'GET /worker/status', 'POST /worker/start', 'POST /worker/restart', 'POST /run', 'GET /diagnostics/:run_id', 'GET /diagnostics/:run_id/file?path=', 'POST /weles-builder', 'POST /reauth/resolve', 'POST /reauth', 'POST /reauth/enrol-authenticator', 'POST /google-ads/keyword-volume', 'POST /google-ads/keyword-report'],
+          routes: ['GET /healthz', 'GET /api/v1/version', 'POST /api/v1/credential-operations', 'POST /api/v1/tasks', 'GET /api/v1/tasks/:task_id', 'POST /api/v1/tasks/:task_id/cancel', 'GET /worker/version', 'GET /worker/status', 'POST /worker/start', 'POST /worker/restart', 'POST /run', 'GET /diagnostics/:run_id', 'GET /diagnostics/:run_id/file?path=', 'POST /weles-builder', 'POST /reauth/resolve', 'POST /reauth', 'POST /reauth/enrol-authenticator', 'POST /google-ads/keyword-volume', 'POST /google-ads/keyword-report', 'POST /pages/snapshot', 'POST /pages/form-export'],
           publicTask: publicTaskService.health,
           features: ['subscription_identity', 'fresh_profile'],
           account_source: 'skarbiec',
@@ -172,6 +174,10 @@ export function createApiRequestHandler({
       }
       if (req.method === 'POST' && url.pathname === '/reauth/enrol-authenticator') {
         await respondToAuthenticatorEnrolment(req, res, selectLoginAccount, runTrajectory);
+        return;
+      }
+      if (isPageRoute(req, url)) {
+        await respondToPage(req, res, url, pageBrowser);
         return;
       }
       if (isKeywordPlannerRoute(req, url)) {

@@ -41,10 +41,12 @@
 //   POST /worker/restart                  -> recover an idle dispatcher without another process
 //   POST /google-ads/keyword-volume       -> keyword planner harvest (planner bearer)
 //   POST /google-ads/keyword-report       -> keyword planner report (planner bearer)
+//   POST /pages/snapshot                  -> rendered public page as text, structure, image
+//   POST /pages/form-export               -> file a public page downloads after a form fill
 //
 // What this file keeps is the release boundary and the process. It is the only
-// module allowed to name a path inside the deployed runtime tree: the six
-// compiled modules below are resolved here, in this order, before anything is
+// module allowed to name a path inside the deployed runtime tree: every
+// compiled module below is resolved here, in this order, before anything is
 // composed, and release/stado-launcher.sh's `runtime_required` list is the
 // mirror of exactly these paths — a runtime marked ready without one of them
 // must die here rather than on its first request. Everything those modules are
@@ -69,7 +71,8 @@ const { buildDeploymentVersionValue } = await import(`${REPO}/dist/worker/releas
 // The subscription and login identities are resolved from Skarbiec per request.
 const { selectLoginAccount } = await import(`${REPO}/dist/utils/login-accounts.js`);
 const { readPrivateStadoObjectIdentity, uploadArtifacts } = await import(`${REPO}/dist/worker/upload-artifacts.js`);
-const { resolveBrowserEvidenceTarget, SPIS_BROWSER_EVIDENCE_POLICY } = await import(`${REPO}/dist/agent/browser-evidence-policy.js`);
+const { publicAddresses, resolveBrowserEvidenceTarget, SPIS_BROWSER_EVIDENCE_POLICY } = await import(`${REPO}/dist/agent/browser-evidence-policy.js`);
+const { AsyncNewBrowser } = await import(`${REPO}/dist/async_api.js`);
 const { createPublicTaskService, publicTaskErrorResponse } = await import('./public-task-service.mjs');
 const { importWelesTrajectoryDocument } = await import(`${REPO}/dist/runtime/import.js`);
 const { acquireSecret } = await import(`${REPO}/dist/secrets/acquire.js`);
@@ -151,6 +154,7 @@ const server = http.createServer(createApiRequestHandler({
   credentialOperationService,
   importWelesTrajectoryDocument,
   publicTaskErrorResponse,
+  pageBrowser: { openBrowser: AsyncNewBrowser, publicAddresses },
   publicTaskService,
   runTrajectory,
   selectLoginAccount,

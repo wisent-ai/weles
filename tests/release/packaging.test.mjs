@@ -14,6 +14,7 @@ import {
 import { dirname, join, resolve } from 'node:path';
 import { stadoBinary } from '../../src/_shared/skarbiec-runtime.mjs';
 import { REPO, createEvidence } from './native-evidence.mjs';
+import { checkPageRoutes } from './page-routes.mjs';
 
 const input = process.env.WISENT_INPUT_JEDEN_RUNTIME_DIR;
 const archive = input ? null : process.env.WELES_TEST_JEDEN_ARCHIVE;
@@ -243,6 +244,7 @@ test('a healthy API refuses a second launcher without losing its listener', {
       assert.equal(planner.status, 401, route);
       assert.equal((await planner.json()).error, 'unauthorized', route);
     }
+    await checkPageRoutes({ port, token: env.WELES_API_TOKEN, reportedRoutes: reported.routes, report });
     const workerHeaders = { authorization: `Bearer ${env.WELES_API_TOKEN}` };
     const refused = await fetch(`http://127.0.0.1:${port}/worker/restart`, { method: 'POST' });
     assert.equal(refused.status, 401);

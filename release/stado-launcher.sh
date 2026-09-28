@@ -57,6 +57,7 @@ runtime_required=(
   dist/worker/release/deployment_version.js
   dist/worker/upload-artifacts.js
   dist/agent/browser-evidence-policy.js
+  dist/async_api.js
   dist/runtime/import.js
   dist/utils/login-accounts.js
   dist/secrets/acquire.js
