@@ -12,7 +12,14 @@ export interface JourneyStorage {
   loadBundle(productId: string, journeyId: string): Promise<JourneyBundle | null>
   saveBundle(bundle: JourneyBundle): Promise<void>
   loadProgress(productId: string, journeyId: string, subjectHash: string): Promise<JourneyProgress | null>
-  saveProgress(productId: string, journeyId: string, progress: JourneyProgress): Promise<void>
+  // Stores a transition whole: the new progress and the events it owes, or
+  // neither. A throw leaves the stored progress and queue as they were.
+  commitProgress(
+    productId: string,
+    journeyId: string,
+    progress: JourneyProgress,
+    events: readonly JourneyRuntimeEvent[],
+  ): Promise<void>
   pendingEvents(): Promise<readonly JourneyRuntimeEvent[]>
   appendEvent(event: JourneyRuntimeEvent): Promise<void>
   removeEvent(eventId: string): Promise<void>

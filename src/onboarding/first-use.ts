@@ -55,6 +55,9 @@ export type WelesOnboardingView = {
     actions: readonly string[];
   };
   control_plane: 'connected' | 'offline';
+  // Present when queued first-use events were refused by the control plane;
+  // they stay queued and are sent again on the next run.
+  undelivered_events?: string;
   verified_receipt?: {
     task_id: string;
     outcome: string;
@@ -77,7 +80,9 @@ function stateDirectory(input: WelesOnboardingInput, environment: NodeJS.Process
     || join(homedir(), '.weles', 'onboarding');
 }
 
-function render(client: { progress: JourneyProgress | null; screen: { screen_id: string; actions: readonly string[] } | null }, connected: boolean, claims?: ReceiptClaims): WelesOnboardingView {
+type ControlPlane = { connected: boolean; undeliveredEvents?: string };
+
+function render(client: { progress: JourneyProgress | null; screen: { screen_id: string; actions: readonly string[] } | null }, plane: ControlPlane, claims?: ReceiptClaims): WelesOnboardingView {
   if (!client.progress || !client.screen) throw new Error('Weles onboarding did not start');
   const content = CONTENT[client.screen.screen_id];
   if (!content) throw new Error(`Weles has no product content for journey screen ${client.screen.screen_id}`);
@@ -93,7 +98,8 @@ function render(client: { progress: JourneyProgress | null; screen: { screen_id:
       body: content.body,
       actions: client.progress.status === 'completed' ? [] : client.screen.actions,
     },
-    control_plane: connected ? 'connected' : 'offline',
+    control_plane: plane.connected ? 'connected' : 'offline',
+    ...(plane.undeliveredEvents ? { undelivered_events: plane.undeliveredEvents } : {}),
     ...(claims ? {
       verified_receipt: {
         task_id: claims.taskId,
@@ -140,7 +146,15 @@ export async function runWelesOnboarding(input: WelesOnboardingInput = {}): Prom
 
   const evidenceRevision = SOURCE_REVISION;
   await client.start(evidenceRevision);
-  await client.flush();
+  // Offline there is no control plane to send to; the events stay queued.
+  let undeliveredEvents: string | undefined;
+  if (configured) {
+    try {
+      await client.flush();
+    } catch (error) {
+      undeliveredEvents = error instanceof Error ? error.message : String(error);
+    }
+  }
   const progress = client.progress;
   if (!progress) throw new Error('Weles onboarding did not create progress');
   const central = configured
@@ -155,15 +169,18 @@ export async function runWelesOnboarding(input: WelesOnboardingInput = {}): Prom
         }),
       ])
     : [];
-  const connected = configured && central.every((result) => result.status === 'fulfilled');
+  const plane: ControlPlane = {
+    connected: configured && !undeliveredEvents && central.every((result) => result.status === 'fulfilled'),
+    undeliveredEvents,
+  };
 
   if (action === 'reset') {
     await client.reset(evidenceRevision);
     await client.expose(evidenceRevision);
-    return render(client, connected);
+    return render(client, plane);
   }
 
-  if (client.progress?.status === 'completed') return render(client, connected);
+  if (client.progress?.status === 'completed') return render(client, plane);
   await client.expose(evidenceRevision);
 
   if (action === 'next') {
@@ -178,7 +195,7 @@ export async function runWelesOnboarding(input: WelesOnboardingInput = {}): Prom
       await client.emit('onboarding_first_action_completed', {}, evidenceRevision, decision, definition.entry_screen_id);
     }
     await client.expose(evidenceRevision);
-    return render(client, connected);
+    return render(client, plane);
   }
 
   if (action === 'import') {
@@ -199,7 +216,7 @@ export async function runWelesOnboarding(input: WelesOnboardingInput = {}): Prom
     const decision = await client.advance({ existing_data_imported: true }, evidenceRevision);
     if (!decision) throw new Error('the existing-data onboarding step cannot advance');
     await client.expose(evidenceRevision);
-    return render(client, connected);
+    return render(client, plane);
   }
 
   if (action === 'verify') {
@@ -238,8 +255,8 @@ export async function runWelesOnboarding(input: WelesOnboardingInput = {}): Prom
         receipt_key_id: claims.keyId,
       },
     );
-    return render(client, connected, claims);
+    return render(client, plane, claims);
   }
 
-  return render(client, connected);
+  return render(client, plane);
 }

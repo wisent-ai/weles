@@ -19,8 +19,14 @@ export class MemoryJourneyStorage implements JourneyStorage {
     return this.#progress.get(`${productId}\0${journeyId}\0${subjectHash}`) ?? null
   }
 
-  async saveProgress(productId: string, journeyId: string, progress: JourneyProgress) {
+  async commitProgress(
+    productId: string,
+    journeyId: string,
+    progress: JourneyProgress,
+    events: readonly JourneyRuntimeEvent[],
+  ) {
     this.#progress.set(`${productId}\0${journeyId}\0${progress.subject_hash}`, progress)
+    for (const event of events) this.#events.set(event.event_id, event)
   }
 
   async pendingEvents() { return [...this.#events.values()] }
@@ -63,11 +69,29 @@ export class LocalStorageJourneyStorage implements JourneyStorage {
     return this.#read<JourneyProgress>(this.#key('progress', productId, journeyId, subjectHash))
   }
 
-  async saveProgress(productId: string, journeyId: string, progress: JourneyProgress) {
-    this.#storage.setItem(
-      this.#key('progress', productId, journeyId, progress.subject_hash),
-      JSON.stringify(progress),
-    )
+  // Both values are serialized before either is written, and a refused queue
+  // write puts the previous progress back, so a transition is stored whole or
+  // not at all (a full quota refuses the larger write, never the restore).
+  async commitProgress(
+    productId: string,
+    journeyId: string,
+    progress: JourneyProgress,
+    events: readonly JourneyRuntimeEvent[],
+  ) {
+    const queued = await this.pendingEvents()
+    const known = new Set(queued.map((entry) => entry.event_id))
+    const nextEvents = JSON.stringify([...queued, ...events.filter((event) => !known.has(event.event_id))])
+    const progressKey = this.#key('progress', productId, journeyId, progress.subject_hash)
+    const nextProgress = JSON.stringify(progress)
+    const previous = this.#storage.getItem(progressKey)
+    this.#storage.setItem(progressKey, nextProgress)
+    try {
+      this.#storage.setItem(this.#key('events'), nextEvents)
+    } catch (error) {
+      if (previous === null) this.#storage.removeItem(progressKey)
+      else this.#storage.setItem(progressKey, previous)
+      throw error
+    }
   }
 
   async pendingEvents() {

@@ -2,7 +2,7 @@
 // between runs: one directory of JSON files, each written whole and renamed
 // into place, each checked for shape before it is believed.
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type {
   JourneyBundle,
@@ -97,11 +97,15 @@ export class FileJourneyStorage implements JourneyStorage {
     }
   }
 
-  private async save(path: string, value: unknown): Promise<void> {
+  private async stage(path: string, value: unknown): Promise<string> {
     await mkdir(this.directory, { recursive: true, mode: 0o700 });
     const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
     await writeFile(temporary, `${JSON.stringify(value)}\n`, { encoding: 'utf8', mode: 0o600 });
-    await rename(temporary, path);
+    return temporary;
+  }
+
+  private async save(path: string, value: unknown): Promise<void> {
+    await rename(await this.stage(path, value), path);
   }
 
   async loadBundle(productId: string, journeyId: string): Promise<JourneyBundle | null> {
@@ -118,8 +122,39 @@ export class FileJourneyStorage implements JourneyStorage {
     return isStoredProgress(progress) ? progress : null;
   }
 
-  saveProgress(productId: string, journeyId: string, progress: JourneyProgress): Promise<void> {
-    return this.save(this.progressPath(productId, journeyId, progress.subject_hash), progress);
+  // A transition is stored whole: both files are written aside first, and a
+  // refused move of the queue puts the previous progress back, so progress
+  // never records a step whose events were lost.
+  async commitProgress(
+    productId: string,
+    journeyId: string,
+    progress: JourneyProgress,
+    events: readonly JourneyRuntimeEvent[],
+  ): Promise<void> {
+    const queued = await this.pendingEvents();
+    const known = new Set(queued.map((entry) => entry.event_id));
+    const progressPath = this.progressPath(productId, journeyId, progress.subject_hash);
+    const previous = await this.load(progressPath);
+    const staged: string[] = [];
+    try {
+      const stagedProgress = await this.stage(progressPath, progress);
+      staged.push(stagedProgress);
+      const stagedEvents = await this.stage(
+        this.eventsPath(),
+        [...queued, ...events.filter((event) => !known.has(event.event_id))],
+      );
+      staged.push(stagedEvents);
+      await rename(stagedProgress, progressPath);
+      try {
+        await rename(stagedEvents, this.eventsPath());
+      } catch (error) {
+        if (previous === null) await rm(progressPath, { force: true });
+        else await this.save(progressPath, previous);
+        throw error;
+      }
+    } finally {
+      await Promise.all(staged.map((path) => rm(path, { force: true })));
+    }
   }
 
   async pendingEvents(): Promise<readonly JourneyRuntimeEvent[]> {

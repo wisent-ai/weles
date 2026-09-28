@@ -5,7 +5,7 @@ import { IDENTIFIER, SHA256, UUID } from '../journey/identifiers'
 import { controlAssignment, isValidAssignment, resolveExperimentAssignment } from './experiments'
 import { validateJourneyBundle } from '../journey/bundle'
 import { evaluateJourneyCondition, selectNextScreen } from '../journey/decision'
-import { reconcileRemoteProgress } from './progress'
+import { journeyEvent, reconcileRemoteProgress } from './progress'
 
 export interface JourneyClientOptions {
   productId: string
@@ -21,6 +21,7 @@ export class JourneyClient {
   readonly #options: JourneyClientOptions
   #bundle: JourneyBundle | null = null
   #progress: JourneyProgress | null = null
+  readonly #event = journeyEvent
 
   constructor(options: JourneyClientOptions) {
     if (!IDENTIFIER.test(options.productId) || !IDENTIFIER.test(options.journeyId) || !SHA256.test(options.subjectHash)) {
@@ -97,9 +98,9 @@ export class JourneyClient {
         progress = { ...progress, ...assignment }
       }
     }
-    this.#progress = progress
-    await storage.saveProgress(productId, journeyId, progress)
-    await this.emit(isResume ? 'onboarding_resumed' : 'onboarding_started', {}, evidenceRevision)
+    await this.#commit(progress, [
+      this.#event(progress, isResume ? 'onboarding_resumed' : 'onboarding_started', {}, evidenceRevision),
+    ])
     return { bundle, progress: this.#progress }
   }
 
@@ -117,14 +118,15 @@ export class JourneyClient {
     if (!decision) return null
     const completedScreenId = this.#progress.current_screen_id
     const completed = [...new Set([...this.#progress.completed_screen_ids, completedScreenId])]
-    this.#progress = {
+    const next = {
       ...this.#progress,
       current_screen_id: decision.selected_next_screen_id,
       completed_screen_ids: completed,
       evidence_revision: evidenceRevision,
     }
-    await this.#options.storage.saveProgress(this.#options.productId, this.#options.journeyId, this.#progress)
-    await this.emit('onboarding_step_completed', {}, evidenceRevision, decision, completedScreenId)
+    await this.#commit(next, [
+      this.#event(next, 'onboarding_step_completed', {}, evidenceRevision, decision, completedScreenId),
+    ])
     return decision
   }
 
@@ -140,15 +142,16 @@ export class JourneyClient {
       return false
     }
     const completedScreenId = this.#progress.current_screen_id
-    this.#progress = {
+    const next: JourneyProgress = {
       ...this.#progress,
       completed_screen_ids: [...new Set([...this.#progress.completed_screen_ids, completedScreenId])],
       status: 'completed',
       evidence_revision: evidenceRevision,
     }
-    await this.#options.storage.saveProgress(this.#options.productId, this.#options.journeyId, this.#progress)
-    await this.emit('onboarding_step_completed', properties, evidenceRevision, undefined, completedScreenId)
-    await this.emit('onboarding_completed', properties, evidenceRevision, undefined, completedScreenId)
+    await this.#commit(next, [
+      this.#event(next, 'onboarding_step_completed', properties, evidenceRevision, undefined, completedScreenId),
+      this.#event(next, 'onboarding_completed', properties, evidenceRevision, undefined, completedScreenId),
+    ])
     return true
   }
 
@@ -158,13 +161,14 @@ export class JourneyClient {
   ) {
     if (!this.#progress) throw new Error('journey client has not started')
     if (this.#progress.first_action_completed) return false
-    this.#progress = {
+    const next = {
       ...this.#progress,
       first_action_completed: true,
       evidence_revision: evidenceRevision,
     }
-    await this.#options.storage.saveProgress(this.#options.productId, this.#options.journeyId, this.#progress)
-    await this.emit('onboarding_first_action_completed', properties, evidenceRevision)
+    await this.#commit(next, [
+      this.#event(next, 'onboarding_first_action_completed', properties, evidenceRevision),
+    ])
     return true
   }
 
@@ -176,40 +180,38 @@ export class JourneyClient {
     if (!this.#bundle || !this.#progress) throw new Error('journey client has not started')
     if (evidence[this.#bundle.definition.first_success_fact] !== true) return false
     if (this.#progress.first_success_observed) return false
-    this.#progress = {
+    const next = {
       ...this.#progress,
       first_success_observed: true,
       evidence_revision: evidenceRevision,
     }
-    await this.#options.storage.saveProgress(this.#options.productId, this.#options.journeyId, this.#progress)
-    await this.emit('onboarding_first_success_observed', properties, evidenceRevision)
+    await this.#commit(next, [
+      this.#event(next, 'onboarding_first_success_observed', properties, evidenceRevision),
+    ])
     return true
   }
 
   async skip(evidenceRevision: string) {
     if (!this.#progress) throw new Error('journey client has not started')
-    this.#progress = { ...this.#progress, status: 'skipped', evidence_revision: evidenceRevision }
-    await this.#options.storage.saveProgress(this.#options.productId, this.#options.journeyId, this.#progress)
-    await this.emit('onboarding_step_skipped', {}, evidenceRevision)
+    const next: JourneyProgress = { ...this.#progress, status: 'skipped', evidence_revision: evidenceRevision }
+    await this.#commit(next, [this.#event(next, 'onboarding_step_skipped', {}, evidenceRevision)])
   }
 
   async abandon(evidenceRevision: string) {
     if (!this.#progress) throw new Error('journey client has not started')
-    this.#progress = { ...this.#progress, status: 'abandoned', evidence_revision: evidenceRevision }
-    await this.#options.storage.saveProgress(this.#options.productId, this.#options.journeyId, this.#progress)
-    await this.emit('onboarding_abandoned', {}, evidenceRevision)
+    const next: JourneyProgress = { ...this.#progress, status: 'abandoned', evidence_revision: evidenceRevision }
+    await this.#commit(next, [this.#event(next, 'onboarding_abandoned', {}, evidenceRevision)])
   }
 
   async resume(evidenceRevision: string) {
     if (!this.#progress) throw new Error('journey client has not started')
-    this.#progress = { ...this.#progress, status: 'in_progress', evidence_revision: evidenceRevision }
-    await this.#options.storage.saveProgress(this.#options.productId, this.#options.journeyId, this.#progress)
-    await this.emit('onboarding_resumed', {}, evidenceRevision)
+    const next: JourneyProgress = { ...this.#progress, status: 'in_progress', evidence_revision: evidenceRevision }
+    await this.#commit(next, [this.#event(next, 'onboarding_resumed', {}, evidenceRevision)])
   }
 
   async reset(evidenceRevision: string) {
     if (!this.#bundle || !this.#progress) throw new Error('journey client has not started')
-    this.#progress = {
+    const next: JourneyProgress = {
       ...this.#progress,
       attempt_id: crypto.randomUUID(),
       current_screen_id: this.#bundle.definition.entry_screen_id,
@@ -220,11 +222,14 @@ export class JourneyClient {
       first_action_completed: false,
       first_success_observed: false,
     }
-    await this.#options.storage.saveProgress(this.#options.productId, this.#options.journeyId, this.#progress)
-    await this.emit('onboarding_reset', {}, evidenceRevision)
-    await this.emit('onboarding_started', {}, evidenceRevision)
+    await this.#commit(next, [
+      this.#event(next, 'onboarding_reset', {}, evidenceRevision),
+      this.#event(next, 'onboarding_started', {}, evidenceRevision),
+    ])
   }
 
+  // An event that changes no progress (a screen being viewed): queued, then
+  // offered to the control plane.
   async emit(
     eventName: JourneyEventName,
     properties: Readonly<Record<string, unknown>>,
@@ -233,35 +238,37 @@ export class JourneyClient {
     screenId?: string,
   ) {
     if (!this.#progress) throw new Error('journey client has not started')
-    const event: JourneyRuntimeEvent = {
-      event_id: crypto.randomUUID(),
-      event_name: eventName,
-      attempt_id: this.#progress.attempt_id,
-      product_id: this.#progress.product_id,
-      journey_version_id: this.#progress.journey_version_id,
-      subject_hash: this.#progress.subject_hash,
-      scope_kind: this.#progress.scope_kind,
-      screen_id: screenId ?? this.#progress.current_screen_id,
-      occurred_at: new Date().toISOString(),
-      evidence_revision: evidenceRevision,
-      experiment_id: this.#progress.experiment_id,
-      variant_id: this.#progress.variant_id,
-      selected_next_screen_id: decision?.selected_next_screen_id,
-      reason_code: decision?.reason_code,
-      properties,
-      answers: this.#progress.answers,
-    }
+    const event = this.#event(this.#progress, eventName, properties, evidenceRevision, decision, screenId)
     await this.#options.storage.appendEvent(event)
-    try {
+    await this.#deliver([event])
+  }
+
+  // Sends every queued event. The ones the control plane took are removed;
+  // the first refusal is thrown with it and every later event still queued,
+  // so the caller can say that first-use events were not sent.
+  async flush() {
+    for (const event of await this.#options.storage.pendingEvents()) {
       await this.#options.transport.collectEvent(event)
       await this.#options.storage.removeEvent(event.event_id)
-    } catch {
-      // Local progress and the idempotent event remain queued; first use must not depend on the control plane.
     }
   }
 
-  async flush() {
-    for (const event of await this.#options.storage.pendingEvents()) {
+  // Stores a transition whole - the new progress and every event it owes -
+  // and only then moves this client onto it. A refused write leaves both the
+  // stored and the in-memory walk where they were, so a retry repeats the
+  // whole transition.
+  async #commit(next: JourneyProgress, events: readonly JourneyRuntimeEvent[]) {
+    const { productId, journeyId, storage } = this.#options
+    await storage.commitProgress(productId, journeyId, next, events)
+    this.#progress = next
+    await this.#deliver(events)
+  }
+
+  // Offers freshly queued events to the control plane. They are already
+  // stored, so one it does not take now stays queued for flush(), which
+  // reports the refusal; first use must not depend on the control plane.
+  async #deliver(events: readonly JourneyRuntimeEvent[]) {
+    for (const event of events) {
       try {
         await this.#options.transport.collectEvent(event)
         await this.#options.storage.removeEvent(event.event_id)

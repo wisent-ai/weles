@@ -1,6 +1,37 @@
-// Reconcile the progress the control plane remembers with the progress kept locally.
-import type { JourneyBundle, JourneyProgress } from '../types'
+// Reconcile the progress the control plane remembers with the progress kept
+// locally, and describe a step of that progress as a runtime event.
+import type { JourneyBundle, JourneyDecision, JourneyEventName, JourneyProgress } from '../types'
+import type { JourneyRuntimeEvent } from '../plane/contracts'
 import { UUID } from '../journey/identifiers'
+
+// The event a step owes, read from the progress it leads to.
+export function journeyEvent(
+  progress: JourneyProgress,
+  eventName: JourneyEventName,
+  properties: Readonly<Record<string, unknown>>,
+  evidenceRevision: string,
+  decision?: JourneyDecision,
+  screenId?: string,
+): JourneyRuntimeEvent {
+  return {
+    event_id: crypto.randomUUID(),
+    event_name: eventName,
+    attempt_id: progress.attempt_id,
+    product_id: progress.product_id,
+    journey_version_id: progress.journey_version_id,
+    subject_hash: progress.subject_hash,
+    scope_kind: progress.scope_kind,
+    screen_id: screenId ?? progress.current_screen_id,
+    occurred_at: new Date().toISOString(),
+    evidence_revision: evidenceRevision,
+    experiment_id: progress.experiment_id,
+    variant_id: progress.variant_id,
+    selected_next_screen_id: decision?.selected_next_screen_id,
+    reason_code: decision?.reason_code,
+    properties,
+    answers: progress.answers,
+  }
+}
 
 export function reconcileRemoteProgress(
   local: JourneyProgress,
