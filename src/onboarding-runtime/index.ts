@@ -3,7 +3,7 @@
 export * from './types'
 export * from './plane/contracts'
 export { StadoJourneyTransport } from './plane/transport'
-export { MemoryJourneyStorage, LocalStorageJourneyStorage } from './plane/storage'
+export { MemoryJourneyStorage } from './plane/storage'
 export { validateJourneyBundle } from './journey/bundle'
 export { evaluateJourneyCondition, selectNextScreen } from './journey/decision'
 export { JourneyClient } from './attempt/client'

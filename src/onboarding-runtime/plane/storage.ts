@@ -1,4 +1,5 @@
-// Journey storage in memory and in the browser's localStorage.
+// Journey storage in memory; the Weles CLI keeps its journey on disk with
+// FileJourneyStorage (src/onboarding/journey-storage.ts).
 import type { JourneyBundle, JourneyProgress } from '../types'
 import type { JourneyRuntimeEvent, JourneyStorage } from './contracts'
 
@@ -32,84 +33,4 @@ export class MemoryJourneyStorage implements JourneyStorage {
   async pendingEvents() { return [...this.#events.values()] }
   async appendEvent(event: JourneyRuntimeEvent) { this.#events.set(event.event_id, event) }
   async removeEvent(eventId: string) { this.#events.delete(eventId) }
-}
-
-export class LocalStorageJourneyStorage implements JourneyStorage {
-  readonly #namespace: string
-  readonly #storage: Storage
-
-  constructor(namespace: string, storage: Storage = globalThis.localStorage) {
-    if (!namespace.trim()) throw new Error('journey storage namespace is required')
-    this.#namespace = namespace
-    this.#storage = storage
-  }
-
-  #key(kind: string, ...parts: string[]) {
-    return [this.#namespace, kind, ...parts].join('.')
-  }
-
-  #read<T>(key: string): T | null {
-    const value = this.#storage.getItem(key)
-    if (value === null) return null
-    try { return JSON.parse(value) as T } catch { return null }
-  }
-
-  async loadBundle(productId: string, journeyId: string) {
-    return this.#read<JourneyBundle>(this.#key('bundle', productId, journeyId))
-  }
-
-  async saveBundle(bundle: JourneyBundle) {
-    this.#storage.setItem(
-      this.#key('bundle', bundle.definition.product_id, bundle.definition.journey_id),
-      JSON.stringify(bundle),
-    )
-  }
-
-  async loadProgress(productId: string, journeyId: string, subjectHash: string) {
-    return this.#read<JourneyProgress>(this.#key('progress', productId, journeyId, subjectHash))
-  }
-
-  // Read, both writes and any restore run in one synchronous step, so no
-  // other operation interleaves and nothing can stop between the writes; a
-  // refused queue write puts the previous progress back (a full quota refuses
-  // the larger write, never the restore).
-  async commitProgress(
-    productId: string,
-    journeyId: string,
-    progress: JourneyProgress,
-    events: readonly JourneyRuntimeEvent[],
-  ) {
-    const queued = this.#read<JourneyRuntimeEvent[]>(this.#key('events')) ?? []
-    const known = new Set(queued.map((entry) => entry.event_id))
-    const nextEvents = JSON.stringify([...queued, ...events.filter((event) => !known.has(event.event_id))])
-    const progressKey = this.#key('progress', productId, journeyId, progress.subject_hash)
-    const nextProgress = JSON.stringify(progress)
-    const previous = this.#storage.getItem(progressKey)
-    this.#storage.setItem(progressKey, nextProgress)
-    try {
-      this.#storage.setItem(this.#key('events'), nextEvents)
-    } catch (error) {
-      if (previous === null) this.#storage.removeItem(progressKey)
-      else this.#storage.setItem(progressKey, previous)
-      throw error
-    }
-  }
-
-  async pendingEvents() {
-    return this.#read<JourneyRuntimeEvent[]>(this.#key('events')) ?? []
-  }
-
-  async appendEvent(event: JourneyRuntimeEvent) {
-    const events = this.#read<JourneyRuntimeEvent[]>(this.#key('events')) ?? []
-    const next = [...events.filter((entry) => entry.event_id !== event.event_id), event]
-    this.#storage.setItem(this.#key('events'), JSON.stringify(next))
-  }
-
-  async removeEvent(eventId: string) {
-    const events = this.#read<JourneyRuntimeEvent[]>(this.#key('events')) ?? []
-    this.#storage.setItem(
-      this.#key('events'),
-      JSON.stringify(events.filter((event) => event.event_id !== eventId)),
-    )
-  }
 }
