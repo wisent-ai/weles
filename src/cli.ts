@@ -7,9 +7,10 @@ import { runImport, runOnboarding, runRelease, runFigma } from './cli/workflows.
 import { runOperatorRequests } from './cli/operator-requests.js';
 import { runAccountSecurity } from './cli/security/account-security.js';
 import { runAppPassword } from './cli/security/app-password.js';
+import { runAppleDeveloperId } from './cli/security/apple-developer-id.js';
 import { runWorker } from './cli/worker/index.js';
 
-type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import' | 'release' | 'figma' | 'operator-requests' | 'account-security' | 'app-password' | 'worker';
+type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import' | 'release' | 'figma' | 'operator-requests' | 'account-security' | 'app-password' | 'apple-developer-id' | 'worker';
 
 export type ParsedCli = {
   command: CliCommand;
@@ -41,6 +42,8 @@ Usage:
   weles account-security --run <run-id>
   weles app-password --login-item <skarbiec-item>
   weles app-password --run <run-id>
+  weles apple-developer-id --account-item <weles-apple-...-account> --confirm "AUTHORIZE ONE APPLE DEVELOPER ID" --execution-host <host> --private-key-out <abs> [--execution-agent <agent>] [--expires-in-minutes <n>] [--subject <dn>]
+  weles apple-developer-id --run <run-id> --certificate-out <abs>
   weles worker <status|start|restart> [--json]
   weles doctor
   weles version
@@ -141,14 +144,14 @@ export function parseCliArgs(argv: string[]): ParsedCli {
 function normalizeCommand(command?: string): CliCommand {
   if (!command || command === '--help' || command === '-h' || command === 'help') return 'help';
   if (command === '--version' || command === '-v' || command === 'version') return 'version';
-  if (command === 'account-security' || command === 'app-password' || command === 'worker') return command;
+  if (command === 'account-security' || command === 'app-password' || command === 'apple-developer-id' || command === 'worker') return command;
   if (command === 'doctor' || command === 'open' || command === 'screenshot' || command === 'mcp' || command === 'onboarding' || command === 'import' || command === 'release' || command === 'figma' || command === 'operator-requests') return command;
   throw new Error(`unknown command: ${command}`);
 }
 
 function optionTakesValue(key: string): boolean {
   if (key === 'login-item') return true;
-  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'timeout', 'subject', 'receipt', 'keys', 'state-dir', 'host', 'decision', 'baseline', 'declaration', 'manifest', 'source-revision', 'candidate-tag', 'released', 'published-surface', 'reason', 'correcting', 'root', 'limit', 'kind', 'account', 'run', 'instruction', 'minutes', 'detail'].includes(key);
+  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'timeout', 'subject', 'receipt', 'keys', 'state-dir', 'host', 'decision', 'baseline', 'declaration', 'manifest', 'source-revision', 'candidate-tag', 'released', 'published-surface', 'reason', 'correcting', 'root', 'limit', 'kind', 'account', 'run', 'instruction', 'minutes', 'detail', 'account-item', 'confirm', 'execution-host', 'execution-agent', 'private-key-out', 'certificate-out', 'expires-in-minutes'].includes(key);
 }
 
 function cliOptionsToBrowserOptions(options: Record<string, string | boolean>): AsyncNewBrowserOptions {
@@ -266,6 +269,10 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   }
   if (parsed.command === 'app-password') {
     await runAppPassword(parsed);
+    return;
+  }
+  if (parsed.command === 'apple-developer-id') {
+    await runAppleDeveloperId(parsed);
     return;
   }
   if (parsed.command === 'worker') {

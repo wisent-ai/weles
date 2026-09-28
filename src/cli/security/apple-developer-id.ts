@@ -1,0 +1,149 @@
+// weles apple-developer-id: one Apple Developer ID Application certificate,
+// one authorization, one run.
+//
+// Apple issues this certificate only in the developer portal (its API answers
+// 403 "only the Account Holder" for every App Store Connect key), and the
+// portal is Weles' to drive. Start mode generates the RSA key and certificate
+// request here — the key never leaves this machine, the request is public —
+// mints the three one-use Apple capabilities on the execution host through
+// Stado, and starts apple_create_developer_id there detached. Read mode takes
+// the run's result, checks it holds exactly one DER X.509 certificate and a
+// well-formed Apple 2FA receipt when one was needed, and writes the certificate.
+
+import { randomUUID } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import { chmodSync, existsSync, writeFileSync } from 'node:fs';
+import { isAbsolute, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import type { ParsedCli } from '../../cli.js';
+import { readDeveloperIdRun, startDeveloperIdRun } from '../../runtime/api/apple-developer-id.js';
+
+const CONFIRMATION_PHRASE = 'AUTHORIZE ONE APPLE DEVELOPER ID';
+const APPLE_ACCOUNT = /^weles-apple-[a-z0-9][a-z0-9-]{0,126}-account$/;
+const HOST = /^[A-Za-z0-9][A-Za-z0-9._-]{0,252}$/;
+const STANDARD_AGENT = 'weles-worker';
+const STANDARD_SUBJECT = '/CN=Wisent-AI Developer ID Application/O=Wisent-AI, Inc/C=US';
+const STANDARD_EXPIRY_MINUTES = 15;
+const MIN_EXPIRY_MINUTES = 1;
+const MAX_EXPIRY_MINUTES = 60;
+const SECONDS_PER_MINUTE = 60;
+const RSA_BITS = '2048';
+const OWNER_ONLY_FILE = 0o600;
+const PUBLIC_FILE = 0o644;
+const START_OPTIONS = ['account-item', 'confirm', 'execution-host', 'execution-agent', 'private-key-out', 'expires-in-minutes', 'subject'];
+const READ_OPTIONS = ['run', 'certificate-out'];
+// The capability issuer is the .mjs module Apple trajectories import from
+// src/auth; it sits outside the TypeScript rootDir's compiled tree, so it is
+// loaded by its path in the installed release rather than a static import.
+const PLACEMENT_MODULE = join(__dirname, '..', '..', '..', 'src', 'auth', 'apple-account-placement.mjs');
+
+function text(parsed: ParsedCli, key: string): string | undefined {
+  const value = parsed.options[key];
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || !value) throw new Error(`--${key} needs a value`);
+  return value;
+}
+
+function openssl(argv: string[], input?: Buffer): string {
+  const result = spawnSync('openssl', argv, { input, encoding: 'utf8' });
+  if (result.error || result.status !== 0) {
+    throw new Error(`openssl ${argv[0]}: ${(result.stderr || result.error?.message || `exit ${result.status}`).trim()}`);
+  }
+  return result.stdout;
+}
+
+function nonEmpty(value: unknown): boolean {
+  return typeof value === 'string' && value.length > 0;
+}
+
+async function start(parsed: ParsedCli): Promise<Record<string, unknown>> {
+  const accountItem = text(parsed, 'account-item') ?? '';
+  const executionHost = text(parsed, 'execution-host') ?? '';
+  const executionAgent = text(parsed, 'execution-agent') ?? STANDARD_AGENT;
+  const keyOut = text(parsed, 'private-key-out') ?? '';
+  const subject = text(parsed, 'subject') ?? STANDARD_SUBJECT;
+  const expiryMinutes = Number(text(parsed, 'expires-in-minutes') ?? STANDARD_EXPIRY_MINUTES);
+  if (!APPLE_ACCOUNT.test(accountItem)) throw new Error('--account-item must name an Apple Skarbiec login item (weles-apple-<name>-account)');
+  if (text(parsed, 'confirm') !== CONFIRMATION_PHRASE) throw new Error(`--confirm must exactly equal "${CONFIRMATION_PHRASE}"`);
+  if (!HOST.test(executionHost)) throw new Error('--execution-host must name the Stado host that runs the browser');
+  if (!Number.isInteger(expiryMinutes) || expiryMinutes < MIN_EXPIRY_MINUTES || expiryMinutes > MAX_EXPIRY_MINUTES) {
+    throw new Error(`--expires-in-minutes must be a whole number between ${MIN_EXPIRY_MINUTES} and ${MAX_EXPIRY_MINUTES}`);
+  }
+  // The key is the half that matters: a certificate without it signs nothing,
+  // so its destination is demanded before anything is issued.
+  if (!isAbsolute(keyOut)) throw new Error('--private-key-out must be an absolute path on this machine');
+  if (existsSync(keyOut)) throw new Error(`refusing to replace an existing private key at ${keyOut}`);
+
+  openssl(['genrsa', '-out', keyOut, RSA_BITS]);
+  chmodSync(keyOut, OWNER_ONLY_FILE);
+  const csr = openssl(['req', '-new', '-key', keyOut, '-subj', subject]);
+  const guardId = randomUUID();
+  const placement = await import(pathToFileURL(PLACEMENT_MODULE).href);
+  const capabilities = placement.issueAppleLoginCapabilities({
+    executionHost,
+    executionAgent,
+    authorizationId: guardId,
+    ttlSeconds: expiryMinutes * SECONDS_PER_MINUTE,
+  });
+  const runId = await startDeveloperIdRun({
+    accountItem,
+    guardId,
+    executionHost,
+    executionAgent,
+    capabilities,
+    csrBase64: Buffer.from(csr, 'utf8').toString('base64'),
+  });
+  return {
+    status: 'running',
+    run: runId,
+    guard_id: guardId,
+    account_item: accountItem,
+    execution_host: executionHost,
+    private_key: keyOut,
+    capabilities_expire_in_minutes: expiryMinutes,
+    next: `weles apple-developer-id --run ${runId} --certificate-out <absolute path>`,
+  };
+}
+
+function receiptOf(stdout: string): unknown {
+  const receipts = [...stdout.matchAll(/^APPLE_TWO_FACTOR_RECEIPT=(.+)$/gm)];
+  if (receipts.length > 1) throw new Error('the run returned more than one Apple 2FA receipt');
+  if (!receipts.length) return null;
+  const receipt = JSON.parse(receipts[0][1]);
+  const complete = receipt.source === 'capability' && receipt.provider_accepted === true
+    && nonEmpty(receipt.holder) && nonEmpty(receipt.user) && nonEmpty(receipt.destination);
+  if (!complete) throw new Error('the run returned an invalid Apple 2FA receipt');
+  return receipt;
+}
+
+async function read(parsed: ParsedCli): Promise<Record<string, unknown>> {
+  const runId = text(parsed, 'run') ?? '';
+  const certificateOut = text(parsed, 'certificate-out') ?? '';
+  if (!isAbsolute(certificateOut)) throw new Error('--certificate-out must be an absolute path on this machine');
+  if (existsSync(certificateOut)) throw new Error(`refusing to replace an existing certificate at ${certificateOut}`);
+  const run = await readDeveloperIdRun(runId);
+  if (run.status === 'running') return { status: 'running', run: run.id };
+  if (run.ok !== true || !run.stdout) {
+    return { status: run.status, run: run.id, ok: false, error: run.error };
+  }
+  const matches = [...run.stdout.matchAll(/^CERTIFICATE_BASE64=([A-Za-z0-9+/]+={0,2})$/gm)];
+  if (matches.length !== 1) throw new Error(`run ${run.id} did not return exactly one certificate`);
+  const certificate = Buffer.from(matches[0][1], 'base64');
+  openssl(['x509', '-inform', 'DER', '-noout'], certificate);
+  const receipt = receiptOf(run.stdout);
+  writeFileSync(certificateOut, certificate, { mode: PUBLIC_FILE, flag: 'wx' });
+  return { status: 'issued', run: run.id, certificate: certificateOut, two_factor: receipt };
+}
+
+export async function runAppleDeveloperId(parsed: ParsedCli): Promise<void> {
+  const keys = Object.keys(parsed.options);
+  const reading = keys.includes('run');
+  const allowed = reading ? READ_OPTIONS : START_OPTIONS;
+  const unknown = keys.filter((key) => !allowed.includes(key));
+  if (parsed.positional.length || unknown.length) {
+    throw new Error(`apple-developer-id takes either ${START_OPTIONS.map((key) => `--${key}`).join(' ')} or ${READ_OPTIONS.map((key) => `--${key}`).join(' ')}; got ${[...parsed.positional, ...unknown.map((key) => `--${key}`)].join(' ')}`);
+  }
+  const row = reading ? await read(parsed) : await start(parsed);
+  process.stdout.write(`${JSON.stringify(row)}\n`);
+  if (row.ok === false) process.exitCode = 1;
+}

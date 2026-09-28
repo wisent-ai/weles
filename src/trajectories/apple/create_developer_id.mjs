@@ -8,7 +8,9 @@ import { parseAppleLoginCapabilities } from '../../../dist/utils/identity/apple-
 import { getSocialAccount } from '../../../dist/utils/credentials.js';
 import { preflightAppleChallengeRelay } from '../../auth/apple-account-placement.mjs';
 import { ADD_URL, DOWNLOAD_WAIT_MS, FILE_INPUT_WAIT_MS, NAVIGATION_WAIT_MS, PORTAL_POLLS } from './create_developer_id/constants.mjs';
-import { absoluteWorkerPath, clickButton, clickChoice, isDevPortalUrl } from './create_developer_id/portal.mjs';
+import { clickButton, clickChoice, isDevPortalUrl } from './create_developer_id/portal.mjs';
+import { placeRequestFiles } from './create_developer_id/request_files.mjs';
+import { readFileSync } from 'node:fs';
 import { signInWithCapabilities } from './create_developer_id/sign_in.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -24,8 +26,7 @@ if (!UUID.test(guardId)) throw new Error('[apple-create-developer-id] invalid gu
 if (!ACCOUNT.test(accountId)) throw new Error('[apple-create-developer-id] invalid Apple account item');
 if (!JOB.test(actionLogId)) throw new Error('[apple-create-developer-id] invalid Stado job id');
 
-const csrPath = absoluteWorkerPath(process.env.APPLE_CSR_PATH, 'APPLE_CSR_PATH');
-const certificatePath = absoluteWorkerPath(process.env.APPLE_CERTIFICATE_PATH, 'APPLE_CERTIFICATE_PATH');
+const { csrPath, certificatePath, cleanup: removeRequestFiles } = placeRequestFiles(guardId);
 
 let capabilityRefs = [];
 
@@ -107,6 +108,9 @@ try {
   if (!portalObserved) throw new Error(`did not reach developer portal, still at ${s.page.url()}`);
 
   await createCertificate(s.page);
+  // The certificate is public; it leaves in the run's own result so a caller on
+  // another machine receives it without a second channel.
+  console.log(`CERTIFICATE_BASE64=${readFileSync(certificatePath).toString('base64')}`);
   if (twoFactorReceipt) {
     // Certificate issuance, not filling the code, proves provider acceptance.
     console.log(`APPLE_TWO_FACTOR_RECEIPT=${JSON.stringify({
@@ -120,5 +124,6 @@ try {
   process.exitCode = 1;
 } finally {
   if (s && !sessionClosed) { await s.close().catch((e) => console.error(`[apple-create-developer-id] close: ${e.message}`)); sessionClosed = true; }
+  removeRequestFiles();
 }
 process.exit(process.exitCode ?? 0);

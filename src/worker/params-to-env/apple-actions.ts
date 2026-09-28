@@ -80,6 +80,8 @@ export function applyAppleActionParams(
     env.WELES_NO_INSTRUMENT = '1';
     env.WELES_PAGE_DIAGNOSTICS = '0';
     if (trajPath.endsWith('/apple/create_developer_id.mjs')) {
+      // A remote caller sends the public request itself; a local one may name files.
+      if (typeof params.apple_csr_base64 === 'string') env.APPLE_CSR_BASE64 = params.apple_csr_base64;
       if (typeof params.apple_csr_path === 'string') env.APPLE_CSR_PATH = params.apple_csr_path;
       if (typeof params.apple_certificate_path === 'string') env.APPLE_CERTIFICATE_PATH = params.apple_certificate_path;
     }

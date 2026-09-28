@@ -5,6 +5,11 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { homedir, hostname } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { setInterval as every } from 'node:timers/promises';
+
+const RESULT_POLL_MS = 5_000;
+const CAPABILITY_MINUTES = 15;
+const MINUTE_MS = 60_000;
 
 const repo = resolve(process.env.PROBIERZ_APP_SOURCE || fileURLToPath(new URL('../../', import.meta.url)));
 const artifacts = resolve(process.env.PROBIERZ_ARTIFACTS);
@@ -73,26 +78,34 @@ try {
   const certificatePath = join(work, 'certificate.cer');
   trace.retainedWork = work;
   retainTrace();
-  const authorizer = join(repo, 'scripts', 'auth', 'authorize-apple-developer-id.mjs');
-  const args = [authorizer, '--account-item', accountItem, '--confirm', 'AUTHORIZE ONE APPLE DEVELOPER ID', '--execution-host', executionHost, '--execution-agent', 'weles-worker', '--execution-runner', join(repo, 'scripts', 'worker', 'stado-action-runner.mjs'), '--expires-in-minutes', '15', '--private-key-out', keyPath, '--certificate-out', certificatePath];
+  const cli = join(repo, 'dist', 'cli.js');
+  const args = [cli, 'apple-developer-id', '--account-item', accountItem, '--confirm', 'AUTHORIZE ONE APPLE DEVELOPER ID', '--execution-host', executionHost, '--execution-agent', 'weles-worker', '--expires-in-minutes', String(CAPABILITY_MINUTES), '--private-key-out', keyPath];
 
   const malformed = [...args];
-  malformed[2] = 'not-an-apple-account';
+  malformed[3] = 'not-an-apple-account';
   const refused = command(process.execPath, malformed, { env: childEnv });
   assert.equal(refused.status, 1);
   assert.match(refused.stderr, /--account-item must name an Apple Skarbiec login item/);
   assert.equal(existsSync(keyPath), false, 'A refused account must not create a private key');
-  assert.equal(existsSync(certificatePath), false, 'A refused account must not create a certificate');
 
   // Exactly one authorized issuance attempt; a failure is retained, never retried here.
-  const issued = command(process.execPath, args, { env: childEnv, timeout: 1_020_000 });
-  const result = JSON.parse(successful(issued, 'issuing the real Apple Developer ID certificate'));
+  const started = JSON.parse(successful(command(process.execPath, args, { env: childEnv }), 'starting the real Apple Developer ID issuance'));
+  trace.started = started;
+  retainTrace();
+  assert.equal(started.status, 'running');
+  assert.equal(started.execution_host, executionHost);
+  assert.equal(started.account_item, accountItem);
+
+  const deadline = Date.now() + CAPABILITY_MINUTES * MINUTE_MS;
+  let result = null;
+  for await (const _ of every(RESULT_POLL_MS)) {
+    result = JSON.parse(successful(command(process.execPath, [cli, 'apple-developer-id', '--run', started.run, '--certificate-out', certificatePath], { env: childEnv }), 'reading the Apple Developer ID run'));
+    if (result.status !== 'running' || Date.now() > deadline) break;
+  }
   trace.result = result;
   retainTrace();
-  assert.ok(['completed', 'uploaded'].includes(result.status), 'The Stado job must reach a successful terminal state');
-  assert.equal(result.execution_host, executionHost);
-  assert.equal(result.account_item, accountItem);
-  assert.equal(result.two_factor?.authorization_id, result.guard_id, 'The accepted code must belong to this authorization');
+  assert.equal(result.status, 'issued', `The run must issue a certificate: ${JSON.stringify(result)}`);
+  assert.equal(result.two_factor?.authorization_id, started.guard_id, 'The accepted code must belong to this authorization');
   assert.equal(result.two_factor?.source, 'capability', 'The code must be redeemed through Skarbiec');
   assert.equal(result.two_factor?.provider_accepted, true, 'Filling a code is not proof that Apple accepted it');
 
@@ -109,11 +122,10 @@ try {
 
   const duplicate = command(process.execPath, args, { env: childEnv });
   assert.equal(duplicate.status, 1);
-  assert.match(duplicate.stderr, /refusing to replace an existing private key or certificate/);
+  assert.match(duplicate.stderr, /refusing to replace an existing private key/);
   assert.equal(digest(readFileSync(keyPath)), digest(keyBytes), 'A duplicate issuance request must preserve the private key');
-  assert.equal(digest(readFileSync(certificatePath)), digest(certificateBytes), 'A duplicate issuance request must preserve the issued certificate');
   trace.status = 'completed';
-  console.log(JSON.stringify({ jobId: result.job_id, certificateSha256: trace.certificate.sha256, twoFactor: result.two_factor, retainedWork: work }));
+  console.log(JSON.stringify({ run: started.run, certificateSha256: trace.certificate.sha256, twoFactor: result.two_factor, retainedWork: work }));
 } catch (error) {
   trace.status = 'failed';
   trace.error = error instanceof Error ? error.message : String(error);
