@@ -2,7 +2,7 @@
 // between runs: one directory of JSON files, each written whole and renamed
 // into place, each checked for shape before it is believed.
 import { randomUUID } from 'node:crypto';
-import { link, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { link, mkdir, readFile, readdir, rename, rm, truncate, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type {
   JourneyBundle,
@@ -69,9 +69,12 @@ function isStoredEvent(value: unknown): value is JourneyRuntimeEvent {
 // Progress and the events it owes live in one record. Every write publishes a
 // new numbered version (journal.<n>.json) with link(), which refuses an
 // existing name atomically: two writers that read version n cannot both
-// publish n+1, so the loser rereads and applies its change again. Nothing is
-// held between steps, so a crash can leave only an unpublished temporary
-// file - never a lock that blocks the next run or a half-written journal.
+// publish n+1, so the loser rereads and applies its change again. A version
+// name is never freed: once n+1 is published, n is emptied to a zero-byte
+// tombstone rather than deleted, so a writer that read n long ago still finds
+// n+1 taken and cannot publish over a newer journal. Nothing is held between
+// steps, so a crash leaves only an unpublished temporary file or an unemptied
+// old version - never a lock that blocks the next run.
 type Journal = { progress: Record<string, JourneyProgress>; events: JourneyRuntimeEvent[] };
 
 const JOURNAL_VERSION = /^journal\.(\d+)\.json$/;
@@ -135,14 +138,16 @@ export class FileJourneyStorage implements JourneyStorage {
       if (version === 0) return { journal: await this.readLegacy(names), version };
       const path = this.journalPath(version);
       let text: string;
+      let stored: unknown;
       try {
         text = await readFile(path, 'utf8');
+        stored = JSON.parse(text);
       } catch (error) {
-        // A newer version was published and this one pruned meanwhile.
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+        // Emptied between listing and reading because a newer version was
+        // published: read that one. Anything else is this journal's fault.
+        if (await this.superseded(version)) continue;
         throw error;
       }
-      const stored: unknown = JSON.parse(text);
       const progress = storedProperty(stored, 'progress');
       const events = storedProperty(stored, 'events');
       if (progress === null || typeof progress !== 'object' || Array.isArray(progress) || !Array.isArray(events)) {
@@ -155,6 +160,10 @@ export class FileJourneyStorage implements JourneyStorage {
       if (badEvent >= 0) throw new Error(`${path}: queued event ${badEvent} is malformed`);
       return { journal: { progress: Object.fromEntries(entries) as Record<string, JourneyProgress>, events }, version };
     }
+  }
+
+  private async superseded(version: number): Promise<boolean> {
+    return (await this.listing()).some((name) => Number(JOURNAL_VERSION.exec(name)?.[1] ?? 0) > version);
   }
 
   private async readLegacy(names: string[]): Promise<Journal> {
@@ -185,10 +194,7 @@ export class FileJourneyStorage implements JourneyStorage {
       } finally {
         await rm(temporary, { force: true });
       }
-      for (const name of await this.listing()) {
-        const published = Number(JOURNAL_VERSION.exec(name)?.[1] ?? 0);
-        if (published > 0 && published <= version) await rm(join(this.directory, name), { force: true });
-      }
+      if (version > 0) await truncate(this.journalPath(version), 0);
       return result;
     }
   }
