@@ -17,7 +17,7 @@
 // a bridge parses.
 
 import { acquiredSecretContract } from '../scoped-service.js';
-import { enqueueAction } from '../../state/skarbiec-records.js';
+import { submitWelesRun } from '../../worker/run-submit/index.js';
 import type { AcquireSecretRequest } from './request.js';
 import { ENTRA_PROVIDER, type SecretDefinition } from './catalog.js';
 import { objectiveFor, purposeFor } from './queued-job/objective.js';
@@ -85,6 +85,7 @@ export function paramsFor(def: SecretDefinition, request: AcquireSecretRequest):
   };
 }
 
-export function queueAction(action: string, accountItem: string, params: Record<string, unknown>, priority = 0): string {
-  return enqueueAction(action, accountItem, { ...params, priority });
+/** Start an acquisition action as a detached Weles run and return its run id. */
+export function queueAction(action: string, accountItem: string, params: Record<string, unknown>, priority = 0): Promise<string> {
+  return submitWelesRun({ action, accountItem, params: { ...params, priority } });
 }

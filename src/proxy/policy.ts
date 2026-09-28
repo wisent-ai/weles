@@ -1,4 +1,4 @@
-import { enqueueAction } from '../state/skarbiec-records.js';
+import { submitWelesRun } from '../worker/run-submit/index.js';
 
 // Provider-platform toxicity policy. Lifted from credentials.ts so the
 // check can fire from both the per-account path (resolveAccountSession)
@@ -240,13 +240,12 @@ export async function enqueueProviderTopup(displayName: string): Promise<{ ok: b
   const slug = _TOPUP_SLUG[displayName];
   if (!slug) return { ok: false, reason: 'no_slug' };
   try {
-    const jobId = enqueueAction(`${slug}_topup`, '', {
-      topup_usd: 30,
-      topup_confirm: true,
-      batch: 'auto-407-recovery',
+    const runId = await submitWelesRun({
+      action: `${slug}_topup`,
+      params: { topup_usd: 30, topup_confirm: true, batch: 'auto-407-recovery' },
     });
     _enqueuedTopupThisProcess.add(displayName);
-    console.log(`[topup-recovery] 407 on ${displayName} -> Stado job ${jobId}`);
+    console.log(`[topup-recovery] 407 on ${displayName} -> Weles run ${runId}`);
     return { ok: true };
   } catch (error) {
     return {

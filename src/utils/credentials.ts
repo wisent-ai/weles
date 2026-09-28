@@ -1,17 +1,18 @@
-// Weles credentials and trajectory account state live in Skarbiec. Stado owns
-// action placement and queueing; this module never opens a database connection.
+// Weles credentials and trajectory account state live in Skarbiec; follow-up
+// actions start as detached runs of the Weles API. This module never opens a
+// database connection.
 import {
   readOptionalWelesServiceLogin,
   readOptionalWelesServiceSecret,
   type WelesServiceSecret,
 } from '../secrets/scoped-service.js';
 import {
-  enqueueAction,
   getAccount,
   listAccounts,
   listServiceMetadata,
   updateAccount,
 } from '../state/skarbiec-records.js';
+import { submitWelesRun } from '../worker/run-submit/index.js';
 
 interface ServiceCredential {
   display_name: string;
@@ -87,7 +88,7 @@ export async function getSocialAccount(platform: string): Promise<SocialAccount 
   };
 }
 
-/** Mark cookies stale and submit the corresponding login action to Stado. */
+/** Mark cookies stale and start the corresponding login action as a detached Weles run. */
 export async function markCookiesStale(accountId: string): Promise<void> {
   const account = getAccount(accountId);
   if (!account) return;
@@ -96,9 +97,12 @@ export async function markCookiesStale(accountId: string): Promise<void> {
     console.warn('[credentials] OWNER_ACTION_REQUIRED: Apple cookies are stale; apple_login was not submitted');
     return;
   }
-  enqueueAction(`${account.platform}_login`, account.id, {
-    reason: 'auto-recovery from cookies-stale',
+  const runId = await submitWelesRun({
+    action: `${account.platform}_login`,
+    accountItem: account.id,
+    params: { reason: 'auto-recovery from cookies-stale' },
   });
+  console.log(`[credentials] cookies stale on ${account.id}: ${account.platform}_login started as run ${runId}`);
 }
 
 type ServiceLoginContract = {

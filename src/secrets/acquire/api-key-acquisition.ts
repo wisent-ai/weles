@@ -60,7 +60,7 @@ export async function queueAcquisition(
   }
 
   const buildId = request.requestId!;
-  const actionLogId = enqueue(
+  const actionLogId = await enqueue(
     'generic_keeper_task',
     '',
     { ...params, trajectory_build_id: buildId },

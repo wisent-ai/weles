@@ -15,7 +15,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
-import { enqueueWelesAction } from '../../_shared/stado-action-queue.mjs';
+import { submitWelesRun } from '../../../dist/worker/run-submit/index.js';
 
 const HEADLESS = process.env.HEADLESS === '1' || process.env.WELES_HEADLESS === '1';
 
@@ -164,12 +164,12 @@ export async function runHealthProbe(cfg) {
     try {
       const accountItem = String(acct.metadata?.login_item || acct.metadata?.vault_login_item || '');
       if (!accountItem) throw new Error('account has no exact Skarbiec login item');
-      const jobId = enqueueWelesAction({
+      const runId = await submitWelesRun({
         action: `${cfg.platform}_login`,
         accountItem,
         params: { reason: 'auto-recovery from checkpoint health signal' },
       });
-      console.log(`[health:${cfg.platform}] submitted ${cfg.platform}_login to Stado job=${jobId}`);
+      console.log(`[health:${cfg.platform}] started ${cfg.platform}_login as Weles run ${runId}`);
     } catch (e) { console.log(`[health:${cfg.platform}] auto-recovery enqueue err: ${e.message?.slice(0, 100)}`); }
   } else if (signal === 'checkpoint' && brokenRegistration) {
     console.log(`[health:${cfg.platform}] skip auto-recovery: ${acct.username} metadata.status=${acctStatus} (registration never completed; login can't recover)`);

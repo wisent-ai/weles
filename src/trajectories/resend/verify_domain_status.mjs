@@ -21,7 +21,7 @@ import { runOutputPath } from '#run-output';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { promises as dnsp } from 'node:dns';
-import { enqueueWelesAction } from '../../_shared/stado-action-queue.mjs';
+import { submitWelesRun } from '../../../dist/worker/run-submit/index.js';
 import { writeDomainStatus } from '../_shared/skarbiec/accounts.mjs';
 import { integrationAction, integrationsConfigured } from '../../_shared/integrations.mjs';
 import { listReceived } from '../../_shared/resend-receiving.mjs';
@@ -169,11 +169,11 @@ const main = async () => {
   // SLACK_NOTIFY_ALWAYS=1 posts even when all-healthy (e.g. a daily heartbeat).
   const shouldNotify = out.broken.length > 0 || process.env.SLACK_NOTIFY_ALWAYS === '1';
   if (shouldNotify) {
-    const jobId = enqueueWelesAction({
+    const runId = await submitWelesRun({
       action: 'slack_post_message',
       params: { message: msg, message_file: MESSAGE_FILE, slack_channel: SLACK_CHANNEL },
     });
-    console.log(`[slack] submitted slack_post_message to Stado (channel=${SLACK_CHANNEL}) job=${jobId}`);
+    console.log(`[slack] started slack_post_message as Weles run ${runId} (channel=${SLACK_CHANNEL})`);
   }
 
   console.log('\n=== SUMMARY ===\n' + JSON.stringify(out, null, 1));

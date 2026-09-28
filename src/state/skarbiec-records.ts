@@ -1,5 +1,4 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 
 export interface WelesAccountRecord {
@@ -38,7 +37,6 @@ function activeSkarbiecBinary(operation: string): string {
   return binary;
 }
 const VAULT = process.env.SKARBIEC_VAULT_FILE;
-const STADO = process.env.WELES_STADO_BIN || join(homedir(), '.stado', 'bin', 'stado');
 const ACCOUNT_ID = /^weles-[a-z0-9][a-z0-9-]{0,126}-account$/;
 
 function skarbiec(args: string[], input?: string): string {
@@ -195,19 +193,6 @@ export function updateAccount(id: string, patch: { metadata?: Record<string, any
   document.context = { ...(document.context ?? {}), ...(patch.active === undefined ? {} : { active: patch.active }) };
   writeDocument(id, document);
   return true;
-}
-
-export function enqueueAction(action: string, accountItem: string, params: Record<string, unknown>): string {
-  if (!/^[a-z][a-z0-9_]{0,127}$/.test(action)) throw new Error(`invalid Weles action: ${action}`);
-  if (accountItem && !ACCOUNT_ID.test(accountItem)) throw new Error('invalid Weles account item');
-  const payload = Buffer.from(JSON.stringify({ action, accountItem, params }), 'utf8').toString('base64url');
-  const runner = join(homedir(), 'weles', 'src', 'worker', 'stado-action-runner.mjs');
-  const command = `${process.execPath} ${runner} ${payload}`;
-  const result = spawnSync(STADO, ['submit', command], { encoding: 'utf8', maxBuffer: 1024 * 1024 });
-  if (result.error || result.status !== 0) throw new Error(`Stado refused ${action}: ${(result.stderr || '').trim()}`);
-  const id = String(result.stdout).match(/\b[0-9a-f]{8}\b/i)?.[0];
-  if (!id) throw new Error(`Stado returned no job id for ${action}`);
-  return id;
 }
 
 function settingItemId(key: string): string {

@@ -90,7 +90,7 @@ export async function queueMicrosoftPasswordOperation(
     : operation === 'verify'
       ? 'microsoft_verify_password'
       : 'microsoft_reset_password';
-  const actionLogId = enqueue(action, accountId!, params, request.priority ?? 10);
+  const actionLogId = await enqueue(action, accountId!, params, request.priority ?? 10);
   return {
     status: 'operation_queued',
     operation,
@@ -171,7 +171,7 @@ export async function queueEntraPasswordOperation(
     : operation === 'adopt'
       ? 'microsoft_entra_adopt_password'
       : 'microsoft_entra_reset_password';
-  const actionLogId = enqueue(action, binding.accountId!, params, request.priority ?? 10);
+  const actionLogId = await enqueue(action, binding.accountId!, params, request.priority ?? 10);
   return {
     status: 'operation_queued',
     operation,

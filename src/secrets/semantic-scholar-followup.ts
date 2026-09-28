@@ -1,4 +1,5 @@
-import { enqueueAction, readRunRecord, readSetting, writeSetting } from '../state/skarbiec-records.js';
+import { readRunRecord, readSetting, writeSetting } from '../state/skarbiec-records.js';
+import { submitWelesRun } from '../worker/run-submit/index.js';
 import { acquiredSecretContract, writeWelesAcquiredSecret } from './scoped-service.js';
 import { getReceived, listReceived, receivingConfigured, type ReceivedSummary } from '../utils/email/resend-receiving.js';
 
@@ -196,13 +197,16 @@ export async function queueSemanticScholarFollowup(sourceActionLogId: string, de
   const existing = readSetting<string | null>(key, null);
   if (existing) return { queued: false, action_log_id: existing };
   const scheduledAt = new Date(Date.now() + delayMs).toISOString();
-  const jobId = enqueueAction(FOLLOWUP_ACTION, '', {
-    source_action_log_id: sourceActionLogId,
-    attempt,
-    delay_ms: delayMs,
-    secret: SEMANTIC_SECRET,
-    purpose: 'lem',
-    tenant_id: tenantId ?? null,
+  const jobId = await submitWelesRun({
+    action: FOLLOWUP_ACTION,
+    params: {
+      source_action_log_id: sourceActionLogId,
+      attempt,
+      delay_ms: delayMs,
+      secret: SEMANTIC_SECRET,
+      purpose: 'lem',
+      tenant_id: tenantId ?? null,
+    },
   });
   writeSetting(key, jobId);
   return { queued: true, action_log_id: jobId, scheduled_at: scheduledAt };
