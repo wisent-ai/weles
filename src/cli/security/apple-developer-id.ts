@@ -10,13 +10,11 @@
 // the run's result, checks it holds exactly one DER X.509 certificate and a
 // well-formed Apple 2FA receipt when one was needed, and writes the certificate.
 
-import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, writeFileSync } from 'node:fs';
-import { isAbsolute, join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { isAbsolute } from 'node:path';
 import type { ParsedCli } from '../../cli.js';
-import { readDeveloperIdRun, startDeveloperIdRun } from '../../runtime/api/apple-developer-id.js';
+import { issueAppleAuthorization, readAppleRun, startAppleRun } from '../../runtime/api/apple-runs.js';
 
 const CONFIRMATION_PHRASE = 'AUTHORIZE ONE APPLE DEVELOPER ID';
 const APPLE_ACCOUNT = /^weles-apple-[a-z0-9][a-z0-9-]{0,126}-account$/;
@@ -26,16 +24,11 @@ const STANDARD_SUBJECT = '/CN=Wisent-AI Developer ID Application/O=Wisent-AI, In
 const STANDARD_EXPIRY_MINUTES = 15;
 const MIN_EXPIRY_MINUTES = 1;
 const MAX_EXPIRY_MINUTES = 60;
-const SECONDS_PER_MINUTE = 60;
 const RSA_BITS = '2048';
 const OWNER_ONLY_FILE = 0o600;
 const PUBLIC_FILE = 0o644;
 const START_OPTIONS = ['account-item', 'confirm', 'execution-host', 'execution-agent', 'private-key-out', 'expires-in-minutes', 'subject'];
 const READ_OPTIONS = ['run', 'certificate-out'];
-// The capability issuer is the .mjs module Apple trajectories import from
-// src/auth; it sits outside the TypeScript rootDir's compiled tree, so it is
-// loaded by its path in the installed release rather than a static import.
-const PLACEMENT_MODULE = join(__dirname, '..', '..', '..', 'src', 'auth', 'apple-account-placement.mjs');
 
 function text(parsed: ParsedCli, key: string): string | undefined {
   const value = parsed.options[key];
@@ -77,22 +70,11 @@ async function start(parsed: ParsedCli): Promise<Record<string, unknown>> {
   openssl(['genrsa', '-out', keyOut, RSA_BITS]);
   chmodSync(keyOut, OWNER_ONLY_FILE);
   const csr = openssl(['req', '-new', '-key', keyOut, '-subj', subject]);
-  const guardId = randomUUID();
-  const placement = await import(pathToFileURL(PLACEMENT_MODULE).href);
-  const capabilities = placement.issueAppleLoginCapabilities({
-    executionHost,
-    executionAgent,
-    authorizationId: guardId,
-    ttlSeconds: expiryMinutes * SECONDS_PER_MINUTE,
+  const authorization = await issueAppleAuthorization(accountItem, executionHost, executionAgent, expiryMinutes);
+  const runId = await startAppleRun('apple_create_developer_id', authorization, {
+    apple_csr_base64: Buffer.from(csr, 'utf8').toString('base64'),
   });
-  const runId = await startDeveloperIdRun({
-    accountItem,
-    guardId,
-    executionHost,
-    executionAgent,
-    capabilities,
-    csrBase64: Buffer.from(csr, 'utf8').toString('base64'),
-  });
+  const guardId = authorization.guardId;
   return {
     status: 'running',
     run: runId,
@@ -121,7 +103,7 @@ async function read(parsed: ParsedCli): Promise<Record<string, unknown>> {
   const certificateOut = text(parsed, 'certificate-out') ?? '';
   if (!isAbsolute(certificateOut)) throw new Error('--certificate-out must be an absolute path on this machine');
   if (existsSync(certificateOut)) throw new Error(`refusing to replace an existing certificate at ${certificateOut}`);
-  const run = await readDeveloperIdRun(runId);
+  const run = await readAppleRun(runId);
   if (run.status === 'running') return { status: 'running', run: run.id };
   if (run.ok !== true || !run.stdout) {
     return { status: run.status, run: run.id, ok: false, error: run.error };

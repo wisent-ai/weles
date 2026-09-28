@@ -8,9 +8,10 @@ import { runOperatorRequests } from './cli/operator-requests.js';
 import { runAccountSecurity } from './cli/security/account-security.js';
 import { runAppPassword } from './cli/security/app-password.js';
 import { runAppleDeveloperId } from './cli/security/apple-developer-id.js';
+import { runAppleLogin } from './cli/security/apple-login.js';
 import { runWorker } from './cli/worker/index.js';
 
-type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import' | 'release' | 'figma' | 'operator-requests' | 'account-security' | 'app-password' | 'apple-developer-id' | 'worker';
+type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import' | 'release' | 'figma' | 'operator-requests' | 'account-security' | 'app-password' | 'apple-developer-id' | 'apple-login' | 'worker';
 
 export type ParsedCli = {
   command: CliCommand;
@@ -44,6 +45,7 @@ Usage:
   weles app-password --run <run-id>
   weles apple-developer-id --account-item <weles-apple-...-account> --confirm "AUTHORIZE ONE APPLE DEVELOPER ID" --execution-host <host> --private-key-out <abs> [--execution-agent <agent>] [--expires-in-minutes <n>] [--subject <dn>]
   weles apple-developer-id --run <run-id> --certificate-out <abs>
+  weles apple-login --account-item <weles-apple-...-account> --confirm "AUTHORIZE ONE APPLE LOGIN" --execution-host <host> [--execution-agent <agent>] [--expires-in-minutes <n>] | --run <run-id>
   weles worker <status|start|restart> [--json]
   weles doctor
   weles version
@@ -144,7 +146,7 @@ export function parseCliArgs(argv: string[]): ParsedCli {
 function normalizeCommand(command?: string): CliCommand {
   if (!command || command === '--help' || command === '-h' || command === 'help') return 'help';
   if (command === '--version' || command === '-v' || command === 'version') return 'version';
-  if (command === 'account-security' || command === 'app-password' || command === 'apple-developer-id' || command === 'worker') return command;
+  if (command === 'account-security' || command === 'app-password' || command === 'apple-developer-id' || command === 'apple-login' || command === 'worker') return command;
   if (command === 'doctor' || command === 'open' || command === 'screenshot' || command === 'mcp' || command === 'onboarding' || command === 'import' || command === 'release' || command === 'figma' || command === 'operator-requests') return command;
   throw new Error(`unknown command: ${command}`);
 }
@@ -273,6 +275,10 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   }
   if (parsed.command === 'apple-developer-id') {
     await runAppleDeveloperId(parsed);
+    return;
+  }
+  if (parsed.command === 'apple-login') {
+    await runAppleLogin(parsed);
     return;
   }
   if (parsed.command === 'worker') {
