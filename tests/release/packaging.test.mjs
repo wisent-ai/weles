@@ -28,6 +28,26 @@ after(() => {
   rmSync(scratch, { recursive: true, force: true });
   console.log(`Native runtime evidence: ${join(output, 'report.json')}`);
 });
+
+/** The builder's Weles Chromium release: an explicit WELES_CHROMIUM_* coordinate,
+ * else the one release under ~/.local/share/weles-chromium whose receipt names
+ * this platform. Anything else is refused with what was found. */
+function installedChromium() {
+  const names = ['WELES_CHROMIUM_DIR', 'WELES_CHROMIUM_RELEASE_VERSION', 'WELES_CHROMIUM_RELEASE_SHA256'];
+  if (names.every(name => process.env[name])) return Object.fromEntries(names.map(name => [name, process.env[name]]));
+  const dir = join(process.env.HOME ?? '', '.local/share/weles-chromium');
+  const platform = `${process.platform}-${process.arch === 'arm64' ? 'arm64' : 'x64'}`;
+  const found = (existsSync(dir) ? readdirSync(dir) : []).flatMap(version => {
+    const path = join(dir, version, '.weles-release');
+    if (!existsSync(path)) return [];
+    const fields = Object.fromEntries(readFileSync(path, 'utf8').split('\n').filter(Boolean)
+      .map(line => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)]));
+    return fields.platform === platform ? [[version, fields.archive_sha256]] : [];
+  });
+  assert.equal(found.length, 1, `the page routes need exactly one Weles Chromium release for ${platform} `
+    + `under ${dir}; found ${found.length}. Install it, or set ${names.join(', ')}.`);
+  return { [names[0]]: dir, [names[1]]: found[0][0], [names[2]]: found[0][1] };
+}
 const native = join(scratch, 'input');
 mkdirSync(native);
 if (archive) {
@@ -203,12 +223,10 @@ test('a healthy API refuses a second launcher without losing its listener', {
     }),
     WELES_WORKER_RELEASE_VERSION: version,
     WELES_WORKER_RELEASE_SHA256: report.worker_payload_sha256,
-    // The page routes render in Weles' own browser, which is resolved only from
-    // a verified Weles Chromium release. The API gets the builder's coordinate:
-    // with none, the public-page snapshot fails with
-    // WELES_CHROMIUM_BINARY_NOT_FOUND, which is the true state of that builder.
-    ...Object.fromEntries(['WELES_CHROMIUM_DIR', 'WELES_CHROMIUM_RELEASE_VERSION', 'WELES_CHROMIUM_RELEASE_SHA256']
-      .filter(name => process.env[name]).map(name => [name, process.env[name]])),
+    // The page routes render in Weles' own browser, resolved only from a
+    // verified Weles Chromium release. This API runs with a scratch HOME, so
+    // it is told where the builder's release is; it still verifies the receipt.
+    ...installedChromium(),
   };
   const args = [join(root, 'src/worker/weles-api-server.mjs')];
   const api = spawn(process.execPath, args, { cwd: home, env, stdio: ['ignore', 'pipe', 'pipe'] });
