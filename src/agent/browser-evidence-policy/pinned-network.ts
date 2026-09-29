@@ -33,7 +33,6 @@ for (const [address, prefix, family] of [
   ['192.88.99.0', 24, 'ipv4'],
   ['::', 128, 'ipv6'],
   ['::1', 128, 'ipv6'],
-  ['::ffff:0:0', 96, 'ipv6'],
   ['64:ff9b::', 96, 'ipv6'],
   ['64:ff9b:1::', 48, 'ipv6'],
   ['100::', 64, 'ipv6'],
@@ -70,9 +69,17 @@ export function configuredTarget(): { origin: string; hostname: string; addresse
   return { origin, hostname, addresses: normalizedAddresses };
 }
 
+// An IPv4-mapped IPv6 address (`::ffff:a.b.c.d`) is never a public target in
+// its own right. It is refused by prefix rather than by a `::ffff:0:0/96`
+// BlockList rule: Node's BlockList matches a plain IPv4 address against that
+// IPv6 rule as its mapped form, so the rule refused every IPv4 address, among
+// them example.com, which the release packaging test reads.
+const IPV4_MAPPED_PREFIX = '::ffff:';
+
 export function assertPublicAddress(address: string): void {
   const family = isIP(address);
-  if (!family || NETWORK_BLOCK_LIST.check(address, family === 4 ? 'ipv4' : 'ipv6')) {
+  if (!family || (family === 6 && address.toLowerCase().startsWith(IPV4_MAPPED_PREFIX))
+      || NETWORK_BLOCK_LIST.check(address, family === 4 ? 'ipv4' : 'ipv6')) {
     throw new Error(`non-public network address denied: ${address}`);
   }
 }
