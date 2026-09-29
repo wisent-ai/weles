@@ -223,6 +223,10 @@ test('a healthy API refuses a second launcher without losing its listener', {
     }),
     WELES_WORKER_RELEASE_VERSION: version,
     WELES_WORKER_RELEASE_SHA256: report.worker_payload_sha256,
+    // The launcher points Playwright at the release's own browser-runtime
+    // (recording ffmpeg); this process starts without the launcher, so it is
+    // given the same tree from the unpacked payload.
+    PLAYWRIGHT_BROWSERS_PATH: join(root, 'browser-runtime'),
     // The page routes render in Weles' own browser, resolved only from a
     // verified Weles Chromium release. This API runs with a scratch HOME, so
     // it is told where the builder's release is; it still verifies the receipt.
