@@ -203,6 +203,12 @@ test('a healthy API refuses a second launcher without losing its listener', {
     }),
     WELES_WORKER_RELEASE_VERSION: version,
     WELES_WORKER_RELEASE_SHA256: report.worker_payload_sha256,
+    // The page routes render in Weles' own browser, which is resolved only from
+    // a verified Weles Chromium release. The API gets the builder's coordinate:
+    // with none, the public-page snapshot fails with
+    // WELES_CHROMIUM_BINARY_NOT_FOUND, which is the true state of that builder.
+    ...Object.fromEntries(['WELES_CHROMIUM_DIR', 'WELES_CHROMIUM_RELEASE_VERSION', 'WELES_CHROMIUM_RELEASE_SHA256']
+      .filter(name => process.env[name]).map(name => [name, process.env[name]])),
   };
   const args = [join(root, 'src/worker/weles-api-server.mjs')];
   const api = spawn(process.execPath, args, { cwd: home, env, stdio: ['ignore', 'pipe', 'pipe'] });
