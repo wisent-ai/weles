@@ -90,6 +90,16 @@ const ACQUIRED_SECRET_CONTRACTS = Object.freeze({
     sourceOrigin: 'https://kit.snapchat.com',
     shape: 'opaque-token',
   }),
+  // The item Stado reads by default (`stado dns delegate`). An acquired token
+  // is written as kind api-key, field api_key, like every opaque token here.
+  'cloudflare.api_token': Object.freeze({
+    item: 'cloudflare-api',
+    field: 'api_key',
+    writerConsumer: 'weles-cloudflare-api-token-writer',
+    writerTokenFile: 'weles-cloudflare-api-token-writer-skarbiec-token',
+    sourceOrigin: 'https://dash.cloudflare.com',
+    shape: 'opaque-token',
+  }),
   // Managed Microsoft account passwords. Each item declares its own provider
   // surface here, because nothing in the id may be trusted to imply one: an item
   // id is a mutable human-chosen vault name, so a rename has to miss an explicit

@@ -97,6 +97,28 @@ export const SNAPCHAT_SNAP_KIT_API_TOKEN: SecretDefinition = {
   storeSecretTarget: 'skarbiec',
 };
 
+// The token Stado moves zones and routes tunnels with (`stado dns delegate`,
+// `stado cloudflare`). Skarbiec held only the dashboard login and a tunnel
+// token, which the Cloudflare API refuses as a bearer, so no public web edge
+// could be brought up without a person (Stado defect 8e7c5e53).
+export const CLOUDFLARE_API_TOKEN: SecretDefinition = {
+  secret: 'cloudflare.api_token',
+  provider: 'cloudflare',
+  displayName: 'Cloudflare API token',
+  envVars: ['CLOUDFLARE_API_TOKEN'],
+  defaultPurpose: 'stado-web-edge',
+  formUrl: 'https://dash.cloudflare.com/profile/api-tokens',
+  flowName: 'cloudflare-api-token-acquisition',
+  endpoints: ['/zones', '/zones/{zone_id}/dns_records', '/accounts/{account_id}/cfd_tunnel/{tunnel_id}/configurations', '/accounts'],
+  usageText: 'Stado moves Wisent DNS zones into this Cloudflare account and publishes web products through the account\'s existing Cloudflare Tunnel. Create a custom API token for all zones of the account with Zone: Edit, DNS: Edit and Account: Cloudflare Tunnel: Edit. The token is stored directly in Skarbiec and is never returned in Weles results.',
+  dailyRequests: '500',
+  requestedScopes: ['Zone:Edit', 'DNS:Edit', 'Account:Cloudflare Tunnel:Edit'],
+  capabilities: ['zone_create', 'dns_records_edit', 'tunnel_ingress_edit'],
+  runtimeInstall: false,
+  headless: false,
+  storeSecretTarget: 'skarbiec',
+};
+
 export const SECRET_REGISTRY: Record<string, SecretDefinition> = {
   [SEMANTIC_SCHOLAR.secret]: SEMANTIC_SCHOLAR,
   semantic_scholar_api_key: SEMANTIC_SCHOLAR,
@@ -113,4 +135,6 @@ export const SECRET_REGISTRY: Record<string, SecretDefinition> = {
   [SNAPCHAT_SNAP_KIT_API_TOKEN.secret]: SNAPCHAT_SNAP_KIT_API_TOKEN,
   snapchat_snap_kit_api_token: SNAPCHAT_SNAP_KIT_API_TOKEN,
   snapchat_api_token: SNAPCHAT_SNAP_KIT_API_TOKEN,
+  [CLOUDFLARE_API_TOKEN.secret]: CLOUDFLARE_API_TOKEN,
+  cloudflare_api_token: CLOUDFLARE_API_TOKEN,
 };
