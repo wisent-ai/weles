@@ -21,9 +21,12 @@ export function generate(options?: GenerateOptions): any {
   const browser = options?.browser ?? 'chrome';
   const os = options?.os;
 
+  // No browserslist query: browserslist resolves "last N versions" from its
+  // own release data, which moves ahead of the generator's header dataset and
+  // then matches no version at all. The generator samples only versions its
+  // dataset holds; ensureModernChromeUA adjusts the user agent afterwards.
   const generatorOpts: Record<string, any> = {
     browsers: [browser === 'chromium' ? 'chrome' : browser],
-    browserListQuery: 'last 5 chrome versions',
   };
 
   if (os) {

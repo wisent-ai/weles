@@ -96,10 +96,10 @@ const CHROME_VERSIONS = [
 // --- Firefox engine surface --------------------------------------------------
 // The weles-firefox binary (~/.local/share/weles-firefox/<ver>-weles.N) exposes
 // real Gecko-only navigator fields (oscpu, buildID, productSub=20100101, empty
-// vendor). But fingerprint.ts's generate() runs fingerprint-generator with a
-// `last 5 chrome versions` browserlist, so it returns a Chrome UA even for
-// browser:'firefox'. Shipping that Chrome UA on a Gecko engine is the exact
-// signal Google ("this browser or app may not be secure") and Cloudflare flag.
+// vendor). fingerprint-generator's sample for browser:'firefox' carries its own
+// dataset's Firefox version, not the installed binary's, and a UA that
+// disagrees with the Gecko engine is the exact signal Google ("this browser or
+// app may not be secure") and Cloudflare flag.
 // firefoxNav() returns a UA + navigator fields internally consistent with the
 // Gecko engine. The rv:/Firefox major MUST track the installed binary's major
 // so a deep UA<->engine check stays consistent — bump FIREFOX_VERSION when
