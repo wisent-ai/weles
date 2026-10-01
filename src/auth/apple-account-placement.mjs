@@ -43,7 +43,9 @@ function relayArguments(identity, authorizationId) {
   if (!authorizationId) throw new Error('an Apple authorization id is required');
   return [
     'identity',
-    'relay-apple-challenge',
+    'relay-challenge',
+    '--provider',
+    'apple',
     '--identity',
     identity,
     '--authorization-id',
@@ -71,7 +73,9 @@ export function issueAppleLoginCapabilities({
 }) {
   const report = readStadoJson([
     'identity',
-    'issue-apple-capabilities',
+    'issue-capabilities',
+    '--provider',
+    'apple',
     '--target',
     executionHost,
     '--agent',
