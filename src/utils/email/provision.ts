@@ -58,14 +58,13 @@ export async function setNamecheapHosts(domain: string, records: ResendDnsRecord
   });
 }
 
-export async function verifyResendDomain(domainId: string, pollSeconds = 20, maxAttempts = 30): Promise<boolean> {
-  for (let i = 0; i < maxAttempts; i++) {
-    const d = await getResendDomain(domainId);
-    if (d.status === 'verified') return true;
-    if (d.status === 'failed') throw new Error('Resend domain verification failed');
-    await new Promise(r => setTimeout(r, pollSeconds * 1000));  // allow-raw-playwright: review — context-dependent timer
-  }
-  return false;
+// One status read. Resend verifies DNS on its own schedule; a domain that is
+// not verified yet is stored as pending and promoted by the next status check.
+export async function verifyResendDomain(domainId: string): Promise<boolean> {
+  const d = await getResendDomain(domainId);
+  if (d.status === 'failed') throw new Error(`resend_domain_verification_failed: ${domainId}`);
+  if (d.status !== 'verified') console.log(`[provision] resend_domain_pending: ${domainId} status=${d.status}`);
+  return d.status === 'verified';
 }
 
 export async function insertRotatorRow(domain: string, resendId: string, chargedUsd: number, status: 'pending' | 'active' = 'active'): Promise<void> {
@@ -102,7 +101,7 @@ export async function provisionDomain(domain: string, opts: { years?: number; re
   console.log(`[provision]   resend id ${resendDomain.id}, ${resendDomain.records.length} DNS records`);
   console.log(`[provision] Step 4/6 — writing DNS records to Namecheap`);
   await setNamecheapHosts(domain, resendDomain.records);
-  console.log(`[provision] Step 5/6 — polling Resend for verification (up to 10 min)`);
+  console.log(`[provision] Step 5/6 — reading Resend verification status`);
   const verified = await verifyResendDomain(resendDomain.id);
   console.log(`[provision]   verified=${verified}`);
   console.log(`[provision] Step 6/6 — inserting rotator row (status=${verified ? 'active' : 'pending'})`);

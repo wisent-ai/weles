@@ -1,5 +1,5 @@
 import { humanFill } from '../../../../../dist/human/keyboard.js';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { pageSettled } from '../../page/settled.mjs';
 import { defaultInput } from '../action-catalog.mjs';
 import {
   escapeRegExp,
@@ -29,25 +29,20 @@ async function selectedGaStep(page) {
   }
 }
 
+// The wizard moves when the page has settled after the click that advanced
+// it; a step that has not changed then did not advance, and says so by name.
 async function waitForGaStep(page, pattern, description) {
-  for (let i = 0; i < 50; i++) {
-    const step = await selectedGaStep(page);
-    if (pattern.test(step)) return;
-    await humanIdlePause('short');
-  }
+  await pageSettled(page);
   const step = await selectedGaStep(page);
+  if (pattern.test(step)) return;
   throw new Error(`${description} did not advance; selected_step=${JSON.stringify(step)}`);
 }
 
 async function waitForGaStepOrText(page, stepPattern, textPattern, description) {
-  for (let i = 0; i < 50; i++) {
-    const step = await selectedGaStep(page);
-    const text = await bodyText(page);
-    if (stepPattern.test(step) || textPattern.test(text)) return;
-    await humanIdlePause('short');
-  }
+  await pageSettled(page);
   const step = await selectedGaStep(page);
   const text = await bodyText(page);
+  if (stepPattern.test(step) || textPattern.test(text)) return;
   throw new Error(`${description} did not advance; selected_step=${JSON.stringify(step)}; body_preview=${text.slice(0, 500).replace(/\s+/g, ' ')}`);
 }
 
@@ -129,11 +124,11 @@ async function setOptionalDropdown(page, labelPatterns, value) {
       .first();
     if (!await control.isVisible().catch(() => false)) continue;
     await clickLocator(page, control).catch(() => false);
-    await humanIdlePause('short');
+    await pageSettled(page);
     const search = page.locator('input:not([type="hidden"])').filter({ visible: true }).last();
     if (await search.isVisible().catch(() => false)) {
       await humanFill(page, search, value);
-      await humanIdlePause('short');
+      await pageSettled(page);
     }
     if (await clickDomElement(page, [
       '.cdk-overlay-container [debug-id="option-item"]',
@@ -153,14 +148,14 @@ async function setGoogleAnalyticsIndustry(page) {
     .filter({ visible: true })
     .first();
   if (!await clickDirectLocator(page, trigger).catch(() => false)) return false;
-  await humanIdlePause('short');
+  await pageSettled(page);
 
   const search = page.locator('.cdk-overlay-container input:not([type="hidden"]), .cdk-overlay-container textarea')
     .filter({ visible: true })
     .first();
   if (await search.isVisible().catch(() => false)) {
     await humanFill(page, search, defaultInput('INDUSTRY_CATEGORY', 'Other'));
-    await humanIdlePause('short');
+    await pageSettled(page);
   }
 
   const preferred = new RegExp(`^${escapeRegExp(defaultInput('INDUSTRY_CATEGORY', 'Other'))}$`, 'i');
@@ -184,7 +179,7 @@ async function setGoogleAnalyticsBusinessSize(page) {
   const sizeRadio = business.locator(`input[type="radio"][value="${escapeRegExp(value)}"]`).first();
   if (await sizeRadio.count()) {
     await sizeRadio.check({ force: true });
-    await humanIdlePause('short');
+    await pageSettled(page);
     if (await sizeRadio.isChecked().catch(() => false)) return true;
   }
   return clickAnyLocator(page, [
@@ -201,13 +196,13 @@ async function setGoogleAnalyticsObjective(page) {
   const preferred = panel.locator(`input[type="checkbox"][name*="${objective.replace(/"/g, '\\"')}"]`).first();
   if (await preferred.count()) {
     await preferred.check({ force: true });
-    await humanIdlePause('short');
+    await pageSettled(page);
     if (await preferred.isChecked().catch(() => false)) return true;
   }
   const knownObjective = panel.locator('input[type="checkbox"][name*="Understand web"], input[type="checkbox"][name*="Other business"]').first();
   if (await knownObjective.count()) {
     await knownObjective.check({ force: true });
-    await humanIdlePause('short');
+    await pageSettled(page);
     if (await knownObjective.isChecked().catch(() => false)) return true;
   }
   return clickAnyLocator(page, [
@@ -218,14 +213,12 @@ async function setGoogleAnalyticsObjective(page) {
 
 async function clickGoogleAnalyticsCreateButton(page) {
   const panel = activeStepPanel(page);
-  for (let i = 0; i < 30; i++) {
-    if (await clickAnyLocator(page, [
-      panel.locator('button[aria-label="Create an account with a property"], button.create-button'),
-      panel.getByRole('button', { name: /^Create$/i }),
-      panel.locator('button').filter({ hasText: /^Create$/i }),
-    ]).catch(() => false)) return;
-    await humanIdlePause('short');
-  }
+  await pageSettled(page);
+  if (await clickAnyLocator(page, [
+    panel.locator('button[aria-label="Create an account with a property"], button.create-button'),
+    panel.getByRole('button', { name: /^Create$/i }),
+    panel.locator('button').filter({ hasText: /^Create$/i }),
+  ]).catch(() => false)) return;
   throw new Error('GA objectives Create button was not enabled');
 }
 

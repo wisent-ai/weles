@@ -26,7 +26,7 @@ try {
 
   const popupPromise = s.page.waitForEvent('popup').catch(() => null);
   await humanClickLocator(s.page, gsiFrame.locator('div[role="button"]').first());
-  const popup = await popupPromise;  // allow-raw-playwright: Promise.race deadline
+  const popup = await popupPromise;  // allow-raw-playwright: the popup the click produced
   if (!popup) { console.log('FAIL: Google login popup did not open'); throw new Error('Google login popup did not open'); }
   await popup.waitForLoadState('domcontentloaded').catch(() => {});
 

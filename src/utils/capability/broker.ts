@@ -115,7 +115,6 @@ export async function requestCapability(
     let settled = false;
     const socketPath = brokerSocket();
     const socket = createConnection({ path: socketPath });
-    socket.setTimeout(10_000);
     const wipe = () => {
       request.fill(0);
       for (const chunk of chunks) chunk.fill(0);
@@ -134,7 +133,6 @@ export async function requestCapability(
       if (total > RESPONSE_LIMIT + CONTROL_LIMIT) { chunk.fill(0); fail(new Error('broker response oversized')); return; }
       chunks.push(chunk);
     });
-    socket.once('timeout', () => fail(new CapabilityTransportError(operation, socketPath, new Error('response missing EOF'))));
     // Preserve the operation and kernel cause. A live broker process alone
     // does not prove that a listener is reachable through this socket path.
     socket.once('error', (error: NodeJS.ErrnoException) => fail(

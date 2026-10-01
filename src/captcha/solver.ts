@@ -95,27 +95,25 @@ export class CaptchaSolver {
     const taskId = res.taskId;
     if (!taskId) { console.log('[captcha:api] capsolver AntiCloudflare no taskId'); markAllProvidersFailed('cloudflare'); return null; }
     console.log(`[captcha:api] capsolver AntiCloudflare taskId=${taskId}`);
-    for (let i = 0; i < 60; i++) {
-      await new Promise(r => setTimeout(r, 5000));  // allow-raw-playwright: polling/rate-limit loop
-      const tr = await (await fetch('https://api.capsolver.com/getTaskResult', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientKey: this._creds.capsolver, taskId }),
-      })).json() as any;
-      if (tr.errorId) { console.log(`[captcha:api] capsolver AntiCloudflare err: ${tr.errorCode} ${tr.errorDescription}`); markAllProvidersFailed('cloudflare'); return null; }
-      if (tr.status === 'ready') {
-        const sol = tr.solution ?? {};
-        const token = sol.token ?? '';
-        const userAgent = sol.userAgent ?? '';
-        const cookies = (sol.cookies && typeof sol.cookies === 'object') ? sol.cookies : {};
-        if (!token) { console.log('[captcha:api] capsolver AntiCloudflare returned no token'); markAllProvidersFailed('cloudflare'); return null; }
-        console.log(`[captcha:solver] Cloudflare solved via capsolver token=${token.slice(0, 20)}... ua=${userAgent.slice(0, 60)}`);
-        costTracker.recordCaptcha('capsolver', 'cloudflare');
-        return { token, userAgent, cookies };
-      }
+    // One read: CapSolver has no push or blocking answer.
+    const tr = await (await fetch('https://api.capsolver.com/getTaskResult', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientKey: this._creds.capsolver, taskId }),
+    })).json() as any;
+    if (tr.errorId) { console.log(`[captcha:api] capsolver AntiCloudflare err: ${tr.errorCode} ${tr.errorDescription}`); markAllProvidersFailed('cloudflare'); return null; }
+    if (tr.status !== 'ready') {
+      console.log(`[captcha:api] captcha_capsolver_processing: AntiCloudflare task ${taskId} has no result yet (status ${tr.status})`);
+      markAllProvidersFailed('cloudflare');
+      return null;
     }
-    console.log('[captcha:api] capsolver AntiCloudflare timed out after 60 polls');
-    markAllProvidersFailed('cloudflare');
-    return null;
+    const sol = tr.solution ?? {};
+    const token = sol.token ?? '';
+    const userAgent = sol.userAgent ?? '';
+    const cookies = (sol.cookies && typeof sol.cookies === 'object') ? sol.cookies : {};
+    if (!token) { console.log('[captcha:api] capsolver AntiCloudflare returned no token'); markAllProvidersFailed('cloudflare'); return null; }
+    console.log(`[captcha:solver] Cloudflare solved via capsolver token=${token.slice(0, 20)}... ua=${userAgent.slice(0, 60)}`);
+    costTracker.recordCaptcha('capsolver', 'cloudflare');
+    return { token, userAgent, cookies };
   }
 
   async solveHcaptcha(sitekey: string, url: string, options?: {
@@ -189,18 +187,17 @@ export class CaptchaSolver {
         const cr = await (await fetch('https://api.capsolver.com/createTask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: this._creds.capsolver, task }) })).json() as any;
         if (cr.errorId) console.log(`[captcha:api] capsolver AntiPerimeterx createTask err: ${cr.errorCode} ${cr.errorDescription}`);
         else if (cr.taskId) {
-          for (let i = 0; i < 60; i++) {
-            await new Promise(r => setTimeout(r, 5000));  // allow-raw-playwright: polling/rate-limit loop
-            const tr = await (await fetch('https://api.capsolver.com/getTaskResult', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: this._creds.capsolver, taskId: cr.taskId }) })).json() as any;
-            if (tr.errorId) { console.log(`[captcha:api] capsolver AntiPerimeterx err: ${tr.errorCode} ${tr.errorDescription}`); break; }
-            if (tr.status === 'ready') {
-              const sol = tr.solution ?? {};
-              const cm: Record<string, unknown> = (sol.cookies && typeof sol.cookies === 'object') ? sol.cookies : {};
-              const out: Array<{ name: string; value: string; domain: string; path: string }> = [];
-              for (const [n, v] of Object.entries(cm)) out.push({ name: n, value: String(v), domain: dotDom, path: '/' });
-              if (out.length) { console.log(`[captcha:solver] PerimeterX solved via capsolver (${out.length} cookies)`); costTracker.recordCaptcha('capsolver', 'perimeterx'); return out; }
-              console.log('[captcha:api] capsolver AntiPerimeterx returned no cookies in solution'); break;
-            }
+          // One read: CapSolver has no push or blocking answer.
+          const tr = await (await fetch('https://api.capsolver.com/getTaskResult', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: this._creds.capsolver, taskId: cr.taskId }) })).json() as any;
+          if (tr.errorId) console.log(`[captcha:api] capsolver AntiPerimeterx err: ${tr.errorCode} ${tr.errorDescription}`);
+          else if (tr.status !== 'ready') console.log(`[captcha:api] captcha_capsolver_processing: AntiPerimeterx task ${cr.taskId} has no result yet (status ${tr.status})`);
+          else {
+            const sol = tr.solution ?? {};
+            const cm: Record<string, unknown> = (sol.cookies && typeof sol.cookies === 'object') ? sol.cookies : {};
+            const out: Array<{ name: string; value: string; domain: string; path: string }> = [];
+            for (const [n, v] of Object.entries(cm)) out.push({ name: n, value: String(v), domain: dotDom, path: '/' });
+            if (out.length) { console.log(`[captcha:solver] PerimeterX solved via capsolver (${out.length} cookies)`); costTracker.recordCaptcha('capsolver', 'perimeterx'); return out; }
+            console.log('[captcha:api] capsolver AntiPerimeterx returned no cookies in solution');
           }
         }
       } catch (e: any) { console.log(`[captcha:api] capsolver AntiPerimeterx fetch err: ${e.message?.slice(0, 100)}`); }
@@ -257,12 +254,11 @@ export class CaptchaSolver {
       if (cr.status === 1 && cr.request) {
         const tid = cr.request;
         console.log(`[captcha:api] 2captcha taskId=${tid}`);
-        for (let i = 0; i < 60; i++) {
-          await new Promise(r => setTimeout(r, 5000));  // allow-raw-playwright: polling/rate-limit loop
-          const res = await (await fetch(`https://2captcha.com/res.php?key=${this._creds.twocaptcha}&action=get&id=${tid}&json=1`)).json().catch(() => ({})) as any;
-          if (res.status === 1) { console.log(`[captcha:api] 2captcha solved`); costTracker.recordCaptcha('twocaptcha', 'funcaptcha'); return res.request; }
-          if (res.request !== 'CAPCHA_NOT_READY') { console.log(`[captcha:api] 2captcha error: ${res.request}`); break; }
-        }
+        // One read: 2captcha has no push or blocking answer.
+        const res = await (await fetch(`https://2captcha.com/res.php?key=${this._creds.twocaptcha}&action=get&id=${tid}&json=1`)).json() as any;
+        if (res.status === 1) { console.log(`[captcha:api] 2captcha solved`); costTracker.recordCaptcha('twocaptcha', 'funcaptcha'); return res.request; }
+        if (res.request === 'CAPCHA_NOT_READY') console.log(`[captcha:api] captcha_2captcha_processing: task ${tid} has no result yet`);
+        else console.log(`[captcha:api] 2captcha error: ${res.request}`);
       } else { console.log(`[captcha:api] 2captcha create error: ${cr.request ?? cr.error_text ?? JSON.stringify(cr)}`); }
     }
     if (this._creds.capmonster) {

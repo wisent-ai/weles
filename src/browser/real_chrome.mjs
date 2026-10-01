@@ -9,7 +9,7 @@ import { chromium } from 'playwright';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { humanIdlePause } from '../../dist/human/mouse.js';
+import { pageSettled } from '../trajectories/_shared/page/settled.mjs';
 import { runId, runRecordingsDir } from '../../dist/session/run-recordings.js';
 
 // Use Weles Chromium (147), which Google's signin flow recognizes as a
@@ -137,11 +137,8 @@ export async function launchRealChrome({ label = 'real_chrome' } = {}) {
 
 // Drive Google's identifier → password → consent on a real-Chrome page.
 export async function googleSsoRealChrome(page, creds) {
-  await humanIdlePause('short');
-  for (let i = 0; i < 30; i++) {
-    if (/accounts\.google\.com/.test(page.url())) break;
-    await humanIdlePause('short');
-  }
+  // The provider's redirect chain has finished once the page has settled.
+  await pageSettled(page);
   if (!/accounts\.google\.com/.test(page.url())) {
     console.log(`[google_sso_chrome] FAIL: never reached google (url=${page.url()})`);
     return false;
@@ -155,28 +152,31 @@ export async function googleSsoRealChrome(page, creds) {
   // Use #identifierNext only; bare [jsname="LgbsSe"] matches hidden audio-captcha button on bot-suspect sessions.
   await page.locator('#identifierNext button, #identifierNext').filter({ visible: true }).first().click();
 
-  let pwInVisible = 0;
-  for (let step = 0; step < 6; step++) {
-    for (let i = 0; i < 8; i++) {
-      await humanIdlePause('short');
-      pwInVisible = await page.locator('input[type="password"], input[name="Passwd"]').filter({ visible: true }).count().catch(() => 0);
-      if (pwInVisible > 0) break;
+  const password = page.locator('input[type="password"], input[name="Passwd"]').filter({ visible: true }).first();
+  const enterPw = page.locator('button:has-text("Enter your password")').filter({ visible: true }).first();
+  const tryAnother = page.locator('button:has-text("Try another way")').filter({ visible: true }).first();
+  let usedEnterPw = false;
+  let usedTryAnother = false;
+  for (;;) {
+    // Whichever of the password field or an option this walk has not used yet
+    // appears first decides the step. Google's "Verifying it's you" overlay
+    // covers the options, so they count only once it is gone.
+    const watched = [password.waitFor({ state: 'visible' })];
+    const options = [];
+    if (!usedEnterPw) options.push(enterPw.waitFor({ state: 'visible' }));
+    if (!usedTryAnother) options.push(tryAnother.waitFor({ state: 'visible' }));
+    if (options.length) {
+      watched.push(page.getByText(/Verifying it.s you/i).first().waitFor({ state: 'hidden' }).then(() => Promise.any(options)));
+    } else if (!await password.isVisible()) {
+      console.log(`[google_sso_chrome] FAIL: google_password_challenge_unavailable — both password options used, no password field (url=${page.url()})`);
+      return false;
     }
-    if (pwInVisible > 0) break;
-    console.log(`[google_sso_chrome] step=${step} url=${page.url().slice(0, 80)}`);
-    // Wait for "Verifying it's you..." overlay to clear before attempting clicks.
-    for (let v = 0; v < 30; v++) {
-      const verifying = await page.getByText(/Verifying it.s you/i).first().isVisible().catch(() => false);
-      if (!verifying) break;
-      await humanIdlePause('short');
-    }
-    const enterPw = page.locator('button:has-text("Enter your password")').filter({ visible: true }).first();
-    if (await enterPw.isVisible().catch(() => false)) { console.log('[google_sso_chrome] clicking Enter your password'); await enterPw.click({ force: true }); await humanIdlePause('deliberate'); continue; }
-    const tryAnother = page.locator('button:has-text("Try another way")').filter({ visible: true }).first();
-    if (await tryAnother.isVisible().catch(() => false)) { console.log('[google_sso_chrome] clicking Try another way'); await tryAnother.click({ force: true }); await humanIdlePause('deliberate'); continue; }
-    console.log(`[google_sso_chrome] no progress option visible`); break;
+    await Promise.any(watched);
+    if (await password.isVisible()) break;
+    console.log(`[google_sso_chrome] url=${page.url().slice(0, 80)}`);
+    if (!usedEnterPw && await enterPw.isVisible()) { usedEnterPw = true; console.log('[google_sso_chrome] clicking Enter your password'); await enterPw.click({ force: true }); await pageSettled(page); continue; }
+    if (!usedTryAnother && await tryAnother.isVisible()) { usedTryAnother = true; console.log('[google_sso_chrome] clicking Try another way'); await tryAnother.click({ force: true }); await pageSettled(page); continue; }
   }
-  if (!pwInVisible) { console.log(`[google_sso_chrome] FAIL: never reached password input (final url=${page.url()})`); return false; }
 
   const pwIn = page.locator('input[type="password"], input[name="Passwd"]').filter({ visible: true }).first();
   await pwIn.click();

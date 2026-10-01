@@ -3,7 +3,6 @@ import { CDPError, CDPNavigationError } from '../errors.js';
 import { CDPFrame, FrameTree } from './frame.js';
 import { CDPMouse, CDPKeyboard } from '../input.js';
 import { CDPScreencast } from './screencast.js';
-import { humanIdlePause } from '../../human/mouse.js';
 import { FetchInterception, type CDPRoute } from './fetch_interception.js';
 
 type EventHandler = (data?: any) => void;
@@ -181,13 +180,28 @@ export class CDPPage {
     return new Promise(resolve => setTimeout(resolve, ms));  // allow-raw-playwright: review — context-dependent timer
   }
 
-  async waitForSelector(selector: string, options?: { state?: string; timeout?: number }): Promise<void> {
+  async waitForSelector(selector: string, options?: { state?: string }): Promise<void> {
     const state = options?.state ?? 'visible';
-    const js = selectorCheck(selector, state);
-    const mf = this._ft.mainFrame;
-    if (!mf) throw new CDPError('No main frame');
-    while (!await mf.evaluate(js)) {
-      await humanIdlePause();
+    // Resolved inside the page by a MutationObserver: the DOM change that
+    // satisfies the selector is what ends the wait.
+    const condition = selectorCheck(selector, state);
+    const js = `new Promise((resolve) => {
+      const check = () => ${condition};
+      if (check()) { resolve(true); return; }
+      new MutationObserver((_, observer) => { if (check()) { observer.disconnect(); resolve(true); } })
+        .observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
+    })`;
+    for (;;) {
+      const mf = this._ft.mainFrame;
+      if (!mf) throw new CDPError('No main frame');
+      try {
+        await mf.evaluate(js);
+        return;
+      } catch (error) {
+        // A navigation replaced the document under the observer; the new
+        // document is asked the same question.
+        if (!/context was destroyed|Cannot find context|Execution context/i.test(String(error))) throw error;
+      }
     }
   }
 
@@ -195,12 +209,23 @@ export class CDPPage {
     return this._waitForLoadState(state);
   }
 
-  async waitForUrl(urlOrPattern: string | RegExp): Promise<void> {
-    while (true) {
-      const cur = this.url;
-      if (urlOrPattern instanceof RegExp ? urlOrPattern.test(cur) : cur.includes(urlOrPattern)) return;
-      await humanIdlePause();
-    }
+  waitForUrl(urlOrPattern: string | RegExp): Promise<void> {
+    const matches = (url: string) => urlOrPattern instanceof RegExp ? urlOrPattern.test(url) : url.includes(urlOrPattern);
+    if (matches(this.url)) return Promise.resolve();
+    const { promise, resolve } = Promise.withResolvers<void>();
+    const onNavigated = (params: any) => {
+      // Page.frameNavigated carries frame{id,url}; Page.navigatedWithinDocument
+      // carries frameId and url. Only the main frame's URL is the page's URL.
+      const frameId = params?.frame?.id ?? params?.frameId;
+      if (frameId !== this._ft.mainFrame?.frameId) return;
+      if (!matches(params?.frame?.url ?? params?.url ?? '')) return;
+      this._conn.off('Page.frameNavigated', onNavigated, this._sessionId);
+      this._conn.off('Page.navigatedWithinDocument', onNavigated, this._sessionId);
+      resolve();
+    };
+    this._conn.on('Page.frameNavigated', onNavigated, this._sessionId);
+    this._conn.on('Page.navigatedWithinDocument', onNavigated, this._sessionId);
+    return promise;
   }
 
   locator(selector: string): any {

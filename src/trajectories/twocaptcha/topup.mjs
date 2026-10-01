@@ -3,6 +3,7 @@ import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { topupOpts } from '../_shared/services/topup_common.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { pageCondition, pageSettled } from '../_shared/page/settled.mjs';
 
 const { usd } = topupOpts();
 const login = await getServiceLogin('2Captcha');
@@ -15,25 +16,13 @@ try {
   await s.page.locator('input[name="email"]').fill(login.email);
   await s.page.locator('input[name="password"]').fill(login.password);
 
-  for (let i = 0; i < 60; i++) {
-    const ready = await s.page.evaluate(() => typeof window.grecaptcha?.execute === 'function').catch(() => false);
-    if (ready) break;
-    await humanIdlePause('short');
-  }
-  await s.page.evaluate(() => new Promise((resolve) => {
-    try {
-      window.grecaptcha.execute('6Lfo9qojAAAAAPqqMn9QlAY2RBSVuEW63vDJ442M', { action: 'login' });
-      let tries = 0;
-      const iv = setInterval(() => {
-        tries++;
-        const ta = document.querySelector('textarea[name="g-recaptcha-response"]');
-        if (ta?.value && ta.value.length > 50) { clearInterval(iv); resolve(true); }
-        if (tries > 60) { clearInterval(iv); resolve(false); }
-      }, 500);
-    } catch { resolve(false); }
-  }));
+  await pageCondition(s.page, () => typeof window.grecaptcha?.execute === 'function');
+  await s.page.evaluate(() => window.grecaptcha.execute('6Lfo9qojAAAAAPqqMn9QlAY2RBSVuEW63vDJ442M', { action: 'login' }));
+  await pageCondition(s.page, () => (document.querySelector('textarea[name="g-recaptcha-response"]')?.value?.length ?? 0) > 50);
+  const answered = s.page.waitForResponse((r) => r.request().method() === 'POST' && /2captcha\.com/.test(r.url()));
   await s.page.locator('button:has-text("Continue")').click();
-  await humanIdlePause('long');
+  await answered;
+  await pageSettled(s.page);
 
   // 2Captcha funds-add page.
   await s.page.goto('https://2captcha.com/pay', { waitUntil: 'domcontentloaded' }).catch(() => {});

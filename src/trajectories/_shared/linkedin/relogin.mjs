@@ -20,6 +20,7 @@ import { CaptchaSolver } from '../../../../dist/captcha/solver.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
 import { humanIdlePause, humanClickLocator } from '../../../../dist/human/mouse.js';
 import { solveLinkedinCheckpoint, injectV3LoginToken } from './checkpoint.mjs';
+import { pageSettled, urlMatching } from '../page/settled.mjs';
 
 const RECAPTCHA_SITEKEY = '6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC';
 const CHECKPOINT_RE = /\/(checkpoint|uas\/login|login\/recovery)/;
@@ -37,7 +38,7 @@ export async function reloginLinkedinInline(s, acct) {
   } catch (e) {
     return { ok: false, reason: `goto_err:${e.message?.slice(0, 80)}` };
   }
-  await humanIdlePause('short');
+  await pageSettled(s.page);
   let landedUrl = s.page.url?.() ?? '';
   console.log(`[linkedin_relogin] post-goto URL: ${landedUrl}`);
   // Pre-form checkpoint check (rare but possible on flagged sessions)
@@ -55,7 +56,7 @@ export async function reloginLinkedinInline(s, acct) {
     try {
       await s.page.evaluate(`(()=>{try{localStorage.clear();sessionStorage.clear();}catch(e){}})()`);
       await s.page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded' });
-      await humanIdlePause('short');
+      await pageSettled(s.page);
       landedUrl = s.page.url?.() ?? '';
       console.log(`[linkedin_relogin] post-force-goto URL: ${landedUrl}`);
     } catch (e) { return { ok: false, reason: `force_goto_err:${e.message?.slice(0, 80)}` }; }
@@ -80,10 +81,10 @@ export async function reloginLinkedinInline(s, acct) {
   try { await submitBtn.waitFor({ state: 'visible' }); } catch (e) { return { ok: false, reason: `submit_not_visible:${e.message?.slice(0, 60)}` }; }
   await injectV3LoginToken(s.page).catch(() => {});
   try { await humanClickLocator(s.page, submitBtn); } catch { /* form may have already submitted */ }
-  for (let i = 0; i < 12; i++) {
-    await humanIdlePause('short');
-    if (!/^https?:\/\/www\.linkedin\.com\/login\/?$/.test(s.page.url())) break;
-  }
+  // The form posts and the page navigates away from /login whatever the
+  // answer; the page it lands on then settles.
+  await urlMatching(s.page, (u) => !/^https?:\/\/www\.linkedin\.com\/login\/?$/.test(u));
+  await pageSettled(s.page);
   let cookies = await s.ctx.cookies();
   let liAt = cookies.find((c) => c.name === 'li_at' && c.value);
   let finalUrl = s.page.url?.() ?? '';

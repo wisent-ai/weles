@@ -1,31 +1,32 @@
 import { readScopedLogin } from '../../../_shared/scoped-secrets.mjs';
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { getServiceLogin } from '../../../../dist/utils/credentials.js';
 import { googleSso, getGoogleSsoCreds } from '../services/google_sso.mjs';
 import { UMAMI_BASE, GA_BASE } from './action-catalog.mjs';
 import { clickFirst, fillAny } from './page-interaction.mjs';
+import { pageSettled } from '../page/settled.mjs';
+
+// Umami's sign-in form posts to /api/auth/login; that answer decides the
+// login, and the app routes away from /login once it is accepted.
+const UMAMI_LOGIN_API = /\/api\/auth\/login\b/;
 
 async function umamiLogin(s) {
   await s.goto(UMAMI_BASE);
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
   if (!/login|signin/i.test(s.page.url()) && !await s.page.locator('input[type="password"]').first().isVisible().catch(() => false)) return true;
   const scopedLogin = readScopedLogin('umamiDashboard');
   const login = { email: scopedLogin.email, password: scopedLogin.password, loginMethod: 'email_password' };
   await fillAny(s.page, login.email, [/email/i, /user/i]);
   await fillAny(s.page, login.password, [/password/i]);
-  await clickFirst(s.page, [/^log in$/i, /^login$/i, /^sign in$/i, /^continue$/i]);
-  for (let i = 0; i < 20; i++) {
-    await humanIdlePause('short');
-    if (!/login|signin/i.test(s.page.url())) return true;
+  const answered = s.page.waitForResponse((r) => UMAMI_LOGIN_API.test(r.url()) && r.request().method() === 'POST');
+  if (!await clickFirst(s.page, [/^log in$/i, /^login$/i, /^sign in$/i, /^continue$/i])) {
+    await s.page.locator('input[type="password"], input[name="password"]').filter({ visible: true }).first().press('Enter');
   }
-  const passwordInput = s.page.locator('input[type="password"], input[name="password"]').filter({ visible: true }).first();
-  if (await passwordInput.isVisible().catch(() => false)) {
-    await passwordInput.press('Enter');
-  }
-  for (let i = 0; i < 40; i++) {
-    await humanIdlePause('short');
-    if (!/login|signin/i.test(s.page.url())) return true;
-  }
-  throw new Error(`Umami login did not leave login page: ${s.page.url()}`);
+  const response = await answered;
+  if (!response.ok()) throw new Error(`umami_login_refused: ${response.status()} ${(await response.text()).slice(0, 200)}`);
+  await pageSettled(s.page);
+  if (/login|signin/i.test(s.page.url())) throw new Error(`Umami login did not leave login page: ${s.page.url()}`);
+  return true;
 }
 
 async function clickGoogleAccountIfVisible(page, email) {
@@ -34,7 +35,7 @@ async function clickGoogleAccountIfVisible(page, email) {
     .or(page.getByText(email, { exact: true })).filter({ visible: true }).first();
   if (await tile.isVisible().catch(() => false)) {
     await humanClickLocator(page, tile);
-    await humanIdlePause('long');
+    await pageSettled(page);
     return true;
   }
   return false;
@@ -42,13 +43,13 @@ async function clickGoogleAccountIfVisible(page, email) {
 
 async function googleAnalyticsLogin(s) {
   await s.goto(GA_BASE);
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
   let creds = await getServiceLogin('Google Analytics') ?? await getGoogleSsoCreds();
   if (!/accounts\.google\.com|ServiceLogin|signin/i.test(s.page.url())) {
     const signIn = s.page.getByRole('link', { name: /sign in/i }).or(s.page.getByRole('button', { name: /sign in/i })).first();
     if (await signIn.isVisible().catch(() => false)) {
       await humanClickLocator(s.page, signIn);
-      await humanIdlePause('long');
+      await pageSettled(s.page);
     }
   }
   if (/accounts\.google\.com|ServiceLogin|signin/i.test(s.page.url())) {
@@ -59,11 +60,8 @@ async function googleAnalyticsLogin(s) {
       if (!ok) throw new Error('Google Analytics SSO did not complete');
     }
   }
-  for (let i = 0; i < 40; i++) {
-    await humanIdlePause('short');
-    if (/analytics\.google\.com/.test(s.page.url()) && !/accounts\.google\.com|signin/i.test(s.page.url())) return true;
-  }
-  return /analytics\.google\.com/.test(s.page.url());
+  await pageSettled(s.page);
+  return /analytics\.google\.com/.test(s.page.url()) && !/accounts\.google\.com|signin/i.test(s.page.url());
 }
 
 async function ensureLoggedIn(s, cfg) {

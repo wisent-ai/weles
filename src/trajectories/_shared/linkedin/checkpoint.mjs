@@ -1,6 +1,7 @@
 import { CaptchaSolver } from '../../../../dist/captcha/solver.js';
 import { solveRecaptchaV2 as solveRecaptchaV2InPage } from '../../../../dist/captcha/recaptcha.js';
-import { humanIdlePause, humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { pageSettled, urlMatching } from '../page/settled.mjs';
 import { humanType } from '../../../../dist/human/keyboard.js';
 import { getReceived, listReceivedFrom, receivingConfigured } from '../../../_shared/resend-receiving.mjs';
 
@@ -19,26 +20,23 @@ async function solveEmailPinChallenge({ page }, email) {
   // Only accept emails that arrived AFTER /checkpoint was loaded — earlier
   // PINs from prior login attempts are expired. LinkedIn issues a fresh
   // 6-digit PIN per /checkpoint instance.
+  // One inbox read: the receiving route has no push or blocking read, so a PIN
+  // that has not arrived yet is reported by name.
   const challengeStart = Date.now();
   let code = null;
-  for (let i = 0; i < 18; i++) {
-    await humanIdlePause('long');
-    let matches;
-    try { matches = await listReceivedFrom(20, email, 'linkedin.com'); }
-    catch (e) { console.log(`[linkedin_login] inbox read failed: ${String(e?.message || e).slice(0, 160)}`); continue; }
-    matches = matches.filter((m) => new Date(m.created_at).getTime() >= challengeStart - 5000);
-    const msg = matches[0];
-    if (!msg) continue;
-    const subj = msg.subject || '';
-    const m = subj.match(/\b(\d{6})\b/);
-    if (m) { code = m[1]; console.log(`[linkedin_login] PIN ${code} from subject (sent ${msg.created_at})`); break; }
-    let full;
-    try { full = await getReceived(msg.id); }
-    catch (e) { console.log(`[linkedin_login] message read failed: ${String(e?.message || e).slice(0, 160)}`); continue; }
-    const body = (full?.text || full?.html || '').match(/\b(\d{6})\b/);
-    if (body) { code = body[1]; console.log(`[linkedin_login] PIN ${code} from body (sent ${msg.created_at})`); break; }
+  const matches = (await listReceivedFrom(20, email, 'linkedin.com'))
+    .filter((m) => new Date(m.created_at).getTime() >= challengeStart - 5000);
+  const msg = matches[0];
+  if (msg) {
+    const m = (msg.subject || '').match(/\b(\d{6})\b/);
+    if (m) { code = m[1]; console.log(`[linkedin_login] PIN ${code} from subject (sent ${msg.created_at})`); }
+    else {
+      const full = await getReceived(msg.id);
+      const body = (full?.text || full?.html || '').match(/\b(\d{6})\b/);
+      if (body) { code = body[1]; console.log(`[linkedin_login] PIN ${code} from body (sent ${msg.created_at})`); }
+    }
   }
-  if (!code) return { ok: false, reason: 'pin_email_timeout' };
+  if (!code) return { ok: false, reason: 'pin_email_not_received' };
   // Live-discover the visible inputs and buttons so we know exactly what
   // selector LinkedIn shipped this variant of the page with. Logged for
   // diagnosis on first failure.
@@ -89,8 +87,7 @@ async function solveEmailPinChallenge({ page }, email) {
         break;
       }
     }
-    await page.waitForLoadState('domcontentloaded').catch(() => {});
-    await humanIdlePause('deliberate').catch(() => {});
+    await pageSettled(page);
     return { ok: true, code };
   } catch (e) { return { ok: false, reason: `fill_err:${e.message?.slice(0, 80)}` }; }
 }
@@ -111,15 +108,12 @@ export async function solveLinkedinCheckpoint({ ctx, page }, reason, email) {
     }
   }
   if (process.env.WELES_NOPECHA_EXT === '1' && !liAt && CHECKPOINT_RE.test(finalUrl)) {
-    console.log(`[linkedin_login] ${reason} waiting for NopeCha extension to solve checkpoint in-page (90s max)`);
-    for (let i = 0; i < 18; i++) {
-      await humanIdlePause('long');
-      cookies = await ctx.cookies();
-      liAt = cookies.find((c) => c.name === 'li_at' && c.value);
-      finalUrl = page.url?.() ?? '';
-      if (liAt) { console.log(`[linkedin_login] NopeCha solved! li_at present after ${(i + 1) * 5}s`); break; }
-      if (!CHECKPOINT_RE.test(finalUrl)) { console.log(`[linkedin_login] NopeCha solved! URL left checkpoint after ${(i + 1) * 5}s -> ${finalUrl}`); break; }
-    }
+    // The extension solves in the page; leaving the checkpoint URL is its answer.
+    console.log(`[linkedin_login] ${reason} waiting for NopeCha extension to solve checkpoint in-page`);
+    finalUrl = await urlMatching(page, (u) => !CHECKPOINT_RE.test(u));
+    cookies = await ctx.cookies();
+    liAt = cookies.find((c) => c.name === 'li_at' && c.value);
+    console.log(`[linkedin_login] NopeCha solved; URL left checkpoint -> ${finalUrl}`);
     if (liAt) return { liAt, finalUrl };
   }
   // /checkpoint/challenge serves the VISIBLE V2-enterprise image-grid widget,
@@ -131,35 +125,16 @@ export async function solveLinkedinCheckpoint({ ctx, page }, reason, email) {
   // Skip the token attempts entirely and call the in-page image-grid solver,
   // which clicks tiles inside the bframe via the trusted-event Playwright
   // pipeline; this path has demonstrated 'Frame detached — SOLVED!' success.
-  for (let attempt = 0; attempt < 3 && !liAt && CHECKPOINT_RE.test(finalUrl); attempt++) {
-    console.log(`[linkedin_login] ${reason} solve attempt ${attempt + 1}/3 (in-page image-grid)`);
-    const solved = await solveRecaptchaV2InPage(page).catch((e) => { console.log(`[linkedin_login] in-page solver err: ${e.message?.slice(0, 80)}`); return false; });
-    try { cookies = await ctx.cookies(); } catch {}
+  if (!liAt && CHECKPOINT_RE.test(finalUrl)) {
+    // One solve: a second grid on the same flagged session only trips the
+    // login restriction.
+    console.log(`[linkedin_login] ${reason} solving checkpoint (in-page image-grid)`);
+    const solved = await solveRecaptchaV2InPage(page);
+    await pageSettled(page);
+    cookies = await ctx.cookies();
     liAt = cookies.find((c) => c.name === 'li_at' && c.value);
-    try { finalUrl = page.url?.() ?? finalUrl; } catch {}
-    if (liAt || !CHECKPOINT_RE.test(finalUrl)) break;
-    if (!solved) {
-      // image-grid solver returned without success — wait briefly for
-      // any in-flight redirect from a verify that just landed, then check.
-      await humanIdlePause('deliberate').catch(() => {});
-      try { cookies = await ctx.cookies(); } catch {}
-      liAt = cookies.find((c) => c.name === 'li_at' && c.value);
-      try { finalUrl = page.url?.() ?? finalUrl; } catch {}
-      if (liAt || !CHECKPOINT_RE.test(finalUrl)) break;
-      // Reset captcha iframe state for the next attempt — after a failed
-      // verify, the reCAPTCHA anchor checkbox enters a non-clickable state
-      // that breaks subsequent attempts with locator.click timeout. Reload
-      // the page (cookies persist via ctx) to get a fresh captcha.
-      if (attempt < 2) {
-        console.log(`[linkedin_login] ${reason} reloading page before next attempt to reset stale captcha state`);
-        try {
-          await page.reload({ waitUntil: 'domcontentloaded' });
-        } catch (e) {
-          console.log(`[linkedin_login] reload err: ${(e && e.message && e.message.slice(0, 80)) || 'unknown'}`);
-        }
-        try { finalUrl = page.url?.() ?? finalUrl; } catch {}
-      }
-    }
+    finalUrl = page.url?.() ?? finalUrl;
+    if (!liAt && CHECKPOINT_RE.test(finalUrl)) console.log(`[linkedin_login] linkedin_checkpoint_unsolved: solver=${solved} url=${finalUrl}`);
   }
   return { liAt, finalUrl };
 }
@@ -173,28 +148,23 @@ export async function solveLinkedinCheckpoint({ ctx, page }, reason, email) {
 // the banner.
 export async function confirmLinkedinEmail(page, email) {
   if (!receivingConfigured()) { console.log('[linkedin_register] the wisent-integrations inbox route is not configured'); return { ok: false, reason: 'no_inbox_route' }; }
+  // One inbox read; a link that has not arrived yet is reported by name.
   const start = Date.now() - 10 * 60 * 1000;
   let confirmUrl = null;
-  for (let i = 0; i < 18; i++) {
-    let matches;
-    try { matches = await listReceivedFrom(20, email, 'linkedin.com'); }
-    catch (e) { console.log(`[linkedin_register] inbox read failed: ${String(e?.message || e).slice(0, 160)}`); await humanIdlePause('long'); continue; }
-    // The confirmation mail is the one from LinkedIn that carries the
-    // confirmation link, whatever its subject says.
-    for (const match of matches.filter((m) => new Date(m.created_at).getTime() >= start)) {
-      const full = await getReceived(match.id);
-      const body = full?.text || full?.html || '';
-      const m = body.match(/https:\/\/www\.linkedin\.com\/comm\/psettings\/email\/confirm\?[^\s<>"]+/);
-      if (m) { confirmUrl = m[0]; break; }
-    }
-    if (confirmUrl) break;
-    await humanIdlePause('long');
+  const matches = await listReceivedFrom(20, email, 'linkedin.com');
+  // The confirmation mail is the one from LinkedIn that carries the
+  // confirmation link, whatever its subject says.
+  for (const match of matches.filter((m) => new Date(m.created_at).getTime() >= start)) {
+    const full = await getReceived(match.id);
+    const body = full?.text || full?.html || '';
+    const m = body.match(/https:\/\/www\.linkedin\.com\/comm\/psettings\/email\/confirm\?[^\s<>"]+/);
+    if (m) { confirmUrl = m[0]; break; }
   }
   if (!confirmUrl) { console.log('[linkedin_register] no email-confirmation link in inbox'); return { ok: false, reason: 'confirm_email_not_received' }; }
   console.log(`[linkedin_register] navigating to email-confirmation URL`);
   try { await page.goto(confirmUrl, { waitUntil: 'domcontentloaded' }); }
   catch (e) { return { ok: false, reason: `goto_err:${e.message?.slice(0, 80)}` }; }
-  await humanIdlePause('deliberate');
+  await pageSettled(page);
   const finalUrl = page.url?.() ?? '';
   console.log(`[linkedin_register] post-confirm URL: ${finalUrl}`);
   return { ok: true, finalUrl };

@@ -75,6 +75,10 @@ export class WSession {
   // per-trajectory generateIdentity + field-rename boilerplate.
   identity: { firstName: string; lastName: string; username: string; email: string; password: string; birthMonth: string; birthDay: string; birthYear: string } | undefined;
   capturedResponses: Array<{ ts: number; method: string; url: string; status: number; headers: Record<string, string>; body: string }> = [];
+  // Body reads still in flight for entries in capturedResponses. A caller that
+  // judges captured responses awaits these first, so the judgement reads the
+  // bodies that arrived instead of racing them.
+  pendingResponseBodies = new Set<Promise<void>>();
   // Step screenshots / DOM dumps this run could not write, with the reason for
   // each. A step is never aborted by a missing artifact, so this list (and
   // step_artifact_failures.json beside the artifacts) is where the gap shows.

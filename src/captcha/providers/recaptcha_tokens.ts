@@ -102,13 +102,11 @@ async function solveRecaptchaV2TwoCaptcha(creds: CaptchaCredentials, sitekey: st
   if (cr.status !== 1 || !cr.request) { console.log(`[captcha:api] 2captcha create error: ${cr.request ?? cr.error_text ?? JSON.stringify(cr)}`); return null; }
   const tid = cr.request;
   console.log(`[captcha:api] 2captcha taskId=${tid}`);
-  for (let i = 0; i < 60; i++) {
-    await new Promise(r => setTimeout(r, 5000));  // allow-raw-playwright: polling/rate-limit loop
-    const res = await (await fetch(`https://2captcha.com/res.php?key=${creds.twocaptcha}&action=get&id=${tid}&json=1`)).json().catch(() => ({})) as any;
-    if (res.status === 1) { console.log('[captcha:api] 2captcha solved'); return res.request; }
-    if (res.request !== 'CAPCHA_NOT_READY') { console.log(`[captcha:api] 2captcha error: ${res.request}`); return null; }
-  }
-  console.log('[captcha:api] 2captcha timed out after 60 polls');
+  // One read: the provider has no push or blocking answer.
+  const res = await (await fetch(`https://2captcha.com/res.php?key=${creds.twocaptcha}&action=get&id=${tid}&json=1`)).json() as any;
+  if (res.status === 1) { console.log('[captcha:api] 2captcha solved'); return res.request; }
+  if (res.request === 'CAPCHA_NOT_READY') { console.log(`[captcha:api] captcha_2captcha_processing: task ${tid} has no result yet`); return null; }
+  console.log(`[captcha:api] 2captcha error: ${res.request}`);
   return null;
 }
 
@@ -130,13 +128,11 @@ async function solveRecaptchaV2Nopecha(creds: CaptchaCredentials, sitekey: strin
     })).json() as any;
     const jobId = post?.data; if (!jobId) { console.log(`[captcha:api] nopecha recaptcha2 no jobId: ${JSON.stringify(post).slice(0, 200)}`); return null; }
     console.log(`[captcha:api] nopecha recaptcha2 jobId=${jobId}`);
-    for (let i = 0; i < 60; i++) {
-      await new Promise(r => setTimeout(r, 5000));  // allow-raw-playwright: polling/rate-limit loop
-      const res = await (await fetch(`https://api.nopecha.com/v1/token/recaptcha2?id=${jobId}`, { headers: { 'Authorization': `Basic ${k}` } })).json() as any;
-      if (typeof res?.data === 'string' && res.data.length > 20) { console.log(`[captcha:api] nopecha recaptcha2 solved token=${res.data.slice(0, 20)}...`); return res.data; }
-      if (res?.error && res.error !== 14) { console.log(`[captcha:api] nopecha recaptcha2 error: ${JSON.stringify(res).slice(0, 200)}`); return null; }
-    }
-    console.log('[captcha:api] nopecha recaptcha2 timed out after 60 polls');
+    // One read: the provider has no push or blocking answer.
+    const res = await (await fetch(`https://api.nopecha.com/v1/token/recaptcha2?id=${jobId}`, { headers: { 'Authorization': `Basic ${k}` } })).json() as any;
+    if (typeof res?.data === 'string' && res.data.length > 20) { console.log(`[captcha:api] nopecha recaptcha2 solved token=${res.data.slice(0, 20)}...`); return res.data; }
+    if (res?.error === 14) { console.log(`[captcha:api] captcha_nopecha_processing: job ${jobId} has no result yet`); return null; }
+    console.log(`[captcha:api] nopecha recaptcha2 error: ${JSON.stringify(res).slice(0, 200)}`);
   } catch (e: any) { console.log(`[captcha:api] nopecha recaptcha2 fetch err: ${e.message?.slice(0, 100)}`); }
   return null;
 }
@@ -158,13 +154,11 @@ async function solveRecaptchaV3Nopecha(creds: CaptchaCredentials, sitekey: strin
     })).json() as any;
     const jobId = post?.data; if (!jobId) { console.log(`[captcha:api] nopecha recaptcha3 no jobId: ${JSON.stringify(post).slice(0, 200)}`); return null; }
     console.log(`[captcha:api] nopecha recaptcha3 jobId=${jobId}`);
-    for (let i = 0; i < 60; i++) {
-      await new Promise(r => setTimeout(r, 5000));  // allow-raw-playwright: polling/rate-limit loop
-      const res = await (await fetch(`https://api.nopecha.com/v1/token/recaptcha3?id=${jobId}`, { headers: { 'Authorization': `Basic ${k}` } })).json() as any;
-      if (typeof res?.data === 'string' && res.data.length > 20) { console.log(`[captcha:api] nopecha recaptcha3 solved token=${res.data.slice(0, 20)}...`); return res.data; }
-      if (res?.error && res.error !== 14) { console.log(`[captcha:api] nopecha recaptcha3 error: ${JSON.stringify(res).slice(0, 200)}`); return null; }
-    }
-    console.log('[captcha:api] nopecha recaptcha3 timed out after 60 polls');
+    // One read: the provider has no push or blocking answer.
+    const res = await (await fetch(`https://api.nopecha.com/v1/token/recaptcha3?id=${jobId}`, { headers: { 'Authorization': `Basic ${k}` } })).json() as any;
+    if (typeof res?.data === 'string' && res.data.length > 20) { console.log(`[captcha:api] nopecha recaptcha3 solved token=${res.data.slice(0, 20)}...`); return res.data; }
+    if (res?.error === 14) { console.log(`[captcha:api] captcha_nopecha_processing: job ${jobId} has no result yet`); return null; }
+    console.log(`[captcha:api] nopecha recaptcha3 error: ${JSON.stringify(res).slice(0, 200)}`);
   } catch (e: any) { console.log(`[captcha:api] nopecha recaptcha3 fetch err: ${e.message?.slice(0, 100)}`); }
   return null;
 }

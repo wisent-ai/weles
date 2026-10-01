@@ -7,9 +7,9 @@
 
 import { humanFill, humanType } from '../../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { pageSettled } from '../../page/settled.mjs';
 
 const DEFAULT_COUNTRY = 'US';
-const PHONE_POLL_TIMEOUT_SECS = 900;
 
 function stripNonDigits(phone) {
   return String(phone ?? '').replace(/\D/g, '');
@@ -97,13 +97,9 @@ async function submitCodeForm(page, frame, code) {
  */
 export async function solveLinkedinPhoneChallenge(session, country = DEFAULT_COUNTRY) {
   const page = session.page;
-  console.log('[phone_verify] waiting for phone-verification UI...');
-  let frameInfo = null;
-  for (let i = 0; i < 30; i++) {
-    frameInfo = await findPhoneFrame(page);
-    if (frameInfo) break;
-    await humanIdlePause('short');
-  }
+  console.log('[phone_verify] reading the settled page for the phone-verification UI...');
+  await pageSettled(page);
+  const frameInfo = await findPhoneFrame(page);
   if (!frameInfo) throw new Error('phone_verify: phone input did not appear');
 
   console.log('[phone_verify] renting SMS number...');
@@ -133,7 +129,7 @@ export async function solveLinkedinPhoneChallenge(session, country = DEFAULT_COU
 
   console.log('[phone_verify] submitting verification code...');
   await submitCodeForm(page, codeFrame, code);
-  await humanIdlePause('long');
+  await pageSettled(page);
 
   return { phone, code };
 }

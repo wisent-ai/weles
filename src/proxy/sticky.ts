@@ -15,18 +15,28 @@ const SESSION_PATTERNS: { user?: RegExp; pass?: RegExp; build: (cfg: ProxyConfig
   { user: /-session-\d+/, build: (cfg, sid) => ({ ...cfg, username: cfg.username!.replace(/-session-\d+/, `-session-${sid}`) }) },
 ];
 
+// The proxy answers the CONNECT, refuses the socket, or closes it; each of
+// those ends the check. No clock decides it.
 async function preflight(cfg: ProxyConfig, host: string): Promise<boolean> {
   if (!cfg.host || !cfg.port) return false;
   const auth = Buffer.from(`${cfg.username ?? ''}:${cfg.password ?? ''}`).toString('base64');
   const net = await import('node:net');
-  return new Promise<boolean>((resolve) => {
-    const sock = net.connect({ host: cfg.host, port: Number(cfg.port) }, () => {
-      sock.write(`CONNECT ${host}:443 HTTP/1.1\r\nHost: ${host}:443\r\nProxy-Authorization: Basic ${auth}\r\n\r\n`);
-    });
-    const timer = setTimeout(() => { sock.destroy(); resolve(false); }, 4000);
-    sock.once('data', (d) => { clearTimeout(timer); sock.destroy(); resolve(/^HTTP\/1\.[01] 200/.test(d.toString())); });
-    sock.once('error', () => { clearTimeout(timer); resolve(false); });
+  const { promise, resolve } = Promise.withResolvers<boolean>();
+  const sock = net.connect({ host: cfg.host, port: Number(cfg.port) }, () => {
+    sock.write(`CONNECT ${host}:443 HTTP/1.1\r\nHost: ${host}:443\r\nProxy-Authorization: Basic ${auth}\r\n\r\n`);
   });
+  sock.once('data', (d) => {
+    sock.destroy();
+    const status = d.toString().split('\r\n')[0];
+    if (!/^HTTP\/1\.[01] 200/.test(status)) console.log(`[sticky] proxy_connect_refused on ${cfg.host}: ${status.slice(0, 80)}`);
+    resolve(/^HTTP\/1\.[01] 200/.test(status));
+  });
+  sock.once('error', (error: NodeJS.ErrnoException) => {
+    console.log(`[sticky] proxy_connect_failed on ${cfg.host}: ${error.code ?? error.message}`);
+    resolve(false);
+  });
+  sock.once('close', () => resolve(false));
+  return promise;
 }
 
 function rotate(cfg: ProxyConfig): ProxyConfig | null {
@@ -41,14 +51,14 @@ function rotate(cfg: ProxyConfig): ProxyConfig | null {
 export async function refreshStickyIfDead(cfg: ProxyConfig, targetHost = 'api.ipify.org'): Promise<ProxyConfig | null> {
   if (process.env.PROXY_SKIP_PREFLIGHT === '1') return cfg;
   if (await preflight(cfg, targetHost)) return cfg;
-  for (let i = 0; i < 3; i++) {
-    const rotated = rotate(cfg);
-    if (!rotated) { console.log(`[sticky] no rotatable session pattern for user=${cfg.username?.slice(0, 30)} pass=${cfg.password?.slice(0, 30)}`); return null; }
-    if (await preflight(rotated, targetHost)) {
-      console.log(`[sticky] rotated dead session on ${cfg.host} -> new sticky working`);
-      return rotated;
-    }
+  // One fresh session id: an expired sticky is the case this repairs; a proxy
+  // that refuses a new session too is broken, not expired.
+  const rotated = rotate(cfg);
+  if (!rotated) { console.log(`[sticky] no rotatable session pattern for user=${cfg.username?.slice(0, 30)} pass=${cfg.password?.slice(0, 30)}`); return null; }
+  if (await preflight(rotated, targetHost)) {
+    console.log(`[sticky] rotated dead session on ${cfg.host} -> new sticky working`);
+    return rotated;
   }
-  console.log(`[sticky] all rotation attempts failed on ${cfg.host}`);
+  console.log(`[sticky] proxy_session_rotation_refused on ${cfg.host}: a fresh session id was refused too`);
   return null;
 }

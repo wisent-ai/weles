@@ -1,5 +1,6 @@
 import { humanFill } from '../../../../dist/human/keyboard.js';
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { pageSettled } from '../page/settled.mjs';
 import { UMAMI_BASE, UMAMI_APP_BASE, input, defaultInput } from './action-catalog.mjs';
 import {
   escapeRegExp,
@@ -15,7 +16,7 @@ import {
 
 async function umamiRegisterAccount(s) {
   await safeGoto(s, `${UMAMI_BASE}/signup`);
-  await humanIdlePause('long');
+  await pageSettled(s.page);
   if (/404|not found/i.test(await bodyText(s.page))) {
     await safeGoto(s, UMAMI_BASE);
     await clickRequired(s.page, [/sign up/i, /start free/i, /get started/i, /create account/i], 'Umami sign-up entry point');
@@ -37,16 +38,14 @@ async function umamiRegisterAccount(s) {
   ], /^Sign up$/i)) {
     await clickRequired(s.page, [/create account/i, /^sign up$/i, /start free/i, /^continue$/i, /^submit$/i], 'Umami sign-up submit button');
   }
-  for (let i = 0; i < 40; i++) {
-    const text = await bodyText(s.page);
-    const url = s.page.url();
-    if (/already exists|invalid|incorrect|required|failed|error/i.test(text)) {
-      throw new Error(`Umami sign-up failed: ${text.slice(0, 500).replace(/\s+/g, ' ')}`);
-    }
-    if (/verify|verification|check your email|confirm your email/i.test(text) || (!/signup|register/i.test(url) && /dashboard|websites|analytics\/us/i.test(text))) {
-      return { registration: { email, status: 'submitted_or_verified' } };
-    }
-    await humanIdlePause('short');
+  // clickDomElement / clickRequired leave the page settled after the submit.
+  const text = await bodyText(s.page);
+  const url = s.page.url();
+  if (/already exists|invalid|incorrect|required|failed|error/i.test(text)) {
+    throw new Error(`Umami sign-up failed: ${text.slice(0, 500).replace(/\s+/g, ' ')}`);
+  }
+  if (/verify|verification|check your email|confirm your email/i.test(text) || (!/signup|register/i.test(url) && /dashboard|websites|analytics\/us/i.test(text))) {
+    return { registration: { email, status: 'submitted_or_verified' } };
   }
   throw new Error(`Umami sign-up did not reach a verification or dashboard state: ${s.page.url()}`);
 }
@@ -61,21 +60,16 @@ async function umamiCreateWebsite(s) {
   try {
     await addButton.scrollIntoViewIfNeeded();
     await humanClickLocator(s.page, addButton);
-    await humanIdlePause('deliberate');
+    await pageSettled(s.page);
   } catch {
     if (!await clickLocator(s.page, addButton)) throw new Error('Umami Add website button was not clickable');
   }
 
   const dialog = s.page.getByRole('dialog').filter({ visible: true }).first();
-  for (let i = 0; i < 20 && !await dialog.isVisible().catch(() => false); i++) {
-    await humanIdlePause('short');
-  }
+  // The click has settled; a dialog that is not open now was not opened by it.
   if (!await dialog.isVisible().catch(() => false)) {
     await humanClickLocator(s.page, addButton);
-    await humanIdlePause('deliberate');
-    for (let i = 0; i < 20 && !await dialog.isVisible().catch(() => false); i++) {
-      await humanIdlePause('short');
-    }
+    await pageSettled(s.page);
   }
   if (!await dialog.isVisible().catch(() => false)) throw new Error('Umami Add website dialog did not open');
 
@@ -110,20 +104,17 @@ async function umamiCreateWebsite(s) {
   await humanClickLocator(s.page, saveButton);
   const save = await saveOutcome;
   if (save.observed && save.status >= 400) {
-    await humanIdlePause('short');
+    await pageSettled(s.page);
     const text = await bodyText(s.page);
     const serviceMessage = text.match(/Website limit reached\.?/i)?.[0];
     throw new Error(`Umami Add website save failed: ${serviceMessage ?? `HTTP ${save.status}`}`);
   }
-  await humanIdlePause('long');
+  await pageSettled(s.page);
   await safeGoto(s, `${UMAMI_APP_BASE}/websites?search=${encodeURIComponent(input('DOMAIN'))}&page=1`);
 
   const domainPattern = new RegExp(escapeRegExp(input('DOMAIN')), 'i');
-  for (let i = 0; i < 30; i++) {
-    const text = await bodyText(s.page);
-    if (domainPattern.test(text)) return;
-    await humanIdlePause('short');
-  }
+  await pageSettled(s.page);
+  if (domainPattern.test(await bodyText(s.page))) return;
   throw new Error(`Umami website ${input('DOMAIN')} was not visible after save`);
 }
 

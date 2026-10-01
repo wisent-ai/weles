@@ -2,26 +2,25 @@
 //
 // Google does not always show that field: a "Welcome" page may list sign-in
 // methods, and a passkey-only page may hide it behind "Try another way". So the
-// step walks a bounded number of transitions until a password field is on
-// screen, and refuses by name when none ever is.
+// step takes each of those ways at most once, reading the settled page before
+// each choice, and refuses by name when none leads to a password field.
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
-import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../../../dist/human/mouse.js';
+import { pageSettled } from '../../../page/settled.mjs';
 import { logGooglePageDiag } from '../page_diagnostics.mjs';
 import { clickTryAnotherWay } from '../authenticator_challenge.mjs';
+
+const PASSWORD_FIELD = 'input[type="password"], input[name="Passwd"]';
 
 // true once the password has been typed and submitted; false when Google never
 // offered the field, with the reason logged and its page state captured.
 export async function submitGooglePassword(page, creds, passwordFieldCount) {
-  // Loop: at each step, try to land on a visible password input. Click
-  // "Enter your password" / "Use your password" if offered, "Try another way"
-  // if we're on the passkey-only page. Up to 8 transitions before giving up.
   let pwInVisible = passwordFieldCount || 0;
-  for (let step = 0; step < 8; step++) {
-    for (let i = 0; i < 40; i++) {
-      await humanIdlePause('short');
-      pwInVisible = await page.locator('input[type="password"], input[name="Passwd"]').filter({ visible: true }).count();
-      if (pwInVisible > 0) break;
-    }
+  let usedPasswordChoice = false;
+  let usedTryAnotherWay = false;
+  for (;;) {
+    await pageSettled(page);
+    pwInVisible = await page.locator(PASSWORD_FIELD).filter({ visible: true }).count();
     if (pwInVisible > 0) break;
 
     // Google's "Welcome" / challenge selection page lists sign-in methods.
@@ -30,14 +29,8 @@ export async function submitGooglePassword(page, creds, passwordFieldCount) {
     // button, and Playwright's visible filter can be flaky on the listitem
     // itself, so ask by semantic role first, then by text, then by the nearest
     // clickable ancestor of that text.
-    if (/signin\/challenge\/(selection|pk\/presend)/.test(page.url())) {
-      // The selection options can appear slightly after the page URL changes.
-      // Wait for the password option text before asking by text or by ancestor.
-      for (let i = 0; i < 30; i++) {
-        const hasPwOption = await page.evaluate(() => /Enter your password|Use your password/i.test(document.body?.innerText || ''));
-        if (hasPwOption) break;
-        await humanIdlePause('short');
-      }
+    if (!usedPasswordChoice && /signin\/challenge\/(selection|pk\/presend)/.test(page.url())) {
+      usedPasswordChoice = true;
 
       const pwOptionNames = [/Enter your password/i, /Use your password/i];
       let clickedChoice = false;
@@ -65,21 +58,12 @@ export async function submitGooglePassword(page, creds, passwordFieldCount) {
           break;
         }
       }
-      if (clickedChoice) {
-        await humanIdlePause('deliberate');
-        // Wait for password field to appear on the next screen.
-        for (let i = 0; i < 30; i++) {
-          await humanIdlePause('short');
-          pwInVisible = await page.locator('input[type="password"], input[name="Passwd"]').filter({ visible: true }).count();
-          if (pwInVisible > 0) break;
-        }
-        if (pwInVisible > 0) break;
-        continue;
-      }
+      if (clickedChoice) continue;
     }
 
-    if (await clickTryAnotherWay(page)) {
-      continue;
+    if (!usedTryAnotherWay) {
+      usedTryAnotherWay = true;
+      if (await clickTryAnotherWay(page)) continue;
     }
 
     console.log(`[google_sso] no progress option visible (url=${page.url()})`);
@@ -92,7 +76,7 @@ export async function submitGooglePassword(page, creds, passwordFieldCount) {
     return false;
   }
 
-  const pwIn = page.locator('input[type="password"], input[name="Passwd"]').filter({ visible: true }).first();
+  const pwIn = page.locator(PASSWORD_FIELD).filter({ visible: true }).first();
   await humanFill(page, pwIn, creds.password);
   console.log('[google_sso] password filled');
 
@@ -102,7 +86,7 @@ export async function submitGooglePassword(page, creds, passwordFieldCount) {
   // a non-actionable / overlay element.
   console.log('[google_sso] pressing Enter to submit password');
   await page.keyboard.press('Enter');
-  await humanIdlePause('deliberate');
+  await pageSettled(page);
 
   if (/challenge\/pwd/.test(page.url()) && await pwIn.isVisible().catch(() => false)) {
     console.log('[google_sso] password page still visible after Enter; clicking Next');
@@ -125,7 +109,7 @@ export async function submitGooglePassword(page, creds, passwordFieldCount) {
         await humanClickLocator(page, nextBtn);
       });
     }
-    await humanIdlePause('deliberate');
+    await pageSettled(page);
   }
 
   // Dispatch blur/focusout only after attempting submit. Google auto-submits

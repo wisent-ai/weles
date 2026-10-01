@@ -16,7 +16,7 @@ try {
   await humanIdlePause('deliberate');
   const popupPromise = s.page.waitForEvent('popup').catch(() => null);
   await s.page.locator('button:has-text("Login with Google")').filter({ visible: true }).first().click();
-  const popup = await popupPromise;  // allow-raw-playwright: Promise.race deadline
+  const popup = await popupPromise;  // allow-raw-playwright: the popup the click produced
   if (!popup) { console.log('FAIL: popup did not open'); process.exit(1); }
   await popup.waitForLoadState('domcontentloaded').catch(() => {});
   const ok = await googleSso(s, login, { originHost: 'iproyal.com', page: popup });

@@ -1,5 +1,6 @@
 import { humanFill } from '../../../../dist/human/keyboard.js';
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { pageSettled } from '../page/settled.mjs';
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -10,13 +11,9 @@ async function safeGoto(s, url) {
     await s.goto(url);
   } catch (e) {
     const message = e.message ?? '';
-    if (/ERR_ABORTED|interrupted by another navigation/i.test(message)) {
-      try {
-        await humanIdlePause('short');
-      } catch (pauseError) {
-        throw new Error(`navigation to ${url} was interrupted: ${message}; and the settle pause after the interruption failed: ${pauseError.message}`, { cause: e });
-      }
-    }
+    // An interrupted navigation means another one replaced it; the page that
+    // replaced it has to settle before its URL says where it landed.
+    if (/ERR_ABORTED|interrupted by another navigation/i.test(message)) await pageSettled(s.page);
     const current = s.page.url();
     const target = String(url).replace(/\/$/, '');
     if (/ERR_ABORTED|interrupted by another navigation/i.test(message) && current.replace(/\/$/, '').startsWith(target)) return;
@@ -37,13 +34,13 @@ async function bodyText(page) {
   }
 }
 
+// The page's text once it has settled. A page that settles with less text than
+// `minLength` is still answered with what it shows; callers judge its content.
 async function waitRendered(page, minLength = 80) {
-  for (let i = 0; i < 30; i++) {
-    const text = await bodyText(page);
-    if (text.length >= minLength) return text;
-    await humanIdlePause('short');
-  }
-  return bodyText(page);
+  await pageSettled(page);
+  const text = await bodyText(page);
+  if (text.length < minLength) console.log(`[analytics] page settled with ${text.length} characters of text (${page.url()})`);
+  return text;
 }
 
 async function clickFirst(page, names) {
@@ -51,7 +48,7 @@ async function clickFirst(page, names) {
     const loc = page.getByRole('button', { name }).or(page.getByRole('link', { name })).or(page.getByText(name)).filter({ visible: true }).first();
     if (await loc.isVisible().catch(() => false)) {
       await humanClickLocator(page, loc);
-      await humanIdlePause('deliberate');
+      await pageSettled(page);
       return true;
     }
   }
@@ -65,7 +62,7 @@ async function clickCardLike(page, name) {
     .first();
   if (await loc.isVisible().catch(() => false)) {
     await humanClickLocator(page, loc);
-    await humanIdlePause('deliberate');
+    await pageSettled(page);
     return true;
   }
   return false;
@@ -81,7 +78,7 @@ async function clickLocator(page, loc) {
   } catch {
     return false;
   }
-  await humanIdlePause('deliberate');
+  await pageSettled(page);
   return true;
 }
 
@@ -97,7 +94,7 @@ async function clickDirectLocator(page, loc) {
   if (disabled) return false;
   await target.scrollIntoViewIfNeeded();
   await humanClickLocator(page, target);
-  await humanIdlePause('deliberate');
+  await pageSettled(page);
   return true;
 }
 
@@ -117,7 +114,7 @@ async function clickDomElement(page, selectors, textPattern = null) {
   const clicked = await target.isVisible().catch(() => false)
     && !await target.isDisabled().catch(() => true)
     && await humanClickLocator(page, target).then(() => true).catch(() => false);
-  if (clicked) await humanIdlePause('deliberate');
+  if (clicked) await pageSettled(page);
   return clicked;
 }
 
@@ -149,7 +146,7 @@ async function fillDomInput(page, selectors, value) {
     field.blur();
     return true;
   }, { selectors, value }).catch(() => false);
-  if (filled) await humanIdlePause('short');
+  if (filled) await pageSettled(page);
   return filled;
 }
 

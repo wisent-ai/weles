@@ -15,15 +15,13 @@ export interface EndpointResolutionResult {
 
 /**
  * Check if a URL endpoint is currently listening (for TCP-based services).
- * Attempts a quick socket connection and immediately closes it.
+ * Opens a socket and closes it as soon as the connection is accepted or
+ * refused; an unreachable host is answered by the operating system's own
+ * connect error.
  * @param urlString The URL to check (e.g., 'http://127.0.0.1:9000')
- * @param timeoutMs Timeout for the connection attempt in milliseconds
- * @returns Promise<boolean> true if the endpoint appears to be listening
+ * @returns Promise<boolean> true if the endpoint accepted the connection
  */
-export async function isEndpointListening(
-  urlString: string,
-  timeoutMs: number = 1000
-): Promise<boolean> {
+export async function isEndpointListening(urlString: string): Promise<boolean> {
   try {
     const url = new URL(urlString);
     const host = url.hostname;
@@ -35,19 +33,14 @@ export async function isEndpointListening(
 
     const { promise, resolve } = Promise.withResolvers<boolean>();
     const socket = new net.Socket();
-    const timeoutHandle = setTimeout(() => {
-      socket.destroy();
-      resolve(false);
-    }, timeoutMs);
 
     socket.on('connect', () => {
-      clearTimeout(timeoutHandle);
       socket.destroy();
       resolve(true);
     });
 
-    socket.on('error', () => {
-      clearTimeout(timeoutHandle);
+    socket.on('error', (error: NodeJS.ErrnoException) => {
+      console.log(`[endpoint] ${host}:${port} not listening: ${error.code ?? error.message}`);
       resolve(false);
     });
 

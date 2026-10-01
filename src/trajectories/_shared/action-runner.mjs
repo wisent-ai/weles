@@ -19,7 +19,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from './auth/cookie-freshness.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { pageSettled } from './page/settled.mjs';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { accountCharacter, findAccount, findProduct } from './skarbiec/accounts.mjs';
 
@@ -160,18 +160,12 @@ export async function runAction(cfg) {
     if (cfg.action === 'browse') resultValue = await handleBrowse(s, cfg);
     else if (cfg.action === 'post' || cfg.action === 'post_promote') resultValue = await handlePost(s, cfg, ctx);
     else resultValue = await handleComment(s, cfg, ctx);
-    // Race fix: write-API responses are captured asynchronously; verifyWriteAction
-    // can run before the response lands in s.capturedResponses if banDetector is
-    // called immediately. Poll until write_verify confirms or 6s elapses.
+    // Write-API responses are captured asynchronously: once the page has
+    // settled, the bodies still being read are awaited, so the ban detector and
+    // write verification below read every response the action produced.
     if (cfg.action !== 'browse') {
-      try {
-        const { verifyWriteAction } = await import('../../../dist/platforms/_shared/write_verify.js');
-        for (let i = 0; i < 12; i++) {
-          const v = verifyWriteAction(cfg.platform, cfg.action, s.capturedResponses);
-          if (!v.applicable || v.wrote) break;
-          await humanIdlePause('short').catch(() => {});
-        }
-      } catch { /* best-effort race-fix; reclass below remains the source of truth */ }
+      await pageSettled(s.page);
+      await Promise.all([...s.pendingResponseBodies]);
     }
     banSignal = await cfg.banDetector(s.page, s.capturedResponses).catch(() => null);
     // Reclass: agent's done() might land on auth-wall or chrome-error — detector returns 'healthy' because no platform-ban keywords appear. Plus write-action verification (agent hallucinated done() but no API write fired).

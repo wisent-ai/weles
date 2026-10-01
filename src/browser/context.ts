@@ -1,6 +1,5 @@
 import { CDPConnection } from '../cdp/connection.js';
 import { CDPPage } from '../cdp/page/page.js';
-import { humanIdlePause } from '../human/mouse.js';
 
 export interface EmulationSettings {
   userAgent: string;
@@ -91,17 +90,6 @@ export class CDPBrowserContext {
       }
     }, sessionId);
     return page;
-  }
-
-  /** Wait for a popup page to appear (e.g. Google SSO). Returns the newest page. */
-  async waitForPopup(ms = 10000): Promise<CDPPage | null> {
-    const start = Date.now();
-    const initial = this._pages.length;
-    while (Date.now() - start < ms) {
-      if (this._pages.length > initial) return this._pages[this._pages.length - 1];
-      await humanIdlePause('short');
-    }
-    return null;
   }
 
   async addCookies(cookies: Array<Record<string, unknown>>): Promise<void> {

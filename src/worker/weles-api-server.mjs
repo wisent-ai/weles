@@ -169,10 +169,9 @@ async function shutdownApi(signal) {
   shutdownStarted = true;
   console.log(`[weles-api] draining public tasks after ${signal}`);
   server.close();
-  const forcedExit = setTimeout(() => process.exit(1), 30_000);
-  forcedExit.unref();
+  // The drain ends when the services report their tasks settled; a task that
+  // never settles is the service's defect to name, not a reason to exit early.
   await Promise.all([publicTaskService.shutdown(), credentialOperationService.shutdown()]);
-  clearTimeout(forcedExit);
   process.exit(0);
 }
 process.on('SIGTERM', () => { void shutdownApi('SIGTERM'); });

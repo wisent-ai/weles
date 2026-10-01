@@ -71,7 +71,6 @@ function run(cmd: string, args: string[]): string | null {
     return execFileSync(cmd, args, {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
-      timeout: 5000,
     }).trim();
   } catch {
     return null;

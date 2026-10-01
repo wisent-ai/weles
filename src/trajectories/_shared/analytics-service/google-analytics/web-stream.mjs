@@ -1,5 +1,6 @@
 import { humanFill } from '../../../../../dist/human/keyboard.js';
-import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../../dist/human/mouse.js';
+import { pageSettled } from '../../page/settled.mjs';
 import { input, siteHostname } from '../action-catalog.mjs';
 import {
   escapeRegExp,
@@ -30,20 +31,15 @@ async function openDataStreamDetail(s) {
 }
 
 async function fillGoogleAnalyticsWebStreamStep(s, values) {
-  for (let i = 0; i < 8; i++) {
+  // One walk toward the editor: from a data-streams screen the Web platform
+  // button opens it; from anywhere else the Data streams entry comes first.
+  // Each click leaves the page settled before the next look.
+  await pageSettled(s.page);
+  if (!await s.page.locator('ga-admin-web-stream-editor').filter({ visible: true }).first().isVisible().catch(() => false)) {
     const text = await bodyText(s.page);
-    if (await s.page.locator('ga-admin-web-stream-editor').filter({ visible: true }).first().isVisible().catch(() => false)) break;
-    if (/web stream|website url|stream name|choose a platform|data stream|set up a data stream/i.test(text)) {
-      await clickAnyLocator(s.page, [
-        s.page.locator('button[debug-id="create-web-stream-button"]'),
-        s.page.locator('[data-guidedhelpid="data-stream-choose-web"]'),
-        s.page.getByRole('button', { name: /^Web$/i }),
-        s.page.locator('button').filter({ hasText: /^Web$/i }),
-      ]).catch(() => false);
-    } else {
+    if (!/web stream|website url|stream name|choose a platform|data stream|set up a data stream/i.test(text)) {
       await clickFirst(s.page, [/^Web$/i, /Web stream/i, /Data streams/i, /Create stream/i]).catch(() => false);
     }
-    await humanIdlePause('short');
   }
 
   const editor = s.page.locator('ga-admin-web-stream-editor').filter({ visible: true }).first();
@@ -55,7 +51,7 @@ async function fillGoogleAnalyticsWebStreamStep(s, values) {
       s.page.locator('button').filter({ hasText: /^Web$/i }),
     ], 'GA Web stream platform button');
   }
-  for (let i = 0; i < 30 && !await editor.isVisible().catch(() => false); i++) await humanIdlePause('short');
+  await pageSettled(s.page);
   if (!await editor.isVisible().catch(() => false)) throw new Error('GA web stream editor did not open');
 
   const website = editor.locator('input[debug-id="website-url-input"]').first();
@@ -65,51 +61,28 @@ async function fillGoogleAnalyticsWebStreamStep(s, values) {
   }
   await humanFill(s.page, website, siteHostname(values.siteUrl));
   await humanFill(s.page, streamName, values.streamName);
-  let clickedCreate = false;
-  for (let i = 0; i < 30; i++) {
-    if (await clickAnyLocator(s.page, [editor.locator('button[debug-id="create-stream-button"]')]).catch(() => false)) {
-      clickedCreate = true;
-      break;
-    }
-    await humanIdlePause('short');
+  if (!await clickAnyLocator(s.page, [editor.locator('button[debug-id="create-stream-button"]')]).catch(() => false)) {
+    throw new Error('GA web stream Create and continue button was not enabled');
   }
-  if (!clickedCreate) throw new Error('GA web stream Create and continue button was not enabled');
   await waitRendered(s.page, 80);
 }
 
 async function openGoogleAnalyticsCreatedStreamDetail(s, values) {
   const streamName = new RegExp(escapeRegExp(values.streamName), 'i');
-  let opened = false;
-  for (let i = 0; i < 30; i++) {
-    const text = await bodyText(s.page);
-    if (/Measurement ID|View tag instructions|Tag instructions|Stream details/i.test(text)) {
-      opened = true;
-      break;
-    }
-
+  const detailShown = async () => /Measurement ID|View tag instructions|Tag instructions|Stream details/i.test(await bodyText(s.page));
+  await pageSettled(s.page);
+  let opened = await detailShown();
+  if (!opened) {
     const row = s.page.locator('mat-row, tr, [role="row"]')
       .filter({ hasText: streamName })
       .filter({ visible: true })
       .first();
     if (await row.isVisible().catch(() => false)) {
-      const streamIdCell = await row.locator('[debug-id="stream-entity-id"]').first().innerText().then(
-        (value) => ({ readable: true, value }),
-        (readError) => ({ readable: false, reason: `stream id cell was not readable: ${readError.message}` }),
-      );
       const arrow = row.locator('button[aria-label="Select stream"], button').filter({ visible: true }).last();
       if (!await clickAnyLocator(s.page, [arrow]).catch(() => false)) await humanClickLocator(s.page, row);
-      for (let j = 0; j < 30; j++) {
-        const detailText = await bodyText(s.page);
-        if (/Measurement ID|View tag instructions|Tag instructions|Stream details/i.test(detailText)) {
-          opened = true;
-          break;
-        }
-        await humanIdlePause('short');
-      }
-      if (opened || (streamIdCell.readable && streamIdCell.value)) break;
-      break;
+      await pageSettled(s.page);
+      opened = await detailShown();
     }
-    await humanIdlePause('short');
   }
 
   if (opened) {

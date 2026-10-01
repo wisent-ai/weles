@@ -1,4 +1,4 @@
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { pageSettled } from '../../page/settled.mjs';
 import { GA_BASE, input, actionName, actionUrl } from '../action-catalog.mjs';
 import { waitRendered, clickFirst, clickCardLike } from '../page-interaction.mjs';
 import { openDataStreamDetail } from './web-stream.mjs';
@@ -37,7 +37,7 @@ async function openExpectedDashboardSection(s) {
   const action = actionName();
   if (action === 'googleanalytics_view_realtime' || action === 'googleanalytics_verify_realtime') {
     await clickFirst(s.page, [/^View real time$/i, /^Realtime$/i, /^Real-time$/i]);
-    await humanIdlePause('long');
+    await pageSettled(s.page);
     return;
   }
   const paths = {
@@ -63,7 +63,7 @@ async function openExpectedDashboardSection(s) {
       await clickCardLike(s.page, label);
       await waitRendered(s.page, 30);
     }
-    await humanIdlePause('deliberate');
+    await pageSettled(s.page);
   }
   if (action === 'googleanalytics_get_global_site_tag') {
     await openDataStreamDetail(s);

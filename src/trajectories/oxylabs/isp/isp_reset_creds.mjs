@@ -24,7 +24,7 @@ try {
   if (!gsiFrame) { console.log('FAIL: no GSI'); process.exit(1); }
   const popupP = s.page.waitForEvent('popup').catch(() => null);
   await humanClickLocator(gsiFrame, gsiFrame.locator('div[role="button"]').first());
-  const popup = await popupP;  // allow-raw-playwright: Promise.race deadline
+  const popup = await popupP;  // allow-raw-playwright: the popup the click produced
   await popup?.waitForLoadState('domcontentloaded').catch(() => {});
   if (!await googleSso(s, login, { originHost: 'oxylabs.io', page: popup })) { console.log('FAIL: SSO'); process.exit(1); }
   await urlMatching(s.page, /^(?!https:\/\/dashboard\.oxylabs\.io\/en\/?(\?.*)?$)/);

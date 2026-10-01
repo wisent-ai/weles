@@ -24,7 +24,7 @@ try {
 
   const surface = popupOrNavigation(s.page, /accounts\.google\.com/);
   await s.page.locator('button:has-text("Sign in with Google"), a:has-text("Sign in with Google")').filter({ visible: true }).first().click();
-  const popup = await surface;  // allow-raw-playwright: Promise.race deadline
+  const popup = await surface;  // allow-raw-playwright: the popup or navigation the click produced
 
   const ok = await googleSso(s, login, { originHost: '5sim.net', page: popup ?? undefined });
   if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }

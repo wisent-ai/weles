@@ -36,14 +36,12 @@ export function writeDomainRows(rows: DomainRow[]): void {
 async function hasValidMx(domain: string): Promise<boolean> {
   const cached = mxCache.get(domain);
   if (cached && Date.now() - cached.at < MX_CACHE_TTL_MS) return cached.ok;
+  // One lookup; a resolver failure is a broken MX until the next check.
   let ok = false;
-  for (let attempt = 0; attempt < 3 && !ok; attempt += 1) {
-    try { ok = (await resolveMx(domain)).length > 0; } catch { ok = false; }
-    if (!ok && attempt < 2) {
-      const { promise, resolve } = Promise.withResolvers<void>();
-      setTimeout(resolve, 600);
-      await promise;
-    }
+  try {
+    ok = (await resolveMx(domain)).length > 0;
+  } catch (error) {
+    console.log(`[email] mx_lookup_failed: ${domain}: ${(error as NodeJS.ErrnoException).code ?? (error as Error).message}`);
   }
   mxCache.set(domain, { ok, at: Date.now() });
   return ok;

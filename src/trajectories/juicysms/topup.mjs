@@ -16,7 +16,7 @@ try {
   await humanIdlePause('long');
   const surface = popupOrNavigation(s.page, /accounts\.google\.com/);
   await s.page.locator('a:has-text("LOGIN WITH GOOGLE"), button:has-text("LOGIN WITH GOOGLE"), a:has-text("Login with Google")').filter({ visible: true }).first().click();
-  const popup = await surface;  // allow-raw-playwright: Promise.race deadline
+  const popup = await surface;  // allow-raw-playwright: the popup or navigation the click produced
   const ok = await googleSso(s, login, { originHost: 'juicysms.com', page: popup ?? undefined });
   if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }
 

@@ -2,11 +2,12 @@ import * as net from 'node:net';
 
 /**
  * Check if a URL endpoint is currently listening (for TCP-based services).
+ * The connection being accepted or refused answers it; an unreachable host is
+ * answered by the operating system's own connect error.
  * @param {string} urlString The URL to check
- * @param {number} timeoutMs Timeout in milliseconds
  * @returns {Promise<boolean>} true if listening
  */
-export async function isEndpointListening(urlString, timeoutMs = 1000) {
+export async function isEndpointListening(urlString) {
   try {
     const url = new URL(urlString);
     const host = url.hostname;
@@ -18,19 +19,14 @@ export async function isEndpointListening(urlString, timeoutMs = 1000) {
 
     const { promise, resolve } = Promise.withResolvers();
     const socket = new net.Socket();
-    const timeoutHandle = setTimeout(() => {
-      socket.destroy();
-      resolve(false);
-    }, timeoutMs);
 
     socket.on('connect', () => {
-      clearTimeout(timeoutHandle);
       socket.destroy();
       resolve(true);
     });
 
-    socket.on('error', () => {
-      clearTimeout(timeoutHandle);
+    socket.on('error', (error) => {
+      console.log(`[endpoint] ${host}:${port} not listening: ${error.code ?? error.message}`);
       resolve(false);
     });
 

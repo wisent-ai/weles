@@ -6,7 +6,8 @@
 // this driver cannot answer. Every one of those is a question about the live
 // page, and the answers are named rather than inferred from an empty read.
 import { humanFill } from '../../../../../dist/human/keyboard.js';
-import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../../dist/human/mouse.js';
+import { pageSettled } from '../../page/settled.mjs';
 import { generateTotp, resolveTotpSecret } from './totp_secret.mjs';
 import { PAGE_TEXT_UNREADABLE, logGooglePageDiag, readGooglePageText } from './page_diagnostics.mjs';
 
@@ -35,7 +36,7 @@ async function clickGoogleAuthenticatorOption(page) {
     if (await semantic.isVisible().catch(() => false)) {
       console.log(`[google_sso] selecting Google Authenticator option via role (${pattern.source})`);
       await semantic.click({ force: true }).catch(() => humanClickLocator(page, semantic));
-      await humanIdlePause('deliberate');
+      await pageSettled(page);
       return true;
     }
 
@@ -46,7 +47,7 @@ async function clickGoogleAuthenticatorOption(page) {
     if (await textual.isVisible().catch(() => false)) {
       console.log(`[google_sso] selecting Google Authenticator option via text (${pattern.source})`);
       await textual.click({ force: true }).catch(() => humanClickLocator(page, textual));
-      await humanIdlePause('deliberate');
+      await pageSettled(page);
       return true;
     }
 
@@ -54,7 +55,7 @@ async function clickGoogleAuthenticatorOption(page) {
     const clickedByJs = await humanClickLocator(page, nearestClickable).then(() => true).catch(() => false);
     if (clickedByJs) {
       console.log(`[google_sso] selected Google Authenticator option via JS ancestor (${pattern.source})`);
-      await humanIdlePause('deliberate');
+      await pageSettled(page);
       return true;
     }
   }
@@ -82,14 +83,14 @@ async function visibleTotpInput(page) {
 
 async function submitGoogleSecondFactor(page) {
   await page.keyboard.press('Enter');
-  await humanIdlePause('deliberate');
+  await pageSettled(page);
   const next = page.getByRole('button', { name: /^(Next|Verify|Continue)$/i })
     .or(page.locator('button, [role="button"]').filter({ hasText: /^\s*(Next|Verify|Continue)\s*$/i }))
     .filter({ visible: true })
     .last();
   if (await next.isVisible().catch(() => false)) {
     await next.click({ force: true }).catch(() => humanClickLocator(page, next));
-    await humanIdlePause('deliberate');
+    await pageSettled(page);
   }
 }
 
@@ -97,33 +98,26 @@ async function submitGoogleSecondFactor(page) {
 async function fillGoogleAuthenticatorTotp(page, creds) {
   const secret = resolveTotpSecret(creds);
   if (!secret) return false;
-  for (let i = 0; i < 20; i++) {
-    const input = await visibleTotpInput(page);
-    if (input) {
-      const pageText = await readGooglePageText(page);
-      const existing = await input.inputValue();
-      let code = generateTotp(secret);
-      if (!code) return false;
-      // A page whose text could not be read did not say the code was wrong. Only
-      // a page that says so, or a field already holding a whole code, forces a
-      // freshly generated one.
-      const codeRejected = pageText !== PAGE_TEXT_UNREADABLE && /Wrong code|Try again/i.test(pageText);
-      if (codeRejected || (/^\d+$/.test(existing) && existing.length === Number('6'))) {
-        for (let j = 0; j < 35; j++) {
-          code = generateTotp(secret);
-          if (code !== existing) break;
-          await humanIdlePause('short');
-        }
-      }
-      await humanFill(page, input, '');
-      await humanFill(page, input, code);
-      console.log('[google_sso] filled Google Authenticator TOTP code from the exact scoped secret');
-      await submitGoogleSecondFactor(page);
-      return true;
-    }
-    await humanIdlePause('short');
+  await pageSettled(page);
+  const input = await visibleTotpInput(page);
+  if (!input) return false;
+  const pageText = await readGooglePageText(page);
+  const existing = await input.inputValue();
+  let code = generateTotp(secret);
+  if (!code) return false;
+  // A page whose text could not be read did not say the code was wrong. Only
+  // a page that says so, or a field already holding a whole code, forces a
+  // different one: the code of the next 30-second window, which Google's
+  // one-step clock tolerance accepts, instead of waiting for the window to turn.
+  const codeRejected = pageText !== PAGE_TEXT_UNREADABLE && /Wrong code|Try again/i.test(pageText);
+  if ((codeRejected || (/^\d+$/.test(existing) && existing.length === Number('6'))) && code === existing) {
+    code = generateTotp(secret, { now: Date.now() + 30 * 1000 });
   }
-  return false;
+  await humanFill(page, input, '');
+  await humanFill(page, input, code);
+  console.log('[google_sso] filled Google Authenticator TOTP code from the exact scoped secret');
+  await submitGoogleSecondFactor(page);
+  return true;
 }
 
 export async function handleGoogleAuthenticatorTotp(page, creds) {
@@ -158,18 +152,12 @@ export async function handleGoogleAuthenticatorTotp(page, creds) {
 
 export async function clickTryAnotherWay(page) {
   const beforeUrl = page.url();
+  // Called after a click that has already left the page settled.
   const transitioned = async () => {
-    for (let i = 0; i < 20; i++) {
-      const currentUrl = page.url();
-      const text = await readGooglePageText(page);
-      if (currentUrl !== beforeUrl
-          || (text !== PAGE_TEXT_UNREADABLE
-            && /choose another way|choose how|verification code|authenticator|backup code|security key|text message|phone call/i.test(text))) {
-        return true;
-      }
-      await humanIdlePause('short');
-    }
-    return false;
+    const text = await readGooglePageText(page);
+    return page.url() !== beforeUrl
+      || (text !== PAGE_TEXT_UNREADABLE
+        && /choose another way|choose how|verification code|authenticator|backup code|security key|text message|phone call/i.test(text));
   };
 
   const controller = page.locator(
@@ -192,7 +180,7 @@ export async function clickTryAnotherWay(page) {
     console.log(`[google_sso] clicking "Try another way" via ${name}`);
     await humanClickLocator(page, candidate)
       .catch(() => humanClickLocator(page, candidate));
-    await humanIdlePause('deliberate');
+    await pageSettled(page);
     if (await transitioned()) return true;
   }
 
@@ -200,6 +188,6 @@ export async function clickTryAnotherWay(page) {
   const clickedByJs = await humanClickLocator(page, nearestClickable).then(() => true).catch(() => false);
   if (!clickedByJs) return false;
   console.log('[google_sso] clicked "Try another way" through the Google action controller');
-  await humanIdlePause('deliberate');
+  await pageSettled(page);
   return transitioned();
 }

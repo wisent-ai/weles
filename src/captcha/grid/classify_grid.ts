@@ -37,9 +37,7 @@ export async function classifyGrid(bframe: any, instruction: string, gridSize: n
     const targetSel = 'div.rc-imageselect-payload, table.rc-imageselect-table-33, table.rc-imageselect-table-44, table.rc-imageselect-table';
     const handle = await bframe.$(targetSel);
     if (handle) {
-      const shotP = handle.screenshot({ type: 'jpeg', quality: 90 });
-      const deadline = new Promise<Buffer>((_, rej) => setTimeout(() => rej(new Error('screenshot_deadline')), 6000));
-      const buf = await Promise.race([shotP, deadline]);
+      const buf = await handle.screenshot({ type: 'jpeg', quality: 90 });
       gridImgB64 = buf.toString('base64');
     }
   } catch (e: any) { console.log(`[recaptcha] grid screenshot err: ${e?.message?.slice(0, 80)}`); }
@@ -59,12 +57,10 @@ export async function classifyGrid(bframe: any, instruction: string, gridSize: n
         body: JSON.stringify({ type: 'recaptcha', task: instr, image_data: [gridImgB64], grid: `${gridSize}x${gridSize}` }),
       })).json() as any;
       const jobId = post?.data; if (!jobId) return null;
-      for (let i = 0; i < 30; i++) {
-        await new Promise(r => setTimeout(r, 2000));  // allow-raw-playwright: polling
-        const g = await (await fetch(`https://api.nopecha.com/v1/recognition/recaptcha?id=${jobId}`, { headers: { 'Authorization': `Basic ${k}` } })).json() as any;
-        if (Array.isArray(g?.data)) return (g.data as boolean[]).map((v, i) => v ? i + 1 : 0).filter(Boolean);
-        if (g?.error && g.error !== 14) return null;
-      }
+      // One read: NopeCHA has no push or blocking answer.
+      const g = await (await fetch(`https://api.nopecha.com/v1/recognition/recaptcha?id=${jobId}`, { headers: { 'Authorization': `Basic ${k}` } })).json() as any;
+      if (Array.isArray(g?.data)) return (g.data as boolean[]).map((v, i) => v ? i + 1 : 0).filter(Boolean);
+      if (g?.error === 14) console.log(`[recaptcha] captcha_nopecha_processing: grid job ${jobId} has no result yet`);
     } catch {}
     return null;
   }
@@ -83,15 +79,13 @@ export async function classifyGrid(bframe: any, instruction: string, gridSize: n
       body: JSON.stringify({ clientKey: k, task: { type: 'GridTask', body: gridImgB64, comment: instr, rows: gridSize, columns: gridSize } }),
     })).json() as any;
     if (!c.taskId) return null;
-    for (let i = 0; i < 20; i++) {
-      await new Promise(r => setTimeout(r, 3000));  // allow-raw-playwright: polling
-      const r = await (await fetch('https://api.2captcha.com/getTaskResult', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientKey: k, taskId: c.taskId }),
-      })).json() as any;
-      if (r.status === 'ready') return r.solution?.click ?? null;
-      if (r.errorId) return null;
-    }
+    // One read: 2captcha has no push or blocking answer.
+    const r = await (await fetch('https://api.2captcha.com/getTaskResult', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientKey: k, taskId: c.taskId }),
+    })).json() as any;
+    if (r.status === 'ready') return r.solution?.click ?? null;
+    if (!r.errorId) console.log(`[recaptcha] captcha_2captcha_processing: grid task ${c.taskId} has no result yet`);
     return null;
   }
   async function modelSolve(): Promise<number[] | null> {

@@ -13,7 +13,7 @@ export async function signInToDashboard(s, login) {
 
   const popupPromise = s.page.waitForEvent('popup').catch(() => null);
   await humanClickLocator(gsiFrame, gsiFrame.locator('div[role="button"]').first());
-  const popup = await popupPromise;  // allow-raw-playwright: Promise.race deadline
+  const popup = await popupPromise;  // allow-raw-playwright: the popup the click produced
   if (!popup) { console.log('FAIL: popup did not open'); process.exit(1); }
   await popup.waitForLoadState('domcontentloaded').catch(() => {});
 

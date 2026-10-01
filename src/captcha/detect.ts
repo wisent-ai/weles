@@ -40,20 +40,20 @@ const FRAME_DETECT_SCRIPT = `
   })()
 `;
 
-/** Detect captcha type and sitekey on the current page. Waits up to 15s for iframe to load. */
+/** Detect captcha type and sitekey on the current page, once the page and its frames have loaded. */
 export async function detectCaptcha(page: Page): Promise<CaptchaInfo | null> {
-  for (let i = 0; i < 15; i++) {
-    // Try main frame, then every child frame. LinkedIn wraps the widget in
-    // /checkpoint/challenge/captchaInternal so the challenge iframe lives one
-    // level deeper than the main DOM.
-    const frames = page.frames?.() ?? [page.mainFrame?.() ?? page];
-    for (const f of frames) {
-      const info: any = await (f.evaluate ? f.evaluate(FRAME_DETECT_SCRIPT) : page.evaluate(FRAME_DETECT_SCRIPT)).catch(() => null);
-      if (info) { console.log(`[captcha] Detected: ${info.type} sitekey=${(info.sitekey || '').slice(0, 20)} frame=${f.url?.().slice(0, 80) ?? 'main'}`); return info; }
-    }
-    await humanIdlePause('short');
+  // The load event fires only after every iframe present has loaded, so the
+  // widget frames are readable after it without a polling window.
+  await page.waitForLoadState?.('load');
+  // Try main frame, then every child frame. LinkedIn wraps the widget in
+  // /checkpoint/challenge/captchaInternal so the challenge iframe lives one
+  // level deeper than the main DOM.
+  const frames = page.frames?.() ?? [page.mainFrame?.() ?? page];
+  for (const f of frames) {
+    const info: any = await (f.evaluate ? f.evaluate(FRAME_DETECT_SCRIPT) : page.evaluate(FRAME_DETECT_SCRIPT)).catch(() => null);
+    if (info) { console.log(`[captcha] Detected: ${info.type} sitekey=${(info.sitekey || '').slice(0, 20)} frame=${f.url?.().slice(0, 80) ?? 'main'}`); return info; }
   }
-  console.log('[captcha] No captcha iframe detected after 15s');
+  console.log(`[captcha] No captcha iframe on the loaded page (${frames.length} frames)`);
   return null;
 }
 
@@ -180,31 +180,26 @@ async function solveHcaptchaEnterprise(page: Page, sitekey: string, solver: Capt
   }
   const ua = await page.evaluate?.('navigator.userAgent')?.catch(() => '') ?? '';
   console.log(`[captcha] Enterprise hCaptcha: sitekey=${captchaData.captcha_sitekey?.slice(0, 12)} rqdata=${!!captchaData.captcha_rqdata} ua=${ua.slice(0, 30)}`);
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const sk = captchaData.captcha_sitekey || sitekey;
-    const proxy = session?.proxyConfig;
-    const token = await solver.solveHcaptcha(sk, url, {
-      enterprisePayload: { rqdata: captchaData.captcha_rqdata ?? '', rqtoken: captchaData.captcha_rqtoken },
-      userAgent: ua, proxy,
-    });
-    if (!token) { console.log(`[captcha] Enterprise attempt ${attempt + 1} failed`); continue; }
-    console.log(`[captcha] Enterprise attempt ${attempt + 1} solved, resubmitting`);
-    formData.captcha_key = token;
-    if (captchaData.captcha_rqtoken) formData.captcha_rqtoken = captchaData.captcha_rqtoken;
-    const hdrs = JSON.stringify({ 'Content-Type': 'application/json', ...extraHeaders });
-    const body = JSON.stringify(formData);
-    const endpoint = session?.captchaEndpoint || '/api/v9/auth/register';
-    const result = await page.evaluate(`(async()=>{var r=await fetch(${JSON.stringify(endpoint)},{method:'POST',headers:${hdrs},body:${JSON.stringify(body)}});var d=await r.json().catch(()=>({}));return{status:r.status,data:d}})()`).catch((e: any) => ({ error: e.message }));
-    console.log(`[captcha] Resubmit: ${JSON.stringify(result).slice(0, 200)}`);
-    if (result?.status >= 200 && result?.status < 300) return true;
-    if (result?.data?.captcha_key) {
-      captchaData.captcha_sitekey = result.data.captcha_sitekey ?? captchaData.captcha_sitekey;
-      captchaData.captcha_rqdata = result.data.captcha_rqdata ?? captchaData.captcha_rqdata;
-      captchaData.captcha_rqtoken = result.data.captcha_rqtoken ?? captchaData.captcha_rqtoken;
-      continue;
-    }
-    break;
-  }
+  // One solve and one resubmission: asking again for a captcha means the
+  // provider's token was refused, which a second token on the same flagged
+  // session does not change.
+  const sk = captchaData.captcha_sitekey || sitekey;
+  const proxy = session?.proxyConfig;
+  const token = await solver.solveHcaptcha(sk, url, {
+    enterprisePayload: { rqdata: captchaData.captcha_rqdata ?? '', rqtoken: captchaData.captcha_rqtoken },
+    userAgent: ua, proxy,
+  });
+  if (!token) { console.log('[captcha] hcaptcha_enterprise_unsolved: no provider returned a token'); return false; }
+  console.log('[captcha] Enterprise hCaptcha solved, resubmitting');
+  formData.captcha_key = token;
+  if (captchaData.captcha_rqtoken) formData.captcha_rqtoken = captchaData.captcha_rqtoken;
+  const hdrs = JSON.stringify({ 'Content-Type': 'application/json', ...extraHeaders });
+  const body = JSON.stringify(formData);
+  const endpoint = session?.captchaEndpoint || '/api/v9/auth/register';
+  const result = await page.evaluate(`(async()=>{var r=await fetch(${JSON.stringify(endpoint)},{method:'POST',headers:${hdrs},body:${JSON.stringify(body)}});var d=await r.json().catch(()=>({}));return{status:r.status,data:d}})()`).catch((e: any) => ({ error: e.message }));
+  console.log(`[captcha] Resubmit: ${JSON.stringify(result).slice(0, 200)}`);
+  if (result?.status >= 200 && result?.status < 300) return true;
+  if (result?.data?.captcha_key) console.log('[captcha] hcaptcha_enterprise_token_refused: the endpoint asked for a captcha again');
   return false;
 }
 

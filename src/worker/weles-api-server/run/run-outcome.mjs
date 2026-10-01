@@ -148,20 +148,17 @@ export function runAdmissionKey(kind, identity) {
 
 export function coalesceRun(key, start, metadata = {}) {
   const now = Date.now();
-  const existing = coalescedRuns.get(key);
-  if (existing && (existing.completedAt === null || now - existing.completedAt <= RUN_DEDUPLICATION_TTL_MS)) {
-    return { entry: existing, joined: true };
+  // Completed runs leave the window when the next admission looks, so no
+  // timer is kept per run.
+  for (const [other, entry] of coalescedRuns) {
+    if (entry.completedAt !== null && now - entry.completedAt > RUN_DEDUPLICATION_TTL_MS) coalescedRuns.delete(other);
   }
+  const existing = coalescedRuns.get(key);
+  if (existing) return { entry: existing, joined: true };
   const entry = { promise: null, completedAt: null, metadata };
   entry.promise = Promise.resolve()
     .then(start)
-    .finally(() => {
-      entry.completedAt = Date.now();
-      const timer = setTimeout(() => {
-        if (coalescedRuns.get(key) === entry) coalescedRuns.delete(key);
-      }, RUN_DEDUPLICATION_TTL_MS);
-      timer.unref();
-    });
+    .finally(() => { entry.completedAt = Date.now(); });
   coalescedRuns.set(key, entry);
   return { entry, joined: false };
 }

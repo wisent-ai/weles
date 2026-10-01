@@ -1,7 +1,8 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { pageSettled } from '../page/settled.mjs';
 import { input, actionName } from './action-catalog.mjs';
 import { escapeRegExp, waitRendered, clickFirst, fillAny } from './page-interaction.mjs';
 import { umamiRegisterAccount, umamiCreateWebsite } from './umami.mjs';
@@ -60,11 +61,11 @@ async function performConfirmedWrite(s, cfg) {
 async function verifyTargetSite(s, cfg) {
   const action = actionName();
   await s.goto(input('SITE_URL', 'https://www.needher.ai'));
-  await humanIdlePause('long');
+  await pageSettled(s.page);
   if (action === 'umami_track_custom_event' && process.env.SELECTOR_OR_CODE_PATH) {
     const target = s.page.locator(process.env.SELECTOR_OR_CODE_PATH).first();
     await humanClickLocator(s.page, target);
-    await humanIdlePause('deliberate');
+    await pageSettled(s.page);
   }
   const data = await s.page.evaluate(() => ({
     url: location.href,

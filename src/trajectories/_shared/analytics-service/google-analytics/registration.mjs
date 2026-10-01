@@ -1,4 +1,4 @@
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { pageSettled } from '../../page/settled.mjs';
 import { GA_BASE, defaultInput, siteHost } from '../action-catalog.mjs';
 import {
   safeGoto,
@@ -46,20 +46,15 @@ function gaRegistrationInputs() {
 
 async function openGoogleAnalyticsCreateAccount(s) {
   await safeGoto(s, GA_BASE);
-  await humanIdlePause('long');
+  await pageSettled(s.page);
   await dismissGoogleAnalyticsOverlays(s.page);
 
   const currentHash = new URL(s.page.url()).hash;
   const scope = currentHash.match(/^#\/(a\d+p\d+)\b/)?.[1];
   const adminUrl = scope ? `${GA_BASE}#/${scope}/admin` : `${GA_BASE}#/admin`;
   await safeGoto(s, adminUrl);
-  await humanIdlePause('long');
+  await pageSettled(s.page);
   await dismissGoogleAnalyticsOverlays(s.page);
-  for (let i = 0; i < 40; i++) {
-    if (await s.page.locator('button[data-guidedhelpid="create-entity-trigger"], .create-entity-menu-trigger').filter({ visible: true }).first().isVisible().catch(() => false)) break;
-    if (/\/admin\b/i.test(s.page.url()) && /Account settings|Property settings|Data streams|Create/i.test(await bodyText(s.page))) break;
-    await humanIdlePause('short');
-  }
 
   const createButton = [
     s.page.locator('button[data-guidedhelpid="create-entity-trigger"]'),
@@ -68,13 +63,13 @@ async function openGoogleAnalyticsCreateAccount(s) {
   if (!await clickDomElement(s.page, ['button[data-guidedhelpid="create-entity-trigger"]', '.create-entity-menu-trigger'], /^Create\b/i)
     && !await clickAnyLocator(s.page, createButton).catch(() => false)) {
     await safeGoto(s, adminUrl);
-    await humanIdlePause('long');
+    await pageSettled(s.page);
     await dismissGoogleAnalyticsOverlays(s.page);
     if (!await clickDomElement(s.page, ['button[data-guidedhelpid="create-entity-trigger"]', '.create-entity-menu-trigger'], /^Create\b/i)) {
       await clickAnyLocator(s.page, createButton, 'GA Admin Create button');
     }
   }
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
   if (!await clickDomElement(s.page, [
     '.cdk-overlay-container [role="menuitem"]',
     '.cdk-overlay-container button',
@@ -153,15 +148,12 @@ async function acceptGoogleAnalyticsTermsIfPresent(s) {
     const requiredBox = dialog.locator('input[type="checkbox"]').first();
     if (await requiredBox.count()) {
       await requiredBox.check({ force: true });
-      await humanIdlePause('short');
+      await pageSettled(s.page);
     }
     const acceptButton = dialog.locator('button[debug-id="accept-button"], button').filter({ hasText: /^I Accept$/i });
-    for (let i = 0; i < 30; i++) {
-      if (await clickAnyLocator(s.page, [acceptButton]).catch(() => false)) {
-        await waitForGaStepOrText(s.page, /Data collection/i, /data collection|platform|web stream|website url/i, 'GA terms accept button');
-        return;
-      }
-      await humanIdlePause('short');
+    if (await clickAnyLocator(s.page, [acceptButton]).catch(() => false)) {
+      await waitForGaStepOrText(s.page, /Data collection/i, /data collection|platform|web stream|website url/i, 'GA terms accept button');
+      return;
     }
     throw new Error('GA Terms accept button was not enabled');
   }
@@ -188,15 +180,10 @@ async function googleAnalyticsRegisterSite(s) {
   await fillGoogleAnalyticsWebStreamStep(s, values);
   await openGoogleAnalyticsCreatedStreamDetail(s, values);
 
-  for (let i = 0; i < 60; i++) {
-    const text = await bodyText(s.page);
-    const measurementId = extractGaMeasurementId(text);
-    if (measurementId) {
-      return { registration: { ...values, measurementId } };
-    }
-    await humanIdlePause('short');
-  }
+  await pageSettled(s.page);
   const text = await bodyText(s.page);
+  const measurementId = extractGaMeasurementId(text);
+  if (measurementId) return { registration: { ...values, measurementId } };
   throw new Error(`GA registration completed no visible measurement id; final_url=${s.page.url()}; body_preview=${text.slice(0, 800).replace(/\s+/g, ' ')}`);
 }
 

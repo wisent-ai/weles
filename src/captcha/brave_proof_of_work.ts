@@ -1,8 +1,25 @@
 // The Brave proof-of-work challenge: a registration form that computes its
 // own solution in the page and enables its button when done. Nothing to
-// solve remotely; the page is watched until it finishes or gives up.
+// solve remotely; the page itself is asked to report when the form changes.
 
 import { humanIdlePause } from '../human/mouse.js';
+
+// Resolves in the page, on an animation frame, once the challenge form shows
+// one of the outcomes the caller is watching for (or has gone away).
+async function braveFormChanged(page: Page, phase: 'validation' | 'calculation'): Promise<void> {
+  await page.waitForFunction((which: string) => {
+    const solution = document.querySelector<HTMLInputElement>('input[name="captchaSolution"]');
+    const button = document.querySelector<HTMLButtonElement>('#captcha-button');
+    if (!solution || !button) return true;
+    const form = button.closest('form');
+    if (form && !form.checkValidity()) return true;
+    const alerted = Array.from(document.querySelectorAll<HTMLElement>('.alert, [role="alert"], .error'))
+      .some(element => element.innerText.trim().length > 0);
+    if (alerted && (which === 'validation' || !/verifying/i.test(button.innerText))) return true;
+    if (which === 'validation') return !button.disabled;
+    return solution.value.length > 0 || /verified/i.test(button.innerText);
+  }, phase, { polling: 'raf' });
+}
 
 type Page = any;
 
@@ -48,22 +65,16 @@ export async function solveBraveProofOfWork(page: Page, initial: BraveProofOfWor
 
   if (ready.buttonDisabled && ready.solutionLength === 0) {
     console.log('[captcha] Brave proof-of-work waiting for registration validation');
-    for (let attempt = 0; attempt < 60 && ready.buttonDisabled; attempt++) {
-      await humanIdlePause('short');
-      const state = await braveProofOfWorkState(page);
-      if (!state) return false;
-      ready = state;
-      if (!ready.formValid) {
-        console.log('[captcha] Brave proof-of-work blocked: registration form became invalid');
-        return false;
-      }
-      if (ready.errorText) {
-        console.log(`[captcha] Brave proof-of-work validation failed: ${ready.errorText.slice(0, 160)}`);
-        return false;
-      }
+    await braveFormChanged(page, 'validation');
+    const state = await braveProofOfWorkState(page);
+    if (!state) return false;
+    ready = state;
+    if (!ready.formValid) {
+      console.log('[captcha] Brave proof-of-work blocked: registration form became invalid');
+      return false;
     }
-    if (ready.buttonDisabled) {
-      console.log('[captcha] Brave proof-of-work button remained disabled after validation');
+    if (ready.errorText) {
+      console.log(`[captcha] Brave proof-of-work validation failed: ${ready.errorText.slice(0, 160)}`);
       return false;
     }
   }
@@ -71,7 +82,7 @@ export async function solveBraveProofOfWork(page: Page, initial: BraveProofOfWor
   let started = /verifying/i.test(ready.buttonText);
   if (!started && ready.solutionLength === 0) {
     try {
-      await page.locator('#captcha-button').click({ timeout: 10_000 });
+      await page.locator('#captcha-button').click();
       started = true;
       console.log('[captcha] Brave proof-of-work calculation started');
     } catch (error) {
@@ -82,8 +93,13 @@ export async function solveBraveProofOfWork(page: Page, initial: BraveProofOfWor
 
   if (ready.solutionLength > 0 || /verified/i.test(ready.buttonText)) return true;
   const initialURL = ready.url;
-  for (let attempt = 0; attempt < 240; attempt++) {
-    await humanIdlePause('short');
+  for (;;) {
+    try {
+      await braveFormChanged(page, 'calculation');
+    } catch (error) {
+      // The form submitting itself replaces the document under the wait.
+      if (!/Execution context was destroyed|Target page, context or browser has been closed/i.test(String(error))) throw error;
+    }
     const state = await braveProofOfWorkState(page);
     if (!state) {
       const currentURL = page.url?.() ?? '';
@@ -107,7 +123,9 @@ export async function solveBraveProofOfWork(page: Page, initial: BraveProofOfWor
       console.log(`[captcha] Brave proof-of-work failed: ${state.errorText.slice(0, 160)}`);
       return false;
     }
+    if (!state.formValid) {
+      console.log(`[captcha] Brave proof-of-work blocked: registration form became invalid started=${started}`);
+      return false;
+    }
   }
-  console.log(`[captcha] Brave proof-of-work timed out started=${started}`);
-  return false;
 }

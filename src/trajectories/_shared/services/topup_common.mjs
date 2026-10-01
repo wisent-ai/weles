@@ -6,7 +6,7 @@ import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { humanIdlePause } from '../../../../dist/human/mouse.js';
+import { pageSettled } from '../page/settled.mjs';
 import { humanType } from '../../../../dist/human/keyboard.js';
 
 export function topupOpts() {
@@ -109,13 +109,13 @@ async function findInputByAutocomplete(page, autocomplete) {
 export async function fillStripeElements(page, card = null) {
   const c = card ?? getCardEnv();
   if (!c) return { ok: false, reason: 'no_card_env' };
-  // Wait up to 15s for the card number input to become reachable in any Stripe frame.
-  let cardEntry = null;
-  for (let i = 0; i < 30; i++) {
-    cardEntry = await findInputByAutocomplete(page, 'cc-number');
-    if (cardEntry) break;
-    await humanIdlePause('short');
-  }
+  // Stripe mounts its card frames once the checkout page has settled; each of
+  // those frames then loads on its own, and the card input is read after both.
+  await pageSettled(page);
+  await Promise.all(page.frames()
+    .filter((f) => /stripe\.com|m\.stripe\.network/.test(f.url()))
+    .map((f) => f.waitForLoadState('load')));
+  const cardEntry = await findInputByAutocomplete(page, 'cc-number');
   if (!cardEntry) return { ok: false, reason: 'cc-number_input_not_found' };
   const filled = {};
   for (const [field, autocomplete] of Object.entries(AUTOCOMPLETE_FIELD_MAP)) {

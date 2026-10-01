@@ -69,7 +69,6 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
         if (!checked && bframe) {
           console.log('[recaptcha] Anchor unchecked (token expired) — re-clicking');
           try { await af.locator('#recaptcha-anchor').click({ force: true }); } catch {}
-          await page.waitForEvent('frameattached', { timeout: 5000 }).catch(() => {});
           await humanIdlePause('short');
           bframe = findBframe(page);
         }

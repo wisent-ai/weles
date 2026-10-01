@@ -5,6 +5,7 @@ import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { parseBalanceFromText, patchServiceBalance } from '../_shared/services/google_sso.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { pageCondition, pageSettled } from '../_shared/page/settled.mjs';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -29,34 +30,23 @@ try {
   await s.page.locator('input[name="email"]').fill(login.email);
   await s.page.locator('input[name="password"]').fill(login.password);
 
-  // Wait for grecaptcha to load, then trigger execute() to obtain a
-  // server-bound token (pre-solved tokens are rejected ERROR_CAPTCHA_IS_INVALID).
-  for (let i = 0; i < 60; i++) {
-    const ready = await s.page.evaluate(() => typeof window.grecaptcha?.execute === 'function').catch(() => false);
-    if (ready) break;
-    await humanIdlePause('short');
-  }
-  const tokenLen = await s.page.evaluate(() => new Promise((resolve) => {
-    try {
-      window.grecaptcha.execute('6Lfo9qojAAAAAPqqMn9QlAY2RBSVuEW63vDJ442M', { action: 'login' });
-      let tries = 0;
-      const iv = setInterval(() => {
-        tries++;
-        const ta = document.querySelector('textarea[name="g-recaptcha-response"]');
-        if (ta?.value && ta.value.length > 50) { clearInterval(iv); resolve(ta.value.length); }
-        if (tries > 60) { clearInterval(iv); resolve(0); }
-      }, 500);
-    } catch (e) { resolve(-1); }
-  }));
+  // Once grecaptcha has loaded, execute() obtains a server-bound token
+  // (pre-solved tokens are rejected ERROR_CAPTCHA_IS_INVALID); the response
+  // field filling in is what ends the wait.
+  await pageCondition(s.page, () => typeof window.grecaptcha?.execute === 'function');
+  await s.page.evaluate(() => window.grecaptcha.execute('6Lfo9qojAAAAAPqqMn9QlAY2RBSVuEW63vDJ442M', { action: 'login' }));
+  const tokenLen = await pageCondition(s.page, () => {
+    const ta = document.querySelector('textarea[name="g-recaptcha-response"]');
+    return ta?.value && ta.value.length > 50 ? ta.value.length : false;
+  });
   console.log(`[trajectory] grecaptcha token length=${tokenLen}`);
 
+  // The form's own POST answering is the end of the login attempt; the page
+  // then settles on wherever that answer sent it.
+  const answered = s.page.waitForResponse((r) => r.request().method() === 'POST' && /2captcha\.com/.test(r.url()));
   await s.page.locator('button:has-text("Continue")').click();
-  await humanIdlePause('long');
-
-  for (let i = 0; i < 30; i++) {
-    await humanIdlePause('short');
-    if (!/\/auth\/login/.test(s.page.url())) break;
-  }
+  await answered;
+  await pageSettled(s.page);
   console.log(`[trajectory] post-login url=${s.page.url()}`);
   if (/\/auth\/login/.test(s.page.url())) {
     console.log('FAIL: native form rejected creds (still on /auth/login).');

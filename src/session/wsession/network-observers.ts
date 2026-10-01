@@ -97,10 +97,11 @@ export function observeSessionNetwork(ws: WSession, ctx: BrowserContext, page: P
       if (state._secureCredentialTask || !shouldCaptureResponseBody(res)) return;
       // A body we could not read is its own answer in the ledger: an empty
       // string there would read as a response that arrived empty.
-      void res.text().then(
+      const read: Promise<void> = res.text().then(
         (text: string) => { entry.body = text.slice(0, 8192); },
         (error: unknown) => { entry.body = `[body unavailable: ${(error instanceof Error ? error.message : String(error)).slice(0, 160)}]`; },
-      );
+      ).finally(() => { ws.pendingResponseBodies.delete(read); });
+      ws.pendingResponseBodies.add(read);
     } catch {}
   });
   attachEgressByteCounter(state, ctx, page);

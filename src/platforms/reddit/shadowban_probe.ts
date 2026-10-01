@@ -88,7 +88,9 @@ export async function probeShadowban(
           // session UA inherits the persona.
         },
         ignoreHTTPSErrors: true,
-        timeout: 15000,
+        // Playwright's request client carries its own 30s limit; 0 removes it,
+        // so Reddit's answer or the network's error ends the read.
+        timeout: 0,
       }).catch((e: any) => ({ _err: e?.message?.slice(0, 120) ?? 'fetch_error', status: () => 0, text: async () => '' }));
 
       const status = typeof (resp as any).status === 'function' ? (resp as any).status() : 0;
@@ -149,7 +151,7 @@ export async function probeCommentVisibility(opts: {
     const resp = await session.page.context().request.get(url, {
       headers: { 'Accept': 'application/json' },
       ignoreHTTPSErrors: true,
-      timeout: 15000,
+      timeout: 0,
     });
     const status = resp.status();
     const body = await resp.text().catch(() => '');

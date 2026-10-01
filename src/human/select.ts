@@ -12,6 +12,13 @@ import { humanClick } from './mouse.js';
 
 type Page = any;
 
+/** Resolves after the page has painted twice: the open listbox or the moved
+ * focus is in the DOM by then, and the browser's own render cadence, not a
+ * clock, decides when. */
+async function framesRendered(page: Page): Promise<void> {
+  await page.evaluate(`new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))`);  // allow-raw-playwright: read-only render barrier, no interaction
+}
+
 /** Scroll the nth match of `sel` into view and humanClick its centre via a
  * raw CDP pointer (move+down+up at coordinates). Resolves zero-size a11y
  * focus-proxies to their nearest sized ancestor: Discord's DOB
@@ -55,7 +62,7 @@ async function tryAriaCombobox(page: Page, target: string, value: string): Promi
   const idx = await findIndex(page, '[role="combobox"]', target, 'aria-label');
   if (idx < 0) return null;
   if (!(await scrollAndClick(page, '[role="combobox"]', idx))) return null;
-  await new Promise(r => setTimeout(r, 500));  // allow-raw-playwright: implementation file — defines the humanized atom
+  await framesRendered(page);
   const oi = await findOptionIndex(page, '[role="option"]', value);
   if (oi >= 0) {
     if (await scrollAndClick(page, '[role="option"]', oi)) return value.toLowerCase();
@@ -63,7 +70,7 @@ async function tryAriaCombobox(page: Page, target: string, value: string): Promi
   const getFocused = `(()=>{var el=document.querySelector('[role="option"][data-focus-visible="true"],[role="option"][aria-selected="true"]');return el?el.textContent.trim().toLowerCase():null})()`;
   for (let i = 0; i < 150; i++) {
     await page.keyboard.press('ArrowDown');
-    await new Promise(r => setTimeout(r, 50));  // allow-raw-playwright: implementation file — defines the humanized atom
+    await framesRendered(page);
     const focused = await page.evaluate(getFocused) as string | null;  // allow-raw-playwright: read-only focused-option text read, no interaction
     if (focused === value.toLowerCase() || (focused && focused.indexOf(value.toLowerCase()) >= 0)) {
       await page.keyboard.press('Enter');
@@ -80,7 +87,7 @@ async function tryCssDropdown(page: Page, target: string, value: string): Promis
   const idx = await findIndex(page, containerSel, target, 'text');
   if (idx < 0) return null;
   if (!(await scrollAndClick(page, containerSel, idx))) return null;
-  await new Promise(r => setTimeout(r, 500));  // allow-raw-playwright: implementation file — defines the humanized atom
+  await framesRendered(page);
   const oi = await findOptionIndex(page, optionSel, value);
   if (oi < 0) return null;
   if (!(await scrollAndClick(page, optionSel, oi))) return null;
