@@ -3,7 +3,8 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { generatePersona } from '../../../../../dist/browser/persona.js';
-import { USER_DATA_DIR, WAIT_MS } from './settings.mjs';
+import { USER_DATA_DIR } from './settings.mjs';
+import { pageSettled } from '../../../_shared/page/settled.mjs';
 
 export function stableProfilePersona() {
   const p = join(USER_DATA_DIR, 'persona.json');
@@ -34,7 +35,7 @@ export async function bringBrowserToFront(s) {
 }
 
 export async function snapshot(page, label) {
-  await page.waitForTimeout(WAIT_MS).catch(() => {});
+  await pageSettled(page);
   const data = await page.evaluate(() => {
     const textOf = (el) => {
       if (!el) return '';

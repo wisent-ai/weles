@@ -5,6 +5,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { generatePersona } from '../../../../dist/browser/persona.js';
 import { WSession } from '../../../../dist/session/wsession.js';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
 mkdirSync(USER_DATA_DIR, { recursive: true });
@@ -42,7 +43,7 @@ const s = await WSession.start({
 let exitCode = 0;
 try {
   await s.page.goto('https://accountscenter.facebook.com/youraccount/contact_points/', { waitUntil: 'domcontentloaded' }).catch(() => {});
-  await s.page.waitForTimeout(3000).catch(() => {});
+  await pageSettled(s.page);
   const rawPhones = await s.page.evaluate(() => {
     const textOf = (el) => [
       el.innerText || '',

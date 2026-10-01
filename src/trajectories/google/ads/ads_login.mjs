@@ -12,7 +12,6 @@ import { spawnSync } from 'node:child_process';
 import { assertGoogleAdsProfileNotAlreadyOpen, closeAllowedByEnv } from './_profile_guard.mjs';
 import { readScopedLogin } from '../../../_shared/scoped-secrets.mjs';
 
-const LOGIN_WAIT_MS = Number(process.env.LOGIN_WAIT_MS || 15 * 60 * 1000);
 const ALLOW_MANUAL_LOGIN = process.env.ALLOW_MANUAL_LOGIN === '1' || process.env.WAIT_FOR_LOGIN === '1';
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'google_ads');
 const GOOGLE_ADS_LOGIN = readScopedLogin('googleAds');
@@ -93,14 +92,10 @@ try {
       await s.goto('https://ads.google.com/aw/campaigns');
       await pageSettled(s.page);
     } else if (ALLOW_MANUAL_LOGIN) {
-      console.log(`[google-ads-login] waiting for manual login, deadline=${LOGIN_WAIT_MS}ms`);
+      console.log('[google-ads-login] waiting for manual login in the open window');
       await bringBrowserToFront(s);
-      const deadline = Date.now() + LOGIN_WAIT_MS;
-      while (Date.now() < deadline) {
-        await pageSettled(s.page);
-        cookies = await s.ctx.cookies().catch(() => []);
-        if (hasGoogleAuthCookie(cookies) && !isLoginUrl(s.page.url?.() ?? '')) break;
-      }
+      await s.page.waitForURL((u) => !isLoginUrl(String(u)));
+      await pageSettled(s.page);
     } else {
       console.log('FAIL: Google Ads browser session is logged out and no SSO credentials are available');
       process.exit(2);

@@ -1,7 +1,7 @@
 // Reaching the right place: a control by its visible text, the phone country, the account's
 // stored phone, and the Accounts Center link.
 import { humanType } from '../../../../../dist/human/keyboard.js';
-import { WAIT_MS } from './settings.mjs';
+import { pageSettled } from '../../../_shared/page/settled.mjs';
 import { normalizePhone, phoneCountry, phoneNationalNumber, sanitizedUrl } from './page.mjs';
 
 export async function clickVisibleText(page, label, allow, includeDivs = false) {
@@ -38,7 +38,7 @@ export async function clickVisibleText(page, label, allow, includeDivs = false) 
   }).catch(() => null);
   if (!target) return null;
   await page.mouse.click(target.x, target.y, { delay: 50 });
-  await page.waitForTimeout(WAIT_MS).catch(() => {});
+  await pageSettled(page);
   console.log(JSON.stringify({ stage: 'clicked', label, text: target.text.slice(0, 80), x: target.x, y: target.y }));
   return target;
 }
@@ -50,7 +50,7 @@ export async function selectCountryForPhone(page, phone) {
   let selected = await clickVisibleText(page, 'country_poland', /Poland\s*\(\+48\)|Polska\s*\(\+48\)/i, true);
   if (!selected) {
     await humanType(page, 'Poland').catch(() => {});
-    await page.waitForTimeout(1000).catch(() => {});
+    await pageSettled(page);
     selected = await clickVisibleText(page, 'country_poland_after_search', /Poland\s*\(\+48\)|Polska\s*\(\+48\)/i, true);
   }
   return Boolean(selected);
@@ -58,7 +58,7 @@ export async function selectCountryForPhone(page, phone) {
 
 export async function loadAccountPhone(page, preferredCountry) {
   await page.goto('https://accountscenter.facebook.com/youraccount/contact_points/', { waitUntil: 'domcontentloaded' }).catch(() => {});
-  await page.waitForTimeout(WAIT_MS).catch(() => {});
+  await pageSettled(page);
   const rawPhones = await page.evaluate(() => {
     const textOf = (el) => [
       el.innerText || '',
@@ -120,7 +120,7 @@ export async function clickAccountsCenter(page) {
   });
   if (!target) return null;
   await page.mouse.click(target.x, target.y, { delay: 50 });
-  await page.waitForTimeout(WAIT_MS).catch(() => {});
+  await pageSettled(page);
   console.log(JSON.stringify({ stage: 'clicked', label: 'accounts_center', text: target.text, href: sanitizedUrl(target.href), x: target.x, y: target.y }));
   return target;
 }

@@ -4,7 +4,6 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 export const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
-export const WAIT_MS = Number(process.env.WAIT_MS || 3000);
 export const VERIFY_PHONE = process.env.META_VERIFY_PHONE || '';
 export const VERIFY_CODE = process.env.META_VERIFY_CODE || '';
 export const CODE_ONLY = process.env.META_VERIFY_CODE_ONLY === '1';

@@ -46,7 +46,7 @@ try {
     const submitted = await clickFirst(s.page, 'submit_code_only', /^(Dalej|Next|Wyślij|Send|Kontynuuj|Continue)$/i);
     if (!submitted) throw new Error('No enabled code submit button found in META_VERIFY_CODE_ONLY=1');
     await snapshot(s.page, 'after_code_only_submit');
-    await waitAndClickFirst(s.page, 'skip_passkey', /^(Nie teraz|Not now)$/i, /Utwórz|Create/i, 12);
+    await waitAndClickFirst(s.page, 'skip_passkey', /^(Nie teraz|Not now)$/i, /Utwórz|Create/i);
     await snapshot(s.page, 'after_code_only_passkey_skip');
     await bringBrowserToFront(s);
   } else {
@@ -70,7 +70,7 @@ try {
         const codeSubmitted = await clickFirst(s.page, 'submit_code', /^(Dalej|Next|Wyślij|Send|Kontynuuj|Continue)$/i);
         if (!codeSubmitted) throw new Error('No enabled code submit button found after entering confirmation code');
         await snapshot(s.page, 'after_code_submit');
-        await waitAndClickFirst(s.page, 'skip_passkey', /^(Nie teraz|Not now)$/i, /Utwórz|Create/i, 12);
+        await waitAndClickFirst(s.page, 'skip_passkey', /^(Nie teraz|Not now)$/i, /Utwórz|Create/i);
         await snapshot(s.page, 'after_passkey_skip');
       } else {
         throw new Error('No confirmation code input found');

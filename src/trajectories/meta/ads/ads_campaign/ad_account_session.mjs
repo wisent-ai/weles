@@ -8,7 +8,7 @@ import { pageSettled } from '../../../_shared/page/settled.mjs';
 // somebody else's money.
 
 import { spawnSync } from 'node:child_process';
-import { AD_ACCOUNT_ID, AD_ACCOUNT_NAME, BUSINESS_ID, LOGIN_WAIT_MS, WAIT_FOR_LOGIN, targetUrl } from './campaign_request.mjs';
+import { AD_ACCOUNT_ID, AD_ACCOUNT_NAME, BUSINESS_ID, WAIT_FOR_LOGIN, targetUrl } from './campaign_request.mjs';
 import { pageText } from './panel_controls.mjs';
 
 async function bringBrowserToFront(s) {
@@ -31,18 +31,10 @@ async function passLoginGate(s) {
       console.log(`FAIL: facebook session expired or checkpointed (${url})`);
       process.exit(2);
     }
-    console.log(`[meta-ads] waiting for manual login, deadline=${LOGIN_WAIT_MS}ms`);
+    console.log('[meta-ads] waiting for manual login in the open window');
     await bringBrowserToFront(s);
-    const deadline = Date.now() + LOGIN_WAIT_MS;
-    while (Date.now() < deadline) {
-      await pageSettled(s.page);
-      url = s.page.url?.() ?? '';
-      if (!isLoginUrl(url)) break;
-    }
-    if (isLoginUrl(url)) {
-      console.log(`FAIL: manual login did not complete (${url})`);
-      process.exit(2);
-    }
+    await s.page.waitForURL((u) => !isLoginUrl(String(u)));
+    url = s.page.url?.() ?? '';
     await s.goto(targetUrl);
     await pageSettled(s.page);
   }

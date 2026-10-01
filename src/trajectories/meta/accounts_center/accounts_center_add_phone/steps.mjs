@@ -1,7 +1,8 @@
 // The phone steps: choosing a control by its label, the phone and code fields, and the account chooser.
 import { humanClickLocator } from '../../../../../dist/human/mouse.js';
 import { humanType } from '../../../../../dist/human/keyboard.js';
-import { USER_DATA_DIR, VERIFY_CODE, VERIFY_PHONE, WAIT_MS } from './settings.mjs';
+import { USER_DATA_DIR, VERIFY_CODE, VERIFY_PHONE } from './settings.mjs';
+import { pageSettled } from '../../../_shared/page/settled.mjs';
 import { sanitize } from './page.mjs';
 
 export async function clickFirst(page, label, allow, deny = /delete|remove|usuń|anuluj|cancel/i) {
@@ -37,18 +38,15 @@ export async function clickFirst(page, label, allow, deny = /delete|remove|usuń
   }).catch(() => null);
   if (!target) return null;
   await page.mouse.click(target.x, target.y, { delay: 50 });
-  await page.waitForTimeout(WAIT_MS).catch(() => {});
+  await pageSettled(page);
   console.log(JSON.stringify({ stage: 'clicked', label, text: sanitize(target.text), x: target.x, y: target.y }));
   return target;
 }
 
-export async function waitAndClickFirst(page, label, allow, deny, attempts = 8) {
-  for (let i = 0; i < attempts; i += 1) {
-    const clicked = await clickFirst(page, label, allow, deny);
-    if (clicked) return clicked;
-    await page.waitForTimeout(1500).catch(() => {});
-  }
-  return null;
+/** Click the first matching control once the page has settled; null when the page offers none. */
+export async function waitAndClickFirst(page, label, allow, deny) {
+  await pageSettled(page);
+  return clickFirst(page, label, allow, deny);
 }
 
 export async function fillPhone(page) {
@@ -59,7 +57,7 @@ export async function fillPhone(page) {
   await humanType(page, VERIFY_PHONE).catch(async () => {
     await page.keyboard.insertText(VERIFY_PHONE).catch(() => {});
   });
-  await page.waitForTimeout(1000).catch(() => {});
+  await pageSettled(page);
   console.log(JSON.stringify({ stage: 'filled_phone', redacted: true }));
   return true;
 }
@@ -73,7 +71,7 @@ export async function fillCode(page) {
   await humanType(page, VERIFY_CODE).catch(async () => {
     await page.keyboard.insertText(VERIFY_CODE).catch(() => {});
   });
-  await page.waitForTimeout(1000).catch(() => {});
+  await pageSettled(page);
   console.log(JSON.stringify({ stage: 'filled_code', redacted: true }));
   return true;
 }
@@ -109,7 +107,7 @@ export async function selectPhoneAssociationAccount(page) {
   }).catch(() => null);
   if (!target) return null;
   await page.mouse.click(target.x, target.y, { delay: 50 });
-  await page.waitForTimeout(1000).catch(() => {});
+  await pageSettled(page);
   console.log(JSON.stringify({ stage: 'clicked', label: 'select_phone_association_account', text: sanitize(target.text), role: target.role, x: target.x, y: target.y }));
   return target;
 }

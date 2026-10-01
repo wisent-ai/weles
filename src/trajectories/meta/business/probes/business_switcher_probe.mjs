@@ -5,10 +5,10 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { generatePersona } from '../../../../../dist/browser/persona.js';
 import { WSession } from '../../../../../dist/session/wsession.js';
+import { pageSettled } from '../../../_shared/page/settled.mjs';
 
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
 const BUSINESS_ID = process.env.META_BUSINESS_ID || process.env.BUSINESS_ID || '885982240795843';
-const WAIT_MS = Number(process.env.WAIT_MS || 4000);
 mkdirSync(USER_DATA_DIR, { recursive: true });
 process.env.WELES_VIEWPORT ??= '1440x1000';
 
@@ -34,7 +34,7 @@ function sanitizedUrl(rawUrl) {
 }
 
 async function snapshot(page, label) {
-  await page.waitForTimeout(WAIT_MS).catch(() => {});
+  await pageSettled(page);
   const data = await page.evaluate(() => {
     const textOf = (el) => (el.innerText || el.textContent || el.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
     const visible = (el) => {
@@ -89,7 +89,7 @@ async function snapshot(page, label) {
 async function clickBusinessSwitcher(page) {
   const topLeft = { text: 'top-left portfolio selector', x: 220, y: 36 };
   await page.mouse.click(topLeft.x, topLeft.y, { delay: 50 });
-  await page.waitForTimeout(1500).catch(() => {});
+  await pageSettled(page);
   const opened = await page.evaluate(() => {
     const bodyText = (document.body?.innerText || '').replace(/\s+/g, ' ');
     return /switch|przełącz|portfolio|firmowe|business/i.test(bodyText) && /Wisent-AI/i.test(bodyText);
@@ -123,7 +123,7 @@ async function clickBusinessSwitcher(page) {
   }).catch(() => null);
   if (!target) return null;
   await page.mouse.click(target.x, target.y, { delay: 50 });
-  await page.waitForTimeout(1500).catch(() => {});
+  await pageSettled(page);
   console.log(JSON.stringify({ stage: 'clicked_switcher', text: target.text, x: target.x, y: target.y }));
   return target;
 }

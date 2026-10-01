@@ -13,8 +13,7 @@ import { WSession } from '../../../../dist/session/wsession.js';
 import { assertGoogleAdsProfileNotAlreadyOpen, closeAllowedByEnv } from './_profile_guard.mjs';
 
 const SOURCE_USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'google_ads');
-const LOGIN_WAIT_MS = Number(process.env.LOGIN_WAIT_MS || 0);
-const WAIT_FOR_LOGIN = process.env.WAIT_FOR_LOGIN === '1' || LOGIN_WAIT_MS > 0;
+const WAIT_FOR_LOGIN = process.env.WAIT_FOR_LOGIN === '1';
 const CUSTOMER_ID = (process.env.GOOGLE_ADS_CUSTOMER_ID || process.env.CUSTOMER_ID || '').replace(/\D/g, '');
 mkdirSync(SOURCE_USER_DATA_DIR, { recursive: true });
 process.env.WELES_VIEWPORT ??= '1280x900';
@@ -86,12 +85,8 @@ function targetUrl() {
 
 async function waitForOptionalLogin(s) {
   if (!WAIT_FOR_LOGIN) return;
-  const deadline = Date.now() + LOGIN_WAIT_MS;
-  while (Date.now() < deadline) {
-    const cookies = await s.ctx.cookies().catch(() => []);
-    if (hasGoogleAuthCookie(cookies) && !isLoginUrl(s.page.url?.() ?? '')) return;
-    await pageSettled(s.page);
-  }
+  await s.page.waitForURL((u) => !isLoginUrl(String(u)));
+  await pageSettled(s.page);
 }
 
 assertGoogleAdsProfileNotAlreadyOpen(SOURCE_USER_DATA_DIR, 'google_ads_verify_access');

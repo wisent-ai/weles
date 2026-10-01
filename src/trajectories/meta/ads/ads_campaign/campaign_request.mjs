@@ -40,7 +40,6 @@ const SUBMIT = process.env.SUBMIT === '1';
 const PRINT_CAPABILITIES = process.env.META_ADS_CAPABILITIES === '1';
 const ALLOW_UNVERIFIED_META_PARAMS = process.env.ALLOW_UNVERIFIED_META_PARAMS === '1';
 const WAIT_FOR_LOGIN = process.env.WAIT_FOR_LOGIN === '1';
-const LOGIN_WAIT_MS = Number(process.env.LOGIN_WAIT_MS || 10 * 60 * 1000);
 const VERIFY_ACCOUNT_ONLY = process.env.VERIFY_ACCOUNT_ONLY === '1';
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
 mkdirSync(USER_DATA_DIR, { recursive: true });
@@ -170,7 +169,6 @@ export {
   FACEBOOK_PAGE_ID,
   FACEBOOK_PAGE_NAME,
   HEADLINE,
-  LOGIN_WAIT_MS,
   PRIMARY_TEXT,
   PRINT_CAPABILITIES,
   SUBMIT,

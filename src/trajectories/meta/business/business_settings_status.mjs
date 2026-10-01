@@ -6,10 +6,10 @@ import { join } from 'node:path';
 import { generatePersona } from '../../../../dist/browser/persona.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
 const BUSINESS_ID = process.env.META_BUSINESS_ID || process.env.BUSINESS_ID || '';
-const WAIT_MS = Number(process.env.WAIT_MS || 7000);
 const PAGE_FILTER = (process.env.META_BUSINESS_SETTINGS_PAGES || '')
   .split(',')
   .map((page) => page.trim())
@@ -55,9 +55,9 @@ async function clickSafeContinue(page) {
 }
 
 async function snapshot(page, label) {
-  await page.waitForTimeout(WAIT_MS).catch(() => {});
+  await pageSettled(page);
   const clicked = await clickSafeContinue(page);
-  if (clicked) await page.waitForTimeout(WAIT_MS).catch(() => {});
+  if (clicked) await pageSettled(page);
   const data = await page.evaluate(() => {
     const textOf = (el) => (el.innerText || el.textContent || el.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
     const visible = (el) => {

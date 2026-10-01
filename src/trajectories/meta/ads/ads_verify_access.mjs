@@ -11,8 +11,7 @@ import { generatePersona } from '../../../../dist/browser/persona.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 
 const SOURCE_USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
-const LOGIN_WAIT_MS = Number(process.env.LOGIN_WAIT_MS || 0);
-const WAIT_FOR_LOGIN = process.env.WAIT_FOR_LOGIN === '1' || LOGIN_WAIT_MS > 0;
+const WAIT_FOR_LOGIN = process.env.WAIT_FOR_LOGIN === '1';
 const AD_ACCOUNT_ID = (process.env.AD_ACCOUNT_ID || process.env.META_ADS_COMPANY_ACCOUNT_ID || '').replace(/^act_/, '');
 const BUSINESS_ID = process.env.BUSINESS_ID || process.env.META_BUSINESS_ID || '';
 const AD_ACCOUNT_NAME = process.env.AD_ACCOUNT_NAME || process.env.META_ADS_ACCOUNT_NAME || '';
@@ -87,12 +86,8 @@ function targetUrl() {
 
 async function waitForOptionalLogin(s) {
   if (!WAIT_FOR_LOGIN) return;
-  const deadline = Date.now() + LOGIN_WAIT_MS;
-  while (Date.now() < deadline) {
-    const cookies = await s.ctx.cookies().catch(() => []);
-    if (hasMetaAuthCookie(cookies) && !isLoginUrl(s.page.url?.() ?? '')) return;
-    await pageSettled(s.page);
-  }
+  await s.page.waitForURL((url) => !isLoginUrl(String(url)));
+  await pageSettled(s.page);
 }
 
 const preparedProfile = prepareUserDataDir();

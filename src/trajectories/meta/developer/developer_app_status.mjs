@@ -8,10 +8,10 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { generatePersona } from '../../../../dist/browser/persona.js';
 import { WSession } from '../../../../dist/session/wsession.js';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 
 const APP_ID = process.env.META_APP_ID || process.env.NEXT_PUBLIC_META_ADS_APP_ID || '931029642750405';
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
-const WAIT_MS = Number(process.env.WAIT_MS || 8000);
 mkdirSync(USER_DATA_DIR, { recursive: true });
 process.env.WELES_VIEWPORT ??= '1440x1000';
 
@@ -37,7 +37,7 @@ function sanitizedUrl(rawUrl) {
 }
 
 async function snapshot(page, label) {
-  await page.waitForTimeout(WAIT_MS).catch(() => {});
+  await pageSettled(page);
   const data = await page.evaluate(() => {
     const textOf = (el) => (el.innerText || el.textContent || el.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
     const visible = (el) => {

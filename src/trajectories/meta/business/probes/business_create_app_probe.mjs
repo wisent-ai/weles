@@ -5,10 +5,10 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { generatePersona } from '../../../../../dist/browser/persona.js';
 import { WSession } from '../../../../../dist/session/wsession.js';
+import { pageSettled } from '../../../_shared/page/settled.mjs';
 
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
 const BUSINESS_ID = process.env.META_BUSINESS_ID || process.env.BUSINESS_ID || '885982240795843';
-const WAIT_MS = Number(process.env.WAIT_MS || 2500);
 mkdirSync(USER_DATA_DIR, { recursive: true });
 process.env.WELES_VIEWPORT ??= '1440x1000';
 
@@ -34,7 +34,7 @@ function sanitizedUrl(rawUrl) {
 }
 
 async function snapshot(page, label) {
-  await page.waitForTimeout(WAIT_MS).catch(() => {});
+  await pageSettled(page);
   const data = await page.evaluate(() => {
     const textOf = (el) => (el.innerText || el.textContent || el.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
     const visible = (el) => {
@@ -121,7 +121,7 @@ async function clickFirst(page, label, allow, deny = /delete|remove|usuń|anuluj
   }).catch(() => null);
   if (!target) return null;
   await page.mouse.click(target.x, target.y, { delay: 50 });
-  await page.waitForTimeout(WAIT_MS).catch(() => {});
+  await pageSettled(page);
   console.log(JSON.stringify({ stage: 'clicked', label, text: target.text.slice(0, 180), x: target.x, y: target.y }));
   return target;
 }

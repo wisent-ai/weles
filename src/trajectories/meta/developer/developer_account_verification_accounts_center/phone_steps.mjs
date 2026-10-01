@@ -1,7 +1,8 @@
 // The phone steps: sending the number, updating a stored one, and confirming the code.
 import { humanClickLocator } from '../../../../../dist/human/mouse.js';
 import { humanFill, humanType } from '../../../../../dist/human/keyboard.js';
-import { USER_DATA_DIR, VERIFY_CODE, VERIFY_PHONE, WAIT_MS } from './settings.mjs';
+import { USER_DATA_DIR, VERIFY_CODE, VERIFY_PHONE } from './settings.mjs';
+import { pageSettled } from '../../../_shared/page/settled.mjs';
 import { phoneNationalNumber, snapshot } from './page.mjs';
 import { selectCountryForPhone } from './navigation.mjs';
 
@@ -23,7 +24,7 @@ export async function fillPhoneAndSend(page) {
   });
   await input.dispatchEvent('input').catch(() => {});
   await input.dispatchEvent('change').catch(() => {});
-  await page.waitForTimeout(1000).catch(() => {});
+  await pageSettled(page);
   let inputState = await input.evaluate((el) => {
     const digits = (el.value || '').replace(/\D/g, '');
     return {
@@ -42,7 +43,7 @@ export async function fillPhoneAndSend(page) {
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
     }, inputValue).catch(() => {});
-    await page.waitForTimeout(1000).catch(() => {});
+    await pageSettled(page);
     inputState = await input.evaluate((el) => {
       const digits = (el.value || '').replace(/\D/g, '');
       return {
@@ -85,7 +86,7 @@ export async function fillPhoneAndSend(page) {
   });
   if (!clicked) return { filled: true, clicked: false };
   await page.mouse.click(clicked.x, clicked.y, { delay: 50 });
-  await page.waitForTimeout(WAIT_MS).catch(() => {});
+  await pageSettled(page);
   console.log(JSON.stringify({ stage: 'clicked', label: 'send_verification_sms', text: clicked.text, x: clicked.x, y: clicked.y }));
   return { filled: true, clicked: true };
 }
@@ -114,7 +115,7 @@ export async function clickUpdateMobileNumber(page) {
   });
   if (!target) return null;
   await page.mouse.click(target.x, target.y, { delay: 50 });
-  await page.waitForTimeout(WAIT_MS).catch(() => {});
+  await pageSettled(page);
   console.log(JSON.stringify({ stage: 'clicked', label: 'update_mobile_number', text: target.text, x: target.x, y: target.y }));
   return target;
 }
@@ -128,7 +129,7 @@ export async function fillCodeAndContinue(page) {
   await humanType(page, VERIFY_CODE).catch(async () => {
     await page.keyboard.insertText(VERIFY_CODE).catch(() => {});
   });
-  await page.waitForTimeout(1000).catch(() => {});
+  await pageSettled(page);
   const clicked = await page.evaluate(() => {
     const textOf = (el) => (el.innerText || el.textContent || el.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
     const visible = (el) => {
@@ -152,7 +153,7 @@ export async function fillCodeAndContinue(page) {
   });
   if (!clicked) return { filled: true, clicked: false };
   await page.mouse.click(clicked.x, clicked.y, { delay: 50 });
-  await page.waitForTimeout(WAIT_MS).catch(() => {});
+  await pageSettled(page);
   console.log(JSON.stringify({ stage: 'clicked', label: 'developer_code_continue', text: clicked.text, x: clicked.x, y: clicked.y }));
   return { filled: true, clicked: true };
 }

@@ -137,7 +137,6 @@ export function applyPaidAdsActionParams(
     ['browser', 'BROWSER'],
     ['ads_profile_dir', 'ADS_PROFILE_DIR'],
     ['wait_for_login', 'WAIT_FOR_LOGIN'],
-    ['login_wait_ms', 'LOGIN_WAIT_MS'],
     ['date', 'DATE'],
     ['redirect_uri', 'REDIRECT_URI'],
     ['content_platform_dir', 'CONTENT_PLATFORM_DIR'],

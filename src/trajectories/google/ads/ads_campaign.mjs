@@ -28,7 +28,7 @@ import { WSession } from '../../../../dist/session/wsession.js';
 import { assertGoogleAdsProfileNotAlreadyOpen, closeAllowedByEnv } from './_profile_guard.mjs';
 import {
   ADS_URL, APP_ID, APP_NAME, APP_PLATFORM, CAMPAIGN_NAME, CAMPAIGN_OBJECTIVE, CUSTOMER_ID, DAILY_BUDGET_USD, DESCRIPTION,
-  EFFECTIVE_CAMPAIGN_TYPE, FINAL_URL, HEADLINE, IS_APP_INSTALL, KEYWORDS, LOCATIONS, LOGIN_WAIT_MS, PACKAGE_NAME, SUBMIT,
+  EFFECTIVE_CAMPAIGN_TYPE, FINAL_URL, HEADLINE, IS_APP_INSTALL, KEYWORDS, LOCATIONS, PACKAGE_NAME, SUBMIT,
   USER_DATA_DIR, WAIT_FOR_LOGIN,
 } from './ads_campaign/settings.mjs';
 import {
@@ -62,18 +62,9 @@ try {
       console.log('FAIL: google session expired / not logged in');
       process.exit(2);
     }
-    console.log(`[google-ads] waiting for manual login, deadline=${LOGIN_WAIT_MS}ms`);
+    console.log('[google-ads] waiting for manual login in the open window');
     await bringBrowserToFront(s);
-    const deadline = Date.now() + LOGIN_WAIT_MS;
-    while (Date.now() < deadline) {
-      await pageSettled(s.page);
-      url = s.page.url?.() ?? '';
-      if (!isLoginUrl(url)) break;
-    }
-    if (isLoginUrl(url)) {
-      console.log(`FAIL: manual login did not complete (${url})`);
-      process.exit(2);
-    }
+    await s.page.waitForURL((u) => !isLoginUrl(String(u)));
     await navigate(s, baseUrl, 'campaign builder after login');
     await pageSettled(s.page);
   }

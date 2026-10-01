@@ -12,7 +12,6 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const LOGIN_WAIT_MS = Number(process.env.LOGIN_WAIT_MS || 15 * 60 * 1000);
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
 mkdirSync(USER_DATA_DIR, { recursive: true });
 process.env.WELES_VIEWPORT ??= '1280x900';
@@ -56,14 +55,10 @@ try {
   await pageSettled(s.page);
   let cookies = await s.ctx.cookies().catch(() => []);
   if (!hasMetaAuthCookie(cookies) || isLoginUrl(s.page.url?.() ?? '')) {
-    console.log(`[meta-ads-login] waiting for manual login, deadline=${LOGIN_WAIT_MS}ms`);
+    console.log('[meta-ads-login] waiting for manual login in the open window');
     await bringBrowserToFront(s);
-    const deadline = Date.now() + LOGIN_WAIT_MS;
-    while (Date.now() < deadline) {
-      await pageSettled(s.page);
-      cookies = await s.ctx.cookies().catch(() => []);
-      if (hasMetaAuthCookie(cookies) && !isLoginUrl(s.page.url?.() ?? '')) break;
-    }
+    await s.page.waitForURL((url) => !isLoginUrl(String(url)));
+    await pageSettled(s.page);
   }
   cookies = await s.ctx.cookies().catch(() => []);
   const metaNames = cookies.filter((c) => /facebook\.com|business\.facebook\.com/.test(c.domain || '')).map((c) => c.name).sort();

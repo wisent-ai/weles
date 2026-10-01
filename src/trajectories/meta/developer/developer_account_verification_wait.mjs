@@ -8,9 +8,9 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { generatePersona } from '../../../../dist/browser/persona.js';
 import { WSession } from '../../../../dist/session/wsession.js';
+import { pageCondition } from '../../_shared/page/settled.mjs';
 
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
-const WAIT_MS = Number(process.env.LOGIN_WAIT_MS || 900000);
 mkdirSync(USER_DATA_DIR, { recursive: true });
 process.env.WELES_VIEWPORT ??= '1280x900';
 
@@ -47,7 +47,6 @@ async function pageState(page) {
 console.log(JSON.stringify({
   stage: 'start',
   userDataDir: USER_DATA_DIR,
-  waitMs: WAIT_MS,
 }, null, 2));
 
 const s = await WSession.start({
@@ -65,27 +64,16 @@ try {
   await bringBrowserToFront(s);
   await s.page.goto('https://developers.facebook.com/async/developer/account/verification/', { waitUntil: 'domcontentloaded' }).catch(() => {});
   await bringBrowserToFront(s);
-  const deadline = Date.now() + WAIT_MS;
-  let lastSummary = '';
-  while (Date.now() < deadline) {
-    await s.page.waitForTimeout(3000).catch(() => {});
-    const state = await pageState(s.page);
-    const summary = JSON.stringify({
-      url: state.url,
-      registerDialog: state.registerDialog,
-      phoneOrCard: state.phoneOrCard,
-      appDashboard: state.appDashboard,
-      text: state.text?.slice(0, 240),
-    });
-    if (summary !== lastSummary) {
-      console.log(JSON.stringify({ stage: 'state', ...state, text: state.text?.slice(0, 500) }, null, 2));
-      lastSummary = summary;
-    }
-    if (!state.registerDialog && !state.phoneOrCard && !/account\/verification|registration\/dialog/i.test(state.url || '')) {
-      console.log(JSON.stringify({ stage: 'complete_candidate', url: state.url, title: state.title }, null, 2));
-      break;
-    }
-  }
+  // The operator completes the registration in this window; the run waits
+  // until the page no longer shows the dialog or the phone/card step, for as
+  // long as that takes, and is ended by cancellation otherwise.
+  await pageCondition(s.page, () => {
+    const text = (document.body?.innerText || '').replace(/\s+/g, ' ');
+    return !/Create a Meta for Developers account|Register Verify account Contact info About you/i.test(text)
+      && !/phone|mobile|telefon|credit card|debit card|karta/i.test(text)
+      && !/account\/verification|registration\/dialog/i.test(location.href);
+  });
+  console.log(JSON.stringify({ stage: 'complete_candidate', url: s.page.url() }, null, 2));
   const finalState = await pageState(s.page);
   console.log(JSON.stringify({ stage: 'final', ...finalState, text: finalState.text?.slice(0, 800) }, null, 2));
   if (finalState.registerDialog || /account\/verification|registration\/dialog/i.test(finalState.url || '')) {
