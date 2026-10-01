@@ -130,10 +130,16 @@ function recordIds(kind: string): string[] {
     .filter(Boolean);
 }
 
+/** Replace `id`'s payload with a bundle holding exactly `fields`, written on stdin so no value is in argv. */
+function writeBundle(id: string, fields: Record<string, string>, tags: string[] = []): void {
+  skarbiec(['set-json', id, '--type', 'bundle', ...(tags.length ? ['--tags', tags.join(',')] : [])],
+    JSON.stringify({ schema: 'skarbiec.item.v2', kind: 'bundle', fields, context: {} }));
+}
+
 /** A new record of `kind` under a random id; returns the id. */
-function createRecord(kind: string, fields: string[]): string {
+function createRecord(kind: string, fields: Record<string, string>): string {
   const id = randomUUID().replaceAll('-', '');
-  skarbiec(['set', id, '--type', 'bundle', '--tags', `${RECORD_TAG_PREFIX}${kind}`, ...fields]);
+  writeBundle(id, fields, [`${RECORD_TAG_PREFIX}${kind}`]);
   return id;
 }
 
@@ -207,7 +213,7 @@ export function putAccountProfile(record: {
   displayName?: string;
 }): string {
   const id = findAccountId(record.platform, record.username)
-    ?? createRecord(ACCOUNT_KIND, [`username=${record.username}`, `metadata_json=${JSON.stringify(record.metadata)}`]);
+    ?? createRecord(ACCOUNT_KIND, { username: record.username, metadata_json: JSON.stringify(record.metadata) });
   const document = readDocument(id);
   const fields = document.fields ?? {};
   const current = fields.metadata_json ? JSON.parse(String(fields.metadata_json)) : {};
@@ -232,14 +238,10 @@ export function putAccount(record: {
   metadata: Record<string, unknown>;
   displayName?: string;
 }): string {
-  const fields = [
-    `username=${record.username}`,
-    `password=${record.password}`,
-    `metadata_json=${JSON.stringify(record.metadata)}`,
-  ];
+  const fields = { username: record.username, password: record.password, metadata_json: JSON.stringify(record.metadata) };
   const existing = findAccountId(record.platform, record.username);
   const id = existing ?? createRecord(ACCOUNT_KIND, fields);
-  if (existing) skarbiec(['set', id, '--type', 'bundle', ...fields]);
+  if (existing) writeBundle(id, fields);
   const document = readDocument(id);
   document.context = {
     ...(document.context ?? {}),
@@ -283,10 +285,10 @@ export function readSetting<T>(key: string, fallback: T): T {
 }
 
 export function writeSetting<T>(key: string, value: T): void {
-  const field = `value_json=${JSON.stringify(value)}`;
+  const fields = { value_json: JSON.stringify(value) };
   const existing = settingRecordId(key);
-  const id = existing ?? createRecord(SETTING_KIND, [field]);
-  if (existing) skarbiec(['set', id, '--type', 'bundle', field]);
+  const id = existing ?? createRecord(SETTING_KIND, fields);
+  if (existing) writeBundle(id, fields);
   const document = readDocument(id);
   document.context = {
     ...(document.context ?? {}),

@@ -37,12 +37,14 @@ function recordIds(kind) {
 }
 
 /**
- * Write a record of `kind` under `id`, tagging it when it is new; `create`
- * holds the `skarbiec set` arguments after the id.
+ * Write a record of `kind` under `id` as an `itemKind` payload holding
+ * exactly `fields`, tagging it when it is new. The payload travels on
+ * standard input, so no credential value is ever in an argv.
  */
-function setRecord(kind, id, create) {
+function setRecord(kind, id, itemKind, fields) {
   const fresh = !recordIds(kind).includes(id);
-  run(['set', id, ...create, ...(fresh ? ['--tags', `${RECORD_TAG_PREFIX}${kind}`] : [])]);
+  run(['set-json', id, '--type', itemKind, ...(fresh ? ['--tags', `${RECORD_TAG_PREFIX}${kind}`] : [])],
+    JSON.stringify({ schema: 'skarbiec.item.v2', kind: itemKind, fields, context: {} }));
 }
 
 /**
@@ -110,7 +112,7 @@ export function writeServiceCredentials(service, { username, password }) {
   const kind = 'service-credential';
   const id = recordIds(kind).find((recordId) =>
     readWelesRecord(recordId).context?.service === String(service)) ?? randomUUID().replaceAll('-', '');
-  setRecord(kind, id, ['--type', 'login', `username=${String(username)}`, `password=${String(password)}`]);
+  setRecord(kind, id, 'login', { username: String(username), password: String(password) });
   const document = readWelesRecord(id);
   document.context = {
     ...(document.context ?? {}),
@@ -126,7 +128,7 @@ export function writeDomainStatus(domain, status) {
   const kind = 'email-domain-status';
   const id = recordIds(kind).find((recordId) =>
     readWelesRecord(recordId).fields?.domain === String(domain)) ?? randomUUID().replaceAll('-', '');
-  setRecord(kind, id, ['--type', 'bundle', `domain=${String(domain)}`, `status=${String(status)}`]);
+  setRecord(kind, id, 'bundle', { domain: String(domain), status: String(status) });
   const document = readWelesRecord(id);
   document.context = {
     ...(document.context ?? {}),
@@ -146,7 +148,7 @@ export function writeDomainProbe(domain, marker) {
     readWelesRecord(recordId).fields?.domain === String(domain));
   if (!id) {
     id = randomUUID().replaceAll('-', '');
-    setRecord(kind, id, ['--type', 'bundle', `domain=${String(domain)}`, 'status=unprobed']);
+    setRecord(kind, id, 'bundle', { domain: String(domain), status: 'unprobed' });
   }
   const document = readWelesRecord(id);
   document.context = {
@@ -196,12 +198,11 @@ export function readAccount(id) {
 
 export function writeAccount({ id, platform, username, password, metadata, displayName = '' }) {
   const item = requireItem(id);
-  const fields = [
-    `username=${String(username)}`,
-    `password=${String(password)}`,
-    `metadata_json=${JSON.stringify(metadata ?? {})}`,
-  ];
-  setRecord(ACCOUNT_KIND, item, ['--type', 'bundle', ...fields]);
+  setRecord(ACCOUNT_KIND, item, 'bundle', {
+    username: String(username),
+    password: String(password),
+    metadata_json: JSON.stringify(metadata ?? {}),
+  });
   const document = JSON.parse(run(['get', item]));
   document.context = {
     ...(document.context ?? {}),

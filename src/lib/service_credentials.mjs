@@ -94,7 +94,8 @@ export async function upsertCredential(row) {
   if (!/^[a-zA-Z0-9][a-zA-Z0-9:._-]{0,190}$/.test(id)) throw new Error('invalid Skarbiec credential item id');
   let document;
   try { document = readItem(id); } catch {
-    skarbiec(['set', id, '--type', 'login', `username=${String(row.login_email ?? '')}`, `password=${String(row.login_password ?? '')}`]);
+    const fields = { username: String(row.login_email ?? ''), password: String(row.login_password ?? '') };
+    skarbiec(['set-json', id, '--type', 'login'], JSON.stringify({ schema: 'skarbiec.item.v2', kind: 'login', fields, context: {} }));
     document = readItem(id);
   }
   document.fields = {

@@ -40,8 +40,8 @@ export async function upsertSubscription(row) {
     service: row.service_name, provider: row.provider, account: row.account_identifier,
   }))[0]?.id;
   const id = existing ?? randomUUID().replaceAll('-', '');
-  run(['set', id, '--type', 'bundle', `value_json=${JSON.stringify(row.metadata ?? {})}`,
-    ...(existing ? [] : ['--tags', RECORD_TAG])]);
+  run(['set-json', id, '--type', 'bundle', ...(existing ? [] : ['--tags', RECORD_TAG])],
+    JSON.stringify({ schema: 'skarbiec.item.v2', kind: 'bundle', fields: { value_json: JSON.stringify(row.metadata ?? {}) }, context: {} }));
   const document = read(id);
   document.context = {
     ...(document.context ?? {}),
