@@ -39,7 +39,6 @@ const browserTools: ToolDefinition[] = [
       pageId: { type: 'string' },
       url: { type: 'string' },
       waitUntil: { type: 'string', enum: ['load', 'domcontentloaded', 'networkidle', 'commit'] },
-      timeout: { type: 'number' },
     }, ['pageId', 'url']),
   },
   {
@@ -48,7 +47,6 @@ const browserTools: ToolDefinition[] = [
     inputSchema: objectSchema({
       pageId: { type: 'string' },
       selector: { type: 'string', description: 'Optional CSS selector. Defaults to body.' },
-      timeout: { type: 'number' },
     }, ['pageId']),
   },
   {
@@ -57,7 +55,6 @@ const browserTools: ToolDefinition[] = [
     inputSchema: objectSchema({
       pageId: { type: 'string' },
       selector: { type: 'string' },
-      timeout: { type: 'number' },
     }, ['pageId', 'selector']),
   },
   {
@@ -67,7 +64,6 @@ const browserTools: ToolDefinition[] = [
       pageId: { type: 'string' },
       selector: { type: 'string' },
       value: { type: 'string' },
-      timeout: { type: 'number' },
     }, ['pageId', 'selector', 'value']),
   },
   {

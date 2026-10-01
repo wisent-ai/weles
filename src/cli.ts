@@ -27,8 +27,8 @@ Usage:
   weles onboarding import <trajectory-export.json> --host <managed-worker-hostname> [--subject <stable-id>]
   weles onboarding verify --receipt <receipt.json> --keys <receipt-keys.json> [--subject <stable-id>]
   weles import <trajectory-export.json> --host <managed-worker-hostname>
-  weles open <url> [--headless] [--browser chromium|firefox] [--wait-for-text <text>] [--text] [--screenshot <file>] [--timeout <ms>]
-  weles screenshot <url> <file> [--headless] [--browser chromium|firefox] [--wait-for-text <text>] [--timeout <ms>]
+  weles open <url> [--headless] [--browser chromium|firefox] [--wait-for-text <text>] [--text] [--screenshot <file>]
+  weles screenshot <url> <file> [--headless] [--browser chromium|firefox] [--wait-for-text <text>]
   weles mcp
   weles release surface [--root <directory>]
   weles release enforce-version --decision <file> --baseline <file> --declaration <file> --manifest <file>
@@ -74,7 +74,6 @@ Options:
   --text                  Print document body text after navigation.
   --screenshot <file>     Save a screenshot after navigation.
   --wait-for-text <text>  Wait for matching visible text before reading or capturing.
-  --timeout <ms>          Navigation timeout in milliseconds.
   --open                  List only requests still waiting for the operator.
   --limit <n>             How many operator requests to list (default 20).
   --json                  Print the operator request records as JSON.
@@ -156,7 +155,7 @@ function normalizeCommand(command?: string): CliCommand {
 
 function optionTakesValue(key: string): boolean {
   if (key === 'login-item' || key === 'login-role') return true;
-  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'timeout', 'subject', 'receipt', 'keys', 'state-dir', 'host', 'decision', 'baseline', 'declaration', 'manifest', 'source-revision', 'candidate-tag', 'released', 'published-surface', 'reason', 'correcting', 'root', 'limit', 'kind', 'account', 'run', 'instruction', 'minutes', 'detail', 'account-role', 'confirm', 'execution-host', 'execution-agent', 'private-key-out', 'certificate-out', 'expires-in-minutes', 'private-key', 'store-host'].includes(key);
+  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'subject', 'receipt', 'keys', 'state-dir', 'host', 'decision', 'baseline', 'declaration', 'manifest', 'source-revision', 'candidate-tag', 'released', 'published-surface', 'reason', 'correcting', 'root', 'limit', 'kind', 'account', 'run', 'instruction', 'pid', 'detail', 'account-role', 'confirm', 'execution-host', 'execution-agent', 'private-key-out', 'certificate-out', 'expires-in-minutes', 'private-key', 'store-host'].includes(key);
 }
 
 function cliOptionsToBrowserOptions(options: Record<string, string | boolean>): AsyncNewBrowserOptions {
@@ -172,13 +171,6 @@ function cliOptionsToBrowserOptions(options: Record<string, string | boolean>): 
   return browserOptions;
 }
 
-function parseTimeout(options: Record<string, string | boolean>): number | undefined {
-  if (typeof options.timeout !== 'string') return undefined;
-  const timeout = Number(options.timeout);
-  if (!Number.isFinite(timeout) || timeout <= 0) throw new Error(`invalid --timeout: ${options.timeout}`);
-  return timeout;
-}
-
 async function runOpen(parsed: ParsedCli): Promise<void> {
   const [url] = parsed.positional;
   if (!url) throw new Error('open requires <url>');
@@ -188,12 +180,9 @@ async function runOpen(parsed: ParsedCli): Promise<void> {
   const context = await AsyncNewBrowser(cliOptionsToBrowserOptions(parsed.options));
   try {
     const page = await context.newPage();
-    const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: parseTimeout(parsed.options) });
+    const response = await page.goto(url, { waitUntil: 'domcontentloaded' });
     if (typeof parsed.options['wait-for-text'] === 'string') {
-      await page.getByText(parsed.options['wait-for-text'], { exact: false }).first().waitFor({
-        state: 'visible',
-        timeout: parseTimeout(parsed.options),
-      });
+      await page.getByText(parsed.options['wait-for-text'], { exact: false }).first().waitFor({ state: 'visible' });
     }
     const title = await page.title().catch(() => '');
     const out: Record<string, unknown> = {
@@ -208,8 +197,7 @@ async function runOpen(parsed: ParsedCli): Promise<void> {
       out.screenshot = parsed.options.screenshot;
     }
     if (parsed.options.text === true) {
-      // timeout: 0 switches off Playwright's own limit; a read that fails says why.
-      out.text = await page.locator('body').innerText({ timeout: 0 });
+      out.text = await page.locator('body').innerText();
     }
 
     process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);

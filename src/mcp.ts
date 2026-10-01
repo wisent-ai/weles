@@ -7,7 +7,6 @@ import { callPageOperation } from './mcp/page-ops.js';
 import {
   addBrowser,
   addPage,
-  asOptionalNumber,
   asString,
   dropBrowser,
   getPage,
@@ -88,27 +87,27 @@ export async function callWelesMcpTool(name: string, args: Record<string, unknow
     const page = getPage(args.pageId);
     const url = asString(args.url, 'url');
     const waitUntil = typeof args.waitUntil === 'string' ? args.waitUntil as 'load' | 'domcontentloaded' | 'networkidle' | 'commit' : 'domcontentloaded';
-    const response = await page.goto(url, { waitUntil, timeout: asOptionalNumber(args.timeout, 'timeout') });
+    const response = await page.goto(url, { waitUntil });
     return textResult({ url: page.url(), status: response?.status() ?? null, title: await page.title().catch(() => '') });
   }
 
   if (name === 'weles_page_text') {
     const page = getPage(args.pageId);
     const selector = typeof args.selector === 'string' ? args.selector : 'body';
-    const text = await page.locator(selector).innerText({ timeout: asOptionalNumber(args.timeout, 'timeout') ?? 5000 });
+    const text = await page.locator(selector).innerText();
     return textResult(text);
   }
 
   if (name === 'weles_page_click') {
     const page = getPage(args.pageId);
-    await page.locator(asString(args.selector, 'selector')).click({ timeout: asOptionalNumber(args.timeout, 'timeout') });
+    await page.locator(asString(args.selector, 'selector')).click();
     return textResult({ clicked: args.selector });
   }
 
   if (name === 'weles_page_fill') {
     const page = getPage(args.pageId);
     const selector = asString(args.selector, 'selector');
-    await page.locator(selector).fill(asString(args.value, 'value'), { timeout: asOptionalNumber(args.timeout, 'timeout') });
+    await page.locator(selector).fill(asString(args.value, 'value'));
     return textResult({ filled: selector });
   }
 
