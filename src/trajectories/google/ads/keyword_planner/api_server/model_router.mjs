@@ -129,7 +129,6 @@ export async function generateKeywordsWithRouter(input, state = null) {
   ].join('\n');
   const body = JSON.stringify({
     model: cfg.model,
-    max_tokens: Number(process.env.WELES_KEYWORD_REPORT_MAX_TOKENS || 1400),
     messages: [{ role: 'user', content: prompt }],
   });
   const res = await fetch(`${cfg.routerUrl}/v1/chat/completions`, {

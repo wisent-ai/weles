@@ -35,8 +35,8 @@ const IDENTITY_CHALLENGE_ABSENT = 'identity_challenge_absent';
 const STAY_SIGNED_IN_SETTLED = 'stay_signed_in_settled';
 
 export async function visible(locator) {
-  const count = await locator.count().catch(() => Number('0'));
-  return count > Number('0') && locator.first().isVisible().catch(() => false);
+  const count = await locator.count().catch(() => 0);
+  return count > 0 && locator.first().isVisible().catch(() => false);
 }
 
 // Whether the control shows once its page has settled; a missing control is
@@ -111,8 +111,21 @@ async function dismissStaySignedIn(page) {
 // "Other ways to sign in" carries the password tile; the bare "Sign-in
 // options" chooser (passkey + organization) does not, so it is backed out of
 // and the email is resubmitted for another pass at the error surface.
+// The second pass is part of the walk, so the error surface may come twice;
+// taking the same step from the same surface a second time means the walk
+// goes round in a circle, and that is the error, named with the steps taken.
 async function choosePasswordSignIn(page) {
-  for (let attempt = Number('0'); attempt < Number('4'); attempt += Number('1')) {
+  const taken = [];
+  let from = 'start';
+  const step = (surface) => {
+    const move = `${from} -> ${surface} (${page.url()})`;
+    if (taken.includes(move)) {
+      throw new Error(`Microsoft sign-in repeated the step ${move} without offering the password; steps: ${taken.join(', ')}`);
+    }
+    taken.push(move);
+    from = surface;
+  };
+  for (;;) {
     const passwordInput = page.locator('input[name="passwd"], input#i0118, input[type="password"]').first();
     if (await visible(passwordInput)) return;
     const passwordChoice = page.getByText(/^Use (?:your )?password$/i).first();
@@ -126,6 +139,7 @@ async function choosePasswordSignIn(page) {
     const bareChooser = page.getByText(/Sign in to an organization/i).first();
     const emailInput = page.locator('input[name="loginfmt"], input#i0116, input[type="email"]').first();
     if (await visible(passkeyFailed)) {
+      step('passkey error surface');
       const otherWays = page.getByText(/Other ways to sign in|Use another way/i).first();
       if (await visible(otherWays)) {
         await humanClickLocator(page, otherWays);
@@ -134,11 +148,13 @@ async function choosePasswordSignIn(page) {
       }
     }
     if (await visible(passkeyPage)) {
+      step('passkey page');
       await page.keyboard.press('Escape');
       await pageSettled(page);
       continue;
     }
     if (await visible(bareChooser)) {
+      step('sign-in options chooser');
       const back = page.locator('#idBtn_Back, button[aria-label="Back"]').first();
       if (!await visible(back)) return;
       await humanClickLocator(page, back);
@@ -146,6 +162,7 @@ async function choosePasswordSignIn(page) {
       continue;
     }
     if (await visible(emailInput)) {
+      step('email page');
       const next = page.locator('input[type="submit"]#idSIButton9, button[type="submit"]').first();
       if (!await visible(next)) return;
       await humanClickLocator(page, next);
@@ -154,6 +171,7 @@ async function choosePasswordSignIn(page) {
     }
     const otherWays = page.getByText(/Other ways to sign in|Use another way/i).first();
     if (!await visible(otherWays)) return;
+    step('other-ways link');
     await humanClickLocator(page, otherWays);
     await pageSettled(page);
   }
@@ -214,7 +232,8 @@ export async function signIn(session, contract, password) {
   const challenged = await identityChallengeState(page);
   if (challenged === IDENTITY_CHALLENGE_PRESENT) return 'identity_challenge';
   if (challenged === PAGE_TEXT_UNREADABLE) return 'unavailable';
-  if (!await settledOnUrl(page, AUTHORIZED_CONTEXT_URL_PATTERN, Number('60000'))
+  await pageSettled(page);
+  if (!AUTHORIZED_CONTEXT_URL_PATTERN.test(page.url())
       || !AUTHORIZED_CONTEXT_HOST.test(new URL(page.url()).hostname)) {
     return await identityChallengeState(page) === IDENTITY_CHALLENGE_PRESENT ? 'identity_challenge' : 'unavailable';
   }

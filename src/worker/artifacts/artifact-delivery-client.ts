@@ -122,7 +122,7 @@ export async function requestSignedArtifactUrls(
   }
   if (!response.ok) {
     const detail = isRecord(payload) && typeof payload.error === 'string' ? payload.error : text;
-    throw new Error(`Weles artifact delivery HTTP ${response.status}: ${String(detail).slice(Number(false), Number('240'))}`);
+    throw new Error(`Weles artifact delivery HTTP ${response.status}: ${String(detail)}`);
   }
   return validateSignedResponse(payload, normalized, config, Date.now());
 }

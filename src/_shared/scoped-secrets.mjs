@@ -113,7 +113,7 @@ export function readScopedSecret(serviceName, field) {
     field,
   ], {
     encoding: 'buffer',
-    maxBuffer: Number('65536'),
+    maxBuffer: Infinity,
     stdio: 'pipe',
     env: {
       HOME: homedir(),
@@ -176,7 +176,7 @@ export function writeScopedSecretItem(serviceName, fields) {
   try {
     const result = spawnSync(stadoBinary(), ['secrets', 'put', service.item], {
       input,
-      maxBuffer: Number('65536'),
+      maxBuffer: Infinity,
       stdio: ['pipe', 'ignore', 'ignore'],
       env: {
         HOME: homedir(),

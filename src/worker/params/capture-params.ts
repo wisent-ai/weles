@@ -84,12 +84,12 @@ function viewport(value: unknown, action: string): CaptureViewport {
   const raw = record(value, action, 'viewport');
   const scaleRaw = raw.device_scale_factor ?? 1;
   const scale = typeof scaleRaw === 'string' ? Number(scaleRaw) : scaleRaw;
-  if (typeof scale !== 'number' || !Number.isFinite(scale) || scale < 0.5 || scale > 4) {
-    throw new Error(`${action} rejects viewport.device_scale_factor ${JSON.stringify(scaleRaw ?? null)}: device_scale_factor must be a number between 0.5 and 4.`);
+  if (typeof scale !== 'number' || !Number.isFinite(scale) || scale <= 0) {
+    throw new Error(`${action} rejects viewport.device_scale_factor ${JSON.stringify(scaleRaw ?? null)}: device_scale_factor must be a positive number.`);
   }
   return {
-    width: integer(raw.width, action, 'viewport.width', Number('200'), Number('5000')),
-    height: integer(raw.height, action, 'viewport.height', Number('200'), Number('20000')),
+    width: integer(raw.width, action, 'viewport.width', 1, Number.MAX_SAFE_INTEGER),
+    height: integer(raw.height, action, 'viewport.height', 1, Number.MAX_SAFE_INTEGER),
     device_scale_factor: scale,
   };
 }

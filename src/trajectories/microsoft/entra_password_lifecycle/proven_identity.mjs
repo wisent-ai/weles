@@ -61,7 +61,6 @@ export function trackBearerTokens(page, sink) {
   page.on('request', (request) => {
     const header = request.headers().authorization ?? '';
     if (!/^Bearer\s+eyJ/i.test(header)) return;
-    if (sink.length >= Number('64')) return;
     sink.push(header.replace(/^Bearer\s+/i, ''));
   });
 }

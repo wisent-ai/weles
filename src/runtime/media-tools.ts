@@ -32,7 +32,7 @@ const TOOL_DIRECTORIES = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/b
 /** The `browsers.json` beside the resolved `playwright-core`. */
 export function findPlaywrightManifest(): string {
   let directory = dirname(require.resolve('playwright-core'));
-  for (let depth = 0; depth < Number('6'); depth += 1) {
+  for (;;) {
     const candidate = join(directory, 'browsers.json');
     if (existsSync(candidate)) return candidate;
     const parent = dirname(directory);

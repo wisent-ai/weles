@@ -137,7 +137,7 @@ function runJedenProcess(
     cwd: process.cwd(),
     env,
     encoding: 'utf8',
-    maxBuffer: Number('10') * Number('1024') * Number('1024'),
+    maxBuffer: Infinity,
   }, (error, stdout, stderr) => {
     if (error) {
       const detail = String(stderr || stdout).trim();

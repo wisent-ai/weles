@@ -123,7 +123,7 @@ if (workloadSignature.length !== Number('128') || !validHex) {
 async function refuse(stage, response, consumer, item, field) {
   let detail = '';
   try {
-    const text = (await response.text()).slice(Number('0'), Number('2048'));
+    const text = await response.text();
     detail = text.replace(/"value"\s*:\s*"(?:[^"\\]|\\.)*"/g, '"value":"<redacted>"')
       .replace(/\s+/g, ' ')
       .trim();

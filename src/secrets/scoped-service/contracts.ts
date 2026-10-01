@@ -174,7 +174,7 @@ export type WelesAcquiredSecretContract = {
 // trailing slash, or upper-case host is a different string and is refused rather
 // than normalized into one.
 export function isWelesAcquiredSourceOrigin(value: string): boolean {
-  if (!value || value.length > Number('512')) return false;
+  if (!value) return false;
   try {
     const url = new URL(value);
     return url.protocol === 'https:' && url.origin === value;

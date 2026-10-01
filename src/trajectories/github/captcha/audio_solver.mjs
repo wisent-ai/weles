@@ -77,14 +77,13 @@ async function classifyAudio(b64, mime, targetSound, numOptions) {
     base64: b64,
     mimeType: mime,
     prompt,
-    maxTokens: Number('512'),
   });
   const match = text.match(/Answer\s*[:\s=]\s*(\d+)/i) ?? text.match(/(\d+)\s*$/);
-  const answer = Number(match?.at(Number(true)));
-  if (!Number.isInteger(answer) || answer < Number(true) || answer > numOptions) {
-    throw new Error(`model-router returned no valid audio option: ${text.slice(Number(false), Number('200'))}`);
+  const answer = Number(match?.at(1));
+  if (!Number.isInteger(answer) || answer < 1 || answer > numOptions) {
+    throw new Error(`model-router returned no valid audio option: ${text}`);
   }
-  console.log(`[audio] Stado model-router (${model}): ${text.slice(Number(false), Number('300'))}`);
+  console.log(`[audio] Stado model-router (${model}): ${text}`);
   return answer;
 }
 

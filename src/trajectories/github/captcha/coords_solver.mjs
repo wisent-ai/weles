@@ -71,32 +71,33 @@ Emit ONLY the JSON on a single line — no prose, no markdown, no explanation be
       base64: imageBase64,
       mimeType: 'image/png',
       prompt,
-      maxTokens: Number('2048'),
     });
     const sMatch = text.match(/"screen"\s*:\s*"([ABCDEFG])"/);
     const aMatch = text.match(/"action"\s*:\s*"([a-z_]+)"/);
     const xMatch = text.match(/"x"\s*:\s*(-?\d+)/);
     const yMatch = text.match(/"y"\s*:\s*(-?\d+)/);
     if (!sMatch) {
-      console.log(`[stado-model] no-screen text="${text.slice(Number(false), Number('200')).replace(/\n/g, ' ')}"`);
+      console.log(`[stado-model] no-screen text="${text.replace(/\n/g, ' ')}"`);
       return { err: 'no-screen completion' };
     }
-    const screen = sMatch.at(Number(true));
-    const action = aMatch?.at(Number(true)) ?? 'none';
-    let x = Number(xMatch?.at(Number(true)) ?? '0');
-    let y = Number(yMatch?.at(Number(true)) ?? '0');
-    if (x >= width * Number('2') || y >= height * Number('2')) {
-      x = Math.round(x * width / Number('1000'));
-      y = Math.round(y * height / Number('1000'));
+    const screen = sMatch.at(1);
+    const action = aMatch?.at(1) ?? 'none';
+    let x = Number(xMatch?.at(1) ?? '0');
+    let y = Number(yMatch?.at(1) ?? '0');
+    // The model answers either in pixels or on a 0-1000 grid; a coordinate
+    // past twice the screen is read as the grid.
+    if (x >= width * 2 || y >= height * 2) {
+      x = Math.round(x * width / 1000);
+      y = Math.round(y * height / 1000);
     }
-    x = Math.max(Number(false), Math.min(width - Number(true), x));
-    y = Math.max(Number(false), Math.min(height - Number(true), y));
-    const score = Number(text.match(/"score"\s*:\s*(\d+)/)?.at(Number(true)) ?? '0');
-    const why = (text.match(/"why"\s*:\s*"([^"]*)"/)?.at(Number(true)) ?? '').slice(Number(false), Number('80'));
+    x = Math.max(0, Math.min(width - 1, x));
+    y = Math.max(0, Math.min(height - 1, y));
+    const score = Number(text.match(/"score"\s*:\s*(\d+)/)?.at(1) ?? '0');
+    const why = text.match(/"why"\s*:\s*"([^"]*)"/)?.at(1) ?? '';
     console.log(`[stado-model] screen=${screen} action=${action} score=${score} model=${model} coords(${x},${y}) — ${why}`);
     return { x, y, screen, action, score };
   } catch (error) {
-    return { err: `router: ${String(error?.message || error).slice(Number(false), Number('120'))}` };
+    return { err: `router: ${String(error?.message || error)}` };
   }
 }
 

@@ -137,23 +137,22 @@ async function validateCandidate(candidate: string): Promise<{ ok: boolean; stat
   }
 }
 
-
-
 function sourceStartedAt(row: ActionLogRow): number {
   const value = row.started_at ?? row.completed_at ?? '';
   const ms = Date.parse(value);
-  return Number.isFinite(ms) ? ms - 10 * 60_000 : 0;
+  return Number.isFinite(ms) ? ms : 0;
 }
 
 async function scanMailboxForValidKey(source: ActionLogRow): Promise<{ stored: true; emailId: string; validationStatus: string; emailsScanned: number; matchedEmails: number } | { stored: false; emailsScanned: number; matchedEmails: number }> {
   const target = identityEmail(source).toLowerCase();
   const minCreatedAt = sourceStartedAt(source);
-  const maxPages = Math.max(1, Math.min(Number(process.env.SEMANTIC_SCHOLAR_FOLLOWUP_MAX_PAGES ?? '8'), 20));
   let after: string | undefined;
   let emailsScanned = 0;
   let matchedEmails = 0;
-  for (let pageIndex = 0; pageIndex < maxPages; pageIndex++) {
-    const page = await listReceived(Number('100'), undefined, after);
+  // Every page of the mailbox is read until Resend says there is no more;
+  // 100 is the largest page Resend's list endpoint returns.
+  for (;;) {
+    const page = await listReceived(100, undefined, after);
     const data = page.data ?? [];
     emailsScanned += data.length;
     for (const message of data) {
@@ -182,7 +181,7 @@ async function scanMailboxForValidKey(source: ActionLogRow): Promise<{ stored: t
           );
           return { stored: true, emailId: message.id, validationStatus: validation.status, emailsScanned, matchedEmails };
         } finally {
-          secret.fill(Number('0'));
+          secret.fill(0);
         }
       }
     }

@@ -92,43 +92,46 @@ export function readOptionalWelesServiceLogin(serviceName: WelesServiceSecret): 
   return { email, password, ...(totpSecret ? { totpSecret } : {}) };
 }
 
+// ASCII ranges: '0'-'9' 48-57, 'A'-'Z' 65-90, 'a'-'z' 97-122.
+const isDigit = (byte: number) => byte >= 48 && byte <= 57;
+const isUpper = (byte: number) => byte >= 65 && byte <= 90;
+const isLower = (byte: number) => byte >= 97 && byte <= 122;
+
 function isAllowedCredentialByte(byte: number): { allowed: boolean; letter: boolean; digit: boolean } {
-  const digit = byte >= Number('48') && byte <= Number('57');
-  const upper = byte >= Number('65') && byte <= Number('90');
-  const lower = byte >= Number('97') && byte <= Number('122');
-  const punctuation = byte === Number('46') || byte === Number('45') || byte === Number('95');
-  return { allowed: digit || upper || lower || punctuation, letter: upper || lower, digit };
+  const digit = isDigit(byte);
+  const letter = isUpper(byte) || isLower(byte);
+  const punctuation = byte === 0x2e || byte === 0x2d || byte === 0x5f; // . - _
+  return { allowed: digit || letter || punctuation, letter, digit };
 }
 
 function hasPrefix(secret: Buffer, prefix: string): boolean {
-  return secret.subarray(Number('0'), Buffer.byteLength(prefix)).equals(Buffer.from(prefix, 'ascii'));
+  return secret.subarray(0, Buffer.byteLength(prefix)).equals(Buffer.from(prefix, 'ascii'));
 }
 
+// The lower bounds are minimum strengths; nothing caps how long a credential
+// may be.
 function matchesPasswordShape(secret: Buffer): boolean {
-  if (secret.length < Number('20') || secret.length > Number('128')) return false;
+  if (secret.length < 20) return false;
   let upper = false;
   let lower = false;
   let digit = false;
   let symbol = false;
   for (const byte of secret) {
-    if (byte < Number('33') || byte > Number('126') || byte === Number('34') || byte === Number('92')) {
+    // Printable ASCII without space, '"' and '\'.
+    if (byte < 0x21 || byte > 0x7e || byte === 0x22 || byte === 0x5c) {
       return false;
     }
-    upper ||= byte >= Number('65') && byte <= Number('90');
-    lower ||= byte >= Number('97') && byte <= Number('122');
-    digit ||= byte >= Number('48') && byte <= Number('57');
-    symbol ||= !(
-      (byte >= Number('65') && byte <= Number('90'))
-      || (byte >= Number('97') && byte <= Number('122'))
-      || (byte >= Number('48') && byte <= Number('57'))
-    );
+    upper ||= isUpper(byte);
+    lower ||= isLower(byte);
+    digit ||= isDigit(byte);
+    symbol ||= !(isUpper(byte) || isLower(byte) || isDigit(byte));
   }
   return upper && lower && digit && symbol;
 }
 
 function matchesAcquiredSecretShape(shape: string, secret: Buffer): boolean {
   if (shape === 'password') return matchesPasswordShape(secret);
-  if (secret.length < Number('16') || secret.length > Number('8192')) return false;
+  if (secret.length < 16) return false;
   let hasLetter = false;
   let hasDigit = false;
   for (const byte of secret) {
@@ -138,10 +141,10 @@ function matchesAcquiredSecretShape(shape: string, secret: Buffer): boolean {
     hasDigit ||= kind.digit;
   }
   if (shape === 'semantic-scholar') {
-    return secret.length >= Number('20') && secret.length <= Number('128') && hasLetter && hasDigit;
+    return secret.length >= 20 && hasLetter && hasDigit;
   }
   if (shape === 'github') {
-    return secret.length >= Number('24')
+    return secret.length >= 24
       && (hasPrefix(secret, 'github_pat_')
         || hasPrefix(secret, 'ghp_')
         || hasPrefix(secret, 'gho_')
@@ -150,9 +153,9 @@ function matchesAcquiredSecretShape(shape: string, secret: Buffer): boolean {
         || hasPrefix(secret, 'ghr_'));
   }
   if (shape === 'opaque-token') {
-    return secret.length >= Number('20') && secret.length <= Number('8192') && hasLetter && hasDigit;
+    return secret.length >= 20 && hasLetter && hasDigit;
   }
-  return shape === 'supabase' && secret.length >= Number('16') && hasPrefix(secret, 'sbp_');
+  return shape === 'supabase' && hasPrefix(secret, 'sbp_');
 }
 
 export function isWelesAcquiredSecretValue(secretName: WelesAcquiredSecret, secret: Buffer): boolean {
@@ -258,7 +261,7 @@ export function writeWelesAcquiredSecret(
       requestId,
     ], {
       input,
-      maxBuffer: Number('65536'),
+      maxBuffer: Infinity,
       stdio: ['pipe', 'ignore', 'pipe'],
       env: {
         HOME: homedir(),
@@ -266,15 +269,15 @@ export function writeWelesAcquiredSecret(
         WC_SKARBIEC_URL: skarbiecEndpoint(tenantId),
       },
     });
-    if (result.error || result.status !== Number('0')) {
+    if (result.error || result.status !== 0) {
       const stderr = Buffer.isBuffer(result.stderr)
         ? result.stderr.toString('utf8')
         : String(result.stderr ?? '');
       const httpStatus = stderr.match(/HTTP \d{3}/)?.[0];
       const transport = stderr.match(
-        /(?:ECONNREFUSED|ECONNRESET|UND_ERR_[A-Z_]+)[^\r\n]{0,160}/,
+        /(?:ECONNREFUSED|ECONNRESET|UND_ERR_[A-Z_]+)[^\r\n]*/,
       )?.[0];
-      const safeReason = stderr.match(/Error: ([^\r\n]{1,240})/)?.[1]
+      const safeReason = stderr.match(/Error: ([^\r\n]+)/)?.[1]
         ?.replace(/[A-Za-z0-9_-]{32,}/g, '[redacted]');
       const detail = httpStatus ?? transport ?? safeReason ?? 'without diagnostic detail';
       throw new Error(
@@ -282,6 +285,6 @@ export function writeWelesAcquiredSecret(
       );
     }
   } finally {
-    input.fill(Number('0'));
+    input.fill(0);
   }
 }

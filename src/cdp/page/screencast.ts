@@ -124,7 +124,7 @@ export function stitchFrames(frameDir: string, outputDir: string, frameCount: nu
     const cause = captured || (error instanceof Error ? error.message : String(error));
     throw new Error(
       `${ffmpeg} could not stitch ${frameCount} frame(s) from ${frameDir} `
-      + `into ${outPath}: ${cause.slice(-Number('600'))}`,
+      + `into ${outPath}: ${cause}`,
       { cause: error },
     );
   }

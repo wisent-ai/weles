@@ -114,7 +114,7 @@ export async function putPrivateStadoObject(
   })
   const responseText = await response.text()
   if (!response.ok) {
-    throw new Error(`Stado object upload failed (HTTP ${response.status}): ${responseText.slice(Number(false), Number('300'))}`)
+    throw new Error(`Stado object upload failed (HTTP ${response.status}): ${responseText}`)
   }
   let payload: Record<string, unknown>
   try { payload = JSON.parse(responseText) as Record<string, unknown> } catch {

@@ -112,7 +112,7 @@ export function readScopedField(
   const binary = process.env.WELES_STADO_BIN?.trim() || join(homedir(), '.stado', 'bin', 'stado');
   const result = spawnSync(binary, [CREDENTIALS_GROUP, 'get', item, '--field', field], {
     encoding: 'buffer',
-    maxBuffer: Number('65536'),
+    maxBuffer: Infinity,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       HOME: homedir(),
@@ -260,7 +260,7 @@ export function readAcquiredField(
     field,
   ], {
     encoding: 'buffer',
-    maxBuffer: Number('65536'),
+    maxBuffer: Infinity,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       HOME: homedir(),
@@ -279,7 +279,7 @@ export function readAcquiredField(
       const { reason, lines } = acquisitionStderr(
         Buffer.isBuffer(result.stderr) ? result.stderr.toString('utf8') : '',
       );
-      const diagnosis = lines.slice(-Number('2')).join(' | ').slice(Number('0'), Number('600'));
+      const diagnosis = lines.join(' | ');
       throw new SkarbiecAcquisitionError(
         `workload-bound Skarbiec acquisition failed for ${item}/${field} as consumer ${consumer}`
         + ` against ${endpoint}`

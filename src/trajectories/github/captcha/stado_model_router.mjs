@@ -61,13 +61,14 @@ function completionText(content) {
     .trim();
 }
 
-export async function completeMultimodal({ base64, mimeType, prompt, maxTokens }) {
+// No max_tokens is sent: the model's own output limit applies, and a
+// provider refusal comes back as its error.
+export async function completeMultimodal({ base64, mimeType, prompt }) {
   if (!/^(?:audio|image)\/[a-z\d.+-]+$/i.test(String(mimeType || ''))) {
     throw new Error(`unsupported Stado model-router media type: ${mimeType || 'missing'}`);
   }
   if (typeof base64 !== 'string' || !base64) throw new Error('Stado model-router media payload is empty');
   if (typeof prompt !== 'string' || !prompt.trim()) throw new Error('Stado model-router prompt is empty');
-  if (!Number.isInteger(maxTokens) || maxTokens < Number(true)) throw new Error('Stado model-router maxTokens must be a positive integer');
 
   const config = requireStadoModelRouterConfig();
   const response = await fetch(`${config.baseUrl}${ROUTER_PATH}`, {
@@ -78,8 +79,7 @@ export async function completeMultimodal({ base64, mimeType, prompt, maxTokens }
     },
     body: JSON.stringify({
       model: MULTIMODAL_SELECTOR,
-      temperature: Number(false),
-      max_tokens: maxTokens,
+      temperature: 0,
       messages: [{
         role: 'user',
         content: [
@@ -98,9 +98,9 @@ export async function completeMultimodal({ base64, mimeType, prompt, maxTokens }
   }
   if (!response.ok) {
     const detail = typeof payload?.error?.message === 'string' ? payload.error.message : responseText;
-    throw new Error(`Stado model-router HTTP ${response.status}: ${String(detail).slice(Number(false), Number('240'))}`);
+    throw new Error(`Stado model-router HTTP ${response.status}: ${String(detail)}`);
   }
-  const text = completionText(payload?.choices?.at(Number(false))?.message?.content);
+  const text = completionText(payload?.choices?.at(0)?.message?.content);
   if (!text) throw new Error('Stado model-router returned an empty completion');
   return { text, model: typeof payload.model === 'string' ? payload.model : MULTIMODAL_SELECTOR };
 }

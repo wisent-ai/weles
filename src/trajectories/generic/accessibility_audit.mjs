@@ -108,7 +108,7 @@ try {
     error: message,
     completed_at: new Date().toISOString(),
   }, null, 2));
-  console.log('FAIL:', message.slice(Number('0'), Number('300')));
+  console.log('FAIL:', message);
   process.exitCode = 1;
 } finally {
   if (started) await started.session.close();

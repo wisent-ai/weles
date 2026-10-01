@@ -142,8 +142,8 @@ process.stdout.write(`bearer    ${api.tokenPath} (${api.token.length} chars, sha
 process.stdout.write(`uri       ${OBJECT_URI}\n`);
 
 const put = await request('PUT', api, bytes);
-process.stdout.write(`PUT       HTTP ${put.status} ${put.body.toString('utf8').trim().slice(0, Number('300'))}\n`);
-if (put.status < Number('200') || put.status >= Number('300')) {
+process.stdout.write(`PUT       HTTP ${put.status} ${put.body.toString('utf8').trim()}\n`);
+if (put.status < 200 || put.status >= 300) {
   process.stderr.write(`FAIL: the object API refused the write with HTTP ${put.status}. A 401 here means the '${new URL(OBJECT_URI).host}' namespace policy has no prefix rule covering '${OBJECT_URI.split('/').slice(3, -1).join('/')}/'.\n`);
   process.exit(1);
 }
