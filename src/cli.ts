@@ -10,10 +10,11 @@ import { runAppPassword } from './cli/security/app-password.js';
 import { runAppleDeveloperId } from './cli/security/apple-developer-id.js';
 import { runAppleLogin } from './cli/security/apple-login.js';
 import { runWorker } from './cli/worker/index.js';
+import { runKeeper } from './cli/keeper.js';
 import { adoptRecords } from './state/skarbiec-records.js';
 import { UsageError, exitStatusFor } from './cli/usage.js';
 
-type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import' | 'release' | 'figma' | 'operator-requests' | 'account-security' | 'app-password' | 'apple-developer-id' | 'apple-login' | 'worker' | 'records';
+type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import' | 'release' | 'figma' | 'operator-requests' | 'account-security' | 'app-password' | 'apple-developer-id' | 'apple-login' | 'worker' | 'records' | 'keeper';
 
 export type ParsedCli = {
   command: CliCommand;
@@ -49,6 +50,9 @@ Usage:
   weles apple-developer-id --run <run-id> --certificate-out <abs>
   weles apple-login [--account-role <role>] --confirm "AUTHORIZE ONE APPLE LOGIN" --execution-host <host> [--execution-agent <agent>] [--expires-in-minutes <n>] | --run <run-id>
   weles worker <status|start|restart> [--json]
+  weles keeper start --session <id> [--url <url>] [--headless]
+                          Hold one browser session that answers JSON commands on
+                          ~/.weles/keeper/<id>/socket until its page closes
   weles records adopt     Tag every Weles record in this vault with weles:record:<kind> from its own context
   weles doctor
   weles version
@@ -150,14 +154,14 @@ export function parseCliArgs(argv: string[]): ParsedCli {
 function normalizeCommand(command?: string): CliCommand {
   if (!command || command === '--help' || command === '-h' || command === 'help') return 'help';
   if (command === '--version' || command === '-v' || command === 'version') return 'version';
-  if (command === 'account-security' || command === 'app-password' || command === 'apple-developer-id' || command === 'apple-login' || command === 'worker' || command === 'records') return command;
+  if (command === 'account-security' || command === 'app-password' || command === 'apple-developer-id' || command === 'apple-login' || command === 'worker' || command === 'records' || command === 'keeper') return command;
   if (command === 'doctor' || command === 'open' || command === 'screenshot' || command === 'mcp' || command === 'onboarding' || command === 'import' || command === 'release' || command === 'figma' || command === 'operator-requests') return command;
   throw new UsageError(`unknown command: ${command}`);
 }
 
 function optionTakesValue(key: string): boolean {
   if (key === 'login-item' || key === 'login-role') return true;
-  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'subject', 'receipt', 'keys', 'state-dir', 'host', 'decision', 'baseline', 'declaration', 'manifest', 'source-revision', 'candidate-tag', 'released', 'published-surface', 'reason', 'correcting', 'root', 'limit', 'kind', 'account', 'run', 'instruction', 'pid', 'detail', 'account-role', 'confirm', 'execution-host', 'execution-agent', 'private-key-out', 'certificate-out', 'expires-in-minutes', 'private-key', 'store-host'].includes(key);
+  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'subject', 'receipt', 'keys', 'state-dir', 'host', 'decision', 'baseline', 'declaration', 'manifest', 'source-revision', 'candidate-tag', 'released', 'published-surface', 'reason', 'correcting', 'root', 'limit', 'kind', 'account', 'run', 'instruction', 'pid', 'detail', 'account-role', 'confirm', 'execution-host', 'execution-agent', 'private-key-out', 'certificate-out', 'expires-in-minutes', 'private-key', 'store-host', 'session', 'url'].includes(key);
 }
 
 function cliOptionsToBrowserOptions(options: Record<string, string | boolean>): AsyncNewBrowserOptions {
@@ -286,6 +290,10 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   }
   if (parsed.command === 'worker') {
     await runWorker(parsed);
+    return;
+  }
+  if (parsed.command === 'keeper') {
+    await runKeeper(parsed);
     return;
   }
   if (parsed.command === 'records') {
