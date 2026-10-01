@@ -8,6 +8,7 @@
 // way of nagging.
 
 import type { ParsedCli } from '../cli.js';
+import { UsageError } from './usage.js';
 import type { OperatorRequest } from '../operator/request.mjs' with { 'resolution-mode': 'import' };
 import type * as OperatorRequestApi from '../operator/request.mjs' with { 'resolution-mode': 'import' };
 
@@ -69,7 +70,7 @@ function numberOption(parsed: ParsedCli, key: string): number | undefined {
 function textOption(parsed: ParsedCli, key: string): string {
   const raw = parsed.options[key];
   if (typeof raw !== 'string' || raw.trim().length === 0) {
-    throw new Error(`operator-requests open requires --${key} <text>`);
+    throw new UsageError(`operator-requests open requires --${key} <text>`);
   }
   return raw.trim();
 }
@@ -91,7 +92,7 @@ async function listRequests(parsed: ParsedCli): Promise<void> {
 async function showRequest(parsed: ParsedCli): Promise<void> {
   const api = await requests();
   const id = parsed.positional[1];
-  if (!id) throw new Error('operator-requests show requires <id>');
+  if (!id) throw new UsageError('operator-requests show requires <id>');
   const request = api.readOperatorRequest(id);
   if (parsed.options.json === true) {
     process.stdout.write(`${JSON.stringify(request, null, 2)}\n`);
@@ -119,11 +120,11 @@ async function openRequest(parsed: ParsedCli): Promise<void> {
 async function closeRequest(parsed: ParsedCli): Promise<void> {
   const api = await requests();
   const id = parsed.positional[1];
-  if (!id) throw new Error('operator-requests close requires <id>');
+  if (!id) throw new UsageError('operator-requests close requires <id>');
   const approved = parsed.options.approved === true;
   const unapproved = parsed.options.unapproved === true;
   if (approved === unapproved) {
-    throw new Error('operator-requests close requires exactly one of --approved or --unapproved');
+    throw new UsageError('operator-requests close requires exactly one of --approved or --unapproved');
   }
   const request = api.closeOperatorRequest(id, approved, textOption(parsed, 'detail'));
   process.stdout.write(`${detail(request, false)}\n`);

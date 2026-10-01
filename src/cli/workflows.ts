@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { importWelesTrajectoryFile, type WelesImportReport } from '../runtime/import.js';
 import { runWelesOnboarding, type WelesOnboardingInput } from '../onboarding/first-use.js';
 import type { ParsedCli } from '../cli.js';
+import { UsageError } from './usage.js';
 function readJsonFile(path: string, label: string): unknown {
   try {
     return JSON.parse(readFileSync(path, 'utf8')) as unknown;
@@ -30,10 +31,12 @@ function readReceiptKeys(path: string): Readonly<Record<string, string>> {
 
 async function executeImport(parsed: ParsedCli): Promise<WelesImportReport> {
   const [path] = parsed.positional;
-  if (!path || parsed.positional.length !== 1) throw new Error('import requires <trajectory-export.json>');
-  if (typeof parsed.options.host !== 'string') throw new Error('import requires --host <managed-worker-hostname>');
+  if (!path || parsed.positional.length !== 1) throw new UsageError('import requires <trajectory-export.json>');
+  if (typeof parsed.options.host !== 'string') throw new UsageError('import requires --host <managed-worker-hostname>');
   const report = await importWelesTrajectoryFile(path, parsed.options.host);
-  if (report.refused > 0) process.exitCode = 2;
+  // A refused row is a refusal of a well-formed import, so it exits 1; 2 is
+  // every Weles usage error.
+  if (report.refused > 0) process.exitCode = 1;
   return report;
 }
 
@@ -50,7 +53,7 @@ export async function runOnboarding(parsed: ParsedCli): Promise<void> {
   const action = parsed.positional[0] ?? 'status';
   if (action === 'import') {
     if (parsed.positional.length !== 2) {
-      throw new Error('onboarding import requires <trajectory-export.json>');
+      throw new UsageError('onboarding import requires <trajectory-export.json>');
     }
     const common = {
       subject: typeof parsed.options.subject === 'string' ? parsed.options.subject : undefined,
@@ -75,7 +78,7 @@ export async function runOnboarding(parsed: ParsedCli): Promise<void> {
   const receiptPath = parsed.options.receipt;
   const keysPath = parsed.options.keys;
   if (action === 'verify' && (typeof receiptPath !== 'string' || typeof keysPath !== 'string')) {
-    throw new Error('onboarding verify requires --receipt <file> and --keys <file>');
+    throw new UsageError('onboarding verify requires --receipt <file> and --keys <file>');
   }
   const receiptDocument = typeof receiptPath === 'string' ? readJsonFile(receiptPath, 'workflow receipt') : undefined;
   const receipt = receiptDocument && typeof receiptDocument === 'object' && 'receipt' in receiptDocument
@@ -185,11 +188,11 @@ export async function runFigma(parsed: ParsedCli): Promise<void> {
   if (action === 'parse-document') {
     const parser = await import('../figma/document/parse-figma-document.mjs');
     if (paths.length < parser.REQUIRED_PATHS) {
-      throw new Error('weles figma parse-document takes <document.json[.gz]> <summary.json> <nodes.json> [<vocabulary.json>]');
+      throw new UsageError('weles figma parse-document takes <document.json[.gz]> <summary.json> <nodes.json> [<vocabulary.json>]');
     }
     const [source, summaryPath, nodesPath, vocabularyPath] = paths;
     parser.parseFigmaDocument(source, summaryPath, nodesPath, vocabularyPath);
     return;
   }
-  throw new Error(`weles figma takes export-design-assets or parse-document, not ${action ?? '<nothing>'}`);
+  throw new UsageError(`weles figma takes export-design-assets or parse-document, not ${action ?? '<nothing>'}`);
 }

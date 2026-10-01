@@ -11,6 +11,7 @@ import { runAppleDeveloperId } from './cli/security/apple-developer-id.js';
 import { runAppleLogin } from './cli/security/apple-login.js';
 import { runWorker } from './cli/worker/index.js';
 import { adoptRecords } from './state/skarbiec-records.js';
+import { UsageError, exitStatusFor } from './cli/usage.js';
 
 type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import' | 'release' | 'figma' | 'operator-requests' | 'account-security' | 'app-password' | 'apple-developer-id' | 'apple-login' | 'worker' | 'records';
 
@@ -150,7 +151,7 @@ function normalizeCommand(command?: string): CliCommand {
   if (command === '--version' || command === '-v' || command === 'version') return 'version';
   if (command === 'account-security' || command === 'app-password' || command === 'apple-developer-id' || command === 'apple-login' || command === 'worker' || command === 'records') return command;
   if (command === 'doctor' || command === 'open' || command === 'screenshot' || command === 'mcp' || command === 'onboarding' || command === 'import' || command === 'release' || command === 'figma' || command === 'operator-requests') return command;
-  throw new Error(`unknown command: ${command}`);
+  throw new UsageError(`unknown command: ${command}`);
 }
 
 function optionTakesValue(key: string): boolean {
@@ -173,7 +174,7 @@ function cliOptionsToBrowserOptions(options: Record<string, string | boolean>): 
 
 async function runOpen(parsed: ParsedCli): Promise<void> {
   const [url] = parsed.positional;
-  if (!url) throw new Error('open requires <url>');
+  if (!url) throw new UsageError('open requires <url>');
 
   routeConsoleToStderr();
   const { AsyncNewBrowser } = await import('./async_api.js');
@@ -208,7 +209,7 @@ async function runOpen(parsed: ParsedCli): Promise<void> {
 
 async function runScreenshot(parsed: ParsedCli): Promise<void> {
   const [url, file] = parsed.positional;
-  if (!url || !file) throw new Error('screenshot requires <url> <file>');
+  if (!url || !file) throw new UsageError('screenshot requires <url> <file>');
   parsed.options.screenshot = file;
   await runOpen(parsed);
 }
@@ -288,7 +289,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   }
   if (parsed.command === 'records') {
     if (parsed.positional.join(' ') !== 'adopt' || Object.keys(parsed.options).length) {
-      throw new Error('records takes exactly: adopt');
+      throw new UsageError('records takes exactly: adopt');
     }
     process.stdout.write(`${JSON.stringify(adoptRecords())}\n`);
     return;
@@ -303,6 +304,6 @@ if (require.main === module) {
   runCli().catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
     process.stderr.write(`weles: ${message}\n`);
-    process.exitCode = 1;
+    process.exitCode = exitStatusFor(error);
   });
 }

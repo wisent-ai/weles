@@ -1,4 +1,5 @@
 import type { ParsedCli } from '../../cli.js';
+import { UsageError } from '../usage.js';
 import { operatorJson, welesOperatorConnection } from '../../runtime/api/connection.js';
 import protocol from '../../worker/weles-api-server/worker-control/actions.json';
 
@@ -47,7 +48,7 @@ export async function runWorker(parsed: ParsedCli): Promise<void> {
   const [action] = parsed.positional;
   if (parsed.positional.length !== 1 || !Object.hasOwn(protocol.actions, action)
       || Object.keys(parsed.options).some(key => key !== 'json')) {
-    throw new Error(`worker requires ${Object.keys(protocol.actions).join(', ')}; only --json is accepted`);
+    throw new UsageError(`worker requires ${Object.keys(protocol.actions).join(', ')}; only --json is accepted`);
   }
   // Check the resident contract before an older endpoint can interpret a
   // control request as permission to recreate the retired native worker.
