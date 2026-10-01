@@ -1,10 +1,5 @@
-// ---------------------------------------------------------------------------
-// Human-like keyboard input — distributions derived from empirical trace
-// (recordings/behavior_2026-04-18T19-26-02-154Z.jsonl):
-//   dwell (keyDown→keyUp same key): p50=105ms, p25=89, p75=134, p95=214
-//   inter-keystroke (keyDown→next keyDown): p50=169ms, p25=108, p75=225, p95=1301
-// Replaces prior arbitrary 50–180ms / 200–450ms spike defaults.
-// ---------------------------------------------------------------------------
+// Keyboard input follows the selected transport's command completion.
+// Weles adds no inter-key pause; the external native tool owns its event pacing.
 
 import { nativeType, nativeSelectAllAndDelete } from './mouse-native.js';
 import { cdpInput, humanClickLocator } from './mouse.js';

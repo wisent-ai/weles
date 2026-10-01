@@ -1,13 +1,9 @@
-// ---------------------------------------------------------------------------
-// Human-like mouse movement — distributions from empirical trace
-// (recordings/behavior_2026-04-18T19-26-02-154Z.jsonl):
-//   pointer velocity: p50=0.76 px/ms, p25=0.12 (stalls), p75=1.85, p95=4.82
-//   click-to-click gaps: rapid 187–213ms; deliberate 2961–10584ms
-// ---------------------------------------------------------------------------
+// Pointer paths use recorded geometry or Bezier waypoints. The selected input
+// transport owns delivery; Weles does not add inter-waypoint pacing.
 
 import { cubicBezier } from '../utils/motion/bezier.js';
 import { randomBetween, waitMs, humanRandom } from '../utils/motion/timing.js';
-import { traceAvailable, nextPointerStepMs, nextInterClickMs, getMoveTemplate } from './trace.js';
+import { traceAvailable, nextInterClickMs, getMoveTemplate } from './trace.js';
 import { getOffsetFromPage, nativeClick, nativeBatchMove, nativeMove } from './mouse-native.js';
 import { settledTargetBox } from './pointer/target-box.js';
 import { pageSettled, type EvaluatingPage } from '../browser/settled.js';
@@ -21,14 +17,6 @@ export interface MousePage {
   };
 }
 
-function sampleStepMs(): number {
-  if (traceAvailable()) return nextPointerStepMs();
-  const r = humanRandom();
-  if (r < 0.25) return randomBetween(30, 120);
-  if (r < 0.75) return randomBetween(10, 30);
-  if (r < 0.95) return randomBetween(5, 12);
-  return randomBetween(2, 6);
-}
 
 /**
  * The three named kinds are the reaction-shaped defaults. A `[min, max]` pair
@@ -77,29 +65,13 @@ export async function humanScroll(
   }
 }
 
-// humanMove computes a Bezier or trace-replayed waypoint sequence, then
-// dispatches every waypoint through nativeBatchMove (OS event queue, not CDP).
-// CDP page.mouse.move events lack movementX/Y deltas and device timestamps
-// that LinkedIn's /apfc/collect, Reddit's hovercard scoring, and TikTok's
-// passport mssdk read for human-vs-bot classification.
-// Input transport. DEFAULT = cdp: per-page Playwright mouse/keyboard
-// (each WSession has its own browser context + CDP session), so
-// concurrent loops never contend on a shared host OS cursor — the
-// whole fleet is parallel-safe. WELES_INPUT=native opts a specific
-// label back into cliclick/CGEventPost OS-queue events.
-//
-// The prior default was native, justified by a 2026-05-13 comment
-// claiming CDP zeroed LinkedIn /apfc/collect hits. Operational
-// history showed those LinkedIn/TikTok/Reddit/Discord failures were
-// ultimately IP/proxy-caused, not input-transport-caused — that
-// run's 8-vs-0 diff was confounded by the proxy difference. So
-// there is no evidence-backed reason to keep native fleet-wide;
-// native is now opt-in per label only where it is MEASURED to be
-// required, not assumed. Both modes retain the path geometry; CDP advances
-// through acknowledgements, while the native bridge owns its event delivery.
+// The default CDP transport belongs to each page, so independent browser
+// contexts do not share a host cursor. WELES_INPUT=native explicitly selects
+// the global OS cursor through cliclick; the native bridge checks focus and
+// command outcomes. Both transports preserve path geometry.
 export function cdpInput(): boolean { return process.env.WELES_INPUT !== 'native'; }
 
-async function emitPath(page: any, off: any, points: Array<{ x: number; y: number; dt?: number }>): Promise<void> {
+async function emitPath(page: any, off: any, points: Array<{ x: number; y: number }>): Promise<void> {
   if (cdpInput()) {
     for (const p of points) {
       await page.mouse.move(p.x, p.y);
@@ -121,17 +93,9 @@ export async function humanMove(page: any, x: number, y: number, startX?: number
   const off = cdpInput() ? null : await getOffsetFromPage(page);
   const sx = startX ?? randomBetween(200, 600);
   const sy = startY ?? randomBetween(150, 450);
-  const template = traceAvailable() ? getMoveTemplate(sx, sy, x, y) : [];
-  const points: Array<{ x: number; y: number; dt?: number }> = [];
-  if (template.length) {
-    for (const p of template) points.push({ x: p.x, y: p.y, dt: off ? Math.min(p.dt, 120) : undefined });
-    points.push({ x, y, dt: 0 });
-    // Route through emitPath so the CDP-vs-native dispatch branch
-    // matches the Bezier branch at line 142 (which also uses emitPath).
-    // The prior direct nativeBatchMove(off, points) caused a TS error
-    // (off: NativeOffset | null vs NativeOffset) and a real runtime
-    // bug: when cdpInput() is true and `off` is null, native dispatch
-    // was attempted instead of the CDP page.mouse.move loop.
+  const points = traceAvailable() ? getMoveTemplate(sx, sy, x, y) : [];
+  if (points.length) {
+    points.push({ x, y });
     await emitPath(page, off, points);
     return;
   }
@@ -146,10 +110,9 @@ export async function humanMove(page: any, x: number, y: number, startX?: number
     points.push({
       x: Math.round(cubicBezier(sx, cp1x, cp2x, x, t)),
       y: Math.round(cubicBezier(sy, cp1y, cp2y, y, t)),
-      dt: off ? sampleStepMs() : undefined,
     });
   }
-  points.push({ x, y, dt: 0 });
+  points.push({ x, y });
   await emitPath(page, off, points);
 }
 

@@ -1,9 +1,5 @@
-// Operator behavior trace replay with per-run perturbation.
-// Loads recordings/behavior_*.jsonl (captured via capture_fingerprint_local.mjs
-// PROBE_WAIT mode) once at module init. Extracts ordered timing sequences so
-// humanType/humanClick/humanMove can advance through them in order, preserving
-// the shape of real operator behavior instead of sampling from distribution
-// bins. Each read jitters ±20-40% so two runs never emit byte-identical traces.
+// Recorded operator geometry and timing observations, loaded once per run.
+// Pointer replay uses spatially perturbed geometry, not inter-step pauses.
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -26,7 +22,7 @@ function loadLatestTrace(): TraceEvent[] {
   return out;
 }
 
-interface Waypoint { u: number; v: number; dt: number; } // u,v in [0,1]; dt ms from segment start
+interface Waypoint { u: number; v: number; } // normalized coordinates
 interface Segment { points: Waypoint[]; aspect: number; }
 
 function derive() {
@@ -38,7 +34,7 @@ function derive() {
   let lastPointerT = -1;
   let lastPointerDownT = -1;
   let lastClickT = -1;
-  let segBuf: { x: number; y: number; t: number }[] = [];
+  let segBuf: { x: number; y: number }[] = [];
   for (const e of evts) {
     if (e.type === 'keydown' && e.code) {
       lastDown[e.code] = e.t;
@@ -49,20 +45,20 @@ function derive() {
     } else if (e.type === 'pointermove' && e.x != null && e.y != null) {
       if (lastPointerT > 0) { const d = e.t - lastPointerT; if (d > 0 && d < 500) stepMs.push(d); }
       lastPointerT = e.t;
-      segBuf.push({ x: e.x, y: e.y, t: e.t });
+      segBuf.push({ x: e.x, y: e.y });
     } else if (e.type === 'pointerdown') { lastPointerDownT = e.t; }
     else if (e.type === 'click') {
       if (lastPointerDownT > 0) { const d = e.t - lastPointerDownT; if (d > 0 && d < 2000) reaction.push(d); lastPointerDownT = -1; }
       if (lastClickT > 0) { const g = e.t - lastClickT; if (g > 50 && g < 30000) interClick.push(g); }
       lastClickT = e.t;
-      // Finalize segment: normalize (dx,dy) against end-to-start delta, dt against start
+      // Finalize segment: normalize (dx,dy) against the end-to-start delta.
       if (segBuf.length >= 4) {
         const s = segBuf[0], end = segBuf[segBuf.length - 1];
         const rx = end.x - s.x, ry = end.y - s.y;
         const mag = Math.hypot(rx, ry);
         if (mag > 20) {
           const aspect = Math.abs(rx) > 0.1 ? Math.abs(ry / rx) : 999;
-          const points: Waypoint[] = segBuf.map(p => ({ u: rx === 0 ? 0 : (p.x - s.x) / rx, v: ry === 0 ? 0 : (p.y - s.y) / ry, dt: p.t - s.t }));
+          const points: Waypoint[] = segBuf.map(p => ({ u: rx === 0 ? 0 : (p.x - s.x) / rx, v: ry === 0 ? 0 : (p.y - s.y) / ry }));
           segments.push({ points, aspect });
         }
       }
@@ -82,7 +78,7 @@ function jitter(v: number, frac: number): number {
   return Math.max(1, Math.round(v * f));
 }
 
-const cursors = { interKey: 0, dwell: 0, stepMs: 0, reaction: 0, interClick: 0 };
+const cursors = { interKey: 0, dwell: 0, reaction: 0, interClick: 0 };
 function nextFrom(arr: number[], key: keyof typeof cursors, frac: number, defaultMs: number): number {
   if (!arr.length) return defaultMs;
   const v = arr[cursors[key] % arr.length];
@@ -93,7 +89,6 @@ function nextFrom(arr: number[], key: keyof typeof cursors, frac: number, defaul
 export function traceAvailable(): boolean { return T.interKey.length > 0; }
 export function nextInterKeyMs(): number { return nextFrom(T.interKey, 'interKey', 0.30, 170); }
 export function nextDwellMs(): number { return nextFrom(T.dwell, 'dwell', 0.25, 105); }
-export function nextPointerStepMs(): number { return nextFrom(T.stepMs, 'stepMs', 0.35, 15); }
 export function nextReactionMs(): number { return nextFrom(T.reaction, 'reaction', 0.25, 200); }
 export function nextInterClickMs(): number { return nextFrom(T.interClick, 'interClick', 0.25, 3000); }
 
@@ -101,7 +96,7 @@ export function nextInterClickMs(): number { return nextFrom(T.interClick, 'inte
 // using a real recorded pointer segment of matching aspect ratio. Output page
 // coords with per-point ±3-8 px spatial jitter. If no segments are available,
 // return an empty array — caller will fall back to the Bezier generator.
-export function getMoveTemplate(ax: number, ay: number, bx: number, by: number): { x: number; y: number; dt: number }[] {
+export function getMoveTemplate(ax: number, ay: number, bx: number, by: number): { x: number; y: number }[] {
   if (!T.segments.length) return [];
   const rx = bx - ax, ry = by - ay;
   const targetAspect = Math.abs(rx) > 0.1 ? Math.abs(ry / rx) : 999;
@@ -112,6 +107,5 @@ export function getMoveTemplate(ax: number, ay: number, bx: number, by: number):
   return pick.points.map(p => ({
     x: Math.round(ax + p.u * rx + (humanRandom() * 2 - 1) * 6),
     y: Math.round(ay + p.v * ry + (humanRandom() * 2 - 1) * 6),
-    dt: jitter(Math.max(1, Math.round(p.dt)), 0.25),
   }));
 }

@@ -8,19 +8,25 @@
 // This module is the ONLY mouse/keyboard path for humanized atoms.
 
 import { execFileSync, execSync, spawnSync } from 'node:child_process';
-import { randomBetween, waitMs } from '../utils/motion/timing.js';
+import { randomBetween } from '../utils/motion/timing.js';
 
 export interface NativeOffset { winX: number; winY: number; chromeY: number; }
 
-let nativeAvailable: boolean | null = null;
+let nativeAvailable = false;
+
+function runCliclick(operation: string, args: string[], sensitiveText = ''): void {
+  const result = spawnSync('cliclick', args, { encoding: 'utf8', stdio: 'pipe' });
+  if (!result.error && result.status === 0) return;
+  let detail = result.error?.message ?? (result.stderr?.trim() || 'no error output');
+  if (sensitiveText) detail = detail.replaceAll(sensitiveText, '[redacted]');
+  const code = (result.error as NodeJS.ErrnoException | undefined)?.code ?? 'none';
+  throw new Error(`native input ${operation} failed: code=${code}, status=${result.status ?? 'none'}, signal=${result.signal ?? 'none'}; ${detail}`);
+}
+
 export function assertCliclickAvailable(): void {
-  if (nativeAvailable === true) return;
-  if (nativeAvailable === false) throw new Error('cliclick missing — brew install cliclick (required)');  // allow-raw-playwright: implementation file — defines the humanized atom
-  try {
-    const r = spawnSync('cliclick', ['-V'], { stdio: 'ignore' });  // allow-raw-playwright: implementation file — defines the humanized atom
-    nativeAvailable = r.status === 0 || r.status === null;
-  } catch { nativeAvailable = false; }
-  if (!nativeAvailable) throw new Error('cliclick missing — brew install cliclick (required)');  // allow-raw-playwright: implementation file — defines the humanized atom
+  if (nativeAvailable) return;
+  runCliclick('availability probe', ['-V']);
+  nativeAvailable = true;
 }
 
 function assertNativeInputTargetIsFrontmost(): void {
@@ -35,9 +41,9 @@ function assertNativeInputTargetIsFrontmost(): void {
     frontmost = execFileSync('osascript', [
       '-e',
       'tell application "System Events" to get name of first application process whose frontmost is true',
-    ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-  } catch {
-    throw new Error('native input blocked: cannot verify frontmost application');
+    ], { encoding: 'utf8', stdio: 'pipe' }).trim();
+  } catch (error) {
+    throw new Error(`native input blocked: cannot verify frontmost application: ${error instanceof Error ? error.message : String(error)}`);
   }
 
   const allowed = process.env.WELES_NATIVE_INPUT_FRONTMOST_RE ?? '^(Chromium|Google Chrome|Weles)$';
@@ -74,21 +80,20 @@ export function nativeMove(offset: NativeOffset, cssX: number, cssY: number): vo
   assertCliclickAvailable();
   assertNativeInputTargetIsFrontmost();
   const { sx, sy } = toScreen(offset, cssX, cssY);
-  spawnSync('cliclick', [`m:${sx},${sy}`], { stdio: 'ignore' });  // allow-raw-playwright: implementation file — defines the humanized atom
+  runCliclick('pointer move', [`m:${sx},${sy}`]);
 }
 
 /**
- * Batched OS-event mouse path. Dispatches one OS move event per waypoint
- * with `dt` for inter-step pacing — Bezier path goes through real OS queue.
+ * OS-event mouse path. Each waypoint is dispatched in order, without a Weles
+ * inter-step pause. The external cliclick tool still owns its event delivery.
  */
-export async function nativeBatchMove(offset: NativeOffset, points: Array<{ x: number; y: number; dt?: number }>): Promise<void> {
+export async function nativeBatchMove(offset: NativeOffset, points: Array<{ x: number; y: number }>): Promise<void> {
   assertCliclickAvailable();
   assertNativeInputTargetIsFrontmost();
   if (!points.length) return;
   for (const p of points) {
     const { sx, sy } = toScreen(offset, p.x, p.y);
-    spawnSync('cliclick', [`m:${sx},${sy}`], { stdio: 'ignore' });  // allow-raw-playwright: implementation file — defines the humanized atom
-    if (p.dt && p.dt > 0) await waitMs(Math.min(p.dt, 120));
+    runCliclick('pointer waypoint', [`m:${sx},${sy}`]);
   }
 }
 
@@ -97,16 +102,15 @@ export async function nativeClick(offset: NativeOffset, cssX: number, cssY: numb
   assertCliclickAvailable();
   assertNativeInputTargetIsFrontmost();
   const { sx, sy } = toScreen(offset, cssX, cssY);
-  spawnSync('cliclick', [`m:${sx},${sy}`, `c:${sx},${sy}`], { stdio: 'ignore' });  // allow-raw-playwright: implementation file — defines the humanized atom
+  runCliclick('click', [`m:${sx},${sy}`, `c:${sx},${sy}`]);
 }
 
-/** OS-event typing — one char per spawn, with empirical inter-key timing. */
+/** OS-event typing; each character's command must succeed before the next. */
 export async function nativeType(text: string): Promise<void> {
   assertCliclickAvailable();
   assertNativeInputTargetIsFrontmost();
   for (const ch of text) {
-    spawnSync('cliclick', [`t:${ch}`], { stdio: 'ignore' });  // allow-raw-playwright: implementation file — defines the humanized atom
-    await waitMs(randomBetween(80, 220));
+    runCliclick('typing', [`t:${ch}`], ch);
   }
 }
 
@@ -133,14 +137,14 @@ export function nativeKeyPress(key: string): void {
   };
   const kc = map[k];
   if (!kc) throw new Error(`nativeKeyPress: unsupported key ${key}`);
-  spawnSync('cliclick', [`kp:${kc}`], { stdio: 'ignore' });  // allow-raw-playwright: implementation file — defines the humanized atom
+  runCliclick('keypress', [`kp:${kc}`]);
 }
 
 /** Select-all-and-delete via OS event queue. Cmd+A then Delete. */
 export function nativeSelectAllAndDelete(): void {
   assertCliclickAvailable();
   assertNativeInputTargetIsFrontmost();
-  spawnSync('cliclick', ['kd:cmd', 't:a', 'ku:cmd', 'kp:delete'], { stdio: 'ignore' });  // allow-raw-playwright: implementation file — defines the humanized atom
+  runCliclick('select all and delete', ['kd:cmd', 't:a', 'ku:cmd', 'kp:delete']);
 }
 
 export function getWindowOffset(processName = 'Chromium'): NativeOffset {
