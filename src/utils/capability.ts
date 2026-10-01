@@ -1,4 +1,3 @@
-import { setTimeout as delay } from 'node:timers/promises';
 import { CAPABILITY_RE, CapabilityPendingError, UUID_RE, requestCapability } from './capability/broker.js';
 
 export { CapabilityPendingError } from './capability/broker.js';
@@ -23,11 +22,6 @@ export interface CapabilityExpectation {
   purpose: WelesCapabilityPurpose;
   resource: string;
   authorization_id?: string;
-}
-
-export interface CapabilityPendingRetryOptions {
-  timeoutMs?: number;
-  intervalMs?: number;
 }
 
 const RESOURCE_PREFIXES: Readonly<Record<WelesCapabilityPurpose, readonly string[]>> = {
@@ -100,35 +94,6 @@ export async function cancelCapability(capabilityId: string, authorizationId?: s
   }
 }
 
-export async function redeemCapabilityWithPendingRetry(
-  capabilityId: string,
-  options: CapabilityPendingRetryOptions = {},
-  authorizationId?: string,
-): Promise<Buffer> {
-  const timeoutMs = options.timeoutMs ?? 120_000;
-  const intervalMs = options.intervalMs ?? 1_000;
-  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120_000) {
-    throw new Error('capability pending timeout must be an integer from 1 to 120000 milliseconds');
-  }
-  if (!Number.isSafeInteger(intervalMs) || intervalMs < 10 || intervalMs > 5_000) {
-    throw new Error('capability pending interval must be an integer from 10 to 5000 milliseconds');
-  }
-
-  const deadline = Date.now() + timeoutMs;
-  while (true) {
-    try {
-      return await redeemCapability(capabilityId, authorizationId);
-    } catch (error) {
-      if (!(error instanceof CapabilityPendingError)) throw error;
-      const remainingMs = deadline - Date.now();
-      if (remainingMs <= 0) {
-        throw new CapabilityPendingError('capability material remained pending until the retry deadline');
-      }
-      await delay(Math.min(intervalMs, remainingMs));
-    }
-  }
-}
-
 export async function withCapability<T>(ref: CapabilityRef, expected: CapabilityExpectation, consume: (secret: string) => Promise<T>): Promise<T> {
   const capabilityId = assertCapability(ref, expected);
   const bytes = await redeemCapability(capabilityId, ref.authorization_id);
@@ -142,19 +107,3 @@ export async function withCapability<T>(ref: CapabilityRef, expected: Capability
   }
 }
 
-export async function withCapabilityPendingRetry<T>(
-  ref: CapabilityRef,
-  expected: CapabilityExpectation,
-  consume: (secret: string) => Promise<T>,
-  options: CapabilityPendingRetryOptions = {},
-): Promise<T> {
-  const bytes = await redeemCapabilityWithPendingRetry(assertCapability(ref, expected), options, ref.authorization_id);
-  let text = '';
-  try {
-    text = bytes.toString('utf8');
-    return await consume(text);
-  } finally {
-    text = '';
-    bytes.fill(0);
-  }
-}

@@ -1,5 +1,5 @@
 // The exact-range campaign reports fetched through the page's own session, and the keep-open tail.
-import { CLOSE_AFTER_HARVEST, KEEP_OPEN_AFTER_HARVEST_MS } from './settings.mjs';
+import { CLOSE_AFTER_HARVEST } from './settings.mjs';
 
 export async function fetchExactCampaignReports(page, templatePayload, ranges) {
   if (!templatePayload || !ranges.length) return [];
@@ -100,12 +100,6 @@ export function summarizeExactReports(exactReports) {
 export async function keepOpen(session) {
   if (CLOSE_AFTER_HARVEST) {
     await session.close().catch(() => {});
-    return;
-  }
-
-  if (KEEP_OPEN_AFTER_HARVEST_MS > 0) {
-    console.log(`[apple-ads-report-harvest] keeping browser open for ${KEEP_OPEN_AFTER_HARVEST_MS}ms`);
-    await session.page.waitForTimeout(KEEP_OPEN_AFTER_HARVEST_MS).catch(() => {});
     return;
   }
 

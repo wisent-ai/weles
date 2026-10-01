@@ -12,73 +12,63 @@ import { pageSettled } from '../../../_shared/page/settled.mjs';
 import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 import { humanFill, humanType } from '../../../../../dist/human/keyboard.js';
 
-async function clickAny(s, selectors, label, timeoutMs = 5000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    for (const sel of selectors) {
-      const loc = s.page.locator(sel).filter({ visible: true }).first();
-      if (await loc.isVisible().catch(() => false)) {
-        const clicked = await humanClickLocator(s.page, loc).then(() => true).catch(() => false);
-        if (!clicked) {
-          const box = await loc.boundingBox();
-          if (!box) {
-            console.log(`[meta-ads] WARN: click did not land and the control has no box: ${label} (${sel})`);
-            continue;
-          }
-          await s.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-          await pageSettled(s.page);
-          await s.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-          console.log(`[meta-ads] clicked at the control box: ${label}`);
-        } else {
-          console.log(`[meta-ads] clicked: ${label}`);
-        }
-        await humanIdlePause('short');
-        return true;
+// Click the first visible match once the panel has settled; false when the
+// settled panel shows none of the selectors.
+async function clickAny(s, selectors, label) {
+  await pageSettled(s.page);
+  for (const sel of selectors) {
+    const loc = s.page.locator(sel).filter({ visible: true }).first();
+    if (!await loc.isVisible()) continue;
+    const clicked = await humanClickLocator(s.page, loc).then(() => true, () => false);
+    if (!clicked) {
+      const box = await loc.boundingBox();
+      if (!box) {
+        console.log(`[meta-ads] WARN: click did not land and the control has no box: ${label} (${sel})`);
+        continue;
       }
+      await s.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await s.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      console.log(`[meta-ads] clicked at the control box: ${label}`);
+    } else {
+      console.log(`[meta-ads] clicked: ${label}`);
     }
-    await pageSettled(s.page);
+    await humanIdlePause('short');
+    return true;
   }
   return false;
 }
 
-async function clickVisibleTextInArea(s, textRe, label, area, timeoutMs = 5000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const candidate = await s.page.evaluate((source, flags, a) => {
-      const re = new RegExp(source, flags);
-      const els = Array.from(document.querySelectorAll('button, [role="button"], a, div, span'));
-      for (const el of els) {
-        const text = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-        if (!re.test(text)) continue;
-        const r = el.getBoundingClientRect();
-        const style = window.getComputedStyle(el);
-        if (!r.width || !r.height || style.visibility === 'hidden' || style.display === 'none') continue;
-        if (a?.minX != null && r.left < a.minX) continue;
-        if (a?.maxX != null && r.left > a.maxX) continue;
-        if (a?.minY != null && r.top < a.minY) continue;
-        if (a?.maxY != null && r.top > a.maxY) continue;
-        if (a?.minW != null && r.width < a.minW) continue;
-        if (a?.minH != null && r.height < a.minH) continue;
-        return { x: r.left + r.width / 2, y: r.top + r.height / 2, text, tag: el.tagName, role: el.getAttribute('role') };
-      }
-      return null;
-    }, textRe.source, textRe.flags, area);
-    if (candidate) {
-      await s.page.mouse.move(candidate.x, candidate.y);
-      await pageSettled(s.page);
-      await s.page.mouse.click(candidate.x, candidate.y);
-      console.log(`[meta-ads] clicked: ${label} (${candidate.text})`);
-      await humanIdlePause('short');
-      return true;
+async function clickVisibleTextInArea(s, textRe, label, area) {
+  await pageSettled(s.page);
+  const candidate = await s.page.evaluate((source, flags, a) => {
+    const re = new RegExp(source, flags);
+    const els = Array.from(document.querySelectorAll('button, [role="button"], a, div, span'));
+    for (const el of els) {
+      const text = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+      if (!re.test(text)) continue;
+      const r = el.getBoundingClientRect();
+      const style = window.getComputedStyle(el);
+      if (!r.width || !r.height || style.visibility === 'hidden' || style.display === 'none') continue;
+      if (a?.minX != null && r.left < a.minX) continue;
+      if (a?.maxX != null && r.left > a.maxX) continue;
+      if (a?.minY != null && r.top < a.minY) continue;
+      if (a?.maxY != null && r.top > a.maxY) continue;
+      if (a?.minW != null && r.width < a.minW) continue;
+      if (a?.minH != null && r.height < a.minH) continue;
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2, text, tag: el.tagName, role: el.getAttribute('role') };
     }
-    await pageSettled(s.page);
-  }
-  return false;
+    return null;
+  }, textRe.source, textRe.flags, area);
+  if (!candidate) return false;
+  await s.page.mouse.move(candidate.x, candidate.y);
+  await s.page.mouse.click(candidate.x, candidate.y);
+  console.log(`[meta-ads] clicked: ${label} (${candidate.text})`);
+  await humanIdlePause('short');
+  return true;
 }
 
 async function clickPoint(s, x, y, label) {
   await s.page.mouse.move(x, y);
-  await pageSettled(s.page);
   await s.page.mouse.click(x, y);
   console.log(`[meta-ads] clicked point: ${label} (${x},${y})`);
   await humanIdlePause('short');
@@ -86,12 +76,12 @@ async function clickPoint(s, x, y, label) {
 }
 
 async function closeObstructingPanels(s) {
-  await clickVisibleTextInArea(s, /^×$|^Zamknij$/i, 'close panel', { minX: 1150, minY: 150 }, 1500);
+  await clickVisibleTextInArea(s, /^×$|^Zamknij$/i, 'close panel', { minX: 1150, minY: 150 });
   await clickAny(s, [
     '[aria-label="Close"]',
     '[aria-label="Zamknij"]',
     'div[role="button"]:has-text("×")',
-  ], 'close overlay', 1500);
+  ], 'close overlay');
 }
 
 // A field whose value could not be read back is not an empty field: what it
@@ -194,13 +184,13 @@ async function fillAnyReliable(s, selectors, value, label) {
   return false;
 }
 
-async function clickNext(s, timeoutMs = 6000) {
+async function clickNext(s) {
   return await clickAny(s, [
     'div[role="button"]:has-text("Dalej")',
     'button:has-text("Dalej")',
     'div[role="button"]:has-text("Next")',
     'button:has-text("Next")',
-  ], 'Next/Dalej', timeoutMs);
+  ], 'Next/Dalej');
 }
 
 // A page whose text could not be read is not a page without text, so this

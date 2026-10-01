@@ -7,7 +7,6 @@ import { pageSettled } from '../../_shared/page/settled.mjs';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
-import { setTimeout } from 'node:timers/promises';
 import { homedir } from 'node:os';
 
 async function requireAuthenticatedSession(s) {
@@ -36,7 +35,6 @@ async function requireAuthenticatedSession(s) {
 const API_URL = 'https://appstoreconnect.apple.com/access/integrations/api';
 const KEY_NAME = process.env.KEY_NAME || 'swiatowid-ios-ci';
 const OUT_DIR = `${homedir()}/.swiatowid`;
-const DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000;
 
 async function requireApiPage(s) {
   await requireAuthenticatedSession(s);
@@ -75,14 +73,14 @@ async function clickGenerate(page) {
 
   const opened = await clickByText(page, /generate api key|generate team key|generate key|add a key/i);
   console.log('[asc-create] generate-open=' + opened);
-  await setTimeout(2000);
+  await pageSettled(page);
 
   const name = page.getByRole('textbox').first();
-  if (await name.count() > 0) { await humanFill(page, name, KEY_NAME); await setTimeout(500); }
+  if (await name.count() > 0) { await humanFill(page, name, KEY_NAME); await pageSettled(page); }
   await clickByText(page, /app manager/i);
-  await setTimeout(800);
+  await pageSettled(page);
   await clickByText(page, /^\s*generate\s*$|^\s*create\s*$/i);
-  await setTimeout(2500);
+  await pageSettled(page);
   const dl = await clickByText(page, /download api key|download/i);
   console.log('[asc-create] download=' + dl);
 }
@@ -95,11 +93,11 @@ const s = await WSession.start({
 try {
   await s.goto(API_URL);
   await requireApiPage(s);
-  await setTimeout(3000);
+  await pageSettled(s.page);
 
   // Arm the download capture FIRST, then attempt the clicks. Whichever path
   // triggers the download (script or human), we save it.
-  const downloadPromise = s.page.waitForEvent('download', { timeout: DOWNLOAD_TIMEOUT_MS });
+  const downloadPromise = s.page.waitForEvent('download');
   try {
     await clickGenerate(s.page);
   } catch (e) {

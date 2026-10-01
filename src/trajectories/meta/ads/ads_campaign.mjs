@@ -64,7 +64,7 @@ try {
     'button:has-text("Zgadzam się")',
     'div[role="button"]:has-text("I Accept")',
     'div[role="button"]:has-text("Akceptuję")',
-  ], 'policy modal accept', 4000);
+  ], 'policy modal accept');
   await pageSettled(s.page);
 
   const createClicked = await openCampaignCreation(s);
@@ -85,7 +85,7 @@ try {
     'div[role="button"]:has-text("Publish")',
     'button:has-text("Publish")',
     'div[role="button"]:has-text("Confirm")',
-  ], 'Publish', 10000);
+  ], 'Publish');
   if (!published) {
     console.log('FAIL: Publish button not found');
     process.exit(1);

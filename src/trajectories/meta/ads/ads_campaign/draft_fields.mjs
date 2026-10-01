@@ -30,7 +30,7 @@ async function selectFacebookPage(s) {
     'div[role="combobox"]:has-text("Wybierz stronę")',
     'div[role="combobox"]:has-text("Select a Page")',
     'div[role="combobox"]:has-text("Select Page")',
-  ], 'Facebook Page selector', 5000);
+  ], 'Facebook Page selector');
   if (!opened) {
     const text = await pageText(s);
     if (FACEBOOK_PAGE_NAME && text.includes(FACEBOOK_PAGE_NAME)) {
@@ -75,7 +75,7 @@ async function fillCampaignFields(s) {
     'input[placeholder="Wprowadź tutaj nazwę kampanii..."]',
     'label:has-text("Campaign name") input',
   ], CAMPAIGN_NAME, 'campaign name')) filledCount += 1;
-  if (await clickNext(s, 3000)) await pageSettled(s.page);
+  if (await clickNext(s)) await pageSettled(s.page);
   if (await fillAnyReliable(s, [
     'input[aria-label*="Ad set name" i]',
     'input[placeholder*="Ad set name" i]',
@@ -86,7 +86,7 @@ async function fillCampaignFields(s) {
     'input[placeholder*="Budget" i]',
     'label:has-text("Daily budget") input',
   ], DAILY_BUDGET_USD, 'daily budget')) filledCount += 1;
-  if (await clickNext(s, 3000)) await pageSettled(s.page);
+  if (await clickNext(s)) await pageSettled(s.page);
   if (await fillAnyReliable(s, [
     'input[aria-label*="Ad name" i]',
     'input[placeholder*="Ad name" i]',
@@ -129,7 +129,7 @@ async function verifyConfiguredDraft(s) {
   await clickAny(s, [
     'div[role="tab"]:has-text("Sprawdź")',
     'div[role="tab"]:has-text("Review")',
-  ], 'Review/Sprawdź tab', 5000);
+  ], 'Review/Sprawdź tab');
   await pageSettled(s.page);
   const text = await pageText(s);
   const checks = [

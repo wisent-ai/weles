@@ -2,7 +2,8 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { generatePersona } from '../../../../../dist/browser/persona.js';
-import { NAV_TIMEOUT_MS, USER_DATA_DIR, WAIT_AFTER_NAV_MS } from './settings.mjs';
+import { USER_DATA_DIR } from './settings.mjs';
+import { pageSettled } from '../../../_shared/page/settled.mjs';
 
 export function stableProfilePersona() {
   const p = join(USER_DATA_DIR, 'persona.json');
@@ -48,16 +49,10 @@ export async function requireAuthenticatedSession(s) {
 
 export async function gotoAndWait(page, url) {
   console.log(`[apple-ads-report-harvest] goto start ${url}`);
-  const navigated = await page.goto(url, { waitUntil: 'commit', timeout: NAV_TIMEOUT_MS })
-    .then(() => true)
-    .catch((error) => {
-      console.log(`[apple-ads-report-harvest] goto error ${String(error?.message || error).slice(0, 300)}`);
-      return false;
-    });
-  await page.waitForLoadState('domcontentloaded', { timeout: WAIT_AFTER_NAV_MS }).catch(() => {});
-  await page.waitForTimeout(WAIT_AFTER_NAV_MS).catch(() => {});
-  console.log(`[apple-ads-report-harvest] goto done navigated=${navigated} url=${page.url?.() || ''}`);
-  return Boolean(navigated && (page.url?.() || '') !== 'about:blank');
+  await page.goto(url, { waitUntil: 'commit' });
+  await pageSettled(page);
+  console.log(`[apple-ads-report-harvest] goto done url=${page.url?.() || ''}`);
+  return (page.url?.() || '') !== 'about:blank';
 }
 
 export async function ensureReportPage(page) {

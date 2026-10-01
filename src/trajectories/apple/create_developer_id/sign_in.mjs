@@ -1,14 +1,12 @@
 import { pageSettled } from '../../_shared/page/settled.mjs';
-import { withCapability, withCapabilityPendingRetry } from '../../../../dist/utils/capability.js';
+import { withCapability } from '../../../../dist/utils/capability.js';
 import { completeAppleTwoFactorChallenge } from '../two_factor.mjs';
 import { relayAppleChallenge } from '../../../auth/apple-account-placement.mjs';
-import { AUTH_FRAME_WAIT_MS, EMAIL_FIELD_WAIT_MS, SIGN_IN_ENABLE_WAIT_MS, TWO_FACTOR_POLL_MS, TWO_FACTOR_WAIT_MS } from './constants.mjs';
 import { waitForPostPasswordState } from './portal.mjs';
 
 /** The idmsa sign-in iframe's frame, once it is on the page. */
 async function authFrame(page) {
-  const handle = await page.waitForSelector('iframe[src*="idmsa.apple.com"]', { timeout: AUTH_FRAME_WAIT_MS }).catch(() => false);
-  if (!handle) throw new Error('no idmsa auth iframe found');
+  const handle = await page.waitForSelector('iframe[src*="idmsa.apple.com"]');
   const frame = await handle.contentFrame();
   if (!frame) throw new Error('could not access auth iframe');
   return frame;
@@ -17,7 +15,7 @@ async function authFrame(page) {
 /** Type the email under its capability and advance to the password step. */
 async function enterEmail(s, frame, capability, guardId) {
   const emailField = frame.locator('#account_name_text_field');
-  await emailField.waitFor({ state: 'visible', timeout: EMAIL_FIELD_WAIT_MS });
+  await emailField.waitFor({ state: 'visible' });
   const emailLength = await withCapability(capability, {
     purpose: 'weles.browser.fill', resource: 'origin:https://idmsa.apple.com/email', authorization_id: guardId,
   }, async (email) => {
@@ -74,11 +72,10 @@ async function assertFormReady(frame, emailLength, passwordLength) {
     };
   }, { expectedEmailLength: emailLength, expectedPasswordLength: passwordLength });
   if (formState.emailLength !== emailLength || formState.passwordLength !== passwordLength) throw new Error('typed credential length mismatch');
-  const signInEnabled = await frame.waitForFunction(() => {
+  await frame.waitForFunction(() => {
     const button = document.querySelector('#sign-in');
     return button && !button.disabled && button.getAttribute('aria-disabled') !== 'true';
-  }, null, { timeout: SIGN_IN_ENABLE_WAIT_MS }).then(() => true).catch(() => false);
-  if (!signInEnabled) throw new Error('Apple password form stayed disabled after credential entry');
+  });
 }
 
 /**
@@ -115,14 +112,13 @@ export async function signInWithCapabilities(s, { capabilities, guardId, identit
       + 'or wrong, and a second attempt spends another of Apple\'s few before it locks.',
     );
   }
-  if (postPasswordState === 'timeout') throw new Error('Timed out waiting for developer portal or 2FA challenge');
 
   let twoFactorReceipt = false;
   if (postPasswordState === 'two_factor') {
     const relay = relayAppleChallenge(identity, guardId);
     const twoFactor = await completeAppleTwoFactorChallenge(s, frame, {
       logPrefix: '[apple-create-developer-id]',
-      withCode: (consume) => withCapabilityPendingRetry(
+      withCode: (consume) => withCapability(
         capabilities.two_factor.capability,
         {
           purpose: 'weles.apple.2fa',
@@ -130,7 +126,6 @@ export async function signInWithCapabilities(s, { capabilities, guardId, identit
           authorization_id: guardId,
         },
         consume,
-        { timeoutMs: TWO_FACTOR_WAIT_MS, intervalMs: TWO_FACTOR_POLL_MS },
       ),
     });
     if (!twoFactor.ok) {

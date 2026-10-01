@@ -1,4 +1,4 @@
-import { pageSettled } from '../../_shared/page/settled.mjs';
+import { pageCondition, pageSettled } from '../../_shared/page/settled.mjs';
 // Google Play Console: publish an Android app release — fully browser-driven.
 //
 // Drives play.google.com/console exactly as a human would: open the app's
@@ -51,20 +51,18 @@ const acct = await getSocialAccount('google');
 if (!acct) { console.log('FAIL: no google account'); process.exit(1); }
 
 // Click the first visible match among several selector variants for ONE
-// control (Play Console markup shifts between revisions). These are alternate
-// selectors for the same button, not a provider rollover.
-async function clickAny(s, selectors, label, timeoutMs) {
-  const deadline = Date.now() + (timeoutMs || 4000);
-  while (Date.now() < deadline) {
-    for (const sel of selectors) {
-      const loc = s.page.locator(sel).first();
-      if (await loc.isVisible().catch(() => false)) {
-        await humanClickLocator(s.page, loc);
-        if (label) console.log(`[play-submit] clicked: ${label}`);
-        return true;
-      }
+// control (Play Console markup shifts between revisions) once the page has
+// settled. These are alternate selectors for the same button, not a provider
+// rollover; false means the settled page shows none of them.
+async function clickAny(s, selectors, label) {
+  await pageSettled(s.page);
+  for (const sel of selectors) {
+    const loc = s.page.locator(sel).first();
+    if (await loc.isVisible()) {
+      await humanClickLocator(s.page, loc);
+      if (label) console.log(`[play-submit] clicked: ${label}`);
+      return true;
     }
-    await pageSettled(s.page);
   }
   return false;
 }
@@ -108,7 +106,7 @@ try {
       console.log(`FAIL: app "${PACKAGE_NAME}" not found in the Play Console app list`);
       process.exit(1);
     }
-    const navOpened = await clickAny(s, [`a:has-text("${navLabel}")`, `span:has-text("${navLabel}")`, `[aria-label="${navLabel}"]`], `${navLabel} nav`, 8000);
+    const navOpened = await clickAny(s, [`a:has-text("${navLabel}")`, `span:has-text("${navLabel}")`, `[aria-label="${navLabel}"]`], `${navLabel} nav`);
     if (!navOpened) {
       console.log(`[play-submit] WARN: "${navLabel}" nav item not found — assuming already on the release page`);
     }
@@ -120,7 +118,7 @@ try {
     'button:has-text("Create new release")',
     'button:has-text("Create release")',
     'a:has-text("Create new release")',
-  ], 'Create new release', 8000);
+  ], 'Create new release');
   if (!created) {
     console.log('FAIL: "Create new release" control not found on track page');
     process.exit(1);
@@ -135,19 +133,14 @@ try {
   console.log(`[play-submit] uploading ${BUNDLE_PATH}`);
 
   // Wait for the bundle to finish processing — a version-code row / "uploaded"
-  // marker appears when done. Poll the page text until it shows up.
-  let uploadDone = false;
-  const uploadDeadline = Date.now() + 240000;
-  while (Date.now() < uploadDeadline) {
-    let txt = '';
-    try {
-      txt = await s.page.evaluate(() => (document.body?.innerText || '').toLowerCase());
-    } catch (e) { console.log('[play-submit] page read during upload failed:', e.message?.slice(0, 80)); }
-    if (txt.includes('version code') || txt.includes('uploaded') || /\bapp bundle\b/.test(txt)) { uploadDone = true; break; }
-    if (txt.includes('error') && txt.includes('upload')) { console.log('FAIL: Play Console reported an upload error'); process.exit(3); }
-    await pageSettled(s.page);
-  }
-  if (!uploadDone) { console.log('FAIL: bundle did not finish processing within the upload window'); process.exit(3); }
+  // marker appears when done, or Play Console reports an upload error.
+  const upload = await pageCondition(s.page, () => {
+    const txt = (document.body?.innerText || '').toLowerCase();
+    if (txt.includes('error') && txt.includes('upload')) return 'error';
+    if (txt.includes('version code') || txt.includes('uploaded') || /\bapp bundle\b/.test(txt)) return 'done';
+    return false;
+  });
+  if (upload === 'error') { console.log('FAIL: Play Console reported an upload error'); process.exit(3); }
   console.log('[play-submit] bundle processed');
   await humanIdlePause('short');
 
@@ -163,7 +156,7 @@ try {
   }
 
   // 5) Advance: Next / Save.
-  await clickAny(s, ['button:has-text("Next")', 'button:has-text("Save")'], 'Next/Save', 6000);
+  await clickAny(s, ['button:has-text("Next")', 'button:has-text("Save")'], 'Next/Save');
   await pageSettled(s.page);
 
   if (!SUBMIT) {
@@ -172,7 +165,7 @@ try {
   }
 
   // 6) Review screen then terminal rollout / send-for-review (+ confirm dialog).
-  await clickAny(s, ['button:has-text("Review release")', 'button:has-text("Review")'], 'Review release', 6000);
+  await clickAny(s, ['button:has-text("Review release")', 'button:has-text("Review")'], 'Review release');
   await pageSettled(s.page);
 
   const sent = await clickAny(s, [
@@ -181,7 +174,7 @@ try {
     'button:has-text("Send for review")',
     'button:has-text("Send change for review")',
     'button:has-text("Rollout")',
-  ], 'Start rollout / Send for review', 8000);
+  ], 'Start rollout / Send for review');
   if (!sent) {
     let labels = [];
     try {
@@ -193,7 +186,7 @@ try {
   }
   await pageSettled(s.page);
   // Confirmation dialog.
-  await clickAny(s, ['button:has-text("Rollout")', 'button:has-text("Send for review")', 'button:has-text("Confirm")'], 'confirm rollout', 6000);
+  await clickAny(s, ['button:has-text("Rollout")', 'button:has-text("Send for review")', 'button:has-text("Confirm")'], 'confirm rollout');
   await pageSettled(s.page);
 
   // 7) Verify a sent/rollout status surfaced.

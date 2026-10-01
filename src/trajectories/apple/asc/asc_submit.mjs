@@ -50,21 +50,18 @@ if (IPA_PATH) {
 }
 
 // Click the first visible match among several selector variants for ONE
-// control (label/markup differs across ASC revisions). Returns true on click,
-// false if none became visible within timeoutMs. Alternate selectors for the
-// same button, not a provider rollover.
-async function clickAny(s, selectors, label, timeoutMs) {
-  const deadline = Date.now() + (timeoutMs || 4000);
-  while (Date.now() < deadline) {
-    for (const sel of selectors) {
-      const loc = s.page.locator(sel).first();
-      if (await loc.isVisible().catch(() => false)) {
-        await humanClickLocator(s.page, loc);
-        if (label) console.log(`[asc-submit] clicked: ${label}`);
-        return true;
-      }
+// control (label/markup differs across ASC revisions) once the page has
+// settled. Returns true on click, false when the settled page shows none.
+// Alternate selectors for the same button, not a provider rollover.
+async function clickAny(s, selectors, label) {
+  await pageSettled(s.page);
+  for (const sel of selectors) {
+    const loc = s.page.locator(sel).first();
+    if (await loc.isVisible()) {
+      await humanClickLocator(s.page, loc);
+      if (label) console.log(`[asc-submit] clicked: ${label}`);
+      return true;
     }
-    await pageSettled(s.page);
   }
   return false;
 }
@@ -77,7 +74,7 @@ async function selectBuild(s) {
     'button:has-text("Select a build")',
     'button[aria-label*="Add Build" i]',
     'button[aria-label*="build" i]',
-  ], 'open build picker', 6000);
+  ], 'open build picker');
   if (!opened) {
     console.log('[asc-submit] WARN: build picker control not found — version may already have a build');
     return true;
@@ -117,7 +114,7 @@ try {
       'button:has-text("Version or Platform")',
       'button[aria-label*="Add version" i]',
       'button:has-text("+")',
-    ], 'add version', 6000);
+    ], 'add version');
     if (opened) {
       await pageSettled(s.page);
       const vField = s.page.locator('input[placeholder*="ersion" i], input[name*="version" i], input[type="text"]').first();
@@ -169,7 +166,7 @@ try {
   }
 
   // Save any staged edits before submitting.
-  await clickAny(s, ['button:has-text("Save")', 'button[data-test-id="save"]'], 'save', 3000);
+  await clickAny(s, ['button:has-text("Save")', 'button[data-test-id="save"]'], 'save');
   await pageSettled(s.page);
 
   if (!SUBMIT) {
@@ -179,14 +176,14 @@ try {
 
   // 4) Terminal submit. Modern ASC: "Add for Review" -> review summary ->
   //    "Submit for Review"/"Submit to App Review". Older ASC: single button.
-  await clickAny(s, ['button:has-text("Add for Review")'], 'Add for Review', 5000);
+  await clickAny(s, ['button:has-text("Add for Review")'], 'Add for Review');
   await pageSettled(s.page);
 
   const submitted = await clickAny(s, [
     'button:has-text("Submit for Review")',
     'button:has-text("Submit to App Review")',
     'button:has-text("Submit")',
-  ], 'Submit for Review', 8000);
+  ], 'Submit for Review');
   if (!submitted) {
     let labels = [];
     try {

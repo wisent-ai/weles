@@ -1,5 +1,6 @@
 // What the report page shows, and the date preset control on it.
 import { humanClickLocator } from '../../../../../dist/human/mouse.js';
+import { pageSettled } from '../../../_shared/page/settled.mjs';
 
 export async function collectPageState(page) {
   return await page.evaluate(() => {
@@ -148,13 +149,13 @@ export async function clickDatePreset(page, label) {
     ].join(', ')).filter({ visible: true }).first();
     if (await opener.count() === 0) return { ok: false, stage: 'open', reason: 'date picker opener not found' };
     await humanClickLocator(page, opener);
-    await page.waitForTimeout(500);
+    await pageSettled(page);
 
     const item = page.getByText(label, { exact: true }).filter({ visible: true }).first();
     if (await item.count() === 0) return { ok: false, stage: 'select', reason: `preset not found: ${label}` };
     const clickable = item.locator('xpath=ancestor-or-self::*[self::li or self::button or self::a or @role="button"][1]').or(item).first();
     await humanClickLocator(page, clickable);
-    await page.waitForTimeout(1500);
+    await pageSettled(page);
     const detail = await clickable.evaluate((el) => ({
       tag: el.tagName,
       text: String(el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim(),

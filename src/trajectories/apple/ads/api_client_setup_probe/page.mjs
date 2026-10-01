@@ -4,7 +4,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { generatePersona } from '../../../../../dist/browser/persona.js';
 import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
-import { CLOSE_AFTER_PROBE, DIAG_DIR, KEEP_OPEN_AFTER_LOGIN_MS, USER_DATA_DIR } from './settings.mjs';
+import { CLOSE_AFTER_PROBE, DIAG_DIR, USER_DATA_DIR } from './settings.mjs';
 
 export function stableProfilePersona() {
   const p = join(USER_DATA_DIR, 'persona.json');
@@ -91,12 +91,6 @@ export async function clickText(page, pattern, label) {
 export async function keepOpen(session, loggedIn) {
   if (!loggedIn || CLOSE_AFTER_PROBE) {
     await session.close().catch(() => {});
-    return;
-  }
-
-  if (KEEP_OPEN_AFTER_LOGIN_MS > 0) {
-    console.log(`[apple-ads-api-setup] logged in; keeping browser open for ${KEEP_OPEN_AFTER_LOGIN_MS}ms`);
-    await session.wait(Math.ceil(KEEP_OPEN_AFTER_LOGIN_MS / 1000)).catch(() => {});
     return;
   }
 

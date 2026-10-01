@@ -6,13 +6,12 @@
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
-import { setTimeout } from 'node:timers/promises';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 import { homedir } from 'node:os';
 
 const ADD_URL = 'https://developer.apple.com/account/resources/authkeys/add';
 const OUT_DIR = `${homedir()}/.swiatowid`;
 const KEY_NAME = process.env.APNS_KEY_NAME || 'Oko APNs';
-const DOWNLOAD_WAIT_MS = 5 * 60 * 1000;
 
 async function clickText(page, rx) {
   for (const loc of [page.getByRole('button', { name: rx }).first(),
@@ -30,26 +29,26 @@ const s = await WSession.start({
 });
 
 await s.goto(ADD_URL);
-await setTimeout(6000);
+await pageSettled(s.page);
 if (/idmsa|\/login|authResult=FAILED/.test(s.page.url())) {
   console.log('NEED_LOGIN: persisted Apple session expired — cannot create the key without a fresh login.');
   console.log('current url:', s.page.url());
 } else {
   console.log('[apns] on add page, logged in');
   // Arm the download capture before any clicks, so a flaky selector never loses the key.
-  const downloadPromise = s.page.waitForEvent('download', { timeout: DOWNLOAD_WAIT_MS });
+  const downloadPromise = s.page.waitForEvent('download');
   try {
     await s.page.waitForSelector('#name', { state: 'visible' });
     await humanFill(s.page, s.page.locator('#name').first(), KEY_NAME);
-    await setTimeout(800);
+    await pageSettled(s.page);
     // Check the APNs service via its label (trusted event enables Continue).
     const lbl = s.page.locator('label').filter({ hasText: 'Apple Push Notifications service (APNs)' }).first();
     if (await lbl.count() > 0) { await humanClickLocator(s.page, lbl); }
-    await setTimeout(1200);
+    await pageSettled(s.page);
     await clickText(s.page, /^continue$/i);
-    await setTimeout(3000);
+    await pageSettled(s.page);
     await clickText(s.page, /^register$/i);
-    await setTimeout(3000);
+    await pageSettled(s.page);
     const dl = await clickText(s.page, /download/i);
     console.log('[apns] download clicked =', dl);
   } catch (e) {

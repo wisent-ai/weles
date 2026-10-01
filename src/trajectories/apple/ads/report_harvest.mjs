@@ -7,7 +7,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { DATE_PRESETS, DIAG_DIR, EXACT_RANGES, REPORT_URL, SESSION_LABEL, USER_DATA_DIR, WAIT_AFTER_NAV_MS } from './report_harvest/settings.mjs';
+import { DATE_PRESETS, DIAG_DIR, EXACT_RANGES, REPORT_URL, SESSION_LABEL, USER_DATA_DIR } from './report_harvest/settings.mjs';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 import { ensureReportPage, gotoAndWait, installNetworkCapture, requireAuthenticatedSession, stableProfilePersona } from './report_harvest/session.mjs';
 import { clickDatePreset, collectPageState } from './report_harvest/page_state.mjs';
 import { getCampaignReportPayload, sanitizeResponses, summarizeGraphqlRequests, summarizeGraphqlResponses, summarizeReport } from './report_harvest/summaries.mjs';
@@ -35,10 +36,8 @@ async function main() {
   let exitCode = 0;
   try {
     const network = installNetworkCapture(s.page);
-    const firstNav = await gotoAndWait(s.page, REPORT_URL);
-    if (!firstNav && (s.page.url?.() || '') === 'about:blank') {
-      console.log('[apple-ads-report-harvest] first navigation stayed blank; retrying');
-      await gotoAndWait(s.page, REPORT_URL);
+    if (!await gotoAndWait(s.page, REPORT_URL)) {
+      throw new Error(`navigation to ${REPORT_URL} left the page blank`);
     }
     console.log(`[apple-ads-report-harvest] before login check url=${s.page.url?.() || ''}`);
     const loggedIn = await requireAuthenticatedSession(s);
@@ -51,7 +50,7 @@ async function main() {
     if (!/\/report/i.test(s.page.url?.() || '')) {
       await gotoAndWait(s.page, REPORT_URL);
     } else {
-      await s.page.waitForTimeout(WAIT_AFTER_NAV_MS).catch(() => {});
+      await pageSettled(s.page);
     }
     if (!await ensureReportPage(s.page)) {
       const currentUrl = s.page.url?.() || '';
@@ -83,7 +82,7 @@ async function main() {
 
     for (const preset of DATE_PRESETS) {
       const click = await clickDatePreset(s.page, preset);
-      await s.page.waitForTimeout(WAIT_AFTER_NAV_MS).catch(() => {});
+      await pageSettled(s.page);
       const page = await collectPageState(s.page);
       snapshots.push({
         label: preset,
@@ -93,7 +92,7 @@ async function main() {
       });
     }
 
-    await s.page.waitForTimeout(1000).catch(() => {});
+    await pageSettled(s.page);
     const templatePayload = getCampaignReportPayload(network.requests);
     const exactReports = await fetchExactCampaignReports(s.page, templatePayload, EXACT_RANGES);
     const exactSummary = summarizeExactReports(exactReports);

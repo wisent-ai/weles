@@ -6,7 +6,6 @@ import { WSession } from '../../../dist/session/wsession.js';
 import {
   cancelCapability,
   withCapability,
-  withCapabilityPendingRetry,
 } from '../../../dist/utils/capability.js';
 import { parseAppleLoginCapabilities } from '../../../dist/utils/identity/apple-login-capabilities.js';
 import { completeAppleTwoFactorChallenge } from './two_factor.mjs';
@@ -39,20 +38,18 @@ function isDashboardUrl(url) {
   return url.includes('appstoreconnect.apple.com') && !url.includes('/login') && !url.includes('idmsa');
 }
 
-async function waitForPostPasswordState(session, frame, attempts = 30) {
+/** Whichever comes first of the dashboard, the 2FA prompt or a refusal. */
+async function waitForPostPasswordState(session, frame) {
+  const page = session.page;
   const twoFactorSelector = 'input[aria-label*="digit"], input[aria-label*="Digit"], input[id*="char"], input[type="tel"][maxlength="1"]';
   const explicitFailure = /incorrect|verification failed|account (?:is |has been )?locked|unable to sign in|sign[ -]?in failed/i;
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    if (isDashboardUrl(session.page.url?.() ?? '')) return 'dashboard';
-    const twoFactorVisible = await frame.locator(twoFactorSelector).first().isVisible().catch(() => false)
-      || await session.page.getByText(/Two-Factor Authentication|verification code sent to your Apple devices/i).first().isVisible().catch(() => false);
-    if (twoFactorVisible) return 'two_factor';
-    const failureVisible = await frame.getByText(explicitFailure).first().isVisible().catch(() => false)
-      || await session.page.getByText(explicitFailure).first().isVisible().catch(() => false);
-    if (failureVisible) return 'failed';
-    await pageSettled(session.page);
-  }
-  return 'timeout';
+  return Promise.any([
+    page.waitForURL((url) => isDashboardUrl(String(url))).then(() => 'dashboard'),
+    frame.locator(twoFactorSelector).first().waitFor({ state: 'visible' }).then(() => 'two_factor'),
+    page.getByText(/Two-Factor Authentication|verification code sent to your Apple devices/i).first().waitFor({ state: 'visible' }).then(() => 'two_factor'),
+    frame.getByText(explicitFailure).first().waitFor({ state: 'visible' }).then(() => 'failed'),
+    page.getByText(explicitFailure).first().waitFor({ state: 'visible' }).then(() => 'failed'),
+  ]);
 }
 
 async function cancelSessionCapabilities() {
@@ -102,8 +99,7 @@ try {
   await s.page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded' });
   await pageSettled(s.page);
 
-  const authFrame = await s.page.waitForSelector('iframe[src*="idmsa.apple.com"]').catch(() => null);
-  if (!authFrame) throw new Error('no idmsa auth iframe found');
+  const authFrame = await s.page.waitForSelector('iframe[src*="idmsa.apple.com"]');
   const frame = await authFrame.contentFrame();
   if (!frame) throw new Error('could not access auth iframe');
 
@@ -200,11 +196,10 @@ try {
   if (formState.emailLength !== emailLength || formState.passwordLength !== passwordLength) {
     throw new Error('typed credential length mismatch');
   }
-  const signInEnabled = await frame.waitForFunction(() => {
+  await frame.waitForFunction(() => {
     const button = document.querySelector('#sign-in');
     return button && !button.disabled && button.getAttribute('aria-disabled') !== 'true';
-  }).then(() => true).catch(() => false);
-  if (!signInEnabled) throw new Error('Apple password form stayed disabled after credential entry');
+  });
 
   // Playwright's actionability-checked click hangs on Apple's Angular-bound
   // Sign In control, so submit the validated form with a DOM click.
@@ -213,16 +208,16 @@ try {
 
   const postPasswordState = await waitForPostPasswordState(s, frame);
   if (postPasswordState === 'failed') throw new Error('Apple rejected the guarded login attempt');
-  if (postPasswordState === 'timeout') throw new Error('Timed out waiting for Apple dashboard or 2FA challenge');
 
   if (postPasswordState === 'two_factor') {
     // Stado captures in the verified account holder's Aqua session and writes
-    // the digits straight into this worker's already-authorized broker resource.
+    // the digits straight into this worker's already-authorized broker resource;
+    // the relay returns only once they are stored, so one redeem reads them.
     // Weles sees only the one-use capability value and clears it after filling.
     relayAppleChallenge(preflightIdentity, guardId);
     const twoFactor = await completeAppleTwoFactorChallenge(s, frame, {
       logPrefix: '[apple-login]',
-      withCode: (consume) => withCapabilityPendingRetry(
+      withCode: (consume) => withCapability(
         capabilities.two_factor.capability,
         {
           purpose: 'weles.apple.2fa',
@@ -230,7 +225,6 @@ try {
           authorization_id: guardId,
         },
         consume,
-        { timeoutMs: 120_000, intervalMs: 500 },
       ),
     });
     if (!twoFactor.ok) {
@@ -238,12 +232,10 @@ try {
     }
   }
 
-  let dashboardObserved = postPasswordState === 'dashboard';
-  for (let attempt = 0; !dashboardObserved && attempt < 30; attempt += 1) {
-    dashboardObserved = isDashboardUrl(s.page.url?.() ?? '');
-    if (!dashboardObserved) await pageSettled(s.page);
+  if (postPasswordState !== 'dashboard') {
+    await s.page.waitForURL((url) => isDashboardUrl(String(url)));
   }
-  if (!dashboardObserved) throw new Error(`did not reach ASC dashboard, still at ${s.page.url?.()}`);
+
   const dashboardUrl = new URL(s.page.url?.() ?? '');
   dashboardPostcondition = `Authenticated App Store Connect dashboard observed at origin=${dashboardUrl.origin} pathname=${dashboardUrl.pathname}; URL excluded /login and idmsa`;
 

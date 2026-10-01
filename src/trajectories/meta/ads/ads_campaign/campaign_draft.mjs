@@ -28,7 +28,7 @@ async function maybeContinueCampaignConfiguration(s) {
     'button:has-text("Kontynuuj")',
     'div[role="button"]:has-text("Continue")',
     'button:has-text("Continue")',
-  ], 'configuration Continue', 5000);
+  ], 'configuration Continue');
   await clickVisibleTextInArea(s, /^(Kontynuuj|Continue)$/i, 'configuration Continue', {
     minX: 760,
     maxX: 1100,
@@ -36,7 +36,7 @@ async function maybeContinueCampaignConfiguration(s) {
     maxY: 820,
     minW: 60,
     minH: 30,
-  }, 4000);
+  });
   await pageSettled(s.page);
   return true;
 }
@@ -52,21 +52,21 @@ async function openCampaignCreation(s) {
     'div[role="toolbar"] div[role="button"]:has-text("Utwórz")',
     'div[role="toolbar"] button:has-text("Create")',
     'div[role="toolbar"] button:has-text("Utwórz")',
-  ], 'campaign Create', 8000) || await clickVisibleTextInArea(s, /^(\+ )?(Create|Utwórz)$/i, 'campaign Create', {
+  ], 'campaign Create') || await clickVisibleTextInArea(s, /^(\+ )?(Create|Utwórz)$/i, 'campaign Create', {
     minX: 40,
     maxX: 220,
     minY: 120,
     maxY: 230,
     minW: 80,
     minH: 35,
-  }, 8000) || await clickAny(s, [
+  }) || await clickAny(s, [
     'div[role="button"]:has-text("Create")',
     'div[role="button"]:has-text("Utwórz")',
     'button:has-text("Create")',
     'button:has-text("Utwórz")',
     '[aria-label="Create"]',
     '[aria-label="Utwórz"]',
-  ], 'Create', 12000);
+  ], 'Create');
   if (!createClicked) {
     createClicked = await clickPoint(s, 122, 233, 'campaign Create by coordinates');
     await pageSettled(s.page);
@@ -84,7 +84,7 @@ async function chooseObjectiveAndContinue(s) {
       `div[role="button"]:has-text("${label}")`,
       `div[role="dialog"] div:has-text("${label}")`,
       `text="${label}"`,
-    ], `objective ${label}`, 3000)) {
+    ], `objective ${label}`)) {
       objectiveClicked = true;
       break;
     }
@@ -95,7 +95,7 @@ async function chooseObjectiveAndContinue(s) {
       maxY: 650,
       minW: 20,
       minH: 12,
-    }, 2000)) {
+    })) {
       objectiveClicked = true;
       break;
     }
@@ -107,8 +107,8 @@ async function chooseObjectiveAndContinue(s) {
     objectiveClicked = true;
   }
   if (!objectiveClicked) console.log(`[meta-ads] WARN: objective not selected: ${objectiveLabels.join('/')}`);
-  await clickAny(s, ['div[role="button"]:has-text("Continue")', 'button:has-text("Continue")'], 'Continue', 5000);
-  const continued = await clickAny(s, ['div[role="button"]:has-text("Kontynuuj")', 'button:has-text("Kontynuuj")'], 'Kontynuuj', 5000);
+  await clickAny(s, ['div[role="button"]:has-text("Continue")', 'button:has-text("Continue")'], 'Continue');
+  const continued = await clickAny(s, ['div[role="button"]:has-text("Kontynuuj")', 'button:has-text("Kontynuuj")'], 'Kontynuuj');
   if (!continued) {
     const viewport = s.page.viewportSize?.() ?? { width: 1280, height: 900 };
     await clickPoint(s, Math.round(viewport.width * 0.68), 785, 'Kontynuuj by coordinates');

@@ -8,7 +8,7 @@ import { cancelCapability } from '../../../dist/utils/capability.js';
 import { parseAppleLoginCapabilities } from '../../../dist/utils/identity/apple-login-capabilities.js';
 import { getSocialAccount } from '../../../dist/utils/credentials.js';
 import { preflightAppleChallengeRelay } from '../../auth/apple-account-placement.mjs';
-import { ADD_URL, DOWNLOAD_WAIT_MS, FILE_INPUT_WAIT_MS, NAVIGATION_WAIT_MS, PORTAL_POLLS } from './create_developer_id/constants.mjs';
+import { ADD_URL } from './create_developer_id/constants.mjs';
 import { clickButton, clickChoice, isDevPortalUrl } from './create_developer_id/portal.mjs';
 import { placeRequestFiles } from './create_developer_id/request_files.mjs';
 import { readFileSync } from 'node:fs';
@@ -44,7 +44,7 @@ async function cancelSessionCapabilities() {
 
 /** Choose the certificate type, upload the CSR and download the issued certificate. */
 async function createCertificate(page) {
-  await page.goto(ADD_URL, { waitUntil: 'domcontentloaded', timeout: NAVIGATION_WAIT_MS });
+  await page.goto(ADD_URL, { waitUntil: 'domcontentloaded' });
   await pageSettled(s.page);
   if (!/developer\.apple\.com\/account\/resources\/certificates\/add/.test(page.url())) {
     throw new Error(`certificate add page unavailable at ${page.url()}`);
@@ -60,14 +60,14 @@ async function createCertificate(page) {
   await pageSettled(s.page);
 
   const fileInput = page.locator('input[type="file"]').first();
-  await fileInput.waitFor({ state: 'attached', timeout: FILE_INPUT_WAIT_MS });
+  await fileInput.waitFor({ state: 'attached' });
   await fileInput.setInputFiles(csrPath);
   console.log('[apple-create-developer-id] CSR_UPLOADED');
   await pageSettled(s.page);
   if (!(await clickButton(page, /^continue$/i))) throw new Error('CSR Continue control missing');
   await pageSettled(s.page);
 
-  const downloadPromise = page.waitForEvent('download', { timeout: DOWNLOAD_WAIT_MS });
+  const downloadPromise = page.waitForEvent('download');
   if (!(await clickButton(page, /download/i))) throw new Error('certificate Download control missing');
   const download = await downloadPromise;
   await download.saveAs(certificatePath);
@@ -97,17 +97,14 @@ try {
 
   s = await WSession.start({ label: 'apple_create_developer_id', headless: process.env.WELES_HEADLESS === '1' });
   sessionClosed = false;
-  await s.page.goto(ADD_URL, { waitUntil: 'domcontentloaded', timeout: NAVIGATION_WAIT_MS });
+  await s.page.goto(ADD_URL, { waitUntil: 'domcontentloaded' });
   await pageSettled(s.page);
 
   const { postPasswordState, twoFactorReceipt } = await signInWithCapabilities(s, { capabilities, guardId, identity });
 
-  let portalObserved = postPasswordState === 'dashboard';
-  for (let poll = 0; !portalObserved && poll < PORTAL_POLLS; poll += 1) {
-    portalObserved = isDevPortalUrl(s.page.url?.() ?? '');
-    if (!portalObserved) await pageSettled(s.page);
+  if (postPasswordState !== 'dashboard') {
+    await s.page.waitForURL((url) => isDevPortalUrl(String(url)));
   }
-  if (!portalObserved) throw new Error(`did not reach developer portal, still at ${s.page.url()}`);
 
   await createCertificate(s.page);
   // The certificate is public; it leaves in the run's own result so a caller on

@@ -9,10 +9,7 @@ export const DIAG_DIR = process.env.APPLE_ADS_DIAG_DIR || runOutputPath('apple-a
 export const APP_ID = process.env.APPLE_ADS_APP_ID || process.env.APPLE_ADS_UI_APP_ID || '19768040';
 export const SESSION_LABEL = process.env.APPLE_ADS_SESSION_LABEL || 'apple_ads_report_harvest';
 export const REPORT_URL = process.env.APPLE_ADS_REPORT_URL || `https://app-ads.apple.com/cm/app/${APP_ID}/report`;
-export const NAV_TIMEOUT_MS = Number(process.env.NAV_TIMEOUT_MS || 90000);
-export const WAIT_AFTER_NAV_MS = Number(process.env.APPLE_ADS_REPORT_WAIT_MS || 10000);
 export const CLOSE_AFTER_HARVEST = process.env.APPLE_ADS_CLOSE_AFTER_HARVEST === '1';
-export const KEEP_OPEN_AFTER_HARVEST_MS = Number(process.env.APPLE_ADS_KEEP_OPEN_AFTER_HARVEST_MS || 0);
 export const DATE_PRESETS = (process.env.APPLE_ADS_DATE_PRESETS || 'Last 30 days,Last 12 weeks,Last 3 Calendar months')
   .split(',')
   .map((value) => value.trim())
