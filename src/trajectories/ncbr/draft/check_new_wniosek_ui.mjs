@@ -66,13 +66,13 @@ const out = await page.evaluate((capturedResponses) => {
   const lines = body.split('\n').map((l) => l.trim()).filter((l) => /błąd|blad|wymagan|uzupeł|niepopraw|nie może|walid|popraw/i.test(l));
   return {
     url: location.href,
-    dialogs: dialogs.slice(0, 20),
-    dialogHtml: Array.from(document.querySelectorAll('[role="dialog"], .MuiDialog-root')).map((e) => e.outerHTML.slice(0, 3000)).slice(0, 5),
-    errors: errors.slice(0, 80),
+    dialogs,
+    dialogHtml: Array.from(document.querySelectorAll('[role="dialog"], .MuiDialog-root')).map((e) => e.outerHTML),
+    errors,
     lines: lines,
-    buttons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim() || b.getAttribute('aria-label') || b.title, disabled: b.disabled })).filter((b) => b.text).slice(0, 80),
-    responses: capturedResponses.slice(-40),
-    bodyTail: body.slice(-4000),
+    buttons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim() || b.getAttribute('aria-label') || b.title, disabled: b.disabled })).filter((b) => b.text),
+    responses: capturedResponses,
+    body,
   };
 }, responses);
 

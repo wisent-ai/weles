@@ -128,7 +128,7 @@ async function visibleControlDebug(s) {
         const text = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
         const style = window.getComputedStyle(el);
         return {
-          text: text.slice(0, 80),
+          text,
           x: Math.round(r.left),
           y: Math.round(r.top),
           w: Math.round(r.width),
@@ -139,7 +139,7 @@ async function visibleControlDebug(s) {
         };
       })
       .filter((e) => e.visible && /Utwórz|Create|Ruch|Traffic|Kontynuuj|Continue|Przegląd konta|account/i.test(e.text))
-      .slice(0, 80));
+      );
   } catch (error) {
     return { ok: false, reason: `visible controls could not be listed: ${error.message}` };
   }

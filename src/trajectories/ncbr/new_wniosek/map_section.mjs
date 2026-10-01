@@ -42,10 +42,10 @@ if (SECTION_GROUP) {
   const children = group.locator(':scope > ul li[role="treeitem"]');
   navChildren = await children.evaluateAll((nodes) => nodes.map((node) => ({
     id: node.id.replace(/^mui-tree-view-\d+-/, ''),
-    text: (node.querySelector('.MuiTreeItem-label')?.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 120),
+    text: (node.querySelector('.MuiTreeItem-label')?.textContent || '').trim().replace(/\s+/g, ' '),
   }))); // allow-raw-playwright: read-only tree listing
   if (!navChildren.length) {
-    console.log(JSON.stringify({ error: 'GROUP_HAS_NO_ENTRIES', sectionGroup: SECTION_GROUP, groupHtml: (await group.evaluate((node) => node.outerHTML)).slice(0, 3000) }, null, 2)); // allow-raw-playwright: read-only diagnostics
+    console.log(JSON.stringify({ error: 'GROUP_HAS_NO_ENTRIES', sectionGroup: SECTION_GROUP, groupHtml: await group.evaluate((node) => node.outerHTML) }, null, 2)); // allow-raw-playwright: read-only diagnostics
     process.exit(1);
   }
   if (!SECTION_LABEL) SECTION_LABEL = navChildren[0].text;
@@ -60,8 +60,8 @@ if (SECTION_GROUP) {
   } catch (error) {
     const visibleNav = await treeItems.evaluateAll((nodes) => nodes
       .filter((node) => node.getClientRects().length)
-      .map((node) => (node.querySelector('.MuiTreeItem-label')?.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 80))); // allow-raw-playwright: read-only nav listing for diagnostics
-    console.log(JSON.stringify({ error: 'SECTION_NOT_FOUND', sectionLabel: SECTION_LABEL, visibleNav: [...new Set(visibleNav)].slice(0, 80), cause: error.message.split('\n')[0] }, null, 2));
+      .map((node) => (node.querySelector('.MuiTreeItem-label')?.textContent || '').trim().replace(/\s+/g, ' '))); // allow-raw-playwright: read-only nav listing for diagnostics
+    console.log(JSON.stringify({ error: 'SECTION_NOT_FOUND', sectionLabel: SECTION_LABEL, visibleNav: [...new Set(visibleNav)], cause: error.message }, null, 2));
     process.exit(1);
   }
   navLocator = page.locator(navPattern(SECTION_LABEL)).first();
@@ -70,7 +70,7 @@ if (SECTION_GROUP) {
 let navInfo = { found: false, group: SECTION_GROUP || null, navChildren, sectionLabel: SECTION_LABEL };
 if (await navLocator.count()) {
   const target = SECTION_GROUP ? navLocator.locator('.MuiTreeItem-content').first() : navLocator;
-  navInfo = { ...navInfo, found: true, text: SECTION_GROUP ? await itemLabel(navLocator) : (await navLocator.textContent())?.trim()?.slice(0, 100) };
+  navInfo = { ...navInfo, found: true, text: SECTION_GROUP ? await itemLabel(navLocator) : (await navLocator.textContent())?.trim() };
   await humanClickLocator(page, target);
   await humanIdlePause('long');
   await humanIdlePause('deliberate');
@@ -180,10 +180,10 @@ if (process.env.CHECK_ONLY) {
   const validation = await page.evaluate(() => {
     const body = document.body.innerText || '';
     return {
-      dialogs: Array.from(document.querySelectorAll('[role="dialog"], .MuiDialog-root, .MuiAlert-root, .MuiSnackbar-root')).map((e) => e.textContent.trim()).filter(Boolean).slice(0, 20),
-      alerts: Array.from(document.querySelectorAll('.MuiAlert-message, .Mui-error, [aria-invalid="true"], [role="alert"]')).map((e) => (e.textContent || e.getAttribute('name') || '').trim()).filter(Boolean).slice(0, 80),
+      dialogs: Array.from(document.querySelectorAll('[role="dialog"], .MuiDialog-root, .MuiAlert-root, .MuiSnackbar-root')).map((e) => e.textContent.trim()).filter(Boolean),
+      alerts: Array.from(document.querySelectorAll('.MuiAlert-message, .Mui-error, [aria-invalid="true"], [role="alert"]')).map((e) => (e.textContent || e.getAttribute('name') || '').trim()).filter(Boolean),
       lines: body.split('\n').map((l) => l.trim()).filter((l) => /błąd|blad|wymagan|uzupeł|niepopraw|nie może|walid|popraw/i.test(l)).slice(0, 120),
-      buttons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim(), disabled: b.disabled })).filter((b) => b.text).slice(0, 80),
+      buttons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim(), disabled: b.disabled })).filter((b) => b.text),
     };
   }); // allow-raw-playwright: read validation result DOM only
   console.log(JSON.stringify({ url: page.url(), title: await page.title(), navInfo, validation }, null, 2));

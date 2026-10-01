@@ -73,7 +73,7 @@ if (process.env.DOWNLOAD_CURRENT_PDF) {
 }
 
 const out = await page.evaluate(() => {
-  const visibleText = (document.body.innerText || '').slice(0, 16000);
+  const visibleText = document.body.innerText || '';
   const buttons = Array.from(document.querySelectorAll('button, [role="button"], a')).map((e) => ({
     text: (e.textContent || e.getAttribute('aria-label') || e.getAttribute('title') || '').trim().replace(/\s+/g, ' '),
     tag: e.tagName,
@@ -89,12 +89,12 @@ const out = await page.evaluate(() => {
       name: e.name || null,
       accept: e.accept || null,
       multiple: Boolean(e.multiple),
-      value: (e.value || '').slice(0, 120),
+      value: e.value || '',
       label,
       nearby: wrap ? wrap.textContent.trim().replace(/\s+/g, ' ') : null,
     };
-  }).filter((e) => e.name || e.type === 'file' || e.label || e.nearby).slice(0, 120);
-  const links = Array.from(document.querySelectorAll('a[href]')).map((a) => ({ text: a.textContent.trim().replace(/\s+/g, ' '), href: a.href })).slice(0, 80);
+  }).filter((e) => e.name || e.type === 'file' || e.label || e.nearby);
+  const links = Array.from(document.querySelectorAll('a[href]')).map((a) => ({ text: a.textContent.trim().replace(/\s+/g, ' '), href: a.href }));
   return { url: location.href, visibleText, buttons, inputs, links };
 }); // allow-raw-playwright: read-only DOM inspection
 if (process.env.SCREENSHOT_PATH) {
