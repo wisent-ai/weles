@@ -73,6 +73,7 @@ try {
       exp: process.env.TOPUP_CARD_EXP ?? '',
       cvc: process.env.TOPUP_CARD_CVC ?? '',
       zip: process.env.TOPUP_CARD_ZIP ?? '',
+      name: process.env.TOPUP_CARD_NAME ?? '',
     };
     if (!card.num || !card.exp || !card.cvc) {
       console.log('FAIL: stripe checkout reached but TOPUP_CARD_* env vars missing');
@@ -90,9 +91,9 @@ try {
     await cvcIn.click();
     await humanType(s.page, card.cvc, { delay: 50 });
     const nameIn = s.page.locator('input[name="billingName"], input#billingName').filter({ visible: true }).first();
-    if (await nameIn.isVisible().catch(() => false)) {
+    if (card.name && await nameIn.isVisible().catch(() => false)) {
       await nameIn.click();
-      await humanType(s.page, 'Lukasz Bartoszcze', { delay: 50 });
+      await humanType(s.page, card.name, { delay: 50 });
     }
     const zipIn = s.page.locator('input[name="billingPostalCode"], input#billingPostalCode').filter({ visible: true }).first();
     if (card.zip && await zipIn.isVisible().catch(() => false)) {

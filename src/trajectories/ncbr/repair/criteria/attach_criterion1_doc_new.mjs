@@ -17,7 +17,7 @@ const criterionNeedle = 'Załączniki potwierdzające spełnienie warunku okreś
 // Declared criterion-1 files in attachment order; ControlAI groups sixteen documents into ten PDFs.
 const PACKAGES = {
   controlai: {
-    dir: '/Users/lukaszbartoszcze/Desktop/FENG.05.01-IP.01-007N-26 - pakiet do wgrania/',
+    dir: process.env.NCBR_CONTROLAI_PACKAGE_DIR || `${process.env.HOME}/Desktop/FENG.05.01-IP.01-007N-26 - pakiet do wgrania/`,
     files: [
       '01-04_dokumenty_dominacji_podpisane.pdf',
       '05_umowa_zbycia_9_udzialow_13.04.2026.pdf',
@@ -32,7 +32,7 @@ const PACKAGES = {
     ],
   },
   'wisent-ai': {
-    dir: '/Users/lukaszbartoszcze/Desktop/Wisent - dokumenty korporacyjne 14.04.2026/',
+    dir: process.env.NCBR_WISENT_PACKAGE_DIR || `${process.env.HOME}/Desktop/Wisent - dokumenty korporacyjne 14.04.2026/`,
     files: [
       '01_porozumienie_wspolnikow.pdf',
       '02_umowa_o_zarzadzanie_spolka_zalezna.pdf',

@@ -1,8 +1,8 @@
 // Slack-post trajectory. TWO paths:
 //   BOT (default): post as the Swiatowid bot through wisent-integrations'
 //     slack domain (identity swiatowid-bot), which holds the bot token.
-//     No browser, no Google SSO, no app re-creation. This is what runs on the
-//     mac-mini worker.
+//     No browser, no Google SSO, no app re-creation. This is what runs on a
+//     managed worker.
 //   BROWSER (integrations not configured): Google-SSO into
 //     wisent-workspace.slack.com, create the app via manifest, scrape a fresh
 //     xoxb, post.
@@ -11,7 +11,7 @@
 // Env: STADO_INTEGRATION_API_URL + WELES_STADO_INTEGRATION_TOKEN (bot path),
 //      MESSAGE_TEXT | MESSAGE_FILE,
 //      SLACK_TARGET_CHANNEL (id) | SLACK_TARGET_CHANNEL_NAME | SLACK_TARGET_USER_ID,
-//      SLACK_TARGET_USER_MATCHERS (csv, default jakub,kuba,towarek),
+//      SLACK_TARGET_USER_MATCHERS (csv) | SLACK_RECIPIENT_GROUPS ('a,b;c,d'),
 //      SLACK_ENABLE_TAGGING=0 | SLACK_MENTION_USER_IDS | SLACK_MENTION_USER_MATCHERS,
 //      SLACK_EMAIL/SLACK_PASS (browser path only).
 
@@ -24,7 +24,7 @@ import { readClientToken, signInThroughGoogle } from './post_message/browser_sig
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WELES = join(__dirname, '..', '..', '..');
-const TARGET_NAME = (process.env.SLACK_TARGET_CHANNEL_NAME || 'jakub').toLowerCase();
+const TARGET_NAME = (process.env.SLACK_TARGET_CHANNEL_NAME || '').toLowerCase();
 const TARGET_CHAN = process.env.SLACK_TARGET_CHANNEL || '';
 
 // Message source: inline MESSAGE_TEXT (machine-independent — survives being

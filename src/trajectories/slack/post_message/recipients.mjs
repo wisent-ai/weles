@@ -1,13 +1,12 @@
 import { slackPost } from './api.mjs';
 
-// Default recipients: one user per matcher-group. We DM BOTH Jakub and Łukasz.
+// Default recipients: one user per matcher group, read from
+// SLACK_RECIPIENT_GROUPS ('name,alias;name,alias'). The people a message goes
+// to are deployment configuration, not code.
 // chat.postMessage to a user id opens/uses the DM, so no im:write needed.
-export const RECIPIENT_GROUPS = [
-  ['jakub', 'towarek', 'kuba'],
-  ['lukasz', 'bartoszcze', 'łukasz'],
-];
+export const RECIPIENT_GROUPS = parseMatcherGroups(process.env.SLACK_RECIPIENT_GROUPS, []);
 
-const TARGET_NAME = (process.env.SLACK_TARGET_CHANNEL_NAME || 'jakub').toLowerCase();
+const TARGET_NAME = (process.env.SLACK_TARGET_CHANNEL_NAME || '').toLowerCase();
 const TARGET_CHAN = process.env.SLACK_TARGET_CHANNEL || '';
 const TAGGING_ENABLED = process.env.SLACK_ENABLE_TAGGING !== '0';
 const MENTION_MODE = (process.env.SLACK_MENTION_MODE || 'prefix').toLowerCase();
@@ -17,7 +16,7 @@ export function parseCsv(value) {
 }
 
 /** Matcher groups from 'a,b;c,d' text; the given groups when the text is empty. */
-export function parseMatcherGroups(value, defaults = RECIPIENT_GROUPS) {
+export function parseMatcherGroups(value, defaults) {
   if (!value) return defaults;
   return String(value)
     .toLowerCase()
@@ -92,8 +91,8 @@ export async function resolveTargets() {
   if (TARGET_CHAN) return [TARGET_CHAN];
   if (process.env.SLACK_TARGET_USER_IDS) return parseCsv(process.env.SLACK_TARGET_USER_IDS);
   if (process.env.SLACK_TARGET_USER_ID) return [process.env.SLACK_TARGET_USER_ID];
-  // A real channel by name only if it actually resolves: the default 'jakub'
-  // is a DM, not a channel, so it is answered by the recipient groups below.
+  // A real channel by name only if it actually resolves; a name that is a
+  // person, not a channel, is answered by the recipient groups below.
   if (process.env.SLACK_TARGET_CHANNEL_NAME) {
     try {
       const list = await slackPost('conversations.list', { types: 'public_channel,private_channel', limit: '1000' });
@@ -112,6 +111,6 @@ export async function resolveTargets() {
     const hit = resolveUsersFromMembers(members, [group])[0];
     if (hit && !ids.includes(hit.id)) { ids.push(hit.id); console.log(`[slack] recipient ${hit.real_name || hit.name} -> ${hit.id}`); }
   }
-  if (!ids.length) throw new Error(`no channel "${TARGET_NAME}" and no recipients matched`);
+  if (!ids.length) throw new Error(`no channel "${TARGET_NAME}" and no recipients matched: set SLACK_TARGET_CHANNEL, SLACK_TARGET_USER_IDS or SLACK_RECIPIENT_GROUPS`);
   return ids;
 }

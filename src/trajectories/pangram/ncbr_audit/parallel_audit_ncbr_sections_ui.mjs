@@ -5,8 +5,8 @@ import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const WEL = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles';
-const ROOT = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent';
+const WEL = `${process.env.HOME}/Documents/CodingProjects/Wisent/weles`;
+const ROOT = `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent`;
 const REPORT_ROOT = process.env.REPORT_ROOT || join(ROOT, 'pangram_section_audit');
 const TS = new Date().toISOString().replace(/[:.]/g, '-');
 const RUN_PREFIX = process.env.WELES_RUN_ID || `ncbr-pangram-parallel-${TS}`;

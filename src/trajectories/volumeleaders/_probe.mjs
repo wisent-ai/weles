@@ -16,7 +16,7 @@ const args = {};
 for (let i = 2; i < process.argv.length; i += 2) args[process.argv[i].replace(/^--/, '')] = process.argv[i + 1];
 const ticker = (args.ticker || 'ORCL').toUpperCase();
 const mode = args.mode || 'links';
-const outDir = args['out-dir'] || `/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/trading-tools/screenshots/VL_${ticker}`;
+const outDir = args['out-dir'] || `${process.env.HOME}/Documents/CodingProjects/Wisent/trading-tools/screenshots/VL_${ticker}`;
 
 const email = process.env.VL_EMAIL;
 const password = process.env.VL_PASSWORD;
@@ -160,7 +160,7 @@ try {
     process.stdout.write(JSON.stringify({ ticker, pages: results }, null, 2) + '\n');
   } else {
     // Screenshot the dashboard + inspect interactive elements
-    const dashDir = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/trading-tools/screenshots/VL_dashboard';
+    const dashDir = `${process.env.HOME}/Documents/CodingProjects/Wisent/trading-tools/screenshots/VL_dashboard`;
     fs.mkdirSync(dashDir, { recursive: true });
     // Wait for full JS load
     await s.page.evaluate('document.readyState === "complete"').catch(() => {});

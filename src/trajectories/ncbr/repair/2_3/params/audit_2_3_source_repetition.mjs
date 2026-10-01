@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 
-const SRC = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_2.3_rynek_i_potencjal.md';
+const SRC = `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_2.3_rynek_i_potencjal.md`;
 const text = readFileSync(SRC, 'utf8');
 
 function section(start, end) {

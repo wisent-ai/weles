@@ -7,7 +7,7 @@ import { humanFill } from '../../../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/e5bd23d7-9d4d-4f2e-948a-97c95041ef18';
-const md = readFileSync('/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_10_1_rowność.md', 'utf8');
+const md = readFileSync(`${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_10_1_rowność.md`, 'utf8');
 
 function clean(s) {
   return s.replace(/\s*<!--[\s\S]*?-->\s*/g, ' ').trim();

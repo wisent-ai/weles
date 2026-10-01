@@ -29,11 +29,11 @@ service_snapshot="${WELES_PUBLIC_SERVICE_DIRECTORY_FILE:-$HOME/.stado/forwards/w
 
 # This reads the credential store of the machine running the script and writes
 # to TARGET's vault, which are the same store only when the two are the same
-# machine. Run from an operator laptop against charless-mac-mini on 2026-09-03
-# the listing was empty, the generator ran, and `vault-item-put` carried a
-# freshly minted authority to the host - `skarbiec set-json`, so a new revision
-# over whatever was there. That first run was the provisioning this fleet
-# needed; the second would silently replace a key set Spis had been told to
+# machine. Run from an operator laptop against a fleet host, the listing was
+# empty, the generator ran, and `vault-item-put` carried a freshly minted
+# authority to the host - `skarbiec set-json`, so a new revision over whatever
+# was there. A first run like that provisions the fleet; the second would
+# silently replace a key set Spis had been told to
 # trust, and receipts signed under the old one would verify against nothing.
 #
 # Absence in a store that is not the target's proves nothing, so generating is

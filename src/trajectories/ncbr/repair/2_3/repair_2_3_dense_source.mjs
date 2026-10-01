@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { EU, NON_EU } from './repair_2_3_dense_source/competitors.mjs';
 import { PARAMS } from './repair_2_3_dense_source/params.mjs';
 
-const SRC = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_2.3_rynek_i_potencjal.md';
+const SRC = `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_2.3_rynek_i_potencjal.md`;
 
 function table(rows) {
   return [

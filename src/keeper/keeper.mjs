@@ -13,7 +13,8 @@ const PORT = 9223;
 const PORTAL_URL = 'https://3d.hunyuanglobal.com/';
 const JAR_PATH = join(homedir(), '.weles', 'cookie-jars', 'tencent.json');
 const USER_DATA_DIR = join(homedir(), '.weles', 'tencent_persistent_profile');
-const CHROMIUM = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/chromium-build/src/out/Weles/Chromium.app/Contents/MacOS/Chromium';
+const CHROMIUM = process.env.WELES_CHROMIUM
+  || join(homedir(), 'Documents/CodingProjects/Wisent/chromium-build/src/out/Weles/Chromium.app/Contents/MacOS/Chromium');
 
 if (!existsSync(USER_DATA_DIR)) mkdirSync(USER_DATA_DIR, { recursive: true });
 

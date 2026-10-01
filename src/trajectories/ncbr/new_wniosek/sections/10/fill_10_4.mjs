@@ -7,7 +7,7 @@ import { humanFill } from '../../../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || ['ht', 'tp://127.0.0.1:9223'].join('');
 const SECTION_URL = ['https://', 'lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/4e260fae-c455-41ce-bba3-d0df2a8767fd'].join('');
-const md = readFileSync('/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_10.4_zrownowazony_rozwoj.md', 'utf8');
+const md = readFileSync(`${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_10.4_zrownowazony_rozwoj.md`, 'utf8');
 function bt(start, end) { let s = md.split(start)[1]; if (s === undefined) return ''; if (end) s = s.split(end)[0]; return s.replace(/\s*<!--[\s\S]*?-->\s*/g, ' ').trim(); }
 const OPIS_6R = bt('## Opis sposobu realizacji projektu zgodnie z wybranymi zasadami 6R (limit 4 000 znaków)', '## Stosowanie zasad 6R zostało odzwierciedlone');
 const OPIS_INNE = bt('## Opis pozytywnego wpływu na inne aspekty środowiskowe w ramach projektu (nie objęte zasadami 6R)', '## Pozytywny wpływ na inne aspekty środowiskowe');

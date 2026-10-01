@@ -5,7 +5,7 @@
 import { launchRealChrome } from '../../../browser/real_chrome.mjs';
 import { humanIdlePause } from '../../../../dist/human/mouse.js';
 
-console.log('[setup] Opening Chrome. Sign in to Google with lukasz.bartoszcze@gmail.com.');
+console.log('[setup] Opening Chrome. Sign in to the shared Google SSO account.');
 console.log('[setup] You may be prompted for 2FA / passkey / phone tap — complete it normally.');
 console.log('[setup] When you land on myaccount.google.com or mail.google.com, this script will exit automatically.');
 

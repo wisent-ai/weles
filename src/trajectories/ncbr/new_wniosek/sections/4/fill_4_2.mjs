@@ -7,7 +7,7 @@ import { humanFill } from '../../../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/95a9b43d-b789-479a-a60d-159b975af74d';
-const MD = readFileSync('/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_4_2_zasoby_techniczne.md', 'utf8');
+const MD = readFileSync(`${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_4_2_zasoby_techniczne.md`, 'utf8');
 
 function val(block, label) {
   const marker = `**${label}:**`;

@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 
 const SESSION = process.env.SESSION || 'ncbr-step-b';
 const PART = process.env.PART || 'eu';
-const ROOT = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent';
+const ROOT = `${process.env.HOME}/Documents/CodingProjects/Wisent`;
 const WELES = `${ROOT}/weles`;
 const BACKENDS = `${ROOT}/backends`;
 const SRC = `${BACKENDS}/STEP_sciezka_A_Wisent/wersja_B_2.3_rynek_i_potencjal.md`;

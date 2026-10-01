@@ -1,6 +1,7 @@
 // Section 1.3 (Podmioty realizujące projekt) of the NEW NCBR wniosek.
 // Replicates the working Kimi reference cdp_fill_1_3.py. Never closes the page.
 
+import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
@@ -9,6 +10,11 @@ const endpoint = process.env.NCBR_CDP_ENDPOINT || ['ht', 'tp://127.0.0.1:9223'].
 const SECTION_URL = ['https://', 'lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/317a21dd-e798-4115-ab53-6ab5a2912fb0'].join('');
 
 const VAT = 'Nie dotyczy.';
+// The applicant's phone and addresses live with the application text in the
+// private application folder, never in this repository.
+const CONTACTS_FILE = process.env.NCBR_CONTACTS_FILE
+  || `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/contacts/applicant-contacts.json`;
+const { applicant: APPLICANT } = JSON.parse(readFileSync(CONTACTS_FILE, 'utf8'));
 
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
@@ -77,10 +83,10 @@ await setAuto('miejscowosc_podmiot', 'Lublin');
 await text('kod_pocztowy_podmiot', '20-209');
 await setAuto('ulica_podmiot', 'Frezerów');
 await text('nr_budynku_podmiot', '3');
-await text('telefon_podmiot', '+48516235099');
-await text('adres_email_podmiot', 'lukasz.bartoszcze@wisent.ai');
+await text('telefon_podmiot', APPLICANT.telefon);
+await text('adres_email_podmiot', APPLICANT.email);
 await text('www_podmiot', 'https://wisent.ai/');
-await text('adres_e_doreczenie_podmiot', 'AE:PL-50419-15057-VDGUG-25');
+await text('adres_e_doreczenie_podmiot', APPLICANT.e_doreczenie);
 
 let saveResult = 'saved';
 try { await saveForm(); } catch (e) { saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 80)}`; }

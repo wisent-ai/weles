@@ -1,5 +1,5 @@
 // Decodo (ex-Smartproxy): log in with the SHARED Google SSO account
-// (lukasz.bartoszcze@gmail.com via getGoogleSsoCreds/googleSso, the same one
+// (via getGoogleSsoCreds/googleSso, the same one
 // every other service trajectory uses) and purchase US Dedicated Static
 // Residential (ISP) proxies, then scrape the issued proxy credentials into
 // the run-output root's `keeper/decodo_isp.json` and append the endpoint to

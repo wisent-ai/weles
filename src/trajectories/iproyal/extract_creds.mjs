@@ -1,7 +1,7 @@
 // Extract the REAL IPRoyal residential proxy username:password from the
 // Google-SSO dashboard. Root cause of the 407: IPROYAL_USERNAME/PASSWORD
 // in .env are the placeholder `wisentagent01` — never the credentials the
-// real SSO account (lukasz.bartoszcze@gmail.com) issues in its dashboard.
+// real SSO account issues in its dashboard.
 // Logs in via the same SSO path balance.mjs uses, opens the residential
 // product page, dumps it for inspection, and parses the proxy
 // username:password so they can be written into .env + GCP.

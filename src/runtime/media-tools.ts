@@ -77,8 +77,8 @@ export function bundledFfmpegPath(): string | null {
  *
  * Playwright's bundled ffmpeg is first after an explicit pin, because a
  * managed worker installs it with its browser runtime and may carry no
- * other: charless-mac-mini has none of the usual install directories
- * populated, so leaving it out made every recording refuse with
+ * other: a managed host can have none of the usual install directories
+ * populated, and leaving it out makes every recording refuse with
  * `no ffmpeg on this host`.
  *
  * Exported so a refusal, a diagnostic and a test all quote the same list.

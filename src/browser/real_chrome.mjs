@@ -21,7 +21,8 @@ import { runId, runRecordingsDir } from '../../dist/session/run-recordings.js';
 // for cookie persistence, this lets the user log into Google ONCE
 // (interactively if passkey/2FA, or with stored password) and have all 4
 // OAuth-popup providers work non-interactively from there.
-const WELES_CHROMIUM = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/chromium-build/src/out/Weles/Chromium.app/Contents/MacOS/Chromium';
+const WELES_CHROMIUM = process.env.WELES_CHROMIUM
+  || join(homedir(), 'Documents/CodingProjects/Wisent/chromium-build/src/out/Weles/Chromium.app/Contents/MacOS/Chromium');
 
 function profileDir() {
   const dir = join(homedir(), '.weles', 'chrome_profiles', 'service_balance');

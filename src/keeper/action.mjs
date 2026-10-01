@@ -4,7 +4,7 @@
 // Usage:
 //   node action.mjs dump
 //   node action.mjs click 'button:has-text("Send")'
-//   node action.mjs fill 'input[type="email"]' 'lukasz@example.com'
+//   node action.mjs fill 'input[type="email"]' 'name@example.com'
 //   node action.mjs nav https://example.com
 //   node action.mjs screenshot
 //   node action.mjs eval 'document.title'

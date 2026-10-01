@@ -18,7 +18,7 @@ import { upsertSubscription } from '../../lib/service_subscriptions.mjs';
 function parseArgs() {
   const out = {
     session: process.env.SESSION || '',
-    account: 'lukasz.bartoszcze@gmail.com',
+    account: process.env.SUBSCRIPTION_ACCOUNT || '',
     serviceCredentialId: 'kimi-lukasz-google-sso',
   };
   for (let i = 2; i < process.argv.length; i += 1) {
@@ -29,6 +29,7 @@ function parseArgs() {
     else throw new Error(`unknown arg: ${arg}`);
   }
   if (!out.session) throw new Error('missing --session or SESSION');
+  if (!out.account) throw new Error('missing --account or SUBSCRIPTION_ACCOUNT: the account the subscription is billed to');
   return out;
 }
 

@@ -1,6 +1,6 @@
 // overleaf/list_auto.mjs — fully-automated Overleaf dashboard scrape.
 //
-// Sources the Google credentials for lukasz.bartoszcze@gmail.com from the
+// Sources the shared Google SSO credentials from the
 // weles service_credentials Supabase table via getGoogleSsoCreds(), opens an
 // Overleaf session, drives "Sign in with Google" end-to-end via the existing
 // _shared/services/google_sso.mjs helper, then scrapes the project dashboard.

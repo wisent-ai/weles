@@ -29,11 +29,10 @@ export async function reachGooglePasswordStep(page, creds) {
   if (/signin\/accountchooser/.test(page.url())) {
     // The chooser lists an account as a row whose text is the display name and
     // the address. Older markup carried `data-identifier` on that row; the
-    // current one carries `data-email` or no attribute at all. Measured on
-    // charless-mac-mini on 2026-09-02: the page read "Choose an account to
-    // continue to Figma Łukasz Bartoszcze lukasz.bartoszcze@gmail.com Use
-    // another account", exposed no input and one button, and a locator bound to
-    // `data-identifier` matched nothing, so this step walked on to the
+    // current one carries `data-email` or no attribute at all. The page reads
+    // "Choose an account to continue to <app> <display name> <address> Use
+    // another account", exposes no input and one button, and a locator bound
+    // to `data-identifier` matches nothing, so this step would walk on to the
     // identifier field that the chooser does not have. Match the row by the
     // address it shows, whatever wraps it, and take the innermost match rather
     // than the container that also contains it.

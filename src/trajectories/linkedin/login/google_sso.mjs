@@ -50,7 +50,7 @@ async function keepEvidence(page, dir, name) {
 export async function loginWithGoogleSso(s, acct) {
   const requestedGoogleEmail = process.env.LINKEDIN_GOOGLE_SSO_EMAIL || process.env.SVC_EMAIL || acct.metadata?.email || acct.username;
   let login = await ssoCredentials(requestedGoogleEmail);
-  if (!login && requestedGoogleEmail !== 'lukasz.bartoszcze@gmail.com') login = await ssoCredentials();
+  if (!login) login = await ssoCredentials();
   if (!login) throw new Error(`google_sso_creds_missing:${requestedGoogleEmail}`);
   console.log(`[linkedin_login] using Google SSO account ${login.email}`);
 

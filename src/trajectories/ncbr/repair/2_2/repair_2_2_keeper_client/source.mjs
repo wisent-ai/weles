@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 
 
 export const SESSION = process.env.SESSION || 'ncbr-step-b';
-export const ROOT = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent';
+export const ROOT = `${process.env.HOME}/Documents/CodingProjects/Wisent`;
 export const WELES = `${ROOT}/weles`;
 export const BACKENDS = `${ROOT}/backends`;
 export const PROJECT_ID = process.env.NCBR_PROJECT_ID || '7ee80d9a-67dd-4d99-becd-8dda407221c1';

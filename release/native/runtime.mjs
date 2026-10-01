@@ -76,9 +76,9 @@ function localPlatform() {
  * already unpacked its inputs. A managed runtime built from a git checkout —
  * what `stado workload run weles-api-runtime` maintains — has neither, and
  * without the binaries `weles-api-launcher.mjs` refuses to start with
- * `required Weles native runtime is unavailable`, which is how
- * charless-mac-mini's API sat in a restart loop while every report called the
- * unit restarted. One command, one platform, the declared digest verified.
+ * `required Weles native runtime is unavailable`, and the host's API sits in a
+ * restart loop while every report calls the unit restarted. One command, one
+ * platform, the declared digest verified.
  */
 async function install(destination) {
   const platform = localPlatform();

@@ -2,7 +2,7 @@
 // rows and parameters parsed out of the application's markdown source.
 import { readFileSync } from 'node:fs';
 
-export const SOURCE_23 = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_2.3_rynek_i_potencjal.md';
+export const SOURCE_23 = `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_2.3_rynek_i_potencjal.md`;
 
 export const competitors14 = [
   { name: 'Synerise S.A.', nip: '6793093292', desc: 'Synerise S.A. jest polskim konkurentem w obszarze zastosowań sztucznej inteligencji dla przedsiębiorstw, w szczególności analizy danych behawioralnych, personalizacji, predykcji zachowań użytkowników i automatyzacji decyzji biznesowych. Firma rozwija platformę AI przetwarzającą sygnały behawioralne w czasie rzeczywistym oraz rozwiązania oparte na modelach predykcyjnych i rekomendacyjnych. Konkurencja wobec Wisent dotyczy rynku europejskich odbiorców technologii AI dla biznesu oraz pozycji krajowego dostawcy zaawansowanego oprogramowania AI. Różnica polega na tym, że Synerise koncentruje się na warstwie zastosowań biznesowych i danych behawioralnych, natomiast projekt Wisent dotyczy bazowej architektury modeli generatywnych RNM, w której sterowalność i audytowalność wynikają z konstrukcji reprezentacji wewnętrznych modelu.' },

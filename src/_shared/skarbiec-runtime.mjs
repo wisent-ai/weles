@@ -77,11 +77,11 @@ function attestedRelease(active) {
 
 /**
  * The program the host itself declares and reports for Skarbiec, when no
- * signed release targets it. That is the fleet's vault owner: on
- * charless-mac-mini the running vault is a host-declared program, not a
- * rollout, and requiring a release there kept weles-admission down for days
- * (defect 641f08db). The bytes on disk must still be the bytes Stado's host
- * report names, so a replaced or tampered file is refused.
+ * signed release targets it. That is the fleet's vault owner: there the
+ * running vault is a host-declared program, not a rollout, and requiring a
+ * release would keep weles-admission down. The bytes on disk must still be
+ * the bytes Stado's host report names, so a replaced or tampered file is
+ * refused.
  */
 function declaredProgram(active) {
   const keys = ['path', 'product', 'sha256', 'state', 'target', 'version'];

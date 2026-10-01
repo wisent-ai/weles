@@ -7,9 +7,9 @@
  * version the process may claim, and `native/jeden/bin`, the runtime the
  * launcher refuses to start without. `stado workload run weles-api-runtime`
  * maintains a plain checkout instead — fetch, checkout, npm ci, npm run build
- * — so it produced a tree that can never start. charless-mac-mini sat in a
- * launchd restart loop printing `required Weles native runtime is
- * unavailable` while every report called the unit restarted.
+ * — so it produced a tree that can never start: the host sits in a launchd
+ * restart loop printing `required Weles native runtime is unavailable` while
+ * every report calls the unit restarted.
  *
  * This command is the missing step, and it belongs to Weles because it is
  * Weles that decides what a servable tree contains.

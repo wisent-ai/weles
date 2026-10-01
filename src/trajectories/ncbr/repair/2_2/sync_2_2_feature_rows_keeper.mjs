@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 const SESSION = process.env.SESSION || 'ncbr-step-b';
-const ROOT = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent';
+const ROOT = `${process.env.HOME}/Documents/CodingProjects/Wisent`;
 const WELES = `${ROOT}/weles`;
 const BACKENDS = `${ROOT}/backends`;
 const SRC = `${BACKENDS}/STEP_sciezka_A_Wisent/wersja_B_2.2_innowacyjnosc_i_zaleznosci.md`;

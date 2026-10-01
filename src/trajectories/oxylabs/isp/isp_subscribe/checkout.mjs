@@ -11,8 +11,8 @@ export async function completeCheckout(s) {
   //   → "Send code to email instead" → poll real-Chrome Gmail tab for the OTP
   //     via osascript runJs (same pattern as gw_migrate_gmail.mjs) → fill 6
   //     cells → saved card auto-charges → success URL.
-  // No manual card entry — Link uses the card already stored under
-  // lukasz.bartoszcze@gmail.com, only the OTP gates it.
+  // No manual card entry — Link uses the card already stored under the
+  // shared Google SSO account, only the OTP gates it.
   for (let step = 0; step < 6; step++) {
     await humanIdlePause('deliberate');
     const url = s.page.url();

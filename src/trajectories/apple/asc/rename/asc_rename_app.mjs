@@ -9,10 +9,12 @@
 import crypto from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
-const P8_PATH = process.env.P8_PATH
-  || '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/wisent-backend/AuthKey_ZU3882JD2N.p8';
-const KID = process.env.KID || 'ZU3882JD2N';
-const ISSUER = process.env.ISSUER || '13148f85-32b2-485c-a7ed-3e1805314299';
+// The App Store Connect key is the operator's: its file, key id and issuer
+// are given at run time and never live in this repository.
+const P8_PATH = process.env.P8_PATH;
+const KID = process.env.KID;
+const ISSUER = process.env.ISSUER;
+if (!P8_PATH || !KID || !ISSUER) throw new Error('set P8_PATH, KID and ISSUER for the App Store Connect key');
 const BUNDLE = process.env.BUNDLE || 'ai.wisent.swiatowid';
 const NEW_NAME = process.env.NEW_NAME;
 const DRY = process.env.DRY === '1';

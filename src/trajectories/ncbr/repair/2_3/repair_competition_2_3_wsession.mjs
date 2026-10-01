@@ -15,7 +15,7 @@ const URLS = {
   '1.4': `${BASE}4a6e9d5d-10e7-4436-8fd8-728a8e8b8ddc`,
   '2.3': `${BASE}c5dbdc83-5baf-4866-b3d8-4da3ae553865`,
 };
-const OUT = process.env.OUT || '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/competition_2_3_repair_evidence_20260624.json';
+const OUT = process.env.OUT || `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/competition_2_3_repair_evidence.json`;
 
 const email = process.env.NCBR_EMAIL;
 const password = process.env.NCBR_PASSWORD;

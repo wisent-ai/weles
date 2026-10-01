@@ -1,5 +1,5 @@
 // AntiCaptcha balance check via real browser login. Uses Google SSO since
-// service_credentials row has login_email=lukasz.bartoszcze@gmail.com but no
+// service_credentials row has a Google login_email but no
 // login_password — pull shared Google password via getGoogleSsoCreds().
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, parseBalanceFromText, patchServiceBalance, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';

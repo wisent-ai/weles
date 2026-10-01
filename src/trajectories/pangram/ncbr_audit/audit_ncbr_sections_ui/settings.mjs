@@ -3,9 +3,9 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-export const WEL = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles';
-export const ROOT = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent';
-export const PATH_A_PDF = process.env.PATH_A_PDF || '/Users/lukaszbartoszcze/Downloads/Wniosek_nr_FENG.05.01-IP.01-005Z_26_wersja_A.pdf';
+export const WEL = `${process.env.HOME}/Documents/CodingProjects/Wisent/weles`;
+export const ROOT = `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent`;
+export const PATH_A_PDF = process.env.PATH_A_PDF || `${process.env.HOME}/Downloads/Wniosek_nr_FENG.05.01-IP.01-005Z_26_wersja_A.pdf`;
 export const REPORT_ROOT = process.env.REPORT_ROOT || join(ROOT, 'pangram_section_audit');
 export const TS = new Date().toISOString().replace(/[:.]/g, '-');
 export const RUN_ID = process.env.WELES_RUN_ID || `ncbr-pangram-sections-ui-${TS}`;

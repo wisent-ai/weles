@@ -17,7 +17,7 @@ const args = {};
 for (let i = 2; i < process.argv.length; i += 2) args[process.argv[i].replace(/^--/, '')] = process.argv[i + 1];
 const ticker = (args.ticker || 'ORCL').toUpperCase();
 const mode = args.mode || 'links';
-const outDir = args['out-dir'] || `/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/trading-tools/screenshots/${ticker}`;
+const outDir = args['out-dir'] || `${process.env.HOME}/Documents/CodingProjects/Wisent/trading-tools/screenshots/${ticker}`;
 
 const email = process.env.UW_EMAIL;
 const password = process.env.UW_PASSWORD;

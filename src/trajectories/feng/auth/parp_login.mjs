@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Automatyczny login do lsi.parp.gov.pl przez reset hasła.
-// Email idzie na lukasz.bartoszcze@wisent.ai; link resetu czyta Skrzynka (skrzynka sync / message list).
+// Email idzie na adres konta PARP (PARP_EMAIL); link resetu czyta Skrzynka (skrzynka sync / message list).
 // Po reset: zapisuje nowe hasło do ~/.weles/parp_login.json i loguje się.
 
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -14,7 +14,8 @@ import { WSession } from '../../../../dist/session/wsession.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 
-const EMAIL = process.env.PARP_EMAIL || 'lukasz.bartoszcze@wisent.ai';
+const EMAIL = process.env.PARP_EMAIL;
+if (!EMAIL) throw new Error('set PARP_EMAIL to the PARP account address');
 const STORE = join(homedir(), '.weles', 'parp_login.json');
 const NEW_PASSWORD = randomBytes(16).toString('base64url').slice(0, 24) + 'Aa1!';
 const RESET_SENDER = process.env.PARP_RESET_SENDER || 'lsi@parp.gov.pl';
@@ -33,7 +34,7 @@ function logn(msg) { console.log(`[parp_login] ${msg}`); }
 async function url(s) { return await s.page.url(); }
 
 async function screenshot(s, name) {
-  const dir = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/src/trajectories/feng/.work';
+  const dir = join(homedir(), 'Documents/CodingProjects/Wisent/weles/src/trajectories/feng/.work');
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   const path = join(dir, `parp_${name}_${Date.now()}.png`);
   await s.page.screenshot({ path, fullPage: true });

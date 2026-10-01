@@ -125,8 +125,10 @@ async function landAndLogin(s) {
   // Email-only login: type email, tick ToS, click Continue
   const emailInput = s.page.locator('input[type="text"], input[type="email"]').filter({ visible: true }).first();
   if (await emailInput.count() === 0) { console.log('[hy] no email input — login UI changed?'); return false; }
-  console.log('[hy] typing email (wisent.ai — bypasses gmail.com rate limit; readable via Gmail MCP)');
-  try { await humanFill(s.page, emailInput, 'lukasz.bartoszcze@wisent.ai'); } catch { /* email may have been pre-filled */ }
+  const loginEmail = process.env.HY_LOGIN_EMAIL;
+  if (!loginEmail) { console.log('[hy] HY_LOGIN_EMAIL is not set: name the address whose inbox receives the login code'); return false; }
+  console.log('[hy] typing email (a workspace address bypasses the gmail.com rate limit; readable via Gmail MCP)');
+  try { await humanFill(s.page, emailInput, loginEmail); } catch { /* email may have been pre-filled */ }
   const tos = s.page.locator('input[type="checkbox"]').filter({ visible: true }).first();
   if (await tos.count() > 0) {
     if (!(await tos.isChecked().catch(() => false))) await tos.check().catch(() => {});

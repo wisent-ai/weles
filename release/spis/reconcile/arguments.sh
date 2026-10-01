@@ -4,7 +4,7 @@
 # and generate_credential. Sourced, not run.
 
 mode=""
-host="charless-mac-mini"
+host=""
 source_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
 version=""
 trust_file=""
@@ -38,10 +38,11 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 [ "$mode" = "prepare" ] || [ "$mode" = "activate" ] || {
-  printf 'usage: %s prepare|activate --spis-trust-file PATH [--host HOST] [--version VERSION] [--source WELES_CHECKOUT] [--generate-credential]\n' "$0" >&2
+  printf 'usage: %s prepare|activate --host HOST --spis-trust-file PATH [--version VERSION] [--source WELES_CHECKOUT] [--generate-credential]\n' "$0" >&2
   exit 2
 }
 [ -n "$trust_file" ] || { printf '%s\n' '--spis-trust-file is required' >&2; exit 2; }
+[ -n "$host" ] || { printf '%s\n' '--host is required: name the Stado host that runs weles-admission (stado hosts ls)' >&2; exit 2; }
 [ -d "$source_root" ] || { printf 'Weles source directory is unavailable: %s\n' "$source_root" >&2; exit 2; }
 source_root="$(cd "$source_root" && pwd -P)"
 [ -d "$(dirname "$trust_file")" ] || { printf 'Spis trust-file parent is unavailable: %s\n' "$(dirname "$trust_file")" >&2; exit 2; }

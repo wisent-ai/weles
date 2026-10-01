@@ -1,28 +1,19 @@
 // Repair section 1.3 contact-person collection. UI-only; never closes page.
 
+import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/317a21dd-e798-4115-ab53-6ab5a2912fb0';
-const CONTACTS = [
-  {
-    imie: 'Łukasz',
-    nazwisko: 'Bartoszcze',
-    stanowisko: 'Senior Machine Learning Scientist / osoba upoważniona do kontaktu merytorycznego',
-    telefon: '+48516235099',
-    email: 'lukasz.bartoszcze@wisent.ai',
-  },
-  {
-    imie: 'Zuzanna',
-    nazwisko: 'Bartoszcze',
-    stanowisko: 'Osoba do kontaktu organizacyjnego i finansowo-operacyjnego',
-    telefon: '+48534110040',
-    email: 'zuzanna.bartoszcze@gmail.com',
-  },
-];
-const EDORECZENIA = 'AE:PL-50419-15057-VDGUG-25';
+// People's names, phones and addresses live with the application text in the
+// private application folder, never in this repository.
+const CONTACTS_FILE = process.env.NCBR_CONTACTS_FILE
+  || `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/contacts/applicant-contacts.json`;
+const APPLICANT = JSON.parse(readFileSync(CONTACTS_FILE, 'utf8'));
+const CONTACTS = APPLICANT.contacts;
+const EDORECZENIA = APPLICANT.applicant.e_doreczenie;
 
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];

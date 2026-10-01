@@ -2,16 +2,15 @@
 // section 2.2 features and factors parsed out of the application's markdown source.
 import { readFileSync } from 'node:fs';
 
-export const MD22 = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_2.2_innowacyjnosc_i_zaleznosci.md';
+export const MD22 = `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_2.2_innowacyjnosc_i_zaleznosci.md`;
 const md = readFileSync(MD22, 'utf8');
-export const EDORECZENIA = 'AE:PL-50419-15057-VDGUG-25';
-export const CONTACT = {
-  imie: 'Zuzanna',
-  nazwisko: 'Bartoszcze',
-  stanowisko: 'Osoba do kontaktu organizacyjnego i finansowo-operacyjnego',
-  telefon: '+48534110040',
-  email: 'zuzanna.bartoszcze@gmail.com',
-};
+// People's names, phones and addresses live with the application text in the
+// private application folder, never in this repository.
+const CONTACTS_FILE = process.env.NCBR_CONTACTS_FILE
+  || `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/contacts/applicant-contacts.json`;
+const APPLICANT = JSON.parse(readFileSync(CONTACTS_FILE, 'utf8'));
+export const EDORECZENIA = APPLICANT.applicant.e_doreczenie;
+export const CONTACT = APPLICANT.contacts[1];
 
 function clean(s) { return String(s || '').replace(/\s*<!--[\s\S]*?-->\s*/g, ' ').replace(/\s+/g, ' ').trim(); }
 function featureBlock(n) {

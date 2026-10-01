@@ -118,10 +118,14 @@ export async function upsertCredential(row) {
 
 export async function ensureKimiGoogleSso({
   id = 'kimi-lukasz-google-sso',
-  email = 'lukasz.bartoszcze@gmail.com',
+  email,
   sourceCredentialId,
 } = {}) {
   const source = sourceCredentialId ? await getCredential(sourceCredentialId) : null;
+  email = email || source?.login_email;
+  if (!email) {
+    throw new Error('ensure-kimi-google-sso needs the Google account address: pass it, or name a source credential that carries login_email');
+  }
   return upsertCredential({
     id,
     category: 'ai_cli',
@@ -153,7 +157,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   } else if (cmd === 'ensure-kimi-google-sso') {
     const rows = await ensureKimiGoogleSso({
       sourceCredentialId: process.argv[3],
-      email: process.argv[4] || 'lukasz.bartoszcze@gmail.com',
+      email: process.argv[4],
     });
     console.log(JSON.stringify(rows.map(redacted), null, 2));
   } else {

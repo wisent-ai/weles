@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
-const ROOT = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent';
+const ROOT = `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent`;
 const runId = process.env.WELES_RUN_ID || `path-a-pangram-recheck-${new Date().toISOString().replace(/[:.]/g, '-')}`;
 process.env.WELES_RUN_ID = runId;
 

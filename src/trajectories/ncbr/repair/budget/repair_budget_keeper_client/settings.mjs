@@ -15,7 +15,8 @@ export const URLS = {
   s8: `${BASE}d31b6d68-33b7-45a0-a032-0f5f02b5aed8`,
 };
 
-export const email = process.env.NCBR_EMAIL || 'lukasz.bartoszcze@gmail.com';
+export const email = process.env.NCBR_EMAIL;
+if (!email) throw new Error('NCBR_EMAIL missing');
 export const password = process.env.NCBR_PASSWORD;
 if (!password) throw new Error('NCBR_PASSWORD missing');
 delete process.env.NCBR_PASSWORD;

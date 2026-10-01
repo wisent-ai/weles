@@ -8,7 +8,7 @@ import { humanFill } from '../../../../../dist/human/keyboard.js';
 
 const PROJECT_ID = process.env.NCBR_PROJECT_ID || '7ee80d9a-67dd-4d99-becd-8dda407221c1';
 const PROJECT_URL = process.env.NCBR_PROJECT_URL || `https://lsi2.ncbr.gov.pl/projekt/${PROJECT_ID}`;
-const OUT = process.env.OUT || '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/live_lsi_readback_2026-06-24.json';
+const OUT = process.env.OUT || `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/live_lsi_readback.json`;
 const email = process.env.NCBR_EMAIL;
 const password = process.env.NCBR_PASSWORD;
 
