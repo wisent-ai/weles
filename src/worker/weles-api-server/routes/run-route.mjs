@@ -21,7 +21,6 @@ import {
   ALLOW_RAW_CREDS,
   ALLOW_UNAUTH,
   RUN_RESULTS_DIR,
-  TIMEOUT_MS,
   TOKEN,
 } from '../configuration.mjs';
 import { authorized, json, readBody } from '../http-exchange.mjs';
@@ -81,7 +80,6 @@ export async function respondToRun(req, res, runTrajectory, validateAccountSecur
     json(res, 400, { ok: false, error: 'fresh_profile_requires_account_id' });
     return;
   }
-  const timeoutMs = Number(body.timeout_ms) > 0 ? Number(body.timeout_ms) : TIMEOUT_MS;
   // A browser login runs for minutes. Every operator transport that can reach
   // this route closes long before that, and a request whose socket goes takes
   // the run with it, so the one action that renews a burnt subscription could
@@ -98,12 +96,12 @@ export async function respondToRun(req, res, runTrajectory, validateAccountSecur
     const admission = admissionKey
       ? coalesceRun(
         admissionKey,
-        () => runTrajectory(action, params, accountId, freshProfile, timeoutMs),
+        () => runTrajectory(action, params, accountId, freshProfile),
         { detachedId, resultPath },
       )
       : {
         entry: {
-          promise: runTrajectory(action, params, accountId, freshProfile, timeoutMs),
+          promise: runTrajectory(action, params, accountId, freshProfile),
           metadata: { detachedId, resultPath },
         },
         joined: false,
@@ -150,9 +148,9 @@ export async function respondToRun(req, res, runTrajectory, validateAccountSecur
   const admission = isCredentialTrajectory(action)
     ? coalesceRun(
       runAdmissionKey('trajectory', { action, account_id: accountId, fresh_profile: freshProfile, params }),
-      () => runTrajectory(action, params, accountId, freshProfile, timeoutMs),
+      () => runTrajectory(action, params, accountId, freshProfile),
     )
-    : { entry: { promise: runTrajectory(action, params, accountId, freshProfile, timeoutMs) }, joined: false };
+    : { entry: { promise: runTrajectory(action, params, accountId, freshProfile) }, joined: false };
   const out = await admission.entry.promise;
 
   if (out.error === 'no_trajectory') { json(res, 404, out); return; }
@@ -181,7 +179,6 @@ export async function respondToRun(req, res, runTrajectory, validateAccountSecur
       action,
       run_id: out.run_id,
       result,
-      timed_out: out.timed_out,
       coalesced: admission.joined,
     });
     return;

@@ -34,13 +34,6 @@ export const TOKEN = process.env.WELES_API_TOKEN || process.env.WELES_CONSOLE_AP
 export const BRAMA_REAUTH_TOKEN = process.env.BRAMA_WELES_REAUTH_TOKEN || '';
 export const ALLOW_UNAUTH = process.env.WELES_API_ALLOW_UNAUTH === '1';
 export const ALLOW_RAW_CREDS = (process.env.WELES_API_ALLOW_RAW_CREDS ?? '1') === '1';
-export const TIMEOUT_MS = Number(process.env.WELES_API_TIMEOUT_MS || 15 * 60 * 1000);
-export const PUBLIC_TASK_TIMEOUT_MS = boundedIntegerEnvironment(
-  'WELES_PUBLIC_TASK_TIMEOUT_MS',
-  2 * 60 * 60 * 1_000,
-  15 * 60 * 1_000,
-  6 * 60 * 60 * 1_000,
-);
 export const PUBLIC_TASK_CONCURRENCY = boundedIntegerEnvironment(
   'WELES_PUBLIC_TASK_CONCURRENCY',
   1,

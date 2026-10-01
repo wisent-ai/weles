@@ -27,11 +27,6 @@ export function createPublicTaskService(options) {
   if (options.concurrency !== 1) {
     throw new Error('public task concurrency must be exactly 1');
   }
-  if (!Number.isSafeInteger(options.taskTimeoutMs)
-      || options.taskTimeoutMs < 15 * 60 * 1_000
-      || options.taskTimeoutMs > 6 * 60 * 60 * 1_000) {
-    throw new Error('public task timeout must be between 15 minutes and 6 hours');
-  }
 
   const deployedIdentity = createDeployedIdentity({
     identity,
@@ -55,7 +50,6 @@ export function createPublicTaskService(options) {
   });
   const dispatcher = createDispatcher({
     concurrency: options.concurrency,
-    taskTimeoutMs: options.taskTimeoutMs,
     redact: options.redact,
     config,
     store,
@@ -90,7 +84,6 @@ export function createPublicTaskService(options) {
     releaseId: expectedReleaseId,
     releaseSha256: identity.release_sha256,
     sourceRevision: identity.source_revision,
-    taskTimeoutMs: options.taskTimeoutMs,
     receiptKeyId: config.keyId,
     receiptKeySetVersion: config.keySetVersion,
     browserEvidencePolicy: config.policy.version,
@@ -128,7 +121,6 @@ export function createPublicTaskService(options) {
           ready: admissionReady,
           prerequisites: deployedIdentity.readinessStatus(),
           dispatcher: dispatcher.dispatcherStatus(),
-          taskTimeoutMs: options.taskTimeoutMs,
           client: { currentVersion: '0.1.0', minimumVersion: '0.1.0', supportedGenerations: 2 },
           apiSchemas: [TASK_SCHEMA, CANCELLATION_SCHEMA, STATUS_SCHEMA, RECEIPT_SCHEMA, VERSION_SCHEMA],
           publicTask: { ...health, serviceIdentity, ready: admissionReady },

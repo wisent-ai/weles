@@ -39,8 +39,6 @@ export function credentialFailure(out) {
   const stage = stages.length ? stages[stages.length - 1][1] : undefined;
   const withStage = (failure) => (stage ? { ...failure, stage } : failure);
 
-  if (out.timed_out) return withStage({ code: 'trajectory_timeout' });
-
   const record = stderr.match(ACQUISITION_RECORD);
   if (record) {
     return withStage({

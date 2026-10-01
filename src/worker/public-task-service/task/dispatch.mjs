@@ -33,11 +33,10 @@ export function terminalCompletion(output, aborted, _redact, requestedUrl = null
       };
     }
   } else {
-    const failure = output?.timed_out ? 'browser evidence task timed out' : 'browser evidence task failed';
     completion = {
       status: 'failed',
       result: { state: 'failed', executionRunId: output?.run_id ?? null },
-      error: failure,
+      error: 'browser evidence task failed',
       capture: { requestedUrl, effectiveUrl: null, finalUrl: null },
     };
   }
@@ -46,7 +45,6 @@ export function terminalCompletion(output, aborted, _redact, requestedUrl = null
 
 export function createDispatcher({
   concurrency,
-  taskTimeoutMs,
   redact,
   config,
   store,
@@ -66,7 +64,6 @@ export function createDispatcher({
   function dispatcherStatus() {
     return {
       configuredConcurrency: concurrency,
-      taskTimeoutMs,
       active: active.size,
       queued: queue.length,
       healthy: dispatcherHealthy,
@@ -90,7 +87,7 @@ export function createDispatcher({
         networkTarget: task.networkTarget,
       });
     } catch {
-      output = { ok: false, run_id: taskId, result: null, timed_out: false };
+      output = { ok: false, run_id: taskId, result: null };
     }
     await withTaskLock(taskId, async () => {
       const task = await loadTask(taskId);

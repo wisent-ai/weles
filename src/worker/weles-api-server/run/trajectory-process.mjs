@@ -6,18 +6,18 @@
 // logged-in user's GUI bootstrap first, and only when that bootstrap cannot be
 // proven does the direct spawn stand.
 //
-// Supervision is the same in both directions of the process group: a deadline
-// or an abort signals the group, then hard-kills what is left after a grace
-// period, and stdout and stderr are kept only as bounded tails so a chatty
-// trajectory cannot grow the server's heap without limit.
+// Supervision is the same in both directions of the process group: a run ends
+// when its child exits, and an abort from the caller kills the group outright,
+// and stdout and stderr are kept only as bounded tails so a chatty trajectory
+// cannot grow the server's heap without limit.
 //
 // The two runs live together because they are one mechanism with two callers.
 // An ordinary trajectory takes its environment from the caller's parameters; a
 // provider reauth takes the vault row it must sign in and reaches the
 // trajectory through the display-name selector every login trajectory already
-// honours. Everything else -- placement, deadline, group kill, tail bounds, the
-// recorded outcome -- is shared, and a second copy of it would be a second set
-// of rules for killing a browser that will not close.
+// honours. Everything else -- placement, group kill, tail bounds, the recorded
+// outcome -- is shared, and a second copy of it would be a second set of rules
+// for ending a browser.
 
 import { spawn, execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -77,7 +77,7 @@ function recordedOutputs(runId) {
 // table, resolved by the entry point: this module is never the one that names a
 // path inside the release tree.
 export function createTrajectoryRunner({ resolveTrajectory, paramsToEnv }) {
-  return function runTrajectory(action, params, accountId, freshProfile, timeoutMs, runOptions = {}) {
+  return function runTrajectory(action, params, accountId, freshProfile, runOptions = {}) {
     return new Promise((resolveRun) => {
       const trajPath = resolveTrajectory(action);
       if (!trajPath) { resolveRun({ ok: false, error: 'no_trajectory', action }); return; }
@@ -109,19 +109,15 @@ export function createTrajectoryRunner({ resolveTrajectory, paramsToEnv }) {
       const child = spawn(processSpec.command, processSpec.args, { cwd: REPO, env, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
       let stdout = '';
       let stderr = '';
-      let timedOut = false;
       let cancelled = false;
       let settled = false;
       const abortRun = () => {
         cancelled = true;
-        signalRunProcess(child, 'SIGTERM');
-        const hardKill = setTimeout(() => signalRunProcess(child, 'SIGKILL'), 8000);
-        hardKill.unref();
+        signalRunProcess(child, 'SIGKILL');
       };
       const finish = (result) => {
         if (settled) return;
         settled = true;
-        clearTimeout(timer);
         runOptions.signal?.removeEventListener('abort', abortRun);
         try {
           persistRunResult(runResultPath, { ...result, ...RUN_RELEASE_IDENTITY, action, run_id: runId, status: 'finished', started_at: startedAt, completed_at: new Date().toISOString() });
@@ -130,24 +126,17 @@ export function createTrajectoryRunner({ resolveTrajectory, paramsToEnv }) {
         }
         resolveRun(result);
       };
-      const timer = setTimeout(() => {
-        timedOut = true;
-        signalRunProcess(child, 'SIGTERM');
-        const hardKill = setTimeout(() => signalRunProcess(child, 'SIGKILL'), 8000);
-        hardKill.unref();
-      }, timeoutMs);
-      timer.unref();
       if (runOptions.signal?.aborted) abortRun();
       else runOptions.signal?.addEventListener('abort', abortRun, { once: true });
       child.stdout.on('data', (chunk) => { stdout = boundedOutputTail(stdout, chunk, 2 * 1024 * 1024); });
       child.stderr.on('data', (chunk) => { stderr = boundedOutputTail(stderr, chunk, 512 * 1024); });
       child.once('error', (error) => {
-        finish({ ok: false, exitCode: -1, action, run_id: runId, result: null, ...recordedOutputs(runId), stdout_tail: stdout.slice(-4000), stderr_tail: `${stderr}\n${String(error?.message || error)}`.slice(-2000), timed_out: false, cancelled });
+        finish({ ok: false, exitCode: -1, action, run_id: runId, result: null, ...recordedOutputs(runId), stdout_tail: stdout.slice(-4000), stderr_tail: `${stderr}\n${String(error?.message || error)}`.slice(-2000), cancelled });
       });
       child.on('close', (code) => {
-        const exitCode = timedOut || cancelled ? 137 : (code ?? -1);
+        const exitCode = cancelled ? 137 : (code ?? -1);
         const result = lastJsonLine(stdout) ?? findResultDoc(runId);
-        finish({ ok: exitCode === 0, exitCode, action, run_id: runId, result, ...recordedOutputs(runId), stdout_tail: stdout.slice(-4000), stderr_tail: stderr.slice(-2000), timed_out: timedOut, cancelled });
+        finish({ ok: exitCode === 0, exitCode, action, run_id: runId, result, ...recordedOutputs(runId), stdout_tail: stdout.slice(-4000), stderr_tail: stderr.slice(-2000), cancelled });
       });
     });
   };
@@ -163,7 +152,7 @@ export const REAUTH_PROVIDERS = new Set(['codex', 'claude', 'kimi']);
 // login_item. It reaches the trajectory as <PROVIDER>_DISPLAY_NAME, which is the
 // selector every reauth/login trajectory already honours, plus WELES_LOGIN_ITEM
 // so the run and its report agree on which account was asked for.
-export function runReauth(provider, timeoutMs, account) {
+export function runReauth(provider, account) {
   return new Promise((resolveRun) => {
     const trajPath = resolve(REPO, 'src/trajectories', provider, 'reauth.mjs');
     if (!existsSync(trajPath)) { resolveRun({ ok: false, error: 'no_reauth_trajectory', provider }); return; }
@@ -210,12 +199,11 @@ export function runReauth(provider, timeoutMs, account) {
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: process.platform !== 'win32',
     });
-    let stdout = ''; let stderr = ''; let killed = false; let settled = false;
+    let stdout = ''; let stderr = ''; let settled = false;
     const finish = (result) => {
       if (settled) return;
       result.failure = result.ok ? null : credentialFailure(result);
       settled = true;
-      clearTimeout(timer);
       try {
         persistRunResult(runResultPath, {
           ...result,
@@ -234,13 +222,6 @@ export function runReauth(provider, timeoutMs, account) {
       }
       resolveRun(result);
     };
-    const timer = setTimeout(() => {
-      killed = true;
-      signalRunProcess(child, 'SIGTERM');
-      const hardKill = setTimeout(() => signalRunProcess(child, 'SIGKILL'), 8000);
-      hardKill.unref();
-    }, timeoutMs);
-    timer.unref();
     child.stdout.on('data', (c) => { stdout += c.toString(); });
     child.stderr.on('data', (c) => { stderr += c.toString(); });
     child.once('error', (error) => {
@@ -254,11 +235,10 @@ export function runReauth(provider, timeoutMs, account) {
         run_id: runId,
         stdout_tail: stdout.slice(-4000),
         stderr_tail: `${stderr}\n${String(error?.message || error)}`.slice(-2000),
-        timed_out: false,
       });
     });
     child.on('close', (code) => {
-      const exitCode = killed ? 137 : (code ?? -1);
+      const exitCode = code ?? -1;
       finish({
         ok: exitCode === 0,
         exitCode,
@@ -269,7 +249,6 @@ export function runReauth(provider, timeoutMs, account) {
         run_id: runId,
         stdout_tail: stdout.slice(-4000),
         stderr_tail: stderr.slice(-2000),
-        timed_out: killed,
       });
     });
   });

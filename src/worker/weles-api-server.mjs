@@ -22,7 +22,6 @@
 //   BRAMA_WELES_REAUTH_TOKEN required for Brama's POST /reauth admission
 //   WELES_API_HOST   default 127.0.0.1  (set 0.0.0.0 to expose on the LAN/Tailscale)
 //   WELES_API_PORT   default 8788
-//   WELES_API_TIMEOUT_MS  default 900000
 //   WELES_API_BODY_LIMIT_BYTES default 262144
 //   WELES_API_ALLOW_RAW_CREDS  default "1"
 //   WELES_API_BASE, WELES_TOKEN, WISENT_ORGANIZATION_ID for destination imports
@@ -89,10 +88,8 @@ const {
   HOST,
   PORT,
   PUBLIC_TASK_CONCURRENCY,
-  PUBLIC_TASK_TIMEOUT_MS,
   RECORDINGS_ROOT,
   RUN_RESULTS_DIR,
-  TIMEOUT_MS,
   TOKEN,
 } = await import('./weles-api-server/configuration.mjs');
 const { redactSecrets } = await import('./weles-api-server/http-exchange.mjs');
@@ -112,7 +109,6 @@ const publicTaskService = createPublicTaskService({
   readArtifactIdentity: readPrivateStadoObjectIdentity,
   redact: redactSecrets,
   concurrency: PUBLIC_TASK_CONCURRENCY,
-  taskTimeoutMs: PUBLIC_TASK_TIMEOUT_MS,
   trajectoryReady: Boolean(resolveTrajectory('generic_browser_task')),
   artifactRetentionReady: Boolean(
     process.env.STADO_API_URL
@@ -126,7 +122,6 @@ const publicTaskService = createPublicTaskService({
     params,
     null,
     true,
-    PUBLIC_TASK_TIMEOUT_MS,
     {
       runId,
       signal,
@@ -145,7 +140,7 @@ const credentialOperationService = createCredentialOperationService({
   runResultsRoot: RUN_RESULTS_DIR,
   releaseIdentity: RUN_RELEASE_IDENTITY,
   runTrajectory: ({ action, params, accountId, runId, signal }) => runTrajectory(
-    action, params, accountId, false, TIMEOUT_MS, { runId, signal },
+    action, params, accountId, false, { runId, signal },
   ),
 });
 credentialOperationService.recover();

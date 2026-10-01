@@ -24,7 +24,6 @@ import {
   ALLOW_UNAUTH,
   BRAMA_REAUTH_TOKEN,
   IMPORT_BODY_LIMIT,
-  TIMEOUT_MS,
   TOKEN,
 } from '../configuration.mjs';
 import {
@@ -115,7 +114,6 @@ export async function respondToReauth(req, res, selectLoginAccount, resolveOnly 
       message: 'Skarbiec account data changed after authentication was resolved', ...identity });
     return;
   }
-  const timeoutMs = Number(body.timeout_ms) > 0 ? Number(body.timeout_ms) : TIMEOUT_MS;
   const admission = coalesceRun(
     runAdmissionKey('reauth', {
       provider,
@@ -123,7 +121,7 @@ export async function respondToReauth(req, res, selectLoginAccount, resolveOnly 
       subscription_id: account.subscriptionId,
       account_revision: account.accountRevision,
     }),
-    () => runReauth(provider, timeoutMs, account),
+    () => runReauth(provider, account),
   );
   const out = await admission.entry.promise;
   if (out.error === 'no_reauth_trajectory') { json(res, 404, out); return; }
@@ -194,7 +192,6 @@ export async function respondToAuthenticatorEnrolment(req, res, selectLoginAccou
     });
     return;
   }
-  const timeoutMs = Number(body.timeout_ms) > 0 ? Number(body.timeout_ms) : TIMEOUT_MS;
   // One enrolment per login at a time: two browsers racing the same Google
   // account would each enrol a key and the second would overwrite the first,
   // leaving the vault holding a seed the account no longer accepts.
@@ -204,13 +201,7 @@ export async function respondToAuthenticatorEnrolment(req, res, selectLoginAccou
       login_item: account.loginItem,
       account_revision: account.accountRevision,
     }),
-    () => runTrajectory(
-      AUTHENTICATOR_ENROL_ACTION,
-      { login_item: account.loginItem },
-      null,
-      false,
-      timeoutMs,
-    ),
+    () => runTrajectory(AUTHENTICATOR_ENROL_ACTION, { login_item: account.loginItem }, null, false),
   );
   const out = await admission.entry.promise;
   json(res, out.ok ? 200 : 502, { ...out, ...identity, coalesced: admission.joined });
@@ -234,7 +225,7 @@ export async function respondToBuilder(req, res, runTrajectory) {
   }
   if (!instructions) { json(res, 400, { ok: false, error: 'missing_instructions' }); return; }
   const objective = `${BUILDER_PREAMBLE}\n\nTASK:\n${instructions}`;
-  const out = await runTrajectory('generic_browser_task', { url: BUILDER_BOOTSTRAP_URL, objective }, null, false, TIMEOUT_MS);
+  const out = await runTrajectory('generic_browser_task', { url: BUILDER_BOOTSTRAP_URL, objective }, null, false);
   if (out.error === 'no_trajectory') { json(res, 500, { ok: false, error: 'builder_trajectory_missing' }); return; }
   const doc = out.result && typeof out.result === 'object' ? out.result : {};
   const payload = {
@@ -246,7 +237,6 @@ export async function respondToBuilder(req, res, runTrajectory) {
     trajectory_draft: doc.trajectory_draft ?? null,
     stdout_tail: out.stdout_tail,
     stderr_tail: out.stderr_tail,
-    timed_out: out.timed_out,
   };
   // Return unredacted by default (the whole point is to get the result/creds
   // the task asked for); redact only when raw creds are globally forbidden.
