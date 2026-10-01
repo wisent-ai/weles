@@ -35,21 +35,16 @@ const rows = block.split(/^### Parametr \d+\s*$/m).slice(1).map((part) => {
   };
 }).filter((row) => row.name);
 
-function action(args, timeout = 120000) {
-  const result = spawnSync(process.execPath, ['src/_shared/keeper/action.mjs', ...args], {
-    cwd: WELES,
-    env: { ...process.env, SESSION },
-    encoding: 'utf8',
-    timeout,
-  });
+function action(args) {
+  const result = spawnSync(process.execPath, ['src/_shared/keeper/action.mjs', ...args], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' });
   if (result.status !== 0) {
     throw new Error(`${args.join(' ')}\nstdout=${result.stdout}\nstderr=${result.stderr}`);
   }
   return result.stdout.trim();
 }
 
-function wait(ms) {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+function settle() {
+  action(['settle']);
 }
 
 function fill(selector, value) {
@@ -65,7 +60,7 @@ function fill(selector, value) {
     fire(new Event('change', { bubbles: true }));
     return { ok: true, len: el.value.length };
   })()`;
-  const out = JSON.parse(action(['eval', js], 30000)).result;
+  const out = JSON.parse(action(['eval', js])).result;
   if (!out?.ok) throw new Error(`fill failed: ${selector} ${out?.error || ''}`);
 }
 
@@ -81,25 +76,17 @@ function isFormOpen() {
   return JSON.parse(action(['eval', `(() => {
     const el = document.querySelector('textarea[name="nazwa_parametru"]');
     return Boolean(el && el.offsetParent !== null);
-  })()`], 30000)).result === true;
+  })()`])).result === true;
 }
 
 function waitForFormOpen() {
-  const start = Date.now();
-  while (Date.now() - start < 15000) {
-    if (isFormOpen()) return;
-    wait(500);
-  }
-  throw new Error('parameter form did not open');
+  settle();
+  if (!isFormOpen()) throw new Error('parameter form did not open on the settled page');
 }
 
 function waitForFormClosed() {
-  const start = Date.now();
-  while (Date.now() - start < 30000) {
-    if (!isFormOpen()) return true;
-    wait(700);
-  }
-  return false;
+  settle();
+  return !isFormOpen();
 }
 
 function currentParamTableText() {
@@ -120,7 +107,7 @@ for (const row of missing) {
   console.log(`filling: ${row.name}`);
   if (!formOpen) {
     clickVisibleParameterAdd();
-    wait(900);
+    settle();
     waitForFormOpen();
   }
   formOpen = false;
@@ -132,19 +119,19 @@ for (const row of missing) {
   fill('input[name="rok_docelowy"]', row.targetYear);
   fill('textarea[name="metoda_szacowania_wartosci_docelowej"]', row.estimate);
   fill('textarea[name="sposob_monitorowania_weryfikacji_osiagniecia_zaplanowanych_wartosci_docelowych"]', row.verify);
-  wait(1000);
+  settle();
   console.log(`saving: ${row.name}`);
   click(':nth-match(button:has-text("Zapisz"), 2)');
   if (!waitForFormClosed()) {
     const state = JSON.parse(action(['eval', `(() => ({
       savedInTable: document.body.innerText.includes(${JSON.stringify(row.name)}),
       anyEnabledSave: Array.from(document.querySelectorAll('button')).some((b) => b.innerText.trim() === 'Zapisz' && !b.disabled && b.getClientRects().length)
-    }))()`], 30000)).result;
+    }))()`])).result;
     if (!state?.savedInTable || state?.anyEnabledSave) throw new Error(`form did not close after saving: ${row.name}`);
     click('button:has-text("Anuluj")');
     if (!waitForFormClosed()) throw new Error(`form stayed open after canceling saved row: ${row.name}`);
   }
-  wait(1200);
+  settle();
   console.log(`added: ${row.name}`);
 }
 

@@ -76,9 +76,9 @@ function uniqueSections(uiUrls) {
 
 const session = await WSession.start({ label: 'ncbr_live_extract_sections_wsession', proxy: 'direct', browser: 'chromium' });
 const page = session.page;
-page.setDefaultTimeout(30000);
 
-await page.goto('https://lsi2.ncbr.gov.pl/logowanie', { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: Weles-controlled LSI login navigation
+
+await page.goto('https://lsi2.ncbr.gov.pl/logowanie', { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: Weles-controlled LSI login navigation
 await humanIdlePause('long');
 await setReactInputValue(page.locator('#mail, input[name="mail"]').first(), email);
 await setReactInputValue(page.locator('#password, input[name="password"]').first(), password);
@@ -92,17 +92,17 @@ await humanIdlePause('short');
 await page.waitForFunction(() => {
   const btn = document.querySelector('#login-btn') || Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Zaloguj');
   return !!btn && !btn.disabled;
-}, null, { timeout: 10000 }).catch(() => null); // allow-raw-playwright: wait for MUI login validation
+}, null, { polling: 'raf' }); // allow-raw-playwright: wait for MUI login validation
 for (let attempt = 1; attempt <= 3 && page.url().includes('/logowanie'); attempt += 1) {
   const loginButton = page.locator('#login-btn, button:has-text("Zaloguj")').filter({ visible: true }).first();
   if (await loginButton.count() === 0) throw new Error('login button not found for retry');
   await humanClickLocator(page, loginButton);
-  await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => null);
+  await page.waitForLoadState('load');
   await humanIdlePause('long');
 }
 if (page.url().includes('/logowanie')) throw new Error('login stayed on login page');
 
-await page.goto(PROJECT_URL, { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: read-only project navigation
+await page.goto(PROJECT_URL, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: read-only project navigation
 await humanIdlePause('long');
 
 const status = await page.evaluate(() => {
@@ -158,8 +158,8 @@ function writeSnapshot(partial) {
 for (let i = 0; i < sections.length; i += 1) {
   const section = sections[i];
   console.log(`[extract] ${i + 1}/${sections.length} ${section.label || section.id}`);
-  await page.goto(section.url, { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: read-only section navigation
-  await page.waitForSelector('input, textarea, table, button', { timeout: 6000 }).catch(() => null); // allow-raw-playwright: wait for section controls before readback
+  await page.goto(section.url, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: read-only section navigation
+  await page.waitForSelector('input, textarea, table, button'); // allow-raw-playwright: wait for section controls before readback
   await humanIdlePause('deliberate');
   const data = await page.evaluate((sectionMeta) => {
     function labelFor(el) {

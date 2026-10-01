@@ -7,7 +7,7 @@ async function repairScalarSections() {
   const out = [];
   for (const item of scalarRepairs) {
     console.log(`[scalar] ${item.section} ${item.suffix}`);
-    await page.goto(URLS[item.section], { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: section navigation
+    await page.goto(URLS[item.section], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section navigation
     await humanIdlePause('long');
     out.push({ section: item.section, ...(await fillBySuffix(item.suffix, item.value)) });
     await saveVisibleForm();
@@ -16,7 +16,7 @@ async function repairScalarSections() {
 }
 
 async function openTaskRow(nr) {
-  await page.goto(URLS['6.1'], { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: section 6.1 navigation
+  await page.goto(URLS['6.1'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 6.1 navigation
   await humanIdlePause('long');
   const taskRow = page.locator('table tbody tr').filter({ has: page.locator('td').filter({ hasText: new RegExp(`^${nr}\. `) }) }).first();
   await humanClickLocator(page, taskRow.locator('button[aria-label="overflow-options"]'));
@@ -42,7 +42,7 @@ async function repairTasks61() {
 }
 
 async function openIndicatorRowExact(name) {
-  await page.goto(URLS['9.2'], { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: section 9.2 navigation
+  await page.goto(URLS['9.2'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 9.2 navigation
   await humanIdlePause('long');
   const indicatorRow = page.locator('table tbody tr').filter({ has: page.locator('td').filter({ hasText: new RegExp(`^${name}$`) }) }).first();
   await humanClickLocator(page, indicatorRow.locator('button[aria-label="overflow-options"]'));
@@ -53,7 +53,7 @@ async function openIndicatorRowExact(name) {
 }
 
 async function openIndicatorRowByIndex(index) {
-  await page.goto(URLS['9.2'], { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: section 9.2 navigation
+  await page.goto(URLS['9.2'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 9.2 navigation
   await humanIdlePause('long');
   const indicatorRow = page.locator('table tbody tr').filter({ has: page.locator('button[aria-label="overflow-options"]') }).nth(index);
   await humanClickLocator(page, indicatorRow.locator('button[aria-label="overflow-options"]'));

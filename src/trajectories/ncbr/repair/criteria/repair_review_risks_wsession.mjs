@@ -24,7 +24,7 @@ delete process.env.NCBR_PASSWORD;
 
 const session = await WSession.start({ label: 'ncbr_review_risk_repair_wsession', proxy: 'direct', browser: 'chromium' });
 const page = session.page;
-page.setDefaultTimeout(30000);
+
 
 const form = lsiForm({ page, email, password });
 const { login } = form;
@@ -38,7 +38,7 @@ async function validateProject() {
     try { text = await res.text(); } catch { text = ''; }
     responses.push({ status: res.status(), url: res.url(), text });
   });
-  await page.goto(PROJECT_URL, { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: project page for validation-only action
+  await page.goto(PROJECT_URL, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: project page for validation-only action
   await humanIdlePause('long');
   const validateButton = page.getByRole('button', { name: 'Sprawdź wniosek', exact: true }).filter({ visible: true }).first();
   const clicked = await validateButton.count() && !await validateButton.isDisabled()
@@ -66,10 +66,10 @@ async function validateProject() {
 
 async function readbackSnippets() {
   const out = {};
-  await page.goto(URL_61, { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: section 6.1 readback
+  await page.goto(URL_61, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 6.1 readback
   await humanIdlePause('long');
   out.task61 = await page.evaluate(() => document.querySelector('table')?.innerText.replace(/\s+/g, ' ').trim() || ''); // allow-raw-playwright: read 6.1 table text
-  await page.goto(URL_92, { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: section 9.2 readback
+  await page.goto(URL_92, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 9.2 readback
   await humanIdlePause('long');
   out.indicators92 = await page.evaluate(() => document.querySelector('table')?.innerText.replace(/\s+/g, ' ').trim() || ''); // allow-raw-playwright: read 9.2 table text
   return out;

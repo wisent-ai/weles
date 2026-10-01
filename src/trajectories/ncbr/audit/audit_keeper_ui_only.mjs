@@ -1,10 +1,8 @@
 // UI-only readback audit for the NCBR STEP B draft.
 // Uses an existing keeper session. Never saves, uploads, deletes, withdraws, or submits.
 
-import net from 'node:net';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { keeperRequest, keeperSocket } from '../../_shared/keeper/client.mjs';
 
 const SESSION = process.env.SESSION || 'ncbr-step-b';
 const PROJECT_ID = process.env.NCBR_PROJECT_ID || '7ee80d9a-67dd-4d99-becd-8dda407221c1';
@@ -52,52 +50,25 @@ const FALLBACK_SECTIONS = [
 
 mkdirSync(OUT_DIR, { recursive: true });
 
-function send(cmd, timeoutMs = 120000) {
-  const sock = join(homedir(), '.weles', 'keeper', SESSION, 'socket');
-  return new Promise((resolve, reject) => {
-    const conn = net.createConnection(sock);
-    let buf = '';
-    let done = false;
-    const timer = setTimeout(() => {
-      if (done) return;
-      done = true;
-      conn.destroy();
-      reject(new Error(`keeper timeout for ${cmd.action}`));
-    }, timeoutMs);
-    conn.on('connect', () => conn.write(`${JSON.stringify(cmd)}\n`));
-    conn.on('data', (chunk) => {
-      buf += chunk.toString();
-      const nl = buf.indexOf('\n');
-      if (nl < 0 || done) return;
-      done = true;
-      clearTimeout(timer);
-      conn.end();
-      const res = JSON.parse(buf.slice(0, nl));
-      if (!res.ok) reject(new Error(`${cmd.action} failed: ${res.error}`));
-      else resolve(res);
-    });
-    conn.on('error', (err) => {
-      if (done) return;
-      done = true;
-      clearTimeout(timer);
-      reject(err);
-    });
-  });
+async function send(cmd) {
+  const res = await keeperRequest(keeperSocket(SESSION), cmd);
+  if (!res.ok) throw new Error(`${cmd.action} failed: ${res.error}`);
+  return res;
 }
 
 async function nav(url) {
-  const out = await send({ action: 'nav', url }, 180000);
-  await send({ action: 'humanidle', kind: 'long' }, 60000).catch(() => null);
+  const out = await send({ action: 'nav', url });
+  await send({ action: 'humanidle', kind: 'long' });
   return out;
 }
 
 async function read(js) {
-  return (await send({ action: 'eval', js }, 120000)).result;
+  return (await send({ action: 'eval', js })).result;
 }
 
 async function screenshot(label) {
   if (process.env.SKIP_SCREENSHOTS === '1') return { label, path: null };
-  const out = await send({ action: 'screenshot' }, 120000);
+  const out = await send({ action: 'screenshot' });
   return { label, path: out.path };
 }
 
@@ -111,18 +82,18 @@ async function loginIfNeeded() {
   }))()`);
   if (!state.hasMail || !state.hasPassword) return { status: 'already_authenticated_or_project_page', state };
   if (!EMAIL || !PASSWORD) return { status: 'needs_credentials', state };
-  await send({ action: 'fill', selector: '#mail, input[name="mail"]', text: EMAIL }, 120000);
-  await send({ action: 'fill', selector: '#password, input[name="password"]', text: PASSWORD }, 120000);
+  await send({ action: 'fill', selector: '#mail, input[name="mail"]', text: EMAIL });
+  await send({ action: 'fill', selector: '#password, input[name="password"]', text: PASSWORD });
   const check = await read(`(() => {
     const el = document.querySelector('#isStatuteAccepted, input[name="isStatuteAccepted"]');
     return el ? { present: true, checked: el.checked } : { present: false };
   })()`);
   if (check.present && !check.checked) {
-    await send({ action: 'click', selector: '#isStatuteAccepted, input[name="isStatuteAccepted"]' }, 120000);
+    await send({ action: 'click', selector: '#isStatuteAccepted, input[name="isStatuteAccepted"]' });
   }
-  await send({ action: 'click', selector: '#login-btn, button:has-text("Zaloguj")' }, 120000);
-  await send({ action: 'humanidle', kind: 'long' }, 60000).catch(() => null);
-  await send({ action: 'humanidle', kind: 'long' }, 60000).catch(() => null);
+  await send({ action: 'click', selector: '#login-btn, button:has-text("Zaloguj")' });
+  await send({ action: 'humanidle', kind: 'long' }).catch(() => null);
+  await send({ action: 'humanidle', kind: 'long' }).catch(() => null);
   const after = await read(`(() => ({ url: location.href, body: (document.body.innerText || '').slice(0, 1200) }))()`);
   return { status: after.url.includes('/logowanie') ? 'still_login_page' : 'logged_in', after };
 }
@@ -197,10 +168,10 @@ async function validateOnly() {
   await nav(PROJECT_URL);
   let clicked = false;
   try {
-    await send({ action: 'click', selector: 'button:has-text("Sprawdź wniosek")' }, 120000);
+    await send({ action: 'click', selector: 'button:has-text("Sprawdź wniosek")' });
     clicked = true;
-    await send({ action: 'humanidle', kind: 'long' }, 60000).catch(() => null);
-    await send({ action: 'humanidle', kind: 'long' }, 60000).catch(() => null);
+    await send({ action: 'humanidle', kind: 'long' }).catch(() => null);
+    await send({ action: 'humanidle', kind: 'long' }).catch(() => null);
   } catch (e) {
     return { clicked, error: String(e?.message || e), screenshot: await screenshot('validation_failed') };
   }

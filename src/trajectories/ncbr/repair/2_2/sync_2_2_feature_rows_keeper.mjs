@@ -53,13 +53,8 @@ function parseFeatures() {
 const sourceFeatures = parseFeatures();
 if (sourceFeatures.length < 8) throw new Error(`expected at least 8 source features, got ${sourceFeatures.length}`);
 
-function action(args, timeout = 120000, optional = false) {
-  const result = spawnSync(process.execPath, ['src/_shared/keeper/action.mjs', ...args], {
-    cwd: WELES,
-    env: { ...process.env, SESSION },
-    encoding: 'utf8',
-    timeout,
-  });
+function action(args, optional = false) {
+  const result = spawnSync(process.execPath, ['src/_shared/keeper/action.mjs', ...args], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' });
   if (result.status !== 0) {
     if (optional) return { ok: false, stdout: result.stdout, stderr: result.stderr, status: result.status };
     throw new Error(`${args.join(' ')}\nstdout=${result.stdout}\nstderr=${result.stderr}`);
@@ -69,12 +64,12 @@ function action(args, timeout = 120000, optional = false) {
   return JSON.parse(out);
 }
 
-function read(js, timeout = 120000) {
-  return action(['eval', js], timeout).result;
+function read(js) {
+  return action(['eval', js]).result;
 }
 
 function idle(kind = 'short') {
-  action(['humanidle', kind], 60000, true);
+  action(['humanidle', kind], true);
 }
 
 function fill(name, value) {
@@ -88,7 +83,7 @@ function fill(name, value) {
     return { ok: true, name, len: value.length, max };
   })()`);
   if (!check?.ok) throw new Error(`fill precheck failed ${name}: ${JSON.stringify(check)}`);
-  action(['fill_fast', `textarea[name="${name}"], input[name="${name}"]`, value], 120000);
+  action(['fill_fast', `textarea[name="${name}"], input[name="${name}"]`, value]);
   idle('short');
   const out = read(`(() => {
     const name = ${JSON.stringify(name)};
@@ -105,9 +100,9 @@ function clickRow(rowNumberOneBased) {
     return row ? row.innerText.replace(/\\s+/g, ' ').slice(0, 220) : null;
   })()`);
   if (!text) throw new Error(`row missing: ${rowNumberOneBased}`);
-  action(['click', `:nth-match(table tbody tr, ${rowNumberOneBased}) button[aria-label="overflow-options"]`], 90000);
+  action(['click', `:nth-match(table tbody tr, ${rowNumberOneBased}) button[aria-label="overflow-options"]`]);
   idle('short');
-  action(['click', 'text="Edytuj"'], 60000);
+  action(['click', 'text="Edytuj"']);
   idle('long');
   return { ok: true, rowNumber: rowNumberOneBased, text };
 }
@@ -118,17 +113,17 @@ function deleteRow(rowNumberOneBased) {
     return row ? row.innerText.replace(/\\s+/g, ' ').slice(0, 220) : null;
   })()`);
   if (!text) throw new Error(`row missing for delete: ${rowNumberOneBased}`);
-  action(['click', `:nth-match(table tbody tr, ${rowNumberOneBased}) button[aria-label="overflow-options"]`], 90000);
+  action(['click', `:nth-match(table tbody tr, ${rowNumberOneBased}) button[aria-label="overflow-options"]`]);
   idle('short');
-  action(['click', 'text="Usuń"'], 60000);
+  action(['click', 'text="Usuń"']);
   idle('deliberate');
-  const confirm = action(['click', 'button:has-text("Usuń"), button:has-text("Tak"), button:has-text("Potwierdź")'], 60000, true);
+  const confirm = action(['click', 'button:has-text("Usuń"), button:has-text("Tak"), button:has-text("Potwierdź")'], true);
   idle('long');
   return { open: { ok: true, rowNumber: rowNumberOneBased, text }, confirm };
 }
 
 function saveSubform() {
-  const clicked = action(['click', '#collection-obj-form-save-btn'], 90000, true);
+  const clicked = action(['click', '#collection-obj-form-save-btn'], true);
   if (clicked.ok !== false) {
     idle('long');
     const status = read(`(() => {
@@ -137,7 +132,7 @@ function saveSubform() {
     })()`);
     if (!status.stillOpen) return { ok: true, method: 'keeper-click-id' };
     if (status.disabled) {
-      action(['click', '#collection-obj-form-cancel-btn'], 60000, true);
+      action(['click', '#collection-obj-form-cancel-btn'], true);
       idle('long');
       const closed = read(`(() => !document.querySelector('#collection-obj-form-save-btn'))()`);
       if (closed) return { ok: true, method: 'keeper-click-id-disabled-close' };
@@ -187,7 +182,7 @@ function syncRow(rowNumberOneBased, feature) {
   return { rowNumberOneBased, opened, fills, lengthsBeforeSave, save };
 }
 
-action(['nav', URL], 180000);
+action(['nav', URL]);
 idle('long');
 const beforeCounts = rowCounts();
 
@@ -199,7 +194,7 @@ const rowsToSync = Math.min(dataRows, sourceFeatures.length);
 for (let dataIndex = 0; dataIndex < rowsToSync; dataIndex += 1) {
   const feature = sourceFeatures[dataIndex];
   synced.push(syncRow(dataIndex + 2, feature)); // row 1 is the "Pozostale" group row.
-  action(['nav', URL], 180000);
+  action(['nav', URL]);
   idle('long');
 }
 
@@ -207,7 +202,7 @@ const deleted = [];
 let countsAfterSync = rowCounts();
 while ((countsAfterSync[0] || 0) > sourceFeatures.length + 1) {
   deleted.push(deleteRow(countsAfterSync[0]));
-  action(['nav', URL], 180000);
+  action(['nav', URL]);
   idle('long');
   countsAfterSync = rowCounts();
 }

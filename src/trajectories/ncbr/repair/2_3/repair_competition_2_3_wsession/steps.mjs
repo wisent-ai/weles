@@ -63,7 +63,7 @@ async function editVisibleRowContaining(text) {
 }
 
 async function repairVisibleMissingNips14() {
-  await page.goto(URLS['1.4'], { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: section 1.4 navigation for row repair
+  await page.goto(URLS['1.4'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 1.4 navigation for row repair
   await humanIdlePause('long');
   const repaired = [];
   for (const row of competitors14) {
@@ -78,7 +78,7 @@ async function repairVisibleMissingNips14() {
     await fillNamedField('nip', row.nip);
     await saveVisibleForm();
     repaired.push(row.name);
-    await page.goto(URLS['1.4'], { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: reload table after row repair
+    await page.goto(URLS['1.4'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: reload table after row repair
     await humanIdlePause('long');
   }
   return repaired;
@@ -93,7 +93,7 @@ async function validateProject() {
     try { text = await res.text(); } catch { text = ''; }
     responses.push({ status: res.status(), url: res.url(), text });
   });
-  await page.goto(PROJECT_URL, { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: validation-only project navigation
+  await page.goto(PROJECT_URL, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: validation-only project navigation
   await humanIdlePause('long');
   const btn = page.locator('button:not([disabled])').filter({ hasText: /^Sprawdź wniosek$/ }).first();
   const clicked = { clicked: await btn.count() > 0, reason: await btn.count() > 0 ? undefined : 'enabled Sprawdz wniosek button not found' };

@@ -91,7 +91,7 @@ if (!page) {
   console.log(JSON.stringify({ error: 'NO_PAGE' }, null, 2));
   process.exit(1);
 }
-page.setDefaultTimeout(20000);
+
 
 if (!resumeStaged) {
   await page.goto(projectUrl, { waitUntil: 'domcontentloaded' });
@@ -143,7 +143,7 @@ function compareFiles(rows) {
 
 async function downloadFile(name, folder) {
   mkdirSync(folder, { recursive: true });
-  const pending = page.waitForEvent('download', { timeout: 60000 });
+  const pending = page.waitForEvent('download');
   await humanClickLocator(page, fileLabel(name));
   const download = await pending;
   const path = join(folder, name);
@@ -238,7 +238,7 @@ try {
     await page.waitForFunction((name) => {
       const label = Array.from(document.querySelectorAll('p[title]')).find((element) => element.title === name);
       return Boolean(label?.parentElement.querySelector('svg[data-testid="CheckCircleIcon"]'));
-    }, file.name, { timeout: 120000 });
+    }, file.name, { polling: 'raf' });
     changed = true;
     record('uploaded', { name: file.name, bytes: file.bytes, sha256: file.sha256 });
   }

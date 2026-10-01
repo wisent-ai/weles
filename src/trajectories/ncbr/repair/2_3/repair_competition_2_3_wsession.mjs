@@ -27,7 +27,7 @@ delete process.env.NCBR_PASSWORD;
 
 const session = await WSession.start({ label: 'ncbr_repair_competition_2_3_wsession', proxy: 'direct', browser: 'chromium' });
 const page = session.page;
-page.setDefaultTimeout(35000);
+
 
 function progress(message) {
   console.log(`[repair_competition_2_3] ${new Date().toISOString()} ${message}`);
@@ -55,7 +55,7 @@ async function run() {
   }
 
   if (process.env.DIAG_PARAM === '1') {
-    await page.goto(URLS['2.3'], { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: section 2.3 diagnostic navigation
+    await page.goto(URLS['2.3'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 2.3 diagnostic navigation
     await humanIdlePause('long');
     await clickDodaj(2);
     out.diagParamFields = await dumpOpenFields();
@@ -64,7 +64,7 @@ async function run() {
     return;
   }
 
-  await page.goto(URLS['1.4'], { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: section 1.4 navigation
+  await page.goto(URLS['1.4'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 1.4 navigation
   progress('section:1.4');
   await humanIdlePause('long');
   for (const row of competitors14) {
@@ -77,7 +77,7 @@ async function run() {
     out.actions.push({ section: '1.4', ...(await addCompetitor14(row)) });
   }
 
-  await page.goto(URLS['2.3'], { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: section 2.3 navigation
+  await page.goto(URLS['2.3'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 2.3 navigation
   progress('section:2.3');
   await humanIdlePause('long');
   for (const row of euCompetition) {

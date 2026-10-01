@@ -3,7 +3,7 @@
 import {
   EMAIL, OPIS, PASSWORD, POWIAZANIE, PROJECT_ID, PROJECT_URL, SECTION_URL, SESSION, SRC, WPLYW,
 } from './source.mjs';
-import { action, click, evalRead, fieldSelector, fill, nav, press, wait } from './keeper.mjs';
+import { action, click, evalRead, fieldSelector, fill, nav, press, settle } from './keeper.mjs';
 
 export const evidence = {
   startedAt: new Date().toISOString(),
@@ -51,7 +51,7 @@ export function loginIfNeeded() {
   fill('input[name="password"], #password', PASSWORD);
   click('input[name="isStatuteAccepted"], #isStatuteAccepted', true);
   click('#login-btn, button:has-text("Zaloguj")');
-  wait(4000);
+  settle();
   const after = evalRead(`(() => ({ url: location.href, body: (document.body.innerText || '').slice(0, 1000) }))()`);
   if (after.url.includes('/logowanie')) throw new Error(`login stayed on login page: ${after.body}`);
   evidence.steps.push({ step: 'login', status: 'logged_in', url: after.url });
@@ -60,20 +60,20 @@ export function loginIfNeeded() {
 export function saveMain() {
   const before = readState().buttons.filter((b) => b.text === 'Zapisz');
   const res = click('button:has-text("Zapisz")', true);
-  action(['humanidle', 'long'], 60000, true);
-  wait(1000);
+  action(['humanidle', 'long'], true);
+  settle();
   const after = readState();
   return { before, click: res.ok !== false, afterButtons: after.buttons.filter((b) => b.text === 'Zapisz') };
 }
 
 export function setMainTexts() {
   fill(fieldSelector('innowacja_produktowa_opis_rezultatu_prac_br'), OPIS);
-  action(['humanidle', 'long'], 60000, true);
+  action(['humanidle', 'long'], true);
   fill(fieldSelector('innowacja_produktowa_wplyw_rezultatu_prac_br'), WPLYW);
-  action(['humanidle', 'long'], 60000, true);
+  action(['humanidle', 'long'], true);
   fill(fieldSelector('innowacja_produktowa_powiazanie_rezultatu_prac_br_z_lancuchem_wartosci'), POWIAZANIE);
-  action(['humanidle', 'long'], 60000, true);
-  action(['humanidle', 'deliberate'], 60000, true);
+  action(['humanidle', 'long'], true);
+  action(['humanidle', 'deliberate'], true);
   const save = saveMain();
   evidence.steps.push({ step: 'main_texts', opisLen: OPIS.length, wplywLen: WPLYW.length, powiazanieLen: POWIAZANIE.length, save });
 }
@@ -89,8 +89,8 @@ export function ensureFactorSelected(label) {
   }
   const selector = fieldSelector('rezultat_prac_br_spelnia_nastepujace_czynniki');
   fill(selector, label);
-  action(['humanidle', 'long'], 60000, true);
-  const options = evalRead(`Array.from(document.querySelectorAll('[role="option"]')).map((o) => o.textContent.trim()).filter(Boolean)`, 60000);
+  action(['humanidle', 'long'], true);
+  const options = evalRead(`Array.from(document.querySelectorAll('[role="option"]')).map((o) => o.textContent.trim()).filter(Boolean)`);
   const match = options.find((o) => o === label) || options.find((o) => o.includes(label.slice(0, 45)));
   if (match) {
     const optionClick = click(`[role="option"]:has-text("${match}")`, true);
@@ -98,7 +98,7 @@ export function ensureFactorSelected(label) {
   } else {
     press('Enter');
   }
-  action(['humanidle', 'short'], 60000, true);
+  action(['humanidle', 'short'], true);
   const after = selectedFactors();
   return { label, status: after.some((x) => x === label || x.includes(label.slice(0, 45))) ? 'selected' : 'attempted', before, options, match, after };
 }
@@ -110,7 +110,7 @@ export function addFeature(row) {
     return { row: row.cecha.slice(0, 80), status: 'already_present' };
   }
   click(':nth-match(button:has-text("Dodaj"), 1)');
-  wait(1000);
+  settle();
   fill('textarea[name="cecha_funkcjonalnosc_rezultatu_projektu"]', row.cecha);
   fill('textarea[name="wartosc_bazowa"], input[name="wartosc_bazowa"]', row.bazowa);
   fill('textarea[name="wartosc_docelowa"], input[name="wartosc_docelowa"]', row.docelowa);
@@ -122,25 +122,25 @@ export function addFeature(row) {
 }
 
 export function saveDrawerForm() {
-  action(['humanidle', 'long'], 60000, true);
+  action(['humanidle', 'long'], true);
   const out = evalRead(`(() => {
     const b = document.querySelector('#collection-obj-form-save-btn');
     if (!b) return { ok: false, reason: 'missing drawer save' };
     if (b.disabled) return { ok: false, reason: 'drawer save disabled' };
     b['cli' + 'ck']();
     return { ok: true };
-  })()`, 60000);
+  })()`);
   if (!out?.ok) throw new Error(`drawer save failed: ${out?.reason || 'unknown'}`);
-  action(['humanidle', 'long'], 60000, true);
+  action(['humanidle', 'long'], true);
   return out;
 }
 
 export function setFactorCombobox(label) {
   fill('input[name="wybrany_czynnik"]', label);
-  action(['humanidle', 'deliberate'], 60000, true);
+  action(['humanidle', 'deliberate'], true);
   const optionClick = click(`[role="option"]:has-text("${label}")`, true);
   if (!optionClick.ok) press('Enter');
-  action(['humanidle', 'short'], 60000, true);
+  action(['humanidle', 'short'], true);
   return { label, optionClicked: optionClick.ok !== false };
 }
 
@@ -151,7 +151,7 @@ export function addFactorRow(row) {
     return { row: row.parametr, status: 'already_present' };
   }
   click(':nth-match(button:has-text("Dodaj"), 2)');
-  wait(1000);
+  settle();
   const factor = setFactorCombobox(row.czynnik);
   fill('textarea[name="nazwa_parametru"], input[name="nazwa_parametru"]', row.parametr);
   fill('input[name="wartosc_bazowa"], textarea[name="wartosc_bazowa"]', row.bazowa);

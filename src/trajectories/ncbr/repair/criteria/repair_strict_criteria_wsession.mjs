@@ -28,7 +28,7 @@ delete process.env.NCBR_PASSWORD;
 
 const session = await WSession.start({ label: 'ncbr_repair_strict_criteria_wsession', proxy: 'direct', browser: 'chromium' });
 const page = session.page;
-page.setDefaultTimeout(30000);
+
 
 const form = lsiForm({ page, email, password });
 const { login, fillBySuffix, saveVisibleForm, closeVisibleForm } = form;
@@ -42,7 +42,7 @@ async function validateProject() {
     try { text = await res.text(); } catch { text = ''; }
     responses.push({ status: res.status(), url: res.url(), text });
   });
-  await page.goto(PROJECT_URL, { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: project page for validation-only action
+  await page.goto(PROJECT_URL, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: project page for validation-only action
   await humanIdlePause('long');
   const validate = page.getByRole('button', { name: 'Sprawdź wniosek', exact: true }).filter({ visible: true }).first();
   const clicked = await validate.isEnabled().catch(() => false)
@@ -70,7 +70,7 @@ async function validateProject() {
 
 async function readback() {
   const out = {};
-  await page.goto(PROJECT_URL, { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: read status only
+  await page.goto(PROJECT_URL, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: read status only
   await humanIdlePause('long');
   out.status = await page.evaluate(() => {
     const body = document.body?.innerText || '';
@@ -79,13 +79,13 @@ async function readback() {
       submitButtons: Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Złóż wniosek').map((b) => ({ disabled: b.disabled })),
     };
   }); // allow-raw-playwright: read application status and submit button state
-  await page.goto(URLS['9.2'], { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: read 9.2 table only
+  await page.goto(URLS['9.2'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: read 9.2 table only
   await humanIdlePause('long');
   out.indicators92 = await page.evaluate(() => {
     const rows = Array.from(document.querySelectorAll('table tbody tr')).map((r) => Array.from(r.querySelectorAll('td')).map((td) => td.innerText.trim().replace(/\s+/g, ' ')));
     return rows.map((cells) => ({ name: cells[0], year: cells[4], value: cells[5], methodologyHead: (cells[6] || '').slice(0, 120) }));
   }); // allow-raw-playwright: read 9.2 row cells after save
-  await page.goto(URLS['6.1'], { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: read 6.1 table only
+  await page.goto(URLS['6.1'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: read 6.1 table only
   await humanIdlePause('long');
   out.tasks61 = await page.evaluate(() => Array.from(document.querySelectorAll('table tbody tr')).map((r) => (r.querySelector('td')?.innerText || '').trim()).filter(Boolean));
   return out;
@@ -109,7 +109,7 @@ if (process.env.DIAG_92) {
   process.exit(0);
 }
 if (process.env.DIAG_92_ALL === '1') {
-  await page.goto(URLS['9.2'], { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: section 9.2 navigation
+  await page.goto(URLS['9.2'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 9.2 navigation
   await humanIdlePause('long');
   const count = await page.evaluate(() => Array.from(document.querySelectorAll('table tbody tr')).filter((row) => row.querySelector('button[aria-label="overflow-options"]')).length); // allow-raw-playwright: count editable indicator rows only
   const rows = [];

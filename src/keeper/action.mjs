@@ -8,6 +8,8 @@
 //   node action.mjs nav https://example.com
 //   node action.mjs screenshot
 //   node action.mjs eval 'document.title'
+//   node action.mjs settle                 (page loaded and its DOM quiet)
+//   node action.mjs wait_url '/projekt/'   (until the URL contains the text)
 
 import { runOutputPath } from '#run-output';
 import { chromium } from 'playwright';
@@ -15,6 +17,7 @@ import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { humanClickLocator } from '../../dist/human/mouse.js';
 import { humanFill } from '../../dist/human/keyboard.js';
+import { pageSettled, urlMatching } from '../trajectories/_shared/page/settled.mjs';
 
 const CDP = 'http://localhost:9223';
 const OUT = runOutputPath('keeper');
@@ -82,6 +85,14 @@ if (action === 'dump') {
   console.log(`[action] eval result: ${JSON.stringify(r)?.slice(0, 500)}`);
 } else if (action === 'url') {
   console.log(`[action] url: ${page.url()}`);
+} else if (action === 'settle') {
+  await pageSettled(page);
+  console.log(`[action] settled: ${page.url()}`);
+} else if (action === 'wait_url') {
+  const needle = args.join(' ');
+  if (!needle) { console.error('[action] wait_url needs the text the URL must contain'); process.exit(1); }
+  await urlMatching(page, needle);
+  console.log(`[action] url reached: ${page.url()}`);
 } else if (action === 'api') {
   // api <METHOD> <path> [body] — call same-origin API with the page's cookies
   const method = args[0]; const path = args[1]; const body = args.slice(2).join(' ') || '';
@@ -111,6 +122,7 @@ if (action === 'dump') {
   }
 } else {
   console.error(`[action] unknown: ${action}`);
+  process.exitCode = 1;
 }
 
 // Detach without closing

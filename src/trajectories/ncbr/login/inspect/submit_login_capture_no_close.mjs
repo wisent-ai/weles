@@ -4,6 +4,7 @@
 import { chromium } from 'playwright';
 import { humanClickLocator } from '../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../dist/human/keyboard.js';
+import { pageSettled } from '../../../_shared/page/settled.mjs';
 
 const endpoint = process.env.NCBR_BROWSER_ENDPOINT || 'http://127.0.0.1:9223';
 const email = process.env.NCBR_EMAIL;
@@ -75,8 +76,8 @@ async function authStatus() {
   });
 }
 
-await page.goto('https://lsi2.ncbr.gov.pl/logowanie', { waitUntil: 'domcontentloaded', timeout: 120000 });
-await page.waitForSelector('#mail, input[name="mail"]', { timeout: 30000 });
+await page.goto('https://lsi2.ncbr.gov.pl/logowanie', { waitUntil: 'domcontentloaded' });
+await page.waitForSelector('#mail, input[name="mail"]');
 
 await humanFill(page, page.locator('#mail, input[name="mail"]').first(), email);
 await humanFill(page, page.locator('#password, input[name="password"]').first(), password);
@@ -91,7 +92,7 @@ if (await checkbox.count()) {
 }
 
 const button = page.locator('#login-btn, button:has-text("Zaloguj się")').first();
-await button.waitFor({ state: 'visible', timeout: 30000 });
+await button.waitFor({ state: 'visible' });
 
 const before = {
   url: page.url(),
@@ -108,8 +109,7 @@ const before = {
 
 await humanClickLocator(page, button);
 
-await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => null);
-await page.waitForTimeout(4000);
+await pageSettled(page);
 
 const auth = await authStatus();
 const bodyText = (await page.locator('body').innerText().catch(() => '')).slice(0, 1600);

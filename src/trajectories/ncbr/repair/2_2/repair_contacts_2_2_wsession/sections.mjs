@@ -6,7 +6,7 @@ import { CONTACT, FACTORS, FEATURES } from './source.mjs';
 export function contactRepairs({ page, email, progress, URLS, setReactInputValue, clickVisibleButton, saveVisibleForm, fillAny, fillByName, deleteRowsContaining, fillEdoreczeniaIfPresent }) {
 async function repair13() {
   progress('section:1.3');
-  await page.goto(URLS['1.3'], { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: section 1.3 navigation
+  await page.goto(URLS['1.3'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 1.3 navigation
   await humanIdlePause('long');
   await openFirstRowEdit('Wisent Polska');
   const edoreczenia = await fillEdoreczeniaIfPresent();
@@ -33,11 +33,11 @@ async function repair13() {
 
 async function diag13() {
   const reports = [];
-  await page.goto(URLS['1.3'], { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: section 1.3 diagnostic navigation
+  await page.goto(URLS['1.3'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 1.3 diagnostic navigation
   await humanIdlePause('long');
   const count = await page.evaluate(() => Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Dodaj' && b.getClientRects().length).length); // allow-raw-playwright: count visible add buttons
   for (let i = 0; i < count; i += 1) {
-    await page.goto(URLS['1.3'], { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: reset section between diagnostic opens
+    await page.goto(URLS['1.3'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: reset section between diagnostic opens
     await humanIdlePause('long');
     await clickVisibleButton('Dodaj', i);
     const fields = await page.evaluate(() => Array.from(document.querySelectorAll('input, textarea')).map((el) => {
@@ -71,7 +71,7 @@ async function openFirstRowEdit(rowNeedle) {
 }
 
 async function diag13Edit() {
-  await page.goto(URLS['1.3'], { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: section 1.3 diagnostic navigation
+  await page.goto(URLS['1.3'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 1.3 diagnostic navigation
   await humanIdlePause('long');
   await openFirstRowEdit('Wisent Polska');
   const before = await page.evaluate(() => ({
@@ -87,7 +87,7 @@ async function diag13Edit() {
   const nestedAddCount = before.buttons.filter((b) => b.text === 'Dodaj kolejny' && !b.disabled).length;
   const nestedReports = [];
   for (let i = 0; i < nestedAddCount; i += 1) {
-    await page.goto(URLS['1.3'], { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: reset 1.3 edit diagnostic
+    await page.goto(URLS['1.3'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: reset 1.3 edit diagnostic
     await humanIdlePause('long');
     await openFirstRowEdit('Wisent Polska');
     const buttons = page.locator('button:visible:not([disabled])').filter({ hasText: /^Dodaj kolejny$/ });
@@ -106,7 +106,7 @@ async function diag13Edit() {
 }
 
 async function diag13ContactEdit() {
-  await page.goto(URLS['1.3'], { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: section 1.3 contact diagnostic navigation
+  await page.goto(URLS['1.3'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 1.3 contact diagnostic navigation
   await humanIdlePause('long');
   await openFirstRowEdit('Wisent Polska');
   const row = page.locator('table tbody tr').filter({ hasText: 'Weronika Pernak' }).first();
@@ -149,7 +149,7 @@ async function setAutoByName(name, search) {
 async function repair22() {
   progress('section:2.2');
   const done = [];
-  await page.goto(URLS['2.2'], { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: section 2.2 navigation
+  await page.goto(URLS['2.2'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 2.2 navigation
   await humanIdlePause('long');
   for (const feature of FEATURES) {
     const current = await page.locator('body').innerText();
@@ -167,7 +167,7 @@ async function repair22() {
     await fillByName('sposob_weryfikacji_osiagniecia_wartosci_docelowej', feature.weryfikacja);
     await saveVisibleForm();
     done.push({ collection: 'cecha', added: feature.cecha.slice(0, 80) });
-    await page.goto(URLS['2.2'], { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: reload after row save
+    await page.goto(URLS['2.2'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: reload after row save
     await humanIdlePause('long');
   }
   for (const factor of FACTORS) {
@@ -188,14 +188,14 @@ async function repair22() {
     await fillByName('sposob_monitorowania_weryfikacji_osiagniecia_zaplanowanych_wartosci_docelowych', factor.weryfikacja);
     await saveVisibleForm();
     done.push({ collection: 'czynnik', added: factor.parametr, picked });
-    await page.goto(URLS['2.2'], { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: reload after row save
+    await page.goto(URLS['2.2'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: reload after row save
     await humanIdlePause('long');
   }
   return { parsed: { features: FEATURES.length, factors: FACTORS.length }, done, readback: await readTables(URLS['2.2']) };
 }
 
 async function readTables(url) {
-  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: read-only section navigation
+  await page.goto(url, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: read-only section navigation
   await humanIdlePause('long');
   return page.evaluate(() => Array.from(document.querySelectorAll('table')).map((table) => ({
     rows: table.querySelectorAll('tbody tr').length,

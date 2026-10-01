@@ -29,7 +29,7 @@ async function setReactInputValue(locator, value) {
 
 async function login() {
   progress('login:start');
-  await page.goto('https://lsi2.ncbr.gov.pl/logowanie', { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: LSI login page
+  await page.goto('https://lsi2.ncbr.gov.pl/logowanie', { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: LSI login page
   await humanIdlePause('long');
   await setReactInputValue(page.locator('#mail, input[name="mail"]').first(), email);
   await setReactInputValue(page.locator('#password, input[name="password"]').first(), password);
@@ -39,10 +39,10 @@ async function login() {
   await page.waitForFunction(() => {
     const btn = document.querySelector('#login-btn') || Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Zaloguj');
     return !!btn && !btn.disabled;
-  }, null, { timeout: 10000 }).catch(() => null); // allow-raw-playwright: wait for LSI login validation
+  }, null, { polling: 'raf' }); // allow-raw-playwright: wait for LSI login validation
   for (let attempt = 1; attempt <= 3 && page.url().includes('/logowanie'); attempt += 1) {
     await session.clickSelector('#login-btn, button:has-text("Zaloguj")'); // allow-raw-playwright: click visible login button
-    await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => null);
+    await page.waitForLoadState('load');
     await humanIdlePause('long');
   }
   if (page.url().includes('/logowanie')) throw new Error('login stayed on login page');
@@ -50,7 +50,7 @@ async function login() {
 }
 
 async function readSectionTables(url) {
-  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: navigate to exact LSI section
+  await page.goto(url, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: navigate to exact LSI section
   await humanIdlePause('long');
   return page.evaluate(() => Array.from(document.querySelectorAll('table')).map((table) => ({
     rows: table.querySelectorAll('tbody tr').length,
@@ -78,7 +78,7 @@ async function saveVisibleForm() {
   progress('save:waiting');
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  await page.waitForFunction(() => Array.from(document.querySelectorAll('button')).some((b) => b.innerText.trim() === 'Zapisz' && !b.disabled && b.getClientRects().length), null, { timeout: 25000 }).catch(() => null); // allow-raw-playwright: wait for enabled visible LSI save
+  await page.waitForFunction(() => Array.from(document.querySelectorAll('button')).some((b) => b.innerText.trim() === 'Zapisz' && !b.disabled && b.getClientRects().length), null, { polling: 'raf' }); // allow-raw-playwright: wait for enabled visible LSI save
   await humanClickLocator(page, page.locator('button:visible:not([disabled])').filter({ hasText: /^Zapisz$/ }).last()) // allow-raw-playwright: save visible LSI row form
   await humanIdlePause('long');
   progress('save:done');

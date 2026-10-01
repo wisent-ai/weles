@@ -77,13 +77,8 @@ if (process.env.ONLY) {
   if (!rows.length) throw new Error(`ONLY did not match any row: ${process.env.ONLY}`);
 }
 
-function action(args, timeout = 120000, optional = false) {
-  const result = spawnSync(process.execPath, ['src/_shared/keeper/action.mjs', ...args], {
-    cwd: WELES,
-    env: { ...process.env, SESSION },
-    encoding: 'utf8',
-    timeout,
-  });
+function action(args, optional = false) {
+  const result = spawnSync(process.execPath, ['src/_shared/keeper/action.mjs', ...args], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' });
   if (result.status !== 0) {
     if (optional) return { ok: false, stdout: result.stdout, stderr: result.stderr, status: result.status };
     throw new Error(`${args.join(' ')}\nstdout=${result.stdout}\nstderr=${result.stderr}`);
@@ -96,8 +91,8 @@ function action(args, timeout = 120000, optional = false) {
   return JSON.parse(out);
 }
 
-const read = (js) => action(['eval', js], 120000).result;
-const idle = (kind = 'short') => action(['humanidle', kind], 60000, true);
+const read = (js) => action(['eval', js]).result;
+const idle = (kind = 'short') => action(['humanidle', kind], true);
 
 function fill(name, value) {
   const check = read(`(() => {
@@ -109,7 +104,7 @@ function fill(name, value) {
     return { ok: value.length <= max, name, tag: el.tagName.toLowerCase(), len: value.length, max, currentLen: (el.value || '').length };
   })()`);
   if (!check?.ok) throw new Error(`fill precheck failed ${name}: ${JSON.stringify(check)}`);
-  action(['set_value', `${check.tag}[name="${name}"]`, value], 120000);
+  action(['set_value', `${check.tag}[name="${name}"]`, value]);
   idle('short');
   return read(`(() => {
     const name = ${JSON.stringify(name)};
@@ -142,7 +137,7 @@ function openByNeedle(needle) {
   const selectorNeedle = shortNeedle.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   const menuSelector = `table tbody tr:has-text("${selectorNeedle}") button[aria-label="overflow-options"]`;
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    action([attempt === 0 ? 'click_fast' : 'dispatch_click', menuSelector], 90000, true);
+    action([attempt === 0 ? 'click_fast' : 'dispatch_click', menuSelector], true);
     idle('short');
     const hasEdit = read(`(() => Array.from(document.querySelectorAll('[role="menuitem"], li, button')).some((el) => el.offsetParent !== null && el.innerText.trim() === 'Edytuj'))()`);
     if (hasEdit) break;
@@ -150,7 +145,7 @@ function openByNeedle(needle) {
   }
   const openedMenu = read(`(() => Array.from(document.querySelectorAll('[role="menuitem"], li, button')).some((el) => el.offsetParent !== null && el.innerText.trim() === 'Edytuj'))()`);
   if (!openedMenu) throw new Error(`edit menu did not open for row: ${needle}`);
-  action(['dispatch_click', 'text="Edytuj"'], 60000);
+  action(['dispatch_click', 'text="Edytuj"']);
   idle('long');
   return { index: idx + 1 };
 }
@@ -164,7 +159,7 @@ function openParamByOrdinal(rowOrdinal) {
   if (!rowText) throw new Error(`parameter row not found by ordinal: ${rowOrdinal + 1}`);
   const selector = `table tbody tr:has-text(${JSON.stringify(rowText)}) button[aria-label="overflow-options"]`;
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    action([attempt === 0 ? 'click_fast' : 'dispatch_click', selector], 90000, true);
+    action([attempt === 0 ? 'click_fast' : 'dispatch_click', selector], true);
     idle('short');
     const hasEdit = read(`(() => Array.from(document.querySelectorAll('[role="menuitem"], li, button')).some((el) => el.offsetParent !== null && el.innerText.trim() === 'Edytuj'))()`);
     if (hasEdit) break;
@@ -172,15 +167,15 @@ function openParamByOrdinal(rowOrdinal) {
   }
   const openedMenu = read(`(() => Array.from(document.querySelectorAll('[role="menuitem"], li, button')).some((el) => el.offsetParent !== null && el.innerText.trim() === 'Edytuj'))()`);
   if (!openedMenu) throw new Error(`edit menu did not open for parameter row ${rowOrdinal + 1}: ${rowText}`);
-  action(['dispatch_click', 'text="Edytuj"'], 60000);
+  action(['dispatch_click', 'text="Edytuj"']);
   idle('long');
   return { index: rowOrdinal + 1, rowText };
 }
 
 function saveSubform() {
-  action(['press', 'Tab'], 60000, true);
+  action(['press', 'Tab'], true);
   idle('long');
-  action(['dispatch_click', '#collection-obj-form-save-btn'], 90000);
+  action(['dispatch_click', '#collection-obj-form-save-btn']);
   for (let i = 0; i < 10; i += 1) {
     idle('long');
     const status = read(`(() => {
@@ -188,7 +183,7 @@ function saveSubform() {
       return b ? { disabled: b.disabled, text: b.innerText } : null;
     })()`);
     if (!status) return { ok: true, waited: i + 1 };
-    if (!status.disabled && i >= 2) action(['dispatch_click', '#collection-obj-form-save-btn'], 90000, true);
+    if (!status.disabled && i >= 2) action(['dispatch_click', '#collection-obj-form-save-btn'], true);
   }
   const status = read(`(() => {
     const b = document.querySelector('#collection-obj-form-save-btn');
@@ -198,7 +193,7 @@ function saveSubform() {
   throw new Error(`subform did not close after save: ${JSON.stringify(status)}`);
 }
 
-action(['nav', URL], 180000);
+action(['nav', URL]);
 idle('long');
 
 const synced = [];
@@ -224,7 +219,7 @@ for (const [rowIndex, row] of rows.entries()) {
   const save = saveSubform();
   console.log(JSON.stringify({ stage: 'saved', part: PART, needle, save }));
   synced.push({ needle, opened, fills, save });
-  action(['nav', URL], 180000);
+  action(['nav', URL]);
   idle('long');
 }
 

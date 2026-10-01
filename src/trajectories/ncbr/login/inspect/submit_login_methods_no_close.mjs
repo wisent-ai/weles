@@ -1,6 +1,7 @@
 import { chromium } from 'playwright';
 import { humanFill } from '../../../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../../../dist/human/mouse.js';
+import { pageSettled } from '../../../_shared/page/settled.mjs';
 
 const endpoint = process.env.NCBR_BROWSER_ENDPOINT || 'http://127.0.0.1:9223';
 const email = process.env.NCBR_EMAIL;
@@ -49,8 +50,8 @@ async function authStatus() {
 }
 
 async function fillForm() {
-  await page.goto('https://lsi2.ncbr.gov.pl/logowanie', { waitUntil: 'domcontentloaded', timeout: 120000 });
-  await page.waitForSelector('#mail', { timeout: 30000 });
+  await page.goto('https://lsi2.ncbr.gov.pl/logowanie', { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('#mail');
   await humanFill(page, page.locator('#mail'), '');
   await page.locator('#mail').type(email, { delay: 15 });
   await humanFill(page, page.locator('#password'), '');
@@ -61,7 +62,7 @@ async function fillForm() {
       await humanClickLocator(page, checkbox);
     });
   }
-  await page.waitForTimeout(500);
+  await pageSettled(page);
 }
 
 async function tryMethod(name, fn) {
@@ -72,8 +73,7 @@ async function tryMethod(name, fn) {
   } catch (e) {
     error = String(e?.message || e);
   }
-  await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => null);
-  await page.waitForTimeout(1500);
+  await pageSettled(page);
   const auth = await authStatus();
   return {
     name,

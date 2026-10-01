@@ -18,7 +18,7 @@ if (!page) {
   console.log(JSON.stringify({ error: 'NO_PAGE' }, null, 2));
   process.exit(1);
 }
-page.setDefaultTimeout(30000);
+
 
 const fallbackSections = [
   ['1.1', '71acd162-e35d-4aff-88a6-ea2fe179a259'],
@@ -63,7 +63,7 @@ async function pause(kind = sleepKind()) {
 }
 
 async function waitForSectionShell() {
-  await page.waitForSelector('textarea, input, table, button', { timeout: 12000 }).catch(() => {}); // allow-raw-playwright: wait for rendered section controls before read-only scan
+  await page.waitForSelector('textarea, input, table, button'); // allow-raw-playwright: wait for rendered section controls before read-only scan
 }
 
 function cleanText(v) {
@@ -162,7 +162,7 @@ const sectionStats = [];
 for (const section of sections) {
   if (process.env.SECTION && process.env.SECTION !== section.label) continue;
   try {
-    await page.goto(section.url, { waitUntil: 'domcontentloaded', timeout: 30000 }); // allow-raw-playwright: read-only section navigation
+    await page.goto(section.url, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: read-only section navigation
     await waitForSectionShell();
     await pause(sleepKind());
     await page.evaluate(() => {
@@ -181,7 +181,7 @@ for (const section of sections) {
       continue;
     }
     for (let i = 0; i < Math.min(count, maxRowsPerSection); i += 1) {
-      await page.goto(section.url, { waitUntil: 'domcontentloaded', timeout: 30000 }); // allow-raw-playwright: reset section before opening next row
+      await page.goto(section.url, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: reset section before opening next row
       await waitForSectionShell();
       await pause(sleepKind());
       const didOpen = await openRow(i);

@@ -38,13 +38,8 @@ if (process.env.ONLY) {
   if (rows.length === 0) throw new Error(`ONLY did not match any factor row: ${process.env.ONLY}`);
 }
 
-function action(args, timeout = 120000, optional = false) {
-  const result = spawnSync(process.execPath, ['src/_shared/keeper/action.mjs', ...args], {
-    cwd: WELES,
-    env: { ...process.env, SESSION },
-    encoding: 'utf8',
-    timeout,
-  });
+function action(args, optional = false) {
+  const result = spawnSync(process.execPath, ['src/_shared/keeper/action.mjs', ...args], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' });
   if (result.status !== 0) {
     if (optional) return { ok: false, stdout: result.stdout, stderr: result.stderr, status: result.status };
     throw new Error(`${args.join(' ')}\nstdout=${result.stdout}\nstderr=${result.stderr}`);
@@ -54,25 +49,25 @@ function action(args, timeout = 120000, optional = false) {
   return JSON.parse(out);
 }
 
-function read(js, timeout = 120000) {
-  return action(['eval', js], timeout).result;
+function read(js) {
+  return action(['eval', js]).result;
 }
 
 function idle(kind = 'short') {
-  action(['humanidle', kind], 60000, true);
+  action(['humanidle', kind], true);
 }
 
 function loginIfNeeded() {
-  const url = action(['url'], 60000, true);
+  const url = action(['url'], true);
   const current = url.ok === false ? '' : String(url.url || url.result || '');
   if (!/login|logowanie|auth/i.test(current)) return false;
   const email = process.env.NCBR_EMAIL;
   const password = process.env.NCBR_PASSWORD;
   if (!email || !password) throw new Error('login required but NCBR_EMAIL/NCBR_PASSWORD not set');
-  action(['fill_fast', 'input#mail, input[name="mail"]', email], 120000);
-  action(['fill_fast', 'input#password, input[name="password"]', password], 120000);
-  action(['click_fast', 'input[name="isStatuteAccepted"]'], 60000, true);
-  action(['click_fast', 'button:has-text("Zaloguj się")'], 120000);
+  action(['fill_fast', 'input#mail, input[name="mail"]', email]);
+  action(['fill_fast', 'input#password, input[name="password"]', password]);
+  action(['click_fast', 'input[name="isStatuteAccepted"]'], true);
+  action(['click_fast', 'button:has-text("Zaloguj się")']);
   idle('long');
   idle('long');
   return true;
@@ -88,7 +83,7 @@ function fill(name, value) {
     return { ok: value.length <= max, name, len: value.length, max, currentLen: (el.value || '').length };
   })()`);
   if (!check?.ok) throw new Error(`fill precheck failed ${name}: ${JSON.stringify(check)}`);
-  action(['fill_fast', `textarea[name="${name}"]:visible, input[name="${name}"]:visible`, value], 120000);
+  action(['fill_fast', `textarea[name="${name}"]:visible, input[name="${name}"]:visible`, value]);
   idle('short');
   return read(`(() => {
     const name = ${JSON.stringify(name)};
@@ -106,15 +101,15 @@ function openByParam(param) {
   })()`);
   if (idx < 0) throw new Error(`factor row not found by param: ${param}`);
   const menu = `:nth-match(table tbody tr, ${idx + 1}) button[aria-label="overflow-options"]`;
-  action(['click_fast', menu], 90000);
+  action(['click_fast', menu]);
   idle('short');
-  action(['click_fast', 'text="Edytuj"'], 60000);
+  action(['click_fast', 'text="Edytuj"']);
   idle('long');
   return { index: idx + 1 };
 }
 
 function saveSubform() {
-  action(['dispatch_click', '#collection-obj-form-save-btn'], 90000);
+  action(['dispatch_click', '#collection-obj-form-save-btn']);
   for (let i = 0; i < 10; i += 1) {
     idle('long');
     const status = read(`(() => {
@@ -123,7 +118,7 @@ function saveSubform() {
     })()`);
     if (!status) return { ok: true, waited: i + 1 };
     if (!status.disabled && i >= 2) {
-      action(['dispatch_click', '#collection-obj-form-save-btn'], 90000, true);
+      action(['dispatch_click', '#collection-obj-form-save-btn'], true);
     }
   }
   const status = read(`(() => {
@@ -144,10 +139,10 @@ function allRowsText() {
   })))()`);
 }
 
-action(['nav', URL], 180000);
+action(['nav', URL]);
 idle('long');
 loginIfNeeded();
-action(['nav', URL], 180000);
+action(['nav', URL]);
 idle('long');
 
 const before = allRowsText();
@@ -162,12 +157,12 @@ for (const row of rows) {
   console.log(JSON.stringify({ stage: 'filled-method', param: row.param, len: method.len, max: method.max }));
   const verify = fill('sposob_monitorowania_weryfikacji_osiagniecia_zaplanowanych_wartosci_docelowych', row.verify);
   console.log(JSON.stringify({ stage: 'filled-verify', param: row.param, len: verify.len, max: verify.max }));
-  action(['press', 'Tab'], 60000, true);
+  action(['press', 'Tab'], true);
   idle('long');
   saveSubform();
   console.log(JSON.stringify({ stage: 'saved', param: row.param }));
   synced.push({ param: row.param, opened, paramName, method, verify });
-  action(['nav', URL], 180000);
+  action(['nav', URL]);
   idle('long');
 }
 

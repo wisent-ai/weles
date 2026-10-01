@@ -45,7 +45,7 @@ if (process.env.PARSE) {
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
 if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' }, null, 2)); process.exit(1); }
-page.setDefaultTimeout(12000);
+
 
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: authenticated LSI section navigation
 await humanIdlePause('long');

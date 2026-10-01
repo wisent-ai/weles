@@ -3,7 +3,7 @@
 import { keeperRequest } from '../../../../_shared/keeper/client.mjs';
 import { SOCK } from './settings.mjs';
 
-export function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+
 
 export async function send(cmd) {
   const res = await keeperRequest(SOCK, cmd);

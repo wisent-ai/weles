@@ -10,10 +10,11 @@
 // `pageCondition` waits until a predicate evaluated in the page holds, checked
 // on every animation frame, and returns its value.
 
-export async function pageSettled(page) {
-  await page.waitForLoadState('load');
-  await page.evaluate(() => {
-    const { promise, resolve } = Promise.withResolvers();
+// Runs inside the page: resolves once the document has loaded and its DOM has
+// gone two consecutive animation frames without a mutation.
+function settleInPage() {
+  const { promise, resolve } = Promise.withResolvers();
+  const quiet = () => {
     let changed = true;
     let quietFrames = 0;
     const observer = new MutationObserver(() => { changed = true; });
@@ -29,8 +30,28 @@ export async function pageSettled(page) {
       requestAnimationFrame(frame);
     };
     requestAnimationFrame(frame);
-    return promise;
-  });
+  };
+  if (document.readyState === 'complete') quiet();
+  else window.addEventListener('load', quiet, { once: true });
+  return promise;
+}
+
+const DOCUMENT_REPLACED = /Execution context was destroyed|navigation/i;
+
+export async function pageSettled(page) {
+  // Both the load and the quiet DOM are awaited inside the page, so no
+  // Playwright default limit applies — the page alone decides when it is done.
+  // When a navigation replaces the document mid-wait, the new document is the
+  // one that has to settle, so the wait moves to it; any other failure is the
+  // caller's error.
+  for (;;) {
+    try {
+      await page.evaluate(settleInPage);
+      return;
+    } catch (error) {
+      if (!DOCUMENT_REPLACED.test(String(error?.message))) throw error;
+    }
+  }
 }
 
 export async function pageCondition(page, predicate, arg) {
@@ -38,8 +59,24 @@ export async function pageCondition(page, predicate, arg) {
   return handle.jsonValue();
 }
 
-// Waits until the page URL matches `pattern` and returns it.
+// Waits until the main frame's URL matches `pattern` (a RegExp, or text the URL
+// must contain) and returns it. It listens to the page's own navigations, so
+// it ends when the page gets there, not on a clock.
 export async function urlMatching(page, pattern) {
-  await page.waitForURL(pattern);
-  return page.url();
+  const matches = (url) => (pattern instanceof RegExp ? pattern.test(url) : url.includes(pattern));
+  if (matches(page.url())) return page.url();
+  const { promise, resolve, reject } = Promise.withResolvers();
+  const onNavigated = (frame) => {
+    if (frame !== page.mainFrame() || !matches(frame.url())) return;
+    resolve(frame.url());
+  };
+  const onClose = () => reject(new Error(`page closed before its URL matched ${pattern}; last URL ${page.url()}`));
+  page.on('framenavigated', onNavigated);
+  page.once('close', onClose);
+  try {
+    return await promise;
+  } finally {
+    page.off('framenavigated', onNavigated);
+    page.off('close', onClose);
+  }
 }

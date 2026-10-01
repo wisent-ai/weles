@@ -13,11 +13,10 @@ import { checkReachable } from '../../../_shared/action-runner.mjs';
 import { detectRedditBanSignals } from '../../../../../dist/platforms/reddit/ban_signals.js';
 import { humanScroll, humanIdlePause, humanClickLocator, humanHoverDwell } from '../../../../../dist/human/mouse.js';
 import { humanType } from '../../../../../dist/human/keyboard.js';
-import { probeCommentVisibility, probeShadowban } from '../../../../../dist/platforms/reddit/shadowban_probe.js';
+import { recordCommentForVerify, verifyPreviousComment } from './steps/deferred_verify.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../../../dist/session/run-recordings.js';
-import { updateAccountMetadata } from '../../../_shared/skarbiec/accounts.mjs';
 
 // Newbie-tolerant subs — high comment volume, light AutoMod, no karma gate.
 // The default 'popular' lands on mega-threads where comments are routinely
@@ -36,11 +35,10 @@ const SUBREDDIT = (RAW_SUBREDDIT === 'popular' || RAW_SUBREDDIT === 'all')
   ? NEWBIE_FRIENDLY_SUBS[Math.floor(Math.random() * NEWBIE_FRIENDLY_SUBS.length)]
   : RAW_SUBREDDIT;
 
-// Deferred clean-session verify: wait this long after submit before re-checking
-// the comment's public visibility via a fresh proxy + no cookies. Reddit's
-// async spam classifier runs on a 60-300s delay — checking inside that window
-// produces "looks fine, then minutes later it's gone" false positives.
-const DEFER_VERIFY_MS = Number(process.env.DEFER_VERIFY_MS ?? 300_000); // 5 min
+// Deferred clean-session verify: Reddit's async spam classifier removes
+// comments minutes after submit, so each run records its comment and the next
+// run on the account re-checks it from a fresh proxy with no cookies
+// (steps/deferred_verify.mjs).
 
 const acct = await getSocialAccount('reddit');
 if (!acct) { console.log('FAIL: no active reddit account'); process.exit(1); }
@@ -53,6 +51,7 @@ const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'reddit_organic_comment', proxy: proxyUrl, persona });
 let banSignal = null;
 try {
+  await verifyPreviousComment(acct);
   // Inject saved reddit cookies — anonymous .json fetches hit the JS-challenge
   // wall on residential proxies. With session cookies the listing returns directly.
   const cookies = (acct.metadata?.cookies ?? []).filter(c => (c.domain ?? '').includes('reddit.com'));
@@ -127,31 +126,18 @@ try {
   console.log(`[ban-signal] ${banSignal?.signal}`);
   console.log('PASS: commented');
 
-  // Deferred clean-session verify — Reddit's async spam classifier runs on a
-  // 60-300s delay. The same-session 60s polling check inside execute() above
-  // can return PASS while the comment is removed minutes later. Wait
-  // DEFER_VERIFY_MS, then re-fetch the user's public comments via a fresh
-  // proxy (different sticky exit IP, no cookies). If our comment is missing
-  // from that clean view, mark this trajectory as a deferred-shadowban hit.
-  // We can't reliably get the comment id from the agent-loop submit, so the
-  // probe falls back to a multi-vantage about.json check — if the account
-  // itself is shadowbanned, that's the same root failure.
-  if (DEFER_VERIFY_MS > 0 && !banSignal) {
+  // Deferred clean-session verify — Reddit's async spam classifier removes
+  // comments minutes after submit. We can't reliably get the comment id from
+  // the agent-loop submit, so the next run falls back to the multi-vantage
+  // account probe of this handle.
+  if (!banSignal) {
     const realHandle = await s.page.evaluate(async () => {
-      try { const r = await fetch('/api/me.json', { credentials: 'include' }); const j = await r.json(); return j?.data?.name ?? null; } catch { return null; }
-    }).catch(() => null);
-    if (realHandle) {
-      console.log(`[deferred-verify] waiting ${DEFER_VERIFY_MS / 1000}s before clean-session probe of ${realHandle}`);
-      await new Promise(r => setTimeout(r, DEFER_VERIFY_MS));  // allow-raw-playwright: polling/rate-limit loop
-      const probe = await probeShadowban(realHandle, 3).catch((e) => ({ verdict: 'indeterminate', vantages: [], err: e?.message }));
-      console.log(`[deferred-verify] verdict=${probe.verdict}`);
-      if (probe.verdict === 'shadowbanned') {
-        banSignal = { signal: 'shadowbanned', healthy: false, details: { real_handle: realHandle, reason: 'multi-vantage about.json 404 after deferred verify', vantages: probe.vantages } };
-        updateAccountMetadata(acct.id, { status: 'shadowbanned' });
-        console.log(`[deferred-verify] auto-flagged ${acct.username} status=shadowbanned in Skarbiec`);
-        throw new Error(`account shadowbanned (deferred verify, ${probe.vantages.filter(v => v.status === 404).length}/${probe.vantages.length} vantages 404)`);
-      }
-    }
+      const r = await fetch('/api/me.json', { credentials: 'include' });
+      const j = await r.json();
+      return j?.data?.name ?? null;
+    });
+    if (!realHandle) throw new Error('reddit organic comment: /api/me.json returned no handle, so the comment cannot be recorded for the deferred verify');
+    recordCommentForVerify(acct, { resolvedOldUrl: '', postedCommentId: '', handle: realHandle });
   }
 } catch (e) {
   banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);

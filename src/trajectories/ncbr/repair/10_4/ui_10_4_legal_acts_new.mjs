@@ -17,7 +17,7 @@ if (!page) {
   console.log(JSON.stringify({ error: 'NO_PAGE' }, null, 2));
   process.exit(1);
 }
-page.setDefaultTimeout(15000);
+
 
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: authenticated LSI section navigation
 await humanIdlePause('long');

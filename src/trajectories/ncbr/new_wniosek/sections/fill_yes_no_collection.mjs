@@ -19,7 +19,7 @@ const ANSWER = process.env.ANSWER || cfg.answer;
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
 if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' })); process.exit(0); }
-page.setDefaultTimeout(12000);
+
 
 await page.goto(PROJ + cfg.id, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');

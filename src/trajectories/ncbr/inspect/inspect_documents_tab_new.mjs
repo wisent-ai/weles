@@ -16,7 +16,7 @@ if (!page) {
   console.log(JSON.stringify({ error: 'NO_PAGE' }, null, 2));
   process.exit(1);
 }
-page.setDefaultTimeout(15000);
+
 
 if (!process.env.CURRENT_VIEW) {
 await page.goto(projectUrl, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: read-only navigation
@@ -62,8 +62,8 @@ if (process.env.DOWNLOAD_CURRENT_PDF) {
   // The in-app viewer renders the whole application before its download button appears; the download itself
   // starts only after the server has assembled the PDF, so both waits get a minute rather than the page default.
   const button = page.getByRole('button', { name: 'Pobierz PDF', exact: true }).filter({ visible: true });
-  await button.waitFor({ state: 'visible', timeout: 60_000 });
-  const pending = page.waitForEvent('download', { timeout: 60_000 });
+  await button.waitFor({ state: 'visible' });
+  const pending = page.waitForEvent('download');
   await humanClickLocator(page, button);
   const download = await pending;
   await download.saveAs(process.env.DOWNLOAD_CURRENT_PDF);

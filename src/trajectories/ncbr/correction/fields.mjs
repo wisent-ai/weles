@@ -114,7 +114,7 @@ export async function verifyPrepared(page, fields) {
     }
     if (field.control === 'autocomplete') {
       const display = choiceInput(locator);
-      await page.waitForFunction((element) => element.isConnected && element.value.trim() !== '', await display.elementHandle(), { timeout: 10_000 }).catch(() => {});
+      await page.waitForFunction((element) => element.isConnected && element.value.trim() !== '', await display.elementHandle(), { polling: 'raf' });
       field.actualLabel = await display.inputValue();
       field.persisted &&= normalize(field.actualLabel).includes(normalize(field.optionLabel));
     }

@@ -3,17 +3,12 @@
 import { spawnSync } from 'node:child_process';
 import { SESSION, WELES } from './source.mjs';
 
-export function wait(ms) {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+export function settle() {
+  action(['settle']);
 }
 
-export function action(args, timeout = 120000, optional = false) {
-  const result = spawnSync(process.execPath, ['src/keeper/action.mjs', ...args], {
-    cwd: WELES,
-    env: { ...process.env, SESSION },
-    encoding: 'utf8',
-    timeout,
-  });
+export function action(args, optional = false) {
+  const result = spawnSync(process.execPath, ['src/keeper/action.mjs', ...args], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' });
   if (result.status !== 0) {
     if (optional) return { ok: false, stdout: result.stdout, stderr: result.stderr, status: result.status };
     const printable = args.map((arg, i) => (i >= 2 && String(arg).length > 500 ? `${String(arg).slice(0, 500)}...[${String(arg).length} chars]` : arg)).join(' ');
@@ -27,13 +22,13 @@ export function action(args, timeout = 120000, optional = false) {
   return JSON.parse(out);
 }
 
-export function evalRead(js, timeout = 60000) {
-  return action(['eval', js], timeout).result;
+export function evalRead(js) {
+  return action(['eval', js]).result;
 }
 
 export function nav(url) {
-  action(['nav', url], 180000);
-  action(['humanidle', 'long'], 60000, true);
+  action(['nav', url]);
+  action(['humanidle', 'long'], true);
 }
 
 export function fill(selector, value) {
@@ -57,20 +52,20 @@ export function fill(selector, value) {
     fire(new Event('blur', { bubbles: true }));
     return { ok: true, len: el.value.length, max };
   })()`;
-  const out = evalRead(js, 120000);
+  const out = evalRead(js);
   if (!out?.ok) throw new Error(`fill failed for ${selector}: ${out?.error || 'unknown'}`);
   return out;
 }
 
 export function click(selector, optional = false) {
-  const out = action(['click', selector], 90000, optional);
-  action(['humanidle', 'short'], 60000, true);
+  const out = action(['click', selector], optional);
+  action(['humanidle', 'short'], true);
   return out;
 }
 
 export function press(key) {
-  action(['press', key], 60000, true);
-  action(['humanidle', 'short'], 60000, true);
+  action(['press', key], true);
+  action(['humanidle', 'short'], true);
 }
 
 export function fieldSelector(suffix) {

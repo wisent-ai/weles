@@ -6,11 +6,11 @@ import { humanIdlePause, humanScroll, humanClickLocator } from '../../../../dist
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
-import { DEFER_VERIFY_MS } from './comment/steps/constants.mjs';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 import { restoreRedditSession } from './comment/steps/session_restore.mjs';
 import { readOwnHandle, resolveTargetPost } from './comment/steps/reddit_json.mjs';
 import { classifyInvisibleComment, confirmBlockingSignal, pollPublicVisibility } from './comment/steps/visibility.mjs';
-import { deferredCleanSessionVerify } from './comment/steps/deferred_verify.mjs';
+import { recordCommentForVerify, verifyPreviousComment } from './comment/steps/deferred_verify.mjs';
 
 // Use old.reddit.com — comment composer is a plain visible <textarea name="text">
 // inside a normal form. New reddit.com puts the composer inside <shreddit-composer>'s
@@ -93,35 +93,32 @@ async function writeComment() {
 }
 
 /**
- * Wait for the comment to appear in our own page. Returns the authored
+ * Read our own page once it has settled after the submit. Returns the authored
  * comment's id, 'POSTED_NO_ID' when the body is on the page but the node was
- * not found, or false when it never appeared.
+ * not found, or false when it is not there.
  */
-async function waitForLocalPost() {
-  for (let i = 0; i < 12; i++) {
-    await humanIdlePause('short');
-    const found = await s.page.evaluate((body) => {
-      const text = document.body?.innerText ?? '';
-      if (!text.includes(body)) return false;
-      // Find the comment node we just authored — old.reddit renders
-      // <div id="thing_t1_<id>" class="thing id-t1_<id> ..."> for each comment.
-      const things = document.querySelectorAll('div[id^="thing_t1_"]');
-      for (const el of things) {
-        const md = el.querySelector('.usertext-body, .md');
-        if (md && md.textContent && md.textContent.includes(body)) {
-          const m = el.id.match(/^thing_t1_([a-z0-9]+)$/);
-          if (m) return m[1];
-        }
+async function readLocalPost() {
+  await pageSettled(s.page);
+  return s.page.evaluate((body) => {
+    const text = document.body?.innerText ?? '';
+    if (!text.includes(body)) return false;
+    // Find the comment node we just authored — old.reddit renders
+    // <div id="thing_t1_<id>" class="thing id-t1_<id> ..."> for each comment.
+    const things = document.querySelectorAll('div[id^="thing_t1_"]');
+    for (const el of things) {
+      const md = el.querySelector('.usertext-body, .md');
+      if (md && md.textContent && md.textContent.includes(body)) {
+        const m = el.id.match(/^thing_t1_([a-z0-9]+)$/);
+        if (m) return m[1];
       }
-      return 'POSTED_NO_ID';
-    }, COMMENT_BODY).catch(() => false);
-    if (found) return found;
-  }
-  return false;
+    }
+    return 'POSTED_NO_ID';
+  }, COMMENT_BODY);
 }
 
 let banSignal = false;
 try {
+  await verifyPreviousComment(acct);
   await restoreRedditSession(s, acct);
   await s.page.goto('https://old.reddit.com/api/me.json', { waitUntil: 'domcontentloaded' });
   await humanIdlePause('deliberate');
@@ -138,10 +135,10 @@ try {
   // The optimistic in-page check (body text appearing in page innerText) was
   // returning true even when a spam filter removed the comment server-side a
   // few seconds after submit, so the trajectory printed PASS while the comment
-  // never made it to public listing. Two-step verification: (a) wait for the
-  // body to appear locally (submit confirmed), (b) re-fetch the permalink JSON
-  // and confirm the comment is in the public tree.
-  const found = await waitForLocalPost();
+  // never made it to public listing. Two-step verification: (a) read the
+  // settled page for the body (submit confirmed), (b) re-fetch the permalink
+  // JSON and confirm the comment is in the public tree.
+  const found = await readLocalPost();
   const postedCommentId = found && found !== 'POSTED_NO_ID' ? found : false;
   banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => false);
   if (!found) throw new Error(`submit did not confirm — body did not appear in page text`);
@@ -156,7 +153,7 @@ try {
   console.log('[ban-signal] healthy');
   console.log(`PASS: commented "${COMMENT_BODY}" on ${resolvedOldUrl} (verified public, in-session)`);
 
-  if (DEFER_VERIFY_MS > 0) await deferredCleanSessionVerify({ acct, resolvedOldUrl, postedCommentId, handle });
+  recordCommentForVerify(acct, { resolvedOldUrl, postedCommentId, handle });
 } catch (e) {
   if (e.banSignal) banSignal = e.banSignal;
   if (!banSignal) banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => false);

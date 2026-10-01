@@ -84,8 +84,7 @@ export async function save(page, collection = false, expected = [], saveButton =
   const sent = JSON.stringify(JSON.parse(response.request().postData() || 'null'));
   const missing = expected.filter((field) => !sent.includes(JSON.stringify(field.expected)));
   if (missing.length) throw new Error(`Save request omitted ${missing.map((field) => field.name).join(', ')}: ${sent.slice(0, 4000)}`);
-  // The accepted response and the post-reload verification prove the save; the toast can vanish before it is observed.
-  await page.getByText('Zapisano dane', { exact: true }).waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+  // The accepted response and the post-reload verification prove the save; the toast can vanish before it is observed, so it is not waited for.
   await page.waitForFunction(({ selector, label }) => {
     const element = label
       ? Array.from(document.querySelectorAll('button')).find((candidate) => candidate.textContent.trim() === label)

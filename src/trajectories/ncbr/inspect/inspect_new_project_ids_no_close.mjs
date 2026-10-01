@@ -2,6 +2,7 @@
 // Does not close the attached browser/page.
 
 import { chromium } from 'playwright';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const projectId = '7ee80d9a-67dd-4d99-becd-8dda407221c1';
@@ -16,8 +17,8 @@ if (!page) {
   process.exit(0);
 }
 
-await page.goto(`${base}/projekt/${projectId}/projekt_step/4e260fae-c455-41ce-bba3-d0df2a8767fd`, { waitUntil: 'domcontentloaded', timeout: 120000 });
-await page.waitForTimeout(5000);
+await page.goto(`${base}/projekt/${projectId}/projekt_step/4e260fae-c455-41ce-bba3-d0df2a8767fd`, { waitUntil: 'domcontentloaded' });
+await pageSettled(page);
 
 const result = await page.evaluate(async ({ base, projectId }) => {
   async function fetchText(path) {

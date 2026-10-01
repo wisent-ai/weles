@@ -36,13 +36,8 @@ const ownIndicators = ownBlock.split(/^### /m).slice(1).map((raw) => {
   };
 }).filter((x) => x.name && !/HarmBench|attack success rate/i.test(x.name));
 
-function action(args, timeout = 120000, optional = false) {
-  const result = spawnSync(process.execPath, ['src/_shared/keeper/action.mjs', ...args], {
-    cwd: WELES,
-    env: { ...process.env, SESSION },
-    encoding: 'utf8',
-    timeout,
-  });
+function action(args, optional = false) {
+  const result = spawnSync(process.execPath, ['src/_shared/keeper/action.mjs', ...args], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' });
   if (result.status !== 0) {
     if (optional) return { ok: false, stdout: result.stdout, stderr: result.stderr };
     throw new Error(`${args.join(' ')}\nstdout=${result.stdout}\nstderr=${result.stderr}`);
@@ -50,20 +45,20 @@ function action(args, timeout = 120000, optional = false) {
   return JSON.parse(result.stdout.trim());
 }
 
-function read(js, timeout = 60000) {
-  return action(['eval', js], timeout).result;
+function read(js) {
+  return action(['eval', js]).result;
 }
 
 function idle(kind = 'short') {
-  action(['humanidle', kind], 60000, true);
+  action(['humanidle', kind], true);
 }
 
 function tableText() {
-  return read(`(() => Array.from(document.querySelectorAll('table')).map((t) => t.innerText.replace(/\\s+/g, ' ')).join('\\n'))()`, 60000);
+  return read(`(() => Array.from(document.querySelectorAll('table')).map((t) => t.innerText.replace(/\\s+/g, ' ')).join('\\n'))()`);
 }
 
 function rowCount() {
-  return read(`(() => Array.from(document.querySelectorAll('table')).map((t) => t.querySelectorAll('tbody tr').length))()`, 60000);
+  return read(`(() => Array.from(document.querySelectorAll('table')).map((t) => t.querySelectorAll('tbody tr').length))()`);
 }
 
 function fieldFill(name, value) {
@@ -84,17 +79,17 @@ function fieldFill(name, value) {
     fire(new Event('blur', { bubbles: true }));
     return { ok: true, len: el.value.length, max };
   })()`;
-  const out = read(js, 60000);
+  const out = read(js);
   if (!out?.ok) throw new Error(`fill failed ${name}: ${out?.error || 'unknown'}`);
   return out;
 }
 
 function save() {
-  return action(['click', 'button:has-text("Zapisz")'], 60000);
+  return action(['click', 'button:has-text("Zapisz")']);
 }
 
 const added = [];
-action(['nav', URL], 180000);
+action(['nav', URL]);
 idle('long');
 for (const ind of ownIndicators) {
   const current = tableText();
@@ -102,7 +97,7 @@ for (const ind of ownIndicators) {
     added.push({ name: ind.name, skipped: true });
     continue;
   }
-  action(['click', 'button:has-text("Dodaj")'], 90000);
+  action(['click', 'button:has-text("Dodaj")']);
   idle('long');
   const filled = [
     ['nazwa_wskaznika', ind.name],
@@ -117,7 +112,7 @@ for (const ind of ownIndicators) {
   idle('deliberate');
   const saved = save();
   idle('long');
-  action(['nav', URL], 180000);
+  action(['nav', URL]);
   idle('long');
   added.push({ name: ind.name, saved, filled });
 }

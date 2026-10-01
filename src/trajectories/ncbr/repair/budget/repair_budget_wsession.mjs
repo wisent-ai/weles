@@ -28,7 +28,7 @@ delete process.env.NCBR_PASSWORD;
 
 const session = await WSession.start({ label: 'ncbr_repair_budget_wsession', proxy: 'direct', browser: 'chromium' });
 const page = session.page;
-page.setDefaultTimeout(30000);
+
 
 const form = lsiForm({ page, session, email, password, KEEP_OPEN });
 const { finish, login, openRowMenu, clickMenu, saveVisibleForm, tableReadback } = form;
@@ -58,7 +58,7 @@ async function validateProject() {
     try { text = await res.text(); } catch { text = ''; }
     responses.push({ status: res.status(), url: res.url(), text });
   });
-  await page.goto(projectUrl, { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: project page for validation-only action
+  await page.goto(projectUrl, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: project page for validation-only action
   await humanIdlePause('long');
   const validate = page.getByRole('button', { name: 'Sprawdź wniosek', exact: true }).filter({ visible: true }).first();
   const clicked = await validate.isEnabled().catch(() => false)
@@ -110,7 +110,7 @@ try {
     await finish({ dumpOnly: true, url: page.url(), readback63, readback65 });
   }
   if (process.env.DUMP_ROW) {
-    await page.goto(URL_63, { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: budget section navigation for row diagnosis
+    await page.goto(URL_63, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: budget section navigation for row diagnosis
     await humanIdlePause('long');
     await openRowMenu(process.env.DUMP_ROW);
     await clickMenu(/Edytuj/i);

@@ -16,9 +16,9 @@ if (!email || !password) {
 const browser = await chromium.connectOverCDP(endpoint);
 const context = browser.contexts()[0] || await browser.newContext();
 const page = context.pages()[0] || await context.newPage();
-page.setDefaultTimeout(30000);
 
-await page.goto('https://lsi2.ncbr.gov.pl/logowanie', { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: public LSI login page navigation
+
+await page.goto('https://lsi2.ncbr.gov.pl/logowanie', { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: public LSI login page navigation
 await humanIdlePause('long');
 const emailInput = page.locator('#mail, input[name="mail"]').first();
 await humanClickLocator(page, emailInput);
@@ -38,7 +38,7 @@ await button.waitFor({ state: 'visible' });
 await humanIdlePause('deliberate');
 const beforeClick = await button.evaluate((b) => ({ disabled: b.disabled, text: b.innerText.trim() })).catch((e) => ({ error: String(e?.message || e) }));
 await humanClickLocator(page, button);
-await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => null);
+await page.waitForLoadState('load');
 await humanIdlePause('long');
 
 console.log(JSON.stringify({

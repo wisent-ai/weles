@@ -11,7 +11,7 @@ const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8d
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
 if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' })); process.exit(0); }
-page.setDefaultTimeout(10000);
+
 
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');

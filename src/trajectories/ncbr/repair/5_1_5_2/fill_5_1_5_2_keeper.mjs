@@ -11,13 +11,8 @@ const SECTIONS = [
   ['5.2', '01ba2656-83fd-44d0-8908-bb31034018b0'],
 ];
 
-function action(args, timeout = 120000, optional = false) {
-  const result = spawnSync(process.execPath, ['src/_shared/keeper/action.mjs', ...args], {
-    cwd: WELES,
-    env: { ...process.env, SESSION },
-    encoding: 'utf8',
-    timeout,
-  });
+function action(args, optional = false) {
+  const result = spawnSync(process.execPath, ['src/_shared/keeper/action.mjs', ...args], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' });
   if (result.status !== 0) {
     if (optional) return { ok: false, stdout: result.stdout, stderr: result.stderr };
     throw new Error(`${args.join(' ')}\nstdout=${result.stdout}\nstderr=${result.stderr}`);
@@ -26,11 +21,11 @@ function action(args, timeout = 120000, optional = false) {
 }
 
 function read(js) {
-  return action(['eval', js], 60000).result;
+  return action(['eval', js]).result;
 }
 
 function idle(kind = 'short') {
-  action(['humanidle', kind], 60000, true);
+  action(['humanidle', kind], true);
 }
 
 function tableRows() {
@@ -71,7 +66,7 @@ function setRadioNie() {
 
 const out = [];
 for (const [label, id] of SECTIONS) {
-  action(['nav', `${PROJECT}${id}`], 180000);
+  action(['nav', `${PROJECT}${id}`]);
   idle('long');
   let before = tableRows();
   if ((before[0]?.rows || 0) === 0) {
@@ -79,11 +74,11 @@ for (const [label, id] of SECTIONS) {
     idle('long');
     const applicant = openApplicant();
     idle('deliberate');
-    const appClick = action(['click', 'text="Wisent Polska"'], 60000, true);
+    const appClick = action(['click', 'text="Wisent Polska"'], true);
     idle('short');
     const radio = setRadioNie();
     idle('deliberate');
-    const save = action(['click', 'button:has-text("Zapisz")'], 120000, true);
+    const save = action(['click', 'button:has-text("Zapisz")'], true);
     idle('long');
     out.push({ label, before, applicant, appClick, radio, save, after: tableRows() });
   } else {

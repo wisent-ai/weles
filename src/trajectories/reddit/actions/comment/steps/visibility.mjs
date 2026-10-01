@@ -1,5 +1,4 @@
 import { humanIdlePause } from '../../../../../../dist/human/mouse.js';
-import { VISIBILITY_POLLS } from './constants.mjs';
 import { contextRead, ownListingHas, publicAboutStatus, readOwnHandle } from './reddit_json.mjs';
 
 /**
@@ -47,39 +46,25 @@ export async function confirmBlockingSignal(s, banSignal, body) {
  * seen on the last poll.
  */
 export async function pollPublicVisibility(s, { baseUrl, postedCommentId, handle, body }) {
-  let publiclyVisible = false;
-  let stillVisibleAtEnd = false;
-  const last = VISIBILITY_POLLS - 1;
-  for (let poll = 0; poll < VISIBILITY_POLLS; poll++) {
-    await humanIdlePause('long');
-    const report = poll === 0 || poll === last;
-    try {
-      let has = false;
-      if (postedCommentId) {
-        // Reddit's comment-permalink JSON format is /r/<sub>/comments/<post>/<post-slug>/<comment-id>/.json
-        // (NOT /r/<sub>/comments/<post>/<post-slug>/comment/<comment-id>/.json — the
-        // /comment/ segment causes 404). Verified 2026-04-29 with oj0vwon:
-        // /comment/oj0vwon/.json → 404, /oj0vwon/.json → 200 + full JSON.
-        const { status, body: text } = await contextRead(s, `${baseUrl}/${postedCommentId}/.json`);
-        let j = false; try { j = JSON.parse(text); } catch { /* not JSON: the permalink answered with a page */ }
-        const commentNode = j?.[1]?.data?.children?.[0];
-        has = commentNode?.kind === 't1' && commentNode?.data?.id === postedCommentId && (!handle || commentNode?.data?.author === handle);
-        if (report) console.log(`[verify-poll attempt=${poll}] permalink id=${postedCommentId} status=${status} hasMatch=${has}`);
-      } else if (handle) {
-        const { status, body: text } = await contextRead(s, `https://old.reddit.com/user/${encodeURIComponent(handle)}/comments/.json?limit=25&sort=new`);
-        has = text.includes(body);
-        if (report) console.log(`[verify-poll attempt=${poll}] handle=${handle} userListing status=${status} bodyLen=${text.length} hasMatch=${has}`);
-      } else if (poll === 0) {
-        console.log(`[verify-poll attempt=${poll}] no postedCommentId AND no handle — skipping`);
-      }
-      if (has) publiclyVisible = true;
-      stillVisibleAtEnd = has;
-    } catch (e) {
-      if (report) console.log(`[verify-poll attempt=${poll}] error: ${e.message?.slice(0, 200)}`);
-    }
+  if (postedCommentId) {
+    // Reddit's comment-permalink JSON format is /r/<sub>/comments/<post>/<post-slug>/<comment-id>/.json
+    // (NOT /r/<sub>/comments/<post>/<post-slug>/comment/<comment-id>/.json — the
+    // /comment/ segment causes 404). Verified 2026-04-29 with oj0vwon:
+    // /comment/oj0vwon/.json → 404, /oj0vwon/.json → 200 + full JSON.
+    const { status, body: text } = await contextRead(s, `${baseUrl}/${postedCommentId}/.json`);
+    let j = false; try { j = JSON.parse(text); } catch { /* not JSON: the permalink answered with a page */ }
+    const commentNode = j?.[1]?.data?.children?.[0];
+    const has = commentNode?.kind === 't1' && commentNode?.data?.id === postedCommentId && (!handle || commentNode?.data?.author === handle);
+    console.log(`[verify] permalink id=${postedCommentId} status=${status} hasMatch=${has}`);
+    return { publiclyVisible: has, stillVisibleAtEnd: has };
   }
-  // Require persistence at the end of the window, not just transient visibility.
-  return { publiclyVisible: publiclyVisible && stillVisibleAtEnd, stillVisibleAtEnd };
+  if (handle) {
+    const { status, body: text } = await contextRead(s, `https://old.reddit.com/user/${encodeURIComponent(handle)}/comments/.json?limit=25&sort=new`);
+    const has = text.includes(body);
+    console.log(`[verify] handle=${handle} userListing status=${status} bodyLen=${text.length} hasMatch=${has}`);
+    return { publiclyVisible: has, stillVisibleAtEnd: has };
+  }
+  throw new Error('reddit comment verify: neither a posted comment id nor the account handle is known, so public visibility cannot be read');
 }
 
 /**

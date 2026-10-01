@@ -82,7 +82,7 @@ function joinFields(fields) {
 }
 
 async function waitForControls(page) {
-  await page.waitForSelector('textarea, input, table, button', { timeout: 15_000 }).catch(() => {}); // allow-raw-playwright: wait for rendered LSI controls before read-only extraction
+  await page.waitForSelector('textarea, input, table, button'); // allow-raw-playwright: wait for rendered LSI controls before read-only extraction
 }
 
 async function visibleFields(page) {
@@ -140,7 +140,7 @@ async function closeRow(page) {
 
 async function extractSection(page, section) {
   console.error(`[ncbr-pangram] extracting ${section.id} ${section.title}`);
-  await page.goto(section.url, { waitUntil: 'domcontentloaded', timeout: 30_000 }); // allow-raw-playwright: read-only LSI section navigation
+  await page.goto(section.url, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: read-only LSI section navigation
   await waitForControls(page);
   await humanIdlePause('long');
   await page.evaluate(() => {
@@ -154,7 +154,7 @@ async function extractSection(page, section) {
     console.error(`[ncbr-pangram] ${section.id}: visible=${fields.length} rows=${rows}`);
     for (let i = 0; i < rows; i += 1) {
       console.error(`[ncbr-pangram] ${section.id}: reading row ${i + 1}/${rows}`);
-      await page.goto(section.url, { waitUntil: 'domcontentloaded', timeout: 30_000 }); // allow-raw-playwright: reset before next row read
+      await page.goto(section.url, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: reset before next row read
       await waitForControls(page);
       await humanIdlePause('long');
       if (!await openRowForRead(page, i)) continue;
@@ -181,12 +181,7 @@ function runPangram(item, textFile, reportDir) {
   for (const path of [resultPath, banPath]) {
     if (existsSync(path)) rmSync(path, { force: true });
   }
-  const res = spawnSync(process.execPath, ['src/trajectories/pangram/analyze_text.mjs'], {
-    cwd: process.cwd(),
-    env,
-    encoding: 'utf8',
-    timeout: Number(process.env.PANGRAM_SECTION_TIMEOUT_MS || 180_000),
-  });
+  const res = spawnSync(process.execPath, ['src/trajectories/pangram/analyze_text.mjs'], { cwd: process.cwd(), env, encoding: 'utf8' });
   const result = existsSync(resultPath) ? JSON.parse(readFileSync(resultPath, 'utf8')) : null;
   const banSignal = existsSync(banPath) ? JSON.parse(readFileSync(banPath, 'utf8')) : null;
   const logPath = join(reportDir, `${slug(item.section_id)}.pangram.log`);
@@ -196,7 +191,7 @@ function runPangram(item, textFile, reportDir) {
     title: item.title,
     exitCode: res.status,
     signal: res.signal,
-    timedOut: Boolean(res.error && /timed out/i.test(String(res.error.message || res.error))),
+    spawnError: res.error ? String(res.error.message || res.error) : null,
     logPath,
     result,
     banSignal,
@@ -209,7 +204,7 @@ if (!page) {
   console.log(JSON.stringify({ error: 'NO_PAGE' }, null, 2));
   process.exit(1);
 }
-page.setDefaultTimeout(30_000);
+
 
 const reportDir = runRecordingsDir('ncbr_pangram_audit');
 const textDir = join(reportDir, 'sections');

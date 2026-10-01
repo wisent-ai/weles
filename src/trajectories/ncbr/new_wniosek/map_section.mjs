@@ -39,7 +39,7 @@ if (SECTION_GROUP) {
   if (await group.getAttribute('aria-expanded') !== 'true') {
     await humanClickLocator(page, group.locator('.MuiTreeItem-content').first());
     await humanIdlePause('long');
-    await page.waitForFunction((element) => element.getAttribute('aria-expanded') === 'true', await group.elementHandle(), { timeout: 15_000 });
+    await page.waitForFunction((element) => element.getAttribute('aria-expanded') === 'true', await group.elementHandle(), { polling: 'raf' });
   }
   const children = group.locator(':scope > ul li[role="treeitem"]');
   navChildren = await children.evaluateAll((nodes) => nodes.map((node) => ({

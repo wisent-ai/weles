@@ -19,7 +19,7 @@ const out = {
 };
 
 try {
-  out.current = await send({ action: 'url' }, 30000);
+  out.current = await send({ action: 'url' });
   out.login = await loginIfNeeded();
   if (out.login.status === 'needs_credentials' || out.login.status === 'still_login_page') {
     throw new Error(`login failed: ${out.login.status}`);
@@ -27,13 +27,13 @@ try {
   if (process.env.NAV_LABEL) {
     const state = await navigateByVisibleLabel(process.env.NAV_LABEL);
     if (process.env.EDIT_ROW_TEXT) {
-      await send({ action: 'click', selector: `tr:has-text(${JSON.stringify(process.env.EDIT_ROW_TEXT)}) button[aria-label="overflow-options"]` }, 120000);
-      await send({ action: 'humanidle', kind: 'deliberate' }, 60000).catch(() => null);
-      await send({ action: 'click', selector: `text="Edytuj"` }, 120000);
-      await send({ action: 'humanidle', kind: 'long' }, 60000).catch(() => null);
+      await send({ action: 'click', selector: `tr:has-text(${JSON.stringify(process.env.EDIT_ROW_TEXT)}) button[aria-label="overflow-options"]` });
+      await send({ action: 'humanidle', kind: 'deliberate' }).catch(() => null);
+      await send({ action: 'click', selector: `text="Edytuj"` });
+      await send({ action: 'humanidle', kind: 'long' }).catch(() => null);
       const editState = await dumpCurrent(`${process.env.NAV_LABEL}__edit`);
-      await send({ action: 'click', selector: `button:has-text("Anuluj")` }, 120000).catch(() => null);
-      await send({ action: 'humanidle', kind: 'short' }, 60000).catch(() => null);
+      await send({ action: 'click', selector: `button:has-text("Anuluj")` }).catch(() => null);
+      await send({ action: 'humanidle', kind: 'short' }).catch(() => null);
       const fp = join(OUT_DIR, `edit_${String(process.env.EDIT_ROW_TEXT).replace(/[^a-zA-Z0-9]+/g, '_').slice(0, 80)}.json`);
       writeFileSync(fp, JSON.stringify({ ...out, nav: state, edit: editState }, null, 2));
       console.log(JSON.stringify({

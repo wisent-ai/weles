@@ -43,13 +43,8 @@ const params = md
   }))
   .filter((p) => p.name);
 
-function action(args, timeout = 120000, optional = false) {
-  const result = spawnSync(process.execPath, ['src/_shared/keeper/action.mjs', ...args], {
-    cwd: WELES,
-    env: { ...process.env, SESSION },
-    encoding: 'utf8',
-    timeout,
-  });
+function action(args, optional = false) {
+  const result = spawnSync(process.execPath, ['src/_shared/keeper/action.mjs', ...args], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' });
   if (result.status !== 0) {
     if (optional) return { ok: false, stdout: result.stdout, stderr: result.stderr };
     throw new Error(`${args.join(' ')}\nstdout=${result.stdout}\nstderr=${result.stderr}`);
@@ -57,12 +52,12 @@ function action(args, timeout = 120000, optional = false) {
   return JSON.parse(result.stdout.trim());
 }
 
-function read(js, timeout = 60000) {
-  return action(['eval', js], timeout).result;
+function read(js) {
+  return action(['eval', js]).result;
 }
 
 function idle(kind = 'short') {
-  action(['humanidle', kind], 60000, true);
+  action(['humanidle', kind], true);
 }
 
 function tableText() {
@@ -87,7 +82,7 @@ function fill(selector, value) {
     fire(new Event('blur', { bubbles: true }));
     return { ok: true, len: el.value.length, max };
   })()`;
-  const out = read(js, 60000);
+  const out = read(js);
   if (!out?.ok) throw new Error(`fill failed ${selector}: ${out?.error || 'unknown'}`);
   return out;
 }
@@ -108,7 +103,7 @@ function rowCount() {
 }
 
 const added = [];
-action(['nav', URL], 180000);
+action(['nav', URL]);
 idle('long');
 for (const p of params) {
   const current = tableText();
@@ -128,7 +123,7 @@ for (const p of params) {
   idle('deliberate');
   const save = clickLastSave();
   idle('long');
-  action(['nav', URL], 180000);
+  action(['nav', URL]);
   idle('long');
   added.push({ name: p.name, save });
 }

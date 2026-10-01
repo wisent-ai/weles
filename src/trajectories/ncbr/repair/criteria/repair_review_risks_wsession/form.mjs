@@ -15,7 +15,7 @@ async function setReactInputValue(locator, value) {
 }
 
 async function login() {
-  await page.goto('https://lsi2.ncbr.gov.pl/logowanie', { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: LSI login navigation
+  await page.goto('https://lsi2.ncbr.gov.pl/logowanie', { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: LSI login navigation
   await humanIdlePause('long');
   await setReactInputValue(page.locator('#mail, input[name="mail"]').first(), email);
   await setReactInputValue(page.locator('#password, input[name="password"]').first(), password);
@@ -25,9 +25,9 @@ async function login() {
   await page.waitForFunction(() => {
     const btn = document.querySelector('#login-btn') || Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Zaloguj');
     return !!btn && !btn.disabled;
-  }, null, { timeout: 10000 }).catch(() => null); // allow-raw-playwright: wait for login validation
+  }, null, { polling: 'raf' }); // allow-raw-playwright: wait for login validation
   await humanClickLocator(page, page.locator('#login-btn, button:has-text("Zaloguj")').first());
-  await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => null);
+  await page.waitForLoadState('load');
   await humanIdlePause('long');
   if (page.url().includes('/logowanie')) throw new Error('login stayed on login page');
 }

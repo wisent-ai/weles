@@ -124,7 +124,7 @@ async function readDeclared(name, value, scope) {
 // Say that instead of reporting an empty section.
 async function assertRendered(scope, selector) {
   try {
-    await page.waitForSelector(selector, { state: 'attached', timeout: Number('45000') });
+    await page.waitForSelector(selector, { state: 'attached' });
   } catch (error) {
     const url = page.url();
     if (url.includes('/logowanie')) {

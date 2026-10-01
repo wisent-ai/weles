@@ -12,7 +12,7 @@ const LIST_URL = 'https://lsi2.ncbr.gov.pl/konkursy/w-trakcie-naboru';
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
 if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' }, null, 2)); process.exit(1); }
-page.setDefaultTimeout(20000);
+
 
 const responses = [];
 page.on('response', async (res) => {
@@ -76,7 +76,7 @@ async function clickCall() {
   if (clicked) await humanClickLocator(page, callLink);
   if (!clicked) throw new Error(`call link not found: ${CALL}`);
   await humanIdlePause('long');
-  await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => null);
+  await page.waitForLoadState('load');
   await humanIdlePause('short');
 }
 
@@ -86,7 +86,7 @@ async function clickApplyLikeButton() {
   if (clicked) await humanClickLocator(page, target);
   if (!clicked) throw new Error('apply/start button not found');
   await humanIdlePause('long');
-  await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => null);
+  await page.waitForLoadState('load');
   await humanIdlePause('long');
 }
 
@@ -103,7 +103,7 @@ for (let i = 0; i < 3; i++) {
   if (!clicked) break;
   extraClicks.push(clicked);
   await humanIdlePause('long');
-  await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => null);
+  await page.waitForLoadState('load');
   await humanIdlePause('short');
   if (/\/projekt\/[^/]+/.test(page.url())) break;
 }

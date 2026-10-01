@@ -2,10 +2,8 @@
 // Opens existing rows via visible UI, reads fields/limits, closes with Anuluj.
 // Never saves, deletes, uploads, submits, withdraws, or calls LSI APIs.
 
-import net from 'node:net';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { keeperRequest, keeperSocket } from '../../_shared/keeper/client.mjs';
 
 const SESSION = process.env.SESSION || 'ncbr-step-b';
 const PROJECT_ID = process.env.NCBR_PROJECT_ID || '7ee80d9a-67dd-4d99-becd-8dda407221c1';
@@ -41,72 +39,49 @@ const SECTIONS = [
 
 mkdirSync(OUT_DIR, { recursive: true });
 
-function send(cmd, timeoutMs = 120000, optional = false) {
-  const sock = join(homedir(), '.weles', 'keeper', SESSION, 'socket');
-  return new Promise((resolve, reject) => {
-    const conn = net.createConnection(sock);
-    let buf = '';
-    let done = false;
-    const timer = setTimeout(() => {
-      if (done) return;
-      done = true;
-      conn.destroy();
-      const err = new Error(`keeper timeout for ${cmd.action}`);
-      if (optional) resolve({ ok: false, error: err.message });
-      else reject(err);
-    }, timeoutMs);
-    conn.on('connect', () => conn.write(`${JSON.stringify(cmd)}\n`));
-    conn.on('data', (chunk) => {
-      buf += chunk.toString();
-      const nl = buf.indexOf('\n');
-      if (nl < 0 || done) return;
-      done = true;
-      clearTimeout(timer);
-      conn.end();
-      const res = JSON.parse(buf.slice(0, nl));
-      if (!res.ok && !optional) reject(new Error(`${cmd.action} failed: ${res.error}`));
-      else resolve(res);
-    });
-    conn.on('error', (err) => {
-      if (done) return;
-      done = true;
-      clearTimeout(timer);
-      if (optional) resolve({ ok: false, error: err.message });
-      else reject(err);
-    });
-  });
+// The keeper's answer; with `optional` a refused or failed command comes back
+// as `{ ok: false, error }` for the caller to judge instead of throwing.
+async function action(cmd, optional = false) {
+  let res;
+  try {
+    res = await keeperRequest(keeperSocket(SESSION), cmd);
+  } catch (error) {
+    if (optional) return { ok: false, error: error.message };
+    throw error;
+  }
+  if (!res.ok && !optional) throw new Error(`${cmd.action} failed: ${res.error}`);
+  return res;
 }
 
-const action = (cmd, timeoutMs = 120000, optional = false) => send(cmd, timeoutMs, optional);
-const read = async (js) => (await action({ action: 'eval', js }, 120000)).result;
+const read = async (js) => (await action({ action: 'eval', js })).result;
 
-async function click(selector, timeoutMs = 90000, optional = false) {
-  const fast = await action({ action: 'click_fast', selector }, Math.min(timeoutMs, 25000), true);
+async function click(selector, optional = false) {
+  const fast = await action({ action: 'click_fast', selector }, true);
   if (fast.ok) return fast;
   if (optional) return fast;
   throw new Error(`click failed: ${selector}: ${fast.error || 'unknown'}`);
 }
 
-async function dispatchClick(selector, timeoutMs = 90000, optional = false) {
-  const res = await action({ action: 'dispatch_click', selector }, Math.min(timeoutMs, 25000), true);
+async function dispatchClick(selector, optional = false) {
+  const res = await action({ action: 'dispatch_click', selector }, true);
   if (res.ok) return res;
   if (optional) return res;
   throw new Error(`dispatch click failed: ${selector}: ${res.error || 'unknown'}`);
 }
 
 async function idle(kind = 'short') {
-  await action({ action: 'humanidle', kind }, 60000, true);
+  await action({ action: 'humanidle', kind }, true);
 }
 
 async function nav(label, id) {
-  await action({ action: 'nav', url: `${BASE}${id}` }, 180000);
+  await action({ action: 'nav', url: `${BASE}${id}` });
   await idle('long');
-  const url = await action({ action: 'url' }, 30000);
+  const url = await action({ action: 'url' });
   return { label, url: url.url };
 }
 
 async function loginIfNeeded() {
-  await action({ action: 'nav', url: PROJECT_URL }, 180000);
+  await action({ action: 'nav', url: PROJECT_URL });
   await idle('long');
   const state = await read(`(() => ({
     url: location.href,
@@ -115,16 +90,16 @@ async function loginIfNeeded() {
   }))()`);
   if (!state.hasMail || !state.hasPassword) return { status: 'already_authenticated_or_project_page', state };
   if (!EMAIL || !PASSWORD) throw new Error('login page reached but NCBR_EMAIL/NCBR_PASSWORD are not set');
-  await action({ action: 'fill', selector: '#mail, input[name="mail"]', text: EMAIL }, 120000);
+  await action({ action: 'fill', selector: '#mail, input[name="mail"]', text: EMAIL });
   await idle('short');
-  await action({ action: 'fill', selector: '#password, input[name="password"]', text: PASSWORD }, 120000);
+  await action({ action: 'fill', selector: '#password, input[name="password"]', text: PASSWORD });
   await idle('short');
   const check = await read(`(() => {
     const el = document.querySelector('#isStatuteAccepted, input[name="isStatuteAccepted"]');
     return el ? { present: true, checked: el.checked } : { present: false };
   })()`);
-  if (check.present && !check.checked) await action({ action: 'click', selector: '#isStatuteAccepted, input[name="isStatuteAccepted"]' }, 120000);
-  await action({ action: 'click', selector: '#login-btn, button:has-text("Zaloguj")' }, 120000);
+  if (check.present && !check.checked) await action({ action: 'click', selector: '#isStatuteAccepted, input[name="isStatuteAccepted"]' });
+  await action({ action: 'click', selector: '#login-btn, button:has-text("Zaloguj")' });
   await idle('long');
   await idle('long');
   return read(`(() => ({ status: location.href.includes('/logowanie') ? 'still_login_page' : 'logged_in', url: location.href }))()`);
@@ -187,11 +162,11 @@ async function readOpenFields() {
 }
 
 async function closeEditor() {
-  await click('#collection-obj-form-cancel-btn, button:has-text("Anuluj")', 90000, true);
+  await click('#collection-obj-form-cancel-btn, button:has-text("Anuluj")', true);
   await idle('short');
   const confirm = await read(`(() => Array.from(document.querySelectorAll('[role="dialog"] button')).map((b) => b.innerText.trim()).filter(Boolean))()`);
   if (confirm.includes('Wyjdź')) {
-    await click('button:has-text("Wyjdź")', 90000, true);
+    await click('button:has-text("Wyjdź")', true);
     await idle('short');
   }
 }
@@ -206,8 +181,8 @@ async function inspectRow(row) {
   for (const selector of selectors) {
     for (let attempt = 0; attempt < 3; attempt += 1) {
       openMenu = attempt === 0
-        ? await click(selector, 12000, true)
-        : await dispatchClick(selector, 12000, true);
+        ? await click(selector, true)
+        : await dispatchClick(selector, true);
       await idle('short');
       menuVisible = await read(`(() => Array.from(document.querySelectorAll('[role="menuitem"], li, button'))
         .some((el) => Boolean(el.offsetParent) && el.innerText.trim() === 'Edytuj'))()`);
@@ -218,8 +193,8 @@ async function inspectRow(row) {
   if (!openMenu.ok || !menuVisible) return { row, editable: false, error: `menu open failed: ${openMenu.error || 'unknown'}` };
   await idle('short');
   const menu = await read(`(() => Array.from(document.querySelectorAll('[role="menu"], .MuiMenu-paper')).map((e) => e.innerText.trim()).filter(Boolean))()`);
-  let edit = await dispatchClick('[role="menuitem"]:has-text("Edytuj")', 25000, true);
-  if (!edit.ok) edit = await click('[role="menuitem"]:has-text("Edytuj")', 25000, true);
+  let edit = await dispatchClick('[role="menuitem"]:has-text("Edytuj")', true);
+  if (!edit.ok) edit = await click('[role="menuitem"]:has-text("Edytuj")', true);
   await idle('long');
   if (!edit.ok) return { row, editable: false, menu, error: edit.error || null };
   const opened = await read(`(() => Boolean(document.querySelector('#collection-obj-form-cancel-btn')))()`);

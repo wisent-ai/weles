@@ -4,7 +4,7 @@ import { indicators92, management41, task5 } from './text.mjs';
 
 export function riskRepairs({ page, URL_41, URL_61, URL_92, setReactInputValue, saveVisibleForm, fillByName, fillBySuffix }) {
 async function openTask61(nr) {
-  await page.goto(URL_61, { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: section 6.1 navigation
+  await page.goto(URL_61, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 6.1 navigation
   await humanIdlePause('long');
   const row = page.locator('table tbody tr').filter({ has: page.locator(`td[title^="${nr}. " ]`) }).first();
   const btn = row.locator('button[aria-label="overflow-options"]').first();
@@ -39,7 +39,7 @@ async function repairTask5() {
 }
 
 async function openIndicator92(name) {
-  await page.goto(URL_92, { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: section 9.2 navigation
+  await page.goto(URL_92, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 9.2 navigation
   await humanIdlePause('long');
   const row = page.locator('table tbody tr').filter({ hasText: name }).first();
   const btn = row.locator('button[aria-label="overflow-options"]').first();
@@ -67,7 +67,7 @@ async function repairIndicators92() {
 
 async function repairManagement41() {
   console.log('[4.1] repair management text');
-  await page.goto(URL_41, { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: section 4.1 navigation
+  await page.goto(URL_41, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 4.1 navigation
   await humanIdlePause('long');
   const filled = await fillBySuffix('sposob_zarzadzania_projektem', management41);
   await saveVisibleForm();
@@ -75,7 +75,7 @@ async function repairManagement41() {
 }
 
 async function readManagement41() {
-  await page.goto(URL_41, { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: section 4.1 read-only navigation
+  await page.goto(URL_41, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 4.1 read-only navigation
   await humanIdlePause('long');
   return await page.evaluate(() => {
     const el = Array.from(document.querySelectorAll('textarea, input')).find((field) => (field.name || '').endsWith('sposob_zarzadzania_projektem'));

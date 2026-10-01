@@ -15,7 +15,7 @@ evidence.steps.push({ step: 'before', state: readState() });
 setMainTexts();
 nav(SECTION_URL);
 const factorSelections = ALL_FACTORS.map((label) => ensureFactorSelected(label));
-action(['humanidle', 'long'], 60000, true);
+action(['humanidle', 'long'], true);
 const factorSave = saveMain();
 evidence.steps.push({ step: 'factor_multiselect', factorSelections, save: factorSave });
 
@@ -44,7 +44,7 @@ evidence.steps.push({ step: 'factor_rows', factorRows });
 
 nav(SECTION_URL);
 evidence.readback = readState();
-evidence.screenshot = action(['screenshot'], 120000, true);
+evidence.screenshot = action(['screenshot'], true);
 evidence.finishedAt = new Date().toISOString();
 writeFileSync(OUT, JSON.stringify(evidence, null, 2));
 console.log(JSON.stringify({

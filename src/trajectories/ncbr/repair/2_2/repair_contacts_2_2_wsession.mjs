@@ -26,7 +26,7 @@ delete process.env.NCBR_PASSWORD;
 
 const session = await WSession.start({ label: 'ncbr_repair_contacts_2_2_wsession', proxy: 'direct', browser: 'chromium' });
 const page = session.page;
-page.setDefaultTimeout(35000);
+
 
 function progress(message) {
   console.log(`[repair_contacts_2_2] ${new Date().toISOString()} ${message}`);

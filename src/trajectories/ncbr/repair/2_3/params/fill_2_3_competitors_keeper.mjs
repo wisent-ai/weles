@@ -36,13 +36,8 @@ function competitorRows(start, end) {
 const eu = competitorRows('## Oferta konkurencji wewnątrz UE', '## Oferta konkurencji spoza UE');
 const nonEu = competitorRows('## Oferta konkurencji spoza UE', '## Rynek docelowy');
 
-function action(args, timeout = 120000, optional = false) {
-  const out = spawnSync(process.execPath, ['src/_shared/keeper/action.mjs', ...args], {
-    cwd: WELES,
-    env: { ...process.env, SESSION },
-    encoding: 'utf8',
-    timeout,
-  });
+function action(args, optional = false) {
+  const out = spawnSync(process.execPath, ['src/_shared/keeper/action.mjs', ...args], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' });
   if (out.status !== 0) {
     if (optional) return { ok: false, stdout: out.stdout, stderr: out.stderr };
     throw new Error(`${args.join(' ')}\nstdout=${out.stdout}\nstderr=${out.stderr}`);
@@ -50,12 +45,12 @@ function action(args, timeout = 120000, optional = false) {
   return JSON.parse(out.stdout.trim());
 }
 
-function read(js, timeout = 60000) {
-  return action(['eval', js], timeout).result;
+function read(js) {
+  return action(['eval', js]).result;
 }
 
 function idle(kind = 'short') {
-  action(['humanidle', kind], 60000, true);
+  action(['humanidle', kind], true);
 }
 
 function tableText() {
@@ -124,13 +119,13 @@ function addRow(nth, type, row) {
   idle('deliberate');
   const save = saveSubform();
   idle('long');
-  action(['nav', URL], 180000);
+  action(['nav', URL]);
   idle('long');
   return { type, producer: row.producer, save, filled };
 }
 
 const added = [];
-action(['nav', URL], 180000);
+action(['nav', URL]);
 idle('long');
 
 for (const row of eu) {

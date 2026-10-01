@@ -7,7 +7,7 @@ async function deleteRows63() {
   const deleted = [];
   for (const target of OBSOLETE_ROWS) {
     console.log(`[6.3 delete] ${target}`);
-    await page.goto(URL_63, { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: budget section navigation
+    await page.goto(URL_63, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: budget section navigation
     await humanIdlePause('long');
     const row = page.locator('table').first().locator('tbody tr').filter({ hasText: target }).first();
     if (await row.count() === 0) { deleted.push({ target, status: 'not_found' }); continue; }
@@ -25,7 +25,7 @@ async function rewriteRows63() {
   const rewritten = [];
   for (const row of DIRECT_ROWS) {
     console.log(`[6.3 rewrite] ${row.match} -> ${row.name}`);
-    await page.goto(URL_63, { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: budget section navigation
+    await page.goto(URL_63, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: budget section navigation
     await humanIdlePause('long');
     await openRowMenu(row.match);
     await clickMenu(/Edytuj/i);
@@ -47,11 +47,11 @@ async function repairRequiredFields63() {
   const repaired = [];
   for (const row of FIELD_REPAIRS_63) {
     console.log(`[6.3 required fields] ${row.name}`);
-    await page.goto(URL_63, { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: budget section navigation for required-field repair
+    await page.goto(URL_63, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: budget section navigation for required-field repair
     await humanIdlePause('long');
     await openRowMenu(row.match);
     await clickMenu(/Edytuj/i);
-    await page.locator('[name="nazwa_kosztu"]').first().waitFor({ state: 'visible', timeout: 10000 });
+    await page.locator('[name="nazwa_kosztu"]').first().waitFor({ state: 'visible' });
     await typeFill('uzasadnienie_kosztu', row.uz);
     await typeFill('metoda_szacowania', row.met);
     await typeFill('nazwa_kosztu', row.name);
@@ -74,7 +74,7 @@ async function rewriteRows65() {
   const rewritten = [];
   for (const row of INDIRECT_ROWS) {
     console.log(`[6.5 rewrite] ${row.match}`);
-    await page.goto(URL_65, { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: indirect-cost section navigation
+    await page.goto(URL_65, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: indirect-cost section navigation
     await humanIdlePause('long');
     await openRowMenu(row.match);
     await clickMenu(/Edytuj/i);
@@ -94,11 +94,11 @@ async function rewriteRows65() {
 async function repair63SecondMethod() {
   const row = DIRECT_ROWS[1];
   console.log(`[6.3 method-only] ${row.name}`);
-  await page.goto(URL_63, { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: budget section navigation for targeted repair
+  await page.goto(URL_63, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: budget section navigation for targeted repair
   await humanIdlePause('long');
   await openRowMenu(row.match);
   await clickMenu(/Edytuj/i);
-  await page.locator('[name="metoda_szacowania"]').first().waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('[name="metoda_szacowania"]').first().waitFor({ state: 'visible' });
   await typeFill('metoda_szacowania', row.met);
   const state = await page.evaluate(() => ({
     metLens: Array.from(document.querySelectorAll('[name="metoda_szacowania"]')).map((e) => e.value?.length || 0),
@@ -111,11 +111,11 @@ async function repair63SecondMethod() {
 async function repair63GpuNameOnly() {
   const row = DIRECT_ROWS[2];
   console.log(`[6.3 name-only] ${row.name}`);
-  await page.goto(URL_63, { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: budget section navigation for targeted name cleanup
+  await page.goto(URL_63, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: budget section navigation for targeted name cleanup
   await humanIdlePause('long');
   await openRowMenu(row.match);
   await clickMenu(/Edytuj/i);
-  await page.locator('[name="nazwa_kosztu"]').first().waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('[name="nazwa_kosztu"]').first().waitFor({ state: 'visible' });
   await typeFill('nazwa_kosztu', row.name);
   const state = await page.evaluate(() => ({
     nameValues: Array.from(document.querySelectorAll('[name="nazwa_kosztu"]')).map((e) => e.value || ''),
@@ -169,7 +169,7 @@ async function section8Fields() {
 
 async function repairSection8() {
   console.log('[8 repair] financing totals');
-  await page.goto(URL_8, { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: section 8 navigation
+  await page.goto(URL_8, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 8 navigation
   await humanIdlePause('long');
   const existingRow = page.locator('table').first().locator('tbody tr').filter({ hasText: /Wisent Polska|WISENT POLSKA/i }).first();
   if (await existingRow.count() > 0) {
@@ -194,7 +194,7 @@ async function repairSection8() {
     throw new Error(`no editable section 8 amount fields found: ${JSON.stringify(before)}`);
   }
   await saveVisibleForm();
-  await page.goto(URL_8, { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: section 8 readback navigation
+  await page.goto(URL_8, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 8 readback navigation
   await humanIdlePause('long');
   const readback8 = await tableReadback(URL_8);
   before = before.map((f) => ({ name: f.name, label: f.label, value: f.value, readOnly: f.readOnly, disabled: f.disabled }));
@@ -202,10 +202,10 @@ async function repairSection8() {
 }
 async function repair22MainFactor() {
   console.log('[2.2 repair] main dependency factors');
-  await page.goto(URL_22, { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: 2.2 section navigation
+  await page.goto(URL_22, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: 2.2 section navigation
   await humanIdlePause('long');
   const input = page.locator('input[name$="rezultat_prac_br_spelnia_nastepujace_czynniki"]').first();
-  await input.waitFor({ state: 'visible', timeout: 10000 });
+  await input.waitFor({ state: 'visible' });
   await humanClickLocator(page, input); // allow-raw-playwright: open visible 2.2 multi-select
   await humanIdlePause('deliberate');
   let selected = null;

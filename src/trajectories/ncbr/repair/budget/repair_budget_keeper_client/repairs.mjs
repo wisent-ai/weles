@@ -2,7 +2,7 @@
 // validation readback.
 import { FINANCING_8 } from './rows.mjs';
 import { PROJECT_URL, URLS, email, evidence, password } from './settings.mjs';
-import { clickLastButton, hasText, kclick, kfill, nav, press, readVisibleFields, ro, saveOpenForm, send, sleep } from './keeper.mjs';
+import { clickLastButton, hasText, kclick, kfill, nav, press, readVisibleFields, ro, saveOpenForm, send } from './keeper.mjs';
 
 export async function loginIfNeeded() {
   await nav('https://lsi2.ncbr.gov.pl/logowanie');
@@ -16,14 +16,11 @@ export async function loginIfNeeded() {
   const checkbox = await ro(`(()=>{const c=document.querySelector('input[name="isStatuteAccepted"],#isStatuteAccepted');return c?{checked:c.checked,visible:!!(c.offsetWidth||c.offsetHeight||c.getClientRects().length)}:null;})()`);
   if (checkbox && !checkbox.checked) await kclick('input[name="isStatuteAccepted"], #isStatuteAccepted');
   await kclick('#login-btn, button:has-text("Zaloguj")');
-  for (let i = 0; i < 10; i += 1) {
-    await sleep(1000);
-    const u = (await send({ action: 'url' })).url;
+  const u = (await send({ action: 'url' })).url;
     if (!u.includes('/logowanie')) {
       evidence.steps.push({ step: 'login', status: 'ok', url: u });
       return;
     }
-  }
   const body = await ro(`document.body.innerText.slice(0,800)`);
   throw new Error(`login stayed on login page: ${body}`);
 }
@@ -40,7 +37,7 @@ export async function openEditRow(candidates) {
     try {
       await kclick(sel);
       await kclick(`[role="menuitem"]:has-text("Edytuj"), .MuiMenuItem-root:has-text("Edytuj")`);
-      await sleep(800);
+      
       return { candidate };
     } catch (e) {
       tried.push(`miss:${candidate}:${String(e.message).slice(0, 80)}`);
@@ -100,7 +97,7 @@ export async function repair22Factor() {
       await press('Enter');
       picked = 'Enter';
     }
-    await sleep(700);
+    
     const save = await saveOpenForm();
     evidence.steps.push({ step: '2.2_factor', before, picked, save });
   } catch (e) {
@@ -124,7 +121,7 @@ export async function repair8() {
   } catch {
     mode = 'add';
     await clickLastButton('Dodaj');
-    await sleep(1000);
+    
   }
   const before = await readVisibleFields();
   const fills = [];
@@ -155,7 +152,7 @@ export async function validate() {
   } catch (e) {
     evidence.steps.push({ step: 'validate_click_error', error: String(e.message) });
   }
-  await sleep(7000);
+  
   const after = await ro(`document.body.innerText.slice(0,8000)`);
   const url = (await send({ action: 'url' })).url;
   evidence.steps.push({ step: 'validate', clicked, url, beforeSnippet: before.slice(0, 1000), afterSnippet: after });
