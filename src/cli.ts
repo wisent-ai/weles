@@ -232,6 +232,15 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
     process.stdout.write(HELP);
     return;
   }
+  // `--help` or `-h` after a command answers with that command's usage lines
+  // from HELP and never runs it: `weles open --help` used to fail with
+  // "open requires <url>".
+  if (parsed.options.help === true || parsed.positional.includes('-h')) {
+    const prefix = `  weles ${parsed.command}`;
+    const lines = HELP.split('\n').filter((line) => line === prefix || line.startsWith(`${prefix} `));
+    process.stdout.write(lines.length === 0 ? HELP : `Usage:\n${lines.join('\n')}\n`);
+    return;
+  }
   if (parsed.command === 'version') {
     process.stdout.write(`${readPackageJson().version ?? 'unknown'}\n`);
     return;
