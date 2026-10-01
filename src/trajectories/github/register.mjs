@@ -188,9 +188,6 @@ try {
   console.log(`[register] Captcha: pkey=${captcha.pkey?.slice(0, 20)} blob=${captcha.blob?.slice(0, 30) ?? 'none'} sub=${captcha.apiSub}`);
 
   const ua = await s.page.evaluate('navigator.userAgent').catch(() => '');
-  // Browser keep-alive during long solve — pings page every 3s so Chromium doesn't kill the context
-  let keepAliveAbort = false;
-  const keepAlive = (async () => { while (!keepAliveAbort) { await new Promise(r => setTimeout(r, 3000)); try { await s.page.evaluate('Date.now()'); } catch {} } })();  // allow-raw-playwright: review — context-dependent timer
 
   let solved = false;
   // The retired Bright Data Browser path depended on an ambient WebSocket
@@ -203,7 +200,6 @@ try {
   }
   // External solvers (anticaptcha/2captcha) return UNSOLVABLE on Arkose basket puzzles — opt-in only.
   const token = (solved || process.env.WELES_EXTERNAL_FUNCAPTCHA !== '1') ? null : (await solveFunCaptcha({ websiteURL: URL, publicKey: captcha.pkey, apiSub: captcha.apiSub, blob: captcha.blob, userAgent: ua, proxy: s.proxyConfig })).token;
-  keepAliveAbort = true; await keepAlive.catch(() => {});
   if (token) {
     const inject = await s.page.evaluate(`(tk => {
       const inputs = document.querySelectorAll('input[name="octocaptcha-token"], input.js-octocaptcha-token');
