@@ -15,18 +15,36 @@
 // the exact sentence instead of a browser launched to discover the problem.
 
 import { selectLoginAccount } from '../../utils/login-accounts.js';
+import { itemPlayingRole } from '../../state/skarbiec-records.js';
 import { parseAccessibilityAuditParams, parseCaptureParams } from '../params/capture-params.js';
 import { applyDeclaredEnv } from '../declared/declarations.js';
 
+/**
+ * The Skarbiec login a Google account action works on. An operator asks by
+ * role (`login_role`, the item carrying stado:role:<role>); a caller that
+ * found the item at run time in a vault listing — Stado's seed enrolment
+ * walks every login — passes the id it found (`login_item`). Exactly one of
+ * the two. `accepted`, when given, is the whole set of keys the action takes.
+ */
+function googleLogin(params: Record<string, unknown>, accepted?: string[]): string {
+  if (!params || typeof params !== 'object' || Array.isArray(params)) {
+    throw new Error('login_role or login_item must name the Skarbiec Google login');
+  }
+  if (accepted && Object.keys(params).some((key) => !accepted.includes(key))) {
+    throw new Error(`this action accepts only ${accepted.join(' or ')}`);
+  }
+  const role = params.login_role;
+  const item = params.login_item;
+  if ((role === undefined) === (item === undefined)) {
+    throw new Error('provide exactly one of login_role or login_item');
+  }
+  if (typeof role === 'string' && role.trim()) return itemPlayingRole(role.trim());
+  if (typeof item === 'string' && item.trim()) return item.trim();
+  throw new Error('login_role or login_item must be a nonempty string');
+}
+
 export function validateAccountSecurityParams(params: Record<string, unknown>): string {
-  if (!params || typeof params !== 'object' || Array.isArray(params)
-    || typeof params.login_item !== 'string' || !params.login_item.trim()) {
-    throw new Error('login_item must name the exact Skarbiec account to inspect');
-  }
-  if (Object.keys(params).some((key) => key !== 'login_item')) {
-    throw new Error('2FA status accepts only login_item; sign-in and account changes are not supported');
-  }
-  return params.login_item.trim();
+  return googleLogin(params, ['login_role', 'login_item']);
 }
 
 export function applyAccountAndTaskAdmission(
@@ -51,14 +69,10 @@ export function applyAccountAndTaskAdmission(
     env[`${account.provider.toUpperCase()}_DISPLAY_NAME`] = account.displayName;
   }
   if (trajPath.endsWith('/google/authenticator/enrol.mjs') || trajPath.endsWith('/google/app_password/create.mjs')) {
-    // The enrolment and the app password name the Skarbiec login item itself:
+    // The enrolment and the app password act on the Skarbiec login itself:
     // it is what gains the seed or signs in to issue the password, whether or
     // not a subscription or a mailbox rides on it yet.
-    const requested = params.login_item;
-    if (typeof requested !== 'string' || !requested.trim()) {
-      throw new Error('login_item must name the exact Skarbiec Google login item this action signs in');
-    }
-    env.WELES_LOGIN_ITEM = requested.trim();
+    env.WELES_LOGIN_ITEM = googleLogin(params);
   }
   if (trajPath.endsWith('/google/authenticator/status.mjs')) {
     env.WELES_LOGIN_ITEM = validateAccountSecurityParams(params);

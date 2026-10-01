@@ -48,7 +48,7 @@ test('managed installation provides the current CLI and refuses account mutation
   for (const args of [
     ['account-security'],
     ['account-security', '--enable'],
-    ['account-security', '--login-item', '--run'],
+    ['account-security', '--login-role', '--run'],
   ]) {
     const refusal = command(executable, args, env);
     assert.equal(refusal.error, undefined, 'The installed command must start, not fail process creation');

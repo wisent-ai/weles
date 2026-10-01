@@ -44,14 +44,14 @@ test('real accounts retain enabled, disabled and unknown provider observations',
   assert.ok(fixtures.some((item) => item.two_factor_enabled === false), 'A real disabled account is required');
   assert.ok(fixtures.some((item) => item.two_factor_enabled === null), 'A real unavailable-session account is required');
   for (const fixture of fixtures) {
-    assert.equal(typeof fixture.login_item, 'string');
-    const submitted = cli(['--login-item', fixture.login_item]);
+    assert.equal(typeof fixture.login_role, 'string', 'Each fixture names the Skarbiec role its real login plays');
+    const submitted = cli(['--login-role', fixture.login_role]);
     assert.equal(submitted.status, 0, submitted.stderr);
     const run = await completed(JSON.parse(submitted.stdout));
     const observed = run.result;
     writeFileSync(resolve(evidence, `run-${run.id}.json`), JSON.stringify(run, null, 2));
     assert.equal(observed?.schema, 'weles.account-security.v1');
-    assert.equal(observed.login_item, fixture.login_item);
+    assert.equal(typeof observed.login_item, 'string');
     assert.equal(observed.source_revision, workerRevision);
     assert.equal(observed.two_factor_enabled, fixture.two_factor_enabled, JSON.stringify(run));
     assert.equal(observed.ok, fixture.two_factor_enabled !== null);

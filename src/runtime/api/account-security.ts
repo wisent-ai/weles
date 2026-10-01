@@ -22,7 +22,7 @@ export type AccountSecurityRun = {
   action: 'google_mfa_status';
   status: string;
   completed_at: string | null;
-  params: { login_item: string };
+  params: { login_role?: string; login_item?: string };
   result: AccountSecurityResult | null;
   error: string | null;
 };
@@ -31,11 +31,14 @@ function parseRun(value: unknown): AccountSecurityRun {
   const row = value as Partial<AccountSecurityRun> | null;
   if (!row || typeof row !== 'object' || row.action !== 'google_mfa_status'
     || typeof row.id !== 'string' || typeof row.status !== 'string'
-    || typeof row.params?.login_item !== 'string') throw new Error('Weles returned an unrelated account-security run');
+    || (typeof row.params?.login_role !== 'string' && typeof row.params?.login_item !== 'string')) {
+    throw new Error('Weles returned an unrelated account-security run');
+  }
   if (row.result !== null && row.result !== undefined) {
     const result = row.result;
     if (result.schema !== 'weles.account-security.v1' || result.provider !== 'google'
-      || result.login_item !== row.params.login_item
+      || typeof result.login_item !== 'string'
+      || (row.params?.login_item !== undefined && result.login_item !== row.params.login_item)
       || typeof result.source_revision !== 'string'
       || (result.account !== null && typeof result.account !== 'string')
       || typeof result.ok !== 'boolean'
@@ -47,11 +50,11 @@ function parseRun(value: unknown): AccountSecurityRun {
 }
 
 export async function accountSecurityRun(
-  input: { loginItem: string } | { runId: string }, options: WelesApiOptions = {},
+  input: { loginRole: string } | { runId: string }, options: WelesApiOptions = {},
 ): Promise<AccountSecurityRun> {
-  const creating = 'loginItem' in input;
-  const value = (creating ? input.loginItem : input.runId).trim();
-  if (!value) throw new Error(creating ? 'login_item_required' : 'run_id_required');
+  const creating = 'loginRole' in input;
+  const value = (creating ? input.loginRole : input.runId).trim();
+  if (!value) throw new Error(creating ? 'login_role_required' : 'run_id_required');
   const path = creating ? '/run' : `/diagnostics/${encodeURIComponent(value)}/file?path=run-result.json`;
   const connection = welesOperatorConnection(path, options);
   const operation = creating ? 'submit_account_security' : 'read_account_security_result';
@@ -59,7 +62,7 @@ export async function accountSecurityRun(
     const response = await connection.fetch(connection.endpoint, {
       method: creating ? 'POST' : 'GET', headers: connection.headers, redirect: 'error',
       ...(creating ? { body: JSON.stringify({
-        action: 'google_mfa_status', params: { login_item: value }, detached: true,
+        action: 'google_mfa_status', params: { login_role: value }, detached: true,
       }) } : {}),
     });
     const body = await operatorJson(response);
@@ -73,7 +76,7 @@ export async function accountSecurityRun(
       completed_at: body.completed_at ?? null, result: body.result ?? null,
       error: body.error ?? (body.ok === false ? body.stderr_tail ?? 'Account security execution failed' : null),
     });
-    if (creating ? row.params.login_item !== value : row.id !== value) throw new Error('Weles returned a different account-security request');
+    if (creating ? row.params.login_role !== value : row.id !== value) throw new Error('Weles returned a different account-security request');
     return row;
   } catch (cause) {
     const error = cause instanceof Error ? cause.message : String(cause);

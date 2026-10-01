@@ -101,7 +101,7 @@ async function main() {
   }
   if (!issued.ok) {
     const next = issued.blocked === 'google_push_approval_required'
-      ? { next_action: `POST /run {"action":"google_authenticator_enrol","params":{"login_item":"${loginItem}"},"detached":true} on this executor, then weles app-password --login-item ${loginItem}` }
+      ? { next_action: `POST /run {"action":"google_authenticator_enrol","params":{"login_item":"${loginItem}"},"detached":true} on this executor, then weles app-password --login-role <the role this login plays>` }
       : {};
     report({ ok: false, login_item: loginItem, email: login.email, ...issued, ...next });
     process.exit(3);

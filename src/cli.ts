@@ -39,9 +39,9 @@ Usage:
   weles operator-requests show <id> [--json]
   weles operator-requests open --kind <kind> --account <account> --run <run> --instruction <text> --minutes <n>
   weles operator-requests close <id> --approved|--unapproved --detail <text>
-  weles account-security --login-item <skarbiec-item>
+  weles account-security --login-role <skarbiec-role>
   weles account-security --run <run-id>
-  weles app-password --login-item <skarbiec-item>
+  weles app-password --login-role <skarbiec-role>
   weles app-password --run <run-id>
   weles apple-developer-id [--account-role <role>] --confirm "AUTHORIZE ONE APPLE DEVELOPER ID" --execution-host <host> --private-key-out <abs> [--execution-agent <agent>] [--expires-in-minutes <n>] [--subject <dn>]
   weles apple-developer-id --run <run-id> --certificate-out <abs>
@@ -56,8 +56,9 @@ Options:
   --keys <file>           JSON map of trusted receipt key IDs to PEM public keys.
   --state-dir <dir>       Override the durable onboarding state directory.
   --host <hostname>       Exact managed Weles worker hostname for imported definitions.
-  --login-item <item>     Exact Skarbiec Google account. account-security reads 2FA without signing in;
-                          app-password signs in, creates a Google app password and hands it to Skrzynka.
+  --login-role <role>     The Skarbiec role the Google login plays (the item tagged stado:role:<role>).
+                          account-security reads 2FA without signing in; app-password signs in,
+                          creates a Google app password and hands it to Skrzynka.
   Worker controls reach the executor at the route 'stado service directory connect weles-admission'
   gives and with the Skarbiec token echo-weles-api#token; WELES_WORKER_API_BASE and
   WELES_WORKER_TOKEN override both.
@@ -152,7 +153,7 @@ function normalizeCommand(command?: string): CliCommand {
 }
 
 function optionTakesValue(key: string): boolean {
-  if (key === 'login-item') return true;
+  if (key === 'login-item' || key === 'login-role') return true;
   return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'timeout', 'subject', 'receipt', 'keys', 'state-dir', 'host', 'decision', 'baseline', 'declaration', 'manifest', 'source-revision', 'candidate-tag', 'released', 'published-surface', 'reason', 'correcting', 'root', 'limit', 'kind', 'account', 'run', 'instruction', 'minutes', 'detail', 'account-role', 'confirm', 'execution-host', 'execution-agent', 'private-key-out', 'certificate-out', 'expires-in-minutes', 'private-key', 'store-host'].includes(key);
 }
 
