@@ -1,3 +1,4 @@
+import { pageSettled } from '../../_shared/page/settled.mjs';
 // retry-allowed: each paper queries Google Scholar through a residential
 // proxy; the previous run died on the very first nav with net::ERR_ABORTED
 // (proxy handshake race) and cascaded for all 10 papers because the

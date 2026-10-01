@@ -1,3 +1,4 @@
+import { pageSettled } from '../../../../_shared/page/settled.mjs';
 // The authenticator setup on the Google security page, through to the first accepted code.
 import { humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';

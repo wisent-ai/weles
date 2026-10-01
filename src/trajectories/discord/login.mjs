@@ -1,3 +1,4 @@
+import { pageSettled } from '../_shared/page/settled.mjs';
 import { getSocialAccount } from '../../../dist/utils/credentials.js';
 import { resolveAccountSession } from '../../../dist/account/session.js';
 import { WSession } from '../../../dist/session/wsession.js';

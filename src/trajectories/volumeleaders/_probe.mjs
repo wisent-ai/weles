@@ -1,3 +1,4 @@
+import { pageSettled } from '../_shared/page/settled.mjs';
 // Discover volumeleaders.com URL structure after login.
 // Default mode: logs in, dumps every <a href> on the dashboard and /ticker/TICKER pages.
 // Inventory mode: walks a list of candidate per-ticker pages, screenshots + records DOM.

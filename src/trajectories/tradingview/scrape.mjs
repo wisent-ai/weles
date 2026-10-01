@@ -1,3 +1,4 @@
+import { pageSettled } from '../_shared/page/settled.mjs';
 // Scrape a public tradingview.com per-symbol page for a ticker.
 // No login required — all pages here are public.
 // Usage: node src/trajectories/tradingview/scrape.mjs --ticker ORCL --page technicals [--screenshot /path.png]

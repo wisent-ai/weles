@@ -1,3 +1,4 @@
+import { pageSettled } from '../_shared/page/settled.mjs';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { humanFill, humanType } from '../../../dist/human/keyboard.js';
 

@@ -38,7 +38,7 @@ Usage:
   weles figma parse-document <document.json[.gz]> <summary.json> <nodes.json> [<vocabulary.json>]
   weles operator-requests list [--open] [--limit <n>] [--json]
   weles operator-requests show <id> [--json]
-  weles operator-requests open --kind <kind> --account <account> --run <run> --instruction <text> --minutes <n>
+  weles operator-requests open --kind <kind> --account <account> --run <run> --instruction <text> [--pid <waiting-process>]
   weles operator-requests close <id> --approved|--unapproved --detail <text>
   weles account-security --login-role <skarbiec-role>
   weles account-security --run <run-id>

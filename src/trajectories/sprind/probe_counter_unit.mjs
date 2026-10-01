@@ -1,3 +1,4 @@
+import { pageSettled } from '../_shared/page/settled.mjs';
 // Probe: are SPRIND textarea limits (0/50, 0/500, ...) characters or words?
 // Types known probes into the first <textarea> via humanFill and reads
 // back the visible counter element. Comparing counter values to known

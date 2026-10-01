@@ -18,7 +18,8 @@
     "lint:trusted-events": "node tests/policy/trusted-events.check.mjs",
     "lint:humanization": "node tests/policy/humanization.check.mjs",
     "lint:browser-boundary": "node tests/policy/browser-boundary.check.mjs",
-    "lint": "npm run lint:trusted-events && npm run lint:humanization && npm run lint:browser-boundary"
+    "lint:module-syntax": "node tests/policy/module-syntax.check.mjs",
+    "lint": "npm run lint:trusted-events && npm run lint:humanization && npm run lint:browser-boundary && npm run lint:module-syntax"
   },
   "dependencies": {
     "@faker-js/faker": "^10.4.0",

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { pageSettled } from '../_shared/page/settled.mjs';
 // Auto-wypełnianie wniosku SMART na generatorze PARP (lsi2.parp.gov.pl)
 // z draftów lokalnych Wisent Polska.
 //

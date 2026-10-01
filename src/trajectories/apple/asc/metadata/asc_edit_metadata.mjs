@@ -1,3 +1,4 @@
+import { pageSettled } from '../../../_shared/page/settled.mjs';
 // App Store Connect: edit app metadata (description, keywords, promo text).
 // Args: APP_ID, plus any of DESCRIPTION / KEYWORDS / PROMO_TEXT / WHATS_NEW env vars.
 

@@ -1,3 +1,4 @@
+import { pageSettled } from '../../_shared/page/settled.mjs';
 // Meta Ads CLI/browser: read campaign/ad performance.
 //
 // Env:

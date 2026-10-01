@@ -1,3 +1,4 @@
+import { pageSettled } from '../_shared/page/settled.mjs';
 // Scrape the SPRIND "Next Frontier AI" challenge submission page and dump
 // every visible field, label, helper text, section heading, and select
 // option as JSON. Page is fully public — no proxy, no auth.

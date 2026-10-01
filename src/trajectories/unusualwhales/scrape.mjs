@@ -1,3 +1,4 @@
+import { pageSettled } from '../_shared/page/settled.mjs';
 // Scrape unusualwhales.com ticker data using cached session cookies.
 // Usage: node src/trajectories/unusualwhales/scrape.mjs --ticker ORCL --page overview
 //   pages: overview | flow | darkpool | gex

@@ -1,3 +1,4 @@
+import { pageSettled } from '../_shared/page/settled.mjs';
 // Extract drawings from a TradingView chart via CDP connection to user's Chrome.
 // Prereq: user launches Chrome with:
 //   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \

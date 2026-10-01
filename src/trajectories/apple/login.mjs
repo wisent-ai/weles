@@ -1,3 +1,4 @@
+import { pageSettled } from '../_shared/page/settled.mjs';
 // Canonical Apple ID login. Three one-use Skarbiec capabilities permit the
 // email, password and 2FA operations; Stado owns execution and placement.
 

@@ -1,3 +1,4 @@
+import { pageSettled } from '../../../_shared/page/settled.mjs';
 // Getting from the campaign table into a draft, and refusing with evidence
 // when we never got there.
 //

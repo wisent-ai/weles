@@ -1,3 +1,4 @@
+import { pageSettled } from '../../../../_shared/page/settled.mjs';
 // Landing on the right Google account: identifier navigation, the account switch and the sign-in.
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { googleSso } from '../../../../_shared/services/google_sso.mjs';

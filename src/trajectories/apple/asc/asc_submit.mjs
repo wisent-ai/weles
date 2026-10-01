@@ -1,3 +1,4 @@
+import { pageSettled } from '../../_shared/page/settled.mjs';
 // App Store Connect: upload a build AND submit it for App Review — fully
 // automated, no human/Transporter step.
 //

@@ -1,3 +1,4 @@
+import { pageSettled } from '../../../_shared/page/settled.mjs';
 // The Ads Manager panel in front of us: what we press, what we type into, and
 // what the page says back.
 //

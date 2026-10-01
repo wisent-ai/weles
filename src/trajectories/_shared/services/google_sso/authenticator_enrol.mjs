@@ -17,8 +17,6 @@ const CLICKABLE = 'button, [role="button"], a, [role="link"], li, div[role="opti
 const TOTP_PERIOD_SECONDS = 30;
 /** Seconds left in the period below which the next period's code is used. */
 const CODE_MARGIN_SECONDS = 6;
-/** How long the code field may take to appear after the key is shown. */
-const CODE_INPUT_TIMEOUT_MS = 20_000;
 /** How much of a page is kept in a refusal, after the key is redacted. */
 const PREVIEW_CHARS = 1600;
 
@@ -70,9 +68,9 @@ export function onSignIn(url) {
  * Reach the authenticator setup page for the signed-in account.
  * @returns {{ ok: true, url: string } | { ok: false, blocked: string, url: string, textPreview: string }}
  */
-export async function openAuthenticatorSetup(page, wait, navTimeoutMs) {
-  await page.goto(AUTHENTICATOR_SETUP_URL, { waitUntil: 'domcontentloaded', timeout: navTimeoutMs });
-  await wait(6);
+export async function openAuthenticatorSetup(page, wait) {
+  await page.goto(AUTHENTICATOR_SETUP_URL, { waitUntil: 'domcontentloaded' });
+  await wait();
   const url = page.url();
   if (onSignIn(url)) return { ok: false, blocked: 'google_sign_in_required', url, textPreview: '' };
   const text = await bodyText(page);
@@ -92,17 +90,17 @@ export async function openAuthenticatorSetup(page, wait, navTimeoutMs) {
 export async function revealSetupKey(page, wait) {
   if (/Remove anyway/i.test(await bodyText(page))) {
     await clickByText(page, /^Cancel$/i, 'cancel remove-authenticator warning');
-    await wait(2);
+    await wait();
   }
   const started = await clickByText(page, /Set up authenticator|Change authenticator app|Add authenticator/i, 'set up authenticator');
   if (!started) {
     return { ok: false, blocked: 'setup_action_not_found', textPreview: preview(await bodyText(page)) };
   }
-  await wait(4);
+  await wait();
   if (!await clickByText(page, /Can.?t scan it/i, "Can't scan it?")) {
     return { ok: false, blocked: 'setup_key_reveal_not_found', textPreview: preview(await bodyText(page)) };
   }
-  await wait(3);
+  await wait();
   const text = await bodyText(page);
   const secret = extractSetupKey(text);
   if (!secret) return { ok: false, blocked: 'setup_key_not_shown', textPreview: preview(text) };
@@ -120,12 +118,13 @@ export function redactKeys(text) {
   return String(text || '').replace(/(?:[a-z2-7]{4}\s+){7}[a-z2-7]{4}/gi, '<redacted-setup-key>');
 }
 
-/** A code with at least the margin left in its period; waits for the next period otherwise. */
-async function freshCode(secret, wait) {
-  const elapsed = Math.floor(Date.now() / 1000) % TOTP_PERIOD_SECONDS;
-  const left = TOTP_PERIOD_SECONDS - elapsed;
-  if (left < CODE_MARGIN_SECONDS) await wait(left + 1);
-  return generateTotp(secret);
+/** The code for the current period, or for the next one when the current
+ * period has less than the margin left: Google accepts the adjacent period,
+ * so a code about to expire is replaced instead of waited out. */
+function freshCode(secret) {
+  const nowMs = Date.now();
+  const left = TOTP_PERIOD_SECONDS - (Math.floor(nowMs / 1000) % TOTP_PERIOD_SECONDS);
+  return generateTotp(secret, left < CODE_MARGIN_SECONDS ? { now: nowMs + left * 1000 } : {});
 }
 
 /**
@@ -144,18 +143,13 @@ export async function confirmSetupCode(page, wait, secret) {
   // — measured on 2026-09-20 in run 32d5fc5a-1d20-42e1-9d2d-752733ef86d0.
   if (!(await input.isVisible().catch(() => false))) {
     await clickByText(page, /^Next$/i, 'next');
-    await wait(3);
+    await wait();
   }
-  try {
-    await input.waitFor({ state: 'visible', timeout: CODE_INPUT_TIMEOUT_MS });
-  } catch (error) {
-    if (error?.name !== 'TimeoutError') throw error;
-    return { ok: false, blocked: 'setup_code_input_not_found', textPreview: preview(await bodyText(page)) };
-  }
-  const code = await freshCode(secret, wait);
+  await input.waitFor({ state: 'visible' });
+  const code = freshCode(secret);
   await humanFill(page, input, code);
   await clickByText(page, /^(Next|Verify|Turn on|Done)$/i, 'submit setup code');
-  await wait(8);
+  await wait();
   const text = await bodyText(page);
   if (/Wrong code|Try again|Invalid code|Couldn't verify|Enter the code/i.test(text)) {
     return { ok: false, blocked: 'setup_code_rejected', textPreview: preview(text) };

@@ -1,3 +1,4 @@
+import { pageSettled } from '../../_shared/page/settled.mjs';
 /**
  * Recover a locked-out GitHub account: trigger GitHub's password-reset flow,
  * claim the reset link via Resend inbound email, set a new password, and write

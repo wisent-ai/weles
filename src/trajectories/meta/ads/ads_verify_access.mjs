@@ -1,3 +1,4 @@
+import { pageSettled } from '../../_shared/page/settled.mjs';
 // Meta Ads browser access verifier.
 //
 // Reuses the persistent Weles Meta Ads profile and reports the selected account

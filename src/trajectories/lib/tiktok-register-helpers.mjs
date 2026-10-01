@@ -1,3 +1,4 @@
+import { pageSettled } from '../_shared/page/settled.mjs';
 // Helpers extracted from tiktok_register.mjs so that file fits under the
 // 300-line cap and can import autoBindCharacter alongside the other 8
 // register trajectories. Each helper here is a verbatim move from the

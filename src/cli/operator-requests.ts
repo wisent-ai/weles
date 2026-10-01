@@ -11,9 +11,6 @@ import type { ParsedCli } from '../cli.js';
 import type { OperatorRequest } from '../operator/request.mjs' with { 'resolution-mode': 'import' };
 import type * as OperatorRequestApi from '../operator/request.mjs' with { 'resolution-mode': 'import' };
 
-const SECONDS_PER_MINUTE = 60;
-const MILLISECONDS_PER_SECOND = 1000;
-
 /** The store is plain ESM and this CLI compiles to CommonJS, so every verb
  * reaches it through the same dynamic import. */
 async function requests(): Promise<typeof OperatorRequestApi> {
@@ -21,14 +18,13 @@ async function requests(): Promise<typeof OperatorRequestApi> {
 }
 
 /** One line per request: what it is, who it is for, and where it stands. */
-function summarise(request: OperatorRequest, overdue: boolean): string {
+function summarise(request: OperatorRequest, abandoned: boolean): string {
   const paged = request.pages.some((attempt) => attempt.ok);
-  const left = Math.round((new Date(request.deadline_at).getTime() - Date.now()) / MILLISECONDS_PER_SECOND);
   const standing = request.closed_at
     ? `${request.approved ? 'done by operator' : 'not done'} after ${request.waited_seconds}s`
-    : overdue
-      ? `waiting, deadline passed ${-left}s ago`
-      : `waiting, ${left}s left`;
+    : abandoned
+      ? `abandoned: run process ${request.run_pid} ended without closing it`
+      : `waiting on run process ${request.run_pid}`;
   return [
     request.id,
     request.kind,
@@ -38,16 +34,15 @@ function summarise(request: OperatorRequest, overdue: boolean): string {
   ].join('  ');
 }
 
-function detail(request: OperatorRequest, overdue: boolean): string {
+function detail(request: OperatorRequest, abandoned: boolean): string {
   const lines = [
     `id           ${request.id}`,
     `kind         ${request.kind}`,
     `account      ${request.account}`,
-    `run          ${request.run}`,
+    `run          ${request.run} (process ${request.run_pid})`,
     `host         ${request.host}`,
     `asks for     ${request.instruction}`,
     `opened       ${request.opened_at}`,
-    `deadline     ${request.deadline_at} (${request.deadline_seconds}s)`,
   ];
   for (const attempt of request.pages) {
     lines.push(`page         ${attempt.at} ${attempt.channel} ${attempt.ok ? 'sent' : 'failed'}: ${attempt.detail}`);
@@ -58,7 +53,7 @@ function detail(request: OperatorRequest, overdue: boolean): string {
     lines.push(`operator     ${request.approved ? 'did it' : 'did not do it'}`);
     lines.push(`outcome      ${request.outcome_detail}`);
   } else {
-    lines.push(`open         ${overdue ? 'yes, past its deadline and nobody closed it' : 'yes'}`);
+    lines.push(`open         ${abandoned ? `abandoned: run process ${request.run_pid} ended and nobody closed it` : 'yes, the run is waiting'}`);
   }
   return lines.join('\n');
 }
@@ -90,7 +85,7 @@ async function listRequests(parsed: ParsedCli): Promise<void> {
     process.stdout.write(`no operator requests in ${api.operatorRequestDir()}\n`);
     return;
   }
-  for (const request of found) process.stdout.write(`${summarise(request, api.isOverdue(request))}\n`);
+  for (const request of found) process.stdout.write(`${summarise(request, api.isAbandoned(request))}\n`);
 }
 
 async function showRequest(parsed: ParsedCli): Promise<void> {
@@ -102,19 +97,19 @@ async function showRequest(parsed: ParsedCli): Promise<void> {
     process.stdout.write(`${JSON.stringify(request, null, 2)}\n`);
     return;
   }
-  process.stdout.write(`${detail(request, api.isOverdue(request))}\n`);
+  process.stdout.write(`${detail(request, api.isAbandoned(request))}\n`);
 }
 
+/** `--pid` names the process that waits on the request; without it, the
+ * process that ran this command's parent (the calling script) is the run. */
 async function openRequest(parsed: ParsedCli): Promise<void> {
   const api = await requests();
-  const minutes = numberOption(parsed, 'minutes');
-  if (minutes === undefined) throw new Error('operator-requests open requires --minutes <number>');
   const request = api.openOperatorRequest({
     kind: textOption(parsed, 'kind'),
     account: textOption(parsed, 'account'),
     instruction: textOption(parsed, 'instruction'),
     run: textOption(parsed, 'run'),
-    deadlineSeconds: minutes * SECONDS_PER_MINUTE,
+    runPid: numberOption(parsed, 'pid') ?? process.ppid,
   });
   const paged = request.pages.some((attempt) => attempt.ok);
   if (!paged) process.exitCode = 2;

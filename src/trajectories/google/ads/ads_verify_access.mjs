@@ -1,3 +1,4 @@
+import { pageSettled } from '../../_shared/page/settled.mjs';
 // Google Ads browser access verifier.
 //
 // Reuses the persistent Weles Google Ads profile and reports what the logged-in

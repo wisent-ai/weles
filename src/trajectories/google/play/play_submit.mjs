@@ -1,3 +1,4 @@
+import { pageSettled } from '../../_shared/page/settled.mjs';
 // Google Play Console: publish an Android app release — fully browser-driven.
 //
 // Drives play.google.com/console exactly as a human would: open the app's

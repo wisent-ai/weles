@@ -6,7 +6,7 @@
 // module can be imported and its parsing tested without a browser or a secret.
 import { humanFill } from '../../../../dist/human/keyboard.js';
 import { bodyText, clickByText, onSignIn } from '../../_shared/services/google_sso/authenticator_enrol.mjs';
-import { APP_PASSWORDS_URL, PAGE_SETTLE_SECONDS, PREVIEW_CHARS } from './constants.mjs';
+import { APP_PASSWORDS_URL, PREVIEW_CHARS } from './constants.mjs';
 
 /** Google renders an app password as four groups of four lowercase letters. */
 const APP_PASSWORD_GROUPS = /\b([a-z]{4})\s+([a-z]{4})\s+([a-z]{4})\s+([a-z]{4})\b/;
@@ -45,7 +45,7 @@ export function unavailableReason(text) {
  */
 export async function openAppPasswords(page, wait) {
   await page.goto(APP_PASSWORDS_URL, { waitUntil: 'domcontentloaded' });
-  await wait(PAGE_SETTLE_SECONDS);
+  await wait();
   const url = page.url();
   if (onSignIn(url)) return { ok: false, blocked: 'google_sign_in_required', url, textPreview: '' };
   const text = await bodyText(page);
@@ -73,7 +73,7 @@ export async function createAppPassword(page, wait, appName) {
   if (!await clickByText(page, /^Create$/i, 'create app password')) {
     return { ok: false, blocked: 'create_action_not_found', url: page.url(), textPreview: preview(await bodyText(page)) };
   }
-  await wait(PAGE_SETTLE_SECONDS);
+  await wait();
   if (onSignIn(page.url())) return { ok: false, blocked: 'google_sign_in_required', url: page.url(), textPreview: '' };
   const dialog = page.getByRole('dialog').filter({ visible: true }).first();
   const text = await dialog.isVisible() ? await dialog.innerText() : await bodyText(page);

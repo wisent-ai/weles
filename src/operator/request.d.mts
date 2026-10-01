@@ -18,10 +18,9 @@ export type OperatorRequest = {
   account: string;
   instruction: string;
   run: string;
+  run_pid: number;
   host: string;
   opened_at: string;
-  deadline_seconds: number;
-  deadline_at: string;
   closed_at: string | null;
   approved: boolean | null;
   waited_seconds: number | null;
@@ -34,7 +33,7 @@ export type OpenOperatorRequestInput = {
   account: string;
   instruction: string;
   run: string;
-  deadlineSeconds: number;
+  runPid?: number;
 };
 
 export declare function operatorRequestDir(): string;
@@ -44,5 +43,5 @@ export declare function openOperatorRequest(input: OpenOperatorRequestInput): Op
 export declare function closeOperatorRequest(id: string, approved: boolean, detail: string): OperatorRequest;
 export declare function readOperatorRequest(id: string): OperatorRequest;
 export declare function isOpen(request: OperatorRequest): boolean;
-export declare function isOverdue(request: OperatorRequest): boolean;
+export declare function isAbandoned(request: OperatorRequest): boolean;
 export declare function listOperatorRequests(options?: { limit?: number; openOnly?: boolean }): OperatorRequest[];

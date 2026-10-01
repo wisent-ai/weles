@@ -1,3 +1,4 @@
+import { pageSettled } from '../_shared/page/settled.mjs';
 // App Store Connect analytics scraper: pulls app metrics (downloads, revenue, crashes) for each app.
 // Requires valid session — run apple/login.mjs first to store cookies.
 // Outputs JSON to stdout with per-app metrics.

@@ -1,3 +1,4 @@
+import { pageSettled } from '../../_shared/page/settled.mjs';
 // Meta Ads persistent login bootstrap.
 //
 // Opens a visible Weles Chromium profile, waits for manual login, verifies

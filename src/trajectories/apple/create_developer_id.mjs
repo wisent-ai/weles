@@ -1,3 +1,4 @@
+import { pageSettled } from '../_shared/page/settled.mjs';
 // Apple Developer ID Application certificate creation.
 // One-use Skarbiec capabilities authorize email, password and 2FA; Stado owns
 // execution and placement.

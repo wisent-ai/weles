@@ -1,3 +1,4 @@
+import { pageSettled } from '../_shared/page/settled.mjs';
 // Fetch a specific sub-chart from the UW flow-overview page by clicking its
 // tab and screenshotting just that chart element.
 // Usage: node src/trajectories/unusualwhales/chart.mjs \

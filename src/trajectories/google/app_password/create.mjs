@@ -20,6 +20,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runOutputPath } from '#run-output';
 import { WSession } from '../../../../dist/session/wsession.js';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 import {
   accountProfileDir, loginMaterial, signIn,
 } from '../../_shared/services/google_sso/sign_in/account.mjs';
@@ -92,7 +93,7 @@ async function main() {
   const session = await WSession.start({
     label: `${RUN}-${loginItem}`, browser: 'chromium', headless: false, userDataDir: accountProfileDir(login),
   });
-  const wait = (seconds) => session.wait(seconds);
+  const wait = () => pageSettled(session.page);
   let issued;
   try {
     issued = await issue(session.page, wait, login);

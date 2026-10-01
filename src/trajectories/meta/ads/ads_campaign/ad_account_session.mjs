@@ -1,3 +1,4 @@
+import { pageSettled } from '../../../_shared/page/settled.mjs';
 // Whose session this is and which ad account it is pointed at.
 //
 // Three questions live here: is the browser showing a login or checkpoint

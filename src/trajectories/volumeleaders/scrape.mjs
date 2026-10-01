@@ -1,3 +1,4 @@
+import { pageSettled } from '../_shared/page/settled.mjs';
 // Scrape one volumeleaders.com page for a given ticker.
 // Usage: node src/trajectories/volumeleaders/scrape.mjs --ticker ORCL --page trades [--screenshot /path.png]
 // Pages: trades | clusters | cluster_bombs | levels | level_touches | chart |

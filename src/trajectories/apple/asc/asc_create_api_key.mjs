@@ -1,3 +1,4 @@
+import { pageSettled } from '../../_shared/page/settled.mjs';
 // Generate an App Store Connect API key through an already authenticated persistent profile.
 // Authentication is delegated exclusively to an explicitly authorized apple_login run.
 //

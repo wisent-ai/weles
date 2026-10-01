@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { pageSettled } from '../../_shared/page/settled.mjs';
 // Automatyczny login do lsi.parp.gov.pl przez reset hasła.
 // Email idzie na adres konta PARP (PARP_EMAIL); link resetu czyta Skrzynka (skrzynka sync / message list).
 // Po reset: zapisuje nowe hasło do ~/.weles/parp_login.json i loguje się.

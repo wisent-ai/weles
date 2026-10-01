@@ -1,3 +1,4 @@
+import { pageSettled } from '../../../../_shared/page/settled.mjs';
 // Signing the planner's browser profile into the preferred Google Ads account.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';

@@ -1,3 +1,4 @@
+import { pageSettled } from '../../_shared/page/settled.mjs';
 // Google Ads persistent login bootstrap.
 
 import { generatePersona } from '../../../../dist/browser/persona.js';

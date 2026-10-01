@@ -1,3 +1,4 @@
+import { pageSettled } from '../../../_shared/page/settled.mjs';
 // Google Ads UI fallback: collect Keyword Planner keyword volume without
 // REST keyword-planning service access.
 //

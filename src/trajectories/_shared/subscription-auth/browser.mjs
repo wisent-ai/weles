@@ -1,3 +1,4 @@
+import { pageSettled } from '../page/settled.mjs';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanFill, humanType } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';

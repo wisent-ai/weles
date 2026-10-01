@@ -1,3 +1,4 @@
+import { pageSettled } from '../../_shared/page/settled.mjs';
 // Meta Ads Manager: create/fill a campaign draft in the browser.
 //
 // Env:

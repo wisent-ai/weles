@@ -1,3 +1,4 @@
+import { pageSettled } from '../../../../_shared/page/settled.mjs';
 // Driving the Keyword Planner page: the account selector, the keyword input, and the harvest.
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';

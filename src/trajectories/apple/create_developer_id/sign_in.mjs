@@ -1,3 +1,4 @@
+import { pageSettled } from '../../_shared/page/settled.mjs';
 import { withCapability, withCapabilityPendingRetry } from '../../../../dist/utils/capability.js';
 import { completeAppleTwoFactorChallenge } from '../two_factor.mjs';
 import { relayAppleChallenge } from '../../../auth/apple-account-placement.mjs';

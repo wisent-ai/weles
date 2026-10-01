@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { pageSettled } from '../_shared/page/settled.mjs';
 // Discovery selektorów dla generatora PARP. Po keeper-driven loginie i otwarciu
 // wniosku do edycji, walks DOM i ekstrahuje każdy widoczny input/textarea/
 // select/checkbox/radio z najbliższym labelem. Generuje candidate field_map.json

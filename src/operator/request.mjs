@@ -2,10 +2,8 @@
 //
 // Some flows stop on a person: Google answers a first sign-in from a fresh
 // profile with a push to the account owner's phone, and no amount of
-// automation taps it. Until now that waiting was invisible — the authenticator
-// enrolment printed one line into its own log, waited five minutes and died
-// with `google_push_not_approved`, while the operator was never told that
-// anything wanted him, which account it was, or how long he had. The agent
+// automation taps it. Until now that waiting was invisible — the operator was
+// never told that anything wanted him or which account it was. The agent
 // running the flow filled that gap by hand, in chat, which is not a product.
 //
 // This module is the product: a run opens a request naming what has to be
@@ -16,8 +14,10 @@
 //
 // A request has two facts and no vocabulary: it is open until `closed_at` is
 // written, and when it closes, `approved` says whether the person did the
-// thing. Everything else — the deadline, the pages, the detail — describes
-// those two.
+// thing. A request carries the process id of the run that waits on it: the
+// request stays open as long as that run is alive, and an open request whose
+// run has exited without closing it reads as abandoned. No clock decides
+// either.
 
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -31,8 +31,6 @@ export const OPERATOR_REQUEST_SCHEMA = 'wisent.weles-operator-request.v1';
 const DIRECTORY_VARIABLE = 'WELES_OPERATOR_REQUEST_DIR';
 const PAGING_VARIABLE = 'WELES_OPERATOR_REQUEST_PAGING';
 const PAGING_DISABLED_VALUE = 'off';
-/** Stado's pager is a remote call; a run must not hang on it. */
-const PAGE_TIMEOUT_MS = 30_000;
 /** Enough of a refusal to name it, never enough to carry a channel's payload. */
 const MAX_PAGE_DETAIL_CHARS = 400;
 const MILLISECONDS_PER_SECOND = 1000;
@@ -81,8 +79,8 @@ function pagingEnabled() {
 }
 
 /** What the operator actually reads. Every line answers one question he would
- * otherwise have to ask: what, for which account, where, by when, and how to
- * look at it. */
+ * otherwise have to ask: what, for which account, where, who is waiting, and
+ * how to look at it. */
 export function pageBody(request) {
   return [
     'Weles is waiting for one action from you.',
@@ -90,12 +88,11 @@ export function pageBody(request) {
     `What to do:  ${request.instruction}`,
     `Account:     ${request.account}`,
     `Host:        ${request.host}`,
-    `Run:         ${request.run}`,
-    `Waiting for: ${request.deadline_seconds}s, until ${request.deadline_at}`,
+    `Run:         ${request.run} (process ${request.run_pid})`,
     `Request:     ${request.id}`,
     '',
     `Watch it:    weles operator-requests show ${request.id}`,
-    'If nobody acts before the deadline, the run stops and this request is recorded as unanswered.',
+    'The run waits until you act or it is cancelled; if it ends first, this request is recorded as abandoned.',
   ].join('\n');
 }
 
@@ -107,7 +104,7 @@ export function pageSubject(request) {
  * Paging is best effort by construction: a run that cannot reach the pager
  * still waits, because the operator may be looking at the screen — but the
  * record says nobody was told, which is the difference between a silent
- * timeout and a diagnosed one. */
+ * wait and a diagnosed one. */
 function page(request) {
   const at = new Date().toISOString();
   if (!pagingEnabled()) {
@@ -123,7 +120,7 @@ function page(request) {
     };
   }
   const result = spawnSync(binary, ['alerts', 'send', pageBody(request), '--subject', pageSubject(request)], {
-    encoding: 'utf8', timeout: PAGE_TIMEOUT_MS, env: { ...process.env, HOME: homedir() },
+    encoding: 'utf8', env: { ...process.env, HOME: homedir() },
   });
   if (result.error || result.status !== 0) {
     const detail = result.error?.message || result.stderr || result.stdout || `exit ${result.status}`;
@@ -166,15 +163,16 @@ export function openRequestFor(kind, account) {
  * The caller keeps waiting for its own condition; this records the wait and
  * makes it visible. `closeOperatorRequest` is what says how it ended. An
  * identical request already waiting is returned as it stands: the person is
- * asked once, not once per run that needs the same hand.
+ * asked once, not once per run that needs the same hand. `runPid` is the
+ * process that waits; it defaults to the caller's own process.
  */
 export function openOperatorRequest(input) {
-  const seconds = Number(input.deadlineSeconds);
-  if (!Number.isFinite(seconds) || seconds <= 0) {
-    throw new Error(`operator request needs a positive deadlineSeconds, got ${input.deadlineSeconds}`);
+  const runPid = input.runPid === undefined ? process.pid : Number(input.runPid);
+  if (!Number.isInteger(runPid) || runPid <= 0) {
+    throw new Error(`operator request needs the waiting run's process id, got ${input.runPid}`);
   }
   const waiting = openRequestFor(input.kind, input.account);
-  if (waiting && !isOverdue(waiting)) return waiting;
+  if (waiting && !isAbandoned(waiting)) return waiting;
   const opened = new Date();
   const request = {
     schema: OPERATOR_REQUEST_SCHEMA,
@@ -183,10 +181,9 @@ export function openOperatorRequest(input) {
     account: required(input.account, 'an account'),
     instruction: required(input.instruction, 'an instruction for the operator'),
     run: required(input.run, 'the run that is waiting'),
+    run_pid: runPid,
     host: hostname(),
     opened_at: opened.toISOString(),
-    deadline_seconds: Math.round(seconds),
-    deadline_at: new Date(opened.getTime() + seconds * MILLISECONDS_PER_SECOND).toISOString(),
     closed_at: null,
     approved: null,
     waited_seconds: null,
@@ -229,11 +226,24 @@ export function isOpen(request) {
   return !request.closed_at;
 }
 
-/** An open request whose deadline has passed: the run that opened it died
- * without saying how it ended. Naming it is the whole point — it reads as
- * unanswered, not as still hoping. */
-export function isOverdue(request) {
-  return isOpen(request) && Date.now() > new Date(request.deadline_at).getTime();
+/** Whether the process `pid` on this host still exists. EPERM means it exists
+ * under another user. */
+function processAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code === 'EPERM';
+  }
+}
+
+/** An open request whose run has exited without saying how it ended. Naming
+ * it is the whole point — it reads as abandoned, not as still hoping. A
+ * request opened on another host cannot be judged from here and is not
+ * called abandoned. */
+export function isAbandoned(request) {
+  if (!isOpen(request) || request.host !== hostname()) return false;
+  return !processAlive(Number(request.run_pid));
 }
 
 /** The recent requests, newest first. `openOnly` answers the one question an

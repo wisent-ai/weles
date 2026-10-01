@@ -98,14 +98,14 @@ export async function signIn(page, wait, login) {
   await fillAndVerify(page, password, login.password, humanClickLocator, humanType);
   await waitForEnabledThenClick(page, /next|sign in|continue|dalej/i);
   await humanIdlePause('long');
-  await wait(4);
+  await wait();
   if (!onSignIn(page.url())) return { ok: true };
   if (login.seed) {
     const code = page.locator(CODE_FIELD).filter({ visible: true }).first();
     if (await code.isVisible()) {
       await humanFill(page, code, generateTotp(login.seed));
       await waitForEnabledThenClick(page, /next|verify/i);
-      await wait(6);
+      await wait();
       if (!onSignIn(page.url())) return { ok: true };
     }
   }

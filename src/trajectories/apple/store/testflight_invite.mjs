@@ -1,3 +1,4 @@
+import { pageSettled } from '../../_shared/page/settled.mjs';
 // TestFlight: invite a tester by email to a given app/group.
 // Args: APP_ID (numeric), TESTER_EMAIL, GROUP_NAME (optional, defaults to first group).
 

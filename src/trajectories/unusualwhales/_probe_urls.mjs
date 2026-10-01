@@ -1,3 +1,4 @@
+import { pageSettled } from '../_shared/page/settled.mjs';
 // Two modes:
 //  (default) extract every internal URL from the authenticated UW sidebar/page.
 //  --mode inventory: walk every known per-ticker page and capture interactive

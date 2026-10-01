@@ -1,3 +1,4 @@
+import { pageSettled } from '../../_shared/page/settled.mjs';
 // App Store review (web): rate and leave a review on an app via apps.apple.com.
 // Requires signed-in Apple ID — rerun apple/login.mjs (or seed cookies via
 // cross_login) if the trajectory lands on idmsa.apple.com.

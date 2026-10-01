@@ -1,3 +1,4 @@
+import { pageSettled } from '../_shared/page/settled.mjs';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { autoBindCharacter } from '../lib/character-bind.mjs';

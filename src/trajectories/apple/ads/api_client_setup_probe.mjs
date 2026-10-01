@@ -1,3 +1,4 @@
+import { pageSettled } from '../../_shared/page/settled.mjs';
 // Apple Ads API client setup probe.
 //
 // Opens Apple Ads Account Settings/API only through an already authenticated session.

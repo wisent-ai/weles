@@ -26,10 +26,7 @@ import {
   accountProfileDir, loginMaterial, signIn as signInAccount,
 } from '../../_shared/services/google_sso/sign_in/account.mjs';
 
-/** How long the operator has to approve Google's push prompt on the phone. */
-const PUSH_APPROVAL_TIMEOUT_MS = 5 * 60 * 1000;
-const MILLISECONDS_PER_SECOND = 1000;
-const NAV_TIMEOUT_MS = 60_000;
+import { pageSettled } from '../../_shared/page/settled.mjs';
 const RESULT_DIR = runOutputPath('google-authenticator-enrol');
 const RESULT_FILE = join(RESULT_DIR, 'result.json');
 
@@ -50,26 +47,21 @@ function report(result) {
 async function signIn(page, wait, login) {
   const signed = await signInAccount(page, wait, login);
   if (signed.ok || signed.blocked !== 'google_push_approval_required') return signed;
-  // Google's push to the operator's phone: one approval, waited for once —
-  // and the operator is actually told, instead of the run waiting in silence
-  // and dying with a blocked verdict nobody saw.
+  // Google's push to the operator's phone: one approval, waited for until it
+  // happens or the run is cancelled — and the operator is actually told,
+  // instead of the run waiting in silence.
   const request = openOperatorRequest({
     kind: 'google-push-approval',
     account: login.email,
     run: `google-authenticator-enrol ${login.loginItem}`,
     instruction: `Open the Gmail or Google app on your phone, find the "Is it you?" prompt for ${login.email} and tap Yes. Weles is signing that account in on this host to enrol an authenticator, and this is the only step it cannot do itself.`,
-    deadlineSeconds: PUSH_APPROVAL_TIMEOUT_MS / MILLISECONDS_PER_SECOND,
   });
   console.log(`[google-authenticator-enrol] operator request ${request.id} opened; ${request.pages.some((attempt) => attempt.ok) ? 'the operator was paged' : 'nobody could be paged'}`);
   try {
-    await page.waitForURL((url) => !/accounts\.google\.com/.test(String(url)), { timeout: PUSH_APPROVAL_TIMEOUT_MS });
+    await page.waitForURL((url) => !/accounts\.google\.com/.test(String(url)));
   } catch (error) {
-    if (error?.name !== 'TimeoutError') {
-      closeOperatorRequest(request.id, false, `the run failed while waiting: ${String(error?.message || error)}`);
-      throw error;
-    }
-    closeOperatorRequest(request.id, false, 'nobody approved the prompt before the deadline');
-    return { ok: false, blocked: 'google_push_not_approved', url: page.url(), operator_request: request.id };
+    closeOperatorRequest(request.id, false, `the run failed while waiting: ${String(error?.message || error)}`);
+    throw error;
   }
   closeOperatorRequest(request.id, true, 'the prompt was approved and the session signed in');
   return { ok: true };
@@ -90,16 +82,16 @@ async function main() {
     label: `google-authenticator-enrol-${loginItem}`, browser: 'chromium', headless: false, userDataDir,
   });
   const page = session.page;
-  const wait = (seconds) => session.wait(seconds);
+  const wait = () => pageSettled(page);
   try {
-    let opened = await openAuthenticatorSetup(page, wait, NAV_TIMEOUT_MS);
+    let opened = await openAuthenticatorSetup(page, wait);
     if (!opened.ok && opened.blocked === 'google_sign_in_required') {
       const signedIn = await signIn(page, wait, login);
       if (!signedIn.ok) {
         report({ ok: false, login_item: loginItem, email: login.email, ...signedIn });
         process.exit(3);
       }
-      opened = await openAuthenticatorSetup(page, wait, NAV_TIMEOUT_MS);
+      opened = await openAuthenticatorSetup(page, wait);
     }
     if (!opened.ok) {
       report({ ok: false, login_item: loginItem, email: login.email, ...opened });

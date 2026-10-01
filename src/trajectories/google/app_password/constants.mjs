@@ -11,9 +11,6 @@ export const APP_NAME = 'Skrzynka';
 export const SKRZYNKA_BIN_VARIABLE = 'WELES_SKRZYNKA_BIN';
 export const SKRZYNKA_DEFAULT_BIN = 'skrzynka';
 
-// Seconds Google takes to settle each settings page after navigation or a click.
-export const PAGE_SETTLE_SECONDS = 4;
-
 // How many times the page is opened again after Google asks to re-enter the
 // password before creating the app password.
 export const SIGN_IN_ROUNDS = 2;
