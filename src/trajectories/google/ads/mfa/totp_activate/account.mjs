@@ -12,7 +12,7 @@ export async function navigateIdentifier(page, email, continueUrl = 'https://mya
   login.searchParams.set('flowEntry', 'ServiceLogin');
   login.searchParams.set('Email', email);
   await page.goto(login.toString(), { waitUntil: 'domcontentloaded' }).catch((error) => {
-    console.log(`[google-totp-activate] WARN identifier navigation failed ${String(error?.message || error).slice(0, 240)}`);
+    console.log(`[google-totp-activate] WARN identifier navigation failed ${String(error?.message || error)}`);
   });
   await pageSettled(page);
 }
@@ -40,7 +40,7 @@ export async function switchToCorrectGoogleAccount(s, creds, continueUrl = 'http
   chooser.searchParams.set('Email', creds.email || EMAIL);
   chooser.searchParams.set('continue', continueUrl);
   await s.page.goto(chooser.toString(), { waitUntil: 'domcontentloaded' }).catch((error) => {
-    console.log(`[google-totp-activate] WARN account chooser navigation failed ${String(error?.message || error).slice(0, 240)}`);
+    console.log(`[google-totp-activate] WARN account chooser navigation failed ${String(error?.message || error)}`);
   });
   await pageSettled(s.page);
   const preferred = s.page.getByText(creds.email || EMAIL, { exact: false }).filter({ visible: true }).first();
@@ -54,7 +54,7 @@ export async function switchToCorrectGoogleAccount(s, creds, continueUrl = 'http
   if (/accountchooser/i.test(s.page.url?.() || '')) {
     const direct = continueUrl.replace('https://myaccount.google.com/', 'https://myaccount.google.com/u/1/');
     await s.page.goto(direct, { waitUntil: 'domcontentloaded' }).catch((error) => {
-      console.log(`[google-totp-activate] WARN direct u/1 navigation failed ${String(error?.message || error).slice(0, 240)}`);
+      console.log(`[google-totp-activate] WARN direct u/1 navigation failed ${String(error?.message || error)}`);
     });
     await pageSettled(s.page);
   }

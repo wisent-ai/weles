@@ -14,7 +14,7 @@ export async function solveRecaptchaV2Token(creds: CaptchaCredentials, page: Pag
   const url = options?.url ?? (typeof page?.url === 'function' ? page.url() : page?.url) ?? '';
   const isInv = !!options?.invisible;
   const isEnt = !!options?.enterprise;
-  const proxy = await proxyTaskFields(options?.proxy).catch((e: any) => { console.log(`[captcha:solver] proxy parse skipped: ${e.message?.slice(0, 80)}`); return null; });
+  const proxy = await proxyTaskFields(options?.proxy).catch((e: any) => { console.log(`[captcha:solver] proxy parse skipped: ${e.message}`); return null; });
 
   // NopeCHA Token API first — different token provenance may bypass LinkedIn rejection.
   if (creds.nopecha) {
@@ -133,7 +133,7 @@ async function solveRecaptchaV2Nopecha(creds: CaptchaCredentials, sitekey: strin
     if (typeof res?.data === 'string' && res.data.length > 20) { console.log(`[captcha:api] nopecha recaptcha2 solved token=${res.data.slice(0, 20)}...`); return res.data; }
     if (res?.error === 14) { console.log(`[captcha:api] captcha_nopecha_processing: job ${jobId} has no result yet`); return null; }
     console.log(`[captcha:api] nopecha recaptcha2 error: ${JSON.stringify(res).slice(0, 200)}`);
-  } catch (e: any) { console.log(`[captcha:api] nopecha recaptcha2 fetch err: ${e.message?.slice(0, 100)}`); }
+  } catch (e: any) { console.log(`[captcha:api] nopecha recaptcha2 fetch err: ${e.message}`); }
   return null;
 }
 
@@ -159,7 +159,7 @@ async function solveRecaptchaV3Nopecha(creds: CaptchaCredentials, sitekey: strin
     if (typeof res?.data === 'string' && res.data.length > 20) { console.log(`[captcha:api] nopecha recaptcha3 solved token=${res.data.slice(0, 20)}...`); return res.data; }
     if (res?.error === 14) { console.log(`[captcha:api] captcha_nopecha_processing: job ${jobId} has no result yet`); return null; }
     console.log(`[captcha:api] nopecha recaptcha3 error: ${JSON.stringify(res).slice(0, 200)}`);
-  } catch (e: any) { console.log(`[captcha:api] nopecha recaptcha3 fetch err: ${e.message?.slice(0, 100)}`); }
+  } catch (e: any) { console.log(`[captcha:api] nopecha recaptcha3 fetch err: ${e.message}`); }
   return null;
 }
 

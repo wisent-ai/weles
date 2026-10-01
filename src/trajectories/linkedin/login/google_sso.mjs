@@ -10,7 +10,7 @@ async function ssoCredentials(email) {
   try {
     return await getGoogleSsoCreds(email);
   } catch (e) {
-    console.log(`[linkedin_login] no Google SSO credentials for ${email ?? 'the default account'}: ${e.message?.slice(0, 120)}`);
+    console.log(`[linkedin_login] no Google SSO credentials for ${email ?? 'the default account'}: ${e.message}`);
     return false;
   }
 }
@@ -35,7 +35,7 @@ async function keepEvidence(page, dir, name) {
   try {
     await page.screenshot({ path: join(dir, `${name}.png`), fullPage: true });
   } catch (e) {
-    console.log(`[linkedin_login] ${name} screenshot not captured: ${e.message?.slice(0, 120)}`);
+    console.log(`[linkedin_login] ${name} screenshot not captured: ${e.message}`);
   }
 }
 
@@ -67,7 +67,7 @@ export async function loginWithGoogleSso(s, acct) {
   try {
     await humanClickLocator(s.page, best.btn);
   } catch (e) {
-    console.log(`[linkedin_login] frame button click failed, clicking it once more: ${e.message?.slice(0, 120)}`);
+    console.log(`[linkedin_login] frame button click failed, clicking it once more: ${e.message}`);
     await humanClickLocator(s.page, best.btn);
   }
   const oauthPage = await opened;

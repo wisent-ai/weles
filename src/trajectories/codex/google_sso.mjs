@@ -74,7 +74,7 @@ export async function doGoogleSso({
             await waitForEnabledThenClick(page, /^(continue|next|dalej)$/i);
             await humanIdlePause('long');
           } catch (e) {
-            console.log(`[google_sso] email-first entry failed: ${e.message.slice(0, 120)}`);
+            console.log(`[google_sso] email-first entry failed: ${e.message}`);
           }
         }
       }
@@ -83,7 +83,7 @@ export async function doGoogleSso({
         step(`a${attempt}:clicked-continue-with-google`);
       } catch (e) {
         step(`a${attempt}:no-continue-with-google`);
-        console.log(`[google_sso] no continue-with-google a${attempt}: ${e.message.slice(0, 50)}`);
+        console.log(`[google_sso] no continue-with-google a${attempt}: ${e.message}`);
       }
       let popupHandled = false;
       for (let i = 0; i < 200; i += 1) {
@@ -95,7 +95,7 @@ export async function doGoogleSso({
           await clickEmailRow(popupPage, login.email);
           await humanIdlePause('long');
           try { await waitForEnabledThenClick(popupPage, /^(continue|dalej|next)$/i); }
-          catch (e) { console.log(`[google_sso] no popup consent: ${e.message.slice(0, 50)}`); }
+          catch (e) { console.log(`[google_sso] no popup consent: ${e.message}`); }
         }
         const st = await navEval(page, () => {
           const b = Array.from(document.querySelectorAll('button,[role="button"]'));
@@ -140,7 +140,7 @@ export async function doGoogleSso({
             await waitForEnabledThenClick(page, /^(continue|dalej|next)$/i);
             await humanIdlePause('long');
           } catch (e) {
-            console.log(`[google_sso] accountchooser handling (path=${st.pathname}): ${e.message.slice(0, 120)}`);
+            console.log(`[google_sso] accountchooser handling (path=${st.pathname}): ${e.message}`);
             // First-time account: no matching chooser row. Two page shapes are
             // possible: (a) a row chooser needing "Use another account", or (b)
             // the identifier (email-input) page with no rows at all. Try the
@@ -149,13 +149,13 @@ export async function doGoogleSso({
             if (!chooserFreshTried) {
               chooserFreshTried = true;
               try { await clickUseAnotherAccount(page); mark('gis_use_another_account'); await humanIdlePause('long'); }
-              catch (e2) { console.log(`[google_sso] no use-another-account (path=${st.pathname}): ${e2.message.slice(0, 80)}`); }
+              catch (e2) { console.log(`[google_sso] no use-another-account (path=${st.pathname}): ${e2.message}`); }
               try {
                 await enterGoogleCredentials({ page, login, mark, humanFill, humanClickLocator, humanIdlePause, humanType });
                 await humanIdlePause('long');
               } catch (e3) {
                 if (e3 && e3.fatal2fa) throw e3; // abort — do not loop back and re-trigger push/SMS
-                console.log(`[google_sso] fresh-entry failed (path=${st.pathname}): ${e3.message.slice(0, 120)}`);
+                console.log(`[google_sso] fresh-entry failed (path=${st.pathname}): ${e3.message}`);
               }
             }
           }

@@ -47,7 +47,7 @@ try {
   if (!patched) { console.log('FAIL: balance scraped but PATCH service_credentials failed'); process.exit(1); }
   console.log(`PASS: balance=$${balance} (persisted)`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exit(1);
 } finally {
   await s.close();

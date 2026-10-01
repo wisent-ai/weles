@@ -86,7 +86,7 @@ try {
   if ((await replyVisible.count()) === 0) { console.log('FAIL: reply message not visible in channel after submit'); process.exit(1); }
   console.log(`PASS: ${acct.username} replied in ${CHANNEL}`);
 } catch (e) {
-  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+  console.log(`FAIL: ${e.message}`);
   process.exit(1);
 } finally {
   await s.close();

@@ -67,7 +67,7 @@ async function fillProfile(s, acct, sessionMeta) {
     ...(WEBSITE ? [['website', WEBSITE]] : []),
   ];
   for (const [target, value] of tries) {
-    const r = await s.fill(target, value).catch((e) => `err: ${e.message?.slice(0, 60)}`);
+    const r = await s.fill(target, value).catch((e) => `err: ${e.message}`);
     console.log(`[ph-profile] fill ${target}: ${r}`);
     await pageSettled(s.page);
   }
@@ -93,7 +93,7 @@ try {
   console.log(`PASS: ${acct.username} profile saved`);
   process.exit(0);
 } catch (e) {
-  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+  console.log(`FAIL: ${e.message}`);
   process.exit(1);
 } finally {
   await s.close().catch(() => {});

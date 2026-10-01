@@ -34,7 +34,7 @@ function managedPassword(contract) {
   try {
     return readWelesManagedCredential(contract.credentialId, PASSWORD_FIELD, contract.tenantId) || false;
   } catch (error) {
-    console.log(`[microsoft] managed password unavailable: ${String(error?.message ?? error).slice(0, 120)}`);
+    console.log(`[microsoft] managed password unavailable: ${String(error?.message ?? error)}`);
     return false;
   }
 }
@@ -46,7 +46,7 @@ async function openSession(account, label) {
 }
 
 async function closeSession(session) {
-  try { await session.close(); } catch (error) { console.log(`[microsoft] session close: ${String(error?.message ?? error).slice(0, 120)}`); }
+  try { await session.close(); } catch (error) { console.log(`[microsoft] session close: ${String(error?.message ?? error)}`); }
 }
 
 async function persistCookies(session, account, proxyUrl) {

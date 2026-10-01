@@ -34,7 +34,7 @@ const result = await page.evaluate(async ({ base, projectId }) => {
   const permissions = await fetchText(`/api/beneficiary/project/${projectId}/get-user-permissions`);
   const storage = {};
   for (const [k, v] of Object.entries(localStorage)) {
-    if (/project|version|application|wniosek|beneficiary/i.test(k)) storage[k] = String(v).slice(0, 1000);
+    if (/project|version|application|wniosek|beneficiary/i.test(k)) storage[k] = String(v);
   }
   const resources = performance.getEntriesByType('resource')
     .map((e) => e.name)

@@ -21,7 +21,7 @@ export async function confirmBlockingSignal(s, banSignal, body) {
     const me = await readOwnHandle(s.page);
     if (me) inAuthListing = await ownListingHas(s.page, me, body, 10);
   } catch (e) {
-    console.log(`[ban-signal] auth listing unreadable: ${e.message?.slice(0, 120)}`);
+    console.log(`[ban-signal] auth listing unreadable: ${e.message}`);
   }
   if (inAuthListing) {
     console.log(`[ban-signal] ${banSignal.signal} XHR signal — but comment IS in auth listing. Treating as false positive, continuing to public-visibility poll.`);
@@ -83,12 +83,12 @@ export async function pollPublicVisibility(s, { baseUrl, postedCommentId, handle
  */
 export async function classifyInvisibleComment(s, priorSignal, body) {
   let realHandle = false;
-  try { realHandle = await readOwnHandle(s.page); } catch (e) { console.log(`[ban-signal] own handle unreadable: ${e.message?.slice(0, 120)}`); }
+  try { realHandle = await readOwnHandle(s.page); } catch (e) { console.log(`[ban-signal] own handle unreadable: ${e.message}`); }
   let unauthAboutStatus = 0;
   let inAuthListing = false;
   if (realHandle) {
-    try { unauthAboutStatus = await publicAboutStatus(s, realHandle); } catch (e) { console.log(`[ban-signal] about.json unreadable: ${e.message?.slice(0, 120)}`); }
-    try { inAuthListing = await ownListingHas(s.page, realHandle, body, 15); } catch (e) { console.log(`[ban-signal] auth listing unreadable: ${e.message?.slice(0, 120)}`); }
+    try { unauthAboutStatus = await publicAboutStatus(s, realHandle); } catch (e) { console.log(`[ban-signal] about.json unreadable: ${e.message}`); }
+    try { inAuthListing = await ownListingHas(s.page, realHandle, body, 15); } catch (e) { console.log(`[ban-signal] auth listing unreadable: ${e.message}`); }
   }
   if (unauthAboutStatus === 404) {
     return { signal: 'shadowbanned', healthy: false, details: { real_handle: realHandle, reason: 'about.json 404 publicly — account shadowbanned' } };

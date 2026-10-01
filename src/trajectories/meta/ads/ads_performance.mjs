@@ -146,7 +146,7 @@ if (HAS_META_API || META_API_ONLY) {
     await apiPerformance();
     process.exit(0);
   } catch (e) {
-    console.log('FAIL:', e.message?.slice(0, 1200));
+    console.log('FAIL:', e.message);
     process.exit(1);
   }
 }

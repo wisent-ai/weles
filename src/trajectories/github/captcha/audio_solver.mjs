@@ -168,7 +168,7 @@ export async function solveAudioPuzzle(page, { maxRounds = 10 } = {}) {
         if (t === String(n) || new RegExp('^' + n + '\\\\b').test(t)) { b.click(); return { clicked: true, text: t.slice(0, 30) }; }
       }
       return { clicked: false };
-    })(${pick})`).catch(e => ({ err: e.message?.slice(0, 80) }));
+    })(${pick})`).catch(e => ({ err: e.message }));
     console.log(`[audio] R${round}: click=${JSON.stringify(clicked)}`);
 
     // Clear captured audio for next round

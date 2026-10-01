@@ -36,7 +36,7 @@ export async function reloginLinkedinInline(s, acct) {
   try {
     await s.page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded' });
   } catch (e) {
-    return { ok: false, reason: `goto_err:${e.message?.slice(0, 80)}` };
+    return { ok: false, reason: `goto_err:${e.message}` };
   }
   await pageSettled(s.page);
   let landedUrl = s.page.url?.() ?? '';
@@ -59,7 +59,7 @@ export async function reloginLinkedinInline(s, acct) {
       await pageSettled(s.page);
       landedUrl = s.page.url?.() ?? '';
       console.log(`[linkedin_relogin] post-force-goto URL: ${landedUrl}`);
-    } catch (e) { return { ok: false, reason: `force_goto_err:${e.message?.slice(0, 80)}` }; }
+    } catch (e) { return { ok: false, reason: `force_goto_err:${e.message}` }; }
   }
   // Fill the form. Same selectors as linkedin_login.mjs.
   const usernameSel = 'input#username, input[name="session_key"], input[type="email"][autocomplete*="username"], input[type="email"]';
@@ -76,9 +76,9 @@ export async function reloginLinkedinInline(s, acct) {
     await pageSettled(s.page);
     await humanType(s.page, password);
     await pageSettled(s.page);
-  } catch (e) { return { ok: false, reason: `fill_err:${e.message?.slice(0, 80)}` }; }
+  } catch (e) { return { ok: false, reason: `fill_err:${e.message}` }; }
   const submitBtn = s.page.getByRole('button', { name: /^\s*sign\s*in\s*$/i }).filter({ visible: true }).first();
-  try { await submitBtn.waitFor({ state: 'visible' }); } catch (e) { return { ok: false, reason: `submit_not_visible:${e.message?.slice(0, 60)}` }; }
+  try { await submitBtn.waitFor({ state: 'visible' }); } catch (e) { return { ok: false, reason: `submit_not_visible:${e.message}` }; }
   await injectV3LoginToken(s.page).catch(() => {});
   try { await humanClickLocator(s.page, submitBtn); } catch { /* form may have already submitted */ }
   // The form posts and the page navigates away from /login whatever the

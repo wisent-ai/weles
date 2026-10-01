@@ -41,7 +41,7 @@ async function assertConstellationActivity() {
 
 async function assertPixelReady() {
   const { stdout } = await execFileP(ADB, ['-s', PIXEL_SERIAL, 'get-state']).catch((e) => {
-    throw new Error(`adb unreachable at ${PIXEL_SERIAL}: ${e.message?.slice(0, 200)}`);
+    throw new Error(`adb unreachable at ${PIXEL_SERIAL}: ${e.message}`);
   });
   if (!/device/.test(stdout)) throw new Error(`pixel not in "device" state: ${stdout.trim()}`);
 }

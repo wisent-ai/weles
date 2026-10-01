@@ -77,12 +77,12 @@ mkdirSync(SHOT_DIR, { recursive: true });
 async function shot(label) {
   const fp = join(SHOT_DIR, `${label}_${Date.now()}.png`);
   try { await s.page.screenshot({ path: fp, fullPage: true }); console.log(`[slack-user-token] shot=${fp}`); }
-  catch (e) { console.log(`[slack-user-token] screenshot WARN ${label}: ${e.message?.slice(0, 80)}`); }
+  catch (e) { console.log(`[slack-user-token] screenshot WARN ${label}: ${e.message}`); }
 }
 
 async function safeShutdown() {
   if (!s.shutdown) return;
-  try { await s.shutdown(); } catch (e) { console.log(`[slack-user-token] shutdown WARN: ${e.message?.slice(0, 80)}`); }
+  try { await s.shutdown(); } catch (e) { console.log(`[slack-user-token] shutdown WARN: ${e.message}`); }
 }
 
 async function fillPasswordWhenAvailable() {
@@ -179,7 +179,7 @@ try {
   await safeShutdown();
   process.exit(0);
 } catch (e) {
-  console.error(`[slack-user-token] failed: ${e.message?.slice(0, 300)}`);
+  console.error(`[slack-user-token] failed: ${e.message}`);
   await safeShutdown();
   process.exit(7);
 }

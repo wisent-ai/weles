@@ -61,7 +61,7 @@ export async function collectPageState(page) {
           type: el.getAttribute('type') || '',
           id: el.id || '',
           name: el.getAttribute('name') || '',
-          className: String(el.className || '').slice(0, 160),
+          className: String(el.className || ''),
           text: short(el.innerText || el.textContent || '', 240),
           ariaLabel: el.getAttribute('aria-label') || '',
           title: el.getAttribute('title') || '',

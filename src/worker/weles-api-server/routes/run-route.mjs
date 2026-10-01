@@ -162,7 +162,7 @@ export async function respondToRun(req, res, runTrajectory, validateAccountSecur
     if (!creds) { json(res, 422, { ok: false, action, run_id: out.run_id, error: 'no_credentials_in_result' }); return; }
     let ref;
     try { ref = await storeCredential(action, params, creds, out.run_id); }
-    catch (e) { json(res, 502, { ok: false, action, run_id: out.run_id, error: `store_failed: ${String(e && e.message ? e.message : e).slice(0, 200)}` }); return; }
+    catch (e) { json(res, 502, { ok: false, action, run_id: out.run_id, error: `store_failed: ${String(e && e.message ? e.message : e)}` }); return; }
     json(res, 200, { ok: true, action, run_id: out.run_id, credential: ref, coalesced: admission.joined });
     return;
   }

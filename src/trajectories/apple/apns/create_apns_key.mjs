@@ -52,7 +52,7 @@ if (/idmsa|\/login|authResult=FAILED/.test(s.page.url())) {
     const dl = await clickText(s.page, /download/i);
     console.log('[apns] download clicked =', dl);
   } catch (e) {
-    console.log('[apns] click flow error (finish in window if needed):', e.message?.slice(0, 140));
+    console.log('[apns] click flow error (finish in window if needed):', e.message);
   }
   console.log('[apns] waiting for the .p8 download…');
   const download = await downloadPromise;

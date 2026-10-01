@@ -117,7 +117,7 @@ try {
     writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({
       account_id: acct.id, username: acct.username, action: 'instagram_login',
       signal: sig, healthy: false,
-      details: { final_url: finalUrl, reason: e.message?.slice(0, 200) ?? 'no message' },
+      details: { final_url: finalUrl, reason: e.message ?? 'no message' },
       ts: new Date().toISOString(),
     }, null, 2));
     // If the platform suspended the account, flip is_active=false so
@@ -130,7 +130,7 @@ try {
       if (acct.id) await markCookiesStale(acct.id);
     }
   } catch {}
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exitCode = 1;
 } finally {
   await s.close();

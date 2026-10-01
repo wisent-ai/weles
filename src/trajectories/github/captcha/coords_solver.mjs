@@ -167,11 +167,11 @@ async function clickInEnforcement(page, needles) {
   // Accept either a single string or a prioritized array of substrings.
   const arr = Array.isArray(needles) ? needles : [needles];
   for (const n of arr) {
-    const r = await frame.evaluate(`${SHADOW_BTN_QUERY}(${JSON.stringify(n.toLowerCase())})`).catch(e => ({ err: e.message?.slice(0, 80) }));
+    const r = await frame.evaluate(`${SHADOW_BTN_QUERY}(${JSON.stringify(n.toLowerCase())})`).catch(e => ({ err: e.message }));
     if (r?.ok) return r;
   }
   // Return info from last attempt so caller can log button inventory.
-  return await frame.evaluate(`${SHADOW_BTN_QUERY}(${JSON.stringify(arr[arr.length - 1].toLowerCase())})`).catch(e => ({ err: e.message?.slice(0, 80) }));
+  return await frame.evaluate(`${SHADOW_BTN_QUERY}(${JSON.stringify(arr[arr.length - 1].toLowerCase())})`).catch(e => ({ err: e.message }));
 }
 
 async function clickVisualPuzzleInEnforcement(page) {
@@ -204,7 +204,7 @@ export async function solveRotationViaCoords(page, { maxRounds = 80 } = {}) {
           if (/signup_emailsent|verif|launch-code|account_verif/.test(u)) { console.log(`[coords] R${round}: iframe gone, URL advanced to ${u}`); return true; } console.log(`[coords] R${round}: iframe gone, URL stuck at ${page.url?.() ?? ''}`); return false; }  // allow-raw-playwright: polling/rate-limit loop
     let buf;
     try { buf = await page.screenshot({ type: 'png', clip: { x: box.x, y: box.y, width: box.width, height: box.height } }); }
-    catch (e) { console.log(`[coords] R${round}: screenshot err: ${e.message?.slice(0, 120)}`); return false; }
+    catch (e) { console.log(`[coords] R${round}: screenshot err: ${e.message}`); return false; }
     const b64 = buf.toString('base64');
     try { mkdirSync('/tmp/gh_shots', { recursive: true }); writeFileSync(`/tmp/gh_shots/round_${round}.png`, buf); } catch {}
     console.log(`[coords] R${round}: ${Math.round(buf.length / 1024)}KB image (${Math.round(box.width)}x${Math.round(box.height)}) -> /tmp/gh_shots/round_${round}.png`);
@@ -269,7 +269,7 @@ export async function solveRotationViaCoords(page, { maxRounds = 80 } = {}) {
         await humanIdlePause('short');
       }
       await page.mouse.up();
-    } catch (e) { console.log(`[coords] pointer err: ${e.message?.slice(0, 100)}`); }
+    } catch (e) { console.log(`[coords] pointer err: ${e.message}`); }
     const gesture = clickXY.swipe ? `swipe(${clickXY.swipe}px)` : 'clicked';
     console.log(`[coords] R${round} ${clickXY.src} ${gesture} page(${Math.round(pageX)},${Math.round(pageY)})`);
     await pageSettled(page);

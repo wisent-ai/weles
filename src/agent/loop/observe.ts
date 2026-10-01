@@ -108,7 +108,7 @@ async function pageObservation(page: any): Promise<string> {
     }
     return `TITLE: ${data.title ?? ''}\nVISIBLE TEXT: ${data.text ?? ''}\nCONTROLS:\n${summarizeControls(data.controls ?? [])}${frameSummaries.length ? `\n\nFRAMES:\n${frameSummaries.join('\n\n')}` : ''}`;
   } catch (e: any) {
-    return `PAGE OBSERVATION ERROR: ${String(e.message ?? e).slice(0, 300)}`;
+    return `PAGE OBSERVATION ERROR: ${String(e.message ?? e)}`;
   }
 }
 

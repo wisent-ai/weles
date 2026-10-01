@@ -178,7 +178,7 @@ export async function enterGoogleCredentials({
         return { path: location.pathname, host: location.host, texts };
       });
       console.log(`[google_sso] 2fa-diag host=${diag.host} path=${diag.path} clickables=${JSON.stringify(diag.texts)}`);
-    } catch (e) { console.log(`[google_sso] 2fa-diag failed: ${e.message.slice(0, 80)}`); }
+    } catch (e) { console.log(`[google_sso] 2fa-diag failed: ${e.message}`); }
     // No code field yet. Either Google defaulted to push/SMS (switch to the
     // authenticator method to force a TOTP field) or this account has no 2FA
     // (no method-chooser present) — then there is nothing to answer.

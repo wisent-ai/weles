@@ -196,7 +196,7 @@ for (const section of sections) {
     }
     sectionStats.push({ section: section.label, visibleFields: visible.length, rows: count, inspectedRows: opened });
   } catch (e) {
-    sectionStats.push({ section: section.label, error: String(e?.message || e).slice(0, 240) });
+    sectionStats.push({ section: section.label, error: String(e?.message || e) });
   }
 }
 

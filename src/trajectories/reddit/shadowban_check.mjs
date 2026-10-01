@@ -45,7 +45,7 @@ try {
     } catch { /* keep fallback */ }
   }
 } catch (e) {
-  console.log(`[shadowban_check] handle lookup err: ${e.message?.slice(0, 120)}`);
+  console.log(`[shadowban_check] handle lookup err: ${e.message}`);
 } finally {
   await sIn.close();
 }

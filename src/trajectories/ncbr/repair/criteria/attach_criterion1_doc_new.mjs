@@ -76,7 +76,7 @@ for (const file of declared) {
     file.bytes = info.size;
     file.sha256 = createHash('sha256').update(readFileSync(file.path)).digest('hex');
   } catch (error) {
-    missingFiles.push(`${file.name}: ${String(error?.message || error).slice(0, Number('70'))}`);
+    missingFiles.push(`${file.name}: ${String(error?.message || error)}`);
   }
 }
 if (missingFiles.length) throw new Error(`brakujace pliki paczki ${PACKAGE}: ${missingFiles.join('; ')}`);

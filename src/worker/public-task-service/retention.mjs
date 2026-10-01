@@ -38,7 +38,7 @@ export function createEvidenceRetention({
       taskId: task.id,
       outcome: 'failed',
       code,
-      message: String(error?.message ?? error).slice(0, 1_000),
+      message: String(error?.message ?? error),
       limits: {
         manifestBytes: MAX_EVIDENCE_MANIFEST_BYTES,
         inventoryBytes: MAX_EVIDENCE_TOTAL_BYTES,

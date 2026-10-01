@@ -172,8 +172,8 @@ for (const r of selectedRows) {
   try { await fill('nazwa_zadania', '0. Koszty pośrednie: Koszty pośrednie'); } catch (e) { /* 6.5 may auto-bind task 0 */ }
   try { await pickSelect('nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta', 'Wisent Polska'); } catch (e) { /* sometimes auto */ }
   await setAuto('rodzaj_pomocy', r.help);
-  try { await setAuto('rodzaj_metody_uproszczonej', r.method); } catch (e) { console.log(`SKIP METHOD ${String(e?.message || e).slice(0, 90)}`); }
-  try { await setAuto('kategoria_kosztu_feng', r.category); } catch (e) { console.log(`SKIP CATEGORY ${String(e?.message || e).slice(0, 90)}`); }
+  try { await setAuto('rodzaj_metody_uproszczonej', r.method); } catch (e) { console.log(`SKIP METHOD ${String(e?.message || e)}`); }
+  try { await setAuto('kategoria_kosztu_feng', r.category); } catch (e) { console.log(`SKIP CATEGORY ${String(e?.message || e)}`); }
   await fill('wydatki_ogolem', r.total);
   await fill('wydatki_kwalifikowalne', r.total);
   await fill('dofinansowanie', r.grant);

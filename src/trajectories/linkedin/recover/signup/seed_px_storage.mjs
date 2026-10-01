@@ -46,7 +46,7 @@ const browser = await launchProfileChrome({ userDataDir, executablePath: CHROME_
 const page = browser.pages()[0] || await browser.newPage();
 console.log('[seed-px] navigating to linkedin.com/login (real Chrome, fingerprint genuine)');
 try { await page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded' }); }
-catch (e) { console.log(`[seed-px] goto err: ${e.message?.slice(0, 120)}`); }
+catch (e) { console.log(`[seed-px] goto err: ${e.message}`); }
 
 // Auto-fill from Skarbiec if AUTO_LOGIN=1 and credentials are present.
 const email = acct.metadata?.email ?? acct.username;
@@ -66,7 +66,7 @@ if (process.env.AUTO_LOGIN === '1' && email && password) {
     await pwInput.press('Enter');
     await page.waitForURL((url) => !/\/login(\?|$)/.test(url.toString())).catch(() => {});
     console.log(`[seed-px] post-submit url=${page.url()}`);
-  } catch (e) { console.log(`[seed-px] auto-login err: ${e.message?.slice(0, 120)}`); }
+  } catch (e) { console.log(`[seed-px] auto-login err: ${e.message}`); }
 }
 
 console.log('[seed-px] window is yours (or auto-login result above). Close Chrome to capture state.');
@@ -95,7 +95,7 @@ try {
     try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && re.test(k)) out[k] = localStorage.getItem(k); } } catch {}
     return out;
   }, PX_RE.source).catch(() => ({}));
-} catch (e) { console.log(`[seed-px] localStorage scrape err: ${e.message?.slice(0, 120)}`); }
+} catch (e) { console.log(`[seed-px] localStorage scrape err: ${e.message}`); }
 const lsCount = Object.keys(lsItems).length;
 console.log(`[seed-px] captured ${lsCount} PX localStorage keys`);
 if (lsCount === 0) {
@@ -107,7 +107,7 @@ if (lsCount === 0) {
 // Capture cookies for the linkedin.com domain.
 let cookies = [];
 try { cookies = (await browser.cookies()).filter((c) => /linkedin\.com$/.test((c.domain ?? '').replace(/^\./, ''))); }
-catch (e) { console.log(`[seed-px] cookies scrape err: ${e.message?.slice(0, 120)}`); }
+catch (e) { console.log(`[seed-px] cookies scrape err: ${e.message}`); }
 const liAt = cookies.find((c) => c.name === 'li_at' && c.value);
 console.log(`[seed-px] captured ${cookies.length} linkedin.com cookies (li_at=${!!liAt})`);
 

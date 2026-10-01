@@ -23,7 +23,7 @@ export async function restoreRedditSession(s, acct) {
         await s.page.evaluate((items) => {
           for (const it of items) { try { window.localStorage.setItem(it.name, it.value); } catch { /* the origin refused this key */ } }
         }, o.localStorage);
-      } catch (e) { console.log(`[trajectory] storage-state restore origin=${o.origin} skipped: ${e.message?.slice(0, 80)}`); }
+      } catch (e) { console.log(`[trajectory] storage-state restore origin=${o.origin} skipped: ${e.message}`); }
     }
     console.log(`[trajectory] restored storage_state: ${valid.length} cookies + ${ss.origins?.reduce((n, o) => n + (o.localStorage?.length ?? 0), 0) ?? 0} localStorage entries across ${ss.origins?.length ?? 0} origin(s)`);
     return;

@@ -34,7 +34,7 @@ console.log(`[accept_friend] account=${acct.username} limit=${ACCEPT_LIMIT}`);
 
 async function fail(msg) {
   console.log(`FAIL: ${msg}`);
-  try { await s.page.screenshot({ path: runOutputPath('accept_friend_request', `fail_${Date.now()}.png`) }); } catch (e) { console.log(`[accept_friend] screenshot err: ${e.message?.slice(0, 80)}`); }
+  try { await s.page.screenshot({ path: runOutputPath('accept_friend_request', `fail_${Date.now()}.png`) }); } catch (e) { console.log(`[accept_friend] screenshot err: ${e.message}`); }
   await s.close();
   process.exit(1);
 }
@@ -46,7 +46,7 @@ try {
   // clear by waiting for the bottom-left User Settings gear button —
   // it only appears once the user-popout has rendered.
   try { await s.page.locator('button[aria-label="User Settings"]').first().waitFor({ state: 'visible' }); }
-  catch (e) { await fail(`SPA did not finish hydrating: ${e.message?.slice(0, 80)}`); }
+  catch (e) { await fail(`SPA did not finish hydrating: ${e.message}`); }
   await humanIdlePause('short');
 
   // Tab text may include a count badge like "Pending (2)" — match prefix.
@@ -69,7 +69,7 @@ try {
         const u = row.querySelector('[class*="username"], [class*="displayName"]');
         return u ? (u.textContent || '').trim() : null;
       });
-    } catch (e) { console.log(`[accept_friend] target read err: ${e.message?.slice(0, 80)}`); }
+    } catch (e) { console.log(`[accept_friend] target read err: ${e.message}`); }
     await humanClickLocator(s.page, acceptBtn);
     await humanIdlePause('deliberate');
     accepted.push({ target: target || `<unknown ${i}>`, at: new Date().toISOString() });
@@ -86,7 +86,7 @@ try {
   console.log('[accept_friend] persisted metadata.friend_requests_accepted[] in Skarbiec');
   console.log(`PASS: ${acct.username} accepted ${accepted.length} request(s)`);
 } catch (e) {
-  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+  console.log(`FAIL: ${e.message}`);
   process.exit(1);
 } finally {
   await s.close();

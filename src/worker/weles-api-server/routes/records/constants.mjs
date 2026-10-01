@@ -9,7 +9,6 @@ export const MAX_USERNAME_CHARS = 256;
 export const MAX_PASSWORD_CHARS = 1024;
 export const MAX_DISPLAY_NAME_CHARS = 256;
 export const MAX_SETTING_KEYS = 32;
-export const ERROR_CHARS = 300;
 export const HTTP_OK = 200;
 export const HTTP_INVALID_REQUEST = 400;
 export const HTTP_NOT_FOUND = 404;

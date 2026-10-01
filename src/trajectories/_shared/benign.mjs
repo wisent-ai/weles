@@ -129,7 +129,7 @@ try {
     banSignal = { signal: sig, healthy: false, details: { stage: 'pre-WSession', reason: msg } };
   }
   if (banSignal) console.log(`[ban-signal] ${banSignal.signal}`);
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exitCode = 1;
 } finally {
   if (banSignal) {

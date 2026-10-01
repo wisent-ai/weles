@@ -139,17 +139,17 @@ async function clickNext(s) {
       await assertAuthed('youtube', s, { label: 'youtube_register_post_oauth' });
     } catch (probeErr) {
       if (probeErr instanceof AuthProbeError) {
-        throw new Error(`oauth_did_not_authenticate: ${probeErr.message?.slice(0, 200)}`);
+        throw new Error(`oauth_did_not_authenticate: ${probeErr.message}`);
       }
       throw probeErr;
     }
 
     await s.saveAccount('youtube', { username: id.username, email: id.email, password: id.password, status: 'verified' });
-    await autoBindCharacter(id.username, 'youtube').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
+    await autoBindCharacter(id.username, 'youtube').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message}`));
     console.log(`PASS: ${id.username}`);
     process.exit(0);
   } catch (e) {
-    console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+    console.log(`FAIL: ${e.message}`);
     process.exitCode = 1;
   } finally {
     await s.close();

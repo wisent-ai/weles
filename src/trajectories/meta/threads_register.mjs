@@ -136,7 +136,7 @@ try {
   const username = await signup(s);
   console.log(`PASS: ${username}`);
 } catch (e) {
-  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+  console.log(`FAIL: ${e.message}`);
   process.exitCode = 1;
 } finally {
   await s.close();

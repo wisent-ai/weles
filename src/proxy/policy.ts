@@ -250,7 +250,7 @@ export async function enqueueProviderTopup(displayName: string): Promise<{ ok: b
   } catch (error) {
     return {
       ok: false,
-      reason: error instanceof Error ? error.message.slice(0, 80) : String(error).slice(0, 80),
+      reason: error instanceof Error ? error.message : String(error),
     };
   }
 }

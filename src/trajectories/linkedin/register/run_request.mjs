@@ -48,7 +48,7 @@ export async function earlyFingerprintCheck(s) {
     return report;
   } catch (e) {
     if (String(e.message ?? e).startsWith('FINGERPRINT_INCONSISTENT')) throw e;
-    console.log(`[register] early fingerprint check skipped: ${String(e).slice(0, 120)}`);
+    console.log(`[register] early fingerprint check skipped: ${String(e)}`);
     return null;
   }
 }

@@ -67,7 +67,7 @@ for (const row of rows) {
         platform: 'linkedin',
       });
       let gotoError = '';
-      await s.page.goto('https://www.linkedin.com/signup', { waitUntil: 'domcontentloaded' }).catch((e) => { gotoError = String(e?.message ?? e).slice(0, 200); });
+      await s.page.goto('https://www.linkedin.com/signup', { waitUntil: 'domcontentloaded' }).catch((e) => { gotoError = String(e?.message ?? e); });
       if (!gotoError) await pageSettled(s.page);
       const summary = await summarizeSignup(s.page);
       const classification = classifySummary(summary);
@@ -79,7 +79,7 @@ for (const row of rows) {
       }
       console.log(`[wprobe] ${row.display_name} sample=${i + 1}/${SAMPLES_PER_PROVIDER} exit=${exitIp || '?'} geo=${geo.result} rep=${reputation.result} browser=${classification.result}${classification.signal ? `:${classification.signal}` : ''}${item.submit ? ` submit=${item.submit.result}` : ''}`);
     } catch (e) {
-      item.error = String(e?.message ?? e).slice(0, 300);
+      item.error = String(e?.message ?? e);
       console.log(`[wprobe] ${row.display_name} sample=${i + 1}/${SAMPLES_PER_PROVIDER} exit=${exitIp || '?'} error=${item.error}`);
     } finally {
       await s?.close?.().catch(() => {});

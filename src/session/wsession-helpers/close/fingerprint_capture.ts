@@ -23,7 +23,7 @@ export async function wsCaptureFingerprint(s: WSession): Promise<void> {
       const raw = await s.page.evaluate(`document.body.innerText || document.body.textContent || ''`);
       network = parseNetworkFingerprint(raw);
     } catch (e: any) {
-      network = { _err: String(e?.message ?? e).slice(0, 200) };
+      network = { _err: String(e?.message ?? e) };
     }
     const payload = {
       capturedAt: new Date().toISOString(),

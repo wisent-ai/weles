@@ -41,7 +41,7 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
       const ci = page.frameLocator('iframe[src*="captchaInternal"]');
       await ci.frameLocator('iframe[src*="anchor"]').first().locator('#recaptcha-anchor').click();
       console.log('[recaptcha] Clicked checkbox');
-    } catch (e: any) { console.log('[recaptcha] Checkbox failed:', e.message?.slice(0, 60)); return false; }
+    } catch (e: any) { console.log('[recaptcha] Checkbox failed:', e.message); return false; }
     const af = findAnchorFrame(page);
     if (af) {
       const checked = await af.evaluate(`(() => document.querySelector('.recaptcha-checkbox')?.getAttribute('aria-checked') === 'true')()`).catch(() => false);
@@ -124,7 +124,7 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
           await bf.locator(`table tr:nth-child(${row}) td:nth-child(${col})`).click({ force: true });
           console.log(`[recaptcha] Tile ${pos}`);
         } catch (e: any) {
-          console.log(`[recaptcha] Tile ${pos} stalled (${e.message?.slice(0,40)})`);
+          console.log(`[recaptcha] Tile ${pos} stalled (${e.message})`);
           break;
         }
         await humanIdlePause();
@@ -164,7 +164,7 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
       if (loopErr.message?.includes('detach') || loopErr.message?.includes('context') || loopErr.message?.includes('destroy')) {
         console.log('[recaptcha] Frame detached — SOLVED!'); return true;
       }
-      console.log(`[recaptcha] Single-shot error: ${loopErr.message?.slice(0, 80)}`);
+      console.log(`[recaptcha] Single-shot error: ${loopErr.message}`);
     }
   }
   console.log('[recaptcha] Single-shot did not solve — failing fast');

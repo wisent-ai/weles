@@ -35,7 +35,7 @@ export function recordLoginFailure(error, s, acct, loginDiag) {
     action: 'tiktok_login',
     signal,
     healthy: false,
-    details: { final_url: finalUrl, reason: error.message?.slice(0, 200) ?? 'no message' },
+    details: { final_url: finalUrl, reason: error.message ?? 'no message' },
     ts,
   }, null, 2));
 }

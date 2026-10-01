@@ -113,7 +113,7 @@ async function signup(s) {
       console.log(`[ph] extracted sitekey: ${sitekey}`);
       if (!sitekey) { await pageSettled(s.page); continue; }
       const solver = new CaptchaSolver();
-      const token = await solver.solveRecaptchaV2(s.page, sitekey).catch((e) => { console.log(`[ph] solver threw: ${e.message?.slice(0, 200)}`); return null; });
+      const token = await solver.solveRecaptchaV2(s.page, sitekey).catch((e) => { console.log(`[ph] solver threw: ${e.message}`); return null; });
       if (!token || typeof token !== 'string') { console.log(`[ph] solver returned no token (${typeof token}: ${token})`); throw new Error('recaptcha_solver_no_token'); }
       console.log(`[ph] got token: ${token.slice(0, 20)}...`);
       const injected = await s.page.evaluate(`(() => {
@@ -217,7 +217,7 @@ async function signup(s) {
     await assertAuthed('producthunt', s, { label: 'producthunt_register_post_oauth' });
   } catch (probeErr) {
     if (probeErr instanceof AuthProbeError) {
-      throw new Error(`oauth_did_not_authenticate: ${probeErr.message?.slice(0, 200)}`);
+      throw new Error(`oauth_did_not_authenticate: ${probeErr.message}`);
     }
     throw probeErr;
   }
@@ -258,8 +258,8 @@ async function signup(s) {
     password: twPassword ?? 'linked_to_twitter',
   });
   console.log(`[ph] ${result}`);
-  await stampLinkedTwitter(phUsername, twUsername).catch((e) => console.log(`[ph] stamp err: ${e.message?.slice(0, 80)}`));
-  await autoBindCharacter(phUsername, 'producthunt').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
+  await stampLinkedTwitter(phUsername, twUsername).catch((e) => console.log(`[ph] stamp err: ${e.message}`));
+  await autoBindCharacter(phUsername, 'producthunt').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message}`));
   return phUsername;
 }
 
@@ -280,7 +280,7 @@ try {
   await s.close();
   process.exit(0);
 } catch (e) {
-  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+  console.log(`FAIL: ${e.message}`);
   await s.close().catch(() => {});
   process.exit(1);
 }

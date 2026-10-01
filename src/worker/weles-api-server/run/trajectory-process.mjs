@@ -88,7 +88,7 @@ export function createTrajectoryRunner({ resolveTrajectory, paramsToEnv }) {
       try {
         persistRunResult(runResultPath, { ok: null, ...RUN_RELEASE_IDENTITY, action, run_id: runId, status: 'running', started_at: startedAt });
       } catch (error) {
-        resolveRun({ ok: false, error: 'run_metadata_unavailable', action, run_id: runId, stderr_tail: String(error?.message || error).slice(0, 300) });
+        resolveRun({ ok: false, error: 'run_metadata_unavailable', action, run_id: runId, stderr_tail: String(error?.message || error) });
         return;
       }
       const env = {
@@ -122,7 +122,7 @@ export function createTrajectoryRunner({ resolveTrajectory, paramsToEnv }) {
         try {
           persistRunResult(runResultPath, { ...result, ...RUN_RELEASE_IDENTITY, action, run_id: runId, status: 'finished', started_at: startedAt, completed_at: new Date().toISOString() });
         } catch (error) {
-          result = { ...result, metadata_error: `run metadata could not be completed: ${String(error?.message || error).slice(0, 240)}` };
+          result = { ...result, metadata_error: `run metadata could not be completed: ${String(error?.message || error)}` };
         }
         resolveRun(result);
       };
@@ -173,7 +173,7 @@ export function runReauth(provider, account) {
       resolveRun({
         ok: false,
         error: 'run_metadata_unavailable',
-        detail: String(error?.message || error).slice(0, 240),
+        detail: String(error?.message || error),
         provider,
       });
       return;
@@ -217,7 +217,7 @@ export function runReauth(provider, account) {
       } catch (error) {
         result = {
           ...result,
-          metadata_error: `run metadata could not be completed: ${String(error?.message || error).slice(0, 240)}`,
+          metadata_error: `run metadata could not be completed: ${String(error?.message || error)}`,
         };
       }
       resolveRun(result);

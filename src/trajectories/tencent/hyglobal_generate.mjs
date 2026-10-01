@@ -105,7 +105,7 @@ async function landAndLogin(s) {
   await ensureGoogleSession(s);
 
   console.log(`[hy] navigating to ${PORTAL_URL}`);
-  await s.page.goto(PORTAL_URL, { waitUntil: 'commit' }).catch((e) => console.log(`[hy] goto warn: ${e.message?.slice(0, 80)}`));
+  await s.page.goto(PORTAL_URL, { waitUntil: 'commit' }).catch((e) => console.log(`[hy] goto warn: ${e.message}`));
   // Wait for the SPA to actually render any content (default wait is too short
   // when the page is cached / network is slow).
   await s.page.locator('button:has-text("Start Using"), input[placeholder*="email" i]').first().waitFor({ state: 'visible' }).catch(() => {});
@@ -167,7 +167,7 @@ async function landAndLogin(s) {
     await s.page.waitForFunction(() => {
       const f = document.querySelector('iframe[id*="tcaptcha"], iframe[src*="captchacdn.tencentcloudcs"]');
       return !f || f.style.display === 'none' || f.offsetWidth === 0;
-    }).catch((e) => console.log(`[hy] captcha-wait err: ${e.message?.slice(0, 80)}`));
+    }).catch((e) => console.log(`[hy] captcha-wait err: ${e.message}`));
     console.log('[hy] captcha modal closed; email should be dispatching');
   }
   await humanIdlePause('deliberate');
@@ -247,7 +247,7 @@ async function main() {
   try {
     let cookies = [];
     try { cookies = loadTencentCookies(); await s.page.context().addCookies(cookies); console.log(`[hy] injected ${cookies.length} cookies`); }
-    catch (e) { console.log(`[hy] no jar (run tencent/login.mjs first): ${e.message?.slice(0, 80)}`); }
+    catch (e) { console.log(`[hy] no jar (run tencent/login.mjs first): ${e.message}`); }
     const authed = await landAndLogin(s);
     console.log(`[hy] login outcome: ${authed}`);
     await humanIdlePause('deliberate');

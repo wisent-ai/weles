@@ -72,7 +72,7 @@ try {
   if (!ok) { console.log('FAIL: clicked like but no unlike state — likely shadowbanned or rate-limited'); process.exitCode = 1; }
   console.log('PASS: liked tweet');
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exitCode = 1;
 } finally {
   await s.close();

@@ -133,7 +133,7 @@ try {
   await humanClickLocator(page, save);
   await humanIdlePause('long');
 } catch (e) {
-  saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 100)}`;
+  saveResult = `NOT SAVED: ${String(e?.message || e)}`;
 }
 
 const after = await page.evaluate(() => ({

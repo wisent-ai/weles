@@ -268,7 +268,7 @@ for (const r of selectedRows) {
     added.push(r.name);
     console.log(`SAVED COST ${r.name.slice(0, 60)}`);
   } catch (e) {
-    console.log(`NOT SAVED COST ${r.name.slice(0, 60)}: ${String(e?.message || e).slice(0, 220)}`);
+    console.log(`NOT SAVED COST ${r.name.slice(0, 60)}: ${String(e?.message || e)}`);
     break;
   }
 }

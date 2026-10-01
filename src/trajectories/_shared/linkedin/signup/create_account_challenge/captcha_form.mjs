@@ -99,7 +99,7 @@ export async function submitLinkedinCaptchaForm(page, token, sitekey, dataS) {
         console.log('[create_account_challenge] _s input injected into challenge form');
       }
     } catch (e) {
-      console.log(`[create_account_challenge] _s inject skipped: ${e.message?.slice(0, 80)}`);
+      console.log(`[create_account_challenge] _s inject skipped: ${e.message}`);
     }
   }
   // Ensure the form sitekey matches the key the token was generated for.
@@ -111,7 +111,7 @@ export async function submitLinkedinCaptchaForm(page, token, sitekey, dataS) {
         console.log('[create_account_challenge] captchaSiteKey aligned to token sitekey');
       }
     } catch (e) {
-      console.log(`[create_account_challenge] captchaSiteKey align skipped: ${e.message?.slice(0, 80)}`);
+      console.log(`[create_account_challenge] captchaSiteKey align skipped: ${e.message}`);
     }
   }
   // LinkedIn's backend may validate the standard g-recaptcha-response textarea
@@ -127,7 +127,7 @@ export async function submitLinkedinCaptchaForm(page, token, sitekey, dataS) {
       console.log('[create_account_challenge] captcha token also injected into g-recaptcha-response');
     }
   } catch (e) {
-    console.log(`[create_account_challenge] g-recaptcha-response inject skipped: ${e.message?.slice(0, 80)}`);
+    console.log(`[create_account_challenge] g-recaptcha-response inject skipped: ${e.message}`);
   }
   console.log('[create_account_challenge] captcha token injected');
 
@@ -209,7 +209,7 @@ export async function submitLinkedinCaptchaForm(page, token, sitekey, dataS) {
     });
     console.log('[create_account_challenge] challenge iframe DOM dump:', JSON.stringify(domInfo, null, 2));
   } catch (e) {
-    console.log(`[create_account_challenge] DOM dump failed: ${e.message?.slice(0, 80)}`);
+    console.log(`[create_account_challenge] DOM dump failed: ${e.message}`);
   }
 
   for (const sel of buttonSelectors) {

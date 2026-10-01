@@ -135,7 +135,7 @@ try {
   console.log('screenshot -> /tmp/vast_list_result.png');
   process.exit(0);
 } catch (e) {
-  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+  console.log(`FAIL: ${e.message}`);
   process.exit(1);
 } finally {
   await ctx.close().catch(() => {});

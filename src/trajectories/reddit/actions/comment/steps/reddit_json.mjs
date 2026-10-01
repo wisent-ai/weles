@@ -55,7 +55,7 @@ export async function resolveTargetPost(page, oldUrl) {
     console.log(`[trajectory] resolved sub listing -> post ${resolved}`);
     return resolved;
   } catch (e) {
-    console.log(`[trajectory] sub listing fetch err: ${e.message?.slice(0, 100)}`);
+    console.log(`[trajectory] sub listing fetch err: ${e.message}`);
     return oldUrl;
   }
 }

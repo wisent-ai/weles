@@ -43,7 +43,7 @@ try {
   await humanIdlePause('long');
   console.log(`PASS-CHARGED: checkout initiated, url=${s.page.url().slice(0, 100)}`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exit(1);
 } finally {
   await s.close();

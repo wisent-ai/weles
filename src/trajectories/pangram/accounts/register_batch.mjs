@@ -84,6 +84,6 @@ async function runBatch() {
 }
 
 runBatch().catch((e) => {
-  console.error(`FAIL: ${e.message?.slice(0, 300)}`);
+  console.error(`FAIL: ${e.message}`);
   process.exit(1);
 });

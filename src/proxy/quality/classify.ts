@@ -57,7 +57,7 @@ async function whoisLookup(ip: string): Promise<{ org: string; netname: string }
     const netname = out['netname'] ? out['netname'] : '';
     return { org, netname };
   } catch (error) {
-    console.log(`[ip-classify] whois_failed for ${ip}: ${(error as Error).message.slice(0, 160)}`);
+    console.log(`[ip-classify] whois_failed for ${ip}: ${(error as Error).message}`);
     return { org: '', netname: '' };
   }
 }

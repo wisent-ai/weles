@@ -77,7 +77,7 @@ try {
   console.log(`[ban-signal] ${ban?.signal}  PASS: upvoted ${pickedFullname || ''}`);
 } catch (e) {
   ban = e.banSignal ?? await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
+  console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message}`);
   process.exitCode = 1;
 } finally {
   if (ban) { try { const dir = runRecordingsDir('reddit_upvote'); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'reddit_upvote', subreddit: SUBREDDIT, target_url: TARGET_URL, ...ban, ts: new Date().toISOString() }, null, 2)); } catch {} }

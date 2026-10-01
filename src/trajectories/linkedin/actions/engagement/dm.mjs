@@ -84,7 +84,7 @@ try {
   if (!echoCount) { console.log('FAIL: composer typed but message not echoed in conversation'); process.exit(1); }
   console.log(`PASS: DM sent to ${RECIPIENT}`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exit(1);
 } finally {
   await s.close();

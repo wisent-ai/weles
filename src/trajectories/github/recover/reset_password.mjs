@@ -65,7 +65,7 @@ try {
   for (const sel of SUBMIT_SELECTORS) {
     const loc = s.page.locator(sel).first();
     if ((await loc.count().catch(() => 0)) > 0) {
-      const r = await humanClickLocator(s.page, loc).then(() => ({ clicked: true, via: sel })).catch((e) => ({ clicked: false, err: e.message?.slice(0, 100), tried: sel }));
+      const r = await humanClickLocator(s.page, loc).then(() => ({ clicked: true, via: sel })).catch((e) => ({ clicked: false, err: e.message, tried: sel }));
       if (r.clicked) { submit = r; break; }
       submit = r;
     }
@@ -86,7 +86,7 @@ try {
     await pageSettled(s.page);
     let emails;
     try { emails = (await listReceived(20, email)).data; }
-    catch (e) { console.log(`[reset] inbox read failed: ${String(e?.message || e).slice(0, 160)}`); continue; }
+    catch (e) { console.log(`[reset] inbox read failed: ${String(e?.message || e)}`); continue; }
     for (const em of emails) {
       const to = (em.to ?? []).map(t => typeof t === 'string' ? t : t.email).join(',');
       if (!to.includes(email)) continue;
@@ -108,7 +108,7 @@ try {
   await pageSettled(s.page);
   const submitLoc2 = s.page.locator('input[type="submit"][value*="Change" i], button[type="submit"]').first();
   const submit2 = (await submitLoc2.count()) > 0
-    ? await humanClickLocator(s.page, submitLoc2).then(() => ({ clicked: true, via: 'humanClickLocator' })).catch((e) => ({ clicked: false, err: e.message?.slice(0, 100) }))
+    ? await humanClickLocator(s.page, submitLoc2).then(() => ({ clicked: true, via: 'humanClickLocator' })).catch((e) => ({ clicked: false, err: e.message }))
     : { clicked: false };
   console.log(`[reset] Submit new password: ${JSON.stringify(submit2)}`);
   if (!submit2.clicked) throw new Error('no submit control on password_reset/<token> page');
@@ -129,7 +129,7 @@ try {
 } catch (e) {
   const dir = runRecordingsDir('github_reset_password');
   try { mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'github_reset_password', healthy: false, signal: 'reset_failed', error: e.message, ts: new Date().toISOString() }, null, 2)); } catch {}
-  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+  console.log(`FAIL: ${e.message}`);
   process.exitCode = 1;
 } finally {
   await s.close();

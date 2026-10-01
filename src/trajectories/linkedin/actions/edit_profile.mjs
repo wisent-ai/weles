@@ -177,7 +177,7 @@ try {
       // that directly so the right onSubmit/action handler fires.
       const dispatchResult = await humanClickLocator(s.page, saveBtn)
         .then(() => 'humanClickLocator')
-        .catch((e) => `err:${e.message?.slice(0, 60)}`);
+        .catch((e) => `err:${e.message}`);
       console.log(`[li-profile] save dispatch: ${dispatchResult}`);
       const apiRes = await savePost;
       const postClickBody = await s.page.evaluate(() => (document.body?.innerText || '').slice(0, 600).replace(/\n/g, ' / ')).catch(() => '');
@@ -251,7 +251,7 @@ try {
         await humanIdlePause('deliberate');
         const applyBtn = s.page.locator('button:has-text("Save photo"), button:has-text("Apply"), button:has-text("Save")').filter({ visible: true }).first();
         if (await applyBtn.count()) { await humanClickLocator(s.page, applyBtn); writes.push('avatar uploaded'); await humanIdlePause('deliberate'); }
-      } catch (e) { console.log(`[li-profile] avatar err: ${e.message?.slice(0, 120)}`); }
+      } catch (e) { console.log(`[li-profile] avatar err: ${e.message}`); }
     }
   }
 
@@ -264,7 +264,7 @@ try {
   if (!writes.length) { console.log('PASS: no-op (form values already match character; Skarbiec synced)'); process.exit(0); }
   console.log(`PASS: ${acct.username} profile updated to ${character.name}`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exit(1);
 } finally {
   // WELES_KEEP_OPEN=1 holds the browser open

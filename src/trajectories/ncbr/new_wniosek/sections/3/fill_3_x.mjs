@@ -143,7 +143,7 @@ if (process.env.APPLICANT_ONLY) {
   await humanIdlePause('deliberate');
   let saveResult = 'saved';
   await humanClickLocator(page, page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true }).last())
-    .catch((e) => { saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 60)}`; }); // allow-raw-playwright: save applicant-only edit
+    .catch((e) => { saveResult = `NOT SAVED: ${String(e?.message || e)}`; }); // allow-raw-playwright: save applicant-only edit
   await humanIdlePause('long');
   const applicant = await page.evaluate(() => Array.from(document.querySelectorAll('input'))
     .find((i) => i.name.includes('nazwa_skrocona_wnioskodawcy'))?.value || null);
@@ -154,7 +154,7 @@ if (process.env.APPLICANT_ONLY) {
 if (cfg.rodzaj) await setInnovationKind();
 
 if (cfg.applicant) {
-  try { await setApplicant(); } catch (e) { console.log(`APPLICANT SKIP ${String(e?.message || e).slice(0, 80)}`); }
+  try { await setApplicant(); } catch (e) { console.log(`APPLICANT SKIP ${String(e?.message || e)}`); }
 }
 
 const filled = [];
@@ -172,7 +172,7 @@ await humanIdlePause('deliberate');
 await humanIdlePause('deliberate');
 let saveResult = 'saved';
 await humanClickLocator(page, page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true }).last())
-  .catch((e) => { saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 60)}`; });
+  .catch((e) => { saveResult = `NOT SAVED: ${String(e?.message || e)}`; });
 await humanIdlePause('long');
 
 const readback = await page.evaluate((sufs) => sufs.map((s) => { const e = document.querySelector(`textarea[name$="${s}"], input[name$="${s}"]`); return e ? e.value.length : null; }), cfg.fields.map((f) => f.suffix));

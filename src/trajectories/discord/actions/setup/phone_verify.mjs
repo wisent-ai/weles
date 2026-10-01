@@ -87,7 +87,7 @@ try {
     const { solvePageCaptcha } = await import('../../../../../dist/captcha/detect.js');
     const captchaResult = await solvePageCaptcha(s.page, undefined, s);
     if (captchaResult) console.log(`[phone_verify] captcha solved`);
-  } catch (e) { console.log(`[phone_verify] captcha attempt err: ${e.message?.slice(0, 80)}`); }
+  } catch (e) { console.log(`[phone_verify] captcha attempt err: ${e.message}`); }
 
   // One read of the SMS order; a code that has not arrived is a named error.
   const code = await readCode(num.orderId, num.provider);
@@ -123,8 +123,8 @@ try {
   console.log('[phone_verify] persisted phone state to Skarbiec');
   console.log(`PASS: ${acct.username} phone verified ${num.phone}`);
 } catch (e) {
-  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
-  if (num) { try { await cancelOrder(num.orderId, num.provider); } catch (ce) { console.log(`[phone_verify] cancel err: ${ce.message?.slice(0, 80)}`); } }
+  console.log(`FAIL: ${e.message}`);
+  if (num) { try { await cancelOrder(num.orderId, num.provider); } catch (ce) { console.log(`[phone_verify] cancel err: ${ce.message}`); } }
   process.exit(1);
 } finally {
   await s.close();

@@ -71,7 +71,7 @@ export async function summarizeApiResponse(res) {
     url: res.url(),
     body_keys: bodyJson && typeof bodyJson === 'object' ? Object.keys(bodyJson).slice(0, 40) : null,
     has_challenge_url: Boolean(bodyJson?.challengeUrl),
-    challenge_url_prefix: bodyJson?.challengeUrl ? String(bodyJson.challengeUrl).slice(0, 180) : '',
+    challenge_url_prefix: bodyJson?.challengeUrl ? String(bodyJson.challengeUrl) : '',
     body_redacted: redactText(bodyText),
   };
 }

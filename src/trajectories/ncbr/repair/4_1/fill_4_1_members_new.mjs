@@ -66,7 +66,7 @@ for (const m of ms) {
     added.push(`${m.imie} ${m.nazwisko}`);
     console.log(`SAVED ${m.imie} ${m.nazwisko}`);
   } catch (e) {
-    console.log(`NOT SAVED ${m.imie} ${m.nazwisko}: ${String(e?.message || e).slice(0, 180)}`);
+    console.log(`NOT SAVED ${m.imie} ${m.nazwisko}: ${String(e?.message || e)}`);
     break;
   }
 }

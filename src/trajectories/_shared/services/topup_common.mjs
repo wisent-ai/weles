@@ -129,7 +129,7 @@ export async function fillStripeElements(page, card = null) {
       await humanType(page, value);
       filled[field] = 'filled';
     } catch (e) {
-      filled[field] = `err:${e.message?.slice(0, 40)}`;
+      filled[field] = `err:${e.message}`;
     }
   }
   const ok = filled.cardNumber === 'filled' && filled.cardExpiry === 'filled' && filled.cardCvc === 'filled';

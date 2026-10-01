@@ -34,7 +34,7 @@ export function installKeywordPlannerCapture(page) {
         ts: Date.now(),
         method: request.method(),
         url,
-        postData: String(request.postData() || '').slice(0, 1000000),
+        postData: String(request.postData() || ''),
         replayHeaders: {
           'x-framework-xsrf-token': headers['x-framework-xsrf-token'] || '',
           'x-same-domain': headers['x-same-domain'] || '',

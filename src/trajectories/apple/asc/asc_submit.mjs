@@ -188,7 +188,7 @@ try {
     let labels = [];
     try {
       labels = await s.page.evaluate(() => Array.from(document.querySelectorAll('button')).map((b) => (b.textContent || '').trim()).filter((t) => t.length).slice(0, 40));
-    } catch (e) { console.log('[asc-submit] button probe failed:', e.message?.slice(0, 80)); }
+    } catch (e) { console.log('[asc-submit] button probe failed:', e.message); }
     console.log('[asc-submit] buttons on page:', JSON.stringify(labels));
     console.log('FAIL: terminal Submit-for-Review button not found');
     process.exit(1);
@@ -203,7 +203,7 @@ try {
       const m = (document.body?.innerText || '').match(/Waiting for Review|In Review|Pending Developer Release|Preparing for Submission|Processing for App Store|Ready for (Distribution|Sale)/i);
       return m ? m[0] : '';
     });
-  } catch (e) { console.log('[asc-submit] status read failed:', e.message?.slice(0, 80)); }
+  } catch (e) { console.log('[asc-submit] status read failed:', e.message); }
   if (status) {
     console.log(`PASS: app ${APP_ID} submitted — status now "${status}"`);
     process.exit(0);
@@ -211,7 +211,7 @@ try {
   console.log(`PASS: app ${APP_ID} submit-for-review clicked (status text not confirmed on page)`);
   process.exit(0);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exit(1);
 } finally {
   await s.close();

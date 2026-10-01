@@ -181,7 +181,7 @@ try {
   await verifyEmail(s.resolveEnv('$DISCORD_NEW_EMAIL'));
   await harvestAfterRegister(s, { token: authToken, username: id.username }); // DISCORD_HARVEST_AFTER_REGISTER=1 gates phone-verify + API harvest
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exitCode = 1;
 } finally {
   await s.close();

@@ -48,7 +48,7 @@ try {
     while (walker.nextNode()) {
       const el = walker.currentNode;
       const text = (el.innerText || '').trim();
-      const cls = String(el.className || '').slice(0, 100);
+      const cls = String(el.className || '');
       const tag = el.tagName || '';
       if (keywords.test(text) && text.length < 500) {
         results.push({ tag, cls, text });
@@ -76,7 +76,7 @@ try {
     while (walker.nextNode()) {
       const el = walker.currentNode;
       const text = (el.innerText || '').trim();
-      const cls = String(el.className || '').slice(0, 100);
+      const cls = String(el.className || '');
       const tag = el.tagName || '';
       if (keywords.test(text) && text.length < 500) {
         results.push({ tag, cls, text });
@@ -102,7 +102,7 @@ try {
     while (walker.nextNode()) {
       const el = walker.currentNode;
       const text = (el.innerText || '').trim();
-      const cls = String(el.className || '').slice(0, 100);
+      const cls = String(el.className || '');
       const tag = el.tagName || '';
       if (keywords.test(text) && text.length < 500) {
         results.push({ tag, cls, text });

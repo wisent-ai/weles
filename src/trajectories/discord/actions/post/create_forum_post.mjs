@@ -65,7 +65,7 @@ try {
     const chip = s.page.locator('div, button').filter({ hasText: new RegExp(`^${tag}$`, 'i') }).first();
     if ((await chip.count()) > 0) {
       try { await humanClickLocator(s.page, chip); console.log(`[forum_post] tag=${tag} selected`); }
-      catch (e) { console.log(`[forum_post] tag ${tag} click err: ${e.message?.slice(0, 80)}`); }
+      catch (e) { console.log(`[forum_post] tag ${tag} click err: ${e.message}`); }
       await humanIdlePause('short');
     }
   }
@@ -88,7 +88,7 @@ try {
   if (!inPostUrl) { console.log(`FAIL: forum post did not navigate (url=${newUrl})`); process.exit(1); }
   console.log(`PASS: ${acct.username} posted "${TITLE.slice(0, 40)}" -> ${newUrl}`);
 } catch (e) {
-  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+  console.log(`FAIL: ${e.message}`);
   process.exit(1);
 } finally {
   await s.close();

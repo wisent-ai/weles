@@ -8,7 +8,7 @@ const FIGMA_LOGIN = /figma\.com\/login(?:[/?#]|$)/i;
 
 /** A wait the page cut short (navigation, closed page) is logged, not fatal. */
 function noteCutShort(step) {
-  return (error) => console.log(`[sso] ${step} cut short: ${String(error?.message ?? error).slice(0, 120)}`);
+  return (error) => console.log(`[sso] ${step} cut short: ${String(error?.message ?? error)}`);
 }
 
 /** Click the Google control and return the Google OAuth surface: the page the

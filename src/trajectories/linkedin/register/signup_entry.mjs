@@ -26,8 +26,8 @@ export async function prewarmLinkedinGuestSession(session, urls) {
       await session.scroll('down', 400);
       await pageSettled(session.page);
     } catch (prewarmErr) {
-      console.log(`[register] prewarm skip ${url}: ${prewarmErr.message?.slice(0, 120)}`);
-      diagnostics.transitions.push({ url, stage: 'prewarm_error', error: String(prewarmErr?.message ?? prewarmErr).slice(0, 200) });
+      console.log(`[register] prewarm skip ${url}: ${prewarmErr.message}`);
+      diagnostics.transitions.push({ url, stage: 'prewarm_error', error: String(prewarmErr?.message ?? prewarmErr) });
       continue;
     }
     diagnostics.transitions.push(await session.page.evaluate(() => {
@@ -44,7 +44,7 @@ export async function prewarmLinkedinGuestSession(session, urls) {
         authwall: /\/authwall/.test(location.href),
         visible_text_sample: (document.body?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 300),
       };
-    }).catch((e) => ({ url: session.page.url(), error: String(e?.message ?? e).slice(0, 200) })));
+    }).catch((e) => ({ url: session.page.url(), error: String(e?.message ?? e) })));
   }
   await writeSubmitDiagnostics('guest_prewarm_diagnostics', diagnostics);
   return diagnostics;
@@ -59,7 +59,7 @@ export async function enterLinkedinSignup(session, entryUrl) {
     const u = new URL(entry);
     if (!/(^|\.)linkedin\.com$/i.test(u.hostname)) throw new Error(`non-linkedin host: ${u.hostname}`);
   } catch (e) {
-    throw new Error(`bad_entry_path: ${String(e?.message ?? e).slice(0, 120)}`);
+    throw new Error(`bad_entry_path: ${String(e?.message ?? e)}`);
   }
   const direct = entry.replace(/\/$/, '') === SIGNUP_URL;
   const diagnostics = {
@@ -93,7 +93,7 @@ export async function enterLinkedinSignup(session, entryUrl) {
           visible: !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length),
         })).filter((el) => /^(sign up|join now)$/i.test(el.text)).slice(0, 20),
       };
-    }, stage).catch((e) => ({ stage, error: String(e?.message ?? e).slice(0, 200), url: session.page.url() })));
+    }, stage).catch((e) => ({ stage, error: String(e?.message ?? e), url: session.page.url() })));
   };
 
   if (direct) {
@@ -110,7 +110,7 @@ export async function enterLinkedinSignup(session, entryUrl) {
         .catch(() => false);
       if (!formVisible) throw e;
       diagnostics.direct_signup_goto_timeout_form_visible = true;
-      diagnostics.direct_signup_goto_timeout_error = String(e?.message ?? e).slice(0, 300);
+      diagnostics.direct_signup_goto_timeout_error = String(e?.message ?? e);
       console.log('[register] signup goto timed out, but signup form is visible — continuing');
     }
     await record('after_direct_signup');
@@ -151,7 +151,7 @@ export async function enterLinkedinSignup(session, entryUrl) {
         break;
       }
     } catch (e) {
-      clickError = String(e?.message ?? e).slice(0, 200);
+      clickError = String(e?.message ?? e);
     }
   }
   diagnostics.clicked_signup_link = clicked;
@@ -164,7 +164,7 @@ export async function enterLinkedinSignup(session, entryUrl) {
   try {
     await session.page.waitForURL(/\/signup(?:$|[/?#])/);
   } catch (transitionError) {
-    diagnostics.signup_transition_error = String(transitionError?.message ?? transitionError).slice(0, 200);
+    diagnostics.signup_transition_error = String(transitionError?.message ?? transitionError);
     await writeSubmitDiagnostics('entry_path_diagnostics', diagnostics);
     throw new Error(`entry_path_no_signup_transition: the entry affordance was clicked but the browser never arrived at the signup form; it stopped at ${session.page.url().slice(0, 180)}`);
   }

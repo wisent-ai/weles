@@ -119,7 +119,7 @@ try {
             await humanIdlePause('deliberate');
           } catch { console.log('[tt-profile] avatar apply not visible'); }
         } else { console.log('[tt-profile] no image file input on /setting'); }
-      } catch (e) { console.log(`[tt-profile] avatar err: ${e.message?.slice(0, 120)}`); }
+      } catch (e) { console.log(`[tt-profile] avatar err: ${e.message}`); }
     }
   }
 
@@ -145,7 +145,7 @@ try {
   }
   console.log(`PASS: ${acct.username} profile updated to ${character.name}`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exit(1);
 } finally {
   await s.close();

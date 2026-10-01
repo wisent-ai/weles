@@ -126,7 +126,7 @@ async function vote(s) {
       await loginViaTwitter(s);
     } catch (e) {
       try { await markCookiesStale(acct.id); } catch {}
-      throw new Error(`sso_recovery_failed: ${e.message?.slice(0, 200)}`);
+      throw new Error(`sso_recovery_failed: ${e.message}`);
     }
   }
   // PH's homepage SSR cache sometimes serves the logged-out shell to a
@@ -213,7 +213,7 @@ try {
   await s.close();
   process.exit(0);
 } catch (e) {
-  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+  console.log(`FAIL: ${e.message}`);
   await s.close().catch(() => {});
   process.exit(1);
 }

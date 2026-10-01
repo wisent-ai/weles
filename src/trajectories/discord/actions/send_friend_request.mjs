@@ -78,7 +78,7 @@ try {
   if (!success) { console.log(`FAIL: ${outcome.slice(0, 80)}`); process.exit(1); }
   console.log(`PASS: ${acct.username} sent friend request to ${TARGET}`);
 } catch (e) {
-  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+  console.log(`FAIL: ${e.message}`);
   process.exit(1);
 } finally {
   await s.close();

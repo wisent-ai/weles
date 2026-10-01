@@ -135,7 +135,7 @@ export async function runCrossLogin(opts) {
     try {
       await assertAuthed(targetPlatform, s, { label: `${targetPlatform}_login_via_${provider}` });
     } catch (e) {
-      banSignal = e instanceof AuthProbeError ? e.banSignal : { signal: 'assert_authed_failed', healthy: false, details: { reason: e.message?.slice(0, 200), final_url: s.page.url() } };
+      banSignal = e instanceof AuthProbeError ? e.banSignal : { signal: 'assert_authed_failed', healthy: false, details: { reason: e.message, final_url: s.page.url() } };
       throw e;
     }
 
@@ -149,8 +149,8 @@ export async function runCrossLogin(opts) {
       throw new Error(`cookies_persist_failed: ${persisted?.reason}`);
     }
   } catch (e) {
-    if (!banSignal) banSignal = { signal: 'unknown_error', healthy: false, details: { reason: e.message?.slice(0, 200) } };
-    console.log('FAIL:', e.message?.slice(0, 200));
+    if (!banSignal) banSignal = { signal: 'unknown_error', healthy: false, details: { reason: e.message } };
+    console.log('FAIL:', e.message);
     process.exitCode = 1;
   } finally {
     persistBanSignal(targetPlatform, provider, acct, banSignal);

@@ -50,7 +50,7 @@
     var d = Object.getOwnPropertyDescriptor(proto, 'value');
     if (!d || !d.set || !d.get) return;
     var newSet = makeNative(function(v) {
-      try { recI(label + '_value_set', { id: this.id, name: this.name, type: this.type, tag: this.tagName, val: String(v).slice(0, 200) }); } catch (e) {}
+      try { recI(label + '_value_set', { id: this.id, name: this.name, type: this.type, tag: this.tagName, val: String(v) }); } catch (e) {}
       return d.set.call(this, v);
     }, d.set);
     Object.defineProperty(proto, 'value', { configurable: true, enumerable: d.enumerable, get: d.get, set: newSet });
@@ -63,6 +63,6 @@
     var t = ev.target; if (!t) return;
     var tag = t.tagName;
     if (tag !== 'INPUT' && tag !== 'TEXTAREA') return;
-    recI('input_event', { id: t.id, name: t.name, type: t.type, val: String(t.value).slice(0, 200), isTrusted: ev.isTrusted });
+    recI('input_event', { id: t.id, name: t.name, type: t.type, val: String(t.value), isTrusted: ev.isTrusted });
   }, { capture: true, passive: true });
 })();

@@ -118,7 +118,7 @@ try {
     })}`);
   }
 } catch (error) {
-  console.error(`FAIL=${error instanceof Error ? error.message.slice(0, 1200) : String(error).slice(0, 1200)}`);
+  console.error(`FAIL=${error instanceof Error ? error.message : String(error)}`);
   try { await cancelSessionCapabilities(); } catch (cleanupError) { console.error(`[apple-create-developer-id] ${cleanupError.message}`); }
   process.exitCode = 1;
 } finally {

@@ -64,7 +64,7 @@ try {
   fs.writeFileSync(outPath, JSON.stringify({ ...profile, id: TARGET_ID, fetched_at: new Date().toISOString(), fetched_by: acct.username }, null, 2));
   console.log(`PASS: wrote ${outPath}`);
 } catch (e) {
-  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+  console.log(`FAIL: ${e.message}`);
   process.exit(1);
 } finally {
   await s.close();

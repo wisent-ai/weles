@@ -95,7 +95,7 @@ export async function runAction(cfg) {
       const freshAll = loadFreshCookieJarOrFail(acct, { platform: cfg.platform, label, currentProxyUrl: proxyUrl, currentPersona: persona });
       const cookies = freshAll.filter(c => wantedDomain && (c.domain ?? '').includes(wantedDomain));
       if (cookies.length) {
-        await s.ctx.addCookies(cookies).catch(e => console.log(`[${label}] cookie add err: ${e.message?.slice(0, 80)}`));
+        await s.ctx.addCookies(cookies).catch(e => console.log(`[${label}] cookie add err: ${e.message}`));
         console.log(`[${label}] injected ${cookies.length} ${wantedDomain} cookies (jar fresh)`);
       } else {
         // Jar fresh but no cookies for this domain — treat as stale to be safe.
@@ -108,18 +108,18 @@ export async function runAction(cfg) {
         // fails, fall back to the original exit path so the routine layer
         // can re-queue.
         if (typeof cfg.inlineRelogin === 'function') {
-          console.log(`[${label}] ${jarErr.message?.slice(0, 80)} — attempting inline relogin`);
-          const r = await cfg.inlineRelogin(s, acct).catch((e) => ({ ok: false, reason: e.message?.slice(0, 80) }));
+          console.log(`[${label}] ${jarErr.message} — attempting inline relogin`);
+          const r = await cfg.inlineRelogin(s, acct).catch((e) => ({ ok: false, reason: e.message }));
           if (r?.ok) { console.log(`[${label}] inline relogin minted fresh cookies — continuing`); }
           else {
-            banSignal = { signal: 'checkpoint', healthy: false, details: { reason: `${jarErr.message.slice(0, 120)} (inline relogin failed: ${r?.reason ?? 'unknown'})`, ...(jarErr.details ?? {}) } };
+            banSignal = { signal: 'checkpoint', healthy: false, details: { reason: `${jarErr.message} (inline relogin failed: ${r?.reason ?? 'unknown'})`, ...(jarErr.details ?? {}) } };
             if (acct.id) await markCookiesStale(acct.id).catch(() => {});
             await s.close().catch(() => {});
             console.log(`FAIL: ${jarErr.message}`);
             process.exit(1);
           }
         } else {
-          banSignal = { signal: 'checkpoint', healthy: false, details: { reason: jarErr.message.slice(0, 200), ...(jarErr.details ?? {}) } };
+          banSignal = { signal: 'checkpoint', healthy: false, details: { reason: jarErr.message, ...(jarErr.details ?? {}) } };
           if (acct.id) await markCookiesStale(acct.id).catch(() => {});
           await s.close().catch(() => {});
           console.log(`FAIL: ${jarErr.message}`);
@@ -204,9 +204,9 @@ export async function runAction(cfg) {
       const sig2 = /HTTP ERROR 407|ERR_PROXY_AUTH/i.test(bodySampleForReclass) ? 'proxy_auth_failed' : /HTTP ERROR 4|ERR_HTTP_RESPONSE_CODE/i.test(bodySampleForReclass) ? 'ip_blocked' : 'proxy_failed';
       banSignal = { signal: sig2, healthy: false, details: { final_url: finalUrlForReclass, reason: `reclassified from ${banSignal.signal} — chrome-error page (body: ${bodySampleForReclass.slice(0, 80)})`, prev_signal: banSignal.signal } };
     }
-    if (!banSignal) banSignal = { signal: 'action_failed', healthy: false, details: { final_url: s.page.url?.() ?? '', reason: e.message?.slice(0, 200) ?? 'no message' } };
+    if (!banSignal) banSignal = { signal: 'action_failed', healthy: false, details: { final_url: s.page.url?.() ?? '', reason: e.message ?? 'no message' } };
     console.log(`[ban-signal] ${banSignal.signal}`);
-    console.error('FAIL:', e.message?.slice(0, 200));
+    console.error('FAIL:', e.message);
     process.exitCode = 1;
   } finally {
     if (banSignal) {
@@ -220,7 +220,7 @@ export async function runAction(cfg) {
       // this, the same dead account gets retried over and over, drowning the
       // queue and never letting healthy accounts run.
       if (banSignal.signal === 'checkpoint' && acct.id) {
-        await markCookiesStale(acct.id).catch((e) => console.log('[mark-stale] err:', e.message?.slice(0, 80)));
+        await markCookiesStale(acct.id).catch((e) => console.log('[mark-stale] err:', e.message));
       }
     }
     await s.close();

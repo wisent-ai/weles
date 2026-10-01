@@ -23,7 +23,7 @@ for (let retry = 0; retry < 3; retry++) {
     }
     if (rendered) { console.log(`[register] Homepage rendered on attempt ${retry + 1}`); break; }
     console.log(`[register] Homepage failed on attempt ${retry + 1}, retrying...`);
-  } catch (e) { console.log(`[register] Attempt ${retry + 1} crashed: ${e.message?.slice(0, 100)}`); }
+  } catch (e) { console.log(`[register] Attempt ${retry + 1} crashed: ${e.message}`); }
   await s?.close().catch(() => {});
   s = null;
 }
@@ -75,7 +75,7 @@ try {
     const v = s.resolveEnv(value);
     try { const bb = await s.page.locator(selector).first().boundingBox(); if (!bb) return { ok: false, reason: 'no-bbox' };
       await humanClick(s.page, Math.round(bb.x + bb.width / 2), Math.round(bb.y + bb.height / 2));
-    } catch (e) { return { ok: false, reason: `click: ${e.message?.slice(0, 60)}`, browserGone: s.page.isClosed() || !s.ctx.browser()?.isConnected() }; }
+    } catch (e) { return { ok: false, reason: `click: ${e.message}`, browserGone: s.page.isClosed() || !s.ctx.browser()?.isConnected() }; }
     await humanType(s.page, v); await s.page.keyboard.press('Tab').catch(() => {}); return { ok: true };
   };
   const pause = () => new Promise(r => setTimeout(r, nextInterClickMs()));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
@@ -97,7 +97,7 @@ try {
       let optClicked = { clicked: false };
       for (const el of all) { const t = ((await el.innerText().catch(() => '')) ?? '').trim(); if (/^united states/i.test(t) && !/virgin/i.test(t) && !/minor/i.test(t)) { await humanClickLocator(s.page, el).catch(() => {}); optClicked = { clicked: true, text: t.slice(0, 40) }; break; } }
       console.log(`[register] Country option click: ${JSON.stringify(optClicked)}`);
-    } catch (e) { console.log(`[register] Country click error: ${e.message?.slice(0, 80)}`); }
+    } catch (e) { console.log(`[register] Country click error: ${e.message}`); }
   } else {
     console.log('[register] Country auto-selected — skipping');
   }
@@ -136,7 +136,7 @@ try {
         clicked = { via: 'locator-text', text: 'Create account' };
       }
     }
-  } catch (e) { console.log(`[register] Create click error: ${e.message?.slice(0, 100)}`); }
+  } catch (e) { console.log(`[register] Create click error: ${e.message}`); }
   console.log(`[register] Create account click: ${JSON.stringify(clicked)}`);
   await s.screenshot('after_create_account_click').catch(() => {});
 
@@ -215,7 +215,7 @@ try {
       const form = document.querySelector('form.js-octocaptcha-parent, form[data-octo-click-hmac]');
       if (form && typeof form.requestSubmit === 'function') { form.requestSubmit(); return { injected: inputs.length, clicked: 'form-requestSubmit' }; }
       return { injected: inputs.length, clicked: false, reason: 'no form.requestSubmit available' };
-    })(${JSON.stringify(token)})`).catch(e => ({ error: e.message?.slice(0, 150) }));
+    })(${JSON.stringify(token)})`).catch(e => ({ error: e.message }));
     console.log(`[register] Token injection: ${JSON.stringify(inject)} region=${token.match(/r=([^|&]+)/)?.[1] ?? '?'}`);
     // Wait up to 20s for URL to advance — GitHub validates the token server-side
     // and the redirect can take several seconds even on a good token.
@@ -269,10 +269,10 @@ try {
   const finalUrl = s.page.url?.() ?? '';
   const verified = !finalUrl.includes('signup') && !finalUrl.includes('verify');
   await s.saveAccount('github', { username: id.username, email: id.email, password: id.password, status: verified ? 'verified' : 'needs_verification' });
-  if (verified) await autoBindCharacter(id.username, 'github').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
+  if (verified) await autoBindCharacter(id.username, 'github').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message}`));
   console.log(verified ? `PASS: ${id.username} (verified)` : `PARTIAL: ${id.username} at ${finalUrl}`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200)); process.exit(/ERR_TUNNEL|ERR_TIMED_OUT|ERR_PROXY|ERR_CONNECTION/.test(e.message ?? '') ? 42 : 1);
+  console.log('FAIL:', e.message); process.exit(/ERR_TUNNEL|ERR_TIMED_OUT|ERR_PROXY|ERR_CONNECTION/.test(e.message ?? '') ? 42 : 1);
 } finally {
   await s.close();
 }

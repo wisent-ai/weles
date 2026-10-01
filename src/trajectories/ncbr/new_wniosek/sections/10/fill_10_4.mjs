@@ -183,7 +183,7 @@ const WSK_LABELS = [
 if (process.env.WSK_ONLY) {
   const picked = await selectWskazniki(WSK_LABELS);
   let saveResult = 'saved';
-  try { await saveEnabled('wsk'); } catch (e) { saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 80)}`; }
+  try { await saveEnabled('wsk'); } catch (e) { saveResult = `NOT SAVED: ${String(e?.message || e)}`; }
   const readback = await page.evaluate(() => {
     const inp = document.querySelector('input[name$="zasady_szesc_r_wskazniki"]');
     const root = inp && inp.closest('.MuiInputBase-root');
@@ -207,11 +207,11 @@ let wOpts = [];
 try {
   wOpts = await selectWskazniki(WSK_LABELS);
 } catch (e) {
-  wOpts = [`SKIPPED: ${String(e?.message || e).slice(0, 120)}`];
+  wOpts = [`SKIPPED: ${String(e?.message || e)}`];
 }
 await humanIdlePause('deliberate'); await humanIdlePause('deliberate');
 let saveResult = 'saved';
-try { await saveEnabled('main'); } catch (e) { saveResult = `MAIN NOT SAVED: ${String(e?.message || e).slice(0, 70)}`; }
+try { await saveEnabled('main'); } catch (e) { saveResult = `MAIN NOT SAVED: ${String(e?.message || e)}`; }
 
 let actResult = 'skipped';
 if (saveResult === 'saved') {

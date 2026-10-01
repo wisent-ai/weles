@@ -52,7 +52,7 @@ export async function runHealthProbe(cfg) {
     }
     loggedIn.signal = await cfg.banDetector(sIn.page, sIn.capturedResponses).catch(() => null);
   } catch (e) {
-    loggedIn.error = e.message?.slice(0, 200);
+    loggedIn.error = e.message;
     // Surface proxy CONNECT failures distinctly so signal isn't 'unknown'.
     if (/ERR_TUNNEL_CONNECTION_FAILED|chrome-error|net::ERR_PROXY_CONNECTION_FAILED/.test(e.message || '')) {
       loggedIn.signal = { signal: 'proxy_failed', healthy: false, details: { reason: 'goto threw tunnel/chrome-error' } };
@@ -76,7 +76,7 @@ export async function runHealthProbe(cfg) {
         try { loggedOut.body = JSON.parse(resp.body); } catch { loggedOut.body = resp.body?.slice(0, 2000) ?? null; }
       }
     } catch (e) {
-      loggedOut.error = e.message?.slice(0, 200);
+      loggedOut.error = e.message;
     } finally {
       await sOut.close();
     }
@@ -170,7 +170,7 @@ export async function runHealthProbe(cfg) {
         params: { reason: 'auto-recovery from checkpoint health signal' },
       });
       console.log(`[health:${cfg.platform}] started ${cfg.platform}_login as Weles run ${runId}`);
-    } catch (e) { console.log(`[health:${cfg.platform}] auto-recovery enqueue err: ${e.message?.slice(0, 100)}`); }
+    } catch (e) { console.log(`[health:${cfg.platform}] auto-recovery enqueue err: ${e.message}`); }
   } else if (signal === 'checkpoint' && brokenRegistration) {
     console.log(`[health:${cfg.platform}] skip auto-recovery: ${acct.username} metadata.status=${acctStatus} (registration never completed; login can't recover)`);
   }

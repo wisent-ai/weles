@@ -133,6 +133,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.log('FAIL:', error.message?.slice(0, 1000) || String(error));
+  console.log('FAIL:', error.message || String(error));
   process.exit(1);
 });

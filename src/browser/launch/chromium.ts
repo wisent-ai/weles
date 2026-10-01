@@ -130,8 +130,8 @@ export async function launchChromiumContext(input: ContextLaunchInput & {
       // Graceful close first so a persistent profile is flushed. A crashed
       // Chromium closes its protocol pipe, which Playwright reports as a
       // rejected close; that is logged by name and the reap below finishes it.
-      await origClose().catch((error: Error) => console.log(`[async_api] browser_context_close_failed: ${error.message.slice(0, 160)}`));
-      await pwBrowser?.close().catch((error: Error) => console.log(`[async_api] browser_close_failed: ${error.message.slice(0, 160)}`));
+      await origClose().catch((error: Error) => console.log(`[async_api] browser_context_close_failed: ${error.message}`));
+      await pwBrowser?.close().catch((error: Error) => console.log(`[async_api] browser_close_failed: ${error.message}`));
       // Backstop reap: kill THIS run's Chromium tree by its unique
       // --weles-fingerprint=<fpDir> arg. Concurrency-safe — the fpDir basename
       // is unique per launch, so this never touches a sibling run's browser.

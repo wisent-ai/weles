@@ -71,8 +71,8 @@ try {
   console.log(`[login] fill email(${emailSel}): ${JSON.stringify(emailResult)}, password(${passSel}): ${JSON.stringify(passResult)}`);
   await pageSettled(s.page);
   let deactivateAccount = async () => {};
-  try { ({ deactivateAccount } = await import('../../../dist/account/state.js')); } catch (e) { console.log(`[login] state.js import failed: ${e.message?.slice(0, 100)}`); }
-  const bail = () => { try { if (s.authBlocked) { Promise.resolve(deactivateAccount(acct.id, acct.metadata, s.authBlocked)).then(() => { console.log(`FAIL: ${acct.username} ${s.authBlocked} (deactivated)`); process.exitCode = 1; }).catch(() => process.exit(1)); return true; } if ((s.page?.url?.() ?? '').includes('/channels')) { console.log(`PASS: direct login — ${s.page.url()}`); captureCookies().then(() => process.exit(0)).catch(() => process.exit(0)); return true; } } catch (e) { console.log(`[login] bail err: ${e.message?.slice(0, 100)}`); } return false; };
+  try { ({ deactivateAccount } = await import('../../../dist/account/state.js')); } catch (e) { console.log(`[login] state.js import failed: ${e.message}`); }
+  const bail = () => { try { if (s.authBlocked) { Promise.resolve(deactivateAccount(acct.id, acct.metadata, s.authBlocked)).then(() => { console.log(`FAIL: ${acct.username} ${s.authBlocked} (deactivated)`); process.exitCode = 1; }).catch(() => process.exit(1)); return true; } if ((s.page?.url?.() ?? '').includes('/channels')) { console.log(`PASS: direct login — ${s.page.url()}`); captureCookies().then(() => process.exit(0)).catch(() => process.exit(0)); return true; } } catch (e) { console.log(`[login] bail err: ${e.message}`); } return false; };
   // locator.click on Discord's submit hangs the full default timeout — click registers but its navigation promise never resolves. Skip locator.click; form.requestSubmit fires /api/v9/auth/login directly and populates captchaFormData on the response, which is what every downstream branch needs.
   await s.page.evaluate('document.querySelector("form")?.requestSubmit()');
   await pageSettled(s.page);
@@ -196,9 +196,9 @@ try {
     else if (/ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED/.test(msg)) sig = 'proxy_failed';
     else if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
     else if (/hcaptcha|captcha/i.test(msg) || /\/login/.test(finalUrl)) sig = 'checkpoint';
-    fs.writeFileSync(path.join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'discord_login', signal: sig, healthy: false, details: { final_url: finalUrl, reason: e.message?.slice(0, 200) ?? 'no message' }, ts: new Date().toISOString() }, null, 2));
+    fs.writeFileSync(path.join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'discord_login', signal: sig, healthy: false, details: { final_url: finalUrl, reason: e.message ?? 'no message' }, ts: new Date().toISOString() }, null, 2));
   } catch {}
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exitCode = 1;
 } finally {
   await s.close();

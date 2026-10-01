@@ -40,7 +40,7 @@ export async function openEditRow(candidates) {
       
       return { candidate };
     } catch (e) {
-      tried.push(`miss:${candidate}:${String(e.message).slice(0, 80)}`);
+      tried.push(`miss:${candidate}:${String(e.message)}`);
     }
   }
   throw new Error(`row edit menu not found; tried ${tried.join(' | ')}`);
@@ -55,7 +55,7 @@ export async function fillKnownFields(fields) {
       await kfill(selector, value);
       filled.push({ name, status: 'filled', len: String(value).length });
     } catch (e) {
-      filled.push({ name, status: 'not_found_or_locked', error: String(e.message).slice(0, 160) });
+      filled.push({ name, status: 'not_found_or_locked', error: String(e.message) });
     }
   }
   const after = await readVisibleFields();
@@ -133,7 +133,7 @@ export async function repair8() {
       await kfill(`input[name="${f.name}"], textarea[name="${f.name}"]`, v);
       fills.push({ name: f.name, label: f.label, value: v, status: 'filled' });
     } catch (e) {
-      fills.push({ name: f.name, label: f.label, value: v, status: 'error', error: String(e.message).slice(0, 120) });
+      fills.push({ name: f.name, label: f.label, value: v, status: 'error', error: String(e.message) });
     }
   }
   const after = await readVisibleFields();

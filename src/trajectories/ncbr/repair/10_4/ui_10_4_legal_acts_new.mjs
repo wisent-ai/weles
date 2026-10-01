@@ -54,7 +54,7 @@ try {
   await humanClickLocator(page, buttons.nth(count - 1));
   await humanIdlePause('long');
 } catch (error) {
-  saveResult = `NOT SAVED: ${String(error?.message || error).slice(0, 140)}`;
+  saveResult = `NOT SAVED: ${String(error?.message || error)}`;
 }
 
 const readback = await tableState();

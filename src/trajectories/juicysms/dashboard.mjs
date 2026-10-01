@@ -49,7 +49,7 @@ try {
   // they only appear in the logged-in user-menu dropdown.
   async function dumpPath(path) {
     try { await s.goto(`https://juicysms.com${path}`); } catch (e) {
-      console.log(`[dash] goto ${path} threw: ${e.message?.slice(0,80)}`);
+      console.log(`[dash] goto ${path} threw: ${e.message}`);
       return;
     }
     await humanIdlePause('long');
@@ -89,7 +89,7 @@ try {
 
   console.log('[dash] PASS');
 } catch (e) {
-  console.log(`[dash] FAIL: ${e.message?.slice(0, 200)}`);
+  console.log(`[dash] FAIL: ${e.message}`);
 } finally {
   await s.close();
 }

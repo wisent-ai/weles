@@ -66,7 +66,7 @@ for (const t of parsed) {
     added.push(t.nr);
     console.log(`SAVED TASK ${t.nr}`);
   } catch (e) {
-    console.log(`NOT SAVED TASK ${t.nr}: ${String(e?.message || e).slice(0, 220)}`);
+    console.log(`NOT SAVED TASK ${t.nr}: ${String(e?.message || e)}`);
     break;
   }
 }

@@ -55,7 +55,7 @@ try {
   const item = writeServiceCredentials('SadCaptcha', { username: EMAIL, password });
   console.log(`PASS: registered ${EMAIL}; credentials persisted to ${item}`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exit(1);
 } finally {
   await s.close();

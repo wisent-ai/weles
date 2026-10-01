@@ -66,7 +66,7 @@ export async function curlProbeLoginForm(proxyUrl) {
     const ua = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36';
     const args = ['-s', '-x', proxyUrl, '-H', `User-Agent: ${ua}`, 'https://www.linkedin.com/login'];
     execFile('curl', args, { maxBuffer: 8 * 1024 * 1024 }, (err, stdout) => {
-      if (err) return resolve({ ok: false, reason: err.message?.slice(0, 80) });
+      if (err) return resolve({ ok: false, reason: err.message });
       const body = (stdout ?? '').toString();
       const hasSessionKey = /name="session_key"|id="username"|type="email"/.test(body);
       resolve({ ok: hasSessionKey, bodyLen: body.length });

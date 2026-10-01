@@ -135,7 +135,7 @@ try {
 
   console.log(`PASS-CHARGED: final url=${s.page.url().slice(0, 100)}`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exit(1);
 } finally {
   await s.close();

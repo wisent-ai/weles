@@ -74,7 +74,7 @@ export function installNetworkCapture(page) {
         ts: Date.now(),
         method: request.method(),
         url,
-        postData: String(request.postData() || '').slice(0, 100000),
+        postData: String(request.postData() || ''),
       });
       if (requests.length > 200) requests.shift();
     } catch {}

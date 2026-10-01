@@ -248,5 +248,5 @@ export function parseNetworkFingerprint(raw: string): NetworkFingerprint | { _er
       supportedVersions: j.tls?.supported_versions, signatureAlgorithms: j.tls?.signature_algorithms, groups: j.tls?.supported_groups ?? j.tls?.elliptic_curves,
       akamaiH2: j.http2?.akamai_fingerprint, h2Frames: j.http2?.sent_frames, ip: j.ip, userAgent: j.user_agent, headers: j.headers,
     };
-  } catch (e) { return { _err: String(e).slice(0, 100), raw: raw.slice(0, 500) }; }
+  } catch (e) { return { _err: String(e), raw: raw.slice(0, 500) }; }
 }

@@ -9,8 +9,6 @@
 // handed in by the entry point so this file never reaches into the release
 // tree.
 
-import { QUOTED_TARGET_CHARS, REFUSED_REASON_CHARS, REFUSED_URL_CHARS } from './constants.mjs';
-
 const PASS_THROUGH_SCHEMES = ['data:', 'blob:', 'about:'];
 
 export class PageTargetRefused extends Error {
@@ -26,7 +24,7 @@ export async function admitPublicTarget(raw, publicAddresses) {
   try {
     url = new URL(raw);
   } catch {
-    throw new PageTargetRefused(`not a URL: ${String(raw).slice(0, QUOTED_TARGET_CHARS)}`);
+    throw new PageTargetRefused(`not a URL: ${String(raw)}`);
   }
   if (url.protocol !== 'https:' || url.username || url.password || url.port) {
     throw new PageTargetRefused('only credential-free HTTPS URLs on the default port are served');
@@ -69,8 +67,8 @@ export async function guardContext(context, publicAddresses) {
       await route.continue();
     } catch (error) {
       refused.push({
-        url: raw.slice(0, REFUSED_URL_CHARS),
-        reason: String(error?.message || error).slice(0, REFUSED_REASON_CHARS),
+        url: raw,
+        reason: String(error?.message || error),
       });
       await route.abort('blockedbyclient');
     }

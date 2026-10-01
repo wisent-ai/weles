@@ -114,12 +114,12 @@ try {
             await commitDone;
             writes.push('avatar uploaded');
           } catch (e) {
-            console.log(`[gh-profile] commit btn / response timeout: ${e.message?.slice(0, 100)}`);
+            console.log(`[gh-profile] commit btn / response timeout: ${e.message}`);
           }
         } else {
           console.log('[gh-profile] avatar_upload input not found in DOM');
         }
-      } catch (e) { console.log(`[gh-profile] avatar upload err: ${e.message?.slice(0, 160)}`); }
+      } catch (e) { console.log(`[gh-profile] avatar upload err: ${e.message}`); }
     }
   }
 
@@ -147,7 +147,7 @@ try {
 
   console.log(`PASS: ${acct.username} profile updated to ${character.name}`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exit(1);
 } finally {
   await s.close();

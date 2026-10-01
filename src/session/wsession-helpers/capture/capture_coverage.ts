@@ -30,7 +30,7 @@ function present(v: unknown): boolean {
 
 function errorOf(ws: any, key: string): string | null {
   const v = ws?.[key];
-  return v ? String(v).slice(0, 240) : null;
+  return v ? String(v) : null;
 }
 
 function allAccessLogs(ws: any): any[] {

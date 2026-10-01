@@ -78,7 +78,7 @@ try {
     // About Me lives under User Profile tab on the left nav.
     const userProfile = s.page.locator('div').filter({ hasText: /^User Profile$/ }).first();
     if ((await userProfile.count()) > 0) {
-      try { await humanClickLocator(s.page, userProfile); } catch (e) { console.log(`[edit_profile] user profile tab err: ${e.message?.slice(0, 80)}`); }
+      try { await humanClickLocator(s.page, userProfile); } catch (e) { console.log(`[edit_profile] user profile tab err: ${e.message}`); }
       await humanIdlePause('deliberate');
     }
     const bioField = s.page.locator('textarea[aria-label*="About"], textarea[placeholder*="What do you like"]').first();
@@ -98,17 +98,17 @@ try {
     // Close settings first.
     const closeSettings = s.page.locator('div[aria-label="Close"]').first();
     if ((await closeSettings.count()) > 0) {
-      try { await humanClickLocator(s.page, closeSettings); } catch (e) { console.log(`[edit_profile] settings close err: ${e.message?.slice(0, 80)}`); }
+      try { await humanClickLocator(s.page, closeSettings); } catch (e) { console.log(`[edit_profile] settings close err: ${e.message}`); }
       await humanIdlePause('deliberate');
     }
     // Click user avatar in bottom-left to open status popover
     const userBtn = s.page.locator('button[aria-label*="status"], button[class*="avatarWrapper"]').first();
     if ((await userBtn.count()) > 0) {
-      try { await humanClickLocator(s.page, userBtn); } catch (e) { console.log(`[edit_profile] user btn err: ${e.message?.slice(0, 80)}`); }
+      try { await humanClickLocator(s.page, userBtn); } catch (e) { console.log(`[edit_profile] user btn err: ${e.message}`); }
       await humanIdlePause('deliberate');
       const setStatus = s.page.locator('div, button').filter({ hasText: 'Set a custom status' }).first();
       if ((await setStatus.count()) > 0) {
-        try { await humanClickLocator(s.page, setStatus); } catch (e) { console.log(`[edit_profile] set-status click err: ${e.message?.slice(0, 80)}`); }
+        try { await humanClickLocator(s.page, setStatus); } catch (e) { console.log(`[edit_profile] set-status click err: ${e.message}`); }
         await humanIdlePause('deliberate');
         const statusInput = s.page.locator('input[placeholder*="status"]').first();
         if ((await statusInput.count()) > 0) {
@@ -134,7 +134,7 @@ try {
   console.log('[edit_profile] persisted account metadata in Skarbiec');
   console.log(`PASS: ${acct.username} ${changes.join(', ')}`);
 } catch (e) {
-  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+  console.log(`FAIL: ${e.message}`);
   process.exit(1);
 } finally {
   await s.close();

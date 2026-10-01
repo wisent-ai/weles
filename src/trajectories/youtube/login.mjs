@@ -33,10 +33,10 @@ try {
   await s.page.waitForFunction(() => /youtube\.com\/?(?:\?|$)/.test(location.href) || /myaccount\.google\.com/.test(location.href));
   // Persist with cookies_minted_at so action trajectories can enforce freshness.
   try { const cookies = await s.ctx.cookies(); await persistFreshCookieJar(acct, cookies, { currentProxyUrl: process.env.PROXY_URL }); }
-  catch (e) { console.log('[cookie-capture] err:', e.message?.slice(0, 100)); }
+  catch (e) { console.log('[cookie-capture] err:', e.message); }
   console.log(`PASS: logged in (${s.page.url()})`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exit(1);
 } finally {
   await s.close();

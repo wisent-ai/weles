@@ -59,7 +59,7 @@ export async function readFrameObservation(frame: Pick<Frame, 'evaluate'>): Prom
   try {
     return await frame.evaluate(captureFrame, {}) as FrameObservation;
   } catch (error: any) {
-    return { error: String(error.message ?? error).slice(0, 160) };
+    return { error: String(error.message ?? error) };
   }
 }
 

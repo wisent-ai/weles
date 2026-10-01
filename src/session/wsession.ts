@@ -116,7 +116,7 @@ export class WSession {
         const stored = await wsAutoStoreCredential(this);
         if (stored) this._storedCredentialReceipt = stored;
       }
-      console.log(`[wsession] ${label} OK result=${String(result).slice(0, 100)}`);
+      console.log(`[wsession] ${label} OK result=${String(result)}`);
       if (retainStepArtifacts) await captureStepArtifacts(this, 'after', label);
       return result;
     } catch (error) {

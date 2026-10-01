@@ -15,7 +15,7 @@ export async function gotoAuthenticatorSettingsLink(s) {
   if (!href) return false;
   console.log(`[google-totp-activate] navigating authenticator settings href=${href.split('?')[0]}`);
   await s.page.goto(href, { waitUntil: 'domcontentloaded' }).catch((error) => {
-    console.log(`[google-totp-activate] WARN authenticator href navigation failed ${String(error?.message || error).slice(0, 240)}`);
+    console.log(`[google-totp-activate] WARN authenticator href navigation failed ${String(error?.message || error)}`);
   });
   await pageSettled(s.page);
   return /two-step-verification\/authenticator/i.test(s.page.url?.() || '');
@@ -32,7 +32,7 @@ export async function openAuthenticatorSetup(s, creds) {
   ];
   for (const url of urls) {
     await s.page.goto(url, { waitUntil: 'domcontentloaded' }).catch((error) => {
-      console.log(`[google-totp-activate] WARN navigation failed ${url} ${String(error?.message || error).slice(0, 240)}`);
+      console.log(`[google-totp-activate] WARN navigation failed ${url} ${String(error?.message || error)}`);
     });
     await pageSettled(s.page);
     if (!await ensureSignedIn(s, creds)) return { ok: false, blocked: 'google_login_required_or_second_factor_required' };

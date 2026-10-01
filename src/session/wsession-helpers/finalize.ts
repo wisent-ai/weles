@@ -185,7 +185,7 @@ export async function wsClose(s: WSession): Promise<void> {
       } else {
         costTracker.recordProxyBytes('other', proxyBytes);
       }
-    } catch (e: any) { console.log(`[wsession] proxy-bytes record err: ${e.message?.slice(0, 100)}`); }
+    } catch (e: any) { console.log(`[wsession] proxy-bytes record err: ${e.message}`); }
   }
   try { await (s as any)._cdp?.detach?.(); } catch {}
   await (s as any)._cap.save('session', s.page).catch(() => {});
@@ -205,14 +205,14 @@ export async function wsClose(s: WSession): Promise<void> {
   const video = s.page.video?.();
   const dest = join(recordingsDir(s.label || undefined), `${s.label || 'session'}_${new Date().toISOString().replace(/[:.]/g, '-')}.webm`);
   console.log(`[wsession] close() video=${!!video} dest=${dest}`);
-  await s.page.close().catch((e: any) => console.log(`[wsession] page.close error: ${e.message?.slice(0, 200)}`));
+  await s.page.close().catch((e: any) => console.log(`[wsession] page.close error: ${e.message}`));
   if (video) {
     await video.saveAs(dest).catch((e: any) => {
-      console.log(`[wsession] video.saveAs error: ${e.message?.slice(0, 200)}`);
+      console.log(`[wsession] video.saveAs error: ${e.message}`);
       try { const src = video.path?.() as string | undefined; if (src) { copyFileSync(src, dest); console.log(`[wsession] video copied from ${src}`); } } catch {}
     });
   }
-  await s.ctx.close().catch((e: any) => console.log(`[wsession] ctx.close error: ${e.message?.slice(0, 200)}`));
+  await s.ctx.close().catch((e: any) => console.log(`[wsession] ctx.close error: ${e.message}`));
   // G8: persist the per-run captcha event log (challenge_faced + the full
   // attempt/marker sequence) for storage backup + worker import. Always written
   // so a no-captcha run is recorded as {challenge_faced:false, events:[]},

@@ -102,11 +102,11 @@ try {
       transitions.push(await s.page.evaluate(visibleSummaryScript, `warm_${transitions.length}`).catch((e) => ({
         stage: `warm_${transitions.length}`,
         url: s.page.url(),
-        error: String(e?.message ?? e).slice(0, 200),
+        error: String(e?.message ?? e),
       })));
     } catch (e) {
-      transitions.push({ stage: `warm_${transitions.length}`, url, error: String(e?.message ?? e).slice(0, 240) });
-      console.log(`[warm-signup] skip ${url}: ${String(e?.message ?? e).slice(0, 120)}`);
+      transitions.push({ stage: `warm_${transitions.length}`, url, error: String(e?.message ?? e) });
+      console.log(`[warm-signup] skip ${url}: ${String(e?.message ?? e)}`);
     }
   }
 
@@ -119,7 +119,7 @@ try {
   const signup = await s.page.evaluate(visibleSummaryScript, 'signup_landing').catch((e) => ({
     stage: 'signup_landing',
     url: s.page.url(),
-    error: String(e?.message ?? e).slice(0, 200),
+    error: String(e?.message ?? e),
   }));
 
   const storage = await s.ctx.storageState().catch(() => ({ cookies: [], origins: [] }));
@@ -183,7 +183,7 @@ try {
   console.log(`PASS: warm signup profile ready -> ${profileDir}`);
   console.log(`[warm-signup] summary -> ${join(outDir, 'warm_signup_profile.json')}`);
 } catch (e) {
-  console.log(`FAIL: ${String(e?.message ?? e).slice(0, 240)}`);
+  console.log(`FAIL: ${String(e?.message ?? e)}`);
   process.exitCode = 1;
 } finally {
   await s?.close?.().catch(() => {});

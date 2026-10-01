@@ -212,7 +212,7 @@ async function repair22MainFactor() {
   try {
     selected = await selectVisibleOption(/bezpieczeństwa dostaw|bezpieczenstwa dostaw/i);
   } catch (e) {
-    selected = `not_selected_or_already_selected: ${String(e?.message || e).slice(0, 160)}`;
+    selected = `not_selected_or_already_selected: ${String(e?.message || e)}`;
   }
   await saveVisibleForm({ allowNoChange: true });
   const readback = await tableReadback(URL_22);

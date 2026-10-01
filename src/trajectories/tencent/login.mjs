@@ -92,7 +92,7 @@ async function main() {
   let pinned = null;
   try { pinned = JSON.parse(readFileSync(PERSONA_PATH, 'utf8')); console.log(`[login] reusing pinned persona from ${PERSONA_PATH}`); } catch {}
   const s = await WSession.start({ label: 'tencent_login', browser: 'chromium', persona: pinned ?? undefined });
-  try { if (!existsSync(JAR_DIR)) mkdirSync(JAR_DIR, { recursive: true }); writeFileSync(PERSONA_PATH, JSON.stringify(s.personaConfig, null, 2)); console.log(`[login] persona persisted to ${PERSONA_PATH}`); } catch (e) { console.log(`[login] persona persist warn: ${e.message?.slice(0, 80)}`); }
+  try { if (!existsSync(JAR_DIR)) mkdirSync(JAR_DIR, { recursive: true }); writeFileSync(PERSONA_PATH, JSON.stringify(s.personaConfig, null, 2)); console.log(`[login] persona persisted to ${PERSONA_PATH}`); } catch (e) { console.log(`[login] persona persist warn: ${e.message}`); }
   try {
     console.log(`[login] navigating to ${LOGIN_URL}`);
     await s.goto(LOGIN_URL);
@@ -244,7 +244,7 @@ async function main() {
     await persistJar(s.page);
     console.log('PASS: Tencent Cloud login + AI3D activation complete');
   } catch (e) {
-    console.log('FAIL:', e.message?.slice(0, 200));
+    console.log('FAIL:', e.message);
     process.exit(1);
   } finally {
     

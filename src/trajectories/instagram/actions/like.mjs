@@ -54,7 +54,7 @@ try {
   if (after === 0) { console.log('FAIL: clicked Like but no transition to Unlike state'); process.exitCode = 1; }
   console.log('PASS: liked first post on explore');
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exitCode = 1;
 } finally {
   await s.close();

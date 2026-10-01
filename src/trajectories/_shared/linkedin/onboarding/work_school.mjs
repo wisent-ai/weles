@@ -17,7 +17,7 @@ function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
 async function clickIfVisible(page, locator) {
   let visible = false;
-  try { visible = await locator.isVisible(); } catch (e) { console.log(`[onboarding] isVisible err: ${e.message?.slice(0, 80)}`); return false; }
+  try { visible = await locator.isVisible(); } catch (e) { console.log(`[onboarding] isVisible err: ${e.message}`); return false; }
   if (!visible) return false;
   await humanClickLocator(page, locator);
   return true;
@@ -25,7 +25,7 @@ async function clickIfVisible(page, locator) {
 
 async function fillIfVisible(page, locator, value) {
   let visible = false;
-  try { visible = await locator.isVisible(); } catch (e) { console.log(`[onboarding] isVisible err: ${e.message?.slice(0, 80)}`); return false; }
+  try { visible = await locator.isVisible(); } catch (e) { console.log(`[onboarding] isVisible err: ${e.message}`); return false; }
   if (!visible) return false;
   await humanFill(page, locator, value);
   return true;
@@ -58,7 +58,7 @@ export async function fillPostRegisterOnboarding(page) {
     } else {
       console.log(`[onboarding] role fill incomplete title=${titleFilled} company=${companyFilled} saved=${saved}`);
     }
-  } catch (e) { console.log(`[onboarding] role err: ${e.message?.slice(0, 100)}`); }
+  } catch (e) { console.log(`[onboarding] role err: ${e.message}`); }
 
   await humanIdlePause('deliberate');
 
@@ -81,7 +81,7 @@ export async function fillPostRegisterOnboarding(page) {
     } else {
       console.log(`[onboarding] school fill incomplete school=${schoolFilled} saved=${saved}`);
     }
-  } catch (e) { console.log(`[onboarding] school err: ${e.message?.slice(0, 100)}`); }
+  } catch (e) { console.log(`[onboarding] school err: ${e.message}`); }
 
   let viewable = false;
   try {
@@ -89,11 +89,11 @@ export async function fillPostRegisterOnboarding(page) {
     await humanIdlePause('long');
     let body = '';
     try { body = await page.evaluate(() => document.body.innerText.slice(0, 4000)); }
-    catch (e) { console.log(`[onboarding] body read err: ${e.message?.slice(0, 80)}`); }
+    catch (e) { console.log(`[onboarding] body read err: ${e.message}`); }
     const gated = /one step away from viewing|complete one quick step|Add a job or school to continue/i.test(body);
     viewable = !gated && body.length > 500;
     console.log(`[onboarding] post-build profile view: gated=${gated} bodyLen=${body.length} viewable=${viewable}`);
-  } catch (e) { console.log(`[onboarding] view-verify err: ${e.message?.slice(0, 100)}`); }
+  } catch (e) { console.log(`[onboarding] view-verify err: ${e.message}`); }
 
   return { roleAdded, schoolAdded, viewable };
 }

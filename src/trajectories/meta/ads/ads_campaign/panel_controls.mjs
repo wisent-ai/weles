@@ -165,7 +165,7 @@ async function fillAnyReliable(s, selectors, value, label) {
       console.log(`[meta-ads] filled: ${label}`);
       return true;
     }
-    console.log(`[meta-ads] WARN: field value mismatch: ${label} expected=${JSON.stringify(String(value))} actual=${JSON.stringify(String(readFieldText(actual) || readFieldText(nativeFirst) || readFieldText(directFirst)).slice(0, 120))}`);
+    console.log(`[meta-ads] WARN: field value mismatch: ${label} expected=${JSON.stringify(String(value))} actual=${JSON.stringify(String(readFieldText(actual) || readFieldText(nativeFirst) || readFieldText(directFirst)))}`);
     const box = await loc.boundingBox();
     if (!box) continue;
     await s.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
@@ -178,7 +178,7 @@ async function fillAnyReliable(s, selectors, value, label) {
       console.log(`[meta-ads] typed: ${label}`);
       return true;
     }
-    console.log(`[meta-ads] WARN: field value mismatch: ${label} expected=${JSON.stringify(String(value))} actual=${JSON.stringify(String(readFieldText(typed)).slice(0, 120))}`);
+    console.log(`[meta-ads] WARN: field value mismatch: ${label} expected=${JSON.stringify(String(value))} actual=${JSON.stringify(String(readFieldText(typed)))}`);
   }
   console.log(`[meta-ads] WARN: field not found: ${label}`);
   return false;

@@ -101,7 +101,7 @@ try {
   try {
     await clickGenerate(s.page);
   } catch (e) {
-    console.log('[asc-create] auto-klik nie przeszedł, dokończ w oknie ręcznie:', e.message?.slice(0, 120));
+    console.log('[asc-create] auto-klik nie przeszedł, dokończ w oknie ręcznie:', e.message);
   }
 
   console.log('[asc-create] czekam na pobranie .p8 (kliknij „Download API Key" jeśli trzeba)…');
@@ -117,6 +117,6 @@ try {
   // session is never thrown away again. The .p8 is already saved to disk and the
   // key id is printed above, so the result is captured without tearing down.
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   // No teardown on failure either — leave the window so you can finish manually.
 }

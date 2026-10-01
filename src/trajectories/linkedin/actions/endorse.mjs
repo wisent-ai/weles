@@ -80,7 +80,7 @@ try {
   console.log(`[ban-signal] ${ban?.signal}  PASS: endorsed`);
 } catch (e) {
   ban = e.banSignal ?? await detectLinkedInBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
+  console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message}`);
   process.exitCode = 1;
 } finally {
   if (ban) { try { const dir = runRecordingsDir('linkedin_endorse'); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'linkedin_endorse', ...ban, ts: new Date().toISOString() }, null, 2)); } catch {} }

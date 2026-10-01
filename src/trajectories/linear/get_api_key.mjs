@@ -138,7 +138,7 @@ try {
       await store.capturePlaywright(s.ctx, 'get_api_key');
       console.log('[linear-key] persisted session cookies to ~/.weles/sessions.json[get_api_key]');
     } catch (e) {
-      console.log(`[linear-key] WARN: could not persist cookies: ${e.message?.slice(0, 100)}`);
+      console.log(`[linear-key] WARN: could not persist cookies: ${e.message}`);
     }
 
   }
@@ -271,7 +271,7 @@ try {
   if (!PRINT_SECRETS) console.log('(re-run with PRINT_SECRETS=1 to dump the full key to stdout)');
   console.log(`PASS: minted linear personal api key, persisted to ${TOKEN_PATH}`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 300));
+  console.log('FAIL:', e.message);
   exitCode = 1;
 } finally {
   await s.close();

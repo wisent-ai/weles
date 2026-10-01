@@ -268,7 +268,7 @@ export async function persistFreshCookieJar(acct, cookies, { currentProxyUrl, cu
   try {
     updateAccountMetadata(acct.id, nextMetadata);
   } catch (error) {
-    return { ok: false, reason: 'skarbiec_write_failed', body: String(error?.message ?? error).slice(0, 200) };
+    return { ok: false, reason: 'skarbiec_write_failed', body: String(error?.message ?? error) };
   }
   // Mutate the in-memory acct so subsequent code in the same process sees
   // the fresh stamp without an extra DB round-trip.

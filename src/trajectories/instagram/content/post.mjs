@@ -65,7 +65,7 @@ try {
   // and we feed it the generated image path directly.
   s.page.on('filechooser', async (chooser) => {
     try { await chooser.setFiles(imagePath); console.log(`[instagram] filechooser accepted ${imagePath}`); }
-    catch (e) { console.log(`[instagram] filechooser err: ${e.message?.slice(0, 80)}`); }
+    catch (e) { console.log(`[instagram] filechooser err: ${e.message}`); }
   });
 
   // 1. Click "Create" in left sidebar (svg aria-label="New post").
@@ -112,7 +112,7 @@ try {
   console.log(`[ban-signal] ${banSignal?.signal}  PASS: posted`);
 } catch (e) {
   banSignal = e.banSignal ?? await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${banSignal?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
+  console.log(`[ban-signal] ${banSignal?.signal}  FAIL: ${e.message}`);
   process.exitCode = 1;
 } finally {
   if (banSignal) { try { const dir = runRecordingsDir(`instagram_${ACTION}`); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: `instagram_${ACTION}`, character: character.name, product: product?.name, ...banSignal, ts: new Date().toISOString() }, null, 2)); } catch {} }

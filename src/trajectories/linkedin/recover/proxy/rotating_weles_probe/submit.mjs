@@ -100,7 +100,7 @@ export async function submitSignupCandidate(session) {
       name: `${id.firstName} ${id.lastName}`,
       status: 'created_by_rotating_weles_probe',
     }).catch((e) => {
-      out.save_error = String(e?.message ?? e).slice(0, 200);
+      out.save_error = String(e?.message ?? e);
     });
   } else if (/verify|email-verification|checkpoint/.test(out.auth.final_url)) {
     out.result = 'verification_or_checkpoint';

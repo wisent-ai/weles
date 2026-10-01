@@ -36,11 +36,11 @@ console.log(`[keeper] User data dir: ${USER_DATA_DIR}`);
 try {
   const jar = JSON.parse(readFileSync(JAR_PATH, 'utf8'));
   if (jar.cookies?.length) { await ctx.addCookies(jar.cookies); console.log(`[keeper] injected ${jar.cookies.length} cookies`); }
-} catch (e) { console.log(`[keeper] no cookie jar: ${e.message?.slice(0, 60)}`); }
+} catch (e) { console.log(`[keeper] no cookie jar: ${e.message}`); }
 
 const page = ctx.pages()[0] || await ctx.newPage();
 console.log(`[keeper] navigating to ${PORTAL_URL}`);
-await page.goto(PORTAL_URL, { waitUntil: 'domcontentloaded' }).catch((e) => console.log(`[keeper] goto warn: ${e.message?.slice(0, 80)}`));
+await page.goto(PORTAL_URL, { waitUntil: 'domcontentloaded' }).catch((e) => console.log(`[keeper] goto warn: ${e.message}`));
 console.log(`[keeper] current URL: ${page.url()}`);
 
 console.log('[keeper] === BROWSER STAYS OPEN ===');

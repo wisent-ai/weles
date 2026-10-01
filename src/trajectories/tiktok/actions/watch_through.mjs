@@ -47,7 +47,7 @@ try {
   console.log(`[ban-signal] ${ban?.signal}  PASS: watched_through_3`);
 } catch (e) {
   ban = e.banSignal ?? await detectTikTokBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
+  console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message}`);
   process.exitCode = 1;
 } finally {
   if (ban) { try { const dir = runRecordingsDir('tiktok_watch_through'); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'tiktok_watch_through', ...ban, ts: new Date().toISOString() }, null, 2)); } catch {} }

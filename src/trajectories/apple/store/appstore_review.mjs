@@ -90,7 +90,7 @@ try {
 
   console.log(`PASS: review submitted for app ${APP_ID} (${RATING}★)`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exit(1);
 } finally {
   await s.close();

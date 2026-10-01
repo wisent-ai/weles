@@ -53,7 +53,7 @@
       logAccess('Canvas', 'getImageData', 'len=' + (d ? d.length : 0) + ' h=' + (d ? _fnv32u8(d) : '0') + ' w=' + (v ? v.width : 0) + ' h=' + (v ? v.height : 0) + ' data_b64=' + b64);
       return v;
     });
-  } catch (e) { logAccess('_fp_', 'canvas-init-error', String(e).slice(0, 120)); }
+  } catch (e) { logAccess('_fp_', 'canvas-init-error', String(e)); }
 
   // (2) Audio — FULL raw render output. OfflineAudioContext.startRendering's
   // resulting AudioBuffer holds Float32Array channels; we encode each channel's
@@ -81,7 +81,7 @@
               for (let i = 0; i < Math.min(ch.length, 1000); i++) s += Math.abs(ch[i]);
               logAccess('OfflineAudioContext', 'renderedChannel:' + c, 'samples=' + ch.length + ' sr=' + buf.sampleRate + ' sum1k=' + s.toFixed(6) + ' h=' + _fnv32u8(new Uint8Array(ch.buffer, ch.byteOffset, ch.byteLength)) + ' data_b64=' + _f32ToBase64(ch));
             }
-          } catch (err) { logAccess('_fp_', 'render-promise-error', String(err).slice(0, 120)); }
+          } catch (err) { logAccess('_fp_', 'render-promise-error', String(err)); }
           return buf;
         });
       });
@@ -91,11 +91,11 @@
         const r = o.apply(this, arguments);
         try {
           logAccess('AudioBuffer', 'getChannelData:' + c, 'len=' + r.length + ' h=' + _fnv32u8(new Uint8Array(r.buffer, r.byteOffset, r.byteLength)) + ' data_b64=' + _f32ToBase64(r));
-        } catch (err) { logAccess('_fp_', 'getChannelData-error', String(err).slice(0, 120)); }
+        } catch (err) { logAccess('_fp_', 'getChannelData-error', String(err)); }
         return r;
       });
     }
-  } catch (e) { logAccess('_fp_', 'audio-init-error', String(e).slice(0, 120)); }
+  } catch (e) { logAccess('_fp_', 'audio-init-error', String(e)); }
 
   // (3) Window-level webdriver/automation flag reads. Pages read these as plain
   // window.X. We can only observe a read by installing an accessor — but
@@ -121,7 +121,7 @@
         const g = makeNative(function() { logAccess('window-flag', k, val === undefined ? 'undefined' : (val + '').slice(0, 80)); return val; }, NATIVE_GET);
         const s = makeNative(function(v) { val = v; }, NATIVE_GET);
         Object.defineProperty(window, k, { configurable: true, get: g, set: s });
-      } catch (err) { logAccess('_fp_', 'win-flag-init:' + k, String(err).slice(0, 80)); }
+      } catch (err) { logAccess('_fp_', 'win-flag-init:' + k, String(err)); }
     }
     try {
       if (window.chrome && window.chrome.runtime) {
@@ -129,8 +129,8 @@
         const g = makeNative(function() { logAccess('chrome.runtime', 'id', origId === undefined ? 'undefined' : (origId + '').slice(0, 80)); return origId; }, NATIVE_GET);
         Object.defineProperty(window.chrome.runtime, 'id', { configurable: true, get: g });
       }
-    } catch (err) { logAccess('_fp_', 'chrome-runtime-init', String(err).slice(0, 80)); }
-  } catch (e) { logAccess('_fp_', 'win-flags-init-error', String(e).slice(0, 120)); }
+    } catch (err) { logAccess('_fp_', 'chrome-runtime-init', String(err)); }
+  } catch (e) { logAccess('_fp_', 'win-flags-init-error', String(e)); }
 
   // (4) WebRTC ICE candidate / SDP exposure — can reveal host LAN IP.
   try {
@@ -154,12 +154,12 @@
             const out = [];
             report.forEach(function(s) { out.push(s); });
             logAccess('RTCPeerConnection', 'getStats', JSON.stringify(out));
-          } catch (err) { logAccess('_fp_', 'rtc-getstats-error', String(err).slice(0, 120)); }
+          } catch (err) { logAccess('_fp_', 'rtc-getstats-error', String(err)); }
           return report;
         });
       });
     }
-  } catch (e) { logAccess('_fp_', 'rtc-init-error', String(e).slice(0, 120)); }
+  } catch (e) { logAccess('_fp_', 'rtc-init-error', String(e)); }
 
   // (5) WebGL standard GL_VENDOR (0x1f00) / GL_RENDERER (0x1f01). Firefox's GL-parameter handler runs the webgl.{vendor,renderer}-string-override prefs through a sanitizer that emits placeholders like "Apple M1, or similar" and leaks the HOST GPU through this path even on a Windows persona. UNMASKED_*_WEBGL (0x9245/0x9246) are overridable via the public prefs, but the standard parameters need a JS shim. Tokens below are substituted from fpConfig.webgl at injection time by async_api when persona.browser !== 'chromium'; for Chromium the tokens remain literal and the startsWith check makes this a no-op so Chrome's native GL_VENDOR/GL_RENDERER ("WebKit", "WebKit WebGL") are preserved.
   const WELES_GL_VENDOR = '__WELES_GL_VENDOR__';
@@ -173,7 +173,7 @@
         if (p === 0x1f01 && !WELES_GL_RENDERER.startsWith('__WELES_')) return WELES_GL_RENDERER;
         return o.apply(this, arguments);
       });
-    } catch (err) { logAccess('_fp_', 'webgl-getParameter-init-error', String(err).slice(0, 120)); }
+    } catch (err) { logAccess('_fp_', 'webgl-getParameter-init-error', String(err)); }
   }
 
   // (6) Modern JS APIs that bot detectors increasingly probe. Each hook logs
@@ -190,19 +190,19 @@
             const features = adapter && adapter.features ? [...adapter.features] : [];
             const limits = adapter && adapter.limits ? Object.fromEntries(Object.entries(adapter.limits).filter(function(e){return typeof e[1] === 'number';})) : null;
             logAccess('WebGPU', 'requestAdapter', JSON.stringify({ info: info ? { vendor: info.vendor, architecture: info.architecture, device: info.device, description: info.description } : null, features, limits }));
-          } catch (err) { logAccess('_fp_', 'webgpu-resolve-error', String(err).slice(0, 120)); }
-        }, function(err) { logAccess('_fp_', 'webgpu-reject', String(err).slice(0, 120)); });
+          } catch (err) { logAccess('_fp_', 'webgpu-resolve-error', String(err)); }
+        }, function(err) { logAccess('_fp_', 'webgpu-reject', String(err)); });
         return p;
       };
     }
-  } catch (e) { logAccess('_fp_', 'webgpu-init-error', String(e).slice(0, 120)); }
+  } catch (e) { logAccess('_fp_', 'webgpu-init-error', String(e)); }
   // Performance.memory (Chrome legacy fingerprint).
   try {
     if (performance && performance.memory) {
       const m = performance.memory;
       logAccess('performance', 'memory', 'jsHeapSizeLimit=' + m.jsHeapSizeLimit + ' totalJSHeapSize=' + m.totalJSHeapSize + ' usedJSHeapSize=' + m.usedJSHeapSize);
     }
-  } catch (e) { logAccess('_fp_', 'perfmemory-init-error', String(e).slice(0, 120)); }
+  } catch (e) { logAccess('_fp_', 'perfmemory-init-error', String(e)); }
   // Battery API.
   try {
     if (navigator.getBattery) {
@@ -210,23 +210,23 @@
         try { logAccess('navigator', 'battery', 'charging=' + b.charging + ' level=' + b.level + ' chargingTime=' + b.chargingTime + ' dischargingTime=' + b.dischargingTime); } catch {}
       }, function() {});
     }
-  } catch (e) { logAccess('_fp_', 'battery-init-error', String(e).slice(0, 120)); }
+  } catch (e) { logAccess('_fp_', 'battery-init-error', String(e)); }
   // Network Information API.
   try {
     if (navigator.connection) {
       const c = navigator.connection;
       logAccess('navigator', 'connection', 'effectiveType=' + c.effectiveType + ' downlink=' + c.downlink + ' rtt=' + c.rtt + ' saveData=' + c.saveData + ' type=' + (c.type || 'unknown'));
     }
-  } catch (e) { logAccess('_fp_', 'connection-init-error', String(e).slice(0, 120)); }
+  } catch (e) { logAccess('_fp_', 'connection-init-error', String(e)); }
   // SpeechSynthesis voices.
   try {
     if (typeof speechSynthesis !== 'undefined') {
       const voices = speechSynthesis.getVoices();
       logAccess('speechSynthesis', 'getVoices', 'count=' + voices.length + ' list=' + JSON.stringify(voices.map(function(v) { return { name: v.name, lang: v.lang, default: v.default, localService: v.localService, voiceURI: v.voiceURI }; })));
     }
-  } catch (e) { logAccess('_fp_', 'voices-init-error', String(e).slice(0, 120)); }
+  } catch (e) { logAccess('_fp_', 'voices-init-error', String(e)); }
   // Notifications.
-  try { if (typeof Notification !== 'undefined') logAccess('Notification', 'permission', Notification.permission); } catch (e) { logAccess('_fp_', 'notif-init-error', String(e).slice(0, 120)); }
+  try { if (typeof Notification !== 'undefined') logAccess('Notification', 'permission', Notification.permission); } catch (e) { logAccess('_fp_', 'notif-init-error', String(e)); }
   // WebHID / WebUSB / WebSerial / Web Bluetooth — hook getDevices to log any
   // enumeration the page does. Most pages won't call these without a user
   // gesture, but the hook ensures we capture every attempt.
@@ -242,11 +242,11 @@
             logAccess(name, methodName, 'count=' + arr.length + ' list=' + JSON.stringify(arr.map(function(d) {
               return { name: d?.productName, vendorId: d?.vendorId, productId: d?.productId, serial: d?.serialNumber, opened: d?.opened };
             })));
-          } catch (err) { logAccess('_fp_', name + '-resolve-error', String(err).slice(0, 120)); }
+          } catch (err) { logAccess('_fp_', name + '-resolve-error', String(err)); }
         }, function() {});
         return p;
       };
-    } catch (e) { logAccess('_fp_', name + '-hook-error', String(e).slice(0, 120)); }
+    } catch (e) { logAccess('_fp_', name + '-hook-error', String(e)); }
   }
   try { _hookDeviceEnum(navigator.hid, 'WebHID', 'getDevices'); } catch {}
   try { _hookDeviceEnum(navigator.usb, 'WebUSB', 'getDevices'); } catch {}
@@ -261,7 +261,7 @@
         IdleDetector.requestPermission = function() { const p = _origIdle.apply(this, arguments); p.then(function(s) { try { logAccess('IdleDetector', 'requestPermission', String(s)); } catch {} }, function() {}); return p; };
       }
     }
-  } catch (e) { logAccess('_fp_', 'idle-init-error', String(e).slice(0, 120)); }
+  } catch (e) { logAccess('_fp_', 'idle-init-error', String(e)); }
   // MediaDevices.enumerateDevices — already logged once in property_trap's
   // navigator hooks; re-hook here to capture FULL device list including
   // deviceId/groupId/kind/label per device.
@@ -276,7 +276,7 @@
         return p;
       };
     }
-  } catch (e) { logAccess('_fp_', 'md-init-error', String(e).slice(0, 120)); }
+  } catch (e) { logAccess('_fp_', 'md-init-error', String(e)); }
   // Permissions queries — log every query and its result. Hooks the query
   // method itself rather than emitting a snapshot, since pages probe specific
   // permission names dynamically.
@@ -291,7 +291,7 @@
         return p;
       };
     }
-  } catch (e) { logAccess('_fp_', 'permissions-init-error', String(e).slice(0, 120)); }
+  } catch (e) { logAccess('_fp_', 'permissions-init-error', String(e)); }
 
   logs.push({ t: performance.now(), o: '_fp_init_', p: 'done', vt: 'string', vs: 'ok', s: '' });
 })();

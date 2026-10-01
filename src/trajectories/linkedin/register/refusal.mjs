@@ -92,7 +92,7 @@ export async function inspectCreateAccountChallenge(session, challengeUrl) {
       };
     }));
   } catch (e) {
-    out.error = String(e?.message ?? e).slice(0, 500);
+    out.error = String(e?.message ?? e);
     out.url = session.page.url?.() ?? '';
   }
   const haystack = [
@@ -152,7 +152,7 @@ export async function hasVisibleCaptchaChallenge(page) {
 
 function addReason(reasons, code, message, data = {}) {
   if (reasons.some((r) => r.code === code)) return;
-  reasons.push({ code, message: String(message ?? '').slice(0, 240), ...data });
+  reasons.push({ code, message: String(message ?? ''), ...data });
 }
 
 export function linkedinFailureReasons(signal, errorMessage = '', finalUrl = '', diagnostics = null) {

@@ -121,7 +121,7 @@ try {
             await humanIdlePause('deliberate');
           } catch { console.log('[tw-profile] avatar apply btn never appeared'); }
         } else { console.log('[tw-profile] fileInput not in DOM — twitter UI variant'); }
-      } catch (e) { console.log(`[tw-profile] avatar err: ${e.message?.slice(0, 120)}`); }
+      } catch (e) { console.log(`[tw-profile] avatar err: ${e.message}`); }
     }
   }
 
@@ -135,7 +135,7 @@ try {
   await humanIdlePause('long');
   console.log(`PASS: ${acct.username} profile updated to ${character.name}`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exit(1);
 } finally {
   await s.close();

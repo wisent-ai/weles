@@ -124,7 +124,7 @@ try {
             } else { console.log('[rd-profile] no enabled Save after setFiles'); }
           } else { console.log('[rd-profile] no Select-a-new-image after Edit-avatar click'); }
         } else { console.log('[rd-profile] Edit-profile-avatar button not visible'); }
-      } catch (e) { console.log(`[rd-profile] avatar err: ${e.message?.slice(0, 120)}`); }
+      } catch (e) { console.log(`[rd-profile] avatar err: ${e.message}`); }
     }
   }
 
@@ -144,7 +144,7 @@ try {
   await humanIdlePause('deliberate');
   console.log(`PASS: ${acct.username} profile updated to ${character.name}`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exit(1);
 } finally {
   await s.close();

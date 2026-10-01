@@ -142,7 +142,7 @@ export async function generateKeywordsWithRouter(input, state = null) {
   const data = readRouterCompletion(answer);
   const raw = data.choices?.[0]?.message?.content || '';
   const parsed = parseKeywordRouterResponse(raw);
-  if (!parsed.saturated && !parsed.keywords.length) throw new Error(`model-router returned no parseable keywords: ${String(raw).slice(0, 300)}`);
+  if (!parsed.saturated && !parsed.keywords.length) throw new Error(`model-router returned no parseable keywords: ${String(raw)}`);
   return {
     ok: true,
     source: 'model-router',

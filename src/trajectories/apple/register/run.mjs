@@ -141,7 +141,7 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     console.log(`PASS: apple ${id.email}`);
     process.exit(0);
   } catch (e) {
-    console.log(`FAIL (attempt ${attempt}): ${e.message?.slice(0, 200)}`);
+    console.log(`FAIL (attempt ${attempt}): ${e.message}`);
     await s.close().catch(() => {});
     if (attempt === MAX_RETRIES) { console.log('All attempts exhausted'); process.exit(1); }
     await humanIdlePause('deliberate');

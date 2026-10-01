@@ -234,7 +234,7 @@ export async function findClickTarget(
   } catch (e) {
     if (e instanceof VisionRefusedError) {
       console.log('  [vision] tier_0_bare refused, escalating');
-      refusals.push(['tier_0_bare', String(e).slice(0, 300)]);
+      refusals.push(['tier_0_bare', String(e)]);
     } else throw e;
   }
 
@@ -248,7 +248,7 @@ export async function findClickTarget(
     } catch (e) {
       if (e instanceof VisionRefusedError) {
         console.log('  [vision] tier_1_crop refused, escalating');
-        refusals.push(['tier_1_crop', String(e).slice(0, 300)]);
+        refusals.push(['tier_1_crop', String(e)]);
       } else throw e;
     }
   } else {
@@ -271,7 +271,7 @@ export async function findClickTarget(
   } catch (e) {
     if (e instanceof VisionRefusedError) {
       console.log('  [vision] tier_2_decompose refused');
-      refusals.push(['tier_2_decompose', String(e).slice(0, 300)]);
+      refusals.push(['tier_2_decompose', String(e)]);
     } else throw e;
   }
 

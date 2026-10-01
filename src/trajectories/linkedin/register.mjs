@@ -115,12 +115,12 @@ main: {
     try {
       diagnostics = await getLinkedinFailureDiagnostics(s, requestedProxy, proxyWatch.expectedExitIp);
     } catch (diagnosticsError) {
-      diagnostics = { collected: false, reason: `failure diagnostics could not be read off the live session: ${String(diagnosticsError?.message ?? diagnosticsError).slice(0, 200)}` };
+      diagnostics = { collected: false, reason: `failure diagnostics could not be read off the live session: ${String(diagnosticsError?.message ?? diagnosticsError)}` };
     }
   }
   const failureReasons = linkedinFailureReasons(sig, errorMessage, finalUrl, diagnostics);
   try { mkdirSync(runRecordingsDir('linkedin_register'), { recursive: true }); writeFileSync(join(runRecordingsDir('linkedin_register'), 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: sig, healthy: false, details: { final_url: finalUrl, error: errorMessage.slice(0, 200), attempted_email_hash: hashValue(id.email), expected_exit_ip: proxyWatch.expectedExitIp, diagnostics, failure_reasons: failureReasons, stage_events: stageEvents }, ts: new Date().toISOString() }, null, 2)); } catch {}
-  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+  console.log(`FAIL: ${e.message}`);
   // exitCode (not exit) so the finally block's await s.close() actually runs.
   // process.exit(1) kills pending async ops immediately, which prevents
   // Playwright from flushing the recordVideo .webm to disk.

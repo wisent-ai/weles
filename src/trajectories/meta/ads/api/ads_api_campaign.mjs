@@ -180,6 +180,6 @@ try {
   else throw new Error(`unsupported ACTION=${ACTION}`);
   if (RESOURCE !== 'stack') console.log(`PASS: Meta Ads API ${ACTION} ${RESOURCE} completed`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 2000));
+  console.log('FAIL:', e.message);
   process.exit(1);
 }

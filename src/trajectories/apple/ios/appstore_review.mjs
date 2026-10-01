@@ -115,7 +115,7 @@ async function dumpUiSource(sid, label) {
     console.log(`[ios-review] UI source dump (${label}, ${src.length} chars, first 4000):`);
     console.log(src.slice(0, 4000));
   } catch (e) {
-    console.log(`[ios-review] UI source dump failed: ${e.message?.slice(0, 120)}`);
+    console.log(`[ios-review] UI source dump failed: ${e.message}`);
   }
 }
 
@@ -214,6 +214,6 @@ try {
 
   console.log(`PASS: review submitted for app ${APP_ID} (${RATING}★) via iOS WDA`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 240));
+  console.log('FAIL:', e.message);
   process.exit(1);
 }

@@ -65,7 +65,7 @@ export function fallbackWelesTrajectoryDraft(input: WelesTrajectoryWriterInput, 
     source: 'fallback',
     steps,
     guidance: formatGuidance(steps, 'fallback'),
-    error: error instanceof Error ? error.message.slice(0, 300) : error ? String(error).slice(0, 300) : undefined,
+    error: error instanceof Error ? error.message : error ? String(error) : undefined,
   };
 }
 

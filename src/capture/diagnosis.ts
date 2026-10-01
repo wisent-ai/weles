@@ -77,9 +77,9 @@ function parseDiagnosisOutput(raw: string): CaptureDiagnosis | null {
     if (![...errors, ...anomalies, ...nextSteps].every(item => typeof item === 'string')) return null;
     return {
       summary: parsed.summary.trim().slice(Number('0'), Number('2000')),
-      errors: errors.slice(Number('0'), Number('20')).map(item => String(item).slice(Number('0'), Number('1000'))),
-      anomalies: anomalies.slice(Number('0'), Number('20')).map(item => String(item).slice(Number('0'), Number('1000'))),
-      next_steps: nextSteps.slice(Number('0'), Number('20')).map(item => String(item).slice(Number('0'), Number('1000'))),
+      errors: errors.slice(Number('0'), Number('20')).map(item => String(item)),
+      anomalies: anomalies.slice(Number('0'), Number('20')).map(item => String(item)),
+      next_steps: nextSteps.slice(Number('0'), Number('20')).map(item => String(item)),
     };
   } catch {
     return null;

@@ -27,7 +27,7 @@ let ban = null;
 try {
   const cookies = (acct.metadata?.cookies ?? []).filter(c => (c.domain ?? '').includes('github.com'));
   if (cookies.length) {
-    await s.ctx.addCookies(cookies).catch(e => console.log(`[star] cookie add error: ${e.message?.slice(0, 80)}`));
+    await s.ctx.addCookies(cookies).catch(e => console.log(`[star] cookie add error: ${e.message}`));
     console.log(`[star] Injected ${cookies.length} github.com cookies`);
   }
   let url;
@@ -71,7 +71,7 @@ try {
   }
 } catch (e) {
   ban = e.banSignal ?? await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
+  console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message}`);
   process.exitCode = 1;
 } finally {
   if (ban) { try { const dir = runRecordingsDir('github_star'); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'github_star', repo_url: repoUrl, search_query: SEARCH_QUERY, ...ban, ts: new Date().toISOString() }, null, 2)); } catch {} }

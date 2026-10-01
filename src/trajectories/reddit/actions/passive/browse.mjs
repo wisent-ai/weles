@@ -40,7 +40,7 @@ try {
 } catch (e) {
   banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
   if (banSignal) console.log(`[ban-signal] ${banSignal.signal}`);
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exitCode = 1;
 } finally {
   if (banSignal) {

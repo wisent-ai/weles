@@ -66,7 +66,7 @@ try {
   if (!persisted?.ok) throw new Error(`threads_persist_failed: ${persisted?.reason}`);
   console.log(`PASS: threads logged in (${cookies.length} cookies persisted, final=${finalUrl})`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exit(1);
 } finally {
   await s.close().catch(() => {});

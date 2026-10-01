@@ -39,7 +39,7 @@ export async function preflightProxy(proxyUrl: string): Promise<PreflightResult>
     const acceptable = isAcceptableForRegister(classification.quality);
     return { ok: acceptable, ip, classification };
   } catch (e: any) {
-    return { ok: false, ip: '', error: e?.message ? String(e.message).slice(0, 200) : 'proxy probe failed' };
+    return { ok: false, ip: '', error: e?.message ? String(e.message) : 'proxy probe failed' };
   }
 }
 

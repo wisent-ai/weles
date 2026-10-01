@@ -63,8 +63,8 @@ async function renameOne(id, newName) {
     });
     return { ok: r.ok, status: r.status, err: r.ok ? null : await r.text().catch((e) => String(e)) };
   }, { pid: id, name: newName });
-  console.log(`[rename] ${id} POST /rename -> ok=${res.ok} status=${res.status}${res.err ? ' err=' + String(res.err).slice(0, 200) : ''}`);
-  if (!res.ok) throw new Error(`rename POST failed status=${res.status} ${String(res.err).slice(0, 200)}`);
+  console.log(`[rename] ${id} POST /rename -> ok=${res.ok} status=${res.status}${res.err ? ' err=' + String(res.err) : ''}`);
+  if (!res.ok) throw new Error(`rename POST failed status=${res.status} ${String(res.err)}`);
   await s.goto('https://www.overleaf.com/project');
   await humanIdlePause('short');
   const after = await currentName(id);

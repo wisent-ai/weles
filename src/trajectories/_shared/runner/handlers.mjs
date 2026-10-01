@@ -63,7 +63,7 @@ export async function handlePost(s, cfg, ctx) {
 export async function handleComment(s, cfg, ctx) {
   const { acct, character, product, preapprovedText, label, feed, targetedMode } = ctx;
   const surfaceLabel = typeof cfg.surfaceLabel === 'function' ? cfg.surfaceLabel(acct, feed) : (cfg.surfaceLabel ?? feed);
-  const picked = await (cfg.pickPost?.(s).catch((e) => { console.log(`[${label}] pickPost failed: ${e.message?.slice(0, 80)}`); return { postTitle: '', postBody: '' }; }) ?? Promise.resolve({ postTitle: '', postBody: '' }));
+  const picked = await (cfg.pickPost?.(s).catch((e) => { console.log(`[${label}] pickPost failed: ${e.message}`); return { postTitle: '', postBody: '' }; }) ?? Promise.resolve({ postTitle: '', postBody: '' }));
   const postTitle = picked.postTitle || `post on ${typeof surfaceLabel === 'function' ? surfaceLabel(acct, feed) : (surfaceLabel || cfg.platform)}`;
   const postBody = picked.postBody || '';
   let text = preapprovedText;

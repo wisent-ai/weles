@@ -10,7 +10,7 @@ const RETYPE_PASSWORD = 'input#iRetypePassword, input[name="RetypePassword"]';
 
 /** A field that never appeared is logged; the step decides what it means. */
 function noteAbsent(name) {
-  return (error) => console.log(`[microsoft] ${name} did not appear: ${String(error?.message ?? error).slice(0, 120)}`);
+  return (error) => console.log(`[microsoft] ${name} did not appear: ${String(error?.message ?? error)}`);
 }
 
 /** Sign in from a clean context with the given password; true when Microsoft accepted it. */

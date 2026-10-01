@@ -86,7 +86,7 @@ export async function solveBraveProofOfWork(page: Page, initial: BraveProofOfWor
       started = true;
       console.log('[captcha] Brave proof-of-work calculation started');
     } catch (error) {
-      console.log(`[captcha] Brave proof-of-work click failed: ${error instanceof Error ? error.message.slice(0, 120) : String(error).slice(0, 120)}`);
+      console.log(`[captcha] Brave proof-of-work click failed: ${error instanceof Error ? error.message : String(error)}`);
       return false;
     }
   }

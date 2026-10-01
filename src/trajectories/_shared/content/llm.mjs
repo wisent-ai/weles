@@ -30,7 +30,7 @@ async function callGenerate(body) {
     }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`Stado model generation ${res.status}: ${String(data.error?.message ?? '').slice(Number('0'), Number('200'))}`);
+  if (!res.ok) throw new Error(`Stado model generation ${res.status}: ${String(data.error?.message ?? '')}`);
   const text = String(data.choices?.[Number('0')]?.message?.content ?? '').trim();
   if (!text) throw new Error('Stado model generation returned empty text');
   return text;

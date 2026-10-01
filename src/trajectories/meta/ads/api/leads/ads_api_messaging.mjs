@@ -50,6 +50,6 @@ try {
   console.log(`PASS: Meta messaging stack created campaign=${campaign.id} adset=${adset.id} creative=${creative.id} ad=${ad.id}`);
   console.log('PASS: Meta messaging API completed');
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 1600));
+  console.log('FAIL:', e.message);
   process.exit(1);
 }

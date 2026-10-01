@@ -103,7 +103,7 @@ try {
   console.log('PROJECTS_JSON ' + JSON.stringify(projects.map(({ cardText, ...rest }) => rest)));
   console.log(`PASS: listed ${projects.length} Supabase project(s)`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 300));
+  console.log('FAIL:', e.message);
   process.exit(1);
 } finally {
   await s.close();

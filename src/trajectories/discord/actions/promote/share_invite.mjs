@@ -80,11 +80,11 @@ try {
     const firstResult = s.page.locator('[role="listbox"] [role="option"], [class*="autocomplete"] [role="option"]').first();
     if ((await firstResult.count()) > 0) {
       try { await humanClickLocator(s.page, firstResult); }
-      catch (e) { console.log(`[share_invite] result click err: ${e.message?.slice(0, 80)}`); continue; }
+      catch (e) { console.log(`[share_invite] result click err: ${e.message}`); continue; }
       await humanIdlePause('short');
     }
     const createDm = s.page.locator('button').filter({ hasText: /^Create (DM|Group DM)$/ }).first();
-    if ((await createDm.count()) > 0) { try { await humanClickLocator(s.page, createDm); } catch (e) { console.log(`[share_invite] create-dm err: ${e.message?.slice(0, 80)}`); } }
+    if ((await createDm.count()) > 0) { try { await humanClickLocator(s.page, createDm); } catch (e) { console.log(`[share_invite] create-dm err: ${e.message}`); } }
     await humanIdlePause('deliberate');
     const composer = s.page.locator('[role="textbox"][data-slate-editor], div[role="textbox"]').filter({ visible: true }).first();
     if ((await composer.count()) === 0) { console.log(`[share_invite] DM composer not visible for ${target}`); continue; }
@@ -105,7 +105,7 @@ try {
   console.log('[share_invite] persisted metadata.invites_sent[] in Skarbiec');
   console.log(`PASS: ${acct.username} shared invite ${inviteUrl} (DM'd ${sent.length} target(s))`);
 } catch (e) {
-  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+  console.log(`FAIL: ${e.message}`);
   process.exit(1);
 } finally {
   await s.close();

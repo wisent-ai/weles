@@ -37,7 +37,7 @@ async function main() {
 
     for (const target of CANDIDATES) {
       console.log(`\n[probe] === ${target} ===`);
-      await s.page.goto(target, { waitUntil: 'domcontentloaded' }).catch((e) => console.log(`[probe] goto warn: ${e.message?.slice(0, 80)}`));
+      await s.page.goto(target, { waitUntil: 'domcontentloaded' }).catch((e) => console.log(`[probe] goto warn: ${e.message}`));
       await humanIdlePause('long');
       console.log(`[probe] final URL: ${s.page.url()}`);
       const dump = await s.page.evaluate(() => ({ title: document.title, body: (document.body?.innerText || '').slice(0, 600), btns: Array.from(document.querySelectorAll('button, a')).filter(e => e.offsetParent).slice(0, 8).map(e => (e.innerText || '').trim().slice(0, 60)).filter(t => t) })).catch(() => ({}));

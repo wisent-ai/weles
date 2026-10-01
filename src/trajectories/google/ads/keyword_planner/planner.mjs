@@ -31,7 +31,7 @@ async function main() {
   const captured = installKeywordPlannerCapture(s.page);
   try {
     await s.page.goto(startUrl, { waitUntil: 'domcontentloaded' }).catch((error) => {
-      console.log(`[google-ads-keyword-planner] WARN: initial navigation failed ${String(error?.message || error).slice(0, 240)}`);
+      console.log(`[google-ads-keyword-planner] WARN: initial navigation failed ${String(error?.message || error)}`);
     });
     await pageSettled(s.page);
     await ensurePreferredGoogleAccount(s, startUrl);

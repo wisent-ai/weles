@@ -203,7 +203,7 @@ export async function doGoogleSso({
           await humanIdlePause('long');
         } catch (e) {
           if (e && e.fatal2fa) throw e;
-          console.log(`[google_sso] fresh-entry failed in popup (path=${st.pathname}): ${e.message.slice(0, 120)}`);
+          console.log(`[google_sso] fresh-entry failed in popup (path=${st.pathname}): ${e.message}`);
         }
         continue;
       }

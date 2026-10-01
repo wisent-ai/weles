@@ -50,7 +50,7 @@ try {
   console.log(`FAIL: dropdown change did not redirect to a checkout URL (${finalUrl}). PacketStream may have changed its flow; revisit selectors.`);
   process.exit(1);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exit(1);
 } finally {
   await s.close();

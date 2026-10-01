@@ -72,7 +72,7 @@ await humanFill(page, page.locator("[name$='miejsce_realizacji_nr_budynku']").fi
 await humanIdlePause('deliberate');
 await humanIdlePause('deliberate');
 let saveResult = 'saved';
-try { await saveForm(); } catch (e) { saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 70)}`; }
+try { await saveForm(); } catch (e) { saveResult = `NOT SAVED: ${String(e?.message || e)}`; }
 
 const readback = await page.evaluate(() => {
   const tbl = document.querySelector('table');

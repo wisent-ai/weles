@@ -98,7 +98,7 @@ try {
   if (!r1 || !r2) { console.log(`FAIL: PATCH residential=${r1} mobile=${r2}`); throw new Error(`PATCH residential=${r1} mobile=${r2}`); }
   console.log(`PASS: dashboard=$${balance} (effective balance written + probed)`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   if (process.env.KEEP_OPEN === '1') {
     console.log('[trajectory] KEEP_OPEN=1 — browser left open for manual intervention');
     await new Promise(() => {});

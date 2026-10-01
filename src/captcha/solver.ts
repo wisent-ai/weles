@@ -200,7 +200,7 @@ export class CaptchaSolver {
             console.log('[captcha:api] capsolver AntiPerimeterx returned no cookies in solution');
           }
         }
-      } catch (e: any) { console.log(`[captcha:api] capsolver AntiPerimeterx fetch err: ${e.message?.slice(0, 100)}`); }
+      } catch (e: any) { console.log(`[captcha:api] capsolver AntiPerimeterx fetch err: ${e.message}`); }
     }
     const token = this._creds.nocaptcha;
     if (!token) { console.log('[captcha:solver] PerimeterX: no NOCAPTCHA_API_KEY (capsolver path returned no cookies)'); markAllProvidersFailed('perimeterx'); return null; }  // G8
@@ -227,7 +227,7 @@ export class CaptchaSolver {
       if (out.length) costTracker.recordCaptcha('nocaptcha', 'perimeterx');
       return out.length ? out : null;
     } catch (e: any) {
-      console.log(`[captcha:api] nocaptcha PerimeterX fetch err: ${e.message?.slice(0, 100)}`);
+      console.log(`[captcha:api] nocaptcha PerimeterX fetch err: ${e.message}`);
       return null;
     }
   }

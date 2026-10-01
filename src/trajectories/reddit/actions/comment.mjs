@@ -52,7 +52,7 @@ async function readHandle() {
   try {
     return await readOwnHandle(s.page);
   } catch (e) {
-    console.log(`[trajectory] /api/me.json unreadable: ${e.message?.slice(0, 120)}`);
+    console.log(`[trajectory] /api/me.json unreadable: ${e.message}`);
     return false;
   }
 }
@@ -158,7 +158,7 @@ try {
   if (e.banSignal) banSignal = e.banSignal;
   if (!banSignal) banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => false);
   if (banSignal) console.log(`[ban-signal] ${banSignal.signal}`);
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exitCode = 1;
 } finally {
   if (banSignal) {

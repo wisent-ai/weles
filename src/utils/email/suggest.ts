@@ -65,7 +65,7 @@ export async function suggestDomainName(tld = '.com'): Promise<string> {
       const raw = (await callJeden(buildDomainPrompt(12, existing))).raw;
       candidates = parseNamesFromLlm(raw);
     } catch (e: any) {
-      lastError = e.message?.slice(0, 120) ?? 'unknown';
+      lastError = e.message ?? 'unknown';
       console.log(`[domain] LLM call failed (batch ${batch + 1}/3): ${lastError}`);
       continue;
     }

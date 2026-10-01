@@ -83,7 +83,7 @@ try {
   if (!successCount) { console.log('FAIL: no delivery confirmation on response page'); process.exit(1); }
   console.log(`PASS: DM (PM) sent to u/${RECIPIENT}`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exit(1);
 } finally {
   await s.close();

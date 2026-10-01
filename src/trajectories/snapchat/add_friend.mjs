@@ -68,7 +68,7 @@ try {
   await s.page.locator('button:has-text("Added"), button:has-text("Pending"), [role="button"]:has-text("Added")').first().waitFor({ state: 'visible' });
   console.log(`PASS: added ${TARGET}`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exit(1);
 } finally {
   await s.close();

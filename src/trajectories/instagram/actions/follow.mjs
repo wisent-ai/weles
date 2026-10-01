@@ -50,7 +50,7 @@ try {
   if (after === 0) { console.log(`FAIL: clicked Follow but no transition to Following — may be shadowbanned or rate-limited`); process.exitCode = 1; }
   console.log(`PASS: followed @${TARGET_USER}`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exitCode = 1;
 } finally {
   await s.close();

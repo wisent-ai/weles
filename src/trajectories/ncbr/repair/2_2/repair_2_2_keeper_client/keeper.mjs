@@ -11,12 +11,12 @@ export function action(args, optional = false) {
   const result = spawnSync(process.execPath, ['src/keeper/action.mjs', ...args], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' });
   if (result.status !== 0) {
     if (optional) return { ok: false, stdout: result.stdout, stderr: result.stderr, status: result.status };
-    const printable = args.map((arg, i) => (i >= 2 && String(arg).length > 500 ? `${String(arg).slice(0, 500)}...[${String(arg).length} chars]` : arg)).join(' ');
+    const printable = args.map((arg, i) => (i >= 2 && String(arg).length > 500 ? `${String(arg)}...[${String(arg).length} chars]` : arg)).join(' ');
     throw new Error(`${printable}\nstdout=${result.stdout}\nstderr=${result.stderr}`);
   }
   const out = String(result.stdout || '').trim();
   if (!out) {
-    const printable = args.map((arg, i) => (i >= 2 && String(arg).length > 500 ? `${String(arg).slice(0, 500)}...[${String(arg).length} chars]` : arg)).join(' ');
+    const printable = args.map((arg, i) => (i >= 2 && String(arg).length > 500 ? `${String(arg)}...[${String(arg).length} chars]` : arg)).join(' ');
     throw new Error(`${printable}\nempty keeper response\nstderr=${result.stderr}`);
   }
   return JSON.parse(out);

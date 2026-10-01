@@ -83,12 +83,12 @@ mkdirSync(SHOT_DIR, { recursive: true });
 async function shot(label) {
   const fp = join(SHOT_DIR, `${label}_${Date.now()}.png`);
   try { await s.page.screenshot({ path: fp, fullPage: true }); console.log(`[slack] shot=${fp}`); }
-  catch (e) { console.log(`[slack] screenshot WARN ${label}: ${e.message?.slice(0, 80)}`); }
+  catch (e) { console.log(`[slack] screenshot WARN ${label}: ${e.message}`); }
 }
 
 async function safeShutdown() {
   if (!s.shutdown) return;
-  try { await s.shutdown(); } catch (e) { console.log(`[slack] shutdown WARN: ${e.message?.slice(0, 80)}`); }
+  try { await s.shutdown(); } catch (e) { console.log(`[slack] shutdown WARN: ${e.message}`); }
 }
 
 async function fail(code, message) {

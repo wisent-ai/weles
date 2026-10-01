@@ -74,7 +74,7 @@ export async function acceptPendingWorkspaceInvite(page, login, mark) {
     mark('workspace_invite_accepted');
     console.log(`[google_sso] clicked the workspace acceptance control "${clicked}"`);
   } catch (e) {
-    console.log(`[google_sso] no acceptance control on the invitation page: ${e.message.slice(0, 120)}`);
+    console.log(`[google_sso] no acceptance control on the invitation page: ${e.message}`);
   }
   await pause('long');
   const landed = await navEval(page, () => location.href, '?');

@@ -172,7 +172,7 @@ async function closeEditor() {
 }
 
 async function inspectRow(row) {
-  const needle = String(row.text || '').slice(0, 90);
+  const needle = String(row.text || '');
   const byText = needle ? `tr:has-text(${JSON.stringify(needle)}) button[aria-label="overflow-options"]` : '';
   const exactSelector = `:nth-match(table tbody tr, ${row.globalRowIndex}) button[aria-label="overflow-options"]`;
   const selectors = [byText, exactSelector].filter(Boolean);

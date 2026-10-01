@@ -89,7 +89,7 @@ async function solveEmailPinChallenge({ page }, email) {
     }
     await pageSettled(page);
     return { ok: true, code };
-  } catch (e) { return { ok: false, reason: `fill_err:${e.message?.slice(0, 80)}` }; }
+  } catch (e) { return { ok: false, reason: `fill_err:${e.message}` }; }
 }
 
 export async function solveLinkedinCheckpoint({ ctx, page }, reason, email) {
@@ -163,7 +163,7 @@ export async function confirmLinkedinEmail(page, email) {
   if (!confirmUrl) { console.log('[linkedin_register] no email-confirmation link in inbox'); return { ok: false, reason: 'confirm_email_not_received' }; }
   console.log(`[linkedin_register] navigating to email-confirmation URL`);
   try { await page.goto(confirmUrl, { waitUntil: 'domcontentloaded' }); }
-  catch (e) { return { ok: false, reason: `goto_err:${e.message?.slice(0, 80)}` }; }
+  catch (e) { return { ok: false, reason: `goto_err:${e.message}` }; }
   await pageSettled(page);
   const finalUrl = page.url?.() ?? '';
   console.log(`[linkedin_register] post-confirm URL: ${finalUrl}`);
@@ -193,5 +193,5 @@ export async function injectV3LoginToken(page) {
       } catch {}
       document.querySelectorAll('textarea[name="g-recaptcha-response"], textarea[name^="g-recaptcha-response-"]').forEach((el) => { el.value = t; });
     }, token);
-  } catch (e) { console.log('[linkedin_login] reCAPTCHA solve err:', e.message?.slice(0, 200)); }
+  } catch (e) { console.log('[linkedin_login] reCAPTCHA solve err:', e.message); }
 }

@@ -61,7 +61,7 @@ async function setCountry(frame, country) {
         }
       }
     }
-  } catch (e) { console.log(`[phone_verify] country select err: ${e.message?.slice(0, 80)}`); }
+  } catch (e) { console.log(`[phone_verify] country select err: ${e.message}`); }
   return false;
 }
 

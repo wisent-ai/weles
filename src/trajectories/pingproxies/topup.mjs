@@ -65,7 +65,7 @@ try {
       return { dialogCount: dialogs.length, modalBtns, modalInputs: allInputs, ccCandidates, iframes };
     });
     console.log('[diag] modal contents:', JSON.stringify(modalState));
-  } catch (e) { console.log('[diag] err:', e.message?.slice(0, 80)); }
+  } catch (e) { console.log('[diag] err:', e.message); }
 
   const amtIn = s.page.locator('input[type="number"], input[name*="amount" i], input[inputmode="numeric"]').filter({ visible: true }).first();
   if (await amtIn.isVisible().catch(() => false)) {
@@ -92,7 +92,7 @@ try {
     const fs = await import('node:fs');
     fs.writeFileSync(`${runRecordingsDir('pingproxies_topup')}/pingproxies_modal.html`, modalHtml);
     console.log('[trajectory] dumped modal HTML to recordings/<run>/pingproxies_topup/pingproxies_modal.html');
-  } catch (e) { console.log('[diag] HTML dump err:', e.message?.slice(0, 80)); }
+  } catch (e) { console.log('[diag] HTML dump err:', e.message); }
 
   
 
@@ -171,7 +171,7 @@ try {
   if (stripeChargeFired) console.log(`PASS-CHARGED: Stripe payment_intents/confirm POST fired, url=${s.page.url().slice(0, 100)}`);
   else console.log(`FAIL: deposit-confirm clicked but no Stripe charge POST observed by the time the page settled, url=${s.page.url().slice(0, 100)}`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exit(1);
 } finally {
   await s.close();

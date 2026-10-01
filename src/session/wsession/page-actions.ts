@@ -150,7 +150,7 @@ export async function wsSetControl(s: WSession, selector: string, value?: unknow
           checked: typeof input.checked === 'boolean' ? input.checked : undefined,
           validation,
         };
-        }, { value: resolvedValue, checked: desiredChecked }).catch((error: Error) => ({ error: error.message.slice(0, 160) }));
+        }, { value: resolvedValue, checked: desiredChecked }).catch((error: Error) => ({ error: error.message }));
         if (result) return `set_control ${JSON.stringify(result).slice(0, 500)}`;
       } finally {
         await handle.dispose();

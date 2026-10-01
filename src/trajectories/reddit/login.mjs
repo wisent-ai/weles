@@ -81,7 +81,7 @@ try {
   banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
   if (banSignal) console.log(`[ban-signal] ${banSignal.signal}`);
   if (banSignal?.signal === 'ip_blocked') await wipeStoredProxy(acct.id);
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exitCode = 1;
 } finally {
   if (banSignal) {

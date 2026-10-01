@@ -19,7 +19,6 @@ import { json, readBody, requireTokenAuthorization } from '../../http-exchange.m
 import { capturePageExport, capturePageSnapshot, PageLoadFailed } from './capture.mjs';
 import {
   CONCURRENT_PAGES,
-  ERROR_CHARS,
   HTTP_BUSY,
   HTTP_INVALID_REQUEST,
   HTTP_OK,
@@ -58,7 +57,7 @@ function targetHost(body) {
 
 function refusalOf(error) {
   const { status, code } = REFUSALS.find(({ type }) => error instanceof type) || BROWSER_FAILURE;
-  return { status, code, message: String(error?.message || error).slice(0, ERROR_CHARS) };
+  return { status, code, message: String(error?.message || error) };
 }
 
 export async function respondToPage(req, res, url, browser) {

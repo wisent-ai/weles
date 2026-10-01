@@ -111,7 +111,7 @@ const main = async () => {
       writeDomainProbe(d.name, (await domains('resend.domain.probe', { domain: d.name })).marker);
     } catch (error) {
       refused[d.name] = error.message;
-      console.log(`[probe] ${d.name} send refused: ${error.message.slice(0, 160)}`);
+      console.log(`[probe] ${d.name} send refused: ${error.message}`);
     }
   }
   // 3. classify + reconcile (diagnose the cause for anything broken)

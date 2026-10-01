@@ -34,6 +34,6 @@ try {
   }
   console.log(`PASS: Meta lead form API ${ACTION} completed`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 1600));
+  console.log('FAIL:', e.message);
   process.exit(1);
 }

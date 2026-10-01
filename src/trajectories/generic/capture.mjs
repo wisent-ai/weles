@@ -118,7 +118,7 @@ try {
   const recordStartedAt = Date.now();
   for (const step of plan.steps) {
     const outcome = await runStep(session, step);
-    stepsExecuted.push({ op: step.op, value: step.value, outcome: String(outcome).slice(Number('0'), Number('200')) });
+    stepsExecuted.push({ op: step.op, value: step.value, outcome: String(outcome) });
   }
   let recordedSeconds = null;
   if (plan.record_seconds > 0) {

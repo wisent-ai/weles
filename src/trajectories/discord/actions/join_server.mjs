@@ -42,7 +42,7 @@ try {
   console.log(`[ban-signal] ${ban?.signal}  PASS: joined`);
 } catch (e) {
   ban = e.banSignal ?? await detectDiscordBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
+  console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message}`);
   process.exitCode = 1;
 } finally {
   if (ban) { try { const dir = runRecordingsDir('discord_join_server'); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'discord_join_server', ...ban, ts: new Date().toISOString() }, null, 2)); } catch {} }

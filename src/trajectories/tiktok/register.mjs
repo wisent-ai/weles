@@ -23,7 +23,7 @@ const PROBE = `(() => { const t = document.body.innerText || ''; const i = []; i
 
   /** A key press the page refuses is logged; the step decides what it means. */
   async function press(key) {
-    try { await s.page.keyboard.press(key); } catch (e) { console.log(`[test] key ${key} not delivered: ${e.message?.slice(0, 80)}`); }
+    try { await s.page.keyboard.press(key); } catch (e) { console.log(`[test] key ${key} not delivered: ${e.message}`); }
   }
 
   const maxRetries = Math.max(1, Number(process.env.MAX_RETRIES || 1));
@@ -31,7 +31,7 @@ const PROBE = `(() => { const t = document.body.innerText || ''; const i = []; i
   // different sticky proxy exit; a dead page or a TTP2-routed exit is not a
   // verdict on the flow, and MAX_RETRIES is the operator's own bound.
   for (let retry = 0; retry < maxRetries; retry++) {
-    if (s) { await s.close().catch((e) => console.log(`[test] close: ${e.message?.slice(0, 80)}`)); s = null; }
+    if (s) { await s.close().catch((e) => console.log(`[test] close: ${e.message}`)); s = null; }
 
     try {
       // Fresh identity per retry — don't reuse emails across failed runs
@@ -47,7 +47,7 @@ const PROBE = `(() => { const t = document.body.innerText || ''; const i = []; i
       s = await WSession.start({ label: 'tiktok_register', proxy: process.env.PROXY_URL || 'residential brightdata', targetHost: 'www.tiktok.com', persona: generatePersona({ country: 'US', browser: process.env.FORCE_BROWSER || 'chromium' }) });
       const net = installNetworkLogger(s);
 
-      for (const u of ['https://www.tiktok.com/','https://www.tiktok.com/explore']) { await s.page.goto(u,{waitUntil:'domcontentloaded'}).catch((e) => console.log(`[test] warm-up ${u}: ${e.message?.slice(0, 80)}`)); await pageSettled(s.page); }
+      for (const u of ['https://www.tiktok.com/','https://www.tiktok.com/explore']) { await s.page.goto(u,{waitUntil:'domcontentloaded'}).catch((e) => console.log(`[test] warm-up ${u}: ${e.message}`)); await pageSettled(s.page); }
       await s.goto(URL); await pageSettled(s.page);
 
       // Verify page is alive
@@ -175,7 +175,7 @@ const PROBE = `(() => { const t = document.body.innerText || ''; const i = []; i
 
       // Type code char-by-char w/ variable delays
       const codeLoc = s.page.locator('input[placeholder*="digit" i], input[name="code"]').first();
-      await humanClickLocator(s.page, codeLoc).catch((e) => console.log(`[test] code input click: ${e.message?.slice(0, 80)}`));
+      await humanClickLocator(s.page, codeLoc).catch((e) => console.log(`[test] code input click: ${e.message}`));
       await humanType(s.page, code);
       // Reconcile React state only after send_code has succeeded.
       if (await pwLoc.count().catch(() => false)) await syncReactInputValue(pwLoc, password);
@@ -192,12 +192,12 @@ const PROBE = `(() => { const t = document.body.innerText || ''; const i = []; i
         if (!net.registerVerifySeen && (s.page.url?.() ?? '').includes('/signup/phone-or-email/email')) {
           console.log('[test] Next click produced no register_verify_login request — trying keyboard activation');
           const nextBtn = s.page.getByRole('button', { name: /^\s*Next\s*$/i }).first();
-          await nextBtn.focus().catch((e) => console.log(`[test] Next focus: ${e.message?.slice(0, 80)}`));
+          await nextBtn.focus().catch((e) => console.log(`[test] Next focus: ${e.message}`));
           await press('Enter');
           await pageSettled(s.page);
           if (!net.registerVerifySeen) { await press('Space'); await pageSettled(s.page); }
           if (!net.registerVerifySeen && await nextBtn.isVisible().catch(() => false)) {
-            await humanClickLocator(s.page, nextBtn).catch((e) => console.log(`[test] Next click: ${e.message?.slice(0, 80)}`));
+            await humanClickLocator(s.page, nextBtn).catch((e) => console.log(`[test] Next click: ${e.message}`));
             await pageSettled(s.page);
           }
         }
@@ -243,17 +243,17 @@ const PROBE = `(() => { const t = document.body.innerText || ''; const i = []; i
       const signedIn = hasSessionId || /foryou|\/@|\/home|onboarding|interests|create-username/.test(finalUrl);
       if (signedIn) {
         await s.saveAccount('tiktok', { username: id.username, email: id.email, password });
-        await autoBindCharacter(id.username, 'tiktok').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
+        await autoBindCharacter(id.username, 'tiktok').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message}`));
         console.log(`PASS: ${id.username} (final url ${finalUrl}, sessionid=${hasSessionId})`);
         success = true;
         break;
       }
       console.log(`[test] attempt ${retry + 1}: didn't reach logged-in state. finalUrl=${finalUrl} sessionid=${hasSessionId}`);
     } catch (e) {
-      console.log(`[test] attempt ${retry + 1} crashed: ${e.message?.slice(0, 120)}`);
+      console.log(`[test] attempt ${retry + 1} crashed: ${e.message}`);
     }
   }
 
-  if (s) await s.close().catch((e) => console.log(`[test] close: ${e.message?.slice(0, 80)}`));
+  if (s) await s.close().catch((e) => console.log(`[test] close: ${e.message}`));
   if (!success) { console.log('FAIL: exhausted retries'); process.exitCode = 1; }
 }

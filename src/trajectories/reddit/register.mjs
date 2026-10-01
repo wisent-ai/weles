@@ -158,7 +158,7 @@ try {
   // Step 5: persist + verify
   const result = await s.saveAccount('reddit', { username: id.username, email: id.email, password: id.password, name: id.name });
   console.log(`[register] saveAccount: ${result}`);
-  await autoBindCharacter(id.username, 'reddit').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
+  await autoBindCharacter(id.username, 'reddit').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message}`));
 
   const saved = findAccount('reddit', id.username);
   if (!saved) { console.log(`FAIL: saveAccount returned ok but no Skarbiec item for ${id.username}`); process.exitCode = 1; }
@@ -169,7 +169,7 @@ try {
     else console.log(`PASS: ${id.username} (skarbiec_item=${saved.id} cookies=${cookies.length} reddit_session=yes)`);
   }
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 300));
+  console.log('FAIL:', e.message);
   process.exitCode = 1;
 } finally {
   await s.close();

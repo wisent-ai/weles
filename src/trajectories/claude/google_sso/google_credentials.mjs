@@ -92,7 +92,7 @@ export async function enterGoogleCredentials({
         return { path: location.pathname, host: location.host, texts };
       });
       console.log(`[google_sso] 2fa-diag host=${diag.host} path=${diag.path} clickables=${JSON.stringify(diag.texts)}`);
-    } catch (e) { console.log(`[google_sso] 2fa-diag failed: ${e.message.slice(0, 80)}`); }
+    } catch (e) { console.log(`[google_sso] 2fa-diag failed: ${e.message}`); }
     const result = await selectAuthenticatorMethod(page, Boolean(login.totpSecret || process.env.CLAUDE_2FA_CODE));
     if (result === 'no-2fa') {
       console.log('[google_sso] no 2fa challenge present — nothing to answer');

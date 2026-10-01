@@ -73,7 +73,7 @@
       else if (vt === 'undefined') vs = 'undefined';
       else if (vt === 'function') vs = 'function';
       else if (vt === 'object') { try { vs = JSON.stringify(val).slice(0, 200); } catch { vs = '[object]'; } }
-      else vs = String(val).slice(0, 200);
+      else vs = String(val);
       logs.push({ t: performance.now(), o: obj, p: prop, vt, vs, s: stack() });
       if (logs.length > 20000) logs.shift();
     } catch {}
@@ -100,7 +100,7 @@
         const newGet = makeNative(function() { const v = origGet.call(this); logAccess(name, prop, v); return v; }, origGet);
         try { Object.defineProperty(proto, prop, { configurable: true, enumerable: desc.enumerable, get: newGet, set: desc.set }); } catch {}
       }
-    } catch (e) { logs.push({ t: performance.now(), o: name, p: '<wrap-error>', vt: 'string', vs: String(e).slice(0, 120), s: '' }); }
+    } catch (e) { logs.push({ t: performance.now(), o: name, p: '<wrap-error>', vt: 'string', vs: String(e), s: '' }); }
   }
 
   wrapGetters(navigator, 'navigator');
@@ -124,8 +124,8 @@
   try { hook(Storage.prototype, 'getItem', (o) => function(k) { const r = o.apply(this, arguments); logAccess('Storage', 'getItem:' + k, r === null ? 'null' : (r + '').slice(0, 80)); return r; }); } catch {}
   try { if (navigator.permissions) hook(navigator.permissions, 'query', (o) => function(desc) { logAccess('Permissions', 'query:' + (desc?.name || '?'), ''); return o.apply(this, arguments); }); } catch {}
 
-  try { if (typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported) hook(MediaSource, 'isTypeSupported', (o) => function(mime) { const r = o.call(this, mime); logAccess('MediaSource', 'isTypeSupported:' + String(mime).slice(0, 80), String(r)); return r; }); } catch {}
-  try { hook(HTMLMediaElement.prototype, 'canPlayType', (o) => function(mime) { const r = o.call(this, mime); logAccess('HTMLMediaElement', 'canPlayType:' + String(mime).slice(0, 80), String(r)); return r; }); } catch {}
+  try { if (typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported) hook(MediaSource, 'isTypeSupported', (o) => function(mime) { const r = o.call(this, mime); logAccess('MediaSource', 'isTypeSupported:' + String(mime), String(r)); return r; }); } catch {}
+  try { hook(HTMLMediaElement.prototype, 'canPlayType', (o) => function(mime) { const r = o.call(this, mime); logAccess('HTMLMediaElement', 'canPlayType:' + String(mime), String(r)); return r; }); } catch {}
   try {
     if (navigator.mediaCapabilities) for (const k of ['decodingInfo', 'encodingInfo']) {
       hook(navigator.mediaCapabilities, k, (o) => function(cfg) { let key = ''; try { key = JSON.stringify(cfg).slice(0, 120); } catch {} return o.call(this, cfg).then(r => { let v = ''; try { v = JSON.stringify(r).slice(0, 120); } catch {} logAccess('MediaCapabilities', k + ':' + key, v); return r; }); });
@@ -168,7 +168,7 @@
       logAccess('Fetch', String(method).toUpperCase() + ':' + url.slice(0, 200), body);
       return o.apply(this, arguments).then(function(r) { try { logAccess('Fetch', 'res:' + url.slice(0, 200), 'status=' + r.status); } catch {} return r; });
     });
-  } catch (e) { logs.push({ t: performance.now(), o: '_fetch_', p: '<init-error>', vt: 'string', vs: String(e).slice(0, 120), s: '' }); }
+  } catch (e) { logs.push({ t: performance.now(), o: '_fetch_', p: '<init-error>', vt: 'string', vs: String(e), s: '' }); }
 
   logs.push({ t: performance.now(), o: '_init_', p: 'done', vt: 'string', vs: 'ok', s: '' });
 

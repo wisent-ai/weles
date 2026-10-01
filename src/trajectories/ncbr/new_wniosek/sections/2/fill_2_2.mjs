@@ -85,7 +85,7 @@ await (async () => {
   const saves = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
   if (await saves.count() === 0) throw new Error('no enabled Zapisz');
   await humanClickLocator(page, saves.last());
-})().catch((e) => { saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 60)}`; });
+})().catch((e) => { saveResult = `NOT SAVED: ${String(e?.message || e)}`; });
 await humanIdlePause('long');
 
 const readback = await page.evaluate((nb) => {

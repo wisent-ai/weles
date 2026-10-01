@@ -60,7 +60,7 @@ async function signup(s) {
     const r = await page.goto(SIGNUP_URL, { waitUntil: 'commit' });
     console.log(`[google] signup nav ok: status=${r?.status()} url=${r?.url()?.slice(0, 80)}`);
   } catch (e) {
-    console.log(`[google] signup nav err: ${e.message?.slice(0, 200)}`);
+    console.log(`[google] signup nav err: ${e.message}`);
     if (isProxyErr(e.message)) throw new Error('proxy_dead');
     throw e;
   }
@@ -147,7 +147,7 @@ async function signup(s) {
       await approveQr(page);
       console.log('[google] QR approved — waiting for phone-entry page');
     } catch (e) {
-      console.log(`[google] QR approval failed: ${e.message?.slice(0, 200)}`);
+      console.log(`[google] QR approval failed: ${e.message}`);
       throw new Error('qr_code_blocked');
     }
     for (let i = 0; i < 20 && !phone; i++) {
@@ -229,7 +229,7 @@ try {
   const username = await signup(s);
   console.log(`PASS: ${username}`);
 } catch (e) {
-  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+  console.log(`FAIL: ${e.message}`);
   process.exitCode = 1;
 } finally {
   await s.close();

@@ -122,7 +122,7 @@ export async function tiktokSubmitComment(s, text) {
         }
         console.log(`[tiktok-submit] video ${i + 1} did not hydrate comment icon — retrying`);
       } catch (e) {
-        console.log(`[tiktok-submit] video ${i + 1} click failed: ${e.message?.slice(0, 80)}`);
+        console.log(`[tiktok-submit] video ${i + 1} click failed: ${e.message}`);
       }
       // Go back to profile to try next video.
       if (i < candidates.length - 1) {

@@ -141,7 +141,7 @@ async function passCaptcha(page) {
   await humanIdlePause('short');
   const reSubmit = page.locator(SUBMIT).filter({ visible: true }).first();
   if (await reSubmit.count().catch(() => false)) {
-    try { await humanClickLocator(page, reSubmit); console.log('[tiktok_login] post-captcha re-submit clicked'); } catch (e) { console.log(`[tiktok_login] re-submit click err: ${e.message?.slice(0,80)}`); }
+    try { await humanClickLocator(page, reSubmit); console.log('[tiktok_login] post-captcha re-submit clicked'); } catch (e) { console.log(`[tiktok_login] re-submit click err: ${e.message}`); }
   }
   await humanIdlePause('deliberate');
   console.log(`[tiktok_login] post-captcha loginResponses=${JSON.stringify(loginDiag.loginResponses)}`);
@@ -178,7 +178,7 @@ try {
   } catch (recordError) {
     console.log(`[tiktok_login] could not record the failure: ${recordError.message}`);
   }
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exitCode = 1;
 } finally {
   await s.close();

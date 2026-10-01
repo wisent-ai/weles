@@ -222,7 +222,7 @@ try {
   await s.close();
   process.exit(0);
 } catch (e) {
-  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+  console.log(`FAIL: ${e.message}`);
   await s.close();
   process.exitCode = 1;
 }

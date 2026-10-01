@@ -66,7 +66,7 @@ async function skipJuicySmsNumber(orderId) {
   const k = process.env.JUICYSMS_API_KEY;
   if (!k) return;
   try { await fetch(`https://juicysms.com/api/skipnumber?key=${k}&orderId=${orderId}`); }
-  catch (e) { console.log(`[sms] skipnumber err: ${e.message?.slice(0, 80)}`); }
+  catch (e) { console.log(`[sms] skipnumber err: ${e.message}`); }
 }
 
 async function tryDispatch(token, country) {
@@ -219,7 +219,7 @@ export async function harvestAfterRegister(s, opts = {}) {
     const LIMIT = parseInt(process.env.DISCORD_HARVEST_LIMIT || '100', 10);
     const INVITES = (process.env.DISCORD_INVITES || DEFAULT_INVITES).split(',').map(x => x.trim());
     let existing = [];
-    try { existing = JSON.parse(fs.readFileSync(OUT, 'utf8')); } catch (e) { if (e.code !== 'ENOENT') console.log(`[harvest] read err: ${e.message?.slice(0, 80)}`); }
+    try { existing = JSON.parse(fs.readFileSync(OUT, 'utf8')); } catch (e) { if (e.code !== 'ENOENT') console.log(`[harvest] read err: ${e.message}`); }
     const seen = new Set(existing.map(p => String(p.id || p.handle || '').toLowerCase()));
     const need = Math.max(0, LIMIT - existing.length);
     console.log(`[harvest] existing=${existing.length} target=${LIMIT} need=${need}`);
@@ -252,5 +252,5 @@ export async function harvestAfterRegister(s, opts = {}) {
     fs.mkdirSync(path.dirname(OUT), { recursive: true });
     fs.writeFileSync(OUT, JSON.stringify([...existing, ...newProfiles], null, 2));
     console.log(`[harvest] wrote ${newProfiles.length} new profiles (total ${existing.length + newProfiles.length}) to ${OUT}`);
-  } catch (e) { console.log(`[harvest] err: ${e.message?.slice(0, 200)}`); }
+  } catch (e) { console.log(`[harvest] err: ${e.message}`); }
 }

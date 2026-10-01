@@ -72,7 +72,7 @@ for (let retry = 0; retry < 3; retry++) {
     }
     if (rendered) { console.log(`[login] Homepage rendered on attempt ${retry + 1}`); break; }
     console.log(`[login] Homepage failed on attempt ${retry + 1}, retrying...`);
-  } catch (e) { console.log(`[login] Attempt ${retry + 1} crashed: ${e.message?.slice(0, 100)}`); }
+  } catch (e) { console.log(`[login] Attempt ${retry + 1} crashed: ${e.message}`); }
   await s?.close().catch(() => {});
   s = null;
 }
@@ -111,7 +111,7 @@ try {
   const submitLoc = s.page.locator('input[type="submit"][value*="Sign in" i], input[name="commit"], form[action*="/session"] button[type="submit"], button[type="submit"]').first();
   let submitted = { clicked: false };
   if (await submitLoc.count() > 0) {
-    submitted = await humanClickLocator(s.page, submitLoc).then(() => ({ clicked: true, via: 'humanClickLocator' })).catch((e) => ({ clicked: false, err: e.message?.slice(0, 100) }));
+    submitted = await humanClickLocator(s.page, submitLoc).then(() => ({ clicked: true, via: 'humanClickLocator' })).catch((e) => ({ clicked: false, err: e.message }));
     if (!submitted.clicked) {
       // Locator.click hit Chromium synthesizeMouseEvent disconnect; submit form
       // via JS instead. Form has action="/session" so requestSubmit triggers POST.
@@ -180,7 +180,7 @@ try {
     // Persist fresh cookies back to the account, stamped with cookies_minted_at
     // so action trajectories can enforce a freshness window before reuse.
     try { await persistFreshCookieJar(acct, finalCookies, { currentProxyUrl: proxyUrl }); }
-    catch (e) { console.log('[cookie-capture] err:', e.message?.slice(0, 100)); }
+    catch (e) { console.log('[cookie-capture] err:', e.message); }
   } else {
     // Classify the failure so operators can triage. GitHub returns distinct
     // signals for bad credentials vs anti-abuse vs device-verification gates,
@@ -216,9 +216,9 @@ try {
     else if (/ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED/.test(msg)) sig = 'proxy_failed';
     else if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
     else if (/\/account_lockout|\/account\/locked|\/account_recovery|\/sessions\/two-factor|\/sessions\/verified-device/.test(finalUrl)) sig = 'checkpoint';
-    fs.writeFileSync(path.join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'github_login', signal: sig, healthy: false, details: { final_url: finalUrl, reason: e.message?.slice(0, 200) ?? 'no message' }, ts: new Date().toISOString() }, null, 2));
+    fs.writeFileSync(path.join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'github_login', signal: sig, healthy: false, details: { final_url: finalUrl, reason: e.message ?? 'no message' }, ts: new Date().toISOString() }, null, 2));
   } catch {}
-  console.error('FAIL:', e.message?.slice(0, 200));
+  console.error('FAIL:', e.message);
   process.exitCode = 1;
 } finally {
   await s.close();

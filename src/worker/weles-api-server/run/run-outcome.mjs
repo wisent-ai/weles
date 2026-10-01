@@ -160,13 +160,13 @@ export function runOutputs(runId) {
     realRunRoot = realpathSync(runRoot);
     if (!realRunRoot.startsWith(`${realpathSync(RECORDINGS_ROOT)}${sep}`)) throw new Error('recording root resolves outside the recordings directory');
   } catch (error) {
-    errors['.'] = String(error?.message || error).slice(0, 240);
+    errors['.'] = String(error?.message || error);
     return { outputs, errors };
   }
   const visit = (directory, depth) => {
     let entries;
     try { entries = readdirSync(directory, { withFileTypes: true }); } catch (error) {
-      errors[directory.slice(realRunRoot.length + 1) || '.'] = String(error?.message || error).slice(0, 240);
+      errors[directory.slice(realRunRoot.length + 1) || '.'] = String(error?.message || error);
       return;
     }
     for (const entry of entries) {
@@ -179,7 +179,7 @@ export function runOutputs(runId) {
         if (size > RUN_OUTPUT_MAX_BYTES) throw new Error(`${size} bytes exceeds ${RUN_OUTPUT_MAX_BYTES}`);
         outputs[key] = JSON.parse(readFileSync(path, 'utf8'));
       } catch (error) {
-        errors[path.slice(realRunRoot.length + 1)] = String(error?.message || error).slice(0, 240);
+        errors[path.slice(realRunRoot.length + 1)] = String(error?.message || error);
       }
     }
   };

@@ -245,7 +245,7 @@ try {
   console.log(`PASS: ${dashboardPostcondition}`);
   process.exitCode = 0;
 } catch (error) {
-  const detail = error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500);
+  const detail = error instanceof Error ? error.message : String(error);
   const cleanupFailures = [];
   if (!sessionClosed && s) {
     try { await s.close(); sessionClosed = true; } catch (closeError) {

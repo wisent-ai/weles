@@ -37,7 +37,7 @@ export async function generateImageFile({ prompt, width, height }) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(`Brama image generation ${res.status}: ${String(data.error?.message ?? '').slice(0, 200)}`);
+    throw new Error(`Brama image generation ${res.status}: ${String(data.error?.message ?? '')}`);
   }
   const encoded = data.data?.[0]?.b64_json;
   if (typeof encoded !== 'string' || !encoded) throw new Error('Brama image generation returned no data[0].b64_json');

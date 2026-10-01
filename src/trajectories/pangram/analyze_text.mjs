@@ -97,7 +97,7 @@ try {
       console.log(`[pangram:analyze_text] account=${acct.username ?? acct.id ?? '?'} usage=${accountUsage?.scan_attempts ?? '?'} limit=${accountUsage?.daily_limit ?? '?'} injected=${injectedCookies}`);
     } catch (jarErr) {
       if (jarErr instanceof CookieJarStaleError) {
-        banSignal = { signal: 'checkpoint', healthy: false, details: { reason: jarErr.message.slice(0, 200), ...(jarErr.details ?? {}) } };
+        banSignal = { signal: 'checkpoint', healthy: false, details: { reason: jarErr.message, ...(jarErr.details ?? {}) } };
         if (acct.id) {
           try {
             await markCookiesStale(acct.id);
@@ -209,15 +209,15 @@ try {
       throw new Error(`pangram run failed with ${e.message}; and reading its ban signals failed too: ${signalError.message}`, { cause: e });
     }
   }
-  if (!banSignal) banSignal = { signal: 'unknown_error', healthy: false, details: { reason: e.message?.slice(0, 200) ?? 'unknown' } };
+  if (!banSignal) banSignal = { signal: 'unknown_error', healthy: false, details: { reason: e.message ?? 'unknown' } };
   if (banSignal.signal === 'healthy') {
-    banSignal = { signal: 'unknown_error', healthy: false, details: { final_url: s?.page?.url?.() ?? '', reason: e.message?.slice(0, 200) ?? 'unknown', prev_signal: 'healthy' } };
+    banSignal = { signal: 'unknown_error', healthy: false, details: { final_url: s?.page?.url?.() ?? '', reason: e.message ?? 'unknown', prev_signal: 'healthy' } };
   }
   if (banSignal.signal === 'insufficient_credits' && acct) {
     accountUsage = markAccountExhausted(acct, stats, accountSelection?.pool, 'insufficient_credits', banSignal.details?.credit_state ?? null);
   }
   console.log(`[ban-signal] ${banSignal.signal}`);
-  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+  console.log(`FAIL: ${e.message}`);
   if (!noAccount && banSignal.signal === 'insufficient_credits' && runAttempt < maxRunAttempts) {
     const creditFailureThreshold = registerAfterCreditFailures();
     if (process.env.PANGRAM_AUTO_REGISTER === '1' && runAttempt % creditFailureThreshold === 0) {
@@ -243,7 +243,7 @@ try {
     });
   }
   if (banSignal?.signal === 'checkpoint' && acct?.id) {
-    await markCookiesStale(acct.id).catch((e) => console.log(`[mark-stale] err: ${e.message?.slice(0, 80)}`));
+    await markCookiesStale(acct.id).catch((e) => console.log(`[mark-stale] err: ${e.message}`));
   }
   if (s) await s.close();
 }

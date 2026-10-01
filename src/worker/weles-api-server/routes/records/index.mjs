@@ -19,7 +19,6 @@
 
 import { json, readBody, requireTokenAuthorization } from '../../http-exchange.mjs';
 import {
-  ERROR_CHARS,
   HTTP_INVALID_REQUEST,
   HTTP_NOT_FOUND,
   HTTP_OK,
@@ -104,7 +103,7 @@ export async function respondToRecord(req, res, url, records) {
     json(res, HTTP_OK, { ok: true, data });
   } catch (error) {
     const { status, code } = REFUSALS.find(({ type }) => error instanceof type) || RECORD_FAILURE;
-    outcome = { status, code, message: String(error?.message || error).slice(0, ERROR_CHARS) };
+    outcome = { status, code, message: String(error?.message || error) };
     json(res, status, {
       ok: false,
       code,

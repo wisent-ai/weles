@@ -26,14 +26,14 @@ function watchForApiEvent(waiter, label) {
     .catch((waitError) => ({
       observed: false,
       event: undefined,
-      reason: `${label} was never seen: ${String(waitError?.message ?? waitError).slice(0, 200)}`,
+      reason: `${label} was never seen: ${String(waitError?.message ?? waitError)}`,
     }));
 }
 
 async function saveVerifiedLinkedinAccount(session, account) {
   const result = await session.saveAccount('linkedin', account);
   if (!String(result).startsWith('account saved:')) {
-    throw new Error(`ACCOUNT_PERSIST_FAILED: ${String(result).slice(0, 180)}`);
+    throw new Error(`ACCOUNT_PERSIST_FAILED: ${String(result)}`);
   }
   return result;
 }
@@ -62,7 +62,7 @@ async function submitEmailAndPassword({ session, identity, recordStage, proxyWat
   const submit1Before = await collectSubmitState(session.page, 'before_submit_email_password');
   const submit1ReqWatch = watchForApiEvent(session.page.waitForRequest((r) => SIGNUP_API.test(r.url())), 'the signup API request of the email/password submit');
   const submit1ResWatch = watchForApiEvent(session.page.waitForResponse((r) => SIGNUP_API.test(r.url())), 'the signup API response of the email/password submit');
-  const submit1 = await humanClickLocator(session.page, session.page.locator('button[type="submit"]:has-text("Agree"), button[type="submit"]:has-text("Continue"), button#join-form-submit, button[data-tracking-control-name*="signup"]').first()).then(() => true).catch(e => { console.log(`[register] submit1 err: ${e.message?.slice(0, 80)}`); return false; });
+  const submit1 = await humanClickLocator(session.page, session.page.locator('button[type="submit"]:has-text("Agree"), button[type="submit"]:has-text("Continue"), button#join-form-submit, button[data-tracking-control-name*="signup"]').first()).then(() => true).catch(e => { console.log(`[register] submit1 err: ${e.message}`); return false; });
   console.log(`[register] click Agree & Join: ${submit1}`);
   if (!submit1) throw new Error('Agree & Join button not clickable');
   recordStage('email_password_submitted', { clicked: submit1 });
@@ -115,7 +115,7 @@ async function submitNames({ session, identity, recordStage, proxyWatch }) {
   // captured this exact response shape on the 17:59 run.
   const createAccountReq = watchForApiEvent(session.page.waitForRequest((r) => CREATE_ACCOUNT_API.test(r.url())), 'the createAccount request');
   const createAccountRes = watchForApiEvent(session.page.waitForResponse((r) => CREATE_ACCOUNT_API.test(r.url())), 'the createAccount response');
-  const submit2 = await humanClickLocator(session.page, session.page.locator('button[type="submit"]:has-text("Continue"), button#join-form-submit').first()).then(() => true).catch(e => { console.log(`[register] submit2 err: ${e.message?.slice(0, 80)}`); return false; });
+  const submit2 = await humanClickLocator(session.page, session.page.locator('button[type="submit"]:has-text("Continue"), button#join-form-submit').first()).then(() => true).catch(e => { console.log(`[register] submit2 err: ${e.message}`); return false; });
   console.log(`[register] click Continue: ${submit2}`);
   if (!submit2) throw new Error('Continue button not clickable');
   recordStage('create_account_submitted', { clicked: submit2 });
@@ -129,7 +129,7 @@ async function submitNames({ session, identity, recordStage, proxyWatch }) {
       challengeUrl = createAccountBody?.challengeUrl ?? '';
       createAccountStatus = apiRes.event.status();
       console.log(`[register] createAccount status=${createAccountStatus} submissionId=${(createAccountBody?.submissionId ?? '').slice(0, 12)} challengeUrl=${challengeUrl ? challengeUrl.slice(0, 60) + '...' : 'none'}`);
-    } catch (e) { console.log(`[register] createAccount body parse err: ${e.message?.slice(0, 80)}`); }
+    } catch (e) { console.log(`[register] createAccount body parse err: ${e.message}`); }
   }
   const submit2After = await collectSubmitState(session.page, 'after_create_account');
   await writeSubmitDiagnostics('submit2_diagnostics', {
@@ -169,7 +169,7 @@ async function refuseCreateAccountChallenge({ session, recordStage }, challengeU
       challenge_url: challenge.challenge_url.slice(0, 200),
     });
   } catch (inspectError) {
-    classifyError = String(inspectError?.message ?? inspectError).slice(0, 200);
+    classifyError = String(inspectError?.message ?? inspectError);
     recordStage('create_account_challenge_not_classified', { error: classifyError });
   }
   throw new Error(challengeKind
@@ -216,7 +216,7 @@ export async function createLinkedinAccount(ctx) {
   await submitNames(ctx);
   let authState = await settleAuthenticatedSession(ctx);
   // Fill "add a role/school" onboarding gate so stooge can view other profiles.
-  try { const ob = await fillPostRegisterOnboarding(session.page); console.log(`[register] onboarding: ${JSON.stringify(ob)}`); } catch (obErr) { console.log(`[register] onboarding err: ${obErr.message?.slice(0, 100)}`); }
+  try { const ob = await fillPostRegisterOnboarding(session.page); console.log(`[register] onboarding: ${JSON.stringify(ob)}`); } catch (obErr) { console.log(`[register] onboarding err: ${obErr.message}`); }
   recordStage('onboarding_attempted');
   await assertNoLinkedinChallengePage(session, 'after_onboarding');
   recordStage('no_challenge_after_onboarding');
@@ -226,7 +226,7 @@ export async function createLinkedinAccount(ctx) {
   recordStage('proxy_stable_before_account_persist');
   await saveVerifiedLinkedinAccount(session, { username: identity.handle, email: identity.email, password: identity.password, name: `${identity.first} ${identity.last}` });
   recordStage('account_persisted');
-  await confirmLinkedinEmail(session.page, identity.email).catch((e) => console.log(`[linkedin_register] email confirm err: ${e.message?.slice(0, 80)}`));
-  await autoBindCharacter(identity.handle, 'linkedin').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
+  await confirmLinkedinEmail(session.page, identity.email).catch((e) => console.log(`[linkedin_register] email confirm err: ${e.message}`));
+  await autoBindCharacter(identity.handle, 'linkedin').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message}`));
   return authState;
 }

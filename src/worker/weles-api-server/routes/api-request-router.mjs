@@ -223,7 +223,7 @@ export function createApiRequestHandler({
       }
       await respondToRun(req, res, runTrajectory, validateAccountSecurityParams);
     } catch (error) {
-      json(res, 500, { ok: false, error: String(error && error.message ? error.message : error).slice(0, 300) });
+      json(res, 500, { ok: false, error: String(error && error.message ? error.message : error) });
     }
   };
 }

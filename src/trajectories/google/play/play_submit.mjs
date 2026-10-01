@@ -186,7 +186,7 @@ try {
     let labels = [];
     try {
       labels = await s.page.evaluate(() => Array.from(document.querySelectorAll('button')).map((b) => (b.textContent || '').trim()).filter((t) => t.length).slice(0, 40));
-    } catch (e) { console.log('[play-submit] button probe failed:', e.message?.slice(0, 80)); }
+    } catch (e) { console.log('[play-submit] button probe failed:', e.message); }
     console.log('[play-submit] buttons on page:', JSON.stringify(labels));
     console.log('FAIL: terminal rollout/send-for-review button not found');
     process.exit(1);
@@ -203,7 +203,7 @@ try {
       const m = (document.body?.innerText || '').match(/In review|Sent for review|Rolling out|Live|Available to|Published|Full rollout|Release summary/i);
       return m ? m[0] : '';
     });
-  } catch (e) { console.log('[play-submit] status read failed:', e.message?.slice(0, 80)); }
+  } catch (e) { console.log('[play-submit] status read failed:', e.message); }
   if (status) {
     console.log(`PASS: ${TRACK} release sent for ${PACKAGE_NAME || PLAY_RELEASE_URL} — status "${status}"`);
     process.exit(0);
@@ -211,7 +211,7 @@ try {
   console.log(`PASS: ${TRACK} release rollout/send clicked (status text not confirmed on page)`);
   process.exit(0);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exit(1);
 } finally {
   await s.close();

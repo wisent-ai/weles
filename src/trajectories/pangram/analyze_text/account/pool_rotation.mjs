@@ -123,7 +123,7 @@ function createdAtMillis(acct) {
   const raw = acct.created_at;
   if (!raw) return null;
   const parsed = Date.parse(raw);
-  if (Number.isNaN(parsed)) throw new Error(`pangram_account_created_at_unreadable account=${accountKey(acct)} value=${String(raw).slice(0, 120)}`);
+  if (Number.isNaN(parsed)) throw new Error(`pangram_account_created_at_unreadable account=${accountKey(acct)} value=${String(raw)}`);
   return parsed;
 }
 

@@ -89,7 +89,7 @@ await text('www_podmiot', 'https://wisent.ai/');
 await text('adres_e_doreczenie_podmiot', APPLICANT.e_doreczenie);
 
 let saveResult = 'saved';
-try { await saveForm(); } catch (e) { saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 80)}`; }
+try { await saveForm(); } catch (e) { saveResult = `NOT SAVED: ${String(e?.message || e)}`; }
 
 const readback = await page.evaluate(() => {
   const tbl = document.querySelector('table');

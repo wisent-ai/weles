@@ -71,7 +71,7 @@ if (NOPECHA_KEY) {
   // KEY|setting=value|setting=value imported by setup content script.
   const hash = `${NOPECHA_KEY}|perimeterx_auto_solve=true|perimeterx_auto_open=true|perimeterx_solve_delay=false`;
   try { await page.goto(`https://nopecha.com/setup#${encodeURIComponent(hash)}`, { waitUntil: 'domcontentloaded' }); await pageSettled(page); console.log(`[reg-real] NopeCha magic-URL configured (px_auto_solve=true)`); }
-  catch (e) { console.log(`[reg-real] NopeCha magic-URL err: ${e.message?.slice(0,100)}`); }
+  catch (e) { console.log(`[reg-real] NopeCha magic-URL err: ${e.message}`); }
 }
 
 try {
@@ -211,7 +211,7 @@ try {
       try { await humanClickLocator(page, page.locator('button:has-text("Verify"), button:has-text("Continue"), button:has-text("Submit"), button[type="submit"]').last()); } catch { /* submit button may be missing */ }
       await pageSettled(page);
       console.log(`[reg-real] post-V2 url=${page.url()}`);
-    } catch (e) { console.log(`[reg-real] V2 handler err: ${e.message?.slice(0, 120)}`); }
+    } catch (e) { console.log(`[reg-real] V2 handler err: ${e.message}`); }
   }
 
   // Wait for /feed or final state
@@ -219,7 +219,7 @@ try {
   console.log(`[reg-real] settled url=${page.url()}`);
   console.log('[reg-real] manual step needed if /checkpoint/email-pin — solve in Chrome window then close.');
 } catch (e) {
-  console.log(`[reg-real] err: ${e.message?.slice(0, 200)}`);
+  console.log(`[reg-real] err: ${e.message}`);
 }
 
 console.log('[reg-real] window is yours. Close Chrome to capture session state.');

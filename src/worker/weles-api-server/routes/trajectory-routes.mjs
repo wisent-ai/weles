@@ -66,7 +66,7 @@ export async function respondToDocumentImport(req, res, importWelesTrajectoryDoc
     const report = await importWelesTrajectoryDocument(body.source, body.target_host);
     json(res, report.imported > 0 ? 201 : 200, report);
   } catch (e) {
-    json(res, 400, { ok: false, error: String(e && e.message ? e.message : e).slice(0, 300) });
+    json(res, 400, { ok: false, error: String(e && e.message ? e.message : e) });
   }
 }
 

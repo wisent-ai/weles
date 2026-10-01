@@ -15,7 +15,7 @@ export function summarizeLinkedinProxyState(session, requestedProxy = '', expect
     serverScheme = u.protocol.replace(/:$/, '');
   } catch {}
   return {
-    requested: String(requestedProxy).startsWith('http') ? '[url-form]' : String(requestedProxy).slice(0, 80),
+    requested: String(requestedProxy).startsWith('http') ? '[url-form]' : String(requestedProxy),
     server_host: serverHost,
     server_port: serverPort,
     server_scheme: serverScheme,
@@ -29,9 +29,9 @@ export function summarizeLinkedinProxyState(session, requestedProxy = '', expect
 }
 
 export async function getLinkedinFailureDiagnostics(session, requestedProxy = '', expectedExitIp = '') {
-  const page = await summarizeLinkedinPage(session.page).catch((e) => ({ error: e.message?.slice(0, 160) }));
+  const page = await summarizeLinkedinPage(session.page).catch((e) => ({ error: e.message }));
   return {
-    auth: await getLinkedinAuthState(session).catch((e) => ({ error: e.message?.slice(0, 160) })),
+    auth: await getLinkedinAuthState(session).catch((e) => ({ error: e.message })),
     proxy: summarizeLinkedinProxyState(session, requestedProxy, expectedExitIp),
     challenge_signal: page?.error ? '' : getLinkedinChallengeSignal(page),
     page,
@@ -48,7 +48,7 @@ export async function assertLinkedinProxyStable(session, stage, expectedExitIp =
     const res = await session.ctx.request.get('https://api.ipify.org');
     actual = (await res.text()).trim();
   } catch (e) {
-    throw new Error(`PROXY_DRIFT_CHECK_FAILED: stage=${stage} err=${e.message?.slice(0, 120)}`);
+    throw new Error(`PROXY_DRIFT_CHECK_FAILED: stage=${stage} err=${e.message}`);
   }
   if (!actual) throw new Error(`PROXY_DRIFT_CHECK_FAILED: stage=${stage} empty_exit_ip`);
   if (!isIP(actual)) {

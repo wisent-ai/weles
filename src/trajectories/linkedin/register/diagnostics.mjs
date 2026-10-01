@@ -119,7 +119,7 @@ export async function summarizeRequest(req) {
 export async function summarizeResponse(res) {
   if (!res) return null;
   let bodyText = '';
-  try { bodyText = await res.text(); } catch (e) { bodyText = `<body-read-error:${e.message?.slice(0, 80)}>`; }
+  try { bodyText = await res.text(); } catch (e) { bodyText = `<body-read-error:${e.message}>`; }
   let bodyJsonKeys = null;
   try {
     const parsed = JSON.parse(bodyText);

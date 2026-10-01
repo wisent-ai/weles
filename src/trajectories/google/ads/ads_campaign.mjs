@@ -166,7 +166,7 @@ try {
   const status = /published|eligible|under review|campaign has been created|success/i.test(finalText) ? 'confirmed' : 'clicked';
   console.log(`PASS: Google Ads campaign publish ${status} for "${CAMPAIGN_NAME}"`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exit(1);
 } finally {
   if (closeAllowedByEnv('GOOGLE_ADS_CLOSE_AFTER_HARVEST')) await s.close().catch(() => {});

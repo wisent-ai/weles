@@ -34,7 +34,7 @@ if (!token) { console.log(`FAIL: ${acct.username} metadata.discord_token missing
 
 async function getVerifiedText(s) {
   try { return await s.page.locator('text=Email Verified').first().textContent(); }
-  catch (e) { console.log(`[email_verify] verify-text probe err: ${e.message?.slice(0, 80)}`); return null; }
+  catch (e) { console.log(`[email_verify] verify-text probe err: ${e.message}`); return null; }
 }
 
 async function fetchInboxRecent() {
@@ -117,7 +117,7 @@ try {
   console.log('[email_verify] persisted account metadata in Skarbiec');
   console.log(`PASS: ${acct.username} email verified`);
 } catch (e) {
-  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+  console.log(`FAIL: ${e.message}`);
   process.exit(1);
 } finally {
   await s.close();

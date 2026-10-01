@@ -117,7 +117,7 @@ try {
             } else { console.log('[ig-profile] no upload affordance after Change clicked'); }
           }
         } else { console.log('[ig-profile] Change profile photo button not visible'); }
-      } catch (e) { console.log(`[ig-profile] avatar err: ${e.message?.slice(0, 120)}`); }
+      } catch (e) { console.log(`[ig-profile] avatar err: ${e.message}`); }
     }
   }
 
@@ -150,7 +150,7 @@ try {
   }
   console.log(`PASS: ${acct.username} profile updated to ${character.name}`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exit(1);
 } finally {
   await s.close();

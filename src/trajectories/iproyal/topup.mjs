@@ -59,7 +59,7 @@ try {
         if (inputs.length) console.log(`[diag] frame=${url} inputs=${JSON.stringify(inputs)}`);
       } catch {}
     }
-  } catch (e) { console.log('[diag] err:', e.message?.slice(0, 80)); }
+  } catch (e) { console.log('[diag] err:', e.message); }
 
   // Fill the Stripe Elements card form with TOPUP_CARD_* env values
   // (issued by the orchestrator from a Privacy.com / Stripe-Issuing card
@@ -94,6 +94,6 @@ try {
   if (stripeChargeFired) console.log(`PASS-CHARGED: Stripe payment_intents/confirm POST fired, url=${s.page.url().slice(0, 100)}`);
   else console.log(`FAIL: Deposit clicked but no Stripe charge POST observed by the time the page settled, url=${s.page.url().slice(0, 100)}`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exit(1);
 } finally { await s.close(); }

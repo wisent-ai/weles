@@ -130,7 +130,7 @@ async function assertRendered(scope, selector) {
     if (url.includes('/logowanie')) {
       throw new Error(`${scope}: sesja LSI2 wygasla i przegladarka jest na ${url}; zaloguj sie ponownie w tym oknie i powtorz przebieg`);
     }
-    throw new Error(`${scope}: strona nie wyrenderowala "${selector}" (${String(error?.message || error).slice(0, Number('80'))}); adres ${url}`);
+    throw new Error(`${scope}: strona nie wyrenderowala "${selector}" (${String(error?.message || error)}); adres ${url}`);
   }
 }
 
@@ -252,7 +252,7 @@ if (SECTION === '3.5') {
 
 let saveResult = 'clicked';
 try { await clickEl(page.locator('button:has-text("Zapisz")').first()); await humanIdlePause('long'); }
-catch (e) { saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 70)}`; }
+catch (e) { saveResult = `NOT SAVED: ${String(e?.message || e)}`; }
 
 const readback = await page.evaluate((sels) => sels.map((s) => { const el = document.querySelector(s); return el ? (el.value || '').length : null; }), cfg.fields.map((f) => f.sel));
 

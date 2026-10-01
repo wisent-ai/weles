@@ -78,7 +78,7 @@ for (const r of radios) {
 
 for (const a of autocompletes) {
   try { await pickOption(a.name, a.search, a.value); log.autocompletes[a.name] = 'ok'; }
-  catch (e) { log.autocompletes[a.name] = String(e?.message || e).slice(0, 80); }
+  catch (e) { log.autocompletes[a.name] = String(e?.message || e); }
 }
 
 const kw = page.locator(`input[name="${NB}slowa_kluczowe"]`).first();
@@ -100,7 +100,7 @@ for (const t of texts) {
 
 let saveResult = 'clicked';
 try { await humanClickLocator(page, page.locator('button:has-text("Zapisz")').first()); await humanIdlePause('long'); }
-catch (e) { saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 70)}`; }
+catch (e) { saveResult = `NOT SAVED: ${String(e?.message || e)}`; }
 
 const readback = await page.evaluate((nb) => {
   const cv = (n) => { const el = document.querySelector(`input[name="${nb}${n}"]`); return el ? el.value : null; };

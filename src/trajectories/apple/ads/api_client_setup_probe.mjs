@@ -89,6 +89,6 @@ async function main() {
 }
 
 main().catch((e) => {
-  console.log('FAIL:', e.message?.slice(0, 300));
+  console.log('FAIL:', e.message);
   process.exit(1);
 });

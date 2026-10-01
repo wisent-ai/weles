@@ -89,7 +89,7 @@ try {
   console.log(`PASS: landed on ${s.page.url()}`);
   process.exit(0);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exit(1);
 } finally {
   await s.close();

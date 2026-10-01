@@ -22,14 +22,14 @@ export async function bodyText(page) {
   try {
     return await page.locator('body').innerText();
   } catch (error) {
-    console.log(`[microsoft] page text unreadable: ${String(error?.message ?? error).slice(0, 120)}`);
+    console.log(`[microsoft] page text unreadable: ${String(error?.message ?? error)}`);
     return '';
   }
 }
 
 /** A key press the page refuses is logged; the step decides what it means. */
 export async function press(page, key) {
-  try { await page.keyboard.press(key); } catch (error) { console.log(`[microsoft] key ${key} not delivered: ${String(error?.message ?? error).slice(0, 120)}`); }
+  try { await page.keyboard.press(key); } catch (error) { console.log(`[microsoft] key ${key} not delivered: ${String(error?.message ?? error)}`); }
 }
 
 /** A value from the page's own config object; false when the page has none. */

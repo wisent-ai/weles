@@ -8,7 +8,7 @@ export async function screenshotIfPossible(s, label) {
   try {
     return await s.screenshot(label);
   } catch (error) {
-    console.log(`[screenshot] ${label} not captured: ${String(error?.message ?? error).slice(0, 120)}`);
+    console.log(`[screenshot] ${label} not captured: ${String(error?.message ?? error)}`);
     return false;
   }
 }

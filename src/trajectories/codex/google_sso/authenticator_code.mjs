@@ -143,7 +143,7 @@ export async function selectAuthenticatorMethod(page, hasCode) {
       return { path: location.pathname, texts: out };
     });
     console.log(`[google_sso] 2fa-methods path=${opts.path} options=${JSON.stringify(opts.texts)}`);
-  } catch (e) { console.log(`[google_sso] 2fa-methods diag failed: ${e.message.slice(0, 80)}`); }
+  } catch (e) { console.log(`[google_sso] 2fa-methods diag failed: ${e.message}`); }
   const picked = await clickBest('authenticator|verification code from|google authenticator', 'contains', 20);
   if (!picked) return 'stuck';
   await pageSettled(page);

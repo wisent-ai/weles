@@ -13,7 +13,7 @@ export function writeBan(acct, signal, details) {
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'linkedin_login', signal, healthy: signal === 'healthy', details: details ?? {}, ts: new Date().toISOString() }, null, 2));
   } catch (e) {
-    console.log(`[linkedin_login] ban_signal not written: ${e.message?.slice(0, 120)}`);
+    console.log(`[linkedin_login] ban_signal not written: ${e.message}`);
   }
 }
 

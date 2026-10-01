@@ -65,7 +65,7 @@ export async function commitRotatedPassword({ contract, account, nextPassword, c
       writePasswordSecret(contract, currentPassword, 'rollback');
       skarbiecRolledBack = true;
     } catch (rollbackError) {
-      console.log(`[microsoft] Skarbiec rollback failed: ${String(rollbackError?.message ?? rollbackError).slice(0, 120)}`);
+      console.log(`[microsoft] Skarbiec rollback failed: ${String(rollbackError?.message ?? rollbackError)}`);
     }
     if (!skarbiecRolledBack) {
       throw new Error('credential commit failed and compensating rollback did not restore both Microsoft and Skarbiec', {

@@ -16,8 +16,8 @@ function readPageState(page) {
     const errs = Array.from(document.querySelectorAll('[class*="error" i],[class*="tip" i],[class*="warning" i]')).map(e => (e.textContent||'').trim().slice(0,200)).filter(Boolean);
     const cookies = document.cookie;
     // Keys come from the storage itself, so every read below is of a present key.
-    const ls = {}; try { for (const k of Object.keys(localStorage)) ls[k] = String(localStorage.getItem(k)).slice(0,200); } catch {}
-    const ss = {}; try { for (const k of Object.keys(sessionStorage)) ss[k] = String(sessionStorage.getItem(k)).slice(0,200); } catch {}
+    const ls = {}; try { for (const k of Object.keys(localStorage)) ls[k] = String(localStorage.getItem(k)); } catch {}
+    const ss = {}; try { for (const k of Object.keys(sessionStorage)) ss[k] = String(sessionStorage.getItem(k)); } catch {}
     const perf = performance.getEntriesByType('resource').filter(e => /tiktok|mssdk|ttwid|passport|verification/.test(e.name)).slice(-50).map(e => ({ name: e.name.slice(0,200), duration: Math.round(e.duration), responseEnd: Math.round(e.responseEnd), transferSize: e.transferSize }));
     const sigiTag = document.querySelector('script#SIGI_STATE') || document.querySelector('script#__UNIVERSAL_DATA_FOR_REHYDRATION__');
     let sigiKeys = null; if (sigiTag) { try { const j = JSON.parse(sigiTag.textContent || '{}'); sigiKeys = Object.keys(j); } catch {} }
@@ -44,5 +44,5 @@ export async function dumpStuckState(s, stage) {
     const fname = join(dir, `${stage}_${Date.now()}.json`);
     writeFileSync(fname, JSON.stringify({ stage, dump, ctxCookies }, null, 2));
     console.log(`[stuck-diag] dumped ${stage} state to ${fname}`);
-  } catch (e) { console.log(`[stuck-diag] err: ${e.message?.slice(0,200)}`); }
+  } catch (e) { console.log(`[stuck-diag] err: ${e.message}`); }
 }

@@ -178,7 +178,7 @@ const potR = await fillCapped('innowacja_produktowa_znaczacy_potencjal_gospodarc
 await humanIdlePause('deliberate');
 await humanIdlePause('deliberate');
 let saveResult = 'saved';
-await saveMain().catch((e) => { saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 60)}`; });
+await saveMain().catch((e) => { saveResult = `NOT SAVED: ${String(e?.message || e)}`; });
 
 const readback = await page.evaluate(() => {
   const tl = (n) => { const e = document.querySelector(`textarea[name$="${n}"]`); return e ? e.value.length : null; };

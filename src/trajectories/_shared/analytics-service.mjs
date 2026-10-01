@@ -82,7 +82,7 @@ async function run() {
 run()
   .then(() => process.exit(process.exitCode ?? 0))
   .catch((e) => {
-    writeBanSignal('service_action_failed', false, { reason: e.message?.slice(0, 300) ?? String(e) });
-    console.log('FAIL:', e.message?.slice(0, 300));
+    writeBanSignal('service_action_failed', false, { reason: e.message ?? String(e) });
+    console.log('FAIL:', e.message);
     process.exit(1);
   });

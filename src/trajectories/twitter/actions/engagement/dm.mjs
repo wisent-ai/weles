@@ -79,7 +79,7 @@ try {
   await humanIdlePause('deliberate');
   console.log(`PASS: DM sent to @${RECIPIENT}`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exitCode = 1;
 } finally {
   await s.close();

@@ -133,7 +133,7 @@ try {
 
   process.exit(0);
 } catch (e) {
-  console.log(`FAIL: ${e.message?.slice(0, 400)}`);
+  console.log(`FAIL: ${e.message}`);
   await ws.page.screenshot({ path: '/tmp/vast_weles_err.png', fullPage: true }).catch(() => {});
   process.exit(1);
 } finally {

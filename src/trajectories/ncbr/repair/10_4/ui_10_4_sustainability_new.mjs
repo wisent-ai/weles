@@ -140,7 +140,7 @@ try {
   await humanClickLocator(page, page.locator('button:visible:not([disabled])').filter({ hasText: /^Zapisz$/ }).last()); // allow-raw-playwright: save section through visible UI
   await humanIdlePause('long');
 } catch (e) {
-  saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 100)}`;
+  saveResult = `NOT SAVED: ${String(e?.message || e)}`;
 }
 
 const readback = await page.evaluate(() => ({

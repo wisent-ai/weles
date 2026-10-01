@@ -160,7 +160,7 @@ export async function execute(
       call.result = await dispatch(session, call.tool, call.args);
       console.log(`[loop] step ${step} result: ${call.result?.slice(0, 100)}`);
     } catch (e: any) {
-      call.error = String(e).slice(0, 500);
+      call.error = String(e);
       console.log(`[loop] step ${step} error: ${call.error}`);
       history.push(call);
       if (e instanceof PageQuestionError || e instanceof CapabilityTransportError

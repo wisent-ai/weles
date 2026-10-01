@@ -121,7 +121,7 @@ try {
   console.log(`[trajectory] toggle aria-checked=${enabledNow}`);
   if (enabledNow === 'true') console.log('PASS: zone enabled'); else console.log('WARN: toggle not confirmed enabled — check screenshot');
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  console.log('FAIL:', e.message);
   process.exit(1);
 } finally {
   await s.close();

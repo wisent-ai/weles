@@ -150,7 +150,7 @@ try {
   console.log(`[pangram_register] saveAccount=${result}`);
   console.log(`PASS: pangram account ready ${EMAIL}`);
 } catch (e) {
-  console.log(`FAIL: ${String(e?.message || e).slice(0, 300)}`);
+  console.log(`FAIL: ${String(e?.message || e)}`);
   process.exitCode = 1;
 } finally {
   await s.close();

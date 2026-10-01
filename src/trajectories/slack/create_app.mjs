@@ -38,12 +38,12 @@ mkdirSync(SHOT_DIR, { recursive: true });
 async function shot(label) {
   const fp = join(SHOT_DIR, `${label}_${Date.now()}.png`);
   try { await s.page.screenshot({ path: fp, fullPage: true }); console.log(`[slack-create] shot=${fp}`); }
-  catch (e) { console.log(`[slack-create] screenshot WARN ${label}: ${e.message?.slice(0, 80)}`); }
+  catch (e) { console.log(`[slack-create] screenshot WARN ${label}: ${e.message}`); }
 }
 
 async function safeShutdown() {
   if (!s.shutdown) return;
-  try { await s.shutdown(); } catch (e) { console.log(`[slack-create] shutdown WARN: ${e.message?.slice(0, 80)}`); }
+  try { await s.shutdown(); } catch (e) { console.log(`[slack-create] shutdown WARN: ${e.message}`); }
 }
 
 // --- Step 1: Google SSO ----------------------------------------------------
@@ -105,7 +105,7 @@ let xoxb = '';
 try {
   xoxb = await createBotApp({ page: s.page, weles: WELES, shot });
 } catch (e) {
-  console.error(`[slack-create] CREATE FAILED: ${e.message?.slice(0, 200)}`);
+  console.error(`[slack-create] CREATE FAILED: ${e.message}`);
   await shot('99-failed');
   await safeShutdown();
   process.exit(7);

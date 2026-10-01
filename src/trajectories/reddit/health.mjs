@@ -37,7 +37,7 @@ try {
   }
   loggedIn.signal = await detectRedditBanSignals(sIn.page, sIn.capturedResponses).catch(() => null);
 } catch (e) {
-  loggedIn.error = e.message?.slice(0, 200);
+  loggedIn.error = e.message;
 } finally {
   await sIn.close();
 }
@@ -56,7 +56,7 @@ try {
     try { loggedOut.body = JSON.parse(aboutResp.body); } catch { loggedOut.body = aboutResp.body?.slice(0, 2000) ?? null; }
   }
 } catch (e) {
-  loggedOut.error = e.message?.slice(0, 200);
+  loggedOut.error = e.message;
 } finally {
   await sOut.close();
 }

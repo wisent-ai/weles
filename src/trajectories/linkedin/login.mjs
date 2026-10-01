@@ -81,7 +81,7 @@ async function prepareLoginPage() {
   // bootstrap; once the bundle has run those reads, injecting later is a
   // no-op. Page is already on linkedin.com origin after gotoLogin so
   // localStorage writes hit the right origin.
-  await restoreLinkedinPxStorage(s, acct).catch((e) => console.log(`[linkedin_login] px storage not restored: ${e.message?.slice(0, 120)}`));
+  await restoreLinkedinPxStorage(s, acct).catch((e) => console.log(`[linkedin_login] px storage not restored: ${e.message}`));
   await pageSettled(s.page);
   // Pre-form-render checkpoint: PerimeterX edge-redirects flagged proxy IPs
   // from /login → /checkpoint/challenge before SDUI form renders. Detect
@@ -93,7 +93,7 @@ async function prepareLoginPage() {
     const r = await solveLinkedinCheckpoint(s, 'pre-form', acct.metadata?.email ?? acct.username);
     if (!r.liAt) throw new Error(`pre-form captcha solver failed at ${r.finalUrl}`);
     await captureCookies();
-    await captureLinkedinPxStorage(s, acct).catch((e) => console.log(`[linkedin_login] px storage not captured: ${e.message?.slice(0, 120)}`));
+    await captureLinkedinPxStorage(s, acct).catch((e) => console.log(`[linkedin_login] px storage not captured: ${e.message}`));
     writeBan(acct, 'healthy', { final_url: r.finalUrl });
     console.log(`PASS: li_at cookie set via pre-form captcha solve — ${r.finalUrl}`);
     await s.close();
@@ -177,13 +177,13 @@ try {
 
   if (liAt) {
     await captureCookies();
-    await captureLinkedinPxStorage(s, acct).catch((e) => console.log(`[linkedin_login] px storage not captured: ${e.message?.slice(0, 120)}`));
+    await captureLinkedinPxStorage(s, acct).catch((e) => console.log(`[linkedin_login] px storage not captured: ${e.message}`));
     // Best-effort retroactive email confirmation. Accounts registered before
     // confirmLinkedinEmail was wired into linkedin_register.mjs (a51f39e)
     // still carry the unconfirmed-email yellow banner that suppresses feed
     // posts and triggers captcha_challenge on first write actions. The
     // helper is a no-op when no recent confirm-email is in the inbox.
-    await confirmLinkedinEmail(s.page, acct.metadata?.email ?? acct.username).catch((e) => console.log(`[linkedin_login] confirmLinkedinEmail: ${e.message?.slice(0, 120)}`));
+    await confirmLinkedinEmail(s.page, acct.metadata?.email ?? acct.username).catch((e) => console.log(`[linkedin_login] confirmLinkedinEmail: ${e.message}`));
     writeBan(acct, 'healthy', { final_url: finalUrl });
     console.log(`PASS: li_at cookie set — ${finalUrl}`);
   } else if (onCheckpoint) {
