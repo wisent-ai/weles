@@ -6,7 +6,15 @@
  */
 
 import { askPage, checkPage, findClickTarget, type ScreenshottablePage } from '../vision/analyze.js';
-import { humanIdlePause } from '../human/mouse.js';
+
+// Resolves on the page's next document load. Cloudflare clears a challenge by
+// loading the protected page in place, so each load is the moment to look again.
+function nextLoad(page: any): Promise<void> {
+  const { promise, resolve } = Promise.withResolvers<void>();
+  const onLoad = () => { page.off('load', onLoad); resolve(); };
+  page.on('load', onLoad);
+  return promise;
+}
 
 // Fast-path DOM check: real Cloudflare challenge pages always contain one of
 // these strings in title/body. If none match, skip the vision call entirely
@@ -27,8 +35,8 @@ async function looksLikeCloudflareDom(page: any): Promise<boolean> {
   } catch { return false; }
 }
 
-export async function waitCloudflare(page: any, settleMs = 5000): Promise<boolean> {
-  await humanIdlePause();
+export async function waitCloudflare(page: any): Promise<boolean> {
+  await page.waitForLoadState('load');
 
   // Cheap DOM probe before the expensive vision call. If the page has zero
   // Cloudflare-shaped markers, return true immediately (treated as "not
@@ -45,6 +53,7 @@ export async function waitCloudflare(page: any, settleMs = 5000): Promise<boolea
 
   if (!isCf) return true;
 
+  const cleared = nextLoad(page);
   const target = await findClickTarget(
     page as ScreenshottablePage,
     'the checkbox or button to verify you are human',
@@ -57,18 +66,22 @@ export async function waitCloudflare(page: any, settleMs = 5000): Promise<boolea
     console.log(`  [cloudflare] clicked at (${target.x}, ${target.y})`);
   }
 
-  // The challenge clearing is the event this waits for. The old budget of
-  // seventy-two seconds ended the wait while Cloudflare was still deciding,
-  // and the run then reported the page as challenged when it was about to
-  // pass. Each check is a vision call, so the loop is already paced by its own
-  // cost, and an operator cancelling the run still ends it.
+  // The challenge clearing is the event this waits for: Cloudflare loads the
+  // protected page in place when it lets the browser through. Each load is
+  // checked once; a load that is still the challenge waits for the next one,
+  // and an operator cancelling the run still ends it.
+  // The next load is listened for before this one is checked, so a load that
+  // lands during the vision call is not missed.
+  let pending = cleared;
   for (let check = 1; ; check += 1) {
-    await humanIdlePause();
+    await pending;
+    pending = nextLoad(page);
+    if (!(await looksLikeCloudflareDom(page))) return true;
     const stillCf = await checkPage(
       page as ScreenshottablePage,
       'Is this a Cloudflare security verification or challenge page?',
     );
-    console.log(`  [cloudflare] check ${check}: still challenged = ${stillCf}`);
+    console.log(`  [cloudflare] load ${check}: still challenged = ${stillCf}`);
     if (!stillCf) return true;
   }
 }

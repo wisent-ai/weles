@@ -11,7 +11,7 @@ import type { WSession } from '../session/wsession.js';
 import { dispatch } from './tools.js';
 import { Capture } from '../capture/capture.js';
 import { loadFlow, saveFlow, replayFlow } from '../session/flows.js';
-import { humanIdlePause } from '../human/mouse.js';
+import { pageSettled } from '../browser/settled.js';
 import { callJeden } from './jeden.js';
 import { askLlm, buildState, parseJsonFrom, type ModelDecisionProvider } from './loop/observe.js';
 import { PageQuestionError } from '../vision/analyze.js';
@@ -184,7 +184,7 @@ export async function execute(
     if (afterAction !== activePage) {
       activePage = afterAction;
       console.log(`[loop] popup detected: ${activePage.url()}`.slice(0, 120));
-      await humanIdlePause('deliberate');
+      await pageSettled(activePage);
     }
   }
 

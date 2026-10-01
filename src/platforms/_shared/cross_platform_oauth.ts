@@ -1,4 +1,3 @@
-import { humanIdlePause } from '../../human/mouse.js';
 // Cross-platform OAuth helpers.
 //
 // Pattern: use stored cookies from an account on platform A to OAuth-sign-in
@@ -6,6 +5,8 @@ import { humanIdlePause } from '../../human/mouse.js';
 // Threads). Before this module, each trajectory re-implemented cookie domain
 // normalization, OAuth-consent click loops, and the reCAPTCHA-gate submit
 // trick inline. Those live here now.
+
+import { pageSettled } from '../../browser/settled.js';
 
 type BrowserCtx = any;
 type PageLike = any;
@@ -82,14 +83,18 @@ export async function clickOAuthProviderButton(s: SessionLike, accessibleName: R
   return false;
 }
 
-/** Click the consent button while still on an OAuth consent URL. Early-exits as soon as the URL leaves the /auth//oauth//authorize subtree, or when the page shows no button to consent with: the button's accessible name is read through the page's accessibility tree, not from the page's text. */
-export async function handleOAuthConsent(s: SessionLike, maxAttempts: number = 3): Promise<void> {
-  for (let i = 0; i < maxAttempts; i++) {
+/** Click the consent button while still on an OAuth consent URL. Each consent screen is answered once: the walk ends as soon as the URL leaves the /auth//oauth//authorize subtree, when the page shows no button to consent with, or when a click leaves the page on the same consent URL. The button's accessible name is read through the page's accessibility tree, not from the page's text. */
+export async function handleOAuthConsent(s: SessionLike): Promise<void> {
+  for (;;) {
     const u: string = s.page.url?.() ?? '';
     if (u && !/\/auth\/|\/oauth\/|\/authorize/i.test(u)) return;
     const clicked = await clickOAuthProviderButton(s, /^(authorize app|authorize|allow)$/i);
     if (!clicked) return;
-    await humanIdlePause('deliberate');
+    await pageSettled(s.page);
+    if ((s.page.url?.() ?? '') === u) {
+      console.log(`[oauth] oauth_consent_not_accepted: the consent click left the page on ${u}`);
+      return;
+    }
   }
 }
 
@@ -107,35 +112,35 @@ export async function waitForNavBackTo(page: PageLike, mustInclude: string, must
  * form.requestSubmit() — which is what producthunt's captcha_verification
  * page (and similar SPA captcha gates) needs to run its Apollo mutation.
  */
-export async function clearReCaptchaGate(s: SessionLike, solver: any, gateUrlSubstring: string, maxAttempts: number = 3): Promise<boolean> {
+export async function clearReCaptchaGate(s: SessionLike, solver: any, gateUrlSubstring: string): Promise<boolean> {
   const { solvePageCaptcha } = await import('../../captcha/detect.js');
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const u: string = s.page.url?.() ?? '';
-    if (!u.includes(gateUrlSubstring)) return true;
-    await s.page.waitForSelector('iframe[src*="recaptcha/api2/anchor"]');
-    await humanIdlePause('deliberate');
-    const solved = await solvePageCaptcha(s.page, solver, s);
-    if (!solved) return false;
-    // Try button click first (more reliable than requestSubmit on PH's React
-    // form), then form.requestSubmit, then a synthetic submit event.
-    await s.page.evaluate(() => {
-      const ta = document.getElementById('g-recaptcha-response') as HTMLTextAreaElement | null;
-      if (!ta || !ta.value) return;
-      const btn = document.querySelector('button[type="submit"], input[type="submit"]') as HTMLElement | null;
-      if (btn) { btn.click(); return; }
-      const form = document.querySelector('form') as HTMLFormElement | null;
-      if (!form) return;
-      if (typeof form.requestSubmit === 'function') form.requestSubmit();
-      else form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
-    }).catch(() => {});
-    await humanIdlePause('long');
-    if (!(s.page.url?.() ?? '').includes(gateUrlSubstring)) return true;
-    // Token's been written but the page didn't navigate. PH's verification
-    // sets a server cookie on solve — re-issuing a navigation to the homepage
-    // carries that cookie and lets the next request pass the gate.
-    await s.page.goto('https://www.producthunt.com/').catch(() => {});
-    await humanIdlePause('deliberate');
-    if (!(s.page.url?.() ?? '').includes(gateUrlSubstring)) return true;
-  }
+  // One solve: a second token on the same gate is the same answer to a page
+  // that already refused it.
+  if (!(s.page.url?.() ?? '').includes(gateUrlSubstring)) return true;
+  await s.page.waitForSelector('iframe[src*="recaptcha/api2/anchor"]');
+  await pageSettled(s.page);
+  const solved = await solvePageCaptcha(s.page, solver, s);
+  if (!solved) return false;
+  // Try button click first (more reliable than requestSubmit on PH's React
+  // form), then form.requestSubmit, then a synthetic submit event.
+  await s.page.evaluate(() => {
+    const ta = document.getElementById('g-recaptcha-response') as HTMLTextAreaElement | null;
+    if (!ta || !ta.value) return;
+    const btn = document.querySelector('button[type="submit"], input[type="submit"]') as HTMLElement | null;
+    if (btn) { btn.click(); return; }
+    const form = document.querySelector('form') as HTMLFormElement | null;
+    if (!form) return;
+    if (typeof form.requestSubmit === 'function') form.requestSubmit();
+    else form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+  });
+  await pageSettled(s.page);
+  if (!(s.page.url?.() ?? '').includes(gateUrlSubstring)) return true;
+  // Token's been written but the page didn't navigate. PH's verification
+  // sets a server cookie on solve — re-issuing a navigation to the homepage
+  // carries that cookie and lets the next request pass the gate.
+  await s.page.goto('https://www.producthunt.com/');
+  await pageSettled(s.page);
+  if (!(s.page.url?.() ?? '').includes(gateUrlSubstring)) return true;
+  console.log(`[oauth] recaptcha_gate_not_cleared: still on ${s.page.url?.() ?? ''}`);
   return false;
 }
