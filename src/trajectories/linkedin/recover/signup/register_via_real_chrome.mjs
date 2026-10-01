@@ -77,7 +77,7 @@ if (NOPECHA_KEY) {
 try {
   await page.goto('https://www.linkedin.com/', { waitUntil: 'domcontentloaded' });
   await pageSettled(page);
-  await humanScroll(page, { direction: 'down', distance: 600 }).catch(() => {});
+  await humanScroll(page, 600);
   await pageSettled(page);
   await page.goto('https://www.linkedin.com/signup', { waitUntil: 'domcontentloaded', referer: 'https://www.linkedin.com/' });
   await pageSettled(page);

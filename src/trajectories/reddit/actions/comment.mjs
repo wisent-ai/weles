@@ -63,7 +63,7 @@ async function writeComment() {
   // before opening the composer. Reddit's behavioral classifier scores the
   // user's pre-action telemetry as part of the post-submit shadowban gate.
   await humanIdlePause('deliberate');
-  await humanScroll(s.page, 1200, 3).catch((e) => console.log(`[trajectory] pre-comment scroll: ${e.message?.slice(0, 80)}`));
+  await humanScroll(s.page, 1200, 3);
   await humanIdlePause('short');
   // The comment composer is the FIRST textarea[name="text"] on the page —
   // there's one per existing reply box but the top-level reply form is first.

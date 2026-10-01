@@ -7,9 +7,10 @@
 
 import { cubicBezier } from '../utils/motion/bezier.js';
 import { randomBetween, waitMs, humanRandom } from '../utils/motion/timing.js';
-import { traceAvailable, nextPointerStepMs, nextReactionMs, nextInterClickMs, getMoveTemplate } from './trace.js';
+import { traceAvailable, nextPointerStepMs, nextInterClickMs, getMoveTemplate } from './trace.js';
 import { getOffsetFromPage, nativeClick, nativeBatchMove, nativeMove } from './mouse-native.js';
 import { settledTargetBox } from './pointer/target-box.js';
+import { pageSettled, type EvaluatingPage } from '../browser/settled.js';
 
 export { nextInterClickMs };
 
@@ -29,14 +30,6 @@ function sampleStepMs(): number {
   return randomBetween(2, 6);
 }
 
-function sampleReactionMs(): number {
-  if (traceAvailable()) return nextReactionMs();
-  const r = humanRandom();
-  if (r < 0.20) return randomBetween(180, 230);
-  if (r < 0.80) return randomBetween(100, 250);
-  return randomBetween(250, 500);
-}
-
 /**
  * The three named kinds are the reaction-shaped defaults. A `[min, max]` pair
  * is a dwell budget somebody declared — a declared observation carries its own
@@ -54,23 +47,20 @@ export async function humanIdlePause(kind: IdlePause = 'deliberate'): Promise<vo
 }
 
 /**
- * Human-like vertical scroll. Real users scroll in bursts of 2-5 wheel deltas
- * with sub-second pauses, then dwell on the new content for a few seconds
- * before the next burst. Use this BEFORE any write verb (comment, vote, like)
- * so the behavioral classifier sees realistic dwell + scroll signal, not a
- * goto -> immediate-action pattern. Reddit's async spam classifier reads
- * this telemetry as part of the post-comment scoring window.
+ * Vertical scroll split into small wheel deltas. Each acknowledged input is
+ * followed by observed document/render readiness, not a timed pause. A failed
+ * wheel operation ends the action with its actual error.
  *
- * @param page          a Playwright Page (with .mouse.wheel + .waitForTimeout)
- * @param totalDeltaY   approx total cumulative pixels to scroll (positive = down)
+ * @param page          a page with wheel input and DOM evaluation
+ * @param totalDeltaY   approximate cumulative pixels (positive down, negative up)
  * @param burstCount    how many distinct scroll bursts to break the total into
  */
 export async function humanScroll(
-  page: { mouse: { wheel(dx: number, dy: number): Promise<void> }; waitForTimeout(ms: number): Promise<void> },
+  page: EvaluatingPage & { mouse: { wheel(dx: number, dy: number): Promise<void> } },
   totalDeltaY = 1200,
   burstCount = 3,
 ): Promise<void> {
-  const perBurst = Math.max(120, Math.round(totalDeltaY / burstCount));
+  const perBurst = Math.max(120, Math.round(Math.abs(totalDeltaY) / burstCount));
   for (let b = 0; b < burstCount; b++) {
     const wheelsThisBurst = Math.floor(randomBetween(2, 5));
     let remaining = perBurst;
@@ -80,12 +70,10 @@ export async function humanScroll(
       // page.evaluate(window.scrollBy(0, N)) would produce).
       const dy = Math.min(remaining, Math.floor(randomBetween(80, 260)));
       remaining -= dy;
-      await page.mouse.wheel(0, dy).catch(() => {});
-      await page.waitForTimeout(Math.floor(randomBetween(120, 380)));  // allow-raw-playwright: implementation file — defines the humanized atom
+      await page.mouse.wheel(0, Math.sign(totalDeltaY) * dy);
+      await pageSettled(page);
       if (remaining <= 0) break;
     }
-    // Dwell between bursts — read the just-revealed content. 1.2-3.5s.
-    await page.waitForTimeout(Math.floor(randomBetween(1200, 3500)));  // allow-raw-playwright: implementation file — defines the humanized atom
   }
 }
 
@@ -107,15 +95,14 @@ export async function humanScroll(
 // run's 8-vs-0 diff was confounded by the proxy difference. So
 // there is no evidence-backed reason to keep native fleet-wide;
 // native is now opt-in per label only where it is MEASURED to be
-// required, not assumed. Bezier path + empirical timing identical
-// in both modes; only the dispatch transport differs.
+// required, not assumed. Both modes retain the path geometry; CDP advances
+// through acknowledgements, while the native bridge owns its event delivery.
 export function cdpInput(): boolean { return process.env.WELES_INPUT !== 'native'; }
 
 async function emitPath(page: any, off: any, points: Array<{ x: number; y: number; dt?: number }>): Promise<void> {
   if (cdpInput()) {
     for (const p of points) {
       await page.mouse.move(p.x, p.y);
-      if (p.dt && p.dt > 0) await waitMs(Math.min(p.dt, 120));
     }
     return;
   }
@@ -137,7 +124,7 @@ export async function humanMove(page: any, x: number, y: number, startX?: number
   const template = traceAvailable() ? getMoveTemplate(sx, sy, x, y) : [];
   const points: Array<{ x: number; y: number; dt?: number }> = [];
   if (template.length) {
-    for (const p of template) points.push({ x: p.x, y: p.y, dt: Math.min(p.dt, 120) });
+    for (const p of template) points.push({ x: p.x, y: p.y, dt: off ? Math.min(p.dt, 120) : undefined });
     points.push({ x, y, dt: 0 });
     // Route through emitPath so the CDP-vs-native dispatch branch
     // matches the Bezier branch at line 142 (which also uses emitPath).
@@ -159,7 +146,7 @@ export async function humanMove(page: any, x: number, y: number, startX?: number
     points.push({
       x: Math.round(cubicBezier(sx, cp1x, cp2x, x, t)),
       y: Math.round(cubicBezier(sy, cp1y, cp2y, y, t)),
-      dt: sampleStepMs(),
+      dt: off ? sampleStepMs() : undefined,
     });
   }
   points.push({ x, y, dt: 0 });
@@ -188,13 +175,11 @@ export async function humanClickLocator(page: any, locator: any): Promise<void> 
   const jy = Math.round(ty + randomBetween(-2, 2));
   if (cdpInput()) {
     await page.mouse.move(jx, jy);
-    await waitMs(sampleReactionMs());
     await page.mouse.click(jx, jy);
     return;
   }
   const off = await getOffsetFromPage(page);
   nativeMove(off, jx, jy);
-  await waitMs(sampleReactionMs());
   await nativeClick(off, jx, jy);
 }
 
@@ -278,13 +263,11 @@ export async function humanClick(page: any, x: number, y: number, startX?: numbe
   const jy = Math.round(y + randomBetween(-2, 2));
   if (cdpInput()) {
     await page.mouse.move(jx, jy);
-    await waitMs(sampleReactionMs());
     await page.mouse.click(jx, jy);
     return;
   }
   const off = await getOffsetFromPage(page);
   nativeMove(off, jx, jy);
-  await waitMs(sampleReactionMs());
   await nativeClick(off, jx, jy);
 }
 

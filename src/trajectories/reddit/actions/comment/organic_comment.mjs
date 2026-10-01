@@ -92,7 +92,7 @@ try {
   // -> submit flow scores far worse than goto -> 30-60s of scroll/hover
   // -> submit. Cost: 30-60s extra wall time per comment. Worth it.
   await humanIdlePause('deliberate');
-  await humanScroll(s.page, 1400, 3).catch(() => {});
+  await humanScroll(s.page, 1400, 3);
   await humanIdlePause('deliberate');
   // Hover a username link if present — triggers rpl-hovercard:after-show
   // which Reddit's anti-spam scoring reads as "user inspected the OP".
@@ -101,7 +101,7 @@ try {
     s.page,
     s.page.locator('a[href*="/user/"], a[href*="/u/"]').filter({ visible: true }).first(),
   ).catch(() => false);
-  await humanScroll(s.page, 800, 2).catch(() => {});
+  await humanScroll(s.page, 800, 2);
 
   // Deterministic submit: same selectors as reddit_comment.mjs. textarea
   // [name="text"] first visible (top-level reply form), submit via
