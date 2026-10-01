@@ -48,7 +48,7 @@ export interface PinnedProxyCredential {
 
 export function readOptionalPinnedProxyCredential(reference: string): PinnedProxyCredential | undefined {
   const normalized = reference.toLowerCase();
-  if (normalized.length !== '0000000000000000'.length || /[^a-f\d]/.test(normalized)) {
+  if (normalized.length !== 16 || /[^a-f\d]/.test(normalized)) {
     throw new Error('invalid pinned proxy credential reference');
   }
   const username = readScopedField(
