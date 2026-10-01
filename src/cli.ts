@@ -208,7 +208,8 @@ async function runOpen(parsed: ParsedCli): Promise<void> {
       out.screenshot = parsed.options.screenshot;
     }
     if (parsed.options.text === true) {
-      out.text = await page.locator('body').innerText({ timeout: 5000 }).catch(() => '');
+      // timeout: 0 switches off Playwright's own limit; a read that fails says why.
+      out.text = await page.locator('body').innerText({ timeout: 0 });
     }
 
     process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);
