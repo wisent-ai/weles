@@ -26,7 +26,7 @@ import { assertAuthed, AuthProbeError } from '../auth/auth-probe.mjs';
 import { persistFreshCookieJar } from '../auth/cookie-freshness.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { humanIdlePause } from '../../../../dist/human/mouse.js';
+import { pageSettled } from '../page/settled.mjs';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 // Provider name on the OAuth button → social_accounts platform key for the
@@ -95,7 +95,7 @@ export async function runCrossLogin(opts) {
     console.log(`[cross-login] injected ${injected} ${provider} cookies`);
 
     await s.goto(targetUrl);
-    await humanIdlePause('deliberate');
+    await pageSettled(s.page);
     // Some platforms (e.g. ProductHunt) render their homepage on the target URL
     // and require an explicit "Sign in" click to open the SSO modal before the
     // provider buttons are in the DOM. Caller passes openerButtonRegex to drive
@@ -104,7 +104,7 @@ export async function runCrossLogin(opts) {
       const opened = await clickOAuthProviderButton(s, opts.openerButtonRegex);
       if (opened) {
         console.log(`[cross-login] opened auth modal via ${opts.openerButtonRegex}`);
-        await humanIdlePause('deliberate');
+        await pageSettled(s.page);
       }
     }
     const clicked = await clickOAuthProviderButton(s, providerButtonRegex);
@@ -114,7 +114,7 @@ export async function runCrossLogin(opts) {
     }
     console.log(`[cross-login] clicked ${provider} button — handling consent`);
 
-    await humanIdlePause('deliberate');
+    await pageSettled(s.page);
     await handleOAuthConsent(s);
     const targetHost = new URL(targetUrl).hostname.replace(/^www\./, '');
     await waitForNavBackTo(s.page, targetHost, [

@@ -77,8 +77,8 @@ export async function clickOAuthProviderButton(s: SessionLike, accessibleName: R
   const page = s.page;
   for (const role of ['button', 'link']) {
     const el = page.getByRole(role, { name: accessibleName }).first();
-    const visible = await el.isVisible().catch(() => false);
-    if (visible) { await el.click().catch(() => {}); return true; }
+    const visible = await el.isVisible();
+    if (visible) { await el.click(); return true; }
   }
   return false;
 }
