@@ -96,7 +96,6 @@ if (!(await page.evaluate(() => (document.body.innerText || '').includes('Wprowa
   const sposob = await multiPick('sposob_wdrozenia_wynikow_prac_br', ['Wprowadzenie wyników do własnej', 'Udzielenie licencji']);
   const miejsce = await multiPick('miejsce_wdrozenia_wynikow_projektu', ['na terenie RP', 'na terenie innego']);
   await humanFill(page, page.locator('input[name$="przewidywana_data_wdrozenia"]').first(), '09.2029');
-  await humanIdlePause('short');
   await humanFill(page, page.locator('textarea[name$="uzasadnienie"]').first(), UZAS);
   await saveEnabled();
   console.log(JSON.stringify({ saveResult: 'saved', sposob, miejsce, uzasLen: UZAS.length }, null, 2));

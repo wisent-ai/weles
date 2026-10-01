@@ -36,11 +36,8 @@ await page.waitForSelector(`textarea[name="${NB}tytul_projektu"]`);
 await page.locator('input[type="radio"][value="samodzielnie"]').first().dispatchEvent('click'); // allow-raw-playwright: select single applicant mode
 await humanIdlePause('short');
 await humanFill(page, page.locator(`textarea[name="${NB}tytul_projektu"]`).first(), title);
-await humanIdlePause('short');
 await humanFill(page, page.locator(`input[name="${NB}data_rozpoczecia_realizacji_projektu"]`).first(), '01.09.2026');
-await humanIdlePause('short');
 await humanFill(page, page.locator(`input[name="${NB}data_zakonczenia_realizacji_projektu"]`).first(), '31.08.2029');
-await humanIdlePause('short');
 await humanFill(page, page.locator(`textarea[name="${NB}streszczenie_projektu"]`).first(), summary);
 await humanIdlePause('short');
 await page.locator('input[type="radio"][value="Nie"]').last().dispatchEvent('click'); // allow-raw-playwright: resubmission answer

@@ -28,7 +28,6 @@ export async function submitSignupCandidate(session) {
   await emailLoc.waitFor({ state: 'visible' });
   await pwdLoc.waitFor({ state: 'visible' });
   await humanFill(session.page, emailLoc, id.email);
-  await humanIdlePause('short');
   await humanFill(session.page, pwdLoc, id.password);
   await humanIdlePause('deliberate');
 
@@ -60,7 +59,6 @@ export async function submitSignupCandidate(session) {
   }
 
   await humanFill(session.page, firstLoc, id.firstName);
-  await humanIdlePause('short');
   await humanFill(session.page, lastLoc, id.lastName);
   await humanIdlePause('deliberate');
 
