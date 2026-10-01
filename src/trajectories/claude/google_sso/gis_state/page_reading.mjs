@@ -59,15 +59,14 @@ export const readGisState = (arg) => {
   // and treating it as a row made the step click "switch account" once per
   // debounce window for the whole deadline (run cbf8fb03, 2026-08-17T20:48Z).
   // The selector guarantees the attribute is there, so it is read as itself.
-  const rows = Array.from(document.querySelectorAll('[data-identifier]')).filter((el) => shown(el));
+  const rows = Array.from(document.querySelectorAll('[data-identifier]'))
+    .filter((el) => el.getAttribute('data-identifier').trim() && shown(el));
   const wanted = (arg.email || '').trim().toLowerCase();
   const mine = wanted
     ? rows.find((el) => el.getAttribute('data-identifier').trim().toLowerCase() === wanted)
     : null;
-  // With no identifier to match and a single row offered, that row is the only
-  // thing it could be. Several rows and no match is never a guess.
-  const soleRow = !mine && rows.length === 1 ? rows[0] : null;
-  const others = rows.filter((el) => el !== mine);
+  // A different account is not a substitute, even when it is the only row.
+  // "Use another account" is a separate control, never another identity's row.
 
   // Google's affirmative control. Wording first, because that is the only thing
   // that separates it from "Anuluj"/"Cancel" beside it (both are
@@ -93,9 +92,10 @@ export const readGisState = (arg) => {
     title: (document.title || '').slice(0, arg.maxTitle),
     rowCount: rows.length,
     rowIdentifiers: rows.map((el) => el.getAttribute('data-identifier').slice(0, arg.maxTitle)),
-    accountRow: mine ? point(mine, 'account_row') : (soleRow ? point(soleRow, 'account_row') : null),
-    accountRowMatchedBy: mine ? 'data_identifier' : (soleRow ? 'sole_row' : null),
-    otherAccountRow: others.length ? point(others[0], 'other_account') : null,
+    accountRow: mine ? point(mine, 'account_row') : null,
+    accountRowMatchedBy: mine ? 'data_identifier' : null,
+    otherAccountRow: pick('button,[role="button"],[role="link"],li,a', 'other_account',
+      /^(use another account|add account|dodaj konto|inne konto|użyj innego konta)$/i),
     // claude.ai's own grant affordance, in either language this fleet sees.
     consent: pick('button,[role="button"]', 'consent', /^(authorize|allow|zezwól|zezwol|autoryzuj)$/i),
     gisButton: pick('button,[role="button"]', 'gis_button', /continue with google|^google$/i),

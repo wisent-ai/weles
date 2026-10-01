@@ -168,8 +168,7 @@ export async function doGoogleSso({
       if (variant === 'google_account_chooser') {
         claim();
         mark('gis_account_chooser');
-        // Which row, and why that row: an exact data-identifier match, or the
-        // single row a chooser offered when no identifier is known.
+        // Only the configured identity's exact data-identifier match is selected.
         console.log(`[google_sso] selecting account row by ${st.accountRowMatchedBy} (${st.rowIdentifiers.join(', ')})`);
         const hit = await clickGisTarget(active, 'account_row');
         lastSkip = hit.clicked ? null : `${variant}: ${hit.reason}`;

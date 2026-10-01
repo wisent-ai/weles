@@ -45,7 +45,7 @@ export function classifyGisState(st) {
   if (st.host === 'accounts.google.com') {
     if (/\/signin\/rejected|deniedsigninrejected/.test(st.pathname)) return 'google_rejected';
     if (st.accountRow) return 'google_account_chooser';
-    if (/accountchooser|oauthchooseaccount/.test(st.pathname) && st.rowCount > 0) return 'google_chooser_without_account';
+    if (st.otherAccountRow || (/accountchooser|oauthchooseaccount/.test(st.pathname) && st.rowCount > 0)) return 'google_chooser_without_account';
     // Identifier first: the sign-in flow this file drives starts at the email
     // field, so a page offering both fields is an identifier page. A page with
     // only a password field is Google re-verifying an existing session, which
