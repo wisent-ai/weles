@@ -60,8 +60,8 @@ export async function askLlm(goal: string, state: string, screenshotPath: string
     raw = routed.raw;
     functionName = routed.functionName;
     routerMeta = { model: routed.model, router_url: routed.routerUrl, finish_reason: routed.finishReason, usage: routed.usage, function_name: routed.functionName };
-  } catch (e: any) {
-    lastRouterError = String(e.message ?? e).slice(0, 300);
+  } catch (e: unknown) {
+    lastRouterError = (e instanceof Error ? e.message : String(e)).slice(0, 300);
     routerMeta = { error: lastRouterError };
   }
   let decision: Record<string, any>;
