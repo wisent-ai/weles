@@ -25,11 +25,11 @@ try {
   await s.goto('https://www.sadcaptcha.com/register');
   await humanIdlePause('deliberate');
   await s.page.locator('input#username').click();
-  await s.page.locator('input#username').pressSequentially(EMAIL, { delay: 25 });
+  await s.page.locator('input#username').pressSequentially(EMAIL);
   await s.page.locator('input#password1').click();
-  await s.page.locator('input#password1').pressSequentially(password, { delay: 25 });
+  await s.page.locator('input#password1').pressSequentially(password);
   await s.page.locator('input#password2').click();
-  await s.page.locator('input#password2').pressSequentially(password, { delay: 25 });
+  await s.page.locator('input#password2').pressSequentially(password);
   await s.page.locator('input#agreeToTerms').check();
 
   // Solve reCAPTCHA v2 (sitekey 6LdRfgQqAAAAAMmRfNPmuSunXUrrYxnrJLEhPrdV)

@@ -107,7 +107,7 @@ async function clickEnabledAdd(page) {
     return candidates[0] || null;
   }).catch(() => null);
   if (!target) return null;
-  await page.mouse.click(target.x, target.y, { delay: 50 });
+  await page.mouse.click(target.x, target.y);
   await pageSettled(page);
   console.log(JSON.stringify({ stage: 'clicked_add', text: target.text, x: target.x, y: target.y }));
   return target;

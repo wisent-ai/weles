@@ -34,12 +34,12 @@ try {
   const userIn = s.page.locator('input[name="username"], input[name="email"], input[autocomplete="username"]').filter({ visible: true }).first();
   await userIn.waitFor({ state: 'visible' });
   await userIn.click();
-  await userIn.pressSequentially(login.email, { delay: 25 });
+  await userIn.pressSequentially(login.email);
 
   const pwIn = s.page.locator('input[name="password"], input[type="password"]').filter({ visible: true }).first();
   await pwIn.waitFor({ state: 'visible' });
   await pwIn.click();
-  await pwIn.pressSequentially(login.password, { delay: 25 });
+  await pwIn.pressSequentially(login.password);
   await humanIdlePause('short');
   await pwIn.press('Enter');
 

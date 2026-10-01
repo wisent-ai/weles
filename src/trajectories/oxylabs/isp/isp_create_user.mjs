@@ -108,11 +108,11 @@ try {
   }
   await userIn.click({ force: true }).catch(() => {});
   await userIn.fill('').catch(() => {});
-  await humanType(s.page, ISP_USERNAME, { delay: 40 });
+  await humanType(s.page, ISP_USERNAME);
   if (await passIn.isVisible().catch(() => false)) {
     await passIn.click({ force: true }).catch(() => {});
     await passIn.fill('').catch(() => {});
-    await humanType(s.page, ISP_PASSWORD, { delay: 40 });
+    await humanType(s.page, ISP_PASSWORD);
   }
   await humanIdlePause('short');
 

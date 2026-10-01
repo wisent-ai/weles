@@ -37,7 +37,7 @@ export async function clickFirst(page, label, allow, deny = /delete|remove|usuń
     denyFlags: deny.flags,
   }).catch(() => null);
   if (!target) return null;
-  await page.mouse.click(target.x, target.y, { delay: 50 });
+  await page.mouse.click(target.x, target.y);
   await pageSettled(page);
   console.log(JSON.stringify({ stage: 'clicked', label, text: sanitize(target.text), x: target.x, y: target.y }));
   return target;
@@ -106,7 +106,7 @@ export async function selectPhoneAssociationAccount(page) {
     return candidates[0] || null;
   }).catch(() => null);
   if (!target) return null;
-  await page.mouse.click(target.x, target.y, { delay: 50 });
+  await page.mouse.click(target.x, target.y);
   await pageSettled(page);
   console.log(JSON.stringify({ stage: 'clicked', label: 'select_phone_association_account', text: sanitize(target.text), role: target.role, x: target.x, y: target.y }));
   return target;

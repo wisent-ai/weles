@@ -55,10 +55,6 @@ function resolveKey(key: string): [number, string, string] {
   return [0, '', key];
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));  // allow-raw-playwright: review — context-dependent timer
-}
-
 export class CDPMouse {
   private _conn: CDPConnection;
   private _sessionId: string;
@@ -85,13 +81,12 @@ export class CDPMouse {
       await this._conn.send('Input.dispatchMouseEvent', {
         type: 'mouseMoved', x: ix, y: iy,
       }, this._sessionId);
-      await delay(5 + Math.random() * 10);
     }
     this._x = x;
     this._y = y;
   }
 
-  async click(x: number, y: number, options?: { button?: string; clickCount?: number; delay?: number; instant?: boolean }): Promise<void> {
+  async click(x: number, y: number, options?: { button?: string; clickCount?: number; instant?: boolean }): Promise<void> {
     const button = options?.button ?? 'left';
     const clickCount = options?.clickCount ?? 1;
     const instant = options?.instant ?? _instantMode();
@@ -99,13 +94,7 @@ export class CDPMouse {
     const jx = x + (Math.random() * 3 - 1.5);
     const jy = y + (Math.random() * 3 - 1.5);
     await this.move(jx, jy, { instant });
-    // Hover delay before pressing
-    if (!instant) await delay(100 + Math.random() * 200);
     await this.down({ button, clickCount });
-    const pressDelay = options?.delay != null
-      ? options.delay
-      : (instant ? 0 : 50 + Math.random() * 100);
-    if (pressDelay > 0) await delay(pressDelay);
     await this.up({ button, clickCount });
   }
 
@@ -187,34 +176,18 @@ export class CDPKeyboard {
     }, this._sessionId);
   }
 
-  async press(key: string, options?: { delay?: number; instant?: boolean }): Promise<void> {
-    const instant = options?.instant ?? _instantMode();
+  async press(key: string): Promise<void> {
     await this.down(key);
-    const hold = options?.delay != null
-      ? options.delay
-      : (instant ? 0 : 40 + Math.random() * 80);
-    if (hold > 0) await delay(hold);
     await this.up(key);
   }
 
-  async type(text: string, options?: { delay?: number; instant?: boolean }): Promise<void> {
-    const instant = options?.instant ?? _instantMode();
+  async type(text: string): Promise<void> {
     for (const char of text) {
       if (char in KEY_DEFS) {
-        await this.press(char, { instant });
+        await this.press(char);
       } else {
         await this.insertText(char);
       }
-      if (instant) continue;
-      let gap: number;
-      if (options?.delay != null) {
-        gap = options.delay;
-      } else {
-        gap = 80 + Math.random() * 100; // 80-180ms baseline
-        if ('.;,!? '.includes(char)) gap += 50 + Math.random() * 150;
-        if (Math.random() < 0.04) gap += 200 + Math.random() * 400; // thinking pause
-      }
-      if (gap > 0) await delay(gap);
     }
   }
 

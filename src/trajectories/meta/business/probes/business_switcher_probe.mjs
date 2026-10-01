@@ -88,7 +88,7 @@ async function snapshot(page, label) {
 
 async function clickBusinessSwitcher(page) {
   const topLeft = { text: 'top-left portfolio selector', x: 220, y: 36 };
-  await page.mouse.click(topLeft.x, topLeft.y, { delay: 50 });
+  await page.mouse.click(topLeft.x, topLeft.y);
   await pageSettled(page);
   const opened = await page.evaluate(() => {
     const bodyText = (document.body?.innerText || '').replace(/\s+/g, ' ');
@@ -122,7 +122,7 @@ async function clickBusinessSwitcher(page) {
     return controls[0] || null;
   }).catch(() => null);
   if (!target) return null;
-  await page.mouse.click(target.x, target.y, { delay: 50 });
+  await page.mouse.click(target.x, target.y);
   await pageSettled(page);
   console.log(JSON.stringify({ stage: 'clicked_switcher', text: target.text, x: target.x, y: target.y }));
   return target;

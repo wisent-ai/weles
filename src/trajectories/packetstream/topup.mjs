@@ -18,9 +18,9 @@ try {
   await s.goto('https://app.packetstream.io/login');
   await pageSettled(s.page);
   const u = s.page.locator('input[name="username"]').filter({ visible: true }).first();
-  await u.click(); await u.pressSequentially(login.email, { delay: 25 });
+  await u.click(); await u.pressSequentially(login.email);
   const p = s.page.locator('input[name="password"]').filter({ visible: true }).first();
-  await p.click(); await p.pressSequentially(login.password, { delay: 25 });
+  await p.click(); await p.pressSequentially(login.password);
   await p.press('Enter');
   await pageSettled(s.page);
   if (/\/login/.test(s.page.url())) { console.log(`FAIL: packetstream_login_refused (still on ${s.page.url()})`); process.exit(1); }

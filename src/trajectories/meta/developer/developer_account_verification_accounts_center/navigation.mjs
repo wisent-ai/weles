@@ -37,7 +37,7 @@ export async function clickVisibleText(page, label, allow, includeDivs = false) 
     allowFlags: allow.flags,
   }).catch(() => null);
   if (!target) return null;
-  await page.mouse.click(target.x, target.y, { delay: 50 });
+  await page.mouse.click(target.x, target.y);
   await pageSettled(page);
   console.log(JSON.stringify({ stage: 'clicked', label, text: target.text.slice(0, 80), x: target.x, y: target.y }));
   return target;
@@ -119,7 +119,7 @@ export async function clickAccountsCenter(page) {
     return candidates[0] || null;
   });
   if (!target) return null;
-  await page.mouse.click(target.x, target.y, { delay: 50 });
+  await page.mouse.click(target.x, target.y);
   await pageSettled(page);
   console.log(JSON.stringify({ stage: 'clicked', label: 'accounts_center', text: target.text, href: sanitizedUrl(target.href), x: target.x, y: target.y }));
   return target;

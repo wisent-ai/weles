@@ -53,9 +53,9 @@ async function fillForm() {
   await page.goto('https://lsi2.ncbr.gov.pl/logowanie', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#mail');
   await humanFill(page, page.locator('#mail'), '');
-  await page.locator('#mail').type(email, { delay: 15 });
+  await page.locator('#mail').type(email);
   await humanFill(page, page.locator('#password'), '');
-  await page.locator('#password').type(password, { delay: 15 });
+  await page.locator('#password').type(password);
   const checkbox = page.locator('#isStatuteAccepted').first();
   if (!(await checkbox.isChecked().catch(() => false))) {
     await humanClickLocator(page, page.locator('label:has(#isStatuteAccepted)')).catch(async () => {

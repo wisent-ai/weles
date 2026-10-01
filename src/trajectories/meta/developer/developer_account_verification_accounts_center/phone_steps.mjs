@@ -16,7 +16,7 @@ export async function fillPhoneAndSend(page) {
   if (!await input.isVisible().catch(() => false)) return { filled: false, clicked: false };
   const inputValue = phoneNationalNumber(VERIFY_PHONE) || VERIFY_PHONE;
   const rect = await input.boundingBox().catch(() => null);
-  if (rect) await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height / 2, { delay: 50 }).catch(() => {});
+  if (rect) await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height / 2).catch(() => {});
   await input.focus().catch(() => {});
   await page.keyboard.press('ControlOrMeta+A').catch(() => {});
   await humanType(page, inputValue).catch(async () => {
@@ -85,7 +85,7 @@ export async function fillPhoneAndSend(page) {
     return candidates[0] || null;
   });
   if (!clicked) return { filled: true, clicked: false };
-  await page.mouse.click(clicked.x, clicked.y, { delay: 50 });
+  await page.mouse.click(clicked.x, clicked.y);
   await pageSettled(page);
   console.log(JSON.stringify({ stage: 'clicked', label: 'send_verification_sms', text: clicked.text, x: clicked.x, y: clicked.y }));
   return { filled: true, clicked: true };
@@ -114,7 +114,7 @@ export async function clickUpdateMobileNumber(page) {
     return candidates[0] || null;
   });
   if (!target) return null;
-  await page.mouse.click(target.x, target.y, { delay: 50 });
+  await page.mouse.click(target.x, target.y);
   await pageSettled(page);
   console.log(JSON.stringify({ stage: 'clicked', label: 'update_mobile_number', text: target.text, x: target.x, y: target.y }));
   return target;
@@ -152,7 +152,7 @@ export async function fillCodeAndContinue(page) {
     return candidates[0] || null;
   });
   if (!clicked) return { filled: true, clicked: false };
-  await page.mouse.click(clicked.x, clicked.y, { delay: 50 });
+  await page.mouse.click(clicked.x, clicked.y);
   await pageSettled(page);
   console.log(JSON.stringify({ stage: 'clicked', label: 'developer_code_continue', text: clicked.text, x: clicked.x, y: clicked.y }));
   return { filled: true, clicked: true };

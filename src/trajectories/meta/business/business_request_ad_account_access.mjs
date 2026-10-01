@@ -131,7 +131,7 @@ async function clickFirst(page, label, allow, deny = /delete|remove|usuń|anuluj
     denyFlags: deny.flags,
   }).catch(() => null);
   if (!target) return null;
-  await page.mouse.click(target.x, target.y, { delay: 50 });
+  await page.mouse.click(target.x, target.y);
   await pageSettled(page);
   console.log(JSON.stringify({ stage: 'clicked', label, text: target.text.slice(0, 180), x: target.x, y: target.y }));
   return target;
@@ -140,7 +140,7 @@ async function clickFirst(page, label, allow, deny = /delete|remove|usuń|anuluj
 async function fillAdAccountId(page) {
   const x = Number(process.env.META_AD_ACCOUNT_FIELD_X || 820);
   const y = Number(process.env.META_AD_ACCOUNT_FIELD_Y || 337);
-  await page.mouse.click(x, y, { delay: 50 });
+  await page.mouse.click(x, y);
   await page.keyboard.press('ControlOrMeta+A').catch(() => {});
   await humanType(page, AD_ACCOUNT_ID).catch(async () => {
     await page.keyboard.insertText(AD_ACCOUNT_ID).catch(() => {});
@@ -179,7 +179,7 @@ async function clickEnabledDialogAction(page, label, allow) {
     allowFlags: allow.flags,
   }).catch(() => null);
   if (!target) return null;
-  await page.mouse.click(target.x, target.y, { delay: 50 });
+  await page.mouse.click(target.x, target.y);
   await pageSettled(page);
   console.log(JSON.stringify({ stage: 'clicked', label, text: target.text.slice(0, 180), x: target.x, y: target.y }));
   return target;
@@ -216,7 +216,7 @@ async function selectRole(page) {
     return nodes[0] || null;
   }).catch(() => null);
   if (!target) return null;
-  if (!target.checked) await page.mouse.click(target.x, target.y, { delay: 50 });
+  if (!target.checked) await page.mouse.click(target.x, target.y);
   await pageSettled(page);
   console.log(JSON.stringify({ stage: 'selected_role', text: target.text.slice(0, 180), x: target.x, y: target.y, alreadyChecked: target.checked }));
   return target;

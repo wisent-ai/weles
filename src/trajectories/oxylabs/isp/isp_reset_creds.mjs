@@ -61,7 +61,7 @@ try {
     if (await pwLoc.isVisible().catch(() => false)) {
       await pwLoc.click({ force: true }).catch(() => {});
       await pwLoc.fill('').catch(() => {});
-      await humanType(s.page, NEW_PASSWORD, { delay: 40 });
+      await humanType(s.page, NEW_PASSWORD);
       console.log(`[trajectory] typed new password (length ${NEW_PASSWORD.length})`);
       // Confirm
       const confirmBtn = s.page.locator('button:has-text("Save"), button:has-text("Confirm"), button:has-text("Update"), button:has-text("Set"), button[type="submit"]').filter({ visible: true }).last();

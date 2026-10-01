@@ -68,7 +68,7 @@ try {
     // receives exactly one digit and Vue's input handler advances focus.
     const otpFirst = s.page.locator('input[name="otp-1"]');
     await otpFirst.click();
-    await humanType(s.page, code, { delay: 60 });
+    await humanType(s.page, code);
     await pageSettled(s.page);
     console.log(`[trajectory] post-confirm url=${s.page.url()}`);
   }

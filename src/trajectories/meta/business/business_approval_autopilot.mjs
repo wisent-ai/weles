@@ -123,7 +123,7 @@ async function clickFirst(page, label, allow, deny = /cancel|anuluj|delete|remov
     denyFlags: deny.flags,
   }).catch(() => null);
   if (!target) return null;
-  await page.mouse.click(target.x, target.y, { delay: 50 });
+  await page.mouse.click(target.x, target.y);
   await pageSettled(page);
   console.log(JSON.stringify({ stage: 'clicked', label, text: target.text.slice(0, 180), x: target.x, y: target.y }));
   return target;

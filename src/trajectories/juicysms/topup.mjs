@@ -79,22 +79,22 @@ try {
     const cardIn = s.page.locator('input[name="cardNumber"], input#cardNumber').filter({ visible: true }).first();
     await cardIn.waitFor({ state: 'visible' });
     await cardIn.click();
-    await humanType(s.page, card.num, { delay: 50 });
+    await humanType(s.page, card.num);
     const expIn = s.page.locator('input[name="cardExpiry"], input#cardExpiry').filter({ visible: true }).first();
     await expIn.click();
-    await humanType(s.page, card.exp.replace(/\D/g, ''), { delay: 50 });
+    await humanType(s.page, card.exp.replace(/\D/g, ''));
     const cvcIn = s.page.locator('input[name="cardCvc"], input#cardCvc').filter({ visible: true }).first();
     await cvcIn.click();
-    await humanType(s.page, card.cvc, { delay: 50 });
+    await humanType(s.page, card.cvc);
     const nameIn = s.page.locator('input[name="billingName"], input#billingName').filter({ visible: true }).first();
     if (card.name && await nameIn.isVisible().catch(() => false)) {
       await nameIn.click();
-      await humanType(s.page, card.name, { delay: 50 });
+      await humanType(s.page, card.name);
     }
     const zipIn = s.page.locator('input[name="billingPostalCode"], input#billingPostalCode').filter({ visible: true }).first();
     if (card.zip && await zipIn.isVisible().catch(() => false)) {
       await zipIn.click();
-      await humanType(s.page, card.zip, { delay: 50 });
+      await humanType(s.page, card.zip);
     }
     await s.screenshot('stripe_before_submit');
     // Stripe's submit button text varies: "Pay $20.00", "Pay €20.00", etc.

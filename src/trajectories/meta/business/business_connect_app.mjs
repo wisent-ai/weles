@@ -121,7 +121,7 @@ async function clickFirst(page, label, allow, deny = /delete|remove|usuń|anuluj
     denyFlags: deny.flags,
   }).catch(() => null);
   if (!target) return null;
-  await page.mouse.click(target.x, target.y, { delay: 50 });
+  await page.mouse.click(target.x, target.y);
   await pageSettled(page);
   console.log(JSON.stringify({ stage: 'clicked', label, text: target.text.slice(0, 180), x: target.x, y: target.y }));
   return target;
@@ -130,7 +130,7 @@ async function clickFirst(page, label, allow, deny = /delete|remove|usuń|anuluj
 async function fillAppId(page) {
   const x = Number(process.env.META_APP_ID_FIELD_X || 720);
   const y = Number(process.env.META_APP_ID_FIELD_Y || 430);
-  await page.mouse.click(x, y, { delay: 50 });
+  await page.mouse.click(x, y);
   await page.keyboard.press('ControlOrMeta+A').catch(() => {});
   await humanType(page, APP_ID);
   console.log(JSON.stringify({ stage: 'filled_app_id', appId: APP_ID, x, y }));

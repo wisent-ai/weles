@@ -77,7 +77,7 @@ try {
     await amtIn.click();
     await amtIn.selectText().catch(() => {});
     await s.page.keyboard.press('Backspace');
-    await humanType(s.page, String(usd), { delay: 80 });
+    await humanType(s.page, String(usd));
     const actualValue = await amtIn.inputValue().catch(() => '');
     console.log(`[trajectory] amount input value after clear+type: "${actualValue}" (target: $${usd})`);
   }

@@ -8,7 +8,7 @@
 
 import { nativeType, nativeSelectAllAndDelete } from './mouse-native.js';
 import { cdpInput, humanClickLocator } from './mouse.js';
-import { humanRandom, waitMs } from '../utils/motion/timing.js';
+import { pageSettled, type EvaluatingPage } from '../browser/settled.js';
 interface HumanKeyboardPage {
   keyboard: {
     press(key: string): Promise<void>;
@@ -20,25 +20,16 @@ interface FocusableLocator {
   focus(): Promise<void>;
 }
 
-
-// Per-char CDP typing with empirical inter-key jitter. Used when
-// WELES_INPUT=cdp (parallel-safe per-page path) — page.keyboard
-// dispatches into this page's own context, not the host OS queue.
-async function cdpType(page: HumanKeyboardPage, text: string): Promise<void> {
-  for (const ch of text) {
-    await page.keyboard.type(ch);  // allow-raw-playwright: implementation file — defines the humanized atom's cdp transport
-    await new Promise((r) => setTimeout(r, 80 + Math.floor(humanRandom() * 140)));
-  }
-}
-
 /**
- * Human-like typing — every keystroke goes through the OS event queue via
- * nativeType (CGEventPost). CDP Input.dispatchKeyEvent and the Playwright
- * keyboard API emit isTrusted=true events but lack the device timestamps
- * and key-event timing jitter that anti-bot classifiers fingerprint on.
+ * Native typing uses the OS event queue through nativeType (CGEventPost).
+ * The explicitly selected per-page CDP transport follows input acknowledgements,
+ * without adding artificial inter-key pauses or claiming native device timing.
  */
 export async function humanType(page: HumanKeyboardPage, text: string): Promise<void> {
-  if (cdpInput()) { await cdpType(page, text); return; }
+  if (cdpInput()) {
+    await page.keyboard.type(text);  // allow-raw-playwright: per-page transport, resolved by input acknowledgement
+    return;
+  }
   await nativeType(text);
 }
 
@@ -53,14 +44,14 @@ export async function humanType(page: HumanKeyboardPage, text: string): Promise<
  * locator.pressSequentially with fixed delay produces uniform inter-key
  * timing both of which anti-bot trackers flag.
  */
-export async function humanFill(page: HumanKeyboardPage, locator: FocusableLocator, text: string): Promise<void> {
+export async function humanFill(page: HumanKeyboardPage & EvaluatingPage, locator: FocusableLocator, text: string): Promise<void> {
   await humanClickLocator(page, locator);
-  await waitMs(150);
+  await pageSettled(page);
   await locator.focus();
   if (cdpInput()) {
     await page.keyboard.press('ControlOrMeta+A');  // allow-raw-playwright: implementation file — defines the humanized atom's cdp transport
     await page.keyboard.press('Delete');  // allow-raw-playwright: implementation file — defines the humanized atom's cdp transport
-    await cdpType(page, text);
+    await page.keyboard.type(text);  // allow-raw-playwright: per-page transport, resolved by input acknowledgement
     return;
   }
   nativeSelectAllAndDelete();

@@ -72,7 +72,7 @@ export async function completeCheckout(s) {
         if (!(await loc.isVisible().catch(() => false))) return false;
         await loc.click({ force: true }).catch(() => {});
         await loc.fill('').catch(() => {});
-        await humanType(s.page, value, { delay: 40 });
+        await humanType(s.page, value);
         return true;
       };
       const nameFilled = await fillExtra('input[name="billingName"], input[autocomplete="cc-name"], input[placeholder*="Full name on card" i], input[placeholder*="Cardholder" i]', name);

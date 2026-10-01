@@ -147,7 +147,7 @@ export async function googleSsoRealChrome(page, creds) {
   const emailIn = page.locator('input[type="email"], input[name="identifier"], input#identifierId').filter({ visible: true }).first();
   await emailIn.waitFor({ state: 'visible' });
   await emailIn.click();
-  await emailIn.pressSequentially(creds.email, { delay: 25 });
+  await emailIn.pressSequentially(creds.email);
   console.log(`[google_sso_chrome] identifier filled (${creds.email})`);
   // Use #identifierNext only; bare [jsname="LgbsSe"] matches hidden audio-captcha button on bot-suspect sessions.
   await page.locator('#identifierNext button, #identifierNext').filter({ visible: true }).first().click();
@@ -180,7 +180,7 @@ export async function googleSsoRealChrome(page, creds) {
 
   const pwIn = page.locator('input[type="password"], input[name="Passwd"]').filter({ visible: true }).first();
   await pwIn.click();
-  await pwIn.pressSequentially(creds.password, { delay: 25 });
+  await pwIn.pressSequentially(creds.password);
   await page.locator('#passwordNext button, #passwordNext').filter({ visible: true }).first().click();
   return true;
 }

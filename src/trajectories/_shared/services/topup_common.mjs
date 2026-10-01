@@ -126,7 +126,7 @@ export async function fillStripeElements(page, card = null) {
     try {
       await entry.handle.click({ force: true });
       await entry.handle.fill('').catch(() => {});
-      await humanType(page, value, { delay: 50 });
+      await humanType(page, value);
       filled[field] = 'filled';
     } catch (e) {
       filled[field] = `err:${e.message?.slice(0, 40)}`;

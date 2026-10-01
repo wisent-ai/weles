@@ -32,7 +32,7 @@ function settleInPage(): Promise<void> {
   return promise;
 }
 
-const DOCUMENT_REPLACED = /Execution context was destroyed|navigation/i;
+const DOCUMENT_REPLACED = /Execution context was destroyed/i;
 
 export async function pageSettled(page: EvaluatingPage): Promise<void> {
   // When a navigation replaces the document mid-wait, the new document is the

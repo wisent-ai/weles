@@ -36,7 +36,7 @@ function settleInPage() {
   return promise;
 }
 
-const DOCUMENT_REPLACED = /Execution context was destroyed|navigation/i;
+const DOCUMENT_REPLACED = /Execution context was destroyed/i;
 
 export async function pageSettled(page) {
   // Both the load and the quiet DOM are awaited inside the page, so no

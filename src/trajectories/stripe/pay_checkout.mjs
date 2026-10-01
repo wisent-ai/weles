@@ -90,7 +90,7 @@ try {
     const emailIn = s.page.locator('input[name="email"], input#email, input[type="email"]').filter({ visible: true }).first();
     if (await emailIn.isVisible().catch(() => false)) {
       await humanClickLocator(s.page, emailIn);
-      await humanType(s.page, email, { delay: 40 });
+      await humanType(s.page, email);
       console.log('[stripe-checkout] contact email filled');
     }
   }
@@ -149,17 +149,17 @@ try {
 
   if (onPage) {
     await humanClickLocator(s.page, cardIn);
-    await humanType(s.page, card.num, { delay: 50 });
+    await humanType(s.page, card.num);
     const expIn = s.page.locator('input[name="cardExpiry"], input#cardExpiry').filter({ visible: true }).first();
     await humanClickLocator(s.page, expIn);
-    await humanType(s.page, card.exp, { delay: 50 });
+    await humanType(s.page, card.exp);
     const cvcIn = s.page.locator('input[name="cardCvc"], input#cardCvc').filter({ visible: true }).first();
     await humanClickLocator(s.page, cvcIn);
-    await humanType(s.page, card.cvc, { delay: 50 });
+    await humanType(s.page, card.cvc);
     const nameIn = s.page.locator('input[name="billingName"], input#billingName').filter({ visible: true }).first();
     if (card.name && (await nameIn.isVisible().catch(() => false))) {
       await humanClickLocator(s.page, nameIn);
-      await humanType(s.page, card.name, { delay: 50 });
+      await humanType(s.page, card.name);
     }
     const zipIn = s.page
       .locator('input[name="billingPostalCode"], input#billingPostalCode')
@@ -167,7 +167,7 @@ try {
       .first();
     if (card.zip && (await zipIn.isVisible().catch(() => false))) {
       await humanClickLocator(s.page, zipIn);
-      await humanType(s.page, card.zip, { delay: 50 });
+      await humanType(s.page, card.zip);
     }
     console.log('[stripe-checkout] filled the page form');
   } else {
@@ -190,7 +190,7 @@ try {
       const input = s.page.locator(selector).filter({ visible: true }).first();
       if (await input.isVisible().catch(() => false)) {
         await humanClickLocator(s.page, input);
-        await humanType(s.page, value, { delay: 50 });
+        await humanType(s.page, value);
       }
     }
   }
