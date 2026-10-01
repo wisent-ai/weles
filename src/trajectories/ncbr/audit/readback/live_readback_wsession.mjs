@@ -29,11 +29,9 @@ async function visibleText(limit = 2000) {
 async function setReactInputValue(locator, value) {
   await locator.waitFor({ state: 'visible' });
   await humanFill(page, locator, value);
-  await humanIdlePause('short');
 }
 
 await page.goto('https://lsi2.ncbr.gov.pl/logowanie', { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: Weles-controlled LSI login navigation
-await humanIdlePause('long');
 
 const emailInput = page.locator('#mail, input[name="mail"]').first();
 await setReactInputValue(emailInput, email);
@@ -43,11 +41,10 @@ await setReactInputValue(passwordInput, password);
 
 const checkbox = page.locator('#isStatuteAccepted, input[name="isStatuteAccepted"]').first();
 if (await checkbox.count()) {
-  const checked = await checkbox.isChecked().catch(() => false);
+  const checked = await checkbox.isChecked();
   if (!checked) {
     const checkboxTarget = checkbox.locator('xpath=ancestor::label[1]').or(page.locator('label:has(#isStatuteAccepted), label:has(input[name="isStatuteAccepted"])')).first();
     await humanClickLocator(page, await checkboxTarget.count() ? checkboxTarget : checkbox);
-    await humanIdlePause('short');
   }
 }
 

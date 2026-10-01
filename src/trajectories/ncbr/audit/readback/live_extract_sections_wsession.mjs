@@ -56,7 +56,6 @@ const known = [
 async function setReactInputValue(locator, value) {
   await locator.waitFor({ state: 'visible' });
   await humanFill(page, locator, value);
-  await humanIdlePause('short');
 }
 
 function uniqueSections(uiUrls) {
@@ -79,7 +78,6 @@ const page = session.page;
 
 
 await page.goto('https://lsi2.ncbr.gov.pl/logowanie', { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: Weles-controlled LSI login navigation
-await humanIdlePause('long');
 await setReactInputValue(page.locator('#mail, input[name="mail"]').first(), email);
 await setReactInputValue(page.locator('#password, input[name="password"]').first(), password);
 const statute = page.locator('#isStatuteAccepted, input[name="isStatuteAccepted"]').first();
