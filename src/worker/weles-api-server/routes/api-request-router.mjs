@@ -31,6 +31,7 @@ import {
   diagnosticsContentType,
   diagnosticsManifest,
 } from '../run/run-evidence.mjs';
+import { terminalRunResultFile } from '../run/run-outcome.mjs';
 import { createWorkerControl, workerActions } from '../worker-control.mjs';
 import { isPageRoute, respondToPage } from './pages/index.mjs';
 import { isRecordRoute, respondToRecord } from './records/index.mjs';
@@ -145,7 +146,29 @@ export function createApiRequestHandler({
         if (!requireTokenAuthorization(req, res)) return;
         const runId = decodeRunId(diagnosticFileMatch[1]);
         if (!runId) { json(res, 400, { ok: false, error: 'invalid_run_id' }); return; }
-        const file = diagnosticFile(runId, url.searchParams.get('path'));
+        const requestedPath = url.searchParams.get('path');
+        const wait = url.searchParams.get('wait');
+        if (wait !== null && (wait !== 'terminal' || requestedPath !== 'run-result.json')) {
+          json(res, 400, { ok: false, error: 'wait=terminal requires path=run-result.json' });
+          return;
+        }
+        let file;
+        if (wait === 'terminal') {
+          const controller = new AbortController();
+          const disconnect = () => controller.abort();
+          res.once('close', disconnect);
+          try {
+            if (res.destroyed) return;
+            file = await terminalRunResultFile(runId, controller.signal);
+          } catch (error) {
+            if (controller.signal.aborted) return;
+            throw error;
+          } finally {
+            res.off('close', disconnect);
+          }
+        } else {
+          file = diagnosticFile(runId, requestedPath);
+        }
         if (!file) { json(res, 404, { ok: false, error: 'diagnostic_file_not_found' }); return; }
         res.writeHead(200, {
           'Content-Type': diagnosticsContentType(file.path),

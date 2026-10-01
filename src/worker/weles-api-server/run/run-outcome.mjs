@@ -16,8 +16,8 @@
 // read a single outcome instead of burning the account twice.
 
 import { createHash } from 'node:crypto';
-import { lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, realpathSync, writeFileSync } from 'node:fs';
-import { join, sep } from 'node:path';
+import { lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, realpathSync, watch, writeFileSync } from 'node:fs';
+import { basename, join, sep } from 'node:path';
 
 import { RECORDINGS_ROOT, RUN_DEDUPLICATION_TTL_MS, RUN_RESULTS_DIR } from '../configuration.mjs';
 
@@ -39,9 +39,56 @@ export function runResultFile(runId) {
     const path = realpathSync(candidate);
     if (!path.startsWith(`${resultsRoot}${sep}`)) return null;
     return { path, stat: statSync(path) };
-  } catch {
-    return null;
+  } catch (error) {
+    if (error.code === 'ENOENT') return null;
+    throw error;
   }
+}
+
+// Watch the directory, not the file: persisting an outcome replaces its inode.
+// Arm before reading so a completion between admission and this read is retained.
+export function terminalRunResultFile(runId, signal) {
+  signal?.throwIfAborted();
+  if (!SAFE_RUN_ID.test(runId)) throw new Error('invalid_run_id');
+  if (!runResultFile(runId)) return Promise.resolve(null);
+  return new Promise((resolve, reject) => {
+    let finished = false;
+    const finish = (error, file) => {
+      if (finished) return;
+      finished = true;
+      watcher.close();
+      signal?.removeEventListener('abort', onAbort);
+      if (error) reject(error);
+      else resolve(file);
+    };
+    const onAbort = () => finish(new Error(`terminal result read for ${runId} was cancelled`, { cause: signal.reason }));
+    const read = () => {
+      try {
+        const file = runResultFile(runId);
+        if (!file) throw new Error(`run ${runId}: persisted result disappeared`);
+        const result = JSON.parse(readFileSync(file.path, 'utf8'));
+        if (result.status === 'running' && result.ok === null) return;
+        if ((result.status === 'finished' || result.status === 'failed') && typeof result.ok === 'boolean') {
+          finish(null, file);
+          return;
+        }
+        throw new Error(`run ${runId}: invalid persisted outcome status=${JSON.stringify(result.status)} ok=${JSON.stringify(result.ok)}`);
+      } catch (error) {
+        finish(new Error(`read terminal result for ${runId}: ${error.message}`, { cause: error }));
+      }
+    };
+    const watcher = watch(RUN_RESULTS_DIR, (event, filename) => {
+      if (event === 'rename' && String(filename) === basename(RUN_RESULTS_DIR)) {
+        finish(new Error(`watch terminal result for ${runId}: result directory was moved or removed`));
+      } else if (filename === null || String(filename) === `${runId}.json`) {
+        read();
+      }
+    });
+    watcher.once('error', (error) => finish(new Error(`watch terminal result for ${runId}: ${error.message}`, { cause: error })));
+    signal?.addEventListener('abort', onAbort, { once: true });
+    if (signal?.aborted) onAbort();
+    else read();
+  });
 }
 
 export function lastJsonLine(stdout) {
