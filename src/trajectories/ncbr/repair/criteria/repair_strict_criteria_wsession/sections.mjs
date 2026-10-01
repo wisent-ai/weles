@@ -3,6 +3,8 @@ import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/
 import { indicatorRepairs, scalarRepairs, taskRepairs } from './repairs.mjs';
 
 export function criteriaRepairs({ page, setReactInputValue, fillBySuffix, fillByExactName, saveVisibleForm, closeVisibleForm, URLS }) {
+const indicatorField = page.locator('[name="rok_osiagniecia_wartosci_docelowej"], [name="opis_metodologii"], [name="opis_sposobu_weryfikacji"]')
+  .filter({ visible: true }).first();
 async function repairScalarSections() {
   const out = [];
   for (const item of scalarRepairs) {
@@ -17,11 +19,11 @@ async function repairScalarSections() {
 
 async function openTaskRow(nr) {
   await page.goto(URLS['6.1'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 6.1 navigation
-  await humanIdlePause('long');
-  const taskRow = page.locator('table tbody tr').filter({ has: page.locator('td').filter({ hasText: new RegExp(`^${nr}\. `) }) }).first();
-  await humanClickLocator(page, taskRow.locator('button[aria-label="overflow-options"]'));
-  await humanIdlePause('deliberate');
-  await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit task row
+  const taskRow = page.locator('table tbody tr').filter({ has: page.locator('td').filter({ hasText: new RegExp(`^${nr}\\. `) }) }).first();
+  const menu = taskRow.locator('button[aria-label="overflow-options"]:not(:disabled):not([aria-disabled="true"])');
+  await menu.waitFor({ state: 'visible' });
+  await humanClickLocator(page, menu);
+  await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).filter({ visible: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit task row
   await page.waitForSelector('[name="nazwa_zadania"]');
 }
 
@@ -42,24 +44,22 @@ async function repairTasks61() {
 
 async function openIndicatorRowExact(name) {
   await page.goto(URLS['9.2'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 9.2 navigation
-  await humanIdlePause('long');
-  const indicatorRow = page.locator('table tbody tr').filter({ has: page.locator('td').filter({ hasText: new RegExp(`^${name}$`) }) }).first();
-  await humanClickLocator(page, indicatorRow.locator('button[aria-label="overflow-options"]'));
-  await humanIdlePause('deliberate');
-  await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit exact indicator row
-  await humanIdlePause('long');
-  await page.waitForSelector('input, textarea');
+  const indicatorRow = page.locator('table tbody tr').filter({ has: page.locator('td').filter({ hasText: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`) }) }).first();
+  const menu = indicatorRow.locator('button[aria-label="overflow-options"]:not(:disabled):not([aria-disabled="true"])');
+  await menu.waitFor({ state: 'visible' });
+  await humanClickLocator(page, menu);
+  await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).filter({ visible: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit exact indicator row
+  await indicatorField.waitFor({ state: 'visible' });
 }
 
 async function openIndicatorRowByIndex(index) {
   await page.goto(URLS['9.2'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 9.2 navigation
-  await humanIdlePause('long');
   const indicatorRow = page.locator('table tbody tr').filter({ has: page.locator('button[aria-label="overflow-options"]') }).nth(index);
-  await humanClickLocator(page, indicatorRow.locator('button[aria-label="overflow-options"]'));
-  await humanIdlePause('deliberate');
-  await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit indicator row by index
-  await humanIdlePause('long');
-  await page.waitForSelector('input, textarea');
+  const menu = indicatorRow.locator('button[aria-label="overflow-options"]:not(:disabled):not([aria-disabled="true"])');
+  await menu.waitFor({ state: 'visible' });
+  await humanClickLocator(page, menu);
+  await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).filter({ visible: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit indicator row by index
+  await indicatorField.waitFor({ state: 'visible' });
 }
 
 async function repairIndicators92() {
