@@ -94,30 +94,30 @@ async function reviewPageClosed(page) {
 async function fillTextLike(s, selector, value) {
   const locator = s.page.locator(selector).first();
   await locator.waitFor({ state: 'visible' });
-  await humanFill(s, locator, value);
+  await humanFill(s.page, locator, value);
 }
 
 async function fillSelect(s, selector, option) {
   const trigger = s.page.locator(selector).first();
   await trigger.waitFor({ state: 'visible' });
-  await humanClickLocator(s, trigger);
+  await humanClickLocator(s.page, trigger);
   const opt = s.page.locator(`${selector} option`, { hasText: option }).first();
   await opt.waitFor({ state: 'visible' });
-  await humanClickLocator(s, opt);
+  await humanClickLocator(s.page, opt);
 }
 
 async function fillCheckbox(s, selector, want) {
   const locator = s.page.locator(selector).first();
   await locator.waitFor({ state: 'visible' });
   const checked = await locator.isChecked();
-  if (checked !== want) await humanClickLocator(s, locator);
+  if (checked !== want) await humanClickLocator(s.page, locator);
 }
 
 async function fillRadio(s, selector, optionValue) {
   const radioSel = `${selector}[value="${optionValue}"]`;
   const locator = s.page.locator(radioSel).first();
   await locator.waitFor({ state: 'visible' });
-  await humanClickLocator(s, locator);
+  await humanClickLocator(s.page, locator);
 }
 
 async function applyField(s, name, spec, payload, summary) {
