@@ -188,9 +188,9 @@ export async function loginViaTwitter(s) {
   // Use findUsableTwitterAccount, NOT getSocialAccount('twitter'). Worker
   // spawns trajectories with ACCOUNT_ID set to the PH row's id, and
   // getSocialAccount honors that env — querying id=<PH_id> AND
-  // platform=twitter, which never matches and returns null. Verified
-  // 2026-05-06: PH upvote/comment via this path FAILed
-  // sso_recovery_failed: no_twitter_account. findUsableTwitterAccount
+  // platform=twitter, which never matches and returns null, so an upvote or
+  // comment via that path fails with sso_recovery_failed:
+  // no_twitter_account. findUsableTwitterAccount
   // queries by platform alone and skips already-linked Twitters.
   const tw = await findUsableTwitterAccount();
   if (!tw) throw new Error('no_twitter_account');

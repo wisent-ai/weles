@@ -25,9 +25,9 @@ const HEADLESS = process.env.HEADLESS === '1' || process.env.AB_HEADLESS === '1'
 const USE_GOOGLE_SSO = process.env.LINKEDIN_LOGIN_GOOGLE_SSO === '1' || !process.env.SVC_PASSWORD;
 console.log(`[trajectory] Using account: ${acct.username}`);
 
-// 2026-05-03: removed WELES_DISABLE_HTTP2 + WELES_USE_STOCK_CHROMIUM defaults
-// (HTTP/1.1 + stock chromium broke the fingerprint stack).
-// NopeCha browser extension disabled 2026-05-06: it never auto-solves
+// No WELES_DISABLE_HTTP2 or WELES_USE_STOCK_CHROMIUM defaults: HTTP/1.1 and
+// stock chromium break the fingerprint stack.
+// The NopeCha browser extension stays off: it never auto-solves
 // because chrome.storage.local.settings.key is empty (no programmatic
 // init). Loading it caused 2/5 launchPersistentContext hangs and the
 // trajectory's 90s extension-wait yields nothing. The NopeCha API
@@ -35,13 +35,12 @@ console.log(`[trajectory] Using account: ${acct.username}`);
 // via direct API calls — no extension needed.
 if (process.env.WELES_NOPECHA_EXT == null) process.env.WELES_NOPECHA_EXT = '0';
 
-// Sticky proxy URL per call. Prefer Oxylabs — verified 2026-05-02 via curl
-// that Oxylabs/PacketStream/direct return HTTP 200 on linkedin.com/login while
-// BrightData returns HTTP 000 (LinkedIn edge-blocks brightdata residential
-// for this customer's IP range).
-// 2026-05-03: removed the unconditional fresh-sticky override. It ALWAYS
-// picked a new Oxylabs sticky session, bypassing metadata.proxy, so every
-// login hit LinkedIn from a different exit IP than the registration session,
+// Sticky proxy URL per call. Prefer Oxylabs: Oxylabs/PacketStream/direct
+// return HTTP 200 on linkedin.com/login while BrightData returns HTTP 000
+// (LinkedIn edge-blocks brightdata residential for this customer's IP
+// range). There is no unconditional fresh-sticky override: one would ALWAYS
+// pick a new Oxylabs sticky session, bypassing metadata.proxy, so every
+// login would hit LinkedIn from a different exit IP than the registration session,
 // which LinkedIn's risk model treats as account-takeover-in-progress and
 // pushes to /checkpoint regardless of credentials. resolveAccountSession
 // (src/account/session.ts) already prefers metadata.proxy when it's not

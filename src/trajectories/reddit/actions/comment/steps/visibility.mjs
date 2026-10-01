@@ -37,9 +37,9 @@ export async function confirmBlockingSignal(s, banSignal, body) {
  * independently of the permalink and lags freshly-posted comments by far
  * longer than 60s — produces false-positive "rate_limited" verdicts on
  * comments that are in fact publicly visible. The permalink JSON
- * /r/<sub>/comments/<post>/<slug>/<id>/.json is real-time. Verified
- * 2026-04-28 with manually-posted oit1fd9: permalink had it within minutes,
- * thread listing took hours. Without a captured comment id the user's own
+ * /r/<sub>/comments/<post>/<slug>/<id>/.json is real-time: the permalink
+ * carries a fresh comment within minutes while the thread listing takes
+ * hours. Without a captured comment id the user's own
  * comment listing is read instead.
  *
  * Returns { publiclyVisible, stillVisibleAtEnd }: seen at least once, and

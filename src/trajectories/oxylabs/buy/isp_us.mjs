@@ -61,7 +61,7 @@ try {
   await shot(s, 'overview_isp');
 
 
-  // 2026-05-12: "Buy now" was removed from /overview/ISP. The new entry to
+  // "Buy now" is gone from /overview/ISP. The entry to
   // expand the plan is "Change IP setup" next to "Current plan 10 IPs".
   const buyBtn = s.page.locator('a:has-text("Change IP setup"), button:has-text("Change IP setup"), button:has-text("Buy now"), a:has-text("Buy now"), button:has-text("Buy")').filter({ visible: true }).first();
   if (!(await isVisible(buyBtn))) { console.log('FAIL: no Buy/Change-IP-setup button on /overview/ISP'); await shot(s, 'no_buy'); process.exit(1); }
@@ -70,7 +70,7 @@ try {
   await shot(s, 'step1_choose_plan');
   console.log(`[trajectory] step1 url=${s.page.url()}`);
 
-  // 2026-05-12: plan-change wizard step 1 = "Choose plan" tier grid with
+  // The plan-change wizard step 1 = "Choose plan" tier grid with
   // 10 IPs preselected as "Current plan". Click Continue to advance to
   // step 2 "Choose locations". (No "Buy random" / "Choose locations" button
   // on this page anymore — only Continue.)

@@ -174,10 +174,10 @@ function resolveAccount(subscription: Item, inventory: Item[], requested?: strin
   const google = candidates.filter((candidate) => candidate.context.login_method === 'google_sso');
   // A row that declares no provider is not a row for another provider. When
   // the account is settled and nothing of this provider or of Google claims
-  // it, the rows that carry that account ARE its login material: on
-  // 2026-09-20 this fleet's vault held exactly such rows and every held
-  // member was refused `skarbiec_login_missing` one step after its account
-  // had been resolved from its own id.
+  // it, the rows that carry that account ARE its login material; otherwise
+  // a vault holding exactly such rows refuses every held member with
+  // `skarbiec_login_missing` one step after its account has been resolved
+  // from its own id.
   const unclaimed = candidates.filter((candidate) => !text(candidate.context.provider));
   const eligible = direct.length
     ? direct

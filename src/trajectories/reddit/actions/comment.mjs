@@ -45,8 +45,8 @@ async function readHandle() {
   // The about.json 404 pre-check that used to live here has a documented
   // false-positive history: Reddit's edge tier returns 404 for about.json
   // requests routed through certain residential proxy IPs even when the
-  // account is healthy and the comment becomes publicly visible (verified
-  // 2026-04-29 with zanewest5941). The reliable shadowban signal is the
+  // account is healthy and the comment becomes publicly visible. The
+  // reliable shadowban signal is the
   // post-submit permalink JSON check, which uses the same fetch path as the
   // comment submission, so only the handle is read here.
   try {

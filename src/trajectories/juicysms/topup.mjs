@@ -23,11 +23,10 @@ try {
   // Wait for the SSO redirect chain to settle on juicysms.com (NOT on
   // accounts.google.com/SetSID). The previous "break the moment URL leaves
   // /login" exited mid-Google-redirect, before the juicysms session cookie
-  // was written — every subsequent goto bounced back to /login. Verified
-  // 2026-05-06 via the addfunds flow.
+  // was written — every subsequent goto bounced back to /login.
   await urlMatching(s.page, /^https:\/\/(www\.)?juicysms\.com\/(?!login)/);
   await humanIdlePause('deliberate');
-  // JuicySMS renamed /payment → /addfunds (verified live 2026-05-06).
+  // JuicySMS's funds page is /addfunds (/payment is gone).
   await s.page.goto('https://juicysms.com/addfunds', { waitUntil: 'domcontentloaded' }).catch(() => {});
   await humanIdlePause('long');
 

@@ -44,7 +44,7 @@ try {
   }
   await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
 
-  // 2026-05-06: hit /feed/ first to confirm auth via primary-nav. The
+  // Hit /feed/ first to confirm auth via primary-nav. The
   // /in/me/edit-form/intro/ page renders an edit-modal-only view that does
   // NOT expose the global nav, so assertAuthed false-fails there even on
   // valid sessions. After /feed/ confirms auth, navigate to the edit URL.
@@ -57,12 +57,12 @@ try {
   }
   try { await assertAuthed('linkedin', s, { label: 'linkedin_edit_profile' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
-  // 2026-05-06: /in/me/edit-form/intro/ deprecated — returns "This page
+  // /in/me/edit-form/intro/ is deprecated — it returns "This page
   // doesn't exist" for fresh accounts. Navigate to /in/me/ profile page
   // and click the pencil edit-intro button to open the modal.
   await s.page.goto('https://www.linkedin.com/in/me/', { waitUntil: 'domcontentloaded' });
   await humanIdlePause('deliberate');
-  // 2026-05-06: button enumeration on /in/me/ shows the edit-intro entry
+  // Button enumeration on /in/me/ shows the edit-intro entry
   // is `<a aria-label="Edit profile">` — same icon-only pencil that used
   // to open /in/me/edit-form/intro/. Clicking it opens the intro modal
   // in-page.
@@ -77,7 +77,7 @@ try {
   } else {
     console.log('[li-profile] edit-intro button not found on /in/me/ — falling through to field probe');
   }
-  // 2026-05-06: dump landing URL + page title + first 600 chars of body
+  // Dump landing URL + page title + first 600 chars of body
   // text + every visible input/textarea so future selector drifts surface
   // in the log instead of silent no-ops.
   const landingUrl = s.page.url();
@@ -113,11 +113,10 @@ try {
   // We split character.name on the first space for first/last.
   const [firstName, ...rest] = targetName.split(/\s+/);
   const lastName = rest.join(' ');
-  // 2026-05-08: drop visible:true filter — Headline + Industry are BELOW
+  // No visible:true filter — Headline + Industry are BELOW
   // viewport at modal-open. Industry* (required) silently aborts save
-  // when empty — verified live in webm frame: red "Industry is a required
-  // field" inline error.
-  // 2026-05-08: positional matching by visible-text-input order. Verified
+  // when empty: a red "Industry is a required field" inline error.
+  // Positional matching by visible-text-input order. The
   // live form: index 0=First name, 1=Last name, 2=Additional name (skip),
   // 3=Headline (textarea), 4=Industry typeahead. getByLabel('Headline')
   // returned 0 because LinkedIn doesn't use real <label for> on it.
@@ -147,7 +146,7 @@ try {
 
   if (writes.length) {
     console.log(`[li-profile] writes: ${writes.join('; ')}`);
-    // 2026-05-07: previous flow clicked Save and saw the modal stay open;
+    // A flow that clicks Save can see the modal stay open; the
     // network log of that run showed ONLY telemetry POSTs after click,
     // never the save mutation. Root cause: typing leaves focus IN the last
     // input, and LinkedIn's React form binds the dirty flag to the blur
@@ -172,7 +171,7 @@ try {
       // Watch for the save mutation POST. The form is a React Server
       // Component; saving fires a POST to /flagship-web/rsc-action/.
       const savePost = s.page.waitForResponse((r) => r.request().method() === 'POST' && /rsc-action.*ProfileEditIntroForm|rsc-action.*editProfile|rsc-action.*action=update/.test(r.url())).catch(() => null);
-      // 2026-05-07: humanClickLocator on the visible Save button produced
+      // humanClickLocator on the visible Save button can produce
       // zero mutation POSTs across multiple runs. RSC forms commonly
       // submit via form.requestSubmit(button) not button.click(); call
       // that directly so the right onSubmit/action handler fires.
@@ -238,7 +237,7 @@ try {
         await humanIdlePause('deliberate');
         const addPhotoBtn = s.page.locator('a[aria-label="Add photo" i], button[aria-label="Add photo" i]').filter({ visible: true }).first();
         if (await addPhotoBtn.count()) { await humanClickLocator(s.page, addPhotoBtn); await humanIdlePause('deliberate'); }
-        // 2026-05-08: modal exposes "Upload photo" button (not file input).
+        // The modal exposes an "Upload photo" button (not file input).
         // Intercept filechooser BEFORE click.
         const upBtn = s.page.locator('button:has-text("Upload photo"), label:has-text("Upload photo")').filter({ visible: true }).first();
         const fcP = await upBtn.count() ? s.page.waitForEvent('filechooser').catch(() => null) : null;
@@ -268,7 +267,7 @@ try {
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);
 } finally {
-  // 2026-05-08 user request: WELES_KEEP_OPEN=1 holds the browser open
+  // WELES_KEEP_OPEN=1 holds the browser open
   // after the trajectory finishes so the human can take over and debug
   // the form state directly. Default behavior (no env var) closes as
   // before so cron + worker calls aren't affected.

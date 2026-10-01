@@ -2,7 +2,7 @@ import { humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 
 export async function linkedinSubmitComment(s, text) {
-  // 2026-05-06: legacy container selectors gone in the new design system.
+  // Legacy container selectors are gone in the new design system.
   // Anchor on the React-Like button (semantic + stable) and ascend to its
   // feed-post wrapper. Empty-feed accounts (fresh registrations with no
   // following) get an early benign-no-op so we don't 30s-timeout hunting
@@ -46,7 +46,7 @@ export async function linkedinSubmitPost(s, text) {
   const startPost = s.page.locator('[aria-label="Start a post"], button.share-box-feed-entry__trigger, button:has-text("Start a post")').filter({ visible: true }).first();
   await startPost.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, startPost);
-  // 2026-05-06: composer migrated off Quill (.ql-editor / div[role="textbox"]).
+  // The composer migrated off Quill (.ql-editor / div[role="textbox"]).
   // Match a wider set of editor shapes — data-testid is the stable LinkedIn
   // 2026 attribute; legacy + bare contenteditable kept as fall-throughs.
   const editor = s.page.locator('[data-testid*="editor"][contenteditable="true"], [data-testid*="composer"][contenteditable="true"], div[role="textbox"][contenteditable="true"], div.ql-editor[contenteditable="true"], [contenteditable="true"]:not([role="combobox"]):not([role="textbox"])').filter({ visible: true }).first();

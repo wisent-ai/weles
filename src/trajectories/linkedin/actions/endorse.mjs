@@ -35,7 +35,7 @@ try {
     }
   }
   // First connection card has an anchor pointing to /in/<vanity>/. Pick it.
-  // 2026-05-06: data-test-app-aware-link is gone in the new design system —
+  // data-test-app-aware-link is gone in the new design system —
   // use plain a[href*="/in/"] which matches both old and new markup. Detect
   // empty-connections state explicitly and exit with a clear precondition
   // message instead of a 30s locator timeout (fresh accounts have 0

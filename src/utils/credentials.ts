@@ -174,8 +174,8 @@ export async function platformAdminSessionReady(credentialId: string): Promise<{
 
 export type { ServiceCredential };
 
-// resolveAccountSession + AccountSession moved to src/account/session.ts on
-// 2026-05-03 (file-size cap). Re-exported here so callers using the legacy
+// resolveAccountSession + AccountSession live in src/account/session.ts
+// (file-size cap). Re-exported here so callers using the legacy
 // `import { resolveAccountSession } from '../utils/credentials.js'` still work.
 export { resolveAccountSession } from '../account/session.js';
 export type { AccountSession } from '../account/session.js';

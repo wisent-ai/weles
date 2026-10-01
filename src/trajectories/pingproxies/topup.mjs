@@ -96,12 +96,12 @@ try {
 
   
 
-  // Click "Show More Payment Options" then the saved card option (cited
-  // 2026-05-04: /billing/payment-methods has Mastercard ****2430 saved as
-  // Default). The home-dashboard Add balance modal exposes this via the
-  // "Show More Payment Options" expander. Without explicitly selecting a
-  // saved card, the modal's "Add store credit" click is silently aborted
-  // by byteful's React onClick — verified across 15 iterations.
+  // Click "Show More Payment Options" then the saved card option
+  // (/billing/payment-methods holds the saved default card). The
+  // home-dashboard Add balance modal exposes this via the "Show More
+  // Payment Options" expander. Without explicitly selecting a saved card,
+  // the modal's "Add store credit" click is silently aborted by byteful's
+  // React onClick.
   const showMore = s.page.locator('button:has-text("Show More Payment Options"), a:has-text("Show More Payment Options")').filter({ visible: true }).first();
   if (await showMore.isVisible().catch(() => false)) {
     await showMore.evaluate((el) => (el).click());

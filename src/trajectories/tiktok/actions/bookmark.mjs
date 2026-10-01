@@ -36,8 +36,8 @@ try {
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   // Bookmark/favorite button: data-e2e="video-save" on the right-hand
   // action rail. aria-pressed flips to "true" after a successful save.
-  // 2026-05-02: TikTok video-page DOM uses aria-label-only buttons for the
-  // right-rail action items (no data-e2e). Probe showed:
+  // The TikTok video-page DOM uses aria-label-only buttons for the
+  // right-rail action items (no data-e2e):
   //   <button aria-label="Add to Favourites 218 added to Favourites" class="css-...ButtonActionItem ...">
   // Match by aria-label substring; keep older data-e2e selectors for the
   // foryou rail variant.
