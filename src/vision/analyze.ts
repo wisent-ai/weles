@@ -97,11 +97,11 @@ export async function askJedenAboutImage(screenshot: Buffer, question: string, t
   writeFileSync(imgPath, screenshot);
 
   // A question Jeden could not answer is reported as the failure it is, after
-  // the vision log has recorded it. On 2026-09-10 a keeper run on the
-  // dedicated host asked forty questions in a row, received an empty string
-  // for each because every Jeden session died before producing output, and
-  // ended with "browser agent exceeded 40 steps" - the only place the cause
-  // was written was this directory's json files, which nobody reads mid-run.
+  // the vision log has recorded it. A keeper run can ask forty questions in
+  // a row, receive an empty string for each because every Jeden session died
+  // before producing output, and end with "browser agent exceeded 40 steps"
+  // - the only place the cause is written being this directory's json files,
+  // which nobody reads mid-run.
   let answer = '';
   let error: string | null = null;
   let router: Record<string, unknown> | undefined;

@@ -5,8 +5,8 @@
 // container styled `scroll-behavior: smooth` then animates for several
 // hundred milliseconds, and a bounding box read in that window is the
 // element's pre-scroll position — outside the viewport, or on top of a
-// neighbour. On 2026-09-10 every click on "Chat with Victoria Lane" in the
-// app.wisent.com Featured lane reported success and navigated nowhere: the
+// neighbour. Every click on a tile in a smooth-scrolling lane then
+// reports success and navigates nowhere: the
 // tile sat off the right edge of a smooth-scrolling lane, the box was read
 // mid-animation, and the click landed on whatever card was under those
 // coordinates at that moment. The box is read again until two consecutive

@@ -3,8 +3,8 @@
 // src/proxy/config.ts module. Account state is a Skarbiec record; if an older
 // item has no persona yet, generate one and persist it back to that item.
 //
-// Extracted from src/utils/credentials.ts on 2026-05-03; that file crossed
-// the 300-line cap. credentials.ts re-exports resolveAccountSession +
+// Extracted from src/utils/credentials.ts when that file crossed the
+// 300-line cap. credentials.ts re-exports resolveAccountSession +
 // AccountSession for backwards-compat with all existing callers.
 
 import type { Persona } from '../browser/persona.js';

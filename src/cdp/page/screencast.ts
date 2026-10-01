@@ -86,8 +86,8 @@ export class CDPScreencast {
    * Frames are written `frame_000001.png` upward, and ffmpeg's image
    * demuxer begins looking at `frame_000000.png`, so every stitch this
    * product ever attempted answered `Error opening input: No such file or
-   * directory` and every capture reported no video. On 2026-09-20 that
-   * swallowed 6,032 frames of app.wisent.com in one run.
+   * directory` and every capture reported no video, swallowing thousands
+   * of frames of a run.
    *
    * The failure used to be discarded: a bare `ffmpeg` through a shell,
    * returning an empty string on any error, so a worker whose PATH has no

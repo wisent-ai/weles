@@ -19,8 +19,8 @@ export const SERVICE_CONTRACTS = Object.freeze({
   // The account the fleet names claude-wisent-google-sso: the three live claude
   // subscriptions were minted by it, and its login lives in its own vault item.
   // Same optional-seed shape as the item above: a live sign-in for this account
-  // reached Google's second-factor prompt on 2026-08-17 and stopped there, so the
-  // contract has to be able to carry a seed once the vault item holds one.
+  // can reach Google's second-factor prompt and stop there, so the contract
+  // has to be able to carry a seed once the vault item holds one.
   claudeWisentGoogleSso: Object.freeze({ consumer: 'weles-claude-wisent-google-sso-client', item: 'claude-wisent-google-sso', fields: LOGIN_WITH_TOTP_FIELDS }),
   // Every ChatGPT Business seat has its own login contract. Sharing googleSso
   // here would make a named Codex reauth mint the currently selected Google

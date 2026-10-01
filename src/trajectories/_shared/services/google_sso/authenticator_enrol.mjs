@@ -24,10 +24,9 @@ const PREVIEW_CHARS = 1600;
  *
  * `hl=en` is load-bearing, not decoration: every step below recognises the
  * page by its English labels, and Google renders this page in the account's
- * own language. On 2026-09-20 `controlyourai@gmail.com` answered in Polish —
- * "Skonfiguruj aplikację" where this module looks for "Set up authenticator" —
- * so a run that had signed in correctly still refused with
- * `setup_action_not_found` (run 104832e3-adc2-49eb-880e-d67c974298f3). */
+ * own language: an account answering in Polish shows "Skonfiguruj aplikację"
+ * where this module looks for "Set up authenticator", so a run that signed
+ * in correctly still refuses with `setup_action_not_found`. */
 export const AUTHENTICATOR_SETUP_URL = 'https://myaccount.google.com/two-step-verification/authenticator?hl=en';
 
 export async function bodyText(page) {
@@ -139,8 +138,7 @@ export async function confirmSetupCode(page, wait, secret) {
   // page's prose. This page always explains that an authenticator app "gets
   // verification codes", so a text test for that phrase reported the field as
   // already shown, skipped the Next that reveals it, and refused with
-  // `setup_code_input_not_found` while Google was still showing the setup key
-  // — measured on 2026-09-20 in run 32d5fc5a-1d20-42e1-9d2d-752733ef86d0.
+  // `setup_code_input_not_found` while Google was still showing the setup key.
   if (!(await input.isVisible().catch(() => false))) {
     await clickByText(page, /^Next$/i, 'next');
     await wait();

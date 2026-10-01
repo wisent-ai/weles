@@ -120,8 +120,8 @@ function resolveAccount(subscription: Item, inventory: Item[], requested?: strin
     const sameProvider = available.filter((candidate) =>
       providerName(text(candidate.context.provider)) === provider);
     accountRef = accountFromSubscriptionId(subscriptionId, sameProvider);
-    // A login row that declares no provider — every row in this fleet's
-    // vault on 2026-09-20 — is invisible to the filter above, and every
+    // A login row that declares no provider — which can be every row in a
+    // fleet's vault — is invisible to the filter above, and every
     // member imported before accounts were recorded beside their grants
     // stayed `subscription_identity_missing` however exactly its own id
     // named the account. The suffix match is exact and yields nothing
@@ -133,12 +133,11 @@ function resolveAccount(subscription: Item, inventory: Item[], requested?: strin
   }
   if (!accountRef) {
     const names = available.map(({ item }) => itemId(item));
-    // The way out belongs in the sentence. On 2026-09-20
-    // `brama subscription sign-in claude-code --subscription-id
-    // brama-sub-wisent-app-claude-secondary` printed the bare refusal, so the
-    // logins had to be found with `skarbiec list`; and this vault's rows
-    // declare no provider at all, so naming all twenty-three — captcha
-    // solvers, proxies, an example row — would hide them again. A provider's
+    // The way out belongs in the sentence. A `brama subscription sign-in`
+    // that printed the bare refusal left the logins to be found with
+    // `skarbiec list`; and a vault whose rows declare no provider at all
+    // would have every row named — captcha
+    // solvers, proxies, an example row — which hides them again. A provider's
     // own logins are named when the vault declares any, and when it declares
     // none that is the finding, because it is what has to be repaired before
     // any sign-in can choose.
@@ -146,9 +145,9 @@ function resolveAccount(subscription: Item, inventory: Item[], requested?: strin
       .filter((candidate) => providerName(text(candidate.context.provider)) === provider)
       .map(({ item }) => itemId(item));
     // Naming the way out is not the same as naming the command that takes
-    // it: on 2026-09-20 three `brama-sub-wisent-app-claude-*` subscriptions
-    // failed here every pass, and the sentence left the reader to discover
-    // that a subscription item's account is recorded as a tag on that item.
+    // it: subscriptions can fail here every pass while the sentence leaves
+    // the reader to discover that a subscription item's account is recorded
+    // as a tag on that item.
     const recordIt = `record the account on the subscription item itself — `
       + `stado credentials item retag --host <VAULT HOST> ${subscriptionItem} --tags `
       + `"<its current tags>,brama:login:<login item>" (omit --tags to read them first)`;

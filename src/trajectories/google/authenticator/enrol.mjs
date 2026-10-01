@@ -33,8 +33,8 @@ const RESULT_FILE = join(RESULT_DIR, 'result.json');
 // Every exit of this trajectory goes through here, so a missing directory
 // turns each one into `ENOENT … /runs/google-authenticator-enrol/result.json`
 // and the real verdict — including the refusals this flow is built to report —
-// is replaced by a crash. Measured on 2026-09-20: the browser signed in and
-// the run still died at its first report. The directory is created here, where
+// is replaced by a crash: the browser signs in and the run still dies at
+// its first report. The directory is created here, where
 // the file is written, rather than at import time, because the run output root
 // is created per run.
 function report(result) {

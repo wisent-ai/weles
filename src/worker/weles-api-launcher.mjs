@@ -43,11 +43,11 @@ retirePredecessors();
 // is not a lock: the API's bind arbitrates racing starts. Neither contender
 // creates, removes, or stops the shared Skarbiec broker.
 //
-// What it says matters as much as what it does. On 2026-09-21 Brama's
-// sign-in for one of the operator's five accounts died with
-// `hyper::Error(IncompleteMessage)` against this port, and this unit's whole
-// log was `port 8788 is already served: standing by`, once a minute, for
-// hours: no holder, no health, and `stado service status weles-api` reading
+// What it says matters as much as what it does. A gateway sign-in can die
+// with `hyper::Error(IncompleteMessage)` against this port while this
+// unit's whole log is `port 8788 is already served: standing by`, once a
+// minute, for hours: no holder, no health, and `stado service status
+// weles-api` reading
 // `active` the entire time. So the holder is named, and it is asked whether
 // it is a Weles at all. A stranger on this port is not a reason to stand by
 // quietly — the unit exits nonzero so the fleet sees a service that is not

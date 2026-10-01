@@ -71,9 +71,8 @@ export async function signIn(page, wait, login) {
   // (`/v3/signin/challenge/pwd`) while the session cookie is still live.
   // Navigating to ServiceLogin from there throws the challenge away: Google
   // sends the profile straight back to the account, this function reports
-  // success, and the settings page demands re-authentication again —
-  // measured on 2026-09-20 in runs 58bbd595 and a4ccd398. So a challenge
-  // already on screen is answered where it stands.
+  // success, and the settings page demands re-authentication again. So a
+  // challenge already on screen is answered where it stands.
   if (!PASSWORD_CHALLENGE.test(page.url())) {
     await page.goto('https://accounts.google.com/ServiceLogin?hl=en', { waitUntil: 'domcontentloaded' });
     await humanIdlePause('deliberate');

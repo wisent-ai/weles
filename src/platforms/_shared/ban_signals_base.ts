@@ -48,8 +48,8 @@ export async function detectFromConfig(
   //    body content: 407/Proxy Auth → proxy_auth_failed; HTTP 4xx → ip_blocked;
   //    ERR_TUNNEL/timeout → proxy_failed. Without this branch every detector
   //    returned 'healthy' on these pages because no platform-ban keywords
-  //    appear, masking proxy-side failures fleet-wide (Oxylabs traffic-limit
-  //    incident on 2026-04-26 was a 2-hour-long misdiagnosis driven by this).
+  //    appear, masking proxy-side failures fleet-wide (a provider
+  //    traffic-limit outage reads as hours of misdiagnosis this way).
   if (url.startsWith('chrome-error://')) {
     let chromeBody = '';
     try { chromeBody = (await page.evaluate(() => document.body?.innerText ?? '').catch(() => '')) || ''; } catch { /* noop */ }

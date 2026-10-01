@@ -15,8 +15,8 @@ import { resolveProxy } from '../../../../dist/proxy/config.js';
 // The override path generates a fresh sessId by design — ONLY first login or
 // recovery after the registration sticky burned. Steady-state logins must
 // hit the same exit IP as the prior successful login.
-// Any static-residential ISP host counts (Decodo isp.decodo.com canonical
-// since 2026-05-21, plus legacy isp.oxylabs.io / disp.oxylabs.io for accounts
+// Any static-residential ISP host counts (Decodo isp.decodo.com canonical,
+// plus legacy isp.oxylabs.io / disp.oxylabs.io for accounts
 // still pinned there). The generic 'isp us' filter on the fresh-pick path
 // lets the canonical Decodo win by being first in the providers list.
 const STATIC_ISP_RE = /(^|\.)(isp\.oxylabs\.io|disp\.oxylabs\.io|isp\.decodo\.com)$/i;

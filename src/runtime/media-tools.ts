@@ -8,9 +8,9 @@
  * not on it. Every recording then ended as
  * `record_seconds N produced no video: the screencast captured no frames or
  * ffmpeg could not stitch them`, a sentence that cannot tell a browser that
- * sent no frames from a stitcher that was never found, and on 2026-09-20 that
- * was the whole diagnosis available for a capture which had otherwise executed
- * every one of its steps against app.wisent.com.
+ * sent no frames from a stitcher that was never found, and that is the whole
+ * diagnosis available for a capture which has otherwise executed every one
+ * of its steps.
  *
  * So the tool is resolved, not assumed. The search is over places one binary
  * may be installed, never over alternative implementations: the first path
@@ -109,7 +109,7 @@ const REQUIRED_FFMPEG_ENCODER = 'libvpx';
  * demuxer: it exists to encode frames Playwright pipes it, not to read a
  * directory. Handed one it answers `Error opening input: No such file or
  * directory` about a directory that is demonstrably full of frames, which
- * on 2026-09-20 read as a missing recording four separate times.
+ * reads as a missing recording.
  */
 const REQUIRED_FFMPEG_DEMUXER = 'image2';
 

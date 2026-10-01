@@ -1,8 +1,8 @@
 /**
  * Who already holds the API port, and whether that holder is a Weles at all.
  *
- * On 2026-09-21 this unit logged that the port was already served, once a
- * minute for hours, while Brama failed against that very port, because the
+ * This unit used to log that the port was already served, once a minute
+ * for hours, while the gateway failed against that very port, because the
  * holder was never named and never asked what it was. It is asked now.
  */
 
