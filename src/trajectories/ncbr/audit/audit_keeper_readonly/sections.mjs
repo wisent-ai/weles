@@ -14,21 +14,21 @@ export async function loginIfNeeded() {
   if (!state.hasMail || !state.hasPassword) return { status: 'already_authenticated_or_other_page', state };
   if (!EMAIL || !PASSWORD) return { status: 'needs_credentials', state };
 
-  await send({ action: 'fill', selector: '#mail, input[name="mail"]', text: EMAIL }, 120000);
-  await send({ action: 'humanidle', kind: 'short' }, 60000).catch(() => null);
-  await send({ action: 'fill', selector: '#password, input[name="password"]', text: PASSWORD }, 120000);
-  await send({ action: 'humanidle', kind: 'short' }, 60000).catch(() => null);
+  await send({ action: 'fill', selector: '#mail, input[name="mail"]', text: EMAIL });
+  await send({ action: 'humanidle', kind: 'short' });
+  await send({ action: 'fill', selector: '#password, input[name="password"]', text: PASSWORD });
+  await send({ action: 'humanidle', kind: 'short' });
   const check = await read(`(() => {
     const c = document.querySelector('#isStatuteAccepted, input[name="isStatuteAccepted"]');
     return c ? { present: true, checked: c.checked } : { present: false };
   })()`);
   if (check.present && !check.checked) {
-    await send({ action: 'click', selector: '#isStatuteAccepted, input[name="isStatuteAccepted"]' }, 120000);
-    await send({ action: 'humanidle', kind: 'short' }, 60000).catch(() => null);
+    await send({ action: 'click', selector: '#isStatuteAccepted, input[name="isStatuteAccepted"]' });
+    await send({ action: 'humanidle', kind: 'short' });
   }
-  await send({ action: 'click', selector: '#login-btn, button:has-text("Zaloguj")' }, 120000);
-  await send({ action: 'humanidle', kind: 'long' }, 60000).catch(() => null);
-  await send({ action: 'humanidle', kind: 'long' }, 60000).catch(() => null);
+  await send({ action: 'click', selector: '#login-btn, button:has-text("Zaloguj")' });
+  await send({ action: 'humanidle', kind: 'long' });
+  await send({ action: 'humanidle', kind: 'long' });
   const after = await read(`(() => ({ url: location.href, body: (document.body.innerText || '').slice(0, 1000) }))()`);
   return { status: after.url.includes('/logowanie') ? 'still_login_page' : 'logged_in', after };
 }
@@ -77,8 +77,8 @@ export async function dumpSection(label, id) {
 
 export async function inspectDocuments() {
   await nav(PROJECT_URL);
-  await send({ action: 'click', selector: 'button:has-text("Dokumenty"), a:has-text("Dokumenty"), [role="button"]:has-text("Dokumenty")' }, 120000);
-  await send({ action: 'humanidle', kind: 'long' }, 60000).catch(() => null);
+  await send({ action: 'click', selector: 'button:has-text("Dokumenty"), a:has-text("Dokumenty"), [role="button"]:has-text("Dokumenty")' });
+  await send({ action: 'humanidle', kind: 'long' });
   const state = await read(`(() => {
     const body = document.body.innerText || '';
     return {
@@ -98,9 +98,9 @@ export async function inspectDocuments() {
 
 export async function validateOnly() {
   await nav(PROJECT_URL);
-  await send({ action: 'click', selector: 'button:has-text("Sprawdź wniosek")' }, 120000);
-  await send({ action: 'humanidle', kind: 'long' }, 60000).catch(() => null);
-  await send({ action: 'humanidle', kind: 'long' }, 60000).catch(() => null);
+  await send({ action: 'click', selector: 'button:has-text("Sprawdź wniosek")' });
+  await send({ action: 'humanidle', kind: 'long' });
+  await send({ action: 'humanidle', kind: 'long' });
   const state = await read(`(() => {
     const body = document.body.innerText || '';
     return {
@@ -144,7 +144,7 @@ export async function dumpCurrent(label) {
 
 export async function navigateByVisibleLabel(label) {
   await nav(PROJECT_URL);
-  await send({ action: 'click', selector: `text=${JSON.stringify(label)}` }, 120000);
-  await send({ action: 'humanidle', kind: 'long' }, 60000).catch(() => null);
+  await send({ action: 'click', selector: `text=${JSON.stringify(label)}` });
+  await send({ action: 'humanidle', kind: 'long' });
   return await dumpCurrent(label);
 }
