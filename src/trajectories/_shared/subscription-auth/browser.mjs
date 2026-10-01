@@ -5,7 +5,7 @@ import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.
 import { doGoogleSso as codexGoogle, establishGoogleSession } from '../../codex/google_sso.mjs';
 import { doGoogleSso as claudeGoogle } from '../../claude/google_sso.mjs';
 import { enterGoogleCredentials } from '../../codex/google_sso/google_credentials.mjs';
-import { clickEmailRow } from '../../codex/google_sso/page_controls.mjs';
+import { clickGisTarget, observeGisPage } from '../../claude/google_sso/gis_state/page_reading.mjs';
 import { AuthenticationFailure } from './oauth.mjs';
 
 const controls = { humanFill, humanType, humanClickLocator, humanIdlePause };
@@ -48,8 +48,14 @@ async function approveDevice(session, transaction, login, mark) {
         if (await emailField.isVisible()) {
           await enterGoogleCredentials({ page, login, mark, ...controls });
         } else {
-          const account = page.locator('[data-identifier]').filter({ hasText: login.email }).first();
-          if (await account.isVisible()) await clickEmailRow(page, login.email);
+          const view = await observeGisPage(page, login.email);
+          if (view?.host === 'accounts.google.com' && view.accountRow) {
+            const hit = await clickGisTarget(page, 'account_row');
+            if (!hit.clicked) {
+              throw new AuthenticationFailure('gis_control_unavailable', 'google_account_chooser',
+                `The requested Google account row was not clicked: ${hit.reason}`);
+            }
+          }
         }
         continue;
       }

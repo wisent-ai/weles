@@ -10,11 +10,12 @@
 // entry it starts from, the authenticator code that entry answers 2FA with, the
 // two mailbox steps OpenAI demands of a new identity, and the Codex consent page
 // are modules beside it.
-import { clickEmailRow, clickUseAnotherAccount, fillAndVerify, navEval, waitForEnabledThenClick } from './google_sso/page_controls.mjs';
+import { fillAndVerify, navEval, waitForEnabledThenClick } from './google_sso/page_controls.mjs';
 import { enterGoogleCredentials, establishGoogleSession } from './google_sso/google_credentials.mjs';
 import { acceptPendingWorkspaceInvite, completeEmailVerification } from './google_sso/openai_mailbox.mjs';
 import { handleCodexConsentPage, isTerminalHost } from './google_sso/openai_consent.mjs';
 import { pageSettled, urlMatching } from '../_shared/page/settled.mjs';
+import { clickGisTarget, observeGisPage } from '../claude/google_sso/gis_state/page_reading.mjs';
 
 export { establishGoogleSession } from './google_sso/google_credentials.mjs';
 export { waitForEnabledThenClick } from './google_sso/page_controls.mjs';
@@ -40,11 +41,15 @@ export async function doGoogleSso({
   // Loading | blank). Bounded state machine: poll for a terminal
   // marker; if none, reload authorizeUrl and retry.
   // retry-allowed: bounded recovery for the non-deterministic claude.ai GIS handoff, not a flaky retry.
-  let popupPage = null;
+  const popupPages = new Set();
   let chooserFreshTried = false;
   let inviteTried = false;
-  const onPopup = (p) => { if (!popupPage) popupPage = p; };
-  page.context().on('page', onPopup);
+  const onPopup = (p) => {
+    if (popupPages.has(p)) return;
+    popupPages.add(p);
+    p.on('popup', onPopup);
+  };
+  page.on('popup', onPopup);
   // Where the handoff actually went. The failure below used to carry only the
   // page it ended on, and an operator reading "no consent/code after 4
   // attempts" at auth.openai.com/log-in could not tell a Google button that
@@ -54,6 +59,51 @@ export async function doGoogleSso({
   const trail = [];
   const step = (label) => {
     if (trail[trail.length - 1] !== label) trail.push(label);
+  };
+  const googleActions = new WeakMap();
+  const clickTagged = async (active, kind) => {
+    const hit = await clickGisTarget(active, kind);
+    if (!hit.clicked) {
+      const current = new URL(active.url());
+      const error = new Error(`gis_continue: ${kind} was not clicked at ${current.host}${current.pathname}: ${hit.reason}`);
+      error.code = 'gis_control_unavailable';
+      throw error;
+    }
+  };
+  const advanceGoogleChooser = async (active) => {
+    const view = await observeGisPage(active, login.email);
+    if (!view || view.host !== 'accounts.google.com'
+        || !/accountchooser|oauthchooseaccount|identifier|\/signin\/oauth|\/o\/oauth2/.test(view.pathname)) return false;
+    const current = new URL(active.url());
+    if (current.host !== view.host || current.pathname !== view.pathname) return true;
+    let kind = null;
+    if (view.accountRow) kind = 'account_row';
+    else if (view.identifierField) kind = 'identifier';
+    else if (view.otherAccountRow) kind = 'other_account';
+    else if (view.rowCount > 0) {
+      const error = new Error(`gis_continue: requested Google account is not offered and no other-account control is available at ${view.host}${view.pathname}; visible account rows=${view.rowCount}`);
+      error.code = 'google_account_not_offered';
+      throw error;
+    } else if (view.googlePrimary && !view.passwordField) kind = 'primary';
+    if (!kind) return true;
+    const key = `${active.url()}|${kind}`;
+    if (googleActions.get(active) === key) return true;
+    googleActions.set(active, key);
+    if (kind === 'identifier') {
+      if (chooserFreshTried) {
+        const error = new Error(`gis_continue: Google offered identifier entry again at ${view.host}${view.pathname}`);
+        error.code = 'google_identifier_repeated';
+        throw error;
+      }
+      chooserFreshTried = true;
+      await enterGoogleCredentials({ page: active, login, mark, humanFill, humanClickLocator, humanIdlePause, humanType });
+    } else {
+      await clickTagged(active, kind);
+      mark(kind === 'account_row' ? 'gis_account_chooser'
+        : kind === 'other_account' ? 'gis_use_another_account' : 'gis_confirm_continue');
+    }
+    step(`${kind}@${view.host}${view.pathname}`);
+    return true;
   };
   try {
     for (let attempt = 0; attempt < 4; attempt += 1) {
@@ -78,24 +128,26 @@ export async function doGoogleSso({
           }
         }
       }
-      try {
-        await waitForEnabledThenClick(page, /continue with google|^google$/i);
+      const gate = await observeGisPage(page, login.email);
+      if (gate?.gisButton) {
+        await clickTagged(page, 'gis_button');
         step(`a${attempt}:clicked-continue-with-google`);
-      } catch (e) {
-        step(`a${attempt}:no-continue-with-google`);
-        console.log(`[google_sso] no continue-with-google a${attempt}: ${e.message}`);
+      } else {
+        step(`a${attempt}:continue-with-google-not-offered`);
       }
-      let popupHandled = false;
       for (let i = 0; i < 200; i += 1) {
-        if (popupPage && !popupHandled) {
-          popupHandled = true;
-          console.log(`[google_sso] GIS popup: ${popupPage.url()}`);
-          await popupPage.waitForLoadState('domcontentloaded');
-          mark('gis_account_chooser_popup');
-          await clickEmailRow(popupPage, login.email);
-          await humanIdlePause('long');
-          try { await waitForEnabledThenClick(popupPage, /^(continue|dalej|next)$/i); }
-          catch (e) { console.log(`[google_sso] no popup consent: ${e.message}`); }
+        for (const popupPage of popupPages) {
+          if (popupPage.isClosed()) continue;
+          try {
+            await popupPage.waitForLoadState('domcontentloaded');
+          } catch (error) {
+            if (popupPage.isClosed()) continue;
+            throw error;
+          }
+          if (await handleCodexConsentPage(popupPage, mark)) { mark('openai_callback'); return popupPage; }
+          const current = new URL(popupPage.url());
+          if (isTerminalHost(current.host, current.href)) { mark('openai_callback'); return popupPage; }
+          await advanceGoogleChooser(popupPage);
         }
         const st = await navEval(page, () => {
           const b = Array.from(document.querySelectorAll('button,[role="button"]'));
@@ -129,30 +181,10 @@ export async function doGoogleSso({
           await humanIdlePause('deliberate');
           continue;
         }
-        // In-page Google account chooser (happens when GIS has a session but
-        // needs the user to pick the account). Select the configured email,
-        // then click Continue to reach the OAuth consent page.
-        if (st.host === 'accounts.google.com' && /accountchooser|identifier/.test(st.pathname)) {
-          try {
-            await clickEmailRow(page, login.email);
-            mark('gis_account_chooser');
-            await waitForEnabledThenClick(page, /^(continue|dalej|next)$/i);
-            await humanIdlePause('long');
-          } catch (e) {
-            console.log(`[google_sso] accountchooser handling (path=${st.pathname}): ${e.message}`);
-            // First-time account: no matching chooser row. Two page shapes are
-            // possible: (a) a row chooser needing "Use another account", or (b)
-            // the identifier (email-input) page with no rows at all. Try the
-            // button (harmless no-op on shape b), then always try entering the
-            // account fresh (fills the email input on either shape). Once only.
-            if (!chooserFreshTried) {
-              chooserFreshTried = true;
-              try { await clickUseAnotherAccount(page); mark('gis_use_another_account'); await humanIdlePause('long'); }
-              catch (e2) { console.log(`[google_sso] no use-another-account (path=${st.pathname}): ${e2.message}`); }
-              await enterGoogleCredentials({ page, login, mark, humanFill, humanClickLocator, humanIdlePause, humanType });
-              await humanIdlePause('long');
-            }
-          }
+        // An identifier field, an exact account row and an affirmative control
+        // are different offers. Absence of a row is not a failed timed search.
+        if (await advanceGoogleChooser(page)) {
+          await pageSettled(page);
           continue;
         }
         if (st.consent) {
@@ -179,6 +211,7 @@ export async function doGoogleSso({
     d.trail = trail;
     throw new Error(`gis_continue: no consent/code after 4 attempts diag=${JSON.stringify(d)}`);
   } finally {
-    page.context().off('page', onPopup);
+    page.off('popup', onPopup);
+    for (const popupPage of popupPages) popupPage.off('popup', onPopup);
   }
 }
