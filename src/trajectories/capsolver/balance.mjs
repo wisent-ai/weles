@@ -2,12 +2,15 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, parseBalanceFromText, patchServiceBalance, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { urlMatching } from '../_shared/page/settled.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
 const LOGIN_URL = 'https://dashboard.capsolver.com/passport/login';
 const DISPLAY_NAME = 'Capsolver';
+// Any URL that is no longer the passport login page.
+const LEFT_LOGIN = /^(?!.*\/passport\/login)/;
 
 const login = await getGoogleSsoCreds();
 if (!login) { console.log('FAIL: no Google SSO creds'); process.exit(1); }
@@ -18,19 +21,15 @@ try {
   await s.goto(LOGIN_URL);
   await humanIdlePause('long');
 
-  const popupPromise = s.page.waitForEvent('popup').catch(() => null);
+  const popupPromise = s.page.waitForEvent('popup');
   await s.page.locator('button:has-text("Sign In With Google")').filter({ visible: true }).first().click();
-  const popup = await Promise.race([popupPromise, new Promise(r => setTimeout(() => r(null), 15000))]);  // allow-raw-playwright: Promise.race deadline
-  if (!popup) { console.log('FAIL: Google login popup did not open'); process.exit(1); }
-  await popup.waitForLoadState('domcontentloaded').catch(() => {});
+  const popup = await popupPromise;
+  await popup.waitForLoadState('domcontentloaded');
 
   const ok = await googleSso(s, login, { originHost: 'capsolver.com', page: popup });
   if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }
 
-  for (let i = 0; i < 60; i++) {
-    await humanIdlePause('short');
-    if (!/\/passport\/login/.test(s.page.url())) break;
-  }
+  await urlMatching(s.page, LEFT_LOGIN);
   console.log(`[trajectory] post-login url=${s.page.url()}`);
 
   await humanIdlePause('long');

@@ -154,7 +154,7 @@ export async function runCrossLogin(opts) {
     process.exitCode = 1;
   } finally {
     persistBanSignal(targetPlatform, provider, acct, banSignal);
-    await Promise.race([s.close(), new Promise(r => setTimeout(r, 5000))]).catch(() => {});  // allow-raw-playwright: Promise.race deadline
+    await s.close();
   }
 }
 

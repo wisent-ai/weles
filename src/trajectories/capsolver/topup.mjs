@@ -3,6 +3,10 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { topupOpts } from '../_shared/services/topup_common.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { urlMatching } from '../_shared/page/settled.mjs';
+
+// Any URL that is no longer the passport login page.
+const LEFT_LOGIN = /^(?!.*\/passport\/login)/;
 
 const { usd } = topupOpts();
 const login = await getGoogleSsoCreds();
@@ -12,15 +16,14 @@ const s = await WSession.start({ label: 'capsolver_topup', browser: 'chromium' }
 try {
   await s.goto('https://dashboard.capsolver.com/passport/login');
   await humanIdlePause('long');
-  const popupPromise = s.page.waitForEvent('popup').catch(() => null);
+  const popupPromise = s.page.waitForEvent('popup');
   await s.page.locator('button:has-text("Sign In With Google")').filter({ visible: true }).first().click();
-  const popup = await Promise.race([popupPromise, new Promise(r => setTimeout(() => r(null), 15000))]);  // allow-raw-playwright: Promise.race deadline
-  if (!popup) { console.log('FAIL: popup did not open'); process.exit(1); }
-  await popup.waitForLoadState('domcontentloaded').catch(() => {});
+  const popup = await popupPromise;
+  await popup.waitForLoadState('domcontentloaded');
   const ok = await googleSso(s, login, { originHost: 'capsolver.com', page: popup });
   if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }
 
-  for (let i = 0; i < 60; i++) { await humanIdlePause('short'); if (!/\/passport\/login/.test(s.page.url())) break; }
+  await urlMatching(s.page, LEFT_LOGIN);
 
   // Capsolver's recharge page.
   await s.page.goto('https://dashboard.capsolver.com/dashboard/recharge', { waitUntil: 'domcontentloaded' }).catch(() => {});

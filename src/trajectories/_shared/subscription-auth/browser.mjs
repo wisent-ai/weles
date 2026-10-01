@@ -1,4 +1,4 @@
-import { pageSettled } from '../page/settled.mjs';
+import { pageCondition, pageSettled } from '../page/settled.mjs';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanFill, humanType } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
@@ -10,19 +10,17 @@ import { AuthenticationFailure } from './oauth.mjs';
 
 const controls = { humanFill, humanType, humanClickLocator, humanIdlePause };
 
+// The authorization code the provider page shows, read on every animation
+// frame until it appears.
 async function displayedCode(page) {
-  while (true) {
-    const code = await page.evaluate(() => {
-      const pattern = /\b[A-Za-z0-9_-]{30,}#[A-Za-z0-9_-]{6,}\b/;
-      for (const input of document.querySelectorAll('input,textarea')) {
-        const match = String(input.value || '').match(pattern);
-        if (match) return match[0];
-      }
-      return (document.body?.innerText || '').match(pattern)?.[0] || null;
-    });
-    if (code) return code;
-    await page.waitForTimeout(500);
-  }
+  return pageCondition(page, () => {
+    const pattern = /\b[A-Za-z0-9_-]{30,}#[A-Za-z0-9_-]{6,}\b/;
+    for (const input of document.querySelectorAll('input,textarea')) {
+      const match = String(input.value || '').match(pattern);
+      if (match) return match[0];
+    }
+    return (document.body?.innerText || '').match(pattern)?.[0] || null;
+  });
 }
 
 async function emailPassword(session, login) {

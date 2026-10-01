@@ -1,5 +1,4 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { setTimeout as delay } from 'node:timers/promises';
 
 // Public OAuth clients and endpoints from the providers' authentication protocols.
 // These exchanges never invoke a provider CLI or touch its local credential store.
@@ -112,26 +111,26 @@ export async function finishOAuth(transaction, expectedEmail, displayedCode) {
     }), 'token_exchange');
     return credential(provider, tokens, expectedEmail);
   }
-  while (Date.now() < transaction.expiresAt) {
-    const { data } = transaction;
-    const answer = provider === 'codex'
-      ? await post(`${OPENAI.origin}/api/accounts/deviceauth/token`, { device_auth_id: data.device_auth_id, user_code: transaction.code })
-      : await post(`${KIMI.origin}/api/oauth/token`, { client_id: KIMI.client, device_code: data.device_code,
-        grant_type: 'urn:ietf:params:oauth:grant-type:device_code' }, true);
-    if (answer.ok) {
-      if (provider === 'kimi') return credential(provider, answer.data, expectedEmail);
-      const tokens = accepted(await post(`${OPENAI.origin}/oauth/token`, {
-        grant_type: 'authorization_code', client_id: OPENAI.client,
-        code: answer.data.authorization_code, code_verifier: answer.data.code_verifier,
-        redirect_uri: `${OPENAI.origin}/deviceauth/callback`,
-      }, true), 'token_exchange');
-      return credential(provider, tokens, expectedEmail);
-    }
-    const pending = provider === 'codex' ? [403, 404].includes(answer.status)
-      : ['authorization_pending', 'slow_down'].includes(answer.data.error);
-    if (!pending) accepted(answer, 'device_authorization');
-    const interval = Math.max(1, Number(data.interval) || 5) + (answer.data.error === 'slow_down' ? 5 : 0);
-    await delay(interval * 1000);
+  // finishOAuth runs after the browser granted consent, so the provider has
+  // the answer ready: one token request either returns the credential or
+  // states why it did not.
+  const { data } = transaction;
+  const answer = provider === 'codex'
+    ? await post(`${OPENAI.origin}/api/accounts/deviceauth/token`, { device_auth_id: data.device_auth_id, user_code: transaction.code })
+    : await post(`${KIMI.origin}/api/oauth/token`, { client_id: KIMI.client, device_code: data.device_code,
+      grant_type: 'urn:ietf:params:oauth:grant-type:device_code' }, true);
+  if (answer.ok) {
+    if (provider === 'kimi') return credential(provider, answer.data, expectedEmail);
+    const tokens = accepted(await post(`${OPENAI.origin}/oauth/token`, {
+      grant_type: 'authorization_code', client_id: OPENAI.client,
+      code: answer.data.authorization_code, code_verifier: answer.data.code_verifier,
+      redirect_uri: `${OPENAI.origin}/deviceauth/callback`,
+    }, true), 'token_exchange');
+    return credential(provider, tokens, expectedEmail);
   }
-  throw new AuthenticationFailure('oauth_device_expired', 'device_authorization', 'The provider authorization transaction expired');
+  const pending = provider === 'codex' ? [403, 404].includes(answer.status)
+    : ['authorization_pending', 'slow_down'].includes(answer.data.error);
+  if (!pending) accepted(answer, 'device_authorization');
+  throw new AuthenticationFailure('authorization_pending_after_consent', 'device_authorization',
+    `The provider still reports the device authorization as pending (HTTP ${answer.status}${answer.data?.error ? `, ${answer.data.error}` : ''}) after the browser consent was given`);
 }
