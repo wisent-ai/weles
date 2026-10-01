@@ -6,6 +6,7 @@ import { WSession } from '../../../../dist/session/wsession.js';
 import { googleSso, getScopedGoogleLogin } from '../../_shared/services/google_sso.mjs'
 import { spawnSync } from 'node:child_process';
 import { humanIdlePause, humanClickLocator } from '../../../../dist/human/mouse.js';
+import { urlMatching } from '../../_shared/page/settled.mjs';
 import { humanType } from '../../../../dist/human/keyboard.js';
 import { assertScopedSecretWriter, writeScopedSecretItem } from '../../../_shared/scoped-secrets.mjs';
 
@@ -23,10 +24,10 @@ try {
   if (!gsiFrame) { console.log('FAIL: no GSI'); process.exit(1); }
   const popupP = s.page.waitForEvent('popup').catch(() => null);
   await humanClickLocator(gsiFrame, gsiFrame.locator('div[role="button"]').first());
-  const popup = await Promise.race([popupP, new Promise(r => setTimeout(() => r(null), 15000))]);  // allow-raw-playwright: Promise.race deadline
+  const popup = await popupP;  // allow-raw-playwright: Promise.race deadline
   await popup?.waitForLoadState('domcontentloaded').catch(() => {});
   if (!await googleSso(s, login, { originHost: 'oxylabs.io', page: popup })) { console.log('FAIL: SSO'); process.exit(1); }
-  for (let i = 0; i < 30; i++) { await humanIdlePause('short'); if (!/^https:\/\/dashboard\.oxylabs\.io\/en\/?(\?.*)?$/.test(s.page.url())) break; }
+  await urlMatching(s.page, /^(?!https:\/\/dashboard\.oxylabs\.io\/en\/?(\?.*)?$)/);
 
   await s.page.goto('https://dashboard.oxylabs.io/en/overview/ISP', { waitUntil: 'domcontentloaded' });
   await humanIdlePause('long');

@@ -3,6 +3,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { topupOpts } from '../_shared/services/topup_common.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { pageSettled, urlMatching } from '../_shared/page/settled.mjs';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
 const { usd } = topupOpts();
@@ -15,13 +16,13 @@ try {
   await humanIdlePause('deliberate');
   const popupPromise = s.page.waitForEvent('popup').catch(() => null);
   await s.page.locator('button:has-text("Login with Google")').filter({ visible: true }).first().click();
-  const popup = await Promise.race([popupPromise, new Promise(r => setTimeout(() => r(null), 15000))]);  // allow-raw-playwright: Promise.race deadline
+  const popup = await popupPromise;  // allow-raw-playwright: Promise.race deadline
   if (!popup) { console.log('FAIL: popup did not open'); process.exit(1); }
   await popup.waitForLoadState('domcontentloaded').catch(() => {});
   const ok = await googleSso(s, login, { originHost: 'iproyal.com', page: popup });
   if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }
 
-  for (let i = 0; i < 60; i++) { await humanIdlePause('short'); if (!/\/login/.test(s.page.url())) break; }
+  await urlMatching(s.page, /^(?!.*\/login)/);
 
   // IPRoyal's actual topup flow: there is no /balance route (verified
   // 2026-05-04: dashboard.iproyal.com/balance returns 404 Page Not Found).
@@ -79,7 +80,7 @@ try {
 
   console.log('[trajectory] clicking Deposit button');
   await depositBtn.click();
-  for (let i = 0; i < 30 && !stripeChargeFired; i++) await humanIdlePause('short');
+  await pageSettled(s.page);
   await s.page.screenshot({ path: `${runRecordingsDir('iproyal_topup')}/iproyal-after-deposit.png`, fullPage: true }).catch(() => {});
   // Probe for validation errors / captcha after the deposit click.
   try {
@@ -91,7 +92,7 @@ try {
     console.log('[diag] post-deposit:', JSON.stringify(post));
   } catch {}
   if (stripeChargeFired) console.log(`PASS-CHARGED: Stripe payment_intents/confirm POST fired, url=${s.page.url().slice(0, 100)}`);
-  else console.log(`FAIL: Deposit clicked but no Stripe charge POST observed in 30s, url=${s.page.url().slice(0, 100)}`);
+  else console.log(`FAIL: Deposit clicked but no Stripe charge POST observed by the time the page settled, url=${s.page.url().slice(0, 100)}`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);

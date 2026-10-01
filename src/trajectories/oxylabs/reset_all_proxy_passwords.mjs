@@ -3,6 +3,7 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getScopedGoogleLogin } from '../_shared/services/google_sso.mjs'
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
+import { urlMatching } from '../_shared/page/settled.mjs';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { assertScopedSecretWriter, readScopedProxy, readScopedSecret, writeScopedSecretItem } from '../../_shared/scoped-secrets.mjs';
 import { randomBytes } from 'node:crypto';
@@ -48,24 +49,21 @@ try {
   if (!gsiFrame) { console.log('FAIL: no GSI iframe'); process.exit(1); }
   const popupPromise = s.page.waitForEvent('popup');
   await humanClickLocator(s.page, gsiFrame.locator('div[role="button"]').first());
-  const popup = await Promise.race([popupPromise, new Promise((_, rej) => setTimeout(() => rej(new Error('popup-timeout')), 15000))]);
+  const popup = await popupPromise;
   if (!popup) { console.log('FAIL: popup did not open'); process.exit(1); }
   await popup.waitForLoadState('domcontentloaded');
 
   const ok = await googleSso(s, login, { originHost: 'oxylabs.io', page: popup });
   if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }
 
-  for (let i = 0; i < 60; i++) {
-    await humanIdlePause('short');
-    if (!/^https:\/\/dashboard\.oxylabs\.io\/en\/?(\?.*)?$/.test(s.page.url())) break;
-  }
+  await urlMatching(s.page, /^(?!https:\/\/dashboard\.oxylabs\.io\/en\/?(\?.*)?$)/);
   console.log(`[reset] post-login url=${s.page.url()}`);
 
   async function resetPassword({ usersUrl, product, serviceName, current }) {
     const username = current.username;
     console.log(`[reset] starting ${product}`);
     try {
-      await s.page.goto(usersUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await s.page.goto(usersUrl, { waitUntil: 'domcontentloaded' });
       await humanIdlePause('long');
 
       // Click "Edit user" / "Change password" for the known username.
@@ -76,7 +74,7 @@ try {
         results.push({ product, status: 'edit_button_not_found' });
         return;
       }
-      await editBtn.waitFor({ state: 'visible', timeout: 15000 });
+      await editBtn.waitFor({ state: 'visible' });
       await humanClickLocator(s.page, editBtn);
       await humanIdlePause('long');
 

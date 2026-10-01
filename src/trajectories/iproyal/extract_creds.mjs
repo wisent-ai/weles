@@ -8,6 +8,7 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
+import { urlMatching } from '../_shared/page/settled.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -39,10 +40,7 @@ try {
   const ok = await googleSso(s, login, { originHost: 'iproyal.com', page: popup });
   if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }
 
-  for (let i = 0; i < 60; i++) {
-    await humanIdlePause('short');
-    if (!/\/login/.test(s.page.url())) break;
-  }
+  await urlMatching(s.page, /^(?!.*\/login)/);
   console.log(`[extract] post-login url=${s.page.url()}`);
 
   // Walk the known IPRoyal residential access pages. The dashboard shows

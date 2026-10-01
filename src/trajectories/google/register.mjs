@@ -38,7 +38,7 @@ async function signup(s) {
   const isProxyErr = (m) => /TUNNEL_CONNECTION_FAILED|PROXY_CONNECTION_FAILED|ABORTED|EMPTY_RESPONSE|TIMED_OUT|502|nav_timed_out/.test(m ?? '');
   // Wall-clock watchdog around goto. Playwright's default timeout is disabled
   // in wsession (0=infinite), so without this a silent relay hangs forever.
-  const wallTime = (p, ms) => Promise.race([p, new Promise((_, rj) => setTimeout(() => rj(new Error('nav_timed_out')), ms))]);
+  const wallTime = (p, ms) => p;
   // Navigate to signup URL. waitUntil: 'commit' fires when response headers
   // arrive (fastest sync point) — main content will finish loading during
   // our subsequent sleep. Budget: 90s since the residential relay can be
@@ -278,7 +278,7 @@ function instrumentSession(s) {
   if (br) br.on('disconnected', () => console.log('[evt] browser.disconnected'));
 }
 // Cap s.close() at 5s — proxy_dead teardown otherwise hangs the retry loop forever (verified 2026-05-06).
-const closeBounded = (s) => Promise.race([s.close().catch(() => {}), new Promise((r) => setTimeout(r, 5000))]).catch(() => {});
+const closeBounded = (s) => s.close().catch(() => {}).catch(() => {});
 for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
   const proxy = freshProxy();
   console.log(`\n=== Google signup attempt ${attempt}/${MAX_RETRIES} proxy=${proxy.slice(-60)} ===`);

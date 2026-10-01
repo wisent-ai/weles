@@ -3,8 +3,11 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { topupOpts } from '../_shared/services/topup_common.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { popupOrNavigation, urlMatching } from '../_shared/page/settled.mjs';
 
 const { usd } = topupOpts();
+// The OAuth round trip lands back on a 5sim.net route other than /login.
+const LANDED = /^https:\/\/(www\.)?5sim\.net\/(?!login)/;
 const login = await getGoogleSsoCreds();
 if (!login) { console.log('FAIL: no Google SSO creds'); process.exit(1); }
 
@@ -12,13 +15,13 @@ const s = await WSession.start({ label: 'fivesim_topup', browser: 'chromium' });
 try {
   await s.goto('https://5sim.net/login');
   await humanIdlePause('long');
-  const popupPromise = s.page.waitForEvent('popup').catch(() => null);
+  const surface = popupOrNavigation(s.page, /accounts\.google\.com/);
   await s.page.locator('button:has-text("Sign in with Google"), a:has-text("Sign in with Google")').filter({ visible: true }).first().click();
-  const popup = await Promise.race([popupPromise, new Promise(r => setTimeout(() => r(null), 8000))]);  // allow-raw-playwright: Promise.race deadline
+  const popup = await surface;  // allow-raw-playwright: Promise.race deadline
   const ok = await googleSso(s, login, { originHost: '5sim.net', page: popup ?? undefined });
   if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }
 
-  for (let i = 0; i < 30; i++) { await humanIdlePause('short'); if (!/\/login/.test(s.page.url())) break; }
+  await urlMatching(s.page, LANDED);
   await s.page.goto('https://5sim.net/finance', { waitUntil: 'domcontentloaded' }).catch(() => {});
   await humanIdlePause('long');
 

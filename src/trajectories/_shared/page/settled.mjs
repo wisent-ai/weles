@@ -80,3 +80,10 @@ export async function urlMatching(page, pattern) {
     page.off('close', onClose);
   }
 }
+
+// A click that opens a provider either in a popup or in the same tab: call
+// this BEFORE the click; it resolves the popup page, or null once the page's
+// own URL matches `pattern` (a RegExp, or text the URL must contain).
+export function popupOrNavigation(page, pattern) {
+  return Promise.any([page.waitForEvent('popup'), urlMatching(page, pattern).then(() => null)]);
+}

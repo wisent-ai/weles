@@ -71,18 +71,18 @@ async function submitTask(appId, websiteURL) {
   return j.taskId;
 }
 
-async function pollResult(taskId, attempts = 60) {
-  if (attempts <= 0) throw new Error('2captcha poll budget exhausted');
-  await new Promise((r) => setTimeout(r, 5000));
+// One read of the 2Captcha task; the service has no push or blocking answer,
+// so a task still being solved is a named error carrying the task id.
+async function readResult(taskId) {
   const r = await fetch('https://api.2captcha.com/getTaskResult', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ clientKey: KEY, taskId }),
   });
   const j = await r.json();
-  if (j.status === 'ready') return j.solution;
   if (j.errorId) throw new Error('2captcha error: ' + JSON.stringify(j));
-  return pollResult(taskId, attempts - 1);
+  if (j.status !== 'ready') throw new Error(`captcha_2captcha_processing: task ${taskId} has no result yet (status ${j.status}); read it again with this task id`);
+  return j.solution;
 }
 
 export async function solveTencentCaptcha(page, appId) {
@@ -90,8 +90,8 @@ export async function solveTencentCaptcha(page, appId) {
   if (!appId) throw new Error('cannot locate captcha appId on page');
   console.log(`[tcaptcha] solving with appId=${appId} via 2Captcha`);
   const taskId = await submitTask(appId, page.url());
-  console.log(`[tcaptcha] taskId=${taskId} submitted; waiting for solution`);
-  const sol = await pollResult(taskId);
+  console.log(`[tcaptcha] taskId=${taskId} submitted`);
+  const sol = await readResult(taskId);
   console.log(`[tcaptcha] solution received: ticket=${(sol?.ticket || '').slice(0, 16)}... randstr=${sol?.randstr}`);
   return { ...sol, appid: appId };
 }

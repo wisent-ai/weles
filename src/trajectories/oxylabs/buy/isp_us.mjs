@@ -8,6 +8,7 @@ import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { humanIdlePause, humanClickLocator } from '../../../../dist/human/mouse.js';
+import { pageSettled, urlMatching } from '../../_shared/page/settled.mjs';
 import { humanFill } from '../../../../dist/human/keyboard.js';
 import { COMMIT_BUTTON_SELECTORS } from './selectors.mjs';
 
@@ -44,17 +45,14 @@ try {
   const popupPromise = s.page.waitForEvent('popup').then(p => p, e => { popupErr = e; return null; });
   // Pass s.page (Page), not gsiFrame (Frame): humanMove needs page.mouse.move.
   await humanClickLocator(s.page, gsiFrame.locator('div[role="button"]').first());
-  const popup = await Promise.race([popupPromise, new Promise(r => setTimeout(() => r(null), 15000))]);  // allow-raw-playwright: popup deadline
+  const popup = await popupPromise;  // allow-raw-playwright: popup deadline
   if (!popup) { console.log(`FAIL: popup did not open ${popupErr ? '('+popupErr.message+')' : ''}`); await shot(s, 'no_popup'); process.exit(1); }
   try { await popup.waitForLoadState('domcontentloaded'); } catch {}
 
   const ok = await googleSso(s, login, { originHost: 'oxylabs.io', page: popup });
   if (!ok) { console.log('FAIL: Google SSO did not complete'); await shot(s, 'sso_fail'); process.exit(1); }
 
-  for (let i = 0; i < 30; i++) {
-    await humanIdlePause('short');
-    if (!/^https:\/\/dashboard\.oxylabs\.io\/en\/?(\?.*)?$/.test(s.page.url())) break;
-  }
+  await urlMatching(s.page, /^(?!https:\/\/dashboard\.oxylabs\.io\/en\/?(\?.*)?$)/);
   console.log(`[trajectory] post-login url=${s.page.url()}`);
   await shot(s, 'dashboard_home');
 
@@ -136,7 +134,7 @@ try {
   console.log(`[trajectory] step3 url=${s.page.url()}`);
 
   for (let step = 0; step < 6; step++) {
-    await humanIdlePause('deliberate');
+    await pageSettled(s.page);
     const url = s.page.url();
     const btns = await s.page.evaluate(() => Array.from(document.querySelectorAll('button')).filter(b => b.offsetParent).map(b => (b.textContent||'').trim().slice(0, 60)).filter(Boolean));
     console.log(`[trajectory] checkout step ${step}: url=${url} btns=${JSON.stringify(btns)}`);
@@ -153,7 +151,7 @@ try {
       console.log('[trajectory] clicking "Pay without Link" to bypass Link');
       await shot(s, `before_pay_without_link_step${step}`);
       await humanClickLocator(s.page, payWithoutLink);
-      await humanIdlePause('long');
+      await pageSettled(s.page);
       await shot(s, `after_pay_without_link_step${step}`);
       // Stripe Checkout (this product) renders card fields as INLINE inputs
       // on the page (not in elements-inner-* iframes). Fill named inputs.

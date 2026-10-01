@@ -2,6 +2,7 @@
 // card loader, the cardholder fields, and the most committal button at every step.
 import { fillStripeElements } from '../../../_shared/services/topup_common.mjs';
 import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { pageSettled } from '../../../_shared/page/settled.mjs';
 import { humanType } from '../../../../../dist/human/keyboard.js';
 import { shot } from './evidence.mjs';
 
@@ -14,7 +15,7 @@ export async function completeCheckout(s) {
   // No manual card entry — Link uses the card already stored under the
   // shared Google SSO account, only the OTP gates it.
   for (let step = 0; step < 6; step++) {
-    await humanIdlePause('deliberate');
+    await pageSettled(s.page);
     const url = s.page.url();
     const btns = await s.page.evaluate(() => Array.from(document.querySelectorAll('button')).filter(b => b.offsetParent).map(b => (b.textContent||'').trim().slice(0, 60)).filter(Boolean));
     console.log(`[trajectory] checkout step ${step}: url=${url} btns=${JSON.stringify(btns)}`);
@@ -45,7 +46,7 @@ export async function completeCheckout(s) {
         process.exit(2);
       }
       await noLinkBtn.click({ force: true }).catch(() => {});
-      await humanIdlePause('long');
+      await pageSettled(s.page);
       await shot(s, 'after_pay_without_link');
 
       // Fill card fields using the shared helper.
@@ -90,7 +91,7 @@ export async function completeCheckout(s) {
       await shot(s, 'before_final_subscribe');
       console.log('[trajectory] clicking final Subscribe…');
       await subBtn.click({ force: true }).catch(() => {});
-      await humanIdlePause('long');
+      await pageSettled(s.page);
       await shot(s, 'after_final_subscribe');
       continue;
     }
@@ -127,6 +128,6 @@ export async function completeCheckout(s) {
       console.log(`[trajectory] no committal button at step ${step}`);
       break;
     }
-    await humanIdlePause('long');
+    await pageSettled(s.page);
   }
 }

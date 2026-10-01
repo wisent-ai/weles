@@ -34,7 +34,7 @@ const s = await WSession.start({
 try {
   // Start the OAuth code flow directly. This lands on accounts.google.com where
   // the shared googleSso driver can fill the identifier/password.
-  await s.page.goto(GOOGLE_OAUTH_URL, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+  await s.page.goto(GOOGLE_OAUTH_URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('short');
 
   const ok = await googleSso(s, login, { originHost: 'iproyal.com' });

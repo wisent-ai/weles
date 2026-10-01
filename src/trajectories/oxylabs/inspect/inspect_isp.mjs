@@ -7,6 +7,7 @@
 import { WSession } from '../../../../dist/session/wsession.js';
 import { googleSso, getScopedGoogleLogin } from '../../_shared/services/google_sso.mjs'
 import { humanIdlePause, humanClickLocator } from '../../../../dist/human/mouse.js';
+import { urlMatching } from '../../_shared/page/settled.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -39,10 +40,7 @@ try {
   const ok = await googleSso(s, login, { originHost: 'oxylabs.io', page: popup });
   if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }
 
-  for (let i = 0; i < 60; i++) {
-    await humanIdlePause('short');
-    if (!/^https:\/\/dashboard\.oxylabs\.io\/en\/?(\?.*)?$/.test(s.page.url())) break;
-  }
+  await urlMatching(s.page, /^(?!https:\/\/dashboard\.oxylabs\.io\/en\/?(\?.*)?$)/);
   console.log(`[inspect] post-login url=${s.page.url()}`);
 
   async function dump(tag) {

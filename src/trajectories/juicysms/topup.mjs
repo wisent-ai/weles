@@ -3,6 +3,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { topupOpts } from '../_shared/services/topup_common.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { popupOrNavigation, urlMatching } from '../_shared/page/settled.mjs';
 import { humanType } from '../../../dist/human/keyboard.js';
 
 const { usd } = topupOpts();
@@ -13,9 +14,9 @@ const s = await WSession.start({ label: 'juicysms_topup', browser: 'chromium' })
 try {
   await s.goto('https://juicysms.com/login');
   await humanIdlePause('long');
-  const popupPromise = s.page.waitForEvent('popup').catch(() => null);
+  const surface = popupOrNavigation(s.page, /accounts\.google\.com/);
   await s.page.locator('a:has-text("LOGIN WITH GOOGLE"), button:has-text("LOGIN WITH GOOGLE"), a:has-text("Login with Google")').filter({ visible: true }).first().click();
-  const popup = await Promise.race([popupPromise, new Promise(r => setTimeout(() => r(null), 8000))]);  // allow-raw-playwright: Promise.race deadline
+  const popup = await surface;  // allow-raw-playwright: Promise.race deadline
   const ok = await googleSso(s, login, { originHost: 'juicysms.com', page: popup ?? undefined });
   if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }
 
@@ -24,11 +25,7 @@ try {
   // /login" exited mid-Google-redirect, before the juicysms session cookie
   // was written — every subsequent goto bounced back to /login. Verified
   // 2026-05-06 via the addfunds flow.
-  for (let i = 0; i < 30; i++) {
-    await humanIdlePause('short');
-    const u = s.page.url();
-    if (/juicysms\.com/.test(u) && !/\/login/.test(u)) break;
-  }
+  await urlMatching(s.page, /^https:\/\/(www\.)?juicysms\.com\/(?!login)/);
   await humanIdlePause('deliberate');
   // JuicySMS renamed /payment → /addfunds (verified live 2026-05-06).
   await s.page.goto('https://juicysms.com/addfunds', { waitUntil: 'domcontentloaded' }).catch(() => {});
@@ -110,13 +107,11 @@ try {
     // in EU + most virtual cards require it. Wait for either redirect to
     // success or the 3DS frame to appear.
     let landed3ds = false;
-    for (let i = 0; i < 20; i++) {
-      await humanIdlePause('short');
-      const url = s.page.url();
-      if (/payments\/success|payments\/error|payments\/cancelled/.test(url)) break;
-      const has3ds = await s.page.locator('iframe[src*="3d_secure"], iframe[name*="3ds" i], iframe[src*="hooks.stripe.com/3d_secure"]').first().isVisible().catch(() => false);
-      if (has3ds) { landed3ds = true; await s.screenshot('stripe_3ds'); break; }
-    }
+    landed3ds = await Promise.any([
+          urlMatching(s.page, /payments\/(success|error|cancelled)/).then(() => false),
+          s.page.locator('iframe[src*="3d_secure"], iframe[name*="3ds" i], iframe[src*="hooks.stripe.com/3d_secure"]').first().waitFor({ state: 'visible' }).then(() => true),
+        ]);
+        if (landed3ds) await s.screenshot('stripe_3ds');
     if (landed3ds) {
       console.log('[stripe-checkout] 3DS challenge detected — auto-clicking "Complete authentication" if Stripe test path, else waiting');
       // On Stripe TEST keys, the 3DS frame has a "Complete authentication"
@@ -132,11 +127,7 @@ try {
           break;
         }
       }
-      for (let i = 0; i < 60; i++) {
-        await humanIdlePause('short');
-        const url = s.page.url();
-        if (/payments\/success|payments\/error|payments\/cancelled/.test(url)) break;
-      }
+      await urlMatching(s.page, /payments\/(success|error|cancelled)/);
     } else {
       await humanIdlePause('long');
     }

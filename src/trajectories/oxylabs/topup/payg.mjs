@@ -1,6 +1,7 @@
 // The pay-as-you-go top-up: Add more traffic, the GB amount, the non-refundable
 // acknowledgement, and the Stripe form. Exits with the charge outcome.
 import { humanIdlePause } from '../../../../dist/human/mouse.js';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 export async function topUpPayAsYouGo(s, usd) {
@@ -131,8 +132,8 @@ export async function topUpPayAsYouGo(s, usd) {
   if (!fill.ok) { console.log(`FAIL: stripe elements not filled — reason=${fill.reason ?? 'partial'}`); process.exit(1); }
   const finalBtn = s.page.locator('button:has-text("Pay"), button:has-text("Subscribe"), button[type="submit"]').filter({ visible: true }).last();
   if (await finalBtn.isVisible().catch(() => false)) { await finalBtn.click({ force: true }).catch(() => {}); console.log('[trajectory] clicked final Stripe submit'); }
-  for (let i = 0; i < 30 && !stripeChargeFired; i++) await humanIdlePause('short');
+  await pageSettled(s.page);
   if (stripeChargeFired) console.log(`PASS-CHARGED: Stripe payment_intents/confirm POST fired — purchased ${targetGb} GB at $${GB_PRICE}/GB ($${targetGb * GB_PRICE})`);
-  else console.log(`FAIL: no Stripe charge POST observed in 30s, url=${s.page.url().slice(0, 100)}`);
+  else console.log(`FAIL: no Stripe charge POST observed by the time the page settled, url=${s.page.url().slice(0, 100)}`);
   process.exit(stripeChargeFired ? 0 : 1);
 }

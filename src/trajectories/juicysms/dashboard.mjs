@@ -6,10 +6,13 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { popupOrNavigation, urlMatching } from '../_shared/page/settled.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const LOGIN_URL = 'https://juicysms.com/login';
+// The OAuth round trip lands back on a juicysms.com route other than /login.
+const LANDED = /^https:\/\/(www\.)?juicysms\.com\/(?!login)/;
 const OUT_DIR = join(process.cwd(), '.work', 'juicysms_dashboard');
 
 const login = await getGoogleSsoCreds();
@@ -21,22 +24,19 @@ try {
   await s.goto(LOGIN_URL);
   await humanIdlePause('long');
 
-  let popup = null;
-  const popupPromise = s.page.waitForEvent('popup').then(p => { popup = p; }, () => {});
+  const surface = popupOrNavigation(s.page, /accounts\.google\.com/);
+  
   await s.page.locator('a:has-text("LOGIN WITH GOOGLE"), button:has-text("LOGIN WITH GOOGLE"), a:has-text("Login with Google"), button:has-text("Login with Google")').filter({ visible: true }).first().click();
-  await Promise.race([popupPromise, new Promise(r => setTimeout(r, 8000))]);  // allow-raw-playwright: Promise.race deadline matches balance.mjs
+  const popup = await surface;  // allow-raw-playwright: Promise.race deadline matches balance.mjs
 
-  const ok = await googleSso(s, login, { originHost: 'juicysms.com', page: popup });
+  const ok = await googleSso(s, login, { originHost: 'juicysms.com', page: popup ?? undefined });
   if (!ok) throw new Error('google_sso_did_not_complete');
 
   // Wait until URL settles on juicysms.com (the OAuth roundtrip lands us
   // back on a juicysms route eventually). Earlier check `!/login` exited
   // while still on accounts.google.com, then the next goto raced the
   // OAuth redirect and threw ERR_ABORTED.
-  for (let i = 0; i < 60; i++) {
-    await humanIdlePause('short');
-    if (/juicysms\.com/.test(s.page.url()) && !/\/login/.test(s.page.url())) break;
-  }
+  await urlMatching(s.page, /^https:\/\/(www\.)?juicysms\.com\/(?!login)/);
   console.log(`[dash] post-SSO URL=${s.page.url()}`);
   await humanIdlePause('long');
 

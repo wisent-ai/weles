@@ -1,6 +1,7 @@
 // The fixed-tier upgrade, gated behind OXYLABS_ALLOW_TIER_CHANGE=1: Change plan, Continue
 // to checkout, the Cleverbridge and Stripe pages, and the charge observation.
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 import { PLANS } from './plans.mjs';
 
@@ -93,9 +94,9 @@ export async function upgradeTier(s, plan, currentPlanName) {
   // Stripe-hosted checkout: the final Pay button text varies (Subscribe / Pay).
   const finalBtn = s.page.locator('button:has-text("Subscribe"), button:has-text("Pay"), button[type="submit"]').filter({ visible: true }).last();
   if (await finalBtn.isVisible().catch(() => false)) { await finalBtn.click({ force: true }).catch(() => {}); console.log('[trajectory] clicked final Stripe-checkout submit'); }
-  for (let i = 0; i < 30 && !stripeChargeFired; i++) await humanIdlePause('short');
+  await pageSettled(s.page);
 
   const url = s.page.url();
   if (stripeChargeFired) console.log(`PASS-CHARGED: Stripe payment_intents/confirm POST fired, url=${url.slice(0, 100)}`);
-  else console.log(`FAIL: no Stripe charge POST observed in 30s, url=${url.slice(0, 100)}`);
+  else console.log(`FAIL: no Stripe charge POST observed by the time the page settled, url=${url.slice(0, 100)}`);
 }

@@ -4,6 +4,7 @@ import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { topupOpts } from '../_shared/services/topup_common.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { pageSettled } from '../_shared/page/settled.mjs';
 import { humanType } from '../../../dist/human/keyboard.js';
 
 const { usd } = topupOpts();
@@ -166,9 +167,9 @@ try {
   await humanIdlePause('short');
   await s.page.keyboard.press('Enter');
   console.log('[trajectory] focused + pressed Enter on Add store credit');
-  for (let i = 0; i < 30 && !stripeChargeFired; i++) await humanIdlePause('short');
+  await pageSettled(s.page);
   if (stripeChargeFired) console.log(`PASS-CHARGED: Stripe payment_intents/confirm POST fired, url=${s.page.url().slice(0, 100)}`);
-  else console.log(`FAIL: deposit-confirm clicked but no Stripe charge POST observed in 30s, url=${s.page.url().slice(0, 100)}`);
+  else console.log(`FAIL: deposit-confirm clicked but no Stripe charge POST observed by the time the page settled, url=${s.page.url().slice(0, 100)}`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);

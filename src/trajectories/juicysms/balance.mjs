@@ -3,11 +3,14 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, parseBalanceFromText, patchServiceBalance, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { popupOrNavigation, urlMatching } from '../_shared/page/settled.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
 const LOGIN_URL = 'https://juicysms.com/login';
+// The OAuth round trip lands back on a juicysms.com route other than /login.
+const LANDED = /^https:\/\/(www\.)?juicysms\.com\/(?!login)/;
 const DISPLAY_NAME = 'JuicySMS';
 
 const login = await getGoogleSsoCreds();
@@ -19,14 +22,14 @@ try {
   await s.goto(LOGIN_URL);
   await humanIdlePause('long'); // Turnstile auto-solve window
 
-  const popupPromise = s.page.waitForEvent('popup').catch(() => null);
+  const surface = popupOrNavigation(s.page, /accounts\.google\.com/);
   await s.page.locator('a:has-text("LOGIN WITH GOOGLE"), button:has-text("LOGIN WITH GOOGLE"), a:has-text("Login with Google"), button:has-text("Login with Google")').filter({ visible: true }).first().click();
-  const popup = await Promise.race([popupPromise, new Promise(r => setTimeout(() => r(null), 8000))]);  // allow-raw-playwright: Promise.race deadline
+  const popup = await surface;  // allow-raw-playwright: Promise.race deadline
 
   const ok = await googleSso(s, login, { originHost: 'juicysms.com', page: popup ?? undefined });
   if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }
 
-  for (let i = 0; i < 30; i++) { await humanIdlePause('short'); if (!/\/login/.test(s.page.url())) break; }
+  await urlMatching(s.page, LANDED);
   if (/\/login/.test(s.page.url())) {
     await s.page.goto('https://juicysms.com/dashboard', { waitUntil: 'domcontentloaded' }).catch(() => {});
   }

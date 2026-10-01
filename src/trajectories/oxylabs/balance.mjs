@@ -4,6 +4,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, parseBalanceFromText, getScopedGoogleLogin } from '../_shared/services/google_sso.mjs'
 import { patchEffectiveBalance } from '../_shared/services/proxy_probe.mjs';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
+import { urlMatching } from '../_shared/page/settled.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
@@ -25,18 +26,14 @@ try {
 
   const popupPromise = s.page.waitForEvent('popup').catch(() => null);
   await humanClickLocator(s.page, gsiFrame.locator('div[role="button"]').first());
-  const popup = await Promise.race([popupPromise, new Promise(r => setTimeout(() => r(null), 15000))]);  // allow-raw-playwright: Promise.race deadline
+  const popup = await popupPromise;  // allow-raw-playwright: Promise.race deadline
   if (!popup) { console.log('FAIL: Google login popup did not open'); throw new Error('Google login popup did not open'); }
   await popup.waitForLoadState('domcontentloaded').catch(() => {});
 
   const ok = await googleSso(s, login, { originHost: 'oxylabs.io', page: popup });
   if (!ok) { console.log('FAIL: Google SSO did not complete'); throw new Error('Google SSO did not complete'); }
 
-  for (let i = 0; i < 60; i++) {
-    await humanIdlePause('short');
-    const u = s.page.url();
-    if (!/^https:\/\/dashboard\.oxylabs\.io\/en\/?(\?.*)?$/.test(u)) break;
-  }
+  await urlMatching(s.page, /^(?!https:\/\/dashboard\.oxylabs\.io\/en\/?(\?.*)?$)/);
   console.log(`[trajectory] post-login url=${s.page.url()}`);
 
   // Oxylabs uses GB-based prepaid plans, not USD wallets. The overview page

@@ -16,6 +16,7 @@ import { googleSso, getScopedGoogleLogin } from '../../_shared/services/google_s
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { humanIdlePause, humanClickLocator } from '../../../../dist/human/mouse.js';
+import { pageCondition, urlMatching } from '../../_shared/page/settled.mjs';
 import { humanType } from '../../../../dist/human/keyboard.js';
 import { assertScopedSecretWriter, writeScopedSecretItem } from '../../../_shared/scoped-secrets.mjs';
 
@@ -48,15 +49,12 @@ try {
   if (!gsiFrame) { console.log('FAIL: GSI iframe not found'); await shot(s, 'no_gsi'); process.exit(1); }
   const popupPromise = s.page.waitForEvent('popup').catch(() => null);
   await humanClickLocator(gsiFrame, gsiFrame.locator('div[role="button"]').first());
-  const popup = await Promise.race([popupPromise, new Promise(r => setTimeout(() => r(null), 15000))]);  // allow-raw-playwright: Promise.race deadline
+  const popup = await popupPromise;  // allow-raw-playwright: Promise.race deadline
   if (!popup) { console.log('FAIL: popup did not open'); process.exit(1); }
   await popup.waitForLoadState('domcontentloaded').catch(() => {});
   const ok = await googleSso(s, login, { originHost: 'oxylabs.io', page: popup });
   if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }
-  for (let i = 0; i < 30; i++) {
-    await humanIdlePause('short');
-    if (!/^https:\/\/dashboard\.oxylabs\.io\/en\/?(\?.*)?$/.test(s.page.url())) break;
-  }
+  await urlMatching(s.page, /^(?!https:\/\/dashboard\.oxylabs\.io\/en\/?(\?.*)?$)/);
   console.log(`[trajectory] post-login url=${s.page.url()}`);
 
   await s.page.goto('https://dashboard.oxylabs.io/en/overview/ISP', { waitUntil: 'domcontentloaded' }).catch(() => {});
@@ -91,11 +89,10 @@ try {
   // Click sometimes opens a slide-in form rather than navigating. Poll until
   // a username-like input appears, up to 25s.
   let inputs = [];
-  for (let i = 0; i < 25; i++) {
-    await humanIdlePause('short');
+  // The click opens a slide-in form or navigates; either way a username-like
+    // input appears when it is ready.
+    await pageCondition(s.page, () => Array.from(document.querySelectorAll('input')).some((el) => el.offsetParent && /user/i.test((el.name || '') + (el.id || '') + (el.placeholder || ''))));
     inputs = await s.page.evaluate(() => Array.from(document.querySelectorAll('input')).filter(i => i.offsetParent).map(i => ({ name: i.name, id: i.id, type: i.type, ph: i.placeholder, ac: i.autocomplete })));
-    if (inputs.some(i => /user/i.test((i.name||'') + (i.id||'') + (i.ph||'')))) break;
-  }
   await shot(s, 'after_create_click');
   console.log(`[trajectory] create-form url=${s.page.url()}`);
   console.log(`[trajectory] visible inputs: ${JSON.stringify(inputs)}`);
