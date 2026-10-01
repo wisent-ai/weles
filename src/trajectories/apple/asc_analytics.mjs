@@ -11,7 +11,7 @@ if (!acct) { console.log('FAIL: no apple account'); process.exit(1); }
 const s = await WSession.start({ label: 'apple_asc_analytics', proxy: process.env.PROXY_URL || undefined });
 try {
   await s.goto('https://appstoreconnect.apple.com/apps');
-  await s.wait(8);
+  await pageSettled(s.page);
   // If redirected to idmsa, session expired — bail
   if ((s.page.url?.() ?? '').includes('idmsa.apple.com')) {
     console.log('FAIL: session expired, rerun apple/login.mjs');
@@ -29,7 +29,7 @@ try {
   const results = [];
   for (const app of apps) {
     await s.goto(`https://appstoreconnect.apple.com/analytics/app/${app.id}/overview`);
-    await s.wait(6);
+    await pageSettled(s.page);
     const metrics = await s.page.evaluate(`(() => {
       const grab = (label) => {
         const el = Array.from(document.querySelectorAll('*')).find(e => e.textContent?.trim().toLowerCase() === label.toLowerCase());

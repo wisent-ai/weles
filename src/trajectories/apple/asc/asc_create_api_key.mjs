@@ -10,7 +10,7 @@ import { setTimeout } from 'node:timers/promises';
 import { homedir } from 'node:os';
 
 async function requireAuthenticatedSession(s) {
-  await s.wait(3);
+  await pageSettled(s.page);
   const url = s.page.url?.() ?? '';
   const loginUrl = /idmsa\.apple\.com|appleid\.apple\.com|\/login(?:[/?#]|$)|signin/i.test(url);
   const authIframe = await s.page.locator('iframe[src*="idmsa.apple.com"], iframe[src*="appleid.apple.com"]').count() > 0;
@@ -43,7 +43,7 @@ async function requireApiPage(s) {
   const authenticatedHost = parsedUrl.hostname === 'appstoreconnect.apple.com' && !/\/login(?:\/|$)|idmsa/i.test(parsedUrl.pathname);
   if (authenticatedHost && !parsedUrl.pathname.startsWith('/access/integrations/api')) {
     await s.goto(API_URL);
-    await s.wait(3);
+    await pageSettled(s.page);
     await requireAuthenticatedSession(s);
     parsedUrl = new URL(s.page.url?.() || 'about:blank');
   }

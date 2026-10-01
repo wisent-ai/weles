@@ -49,9 +49,9 @@ console.log(`[reset] Proxy: ${proxyUrl ? 'yes' : 'direct egress'}`);
 const s = await WSession.start({ label: 'github_reset_password', proxy: proxyUrl });
 try {
   await s.goto('https://github.com/password_reset');
-  await s.wait(3);
+  await pageSettled(s.page);
   await s.fill('Email address', email);
-  await s.wait(1);
+  await pageSettled(s.page);
   // Use Playwright locator for isTrusted=true (see DETECTION_ANTIPATTERNS §1).
   // GitHub renders submit as `<input name="commit" type="submit" disabled>`
   // gated by an octocaptcha class — the disabled attribute clears after the
@@ -78,11 +78,11 @@ try {
   console.log(`[reset] Submit reset request: ${JSON.stringify(submit)}`);
   if (!submit.clicked) throw new Error('no submit control on password_reset page');
 
-  await s.wait(5);
+  await pageSettled(s.page);
   console.log('[reset] Polling Resend for reset email...');
   let resetUrl = null;
   for (let poll = 0; poll < 30 && !resetUrl; poll++) {
-    await s.wait(4);
+    await pageSettled(s.page);
     let emails;
     try { emails = (await listReceived(20, email)).data; }
     catch (e) { console.log(`[reset] inbox read failed: ${String(e?.message || e).slice(0, 160)}`); continue; }
@@ -100,11 +100,11 @@ try {
   console.log(`[reset] Reset URL: ${resetUrl.slice(0, 60)}...`);
 
   await s.goto(resetUrl);
-  await s.wait(3);
+  await pageSettled(s.page);
   await s.fill('New password', newPassword);
-  await s.wait(1);
+  await pageSettled(s.page);
   await s.fill('Confirm new password', newPassword);
-  await s.wait(1);
+  await pageSettled(s.page);
   const submitLoc2 = s.page.locator('input[type="submit"][value*="Change" i], button[type="submit"]').first();
   const submit2 = (await submitLoc2.count()) > 0
     ? await humanClickLocator(s.page, submitLoc2).then(() => ({ clicked: true, via: 'humanClickLocator' })).catch((e) => ({ clicked: false, err: e.message?.slice(0, 100) }))
@@ -112,7 +112,7 @@ try {
   console.log(`[reset] Submit new password: ${JSON.stringify(submit2)}`);
   if (!submit2.clicked) throw new Error('no submit control on password_reset/<token> page');
 
-  await s.wait(6);
+  await pageSettled(s.page);
   const finalUrl = s.page.url?.() ?? '';
   const onSuccess = !finalUrl.includes('/password_reset') || /changed|success|signin/i.test(finalUrl);
   const errText = await s.page.evaluate("(()=>document.querySelector('.flash-error,[role=\"alert\"]')?.innerText?.trim()?.slice(0,200)||null)()").catch(() => null);

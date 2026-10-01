@@ -38,7 +38,7 @@ async function selectFacebookPage(s) {
     }
     return false;
   }
-  await s.wait(2);
+  await pageSettled(s.page);
   const target = await s.page.evaluate(({ name, id }) => {
     const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
     const els = Array.from(document.querySelectorAll('[role="menuitem"], [role="option"], div, span'));
@@ -62,7 +62,7 @@ async function selectFacebookPage(s) {
   }
   await s.page.mouse.click(target.x, target.y);
   console.log(`[meta-ads] selected Facebook Page: ${target.text.slice(0, 120)}`);
-  await s.wait(4);
+  await pageSettled(s.page);
   return true;
 }
 
@@ -74,7 +74,7 @@ async function fillCampaignFields(s) {
     'input[placeholder="Wprowadź tutaj nazwę kampanii..."]',
     'label:has-text("Campaign name") input',
   ], CAMPAIGN_NAME, 'campaign name')) filledCount += 1;
-  if (await clickNext(s, 3000)) await s.wait(3);
+  if (await clickNext(s, 3000)) await pageSettled(s.page);
   if (await fillAnyReliable(s, [
     'input[aria-label*="Ad set name" i]',
     'input[placeholder*="Ad set name" i]',
@@ -85,7 +85,7 @@ async function fillCampaignFields(s) {
     'input[placeholder*="Budget" i]',
     'label:has-text("Daily budget") input',
   ], DAILY_BUDGET_USD, 'daily budget')) filledCount += 1;
-  if (await clickNext(s, 3000)) await s.wait(3);
+  if (await clickNext(s, 3000)) await pageSettled(s.page);
   if (await fillAnyReliable(s, [
     'input[aria-label*="Ad name" i]',
     'input[placeholder*="Ad name" i]',
@@ -129,7 +129,7 @@ async function verifyConfiguredDraft(s) {
     'div[role="tab"]:has-text("Sprawdź")',
     'div[role="tab"]:has-text("Review")',
   ], 'Review/Sprawdź tab', 5000);
-  await s.wait(3);
+  await pageSettled(s.page);
   const text = await pageText(s);
   const checks = [
     [CAMPAIGN_NAME, 'campaign name'],

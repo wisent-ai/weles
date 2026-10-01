@@ -59,7 +59,7 @@ async function completeAppleTwoFactorCode(session, frame, options, code) {
       trustClicked: false,
     };
   }
-  if (session?.wait) await session.wait(2);
+  if (session?.wait) await pageSettled(session.page);
   const trustClicked = await clickAppleTrustBrowser(page, frame).catch(() => false);
   if (trustClicked && options.logPrefix) console.log(`${options.logPrefix} clicked trust browser`);
   return {

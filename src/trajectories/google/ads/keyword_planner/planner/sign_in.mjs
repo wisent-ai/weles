@@ -127,7 +127,7 @@ export async function runPreferredGoogleSso(s, returnUrl) {
       console.log(`[google-ads-keyword-planner] WARN: post-SSO return navigation failed ${String(error?.message || error).slice(0, 240)}`);
     });
   }
-  await s.wait(8);
+  await pageSettled(s.page);
   return true;
 }
 
@@ -136,7 +136,7 @@ export async function ensurePreferredGoogleAccount(s, returnUrl) {
   if (/accounts\.google\.com/.test(s.page.url?.() || '')) {
     const selectedPersisted = await continueFromAccountChooser(s);
     if (selectedPersisted) {
-      await s.wait(8);
+      await pageSettled(s.page);
       if (!/accounts\.google\.com/.test(s.page.url?.() || '')) return true;
     }
     return await runPreferredGoogleSso(s, returnUrl);
@@ -150,9 +150,9 @@ export async function ensurePreferredGoogleAccount(s, returnUrl) {
   await s.page.goto(chooser.toString(), { waitUntil: 'domcontentloaded' }).catch((error) => {
     console.log(`[google-ads-keyword-planner] WARN: account chooser navigation failed ${String(error?.message || error).slice(0, 240)}`);
   });
-  await s.wait(5);
+  await pageSettled(s.page);
   const selectedPersisted = await continueFromAccountChooser(s);
   if (!selectedPersisted) return await runPreferredGoogleSso(s, returnUrl);
-  await s.wait(8);
+  await pageSettled(s.page);
   return true;
 }

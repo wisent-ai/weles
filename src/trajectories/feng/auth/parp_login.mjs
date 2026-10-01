@@ -182,7 +182,7 @@ async function main() {
   logn(`final URL po reset: ${await url(s)}`);
   logn(`OK: hasło zapisane do ${STORE}`);
 
-  await s.wait(1800);
+  await pageSettled(s.page);
   await s.close();
 }
 

@@ -36,7 +36,7 @@ try {
     for (let i = 0; i < 30; i++) {
       const mounted = await s.page.evaluate('document.querySelector("#app-mount")?.children?.length > 0').catch(() => false);
       if (mounted) { console.log(`[test] SPA mounted after ${i + 1}s`); break; }
-      await s.wait(1);
+      await pageSettled(s.page);
     }
     // Humanized fill — replaces descriptor-set + dispatch('input') which
     // bypassed every keystroke (anti-bot signal). humanFill clicks, clears,
@@ -55,14 +55,14 @@ try {
     for (let i = 0; i < 15; i++) {
       const ready = await s.page.evaluate('document.querySelectorAll("[role=combobox]").length >= 3').catch(() => false);
       if (ready) { console.log(`[test] Form comboboxes ready after ${i + 1}s`); break; }
-      await s.wait(1);
+      await pageSettled(s.page);
     }
     // DOB selects first (with retry for each)
     const selectWithRetry = async (target, value) => {
       let result = await s.select(target, value);
       if (!result || result.includes('no-select-found')) {
         await s.page.keyboard.press('Escape').catch(() => {});
-        await s.wait(1);
+        await pageSettled(s.page);
         result = await s.select(target, value);
       }
       return result;
@@ -70,18 +70,18 @@ try {
     await selectWithRetry('month', '$DISCORD_NEW_BIRTHMONTH');
     await selectWithRetry('day', '$DISCORD_NEW_BIRTHDAY');
     await selectWithRetry('year', '$DISCORD_NEW_BIRTHYEAR');
-    await s.wait(1);
+    await pageSettled(s.page);
     // Fill text fields AFTER DOB (DOB selection resets React-controlled inputs)
     await fillField('email', '$DISCORD_NEW_EMAIL');
     await fillField('global_name', '$DISCORD_NEW_USERNAME');
     await fillField('username', '$DISCORD_NEW_USERNAME');
     await fillField('password', '$DISCORD_NEW_PASSWORD');
-    await s.wait(1);
+    await pageSettled(s.page);
     // Click terms checkbox — target the checkboxOption wrapper, not just the text
     const termsClicked = await humanClickLocator(s.page, s.page.locator('[class*="checkboxOption"]').first()).then(() => 'ok').catch(() => 'missed');
     if (termsClicked !== 'missed') console.log('[test] Terms checkbox clicked');
     else { await humanClickLocator(s.page, s.page.locator('text=I have read and agree').first()).catch(() => {}); console.log('[test] Terms text clicked'); }
-    await s.wait(1);
+    await pageSettled(s.page);
     // Check form state before submit
     const formState = await s.page.evaluate(`(() => {
       var inputs = Array.from(document.querySelectorAll('input'));
@@ -97,20 +97,20 @@ try {
     for (let attempt = 0; attempt < 8; attempt++) {
       // Try multiple click strategies
       await humanClickLocator(s.page, s.page.locator('button[type="submit"]').first()).catch(() => {});
-      await s.wait(2);
+      await pageSettled(s.page);
       if (s.captchaResponse) { console.log('[test] Form submitted (captcha intercepted via locator click)'); break; }
       // Second strategy: same selector but skip Playwright's actionability
       // check (force). Still routes through CDP so it's a trusted click,
       // just with the should-be-visible/should-be-enabled checks bypassed.
       await humanClickLocator(s.page, s.page.locator('button[type="submit"]').first()).catch(() => {});
-      await s.wait(2);
+      await pageSettled(s.page);
       if (s.captchaResponse) { console.log('[test] Form submitted (captcha intercepted via force locator click)'); break; }
       await s.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
-      await s.wait(2);
+      await pageSettled(s.page);
       if (s.captchaResponse) { console.log('[test] Form submitted via requestSubmit'); break; }
       // Also try clicking "Create Account" text directly
       await s.click('Create Account').catch(() => {});
-      await s.wait(2);
+      await pageSettled(s.page);
       if (s.captchaResponse) { console.log('[test] Form submitted via s.click("Create Account")'); break; }
       // Check for hCaptcha iframe or error messages
       const pageState = await s.page.evaluate(`(() => {
@@ -121,7 +121,7 @@ try {
       })()`).catch(() => ({}));
       console.log(`[test] Submit attempt ${attempt + 1} — no captcha response. state=${JSON.stringify(pageState)}`);
     }
-    await s.wait(3);
+    await pageSettled(s.page);
 
     // Solve captcha and submit via direct API (same approach as discord_login.mjs)
     const captchaData = s.captchaResponse;
@@ -207,7 +207,7 @@ try {
             const authToken = result.data.token;
             await s.page.evaluate(`localStorage.setItem("token", JSON.stringify(${JSON.stringify(authToken)}))`).catch(() => {});
             await s.goto('https://discord.com/channels/@me');
-            await s.wait(5);
+            await pageSettled(s.page);
             console.log(`[test] Navigated to: ${s.page.url?.()}`);
             registered = true;
             await s.saveAccount('discord', { username: id.username, email: id.email, password: id.password });
@@ -224,7 +224,7 @@ try {
             console.log(`[test] Polling for verify email to ${emailAddr}...`);
             let verified = false;
             for (let poll = 0; poll < 20 && !verified; poll++) {
-              await s.wait(5);
+              await pageSettled(s.page);
               const emails = await listReceived(10, emailAddr);
               for (const em of emails.data || []) {
                 const to = (em.to || []).map(t => typeof t === 'string' ? t : t.email).join(',');
@@ -240,7 +240,7 @@ try {
                     if (loc.includes('/verify')) {
                       console.log(`[test] Opening verify link in browser...`);
                       await s.goto(loc);
-                      await s.wait(5);
+                      await pageSettled(s.page);
                       console.log(`[test] After verify: ${s.page.url?.()}`);
                       verified = true;
                       break;

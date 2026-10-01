@@ -122,9 +122,9 @@ export async function openKeywordPlanner(s) {
     await s.page.goto(url, { waitUntil: 'domcontentloaded' }).catch((error) => {
       console.log(`[google-ads-keyword-planner] WARN: planner navigation failed ${path} ${String(error?.message || error).slice(0, 240)}`);
     });
-    await s.wait(8);
+    await pageSettled(s.page);
     if (await continueFromGoogleAdsAccountSelector(s.page)) {
-      await s.wait(8);
+      await pageSettled(s.page);
     }
     const dom = await collectDom(s.page);
     const matched = /keyword planner|discover new keywords|get search volume|forecasts?|keyword ideas|avg\.? monthly searches/i.test(dom.text);
@@ -134,7 +134,7 @@ export async function openKeywordPlanner(s) {
   const clickedTools = await clickByText(s.page, /Tools|Tools and settings|Planning|Keyword Planner/i, 'tools/planning navigation');
   if (clickedTools) {
     await clickByText(s.page, /Keyword Planner/i, 'Keyword Planner');
-    await s.wait(8);
+    await pageSettled(s.page);
     const dom = await collectDom(s.page);
     const matched = /keyword planner|discover new keywords|get search volume|forecasts?|keyword ideas|avg\.? monthly searches/i.test(dom.text);
     attempts.push({ path: 'menu_keyword_planner', url: dom.url, matched, textPreview: norm(dom.text).slice(0, 800), controls: dom.controls.slice(0, 20) });
@@ -146,7 +146,7 @@ export async function openKeywordPlanner(s) {
 export async function collectKeywordPlanner(s, captured) {
   const before = await collectDom(s.page);
   await clickByText(s.page, /Discover new keywords|Get search volume and forecasts|Get search volume|Start with keywords/i, 'keyword planner mode');
-  await s.wait(3);
+  await pageSettled(s.page);
   const fill = await fillKeywordInput(s.page);
   const actionClicks = [];
   for (const action of [
@@ -159,11 +159,11 @@ export async function collectKeywordPlanner(s, captured) {
     const clicked = await clickByText(s.page, action.pattern, action.label);
     actionClicks.push({ label: action.label, clicked });
     if (clicked) {
-      await s.wait(12);
+      await pageSettled(s.page);
       break;
     }
   }
-  await s.wait(8);
+  await pageSettled(s.page);
   const after = await collectDom(s.page);
   const rows = [...before.rows, ...after.rows];
   const parsedRows = parseKeywordRows(rows);

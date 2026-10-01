@@ -113,11 +113,11 @@ export async function runUsernameStep(s, id, humanClickLocator) {
   if (await unLoc.count()) {
     const { humanType } = await import('../../../dist/human/keyboard.js');
     await unLoc.focus();
-    await s.wait(1);
+    await pageSettled(s.page);
     await s.page.keyboard.press('ControlOrMeta+A').catch(() => {});
     await s.page.keyboard.press('Delete').catch(() => {});
     await humanType(s.page, id.username);
-    await s.wait(2);
+    await pageSettled(s.page);
   }
 
   const acceptedUsername = await s.page.evaluate(`(() => {
@@ -139,7 +139,7 @@ export async function runUsernameStep(s, id, humanClickLocator) {
   }
 
   for (let w = 0; w < 15; w++) {
-    await s.wait(2);
+    await pageSettled(s.page);
     const u = s.page.url?.() ?? '';
     if (!u.includes('/signup/create-username')) { console.log(`[test] left create-username at wait ${w}: ${u}`); break; }
   }

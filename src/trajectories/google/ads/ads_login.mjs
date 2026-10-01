@@ -77,7 +77,7 @@ const s = await WSession.start({
 try {
   await bringBrowserToFront(s);
   await s.goto('https://ads.google.com/aw/campaigns');
-  await s.wait(5);
+  await pageSettled(s.page);
   let cookies = await s.ctx.cookies().catch(() => []);
   if (!hasGoogleAuthCookie(cookies) || isLoginUrl(s.page.url?.() ?? '')) {
     const creds = await resolveSsoCreds();
@@ -90,13 +90,13 @@ try {
       }
       await dismissSpeedbump(s.page);
       await s.goto('https://ads.google.com/aw/campaigns');
-      await s.wait(5);
+      await pageSettled(s.page);
     } else if (ALLOW_MANUAL_LOGIN) {
       console.log(`[google-ads-login] waiting for manual login, deadline=${LOGIN_WAIT_MS}ms`);
       await bringBrowserToFront(s);
       const deadline = Date.now() + LOGIN_WAIT_MS;
       while (Date.now() < deadline) {
-        await s.wait(3);
+        await pageSettled(s.page);
         cookies = await s.ctx.cookies().catch(() => []);
         if (hasGoogleAuthCookie(cookies) && !isLoginUrl(s.page.url?.() ?? '')) break;
       }

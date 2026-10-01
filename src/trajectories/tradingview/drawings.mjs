@@ -54,7 +54,7 @@ const FS = await import('node:fs');
 const OUT_FILE = args.out || '/tmp/tv_drawings.json';
 
 try {
-  await s.wait(2);
+  await pageSettled(s.page);
 
   // Enable network monitoring with large buffers
   await cdp('Network.enable', { maxResourceBufferSize: 50_000_000, maxTotalBufferSize: 200_000_000 });
@@ -77,7 +77,7 @@ try {
   // Reload the chart to capture the drawings API call
   console.error('[tv_draw] reloading to capture drawings API');
   await cdp('Page.reload', { ignoreCache: false });
-  await s.wait(8);
+  await pageSettled(s.page);
 
   // Get cookies + UA from Chrome via CDP
   const { cookies } = await cdp('Network.getAllCookies', {});

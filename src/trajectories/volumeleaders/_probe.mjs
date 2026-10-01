@@ -31,18 +31,18 @@ async function login() {
   for (let i = 0; i < 30; i++) {
     const ok = await s.page.evaluate('document.querySelector("input[name=Email]") && document.querySelector("input[name=Password]")').catch(() => false);
     if (ok) break;
-    await s.wait(1);
+    await pageSettled(s.page);
   }
   const fill = (sel, val) => s.page.evaluate(`(({ sel, val }) => { const el = document.querySelector(sel); if (!el) return false; el.focus(); const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(el, val); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); return true; })(${JSON.stringify({ sel, val })})`);
-  await fill('input[name="Email"]', email); await s.wait(1);
-  await fill('input[name="Password"]', password); await s.wait(1);
+  await fill('input[name="Email"]', email); await pageSettled(s.page);
+  await fill('input[name="Password"]', password); await pageSettled(s.page);
   // Shared-atom submit with form.requestSubmit as a secondary path
   const submitLoc = s.page.locator('button[type="submit"], input[type="submit"]').first();
   if (await submitLoc.count()) await submitLoc.click().catch(() => {});
   else await s.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
   // Wait for redirect away from /Login
   for (let i = 0; i < 30; i++) {
-    await s.wait(2);
+    await pageSettled(s.page);
     const u = s.page.url();
     if (!u.toLowerCase().includes('/login')) { console.error(`[vl] logged in, at ${u}`); return; }
     // Look for error message
@@ -77,9 +77,9 @@ async function probePage(urlPath) {
   for (let i = 0; i < 20; i++) {
     len = await s.page.evaluate('document.body?.innerText?.length || 0').catch(() => 0);
     if (len > 500) break;
-    await s.wait(1);
+    await pageSettled(s.page);
   }
-  await s.wait(3);
+  await pageSettled(s.page);
   return await s.page.evaluate(`(() => ({
     finalUrl: location.pathname + location.search,
     title: document.title,
@@ -139,7 +139,7 @@ async function inventoryPage(sess, urlPath) {
 
 try {
   await login();
-  await s.wait(3);
+  await pageSettled(s.page);
 
   if (mode === 'inventory') {
     fs.mkdirSync(outDir, { recursive: true });
@@ -164,7 +164,7 @@ try {
     fs.mkdirSync(dashDir, { recursive: true });
     // Wait for full JS load
     await s.page.evaluate('document.readyState === "complete"').catch(() => {});
-    await s.wait(5);
+    await pageSettled(s.page);
     await s.page.screenshot({ path: path.join(dashDir, 'executive_summary.png'), fullPage: true }).catch(() => {});
     const diag = await s.page.evaluate(`(() => ({
       url: location.href,
@@ -196,7 +196,7 @@ try {
       seenTop.add(top);
       try {
         await s.goto(`https://www.volumeleaders.com${l.path}`);
-        await s.wait(3);
+        await pageSettled(s.page);
         const subLinks = await collectLinks();
         for (const sl of subLinks) {
           if (!deepLinks.has(sl.path)) deepLinks.set(sl.path, sl.text);

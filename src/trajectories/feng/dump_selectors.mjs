@@ -164,7 +164,7 @@ async function main() {
   console.log('[feng] Sprawdzam co 5 sekund czy URL nie jest na login.');
   for (let i = 0; i < 240; i++) {
     if (!(await isOnLoginPage(s))) break;
-    await s.wait(5);
+    await pageSettled(s.page);
   }
   if (await isOnLoginPage(s)) {
     console.error('FAIL: wciąż na login. Przerwałem.');
@@ -207,7 +207,7 @@ async function main() {
   console.log(`  ${resolve(WORK_DIR, 'missing_mappings.txt')}`);
   console.log('[feng] Sesja zostaje otwarta na nawigację do innej sekcji wniosku.');
   console.log('[feng] Re-run trajektorii żeby zebrać kolejne pola.');
-  await s.wait(1800);
+  await pageSettled(s.page);
   await s.close();
 }
 

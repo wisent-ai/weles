@@ -44,7 +44,7 @@ async function cancelSessionCapabilities() {
 /** Choose the certificate type, upload the CSR and download the issued certificate. */
 async function createCertificate(page) {
   await page.goto(ADD_URL, { waitUntil: 'domcontentloaded', timeout: NAVIGATION_WAIT_MS });
-  await s.wait(6);
+  await pageSettled(s.page);
   if (!/developer\.apple\.com\/account\/resources\/certificates\/add/.test(page.url())) {
     throw new Error(`certificate add page unavailable at ${page.url()}`);
   }
@@ -54,17 +54,17 @@ async function createCertificate(page) {
     const text = (await page.locator('body').innerText().catch((e) => `unreadable: ${e.message}`)).replace(/\s+/g, ' ').slice(0, 1000);
     throw new Error(`Developer ID Application choice missing; page=${text}`);
   }
-  await s.wait(1);
+  await pageSettled(s.page);
   if (!(await clickButton(page, /^continue$/i))) throw new Error('certificate type Continue control missing');
-  await s.wait(4);
+  await pageSettled(s.page);
 
   const fileInput = page.locator('input[type="file"]').first();
   await fileInput.waitFor({ state: 'attached', timeout: FILE_INPUT_WAIT_MS });
   await fileInput.setInputFiles(csrPath);
   console.log('[apple-create-developer-id] CSR_UPLOADED');
-  await s.wait(1);
+  await pageSettled(s.page);
   if (!(await clickButton(page, /^continue$/i))) throw new Error('CSR Continue control missing');
-  await s.wait(6);
+  await pageSettled(s.page);
 
   const downloadPromise = page.waitForEvent('download', { timeout: DOWNLOAD_WAIT_MS });
   if (!(await clickButton(page, /download/i))) throw new Error('certificate Download control missing');
@@ -97,14 +97,14 @@ try {
   s = await WSession.start({ label: 'apple_create_developer_id', headless: process.env.WELES_HEADLESS === '1' });
   sessionClosed = false;
   await s.page.goto(ADD_URL, { waitUntil: 'domcontentloaded', timeout: NAVIGATION_WAIT_MS });
-  await s.wait(5);
+  await pageSettled(s.page);
 
   const { postPasswordState, twoFactorReceipt } = await signInWithCapabilities(s, { capabilities, guardId, identity });
 
   let portalObserved = postPasswordState === 'dashboard';
   for (let poll = 0; !portalObserved && poll < PORTAL_POLLS; poll += 1) {
     portalObserved = isDevPortalUrl(s.page.url?.() ?? '');
-    if (!portalObserved) await s.wait(1);
+    if (!portalObserved) await pageSettled(s.page);
   }
   if (!portalObserved) throw new Error(`did not reach developer portal, still at ${s.page.url()}`);
 

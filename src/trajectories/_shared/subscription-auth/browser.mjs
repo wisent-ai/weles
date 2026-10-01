@@ -80,7 +80,7 @@ async function approveDevice(session, transaction, login, mark) {
           'The provider refused authentication; the recorded DOM contains its response');
       }
     }
-    await session.wait(1);
+    await pageSettled(session.page);
   }
   throw new AuthenticationFailure('authorization_not_completed', 'provider_consent', 'The provider did not complete device authorization');
 }

@@ -36,13 +36,13 @@ async function main() {
     }, null, 2));
 
     await s.goto('https://app-ads.apple.com/cm/app/');
-    await s.wait(8);
+    await pageSettled(s.page);
     loggedIn = await requireAuthenticatedSession(s);
     if (!loggedIn) {
       exitCode = 2;
       return;
     }
-    await s.wait(5);
+    await pageSettled(s.page);
     await pageDiag(s.page, 'home');
 
     for (const url of [
@@ -52,7 +52,7 @@ async function main() {
       'https://app-ads.apple.com/cm/app/',
     ]) {
       await s.goto(url);
-      await s.wait(8);
+      await pageSettled(s.page);
       await pageDiag(s.page, `url_${Buffer.from(url).toString('hex').slice(0, 16)}`);
       const text = await s.page.evaluate(() => document.body?.innerText || '').catch(() => '');
       if (/API|Public Key|Generate API client|Client ID|Team ID|Key ID/i.test(text)) break;

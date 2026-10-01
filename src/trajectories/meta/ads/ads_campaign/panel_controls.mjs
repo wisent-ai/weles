@@ -25,7 +25,7 @@ async function clickAny(s, selectors, label, timeoutMs = 5000) {
             continue;
           }
           await s.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-          await s.wait(0.2);
+          await pageSettled(s.page);
           await s.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
           console.log(`[meta-ads] clicked at the control box: ${label}`);
         } else {
@@ -35,7 +35,7 @@ async function clickAny(s, selectors, label, timeoutMs = 5000) {
         return true;
       }
     }
-    await s.wait(1);
+    await pageSettled(s.page);
   }
   return false;
 }
@@ -64,20 +64,20 @@ async function clickVisibleTextInArea(s, textRe, label, area, timeoutMs = 5000) 
     }, textRe.source, textRe.flags, area);
     if (candidate) {
       await s.page.mouse.move(candidate.x, candidate.y);
-      await s.wait(0.2);
+      await pageSettled(s.page);
       await s.page.mouse.click(candidate.x, candidate.y);
       console.log(`[meta-ads] clicked: ${label} (${candidate.text})`);
       await humanIdlePause('short');
       return true;
     }
-    await s.wait(1);
+    await pageSettled(s.page);
   }
   return false;
 }
 
 async function clickPoint(s, x, y, label) {
   await s.page.mouse.move(x, y);
-  await s.wait(0.2);
+  await pageSettled(s.page);
   await s.page.mouse.click(x, y);
   console.log(`[meta-ads] clicked point: ${label} (${x},${y})`);
   await humanIdlePause('short');

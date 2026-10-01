@@ -25,14 +25,14 @@ async function enterEmail(s, frame, capability, guardId) {
     await emailField.press('Enter');
     return email.length;
   });
-  await s.wait(5);
+  await pageSettled(s.page);
   const continuePassword = frame.locator('#continue-password');
   const signInButton = frame.locator('#sign-in');
   const legacyContinueVisible = await continuePassword.isVisible().catch(() => false);
   const signInLabel = await signInButton.innerText().catch(() => 'unreadable');
   if (legacyContinueVisible || signInLabel.trim() === 'Continue') {
     await (legacyContinueVisible ? continuePassword : signInButton).click();
-    await s.wait(4);
+    await pageSettled(s.page);
   }
   return emailLength;
 }

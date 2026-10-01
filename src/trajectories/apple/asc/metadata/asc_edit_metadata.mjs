@@ -22,7 +22,7 @@ if (!acct) { console.log('FAIL: no apple account'); process.exit(1); }
 const s = await WSession.start({ label: 'apple_asc_edit_metadata', proxy: process.env.PROXY_URL || undefined });
 try {
   await s.goto(`https://appstoreconnect.apple.com/apps/${APP_ID}/distribution/info`);
-  await s.wait(8);
+  await pageSettled(s.page);
   if ((s.page.url?.() ?? '').includes('idmsa.apple.com')) {
     console.log('FAIL: session expired, rerun apple/login.mjs');
     process.exit(2);
@@ -39,11 +39,11 @@ try {
       console.log(`[asc-edit] WARN: ${field} field not found on page`);
     }
   }
-  await s.wait(1);
+  await pageSettled(s.page);
 
   // Save button
   await s.page.locator('button:has-text("Save"), button[data-test-id="save"]').click();
-  await s.wait(5);
+  await pageSettled(s.page);
 
   console.log(`PASS: updated ${toUpdate.map(([k]) => k).join(', ')} for app ${APP_ID}`);
 } catch (e) {

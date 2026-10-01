@@ -139,7 +139,7 @@ async function main() {
   console.log('[feng] Trajektoria sprawdza co 5s czy URL nie jest już na /login.');
   for (let i = 0; i < 240; i++) {
     if (!(await isOnLoginPage(s))) break;
-    await s.wait(5);
+    await pageSettled(s.page);
   }
   if (await isOnLoginPage(s)) {
     console.error('FAIL: po 20 minutach wciąż na stronie loginu. Przerwałem.');
@@ -185,7 +185,7 @@ async function main() {
   }
   console.log('\n[feng] Sesja zostaje otwarta na 1h żebyś mógł przejrzeć wypełnione pola i ręcznie poprawić.');
   console.log('[feng] Ctrl+C kończy sesję.');
-  await s.wait(3600);
+  await pageSettled(s.page);
   await s.close();
 }
 

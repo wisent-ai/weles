@@ -264,7 +264,7 @@ async function scrapeOnePage(sess, tk, pg, ssPath) {
 
 try {
   await doLogin(s);
-  await s.wait(3);
+  await pageSettled(s.page);
   const allPages = pagesList && pagesList.length > 0 ? pagesList : [page];
   const results = [];
   for (const pg of allPages) {

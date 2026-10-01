@@ -63,7 +63,7 @@ async function clickAny(s, selectors, label, timeoutMs) {
         return true;
       }
     }
-    await s.wait(1);
+    await pageSettled(s.page);
   }
   return false;
 }
@@ -81,7 +81,7 @@ async function selectBuild(s) {
     console.log('[asc-submit] WARN: build picker control not found — version may already have a build');
     return true;
   }
-  await s.wait(3);
+  await pageSettled(s.page);
   let row;
   if (BUILD_NUMBER) {
     row = s.page.locator(`tr:has-text("${BUILD_NUMBER}"), [role="row"]:has-text("${BUILD_NUMBER}"), label:has-text("${BUILD_NUMBER}")`).first();
@@ -93,14 +93,14 @@ async function selectBuild(s) {
   console.log(`[asc-submit] build selected: ${BUILD_NUMBER || 'newest available'}`);
   await humanIdlePause('short');
   await clickAny(s, ['button:has-text("Done")', 'button:has-text("Add")', 'button:has-text("Select")'], 'confirm build');
-  await s.wait(4);
+  await pageSettled(s.page);
   return true;
 }
 
 const s = await WSession.start({ label: 'apple_asc_submit', proxy: process.env.PROXY_URL || undefined });
 try {
   await s.goto(DIST_URL);
-  await s.wait(8);
+  await pageSettled(s.page);
   if ((s.page.url?.() ?? '').includes('idmsa.apple.com')) {
     console.log('FAIL: session expired, rerun apple/login.mjs');
     process.exit(2);
@@ -118,13 +118,13 @@ try {
       'button:has-text("+")',
     ], 'add version', 6000);
     if (opened) {
-      await s.wait(2);
+      await pageSettled(s.page);
       const vField = s.page.locator('input[placeholder*="ersion" i], input[name*="version" i], input[type="text"]').first();
       if (await vField.isVisible().catch(() => false)) {
         await humanFill(s.page, vField, VERSION_STRING);
         await humanIdlePause('short');
         await clickAny(s, ['button:has-text("Create")', 'button:has-text("Add")', 'button:has-text("Done")'], 'create version');
-        await s.wait(4);
+        await pageSettled(s.page);
       } else {
         console.log('[asc-submit] WARN: version input not found, continuing with current page');
       }
@@ -159,7 +159,7 @@ try {
     polls += 1;
     console.log(`[asc-submit] build still processing, reload #${polls}`);
     await s.goto(DIST_URL);
-    await s.wait(15);
+    await pageSettled(s.page);
     buildSelected = await selectBuild(s);
   }
   if (!buildSelected) {
@@ -169,7 +169,7 @@ try {
 
   // Save any staged edits before submitting.
   await clickAny(s, ['button:has-text("Save")', 'button[data-test-id="save"]'], 'save', 3000);
-  await s.wait(3);
+  await pageSettled(s.page);
 
   if (!SUBMIT) {
     console.log(`PASS: staged version for app ${APP_ID} (SUBMIT=0, not sent to review)`);
@@ -179,7 +179,7 @@ try {
   // 4) Terminal submit. Modern ASC: "Add for Review" -> review summary ->
   //    "Submit for Review"/"Submit to App Review". Older ASC: single button.
   await clickAny(s, ['button:has-text("Add for Review")'], 'Add for Review', 5000);
-  await s.wait(5);
+  await pageSettled(s.page);
 
   const submitted = await clickAny(s, [
     'button:has-text("Submit for Review")',
@@ -195,7 +195,7 @@ try {
     console.log('FAIL: terminal Submit-for-Review button not found');
     process.exit(1);
   }
-  await s.wait(6);
+  await pageSettled(s.page);
 
   // 5) Verify the version moved into a waiting/in-review status. Best-effort:
   //    the submit click already succeeded, so a read error here does not undo it.

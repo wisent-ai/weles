@@ -49,7 +49,7 @@ async function waitForPostPasswordState(session, frame, attempts = 30) {
     const failureVisible = await frame.getByText(explicitFailure).first().isVisible().catch(() => false)
       || await session.page.getByText(explicitFailure).first().isVisible().catch(() => false);
     if (failureVisible) return 'failed';
-    await session.wait(1);
+    await pageSettled(session.page);
   }
   return 'timeout';
 }
@@ -99,7 +99,7 @@ try {
   // cannot bootstrap and never inserts the idmsa iframe. Load the login
   // document directly.
   await s.page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded' });
-  await s.wait(5);
+  await pageSettled(s.page);
 
   const authFrame = await s.page.waitForSelector('iframe[src*="idmsa.apple.com"]').catch(() => null);
   if (!authFrame) throw new Error('no idmsa auth iframe found');
@@ -143,7 +143,7 @@ try {
     return email.length;
   });
   console.log('[apple-login] email filled');
-  await s.wait(5);
+  await pageSettled(s.page);
 
   // Step 2: Apple now shows a choice: "Continue with Password" / "Sign in with Passkey".
   // Click Continue with Password to reveal the password input.
@@ -155,7 +155,7 @@ try {
   if (legacyContinueVisible || signInLabel.trim() === 'Continue') {
     await (legacyContinueVisible ? continuePassword : signInButton).click();
     console.log('[apple-login] clicked Continue with Password');
-    await s.wait(4);
+    await pageSettled(s.page);
   }
 
   // Step 3: fill password — try known selectors in order
@@ -240,7 +240,7 @@ try {
   let dashboardObserved = postPasswordState === 'dashboard';
   for (let attempt = 0; !dashboardObserved && attempt < 30; attempt += 1) {
     dashboardObserved = isDashboardUrl(s.page.url?.() ?? '');
-    if (!dashboardObserved) await s.wait(1);
+    if (!dashboardObserved) await pageSettled(s.page);
   }
   if (!dashboardObserved) throw new Error(`did not reach ASC dashboard, still at ${s.page.url?.()}`);
   const dashboardUrl = new URL(s.page.url?.() ?? '');

@@ -128,7 +128,7 @@ export async function waitForPageText(s, pattern) {
   for (;;) {
     const text = await pageText(s);
     if (pattern.test(text)) return true;
-    await s.wait(1);
+    await pageSettled(s.page);
   }
 }
 
@@ -175,7 +175,7 @@ export async function ensureCustomer(s) {
   const switchUrl = `https://ads.google.com/aw/campaigns?ocid=${encodeURIComponent(target)}`;
   console.log(`[google-ads] switching customer -> ${target}`);
   await navigate(s, switchUrl, `customer ${target}`);
-  await s.wait(8);
+  await pageSettled(s.page);
   const after = currentCustomerId(s.page.url?.() ?? '');
   console.log(`[google-ads] customer after switch=${after || 'unknown'}`);
   if (after && after !== target) {

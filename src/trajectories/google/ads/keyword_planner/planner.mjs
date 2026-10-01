@@ -32,10 +32,10 @@ async function main() {
     await s.page.goto(startUrl, { waitUntil: 'domcontentloaded' }).catch((error) => {
       console.log(`[google-ads-keyword-planner] WARN: initial navigation failed ${String(error?.message || error).slice(0, 240)}`);
     });
-    await s.wait(8);
+    await pageSettled(s.page);
     await ensurePreferredGoogleAccount(s, startUrl);
     await continueFromAccountChooser(s);
-    await s.wait(5);
+    await pageSettled(s.page);
 
     const current = s.page.url?.() || '';
     const text = await s.page.evaluate(() => document.body?.innerText || '').catch(() => '');

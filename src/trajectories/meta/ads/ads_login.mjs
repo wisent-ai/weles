@@ -52,14 +52,14 @@ const s = await WSession.start({
 try {
   await bringBrowserToFront(s);
   await s.goto('https://adsmanager.facebook.com/adsmanager/manage/campaigns');
-  await s.wait(5);
+  await pageSettled(s.page);
   let cookies = await s.ctx.cookies().catch(() => []);
   if (!hasMetaAuthCookie(cookies) || isLoginUrl(s.page.url?.() ?? '')) {
     console.log(`[meta-ads-login] waiting for manual login, deadline=${LOGIN_WAIT_MS}ms`);
     await bringBrowserToFront(s);
     const deadline = Date.now() + LOGIN_WAIT_MS;
     while (Date.now() < deadline) {
-      await s.wait(3);
+      await pageSettled(s.page);
       cookies = await s.ctx.cookies().catch(() => []);
       if (hasMetaAuthCookie(cookies) && !isLoginUrl(s.page.url?.() ?? '')) break;
     }

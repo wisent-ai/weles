@@ -16,7 +16,7 @@ if (!acct) { console.log('FAIL: no apple account'); process.exit(1); }
 const s = await WSession.start({ label: 'apple_testflight_invite', proxy: process.env.PROXY_URL || undefined });
 try {
   await s.goto(`https://appstoreconnect.apple.com/apps/${APP_ID}/testflight/groups`);
-  await s.wait(8);
+  await pageSettled(s.page);
   if ((s.page.url?.() ?? '').includes('idmsa.apple.com')) {
     console.log('FAIL: session expired, rerun apple/login.mjs');
     process.exit(2);
@@ -28,23 +28,23 @@ try {
   } else {
     await humanClickLocator(s.page, s.page.locator('a[href*="/testflight/groups/"]').first());
   }
-  await s.wait(4);
+  await pageSettled(s.page);
 
   // Go to Testers tab
   await humanClickLocator(s.page, s.page.locator('a:has-text("Testers"), button:has-text("Testers")').first()).catch(() => {});
-  await s.wait(3);
+  await pageSettled(s.page);
 
   // Click + to add
   await humanClickLocator(s.page, s.page.locator('button:has-text("Add"), button[aria-label*="Add"]').first());
-  await s.wait(2);
+  await pageSettled(s.page);
 
   // Add by email
   await humanClickLocator(s.page, s.page.locator('button:has-text("Email"), label:has-text("Email")').first()).catch(() => {});
-  await s.wait(2);
+  await pageSettled(s.page);
   await s.page.locator('input[type="email"], input[placeholder*="email" i]').fill(TESTER_EMAIL);
-  await s.wait(1);
+  await pageSettled(s.page);
   await s.page.locator('button:has-text("Add"), button:has-text("Invite")').last().click();
-  await s.wait(5);
+  await pageSettled(s.page);
 
   console.log(`PASS: invited ${TESTER_EMAIL} to app ${APP_ID}`);
 } catch (e) {

@@ -27,7 +27,7 @@ const s = await WSession.start({
 });
 try {
   await s.goto(`https://apps.apple.com/us/app/id${APP_ID}`);
-  await s.wait(5);
+  await pageSettled(s.page);
 
   // Apple bounced us to login before the listing rendered → cookies stale.
   // Routine should skip this account for 24h instead of re-trying.
@@ -49,7 +49,7 @@ try {
   // turns that into a generic FAIL. That is the right behaviour for
   // "Write a Review absent" — usually means not signed in.
   await humanClickLocator(s.page, s.page.locator('button:has-text("Write a Review"), a:has-text("Write a Review")').first());
-  await s.wait(4);
+  await pageSettled(s.page);
 
   // The review modal can redirect to idmsa for re-auth when cookies are stale.
   const postClickUrl = s.page.url?.() ?? '';
@@ -77,7 +77,7 @@ try {
 
   // Submit. Apple labels the button "Send" in the public web review modal.
   await humanClickLocator(s.page, s.page.locator('button:has-text("Send"), button:has-text("Submit")').first());
-  await s.wait(6);
+  await pageSettled(s.page);
 
   // Verify: Apple does not redirect on submit; the modal collapses back to
   // the listing. If we ended up at idmsa, cookies were invalidated mid-submit.

@@ -30,18 +30,18 @@ async function login() {
   for (let i = 0; i < 30; i++) {
     const c = await s.page.evaluate('document.querySelectorAll("input").length').catch(() => 0);
     if (c >= 2) break;
-    await s.wait(1);
+    await pageSettled(s.page);
   }
   const inputs = await s.page.evaluate(`(() => Array.from(document.querySelectorAll('input')).map(i => ({ name: i.name, type: i.type, ph: i.placeholder })))()`);
   const em = inputs.find(i => i.type === 'email' || i.name === 'email' || /email|address/i.test(i.ph || ''));
   const pw = inputs.find(i => i.type === 'password' || i.name === 'password');
   const sel = (i) => i.name ? `input[name="${i.name}"]` : `input[placeholder="${i.ph}"]`;
-  await s.fillSelector(sel(em), email); await s.wait(1);
-  await s.fillSelector(sel(pw), password); await s.wait(1);
+  await s.fillSelector(sel(em), email); await pageSettled(s.page);
+  await s.fillSelector(sel(pw), password); await pageSettled(s.page);
   const submitLoc = s.page.locator('button[type="submit"], input[type="submit"]').first();
   if (await submitLoc.count()) await submitLoc.click().catch(() => {});
   else await s.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
-  for (let i = 0; i < 30; i++) { await s.wait(2); if (!s.page.url().includes('/login')) return; }
+  for (let i = 0; i < 30; i++) { await pageSettled(s.page); if (!s.page.url().includes('/login')) return; }
   throw new Error('login did not redirect');
 }
 
@@ -139,7 +139,7 @@ async function inventoryPage(sess, urlPath) {
 if (mode === 'inventory') {
   try {
     await login();
-    await s.wait(3);
+    await pageSettled(s.page);
     fs.mkdirSync(outDir, { recursive: true });
     const invPath = path.join(outDir, 'inventory.json');
     const existing = fs.existsSync(invPath)
@@ -209,7 +209,7 @@ if (mode === 'inventory') {
 } else {
 try {
   await login();
-  await s.wait(3);
+  await pageSettled(s.page);
 
   // 1) Sidebar links from the authenticated home page (flow/overview)
   // Expand every collapsed sidebar category so their children become visible.
@@ -225,7 +225,7 @@ try {
   })()`;
   const expandedHome = await s.page.evaluate(expandCats).catch(() => []);
   console.error(`[probe] expanded ${expandedHome.length} sidebar items on home`);
-  await s.wait(2);
+  await pageSettled(s.page);
   const homeLinks = await collectLinks();
 
   // Also capture every visible nav/sidebar element text so we know which
@@ -244,11 +244,11 @@ try {
   for (let i = 0; i < 20; i++) {
     const len = await s.page.evaluate('document.body?.innerText?.length || 0').catch(() => 0);
     if (len > 500) break;
-    await s.wait(1);
+    await pageSettled(s.page);
   }
-  await s.wait(3);
+  await pageSettled(s.page);
   await s.page.evaluate(expandCats).catch(() => []);
-  await s.wait(2);
+  await pageSettled(s.page);
   const stockLinks = await collectLinks();
 
   // Deduplicate, keep text

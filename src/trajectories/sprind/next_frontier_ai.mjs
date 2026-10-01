@@ -32,9 +32,9 @@ try {
   for (let i = 0; i < 30; i++) {
     const ready = await s.page.evaluate(() => !!document.querySelector('input, textarea, select'));
     if (ready) break;
-    await s.wait(1);
+    await pageSettled(s.page);
   }
-  await s.wait(2);
+  await pageSettled(s.page);
 
   const extract = await s.page.evaluate(() => {
     const visible = (el) => {

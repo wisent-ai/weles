@@ -54,7 +54,7 @@ const s = await WSession.start({ label: 'google_ads_campaign', browser: process.
 try {
   await bringBrowserToFront(s);
   await navigate(s, baseUrl, 'campaign builder');
-  await s.wait(10);
+  await pageSettled(s.page);
   let url = s.page.url?.() ?? '';
   if (isLoginUrl(url)) {
     if (!WAIT_FOR_LOGIN) {
@@ -65,7 +65,7 @@ try {
     await bringBrowserToFront(s);
     const deadline = Date.now() + LOGIN_WAIT_MS;
     while (Date.now() < deadline) {
-      await s.wait(3);
+      await pageSettled(s.page);
       url = s.page.url?.() ?? '';
       if (!isLoginUrl(url)) break;
     }
@@ -74,7 +74,7 @@ try {
       process.exit(2);
     }
     await navigate(s, baseUrl, 'campaign builder after login');
-    await s.wait(8);
+    await pageSettled(s.page);
   }
 
   await ensureCustomer(s);
@@ -94,7 +94,7 @@ try {
     if (APP_PLATFORM) await clickText(s, APP_PLATFORM, `app platform ${APP_PLATFORM}`);
   }
   await clickAny(s, ['button:has-text("Continue")', 'material-button:has-text("Continue")'], 'Continue');
-  await s.wait(10);
+  await pageSettled(s.page);
 
   let filledCount = 0;
   if (IS_APP_INSTALL) {
@@ -169,7 +169,7 @@ try {
     console.log('FAIL: Publish campaign button not found');
     process.exit(1);
   }
-  await s.wait(8);
+  await pageSettled(s.page);
   const finalText = await pageText(s);
   const status = /published|eligible|under review|campaign has been created|success/i.test(finalText) ? 'confirmed' : 'clicked';
   console.log(`PASS: Google Ads campaign publish ${status} for "${CAMPAIGN_NAME}"`);

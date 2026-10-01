@@ -36,7 +36,7 @@ async function maybeContinueCampaignConfiguration(s) {
     minW: 60,
     minH: 30,
   }, 4000);
-  await s.wait(8);
+  await pageSettled(s.page);
   return true;
 }
 
@@ -68,7 +68,7 @@ async function openCampaignCreation(s) {
   ], 'Create', 12000);
   if (!createClicked) {
     createClicked = await clickPoint(s, 122, 233, 'campaign Create by coordinates');
-    await s.wait(4);
+    await pageSettled(s.page);
   }
   return createClicked;
 }
@@ -102,7 +102,7 @@ async function chooseObjectiveAndContinue(s) {
   if (!objectiveClicked) {
     const viewport = s.page.viewportSize?.() ?? { width: 1280, height: 900 };
     await clickPoint(s, Math.round(viewport.width * 0.36), 455, 'objective Traffic/Ruch by coordinates');
-    await s.wait(1);
+    await pageSettled(s.page);
     objectiveClicked = true;
   }
   if (!objectiveClicked) console.log(`[meta-ads] WARN: objective not selected: ${objectiveLabels.join('/')}`);
@@ -111,7 +111,7 @@ async function chooseObjectiveAndContinue(s) {
   if (!continued) {
     const viewport = s.page.viewportSize?.() ?? { width: 1280, height: 900 };
     await clickPoint(s, Math.round(viewport.width * 0.68), 785, 'Kontynuuj by coordinates');
-    await s.wait(4);
+    await pageSettled(s.page);
   }
   await maybeContinueCampaignConfiguration(s);
 }

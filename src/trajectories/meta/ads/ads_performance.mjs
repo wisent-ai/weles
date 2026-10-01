@@ -91,7 +91,7 @@ async function browserPerformance() {
   });
   try {
     await s.goto(url);
-    await s.wait(10);
+    await pageSettled(s.page);
     const current = s.page.url?.() ?? '';
     const text = await s.page.evaluate(() => document.body?.innerText || '').catch(() => '');
     if (/login|checkpoint|security/i.test(current)) {

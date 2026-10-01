@@ -27,18 +27,18 @@ async function login() {
   for (let i = 0; i < 30; i++) {
     const c = await s.page.evaluate('document.querySelectorAll("input").length').catch(() => 0);
     if (c >= 2) break;
-    await s.wait(1);
+    await pageSettled(s.page);
   }
   const inputs = await s.page.evaluate(`(() => Array.from(document.querySelectorAll('input')).map((i, idx) => ({ idx, name: i.name, type: i.type, ph: i.placeholder })))()`);
   const em = inputs.find(i => i.type === 'email' || i.name === 'email' || /email|address/i.test(i.ph || ''));
   const pw = inputs.find(i => i.type === 'password' || i.name === 'password');
   const sel = (i) => i.name ? `input[name="${i.name}"]` : `input[placeholder="${i.ph}"]`;
-  await s.fillSelector(sel(em), email); await s.wait(1);
-  await s.fillSelector(sel(pw), password); await s.wait(1);
+  await s.fillSelector(sel(em), email); await pageSettled(s.page);
+  await s.fillSelector(sel(pw), password); await pageSettled(s.page);
   const submitLoc = s.page.locator('button[type="submit"], input[type="submit"]').first();
   if (await submitLoc.count()) await submitLoc.click().catch(() => {});
   else await s.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
-  for (let i = 0; i < 30; i++) { await s.wait(2); if (!s.page.url().includes('/login')) return; }
+  for (let i = 0; i < 30; i++) { await pageSettled(s.page); if (!s.page.url().includes('/login')) return; }
   throw new Error('login did not redirect');
 }
 
@@ -50,9 +50,9 @@ try {
   for (let i = 0; i < 60; i++) {
     const len = await s.page.evaluate('document.body?.innerText?.length || 0').catch(() => 0);
     if (len > 500) break;
-    await s.wait(1);
+    await pageSettled(s.page);
   }
-  await s.wait(5);
+  await pageSettled(s.page);
 
   // Click the tab by matching button text — use Playwright locator with
   // exact-text filter so the click dispatches with isTrusted=true.
@@ -65,7 +65,7 @@ try {
     console.error(`FAIL: tab "${tab}" not found in page (candidates=${clicked.count})`);
     process.exit(1);
   }
-  await s.wait(4); // let chart re-render
+  await pageSettled(s.page); // let chart re-render
 
   // Find the chart container. The tab may be many levels above the chart
   // (or in a sibling). Try: closest ancestor that has BOTH the tab text AND

@@ -41,7 +41,7 @@ export async function switchToCorrectGoogleAccount(s, creds, continueUrl = 'http
   await s.page.goto(chooser.toString(), { waitUntil: 'domcontentloaded' }).catch((error) => {
     console.log(`[google-totp-activate] WARN account chooser navigation failed ${String(error?.message || error).slice(0, 240)}`);
   });
-  await s.wait(5);
+  await pageSettled(s.page);
   const preferred = s.page.getByText(creds.email || EMAIL, { exact: false }).filter({ visible: true }).first();
   if (await preferred.isVisible().catch(() => false)) {
     console.log(`[google-totp-activate] selecting account ${creds.email || EMAIL}`);
@@ -59,7 +59,7 @@ export async function switchToCorrectGoogleAccount(s, creds, continueUrl = 'http
     await s.page.goto(direct, { waitUntil: 'domcontentloaded' }).catch((error) => {
       console.log(`[google-totp-activate] WARN direct u/1 navigation failed ${String(error?.message || error).slice(0, 240)}`);
     });
-    await s.wait(5);
+    await pageSettled(s.page);
   }
 
   if (/accounts\.google\.com/.test(s.page.url?.() || '')) {

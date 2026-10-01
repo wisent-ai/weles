@@ -66,7 +66,7 @@ async function login() {
   for (let i = 0; i < 30; i++) {
     const ok = await s.page.evaluate('document.querySelector("input[name=Email]") && document.querySelector("input[name=Password]")').catch(() => false);
     if (ok) break;
-    await s.wait(1);
+    await pageSettled(s.page);
   }
   const fill = (sel, val) => s.page.evaluate(`(({ sel, val }) => { const el = document.querySelector(sel); if (!el) return false; el.focus(); const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(el, val); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); return true; })(${JSON.stringify({ sel, val })})`);
   const submit = async () => {
@@ -76,7 +76,7 @@ async function login() {
   };
   const redirected = async (secs) => {
     for (let i = 0; i < secs; i += 2) {
-      await s.wait(2);
+      await pageSettled(s.page);
       if (!s.page.url().toLowerCase().includes('/login')) return true;
     }
     return false;
@@ -84,14 +84,14 @@ async function login() {
   // Submit with plain credentials first; only pay for a captcha solve if that
   // is blocked. The solve is time-bounded so a hard challenge can't wedge the
   // worker (solver chain can burn 5min+ per provider).
-  await fill('input[name="Email"]', email); await s.wait(1);
-  await fill('input[name="Password"]', password); await s.wait(1);
+  await fill('input[name="Email"]', email); await pageSettled(s.page);
+  await fill('input[name="Password"]', password); await pageSettled(s.page);
   await submit();
   if (await redirected(30)) return;
   console.error('[vl] plain submit blocked — attempting captcha solve');
   await s.goto(`${base}/Login`);
-  await fill('input[name="Email"]', email); await s.wait(1);
-  await fill('input[name="Password"]', password); await s.wait(1);
+  await fill('input[name="Email"]', email); await pageSettled(s.page);
+  await fill('input[name="Password"]', password); await pageSettled(s.page);
   const CAPTCHA_TIMEOUT_MS = 150_000;
   try {
     const res = await Promise.race([
@@ -108,7 +108,7 @@ async function login() {
 
 try {
   await login();
-  await s.wait(3);
+  await pageSettled(s.page);
 
   const url = PAGE_URLS[pageKey](ticker);
   console.error(`[vl] navigating to ${url}`);
@@ -125,7 +125,7 @@ try {
       console.error('[vl] 20s blank — hard reload');
       await s.page.reload().catch(() => {});
     }
-    await s.wait(1);
+    await pageSettled(s.page);
   }
   if (!ready) {
     console.error('FAIL: page never rendered');
@@ -147,7 +147,7 @@ try {
       return false;
     })()`).catch(() => false);
     if (ok) { console.error(`[vl] grid hydrated after ${i + 1}s`); break; }
-    await s.wait(1);
+    await pageSettled(s.page);
   }
 
   if (screenshotPath) {

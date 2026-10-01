@@ -45,7 +45,7 @@ const s = await WSession.start({ label: 'meta_ads_campaign', browser: process.en
 try {
   await bringBrowserToFront(s);
   await s.goto(targetUrl);
-  await s.wait(10);
+  await pageSettled(s.page);
   await passLoginGate(s);
 
   await ensureAdAccount(s);
@@ -64,7 +64,7 @@ try {
     'div[role="button"]:has-text("I Accept")',
     'div[role="button"]:has-text("Akceptuję")',
   ], 'policy modal accept', 4000);
-  await s.wait(2);
+  await pageSettled(s.page);
 
   const createClicked = await openCampaignCreation(s);
   await chooseObjectiveAndContinue(s);
@@ -89,7 +89,7 @@ try {
     console.log('FAIL: Publish button not found');
     process.exit(1);
   }
-  await s.wait(8);
+  await pageSettled(s.page);
   const finalText = await pageText(s);
   const status = /published|processing|in review|successfully/i.test(finalText) ? 'confirmed' : 'clicked';
   console.log(`PASS: Meta ads campaign publish ${status} for "${CAMPAIGN_NAME}"`);

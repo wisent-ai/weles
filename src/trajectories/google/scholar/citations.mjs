@@ -79,7 +79,7 @@ async function clearCaptchas(page, s) {
     });
     if (!r.ok) throw r.error;
     if (!r.value) return true;
-    await s.wait(2);
+    await pageSettled(s.page);
   }
   return false;
 }
@@ -91,7 +91,7 @@ async function navOnce(s, url) {
   for (let i = 0; i < 20; i++) {
     const r = await safeEval(s.page, () => !!document.querySelector('.gs_r'));
     if (r.ok && r.value) return true;
-    await s.wait(1);
+    await pageSettled(s.page);
   }
   return false;
 }

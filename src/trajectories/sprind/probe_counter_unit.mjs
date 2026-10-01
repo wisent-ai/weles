@@ -18,9 +18,9 @@ try {
   for (let i = 0; i < 30; i++) {
     const ready = await s.page.evaluate(() => !!document.querySelector('textarea'));
     if (ready) break;
-    await s.wait(1);
+    await pageSettled(s.page);
   }
-  await s.wait(2);
+  await pageSettled(s.page);
 
   const readState = async () => s.page.evaluate(() => {
     // First textarea on the page is the project title (0/50 in labels).
@@ -52,19 +52,19 @@ try {
   // Probe A: 5 single-letter words separated by spaces.
   //   chars = 9 ("a b c d e"), words = 5
   await humanFill(s.page, taLocator, 'a b c d e');
-  await s.wait(1);
+  await pageSettled(s.page);
   console.log('probeA (chars=9, words=5):', JSON.stringify(await readState()));
 
   // Probe B: one contiguous 12-char string, zero whitespace.
   //   chars = 12, words = 1
   await humanFill(s.page, taLocator, 'abcdefghijkl');
-  await s.wait(1);
+  await pageSettled(s.page);
   console.log('probeB (chars=12, words=1):', JSON.stringify(await readState()));
 
   // Probe C: 3 longer words.
   //   chars = 22 ("foundation models work"), words = 3
   await humanFill(s.page, taLocator, 'foundation models work');
-  await s.wait(1);
+  await pageSettled(s.page);
   console.log('probeC (chars=22, words=3):', JSON.stringify(await readState()));
 } finally {
   await s.close();

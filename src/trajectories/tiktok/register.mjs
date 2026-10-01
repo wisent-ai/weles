@@ -46,8 +46,8 @@ const PROBE = `(() => { const t = document.body.innerText || ''; const i = []; i
       s = await WSession.start({ label: 'tiktok_register', proxy: process.env.PROXY_URL || 'residential brightdata', targetHost: 'www.tiktok.com', persona: generatePersona({ country: 'US', browser: process.env.FORCE_BROWSER || 'chromium' }) });
       const net = installNetworkLogger(s);
 
-      for (const u of ['https://www.tiktok.com/','https://www.tiktok.com/explore']) { await s.page.goto(u,{waitUntil:'domcontentloaded'}).catch((e) => console.log(`[test] warm-up ${u}: ${e.message?.slice(0, 80)}`)); await s.wait(3); }
-      await s.goto(URL); await s.wait(3);
+      for (const u of ['https://www.tiktok.com/','https://www.tiktok.com/explore']) { await s.page.goto(u,{waitUntil:'domcontentloaded'}).catch((e) => console.log(`[test] warm-up ${u}: ${e.message?.slice(0, 80)}`)); await pageSettled(s.page); }
+      await s.goto(URL); await pageSettled(s.page);
 
       // Verify page is alive
       const alive = await s.page.evaluate('document.querySelector("body") !== null').catch(() => false);
@@ -72,7 +72,7 @@ const PROBE = `(() => { const t = document.body.innerText || ''; const i = []; i
         const urlBefore = s.page.url?.() ?? '';
         if (urlBefore.includes('/phone-or-email')) break;
         await s.click('Use phone or email');
-        await s.wait(3);
+        await pageSettled(s.page);
       }
       const urlAfterChannel = s.page.url?.() ?? '';
       if (!urlAfterChannel.includes('/phone-or-email')) {
@@ -84,7 +84,7 @@ const PROBE = `(() => { const t = document.body.innerText || ''; const i = []; i
         const u = s.page.url?.() ?? '';
         if (u.includes('/email')) break;
         await s.click('Sign up with email');
-        await s.wait(2);
+        await pageSettled(s.page);
       }
       if (!(s.page.url?.() ?? '').includes('/email')) {
         console.log(`[test] attempt ${retry + 1}: couldn't switch to email tab`); continue;
@@ -94,7 +94,7 @@ const PROBE = `(() => { const t = document.body.innerText || ''; const i = []; i
       await s.select('month', id.birthMonth);
       await s.select('day', id.birthDay);
       await s.select('year', id.birthYear);
-      await s.wait(1);
+      await pageSettled(s.page);
 
       // Email — humanFill via s.fill works for plain text inputs.
       await s.fill('Email', id.email);
@@ -106,15 +106,15 @@ const PROBE = `(() => { const t = document.body.innerText || ''; const i = []; i
       const pwLoc = s.page.locator('input[placeholder="Password"], input[type="password"]').first();
       if (await pwLoc.count()) {
         await pwLoc.focus();
-        await s.wait(1);
+        await pageSettled(s.page);
         await press('ControlOrMeta+A');
         await press('Delete');
         await humanType(s.page, password);
       }
-      await s.wait(1);
+      await pageSettled(s.page);
       // Tab out of password — fires React onBlur, dismisses error banner
       await press('Tab');
-      await s.wait(1);
+      await pageSettled(s.page);
       const verify = await s.page.evaluate(`(() => {
         const inputs = Array.from(document.querySelectorAll('input'));
         const email = inputs.find(i => (i.placeholder || '').toLowerCase().includes('email'));
@@ -126,7 +126,7 @@ const PROBE = `(() => { const t = document.body.innerText || ''; const i = []; i
         return { emailLen: email?.value?.length, pwLen: pw?.value?.length, sendDisabled: sendBtn?.disabled, sendAriaDisabled: sendBtn?.getAttribute('aria-disabled'), errors: errors.slice(0, 8), bodyExcerpt: pageText };
       })()`).catch((e) => ({ error: e.message }));
       console.log(`[test] fill verify: ${JSON.stringify(verify)}`);
-      await s.wait(2);
+      await pageSettled(s.page);
 
       // Capture Send code button rect + install click listener
       const sendInfo = await probeButton(s.page, 'send-code');
@@ -143,7 +143,7 @@ const PROBE = `(() => { const t = document.body.innerText || ''; const i = []; i
       // captcha/rate-limit indicator.
       let probe = { hasResend: false, indicators: [] };
       for (let pw = 0; pw < 25; pw++) {
-        await s.wait(2);
+        await pageSettled(s.page);
         probe = await s.page.evaluate(PROBE).catch(() => ({ error: true }));
         if (probe.hasResend || net.sendCodeSuccess || probe.indicators?.length) break;
       }
@@ -179,7 +179,7 @@ const PROBE = `(() => { const t = document.body.innerText || ''; const i = []; i
       // Reconcile React state only after send_code has succeeded.
       if (await pwLoc.count().catch(() => false)) await syncReactInputValue(pwLoc, password);
       await syncReactInputValue(codeLoc, code);
-      await press('Tab'); await s.wait(1);
+      await press('Tab'); await pageSettled(s.page);
 
       const nextInfo = await probeButton(s.page, 'next');
       console.log(`[test] Next button: ${JSON.stringify(nextInfo)}`);
@@ -187,31 +187,31 @@ const PROBE = `(() => { const t = document.body.innerText || ''; const i = []; i
       if (nextInfo.disabled === false) {
         const r = await s.click('Next');
         console.log(`[test] s.click('Next') => ${r}`);
-        await s.wait(2);
+        await pageSettled(s.page);
         if (!net.registerVerifySeen && (s.page.url?.() ?? '').includes('/signup/phone-or-email/email')) {
           console.log('[test] Next click produced no register_verify_login request — trying keyboard activation');
           const nextBtn = s.page.getByRole('button', { name: /^\s*Next\s*$/i }).first();
           await nextBtn.focus().catch((e) => console.log(`[test] Next focus: ${e.message?.slice(0, 80)}`));
           await press('Enter');
-          await s.wait(2);
-          if (!net.registerVerifySeen) { await press('Space'); await s.wait(2); }
+          await pageSettled(s.page);
+          if (!net.registerVerifySeen) { await press('Space'); await pageSettled(s.page); }
           if (!net.registerVerifySeen && await nextBtn.isVisible().catch(() => false)) {
             await humanClickLocator(s.page, nextBtn).catch((e) => console.log(`[test] Next click: ${e.message?.slice(0, 80)}`));
-            await s.wait(2);
+            await pageSettled(s.page);
           }
         }
       } else {
         console.log('[test] Next disabled, cannot submit');
         continue;
       }
-      await s.wait(3);
+      await pageSettled(s.page);
 
       console.log(`[test] clicks received: ${await recordedClicks(s.page)}`);
 
       // Wait for URL change OR post-submit state.
       let postUrl = s.page.url?.() ?? '';
       for (let w = 0; w < 30; w++) {
-        await s.wait(2);
+        await pageSettled(s.page);
         postUrl = s.page.url?.() ?? '';
         const t = await s.page.evaluate('(document.body.innerText || "").slice(0, 600).toLowerCase()');
         if (/create-username|foryou|\/@|onboarding|interests|choose.*username|create a username|profile picture|turn on notifications/i.test(postUrl + ' ' + t)) {

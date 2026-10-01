@@ -17,7 +17,7 @@ export async function gotoAuthenticatorSettingsLink(s) {
   await s.page.goto(href, { waitUntil: 'domcontentloaded' }).catch((error) => {
     console.log(`[google-totp-activate] WARN authenticator href navigation failed ${String(error?.message || error).slice(0, 240)}`);
   });
-  await s.wait(6);
+  await pageSettled(s.page);
   return /two-step-verification\/authenticator/i.test(s.page.url?.() || '');
 }
 
@@ -34,7 +34,7 @@ export async function openAuthenticatorSetup(s, creds) {
     await s.page.goto(url, { waitUntil: 'domcontentloaded' }).catch((error) => {
       console.log(`[google-totp-activate] WARN navigation failed ${url} ${String(error?.message || error).slice(0, 240)}`);
     });
-    await s.wait(6);
+    await pageSettled(s.page);
     if (!await ensureSignedIn(s, creds)) return { ok: false, blocked: 'google_login_required_or_second_factor_required' };
     const text = await currentBodyText(s.page);
     const current = s.page.url?.() || '';
@@ -46,7 +46,7 @@ export async function openAuthenticatorSetup(s, creds) {
         return { ok: true, url: s.page.url?.() || '', text: nextText };
       }
       if (await clickByText(s.page, /2-Step Verification|2-step verification/i, '2-Step Verification')) {
-        await s.wait(6);
+        await pageSettled(s.page);
         const nextText = await currentBodyText(s.page);
         const nextUrl = s.page.url?.() || '';
         if (/Authenticator|verification app|2-Step Verification|2-step verification/i.test(nextText)) {
@@ -106,7 +106,7 @@ export async function activateAuthenticator(s, creds) {
 
   if (/Remove anyway/i.test(await currentBodyText(s.page))) {
     await clickByText(s.page, /^Cancel$/i, 'cancel remove authenticator warning');
-    await s.wait(2);
+    await pageSettled(s.page);
   }
 
 
@@ -124,7 +124,7 @@ export async function activateAuthenticator(s, creds) {
   for (const pattern of actionPatterns) {
     const before = s.page.url?.() || '';
     if (await clickByText(s.page, pattern, pattern.source)) {
-      await s.wait(4);
+      await pageSettled(s.page);
       const text = await currentBodyText(s.page);
       if (/QR code|setup key|secret key|Enter the code|verification code|Authenticator/i.test(text) || (s.page.url?.() || '') !== before) break;
     }
@@ -136,7 +136,7 @@ export async function activateAuthenticator(s, creds) {
     const text = await currentBodyText(s.page);
     if (/Enter the code|verification code|code from/i.test(text)) break;
     await clickByText(s.page, pattern, pattern.source);
-    await s.wait(3);
+    await pageSettled(s.page);
   }
 
   await diag(s.page, 'before_code_entry', secret);
@@ -159,7 +159,7 @@ export async function activateAuthenticator(s, creds) {
     await humanFill(s.page, input, code);
     console.log(`[google-totp-activate] filled activation code attempt=${attempt}`);
     await clickByText(s.page, /^(Next|Verify|Turn on|Done)$/i, 'submit activation code');
-    await s.wait(8);
+    await pageSettled(s.page);
     const text = await currentBodyText(s.page);
     const url = s.page.url?.() || '';
     await diag(s.page, `after_code_submit_${attempt}`, secret);

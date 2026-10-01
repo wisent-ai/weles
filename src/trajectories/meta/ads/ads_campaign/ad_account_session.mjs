@@ -34,7 +34,7 @@ async function passLoginGate(s) {
     await bringBrowserToFront(s);
     const deadline = Date.now() + LOGIN_WAIT_MS;
     while (Date.now() < deadline) {
-      await s.wait(3);
+      await pageSettled(s.page);
       url = s.page.url?.() ?? '';
       if (!isLoginUrl(url)) break;
     }
@@ -43,7 +43,7 @@ async function passLoginGate(s) {
       process.exit(2);
     }
     await s.goto(targetUrl);
-    await s.wait(8);
+    await pageSettled(s.page);
   }
   if (/business\.facebook\.com\/security|two_factor|checkpoint/i.test(await pageText(s))) {
     console.log('FAIL: Meta account requires security verification');
@@ -80,7 +80,7 @@ async function ensureAdAccount(s) {
     const switchUrl = `https://adsmanager.facebook.com/adsmanager/manage/campaigns?${params}`;
     console.log(`[meta-ads] switching ad account -> ${AD_ACCOUNT_ID}`);
     await s.goto(switchUrl);
-    await s.wait(8);
+    await pageSettled(s.page);
   }
   const after = currentAdAccountId(s.page.url?.() ?? '');
   const visible = await visibleSelectedAdAccount(s);

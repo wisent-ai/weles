@@ -90,7 +90,7 @@ async function waitForOptionalLogin(s) {
   while (Date.now() < deadline) {
     const cookies = await s.ctx.cookies().catch(() => []);
     if (hasMetaAuthCookie(cookies) && !isLoginUrl(s.page.url?.() ?? '')) return;
-    await s.wait(3);
+    await pageSettled(s.page);
   }
 }
 
@@ -109,9 +109,9 @@ const s = await WSession.start({
 let exitCode = 0;
 try {
   await s.goto(targetUrl());
-  await s.wait(8);
+  await pageSettled(s.page);
   await waitForOptionalLogin(s);
-  await s.wait(2);
+  await pageSettled(s.page);
 
   const current = s.page.url?.() ?? '';
   const cookies = await s.ctx.cookies().catch(() => []);

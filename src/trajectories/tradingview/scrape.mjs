@@ -39,7 +39,7 @@ try {
   // redirected URL. TV sends ORCL to NYSE-ORCL, NVDA to NASDAQ-NVDA, etc.
   console.error(`[tv] resolving exchange prefix for ${ticker}`);
   await s.goto(`https://www.tradingview.com/symbols/${ticker}/`);
-  await s.wait(3);
+  await pageSettled(s.page);
   const finalUrl = s.page.url();
   const m = finalUrl.match(/\/symbols\/([A-Z]+-[A-Z0-9.]+)\//);
   const symbolId = m ? m[1] : null;
@@ -66,10 +66,10 @@ try {
       console.error('[tv] 20s blank — hard reload');
       await s.page.reload().catch(() => {});
     }
-    await s.wait(1);
+    await pageSettled(s.page);
   }
   if (!ready) { console.error('FAIL: page never rendered'); process.exit(1); }
-  await s.wait(4);
+  await pageSettled(s.page);
 
   if (screenshotPath) {
     await s.page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {});

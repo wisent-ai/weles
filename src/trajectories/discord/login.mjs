@@ -30,10 +30,10 @@ for (let retry = 0; retry < 3; retry++) {
     s = await WSession.start({ label: 'discord_login', proxy: proxyUrl, persona: accountSession.persona, targetHost: 'discord.com' });
     // Visit register page first to pass Cloudflare challenge and set cf_clearance cookie
     await s.goto('https://discord.com/register');
-    await s.wait(3);
+    await pageSettled(s.page);
     await s.goto(URL);
     let mounted = false;
-    for (let i = 0; i < 15; i++) { if (await s.page.evaluate('document.querySelector("#app-mount")?.children?.length > 0').catch(() => false)) { mounted = true; break; } await s.wait(1); }
+    for (let i = 0; i < 15; i++) { if (await s.page.evaluate('document.querySelector("#app-mount")?.children?.length > 0').catch(() => false)) { mounted = true; break; } await pageSettled(s.page); }
     if (mounted) { console.log(`[login] SPA mounted on attempt ${retry + 1}`); break; }
     console.log(`[login] SPA failed to mount on attempt ${retry + 1}, retrying...`);
   } catch (e) { console.log(`[login] Attempt ${retry + 1} crashed: ${e.message?.slice(0, 100)}`); }
@@ -56,7 +56,7 @@ try {
   for (let i = 0; i < 30; i++) {
     const hasInputs = await s.page.evaluate('document.querySelectorAll("input").length > 0').catch(() => false);
     if (hasInputs) { console.log(`[login] Form inputs appeared after ${i + 1}s`); break; }
-    await s.wait(1);
+    await pageSettled(s.page);
   }
   const inputNames = await s.page.evaluate(`Array.from(document.querySelectorAll('input')).map(i=>({name:i.name,type:i.type,ph:i.placeholder,aria:i.getAttribute('aria-label')}))`).catch(() => []);
   console.log(`[login] Inputs: ${JSON.stringify(inputNames)}`);
@@ -82,7 +82,7 @@ try {
   const emailResult = await fillField(emailSel, process.env.SVC_EMAIL);
   const passResult = await fillField(passSel, process.env.SVC_PASSWORD);
   console.log(`[login] fill email(${emailSel}): ${JSON.stringify(emailResult)}, password(${passSel}): ${JSON.stringify(passResult)}`);
-  await s.wait(1);
+  await pageSettled(s.page);
   let deactivateAccount = async () => {};
   try { ({ deactivateAccount } = await import('../../../dist/account/state.js')); } catch (e) { console.log(`[login] state.js import failed: ${e.message?.slice(0, 100)}`); }
   const bail = () => { try { if (s.authBlocked) { Promise.resolve(deactivateAccount(acct.id, acct.metadata, s.authBlocked)).then(() => { console.log(`FAIL: ${acct.username} ${s.authBlocked} (deactivated)`); process.exitCode = 1; }).catch(() => process.exit(1)); return true; } if ((s.page?.url?.() ?? '').includes('/channels')) { console.log(`PASS: direct login — ${s.page.url()}`); captureCookies().then(() => process.exit(0)).catch(() => process.exit(0)); return true; } } catch (e) { console.log(`[login] bail err: ${e.message?.slice(0, 100)}`); } return false; };
@@ -90,7 +90,7 @@ try {
   for (let attempt = 0; attempt < 5; attempt++) {
     console.log(`[login] Submit attempt ${attempt + 1}`);
     await s.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
-    await s.wait(3);
+    await pageSettled(s.page);
     if (s.captchaResponse || bail()) break;
   }
   // Solve captcha and resubmit via API (same as registration)
@@ -137,7 +137,7 @@ try {
           // cookies in the same Skarbiec item.
           if (acct.id) await s.patchAccount(acct.id, { metadata: { discord_token: result.data.token } });
           await s.goto('https://discord.com/channels/@me');
-          await s.wait(5);
+          await pageSettled(s.page);
           console.log(`PASS: logged in as ${acct.username} — ${s.page.url?.()}`);
           await captureCookies();
           loggedIn = true; break;
@@ -184,7 +184,7 @@ try {
                 const verifyUrl = newPage.url();
                 console.log(`[login] Authorize tab: ${verifyUrl?.slice(0, 80)} apiCalled=${apiCalled}`);
                 await newPage.close().catch(() => {});
-                await s.wait(2);
+                await pageSettled(s.page);
                 verifyDone = true;
                 break;
               }
@@ -202,7 +202,7 @@ try {
             await s.page.evaluate(`localStorage.setItem("token", JSON.stringify(${JSON.stringify(retryResult.data.token)}))`).catch(() => {});
             if (acct.id) await s.patchAccount(acct.id, { metadata: { discord_token: retryResult.data.token } });
             await s.goto('https://discord.com/channels/@me').catch(() => {});
-            await s.wait(5);
+            await pageSettled(s.page);
             console.log(`PASS: logged in as ${acct.username} — ${s.page.url?.()}`);
             await captureCookies();
             loggedIn = true; break;

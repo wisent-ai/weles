@@ -36,7 +36,7 @@ export async function waitForPostPasswordState(session, frame, signInStatus, pol
     const failureVisible = await frame.getByText(explicitFailure).first().isVisible().catch(() => false)
       || await session.page.getByText(explicitFailure).first().isVisible().catch(() => false);
     if (failureVisible) return 'failed';
-    await session.wait(1);
+    await pageSettled(session.page);
   }
   return 'timeout';
 }

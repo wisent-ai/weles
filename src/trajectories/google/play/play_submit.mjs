@@ -63,7 +63,7 @@ async function clickAny(s, selectors, label, timeoutMs) {
         return true;
       }
     }
-    await s.wait(1);
+    await pageSettled(s.page);
   }
   return false;
 }
@@ -89,7 +89,7 @@ try {
   } else {
     await s.goto('https://play.google.com/console/u/0/developers');
   }
-  await s.wait(8);
+  await pageSettled(s.page);
   if ((s.page.url?.() ?? '').includes('accounts.google.com')) {
     console.log('FAIL: session expired / not logged in, run a google login trajectory first');
     process.exit(2);
@@ -102,7 +102,7 @@ try {
     const appLink = s.page.locator(`a:has-text("${PACKAGE_NAME}"), tr:has-text("${PACKAGE_NAME}") a, [aria-label*="${PACKAGE_NAME}"]`).first();
     if (await appLink.isVisible().catch(() => false)) {
       await humanClickLocator(s.page, appLink);
-      await s.wait(6);
+      await pageSettled(s.page);
     } else {
       console.log(`FAIL: app "${PACKAGE_NAME}" not found in the Play Console app list`);
       process.exit(1);
@@ -111,7 +111,7 @@ try {
     if (!navOpened) {
       console.log(`[play-submit] WARN: "${navLabel}" nav item not found — assuming already on the release page`);
     }
-    await s.wait(4);
+    await pageSettled(s.page);
   }
 
   // 2) Create a new release.
@@ -124,7 +124,7 @@ try {
     console.log('FAIL: "Create new release" control not found on track page');
     process.exit(1);
   }
-  await s.wait(6);
+  await pageSettled(s.page);
 
   // 3) Upload the bundle through the file input. setInputFiles is the only
   //    mechanism for a file picker and emits a genuine change event.
@@ -144,7 +144,7 @@ try {
     } catch (e) { console.log('[play-submit] page read during upload failed:', e.message?.slice(0, 80)); }
     if (txt.includes('version code') || txt.includes('uploaded') || /\bapp bundle\b/.test(txt)) { uploadDone = true; break; }
     if (txt.includes('error') && txt.includes('upload')) { console.log('FAIL: Play Console reported an upload error'); process.exit(3); }
-    await s.wait(4);
+    await pageSettled(s.page);
   }
   if (!uploadDone) { console.log('FAIL: bundle did not finish processing within the upload window'); process.exit(3); }
   console.log('[play-submit] bundle processed');
@@ -163,7 +163,7 @@ try {
 
   // 5) Advance: Next / Save.
   await clickAny(s, ['button:has-text("Next")', 'button:has-text("Save")'], 'Next/Save', 6000);
-  await s.wait(5);
+  await pageSettled(s.page);
 
   if (!SUBMIT) {
     console.log(`PASS: staged ${TRACK} release for ${PACKAGE_NAME || PLAY_RELEASE_URL} (SUBMIT=0, not sent)`);
@@ -172,7 +172,7 @@ try {
 
   // 6) Review screen then terminal rollout / send-for-review (+ confirm dialog).
   await clickAny(s, ['button:has-text("Review release")', 'button:has-text("Review")'], 'Review release', 6000);
-  await s.wait(5);
+  await pageSettled(s.page);
 
   const sent = await clickAny(s, [
     `button:has-text("Start rollout to ${navLabel}")`,
@@ -190,10 +190,10 @@ try {
     console.log('FAIL: terminal rollout/send-for-review button not found');
     process.exit(1);
   }
-  await s.wait(3);
+  await pageSettled(s.page);
   // Confirmation dialog.
   await clickAny(s, ['button:has-text("Rollout")', 'button:has-text("Send for review")', 'button:has-text("Confirm")'], 'confirm rollout', 6000);
-  await s.wait(6);
+  await pageSettled(s.page);
 
   // 7) Verify a sent/rollout status surfaced.
   let status = '';
