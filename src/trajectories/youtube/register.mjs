@@ -59,7 +59,7 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
 
     // 3. Create-Gmail option (Google sometimes offers existing email vs new gmail).
     const createGmail = s.page.locator('div[role="radio"]:has-text("Create your own Gmail"), button:has-text("Create your own Gmail"), input[value="0"][type="radio"] + label, label:has-text("Create your own Gmail address")').filter({ visible: true }).first();
-    if (await createGmail.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await createGmail.isVisible()) {
       await humanClickLocator(s.page, createGmail);
       await humanIdlePause('short');
     }
@@ -74,7 +74,7 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
 
     // 5. Password + confirm.
     const pwIn = s.page.locator('input[name="Passwd"], input[name="password"], input[type="password"]').filter({ visible: true }).first();
-    await pwIn.waitFor({ state: 'visible', timeout: 15000 });
+    await pwIn.waitFor({ state: 'visible' });
     await humanClickLocator(s.page, pwIn);
     await humanType(s.page, id.password);
     const cfIn = s.page.locator('input[name="ConfirmPasswd"], input[name="confirm-passwd"], input[name="passwd-again"]').filter({ visible: true }).first();
@@ -86,7 +86,7 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
 
     // 6. Phone — try to skip if button available.
     const skip = s.page.locator('button:has-text("Skip"), button:has-text("Not now")').filter({ visible: true }).first();
-    if (await skip.isVisible({ timeout: 4000 }).catch(() => false)) {
+    if (await skip.isVisible()) {
       await humanClickLocator(s.page, skip);
       await humanIdlePause('deliberate');
     } else {
@@ -124,12 +124,12 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
 
     // 7. Terms / I agree.
     const agree = s.page.locator('button:has-text("I agree"), button:has-text("Accept"), button:has-text("Agree")').filter({ visible: true }).first();
-    if (await agree.isVisible({ timeout: 6000 }).catch(() => false)) {
+    if (await agree.isVisible()) {
       await humanClickLocator(s.page, agree);
       await humanIdlePause('deliberate');
     }
 
-    await s.page.waitForFunction(() => /youtube\.com|myaccount\.google\.com/.test(location.href), { timeout: 30000 });
+    await s.page.waitForFunction(() => /youtube\.com|myaccount\.google\.com/.test(location.href));
     // Defense-in-depth: confirm the Google→YouTube OAuth actually
     // authed before persisting the row. PH register hit this same class
     // — a logged-out _producthunt_session_production cookie got

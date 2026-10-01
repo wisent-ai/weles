@@ -32,7 +32,7 @@ async function bodyText(page) {
 async function fillFirst(page, selectors, value) {
   for (const selector of selectors) {
     const loc = page.locator(selector).filter({ visible: true }).first();
-    if (await loc.count() && await loc.isVisible({ timeout: 1500 }).catch(() => false)) {
+    if (await loc.count() && await loc.isVisible()) {
       await humanClickLocator(page, loc);
       await humanFill(page, loc, '').catch(() => {});
       await humanType(page, value);
@@ -45,7 +45,7 @@ async function fillFirst(page, selectors, value) {
 async function clickFirst(page, selectors, label) {
   for (const selector of selectors) {
     const loc = page.locator(selector).filter({ visible: true }).first();
-    if (await loc.count() && await loc.isVisible({ timeout: 1500 }).catch(() => false)) {
+    if (await loc.count() && await loc.isVisible()) {
       await humanClickLocator(page, loc);
       return true;
     }
@@ -94,7 +94,7 @@ async function fillSignupForm(s, id) {
 async function maybeHandlePhone(s) {
   const page = s.page;
   const phoneInput = page.locator('input[type="tel"], input[name*="phone" i], input[id*="phone" i]').filter({ visible: true }).first();
-  if (!(await phoneInput.count()) || !(await phoneInput.isVisible({ timeout: 1500 }).catch(() => false))) return false;
+  if (!(await phoneInput.count()) || !(await phoneInput.isVisible())) return false;
 
   const phone = await s.checkSms('yahoo', process.env.YAHOO_SMS_COUNTRY || 'US');
   if (phone.startsWith('error')) throw new Error(`yahoo_sms_unavailable: ${phone}`);
@@ -110,7 +110,7 @@ async function maybeHandlePhone(s) {
 async function maybeHandleCode(s, id) {
   const page = s.page;
   const codeInput = page.locator('input[name*="code" i], input[id*="code" i], input[autocomplete="one-time-code"], input[type="tel"][maxlength="6"], input[type="text"][maxlength="6"]').filter({ visible: true }).first();
-  if (!(await codeInput.count()) || !(await codeInput.isVisible({ timeout: 1500 }).catch(() => false))) return false;
+  if (!(await codeInput.count()) || !(await codeInput.isVisible())) return false;
   const text = await bodyText(page);
   let code = null;
   if (/email|e-mail|inbox|verification code/i.test(text)) {
@@ -130,12 +130,12 @@ async function maybeHandleCode(s, id) {
 
 async function maybeHandlePassword(page, password) {
   const passwordInput = page.locator('input[name="password"], input[type="password"], input[id*="password" i]').filter({ visible: true }).first();
-  if (!(await passwordInput.count()) || !(await passwordInput.isVisible({ timeout: 1500 }).catch(() => false))) return false;
+  if (!(await passwordInput.count()) || !(await passwordInput.isVisible())) return false;
   await humanClickLocator(page, passwordInput);
   await humanFill(page, passwordInput, '').catch(() => {});
   await humanType(page, password);
   const confirm = page.locator('input[name*="confirm" i], input[id*="confirm" i]').filter({ visible: true }).first();
-  if (await confirm.count() && await confirm.isVisible({ timeout: 1000 }).catch(() => false)) {
+  if (await confirm.count() && await confirm.isVisible()) {
     await humanClickLocator(page, confirm);
     await humanFill(page, confirm, '').catch(() => {});
     await humanType(page, password);
@@ -149,7 +149,7 @@ async function maybeOpenPasswordSetup(page) {
   const text = await bodyText(page);
   if (!/Welcome to Yahoo/i.test(text) || !/password/i.test(text)) return false;
   const change = page.locator('a:has-text("Change password"), a:has-text("Create password"), button:has-text("Change password"), button:has-text("Create password")').filter({ visible: true }).first();
-  if (!(await change.count()) || !(await change.isVisible({ timeout: 1500 }).catch(() => false))) return false;
+  if (!(await change.count()) || !(await change.isVisible())) return false;
   await humanClickLocator(page, change);
   await humanIdlePause('long');
   return true;
@@ -160,7 +160,7 @@ async function successState(s) {
   let text = await bodyText(s.page);
   if (/Welcome to Yahoo/i.test(text)) {
     const done = s.page.locator('button:has-text("Done")').filter({ visible: true }).first();
-    if (await done.count() && await done.isVisible({ timeout: 1000 }).catch(() => false)) {
+    if (await done.count() && await done.isVisible()) {
       await humanClickLocator(s.page, done);
       await humanIdlePause('long');
     }

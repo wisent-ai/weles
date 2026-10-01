@@ -25,12 +25,12 @@ try {
   await humanClickLocator(s.page, s.page.locator('button:has-text("Next"), #identifierNext button, button[jsname]:has-text("Next")').filter({ visible: true }).first());
   // Step 2: password → Next.
   const pwIn = s.page.locator('input[type="password"], input[name="Passwd"], input[name="password"]').filter({ visible: true }).first();
-  await pwIn.waitFor({ state: 'visible', timeout: 20000 });
+  await pwIn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, pwIn);
   await humanType(s.page, process.env.SVC_PASSWORD);
   await humanClickLocator(s.page, s.page.locator('button:has-text("Next"), #passwordNext button, button[jsname]:has-text("Next")').filter({ visible: true }).first());
   // Wait until we land on youtube.com (or myaccount.google.com if redirect path differs).
-  await s.page.waitForFunction(() => /youtube\.com\/?(?:\?|$)/.test(location.href) || /myaccount\.google\.com/.test(location.href), { timeout: 30000 });
+  await s.page.waitForFunction(() => /youtube\.com\/?(?:\?|$)/.test(location.href) || /myaccount\.google\.com/.test(location.href));
   // Persist with cookies_minted_at so action trajectories can enforce freshness.
   try { const cookies = await s.ctx.cookies(); await persistFreshCookieJar(acct, cookies, { currentProxyUrl: process.env.PROXY_URL }); }
   catch (e) { console.log('[cookie-capture] err:', e.message?.slice(0, 100)); }

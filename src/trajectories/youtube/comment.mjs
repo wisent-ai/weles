@@ -40,7 +40,7 @@ try {
   await humanIdlePause('deliberate');
   // Placeholder "Add a comment..." — clicking it expands the input box.
   const placeholder = s.page.locator('#placeholder-area, ytd-comment-simplebox-renderer #simplebox-placeholder').filter({ visible: true }).first();
-  await placeholder.waitFor({ state: 'visible', timeout: 15000 });
+  await placeholder.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, placeholder);
   await humanIdlePause('short');
   // Expanded input: contenteditable div.
