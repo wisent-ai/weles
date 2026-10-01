@@ -106,7 +106,7 @@ export function buildCaptureCoverage(ws: any): any {
     { field: 'heap_snapshot', present: present(ws?._instHeapSnapshot), error: errorOf(ws, '_instHeapSnapshotError') },
     { field: 'system_info', present: present(ws?._instSystemInfo) },
   ]);
-  add('C.cdp.metrics_tracing_coverage', 'C', 'metrics, tracing, and coverage', 'Performance/Memory polling, Tracing, JS/CSS coverage', status(len(ws?._instMetricsHistory) + len(ws?._instTracing) > 0 || present(ws?._instJsCoverageData), !!ws?._cdp), [
+  add('C.cdp.metrics_tracing_coverage', 'C', 'metrics, tracing, and coverage', 'Performance/Memory activity checkpoints, Tracing, JS/CSS coverage', status(len(ws?._instMetricsHistory) + len(ws?._instTracing) > 0 || present(ws?._instJsCoverageData), !!ws?._cdp), [
     { field: 'cdp_metrics', count: len(ws?._instMetricsHistory) },
     { field: 'cdp_tracing', count: len(ws?._instTracing), error: errorOf(ws, '_instTracingError') },
     { field: 'js_coverage', present: present(ws?._instJsCoverageData), error: errorOf(ws, '_instJsCoverageError') },

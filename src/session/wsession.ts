@@ -126,6 +126,8 @@ export class WSession {
       console.log(`[wsession] ${label} ERROR ${message}`);
       if (retainStepArtifacts) await captureStepArtifacts(this, 'error', label, error);
       throw error;
+    } finally {
+      await (this as any)._instCheckpoints?.checkpoint(`step:${label}`);
     }
   }
 

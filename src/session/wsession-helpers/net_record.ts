@@ -1,5 +1,5 @@
 // The merged instrumentation dump of one WSession: wires every capture
-// surface at start, writes the dump on an interval and at close. The
+// surface at start, writes the dump on browser activity, steps and close. The
 // complete network record itself lives in capture/network_record.ts.
 // Extracted from wsession.ts to keep that file under the 300-line
 // cap. Also handles the per-frame JS access-trap flush so the whole {accesses,
@@ -10,10 +10,11 @@ import type { BrowserContext } from 'playwright';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { platform as osPlatform, release as osRelease, arch as osArch, totalmem, cpus, hostname, version as osVersion } from 'node:os';
-import { attachServiceWorkers, attachCdpLifecycle, pollStorageState, buildSiblingManifest, attachStdoutCapture, sliceStdout, captureHostSnapshots, captureFinalCdpSnapshots, attachPagePlaywrightEvents } from './capture_extras.js';
+import { attachServiceWorkers, attachCdpLifecycle, buildSiblingManifest, attachStdoutCapture, sliceStdout, captureHostSnapshots, captureFinalCdpSnapshots, attachPagePlaywrightEvents } from './capture_extras.js';
 import { startPcap, attachWorkerInventory } from './pcap_sidecar.js';
 import { runRecordingsDir } from '../run-recordings.js';
 import { buildCaptureCoverage } from './capture/capture_coverage.js';
+import { attachInstrumentationCheckpoints } from './capture/checkpoints/activity.js';
 
 import { attachCompleteNetRecord } from './capture/network_record.js';
 
@@ -64,6 +65,8 @@ export function startInstrumentation(ws: any, ctx: BrowserContext, label: string
   ws._instTargetEvents = targetEvents;
   ws._instFrameEvents = frameEvents;
   ws._instMetricsHistory = metricsHistory;
+  ws._instProcessHistory = [];
+  ws._instDomCounters = [];
   ws._instStorageHistory = storageHistory;
   ws._instAccum = accum;
   ws._instFile = fn;
@@ -81,10 +84,7 @@ export function startInstrumentation(ws: any, ctx: BrowserContext, label: string
   attachPageDiagnostics(ws, consoleMsgs, pageErrors);
   attachServiceWorkers(ctx, swEvents);
   if (cdpDiagnostics) {
-    ws._cdpDiagnosticsReady = attachCdpLifecycle(ws, ctx, targetEvents, frameEvents, metricsHistory);
-  }
-  if (storageDiagnostics) {
-    pollStorageState(ws, ctx, storageHistory);
+    ws._cdpDiagnosticsReady = attachCdpLifecycle(ws, ctx, targetEvents, frameEvents);
   }
   if (pcapDiagnostics) {
     startPcap(ws, label);
@@ -96,54 +96,17 @@ export function startInstrumentation(ws: any, ctx: BrowserContext, label: string
     captureHostSnapshots(ws);
   }
   attachPagePlaywrightEvents(ws);
-  const flushTimer = setInterval(async () => {
-    try {
-      for (const f of ws.page.frames()) {
-        try {
-          const j: string = await f.evaluate('(()=>{var a=globalThis[Symbol.for("weles.inst")];return a?a.flush():"[]"})()');  // allow-raw-playwright: instrumentation flush
-          const log = JSON.parse(j);
-          if (!log.length) continue;
-          const url = f.url();
-          const prev = accum.get(url);
-          if (!prev || log.length > prev.log.length) accum.set(url, { url, log });
-        } catch {}
-      }
-      // Rendered-DOM snapshot (Playwright, main frame). Buffered live so it
-      // survives a window-closed teardown; deduped by url+length so idle
-      // periods don't bloat it; capped to the most recent 80 distinct states.
-      try {
-        if (ws.page && !ws.page.isClosed?.()) {
-          const html: string = await ws.page.content();  // allow-raw-playwright: dom timeline snapshot
-          const url = ws.page.url();
-          const last = ws._instDomTimeline[ws._instDomTimeline.length - 1];
-          if (!last || last.url !== url || last.len !== html.length) {
-            ws._instDomTimeline.push({ t: Date.now(), url, len: html.length, html });
-            if (ws._instDomTimeline.length > 80) ws._instDomTimeline.shift();
-          }
-        }
-      } catch {}
-      writeFileSync(fn, safeJsonStringify(buildDumpPayload(ws)));
-    } catch {}
-  }, 5000);
-  ws._instFlushTimer = flushTimer;
-  flushTimer.unref?.();
+  ws._instCheckpoints = attachInstrumentationCheckpoints(
+    ws, ctx, { cdpDiagnostics, storageDiagnostics },
+    () => writeFileSync(fn, safeJsonStringify(buildDumpPayload(ws))),
+  );
   return reqs;
 }
 
-// Called at WSession close: one last flush of the property-trap log across all
-// frames + write the final merged dump. Overwrites the file the interval writer
-// has been refreshing every 5 seconds with the most-recent state, so the
-// uploaded artifact contains everything up to the moment of close.
+// Drain activity captures before final protocol snapshots and one closing dump.
 export async function finalDump(ws: any): Promise<void> {
   await ws._cdpDiagnosticsReady;
-  // Measurements belong to the session, not to the lifetime of its worker.
-  // Leaving any of these intervals alive turns a completed login into a timeout.
-  for (const key of ['_instFlushTimer', '_instMetricsPollId', '_instDomCountersPollId', '_instStoragePollId']) {
-    if (ws?.[key]) {
-      clearInterval(ws[key]);
-      ws[key] = null;
-    }
-  }
+  await ws._instCheckpoints?.stop();
   if (!ws?._instFile) return;
   // End CDP Tracing + coverage tracking first so per-domain takeXxx results
   // are populated before serialization. Failures noted, not silenced.
@@ -157,21 +120,10 @@ export async function finalDump(ws: any): Promise<void> {
   try { await captureFinalCdpSnapshots(ws); } catch {}
   try { const { stopPcap } = await import('./pcap_sidecar.js'); await stopPcap(ws); } catch {}
   try {
-    if (!ws.page?.isClosed?.()) {
-      for (const f of ws.page.frames?.() ?? []) {
-        try {
-          const j: string = await f.evaluate('(()=>{var a=globalThis[Symbol.for("weles.inst")];return a?a.flush():"[]"})()');  // allow-raw-playwright: instrumentation flush
-          const log = JSON.parse(j);
-          if (!log.length) continue;
-          const url = f.url();
-          const prev = ws._instAccum.get(url);
-          if (!prev || log.length > prev.log.length) ws._instAccum.set(url, { url, log });
-        } catch {}
-      }
-    }
+    await ws._instCheckpoints?.captureFinal();
     writeFileSync(ws._instFile, safeJsonStringify(buildDumpPayload(ws, { closing: true })));
     console.log(`[wsession] final inst dump -> ${ws._instFile}`);
-  } catch (e: any) { console.log(`[wsession] finalDump err: ${e?.message?.slice(0, 120)}`); }
+  } catch (e: any) { console.error(`[wsession] final instrumentation dump ${ws._instFile} failed: ${e?.message ?? e}`); }
 }
 
 // Subscribe to console + pageerror so they ride in the same merged inst dump
@@ -187,6 +139,7 @@ function attachPageDiagnostics(ws: any, consoleMsgs: any[], pageErrors: any[]): 
           try { args.push(await a.jsonValue?.()); } catch { args.push(String(a)); }
         }
         consoleMsgs.push({ t: Date.now(), type: msg.type?.(), text: msg.text?.(), location: msg.location?.(), args });
+        void ws._instCheckpoints?.checkpoint('console');
       } catch {}
     });
     ws.page.on?.('pageerror', (err: any) => {
@@ -199,7 +152,7 @@ function attachPageDiagnostics(ws: any, consoleMsgs: any[], pageErrors: any[]): 
 }
 
 
-// Single source of truth for the dump shape. Called from the interval writer
+// Single source of truth for the dump shape. Called from activity checkpoints
 // and from finalDump at close. Sources every channel that's been wired into
 // the merged inst dump; reads its inputs off ws._instXxx fields populated by
 // startInstrumentation + capture_extras helpers.
@@ -245,6 +198,8 @@ function buildDumpPayload(ws: any, opts: { closing?: boolean } = {}): any {
     service_workers: ws._instSwEvents ?? [],
     cdp_targets: ws._instTargetEvents ?? [],
     cdp_attach_error: ws._cdpAttachError ?? null,
+    checkpoint_errors: ws._instCheckpointErrors ?? [],
+    last_checkpoint: ws._instLastCheckpoint ?? null,
     cdp_frames: ws._instFrameEvents ?? [],
     cdp_metrics: ws._instMetricsHistory ?? [],
     storage_history: ws._instStorageHistory ?? [],
@@ -268,10 +223,8 @@ function buildDumpPayload(ws: any, opts: { closing?: boolean } = {}): any {
     indexed_db: ws._instIndexedDb ?? [],
     indexed_db_error: ws._instIndexedDbError ?? null,
     dom_counters: ws._instDomCounters ?? [],
-    // Live rendered-DOM timeline (Playwright page.content polled every flush).
-    // Unlike dom_snapshot below — a single finalize-time CDP call that dies
-    // "Target closed" when a keeper window is closed before finalize — this is
-    // buffered during the session and persisted every 5s, so it is always present.
+    // Distinct rendered DOM states retained at activity and step checkpoints.
+    // A closed page retains earlier captures; no clock guarantees a snapshot.
     dom_timeline: ws._instDomTimeline ?? [],
     dom_snapshot: ws._instDomSnapshot ?? null,
     dom_snapshot_error: ws._instDomSnapshotError ?? null,

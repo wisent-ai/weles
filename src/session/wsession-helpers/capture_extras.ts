@@ -89,16 +89,6 @@ export function attachPagePlaywrightEvents(ws: any): void {
   try { ws.page.on?.('framenavigated', (f: any) => push({ t: Date.now(), phase: 'frameNavigated', url: f?.url?.() ?? null, name: f?.name?.() ?? null })); } catch {}
 }
 
-// Periodic ctx.storageState() snapshot. Cookies + localStorage + sessionStorage
-// + IndexedDB-origin metadata across all origins the context has touched.
-// Captured at start, every 10s thereafter, and on close (via finalDump).
-export function pollStorageState(ws: any, ctx: BrowserContext, storageHistory: any[]): void {
-  void (async () => { try { storageHistory.push({ t: Date.now(), state: await ctx.storageState() }); } catch {} })();
-  ws._instStoragePollId = setInterval(async () => {
-    try { storageHistory.push({ t: Date.now(), state: await ctx.storageState() }); } catch {}
-  }, 10_000);
-}
-
 // Sibling-file manifest: list every file currently in recordings/<label>/
 // other than the inst.json itself, with size + mtime. Lets the inst dump
 // reference its webm / DOM / screenshots / network.ndjson companions by path

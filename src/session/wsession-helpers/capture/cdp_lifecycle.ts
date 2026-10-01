@@ -1,19 +1,19 @@
-// CDP target lifecycle, frame attach/detach/navigate, periodic
-// Performance.getMetrics and raw wire-level Network.* extra info, wired from
+// CDP target lifecycle, frame attach/detach/navigate, performance setup
+// and raw wire-level Network.* extra info, wired from
 // startInstrumentation() through the WSession's existing CDP session. Split
 // out of capture_extras.ts, whose other surfaces are Playwright-side.
 
 import type { BrowserContext } from 'playwright';
 import { CDP_EVENTS } from './cdp_events.generated.js';
 
-// CDP target lifecycle + frame attach/detach/navigate + periodic
-// Performance.getMetrics + raw wire-level Network.* extra info. Uses the
+// CDP target lifecycle + frame attach/detach/navigate +
+// performance setup + raw wire-level Network.* extra info. Uses the
 // WSession's existing CDP session (created in the constructor for
 // Network.dataReceived). Network.*ExtraInfo events surface the actual
 // on-the-wire headers (including HTTP/2 :method/:path/:authority/:scheme
 // pseudo-headers and the cookie pair line as sent), connection-reuse info,
 // and final loaded byte counts that Playwright's ctx.on('response') hides.
-export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: any[], frameEvents: any[], metricsHistory: any[]): Promise<void> {
+export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: any[], frameEvents: any[]): Promise<void> {
   return (async () => {
     try {
       const cdpFeatureEnabled = (name: string): boolean => {
@@ -62,14 +62,6 @@ export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: 
       cdp.on('Network.requestServedFromCache', (e: any) => { try { nw.push({ t: Date.now(), phase: 'servedFromCache', requestId: e?.requestId }); } catch {} });
       cdp.on('Network.webSocketHandshakeResponseReceived', (e: any) => { try { nw.push({ t: Date.now(), phase: 'wsHandshakeRes', requestId: e?.requestId, response: e?.response }); } catch {} });
       cdp.on('Network.webSocketWillSendHandshakeRequest', (e: any) => { try { nw.push({ t: Date.now(), phase: 'wsHandshakeReq', requestId: e?.requestId, request: e?.request }); } catch {} });
-      // Performance + per-helper-process info. SystemInfo.getProcessInfo
-      // returns the full Chromium process tree (gpu, renderer, utility,
-      // network, plugin, broker, etc.) with cpuTime + os pid + processType.
-      ws._instProcessHistory = [];
-      ws._instMetricsPollId = setInterval(async () => {
-        try { const m = await cdp.send('Performance.getMetrics'); metricsHistory.push({ t: Date.now(), metrics: m?.metrics ?? [] }); } catch {}
-        try { const p = await cdp.send('SystemInfo.getProcessInfo'); ws._instProcessHistory.push({ t: Date.now(), processInfo: p }); } catch {}
-      }, 10_000);
       // One-shot system info — full GPU adapter list with vendor, device,
       // driver version, GL renderer, supported video decoders, command-line
       // flags Chrome actually launched with. Captured once at session start.
@@ -112,13 +104,6 @@ export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: 
       try { await cdp.send('IndexedDB.enable'); } catch (e: any) { ws._instIndexedDbError = String(e?.message ?? e); }
       cdp.on('IndexedDB.databaseCreated', (e: any) => { try { ws._instIndexedDb.push({ t: Date.now(), phase: 'created', name: e?.databaseName, origin: e?.origin }); } catch {} });
       cdp.on('IndexedDB.versionChange', (e: any) => { try { ws._instIndexedDb.push({ t: Date.now(), phase: 'versionChange', name: e?.databaseName }); } catch {} });
-      // Memory.getDOMCounters polled every 10s — Documents, Nodes, JSEventListeners
-      // counts on the renderer process. Cheap, useful for memory-leak detection
-      // and for spotting bot-detection scripts that spawn many short-lived nodes.
-      ws._instDomCounters = [];
-      ws._instDomCountersPollId = setInterval(async () => {
-        try { const c = await cdp.send('Memory.getDOMCounters'); ws._instDomCounters.push({ t: Date.now(), counters: c }); } catch {}
-      }, 10_000);
       // Page lifecycle markers + dialog/file-chooser/window-open + within-doc nav.
       ws._instPageEvents = [];
       try { await cdp.send('Page.setLifecycleEventsEnabled', { enabled: true }); } catch {}
