@@ -1,6 +1,6 @@
 // The captcha widget as LinkedIn's challenge page embeds it: its sitekey, the frame that
 // holds the token field, the data-s value, and the form submission that carries the token.
-import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../../../dist/human/mouse.js';
 
 export async function getCaptchaSitekey(page) {
   // LinkedIn's challenge iframe embeds a reCAPTCHA enterprise widget whose
@@ -178,7 +178,6 @@ export async function submitLinkedinCaptchaForm(page, token, sitekey, dataS) {
   }, { t: token, sk: sitekey });
   if (callbackInvoked) {
     console.log('[create_account_challenge] reCAPTCHA main-frame callback/execute invoked');
-    await humanIdlePause('short');
     return { ok: true };
   }
 
