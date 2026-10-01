@@ -30,10 +30,11 @@ const OWNER_ONLY_FILE = 0o600;
 const PUBLIC_FILE = 0o644;
 const START_OPTIONS = ['account-item', 'confirm', 'execution-host', 'execution-agent', 'private-key-out', 'expires-in-minutes', 'subject'];
 const READ_OPTIONS = ['run', 'certificate-out', 'private-key', 'store-host'];
-// The owner-vault item every darwin release recipe reads its signing identity
-// from (MACOS_CERT_P12, MACOS_CERT_PASSWORD, MACOS_SIGN_IDENTITY).
-const SIGNING_ITEM = 'wisent-apple-developer-id';
-const SIGNING_ITEM_KIND = 'apple_signing_identity';
+// The role every darwin release recipe reads its signing identity through
+// (MACOS_CERT_P12, MACOS_CERT_PASSWORD, MACOS_SIGN_IDENTITY): Stado selects
+// the vault item tagged stado:role:<role>, so no item is named here.
+const SIGNING_ROLE = 'macos-developer-id';
+const SIGNING_ITEM_KIND = 'bundle';
 const P12_PASSWORD_BYTES = 24;
 
 // The certificate's common name, which is the identity codesign selects.
@@ -61,19 +62,23 @@ function storeSigningIdentity(certificate: Buffer, privateKey: string, storeHost
   }
   const identity = commonName(certificate);
   const payload = JSON.stringify({
+    schema: 'skarbiec.item.v2',
     kind: SIGNING_ITEM_KIND,
-    certificate_p12_base64: packed.stdout.toString('base64'),
-    certificate_password: password,
-    sign_identity: identity,
+    fields: {
+      certificate_p12_base64: packed.stdout.toString('base64'),
+      certificate_password: password,
+      sign_identity: identity,
+    },
+    context: { provider: 'apple', certificate: 'developer-id-application' },
   });
-  const stored = spawnSync('stado', ['credentials', 'item', 'put', '--host', storeHost, '--type', SIGNING_ITEM_KIND, SIGNING_ITEM, '--json'], {
+  const stored = spawnSync('stado', ['credentials', 'item', 'put', '--host', storeHost, '--role', SIGNING_ROLE, '--type', SIGNING_ITEM_KIND, '--json'], {
     input: payload,
     encoding: 'utf8',
   });
   if (stored.error || stored.status !== 0) {
-    throw new Error(`stado credentials item put ${SIGNING_ITEM} on ${storeHost}: ${(stored.stderr || stored.error?.message || `exit ${stored.status}`).trim()}`);
+    throw new Error(`stado credentials item put --role ${SIGNING_ROLE} on ${storeHost}: ${(stored.stderr || stored.error?.message || `exit ${stored.status}`).trim()}`);
   }
-  return { item: SIGNING_ITEM, host: storeHost, sign_identity: identity };
+  return { role: SIGNING_ROLE, host: storeHost, sign_identity: identity };
 }
 
 function text(parsed: ParsedCli, key: string): string | undefined {
