@@ -3,7 +3,8 @@ import { SessionStore } from '../../../dist/session/store.js';
 import { ACTIONS, actionName, missingInputs } from './analytics-service/action-catalog.mjs';
 import { safeGoto } from './analytics-service/page-interaction.mjs';
 import { ensureLoggedIn } from './analytics-service/session-login.mjs';
-import { humanIdlePause, humanScroll } from '../../../dist/human/mouse.js';
+import { humanScroll } from '../../../dist/human/mouse.js';
+import { pageSettled } from './page/settled.mjs';
 import { resolvedUrl, openExpectedDashboardSection } from './analytics-service/google-analytics/reports.mjs';
 import {
   prepareWrite,
@@ -45,13 +46,13 @@ async function run() {
     if (name === 'googleanalytics_verify_realtime') {
       extra.targetSite = await verifyTargetSite(s, cfg);
       await safeGoto(s, resolvedUrl(cfg));
-      await humanIdlePause('long');
+      await pageSettled(s.page);
       await openExpectedDashboardSection(s);
     } else if (name.includes('verify_tracking_script') || name === 'umami_track_custom_event' || name === 'googleanalytics_install_gtag') {
       extra.targetSite = await verifyTargetSite(s, cfg);
     } else {
       await safeGoto(s, resolvedUrl(cfg));
-      await humanIdlePause('long');
+      await pageSettled(s.page);
       if (cfg.platform === 'googleanalytics') await openExpectedDashboardSection(s);
       if (name !== 'googleanalytics_register' && name !== 'googleanalytics_register_needher') {
         for (let i = 0; i < 2; i++) await humanScroll(s.page, 800, 2);

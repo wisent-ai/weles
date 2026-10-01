@@ -5,7 +5,7 @@
 // of a popup or the page itself moving to accounts.google.com, and the sign-in
 // is over when the page has left Google and settled. A sign-in that ends back
 // on Overleaf's /login throws with the URL it ended on.
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { googleSso } from './google_sso.mjs';
 import { pageSettled } from '../page/settled.mjs';
 
@@ -22,7 +22,7 @@ const ON_LOGIN = /\/login(\?|$|\/)/;
 export async function overleafGoogleSignIn(s, login, options) {
   const { label, chooseAnotherAccount = false } = options;
   await s.goto('https://www.overleaf.com/login');
-  await humanIdlePause('short');
+  await pageSettled(s.page);
   if (ON_PROJECTS.test(s.page.url())) {
     console.log(`[${label}] already authenticated via persisted cookies`);
     return { alreadySignedIn: true, url: s.page.url() };
@@ -53,7 +53,7 @@ export async function overleafGoogleSignIn(s, login, options) {
     const useAnother = surface.getByText(/Use another account/i).filter({ visible: true }).first();
     if (emailInputs === 0 && await useAnother.count() > 0) {
       await humanClickLocator(surface, useAnother);
-      await humanIdlePause('deliberate');
+      await pageSettled(surface);
     }
   }
 

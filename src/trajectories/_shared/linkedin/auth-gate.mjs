@@ -5,7 +5,7 @@
 // on a different proxy sticky and re-burns).
 
 import { assertAuthed, AuthProbeError } from '../auth/auth-probe.mjs';
-import { humanIdlePause } from '../../../../dist/human/mouse.js';
+import { pageSettled } from '../page/settled.mjs';
 
 const AUTH_WALL_RE = /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login)\b/;
 
@@ -19,36 +19,34 @@ async function authPass({ s, cfg, feed, label }) {
       error: new Error(`proxy_failed: ${cfg.platform} navigation never left chrome-error — proxy CONNECT failed for ${feed}`),
     };
   }
-  if (AUTH_WALL_RE.test(finalUrl) && true) {
+  if (AUTH_WALL_RE.test(finalUrl)) {
     return {
       ok: false,
       banSignal: { signal: 'checkpoint', healthy: false, details: { final_url: finalUrl, reason: 'redirected to platform login wall — stored cookies stale or session never authenticated' } },
       error: new Error(`auth_wall: ${cfg.platform} session not authenticated — landed at ${finalUrl}`),
     };
   }
-  if (true) {
-    await humanIdlePause().catch(() => {});
-    const settledUrl = s.page.url?.() ?? '';
-    if (AUTH_WALL_RE.test(settledUrl)) {
+  await pageSettled(s.page);
+  const settledUrl = s.page.url?.() ?? '';
+  if (AUTH_WALL_RE.test(settledUrl)) {
+    return {
+      ok: false,
+      banSignal: { signal: 'checkpoint', healthy: false, details: { final_url: settledUrl, reason: 'SPA-redirected to login wall during settle — stored cookies stale' } },
+      error: new Error(`auth_wall: ${cfg.platform} session redirected to login during SPA settle — landed at ${settledUrl}`),
+    };
+  }
+  try {
+    const opts = { label };
+    await assertAuthed(cfg.platform, s, opts);
+  } catch (probeErr) {
+    if (probeErr instanceof AuthProbeError) {
       return {
         ok: false,
-        banSignal: { signal: 'checkpoint', healthy: false, details: { final_url: settledUrl, reason: 'SPA-redirected to login wall during settle — stored cookies stale' } },
-        error: new Error(`auth_wall: ${cfg.platform} session redirected to login during SPA settle — landed at ${settledUrl}`),
+        banSignal: probeErr.banSignal,
+        error: new Error(`auth_probe_failed: ${probeErr.message}`),
       };
     }
-    try {
-      const opts = { label };
-      await assertAuthed(cfg.platform, s, opts);
-    } catch (probeErr) {
-      if (probeErr instanceof AuthProbeError) {
-        return {
-          ok: false,
-          banSignal: probeErr.banSignal,
-          error: new Error(`auth_probe_failed: ${probeErr.message}`),
-        };
-      }
-      throw probeErr;
-    }
+    throw probeErr;
   }
   return { ok: true, banSignal: null };
 }
