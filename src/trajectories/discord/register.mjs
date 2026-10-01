@@ -156,13 +156,13 @@ try {
   if (captchaData.captcha_rqtoken) formData.captcha_rqtoken = captchaData.captcha_rqtoken;
   const hdrs = JSON.stringify({ 'Content-Type': 'application/json', ...s.captchaHeaders });
   const result = await s.page.evaluate(`(async()=>{var r=await fetch('/api/v9/auth/register',{method:'POST',headers:${hdrs},body:${JSON.stringify(JSON.stringify(formData))}});return{status:r.status,data:await r.json()};})()`);
-  console.log(`[register] ${svc.name}: status=${result.status} response=${JSON.stringify(result.data).slice(0, 200)}`);
+  console.log(`[register] ${svc.name}: status=${result.status} response=${JSON.stringify(result.data)}`);
   if (!((result.status === 200 || result.status === 201) && result.data?.token)) {
     if (result.data?.captcha_rqdata && exitIp) {
       await markBurned(exitIp, 'captcha_challenge', 'discord');
       throw new Error(`discord_register: Discord rejected the ${svc.name} token and asked for a new captcha; exit ${exitIp} marked burned`);
     }
-    throw new Error(`discord_register: register API answered ${result.status} with ${JSON.stringify(result.data).slice(0, 200)}`);
+    throw new Error(`discord_register: register API answered ${result.status} with ${JSON.stringify(result.data)}`);
   }
   const authToken = result.data.token;
   await s.page.evaluate(`localStorage.setItem("token", JSON.stringify(${JSON.stringify(authToken)}))`);

@@ -42,7 +42,7 @@ async function umamiRegisterAccount(s) {
   const text = await bodyText(s.page);
   const url = s.page.url();
   if (/already exists|invalid|incorrect|required|failed|error/i.test(text)) {
-    throw new Error(`Umami sign-up failed: ${text.slice(0, 500).replace(/\s+/g, ' ')}`);
+    throw new Error(`Umami sign-up failed: ${text.replace(/\s+/g, ' ')}`);
   }
   if (/verify|verification|check your email|confirm your email/i.test(text) || (!/signup|register/i.test(url) && /dashboard|websites|analytics\/us/i.test(text))) {
     return { registration: { email, status: 'submitted_or_verified' } };

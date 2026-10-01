@@ -165,7 +165,7 @@ async function successState(s) {
       await humanIdlePause('long');
     }
   } else if (/login\.yahoo\.com/.test(url) && /create a yahoo account|verification code|phone|password|next/i.test(text)) {
-    return { ok: false, url, accountUi: 0, sample: text.slice(0, 500) };
+    return { ok: false, url, accountUi: 0, sample: text };
   }
   await s.goto(FINANCE_URL).catch(() => {});
   await humanIdlePause('deliberate');
@@ -173,7 +173,7 @@ async function successState(s) {
   text = await bodyText(s.page);
   const loggedOut = /sign in|create account|login\.yahoo/i.test(text) && /login\.yahoo\.com/.test(url);
   const accountUi = await s.page.locator('button[aria-label*="account" i], a[href*="account" i], a[href*="login.yahoo.com/account"]').count().catch(() => 0);
-  return { ok: !loggedOut && (/finance\.yahoo\.com/.test(url) || accountUi > 0), url, accountUi, sample: text.slice(0, 500) };
+  return { ok: !loggedOut && (/finance\.yahoo\.com/.test(url) || accountUi > 0), url, accountUi, sample: text };
 }
 
 {
@@ -218,10 +218,10 @@ async function successState(s) {
       await pageSettled(s.page);
     }
     const final = await successState(s);
-    throw new Error(`yahoo_register_no_success final_url=${final.url} sample=${final.sample.slice(0, 160)}`);
+    throw new Error(`yahoo_register_no_success final_url=${final.url} sample=${final.sample}`);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    console.log(`FAIL: ${message.slice(0, 300)}`);
+    console.log(`FAIL: ${message}`);
     writeJson('yahoo_register_result.json', { ok: false, error: message, completed_at: new Date().toISOString() });
     writeJson('ban_signal.json', { action: LABEL, healthy: false, signal: 'register_failed', details: { error: message }, ts: new Date().toISOString() });
     await s.close();

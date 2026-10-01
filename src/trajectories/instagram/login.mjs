@@ -66,7 +66,7 @@ try {
   // Check for inline error text
   const err = await s.page.evaluate((sel) => Array.from(document.querySelectorAll(sel)).map(e => e.textContent?.trim()).filter(Boolean), ERR_SEL);
   if (err.length && /incorrect|wasn't recognised|wasn't recognized|password|wait a few minutes/i.test(err.join(' '))) {
-    throw new Error(`invalid_credentials_or_block: ${err.join(' | ').slice(0, 150)}`);
+    throw new Error(`invalid_credentials_or_block: ${err.join(' | ')}`);
   }
   if (/\/accounts\/login/.test(finalUrl)) throw new Error('login form did not submit / no redirect');
   if (/challenge|checkpoint|two_factor/.test(finalUrl)) throw new Error(`checkpoint at ${finalUrl}`);

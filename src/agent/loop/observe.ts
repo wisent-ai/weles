@@ -39,7 +39,7 @@ export function parseJsonFrom(raw: string): Record<string, any> {
       if ('tool' in parsed) return parsed;
     } catch { /* skip */ }
   }
-  return { tool: 'give_up', args: { reason: `unparseable LLM output: ${raw.slice(0, 200)}` } };
+  return { tool: 'give_up', args: { reason: `unparseable LLM output: ${raw}` } };
 }
 
 export type ModelDecisionProvider = typeof callJeden;
@@ -61,7 +61,7 @@ export async function askLlm(goal: string, state: string, screenshotPath: string
     functionName = routed.functionName;
     routerMeta = { model: routed.model, router_url: routed.routerUrl, finish_reason: routed.finishReason, usage: routed.usage, function_name: routed.functionName };
   } catch (e: unknown) {
-    lastRouterError = (e instanceof Error ? e.message : String(e)).slice(0, 300);
+    lastRouterError = (e instanceof Error ? e.message : String(e));
     routerMeta = { error: lastRouterError };
   }
   let decision: Record<string, any>;

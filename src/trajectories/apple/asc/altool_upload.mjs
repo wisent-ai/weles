@@ -43,7 +43,7 @@ export async function uploadIpa(opts) {
           resolve({ ok: true, stdout: out });
           return;
         }
-        reject(new Error(`altool failed: ${(err || out).slice(Number('0'), Number('500'))}`));
+        reject(new Error(`altool failed: ${(err || out)}`));
       });
     });
   } finally {

@@ -41,7 +41,7 @@ export function workspaceApi(request) {
       data: body,
     });
     const j = await r.json();
-    if (!j.ok) throw new Error(`${method}: ${j.error || JSON.stringify(j).slice(0, 80)}`);
+    if (!j.ok) throw new Error(`${method}: ${j.error || JSON.stringify(j)}`);
     return j;
   };
 }

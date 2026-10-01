@@ -25,9 +25,9 @@ export async function integrationAction<T>(domain: string, action: string, body:
   const text = await response.text();
   let envelope: { ok?: unknown; result?: unknown; error?: unknown };
   try { envelope = JSON.parse(text) as typeof envelope; }
-  catch { throw new Error(`${endpoint} answered HTTP ${response.status} with a body that is not JSON: ${text.trim().slice(0, 300) || 'empty'}`); }
+  catch { throw new Error(`${endpoint} answered HTTP ${response.status} with a body that is not JSON: ${text.trim() || 'empty'}`); }
   if (!response.ok || envelope.ok !== true || !envelope.result) {
-    throw new Error(`${endpoint} answered HTTP ${response.status}: ${JSON.stringify(envelope.error ?? envelope).slice(0, 300)}`);
+    throw new Error(`${endpoint} answered HTTP ${response.status}: ${JSON.stringify(envelope.error ?? envelope)}`);
   }
   return envelope.result as T;
 }

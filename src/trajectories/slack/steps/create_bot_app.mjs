@@ -90,7 +90,7 @@ export async function createBotApp({ page, weles, shot }) {
   });
   const validate = await validateResp.json();
   console.log(`[bot][validate] ${JSON.stringify(validate).slice(0, 1500)}`);
-  if (!validate.ok) throw new Error(`[bot] apps.manifest.validate failed: ${JSON.stringify(validate).slice(0, 500)}`);
+  if (!validate.ok) throw new Error(`[bot] apps.manifest.validate failed: ${JSON.stringify(validate)}`);
 
   const createResp = await page.context().request.post('https://slack.com/api/apps.manifest.create', {
     headers: { 'Authorization': `Bearer ${xoxc}` },
@@ -99,10 +99,10 @@ export async function createBotApp({ page, weles, shot }) {
   const create = await createResp.json();
   console.log(`[bot][create] ${JSON.stringify(create).slice(0, 1500)}`);
   if (!create.ok) {
-    throw new Error(`[bot] apps.manifest.create failed: ${JSON.stringify(create).slice(0, 500)}`);
+    throw new Error(`[bot] apps.manifest.create failed: ${JSON.stringify(create)}`);
   }
   const appId = create.app_id;
-  if (!appId) throw new Error(`[bot] apps.manifest.create returned no app_id: ${JSON.stringify(create).slice(0, 200)}`);
+  if (!appId) throw new Error(`[bot] apps.manifest.create returned no app_id: ${JSON.stringify(create)}`);
   console.log(`[bot] ✓ app created via API: id=${appId}`);
   await shot('08-app-created');
 

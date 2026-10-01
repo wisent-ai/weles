@@ -70,7 +70,7 @@ export async function getNumber(service: string, country = 'UK'): Promise<SmsNum
         return { phone: normalizePhone(m2[2], country), orderId: m2[1], provider: 'juicysms', country };
       }
     }
-    console.log(`[sms] juicysms (${country}): ${text.slice(0, 60)}`);
+    console.log(`[sms] juicysms (${country}): ${text}`);
   }
   // Try sms-activate
   const saKey = smsActivateApiKey();
@@ -112,11 +112,11 @@ export async function readCode(orderId: string, provider: 'juicysms' | 'smsactiv
       // with a space in the middle, so strip all non-digits before matching.
       const digits = text.replace('SUCCESS_', '').replace(/\D/g, '');
       const code = digits.match(/^(\d{4,8})$/)?.[1];
-      if (!code) throw new Error(`sms_juicysms_unreadable: order ${orderId} answered ${text.slice(0, 80)}`);
+      if (!code) throw new Error(`sms_juicysms_unreadable: order ${orderId} answered ${text}`);
       console.log(`[sms] code: ${code}`);
       return code;
     }
-    throw new Error(`sms_juicysms_waiting: order ${orderId} has no code yet (${text.slice(0, 80)}); read it again with this order id`);
+    throw new Error(`sms_juicysms_waiting: order ${orderId} has no code yet (${text}); read it again with this order id`);
   }
   const saKey = smsActivateApiKey();
   if (!saKey) throw new Error('sms_smsactivate_unconfigured: no SMS-Activate API key');
@@ -125,12 +125,12 @@ export async function readCode(orderId: string, provider: 'juicysms' | 'smsactiv
   const text = (await r.text()).trim();
   if (text.startsWith('STATUS_OK:')) {
     const code = text.split(':')[1].match(/(\d{4,8})/)?.[1];
-    if (!code) throw new Error(`sms_smsactivate_unreadable: order ${orderId} answered ${text.slice(0, 80)}`);
+    if (!code) throw new Error(`sms_smsactivate_unreadable: order ${orderId} answered ${text}`);
     console.log(`[sms] code: ${code}`);
     return code;
   }
   if (text.includes('STATUS_CANCEL')) throw new Error(`sms_smsactivate_cancelled: activation ${orderId} was cancelled`);
-  throw new Error(`sms_smsactivate_waiting: order ${orderId} has no code yet (${text.slice(0, 80)}); read it again with this order id`);
+  throw new Error(`sms_smsactivate_waiting: order ${orderId} has no code yet (${text}); read it again with this order id`);
 }
 
 export async function cancelOrder(orderId: string, provider: 'juicysms' | 'smsactivate'): Promise<void> {

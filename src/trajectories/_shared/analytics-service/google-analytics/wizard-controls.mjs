@@ -43,7 +43,7 @@ async function waitForGaStepOrText(page, stepPattern, textPattern, description) 
   const step = await selectedGaStep(page);
   const text = await bodyText(page);
   if (stepPattern.test(step) || textPattern.test(text)) return;
-  throw new Error(`${description} did not advance; selected_step=${JSON.stringify(step)}; body_preview=${text.slice(0, 500).replace(/\s+/g, ' ')}`);
+  throw new Error(`${description} did not advance; selected_step=${JSON.stringify(step)}; body_preview=${text.replace(/\s+/g, ' ')}`);
 }
 
 function enabledButtonLocator(root, pattern) {
@@ -92,7 +92,7 @@ async function clickGaNext(page, description = 'GA wizard next button', expected
           (list) => list,
           (listError) => ({ listed: false, reason: `visible buttons could not be listed: ${listError.message}` }),
         );
-      throw new Error(`${description} was not clickable; visible_buttons=${JSON.stringify(buttons)}; body_preview=${text.slice(0, 500).replace(/\s+/g, ' ')}`);
+      throw new Error(`${description} was not clickable; visible_buttons=${JSON.stringify(buttons)}; body_preview=${text.replace(/\s+/g, ' ')}`);
     }
   }
   if (expectedStepPattern) {

@@ -187,8 +187,8 @@ try {
     const section = h.closest('section, div, article') || h.parentElement;
     const buttons = Array.from(section.querySelectorAll('button, a[role="button"], a'))
       .filter(b => b.offsetParent !== null)
-      .map(b => ({ tag: b.tagName.toLowerCase(), text: (b.innerText || b.textContent || '').trim().slice(0, 60), aria: b.getAttribute('aria-label') }));
-    return { found: true, headingText: (h.innerText || '').trim().slice(0, 80), buttons };
+      .map(b => ({ tag: b.tagName.toLowerCase(), text: (b.innerText || b.textContent || '').trim(), aria: b.getAttribute('aria-label') }));
+    return { found: true, headingText: (h.innerText || '').trim(), buttons };
   });
   console.log(`[linear-key] personal-key probe: ${JSON.stringify(personalProbe).slice(0, 600)}`);
   await humanIdlePause('short');
@@ -203,12 +203,12 @@ try {
     const dump = await s.page.evaluate(() => {
       const buttons = Array.from(document.querySelectorAll('button, a[role="button"]'))
         .filter(b => b.offsetParent !== null)
-        .map(b => (b.innerText || b.textContent || '').trim().slice(0, 80))
+        .map(b => (b.innerText || b.textContent || '').trim())
         .filter(t => t.length);
       const headings = Array.from(document.querySelectorAll('h1, h2, h3'))
-        .map(h => (h.innerText || '').trim().slice(0, 120))
+        .map(h => (h.innerText || '').trim())
         .filter(t => t.length);
-      return { url: location.href, title: document.title, headings, buttons: buttons.slice(0, 40) };
+      return { url: location.href, title: document.title, headings, buttons: buttons };
     });
     console.log(`[diagnostic] url=${dump.url} title="${dump.title}"`);
     console.log(`[diagnostic] headings: ${dump.headings.join(' | ')}`);
@@ -250,11 +250,11 @@ try {
     }
     const bodyMatch = text.match(re);
     if (bodyMatch) return { key: bodyMatch[0], source: 'body-text' };
-    return { key: null, snippet: text.slice(0, 400) };
+    return { key: null, snippet: text };
   });
 
   if (!scraped.key) {
-    throw new Error(`no lin_api_ token found after create. Snippet: ${(scraped.snippet || '').replace(/\n/g, ' | ').slice(0, 400)}`);
+    throw new Error(`no lin_api_ token found after create. Snippet: ${(scraped.snippet || '').replace(/\n/g, ' | ')}`);
   }
 
   // Persist to ~/.linear/token (chmod 600).

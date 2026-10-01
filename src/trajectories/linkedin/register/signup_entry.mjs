@@ -42,7 +42,7 @@ export async function prewarmLinkedinGuestSession(session, urls) {
         cookie_count: document.cookie ? document.cookie.split(';').filter(Boolean).length : 0,
         page_key: attr(document.querySelector('meta[name="pageKey"]'), 'content'),
         authwall: /\/authwall/.test(location.href),
-        visible_text_sample: (document.body?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 300),
+        visible_text_sample: (document.body?.innerText || '').replace(/\s+/g, ' ').trim(),
       };
     }).catch((e) => ({ url: session.page.url(), error: String(e?.message ?? e) })));
   }
@@ -80,14 +80,14 @@ export async function enterLinkedinSignup(session, entryUrl) {
         title: document.title,
         referrer: document.referrer,
         signup_links: Array.from(document.querySelectorAll('a[href*="/signup"], a[href*="/join"]')).slice(0, 20).map((a) => ({
-          text: (a.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120),
+          text: (a.textContent || '').replace(/\s+/g, ' ').trim(),
           href: a.href,
           trk: attr(a, 'data-tracking-control-name') ?? new URL(a.href, location.href).searchParams.get('trk'),
           visible: !!(a.offsetWidth || a.offsetHeight || a.getClientRects().length),
         })),
         signup_affordances: Array.from(document.querySelectorAll('a, button')).map((el) => ({
           tag: el.tagName.toLowerCase(),
-          text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120),
+          text: (el.textContent || '').replace(/\s+/g, ' ').trim(),
           href: el instanceof HTMLAnchorElement ? el.href : '',
           trk: attr(el, 'data-tracking-control-name'),
           visible: !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length),
@@ -142,7 +142,7 @@ export async function enterLinkedinSignup(session, entryUrl) {
       if (await loc.count() && await loc.isVisible()) {
         clickedAffordance = await loc.evaluate((el) => ({
           tag: el.tagName.toLowerCase(),
-          text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120),
+          text: (el.textContent || '').replace(/\s+/g, ' ').trim(),
           href: el instanceof HTMLAnchorElement ? el.href : '',
           trk: el.getAttribute('data-tracking-control-name'),
         }));

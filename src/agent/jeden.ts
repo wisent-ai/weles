@@ -141,7 +141,7 @@ function runJedenProcess(
   }, (error, stdout, stderr) => {
     if (error) {
       const detail = String(stderr || stdout).trim();
-      reject(new Error(`Jeden ${binary} failed: code=${error.code ?? 'none'} signal=${error.signal ?? 'none'} killed=${error.killed ?? false}${detail ? `; ${detail.slice(Number('0'), Number('500'))}` : ''}`, { cause: error }));
+      reject(new Error(`Jeden ${binary} failed: code=${error.code ?? 'none'} signal=${error.signal ?? 'none'} killed=${error.killed ?? false}${detail ? `; ${detail}` : ''}`, { cause: error }));
       return;
     }
     resolve({ stdout, stderr });
@@ -185,7 +185,7 @@ async function completeThroughRouter(
   });
   const text = await response.text();
   if (!response.ok) {
-    throw new Error(`model router ${response.status} for ${model}: ${text.slice(0, 500)}`);
+    throw new Error(`model router ${response.status} for ${model}: ${text}`);
   }
   let payload: {
     choices?: Array<{ finish_reason?: string; message?: { content?: unknown; tool_calls?: Array<{ function?: { name?: string; arguments?: string } }> } }>;
@@ -194,7 +194,7 @@ async function completeThroughRouter(
   try {
     payload = JSON.parse(text) as typeof payload;
   } catch {
-    throw new Error(`model router returned invalid JSON: ${text.slice(0, 500)}`);
+    throw new Error(`model router returned invalid JSON: ${text}`);
   }
   const choice = payload.choices?.[0];
   let content = choice?.message?.content;
@@ -202,12 +202,12 @@ async function completeThroughRouter(
     const calls = choice?.message?.tool_calls;
     const returned = calls?.[0]?.function;
     if (!Array.isArray(calls) || calls.length !== 1 || !tools.some(tool => tool.function.name === returned?.name) || typeof returned?.arguments !== 'string')
-      throw new Error(`model router did not return one declared function for ${model}: ${text.slice(0, 500)}`);
+      throw new Error(`model router did not return one declared function for ${model}: ${text}`);
     content = returned.arguments;
   }
   const answer = typeof content === 'string' ? content.trim() : '';
   if (!answer) {
-    throw new Error(`model router returned no content for ${model} (max_tokens=${maxOutputTokens ?? 'gateway default'}): ${text.slice(0, 500)}`);
+    throw new Error(`model router returned no content for ${model} (max_tokens=${maxOutputTokens ?? 'gateway default'}): ${text}`);
   }
   return { raw: answer, model, routerUrl: cfg.routerUrl, finishReason: choice?.finish_reason, usage: payload.usage, functionName: tools ? choice?.message?.tool_calls?.[0]?.function?.name : undefined };
 }
@@ -275,11 +275,11 @@ export async function callJeden(prompt: string, options: JedenCallOptions = {}):
   try {
     envelope = JSON.parse(stdout) as typeof envelope;
   } catch {
-    throw new Error(`Jeden returned invalid JSON: ${stdout.trim().slice(0, 500)}`);
+    throw new Error(`Jeden returned invalid JSON: ${stdout.trim()}`);
   }
   const raw = typeof envelope.text === 'string' ? envelope.text.trim() : '';
   if (envelope.ok !== true || !raw) {
-    throw new Error(`Jeden returned no model output: ${JSON.stringify(envelope).slice(0, 500)}`);
+    throw new Error(`Jeden returned no model output: ${JSON.stringify(envelope)}`);
   }
   return { raw, model: cfg.model, routerUrl: cfg.routerUrl };
 }

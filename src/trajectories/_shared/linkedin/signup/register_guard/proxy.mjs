@@ -52,7 +52,7 @@ export async function assertLinkedinProxyStable(session, stage, expectedExitIp =
   }
   if (!actual) throw new Error(`PROXY_DRIFT_CHECK_FAILED: stage=${stage} empty_exit_ip`);
   if (!isIP(actual)) {
-    throw new Error(`PROXY_DRIFT_CHECK_FAILED: stage=${stage} invalid_exit_ip=${actual.slice(0, 80)}`);
+    throw new Error(`PROXY_DRIFT_CHECK_FAILED: stage=${stage} invalid_exit_ip=${actual}`);
   }
   const expected = expectedExitIp || session.proxyConfig.exit_ip || actual;
   if (expected && actual && expected !== actual) {
@@ -74,13 +74,13 @@ export function assertLinkedinRegisterProxyRequest(requestedProxy = '') {
     throw new Error('PROXY_NOT_DEDICATED_ISP: url_form_proxy_request');
   }
   if (/\boxylabs\b/.test(raw) || /(?:^|[.:/])7777(?:\b|\/|$)/.test(raw) || /(?:^|\.)?(?:pr|isp|disp)\.oxylabs\.io\b/.test(raw)) {
-    throw new Error(`PROXY_NOT_DEDICATED_ISP: retired_linkedin_proxy requested=${raw.slice(0, 80)}`);
+    throw new Error(`PROXY_NOT_DEDICATED_ISP: retired_linkedin_proxy requested=${raw}`);
   }
   if (/\b(residential|mobile|datacenter)\b/.test(raw) && !/\bisp\b/.test(raw)) {
-    throw new Error(`PROXY_NOT_DEDICATED_ISP: requested=${raw.slice(0, 80)}`);
+    throw new Error(`PROXY_NOT_DEDICATED_ISP: requested=${raw}`);
   }
   if (!/\bisp\b/.test(raw)) {
-    throw new Error(`PROXY_NOT_DEDICATED_ISP: missing_isp_request requested=${raw.slice(0, 80)}`);
+    throw new Error(`PROXY_NOT_DEDICATED_ISP: missing_isp_request requested=${raw}`);
   }
 }
 
@@ -95,7 +95,7 @@ export function assertLinkedinDedicatedIspProxy(session, requestedProxy = '') {
   const proxyType = String(session.proxyConfig?.proxy_type ?? '').toLowerCase();
   const isUrlForm = /^(https?:|socks)/.test(raw);
   if (/\b(residential|mobile|datacenter)\b/.test(raw) && !/\bisp\b/.test(raw)) {
-    throw new Error(`PROXY_NOT_DEDICATED_ISP: requested=${raw.slice(0, 80)}`);
+    throw new Error(`PROXY_NOT_DEDICATED_ISP: requested=${raw}`);
   }
   const retiredLinkedinProxy =
     /\boxylabs\b/.test(raw) ||
@@ -104,7 +104,7 @@ export function assertLinkedinDedicatedIspProxy(session, requestedProxy = '') {
     /(?:^|\/\/)(?:195\.86\.|152\.233\.|209\.38\.)/.test(server) ||
     /:7777(?:\/|$)/.test(server);
   if (retiredLinkedinProxy) {
-    throw new Error(`PROXY_NOT_DEDICATED_ISP: retired_linkedin_proxy requested=${raw.slice(0, 80)} server=${server.slice(0, 80)} provider=${provider}`);
+    throw new Error(`PROXY_NOT_DEDICATED_ISP: retired_linkedin_proxy requested=${raw} server=${server} provider=${provider}`);
   }
   if (isUrlForm && !proxyType) {
     throw new Error('PROXY_NOT_DEDICATED_ISP: unclassified_url_proxy');
@@ -118,7 +118,7 @@ export function assertLinkedinDedicatedIspProxy(session, requestedProxy = '') {
   const rotatingGateway = /pr\.oxylabs\.io|geo\.iproyal\.com|brd\.superproxy\.io|packetstream|pingproxies|:7777|:12321|:22225/.test(server);
   const stickyCredential = /sessid-|_session-|[-_]session[-_]|_s_\d+/.test(username);
   if (rotatingGateway || stickyCredential) {
-    throw new Error(`PROXY_NOT_DEDICATED_ISP: server=${server} username=${username.slice(0, 40)}`);
+    throw new Error(`PROXY_NOT_DEDICATED_ISP: server=${server} username=${username}`);
   }
 }
 

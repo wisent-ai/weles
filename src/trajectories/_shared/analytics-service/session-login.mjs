@@ -23,7 +23,7 @@ async function umamiLogin(s) {
     await s.page.locator('input[type="password"], input[name="password"]').filter({ visible: true }).first().press('Enter');
   }
   const response = await answered;
-  if (!response.ok()) throw new Error(`umami_login_refused: ${response.status()} ${(await response.text()).slice(0, 200)}`);
+  if (!response.ok()) throw new Error(`umami_login_refused: ${response.status()} ${(await response.text())}`);
   await pageSettled(s.page);
   if (/login|signin/i.test(s.page.url())) throw new Error(`Umami login did not leave login page: ${s.page.url()}`);
   return true;

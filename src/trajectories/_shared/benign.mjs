@@ -85,7 +85,7 @@ try {
     banSignal = { signal: 'checkpoint', healthy: false, details: { final_url: finalUrl, reason: `reclassified from ${banSignal.signal} — page on auth wall after benign loop`, prev_signal: banSignal.signal } };
   } else if (banSignal && finalUrl.startsWith('chrome-error://') && (banSignal.signal === 'healthy' || banSignal.signal === 'unknown')) {
     const sig = /HTTP ERROR 407|ERR_PROXY_AUTH/i.test(bodySample) ? 'proxy_auth_failed' : /HTTP ERROR 4|ERR_HTTP_RESPONSE_CODE/i.test(bodySample) ? 'ip_blocked' : 'proxy_failed';
-    banSignal = { signal: sig, healthy: false, details: { final_url: finalUrl, reason: `reclassified from ${banSignal.signal} — chrome-error page (body: ${bodySample.slice(0, 80)})`, prev_signal: banSignal.signal } };
+    banSignal = { signal: sig, healthy: false, details: { final_url: finalUrl, reason: `reclassified from ${banSignal.signal} — chrome-error page (body: ${bodySample})`, prev_signal: banSignal.signal } };
   } else if (banSignal && banSignal.signal === 'healthy') {
     // 404 + logged-out shell reclassifier. Per-platform detectors only key
     // off /login URL patterns; a profile-view that 404s on the platform's
@@ -97,7 +97,7 @@ try {
     const hasLoggedOutCta = /\bsign[\s-]?in\b|\blog[\s-]?in\b/i.test(bodySample);
     if (has404 && hasLoggedOutCta) {
       const sig = VERB === 'profile_view' && finalUrl.toLowerCase().includes(selfHandle.toLowerCase()) ? 'account_missing' : 'checkpoint';
-      banSignal = { signal: sig, healthy: false, details: { final_url: finalUrl, reason: `reclassified from healthy — body shows 404 + logged-out CTA (sample: "${bodySample.slice(0, 120)}")`, prev_signal: 'healthy' } };
+      banSignal = { signal: sig, healthy: false, details: { final_url: finalUrl, reason: `reclassified from healthy — body shows 404 + logged-out CTA (sample: "${bodySample}")`, prev_signal: 'healthy' } };
     }
   }
   console.log(`[ban-signal] ${banSignal?.signal}`);

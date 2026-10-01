@@ -176,7 +176,7 @@ export async function runAction(cfg) {
       banSignal = { signal: 'checkpoint', healthy: false, details: { final_url: successFinalUrl, reason: `reclassified from ${banSignal.signal} — page on auth wall after agent loop`, prev_signal: banSignal.signal } };
     } else if (banSignal && successFinalUrl.startsWith('chrome-error://') && (banSignal.signal === 'healthy' || banSignal.signal === 'unknown')) {
       const sig = /HTTP ERROR 407|ERR_PROXY_AUTH/i.test(successBody) ? 'proxy_auth_failed' : /HTTP ERROR 4|ERR_HTTP_RESPONSE_CODE/i.test(successBody) ? 'ip_blocked' : 'proxy_failed';
-      banSignal = { signal: sig, healthy: false, details: { final_url: successFinalUrl, reason: `reclassified from ${banSignal.signal} — chrome-error page (body: ${successBody.slice(0, 80)})`, prev_signal: banSignal.signal } };
+      banSignal = { signal: sig, healthy: false, details: { final_url: successFinalUrl, reason: `reclassified from ${banSignal.signal} — chrome-error page (body: ${successBody})`, prev_signal: banSignal.signal } };
     } else if (banSignal?.signal === 'healthy') {
       const { verifyWriteAction } = await import('../../../dist/platforms/_shared/write_verify.js');
       const v = verifyWriteAction(cfg.platform, cfg.action, s.capturedResponses);
@@ -202,7 +202,7 @@ export async function runAction(cfg) {
       banSignal = { signal: 'checkpoint', healthy: false, details: { final_url: finalUrlForReclass, reason: `reclassified from ${banSignal.signal} — landed on auth wall (cookies stale)`, prev_signal: banSignal.signal } };
     } else if (banSignal && finalUrlForReclass.startsWith('chrome-error://') && (banSignal.signal === 'healthy' || banSignal.signal === 'unknown')) {
       const sig2 = /HTTP ERROR 407|ERR_PROXY_AUTH/i.test(bodySampleForReclass) ? 'proxy_auth_failed' : /HTTP ERROR 4|ERR_HTTP_RESPONSE_CODE/i.test(bodySampleForReclass) ? 'ip_blocked' : 'proxy_failed';
-      banSignal = { signal: sig2, healthy: false, details: { final_url: finalUrlForReclass, reason: `reclassified from ${banSignal.signal} — chrome-error page (body: ${bodySampleForReclass.slice(0, 80)})`, prev_signal: banSignal.signal } };
+      banSignal = { signal: sig2, healthy: false, details: { final_url: finalUrlForReclass, reason: `reclassified from ${banSignal.signal} — chrome-error page (body: ${bodySampleForReclass})`, prev_signal: banSignal.signal } };
     }
     if (!banSignal) banSignal = { signal: 'action_failed', healthy: false, details: { final_url: s.page.url?.() ?? '', reason: e.message ?? 'no message' } };
     console.log(`[ban-signal] ${banSignal.signal}`);

@@ -208,7 +208,7 @@ export async function selectPangramAccountForRun() {
         },
       };
     }
-    rejected.push({ account_id: acct.id ?? null, username: acct.username ?? null, reason: prepared.reason.slice(0, 120) });
+    rejected.push({ account_id: acct.id ?? null, username: acct.username ?? null, reason: prepared.reason });
   }
 
   const exhaustedByUsage = accounts.length > 0 && underLimit.length === 0;

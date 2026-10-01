@@ -25,7 +25,7 @@ const BASE = 'https://api.namecheap.com/xml.response';
 async function getHosts() {
   const u = `${BASE}?ApiUser=${AU}&ApiKey=${AK}&UserName=${UN}&Command=namecheap.domains.dns.getHosts&ClientIp=${IP}&SLD=${SLD}&TLD=${TLD}`;
   const xml = await (await fetch(u)).text();
-  if (!/Status="OK"/.test(xml)) throw new Error('getHosts not OK: ' + (xml.match(/<Error[^>]*>([^<]*)/)?.[1] || xml.slice(0, 200)));
+  if (!/Status="OK"/.test(xml)) throw new Error('getHosts not OK: ' + (xml.match(/<Error[^>]*>([^<]*)/)?.[1] || xml));
   const emailType = xml.match(/EmailType="([^"]*)"/)?.[1] || 'MX';
   const hosts = [];
   for (const m of xml.matchAll(/<host\b([^>]*?)\/?>/gi)) {
@@ -55,7 +55,7 @@ all.forEach((h, i) => {
 console.log(`setHosts: sending ${all.length} records (${ACTION === 'add' ? 'adding' : 'removing'} ${NEW.Name} ${NEW.Type} ${NEW.Address})`);
 const resXml = await (await fetch(BASE, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })).text();
 const ok = /<DomainDNSSetHostsResult[^>]*IsSuccess="true"/.test(resXml) || /Status="OK"/.test(resXml);
-if (!ok) { console.log('FAIL setHosts: ' + (resXml.match(/<Error[^>]*>([^<]*)/)?.[1] || resXml.slice(0, 300))); process.exit(1); }
+if (!ok) { console.log('FAIL setHosts: ' + (resXml.match(/<Error[^>]*>([^<]*)/)?.[1] || resXml)); process.exit(1); }
 
 const after = await getHosts();
 const present = after.hosts.some(matches);

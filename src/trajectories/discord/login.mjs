@@ -117,7 +117,7 @@ try {
       await captureCookies();
     };
     const result = await loginApi();
-    console.log(`[login] ${svc.name}: status=${result?.status} response=${(JSON.stringify(result?.data) ?? '').slice(0, 200)}`);
+    console.log(`[login] ${svc.name}: status=${result?.status} response=${(JSON.stringify(result?.data) ?? '')}`);
     if (result?.status === 200 && result?.data?.token) {
       await finishWithToken(result.data.token);
     } else if (result?.data?.captcha_rqdata) {
@@ -155,7 +155,7 @@ try {
       // (same path the captcha-success branch uses).
       console.log('[login] IP authorized, retrying login API directly...');
       const retryResult = await loginApi();
-      console.log(`[login] post-authorize retry: status=${retryResult?.status} response=${(JSON.stringify(retryResult?.data) ?? '').slice(0, 200)}`);
+      console.log(`[login] post-authorize retry: status=${retryResult?.status} response=${(JSON.stringify(retryResult?.data) ?? '')}`);
       if (retryResult?.status === 200 && retryResult?.data?.token) {
         await finishWithToken(retryResult.data.token);
       } else if (retryResult?.data?.captcha_rqdata) {
@@ -167,7 +167,7 @@ try {
         throw new Error(`discord_login: login API answered ${retryResult?.status} after the IP authorization, at ${s.page.url?.()}`);
       }
     } else {
-      throw new Error(`discord_login: login API answered ${result?.status} with ${(JSON.stringify(result?.data) ?? '').slice(0, 200)}`);
+      throw new Error(`discord_login: login API answered ${result?.status} with ${(JSON.stringify(result?.data) ?? '')}`);
     }
   } else {
     // No captcha — check if already logged in

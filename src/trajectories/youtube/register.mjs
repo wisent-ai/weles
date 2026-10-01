@@ -96,9 +96,9 @@ async function clickNext(s) {
       if (await phoneIn.count()) {
         let phone = await s.checkSms('google', 'US');
         if (phone.startsWith('error')) {
-          console.log(`[yt] US SMS unavailable (${phone.slice(0, 80)}) — trying UK`);
+          console.log(`[yt] US SMS unavailable (${phone}) — trying UK`);
           phone = await s.checkSms('google', 'UK');
-          if (phone.startsWith('error')) throw new Error(`youtube_sms_unavailable: ${phone.slice(0, 120)}`);
+          if (phone.startsWith('error')) throw new Error(`youtube_sms_unavailable: ${phone}`);
         }
         const phoneNum = s.resolveEnv('$GOOGLE_NEW_PHONE');
         const digits = phoneNum.replace(/^\+\d{1,2}/, '').replace(/\D/g, '');

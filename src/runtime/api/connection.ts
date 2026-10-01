@@ -91,7 +91,7 @@ export async function operatorJson(response: Response): Promise<Record<string, u
   let body: unknown;
   try { body = JSON.parse(text); }
   catch {
-    throw new Error(`HTTP ${response.status} ${response.headers.get('content-type') ?? 'without a content type'} is not the executor's JSON: ${text.trim().slice(0, 400) || 'empty body'}`);
+    throw new Error(`HTTP ${response.status} ${response.headers.get('content-type') ?? 'without a content type'} is not the executor's JSON: ${text.trim() || 'empty body'}`);
   }
   if (body === null || typeof body !== 'object' || Array.isArray(body)) {
     throw new Error(`HTTP ${response.status}: the executor answered JSON that is not an object`);

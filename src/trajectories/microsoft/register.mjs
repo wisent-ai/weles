@@ -80,7 +80,7 @@ const URL = 'https://signup.live.com';
       console.log('[ms] Arkose challenge detected — solver hookup needed (funcaptcha)');
       const solved = await s.solveCaptcha().catch(() => 'no-target-found');
       if (typeof solved === 'string' && solved.startsWith('error')) {
-        throw new Error(`microsoft_arkose_unsolved: ${solved.slice(0, 120)}`);
+        throw new Error(`microsoft_arkose_unsolved: ${solved}`);
       }
       await humanIdlePause('deliberate');
     }

@@ -26,9 +26,9 @@ export async function integrationAction(domain, action, body) {
   const text = await response.text();
   let envelope;
   try { envelope = JSON.parse(text); }
-  catch { throw new Error(`${endpoint} answered HTTP ${response.status} with a body that is not JSON: ${text.trim().slice(0, 300) || 'empty'}`); }
+  catch { throw new Error(`${endpoint} answered HTTP ${response.status} with a body that is not JSON: ${text.trim() || 'empty'}`); }
   if (!response.ok || envelope?.ok !== true || !envelope.result) {
-    throw new Error(`${endpoint} answered HTTP ${response.status}: ${JSON.stringify(envelope?.error ?? envelope).slice(0, 300)}`);
+    throw new Error(`${endpoint} answered HTTP ${response.status}: ${JSON.stringify(envelope?.error ?? envelope)}`);
   }
   return envelope.result;
 }

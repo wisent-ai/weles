@@ -70,10 +70,10 @@ export function parseKeywordRouterResponse(raw) {
   try {
     parsed = JSON.parse(jsonDocument(text));
   } catch (error) {
-    throw new Error(`model-router did not answer with the keyword JSON shape: ${error?.message || error}; answer began: ${text.slice(0, 300)}`);
+    throw new Error(`model-router did not answer with the keyword JSON shape: ${error?.message || error}; answer began: ${text}`);
   }
   const list = Array.isArray(parsed) ? parsed : parsed?.keywords;
-  if (!Array.isArray(list)) throw new Error(`model-router answer carried no keywords array: ${text.slice(0, 300)}`);
+  if (!Array.isArray(list)) throw new Error(`model-router answer carried no keywords array: ${text}`);
   return {
     saturated: Boolean(parsed.saturated),
     keywords: [...new Set(list.map(normalizeKeyword).filter(Boolean))],
@@ -86,7 +86,7 @@ function readRouterCompletion(answer) {
   try {
     return JSON.parse(answer);
   } catch (error) {
-    throw new Error(`model-router accepted the request but answered with a body that is not JSON: ${error?.message || error}; body began: ${answer.slice(0, 300)}`);
+    throw new Error(`model-router accepted the request but answered with a body that is not JSON: ${error?.message || error}; body began: ${answer}`);
   }
 }
 
@@ -138,7 +138,7 @@ export async function generateKeywordsWithRouter(input, state = null) {
     body,
   });
   const answer = await res.text();
-  if (!res.ok) throw new Error(`model-router ${res.status}: ${answer.slice(0, 500)}`);
+  if (!res.ok) throw new Error(`model-router ${res.status}: ${answer}`);
   const data = readRouterCompletion(answer);
   const raw = data.choices?.[0]?.message?.content || '';
   const parsed = parseKeywordRouterResponse(raw);

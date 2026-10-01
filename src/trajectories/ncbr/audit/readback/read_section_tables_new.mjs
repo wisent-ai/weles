@@ -25,7 +25,7 @@ if (process.env.ROW_NEEDLE) {
   const needle = process.env.ROW_NEEDLE.replace(/\s+/g, ' ').trim();
   const indexes = rowTexts.map((text, index) => (text.includes(needle) ? index : -1)).filter((index) => index >= 0);
   if (indexes.length !== 1) {
-    throw new Error(`Expected one row matching ${needle}, matched ${indexes.length} of ${rowTexts.length}: ${JSON.stringify(rowTexts.map((text) => text.slice(0, 160)))}`);
+    throw new Error(`Expected one row matching ${needle}, matched ${indexes.length} of ${rowTexts.length}: ${JSON.stringify(rowTexts.map((text) => text))}`);
   }
   const row = table.locator('tbody tr').nth(indexes[0]);
   await row.locator('button[aria-label*="overflow-options"]').dispatchEvent('click');

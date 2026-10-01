@@ -104,8 +104,8 @@ async function prepareLoginPage() {
   // hydration so the form-fill below doesn't time out.
   const inputCount = await s.page.evaluate(() => document.querySelectorAll('input').length);
   if (inputCount === 0) {
-    const bodyText = await s.page.evaluate(() => (document.body?.innerText ?? '').slice(0, 500));
-    throw new Error(`degraded_login_shell: no inputs after hydration window; body=${JSON.stringify(bodyText.slice(0, 200))}`);
+    const bodyText = await s.page.evaluate(() => (document.body?.innerText ?? ''));
+    throw new Error(`degraded_login_shell: no inputs after hydration window; body=${JSON.stringify(bodyText)}`);
   }
 }
 
@@ -210,8 +210,8 @@ try {
   const msg = e.message ?? '';
   const sig = classifyLoginError(msg, finalUrl);
   if (sig === 'checkpoint' && acct.id) await markCookiesStale(acct.id);
-  writeBan(acct, sig, { final_url: finalUrl, error: msg.slice(0, 200) });
-  console.log('FAIL:', msg.slice(0, 200));
+  writeBan(acct, sig, { final_url: finalUrl, error: msg });
+  console.log('FAIL:', msg);
   process.exitCode = 1;
 } finally {
   const fpTag = currentWelesFingerprintTag(s);

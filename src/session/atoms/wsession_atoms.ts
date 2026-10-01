@@ -40,8 +40,8 @@ W.prototype.waitFor = function (selector, opts) {
   const state = opts?.state ?? 'visible';
   return this.runStep(`waitFor_${selector.slice(0, 30)}`, async () => {
     try { await (this as WSession).page.locator(selector).first().waitFor({ state }); }
-    catch (error) { throw new Error(`waiting for ${selector.slice(0, 60)} to become ${state} failed: ${error instanceof Error ? error.message : String(error)}`); }
-    return `waited ${state}: ${selector.slice(0, 60)}`;
+    catch (error) { throw new Error(`waiting for ${selector} to become ${state} failed: ${error instanceof Error ? error.message : String(error)}`); }
+    return `waited ${state}: ${selector}`;
   });
 };
 
@@ -51,7 +51,7 @@ W.prototype.fillSelector = function (css, value) {
     const loc = (this as WSession).page.locator(css).first();
     if (!(await loc.count())) return 'no-element-found';
     await loc.fill(v);
-    return `filled ${css.slice(0, 60)}`;
+    return `filled ${css}`;
   });
 };
 

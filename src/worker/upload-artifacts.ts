@@ -155,7 +155,7 @@ export async function readPrivateStadoObjectIdentity(
   })
   if (!response.ok || !response.body) {
     const message = await response.text().catch(() => '')
-    throw new Error(`Stado object readback failed (HTTP ${response.status}): ${message.slice(Number('0'), Number('300'))}`)
+    throw new Error(`Stado object readback failed (HTTP ${response.status}): ${message}`)
   }
   const hash = createHash('sha256')
   const reader = response.body.getReader()

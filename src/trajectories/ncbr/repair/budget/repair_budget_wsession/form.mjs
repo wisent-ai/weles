@@ -67,7 +67,7 @@ async function login() {
   }
   if (page.url().includes('/logowanie')) {
     const body = await page.locator('body').innerText().catch(() => '');
-    throw new Error(`login stayed on login page: ${body.slice(0, 500).replace(/\s+/g, ' ')}`);
+    throw new Error(`login stayed on login page: ${body.replace(/\s+/g, ' ')}`);
   }
 }
 

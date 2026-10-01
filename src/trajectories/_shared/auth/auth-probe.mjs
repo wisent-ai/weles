@@ -201,7 +201,7 @@ class AuthProbeError extends Error {
     this.banSignal = {
       signal: 'checkpoint',
       healthy: false,
-      details: { reason: message.slice(0, 200), ...details },
+      details: { reason: message, ...details },
     };
   }
 }

@@ -14,7 +14,7 @@ export async function assertLinkedinAuthenticatedRegistration(session, stage = '
   const state = await getLinkedinAuthState(session);
   const challengeSignal = getLinkedinChallengeSignal({ url: state.final_url });
   if (challengeSignal) {
-    throw new Error(`DETECTION_TRIGGERED: ${challengeSignal} stage=${stage} final_url=${state.final_url.slice(0, 160)}`);
+    throw new Error(`DETECTION_TRIGGERED: ${challengeSignal} stage=${stage} final_url=${state.final_url}`);
   }
   if (/^https?:\/\/www\.linkedin\.com\/signup\/?$/.test(state.final_url) || state.final_url.includes('/signup/api/')) {
     throw new Error(`signup_did_not_complete: stage=${stage} final_url=${state.final_url}`);
