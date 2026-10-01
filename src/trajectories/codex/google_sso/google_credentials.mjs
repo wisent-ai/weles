@@ -196,6 +196,5 @@ export async function enterGoogleCredentials({
   }
   await humanFill(page, gOtp(), otp);
   await humanClickLocator(page, page.locator('#totpNext button, button:has-text("Next"), button[type="submit"]').filter({ visible: true }).first());
-  await humanIdlePause('long');
   await waitForGoogleChallengeExit(page);
 }

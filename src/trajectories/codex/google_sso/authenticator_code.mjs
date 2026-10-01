@@ -7,7 +7,7 @@
 import crypto from 'node:crypto';
 import { humanClick } from '../../../../dist/human/mouse.js';
 import { navEval } from './page_controls.mjs';
-import { pageSettled } from '../../_shared/page/settled.mjs';
+import { pageCondition, pageSettled } from '../../_shared/page/settled.mjs';
 
 // RFC 6238 TOTP (SHA1, 6-digit, 30s) from a base32 secret. Verified against the
 // RFC test vectors. Used to answer a Google 2FA prompt from a stored secret
@@ -40,16 +40,37 @@ export function resolveOtp(login) {
   return process.env.CODEX_2FA_CODE || null;
 }
 
-async function googleChallengeState(page) {
-  return navEval(page, () => ({
-    host: location.host,
-    path: location.pathname,
-    text: (document.querySelector('main')?.innerText || document.body?.innerText || '')
-      .replace(/\s+/g, ' '),
-    challenge: location.hostname === 'accounts.google.com'
-      && (/\/challenge(?:\/|$)/.test(location.pathname)
-        || /2-step verification|get a code to sign in|verify it.s you|weryfikacja dwuetapowa/i.test(document.body?.innerText || '')),
-  }), { challenge: null, state: 'navigation in progress' });
+async function googleChallengeState(page, terminalOnly = false) {
+  const read = (waitForTerminal) => {
+    const observed = {
+      host: location.host,
+      path: location.pathname,
+      challenge: location.hostname === 'accounts.google.com'
+        && (/\/challenge(?:\/|$)/.test(location.pathname)
+          || /2-step verification|get a code to sign in|verify it.s you|weryfikacja dwuetapowa/i.test(document.body?.innerText || '')),
+    };
+    if (waitForTerminal && observed.challenge) {
+      let invalidInput = null;
+      for (const input of document.querySelectorAll('input[name="totpPin"][aria-invalid="true"], input[autocomplete="one-time-code"][aria-invalid="true"]')) {
+        const rect = input.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0 && getComputedStyle(input).visibility === 'visible') {
+          invalidInput = {
+            name: input.name,
+            autocomplete: input.getAttribute('autocomplete'),
+            ariaInvalid: input.getAttribute('aria-invalid'),
+          };
+          break;
+        }
+      }
+      if (!invalidInput) return false;
+      observed.invalidInput = invalidInput;
+    }
+    observed.text = (document.querySelector('main')?.innerText || document.body?.innerText || '')
+      .replace(/\s+/g, ' ');
+    return observed;
+  };
+  if (terminalOnly) return pageCondition(page, read, true);
+  return navEval(page, read, { challenge: null, state: 'navigation in progress' }, false);
 }
 
 function challengeFailure(code, message, observed) {
@@ -59,13 +80,13 @@ function challengeFailure(code, message, observed) {
   return error;
 }
 
-// Once the submitted code has been answered and the page settled, Google has
-// either left the challenge or refused the code.
+// A challenge that is still displayed is pending, not evidence of refusal.
+// Observe its exit or the code input's explicit invalid state; browser errors
+// remain observation errors rather than being relabeled as a rejected code.
 export async function waitForGoogleChallengeExit(page) {
-  await pageSettled(page);
-  const observed = await googleChallengeState(page);
+  const observed = await googleChallengeState(page, true);
   if (observed.challenge === false) return;
-  throw challengeFailure('provider_challenge_refused', 'Google did not accept the submitted verification code', observed);
+  throw challengeFailure('provider_challenge_refused', 'Google marks the verification input invalid', observed);
 }
 
 // Select only an authenticator method the supplied login can answer.
