@@ -6,6 +6,7 @@ import { SERVICE_CONTRACTS, resolvedAcquiredSecretContract, isWelesAcquiredSourc
 import type { WelesAcquiredSecret } from './scoped-service/contracts.js';
 import { checkedTokenFile, skarbiecEndpoint, readScopedField, readAcquiredField, deployedFile,
   welesManagedCredentialReaderMismatch } from './scoped-service/transport.js';
+import { localCredentialsFile, writeLocalFields } from './scoped-service/local-file.js';
 import { SkarbiecAcquisitionError } from './scoped-service/acquisition-failure.js';
 import type { WelesServiceSecret } from './scoped-service/transport.js';
 export { acquiredSecretContract, isWelesAcquiredSourceOrigin, isWelesManagedPasswordItem } from './scoped-service/contracts.js';
@@ -183,8 +184,9 @@ export function writeWelesAcquiredSecret(
   if (!isWelesAcquiredSecretValue(secretName, secret)) {
     throw new Error(`acquired value does not match the exact Weles acquisition contract: ${secretName}/${field}`);
   }
-  const tokenFile = checkedTokenFile(contract.writerTokenFile, tenantId);
-  if (!tokenFile) throw new Error(`required scoped Skarbiec writer token is unavailable for ${secretName}`);
+  const local = localCredentialsFile();
+  const tokenFile = local ? '' : checkedTokenFile(contract.writerTokenFile, tenantId);
+  if (tokenFile === null) throw new Error(`required scoped Skarbiec writer token is unavailable for ${secretName}`);
   const requestId = context.requestId ?? '';
   const operation = context.operation ?? '';
   if (!/^[a-f0-9]{64}$/i.test(requestId)
@@ -224,7 +226,7 @@ export function writeWelesAcquiredSecret(
     operation,
   };
   let kind: string;
-  let fields: Record<string, unknown>;
+  let fields: Record<string, string>;
   if (contract.shape === 'password') {
     const accountEmail = context.accountEmail?.trim().toLowerCase() ?? '';
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(accountEmail)) {
@@ -240,6 +242,10 @@ export function writeWelesAcquiredSecret(
     fields = {
       api_key: secret.toString('utf8'),
     };
+  }
+  if (local) {
+    writeLocalFields(local, contract.item, fields, tenantId);
+    return;
   }
   const input = Buffer.from(JSON.stringify({
     schema: 'skarbiec.item.v2',

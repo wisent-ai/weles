@@ -5,14 +5,9 @@ import { isAbsolute, join } from 'node:path';
 import { resolvedAcquiredSecretContract, SERVICE_CONTRACTS } from './contracts.js';
 import type { InternalAcquiredSecretContract } from './contracts.js';
 import { acquisitionStderr, SkarbiecAcquisitionError } from './acquisition-failure.js';
+import { localCredentialsFile, readLocalField } from './local-file.js';
 const TENANT_HEX_RE = /^[a-f\d-]+$/i;
-const TENANT_PART_LENGTHS = Object.freeze([
-  'xxxxxxxx'.length,
-  'xxxx'.length,
-  'xxxx'.length,
-  'xxxx'.length,
-  'xxxxxxxxxxxx'.length,
-]);
+const TENANT_PART_LENGTHS = Object.freeze([8, 4, 4, 4, 12]);
 
 function checkedTenantDirectory(tenantId: string): string {
   const parts = tenantId.split('-');
@@ -48,6 +43,7 @@ function checkedTenantFile(path: string, label: string): string {
 export function hasWelesAcquiredSecretWriter(secret: string, tenantId?: string | null): boolean {
   const contract = resolvedAcquiredSecretContract(secret);
   if (!contract) return false;
+  if (localCredentialsFile()) return true;
   try {
     skarbiecEndpoint(tenantId);
     return Boolean(checkedTokenFile(contract.writerTokenFile, tenantId));
@@ -60,7 +56,7 @@ export type WelesServiceSecret = keyof typeof SERVICE_CONTRACTS;
 
 export function skarbiecEndpoint(_tenantId?: string | null): string {
   const raw = process.env.WC_SKARBIEC_URL?.trim() ?? '';
-  if (!raw) throw new Error('WC_SKARBIEC_URL is required from the Stado service directory');
+  if (!raw) throw new Error('WC_SKARBIEC_URL is required from the Stado service directory; without Skarbiec set WELES_CREDENTIALS_FILE to an owner-only credentials file');
   let endpoint: URL;
   try {
     endpoint = new URL(raw);
@@ -106,6 +102,8 @@ export function readScopedField(
   tokenFileName: string,
   field: string,
 ): string | undefined {
+  const local = localCredentialsFile();
+  if (local) return readLocalField(local, item, field);
   const tokenFile = checkedTokenFile(tokenFileName);
   if (!tokenFile) return undefined;
   const binary = process.env.WELES_STADO_BIN?.trim() || join(homedir(), '.stado', 'bin', 'stado');
@@ -205,6 +203,7 @@ export function welesManagedCredentialReaderMismatch(
 ): string | null {
   const contract = resolvedAcquiredSecretContract(secretName);
   if (!contract || contract.field !== field || !contract.readerConsumer) return null;
+  if (localCredentialsFile()) return null;
   let catalog: string;
   let granted: string[];
   try {
@@ -227,6 +226,7 @@ export function hasWelesManagedCredentialReader(
 ): boolean {
   const contract = resolvedAcquiredSecretContract(secretName);
   if (!contract || contract.field !== field || !contract.readerConsumer) return false;
+  if (localCredentialsFile()) return true;
   try {
     return managedReaderGrantedFields(contract, tenantId).includes(field);
   } catch {
@@ -241,6 +241,8 @@ export function readAcquiredField(
   field: string,
   tenantId?: string | null,
 ): string | undefined {
+  const local = localCredentialsFile();
+  if (local) return readLocalField(local, item, field, tenantId);
   const workloadId = process.env.SKARBIEC_WORKLOAD_ID?.trim();
   const signingKeyFile = process.env.SKARBIEC_WORKLOAD_SIGNING_KEY_FILE?.trim();
   if (!workloadId || !signingKeyFile) return undefined;

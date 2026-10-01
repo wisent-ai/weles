@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { lstatSync } from 'node:fs';
 import { stadoBinary } from './skarbiec-runtime.mjs';
+import { localCredentialsFile, readLocalField, writeLocalFields } from './local-credentials.mjs';
 
 const LOGIN_FIELDS = Object.freeze({ username: true, password: true });
 const LOGIN_WITH_TOTP_FIELDS = Object.freeze({ username: true, password: true, totp_secret: true });
@@ -43,7 +44,7 @@ const SERVICES = Object.freeze({
 
 function checkedEndpoint() {
   const raw = String(process.env.WC_SKARBIEC_URL || '').trim();
-  if (!raw) throw new Error('WC_SKARBIEC_URL is required from the Stado service directory');
+  if (!raw) throw new Error('WC_SKARBIEC_URL is required from the Stado service directory; without Skarbiec set WELES_CREDENTIALS_FILE to an owner-only credentials file');
   let endpoint;
   try {
     endpoint = new URL(raw);
@@ -99,6 +100,8 @@ export function readScopedSecret(serviceName, field) {
   const service = SERVICES[serviceName];
   if (!service) throw new Error(`unknown Weles scoped secret service: ${serviceName}`);
   if (!Object.prototype.hasOwnProperty.call(service.fields, field)) throw new Error(`field is not in the exact Weles scoped secret contract: ${serviceName}/${field}`);
+  const local = localCredentialsFile();
+  if (local) return readLocalField(local, service.item, field);
   const consumer = `${service.consumer}-${field}`;
   const { helper, scopes } = acquisitionPaths();
   const { workloadId, signingKeyFile } = workloadEnvironment();
@@ -150,6 +153,7 @@ export function assertScopedSecretWriter(serviceName) {
   if (!service?.writerConsumer || !service?.writerTokenFile) {
     throw new Error(`no exact Weles scoped secret writer contract exists for ${serviceName}`);
   }
+  if (localCredentialsFile()) return;
   checkedEndpoint();
   checkedTokenFile(service.writerTokenFile);
 }
@@ -170,6 +174,11 @@ export function writeScopedSecretItem(serviceName, fields) {
       throw new Error(`refusing invalid scoped secret write for ${serviceName}/${field}`);
     }
     normalized[field] = value;
+  }
+  const local = localCredentialsFile();
+  if (local) {
+    writeLocalFields(local, service.item, normalized);
+    return;
   }
   const input = Buffer.from(JSON.stringify(normalized));
   try {
