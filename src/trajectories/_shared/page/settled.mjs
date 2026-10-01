@@ -56,7 +56,11 @@ export async function pageSettled(page) {
 
 export async function pageCondition(page, predicate, arg) {
   const handle = await page.waitForFunction(predicate, arg, { polling: 'raf' });
-  return handle.jsonValue();
+  try {
+    return await handle.jsonValue();
+  } finally {
+    await handle.dispose();
+  }
 }
 
 // Waits until the main frame's URL matches `pattern` (a RegExp, a predicate
