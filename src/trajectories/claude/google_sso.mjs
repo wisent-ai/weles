@@ -15,7 +15,7 @@ import { enterGoogleCredentials } from './google_sso/google_credentials.mjs';
 import { clickGisTarget, observeGisPage } from './google_sso/gis_state/page_reading.mjs';
 import { classifyGisState, gisVariantRank } from './google_sso/gis_state/variants.mjs';
 import { dumpGisFailureDom } from './google_sso/failure_dom.mjs';
-import { pageSettled, urlMatching } from '../_shared/page/settled.mjs';
+import { pageSettled } from '../_shared/page/settled.mjs';
 
 export { waitForEnabledThenClick } from './google_sso/page_controls.mjs';
 export { readGisState } from './google_sso/gis_state/page_reading.mjs';
@@ -46,12 +46,36 @@ const DRIVEN_VARIANTS = new Set([
 
 // Resolves once something that can change the handoff's state happens: the
 // acting page navigates, closes, or the context opens another page.
-function stateChange(page, active, url) {
-  return Promise.any([
-    urlMatching(active, (u) => u !== url),
-    active.waitForEvent('close'),
-    page.context().waitForEvent('page'),
-  ]);
+async function stateChange(page, active, url) {
+  if (active.isClosed() || active.url() !== url) return;
+  const { promise, resolve, reject } = Promise.withResolvers();
+  const context = page.context();
+  const onNavigated = (frame) => {
+    if (frame === active.mainFrame() && frame.url() !== url) resolve();
+  };
+  const onCrash = () => reject(new Error(`gis_continue: acting page crashed at ${active.url()}`));
+  active.on('framenavigated', onNavigated);
+  active.on('close', resolve);
+  active.on('crash', onCrash);
+  context.on('page', resolve);
+  try {
+    await promise;
+  } finally {
+    active.off('framenavigated', onNavigated);
+    active.off('close', resolve);
+    active.off('crash', onCrash);
+    context.off('page', resolve);
+  }
+}
+
+async function clickOfferedControl(active, kind) {
+  const hit = await clickGisTarget(active, kind);
+  if (!hit.clicked) {
+    const current = new URL(active.url());
+    const error = new Error(`gis_continue: ${kind} was not clicked at ${current.host}${current.pathname}: ${hit.reason}`);
+    error.code = 'gis_control_unavailable';
+    throw error;
+  }
 }
 
 export async function doGoogleSso({
@@ -93,12 +117,8 @@ export async function doGoogleSso({
   const onPopup = (p) => { if (!seen.has(p)) { seen.add(p); mark('gis_popup'); } };
   page.context().on('page', onPopup);
   let freshEntryTried = false;
-  let lastActionKey = '';
+  const lastActions = new WeakMap();
   let views = [];
-  // Why the last attempted click did not land, when it did not: an affordance
-  // that is present but unreachable (covered by a veil, moved by a re-render) is
-  // a different fault from an unrecognised page, and the failure has to say which.
-  let lastSkip = null;
   let authorizeRedrives = 0;
   let stuck = null;
   try {
@@ -135,11 +155,11 @@ export async function doGoogleSso({
       // popup pile-up, so an identical (variant, url) is acted on once; until it
       // changes, the loop waits for the event that can change it.
       const actionKey = `${variant}|${st?.url ?? ''}`;
-      if (actionKey === lastActionKey) {
-        await stateChange(page, active, st?.url ?? active.url());
+      if (actionKey === lastActions.get(active)) {
+        await stateChange(page, active, st.url);
         continue;
       }
-      const claim = () => { lastActionKey = actionKey; };
+      const claim = () => { lastActions.set(active, actionKey); };
 
       if (variant === 'claude_gis_gate') {
         // The gate is only meaningful while no Google page is holding the
@@ -153,9 +173,7 @@ export async function doGoogleSso({
         }
         claim();
         mark('gis_click_continue');
-        const hit = await clickGisTarget(active, 'gis_button');
-        if (!hit.clicked) console.log(`[google_sso] gate click skipped: ${hit.reason}`);
-        lastSkip = hit.clicked ? null : `${variant}: ${hit.reason}`;
+        await clickOfferedControl(active, 'gis_button');
         await humanIdlePause('deliberate');
         continue;
       }
@@ -170,8 +188,7 @@ export async function doGoogleSso({
         mark('gis_account_chooser');
         // Only the configured identity's exact data-identifier match is selected.
         console.log(`[google_sso] selecting account row by ${st.accountRowMatchedBy} (${st.rowIdentifiers.join(', ')})`);
-        const hit = await clickGisTarget(active, 'account_row');
-        lastSkip = hit.clicked ? null : `${variant}: ${hit.reason}`;
+        await clickOfferedControl(active, 'account_row');
         await humanIdlePause('long');
         continue;
       }
@@ -187,8 +204,7 @@ export async function doGoogleSso({
         }
         claim();
         mark('gis_use_another_account');
-        const hit = await clickGisTarget(active, 'other_account');
-        lastSkip = hit.clicked ? null : `${variant}: ${hit.reason}`;
+        await clickOfferedControl(active, 'other_account');
         await humanIdlePause('long');
         continue;
       }
@@ -205,8 +221,7 @@ export async function doGoogleSso({
       if (variant === 'google_confirm_continue') {
         claim();
         mark('gis_confirm_continue');
-        const hit = await clickGisTarget(active, 'primary');
-        lastSkip = hit.clicked ? null : `${variant}: ${hit.reason}`;
+        await clickOfferedControl(active, 'primary');
         await humanIdlePause('long');
         continue;
       }
@@ -214,8 +229,7 @@ export async function doGoogleSso({
       if (variant === 'oauth_consent') {
         claim();
         mark('oauth_consent_click');
-        const hit = await clickGisTarget(active, 'consent');
-        lastSkip = hit.clicked ? null : `${variant}: ${hit.reason}`;
+        await clickOfferedControl(active, 'consent');
         // The SPA POSTs /v1/oauth/.../authorize (slow in headless, renders a
         // spinner) and then redirects to platform.claude.com. That redirect is
         // just another state this same loop observes.
@@ -247,7 +261,7 @@ export async function doGoogleSso({
     const where = stuck?.st ? `${stuck.st.host}${stuck.st.pathname} title="${stuck.st.title}"` : 'no live page';
     const evidence = dump.written.map((w) => w.path).join(', ') || dump.indexPath;
     const rows = stuck?.st?.rowIdentifiers?.length ? ` rows=[${stuck.st.rowIdentifiers.join(', ')}]` : '';
-    throw new Error(`gis_continue: unhandled variant '${variant}' at ${where}${rows} after its page settled; live pages=${views.map((v) => v.variant).join('+') || 'none'}${lastSkip ? `; last click not delivered — ${lastSkip}` : ''}; DOM snapshot: ${evidence}`);
+    throw new Error(`gis_continue: unhandled variant '${variant}' at ${where}${rows} after its page settled; live pages=${views.map((v) => v.variant).join('+') || 'none'}; DOM snapshot: ${evidence}`);
   } finally {
     page.context().off('page', onPopup);
   }

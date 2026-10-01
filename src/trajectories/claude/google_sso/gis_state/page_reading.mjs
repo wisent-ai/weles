@@ -11,7 +11,6 @@ import { navEval } from '../page_controls.mjs';
 // counts as a rendered control. A 1x1 tracking pixel with role="button" is not
 // an affordance; 4px is the same floor waitForEnabledThenClick uses.
 const GIS_MIN_BOX_PX = 4;
-const GIS_DIAG_URL_CHARS = 300;
 const GIS_DIAG_TITLE_CHARS = 120;
 const GIS_DIAG_BODY_CHARS = 240;
 
@@ -86,7 +85,7 @@ export const readGisState = (arg) => {
 
   const state = {
     ok: true,
-    url: location.href.slice(0, arg.maxUrl),
+    url: location.href,
     host: location.host,
     pathname: location.pathname,
     title: (document.title || '').slice(0, arg.maxTitle),
@@ -138,7 +137,6 @@ export async function observeGisPage(p, email) {
   return navEval(p, readGisState, null, {
     email,
     minBox: GIS_MIN_BOX_PX,
-    maxUrl: GIS_DIAG_URL_CHARS,
     maxTitle: GIS_DIAG_TITLE_CHARS,
     maxBody: GIS_DIAG_BODY_CHARS,
   });
