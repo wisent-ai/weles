@@ -14,6 +14,7 @@ import { clickEmailRow, clickUseAnotherAccount, fillAndVerify, navEval, waitForE
 import { enterGoogleCredentials, establishGoogleSession } from './google_sso/google_credentials.mjs';
 import { acceptPendingWorkspaceInvite, completeEmailVerification } from './google_sso/openai_mailbox.mjs';
 import { handleCodexConsentPage, isTerminalHost } from './google_sso/openai_consent.mjs';
+import { pageSettled, urlMatching } from '../_shared/page/settled.mjs';
 
 export { establishGoogleSession } from './google_sso/google_credentials.mjs';
 export { waitForEnabledThenClick } from './google_sso/page_controls.mjs';
@@ -167,14 +168,13 @@ export async function doGoogleSso({
           // redirects to platform.openai.com/chatgpt.com. Wait for any OpenAI
           // terminal host; do NOT reload authorizeUrl (it would re-trigger the
           // consent flow). Single bounded wait.
-          for (let k = 0; k < 1800; k += 1) {
-            const h = await navEval(page, () => location.host, '');
-            if (isTerminalHost(h, '')) { mark('openai_callback'); return page; }
-            await page.waitForTimeout(100); // allow-raw-playwright: post-consent redirect poll
-          }
-          throw new Error('post-consent: no OpenAI redirect in 180s');
+          const landed = await urlMatching(page, (u) => isTerminalHost(new URL(u).host, ''));
+                    mark('openai_callback');
+                    console.log(`[google_sso] consent landed on ${landed}`);
+                    return page;
+          
         }
-        await page.waitForTimeout(100); // allow-raw-playwright: terminal-state poll
+        await pageSettled(page); // allow-raw-playwright: terminal-state poll
       }
       const where = await navEval(page, () => location.href, '?');
       console.log(`[google_sso] no terminal state a${attempt} at ${where}; reloading authorizeUrl`);

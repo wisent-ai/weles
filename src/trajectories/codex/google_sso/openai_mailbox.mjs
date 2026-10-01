@@ -8,6 +8,7 @@
 import { humanClick, humanClickLocator, humanIdlePause as pause } from '../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
 import { clickVisibleText, navEval } from './page_controls.mjs';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 
 // Accept the ChatGPT workspace invitation waiting in this account's own mailbox.
 //
@@ -25,7 +26,8 @@ export async function acceptPendingWorkspaceInvite(page, login, mark) {
   const query = encodeURIComponent('from:openai.com (invite OR invitation OR workspace)');
   await page.goto(`https://mail.google.com/mail/u/0/#search/${query}`, { waitUntil: 'commit' });
   let opened = false;
-  for (let i = 0; i < 60; i += 1) {
+  await pageSettled(page);
+  {
     const row = await navEval(page, () => {
       for (const element of Array.from(document.querySelectorAll('tr.zA, div[role="listitem"]'))) {
         const text = (element.innerText || '').replace(/\s+/g, ' ').trim();
@@ -39,9 +41,7 @@ export async function acceptPendingWorkspaceInvite(page, login, mark) {
     if (row) {
       await humanClick(page, Math.round(row.x), Math.round(row.y));
       opened = true;
-      break;
     }
-    await page.waitForTimeout(500); // allow-raw-playwright: mail list render poll
   }
   if (!opened) {
     console.log(`[google_sso] no ChatGPT invitation in the mailbox of ${login.email}`);
@@ -49,7 +49,8 @@ export async function acceptPendingWorkspaceInvite(page, login, mark) {
   }
   mark('workspace_invite_opened');
   let target = null;
-  for (let i = 0; i < 60; i += 1) {
+  await pageSettled(page);
+  {
     target = await navEval(page, () => {
       const wanted = /(chatgpt\.com|chat\.openai\.com|auth\.openai\.com)\/[^"']*(invit|join|accept)/i;
       for (const anchor of Array.from(document.querySelectorAll('a[href]'))) {
@@ -58,8 +59,6 @@ export async function acceptPendingWorkspaceInvite(page, login, mark) {
       }
       return null;
     }, null);
-    if (target) break;
-    await page.waitForTimeout(500); // allow-raw-playwright: message body render poll
   }
   if (!target) {
     console.log('[google_sso] the invitation mail carries no workspace acceptance link');
@@ -95,7 +94,8 @@ export async function completeEmailVerification(page, login, mark) {
   const query = encodeURIComponent('from:openai.com (verify OR verification OR code)');
   await page.goto(`https://mail.google.com/mail/u/0/#search/${query}`, { waitUntil: 'commit' });
   let opened = false;
-  for (let i = 0; i < 90; i += 1) {
+  await pageSettled(page);
+  {
     const row = await navEval(page, () => {
       for (const element of Array.from(document.querySelectorAll('tr.zA, div[role="listitem"]'))) {
         const text = (element.innerText || '').replace(/\s+/g, ' ').trim();
@@ -109,14 +109,13 @@ export async function completeEmailVerification(page, login, mark) {
     if (row) {
       await humanClick(page, Math.round(row.x), Math.round(row.y));
       opened = true;
-      break;
     }
-    await page.waitForTimeout(1000); // allow-raw-playwright: verification mail delivery poll
   }
   if (!opened) {
-    console.log(`[google_sso] no OpenAI verification mail in the mailbox of ${login.email}`);
+    console.log(`[google_sso] no OpenAI verification mail in the mailbox of ${login.email} yet`);
     return null;
   }
+  await pageSettled(page);
   mark('email_verification_opened');
   const found = await navEval(page, () => {
     const wanted = /(auth\.openai\.com|chatgpt\.com)\/[^"']*(verify|verification|confirm)/i;

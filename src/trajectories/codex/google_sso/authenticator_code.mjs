@@ -7,6 +7,7 @@
 import crypto from 'node:crypto';
 import { humanClick } from '../../../../dist/human/mouse.js';
 import { navEval } from './page_controls.mjs';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 
 // RFC 6238 TOTP (SHA1, 6-digit, 30s) from a base32 secret. Verified against the
 // RFC test vectors. Used to answer a Google 2FA prompt from a stored secret
@@ -58,13 +59,12 @@ function challengeFailure(code, message, observed) {
   return error;
 }
 
+// Once the submitted code has been answered and the page settled, Google has
+// either left the challenge or refused the code.
 export async function waitForGoogleChallengeExit(page) {
-  let observed;
-  for (let attempt = 0; attempt < 60; attempt += 1) {
-    observed = await googleChallengeState(page);
-    if (observed.challenge === false) return;
-    await page.waitForTimeout(500); // allow-raw-playwright: observe the submitted code without submitting it again
-  }
+  await pageSettled(page);
+  const observed = await googleChallengeState(page);
+  if (observed.challenge === false) return;
   throw challengeFailure('provider_challenge_refused', 'Google did not accept the submitted verification code', observed);
 }
 
@@ -74,27 +74,27 @@ export async function selectAuthenticatorMethod(page, hasCode) {
   // the whole label (so "Try another way" never matches a parent card whose
   // text is "Resend it\nTry another way" — clicking that centered the wrong
   // control and re-sent the push). Smallest-box preference picks the leaf.
-  const clickBest = async (matchSrc, mode, maxTries) => {
-    for (let i = 0; i < maxTries; i += 1) {
-      const hit = await page.evaluate(([src, m]) => {
-        const rx = new RegExp(src, 'i');
-        let best = null;
-        for (const el of Array.from(document.querySelectorAll('button,[role="button"],a,li,span,div,[role="link"]'))) {
-          const txt = (el.innerText || el.textContent || '').trim();
-          if (!txt || txt.length > 70) continue;
-          if (!rx.test(txt)) continue;
-          if (m === 'exact' && txt.length > 30) continue;
-          const r = el.getBoundingClientRect();
-          if (r.width < 8 || r.height < 8) continue;
-          const area = r.width * r.height;
-          if (!best || area < best.area) best = { x: r.x + r.width / 2, y: r.y + r.height / 2, area };
-        }
-        return best;
-      }, [matchSrc, mode]);
-      if (hit) { await humanClick(page, Math.round(hit.x), Math.round(hit.y)); return true; }
-      await page.waitForTimeout(150); // allow-raw-playwright: challenge-render poll
-    }
-    return false;
+  // One look at the settled page; callers' former retry counts are ignored.
+  const clickBest = async (matchSrc, mode) => {
+    await pageSettled(page);
+    const hit = await page.evaluate(([src, m]) => {
+      const rx = new RegExp(src, 'i');
+      let best = null;
+      for (const el of Array.from(document.querySelectorAll('button,[role="button"],a,li,span,div,[role="link"]'))) {
+        const txt = (el.innerText || el.textContent || '').trim();
+        if (!txt || txt.length > 70) continue;
+        if (!rx.test(txt)) continue;
+        if (m === 'exact' && txt.length > 30) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width < 8 || r.height < 8) continue;
+        const area = r.width * r.height;
+        if (!best || area < best.area) best = { x: r.x + r.width / 2, y: r.y + r.height / 2, area };
+      }
+      return best;
+    }, [matchSrc, mode]);
+    if (!hit) return false;
+    await humanClick(page, Math.round(hit.x), Math.round(hit.y));
+    return true;
   };
   const observed = await googleChallengeState(page);
   if (observed.challenge === false) return 'no-2fa';
@@ -132,7 +132,7 @@ export async function selectAuthenticatorMethod(page, hasCode) {
   }
   const opened = await clickBest('^try another way$|^wyprobuj inny sposob$|^more ways to verify$', 'exact', 30);
   if (!opened) return 'stuck';
-  await page.waitForTimeout(1200); // allow-raw-playwright: method-list render
+  await pageSettled(page);
   try {
     const opts = await page.evaluate(() => {
       const out = [];
@@ -147,6 +147,6 @@ export async function selectAuthenticatorMethod(page, hasCode) {
   } catch (e) { console.log(`[google_sso] 2fa-methods diag failed: ${e.message.slice(0, 80)}`); }
   const picked = await clickBest('authenticator|verification code from|google authenticator', 'contains', 20);
   if (!picked) return 'stuck';
-  await page.waitForTimeout(1000); // allow-raw-playwright: otp-field render
+  await pageSettled(page);
   return 'switched';
 }

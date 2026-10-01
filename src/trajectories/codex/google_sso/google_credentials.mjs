@@ -7,6 +7,7 @@
 // refusal ("browser may not be secure", a password challenge that stays) is
 // raised as its own named error instead of being waited out.
 import { fillAndVerify, navEval, waitForEnabledThenClick } from './page_controls.mjs';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 import { resolveOtp, selectAuthenticatorMethod, waitForGoogleChallengeExit } from './authenticator_code.mjs';
 
 export async function establishGoogleSession({
@@ -35,7 +36,13 @@ export async function waitForGooglePassword({ page, mark, humanClickLocator, hum
     .filter({ visible: true }).first();
   let selectedPassword = false;
   let openedAlternatives = false;
-  for (let i = 0; i < 80; i += 1) {
+  for (;;) {
+    // Whichever of the refusal, the password field, or a method this walk
+    // has not used yet shows up first decides the next step.
+    const watched = [refused, password];
+    if (!selectedPassword) watched.push(choice);
+    if (!selectedPassword && !openedAlternatives) watched.push(alternatives);
+    await Promise.any(watched.map((locator) => locator.waitFor({ state: 'visible' })));
     if (await refused.isVisible()) {
       const detail = await refused.innerText();
       const error = new Error(`Google refused sign-in: ${detail}`);
@@ -49,7 +56,7 @@ export async function waitForGooglePassword({ page, mark, humanClickLocator, hum
       selectedPassword = true;
       mark('google_password_choice');
       await humanClickLocator(page, choice);
-      await humanIdlePause('deliberate');
+      await pageSettled(page);
       mark('google_password');
       continue;
     }
@@ -58,11 +65,11 @@ export async function waitForGooglePassword({ page, mark, humanClickLocator, hum
       openedAlternatives = true;
       mark('google_password_alternatives');
       await humanClickLocator(page, alternatives);
-      await humanIdlePause('deliberate');
+      await pageSettled(page);
       mark('google_password');
       continue;
     }
-    await page.waitForTimeout(500); // allow-raw-playwright: observe the selected challenge, never resubmit it
+    break;
   }
   const observed = await navEval(page, () => ({
     host: location.host, path: location.pathname,
