@@ -82,16 +82,13 @@ export async function clickOAuthProviderButton(s: SessionLike, accessibleName: R
   return false;
 }
 
-/** Click Authorize / Allow / Continue while still on an OAuth consent URL. Early-exits as soon as the URL leaves the /auth//oauth//authorize subtree. */
+/** Click the consent button while still on an OAuth consent URL. Early-exits as soon as the URL leaves the /auth//oauth//authorize subtree, or when the page shows no button to consent with: the button's accessible name is read through the page's accessibility tree, not from the page's text. */
 export async function handleOAuthConsent(s: SessionLike, maxAttempts: number = 3): Promise<void> {
   for (let i = 0; i < maxAttempts; i++) {
     const u: string = s.page.url?.() ?? '';
     if (u && !/\/auth\/|\/oauth\/|\/authorize/i.test(u)) return;
-    const text = await s.page.evaluate(() => (document.body?.innerText ?? '').toLowerCase().slice(0, 1000)).catch(() => '');
-    if (!text.includes('authorize') && !text.includes('allow')) return;
-    await s.click('Authorize app').catch(() => {});
-    await s.click('Authorize').catch(() => {});
-    await s.click('Allow').catch(() => {});
+    const clicked = await clickOAuthProviderButton(s, /^(authorize app|authorize|allow)$/i);
+    if (!clicked) return;
     await humanIdlePause('deliberate');
   }
 }

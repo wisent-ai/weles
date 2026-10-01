@@ -1,138 +1,136 @@
 import { WSession } from '../../../dist/session/wsession.js';
-import { chromium } from 'playwright';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { autoBindCharacter } from '../lib/character-bind.mjs';
 import { pageSettled } from '../_shared/page/settled.mjs';
+import { autocompleteField, clickFirst, control, field, frameFrom } from '../_shared/page/offers.mjs';
 
 const URL = 'https://x.com/i/flow/signup?lang=en';
+const HOME = 'https://x.com/home';
 const proxy = process.env.PROXY_URL || 'none';
 
-const SKIP_BUTTONS = ['Skip for now', 'Not now', 'Next', 'Skip'];
+// Twitter's flow marks its own controls with test ids: the signup form's Next,
+// the submit, and on every onboarding step a Skip control and a Next control.
+const NEXT = '[data-testid="ocfSignupNextLink"]';
+const SUBMIT = '[data-testid="SignupButton"], [data-testid="LoginForm_Login_Button"]';
+const ONBOARDING_SKIP = '[data-testid$="SkipButton"], [data-testid$="SkipForNowButton"]';
+const ONBOARDING_NEXT = '[data-testid$="NextButton"], [data-testid$="NextLink"]';
 
-// Read page text, check for Arkose iframe, and extract its data if present
-async function readPage(s) {
-  const result = await s.page.evaluate(`(() => {
-    var t = (document.body?.innerText ?? '').substring(0, 2000);
-    var modal = document.querySelector('[role="dialog"]');
-    if (modal) t = modal.innerText.substring(0, 1000) + '\\n' + t;
-    var ark = document.querySelector('iframe#arkoseFrame, iframe[src*="arkoselabs"]');
-    var arkData = null;
-    if (ark) {
-      t = 'ARKOSE_IFRAME_PRESENT\\n' + t;
-      var src = ark.getAttribute('src') || '';
-      var pk = (src.match(/\\/([A-F0-9-]{36})\\//)||[])[1] || '';
-      var bl = (src.match(/[?&]data=([^&]+)/)||[])[1] || '';
-      arkData = { publicKey: pk, blob: decodeURIComponent(bl), subdomain: (new URL(src)).origin };
+// The Arkose challenge, read from its iframe: public key and blob from the
+// frame's URL. Null when no such frame is attached.
+function arkose(page) {
+  const frame = frameFrom(page, 'arkoselabs.com');
+  if (!frame) return null;
+  const src = frame.url();
+  return {
+    publicKey: (src.match(/\/([A-F0-9-]{36})\//) || [])[1] || '',
+    blob: decodeURIComponent((src.match(/[?&]data=([^&]+)/) || [])[1] || ''),
+    subdomain: new URL(src).origin,
+  };
+}
+
+async function solveArkose(s, ark) {
+  const { CaptchaSolver } = await import('../../../dist/captcha/solver.js');
+  const token = await new CaptchaSolver().solveFuncaptcha(ark.publicKey, 'https://x.com/i/flow/signup', ark.subdomain, ark.blob);
+  // Twitter's Arkose iframe posts the token to the page; the same message
+  // shape injected from the page completes the challenge.
+  await s.page.evaluate((tk) => {
+    const message = JSON.stringify({ eventId: 'challenge-complete', payload: { sessionToken: tk } });
+    window.postMessage(message, '*');
+    for (const iframe of document.querySelectorAll('iframe')) {
+      if (iframe.src.includes('arkoselabs')) iframe.contentWindow?.postMessage(message, '*');
     }
-    return { text: t, arkose: arkData };
-  })()`).catch(() => ({ text: '', arkose: null }));
-  s._lastArkose = result.arkose;
-  return result.text.toLowerCase();
+  }, token);
+  await pageSettled(s.page);
+}
+
+// Which input the flow's current step asks for: the first visible one of the
+// fields the signup flow has, or null on a step with none (a prompt page).
+async function step(page) {
+  if (await field(page, 'password')) return 'password';
+  if (await autocompleteField(page, 'one-time-code') || await field(page, 'verfication_code')) return 'code';
+  if (await field(page, 'email')) return 'email';
+  if (await field(page, 'phone_number')) return 'phone';
+  if (await field(page, 'name')) return 'name';
+  return null;
+}
+
+// Clicks the first visible control of `selector` with a trusted click
+// (Arkose-gated submits reject one dispatched from the page); false when none.
+async function press(page, selector) {
+  const found = page.locator(selector).first();
+  if (!(await found.isVisible())) return false;
+  await humanClickLocator(page, found);
+  return true;
 }
 
 async function signup(s) {
   const id = await s.generateIdentity('twitter');
   const name = `${id.firstName} ${id.lastName}`;
   console.log(`[tw] identity: ${id.username} / ${id.email}`);
+  const page = s.page;
 
-  // Set language to English before navigating
-  await s.ctx.addCookies([{ name: 'lang', value: 'en', domain: '.x.com', path: '/' }]).catch(() => {});
+  await s.ctx.addCookies([{ name: 'lang', value: 'en', domain: '.x.com', path: '/' }]);
   await s.goto(URL);
-  await pageSettled(s.page);
+  await pageSettled(page);
 
-  // Dismiss cookie consent if present
-  const text = await readPage(s);
-  if (text.includes('cookies') && text.includes('partners')) {
-    await s.click('Refuse non-essential cookies').catch(() => {});
-    await pageSettled(s.page);
-  }
+  if (await clickFirst(page, 'button', ['Refuse non-essential cookies'])) await pageSettled(page);
 
-  // Handle "Something went wrong" error
-  if (text.includes('something went wrong') || text.includes('try reloading')) {
+  // A page that offers only a retry is Twitter's own error page.
+  if (!(await control(page, 'button', 'Create account')) && (await control(page, 'button', 'Retry'))) {
     console.log('[tw] got error page, retrying...');
     throw new Error('page_error');
   }
 
-  // Click Create account
   await s.click('Create account');
-  await pageSettled(s.page);
-
-  // Fill name
+  await pageSettled(page);
   await s.fill('Name', name);
-  await pageSettled(s.page);
+  await pageSettled(page);
 
-  // Switch to email
-  await s.click('Use email instead').catch(() => {});
-  await pageSettled(s.page);
+  if (await clickFirst(page, 'button', ['Use email instead'])) await pageSettled(page);
 
-  // Fill email (or phone if email not available)
-  const pageText = await readPage(s);
-  if (pageText.includes('email')) {
+  const contact = await step(page);
+  if (contact === 'email') {
     await s.fill('Email', id.email);
-  } else {
+  } else if (contact === 'phone') {
     const phone = await s.checkSms('twitter', 'UK');
     console.log(`[tw] SMS: ${phone}`);
     await s.fill('Phone', s.resolveEnv('$TWITTER_NEW_PHONE'));
+  } else {
+    throw new Error(`signup form offers neither an email nor a phone field; step ${contact}`);
   }
-  await pageSettled(s.page);
+  await pageSettled(page);
 
-  // DOB
   await s.select('Month', id.birthMonth);
   await s.select('Day', id.birthDay);
   await s.select('Year', id.birthYear);
-  await pageSettled(s.page);
+  await pageSettled(page);
 
-  // Click Next on form and wait for page to change. Use s.clickSelector so
-  // the event is isTrusted=true (the comment at password-submit below already
-  // flagged the evaluate-click pattern — same fix for this Next button).
-  await s.clickSelector('[data-testid="ocfSignupNextLink"]').catch(() => {});
+  if (!(await press(page, NEXT))) throw new Error('signup form offers no Next after the date of birth');
   console.log('[tw] clicked Next, waiting for page change...');
 
-  // Poll until we leave the form page or hit a known state
+  // Each round reads what the page now offers and acts on it: the Arkose
+  // frame, the Authenticate button, a prompt page with only Next, the
+  // logged-out home, or the next input of the flow.
   for (let w = 0; w < 30; w++) {
-    await pageSettled(s.page);
-    const t = await readPage(s);
-    const preview = t.slice(0, 80).replace(/\n/g, ' ');
-    if (w % 5 === 0) console.log(`[tw] waiting ${w}: ${preview}`);
+    await pageSettled(page);
+    const current = await step(page);
+    if (w % 5 === 0) console.log(`[tw] waiting ${w}: url=${page.url().slice(-40)} step=${current}`);
 
-    // Arkose captcha. If Bright Data Scraping Browser is connected, it
-    // auto-solves and the iframe disappears. Otherwise call CapSolver's
-    // FunCaptcha API ourselves and inject the token into the page.
-    if (t.includes('arkose_iframe_present')) {
-      const ark = s._lastArkose;
-      if (!ark?.publicKey) { console.log(`[tw] Arkose detected but no publicKey extracted; waiting`); continue; }
+    const ark = arkose(page);
+    if (ark) {
+      if (!ark.publicKey) { console.log('[tw] Arkose frame without a public key; waiting'); continue; }
       console.log(`[tw] Arkose detected, solving via FunCaptcha API: pk=${ark.publicKey}`);
-      const { CaptchaSolver } = await import('../../../dist/captcha/solver.js');
-      const token = await new CaptchaSolver().solveFuncaptcha(ark.publicKey, 'https://x.com/i/flow/signup', ark.subdomain, ark.blob).catch(e => { console.log(`[tw] solveFuncaptcha err: ${e.message}`); return null; });
-      if (!token) { console.log(`[tw] Arkose solve returned null; will retry`); continue; }
-      console.log(`[tw] Arkose token=${token.slice(0, 30)}... injecting`);
-      // Twitter's Arkose iframe posts the token via window.postMessage.
-      // Inject by calling window.parent.postMessage with the token shape Arkose expects.
-      await s.page.evaluate((tk) => {
-        window.postMessage(JSON.stringify({ eventId: 'challenge-complete', payload: { sessionToken: tk } }), '*');
-        const iframe = document.querySelector('iframe#arkoseFrame, iframe[src*="arkoselabs"]');
-        if (iframe?.contentWindow) iframe.contentWindow.postMessage(JSON.stringify({ eventId: 'challenge-complete', payload: { sessionToken: tk } }), '*');
-      }, token).catch(() => {});
-      await pageSettled(s.page);
+      await solveArkose(s, ark);
       continue;
     }
-    if (t.includes('sent you a code') || t.includes('verification')) break;
-    if (t.includes('customise') || t.includes('customize')) {
-      await s.clickSelector('[data-testid="ocfSignupNextLink"]').catch(() => {});
-      continue;
-    }
-    if (t.includes('authenticate')) {
-      await s.click('Authenticate');
-      continue;
-    }
-    if (t.includes('happening now') && t.includes('join today') && w > 5) { throw new Error('flow_lost'); }
-    if (t.includes('password')) break;
+    if (current === 'code' || current === 'password') break;
+    if (await clickFirst(page, 'button', ['Authenticate'])) continue;
+    if (current === null && (await press(page, NEXT))) continue;
+    if (w > 5 && page.url() === 'https://x.com/' && (await control(page, 'link', 'Sign in'))) throw new Error('flow_lost');
   }
 
-  // Email or phone verification
-  const text3 = await readPage(s);
-  if (text3.includes('verification') || text3.includes('sent') || text3.includes('code')) {
-    if (text3.includes('phone') || text3.includes('text message')) {
+  if ((await step(page)) === 'code') {
+    if (contact === 'phone') {
       console.log('[tw] phone verification...');
       const code = await s.pollSmsCode();
       console.log(`[tw] SMS code: ${code}`);
@@ -143,75 +141,58 @@ async function signup(s) {
       console.log(`[tw] email code: ${code}`);
       await s.fill('code', code);
     }
-    await pageSettled(s.page);
+    await pageSettled(page);
     await s.click('Next');
-    await pageSettled(s.page);
-
-    // Check for "unable to confirm you're human" error
-    const afterCode = await readPage(s);
-    console.log(`[tw] after code submit: ${afterCode.slice(0, 80).replace(/\n/g, ' ')}`);
-    if (afterCode.includes('unable to confirm') || afterCode.includes('not a robot')) {
-      console.log('[tw] captcha failed server-side, retrying...');
-      throw new Error('captcha_server_reject');
+    await pageSettled(page);
+    // A flow that still asks for the code did not accept it: Twitter rejected
+    // the code or the challenge behind it.
+    if ((await step(page)) === 'code') {
+      console.log('[tw] code not accepted, retrying...');
+      throw new Error('code_rejected');
     }
   }
 
-  // Password — wait for page to render after verification
-  await pageSettled(s.page);
-  const text4 = await readPage(s);
-  console.log(`[tw] password check: ${text4.slice(0, 80).replace(/\n/g, ' ')}`);
-  if (text4.includes('password') || text4.includes('at least')) {
+  await pageSettled(page);
+  if ((await step(page)) === 'password') {
     await s.fill('Password', id.password);
-    await pageSettled(s.page);
-    // Route through Playwright locator.click → CDP dispatchMouseEvent → Blink
-    // SetTrusted(true). Previous page.evaluate(b.click()) produced isTrusted=false
-    // which Arkose-gated submits reject (same pattern as TikTok select.ts fix
-    // in commit ce369f6). Fall through to Enter key if neither selector matches.
-    await humanClickLocator(s.page, s.page.locator('[data-testid="SignupButton"], [data-testid="LoginForm_Login_Button"]').first()).catch(() => {});
-    await s.press('Enter').catch(() => {});
-    await pageSettled(s.page);
+    await pageSettled(page);
+    if (!(await press(page, SUBMIT))) await s.press('Enter');
+    await pageSettled(page);
   }
 
-  // Skip onboarding until home feed
+  // Skip onboarding steps until the home feed: each step's own Skip control
+  // first, its Next control when it has no Skip.
   for (let i = 0; i < 15; i++) {
-    const url = s.page.url?.() ?? '';
-    const t = await readPage(s);
-    console.log(`[tw] onboarding ${i}: url=${url.slice(-30)} text=${t.slice(0, 60).replace(/\n/g, ' ')}`);
-    if (url.includes('/home') || t.includes('what\'s happening') || t.includes('post something') || t.includes('for you')) break;
-    // Detect logged-out homepage (dead end)
-    if (url === 'https://x.com/' && t.includes('happening now') && t.includes('join today')) { await s.goto('https://x.com/home'); await pageSettled(s.page); break; }
-    for (const btn of SKIP_BUTTONS) {
-      const r = await s.click(btn);
-      if (r !== 'no-target-found') { await pageSettled(s.page); break; }
-    }
+    const url = page.url();
+    console.log(`[tw] onboarding ${i}: url=${url.slice(-30)}`);
+    if (url.includes('/home')) break;
+    if (url === 'https://x.com/') { await s.goto(HOME); await pageSettled(page); break; }
+    if ((await press(page, ONBOARDING_SKIP)) || (await press(page, ONBOARDING_NEXT))) await pageSettled(page);
   }
-  // Navigate to home if still stuck in flow
-  if (!(s.page.url?.() ?? '').includes('/home')) {
-    await s.goto('https://x.com/home');
-    await pageSettled(s.page);
+  if (!page.url().includes('/home')) {
+    await s.goto(HOME);
+    await pageSettled(page);
   }
 
-  // Verify success: check for auth cookies
-  const cookies = await s.ctx.cookies().catch(() => []);
+  // Success is the session's auth cookies, not what the page says.
+  const cookies = await s.ctx.cookies();
   const authCookies = cookies.filter(c => (c.domain?.includes('.x.com') || c.domain?.includes('.twitter.com')) && (c.name === 'auth_token' || c.name === 'ct0'));
   if (authCookies.length < 2) {
-    const url = s.page.url?.() ?? '';
-    console.log(`[tw] no auth cookies found (url=${url}, cookies=${authCookies.map(c => c.name)})`);
+    console.log(`[tw] no auth cookies found (url=${page.url()}, cookies=${authCookies.map(c => c.name)})`);
     throw new Error('no_auth_cookies');
   }
   console.log(`[tw] auth cookies verified: ${authCookies.map(c => c.name).join(', ')}`);
 
-  // Save account
   const result = await s.saveAccount('twitter', {
     username: id.username, email: id.email, password: id.password, name,
   });
   console.log(`[tw] ${result}`);
-  await autoBindCharacter(id.username, 'twitter').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
+  const bound = await autoBindCharacter(id.username, 'twitter');
+  console.log(`[bind] ${JSON.stringify(bound)}`);
   return id.username;
 }
 
-// Force chromium — Firefox persona picks fail at fill() because the
-// weles fill path uses CDP newCDPSession which is Chromium-only.
+// Chromium only: Weles's fill path needs its devtools session.
 const s = await WSession.start({ label: 'twitter_register', proxy });
 try {
   const username = await signup(s);
