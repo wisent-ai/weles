@@ -1,4 +1,3 @@
-import { humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { contextRead, ownListingHas, publicAboutStatus, readOwnHandle } from './reddit_json.mjs';
 
 /**
