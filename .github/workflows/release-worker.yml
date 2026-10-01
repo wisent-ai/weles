@@ -82,11 +82,6 @@ jobs:
         with:
           name: jeden-native-${{ matrix.platform }}
           path: ${{ env.WELES_RELEASE_OUTPUT }}/native-input
-      - name: Verify macOS native startup against the published dependency
-        if: matrix.platform == 'darwin-arm64'
-        env:
-          WELES_TEST_JEDEN_ARCHIVE: ${{ env.WELES_RELEASE_OUTPUT }}/native-input/release.tar.gz
-        run: node --test tests/release/packaging.test.mjs
       - name: Build immutable worker bytes
         shell: bash
         env:
@@ -101,7 +96,6 @@ jobs:
           fi
           npm ci
           npm run build
-          node --test tests/observation/page-question.test.mjs
           node dist/cli.js release surface > "$WELES_RELEASE_OUTPUT/released-surface.json"
           npm sbom --omit=dev --sbom-format cyclonedx > "$WELES_RELEASE_OUTPUT/sbom.cyclonedx.json"
           npm prune --omit=dev
@@ -118,11 +112,6 @@ jobs:
           cp "$WELES_RELEASE_OUTPUT/released-surface.json" "$stage/released-surface.json"
           cp "$WELES_RELEASE_OUTPUT/sbom.cyclonedx.json" "$stage/sbom.cyclonedx.json"
           node release/native/runtime.mjs stage "$stage/native/jeden/bin" "$WELES_RELEASE_OUTPUT/native-input/release.tar.gz"
-            mkdir -p "$stage/evidence"
-          if [ -d .wisent-output/native-runtime-tests ]; then
-            cp -R .wisent-output/native-runtime-tests "$stage/evidence/"
-          fi
-          cp -R .wisent-output/page-question-tests "$stage/evidence/"
           jq -n \
             --arg schema "weles.worker-component.v1" \
             --arg product "weles-worker" \

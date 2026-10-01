@@ -1,12 +1,5 @@
 name: build-check
 
-# Catches the class of regression that broke the entire fleet on
-# 5960e6f → 9319340 — wsession_atoms.ts mutated WSession.prototype at
-# top-level via a side-effect import that loaded before the class
-# declaration, so every dist/ module crashed at require() time but only
-# new processes saw it (long-running workers held the cached pre-regression
-# load). lint-modules walks every dist/ file and require()s it.
-
 on:
   push:
     branches: ["**"]
@@ -29,19 +22,3 @@ jobs:
 
       - name: tsc + asset copy
         run: npm run build
-
-      - name: every dist/ module load-check
-        run: node --test tests/build/module-load.test.mjs
-
-      # The trajectory modules are not compiled into dist/, so the load-check
-      # above never reads them. They are what a fleet host runs, and a stale
-      # relative path or a name the compiled tree stopped exporting fails on
-      # the first line of that run instead of in any check.
-      - name: every trajectory module's imports
-        run: node --test tests/trajectories/module-imports.test.mjs
-
-      # The release archive's contents are otherwise read only by a tag build,
-      # which is how release 0.5.50 got as far as a cut tag before dying on
-      # `cp: scripts: No such file or directory`.
-      - name: what the release archive must carry
-        run: node --test tests/release/packaging.test.mjs

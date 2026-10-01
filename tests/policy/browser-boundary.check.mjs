@@ -26,7 +26,6 @@ const ALLOWLIST = new Map([
   ['src/browser/launch/firefox_launch.ts', 'Weles Firefox launcher; this is infrastructure, not a task script.'],
   ['src/browser/real_chrome.mjs', 'Weles real-Chrome launcher: the one place a genuine Chrome is started, for provider flows the patched Chromium cannot complete. Trajectories call it; they never launch Playwright themselves.'],
   ['src/keeper/keeper.mjs', 'Keeper owns the persistent session it serves over its own socket; the documented discovery surface is infrastructure, not a task script.'],
-  ['tests/firefox/launch-without-recording.test.mjs', 'The raw launch is the subject of this test: it narrows whether recordVideo is what closes the context on VMAPPLE.'],
 ]);
 
 function allowReason(file) {

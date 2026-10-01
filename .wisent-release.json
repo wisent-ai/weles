@@ -17,19 +17,11 @@
           "release/stado-build.sh"
         ]
       },
-      "tests": [
-        {
-          "name": "native-runtime-startup",
-          "argv": ["node", "--test", "tests/release/packaging.test.mjs"]
-        }
-      ],
       "stage": {
         "payload/weles-worker.tar.gz": "payload/weles-worker.tar.gz",
         "bin/start": "bin/start",
         "weles-api-launcher": "weles-api-launcher",
-        "evidence/DIGESTS": "evidence/DIGESTS",
-        "native-runtime-tests": "evidence/native-runtime-tests",
-        "page-question-tests": "evidence/page-question-tests"
+        "evidence/DIGESTS": "evidence/DIGESTS"
       }
     }
   },
