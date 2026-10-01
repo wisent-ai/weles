@@ -1,67 +1,54 @@
-// ---------------------------------------------------------------------------
-// Where a click target really is, once the page has finished moving it.
-//
-// `scrollIntoViewIfNeeded` returns as soon as the scroll is requested. A
-// container styled `scroll-behavior: smooth` then animates for several
-// hundred milliseconds, and a bounding box read in that window is the
-// element's pre-scroll position — outside the viewport, or on top of a
-// neighbour. Every click on a tile in a smooth-scrolling lane then
-// reports success and navigates nowhere: the
-// tile sat off the right edge of a smooth-scrolling lane, the box was read
-// mid-animation, and the click landed on whatever card was under those
-// coordinates at that moment. The box is read again until two consecutive
-// reads agree and the rectangle lies inside the viewport; a target that never
-// settles inside the viewport is refused by name instead of clicked blindly.
-// ---------------------------------------------------------------------------
-
-import { waitMs } from '../../utils/motion/timing.js';
+// A scroll request is not evidence that its target has stopped moving.
+// Read geometry across rendered frames, not after a guessed delay. A stable
+// rectangle outside the viewport is a refusal, not permission to click it.
 
 export interface TargetBox { x: number; y: number; width: number; height: number }
 
-/** Reads between which a box must stop moving, and the pause between reads. */
-const SETTLE_READS = 12;
-const SETTLE_INTERVAL_MS = 50;
-
 function sameBox(a: TargetBox, b: TargetBox): boolean {
-  return Math.abs(a.x - b.x) < 1 && Math.abs(a.y - b.y) < 1
-    && Math.abs(a.width - b.width) < 1 && Math.abs(a.height - b.height) < 1;
+  return a.x === b.x && a.y === b.y
+    && a.width === b.width && a.height === b.height;
 }
 
-async function viewportSize(page: any): Promise<{ width: number; height: number } | null> {
+async function viewportSize(page: any): Promise<{ width: number; height: number }> {
   try {
     return await page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));
-  } catch {
-    return null;
+  } catch (error) {
+    throw new Error(`humanClickLocator: reading viewport failed: ${String(error)}`, { cause: error });
   }
 }
 
-function insideViewport(box: TargetBox, viewport: { width: number; height: number } | null): boolean {
-  if (!viewport) return true;
+function insideViewport(box: TargetBox, viewport: { width: number; height: number }): boolean {
   return box.x >= 0 && box.y >= 0
     && box.x + box.width <= viewport.width && box.y + box.height <= viewport.height;
 }
 
 /**
- * The target's bounding box once it has stopped moving and lies inside the
- * viewport. Throws, naming the last observed rectangle, when the element has
- * no box or never settles inside the viewport within the read budget.
+ * Read the target across browser frames until its geometry stops changing.
+ * Moving geometry stays pending; missing or stationary off-screen geometry,
+ * scroll failures and viewport-read failures are reported directly.
  */
 export async function settledTargetBox(page: any, locator: any): Promise<TargetBox> {
-  try { await locator.scrollIntoViewIfNeeded?.(); } catch { /* element may already be in view */ }
-  const viewport = await viewportSize(page);
+  try {
+    await locator.scrollIntoViewIfNeeded?.();
+  } catch (error) {
+    throw new Error(`humanClickLocator: scrolling target failed: ${String(error)}`, { cause: error });
+  }
   let previous: TargetBox | null = null;
-  let last: TargetBox | null = null;
-  for (let read = 0; read < SETTLE_READS; read += 1) {
+  for (;;) {
     const box: TargetBox | null = await locator.boundingBox?.();
     if (!box) throw new Error('humanClickLocator: bounding box unavailable (element detached or off-screen)');
-    last = box;
-    if (previous && sameBox(previous, box) && insideViewport(box, viewport)) return box;
+    if (previous && sameBox(previous, box)) {
+      const viewport = await viewportSize(page);
+      if (insideViewport(box, viewport)) return box;
+      throw new Error(
+        'humanClickLocator: stationary target is outside the viewport after the scroll request; '
+        + `box x=${box.x} y=${box.y} w=${box.width} h=${box.height}`
+        + ` viewport ${viewport.width}x${viewport.height}`,
+      );
+    }
     previous = box;
-    await waitMs(SETTLE_INTERVAL_MS);
+    await page.evaluate(() => new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    }));
   }
-  throw new Error(
-    'humanClickLocator: target never settled inside the viewport after scrolling; '
-    + `last box x=${last?.x} y=${last?.y} w=${last?.width} h=${last?.height}`
-    + (viewport ? ` viewport ${viewport.width}x${viewport.height}` : ''),
-  );
 }
