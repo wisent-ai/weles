@@ -53,8 +53,20 @@ function stado(arguments_: string[]): string {
  * the Weles service declaration. Endpoint consumers use `service resolve`;
  * this placement check deliberately does not require the service's own beacon
  * to be active while the process is starting.
+ *
+ * A machine that runs Weles without Stado has no registry to place it on.
+ * WELES_STANDALONE=1 says so: this host is the only Weles host, and the
+ * check is skipped with one line on stderr naming why. It is never inferred
+ * from a missing binary, because a fleet host that lost its Stado must stop
+ * rather than start browsers off its placement.
  */
 export function enforceWelesServicePlacement(entrypoint: string): void {
+  if (process.env.WELES_STANDALONE === '1') {
+    process.stderr.write(
+      `${entrypoint}: WELES_STANDALONE=1, so this host runs Weles without Stado and its placement is not checked\n`,
+    );
+    return;
+  }
   let localTarget: string;
   let rows: ServiceStatusRow[];
   try {
@@ -69,7 +81,8 @@ export function enforceWelesServicePlacement(entrypoint: string): void {
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `BLOCKED: ${entrypoint} cannot verify Weles placement through Stado: ${detail}`,
+      `BLOCKED: ${entrypoint} cannot verify Weles placement through Stado: ${detail}. `
+      + 'On a machine without Stado set WELES_STANDALONE=1.',
     );
   }
 
