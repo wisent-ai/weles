@@ -1,4 +1,5 @@
-import { pageSettled } from '../_shared/page/settled.mjs';
+import { pageCondition, pageSettled } from '../_shared/page/settled.mjs';
+import { solverTaskResult } from '../_shared/captcha/solver_task.mjs';
 import { getSocialAccount } from '../../../dist/utils/credentials.js';
 import { resolveAccountSession } from '../../../dist/account/session.js';
 import { WSession } from '../../../dist/session/wsession.js';
@@ -22,26 +23,10 @@ if (process.env.PROXY_URL) {
 }
 console.log(`[trajectory] Using account: ${acct.username} (${process.env.SVC_EMAIL})`);
 
-let s;
-for (let retry = 0; retry < 3; retry++) {
-  try {
-    // targetHost lets resolveProxy map a filter string ("residential
-    // oxylabs us") to the right provider row + Discord country policy.
-    // Without it, filter-form PROXY_URL throws proxy_unavailable.
-    s = await WSession.start({ label: 'discord_login', proxy: proxyUrl, persona: accountSession.persona, targetHost: 'discord.com' });
-    // Visit register page first to pass Cloudflare challenge and set cf_clearance cookie
-    await s.goto('https://discord.com/register');
-    await pageSettled(s.page);
-    await s.goto(URL);
-    let mounted = false;
-    for (let i = 0; i < 15; i++) { if (await s.page.evaluate('document.querySelector("#app-mount")?.children?.length > 0').catch(() => false)) { mounted = true; break; } await pageSettled(s.page); }
-    if (mounted) { console.log(`[login] SPA mounted on attempt ${retry + 1}`); break; }
-    console.log(`[login] SPA failed to mount on attempt ${retry + 1}, retrying...`);
-  } catch (e) { console.log(`[login] Attempt ${retry + 1} crashed: ${e.message?.slice(0, 100)}`); }
-  await s?.close().catch(() => {});
-  s = null;
-}
-if (!s) console.log('FAIL: SPA never mounted after 3 attempts');
+// targetHost lets resolveProxy map a filter string ("residential
+// oxylabs us") to the right provider row + Discord country policy.
+// Without it, filter-form PROXY_URL throws proxy_unavailable.
+const s = await WSession.start({ label: 'discord_login', proxy: proxyUrl, persona: accountSession.persona, targetHost: 'discord.com' });
 
 async function captureCookies() {
   if (!acct.id) return;
@@ -52,13 +37,14 @@ async function captureCookies() {
 }
 
 try {
-  if (!s) throw new Error('SPA never mounted after 3 attempts');
-  // Wait for login form to render (SPA mount != form ready)
-  for (let i = 0; i < 30; i++) {
-    const hasInputs = await s.page.evaluate('document.querySelectorAll("input").length > 0').catch(() => false);
-    if (hasInputs) { console.log(`[login] Form inputs appeared after ${i + 1}s`); break; }
-    await pageSettled(s.page);
-  }
+  // Visit register page first to pass Cloudflare challenge and set cf_clearance cookie
+  await s.goto('https://discord.com/register');
+  await pageSettled(s.page);
+  await s.goto(URL);
+  await pageCondition(s.page, () => document.querySelector('#app-mount')?.children?.length > 0);
+  console.log('[login] SPA mounted');
+  // SPA mount != form ready
+  await pageCondition(s.page, () => document.querySelectorAll('input').length > 0);
   const inputNames = await s.page.evaluate(`Array.from(document.querySelectorAll('input')).map(i=>({name:i.name,type:i.type,ph:i.placeholder,aria:i.getAttribute('aria-label')}))`).catch(() => []);
   console.log(`[login] Inputs: ${JSON.stringify(inputNames)}`);
   // Humanized fill — descriptor-set + dispatch('input') previously bypassed
@@ -88,12 +74,9 @@ try {
   try { ({ deactivateAccount } = await import('../../../dist/account/state.js')); } catch (e) { console.log(`[login] state.js import failed: ${e.message?.slice(0, 100)}`); }
   const bail = () => { try { if (s.authBlocked) { Promise.resolve(deactivateAccount(acct.id, acct.metadata, s.authBlocked)).then(() => { console.log(`FAIL: ${acct.username} ${s.authBlocked} (deactivated)`); process.exitCode = 1; }).catch(() => process.exit(1)); return true; } if ((s.page?.url?.() ?? '').includes('/channels')) { console.log(`PASS: direct login — ${s.page.url()}`); captureCookies().then(() => process.exit(0)).catch(() => process.exit(0)); return true; } } catch (e) { console.log(`[login] bail err: ${e.message?.slice(0, 100)}`); } return false; };
   // locator.click on Discord's submit hangs the full default timeout — click registers but its navigation promise never resolves. Skip locator.click; form.requestSubmit fires /api/v9/auth/login directly and populates captchaFormData on the response, which is what every downstream branch needs.
-  for (let attempt = 0; attempt < 5; attempt++) {
-    console.log(`[login] Submit attempt ${attempt + 1}`);
-    await s.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
-    await pageSettled(s.page);
-    if (s.captchaResponse || bail()) break;
-  }
+  await s.page.evaluate('document.querySelector("form")?.requestSubmit()');
+  await pageSettled(s.page);
+  bail();
   // Solve captcha and resubmit via API (same as registration)
   const captchaData = s.captchaResponse;
   const formData = s.captchaFormData;
@@ -109,123 +92,82 @@ try {
       { name: 'anticaptcha', url: 'https://api.anti-captcha.com', envKey: 'ANTICAPTCHA_API_KEY' },
       { name: 'capsolver', url: 'https://api.capsolver.com', envKey: 'CAPSOLVER_API_KEY' },
     ];
-    for (const svc of services) {
-      const apiKey = process.env[svc.envKey];
-      if (!apiKey) continue;
-      console.log(`[login] formData: login=${formData.login} pass=${formData.password ? '***(' + formData.password.length + ')' : 'EMPTY'}`);
-      let currentRqdata = captchaData.captcha_rqdata;
-      let currentRqtoken = captchaData.captcha_rqtoken;
-      let loggedIn = false;
-      for (let attempt = 0; attempt < 5; attempt++) {
-        const isCs = svc.name === 'capsolver';
-        const taskType = isCs ? (u ? 'HCaptchaEnterpriseTask' : 'HCaptchaEnterpriseTaskProxyLess') : (u ? 'HCaptchaTask' : 'HCaptchaTaskProxyless');
-        const task = { type: taskType, websiteURL: 'https://discord.com/login', websiteKey: captchaData.captcha_sitekey, enterprisePayload: { rqdata: currentRqdata }, userAgent: ua, ...proxyFields, ...(isCs ? {} : { isEnterprise: true }) };
-        const cr = await (await fetch(svc.url + '/createTask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: apiKey, task }) })).json();
-        if (cr.errorId) { console.log(`[login] ${svc.name} error: ${cr.errorCode}`); break; }
-        console.log(`[login] ${svc.name} attempt ${attempt + 1} solving...`);
-        let token = null;
-        for (let i = 0; i < 60; i++) { await new Promise(r => setTimeout(r, 5000)); const res = await (await fetch(svc.url + '/getTaskResult', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: apiKey, taskId: cr.taskId }) })).json(); if (res.status === 'ready') { token = res.solution?.gRecaptchaResponse ?? res.solution?.token; break; } if (res.errorId) break; }  // allow-raw-playwright: polling/rate-limit loop
-        if (!token) { console.log(`[login] ${svc.name} solve failed`); break; }
-        formData.captcha_key = token;
-        if (currentRqtoken) formData.captcha_rqtoken = currentRqtoken;
-        const hdrs = JSON.stringify({ 'Content-Type': 'application/json', ...s.captchaHeaders });
-        const result = await s.page.evaluate(`(async()=>{var r=await fetch('/api/v9/auth/login',{method:'POST',headers:${hdrs},body:${JSON.stringify(JSON.stringify(formData))}});return{status:r.status,data:await r.json().catch(()=>({}))};})()`).catch(e => ({ error: e.message }));
-        console.log(`[login] ${svc.name} attempt ${attempt + 1}: status=${result?.status} response=${(JSON.stringify(result?.data) ?? '').slice(0, 200)}`);
-        if (result?.status === 200 && result?.data?.token) {
-          console.log(`[login] SUCCESS — token received`);
-          await s.page.evaluate(`localStorage.setItem("token", JSON.stringify(${JSON.stringify(result.data.token)}))`).catch(() => {});
-          // Discord auth lives in localStorage, so persist it beside the account
-          // cookies in the same Skarbiec item.
-          if (acct.id) await s.patchAccount(acct.id, { metadata: { discord_token: result.data.token } });
-          await s.goto('https://discord.com/channels/@me');
-          await pageSettled(s.page);
-          console.log(`PASS: logged in as ${acct.username} — ${s.page.url?.()}`);
-          await captureCookies();
-          loggedIn = true; break;
-        }
-        if (result?.data?.captcha_rqdata) { currentRqdata = result.data.captcha_rqdata; currentRqtoken = result.data.captcha_rqtoken; console.log('[login] Updated captcha data, retrying...'); continue; }
-        // Login location verification — click verify link, go back to login, re-submit through the form
-        if (result?.data?.errors?.login?._errors?.some(e => e.code === 'ACCOUNT_LOGIN_VERIFICATION_EMAIL')) {
-          console.log('[login] New location verification required, checking email...');
-          const email = formData.login;
-          const loginAttemptTs = Date.now() - 30000; // 30s buffer
-          let verifyDone = false;
-          for (let poll = 0; poll < 15 && !verifyDone; poll++) {
-            await new Promise(r => setTimeout(r, 5000));  // allow-raw-playwright: polling/rate-limit loop
-            const emails2 = await listReceived(10, email);
-            for (const em of emails2.data || []) {
-              const to = (em.to || []).map(t => typeof t === 'string' ? t : t.email).join(',');
-              if (!to.includes(email) || !em.subject?.includes('Login')) continue;
-              // Only accept emails newer than this login attempt
-              if (new Date(em.created_at).getTime() < loginAttemptTs) { continue; }
-              const full2 = await getReceived(em.id);
-              const links = (full2.html || '').match(/https:\/\/click\.discord\.com[^\s"]+/g);
-              if (links?.length) {
-                // Find the authorize-ip link (not reject-ip or generic links)
-                let authorizeLink = null;
-                for (const link of links) {
-                  const resp = await fetch(link, { redirect: 'manual' });
-                  const loc = resp.headers.get('location') || '';
-                  if (loc.includes('authorize-ip')) { authorizeLink = loc; break; }
-                }
-                if (!authorizeLink) { console.log('[login] No authorize-ip link found in email'); continue; }
-                console.log(`[login] Found authorize-ip link, opening in new tab...`);
-                const newPage = await s.ctx.newPage();
-                // Listen for the authorize-ip API call
-                let apiCalled = false;
-                newPage.on('response', async (resp) => {
-                  if (resp.url().includes('authorize-ip') && resp.request().method() === 'POST') {
-                    console.log(`[login] authorize-ip API: ${resp.status()}`);
-                    apiCalled = true;
-                  }
-                });
-                await newPage.goto(authorizeLink, { waitUntil: 'domcontentloaded' }).catch(() => {});
-                // Wait for the SPA to mount and call the authorize-ip API
-                for (let w = 0; w < 30 && !apiCalled; w++) { await new Promise(r => setTimeout(r, 1000)); }  // allow-raw-playwright: polling/rate-limit loop
-                const verifyUrl = newPage.url();
-                console.log(`[login] Authorize tab: ${verifyUrl?.slice(0, 80)} apiCalled=${apiCalled}`);
-                await newPage.close().catch(() => {});
-                await pageSettled(s.page);
-                verifyDone = true;
-                break;
-              }
-            }
-          }
-          if (!verifyDone) { console.log('[login] No verify email found'); break; }
-          // After IP authorize, re-fire the /api/v9/auth/login XHR directly
-          // (same path the captcha-success branch uses) — avoids the s.goto()
-          // race that disconnected the browser when the authorize-ip tab closed.
-          console.log('[login] IP authorized, retrying login API directly...');
-          const retryResult = await s.page.evaluate(`(async()=>{var r=await fetch('/api/v9/auth/login',{method:'POST',headers:${hdrs},body:${JSON.stringify(JSON.stringify(formData))}});return{status:r.status,data:await r.json().catch(()=>({}))};})()`).catch(e => ({ error: e.message }));
-          console.log(`[login] post-authorize retry: status=${retryResult?.status} response=${(JSON.stringify(retryResult?.data) ?? '').slice(0, 200)}`);
-          if (retryResult?.status === 200 && retryResult?.data?.token) {
-            console.log(`[login] SUCCESS — token received after IP authorize`);
-            await s.page.evaluate(`localStorage.setItem("token", JSON.stringify(${JSON.stringify(retryResult.data.token)}))`).catch(() => {});
-            if (acct.id) await s.patchAccount(acct.id, { metadata: { discord_token: retryResult.data.token } });
-            await s.goto('https://discord.com/channels/@me').catch(() => {});
-            await pageSettled(s.page);
-            console.log(`PASS: logged in as ${acct.username} — ${s.page.url?.()}`);
-            await captureCookies();
-            loggedIn = true; break;
-          }
-          if (retryResult?.data?.captcha_rqdata) {
-            currentRqdata = retryResult.data.captcha_rqdata;
-            currentRqtoken = retryResult.data.captcha_rqtoken;
-            console.log('[login] Captcha required after IP authorize, solving...');
-            continue;
-          }
-          const postUrl = s.page.url?.() ?? '';
-          if (postUrl.includes('/channels')) {
-            console.log(`PASS: logged in as ${acct.username} — ${postUrl}`);
-            await captureCookies();
-            loggedIn = true; break;
-          }
-          console.log(`[login] After authorize re-submit: ${postUrl}, no captcha`);
-          break;
-        }
-        break;
+    const svc = services.find((candidate) => process.env[candidate.envKey]);
+    if (!svc) throw new Error('discord_login: no captcha solver key is configured (ANTICAPTCHA_API_KEY or CAPSOLVER_API_KEY)');
+    const apiKey = process.env[svc.envKey];
+    console.log(`[login] formData: login=${formData.login} pass=${formData.password ? '***(' + formData.password.length + ')' : 'EMPTY'}`);
+    const isCs = svc.name === 'capsolver';
+    const taskType = isCs ? (u ? 'HCaptchaEnterpriseTask' : 'HCaptchaEnterpriseTaskProxyLess') : (u ? 'HCaptchaTask' : 'HCaptchaTaskProxyless');
+    const task = { type: taskType, websiteURL: 'https://discord.com/login', websiteKey: captchaData.captcha_sitekey, enterprisePayload: { rqdata: captchaData.captcha_rqdata }, userAgent: ua, ...proxyFields, ...(isCs ? {} : { isEnterprise: true }) };
+    const cr = await (await fetch(svc.url + '/createTask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: apiKey, task }) })).json();
+    if (cr.errorId) throw new Error(`discord_login: ${svc.name} createTask refused: ${cr.errorCode}`);
+    console.log(`[login] ${svc.name} task ${cr.taskId} created`);
+    formData.captcha_key = await solverTaskResult(svc, apiKey, cr.taskId);
+    if (captchaData.captcha_rqtoken) formData.captcha_rqtoken = captchaData.captcha_rqtoken;
+    const hdrs = JSON.stringify({ 'Content-Type': 'application/json', ...s.captchaHeaders });
+    const loginApi = () => s.page.evaluate(`(async()=>{var r=await fetch('/api/v9/auth/login',{method:'POST',headers:${hdrs},body:${JSON.stringify(JSON.stringify(formData))}});return{status:r.status,data:await r.json().catch(()=>({}))};})()`);
+    const finishWithToken = async (token) => {
+      await s.page.evaluate(`localStorage.setItem("token", JSON.stringify(${JSON.stringify(token)}))`);
+      // Discord auth lives in localStorage, so persist it beside the account
+      // cookies in the same Skarbiec item.
+      if (acct.id) await s.patchAccount(acct.id, { metadata: { discord_token: token } });
+      await s.goto('https://discord.com/channels/@me');
+      await pageSettled(s.page);
+      console.log(`PASS: logged in as ${acct.username} — ${s.page.url?.()}`);
+      await captureCookies();
+    };
+    const result = await loginApi();
+    console.log(`[login] ${svc.name}: status=${result?.status} response=${(JSON.stringify(result?.data) ?? '').slice(0, 200)}`);
+    if (result?.status === 200 && result?.data?.token) {
+      await finishWithToken(result.data.token);
+    } else if (result?.data?.captcha_rqdata) {
+      throw new Error(`discord_login: Discord rejected the ${svc.name} captcha answer and issued a new captcha challenge`);
+    } else if (result?.data?.errors?.login?._errors?.some(e => e.code === 'ACCOUNT_LOGIN_VERIFICATION_EMAIL')) {
+      // Login location verification — open the authorize-ip link from the
+      // mail, then re-submit the login API call.
+      console.log('[login] New location verification required, checking email...');
+      const email = formData.login;
+      const loginAttemptTs = Date.now() - 30000; // mails older than this attempt belong to earlier logins
+      const emails = await listReceived(10, email);
+      const verifyMail = (emails.data || []).find((em) => {
+        const to = (em.to || []).map(t => typeof t === 'string' ? t : t.email).join(',');
+        return to.includes(email) && em.subject?.includes('Login') && new Date(em.created_at).getTime() >= loginAttemptTs;
+      });
+      if (!verifyMail) throw new Error(`discord_login: no new-location verification mail for ${email} has arrived yet; run the login again once it is in the inbox`);
+      const full = await getReceived(verifyMail.id);
+      const links = (full.html || '').match(/https:\/\/click\.discord\.com[^\s"]+/g) || [];
+      let authorizeLink = null;
+      for (const link of links) {
+        const resp = await fetch(link, { redirect: 'manual' });
+        const loc = resp.headers.get('location') || '';
+        if (loc.includes('authorize-ip')) { authorizeLink = loc; break; }
       }
-      if (loggedIn) break;
+      if (!authorizeLink) throw new Error(`discord_login: verification mail ${verifyMail.id} carries no authorize-ip link`);
+      console.log('[login] Found authorize-ip link, opening in new tab...');
+      const newPage = await s.ctx.newPage();
+      const authorized = newPage.waitForResponse((resp) => resp.url().includes('authorize-ip') && resp.request().method() === 'POST');
+      await newPage.goto(authorizeLink, { waitUntil: 'domcontentloaded' });
+      const authorizeResponse = await authorized;
+      console.log(`[login] authorize-ip API: ${authorizeResponse.status()}`);
+      await newPage.close();
+      await pageSettled(s.page);
+      // After IP authorize, re-fire the /api/v9/auth/login XHR directly
+      // (same path the captcha-success branch uses).
+      console.log('[login] IP authorized, retrying login API directly...');
+      const retryResult = await loginApi();
+      console.log(`[login] post-authorize retry: status=${retryResult?.status} response=${(JSON.stringify(retryResult?.data) ?? '').slice(0, 200)}`);
+      if (retryResult?.status === 200 && retryResult?.data?.token) {
+        await finishWithToken(retryResult.data.token);
+      } else if (retryResult?.data?.captcha_rqdata) {
+        throw new Error('discord_login: Discord asks for a new captcha after the IP authorization');
+      } else if ((s.page.url?.() ?? '').includes('/channels')) {
+        console.log(`PASS: logged in as ${acct.username} — ${s.page.url()}`);
+        await captureCookies();
+      } else {
+        throw new Error(`discord_login: login API answered ${retryResult?.status} after the IP authorization, at ${s.page.url?.()}`);
+      }
+    } else {
+      throw new Error(`discord_login: login API answered ${result?.status} with ${(JSON.stringify(result?.data) ?? '').slice(0, 200)}`);
     }
   } else {
     // No captcha — check if already logged in
@@ -234,7 +176,7 @@ try {
       console.log('PASS: logged in');
       await captureCookies();
     } else {
-      console.log(`FAIL: no captcha data, stuck at ${url2}`);
+      throw new Error(`discord_login: the login form answered without a captcha challenge and without logging in, at ${url2}`);
     }
   }
 } catch (e) {
@@ -259,5 +201,5 @@ try {
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exitCode = 1;
 } finally {
-  if (s) await s.close();
+  await s.close();
 }

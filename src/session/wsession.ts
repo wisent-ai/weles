@@ -24,7 +24,7 @@ import { CaptchaSolver } from '../captcha/solver.js';
 import { generateIdentity as genId, type Identity } from '../utils/identity/identity.js';
 import { markSignupSuccess } from '../utils/email/domain.js';
 import { snapshotSanitizedEnvironment } from '../utils/sanitize-env.js';
-import { getNumber, pollCode, type SmsNumber } from '../utils/identity/sms.js';
+import { getNumber, readCode, type SmsNumber } from '../utils/identity/sms.js';
 import { writeFileSync, mkdirSync, copyFileSync, existsSync, chmodSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { startInstrumentation } from './wsession-helpers/net_record.js';
@@ -202,7 +202,7 @@ export class WSession {
 
   async checkEmail(email: string, sender: string): Promise<string> { const { wsCheckEmail } = await import('./wsession-helpers/finalize.js'); return wsCheckEmail(this, email, sender); }
   async checkSms(service: string, country = 'UK'): Promise<string> { this._smsOrder = await getNumber(service, country); if (!this._smsOrder) return 'error: no SMS number available'; this._env[`${service.toUpperCase()}_NEW_PHONE`] = this._smsOrder.phone; return `phone: ${this._smsOrder.phone}`; }
-  async pollSmsCode(): Promise<string> { if (!this._smsOrder) return 'error: no SMS order'; return (await pollCode(this._smsOrder.orderId, this._smsOrder.provider)) ?? 'no code received'; }
+  async pollSmsCode(): Promise<string> { if (!this._smsOrder) return 'error: no SMS order'; try { return await readCode(this._smsOrder.orderId, this._smsOrder.provider); } catch (error) { return `error: ${(error as Error).message}`; } }
 
   async generateIdentity(platform: string): Promise<Identity> {
     const id = await genId(platform);

@@ -14,7 +14,7 @@
 //   5. Click Send to dispatch the SMS. Discord renders in-page hCaptcha
 //      challenge — solve via solvePageCaptcha (the keeper-validated
 //      register path works because the SPA carries full fingerprint).
-//   6. Poll juicysms via pollCode for the SMS code.
+//   6. Read the juicysms order once via readCode; no code yet is a named error.
 //   7. Fill the verification code modal, click Verify.
 //   8. Assert the Phone Number row now shows the country-prefixed number.
 //   9. Persist metadata.phone_verified_at + metadata.phone.
@@ -23,11 +23,10 @@ import { WSession } from '../../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../dist/human/keyboard.js';
 import { getSocialAccount, resolveAccountSession } from '../../../../../dist/utils/credentials.js';
-import { getNumber, pollCode, cancelOrder } from '../../../../../dist/utils/identity/sms.js';
+import { getNumber, readCode, cancelOrder } from '../../../../../dist/utils/identity/sms.js';
 
 const ACCT_USERNAME = process.env.ACCOUNT_USERNAME;
 const COUNTRY = process.env.DISCORD_PHONE_COUNTRY || 'US';
-const SMS_WAIT_S = parseInt(process.env.DISCORD_SMS_WAIT || '180', 10);
 
 const acct = ACCT_USERNAME
   ? await getSocialAccount('discord', { username: ACCT_USERNAME })
@@ -90,10 +89,8 @@ try {
     if (captchaResult) console.log(`[phone_verify] captcha solved`);
   } catch (e) { console.log(`[phone_verify] captcha attempt err: ${e.message?.slice(0, 80)}`); }
 
-  // Poll juicysms for the SMS code.
-  console.log(`[phone_verify] polling juicysms for SMS code (${SMS_WAIT_S}s)...`);
-  const code = await pollCode(num.orderId, num.provider, SMS_WAIT_S);
-  if (!code) { console.log('FAIL: no SMS code received within window'); await cancelOrder(num.orderId, num.provider); process.exit(1); }
+  // One read of the SMS order; a code that has not arrived is a named error.
+  const code = await readCode(num.orderId, num.provider);
   console.log(`[phone_verify] received SMS code: ${code}`);
 
   // Fill the verification code modal.

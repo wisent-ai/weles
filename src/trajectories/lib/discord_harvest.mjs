@@ -13,7 +13,8 @@
 import { runOutputPath } from '#run-output';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getNumber, pollCode, cancelOrder } from '../../../dist/utils/identity/sms.js';
+import { getNumber, readCode, cancelOrder } from '../../../dist/utils/identity/sms.js';
+import { solverTaskResult } from '../_shared/captcha/solver_task.mjs';
 import { findAccount, updateAccountMetadata } from '../_shared/skarbiec/accounts.mjs';
 
 const DEFAULT_INVITES = 'python,discord-developers,reactjs,nextjs,rust-lang,godotengine,unity-developer-community';
@@ -26,38 +27,30 @@ async function discordApi(token, apiPath, opts = {}) {
   return { status: r.status, body: j ?? t };
 }
 
-// Solve an enterprise hCaptcha by cascading through all four providers
-// in env (anticaptcha, capsolver, capmonster, 2captcha) — mirrors
-// discord_register.mjs's solver loop. Discord's enterprise hCaptcha on
-// the /users/@me/phone endpoint specifically breaks at different solver
-// vendors (anticaptcha hits ERROR_FAILED_LOADING_WIDGET on it), so the
-// prior single-vendor solveHCaptcha gave up too early.
-// retry-allowed: solver-vendor cascade is a single logical solve
-// operation, not a retry of a failed call.
+// Solve an enterprise hCaptcha with the first provider in env that accepts
+// the task (anticaptcha, capsolver, capmonster, 2captcha). Discord's
+// enterprise hCaptcha on /users/@me/phone breaks at some vendors at task
+// creation (anticaptcha hits ERROR_FAILED_LOADING_WIDGET), so a refused
+// createTask moves on to the next vendor. The result is read once: a task the
+// solver is still working on is a named error carrying its task id.
 async function solveHCaptcha(sitekey, rqdata) {
   const services = [
-    { name: 'anticaptcha', base: 'https://api.anti-captcha.com', env: 'ANTICAPTCHA_API_KEY', task: 'HCaptchaTaskProxyless', enterprise: true },
-    { name: 'capsolver', base: 'https://api.capsolver.com', env: 'CAPSOLVER_API_KEY', task: 'HCaptchaEnterpriseTaskProxyLess', enterprise: false },
-    { name: 'capmonster', base: 'https://api.capmonster.cloud', env: 'CAPMONSTERCLOUD_API_KEY', task: 'HCaptchaTaskProxyless', enterprise: true },
-    { name: '2captcha', base: 'https://api.2captcha.com', env: 'TWOCAPTCHA_API_KEY', task: 'HCaptchaTaskProxyless', enterprise: true },
+    { name: 'anticaptcha', url: 'https://api.anti-captcha.com', env: 'ANTICAPTCHA_API_KEY', task: 'HCaptchaTaskProxyless', enterprise: true },
+    { name: 'capsolver', url: 'https://api.capsolver.com', env: 'CAPSOLVER_API_KEY', task: 'HCaptchaEnterpriseTaskProxyLess', enterprise: false },
+    { name: 'capmonster', url: 'https://api.capmonster.cloud', env: 'CAPMONSTERCLOUD_API_KEY', task: 'HCaptchaTaskProxyless', enterprise: true },
+    { name: '2captcha', url: 'https://api.2captcha.com', env: 'TWOCAPTCHA_API_KEY', task: 'HCaptchaTaskProxyless', enterprise: true },
   ];
+  const refusals = [];
   for (const svc of services) {
     const apiKey = process.env[svc.env];
-    if (!apiKey) { console.log(`[captcha] ${svc.name}: no ${svc.env}`); continue; }
+    if (!apiKey) { refusals.push(`${svc.name}: no ${svc.env}`); continue; }
     const task = { type: svc.task, websiteURL: 'https://discord.com', websiteKey: sitekey, enterprisePayload: { rqdata }, ...(svc.enterprise ? { isEnterprise: true } : {}) };
-    const cr = await (await fetch(svc.base + '/createTask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: apiKey, task }) })).json();
-    if (cr.errorId) { console.log(`[captcha] ${svc.name} createTask err: ${cr.errorCode}`); continue; }
-    console.log(`[captcha] ${svc.name} solving (taskId=${cr.taskId})...`);
-    let token = null;
-    for (let i = 0; i < 60; i++) {
-      await new Promise(r => setTimeout(r, 5000)); // allow-raw-playwright: solver-poll cadence
-      const res = await (await fetch(svc.base + '/getTaskResult', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: apiKey, taskId: cr.taskId }) })).json();
-      if (res.status === 'ready') { token = res.solution?.gRecaptchaResponse ?? res.solution?.token; break; }
-      if (res.errorId) { console.log(`[captcha] ${svc.name} solver err: ${res.errorCode}`); break; }
-    }
-    if (token) { console.log(`[captcha] ${svc.name} got token (${token.slice(0, 24)}...)`); return token; }
+    const cr = await (await fetch(svc.url + '/createTask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: apiKey, task }) })).json();
+    if (cr.errorId) { refusals.push(`${svc.name}: ${cr.errorCode}`); continue; }
+    console.log(`[captcha] ${svc.name} task ${cr.taskId} created`);
+    return solverTaskResult(svc, apiKey, cr.taskId);
   }
-  return null;
+  throw new Error(`discord_harvest: no captcha vendor accepted the hCaptcha task (${refusals.join('; ')})`);
 }
 
 // Try the dispatch with one number; returns { ok, num, dispatch, reason }
@@ -83,24 +76,17 @@ async function tryDispatch(token, country) {
   let dispatch = await discordApi(token, '/users/@me/phone', { method: 'POST', body: JSON.stringify({ phone: num.phone }) });
   if (dispatch.status === 400 && dispatch.body?.captcha_sitekey) {
     const captchaToken = await solveHCaptcha(dispatch.body.captcha_sitekey, dispatch.body.captcha_rqdata);
-    if (!captchaToken) {
-      // All 4 solvers exhausted — number is fine but the captcha challenge
-      // is unsolvable through any wired vendor. cancelOrder (refund) so we
-      // can retest with this number after switching solvers/providers; bail
-      // the whole flow rather than burning the SMS pool.
-      await cancelOrder(num.orderId, num.provider);
-      return { ok: false, reason: 'captcha_unsolvable_all_vendors', num };
-    }
     const body = { phone: num.phone, captcha_key: captchaToken };
     if (dispatch.body.captcha_rqtoken) body.captcha_rqtoken = dispatch.body.captcha_rqtoken;
     dispatch = await discordApi(token, '/users/@me/phone', { method: 'POST', body: JSON.stringify(body) });
   }
   if (dispatch.status === 429 && dispatch.body?.retry_after) {
-    const wait = Math.ceil(dispatch.body.retry_after) + 2;
-    console.log(`[phone-verify] ${country} rate-limited, waiting ${wait}s...`);
-    await new Promise(r => setTimeout(r, wait * 1000)); // allow-raw-playwright: Discord retry_after cooldown, not browser pacing
+    // Discord says when this number may be tried again; the caller gets that
+    // instead of this run waiting it out.
+    const retryAfter = Math.ceil(dispatch.body.retry_after);
+    console.log(`[phone-verify] ${country} rate-limited for ${retryAfter}s`);
     await cancelOrder(num.orderId, num.provider);
-    return { ok: false, reason: 'rate_limited', num, retry_after: wait };
+    return { ok: false, reason: 'rate_limited', num, retry_after: retryAfter };
   }
   // 50022 = Invalid phone number (VOIP detected). Skip the number on the
   // juicysms side so the pool issues a different one — cancelOrder alone
@@ -132,7 +118,6 @@ async function phoneVerify(token) {
   const MAX_NUMBERS = parseInt(process.env.DISCORD_PHONE_MAX_TRIES || '6', 10);
   let dispatched = null;
   let tries = 0;
-  let captchaUnsolvable = false;
   // retry-allowed: pool-exhaustion search across countries+numbers is one
   // logical operation, bounded by MAX_NUMBERS; first-call-only would mean
   // giving up after one VOIP rejection.
@@ -144,21 +129,17 @@ async function phoneVerify(token) {
       const r = await tryDispatch(token, country);
       if (r.ok) { dispatched = r; break; }
       if (r.reason === 'no_number') break; // move on to next country
-      if (r.reason === 'captcha_unsolvable_all_vendors') { captchaUnsolvable = true; break; }
     }
-    if (dispatched || captchaUnsolvable) break;
+    if (dispatched) break;
   }
-  if (captchaUnsolvable) { console.log(`[phone-verify] all 4 captcha vendors exhausted — bailing (no SMS attempts burned)`); return { ok: false, reason: 'captcha_unsolvable_all_vendors' }; }
   if (!dispatched) { console.log(`[phone-verify] exhausted ${tries} attempts, no working number`); return { ok: false, reason: 'no_working_number' }; }
   const { num } = dispatched;
-  console.log(`[phone-verify] SMS dispatched to ${num.phone} (${num.country}), polling...`);
-  const code = await pollCode(num.orderId, num.provider, 180);
-  if (!code) { console.log('[phone-verify] no code received'); return { ok: false, reason: 'no_code' }; }
+  console.log(`[phone-verify] SMS dispatched to ${num.phone} (${num.country}), reading the order...`);
+  const code = await readCode(num.orderId, num.provider);
   console.log(`[phone-verify] got code ${code}, submitting confirm...`);
   let confirm = await discordApi(token, '/users/@me/phone', { method: 'POST', body: JSON.stringify({ code }) });
   if (confirm.status === 400 && confirm.body?.captcha_sitekey) {
     const captchaToken = await solveHCaptcha(confirm.body.captcha_sitekey, confirm.body.captcha_rqdata);
-    if (!captchaToken) return { ok: false, reason: 'confirm_captcha_failed' };
     const body = { code, captcha_key: captchaToken };
     if (confirm.body.captcha_rqtoken) body.captcha_rqtoken = confirm.body.captcha_rqtoken;
     confirm = await discordApi(token, '/users/@me/phone', { method: 'POST', body: JSON.stringify(body) });
@@ -204,7 +185,6 @@ async function harvestChannelAuthors(token, channelId, want, seen) {
       authors.push({ id: a.id, username: a.username, global_name: a.global_name, avatar: a.avatar });
     }
     before = msgs[msgs.length - 1].id;
-    await new Promise(r => setTimeout(r, 300)); // allow-raw-playwright: API rate-limit pacing, not browser interaction
   }
   return authors;
 }

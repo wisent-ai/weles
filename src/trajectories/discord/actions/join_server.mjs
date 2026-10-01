@@ -6,6 +6,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 
 const INVITE_URL = process.env.INVITE_URL;
 if (!INVITE_URL) { console.log('FAIL: INVITE_URL env required (e.g. https://discord.gg/abc123)'); process.exit(1); }
@@ -26,15 +27,15 @@ try {
   // "Join {Server}". Modal-scoped to avoid hitting random sidebar buttons
   // when an existing /channels session loads.
   const acceptBtn = s.page.locator('button:has-text("Accept Invite"), button:has-text("Join Server"), button:has(div:has-text("Accept Invite")), button:has(div:has-text("Join "))').filter({ visible: true }).first();
-  await acceptBtn.waitFor({ state: 'visible', timeout: 15000 });
+  await acceptBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, acceptBtn);
-  // Wait for navigation into the joined channel — URL flips to /channels/{guildId}/{channelId}.
-  await s.page.waitForFunction(() => /\/channels\/\d+\/\d+/.test(location.pathname), { timeout: 25000 }).catch(() => {});
-  // If a rules/gate screen popped up, click "Submit"/"Continue".
+  // The click either lands in the joined channel (/channels/{guildId}/{channelId})
+  // or shows a rules/gate screen first; read the settled page to see which.
+  await pageSettled(s.page);
   const ruleSubmit = s.page.locator('button:has-text("Submit"), button:has-text("Continue"), button:has-text("Complete")').filter({ visible: true }).first();
-  if (await ruleSubmit.isVisible({ timeout: 2500 }).catch(() => false)) {
+  if (await ruleSubmit.isVisible()) {
     await humanClickLocator(s.page, ruleSubmit);
-    await humanIdlePause('deliberate');
+    await pageSettled(s.page);
   }
   if (!/\/channels\/\d+/.test(s.page.url())) throw new Error(`did not land in joined channel — final url=${s.page.url()}`);
   ban = await detectDiscordBanSignals(s.page, s.capturedResponses).catch(() => null);

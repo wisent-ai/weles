@@ -22,6 +22,7 @@ import { WSession } from '../../../../../dist/session/wsession.js';
 import { humanClickLocator, humanScroll, humanIdlePause } from '../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../dist/human/keyboard.js';
 import { getSocialAccount, resolveAccountSession } from '../../../../../dist/utils/credentials.js';
+import { pageSettled } from '../../../_shared/page/settled.mjs';
 
 const ACCT_USERNAME = process.env.ACCOUNT_USERNAME;
 const CHANNEL = process.env.SERVER_CHANNEL_PATH;
@@ -50,14 +51,15 @@ try {
 
   // Locate the target message by text substring within an [id^="chat-messages-"] li.
   const targetMsg = s.page.locator('li[id^="chat-messages-"]').filter({ hasText: TARGET }).first();
-  // retry-allowed: scroll until target appears, bounded.
-  let found = false;
-  for (let i = 0; i < 20; i++) {
-    if ((await targetMsg.count()) > 0) { found = true; break; }
+  // Scroll up through history until the message renders; history that stops
+  // changing after a scroll has no older messages left to load.
+  const oldestMessageId = () => s.page.locator('li[id^="chat-messages-"]').first().getAttribute('id');
+  while ((await targetMsg.count()) === 0) {
+    const before = await oldestMessageId();
     await humanScroll(s.page, -800, 2);
-    await humanIdlePause('short');
+    await pageSettled(s.page);
+    if (await oldestMessageId() === before) throw new Error(`discord_reply: no message with "${TARGET.slice(0, 30)}" in the channel history`);
   }
-  if (!found) { console.log(`FAIL: no message with substring "${TARGET.slice(0, 30)}" found after scrolling`); process.exit(1); }
   console.log(`[reply] target message found`);
 
   // Hover to surface the action toolbar.

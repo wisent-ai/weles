@@ -21,7 +21,7 @@ try {
   checkReachable(s, 'discord');
   await humanIdlePause('deliberate');
   // Wait for chat messages to render — each message <li id="chat-messages-{channelId}-{messageId}">.
-  await s.page.locator('li[id^="chat-messages-"]').first().waitFor({ state: 'visible', timeout: 20000 });
+  await s.page.locator('li[id^="chat-messages-"]').first().waitFor({ state: 'visible' });
   // Pick the most recent message — last in document order with non-empty content.
   const targetId = await s.page.evaluate(() => {
     const items = Array.from(document.querySelectorAll('li[id^="chat-messages-"]')).reverse();

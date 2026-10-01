@@ -94,51 +94,43 @@ export async function getNumber(service: string, country = 'UK'): Promise<SmsNum
   return null;
 }
 
-/** Poll for SMS code. waitSecs = max seconds to wait (default 900).
- * Bumped 2026-05-20: 240s also too short. JuicySMS US-IG returned
- * 'WAITING' across the full 4-minute window on 17 numbers. IG dispatch
- * latency may be 5-15 minutes (no SMS provider publishes IG-specific
- * TTL) so the 4-minute test was a false negative on delivery timing,
- * not necessarily proof the pool is dead. 15 minutes is the safe upper
- * bound for any SMS service except the cheapest pools. */
-export async function pollCode(orderId: string, provider: 'juicysms' | 'smsactivate', waitSecs = 900): Promise<string | null> {
-  const start = Date.now();
-  let _lastJuicy = '';
-  while (Date.now() - start < waitSecs * 1000) {
-    if (provider === 'juicysms') {
-      const jKey = juicyApiKey();
-      if (!jKey) return null;
-      const r = await fetch(`${JUICY_BASE}/getsms?key=${jKey}&orderId=${orderId}`).catch(() => null);
-      const text = (await r?.text())?.trim() ?? '';
-      if (text.startsWith('SUCCESS_')) {
-        // Instagram (and some other services) formats the code as '490 315'
-        // with a space in the middle, so strip all non-digits before matching.
-        const digits = text.replace('SUCCESS_', '').replace(/\D/g, '');
-        const code = digits.match(/^(\d{4,8})$/)?.[1];
-        if (code) { console.log(`[sms] code: ${code}`); return code; }
-      }
-      // Log every distinct response: pool diagnostics need the WAIT_CODE
-      // distribution to distinguish "polling fine but no SMS arrived"
-      // from "JuicySMS rejecting the request" from "order expired".
-      if (text !== _lastJuicy) { console.log(`[sms] juicysms poll: ${text.slice(0, 80)}`); _lastJuicy = text; }
-    } else {
-      const saKey = smsActivateApiKey();
-      if (!saKey) return null;
-      const r = await fetch(`https://api.sms-activate.org/stubs/handler_api.php?api_key=${saKey}&action=getStatus&id=${orderId}`).catch(() => null);
-      const text = (await r?.text())?.trim() ?? '';
-      if (text.startsWith('STATUS_OK:')) { const code = text.split(':')[1].match(/(\d{4,8})/)?.[1]; if (code) { console.log(`[sms] code: ${code}`); return code; } }
-      if (text.includes('STATUS_CANCEL')) { console.log('[sms] activation cancelled'); return null; }
-    }
-    const elapsed = Math.round((Date.now() - start) / 1000);
-    if (elapsed % 15 === 0) console.log(`[sms] waiting for code... (${elapsed}s / ${waitSecs}s)`);
-    await new Promise(r => setTimeout(r, 5000));  // allow-raw-playwright: polling/rate-limit loop
-  }
-  // Skip (not cancel) — prevents getting the same dead number again. Free if SMS wasn't delivered.
+/** One read of an SMS order. Returns the code when the provider has it;
+ * otherwise throws a named error carrying the provider's own answer
+ * (`sms_<provider>_waiting` while the SMS has not arrived, `..._cancelled`
+ * for a cancelled activation). SMS delivery has no push or blocking read,
+ * so the caller reads again later with the same order id instead of
+ * this function waiting. */
+export async function readCode(orderId: string, provider: 'juicysms' | 'smsactivate'): Promise<string> {
   if (provider === 'juicysms') {
     const jKey = juicyApiKey();
-    if (jKey) await fetch(`${JUICY_BASE}/skipnumber?key=${jKey}&orderId=${orderId}`).catch(() => {});
-  } else { await cancelOrder(orderId, provider); }
-  return null;
+    if (!jKey) throw new Error('sms_juicysms_unconfigured: no JuicySMS API key');
+    const r = await fetch(`${JUICY_BASE}/getsms?key=${jKey}&orderId=${orderId}`);
+    if (!r.ok) throw new Error(`sms_juicysms_http_${r.status}: getsms for order ${orderId} failed`);
+    const text = (await r.text()).trim();
+    if (text.startsWith('SUCCESS_')) {
+      // Instagram (and some other services) formats the code as '490 315'
+      // with a space in the middle, so strip all non-digits before matching.
+      const digits = text.replace('SUCCESS_', '').replace(/\D/g, '');
+      const code = digits.match(/^(\d{4,8})$/)?.[1];
+      if (!code) throw new Error(`sms_juicysms_unreadable: order ${orderId} answered ${text.slice(0, 80)}`);
+      console.log(`[sms] code: ${code}`);
+      return code;
+    }
+    throw new Error(`sms_juicysms_waiting: order ${orderId} has no code yet (${text.slice(0, 80)}); read it again with this order id`);
+  }
+  const saKey = smsActivateApiKey();
+  if (!saKey) throw new Error('sms_smsactivate_unconfigured: no SMS-Activate API key');
+  const r = await fetch(`https://api.sms-activate.org/stubs/handler_api.php?api_key=${saKey}&action=getStatus&id=${orderId}`);
+  if (!r.ok) throw new Error(`sms_smsactivate_http_${r.status}: getStatus for order ${orderId} failed`);
+  const text = (await r.text()).trim();
+  if (text.startsWith('STATUS_OK:')) {
+    const code = text.split(':')[1].match(/(\d{4,8})/)?.[1];
+    if (!code) throw new Error(`sms_smsactivate_unreadable: order ${orderId} answered ${text.slice(0, 80)}`);
+    console.log(`[sms] code: ${code}`);
+    return code;
+  }
+  if (text.includes('STATUS_CANCEL')) throw new Error(`sms_smsactivate_cancelled: activation ${orderId} was cancelled`);
+  throw new Error(`sms_smsactivate_waiting: order ${orderId} has no code yet (${text.slice(0, 80)}); read it again with this order id`);
 }
 
 export async function cancelOrder(orderId: string, provider: 'juicysms' | 'smsactivate'): Promise<void> {
