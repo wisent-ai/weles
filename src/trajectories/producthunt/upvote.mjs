@@ -11,7 +11,7 @@ import { listAccounts } from '../_shared/skarbiec/accounts.mjs';
 
 const TARGET_URL = process.env.PRODUCTHUNT_URL || 'https://www.producthunt.com/';
 const proxy = process.env.PROXY_URL || 'none';
-const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
+import { pageSettled } from '../_shared/page/settled.mjs';
 
 async function findProductHuntAccount() {
   const rows = listAccounts('producthunt');
@@ -60,7 +60,7 @@ async function navigateToFirstProduct(s) {
   const url = href.startsWith('http') ? href : new URL(href, 'https://www.producthunt.com').toString();
   console.log(`[ph-vote] following first product: ${url}`);
   await s.goto(url);
-  await sleep(4);
+  await pageSettled(s.page);
   return true;
 }
 
@@ -138,19 +138,19 @@ async function vote(s) {
   // cache-buster so we land on a freshly-rendered authed homepage where
   // the inline vote button is.
   await s.goto('https://www.producthunt.com/products/feather-18');
-  await sleep(3);
+  await pageSettled(s.page);
   try { await assertAuthed('producthunt', s, { label: 'producthunt_upvote' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { throw new Error(`auth_probe_failed: ${probeErr.message}`); } throw probeErr; }
   const cacheBustedHome = TARGET_URL.includes('?') ? `${TARGET_URL}&bc=1` : `${TARGET_URL}?bc=1`;
   await s.goto(cacheBustedHome);
-  await sleep(4);
+  await pageSettled(s.page);
 
   // Dismiss cookie consent banner if present
   const t0 = await readPage(s);
   if (t0.includes('cookies') || t0.includes('cookie preferences')) {
     await s.click('Accept all').catch(() => {});
     await s.click('Accept cookies').catch(() => {});
-    await sleep(2);
+    await pageSettled(s.page);
   }
 
   // The homepage feed exposes inline launch vote buttons (data-test="vote-button")
@@ -161,7 +161,7 @@ async function vote(s) {
   if (cur.includes('/products/') && !TARGET_URL.includes('/products/')) {
     console.log('[ph-vote] redirected to product hub — going back to homepage');
     await s.goto('https://www.producthunt.com/');
-    await sleep(3);
+    await pageSettled(s.page);
   }
 
   const beforeState = await readVoteState(s);
@@ -176,14 +176,14 @@ async function vote(s) {
     var b = document.querySelector('button[data-test*="vote"], button[aria-label*="Upvote" i], button[aria-label*="Vote" i], button[data-sentry-component*="VoteButton" i]');
     if (b) b.scrollIntoView({ block: 'center', behavior: 'instant' });
   })()`).catch(() => {});
-  await sleep(1);
+  await pageSettled(s.page);
   btn = await findVoteButton(s);
   if (!btn) throw new Error('vote_button_lost_after_scroll');
   console.log(`[ph-vote] post-scroll coords: (${Math.round(btn.x)},${Math.round(btn.y)})`);
 
   // mouse.click routes through CDP → SetTrusted(true) — required for PH's vote handler
   await s.page.mouse.click(btn.x, btn.y).catch(() => {});
-  await sleep(3);
+  await pageSettled(s.page);
 
   const afterState = await readVoteState(s);
   console.log(`[ph-vote] after: ${JSON.stringify(afterState)}`);

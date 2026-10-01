@@ -13,7 +13,7 @@ import { findAccount } from '../_shared/skarbiec/accounts.mjs';
 
 const URL = 'https://www.producthunt.com/';
 const proxy = process.env.PROXY_URL || 'none';
-const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
+import { pageSettled } from '../_shared/page/settled.mjs';
 
 // findUsableTwitterAccount + stampLinkedTwitter live in _session.mjs.
 
@@ -39,21 +39,21 @@ async function signup(s) {
   console.log(`[ph] injected ${injected} twitter cookies (x.com + twitter.com)`);
 
   await s.goto(URL);
-  await sleep(4);
+  await pageSettled(s.page);
 
   // Dismiss any cookie consent banner
   const t0 = await readPage(s);
   if (t0.includes('cookies') || t0.includes('cookie preferences') || t0.includes('accept')) {
     const r1 = await s.click('Accept all').catch(() => 'no-target-found');
     if (r1 === 'no-target-found') await s.click('Accept cookies').catch(() => {});
-    await sleep(2);
+    await pageSettled(s.page);
     if (s.page.isClosed?.()) throw new Error('page_crashed_on_cookie_dismiss');
   }
 
   // Open the sign-up modal
   await s.click('Sign up').catch(() => {});
   await s.click('Get started').catch(() => {});
-  await sleep(3);
+  await pageSettled(s.page);
 
   // Choose Twitter OAuth. Use accessible-name match so we don't misfire onto
   // adjacent provider buttons (Google/Apple) at larger viewports.
@@ -66,7 +66,7 @@ async function signup(s) {
     await s.click('Continue with X').catch(() => {});
     await s.click('Sign up with Twitter').catch(() => {});
   }
-  await sleep(6);
+  await pageSettled(s.page);
 
   // If Twitter bounced us to the login page (cookies expired), re-authenticate
   const url1 = s.page.url?.() ?? '';
@@ -77,13 +77,13 @@ async function signup(s) {
     if (!twPassword) throw new Error('twitter_cookies_expired_no_password');
     await s.fill('username', twUsername).catch(() => {});
     await s.fill('email', twEmail ?? twUsername).catch(() => {});
-    await sleep(1);
+    await pageSettled(s.page);
     await s.click('Next').catch(() => {});
-    await sleep(2);
+    await pageSettled(s.page);
     await s.fill('password', twPassword);
-    await sleep(1);
+    await pageSettled(s.page);
     await s.click('Log in').catch(() => {});
-    await sleep(6);
+    await pageSettled(s.page);
   }
 
   // OAuth consent screen — ProductHunt asks for Twitter read access
@@ -111,7 +111,7 @@ async function signup(s) {
         return m ? m[1] : null;
       })()`).catch(() => null);
       console.log(`[ph] extracted sitekey: ${sitekey}`);
-      if (!sitekey) { await sleep(3); continue; }
+      if (!sitekey) { await pageSettled(s.page); continue; }
       const solver = new CaptchaSolver();
       const token = await solver.solveRecaptchaV2(s.page, sitekey).catch((e) => { console.log(`[ph] solver threw: ${e.message?.slice(0, 200)}`); return null; });
       if (!token || typeof token !== 'string') { console.log(`[ph] solver returned no token (${typeof token}: ${token})`); throw new Error('recaptcha_solver_no_token'); }
@@ -140,7 +140,7 @@ async function signup(s) {
         return { cbCount: cbCount, textareas: document.querySelectorAll('textarea[name="g-recaptcha-response"]').length };
       })()`).catch(() => null);
       console.log(`[ph] injected token into ${injected?.textareas} textareas, fired ${injected?.cbCount} callbacks`);
-      await sleep(2);
+      await pageSettled(s.page);
       // ProductHunt's actual submit button is "Verify me!" — and it stays disabled until the reCAPTCHA callback fires
       await s.click('Verify me!').catch(() => {});
       // Force-enable the submit button (ProductHunt leaves it disabled after
@@ -151,7 +151,7 @@ async function signup(s) {
         await humanClickLocator(s.page, submitBtn).catch(() => {});
         console.log(`[ph] submit: clicked`);
       } else { console.log(`[ph] submit: no-button`); }
-      await sleep(6);
+      await pageSettled(s.page);
       continue;
     }
 
@@ -164,33 +164,33 @@ async function signup(s) {
       await s.fill('name', `${twAccount.username}`).catch(() => {});
       await s.click('Continue').catch(() => {});
       await s.click('Next').catch(() => {});
-      await sleep(3);
+      await pageSettled(s.page);
       continue;
     }
     if (t.includes('email') && (t.includes('confirm') || t.includes('verify') || t.includes('enter your email'))) {
       if (twEmail) await s.fill('email', twEmail).catch(() => {});
       await s.click('Continue').catch(() => {});
       await s.click('Next').catch(() => {});
-      await sleep(3);
+      await pageSettled(s.page);
       continue;
     }
     if (t.includes('interests') || t.includes('what topics') || t.includes('follow topics')) {
       await s.click('Skip').catch(() => {});
       await s.click('Continue').catch(() => {});
       await s.click('Next').catch(() => {});
-      await sleep(3);
+      await pageSettled(s.page);
       continue;
     }
     if (t.includes('notifications') || t.includes('enable notifications')) {
       await s.click('Not now').catch(() => {});
       await s.click('Skip').catch(() => {});
-      await sleep(2);
+      await pageSettled(s.page);
       continue;
     }
     await s.click('Continue').catch(() => {});
     await s.click('Next').catch(() => {});
     await s.click('Done').catch(() => {});
-    await sleep(3);
+    await pageSettled(s.page);
   }
 
   const cookies = await s.ctx.cookies().catch(() => []);
@@ -213,7 +213,7 @@ async function signup(s) {
   // someone else's identity.
   try {
     await s.goto(URL);
-    await sleep(3);
+    await pageSettled(s.page);
     await assertAuthed('producthunt', s, { label: 'producthunt_register_post_oauth' });
   } catch (probeErr) {
     if (probeErr instanceof AuthProbeError) {

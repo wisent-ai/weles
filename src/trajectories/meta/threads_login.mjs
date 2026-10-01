@@ -50,7 +50,7 @@ try {
       await humanClickLocator(s.page, target);
       await humanIdlePause('deliberate');
       await handleOAuthConsent(s);
-      await waitForNavBackTo(s.page, 'threads', ['accounts.google.com', 'instagram.com/oauth'], 30);
+      await waitForNavBackTo(s.page, 'threads', ['accounts.google.com', 'instagram.com/oauth']);
     }
   }
 

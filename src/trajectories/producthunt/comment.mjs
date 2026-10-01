@@ -16,7 +16,7 @@ import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/auth/c
 
 const EXPLICIT_TARGET = process.env.PRODUCTHUNT_URL || '';
 const COMMENT_TEXT = process.env.PH_COMMENT || 'Looks really clean — congrats on the launch!';
-const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
+import { pageSettled } from '../_shared/page/settled.mjs';
 
 async function postComment(s, acct, sessionMeta) {
   // Cookie-jar freshness gate — see _shared/auth/cookie-freshness.mjs. On stale,
@@ -39,13 +39,13 @@ async function postComment(s, acct, sessionMeta) {
   // logged-out visitors; they just hide the reply input, so detect via
   // Sign-in button presence.
   await s.goto('https://www.producthunt.com/');
-  await sleep(4);
+  await pageSettled(s.page);
   const needsLogin = await s.page.evaluate(`(() => !!Array.from(document.querySelectorAll('button,a')).find(e => /^Sign in$/i.test((e.textContent||'').trim())))()`).catch(() => false);
   if (needsLogin) {
     console.log('[ph-comment] session not authenticated — running Twitter SSO');
     await loginViaTwitter(s);
     await s.goto('https://www.producthunt.com/');
-    await sleep(4);
+    await pageSettled(s.page);
   }
 
   // Positive auth probe — see _shared/auth/auth-probe.mjs.
@@ -62,7 +62,7 @@ async function postComment(s, acct, sessionMeta) {
   if (!targetUrl) throw new Error('no_launch_url_discovered');
   console.log(`[ph-comment] target=${targetUrl}`);
   await s.goto(targetUrl);
-  await sleep(4);
+  await pageSettled(s.page);
 
   // PH forum comment editor is a TipTap/ProseMirror contenteditable. Target
   // it, type via keyboard (so Playwright routes real key events), then submit
@@ -71,10 +71,10 @@ async function postComment(s, acct, sessionMeta) {
   await editor.waitFor();
   await humanClickLocator(s.page, editor);
   await humanType(s.page, COMMENT_TEXT);
-  await sleep(1);
+  await pageSettled(s.page);
   await s.page.keyboard.press('Meta+Enter').catch(() => {});
   await s.page.keyboard.press('Control+Enter').catch(() => {});
-  await sleep(4);
+  await pageSettled(s.page);
 
   const found = await s.page.evaluate(`(() => (document.body?.innerText || '').includes(${JSON.stringify(COMMENT_TEXT.slice(0, 60))}))()`).catch(() => false);
   if (found) return targetUrl;
@@ -87,7 +87,7 @@ async function postComment(s, acct, sessionMeta) {
     await humanClickLocator(s.page, submitBtn).catch(() => {});
   }
   console.log(`[ph-comment] explicit submit button: ${btnClicked}`);
-  await sleep(4);
+  await pageSettled(s.page);
 
   const found2 = await s.page.evaluate(`(() => (document.body?.innerText || '').includes(${JSON.stringify(COMMENT_TEXT.slice(0, 60))}))()`).catch(() => false);
   if (!found2) throw new Error(`comment_not_found_after_post: url=${s.page.url().slice(-60)}`);

@@ -1,5 +1,6 @@
 import { humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import { pageSettled } from '../_shared/page/settled.mjs';
 
 /**
  * Navigate to a video page from the current feed/profile, then submit a
@@ -73,14 +74,12 @@ export async function tiktokSubmitComment(s, text) {
     s.page.on('response', onResponse);
     outer: for (const handle of profileHandles) {
       const profileUrl = `https://www.tiktok.com/@${handle}`;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        await s.goto(profileUrl);
-        const firstVideo = s.page.locator('a[href*="/video/"]').first();
-        gridLoaded = await firstVideo.waitFor({ state: 'visible', timeout: 30000 }).then(() => true).catch(() => false);
-        if (gridLoaded) { console.log(`[tiktok-submit] @${handle} grid loaded on attempt ${attempt + 1}`); currentUrl = profileUrl; break outer; }
-        console.log(`[tiktok-submit] @${handle} attempt ${attempt + 1}: grid not loaded`);
-        if (repostCandidate) { console.log(`[tiktok-submit] using repost-list video ${repostCandidate.url} since post grid empty`); break outer; }
-      }
+      await s.goto(profileUrl);
+      await pageSettled(s.page);
+      gridLoaded = await s.page.locator('a[href*="/video/"]').first().isVisible();
+      if (gridLoaded) { console.log(`[tiktok-submit] @${handle} grid loaded`); currentUrl = profileUrl; break outer; }
+      console.log(`[tiktok-submit] @${handle}: grid not shown on the settled page`);
+      if (repostCandidate) { console.log(`[tiktok-submit] using repost-list video ${repostCandidate.url} since post grid empty`); break outer; }
     }
     s.page.off('response', onResponse);
     if (!gridLoaded && repostCandidate) {
@@ -111,10 +110,11 @@ export async function tiktokSubmitComment(s, text) {
       console.log(`[tiktok-submit] trying video ${i + 1}/${candidates.length}: ${href}`);
       try {
         await humanClickLocator(s.page, link);
-        await s.page.waitForURL(/\/video\/\d+/, { timeout: 15000 }).catch(() => {});
-        // Wait for the right rail to hydrate (comment icon appears).
+        await s.page.waitForURL(/\/video\/\d+/);
+        await pageSettled(s.page);
+        // The right rail is hydrated when the comment icon is on the settled page.
         const commentIconProbe = s.page.locator('[data-e2e="comment-icon"], [data-e2e="browse-comment-icon"], button[aria-label*="comments" i]').filter({ visible: true }).first();
-        const found = await commentIconProbe.waitFor({ state: 'visible', timeout: 25000 }).then(() => true).catch(() => false);
+        const found = await commentIconProbe.isVisible();
         if (found) {
           console.log(`[tiktok-submit] comment icon hydrated on video ${i + 1}`);
           landed = true;
@@ -129,7 +129,7 @@ export async function tiktokSubmitComment(s, text) {
         await s.page.goBack({ waitUntil: 'domcontentloaded' }).catch(() => {});
         await humanIdlePause('deliberate');
         // Wait for profile grid to re-render.
-        await s.page.locator('a[href*="/video/"]').first().waitFor({ state: 'visible', timeout: 15000 }).catch(() => {});
+        await s.page.locator('a[href*="/video/"]').first().waitFor({ state: 'visible' });
       }
     }
     if (!landed) throw new Error('tiktok_comment: could not reach a video page with a visible comment icon');
@@ -144,22 +144,21 @@ export async function tiktokSubmitComment(s, text) {
       try { await humanClickLocator(s.page, x); await humanIdlePause('short'); } catch {}
     }
   }
-  // Wait for right-rail to hydrate. When we landed via repost-URL
-  // navigation we skipped the click-through loop's hydration wait,
-  // so do an explicit wait here. Same timeout the click-through loop uses.
+  // The right rail is hydrated once the page settles. When we landed via
+  // repost-URL navigation we skipped the click-through loop's check.
+  await pageSettled(s.page);
   const commentIcon = s.page.locator('[data-e2e="comment-icon"], [data-e2e="browse-comment-icon"], [data-e2e="feed-comment-icon"], button[aria-label*="comments" i]').filter({ visible: true }).first();
-  await commentIcon.waitFor({ state: 'visible', timeout: 25000 }).catch(() => {});
-  if (await commentIcon.count()) {
+  if (await commentIcon.isVisible()) {
     console.log('[tiktok-submit] clicking comment icon to open panel');
     await humanClickLocator(s.page, commentIcon);
     await humanIdlePause('deliberate');
   } else {
-    console.log('[tiktok-submit] comment icon not visible after 25s wait');
+    console.log('[tiktok-submit] comment icon not on the settled page');
   }
   // Comment input — TikTok uses a contenteditable div with class containing
   // "DraftEditor" or div[role="textbox"]. Modern selector: data-e2e="comment-input".
   const input = s.page.locator('[data-e2e="comment-input"], [data-e2e="comment-text"], div[contenteditable="true"][role="textbox"], div.DraftEditor-editorContainer div[contenteditable="true"], div[contenteditable="true"][aria-label*="comment" i], textarea[placeholder*="comment" i]').filter({ visible: true }).first();
-  await input.waitFor({ state: 'visible', timeout: 15000 });
+  await input.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, input);
   await humanType(s.page, text);
   // Post button — data-e2e="comment-post" once input is non-empty.
@@ -169,7 +168,7 @@ export async function tiktokSubmitComment(s, text) {
   await s.page.waitForFunction(() => {
     const e = document.querySelector('[data-e2e="comment-input"], div[contenteditable="true"][role="textbox"]');
     return !e || (e.textContent ?? '').trim().length === 0;
-  }, { timeout: 15000 }).catch(() => {});
+  });
 }
 
 export async function tiktokSubmitPost(s, text) {

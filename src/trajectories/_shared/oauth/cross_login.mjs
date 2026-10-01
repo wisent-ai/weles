@@ -50,7 +50,6 @@ export async function runCrossLogin(opts) {
     targetUrl,
     provider,
     providerButtonRegex,
-    navTimeoutSeconds = 60,
   } = opts;
 
   const accountPlatform = PROVIDER_TO_ACCOUNT_PLATFORM[provider] ?? provider;
@@ -118,7 +117,7 @@ export async function runCrossLogin(opts) {
     await humanIdlePause('deliberate');
     await handleOAuthConsent(s);
     const targetHost = new URL(targetUrl).hostname.replace(/^www\./, '');
-    const landed = await waitForNavBackTo(s.page, targetHost, [
+    await waitForNavBackTo(s.page, targetHost, [
       'accounts.google.com',
       'appleid.apple.com',
       'login.microsoftonline.com',
@@ -130,11 +129,7 @@ export async function runCrossLogin(opts) {
       'x.com/i/oauth2',
       'github.com/login/oauth',
       'instagram.com/oauth',
-    ], navTimeoutSeconds);
-    if (!landed) {
-      banSignal = { signal: 'consent_failed', healthy: false, details: { final_url: s.page.url(), reason: `did not return to ${targetHost} within ${navTimeoutSeconds}s` } };
-      throw new Error(`consent_failed: stuck at ${s.page.url()}`);
-    }
+    ]);
     console.log(`[cross-login] back on ${targetHost} → asserting authed`);
 
     try {

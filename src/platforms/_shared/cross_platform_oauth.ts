@@ -96,14 +96,12 @@ export async function handleOAuthConsent(s: SessionLike, maxAttempts: number = 3
   }
 }
 
-/** Poll until the page URL includes mustInclude and excludes every mustExcludeAny substring. */
-export async function waitForNavBackTo(page: PageLike, mustInclude: string, mustExcludeAny: string[], seconds: number = 40): Promise<boolean> {
-  for (let i = 0; i < seconds / 2; i++) {
-    const u: string = page.url?.() ?? '';
-    if (u.includes(mustInclude) && !mustExcludeAny.some(x => u.includes(x))) return true;
-    await humanIdlePause('deliberate');
-  }
-  return false;
+/** Wait until the page URL includes mustInclude and excludes every mustExcludeAny substring. */
+export async function waitForNavBackTo(page: PageLike, mustInclude: string, mustExcludeAny: string[]): Promise<void> {
+  await page.waitForURL((url: URL) => {
+    const u = String(url);
+    return u.includes(mustInclude) && !mustExcludeAny.some((x) => u.includes(x));
+  });
 }
 
 /**
@@ -117,10 +115,10 @@ export async function clearReCaptchaGate(s: SessionLike, solver: any, gateUrlSub
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const u: string = s.page.url?.() ?? '';
     if (!u.includes(gateUrlSubstring)) return true;
-    await s.page.waitForSelector('iframe[src*="recaptcha/api2/anchor"]').catch(() => {});
+    await s.page.waitForSelector('iframe[src*="recaptcha/api2/anchor"]');
     await humanIdlePause('deliberate');
-    const solved = await solvePageCaptcha(s.page, solver, s).catch(() => false);
-    if (!solved) { await new Promise(r => setTimeout(r, 3000)); continue; }  // allow-raw-playwright: review — context-dependent timer
+    const solved = await solvePageCaptcha(s.page, solver, s);
+    if (!solved) return false;
     // Try button click first (more reliable than requestSubmit on PH's React
     // form), then form.requestSubmit, then a synthetic submit event.
     await s.page.evaluate(() => {

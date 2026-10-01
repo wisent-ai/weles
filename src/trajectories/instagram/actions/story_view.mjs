@@ -29,7 +29,7 @@ try {
   if (!(await story.count())) throw new Error('no stories in tray');
   await story.scrollIntoViewIfNeeded().catch(() => {});
   await humanClickLocator(s.page, story);
-  await s.page.waitForFunction(() => /\/stories\//.test(location.pathname), { timeout: 8000 });
+  await s.page.waitForURL(/\/stories\//);
   // Dwell ~15s so 3+ stories auto-advance and register as views.
   for (let i = 0; i < 15; i++) await humanIdlePause('short');
   await s.page.keyboard.press('Escape').catch(() => {});

@@ -78,7 +78,7 @@ try {
   await humanIdlePause('short');
   // Some IG variants split into "Post / Reel / Story" submenu.
   const postSubmenu = s.page.locator('a:has-text("Post"), div[role="menuitem"]:has-text("Post"), span:has-text("Post")').filter({ visible: true }).first();
-  if (await postSubmenu.isVisible({ timeout: 1500 }).catch(() => false)) {
+  if (await postSubmenu.isVisible()) {
     await humanClickLocator(s.page, postSubmenu);
     await humanIdlePause('short');
   }
@@ -88,12 +88,12 @@ try {
   await selectBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, selectBtn);
   // Wait for crop/preview step — image rendered in modal.
-  await s.page.locator('div[role="dialog"] img[alt*="image" i], div[role="dialog"] canvas, div[role="dialog"] [style*="background-image"]').first().waitFor({ state: 'visible', timeout: 30000 });
+  await s.page.locator('div[role="dialog"] img[alt*="image" i], div[role="dialog"] canvas, div[role="dialog"] [style*="background-image"]').first().waitFor({ state: 'visible' });
   await humanIdlePause('short');
   // 3. Next (crop) → 4. Next (filter)
   for (let step = 0; step < 2; step++) {
     const next = s.page.locator('div[role="dialog"] button:has-text("Next"), div[role="dialog"] [role="button"]:has-text("Next"), div[role="dialog"] div[role="button"]:has-text("Next")').filter({ visible: true }).first();
-    await next.waitFor({ state: 'visible', timeout: 15000 });
+    await next.waitFor({ state: 'visible' });
     await humanClickLocator(s.page, next);
     await humanIdlePause('short');
   }
@@ -108,7 +108,8 @@ try {
   await shareBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, shareBtn);
   // Wait for the share to complete — modal closes and "Your post has been shared" appears or modal is gone.
-  await s.page.waitForFunction(() => !document.querySelector('div[role="dialog"] button:has-text("Share")') || /Your post has been shared/i.test(document.body.innerText), { timeout: 60000 }).catch(() => {});
+  await s.page.waitForFunction(() => /Your post has been shared/i.test(document.body.innerText)
+    || !Array.from(document.querySelectorAll('div[role="dialog"] button, div[role="dialog"] [role="button"]')).some((el) => /^\s*Share\s*$/i.test(el.textContent || '')));
   await humanIdlePause('deliberate');
   banSignal = await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${banSignal?.signal}  PASS: posted`);

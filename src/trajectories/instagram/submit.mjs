@@ -5,7 +5,7 @@ import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js'
 async function ensureSinglePost(s) {
   if (!/\/p\/|\/reel\//.test(s.page.url())) {
     const thumb = s.page.locator('a[href*="/p/"], a[href*="/reel/"]').filter({ visible: true }).first();
-    await thumb.waitFor({ state: 'visible', timeout: 15000 });
+    await thumb.waitFor({ state: 'visible' });
     const href = await thumb.getAttribute('href');
     if (href) {
       const postUrl = href.startsWith('http') ? href : `https://www.instagram.com${href}`;
@@ -22,7 +22,7 @@ export async function instagramSubmitComment(s, text) {
   await ensureSinglePost(s);
   // Comment textarea — placeholder "Add a comment..." or aria-label "Add a comment...".
   const ta = s.page.locator('textarea[aria-label*="comment" i], textarea[placeholder*="comment" i], form textarea').filter({ visible: true }).first();
-  await ta.waitFor({ state: 'visible', timeout: 15000 });
+  await ta.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, ta);
   // Older IG hides the textarea inside an "Add a comment" placeholder div
   // that becomes a textarea on focus — humanClick already focused, so type.
@@ -36,5 +36,5 @@ export async function instagramSubmitComment(s, text) {
   await s.page.waitForFunction(() => {
     const t = document.querySelector('textarea[aria-label*="comment" i], textarea[placeholder*="comment" i]');
     return !t || (t.value ?? '').length === 0;
-  }, { timeout: 15000 }).catch(() => {});
+  });
 }

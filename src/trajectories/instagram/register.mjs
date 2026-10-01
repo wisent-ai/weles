@@ -4,11 +4,9 @@ import { humanType, humanFill } from '../../../dist/human/keyboard.js';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 import { autoBindCharacter } from '../lib/character-bind.mjs';
 import { pickInstagramProxy } from '../lib/instagram-proxy.mjs';
+import { pageSettled } from '../_shared/page/settled.mjs';
 
 const URL = 'https://www.instagram.com/accounts/emailsignup/';
-// retry-allowed: signup fails on bad SMS pool / IG dispatch suppression, both transient; outer loop reseeds proxy + country + identity
-const MAX_RETRIES = 5;
-const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
 
 async function readPage(s) {
   return (await s.page.evaluate(`(() => {
@@ -41,14 +39,14 @@ async function signup(s, attempt = 1) {
 
   // Navigate
   await s.goto(URL);
-  await sleep(4);
+  await pageSettled(s.page);
 
   // Dismiss cookie consent via s.jsClick (avoids mouse.move crash on
   // Instagram's heavy page; the js-prefix atom marks intentional untrusted).
   const text = await readPage(s);
   if (text.includes('cookies') || text.includes('cookie')) {
     await s.jsClick('button', 'Allow essential').catch(() => {});
-    await sleep(2);
+    await pageSettled(s.page);
   }
 
   // Fill signup form with phone number.
@@ -60,9 +58,9 @@ async function signup(s, attempt = 1) {
   // address" / "Password" / "Date of birth" / "Name" (placeholder
   // "Full name") / "Username".
   await s.fill('email', digits);
-  await sleep(1);
+  await pageSettled(s.page);
   await s.fill('password', id.password);
-  await sleep(1);
+  await pageSettled(s.page);
   // Date of birth — ARIA comboboxes with aria-haspopup=listbox and aria-labels
   // "Select day/month/year". The listbox is virtualized: only ~16 options render
   // at a time, so direct locator click on an off-window option times out on
@@ -75,11 +73,11 @@ async function signup(s, attempt = 1) {
   await s.select('Select month', id.birthMonth);
   await humanIdlePause('short');
   await s.select('Select year', id.birthYear);
-  await sleep(1);
+  await pageSettled(s.page);
   await s.fill('Full name', name);
-  await sleep(1);
+  await pageSettled(s.page);
   await s.fill('username', id.username);
-  await sleep(1);
+  await pageSettled(s.page);
 
   // Take screenshot before submit to verify form state
   await s.page.screenshot({ path: `${runRecordingsDir('instagram_register')}/ig_before_submit.png` }).catch(() => {});
@@ -92,7 +90,7 @@ async function signup(s, attempt = 1) {
   // routes through wsClick which scans [role="button"] for visible
   // textContent + aria-label match and humanClickLocator's the hit.
   await s.click('Submit');
-  await sleep(5);
+  await pageSettled(s.page);
   // Screenshot after submit
   await s.page.screenshot({ path: `${runRecordingsDir('instagram_register')}/ig_after_submit.png` }).catch(() => {});
 
@@ -101,7 +99,7 @@ async function signup(s, attempt = 1) {
   let t3 = '';
   for (let w = 0; w < 30; w++) {
     if (s.page.isClosed?.()) { console.log('[ig] page closed during wait'); throw new Error('page_closed'); }
-    await sleep(3);
+    await pageSettled(s.page);
     t3 = await readPage(s);
     const url = s.page.url?.() ?? '';
     // Any of these indicate we've moved past the signup form
@@ -159,7 +157,7 @@ async function signup(s, attempt = 1) {
         const country = phoneAttempt % 2 === 0 ? 'US' : 'UK';
         const phone = await s.checkSms('instagram', country);
         console.log(`[ig] SMS attempt ${phoneAttempt + 1} (${country}): ${phone}`);
-        if (phone.startsWith('error')) { await sleep(5); continue; }
+        if (phone.startsWith('error')) { await pageSettled(s.page); continue; }
         const phoneNum = s.resolveEnv('$INSTAGRAM_NEW_PHONE');
         // Keep the country-code prefix — IG validates against E.164 on
         // both the initial signup field AND the /suspended re-entry
@@ -181,32 +179,32 @@ async function signup(s, attempt = 1) {
               }
             }
           })("${country}")`).catch(() => {});
-          await sleep(1);
+          await pageSettled(s.page);
         }
         // Clear and type phone via shared atoms
         const telLoc = s.page.locator('input[type="tel"]').first();
         if (await telLoc.count()) await humanFill(s.page, telLoc, '').catch(() => {});
-        await sleep(1);
+        await pageSettled(s.page);
         await humanType(s.page, digits).catch(() => {});
-        await sleep(1);
+        await pageSettled(s.page);
         // Instagram's heavy page crashes on mouse.move, so the Send Code /
         // Next / Continue button goes via s.jsClick (named escape-hatch atom).
         for (const t of ['send', 'continue', 'next']) { if (!/no-element-found/.test(await s.jsClick('[role="button"]', t).catch(() => 'no-element-found'))) break; }
-        await sleep(5);
+        await pageSettled(s.page);
         const smsCode = await s.pollSmsCode();
         console.log(`[ig] SMS code: ${smsCode}`);
         if (smsCode && smsCode !== 'no code received' && !s.page.isClosed?.()) {
           console.log(`[ig] filling SMS code ${smsCode}`);
           await s.page.evaluate(`((code) => { var inp = document.querySelector('input[maxlength="6"]'); if (!inp) { var inputs = Array.from(document.querySelectorAll('input[type="text"]')); inp = inputs.find(i => !i.disabled && !i.value && i.offsetParent); } if (inp) { var set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set; set.call(inp, code); inp.dispatchEvent(new Event('input', {bubbles:true})); inp.dispatchEvent(new Event('change', {bubbles:true})); } })("${smsCode}")`).catch(() => {});
-          await sleep(2);
+          await pageSettled(s.page);
           // Confirm SMS code (Next / Continue / Confirm) via s.jsClick
           for (const t of ['confirm', 'continue', 'next']) { if (!/no-element-found/.test(await s.jsClick('[role="button"]', t).catch(() => 'no-element-found'))) break; }
-          await sleep(5);
+          await pageSettled(s.page);
           break;
         }
         // Back button to re-enter a different number
         await s.jsClick('[aria-label="Back"], [aria-label="Go back"]').catch(() => {});
-        await sleep(3);
+        await pageSettled(s.page);
       }
       continue;
     }
@@ -215,40 +213,12 @@ async function signup(s, attempt = 1) {
       console.log('[ig] captcha page detected');
       // s.jsClick to avoid mouse.move crash on Instagram's heavy page.
       await s.jsClick('[role="button"]', 'continue').catch(() => {});
-      await sleep(3);
+      await pageSettled(s.page);
       const t2 = await readPage(s);
       if (t2.includes('enter the code from the image') || t2.includes('hear this code')) {
-        console.log('[ig] solving image captcha...');
-        // Find the captcha image — pick the largest visible <img> on the page
-        // The src*="captcha" selector sometimes matches tiny tracking pixels (400 chars base64)
-        const imgEl = await s.page.evaluateHandle(`(() => {
-          var imgs = Array.from(document.querySelectorAll('img'));
-          var best = null, bestArea = 0;
-          for (var img of imgs) {
-            if (!img.offsetParent) continue;
-            var w = img.naturalWidth || img.width || 0;
-            var h = img.naturalHeight || img.height || 0;
-            if (w * h > bestArea) { bestArea = w * h; best = img; }
-          }
-          return best;
-        })()`).catch(() => null);
-        const imgB64 = imgEl ? (await imgEl.asElement()?.screenshot({ type: 'png' }).catch(() => null))?.toString('base64') : null;
-        if (imgB64 && imgB64.length > 500) {
-          console.log(`[ig] captcha image captured (${imgB64.length} chars base64)`);
-          const key = process.env.TWOCAPTCHA_API_KEY;
-          if (key) {
-            const cr = await (await fetch('https://2captcha.com/in.php', { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: `key=${key}&method=base64&body=${encodeURIComponent(imgB64)}&numeric=1&min_len=4&max_len=8&json=1` })).json().catch(() => ({}));
-            if (cr.status === 1) {
-              console.log(`[ig] 2captcha task: ${cr.request}`);
-              for (let p = 0; p < 30; p++) {
-                await sleep(5);
-                const res = await (await fetch(`https://2captcha.com/res.php?key=${key}&action=get&id=${cr.request}&json=1`)).json().catch(() => ({}));
-                if (res.status === 1) { console.log(`[ig] captcha solved: ${res.request}`); await s.fill('Enter the code from the image', res.request); await sleep(1); await s.click('Next').catch(() => {}); await s.press('Enter').catch(() => {}); await sleep(5); break; }
-                if (res.request !== 'CAPCHA_NOT_READY') { console.log(`[ig] captcha error: ${res.request}`); break; }
-              }
-            } else { console.log(`[ig] 2captcha submit error: ${JSON.stringify(cr)}`); }
-          }
-        } else { console.log('[ig] no captcha image found'); }
+        // Solving an image challenge means waiting on a solver's queue, which
+        // this run does not do; the challenge ends the run with its name.
+        throw new Error('instagram_image_captcha: Instagram asked for an image code after signup; the run stops here');
       }
       continue;
     }
@@ -256,7 +226,7 @@ async function signup(s, attempt = 1) {
     if (t.includes('get started on instagram') && i > 3) throw new Error('signup_form_stuck');
     // s.jsClick to skip onboarding (heavy page context).
     for (const t of ['skip', 'not now', 'next']) { if (!/no-element-found/.test(await s.jsClick('[role="button"], a[role="button"]', t).catch(() => 'no-element-found'))) break; }
-    await sleep(2);
+    await pageSettled(s.page);
   }
 
   // Verify success: check URL and auth cookies
@@ -280,19 +250,14 @@ async function signup(s, attempt = 1) {
   return id.username;
 }
 
-for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-  console.log(`\n=== Instagram signup attempt ${attempt}/${MAX_RETRIES} ===`);
-  const s = await WSession.start({ label: `instagram_register_${attempt}`, proxy: pickInstagramProxy() });
-  try {
-    const username = await signup(s, attempt);
-    console.log(`PASS: ${username}`);
-    await s.close();
-    process.exit(0);
-  } catch (e) {
-    console.log(`FAIL (attempt ${attempt}): ${e.message?.slice(0, 200)}`);
-    await s.close().catch(() => {});
-    if (attempt === MAX_RETRIES) { console.log('All attempts exhausted'); process.exitCode = 1; }
-    console.log('Retrying in 3s...');
-    await sleep(3);
-  }
+const s = await WSession.start({ label: 'instagram_register', proxy: pickInstagramProxy() });
+try {
+  const username = await signup(s, 1);
+  console.log(`PASS: ${username}`);
+  await s.close();
+  process.exit(0);
+} catch (e) {
+  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+  await s.close();
+  process.exitCode = 1;
 }

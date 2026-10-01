@@ -176,7 +176,7 @@ const PROBE = `(() => { const t = document.body.innerText || ''; const i = []; i
       // Type code char-by-char w/ variable delays
       const codeLoc = s.page.locator('input[placeholder*="digit" i], input[name="code"]').first();
       await humanClickLocator(s.page, codeLoc).catch((e) => console.log(`[test] code input click: ${e.message?.slice(0, 80)}`));
-      for (const ch of code) { await humanType(s.page, ch); await new Promise(r => setTimeout(r, 80 + Math.floor(Math.random() * 140))); }  // allow-raw-playwright: review — context-dependent timer
+      await humanType(s.page, code);
       // Reconcile React state only after send_code has succeeded.
       if (await pwLoc.count().catch(() => false)) await syncReactInputValue(pwLoc, password);
       await syncReactInputValue(codeLoc, code);

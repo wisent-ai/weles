@@ -15,7 +15,7 @@ import {
   clickOAuthProviderButton,
 } from '../../../dist/platforms/_shared/cross_platform_oauth.js';
 
-const sleep = (sec) => new Promise(r => setTimeout(r, sec * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
+import { pageSettled } from '../_shared/page/settled.mjs';
 
 // PH-specific: PH cookies still need their own injector because the "provider"
 // here is the target site, not an OAuth source. The cross_platform_oauth
@@ -78,8 +78,6 @@ export async function pickFirstProductLaunchUrl(s) {
 //      topbar avatar when the session is valid.
 //   4. Final retry: poll homepage + /my/notifications topbar.
 export async function extractPhHandle(s) {
-  const sleep = (sec) => new Promise(r => setTimeout(r, sec * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
-
   // 1. GraphQL me query.
   try {
     const r = await s.page.context().request.post('https://www.producthunt.com/frontend/graphql', {
@@ -96,7 +94,7 @@ export async function extractPhHandle(s) {
   // 2. /my/profile redirect — read the resolved URL.
   try {
     await s.page.goto('https://www.producthunt.com/my/profile');
-    await sleep(3);
+    await pageSettled(s.page);
     const m = (s.page.url() || '').match(/\/@([^/?#]+)/);
     if (m) return m[1];
   } catch {}
@@ -105,21 +103,20 @@ export async function extractPhHandle(s) {
   // navigates there so the authed topbar avatar definitely renders.
   try {
     await s.page.goto('https://www.producthunt.com/');
-    await sleep(2);
+    await pageSettled(s.page);
     const launchUrl = await pickFirstProductLaunchUrl(s);
     if (launchUrl) {
       await s.page.goto(launchUrl);
-      await sleep(4);
+      await pageSettled(s.page);
       const h = await topbarHandle(s);
       if (h) return h;
     }
   } catch {}
 
-  // 4. Final retry: poll the original two pages.
-  const TARGETS = ['https://www.producthunt.com/', 'https://www.producthunt.com/my/notifications'];
-  for (let i = 0; i < 4; i++) {
-    try { await s.page.goto(TARGETS[i % TARGETS.length]); } catch {}
-    await sleep(3);
+  // 4. The two pages that show the topbar once the session is valid.
+  for (const target of ['https://www.producthunt.com/', 'https://www.producthunt.com/my/notifications']) {
+    await s.page.goto(target);
+    await pageSettled(s.page);
     const h = await topbarHandle(s);
     if (h) return h;
   }
@@ -203,9 +200,9 @@ export async function loginViaTwitter(s) {
   await injectProviderCookies(s.ctx, 'twitter', twCookies);
 
   await s.goto('https://www.producthunt.com/');
-  await sleep(3);
+  await pageSettled(s.page);
   await s.click('Sign in').catch(() => {});
-  await sleep(2);
+  await pageSettled(s.page);
   // Deterministic accessible-name match — avoids vision misreading the adjacent
   // Google/Apple buttons in the provider list at larger viewports.
   const twitterLabel = /^\s*(Sign in with X|Continue with X|Sign up with Twitter|Continue with Twitter)\s*$/i;
@@ -214,10 +211,10 @@ export async function loginViaTwitter(s) {
     await s.click('Sign in with X').catch(() => {});
     await s.click('Continue with Twitter').catch(() => {});
   }
-  await sleep(6);
+  await pageSettled(s.page);
 
   await handleOAuthConsent(s);
-  await waitForNavBackTo(s.page, 'producthunt.com', ['/auth/', 'twitter.com', 'x.com'], 40);
+  await waitForNavBackTo(s.page, 'producthunt.com', ['/auth/', 'twitter.com', 'x.com']);
 
   const cleared = await clearReCaptchaGate(s, new CaptchaSolver(), '/captcha_verification');
   if (!cleared) throw new Error('captcha_gate_not_cleared');

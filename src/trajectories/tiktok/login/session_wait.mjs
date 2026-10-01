@@ -1,4 +1,4 @@
-import { humanIdlePause } from '../../../../dist/human/mouse.js';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 import { screenshotIfPossible } from '../../_shared/runner/evidence.mjs';
 
 /** Whether the context holds TikTok's httpOnly sessionid cookie. */
@@ -44,27 +44,28 @@ function readFinalState(page) {
 }
 
 /**
- * Wait for the sessionid cookie plus navigation away from /login. The
- * sessionid cookie is httpOnly — document.cookie inside the page can't see
- * it — so the context's cookies are polled instead of waitForFunction. If the
- * login does not complete (wrong credentials, server error, captcha), this
+ * Wait for the login to end one way or another: the page leaves /login, or
+ * an error or captcha surface appears. Then the httpOnly sessionid cookie
+ * (which document.cookie cannot see) decides. A login that did not complete
  * records what the page shows in loginDiag.finalState and throws, so the
  * caller persists a ban_signal classified from the final URL.
  */
 export async function waitForSignedIn(s, loginDiag) {
-  const deadline = Date.now() + 30_000;
-  while (Date.now() < deadline) {
-    const hasSession = await hasSessionCookie(s.ctx);
-    const path = await s.page.evaluate('location.pathname').catch(() => '/login');
-    if (hasSession && !String(path).startsWith('/login')) return;
-    await humanIdlePause('short');
-  }
-  await screenshotIfPossible(s, 'post_submit_timeout');
-  const finalState = await readFinalState(s.page);
+  const page = s.page;
+  await Promise.any([
+    page.waitForURL((url) => !new URL(String(url)).pathname.startsWith('/login')),
+    page.locator('[class*="error" i], [data-e2e*="error" i]').filter({ visible: true }).first().waitFor({ state: 'visible' }),
+    page.locator('[class*="captcha" i], iframe[src*="captcha" i], iframe[src*="verification" i]').filter({ visible: true }).first().waitFor({ state: 'visible' }),
+  ]);
+  await pageSettled(page);
+  const path = new URL(page.url()).pathname;
+  if (await hasSessionCookie(s.ctx) && !path.startsWith('/login')) return;
+  await screenshotIfPossible(s, 'post_submit_not_signed_in');
+  const finalState = await readFinalState(page);
   finalState.hasSessionId = await hasSessionCookie(s.ctx);
   loginDiag.finalState = finalState;
-  console.log(`[tiktok_login] timeout finalState: ${JSON.stringify(finalState)}`);
-  console.log(`[tiktok_login] timeout loginResponses: ${JSON.stringify(loginDiag.loginResponses)}`);
+  console.log(`[tiktok_login] not signed in, finalState: ${JSON.stringify(finalState)}`);
+  console.log(`[tiktok_login] loginResponses: ${JSON.stringify(loginDiag.loginResponses)}`);
   if (loginDiag.accountApiError) throw new Error(`login_rate_limited: ${loginDiag.accountApiError}`);
-  throw new Error('sessionid+url wait timeout');
+  throw new Error(`tiktok login did not sign in: at ${path}, sessionid=${finalState.hasSessionId}, errors=${JSON.stringify(finalState.errors ?? [])}`);
 }
