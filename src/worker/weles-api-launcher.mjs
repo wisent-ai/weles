@@ -34,7 +34,7 @@ process.env.WELES_API_HOST = process.env.WELES_API_HOST || '0.0.0.0';
 process.env.WELES_API_PORT = process.env.WELES_API_PORT || '8788';
 const port = process.env.WELES_API_PORT;
 
-// Started as com.wisent.weles-admission, this is the host's one Weles process.
+// Started as com.wisent.weles, this is the host's one Weles process.
 // The units whose work it took over leave first, so a retired API still
 // holding this port does not turn the one process away below.
 retirePredecessors();

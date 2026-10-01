@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-const WELES_SERVICE = 'com.wisent.always-on.weles';
+const WELES_SERVICE = 'com.wisent.weles';
 
 type ServiceStatusRow = {
   host?: unknown;
