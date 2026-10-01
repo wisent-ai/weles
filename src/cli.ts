@@ -12,7 +12,7 @@ import { runAppleLogin } from './cli/security/apple-login.js';
 import { runWorker } from './cli/worker/index.js';
 import { runKeeper } from './cli/keeper.js';
 import { adoptRecords } from './state/skarbiec-records.js';
-import { UsageError, exitStatusFor } from './cli/usage.js';
+import { UsageError, exitStatusFor, printAnswer } from './cli/usage.js';
 
 type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import' | 'release' | 'figma' | 'operator-requests' | 'account-security' | 'app-password' | 'apple-developer-id' | 'apple-login' | 'worker' | 'records' | 'keeper';
 
@@ -25,17 +25,17 @@ export type ParsedCli = {
 const HELP = `Weles CLI
 
 Usage:
-  weles onboarding [status|next|import|verify|reset] [--subject <stable-id>]
-  weles onboarding import <trajectory-export.json> --host <managed-worker-hostname> [--subject <stable-id>]
-  weles onboarding verify --receipt <receipt.json> --keys <receipt-keys.json> [--subject <stable-id>]
-  weles import <trajectory-export.json> --host <managed-worker-hostname>
-  weles open <url> [--headless] [--browser chromium|firefox] [--wait-for-text <text>] [--text] [--screenshot <file>]
-  weles screenshot <url> <file> [--headless] [--browser chromium|firefox] [--wait-for-text <text>]
+  weles onboarding [status|next|import|verify|reset] [--subject <stable-id>] [--json]
+  weles onboarding import <trajectory-export.json> --host <managed-worker-hostname> [--subject <stable-id>] [--json]
+  weles onboarding verify --receipt <receipt.json> --keys <receipt-keys.json> [--subject <stable-id>] [--json]
+  weles import <trajectory-export.json> --host <managed-worker-hostname> [--json]
+  weles open <url> [--headless] [--browser chromium|firefox] [--wait-for-text <text>] [--text] [--screenshot <file>] [--json]
+  weles screenshot <url> <file> [--headless] [--browser chromium|firefox] [--wait-for-text <text>] [--json]
   weles mcp
   weles release surface [--root <directory>]
-  weles release enforce-version --decision <file> --baseline <file> --declaration <file> --manifest <file>
-  weles release validate-manifest --manifest <file> --source-revision <sha> --candidate-tag <tag>
-  weles release adopt-baseline --released <version> --published-surface <file> --reason <text> [--correcting <version>]
+  weles release enforce-version --decision <file> --baseline <file> --declaration <file> --manifest <file> [--json]
+  weles release validate-manifest --manifest <file> --source-revision <sha> --candidate-tag <tag> [--json]
+  weles release adopt-baseline --released <version> --published-surface <file> --reason <text> [--correcting <version>] [--json]
   weles figma export-design-assets
   weles figma parse-document <document.json[.gz]> <summary.json> <nodes.json> [<vocabulary.json>]
   weles operator-requests list [--open] [--limit <n>] [--json]
@@ -53,8 +53,8 @@ Usage:
   weles keeper start --session <id> [--url <url>] [--headless]
                           Hold one browser session that answers JSON commands on
                           ~/.weles/keeper/<id>/socket until its page closes
-  weles records adopt     Tag every Weles record in this vault with weles:record:<kind> from its own context
-  weles doctor
+  weles records adopt [--json]  Tag every Weles record in this vault with weles:record:<kind> from its own context
+  weles doctor [--json]
   weles version
 
 Options:
@@ -81,7 +81,8 @@ Options:
   --wait-for-text <text>  Wait for matching visible text before reading or capturing.
   --open                  List only requests still waiting for the operator.
   --limit <n>             How many operator requests to list (default 20).
-  --json                  Print the operator request records as JSON.
+  --json                  Print the answer as one JSON document instead of key: value lines.
+                          release surface always prints its JSON document: it is the file a release carries.
   --kind <kind>           What kind of action the run needs from the operator.
   --account <account>     The account the operator action belongs to.
   --run <run>             The run that is waiting.
@@ -206,7 +207,7 @@ async function runOpen(parsed: ParsedCli): Promise<void> {
       out.text = await page.locator('body').innerText();
     }
 
-    process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);
+    printAnswer(out, parsed.options.json === true);
   } finally {
     await context.close().catch(() => undefined);
   }
@@ -241,7 +242,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
     return;
   }
   if (parsed.command === 'doctor') {
-    await runDoctor(readPackageJson());
+    await runDoctor(readPackageJson(), parsed.options.json === true);
     return;
   }
   if (parsed.command === 'open') {
@@ -297,10 +298,10 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
     return;
   }
   if (parsed.command === 'records') {
-    if (parsed.positional.join(' ') !== 'adopt' || Object.keys(parsed.options).length) {
-      throw new UsageError('records takes exactly: adopt');
+    if (parsed.positional.join(' ') !== 'adopt' || Object.keys(parsed.options).some((key) => key !== 'json')) {
+      throw new UsageError('records takes exactly: adopt [--json]');
     }
-    process.stdout.write(`${JSON.stringify(adoptRecords())}\n`);
+    printAnswer(adoptRecords(), parsed.options.json === true);
     return;
   }
   if (parsed.command === 'mcp') {

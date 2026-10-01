@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { importWelesTrajectoryFile, type WelesImportReport } from '../runtime/import.js';
 import { runWelesOnboarding, type WelesOnboardingInput } from '../onboarding/first-use.js';
 import type { ParsedCli } from '../cli.js';
-import { UsageError } from './usage.js';
+import { printAnswer, UsageError } from './usage.js';
 function readJsonFile(path: string, label: string): unknown {
   try {
     return JSON.parse(readFileSync(path, 'utf8')) as unknown;
@@ -42,7 +42,7 @@ async function executeImport(parsed: ParsedCli): Promise<WelesImportReport> {
 
 export async function runImport(parsed: ParsedCli): Promise<void> {
   const report = await executeImport(parsed);
-  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  printAnswer(report, parsed.options.json === true);
 }
 
 function isOnboardingAction(value: string): value is NonNullable<WelesOnboardingInput['action']> {
@@ -65,11 +65,11 @@ export async function runOnboarding(parsed: ParsedCli): Promise<void> {
     }
     const report = await executeImport({ ...parsed, command: 'import', positional: parsed.positional.slice(1) });
     if (report.imported + report.unchanged === 0) {
-      process.stdout.write(`${JSON.stringify({ import: report, onboarding: before }, null, 2)}\n`);
+      printAnswer({ import: report, onboarding: before }, parsed.options.json === true);
       return;
     }
     const view = await runWelesOnboarding({ action: 'import', importReport: report, ...common });
-    process.stdout.write(`${JSON.stringify({ import: report, onboarding: view }, null, 2)}\n`);
+    printAnswer({ import: report, onboarding: view }, parsed.options.json === true);
     return;
   }
   if (!isOnboardingAction(action) || parsed.positional.length > 1) {
@@ -91,7 +91,7 @@ export async function runOnboarding(parsed: ParsedCli): Promise<void> {
     receipt,
     receiptKeys: typeof keysPath === 'string' ? readReceiptKeys(keysPath) : undefined,
   });
-  process.stdout.write(`${JSON.stringify(view, null, 2)}\n`);
+  printAnswer(view, parsed.options.json === true);
 }
 
 /**
@@ -128,7 +128,7 @@ export async function runRelease(parsed: ParsedCli): Promise<void> {
       declaration: option('declaration'),
       manifest: option('manifest'),
     });
-    process.stdout.write(`${JSON.stringify(release.enforceVersion(inputs), null, 2)}\n`);
+    printAnswer(release.enforceVersion(inputs), parsed.options.json === true);
     return;
   }
   if (action === 'adopt-baseline') {
@@ -147,7 +147,7 @@ export async function runRelease(parsed: ParsedCli): Promise<void> {
       baselinePath: optional('baseline'),
       declarationPath: optional('declaration'),
     });
-    process.stdout.write(`${JSON.stringify(written, null, 2)}\n`);
+    printAnswer(written, parsed.options.json === true);
     return;
   }
   if (action === 'validate-manifest') {
@@ -156,7 +156,7 @@ export async function runRelease(parsed: ParsedCli): Promise<void> {
       sourceRevision: option('source-revision'),
       candidateTag: option('candidate-tag'),
     });
-    process.stdout.write(`${JSON.stringify(verdict, null, 2)}\n`);
+    printAnswer(verdict, parsed.options.json === true);
     return;
   }
   throw new Error(

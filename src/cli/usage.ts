@@ -13,3 +13,29 @@ export class UsageError extends Error {
 export function exitStatusFor(error: unknown): number {
   return error instanceof UsageError ? 2 : 1;
 }
+
+/**
+ * One answer as `--json` prints it, or as lines a person reads: an object
+ * prints `key: value` per field (a string as itself, null as `-`, anything
+ * nested as compact JSON), a list prints one compact item per line.
+ */
+export function printAnswer(value: unknown, json: boolean): void {
+  if (json) {
+    process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+    return;
+  }
+  const line = (item: unknown): string => {
+    if (item === null || item === undefined) return '-';
+    return typeof item === 'string' ? item : JSON.stringify(item);
+  };
+  if (Array.isArray(value)) {
+    process.stdout.write(value.map((item) => `${line(item)}\n`).join(''));
+    return;
+  }
+  if (value !== null && typeof value === 'object') {
+    const fields = Object.entries(value as Record<string, unknown>);
+    process.stdout.write(fields.map(([key, field]) => `${key}: ${line(field)}\n`).join(''));
+    return;
+  }
+  process.stdout.write(`${line(value)}\n`);
+}

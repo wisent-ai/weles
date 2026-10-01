@@ -4,7 +4,8 @@ import { dirname, join } from 'node:path';
 import { WELES_AGENT_MODEL } from '../agent/jeden.js';
 import { resolveSkarbiecEndpoint } from '../utils/runtime/endpoint-resolution.js';
 import { listLoginAccounts } from '../utils/login-accounts.js';
-export async function runDoctor(pkg: { version?: string; bin?: unknown }): Promise<void> {
+import { printAnswer } from './usage.js';
+export async function runDoctor(pkg: { version?: string; bin?: unknown }, json: boolean): Promise<void> {
 
   const report: Record<string, unknown> = {
     ok: true,
@@ -83,7 +84,7 @@ export async function runDoctor(pkg: { version?: string; bin?: unknown }): Promi
     report.ok = false;
   }
 
-  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  printAnswer(report, json);
   if (!report.ok) {
     process.exitCode = 1;
   }

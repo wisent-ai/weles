@@ -1,5 +1,5 @@
 import type { ParsedCli } from '../../cli.js';
-import { UsageError } from '../usage.js';
+import { printAnswer, UsageError } from '../usage.js';
 import { operatorJson, welesOperatorConnection } from '../../runtime/api/connection.js';
 import protocol from '../../worker/weles-api-server/worker-control/actions.json';
 
@@ -56,6 +56,6 @@ export async function runWorker(parsed: ParsedCli): Promise<void> {
   if (result.http_status < 400 && result.ok && protocol.actions[action as WorkerAction].mutation) {
     result = await request(action as WorkerAction);
   }
-  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  printAnswer(result, parsed.options.json === true);
   if (result.http_status >= 400 || !result.ok) process.exitCode = 1;
 }
