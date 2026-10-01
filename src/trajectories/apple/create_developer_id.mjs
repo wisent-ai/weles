@@ -18,7 +18,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 // forces into ACTION_LOG_ID. Both name one run; refusing the second one meant
 // refusing every run Stado dispatches.
 const JOB = /^(?:[0-9a-f]{8}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
-const ACCOUNT = /^weles-apple-[a-z0-9][a-z0-9-]{0,126}-account$/;
+// The item the worker selected by role; its id carries no meaning, only shape.
+const ACCOUNT = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const guardId = (process.env.APPLE_AUTH_GUARD_ID?.trim() ?? '').toLowerCase();
 const accountId = process.env.WELES_LOGIN_ITEM?.trim() ?? '';
 const actionLogId = process.env.ACTION_LOG_ID?.trim() ?? '';

@@ -18,7 +18,10 @@ import type { ParsedCli } from '../../cli.js';
 import { issueAppleAuthorization, readAppleRun, startAppleRun } from '../../runtime/api/apple-runs.js';
 
 const CONFIRMATION_PHRASE = 'AUTHORIZE ONE APPLE DEVELOPER ID';
-const APPLE_ACCOUNT = /^weles-apple-[a-z0-9][a-z0-9-]{0,126}-account$/;
+// The Skarbiec role the Apple Account Holder plays (tag stado:role:<role>);
+// the worker selects the item, so no command names one.
+const STANDARD_ACCOUNT_ROLE = 'apple-account-holder';
+const ROLE = /^[a-z0-9][a-z0-9-]{0,126}$/;
 const HOST = /^[A-Za-z0-9][A-Za-z0-9._-]{0,252}$/;
 const STANDARD_AGENT = 'weles-worker';
 const STANDARD_SUBJECT = '/CN=Wisent-AI Developer ID Application/O=Wisent-AI, Inc/C=US';
@@ -28,7 +31,7 @@ const MAX_EXPIRY_MINUTES = 60;
 const RSA_BITS = '2048';
 const OWNER_ONLY_FILE = 0o600;
 const PUBLIC_FILE = 0o644;
-const START_OPTIONS = ['account-item', 'confirm', 'execution-host', 'execution-agent', 'private-key-out', 'expires-in-minutes', 'subject'];
+const START_OPTIONS = ['account-role', 'confirm', 'execution-host', 'execution-agent', 'private-key-out', 'expires-in-minutes', 'subject'];
 const READ_OPTIONS = ['run', 'certificate-out', 'private-key', 'store-host'];
 // The role every darwin release recipe reads its signing identity through
 // (MACOS_CERT_P12, MACOS_CERT_PASSWORD, MACOS_SIGN_IDENTITY): Stado selects
@@ -101,13 +104,13 @@ function nonEmpty(value: unknown): boolean {
 }
 
 async function start(parsed: ParsedCli): Promise<Record<string, unknown>> {
-  const accountItem = text(parsed, 'account-item') ?? '';
+  const accountRole = text(parsed, 'account-role') ?? STANDARD_ACCOUNT_ROLE;
   const executionHost = text(parsed, 'execution-host') ?? '';
   const executionAgent = text(parsed, 'execution-agent') ?? STANDARD_AGENT;
   const keyOut = text(parsed, 'private-key-out') ?? '';
   const subject = text(parsed, 'subject') ?? STANDARD_SUBJECT;
   const expiryMinutes = Number(text(parsed, 'expires-in-minutes') ?? STANDARD_EXPIRY_MINUTES);
-  if (!APPLE_ACCOUNT.test(accountItem)) throw new Error('--account-item must name an Apple Skarbiec login item (weles-apple-<name>-account)');
+  if (!ROLE.test(accountRole)) throw new Error('--account-role must be a Skarbiec role (lowercase letters, digits and hyphens)');
   if (text(parsed, 'confirm') !== CONFIRMATION_PHRASE) throw new Error(`--confirm must exactly equal "${CONFIRMATION_PHRASE}"`);
   if (!HOST.test(executionHost)) throw new Error('--execution-host must name the Stado host that runs the browser');
   if (!Number.isInteger(expiryMinutes) || expiryMinutes < MIN_EXPIRY_MINUTES || expiryMinutes > MAX_EXPIRY_MINUTES) {
@@ -121,7 +124,7 @@ async function start(parsed: ParsedCli): Promise<Record<string, unknown>> {
   openssl(['genrsa', '-out', keyOut, RSA_BITS]);
   chmodSync(keyOut, OWNER_ONLY_FILE);
   const csr = openssl(['req', '-new', '-key', keyOut, '-subj', subject]);
-  const authorization = await issueAppleAuthorization(accountItem, executionHost, executionAgent, expiryMinutes);
+  const authorization = await issueAppleAuthorization(accountRole, executionHost, executionAgent, expiryMinutes);
   const runId = await startAppleRun('apple_create_developer_id', authorization, {
     apple_csr_base64: Buffer.from(csr, 'utf8').toString('base64'),
   });
@@ -130,7 +133,7 @@ async function start(parsed: ParsedCli): Promise<Record<string, unknown>> {
     status: 'running',
     run: runId,
     guard_id: guardId,
-    account_item: accountItem,
+    account_role: accountRole,
     execution_host: executionHost,
     private_key: keyOut,
     capabilities_expire_in_minutes: expiryMinutes,

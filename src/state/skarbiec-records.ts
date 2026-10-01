@@ -60,6 +60,27 @@ function itemIds(kind?: string): string[] {
     .filter(Boolean);
 }
 
+// The Skarbiec tag namespace a consumer selects a secret by (registered by
+// Skarbiec for Stado and every product that asks for secrets by role).
+const ROLE_TAG_PREFIX = 'stado:role:';
+const ROLE = /^[a-z0-9][a-z0-9-]{0,126}$/;
+
+/**
+ * The id of the one live item carrying `stado:role:<role>`. The item's id is
+ * read only after this selection, so no caller names an item; no holder and
+ * several holders are both refused, because reading either would be a guess.
+ */
+export function itemPlayingRole(role: string): string {
+  if (!ROLE.test(role)) throw new Error(`invalid role ${JSON.stringify(role)}`);
+  const tag = `${ROLE_TAG_PREFIX}${role}`;
+  const holders = listCredentialItems().filter((row) => Array.isArray(row.tags) && row.tags.includes(tag));
+  if (holders.length === 0) {
+    throw new Error(`no Skarbiec item carries ${tag}; store the secret for role ${role} with \`stado credentials item put --host <vault owner> --role ${role}\``);
+  }
+  if (holders.length > 1) throw new Error(`${holders.length} Skarbiec items carry ${tag}; exactly one item may play role ${role}`);
+  return String(holders[0].id ?? holders[0].name ?? '');
+}
+
 export function readDocument(id: string): Record<string, any> {
   return JSON.parse(skarbiec(['get', id])) as Record<string, any>;
 }

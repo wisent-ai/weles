@@ -43,9 +43,9 @@ Usage:
   weles account-security --run <run-id>
   weles app-password --login-item <skarbiec-item>
   weles app-password --run <run-id>
-  weles apple-developer-id --account-item <weles-apple-...-account> --confirm "AUTHORIZE ONE APPLE DEVELOPER ID" --execution-host <host> --private-key-out <abs> [--execution-agent <agent>] [--expires-in-minutes <n>] [--subject <dn>]
+  weles apple-developer-id [--account-role <role>] --confirm "AUTHORIZE ONE APPLE DEVELOPER ID" --execution-host <host> --private-key-out <abs> [--execution-agent <agent>] [--expires-in-minutes <n>] [--subject <dn>]
   weles apple-developer-id --run <run-id> --certificate-out <abs>
-  weles apple-login --account-item <weles-apple-...-account> --confirm "AUTHORIZE ONE APPLE LOGIN" --execution-host <host> [--execution-agent <agent>] [--expires-in-minutes <n>] | --run <run-id>
+  weles apple-login [--account-role <role>] --confirm "AUTHORIZE ONE APPLE LOGIN" --execution-host <host> [--execution-agent <agent>] [--expires-in-minutes <n>] | --run <run-id>
   weles worker <status|start|restart> [--json]
   weles doctor
   weles version
@@ -153,7 +153,7 @@ function normalizeCommand(command?: string): CliCommand {
 
 function optionTakesValue(key: string): boolean {
   if (key === 'login-item') return true;
-  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'timeout', 'subject', 'receipt', 'keys', 'state-dir', 'host', 'decision', 'baseline', 'declaration', 'manifest', 'source-revision', 'candidate-tag', 'released', 'published-surface', 'reason', 'correcting', 'root', 'limit', 'kind', 'account', 'run', 'instruction', 'minutes', 'detail', 'account-item', 'confirm', 'execution-host', 'execution-agent', 'private-key-out', 'certificate-out', 'expires-in-minutes'].includes(key);
+  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'timeout', 'subject', 'receipt', 'keys', 'state-dir', 'host', 'decision', 'baseline', 'declaration', 'manifest', 'source-revision', 'candidate-tag', 'released', 'published-surface', 'reason', 'correcting', 'root', 'limit', 'kind', 'account', 'run', 'instruction', 'minutes', 'detail', 'account-role', 'confirm', 'execution-host', 'execution-agent', 'private-key-out', 'certificate-out', 'expires-in-minutes', 'private-key', 'store-host'].includes(key);
 }
 
 function cliOptionsToBrowserOptions(options: Record<string, string | boolean>): AsyncNewBrowserOptions {

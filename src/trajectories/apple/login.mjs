@@ -21,12 +21,13 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3
 // caller cannot choose. Accept either — both identify exactly one run — rather
 // than refuse the only dispatch path Stado actually uses.
 const JOB_PATTERN = /^(?:[0-9a-f]{8}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
-const ACCOUNT_PATTERN = /^weles-apple-[a-z0-9][a-z0-9-]{0,126}-account$/;
+// The item the worker selected by role; its id carries no meaning, only shape.
+const ACCOUNT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const guardId = (process.env.APPLE_AUTH_GUARD_ID?.trim() ?? '').toLowerCase();
 const accountId = process.env.WELES_LOGIN_ITEM?.trim() ?? '';
 const actionLogId = process.env.ACTION_LOG_ID?.trim() ?? '';
 if (!UUID_PATTERN.test(guardId)) throw new Error('[apple-login] APPLE_AUTH_GUARD_ID must be a valid UUID');
-if (!ACCOUNT_PATTERN.test(accountId)) throw new Error('[apple-login] WELES_LOGIN_ITEM must name an Apple account');
+if (!ACCOUNT_PATTERN.test(accountId)) throw new Error('[apple-login] WELES_LOGIN_ITEM must hold the item the worker selected for the Apple account role');
 if (!JOB_PATTERN.test(actionLogId)) throw new Error('[apple-login] ACTION_LOG_ID must be a Stado job id');
 
 const LOGIN_URL = 'https://appstoreconnect.apple.com/login?targetUrl=%2Fapps&authResult=FAILED';

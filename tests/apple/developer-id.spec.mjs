@@ -59,11 +59,11 @@ if (process.env.PROBIERZ_MEDIA_MANIFEST) {
 }
 
 try {
-  const accountItem = process.env.WELES_APPLE_ACCOUNT_ITEM;
-  assert.match(accountItem || '', /^weles-apple-[a-z0-9][a-z0-9-]{0,126}-account$/, 'WELES_APPLE_ACCOUNT_ITEM must identify a real registered Apple Account Holder');
+  const accountRole = process.env.WELES_APPLE_ACCOUNT_ROLE || 'apple-account-holder';
+  assert.match(accountRole, /^[a-z0-9][a-z0-9-]{0,126}$/, 'WELES_APPLE_ACCOUNT_ROLE must be the Skarbiec role of the Apple Account Holder');
   const executionHost = process.env.WELES_APPLE_EXECUTION_HOST;
-  assert.equal(executionHost, 'charless-mac-mini', 'This journey executes the browser only on the dedicated Mac mini');
-  assert.equal(hostname().toLowerCase(), 'charless-mac-mini.local', 'The Probierz journey itself must be placed on the dedicated Mac mini');
+  assert.ok(executionHost, 'WELES_APPLE_EXECUTION_HOST must name the Stado host that runs the browser');
+  assert.equal(hostname().toLowerCase().split('.')[0], executionHost.toLowerCase(), 'The Probierz journey itself must be placed on the execution host');
   const stado = process.env.WELES_STADO_BIN || successful(command('/usr/bin/which', ['stado']), 'locating Stado').trim();
   const childEnv = { ...process.env, WELES_STADO_BIN: stado };
   trace.stadoVersion = successful(command(stado, ['--version']), 'reading Stado source identity').trim();
@@ -79,13 +79,13 @@ try {
   trace.retainedWork = work;
   retainTrace();
   const cli = join(repo, 'dist', 'cli.js');
-  const args = [cli, 'apple-developer-id', '--account-item', accountItem, '--confirm', 'AUTHORIZE ONE APPLE DEVELOPER ID', '--execution-host', executionHost, '--execution-agent', 'weles-worker', '--expires-in-minutes', String(CAPABILITY_MINUTES), '--private-key-out', keyPath];
+  const args = [cli, 'apple-developer-id', '--account-role', accountRole, '--confirm', 'AUTHORIZE ONE APPLE DEVELOPER ID', '--execution-host', executionHost, '--execution-agent', 'weles-worker', '--expires-in-minutes', String(CAPABILITY_MINUTES), '--private-key-out', keyPath];
 
   const malformed = [...args];
-  malformed[3] = 'not-an-apple-account';
+  malformed[3] = 'Not A Role';
   const refused = command(process.execPath, malformed, { env: childEnv });
   assert.equal(refused.status, 1);
-  assert.match(refused.stderr, /--account-item must name an Apple Skarbiec login item/);
+  assert.match(refused.stderr, /--account-role must be a Skarbiec role/);
   assert.equal(existsSync(keyPath), false, 'A refused account must not create a private key');
 
   // Exactly one authorized issuance attempt; a failure is retained, never retried here.
@@ -94,7 +94,7 @@ try {
   retainTrace();
   assert.equal(started.status, 'running');
   assert.equal(started.execution_host, executionHost);
-  assert.equal(started.account_item, accountItem);
+  assert.equal(started.account_role, accountRole);
 
   const deadline = Date.now() + CAPABILITY_MINUTES * MINUTE_MS;
   let result = null;

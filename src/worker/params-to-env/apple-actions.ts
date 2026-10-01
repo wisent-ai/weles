@@ -4,7 +4,7 @@
 // Apple Ads runs are parametric on the action name, and apple/login.mjs and
 // apple/create_developer_id.mjs are the strictest submissions in the fleet:
 // guard id, execution host, execution agent, declared capabilities and an
-// Apple Skarbiec account item are all required, and the run is forced into a
+// Apple Skarbiec account role are all required, and the run is forced into a
 // no-recording, no-response-body, no-netlog mode so credentials and capability
 // identifiers cannot leak into evidence.
 //
@@ -14,6 +14,7 @@
 // analytics platform or OAuth provider pair is added without a new trajectory.
 
 import { parseAppleLoginCapabilities } from '../../utils/identity/apple-login-capabilities.js';
+import { itemPlayingRole } from '../../state/skarbiec-records.js';
 
 export function applyAppleActionParams(
   params: Record<string, unknown>,
@@ -52,19 +53,14 @@ export function applyAppleActionParams(
     if (params.apple_login_capabilities === undefined) {
       throw new Error('apple_login_capabilities are required for apple_login');
     }
-    // The account the run signs in as. Both Apple trajectories refuse without
-    // it — `WELES_LOGIN_ITEM must name an Apple account` — and nothing set it
-    // for them: the only two places that assign WELES_LOGIN_ITEM are the
-    // subscription-login paths for claude, codex and kimi. So neither
-    // apple/login.mjs nor apple/create_developer_id.mjs has ever been able to
-    // start, on the queue path or through the API, however correct the caller
-    // was. Stado has been sending the item all along under `account_item`,
-    // which nothing read.
-    const appleAccount = params.login_item ?? params.account_item;
-    if (typeof appleAccount !== 'string' || !/^weles-apple-[a-z0-9][a-z0-9-]{0,126}-account$/.test(appleAccount)) {
-      throw new Error('login_item must name an Apple Skarbiec account item for an apple trajectory');
+    // The account the run signs in as, asked for by role: the worker selects
+    // the one Skarbiec item carrying stado:role:<login_role> and hands only
+    // that run its id, so no caller names an item.
+    const appleRole = params.login_role;
+    if (typeof appleRole !== 'string' || !appleRole) {
+      throw new Error('login_role must name the Skarbiec role of the Apple account for an apple trajectory');
     }
-    env.WELES_LOGIN_ITEM = appleAccount;
+    env.WELES_LOGIN_ITEM = itemPlayingRole(appleRole);
     env.APPLE_AUTH_GUARD_ID = guardId;
     env.APPLE_EXECUTION_HOST = executionHost;
     env.APPLE_EXECUTION_AGENT = executionAgent;

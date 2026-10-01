@@ -16,7 +16,7 @@ const PLACEMENT_MODULE = join(__dirname, '..', '..', '..', 'src', 'auth', 'apple
 
 /** The authorization one Apple run carries. */
 export type AppleAuthorization = {
-  accountItem: string;
+  accountRole: string;
   guardId: string;
   executionHost: string;
   executionAgent: string;
@@ -59,7 +59,7 @@ function optionalBoolean(value: unknown): boolean | null {
 
 /** A new guard id and the three one-use capabilities Stado mints for it on the execution host. */
 export async function issueAppleAuthorization(
-  accountItem: string, executionHost: string, executionAgent: string, expiryMinutes: number,
+  accountRole: string, executionHost: string, executionAgent: string, expiryMinutes: number,
 ): Promise<AppleAuthorization> {
   const guardId = randomUUID();
   const placement = await import(pathToFileURL(PLACEMENT_MODULE).href);
@@ -69,7 +69,7 @@ export async function issueAppleAuthorization(
     authorizationId: guardId,
     ttlSeconds: expiryMinutes * SECONDS_PER_MINUTE,
   });
-  return { accountItem, guardId, executionHost, executionAgent, capabilities };
+  return { accountRole, guardId, executionHost, executionAgent, capabilities };
 }
 
 /** Start one Apple action detached on the managed executor; the answer is its run id. */
@@ -82,7 +82,7 @@ export async function startAppleRun(
   const answer = await exchange('/run', 'POST', JSON.stringify({
     action,
     params: {
-      login_item: authorization.accountItem,
+      login_role: authorization.accountRole,
       apple_auth_guard_id: authorization.guardId,
       apple_execution_host: authorization.executionHost,
       apple_execution_agent: authorization.executionAgent,
