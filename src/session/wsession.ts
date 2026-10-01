@@ -86,6 +86,8 @@ export class WSession {
   private _smsOrder: SmsNumber | null = null;
   private _proxyBytes = 0;
   private _cdp: any = null;
+  private _cdpReady: Promise<void>;
+  private _cdpAttachError: string | null = null;
   private _secureCredentialTask = false;
   private _storedCredentialReceipt: string | null = null;
 
@@ -96,7 +98,7 @@ export class WSession {
     // Captcha/auth interception, the response ledger and the proxy byte
     // counter, subscribed synchronously so nothing loaded by the first
     // navigation is missed. See ./wsession/network-observers.ts.
-    observeSessionNetwork(this, ctx, page);
+    this._cdpReady = observeSessionNetwork(this, ctx, page);
   }
 
   async runStep<T>(name: string, fn: () => Promise<T>): Promise<T> {
@@ -136,6 +138,7 @@ export class WSession {
   static async start(opts: WSessionOptions = {}): Promise<WSession> {
     const launch = await openSessionBrowser(opts);
     const ws = new WSession(launch.ctx, launch.page, launch.label, launch.capture);
+    await ws._cdpReady;
     if (launch.kind === 'launched') await adoptLaunchedBrowser(ws, launch);
     return ws;
   }

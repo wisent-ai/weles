@@ -1,14 +1,8 @@
 /**
- * WSession close + persistence + I/O helpers extracted to keep wsession.ts
- * under the 300-line cap. Logic identical to the pre-2026-05-02 inlined
- * version EXCEPT for the proxy-bytes provider classifier in wsClose, which
- * now prefers session.proxyConfig.provider before falling back to host
- * substring matching. resolveProxy DNS-resolves the proxy hostname and stores
- * the IP literal in proxyConfig.server, so host.includes('brightdata') always
- * returned false on resolved-IP servers and every BD session bucketed as
- * proxy_other in cost_records — fixed here so account_action_logs.service_costs
- * gets the key 'brightdata' (or oxylabs / packetstream / etc) and a per-row
- * sum against the budget shows real BD spend.
+ * WSession close, persistence and I/O helpers.
+ * Proxy attribution prefers the declared provider because a resolved IP hides
+ * its original hostname. An unavailable byte counter is not zero traffic.
+ * Final CDP diagnostics finish before their protocol session is detached.
  */
 
 import type { Frame, Locator } from 'playwright';
@@ -162,9 +156,10 @@ export async function wsFill(s: WSession, target: string, value: string): Promis
 }
 
 export async function wsClose(s: WSession): Promise<void> {
-  const proxyBytes: number = (s as any)._proxyBytes;
-  console.log(`[wsession] close() label=${s.label} proxy_bytes=${proxyBytes}`);
-  if (proxyBytes > 0) {
+  const counterError: string | null = (s as any)._cdpAttachError;
+  const proxyBytes: number | null = counterError ? null : (s as any)._proxyBytes;
+  console.log(`[wsession] close() label=${s.label} proxy_bytes=${proxyBytes ?? 'unavailable'}${counterError ? ` counter_error=${counterError}` : ''}`);
+  if (proxyBytes !== null && proxyBytes > 0) {
     try {
       const cfg = s.proxyConfig;
       const server = cfg?.server;
@@ -187,7 +182,6 @@ export async function wsClose(s: WSession): Promise<void> {
       }
     } catch (e: any) { console.log(`[wsession] proxy-bytes record err: ${e.message}`); }
   }
-  try { await (s as any)._cdp?.detach?.(); } catch {}
   await (s as any)._cap.save('session', s.page).catch(() => {});
   try { writeFileSync(join(recordingsDir(s.label || undefined), 'network.ndjson'), s.capturedResponses.map(r => JSON.stringify(r)).join('\n')); } catch {}
   // Final merged dump — fires the close-time flush of every frame's
@@ -199,6 +193,8 @@ export async function wsClose(s: WSession): Promise<void> {
     const { finalDump } = await import('./net_record.js');
     await finalDump(s);
   } catch (e: any) { console.log(`[wsession] finalDump err: ${e?.message?.slice(0, 120)}`); }
+  try { await (s as any)._cdp?.detach?.(); }
+  catch (error) { console.error(`[wsession] CDP detach err: ${error instanceof Error ? error.message : String(error)}`); }
   // G18: capture a fingerprint + detection-vector report at close so failed
   // runs carry an automatic diagnosis of why they may have been flagged.
   await wsCaptureFingerprint(s);

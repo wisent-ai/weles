@@ -10,10 +10,9 @@
  *  - the devtools-protocol byte counter that funds the per-trajectory egress
  *    cost computed in close().
  *
- * Extracted verbatim from the WSession constructor to keep the class file
- * under its 300-line cap. observeSessionNetwork is called synchronously from
- * that constructor, so subscription order and the protocol-attach timing
- * (which capture_extras waits on via ws._cdp) are unchanged.
+ * The constructor subscribes to page and context events synchronously. Its
+ * returned promise records completion of the protocol counter setup; session
+ * startup and diagnostic attachment observe that result, not scheduler turns.
  */
 
 import type { BrowserContext, Page } from 'playwright';
@@ -62,6 +61,7 @@ export interface SessionProtocol {
 interface ObservedSessionState {
   _secureCredentialTask: boolean;
   _cdp: SessionProtocol | null;
+  _cdpAttachError: string | null;
   _proxyBytes: number;
 }
 
@@ -81,7 +81,7 @@ function shouldCaptureResponseBody(res: ObservedResponse): boolean {
   }
 }
 
-export function observeSessionNetwork(ws: WSession, ctx: BrowserContext, page: Page): void {
+export function observeSessionNetwork(ws: WSession, ctx: BrowserContext, page: Page): Promise<void> {
   // The counters and the credential-task flag are private to WSession; this is
   // the same session object, viewed through the members these observers write.
   const state = ws as unknown as ObservedSessionState;
@@ -104,27 +104,30 @@ export function observeSessionNetwork(ws: WSession, ctx: BrowserContext, page: P
       ws.pendingResponseBodies.add(read);
     } catch {}
   });
-  attachEgressByteCounter(state, ctx, page);
+  return attachEgressByteCounter(state, ctx, page);
 }
 
-// Network.dataReceived — accumulates bytes flowing through the proxy upstream
-// so we can compute per-trajectory egress cost in close(). Attaching is
-// asynchronous; capture_extras waits for ws._cdp before it subscribes further.
-function attachEgressByteCounter(state: ObservedSessionState, ctx: BrowserContext, page: Page): void {
-  void (async () => {
-    try {
-      if (typeof ctx.newCDPSession !== 'function') return;
-      // The attached session is used through two protocol calls only; the
-      // library's own generated protocol map is not needed here.
-      const attached = await ctx.newCDPSession(page) as unknown as SessionProtocol;
-      state._cdp = attached;
-      await attached.send('Network.enable');
-      attached.on('Network.dataReceived', (e) => {
-        // encodedDataLength is on-the-wire bytes (post-compression); older
-        // Chromium revisions report dataLength instead.
-        const n = Number(e?.encodedDataLength ?? e?.dataLength ?? 0);
-        if (n > 0) state._proxyBytes += n;
-      });
-    } catch (e) { console.log(`[wsession] CDP attach err: ${(e instanceof Error ? e.message : String(e)).slice(0, 120)}`); }
-  })();
+// Network.dataReceived accumulates proxy bytes. Keep an unavailable counter
+// distinct from a successful attachment with no observed traffic.
+async function attachEgressByteCounter(state: ObservedSessionState, ctx: BrowserContext, page: Page): Promise<void> {
+  let operation = 'BrowserContext.newCDPSession';
+  try {
+    if (typeof ctx.newCDPSession !== 'function') {
+      throw new Error('the browser context does not expose newCDPSession');
+    }
+    const attached = await ctx.newCDPSession(page) as unknown as SessionProtocol;
+    state._cdp = attached;
+    operation = 'Network.dataReceived subscription';
+    attached.on('Network.dataReceived', (e) => {
+      // encodedDataLength is on-the-wire bytes (post-compression); older
+      // Chromium revisions report dataLength instead.
+      const n = Number(e?.encodedDataLength ?? e?.dataLength ?? 0);
+      if (n > 0) state._proxyBytes += n;
+    });
+    operation = 'Network.enable';
+    await attached.send('Network.enable');
+  } catch (error) {
+    state._cdpAttachError = `${operation}: ${error instanceof Error ? error.message : String(error)}`;
+    console.error(`[wsession] CDP attach err: ${state._cdpAttachError}`);
+  }
 }

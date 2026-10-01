@@ -81,7 +81,7 @@ export function startInstrumentation(ws: any, ctx: BrowserContext, label: string
   attachPageDiagnostics(ws, consoleMsgs, pageErrors);
   attachServiceWorkers(ctx, swEvents);
   if (cdpDiagnostics) {
-    attachCdpLifecycle(ws, ctx, targetEvents, frameEvents, metricsHistory);
+    ws._cdpDiagnosticsReady = attachCdpLifecycle(ws, ctx, targetEvents, frameEvents, metricsHistory);
   }
   if (storageDiagnostics) {
     pollStorageState(ws, ctx, storageHistory);
@@ -135,6 +135,7 @@ export function startInstrumentation(ws: any, ctx: BrowserContext, label: string
 // has been refreshing every 5 seconds with the most-recent state, so the
 // uploaded artifact contains everything up to the moment of close.
 export async function finalDump(ws: any): Promise<void> {
+  await ws._cdpDiagnosticsReady;
   // Measurements belong to the session, not to the lifetime of its worker.
   // Leaving any of these intervals alive turns a completed login into a timeout.
   for (const key of ['_instFlushTimer', '_instMetricsPollId', '_instDomCountersPollId', '_instStoragePollId']) {
@@ -243,6 +244,7 @@ function buildDumpPayload(ws: any, opts: { closing?: boolean } = {}): any {
     pageerrors: ws._instPageErrors ?? [],
     service_workers: ws._instSwEvents ?? [],
     cdp_targets: ws._instTargetEvents ?? [],
+    cdp_attach_error: ws._cdpAttachError ?? null,
     cdp_frames: ws._instFrameEvents ?? [],
     cdp_metrics: ws._instMetricsHistory ?? [],
     storage_history: ws._instStorageHistory ?? [],

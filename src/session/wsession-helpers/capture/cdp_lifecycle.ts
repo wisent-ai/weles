@@ -13,8 +13,8 @@ import { CDP_EVENTS } from './cdp_events.generated.js';
 // on-the-wire headers (including HTTP/2 :method/:path/:authority/:scheme
 // pseudo-headers and the cookie pair line as sent), connection-reuse info,
 // and final loaded byte counts that Playwright's ctx.on('response') hides.
-export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: any[], frameEvents: any[], metricsHistory: any[]): void {
-  void (async () => {
+export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: any[], frameEvents: any[], metricsHistory: any[]): Promise<void> {
+  return (async () => {
     try {
       const cdpFeatureEnabled = (name: string): boolean => {
         const value = process.env[`WELES_CDP_${name}`];
@@ -29,10 +29,16 @@ export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: 
         if (process.env.WELES_FULL_DIAGNOSTICS === '1' || value === '1' || value === 'passive' || mode === 'passive') return 'passive';
         return 'off';
       };
-      // The WSession constructor sets ws._cdp asynchronously; wait briefly.
-      for (let i = 0; i < 20 && !ws._cdp; i++) await new Promise(r => setImmediate(r));
+      // Observe the constructor's actual protocol setup, including its failure.
+      await ws._cdpReady;
       const cdp = ws._cdp;
-      if (!cdp) return;
+      if (ws._cdpAttachError) {
+        targetEvents.push({ t: Date.now(), phase: 'attach_error', err: ws._cdpAttachError });
+      }
+      if (!cdp) {
+        if (!ws._cdpAttachError) throw new Error('CDP initialization completed without a session');
+        return;
+      }
       try { await cdp.send('Target.setDiscoverTargets', { discover: true }); } catch {}
       try { await cdp.send('Page.enable'); } catch {}
       try { await cdp.send('Performance.enable'); } catch {}
