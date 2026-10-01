@@ -2,7 +2,7 @@
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { indicatorRepairs, scalarRepairs, taskRepairs } from './repairs.mjs';
 
-export function criteriaRepairs({ page, setReactInputValue, fillBySuffix, fillByExactName, saveVisibleForm, closeVisibleForm, URLS }) {
+export function criteriaRepairs({ page, fillField, fillBySuffix, fillByExactName, saveVisibleForm, closeVisibleForm, URLS }) {
 const indicatorField = page.locator('[name="rok_osiagniecia_wartosci_docelowej"], [name="opis_metodologii"], [name="opis_sposobu_weryfikacji"]')
   .filter({ visible: true }).first();
 async function repairScalarSections() {
@@ -11,8 +11,9 @@ async function repairScalarSections() {
     console.log(`[scalar] ${item.section} ${item.suffix}`);
     await page.goto(URLS[item.section], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section navigation
     await humanIdlePause('long');
-    out.push({ section: item.section, ...(await fillBySuffix(item.suffix, item.value)) });
-    await saveVisibleForm();
+    const filled = await fillBySuffix(item.suffix, item.value);
+    if (filled.changed) await saveVisibleForm();
+    out.push({ section: item.section, ...filled, save: filled.changed ? 'save_clicked' : 'unchanged' });
   }
   return out;
 }
@@ -33,11 +34,13 @@ async function repairTasks61() {
     console.log(`[6.1] task ${task.nr}`);
     await openTaskRow(task.nr);
     const filled = [];
-    filled.push(await setReactInputValue(page.locator('[name="nazwa_zadania"]').first(), task.name));
-    filled.push(await setReactInputValue(page.locator('[name="zakres_planowanych_prac_br"]').first(), task.scope));
-    filled.push(await setReactInputValue(page.locator('[name="szczegolowy_opis_prac"]').first(), task.detail));
-    await saveVisibleForm();
-    out.push({ nr: task.nr, filled });
+    filled.push(await fillField(page.locator('[name="nazwa_zadania"]').first(), task.name));
+    filled.push(await fillField(page.locator('[name="zakres_planowanych_prac_br"]').first(), task.scope));
+    filled.push(await fillField(page.locator('[name="szczegolowy_opis_prac"]').first(), task.detail));
+    const changed = filled.some((field) => field.changed);
+    if (changed) await saveVisibleForm();
+    else await closeVisibleForm();
+    out.push({ nr: task.nr, filled, save: changed ? 'save_clicked' : 'unchanged' });
   }
   return out;
 }
@@ -88,15 +91,10 @@ async function repairIndicators92() {
     if (item.year && process.env.METH_92 !== '1') filled.push({ field: 'year', ...(await fillByExactName('rok_osiagniecia_wartosci_docelowej', item.year)) });
     if (item.methodology) filled.push({ field: 'methodology', ...(await fillByExactName('opis_metodologii', item.methodology)) });
     if (item.verification && process.env.METH_92 !== '1') filled.push({ field: 'verification', ...(await fillByExactName('opis_sposobu_weryfikacji', item.verification)) });
-    let save = 'saved';
-    try {
-      await saveVisibleForm();
-    } catch (e) {
-      if (!/no enabled visible Zapisz/i.test(String(e?.message || e))) throw e;
-      save = 'unchanged_or_readonly';
-      await closeVisibleForm();
-    }
-    out.push({ name: item.name, save, filled });
+    const changed = filled.some((field) => field.changed);
+    if (changed) await saveVisibleForm();
+    else await closeVisibleForm();
+    out.push({ name: item.name, save: changed ? 'save_clicked' : 'unchanged', filled });
   }
   return out;
 }
