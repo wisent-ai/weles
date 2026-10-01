@@ -26,15 +26,9 @@ try {
 
   const gsiFrame = s.page.frames().find(f => /gsi\/button/.test(f.url()));
   if (!gsiFrame) { console.log('FAIL: Oxylabs Google GSI iframe not found'); process.exit(1); }
-  let popup = null;
   const popupPromise = s.page.waitForEvent('popup');
   await humanClickLocator(s.page, gsiFrame.locator('div[role="button"]').first());
-  try {
-    popup = await Promise.race([
-      popupPromise,
-      new Promise((_, rej) => setTimeout(() => rej(new Error('popup-timeout')), 15000)),  // allow-raw-playwright: Promise.race deadline
-    ]);
-  } catch (e) { console.log(`FAIL: Google login popup did not open (${e.message})`); process.exit(1); }
+  const popup = await popupPromise;
   await popup.waitForLoadState('domcontentloaded');
 
   const ok = await googleSso(s, login, { originHost: 'oxylabs.io', page: popup });

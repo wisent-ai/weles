@@ -2,6 +2,7 @@ import { getSocialAccount, markCookiesStale } from '../../../dist/utils/credenti
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import { urlMatching } from '../_shared/page/settled.mjs';
 import { assertAuthed, AuthProbeError } from '../_shared/auth/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/auth/cookie-freshness.mjs';
 
@@ -44,7 +45,7 @@ try {
     await humanClickLocator(s.page, pwIn);
     await humanType(s.page, process.env.SVC_PASSWORD);
     await humanClickLocator(s.page, s.page.locator('button[type="submit"], button:has-text("Log In")').filter({ visible: true }).first());
-    await s.page.waitForFunction(() => /accounts\.snapchat\.com\/(?!.*login)|web\.snapchat\.com/.test(location.href), { timeout: 25000 });
+    await urlMatching(s.page, /accounts\.snapchat\.com\/(?!.*login)|web\.snapchat\.com/);
     await s.goto('https://web.snapchat.com/');
     await humanIdlePause('deliberate');
   }
@@ -56,15 +57,15 @@ try {
   // web.snapchat.com — use the search/add input. Search box is contenteditable
   // div with role="textbox" / aria-label="Search".
   const searchBox = s.page.locator('div[role="textbox"][contenteditable="true"], input[type="search"], input[aria-label*="Search" i]').filter({ visible: true }).first();
-  await searchBox.waitFor({ state: 'visible', timeout: 15000 });
+  await searchBox.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, searchBox);
   await humanType(s.page, TARGET);
   await humanIdlePause('deliberate');
   // First "Add Friend" button in the result list.
   const addBtn = s.page.locator('button:has-text("Add Friend"), button:has-text("Add"), [role="button"]:has-text("Add Friend")').filter({ visible: true }).first();
-  await addBtn.waitFor({ state: 'visible', timeout: 10000 });
+  await addBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, addBtn);
-  await s.page.locator('button:has-text("Added"), button:has-text("Pending"), [role="button"]:has-text("Added")').first().waitFor({ state: 'visible', timeout: 10000 });
+  await s.page.locator('button:has-text("Added"), button:has-text("Pending"), [role="button"]:has-text("Added")').first().waitFor({ state: 'visible' });
   console.log(`PASS: added ${TARGET}`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));

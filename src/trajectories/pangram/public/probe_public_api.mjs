@@ -4,7 +4,6 @@
 const API = 'https://web.pangram.com';
 const text = process.env.PANGRAM_TEXT || 'To jest krotki tekst testowy uzyty wylacznie do sprawdzenia publicznego endpointu Pangram bez logowania.';
 const turnstileToken = process.env.PANGRAM_TURNSTILE_TOKEN || '';
-const pollTimeoutMs = Number(process.env.PANGRAM_PUBLIC_POLL_TIMEOUT_MS || 60_000);
 
 function cookiesFrom(headers) {
   const raw = typeof headers.getSetCookie === 'function'
@@ -49,23 +48,19 @@ const body = await postResp.text();
 let postJson = null;
 try { postJson = JSON.parse(body); } catch {}
 
+// One read of the scan status; the probe reports what the endpoint says now.
 let status = null;
 const taskId = postJson?.task_id || postJson?.taskId || null;
 if (taskId) {
-  const deadline = Date.now() + pollTimeoutMs;
-  while (Date.now() < deadline) {
-    const statusResp = await fetch(`${API}/api/anonymous-scan/status/${encodeURIComponent(taskId)}/`, {
-      headers: sharedHeaders,
-    });
-    const statusText = await statusResp.text();
-    status = {
-      statusCode: statusResp.status,
-      contentType: statusResp.headers.get('content-type'),
-      bodySample: statusText.replace(/\s+/g, ' ').trim().slice(0, 4000),
-    };
-    if (statusResp.status === 200) break;
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-  }
+  const statusResp = await fetch(`${API}/api/anonymous-scan/status/${encodeURIComponent(taskId)}/`, {
+    headers: sharedHeaders,
+  });
+  const statusText = await statusResp.text();
+  status = {
+    statusCode: statusResp.status,
+    contentType: statusResp.headers.get('content-type'),
+    bodySample: statusText.replace(/\s+/g, ' ').trim().slice(0, 4000),
+  };
 }
 
 console.log(JSON.stringify({

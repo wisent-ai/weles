@@ -7,7 +7,7 @@ import { humanFill, humanType } from '../../../dist/human/keyboard.js';
 import { generatePersona } from '../../../dist/browser/persona.js';
 import { generateEmail, registrationPassword } from './register/identity.mjs';
 import { countryHintFromProxy, selectRegistrationProxy } from './register/proxy.mjs';
-import { inboxConfigured, waitForPangramMail } from './register/inbox.mjs';
+import { inboxConfigured, readPangramMail } from './register/inbox.mjs';
 import { clickByText, dismissCookies, dumpControls, fillFirst, isAuthenticatedStatus, loginWithPassword, sessionStatus } from './register/page.mjs';
 
 const SIGNUP_URL = process.env.PANGRAM_SIGNUP_URL || 'https://www.pangram.com/signup';
@@ -90,8 +90,10 @@ async function fillSignupForm(page) {
 
 /** Prove the address through the verification mail, then sign in if the page asks. */
 async function verifyThroughMail(page) {
-  const mail = inboxConfigured() ? await waitForPangramMail(EMAIL, sinceMs) : null;
-  console.log(`[pangram_register] mail=${mail ? JSON.stringify({ subject: mail.subject, hasCode: Boolean(mail.code), hasLink: Boolean(mail.pangramLink) }) : 'none'}`);
+  if (!inboxConfigured()) throw new Error('pangram_register: no receiving inbox is configured for the verification mail');
+  const mail = await readPangramMail(EMAIL, sinceMs);
+  if (!mail) throw new Error(`pangram_register: Pangram's verification mail for ${EMAIL} has not arrived yet; read the inbox again once it is there`);
+  console.log(`[pangram_register] mail=${JSON.stringify({ subject: mail.subject, hasCode: Boolean(mail.code), hasLink: Boolean(mail.pangramLink) })}`);
   if (mail?.code) {
     const codeInput = page.locator('input[autocomplete="one-time-code"], input[name*="code" i], input[maxlength="6"], input[maxlength="5"]').first();
     if (await codeInput.count() > 0 && await codeInput.isVisible().catch(() => false)) {
