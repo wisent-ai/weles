@@ -21,7 +21,7 @@ export async function uploadIpa(opts) {
 
   const keyDir = mkdtempSync(join(tmpdir(), 'weles-asc-'));
   writeFileSync(join(keyDir, `AuthKey_${keyId}.p8`), privateKey, {
-    mode: parseInt('600', '8'),
+    mode: 0o600,
   });
   const args = ['altool', '--upload-app', '-f', ipaPath, '-t', platform,
     '--apiKey', keyId, '--apiIssuer', issuerId, '--output-format', 'json'];

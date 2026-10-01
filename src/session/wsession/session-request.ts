@@ -93,11 +93,10 @@ export function accountProfileDirectory(opts: WSessionOptions, browser: string):
     || join(userInfo().homedir, '.local', 'state', 'weles', 'browser-profiles');
   const parent = join(root, safePlatform, safeBrowser);
   const directory = join(parent, accountKey);
-  const ownerOnly = Number.parseInt('700', 8);
-  mkdirSync(parent, { recursive: true, mode: ownerOnly });
+  mkdirSync(parent, { recursive: true, mode: 0o700 });
   if (process.env.WELES_FRESH_PROFILE === '1') {
     try {
-      mkdirSync(directory, { mode: ownerOnly });
+      mkdirSync(directory, { mode: 0o700 });
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
         throw new Error('fresh browser profile directory already exists');
@@ -105,8 +104,8 @@ export function accountProfileDirectory(opts: WSessionOptions, browser: string):
       throw error;
     }
   } else {
-    mkdirSync(directory, { recursive: true, mode: ownerOnly });
+    mkdirSync(directory, { recursive: true, mode: 0o700 });
   }
-  chmodSync(directory, ownerOnly);
+  chmodSync(directory, 0o700);
   return directory;
 }

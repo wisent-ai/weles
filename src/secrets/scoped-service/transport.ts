@@ -28,7 +28,7 @@ function checkedTenantDirectory(tenantId: string): string {
   const metadata = lstatSync(directory);
   if (!metadata.isDirectory() || metadata.isSymbolicLink()
     || (typeof process.getuid === 'function' && metadata.uid !== process.getuid())
-    || (metadata.mode & (fsConstants.S_IRWXG | fsConstants.S_IRWXO)) !== ''.length) {
+    || (metadata.mode & (fsConstants.S_IRWXG | fsConstants.S_IRWXO)) !== 0) {
     throw new Error(`refusing unsafe tenant Skarbiec binding directory for ${tenantId}`);
   }
   return directory;
@@ -38,7 +38,7 @@ function checkedTenantFile(path: string, label: string): string {
   const metadata = lstatSync(path);
   if (!metadata.isFile() || metadata.isSymbolicLink()
     || (typeof process.getuid === 'function' && metadata.uid !== process.getuid())
-    || (metadata.mode & (fsConstants.S_IRWXG | fsConstants.S_IRWXO)) !== ''.length) {
+    || (metadata.mode & (fsConstants.S_IRWXG | fsConstants.S_IRWXO)) !== 0) {
     throw new Error(`refusing unsafe tenant Skarbiec ${label}`);
   }
   return path;
@@ -89,10 +89,9 @@ export function checkedTokenFile(fileName: string, tenantId?: string | null): st
   } catch {
     return null;
   }
-  const unsafeBits = Number.parseInt('77', 8);
   if (!metadata.isFile() || metadata.isSymbolicLink()
     || (typeof process.getuid === 'function' && metadata.uid !== process.getuid())
-    || (metadata.mode & unsafeBits) !== 0) {
+    || (metadata.mode & 0o077) !== 0) {
     throw new Error(`refusing unsafe scoped Skarbiec token file for ${fileName}`);
   }
   return path;

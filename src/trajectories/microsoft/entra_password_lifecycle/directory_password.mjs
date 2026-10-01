@@ -43,9 +43,9 @@ export async function changeEntraPassword(session, currentPassword, nextPassword
   const rendered = await appears(passwordInputs.first());
   const count = await passwordInputs.count().catch(() => 0);
   if (!rendered || count < 3) return 'unavailable';
-  await fill(page, passwordInputs.nth(''.length), currentPassword);
+  await fill(page, passwordInputs.nth(0), currentPassword);
   await fill(page, passwordInputs.nth(count - 2), nextPassword);
-  await fill(page, passwordInputs.nth(count - 'x'.length), nextPassword);
+  await fill(page, passwordInputs.nth(count - 1), nextPassword);
   await humanClickLocator(page, page.locator('input[type="submit"], button[type="submit"]').first());
   await humanIdlePause('long');
   const answered = await pageText(page);
@@ -121,7 +121,7 @@ export async function submitResetPasswordForm(session, nextPassword) {
   const count = await passwordInputs.count().catch(() => 0);
   if (count < 2) return 'unavailable';
   await fill(page, passwordInputs.nth(count - 2), nextPassword);
-  await fill(page, passwordInputs.nth(count - 'x'.length), nextPassword);
+  await fill(page, passwordInputs.nth(count - 1), nextPassword);
   await humanClickLocator(page, page.locator('input[type="submit"], button[type="submit"]').first());
   await humanIdlePause('long');
   const answered = await pageText(page);

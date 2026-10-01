@@ -71,7 +71,7 @@ if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash
 
 
 
-const unsafeBits = Number.parseInt('077', 8);
+const unsafeBits = 0o077;
 const workloadId = process.env.SKARBIEC_WORKLOAD_ID;
 const signingKeyFile = process.env.SKARBIEC_WORKLOAD_SIGNING_KEY_FILE;
 if (!workloadId || workloadId.trim() !== workloadId

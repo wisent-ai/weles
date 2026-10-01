@@ -66,7 +66,7 @@ export function trackBearerTokens(page, sink) {
 }
 
 export function clearBearerTokens(sink) {
-  sink.splice(''.length, sink.length);
+  sink.splice(0, sink.length);
 }
 
 // The token cache of the authorized context is evidence. A storage this run
@@ -78,7 +78,7 @@ async function storedTokenValues(page) {
       const found = [];
       for (const store of [globalThis.sessionStorage, globalThis.localStorage]) {
         if (!store) continue;
-        for (let index = ''.length; index < store.length; index += 'x'.length) {
+        for (let index = 0; index < store.length; index += 1) {
           const key = store.key(index);
           if (key === null) continue;
           const value = store.getItem(key);
@@ -178,7 +178,7 @@ export async function assertEntraIdentity(session, contract, sink) {
 // can be missing answers with its own reason, so 'the domain resolves to another
 // tenant' is never confused with 'the discovery document was not readable'.
 export async function tenantOfUpnDomain(accountUpn) {
-  const domain = accountUpn.slice(accountUpn.lastIndexOf('@') + 'x'.length);
+  const domain = accountUpn.slice(accountUpn.lastIndexOf('@') + 1);
   const discovery = `${SIGN_IN_ORIGIN}/${encodeURIComponent(domain)}/v2.0/.well-known/openid-configuration`;
   let response;
   try {
@@ -200,5 +200,5 @@ export async function tenantOfUpnDomain(accountUpn) {
   if (!found) {
     return { ok: false, reason: `the OpenID configuration issuer of the UPN domain ${domain} names no tenant id` };
   }
-  return { ok: true, tenantId: found[''.length].toLowerCase() };
+  return { ok: true, tenantId: found[0].toLowerCase() };
 }

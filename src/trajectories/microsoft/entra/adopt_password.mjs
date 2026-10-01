@@ -14,7 +14,7 @@ process.env.WELES_CREDENTIAL_EXPECTED_OPERATION = operation;
 const result = await adoptEntraPassword();
 if (result.status === 'operation_failed') {
   console.error(`FAIL: microsoft_entra_adopt_password ${result.code ?? 'operation_failed'} at ${result.phase ?? 'unknown'}`);
-  process.exitCode = 'x'.length;
+  process.exitCode = 1;
 } else {
   console.log(`PASS: Entra password ${operation} ${result.status}`);
 }

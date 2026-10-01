@@ -69,8 +69,7 @@ function checkedTokenFile(fileName) {
   } catch {
     throw new Error(`required scoped Skarbiec token file is unavailable for ${fileName}`);
   }
-  const unsafeBits = Number.parseInt('77', 8);
-  if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.uid !== process.getuid() || (metadata.mode & unsafeBits) !== 0) {
+  if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.uid !== process.getuid() || (metadata.mode & 0o077) !== 0) {
     throw new Error(`refusing unsafe scoped Skarbiec token file for ${fileName}`);
   }
   return path;
