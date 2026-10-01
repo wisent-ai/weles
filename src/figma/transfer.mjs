@@ -29,33 +29,23 @@ export function extensionFor(contentType, url) {
   const fromUrl = extname(new URL(url).pathname).toLowerCase();
   return byMime[mime] || (/^\.(?:png|jpe?g|gif|svg|webp|pdf)$/.test(fromUrl) ? fromUrl : '.bin');
 }
-export async function request(url, options = {}, attempts = 6) {
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    let response;
-    try {
-      response = await fetch(url, options);
-    } catch (error) {
-      if (attempt + 1 < attempts) {
-        await new Promise((resolve) => setTimeout(resolve, Math.min(30000, 1000 * (2 ** attempt))));
-        continue;
-      }
-      const code = error?.cause?.code || error?.code || 'network-error';
-      throw new Error(`Figma network failure for ${new URL(url).pathname}: ${code}`);
-    }
-    if (response.ok) return response;
-    const body = await response.text();
-    if ((response.status === 429 || response.status >= 500) && attempt + 1 < attempts) {
-      const retryAfter = Number(response.headers.get('retry-after'));
-      const delay = Number.isFinite(retryAfter) && retryAfter > 0
-        ? retryAfter * 1000
-        : Math.min(30000, 1000 * (2 ** attempt));
-      await new Promise((resolve) => setTimeout(resolve, delay));
-      continue;
-    }
-    const reason = body.replace(/[A-Za-z0-9_-]{32,}/g, '[redacted]').slice(0, 240);
-    throw new Error(`Figma HTTP ${response.status} for ${new URL(url).pathname}: ${reason}`);
+/** One request. A network failure or a non-2xx answer is the error, with the
+ * status, the server's Retry-After when it sent one, and the redacted body. */
+export async function request(url, options = {}) {
+  const path = new URL(url).pathname;
+  let response;
+  try {
+    response = await fetch(url, options);
+  } catch (error) {
+    const code = error?.cause?.code || error?.code || 'network-error';
+    throw new Error(`Figma network failure for ${path}: ${code}`);
   }
-  throw new Error(`Figma request attempts exhausted for ${new URL(url).pathname}`);
+  if (response.ok) return response;
+  const body = await response.text();
+  const retryAfter = response.headers.get('retry-after');
+  const reason = body.replace(/[A-Za-z0-9_-]{32,}/g, '[redacted]').slice(0, 240);
+  const after = retryAfter ? ` (Retry-After: ${retryAfter})` : '';
+  throw new Error(`Figma HTTP ${response.status} for ${path}${after}: ${reason}`);
 }
 
 export async function gzipFile(source, destination) {
@@ -72,7 +62,7 @@ export async function gzipFile(source, destination) {
 }
 
 export async function download(url, destination) {
-  const response = await request(url, {}, 4);
+  const response = await request(url, {});
   const buffer = Buffer.from(await response.arrayBuffer());
   mkdirSync(dirname(destination), { recursive: true });
   writeFileSync(destination, buffer);

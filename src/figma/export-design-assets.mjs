@@ -150,7 +150,7 @@ try {
     const imageManifest = [];
     for (const [imageRef, url] of Object.entries(sourceImages.meta?.images || {})) {
       if (!url) continue;
-      const response = await request(url, {}, 4);
+      const response = await request(url, {});
       const buffer = Buffer.from(await response.arrayBuffer());
       const extension = extensionFor(response.headers.get('content-type'), url);
       const relative = join('assets', 'images', `${imageRef}${extension}`);
