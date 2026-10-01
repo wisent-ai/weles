@@ -15,7 +15,7 @@ import { randomBytes } from 'node:crypto';
 import { chmodSync, existsSync, writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import type { ParsedCli } from '../../cli.js';
-import { UsageError } from '../usage.js';
+import { printAnswer, UsageError } from '../usage.js';
 import { issueAppleAuthorization, readAppleRun, startAppleRun } from '../../runtime/api/apple-runs.js';
 
 const CONFIRMATION_PHRASE = 'AUTHORIZE ONE APPLE DEVELOPER ID';
@@ -179,7 +179,7 @@ async function read(parsed: ParsedCli): Promise<Record<string, unknown>> {
 }
 
 export async function runAppleDeveloperId(parsed: ParsedCli): Promise<void> {
-  const keys = Object.keys(parsed.options);
+  const keys = Object.keys(parsed.options).filter((key) => key !== 'json');
   const reading = keys.includes('run');
   const allowed = reading ? READ_OPTIONS : START_OPTIONS;
   const unknown = keys.filter((key) => !allowed.includes(key));
@@ -187,6 +187,6 @@ export async function runAppleDeveloperId(parsed: ParsedCli): Promise<void> {
     throw new UsageError(`apple-developer-id takes either ${START_OPTIONS.map((key) => `--${key}`).join(' ')} or ${READ_OPTIONS.map((key) => `--${key}`).join(' ')}; got ${[...parsed.positional, ...unknown.map((key) => `--${key}`)].join(' ')}`);
   }
   const row = reading ? await read(parsed) : await start(parsed);
-  process.stdout.write(`${JSON.stringify(row)}\n`);
+  printAnswer(row, parsed.options.json === true);
   if (row.ok === false) process.exitCode = 1;
 }

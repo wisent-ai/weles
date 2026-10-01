@@ -6,7 +6,7 @@
 // --run reads the run back.
 
 import type { ParsedCli } from '../../cli.js';
-import { UsageError } from '../usage.js';
+import { printAnswer, UsageError } from '../usage.js';
 import { issueAppleAuthorization, readAppleRun, startAppleRun } from '../../runtime/api/apple-runs.js';
 
 const CONFIRMATION_PHRASE = 'AUTHORIZE ONE APPLE LOGIN';
@@ -59,18 +59,19 @@ async function start(parsed: ParsedCli): Promise<Record<string, unknown>> {
 }
 
 export async function runAppleLogin(parsed: ParsedCli): Promise<void> {
-  const keys = Object.keys(parsed.options);
+  const keys = Object.keys(parsed.options).filter((key) => key !== 'json');
   const reading = keys.includes('run');
   const allowed = reading ? ['run'] : START_OPTIONS;
   const unknown = keys.filter((key) => !allowed.includes(key));
   if (parsed.positional.length || unknown.length) {
     throw new UsageError(`apple-login takes either ${START_OPTIONS.map((key) => `--${key}`).join(' ')} or --run <run-id>; got ${[...parsed.positional, ...unknown.map((key) => `--${key}`)].join(' ')}`);
   }
+  const json = parsed.options.json === true;
   if (!reading) {
-    process.stdout.write(`${JSON.stringify(await start(parsed))}\n`);
+    printAnswer(await start(parsed), json);
     return;
   }
   const run = await readAppleRun(required(parsed, 'run'));
-  process.stdout.write(`${JSON.stringify({ status: run.status, run: run.id, ok: run.ok, error: run.error })}\n`);
+  printAnswer({ status: run.status, run: run.id, ok: run.ok, error: run.error }, json);
   if (run.ok === false) process.exitCode = 1;
 }

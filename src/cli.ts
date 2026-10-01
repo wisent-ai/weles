@@ -42,13 +42,13 @@ Usage:
   weles operator-requests show <id> [--json]
   weles operator-requests open --kind <kind> --account <account> --run <run> --instruction <text> [--pid <waiting-process>]
   weles operator-requests close <id> --approved|--unapproved --detail <text>
-  weles account-security --login-role <skarbiec-role>
-  weles account-security --run <run-id>
-  weles app-password --login-role <skarbiec-role>
-  weles app-password --run <run-id>
-  weles apple-developer-id [--account-role <role>] --confirm "AUTHORIZE ONE APPLE DEVELOPER ID" --execution-host <host> --private-key-out <abs> [--execution-agent <agent>] [--expires-in-minutes <n>] [--subject <dn>]
-  weles apple-developer-id --run <run-id> --certificate-out <abs>
-  weles apple-login [--account-role <role>] --confirm "AUTHORIZE ONE APPLE LOGIN" --execution-host <host> [--execution-agent <agent>] [--expires-in-minutes <n>] | --run <run-id>
+  weles account-security --login-role <skarbiec-role> [--json]
+  weles account-security --run <run-id> [--json]
+  weles app-password --login-role <skarbiec-role> [--json]
+  weles app-password --run <run-id> [--json]
+  weles apple-developer-id [--account-role <role>] --confirm "AUTHORIZE ONE APPLE DEVELOPER ID" --execution-host <host> --private-key-out <abs> [--execution-agent <agent>] [--expires-in-minutes <n>] [--subject <dn>] [--json]
+  weles apple-developer-id --run <run-id> --certificate-out <abs> [--json]
+  weles apple-login [--account-role <role>] --confirm "AUTHORIZE ONE APPLE LOGIN" --execution-host <host> [--execution-agent <agent>] [--expires-in-minutes <n>] | --run <run-id> [--json]
   weles worker <status|start|stop|restart> [--json]
   weles keeper start --session <id> [--url <url>] [--headless]
                           Hold one browser session that answers JSON commands on
