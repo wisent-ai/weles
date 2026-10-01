@@ -5,7 +5,7 @@
 
 import { assertScopedSecretWriter } from '../../../../_shared/scoped-secrets.mjs';
 import { EMAIL, GOOGLE_ADS_LOGIN, RESULT_FILE, SESSION, SOCK, USER_DATA_DIR, writeResult } from './totp_keeper_activate/settings.mjs';
-import { waitForKeeper } from './totp_keeper_activate/keeper.mjs';
+import { requireKeeper } from './totp_keeper_activate/keeper.mjs';
 import { activateSetup } from './totp_keeper_activate/setup.mjs';
 
 async function main() {
@@ -16,7 +16,11 @@ async function main() {
   }
   assertScopedSecretWriter('googleAds');
 
-  if (!await waitForKeeper()) writeResult({ ok: false, blocked: 'keeper_not_ready', session: SESSION, socket: SOCK }, 3);
+  try {
+    await requireKeeper();
+  } catch (error) {
+    writeResult({ ok: false, blocked: 'keeper_not_ready', session: SESSION, socket: SOCK, error: String(error?.message || error) }, 3);
+  }
 
   const report = await activateSetup({ ...creds, email: EMAIL });
   report.session = SESSION;

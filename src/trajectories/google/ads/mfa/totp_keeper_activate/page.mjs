@@ -30,11 +30,11 @@ export async function state() {
 }
 
 export async function idle(kind = 'deliberate') {
-  await action({ action: 'humanidle', kind }, 30_000).catch(() => {});
+  await action({ action: 'humanidle', kind }).catch(() => {});
 }
 
 export async function nav(url) {
-  await action({ action: 'nav', url }, 120_000);
+  await action({ action: 'nav', url });
   await idle('deliberate');
 }
 
@@ -48,7 +48,7 @@ export async function clickText(values) {
   let last = null;
   for (const value of list) {
     try {
-      await action({ action: 'click', selector: selectorForText(value) }, 30_000);
+      await action({ action: 'click', selector: selectorForText(value) });
       await idle('deliberate');
       return value;
     } catch (error) {
@@ -75,9 +75,9 @@ export async function clickText(values) {
           return { x: r.left + r.width / 2, y: r.top + r.height / 2, area: r.width * r.height };
         }).filter(Boolean).sort((a, b) => a.area - b.area)[0] || null;
       })()`,
-    }, 10_000).catch(() => null);
+    }).catch(() => null);
     if (hit?.result) {
-      await action({ action: 'humanclick', x: hit.result.x, y: hit.result.y }, 30_000);
+      await action({ action: 'humanclick', x: hit.result.x, y: hit.result.y });
       await idle('deliberate');
       return value;
     }
@@ -86,12 +86,12 @@ export async function clickText(values) {
 }
 
 export async function fill(selector, text) {
-  await action({ action: 'fill_fast', selector, text }, 30_000)
-    .catch(() => action({ action: 'set_value', selector, text }, 30_000));
+  await action({ action: 'fill_fast', selector, text })
+    .catch(() => action({ action: 'set_value', selector, text }));
   await idle('short');
 }
 
 export async function press(key) {
-  await action({ action: 'press', key }, 30_000);
+  await action({ action: 'press', key });
   await idle('deliberate');
 }

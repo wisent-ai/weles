@@ -1,6 +1,6 @@
 // The environment the keeper-driven Google TOTP activation runs with, and its result writer.
 import { runOutputPath } from '#run-output';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { readScopedLogin } from '../../../../../_shared/scoped-secrets.mjs';
@@ -32,8 +32,4 @@ export function writeResult(report, code = 0, secret = '') {
   writeFileSync(RESULT_FILE, JSON.stringify(safe, null, 2));
   console.log(JSON.stringify(safe, null, 2));
   process.exit(code);
-}
-
-export function socketReady() {
-  return existsSync(SOCK);
 }
