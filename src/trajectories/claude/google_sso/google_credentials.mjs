@@ -53,7 +53,7 @@ export async function enterGoogleCredentials({
   await waitForEnabledThenClick(page,/next|continue|dalej/i);
   await humanIdlePause('deliberate');
 
-  const gPwIn = await waitForGooglePassword({ page, mark, humanClickLocator, humanIdlePause });
+  const gPwIn = await waitForGooglePassword({ page, mark, humanClickLocator });
   await fillAndVerify(page, gPwIn, login.password, humanClickLocator, humanType);
   try {
     await gPwIn.evaluate((el) => {

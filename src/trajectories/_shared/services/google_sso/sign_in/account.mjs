@@ -14,7 +14,7 @@ import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { humanFill, humanType } from '../../../../../../dist/human/keyboard.js';
-import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../../../dist/human/mouse.js';
 import { readDocument } from '../../../../../../dist/state/skarbiec-records.js';
 import { fillAndVerify, waitForEnabledThenClick } from '../../../../codex/google_sso/page_controls.mjs';
 import { waitForGooglePassword } from '../../../../codex/google_sso/google_credentials.mjs';
@@ -75,7 +75,7 @@ export async function signIn(page, wait, login) {
   // challenge already on screen is answered where it stands.
   if (!PASSWORD_CHALLENGE.test(page.url())) {
     await page.goto('https://accounts.google.com/ServiceLogin?hl=en', { waitUntil: 'domcontentloaded' });
-    await humanIdlePause('deliberate');
+    await wait();
     // The profile is persistent on purpose, so the session an earlier run
     // established may still be live: Google then answers the sign-in address
     // with the account itself, and there is no form to fill.
@@ -86,17 +86,15 @@ export async function signIn(page, wait, login) {
     if (await email.isVisible()) {
       await fillAndVerify(page, email, login.email, humanClickLocator, humanType);
       await waitForEnabledThenClick(page, /next|continue|dalej/i);
-      await humanIdlePause('deliberate');
     } else if (!onSignIn(page.url())) {
       return { ok: true };
     } else if (!PASSWORD_CHALLENGE.test(page.url())) {
       return { ok: false, blocked: 'google_sign_in_page_unrecognised', ...(await pageDescription(page)) };
     }
   }
-  const password = await waitForGooglePassword({ page, mark: () => {}, humanClickLocator, humanIdlePause });
+  const password = await waitForGooglePassword({ page, mark: () => {}, humanClickLocator });
   await fillAndVerify(page, password, login.password, humanClickLocator, humanType);
   await waitForEnabledThenClick(page, /next|sign in|continue|dalej/i);
-  await humanIdlePause('long');
   await wait();
   if (!onSignIn(page.url())) return { ok: true };
   if (login.seed) {

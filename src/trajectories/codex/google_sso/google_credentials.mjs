@@ -22,7 +22,7 @@ export async function establishGoogleSession({
 
 // The password can be an offered method, not a field yet. Selecting it takes
 // precedence over "Try another way", which would leave the usable choice.
-export async function waitForGooglePassword({ page, mark, humanClickLocator, humanIdlePause }) {
+export async function waitForGooglePassword({ page, mark, humanClickLocator }) {
   mark('google_password');
   const password = page.locator('input[type="password"]').filter({ visible: true }).first();
   const choiceName = /^(?:enter your password|use (?:your )?password|wpisz hasło|użyj hasła)$/i;
@@ -126,7 +126,7 @@ export async function enterGoogleCredentials({
   await waitForEnabledThenClick(page, /next|continue|dalej/i);
   await humanIdlePause('deliberate');
 
-  const gPwIn = await waitForGooglePassword({ page, mark, humanClickLocator, humanIdlePause });
+  const gPwIn = await waitForGooglePassword({ page, mark, humanClickLocator });
   await fillAndVerify(page, gPwIn, login.password, humanClickLocator, humanType);
   try {
     await gPwIn.evaluate((el) => {
