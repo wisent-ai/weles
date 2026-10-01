@@ -5,16 +5,16 @@
 // Native input attributes do not prove WIZ hydration. The Next control must be
 // enabled, and provider refusals are reported by the corresponding stage.
 import { fillAndVerify, navEval, waitForEnabledThenClick } from './page_controls.mjs';
-import { pageSettled } from '../../_shared/page/settled.mjs';
+import { pageCondition, pageSettled } from '../../_shared/page/settled.mjs';
 import { resolveOtp, selectAuthenticatorMethod, waitForGoogleChallengeExit } from './authenticator_code.mjs';
 
 export async function establishGoogleSession({
   page, login, mark,
-  humanFill, humanClickLocator, humanIdlePause, humanType,
+  humanFill, humanClickLocator, humanType,
 }) {
   mark('google_prelogin_goto');
   await page.goto('https://accounts.google.com/ServiceLogin?hl=en', { waitUntil: 'commit' });
-  await enterGoogleCredentials({ page, login, mark, humanFill, humanClickLocator, humanIdlePause, humanType });
+  await enterGoogleCredentials({ page, login, mark, humanFill, humanClickLocator, humanType });
 }
 
 // The password can be an offered method, not a field yet. Selecting it takes
@@ -78,12 +78,43 @@ export async function waitForGooglePassword({ page, mark, humanClickLocator }) {
   throw error;
 }
 
+// Remaining on the password screen is pending, not proof of a wrong password.
+// Its explicit invalid state or refusal text is different from leaving it.
+export async function waitForGooglePasswordResult(page) {
+  const observed = await pageCondition(page, () => {
+    if (!/^https?:$/.test(location.protocol)) return false;
+    const state = { host: location.host, path: location.pathname };
+    if (location.hostname !== 'accounts.google.com') return state;
+    const text = (document.body?.innerText || '').replace(/\s+/g, ' ');
+    const refusal = /couldn.?t sign you in|may not be secure|too many failed attempts/i.exec(text);
+    if (refusal) {
+      return { ...state, text, code: /may not be secure|couldn.?t sign you in/i.test(refusal[0])
+        ? 'BROWSER_NOT_SECURE' : 'provider_challenge_refused' };
+    }
+    const password = Array.from(document.querySelectorAll('input[type="password"]')).find((input) => {
+      const box = input.getBoundingClientRect();
+      return box.width > 4 && box.height > 4 && getComputedStyle(input).visibility === 'visible';
+    });
+    if (password?.getAttribute('aria-invalid') === 'true') {
+      return { ...state, code: 'GOOGLE_PASSWORD_REJECTED', text,
+        invalidInput: { name: password.name, ariaInvalid: password.getAttribute('aria-invalid') } };
+    }
+    if (password || /\/challenge\/pwd(?:\/|$)/.test(location.pathname)) return false;
+    return state;
+  });
+  if (observed.code) {
+    const error = new Error(`Google password step reports a refusal: ${JSON.stringify(observed)}`);
+    error.code = observed.code;
+    throw error;
+  }
+}
+
 // Email -> password -> 2FA entry on accounts.google.com. Extracted verbatim
 // from establishGoogleSession so it can be reused when a first-time account is
 // entered via "Use another account" on the authorize chooser.
 export async function enterGoogleCredentials({
   page, login, mark,
-  humanFill, humanClickLocator, humanIdlePause, humanType,
+  humanFill, humanClickLocator, humanType,
 }) {
   mark('google_email');
   // Visible markup alone does not guarantee that dispatched input is retained.
@@ -123,20 +154,7 @@ export async function enterGoogleCredentials({
     if (!e.message.includes('Execution context was destroyed')) throw e;
   }
   await waitForEnabledThenClick(page, /next|sign in|continue|dalej/i);
-  await humanIdlePause('long');
-  const passwordRejected = await navEval(page, () => {
-    const visiblePassword = Array.from(document.querySelectorAll('input[type="password"]'))
-      .some((input) => {
-        const box = input.getBoundingClientRect();
-        return box.width > 4 && box.height > 4;
-      });
-    return visiblePassword && /\/challenge\/pwd/.test(location.pathname);
-  }, false);
-  if (passwordRejected) {
-    const error = new Error('GOOGLE_PASSWORD_REJECTED: Google kept the account on its password challenge');
-    error.code = 'GOOGLE_PASSWORD_REJECTED';
-    throw error;
-  }
+  await waitForGooglePasswordResult(page);
 
   mark('google_2fa_check');
   const otpSel = 'input[type="tel"][autocomplete="one-time-code"], input[name="totpPin"], input[autocomplete="one-time-code"]';

@@ -7,11 +7,11 @@
 import { fillAndVerify, waitForEnabledThenClick } from './page_controls.mjs';
 import { resolveOtp } from './authenticator_code.mjs';
 import { selectAuthenticatorMethod, waitForGoogleChallengeExit } from '../../codex/google_sso/authenticator_code.mjs';
-import { waitForGooglePassword } from '../../codex/google_sso/google_credentials.mjs';
+import { waitForGooglePassword, waitForGooglePasswordResult } from '../../codex/google_sso/google_credentials.mjs';
 
 export async function enterGoogleCredentials({
   page, login, mark,
-  humanFill, humanClickLocator, humanIdlePause, humanType,
+  humanFill, humanClickLocator, humanType,
 }) {
   mark('google_email');
   // Visible markup alone does not guarantee that dispatched input is retained.
@@ -51,7 +51,7 @@ export async function enterGoogleCredentials({
     if (!e.message.includes('Execution context was destroyed')) throw e;
   }
   await waitForEnabledThenClick(page,/next|sign in|continue|dalej|zaloguj/i);
-  await humanIdlePause('long');
+  await waitForGooglePasswordResult(page);
 
   mark('google_2fa_check');
   const otpSel = 'input[type="tel"][autocomplete="one-time-code"], input[name="totpPin"], input[autocomplete="one-time-code"]';

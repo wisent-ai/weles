@@ -84,9 +84,8 @@ export async function doGoogleSso({
 }) {
   mark('google_prelogin_goto');
   await page.goto('https://accounts.google.com/ServiceLogin?hl=en', { waitUntil: 'commit' });
-  await humanIdlePause('deliberate');
 
-  await enterGoogleCredentials({ page, login, mark, humanFill, humanClickLocator, humanIdlePause, humanType });
+  await enterGoogleCredentials({ page, login, mark, humanFill, humanClickLocator, humanType });
 
   // Session established. Now load claude.ai's OAuth — GIS sees the account.
   mark('goto_authorize');
@@ -213,8 +212,7 @@ export async function doGoogleSso({
         if (freshEntryTried) { stuck = view; break; }
         claim();
         freshEntryTried = true;
-        await enterGoogleCredentials({ page: active, login, mark, humanFill, humanClickLocator, humanIdlePause, humanType });
-        await humanIdlePause('long');
+        await enterGoogleCredentials({ page: active, login, mark, humanFill, humanClickLocator, humanType });
         continue;
       }
 

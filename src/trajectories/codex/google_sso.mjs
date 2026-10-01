@@ -30,7 +30,7 @@ export async function doGoogleSso({
   // only Google identity available to the handoff is `login.email`.
   await page.context().clearCookies();
   mark('google_session_cleared');
-  await establishGoogleSession({ page, login, mark, humanFill, humanClickLocator, humanIdlePause, humanType });
+  await establishGoogleSession({ page, login, mark, humanFill, humanClickLocator, humanType });
 
   mark('goto_authorize');
   await page.goto(authorizeUrl, { waitUntil: 'commit' });
@@ -96,7 +96,7 @@ export async function doGoogleSso({
         throw error;
       }
       chooserFreshTried = true;
-      await enterGoogleCredentials({ page: active, login, mark, humanFill, humanClickLocator, humanIdlePause, humanType });
+      await enterGoogleCredentials({ page: active, login, mark, humanFill, humanClickLocator, humanType });
     } else {
       await clickTagged(active, kind);
       mark(kind === 'account_row' ? 'gis_account_chooser'

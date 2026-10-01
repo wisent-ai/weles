@@ -46,7 +46,7 @@ async function approveDevice(session, transaction, login, mark) {
       if (url.hostname === 'accounts.google.com') {
         const emailField = page.locator('input[name="identifier"],input[type="email"]').filter({ visible: true }).first();
         if (await emailField.isVisible()) {
-          await enterGoogleCredentials({ page, login, mark, ...controls });
+          await enterGoogleCredentials({ page, login, mark, humanFill, humanClickLocator, humanType });
         } else {
           const view = await observeGisPage(page, login.email);
           if (view?.host === 'accounts.google.com' && view.accountRow) {
@@ -110,7 +110,7 @@ export async function authorizeInBrowser(account, login, transaction, mark) {
         authorizeUrl: transaction.url, mark, ...controls });
     } else {
       if (login.loginMethod === 'google_sso') {
-        await establishGoogleSession({ page: session.page, login, mark, ...controls });
+        await establishGoogleSession({ page: session.page, login, mark, humanFill, humanClickLocator, humanType });
       }
       await session.goto(transaction.url);
       if (login.loginMethod === 'email_password') await emailPassword(session, login);
