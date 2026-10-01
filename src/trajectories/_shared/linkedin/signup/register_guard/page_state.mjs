@@ -59,7 +59,7 @@ export async function summarizeLinkedinPage(page) {
       })).slice(0, 20),
       bodyText: (document.body?.innerText ?? '').trim().replace(/\s+/g, ' ').slice(0, 240),
     };
-  }, url).catch(() => ({ url, title: '', pageKey: '', inputs: [], buttons: [] }));
+  }, url);
 }
 
 export function getLinkedinChallengeSignal(summary = {}) {

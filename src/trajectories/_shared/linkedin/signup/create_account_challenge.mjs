@@ -8,7 +8,6 @@
 
 import { isChallengeCleared, waitForChallenge } from './create_account_challenge/detect.mjs';
 import { solveLinkedinCaptchaChallenge } from './create_account_challenge/captcha_solve.mjs';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
 import { pageSettled } from '../../page/settled.mjs';
 import { solveLinkedinPhoneChallenge } from './phone_verify.mjs';
 
@@ -64,7 +63,7 @@ export async function handleCreateAccountChallenge(session, opts = {}) {
     const absoluteUrl = new URL(challengeUrl, 'https://www.linkedin.com/').toString();
     console.log(`[create_account_challenge] navigating to challenge iframe ${absoluteUrl}`);
     await page.goto(absoluteUrl, { waitUntil: 'domcontentloaded' });
-    await humanIdlePause('deliberate');
+    await pageSettled(page);
     console.log(`[create_account_challenge] challenge page url=${page.url()}`);
     return solveChallengeInPage(page, session, country);
   }

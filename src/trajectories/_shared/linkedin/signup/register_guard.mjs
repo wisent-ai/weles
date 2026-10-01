@@ -3,7 +3,7 @@
 // failure is classified for the worker. The page readers live in
 // register_guard/page_state.mjs and the proxy assertions in register_guard/proxy.mjs;
 // both are re-exported here, the one module every LinkedIn trajectory imports.
-import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../../dist/human/mouse.js';
 import { LINKEDIN_SIGNUP_EMAIL_SELECTOR, LINKEDIN_SIGNUP_PASSWORD_SELECTOR, assertNoLinkedinChallengePage, firstVisible, getLinkedinAuthState, getLinkedinChallengeSignal, summarizeLinkedinPage } from './register_guard/page_state.mjs';
 import { assertLinkedinDedicatedIspProxy, assertLinkedinProxyStable, assertLinkedinRegisterProxyRequest, getLinkedinFailureDiagnostics, summarizeLinkedinProxyState } from './register_guard/proxy.mjs';
 
@@ -29,6 +29,7 @@ export async function assertLinkedinAuthenticatedRegistration(session, stage = '
 }
 
 async function nudgeIntoSignup(page) {
+  const url = page.url?.() ?? '';
   const joinSelectors = [
     'a[href*="/signup"]:has-text("Join now")',
     'a:has-text("Join now")',
@@ -38,34 +39,48 @@ async function nudgeIntoSignup(page) {
   for (const sel of joinSelectors) {
     const loc = await firstVisible(page, sel);
     if (!loc) continue;
-    await humanClickLocator(page, loc).catch(() => {});
+    const href = await loc.getAttribute('href');
+    if (href && new URL(href, url).href === url) continue;
+    await humanClickLocator(page, loc);
     await page.waitForLoadState('domcontentloaded');
     return `clicked:${sel}`;
   }
-  const url = page.url?.() ?? '';
-  if (!/\/signup/.test(url)) {
-    await page.goto('https://www.linkedin.com/signup', { waitUntil: 'domcontentloaded' });
-    return 'goto:/signup';
-  }
-  await page.reload({ waitUntil: 'domcontentloaded' });
-  return 'reload:/signup';
+  if (/\/signup/.test(url)) return null;
+  await page.goto('https://www.linkedin.com/signup', { waitUntil: 'domcontentloaded' });
+  return 'goto:/signup';
 }
 
-export async function ensureLinkedinSignupForm(session, maxAttempts = 3) {
+async function visibleSignupForm(page) {
+  const emailLoc = await firstVisible(page, LINKEDIN_SIGNUP_EMAIL_SELECTOR);
+  const pwdLoc = emailLoc ? await firstVisible(page, LINKEDIN_SIGNUP_PASSWORD_SELECTOR) : null;
+  return emailLoc && pwdLoc ? { emailLoc, pwdLoc } : null;
+}
+
+export async function ensureLinkedinSignupForm(session) {
   const page = session.page;
-  const actions = [];
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const emailLoc = await firstVisible(page, LINKEDIN_SIGNUP_EMAIL_SELECTOR);
-    const pwdLoc = emailLoc ? await firstVisible(page, LINKEDIN_SIGNUP_PASSWORD_SELECTOR) : null;
-    if (emailLoc && pwdLoc) {
-      console.log(`[linkedin_register] signup form ready after ${attempt + 1} attempt(s) actions=${actions.join('|') || 'none'}`);
-      return { emailLoc, pwdLoc };
+  const observed = new Set();
+  let lastAction = 'initial_page';
+  for (;;) {
+    const form = await visibleSignupForm(page);
+    if (form) {
+      console.log(`[linkedin_register] signup form observed after ${lastAction}`);
+      return form;
     }
-    actions.push(await nudgeIntoSignup(page));
-    await humanIdlePause('deliberate').catch(() => {});
+    const summary = await summarizeLinkedinPage(page);
+    const state = JSON.stringify({
+      url: summary.url, pageKey: summary.pageKey,
+      inputs: summary.inputs, buttons: summary.buttons,
+    });
+    if (observed.has(state)) {
+      throw new Error(`signup_form_unavailable: state_repeated after ${lastAction}; ${JSON.stringify(summary).slice(0, 900)}`);
+    }
+    observed.add(state);
+    const action = await nudgeIntoSignup(page);
+    if (!action) {
+      throw new Error(`signup_form_unavailable: no_signup_transition after ${lastAction}; ${JSON.stringify(summary).slice(0, 900)}`);
+    }
+    lastAction = action;
   }
-  const summary = await summarizeLinkedinPage(page);
-  throw new Error(`signup_form_unavailable: ${JSON.stringify(summary).slice(0, 900)}`);
 }
 
 export function classifyLinkedinRegisterFailure(errorMessage = '', finalUrl = '') {
