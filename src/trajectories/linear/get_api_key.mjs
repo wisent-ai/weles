@@ -69,7 +69,7 @@ try {
   console.log(`[linear-key] needsLogin=${needsLogin}`);
   if (needsLogin) {
     console.log('[linear-key] clicking Continue with Google');
-    await humanClickLocator(s.page, googleBtn.first(), { timeoutMs: 15000 });
+    await humanClickLocator(s.page, googleBtn.first());
     await humanIdlePause('long');
     console.log(`[linear-key] post-google-click url=${s.page.url()}`);
 
@@ -80,7 +80,7 @@ try {
       .or(s.page.getByText(creds.email, { exact: true }));
     if (await accountTile.first().isVisible().catch(() => false)) {
       console.log(`[linear-key] account chooser: clicking ${creds.email}`);
-      await humanClickLocator(s.page, accountTile.first(), { timeoutMs: 10000 });
+      await humanClickLocator(s.page, accountTile.first());
       await humanIdlePause('long');
     }
 
@@ -102,7 +102,7 @@ try {
       .or(s.page.getByRole('link', { name: /try another way|another way to sign in/i }));
     if (await tryOther.first().isVisible().catch(() => false)) {
       console.log('[linear-key] clicking "Try another way"');
-      await humanClickLocator(s.page, tryOther.first(), { timeoutMs: 10000 });
+      await humanClickLocator(s.page, tryOther.first());
       await humanIdlePause('long');
     }
     const usePwd = s.page.getByRole('button', { name: /(use|enter) your password/i })
@@ -110,7 +110,7 @@ try {
       .or(s.page.getByText(/(use|enter) your password/i));
     if (await usePwd.first().isVisible().catch(() => false)) {
       console.log('[linear-key] clicking "Use your password"');
-      await humanClickLocator(s.page, usePwd.first(), { timeoutMs: 10000 });
+      await humanClickLocator(s.page, usePwd.first());
       await humanIdlePause('long');
     }
 
@@ -125,15 +125,10 @@ try {
     }
     const continueBtn = s.page.getByRole('button', { name: /^\s*continue\s*$/i });
     if (await continueBtn.count() > 0) {
-      await humanClickLocator(s.page, continueBtn.first(), { timeoutMs: 10000 });
+      await humanClickLocator(s.page, continueBtn.first());
       await humanIdlePause('long');
     }
-    let landed = false;
-    for (let i = 0; i < 30; i++) {
-      await humanIdlePause('short');
-      if (SUCCESS_URL_RE.test(s.page.url())) { landed = true; break; }
-    }
-    if (!landed) { throw new Error(`SSO did not complete, url=${s.page.url()}`); }
+    await s.page.waitForURL((url) => SUCCESS_URL_RE.test(String(url)));
     console.log(`[linear-key] SSO complete, url=${s.page.url()}`);
 
     // Capture cookies now that login succeeded — future runs reuse this via
@@ -168,7 +163,7 @@ try {
   const inlineLink = s.page.getByRole('link', { name: /security\s*&\s*access\s*settings/i });
   if (await inlineLink.first().isVisible().catch(() => false)) {
     console.log('[linear-key] clicking inline "security & access settings" link');
-    await humanClickLocator(s.page, inlineLink.first(), { timeoutMs: 10000 });
+    await humanClickLocator(s.page, inlineLink.first());
     await humanIdlePause('long');
     console.log(`[linear-key] after-link url=${s.page.url()}`);
   } else {
@@ -176,7 +171,7 @@ try {
     const sidebarLink = s.page.getByRole('link', { name: /^security\s*&\s*access$/i })
       .or(s.page.getByRole('button', { name: /^security\s*&\s*access$/i }));
     if (await sidebarLink.first().isVisible().catch(() => false)) {
-      await humanClickLocator(s.page, sidebarLink.first(), { timeoutMs: 10000 });
+      await humanClickLocator(s.page, sidebarLink.first());
       await humanIdlePause('long');
       console.log(`[linear-key] after-sidebar url=${s.page.url()}`);
     }

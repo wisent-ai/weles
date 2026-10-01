@@ -51,7 +51,7 @@ await shot('01-slack-landing');
 
 const googleBtn = s.page.getByRole('button', { name: /^\s*google\s*$/i })
   .or(s.page.getByRole('link', { name: /^\s*google\s*$/i }));
-await humanClickLocator(s.page, googleBtn.first(), { timeoutMs: 15000 });
+await humanClickLocator(s.page, googleBtn.first());
 await humanIdlePause('long');
 
 await humanFill(s.page, s.page.locator('input[type="email"]').first(), SLACK_EMAIL);
@@ -72,11 +72,11 @@ if (!await fillPasswordWhenAvailable()) {
   const tryOther = s.page.getByRole('button', { name: /try another way/i })
     .or(s.page.getByRole('link', { name: /try another way/i }));
   if (await tryOther.count() > 0) {
-    await humanClickLocator(s.page, tryOther.first(), { timeoutMs: 10000 });
+    await humanClickLocator(s.page, tryOther.first());
     await humanIdlePause('long');
     const enterPwd = s.page.getByText(/enter your password/i).first();
     if (await enterPwd.count() > 0) {
-      await humanClickLocator(s.page, enterPwd, { timeoutMs: 10000 });
+      await humanClickLocator(s.page, enterPwd);
       await humanIdlePause('long');
       await fillPasswordWhenAvailable();
     }
@@ -85,7 +85,7 @@ if (!await fillPasswordWhenAvailable()) {
 
 const continueBtn = s.page.getByRole('button', { name: /^\s*continue\s*$/i });
 if (await continueBtn.count() > 0) {
-  await humanClickLocator(s.page, continueBtn.first(), { timeoutMs: 10000 });
+  await humanClickLocator(s.page, continueBtn.first());
   await humanIdlePause('long');
 }
 console.log(`[slack-delete] post-signin url=${s.page.url()}`);

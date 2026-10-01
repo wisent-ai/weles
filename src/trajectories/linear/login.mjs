@@ -42,7 +42,7 @@ try {
     console.log('FAIL: Continue with Google button not visible');
     process.exit(1);
   }
-  await humanClickLocator(s.page, googleBtn.first(), { timeoutMs: 15000 });
+  await humanClickLocator(s.page, googleBtn.first());
   await humanIdlePause('long');
 
   // Google email step. The popup may inherit the prior workspace SSO cookie
@@ -67,11 +67,11 @@ try {
     const tryOther = s.page.getByRole('button', { name: /try another way/i })
       .or(s.page.getByRole('link', { name: /try another way/i }));
     if (await tryOther.count() > 0) {
-      await humanClickLocator(s.page, tryOther.first(), { timeoutMs: 10000 });
+      await humanClickLocator(s.page, tryOther.first());
       await humanIdlePause('long');
       const enterPwd = s.page.getByText(/enter your password/i).first();
       if (await enterPwd.count() > 0) {
-        await humanClickLocator(s.page, enterPwd, { timeoutMs: 10000 });
+        await humanClickLocator(s.page, enterPwd);
         await humanIdlePause('long');
         await fillPasswordWhenAvailable();
       }
@@ -80,18 +80,14 @@ try {
 
   const continueBtn = s.page.getByRole('button', { name: /^\s*continue\s*$/i });
   if (await continueBtn.count() > 0) {
-    await humanClickLocator(s.page, continueBtn.first(), { timeoutMs: 10000 });
+    await humanClickLocator(s.page, continueBtn.first());
     await humanIdlePause('long');
   }
 
-  // Wait up to 30s for navigation to a Linear-workspace URL.
-  for (let i = 0; i < 30; i++) {
-    await humanIdlePause('short');
-    const u = s.page.url();
-    if (SUCCESS_URL_RE.test(u)) { console.log(`PASS: landed on ${u}`); process.exit(0); }
-  }
-  console.log(`FAIL: not on a Linear workspace url after 30s. url=${s.page.url()}`);
-  process.exit(1);
+  // The sign-in is over when the page reaches a Linear workspace URL.
+  await s.page.waitForURL((url) => SUCCESS_URL_RE.test(String(url)));
+  console.log(`PASS: landed on ${s.page.url()}`);
+  process.exit(0);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);

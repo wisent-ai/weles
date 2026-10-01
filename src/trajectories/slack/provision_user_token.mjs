@@ -88,7 +88,7 @@ async function safeShutdown() {
 async function fillPasswordWhenAvailable() {
   const pwd = s.page.locator('input[type="password"]:not([aria-hidden="true"])').first();
   if (await pwd.count() === 0) return false;
-  await pwd.waitFor({ state: 'visible', timeout: 10000 });
+  await pwd.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, pwd);
   await humanType(s.page, SLACK_PASS);
   await s.page.keyboard.press('Enter');
@@ -105,7 +105,7 @@ try {
 
     const googleBtn = s.page.getByRole('button', { name: /^\s*google\s*$/i })
       .or(s.page.getByRole('link', { name: /^\s*google\s*$/i }));
-    await humanClickLocator(s.page, googleBtn.first(), { timeoutMs: 15000 });
+    await humanClickLocator(s.page, googleBtn.first());
     await humanIdlePause('long');
 
     const emailInput = s.page.locator('input[type="email"]').first();
@@ -119,11 +119,11 @@ try {
       const tryOther = s.page.getByRole('button', { name: /try another way/i })
         .or(s.page.getByRole('link', { name: /try another way/i }));
       if (await tryOther.count() > 0) {
-        await humanClickLocator(s.page, tryOther.first(), { timeoutMs: 10000 });
+        await humanClickLocator(s.page, tryOther.first());
         await humanIdlePause('long');
         const enterPwd = s.page.getByText(/enter your password/i).first();
         if (await enterPwd.count() > 0) {
-          await humanClickLocator(s.page, enterPwd, { timeoutMs: 10000 });
+          await humanClickLocator(s.page, enterPwd);
           await humanIdlePause('long');
           await fillPasswordWhenAvailable();
         }
@@ -132,7 +132,7 @@ try {
 
     const continueBtn = s.page.getByRole('button', { name: /^\s*continue\s*$/i });
     if (await continueBtn.count() > 0) {
-      await humanClickLocator(s.page, continueBtn.first(), { timeoutMs: 10000 });
+      await humanClickLocator(s.page, continueBtn.first());
       await humanIdlePause('long');
     }
   } else {

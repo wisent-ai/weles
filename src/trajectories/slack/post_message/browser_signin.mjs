@@ -3,10 +3,6 @@
 // Wisent Slack admits members by Google SSO, so this lands the user as a
 // workspace member (a plain gmail attempt failed at membership).
 
-// How long the Google button and the sign-in controls are given to answer a click.
-const SSO_CLICK_WAIT_MS = 15000;
-const CHALLENGE_CLICK_WAIT_MS = 10000;
-
 /** Type the password when Google shows its field; false when it did not. */
 async function fillPasswordWhenAvailable(page, password, atoms) {
   const pwd = page.locator('input[type="password"]');
@@ -27,7 +23,7 @@ export async function signInThroughGoogle(s, { email, password, shot, atoms }) {
 
   const googleBtn = s.page.getByRole('button', { name: /^\s*google\s*$/i })
     .or(s.page.getByRole('link', { name: /^\s*google\s*$/i }));
-  await humanClickLocator(s.page, googleBtn.first(), { timeoutMs: SSO_CLICK_WAIT_MS });
+  await humanClickLocator(s.page, googleBtn.first());
   await humanIdlePause('long');
   await shot('02-google-email');
 
@@ -40,11 +36,11 @@ export async function signInThroughGoogle(s, { email, password, shot, atoms }) {
     const tryOther = s.page.getByRole('button', { name: /try another way/i })
       .or(s.page.getByRole('link', { name: /try another way/i }));
     if (await tryOther.count() > 0) {
-      await humanClickLocator(s.page, tryOther.first(), { timeoutMs: CHALLENGE_CLICK_WAIT_MS });
+      await humanClickLocator(s.page, tryOther.first());
       await humanIdlePause('long');
       const enterPwd = s.page.getByText(/enter your password/i).first();
       if (await enterPwd.count() > 0) {
-        await humanClickLocator(s.page, enterPwd, { timeoutMs: CHALLENGE_CLICK_WAIT_MS });
+        await humanClickLocator(s.page, enterPwd);
         await humanIdlePause('long');
         await fillPasswordWhenAvailable(s.page, password, atoms);
       }
@@ -55,7 +51,7 @@ export async function signInThroughGoogle(s, { email, password, shot, atoms }) {
   const continueBtn = s.page.getByRole('button', { name: /^\s*continue\s*$/i });
   if (await continueBtn.count() > 0) {
     console.log('[slack] consent — clicking Continue');
-    await humanClickLocator(s.page, continueBtn.first(), { timeoutMs: CHALLENGE_CLICK_WAIT_MS });
+    await humanClickLocator(s.page, continueBtn.first());
     await humanIdlePause('long');
     await shot('04d-after-consent');
   }
