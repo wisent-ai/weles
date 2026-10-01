@@ -18,7 +18,6 @@ declare module '../wsession.js' {
     waitFor(selector: string, opts?: { state?: 'attached' | 'visible' | 'hidden' | 'detached' }): Promise<string>;
     fillSelector(css: string, value: string): Promise<string>;
     writeBanSignal(banSignal: Record<string, unknown>, extras?: Record<string, unknown>): void;
-    dwell(scrolls: number, dwellMsRange?: [number, number]): Promise<string>;
     patchAccount(accountId: string, patch: Record<string, unknown>): Promise<boolean>;
     isLoggedOut(platform?: string): Promise<boolean>;
   }
@@ -68,17 +67,6 @@ W.prototype.writeBanSignal = function (banSignal, extras) {
   } catch { /* swallow — best-effort sidecar write */ }
 };
 
-W.prototype.dwell = async function (scrolls, dwellMsRange) {
-  const [minMs, maxMs] = dwellMsRange ?? [1500, 3500];
-  return this.runStep(`dwell_${scrolls}x`, async () => {
-    const self = this as WSession;
-    for (let i = 0; i < scrolls; i++) {
-      await self.page.evaluate(`window.scrollBy(0, ${300 + Math.floor(Math.random() * 200)})`).catch(() => {});
-      await new Promise((r) => setTimeout(r, minMs + Math.floor(Math.random() * Math.max(1, maxMs - minMs))));
-    }
-    return `dwelled ${scrolls}x`;
-  });
-};
 
 W.prototype.patchAccount = async function (accountId, patch) {
   if (!accountId) return false;
