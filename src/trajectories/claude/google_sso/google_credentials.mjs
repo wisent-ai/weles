@@ -56,11 +56,8 @@ export async function enterGoogleCredentials({
   mark('google_2fa_check');
   const otpSel = 'input[type="tel"][autocomplete="one-time-code"], input[name="totpPin"], input[autocomplete="one-time-code"]';
   const gOtp = () => page.locator(otpSel).filter({ visible: true }).first();
-  const waitOtp = async () => {
-    try { await gOtp().waitFor({ state: 'visible' }); return true; } catch { return false; }
-  };
-  let otpVisible = await waitOtp();
-  if (!otpVisible) {
+  // Inspect the offered screen before selecting a method that reveals a code field.
+  if (!(await gOtp().isVisible())) {
     // DIAGNOSTIC: dump what is actually on screen so the selector can be fixed
     // without guessing. Logs the URL path + visible clickable labels (Google UI
     // chrome text — account emails/codes are not button labels, so no secrets).
@@ -90,12 +87,7 @@ export async function enterGoogleCredentials({
       throw err;
     }
     console.log('[google_sso] selected authenticator (TOTP) method via "Try another way"');
-    otpVisible = await waitOtp();
-    if (!otpVisible) {
-      const err = new Error('google 2FA: authenticator selected but no code field appeared');
-      err.fatal2fa = true;
-      throw err;
-    }
+    await gOtp().waitFor({ state: 'visible' });
   }
   const otp = resolveOtp(login);
   if (!otp) {

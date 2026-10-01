@@ -141,11 +141,9 @@ export async function enterGoogleCredentials({
   mark('google_2fa_check');
   const otpSel = 'input[type="tel"][autocomplete="one-time-code"], input[name="totpPin"], input[autocomplete="one-time-code"]';
   const gOtp = () => page.locator(otpSel).filter({ visible: true }).first();
-  const waitOtp = async () => {
-    try { await gOtp().waitFor({ state: 'visible' }); return true; } catch { return false; }
-  };
-  let otpVisible = await waitOtp();
-  if (!otpVisible) {
+  // A code field may require selecting its method first; absence is not a
+  // failed observation and must not hold the method chooser unreachable.
+  if (!(await gOtp().isVisible())) {
     // DIAGNOSTIC: dump what is actually on screen so the selector can be fixed
     // without guessing. Logs the URL path + visible clickable labels (Google UI
     // chrome text — account emails/codes are not button labels, so no secrets).
@@ -178,12 +176,7 @@ export async function enterGoogleCredentials({
       throw err;
     }
     console.log('[google_sso] selected authenticator (TOTP) method via "Try another way"');
-    otpVisible = await waitOtp();
-    if (!otpVisible) {
-      const err = new Error('google 2FA: authenticator selected but no code field appeared');
-      err.fatal2fa = true;
-      throw err;
-    }
+    await gOtp().waitFor({ state: 'visible' });
   }
   // A code field is showing — it MUST be answered now. Aborting here (rather
   // than going on) prevents the authorize->chooser->re-enter loop from

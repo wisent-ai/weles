@@ -149,13 +149,8 @@ export async function doGoogleSso({
               chooserFreshTried = true;
               try { await clickUseAnotherAccount(page); mark('gis_use_another_account'); await humanIdlePause('long'); }
               catch (e2) { console.log(`[google_sso] no use-another-account (path=${st.pathname}): ${e2.message}`); }
-              try {
-                await enterGoogleCredentials({ page, login, mark, humanFill, humanClickLocator, humanIdlePause, humanType });
-                await humanIdlePause('long');
-              } catch (e3) {
-                if (e3 && e3.fatal2fa) throw e3; // abort — do not loop back and re-trigger push/SMS
-                console.log(`[google_sso] fresh-entry failed (path=${st.pathname}): ${e3.message}`);
-              }
+              await enterGoogleCredentials({ page, login, mark, humanFill, humanClickLocator, humanIdlePause, humanType });
+              await humanIdlePause('long');
             }
           }
           continue;
