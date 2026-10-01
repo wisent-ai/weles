@@ -20,7 +20,6 @@ mkdirSync(OUT, { recursive: true });
 mkdirSync(WORK, { recursive: true });
 
 const SAMPLES_PER_PROVIDER = Math.max(1, Number(process.env.LINKEDIN_ROTATING_DISCOVERY_SAMPLES || 6));
-const TIMEOUT_SECS = Math.max(3, Number(process.env.LINKEDIN_ROTATING_DISCOVERY_TIMEOUT || 8));
 const TARGET_CC = (process.env.LINKEDIN_ROTATING_DISCOVERY_COUNTRY || 'us').toLowerCase();
 // Which rotating pools to sample: `provider[/type]` entries, by the provider
 // the endpoint derives and the pool type the Skarbiec item declares.
@@ -35,13 +34,16 @@ function proxyUrlFor(row, username, password) {
   return `http://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${row.host}:${row.port}`;
 }
 
-function sampleExitIp(proxyUrl, timeoutSecs = TIMEOUT_SECS) {
+// One request through the proxy; curl's own connect and transfer errors are
+// the answer when the pool does not deliver, reported with the exit IP blank.
+function sampleExitIp(proxyUrl) {
   try {
-    return execFileSync('curl', ['-sS', '--max-time', String(timeoutSecs), '-x', proxyUrl, 'https://api.ipify.org'], {
+    return execFileSync('curl', ['-sS', '-x', proxyUrl, 'https://api.ipify.org'], {
       encoding: 'utf8',
       maxBuffer: 128 * 1024,
     }).trim();
-  } catch {
+  } catch (error) {
+    console.log(`[rotating-discovery] proxy_sample_failed: ${String(error.stderr || error.message).trim().slice(0, 200)}`);
     return '';
   }
 }

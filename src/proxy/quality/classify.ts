@@ -14,7 +14,6 @@ import { DATACENTER_ORGS, RESIDENTIAL_ORGS, WHOIS_FIELDS } from './lists.js';
 
 const exec = promisify(execFile);
 const CACHE_PATH = join(process.env.HOME ?? '', '.weles', 'ip_classifier_cache.json');
-const WHOIS_DEADLINE_MS = 10_000;
 
 export type IpQuality = 'residential' | 'datacenter' | 'unknown';
 
@@ -40,9 +39,8 @@ function saveCache(cache: Record<string, ClassifyResult>): void {
 }
 
 async function whoisLookup(ip: string): Promise<{ org: string; netname: string }> {
-  const opts = Object.assign({}, { timeout: WHOIS_DEADLINE_MS });
   try {
-    const { stdout } = await exec('whois', [ip], opts);
+    const { stdout } = await exec('whois', [ip]);
     const out: Record<string, string> = {};
     for (const line of stdout.split('\n')) {
       for (const f of WHOIS_FIELDS) {
@@ -58,7 +56,8 @@ async function whoisLookup(ip: string): Promise<{ org: string; netname: string }
       : '';
     const netname = out['netname'] ? out['netname'] : '';
     return { org, netname };
-  } catch {
+  } catch (error) {
+    console.log(`[ip-classify] whois_failed for ${ip}: ${(error as Error).message.slice(0, 160)}`);
     return { org: '', netname: '' };
   }
 }

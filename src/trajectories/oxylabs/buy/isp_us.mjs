@@ -45,7 +45,7 @@ try {
   const popupPromise = s.page.waitForEvent('popup').then(p => p, e => { popupErr = e; return null; });
   // Pass s.page (Page), not gsiFrame (Frame): humanMove needs page.mouse.move.
   await humanClickLocator(s.page, gsiFrame.locator('div[role="button"]').first());
-  const popup = await popupPromise;  // allow-raw-playwright: popup deadline
+  const popup = await popupPromise;  // allow-raw-playwright: the popup the click produced
   if (!popup) { console.log(`FAIL: popup did not open ${popupErr ? '('+popupErr.message+')' : ''}`); await shot(s, 'no_popup'); process.exit(1); }
   try { await popup.waitForLoadState('domcontentloaded'); } catch {}
 

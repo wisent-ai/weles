@@ -19,13 +19,16 @@ export function proxyUrlFor(row, username, password) {
   return `http://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${row.host}:${row.port}`;
 }
 
+// One request through the proxy; curl's own connect and transfer errors are
+// the answer when the pool does not deliver, reported with the exit IP blank.
 export function sampleExitIp(proxyUrl) {
   try {
-    return execFileSync('curl', ['-sS', '--max-time', '8', '-x', proxyUrl, 'https://api.ipify.org'], {
+    return execFileSync('curl', ['-sS', '-x', proxyUrl, 'https://api.ipify.org'], {
       encoding: 'utf8',
       maxBuffer: 128 * 1024,
     }).trim();
-  } catch {
+  } catch (error) {
+    console.log(`[rotating-probe] proxy_sample_failed: ${String(error.stderr || error.message).trim().slice(0, 200)}`);
     return '';
   }
 }

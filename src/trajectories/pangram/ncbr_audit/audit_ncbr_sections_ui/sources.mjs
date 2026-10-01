@@ -44,7 +44,7 @@ export const aDefs = [
 
 export function extractPathA() {
   if (!existsSync(PATH_A_PDF)) throw new Error(`Path A PDF not found: ${PATH_A_PDF}`);
-  const res = sh('pdftotext', ['-layout', PATH_A_PDF, '-'], { cwd: ROOT, timeoutMs: 120_000 });
+  const res = sh('pdftotext', ['-layout', PATH_A_PDF, '-'], { cwd: ROOT });
   if (res.status !== 0) throw new Error(`pdftotext failed: ${res.stderr || res.stdout}`);
   const text = cleanPdf(res.stdout);
   const occurrences = [];
