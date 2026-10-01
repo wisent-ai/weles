@@ -11,7 +11,7 @@ import { WSession } from '../../../../../dist/session/wsession.js';
 import { generateOrganicComment } from '../../../_shared/content/llm.mjs';
 import { checkReachable } from '../../../_shared/action-runner.mjs';
 import { detectRedditBanSignals } from '../../../../../dist/platforms/reddit/ban_signals.js';
-import { humanScroll, humanIdlePause, humanClickLocator, humanHoverDwell } from '../../../../../dist/human/mouse.js';
+import { humanScroll, humanIdlePause, humanClickLocator, humanHoverLocator } from '../../../../../dist/human/mouse.js';
 import { humanType } from '../../../../../dist/human/keyboard.js';
 import { recordCommentForVerify, verifyPreviousComment } from './steps/deferred_verify.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -86,21 +86,14 @@ try {
   await s.goto(oldPostUrl);
   checkReachable(s, 'reddit');
 
-  // Pre-comment dwell — read the post, scroll through some comments, hover
-  // a couple of names. Reddit's behavioral classifier reads this telemetry
-  // as part of its post-submit shadowban scoring; a goto -> immediate-fill
-  // -> submit flow scores far worse than goto -> 30-60s of scroll/hover
-  // -> submit. Cost: 30-60s extra wall time per comment. Worth it.
+  // Scroll and optionally hover an author link before composing. Pointer input
+  // is observed; neither time spent reading nor a displayed hovercard is inferred.
   await humanIdlePause('deliberate');
   await humanScroll(s.page, 1400, 3);
   await humanIdlePause('deliberate');
-  // Hover a username link if present — triggers rpl-hovercard:after-show
-  // which Reddit's anti-spam scoring reads as "user inspected the OP".
-  // Atom: humanHoverDwell handles all timing + viewport-bounds + fail-quiet.
-  await humanHoverDwell(
-    s.page,
-    s.page.locator('a[href*="/user/"], a[href*="/u/"]').filter({ visible: true }).first(),
-  ).catch(() => false);
+  const authorLink = s.page.locator('a[href*="/user/"], a[href*="/u/"]').filter({ visible: true }).first();
+  if (await authorLink.count()) await humanHoverLocator(s.page, authorLink);
+  else console.log('[trajectory] no visible author link offered; optional hover omitted');
   await humanScroll(s.page, 800, 2);
 
   // Deterministic submit: same selectors as reddit_comment.mjs. textarea

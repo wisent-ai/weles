@@ -25,7 +25,7 @@ import { readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { parseCaptureParams } from '../../../dist/worker/params/capture-params.js';
-import { humanHoverDwell, humanScroll } from '../../../dist/human/mouse.js';
+import { humanHoverLocator, humanScroll } from '../../../dist/human/mouse.js';
 import { pageSettled } from '../_shared/page/settled.mjs';
 import {
   captureKeyPrefix, fileAttribution, planFromEnv, pngPixelSize,
@@ -46,8 +46,7 @@ async function runStep(session, step) {
     return outcome;
   }
   if (step.op === 'hover') {
-    const hovered = await humanHoverDwell(session.page, session.page.locator(step.value).first(), { minMs: 700, maxMs: 1200, leave: false });
-    if (!hovered) throw new Error(`step hover ${JSON.stringify(step.value)} matched no visible element`);
+    await humanHoverLocator(session.page, session.page.locator(step.value).first(), { leave: false });
     return `hovered ${step.value}`;
   }
   if (step.op === 'focus') {

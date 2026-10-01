@@ -184,77 +184,38 @@ export async function humanClickLocator(page: any, locator: any): Promise<void> 
 }
 
 /**
- * Locator-aware humanized hover dwell — the atom for "look at this element
- * like a human reading it". Moves the mouse via humanMove to inside the
- * element's bounding box, dwells long enough to trigger any onhover UI
- * (Reddit hovercard, tooltip, etc.), then optionally moves off + dwells so
- * the corresponding after-hide / mouseleave event also fires.
- *
- * Why this is its own atom:
- *   Reddit's anti-spam scoring reads `rpl-hovercard:after-show` /
- *   `rpl-hovercard:after-hide` as evidence the user inspected a username
- *   before commenting (verified 2026-05-01 via human-handoff vs trajectory
- *   property-trap diff: only-in-A subscribers included rpl-hovercard:*).
- *   Bots that nav -> click -> type -> submit never trigger the ~600ms
- *   hovercard delay; flagging them post-submit is reliable.
- *
- *   This same pattern is duplicated in src/trajectories/reddit/
- *   organic_comment.mjs (raw page.mouse.move + humanIdlePause). One atom,
- *   one place to tune timings.
- *
- * Fail-quiet: if the locator doesn't resolve, isn't visible, or is outside
- * the viewport, returns false without throwing — caller can ignore. Returns
- * true when the dwell actually executed.
- *
- * @param page         Playwright Page
- * @param locator      Playwright Locator (e.g. page.locator('a[href^="/user/"]').first())
- * @param opts.minMs   minimum dwell on the element (default 1500)
- * @param opts.maxMs   maximum dwell on the element (default 3300)
- * @param opts.leave   move off afterwards so mouseleave/after-hide fires (default true)
+ * Move over a real target and observe the rendered page, optionally leaving it
+ * afterwards. This reports pointer input, not invented reading time or proof
+ * that a site's delayed hovercard appeared. Such a result needs its own
+ * observable condition in the trajectory.
  */
-export async function humanHoverDwell(
+export async function humanHoverLocator(
   page: any,
   locator: any,
-  opts: { minMs?: number; maxMs?: number; leave?: boolean } = {},
-): Promise<boolean> {
-  const minMs = opts.minMs ?? 1500;
-  const maxMs = opts.maxMs ?? 3300;
-  const leave = opts.leave ?? true;
-  try {
-    if ((await locator.count?.()) === 0) return false;
-  } catch { return false; }
-  let box: { x: number; y: number; width: number; height: number } | null = null;
-  try { box = await locator.boundingBox?.(); } catch { return false; }
-  if (!box || box.width < 4 || box.height < 4) return false;
-  // Skip if outside the viewport — humanMove to a negative or off-screen Y
-  // silently kills the CDP session on weles-patched Chromium (seen on the
-  // comment composer flow).
-  let viewportH = 800;
-  try { viewportH = await page.evaluate(() => window.innerHeight); } catch { /* keep heuristic 800 */ }
-  if (box.y < 0 || box.y + box.height > viewportH) {
-    try { await locator.scrollIntoViewIfNeeded?.(); } catch { /* may already be near top */ }
-    let reBox: { x: number; y: number; width: number; height: number } | null = null;
-    try { reBox = await locator.boundingBox?.(); } catch { return false; }
-    if (!reBox || reBox.y < 0 || reBox.y + reBox.height > viewportH) return false;
-    box = reBox;
-  }
-  const padX = Math.max(2, Math.floor(box.width * 0.2));
-  const padY = Math.max(2, Math.floor(box.height * 0.2));
-  const tx = box.x + padX + Math.floor(humanRandom() * Math.max(1, box.width - padX * 2));
-  const ty = box.y + padY + Math.floor(humanRandom() * Math.max(1, box.height - padY * 2));
+  opts: { leave?: boolean } = {},
+): Promise<void> {
+  const box = await settledTargetBox(page, locator);
+  const tx = box.x + box.width * randomBetween(0.2, 0.8);
+  const ty = box.y + box.height * randomBetween(0.2, 0.8);
   await humanMove(page, tx, ty);
-  await waitMs(randomBetween(minMs, maxMs));
-  if (leave) {
-    // Move off the element by ~80–160px in a random direction so mouseleave /
-    // rpl-hovercard:after-hide fires. Stay in-viewport.
-    const dx = (humanRandom() < 0.5 ? -1 : 1) * randomBetween(80, 160);
-    const dy = randomBetween(40, 120);
-    const ox = Math.max(20, Math.min(tx + dx, viewportH > 0 ? 9999 : tx + dx));
-    const oy = Math.max(20, Math.min(ty + dy, viewportH - 20));
+  await pageSettled(page);
+  if (opts.leave ?? true) {
+    const current = await locator.boundingBox();
+    if (!current) throw new Error('humanHoverLocator: target detached before pointer leave');
+    const viewport = await page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));
+    const ox = current.x > 0 ? 0 : Math.max(0, viewport.width - 1);
+    const oy = current.y > 0 ? 0 : Math.max(0, viewport.height - 1);
+    if (ox >= current.x && ox < current.x + current.width
+      && oy >= current.y && oy < current.y + current.height) {
+      throw new Error(
+        'humanHoverLocator: no off-target viewport corner is available; '
+        + `box x=${current.x} y=${current.y} w=${current.width} h=${current.height}`
+        + ` viewport ${viewport.width}x${viewport.height}`,
+      );
+    }
     await humanMove(page, ox, oy);
-    await waitMs(randomBetween(600, 1300));
+    await pageSettled(page);
   }
-  return true;
 }
 
 export async function humanClick(page: any, x: number, y: number, startX?: number, startY?: number): Promise<void> {
