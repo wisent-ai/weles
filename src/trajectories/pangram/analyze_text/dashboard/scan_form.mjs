@@ -5,44 +5,45 @@
 // marketing buttons with similar labels, and read the visible credit state.
 
 import { humanClickLocator } from '../../../../../dist/human/mouse.js';
+import { pageCondition, pageSettled } from '../../../_shared/page/settled.mjs';
 import { humanFill, humanType } from '../../../../../dist/human/keyboard.js';
 
+const WRITABLE_SELECTORS = [
+  'textarea[name="text"]',
+  'textarea[name*="content" i]',
+  'textarea[placeholder*="paste" i]',
+  'textarea[placeholder*="text" i]',
+  'textarea[placeholder*="document" i]',
+  'textarea',
+  '[contenteditable="true"][role="textbox"]',
+  '[contenteditable="true"]',
+  '[role="textbox"]',
+  'input[type="text"]',
+];
+
 async function firstWritableLocator(page) {
-  const selectors = [
-    'textarea[name="text"]',
-    'textarea[name*="content" i]',
-    'textarea[placeholder*="paste" i]',
-    'textarea[placeholder*="text" i]',
-    'textarea[placeholder*="document" i]',
-    'textarea',
-    '[contenteditable="true"][role="textbox"]',
-    '[contenteditable="true"]',
-    '[role="textbox"]',
-    'input[type="text"]',
-  ];
-  for (const selector of selectors) {
+  for (const selector of WRITABLE_SELECTORS) {
     const loc = page.locator(selector);
     const count = await loc.count();
     for (let i = 0; i < Math.min(count, 6); i++) {
       const one = loc.nth(i);
-      const visible = await one.isVisible().catch(() => false);
-      const disabled = await one.isDisabled().catch(() => false);
-      if (visible && !disabled) return { locator: one, selector };
+      if (await one.isVisible() && !await one.isDisabled()) return { locator: one, selector };
     }
   }
   return null;
 }
 
-async function waitForWritableLocator(page, timeoutMs = Number(process.env.PANGRAM_INPUT_READY_TIMEOUT_MS || 30_000)) {
-  const deadline = Date.now() + timeoutMs;
-  let lastURL = '';
-  while (Date.now() < deadline) {
-    const hit = await firstWritableLocator(page);
-    if (hit) return hit;
-    lastURL = page.url?.() ?? lastURL;
-    await page.waitForTimeout(500);
-  }
-  throw new Error(`pangram_input_not_found url=${lastURL}`);
+/** Wait until the page shows a visible, enabled field of one of the known
+ * shapes, for as long as the dashboard takes to render it. */
+async function waitForWritableLocator(page) {
+  await pageCondition(page, (selectors) => selectors.some((selector) => Array.from(document.querySelectorAll(selector)).some((el) => {
+    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0 && !el.disabled;
+  })), WRITABLE_SELECTORS);
+  const hit = await firstWritableLocator(page);
+  if (!hit) throw new Error(`pangram_input_not_found url=${page.url?.() ?? ''}`);
+  return hit;
 }
 
 export async function fillInput(page, text) {
@@ -72,7 +73,7 @@ export async function dismissCookieBanner(page) {
     const disabled = await btn.isDisabled().catch(() => true);
     if (visible && !disabled) {
       await humanClickLocator(page, btn);
-      await page.waitForTimeout(500);
+      await pageSettled(page);
       return 'clicked';
     }
   }

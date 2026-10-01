@@ -59,13 +59,14 @@ function textStats(text) {
   };
 }
 
-function runNode(args, env, timeoutMs) {
-  return spawnSync(process.execPath, args, {
+function runNode(args, env) {
+  const res = spawnSync(process.execPath, args, {
     cwd: process.cwd(),
     env: { ...process.env, ...env },
     encoding: 'utf8',
-    timeout: timeoutMs,
   });
+  if (res.error) throw new Error(`node ${args.join(' ')} could not run: ${res.error.message}`);
+  return res;
 }
 
 function registerAccount(reportDir, reason) {
@@ -73,7 +74,7 @@ function registerAccount(reportDir, reason) {
   const res = runNode(['src/trajectories/pangram/register.mjs'], {
     WELES_RUN_ID: runId,
     ACTION: `pangram_register_${Date.now()}`,
-  }, Number(process.env.PANGRAM_REGISTER_TIMEOUT_MS || 180_000));
+  });
   const logPath = join(reportDir, `register_${Date.now()}.log`);
   writeFileSync(logPath, `${res.stdout || ''}\n${res.stderr || ''}`.trim());
   if (res.status !== 0) {
@@ -109,8 +110,7 @@ for (const section of sections.slice(0, maxItems)) {
     WELES_RUN_ID: runId,
     ACTION: action,
     PANGRAM_TEXT_FILE: section.file,
-    PANGRAM_ANALYZE_TIMEOUT_MS: process.env.PANGRAM_ANALYZE_TIMEOUT_MS || '120000',
-  }, Number(process.env.PANGRAM_SECTION_TIMEOUT_MS || 180_000));
+  });
 
   const logPath = join(reportDir, `${slug(section.id)}.pangram.log`);
   writeFileSync(logPath, `${res.stdout || ''}\n${res.stderr || ''}`.trim());

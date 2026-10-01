@@ -6,6 +6,7 @@
 // anti-bot gate and changes when Cloudflare changes the widget.
 
 import { humanClickLocator, humanMove } from '../../../../../dist/human/mouse.js';
+import { pageCondition, pageSettled } from '../../../_shared/page/settled.mjs';
 
 async function publicVerificationState(page) {
   return page.evaluate(() => {
@@ -154,7 +155,7 @@ async function clickPublicTurnstileIfPresent(page) {
           const targetBox = await target.boundingBox();
           if (!visibleTarget || !targetBox) continue;
           await humanClickLocator(page, target);
-          await page.waitForTimeout(3000);
+          await pageSettled(page);
           return { clicked: true, method: 'frame_locator', tried };
         }
       }
@@ -163,7 +164,7 @@ async function clickPublicTurnstileIfPresent(page) {
       const targetY = box.y + Math.min(Math.max(22, Math.round(box.height * 0.5)), Math.max(8, box.height - 8));
       await humanMove(page, targetX, targetY).catch(() => page.mouse.move(targetX, targetY)); // allow-raw-playwright: bounded coordinate path into the cross-origin Turnstile iframe
       await page.mouse.click(targetX, targetY); // allow-raw-playwright: click exact checkbox region inside visible Turnstile widget
-      await page.waitForTimeout(3000);
+      await pageSettled(page);
       return { clicked: true, method: selector.startsWith('iframe') ? 'iframe_coordinate' : 'container_coordinate', tried };
     }
   }
@@ -171,28 +172,24 @@ async function clickPublicTurnstileIfPresent(page) {
   return { clicked: false, method: 'not_found', tried };
 }
 
+/** Pass the public checker's Turnstile gate: click its checkbox when the run
+ * may, then wait until a scan button is enabled — for as long as the gate (or
+ * the person solving it) takes. */
 export async function waitForPublicVerificationIfNeeded(page) {
-  let state = await publicVerificationState(page);
+  const state = await publicVerificationState(page);
   if (!state.turnstileFrames && !state.turnstileContainers && !state.verifyText && (!state.scanButtons?.length || state.enabledScan)) return state;
-  let turnstileClick = null;
-  const deadline = Date.now() + Number(
-    process.env.PANGRAM_WAIT_FOR_HUMAN_VERIFICATION === '1'
-      ? process.env.PANGRAM_HUMAN_VERIFICATION_TIMEOUT_MS || 180_000
-      : process.env.PANGRAM_PUBLIC_READY_TIMEOUT_MS || 30_000,
-  );
-
-  while (Date.now() < deadline) {
-    if (state.enabledScan) return state;
-    if (process.env.PANGRAM_CLICK_PUBLIC_TURNSTILE !== '0') {
-      const click = await clickPublicTurnstileIfPresent(page);
-      if (click.clicked || !turnstileClick) turnstileClick = click;
-    }
-    await page.waitForTimeout(1000);
-    state = await publicVerificationState(page);
-    if (turnstileClick) state.turnstileClick = turnstileClick;
-    if (state.enabledScan) return state;
-  }
-
-  if (turnstileClick) state.turnstileClick = turnstileClick;
-  return state;
+  if (state.enabledScan) return state;
+  const turnstileClick = process.env.PANGRAM_CLICK_PUBLIC_TURNSTILE !== '0'
+    ? await clickPublicTurnstileIfPresent(page)
+    : null;
+  await pageCondition(page, () => Array.from(document.querySelectorAll('button,[role="button"],input[type="submit"]')).some((el) => {
+    const label = (el.textContent || el.getAttribute('aria-label') || el.getAttribute('value') || '').replace(/\s+/g, ' ').trim();
+    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    const shown = style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+    return shown && /^(scan|check)\s+for\s+ai$/i.test(label) && !el.disabled && el.getAttribute('aria-disabled') !== 'true';
+  }));
+  const unlocked = await publicVerificationState(page);
+  if (turnstileClick) unlocked.turnstileClick = turnstileClick;
+  return unlocked;
 }

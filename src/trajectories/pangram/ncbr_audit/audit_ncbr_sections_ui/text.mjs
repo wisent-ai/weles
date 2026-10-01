@@ -9,9 +9,9 @@ export function sh(cmd, args, opts = {}) {
     cwd: opts.cwd || WEL,
     env: { ...process.env, ...(opts.env || {}) },
     encoding: 'utf8',
-    timeout: opts.timeoutMs || 120_000,
     maxBuffer: opts.maxBuffer || 80 * 1024 * 1024,
   });
+  if (res.error) throw new Error(`${cmd} ${args.join(' ')} could not run: ${res.error.message}`);
   return res;
 }
 

@@ -60,10 +60,6 @@ export function applyContentActionParams(
     if (typeof params.max_sections === 'string') env.MAX_SECTIONS = params.max_sections;
     if (params.collect_only === true || params.collect_only === '1') env.COLLECT_ONLY = '1';
     if (params.include_rows === true || params.include_rows === '1') env.INCLUDE_ROWS = '1';
-    if (typeof params.pangram_analyze_timeout_ms === 'number') env.PANGRAM_ANALYZE_TIMEOUT_MS = String(params.pangram_analyze_timeout_ms);
-    if (typeof params.pangram_analyze_timeout_ms === 'string') env.PANGRAM_ANALYZE_TIMEOUT_MS = params.pangram_analyze_timeout_ms;
-    if (typeof params.pangram_section_timeout_ms === 'number') env.PANGRAM_SECTION_TIMEOUT_MS = String(params.pangram_section_timeout_ms);
-    if (typeof params.pangram_section_timeout_ms === 'string') env.PANGRAM_SECTION_TIMEOUT_MS = params.pangram_section_timeout_ms;
   }
   if (trajPath.endsWith('/ncbr/apply_correction.mjs')) {
     if (typeof params.objective === 'string') env.NCBR_CORRECTION_PLAN = params.objective;

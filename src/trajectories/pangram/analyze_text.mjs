@@ -112,7 +112,7 @@ try {
   }
 
   console.log(`[pangram:analyze_text] chars=${stats.chars} words=${stats.words} url=${url}`);
-  await s.page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 }); // allow-raw-playwright: bounded public page navigation; WSession.goto can stall on screenshots
+  await s.page.goto(url, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: public page navigation; WSession.goto can stall on screenshots
   console.log('[pangram:analyze_text] after_goto');
   await dismissCookieBanner(s.page);
   console.log('[pangram:analyze_text] after_cookie_1');
@@ -168,7 +168,7 @@ try {
   const clicked = await clickAnalyze(s.page);
   console.log(`[pangram:analyze_text] clicked=${clicked}`);
   await s.page.waitForLoadState('networkidle');
-  const result = await collectResult(s, Number(process.env.PANGRAM_ANALYZE_TIMEOUT_MS || 90_000));
+  const result = await collectResult(s);
   const finalUrl = s.page.url?.() ?? url;
 
   banSignal = await detectPangramBanSignals(s.page, s.capturedResponses);

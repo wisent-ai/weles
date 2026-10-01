@@ -57,7 +57,6 @@ export function runPangram(item, textFile, action, accountId = '') {
     PANGRAM_TEXT_FILE: textFile,
     WELES_FORCE_OS: process.env.WELES_FORCE_OS || 'macos',
     WELES_CAPTURE_RESPONSE_BODIES: '0',
-    PANGRAM_ANALYZE_TIMEOUT_MS: process.env.PANGRAM_ANALYZE_TIMEOUT_MS || '120000',
     PANGRAM_MIN_WORDS: String(MIN_WORDS),
     PANGRAM_MIN_CHARS: String(MIN_CHARS),
     PANGRAM_ACCOUNT_USAGE_FILE: join(OUT_DIR, 'pangram-account-usage.json'),
@@ -67,7 +66,6 @@ export function runPangram(item, textFile, action, accountId = '') {
   if (NO_ACCOUNT) {
     env.PANGRAM_NO_ACCOUNT = '1';
     env.PANGRAM_WAIT_FOR_HUMAN_VERIFICATION = process.env.PANGRAM_WAIT_FOR_HUMAN_VERIFICATION || '1';
-    env.PANGRAM_HUMAN_VERIFICATION_TIMEOUT_MS = process.env.PANGRAM_HUMAN_VERIFICATION_TIMEOUT_MS || '180000';
   } else {
     env.PANGRAM_REQUIRE_ACCOUNT = '1';
   }
@@ -75,7 +73,6 @@ export function runPangram(item, textFile, action, accountId = '') {
   const res = sh(process.execPath, ['--env-file=.env', 'src/trajectories/pangram/analyze_text.mjs'], {
     cwd: WEL,
     env,
-    timeoutMs: Number(process.env.PANGRAM_SECTION_TIMEOUT_MS || 210_000),
     maxBuffer: 20 * 1024 * 1024,
   });
   const partSuffix = item.part ? `_p${String(item.part).padStart(2, '0')}` : '';

@@ -8,6 +8,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 import { LABEL } from './scan_brief.mjs';
+import { pageCondition, pageSettled } from '../../_shared/page/settled.mjs';
 
 function normalizePercent(n) {
   const value = Number(n);
@@ -235,26 +236,22 @@ export function authRequiredState(finalUrl, result) {
   return null;
 }
 
-export async function collectResult(s, timeoutMs) {
-  const deadline = Date.now() + timeoutMs;
-  let lastText = '';
-  while (Date.now() < deadline) {
-    const apiResult = extractFromResponses(s.capturedResponses);
+/** The verdict: from Pangram's API answer when one has been captured, else
+ * from the result the page renders. Waits until either exists, for as long as
+ * the scan takes. */
+export async function collectResult(s) {
+  for (;;) {
+    const apiResult = extractFromResponses(s.capturedResponses) || extractFromRecordedResponses();
     if (apiResult) return apiResult;
-    const recordedApiResult = extractFromRecordedResponses();
-    if (recordedApiResult) return recordedApiResult;
-    lastText = await s.page.evaluate(() => document.body?.innerText || '');
-    const uiResult = extractFromText(lastText);
+    const text = await s.page.evaluate(() => document.body?.innerText || '');
+    const uiResult = extractFromText(text);
     if (uiResult) {
-      await s.page.waitForTimeout(1200);
-      const apiResultAfterUi = extractFromResponses(s.capturedResponses);
-      const recordedApiResultAfterUi = extractFromRecordedResponses();
-      return apiResultAfterUi || recordedApiResultAfterUi || uiResult;
+      await pageSettled(s.page);
+      return extractFromResponses(s.capturedResponses) || extractFromRecordedResponses() || uiResult;
     }
-    await s.page.waitForTimeout(1500);
+    await Promise.any([
+      s.page.waitForResponse(() => true),
+      pageCondition(s.page, (previous) => (document.body?.innerText || '') !== previous, text),
+    ]);
   }
-  return {
-    source: 'none',
-    body_text_sample: String(lastText || '').replace(/\s+/g, ' ').trim().slice(0, 500),
-  };
 }
