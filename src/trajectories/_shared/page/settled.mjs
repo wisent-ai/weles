@@ -59,11 +59,16 @@ export async function pageCondition(page, predicate, arg) {
   return handle.jsonValue();
 }
 
-// Waits until the main frame's URL matches `pattern` (a RegExp, or text the URL
-// must contain) and returns it. It listens to the page's own navigations, so
-// it ends when the page gets there, not on a clock.
+// Waits until the main frame's URL matches `pattern` (a RegExp, a predicate
+// over the URL, or text the URL must contain) and returns it. It listens to
+// the page's own navigations, so it ends when the page gets there, not on a
+// clock.
 export async function urlMatching(page, pattern) {
-  const matches = (url) => (pattern instanceof RegExp ? pattern.test(url) : url.includes(pattern));
+  const matches = (url) => {
+    if (pattern instanceof RegExp) return pattern.test(url);
+    if (typeof pattern === 'function') return pattern(url);
+    return url.includes(pattern);
+  };
   if (matches(page.url())) return page.url();
   const { promise, resolve, reject } = Promise.withResolvers();
   const onNavigated = (frame) => {

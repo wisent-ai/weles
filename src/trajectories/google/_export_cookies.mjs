@@ -6,7 +6,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { urlMatching } from '../_shared/page/settled.mjs';
 
 const OUT = join(homedir(), '.weles', 'google_approver_cookies.json');
 mkdirSync(dirname(OUT), { recursive: true });
@@ -19,21 +19,8 @@ console.log('[export] Opening accounts.google.com — sign in normally (2FA, pho
 await page.goto('https://accounts.google.com/ServiceLogin?continue=https://myaccount.google.com/');
 
 console.log('[export] Waiting for you to land on myaccount.google.com or mail.google.com ...');
-const isLoggedIn = (u) => {
-  try { const h = new URL(u).hostname; return h === 'myaccount.google.com' || h.endsWith('.mail.google.com') || h === 'mail.google.com'; }
-  catch { return false; }
-};
-const deadline = Date.now() + 10 * 60_000;
-while (Date.now() < deadline) {
-  if (isLoggedIn(page.url())) break;
-  await humanIdlePause('short');
-}
-
-const url = page.url();
-if (!isLoggedIn(url)) {
-  console.log(`[export] Timed out on ${url}. Finish login within 10 min and re-run.`);
-  await s.close(); process.exit(1);
-}
+// Closing the window before landing ends the wait with an error.
+await urlMatching(page, /^https:\/\/(myaccount\.google\.com|([a-z0-9-]+\.)?mail\.google\.com)\//);
 
 const cookies = await ctx.cookies();
 const googleCookies = cookies.filter(c =>

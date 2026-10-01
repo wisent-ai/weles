@@ -3,10 +3,9 @@
 // coordinate pick. Tier 2: explicitly enabled 2captcha human workers.
 // Both strategies consume the same iframe screenshot and emit a pixel center.
 
-const POLL_SECONDS = 300;
-
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { humanClick, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 import { completeMultimodal, requireStadoModelRouterConfig } from './stado_model_router.mjs';
 
 async function waitForCaptchaUI(page) {
@@ -28,31 +27,21 @@ async function waitForCaptchaUI(page) {
     }
     return { ok: true };
   })()`).catch(() => {});
-  for (let i = 0; i < 90; i++) {
-    const iframe = page.locator('iframe.js-octocaptcha-frame').first();
-    const box = await iframe.boundingBox().catch(() => null);
-    if (box && box.height > 200 && box.width > 200) {
-      try {
-        const buf = await page.screenshot({ type: 'png', clip: { x: box.x, y: box.y, width: box.width, height: box.height } });
-        if (i === 10 || i === 30) {
-          try {
-            mkdirSync('/tmp/gh_shots', { recursive: true });
-            writeFileSync(`/tmp/gh_shots/captcha_t${i}.png`, buf);
-            const fullBuf = await page.screenshot({ type: 'png', fullPage: false });
-            writeFileSync(`/tmp/gh_shots/full_t${i}.png`, fullBuf);
-            console.log(`[coords] Saved /tmp/gh_shots/captcha_t${i}.png (${Math.round(buf.length / 1024)}KB) + full_t${i}.png (${Math.round(fullBuf.length / 1024)}KB)`);
-          } catch {}
-        }
-        if (buf.length > 15000) {
-          console.log(`[coords] Puzzle UI ready at ${i}s: ${Math.round(box.width)}x${Math.round(box.height)}, ${Math.round(buf.length / 1024)}KB`);
-          return { iframe, box };
-        }
-        if (i % 5 === 0) console.log(`[coords] Wait ${i}s box=${Math.round(box.width)}x${Math.round(box.height)} page-clip=${Math.round(buf.length / 1024)}KB`);
-      } catch (e) { if (i % 5 === 0) console.log(`[coords] Wait ${i}s screenshot err: ${e.message?.slice(0, 80)}`); }
-    }
-    await humanIdlePause('short');
+  const iframe = page.locator('iframe.js-octocaptcha-frame').first();
+  await iframe.waitFor({ state: 'visible' });
+  await pageSettled(getEnforcementFrame(page) ?? page);
+  const box = await iframe.boundingBox();
+  if (!box || box.height <= 200 || box.width <= 200) {
+    console.log(`[coords] puzzle iframe settled at ${box ? `${Math.round(box.width)}x${Math.round(box.height)}` : 'no box'}, too small to hold a puzzle`);
+    return null;
   }
-  return null;
+  const buf = await page.screenshot({ type: 'png', clip: { x: box.x, y: box.y, width: box.width, height: box.height } });
+  if (buf.length <= 15000) {
+    console.log(`[coords] puzzle iframe settled with an empty-looking ${Math.round(buf.length / 1024)}KB render`);
+    return null;
+  }
+  console.log(`[coords] Puzzle UI ready: ${Math.round(box.width)}x${Math.round(box.height)}, ${Math.round(buf.length / 1024)}KB`);
+  return { iframe, box };
 }
 
 async function solveViaStadoModelRouter(imageBase64, width, height) {
@@ -119,17 +108,15 @@ async function submitCoords(apiKey, imageBase64, comment) {
   })).json();
   if (cr.errorId) return { err: `${cr.errorCode} ${cr.errorDescription?.slice(0, 120)}` };
   console.log(`[coords] taskId=${cr.taskId}`);
-  for (let i = 0; i < POLL_SECONDS / 5; i++) {
-    await new Promise(r => setTimeout(r, 5000));  // allow-raw-playwright: polling/rate-limit loop
-    const res = await (await fetch('https://api.2captcha.com/getTaskResult', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientKey: apiKey, taskId: cr.taskId }),
-    })).json();
-    if (res.status === 'ready') return { coords: res.solution?.coordinates ?? [] };
-    if (res.errorId) return { err: `${res.errorCode} ${res.errorDescription?.slice(0, 100)}` };
-    if (i % 6 === 0 && i > 0) console.log(`[coords] solving ${i * 5}s`);
-  }
-  return { err: 'polling exceeded' };
+  // 2Captcha has no push or blocking answer; one read reports where the
+  // human worker is.
+  const res = await (await fetch('https://api.2captcha.com/getTaskResult', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clientKey: apiKey, taskId: cr.taskId }),
+  })).json();
+  if (res.errorId) return { err: `${res.errorCode} ${res.errorDescription?.slice(0, 100)}` };
+  if (res.status !== 'ready') return { err: `captcha_2captcha_processing: task ${cr.taskId} has no coordinates yet` };
+  return { coords: res.solution?.coordinates ?? [] };
 }
 
 function getEnforcementFrame(page) {
@@ -189,13 +176,11 @@ async function clickInEnforcement(page, needles) {
 
 async function clickVisualPuzzleInEnforcement(page) {
   // Arkose labels this button as "Visual challenge" in some renders and "Visual puzzle"
-  // in others — match either substring.
-  for (let i = 0; i < 20; i++) {
-    const r = await clickInEnforcement(page, ['visual puzzle', 'visual challenge', 'visual']);
-    if (r?.ok) { console.log(`[coords] clicked Visual puzzle in enforcement: "${r.text}" at (${Math.round(r.x)},${Math.round(r.y)})`); return true; }
-    if (i % 3 === 0) console.log(`[coords] waiting Visual puzzle button (count=${r?.count ?? '?'} sample=${JSON.stringify(r?.texts ?? []).slice(0, 120)})`);
-    await new Promise(r => setTimeout(r, 1000));  // allow-raw-playwright: polling/rate-limit loop
-  }
+  // in others — match either substring, on the settled puzzle frame.
+  await pageSettled(getEnforcementFrame(page) ?? page);
+  const r = await clickInEnforcement(page, ['visual puzzle', 'visual challenge', 'visual']);
+  if (r?.ok) { console.log(`[coords] clicked Visual puzzle in enforcement: "${r.text}" at (${Math.round(r.x)},${Math.round(r.y)})`); return true; }
+  console.log(`[coords] no Visual puzzle button (count=${r?.count ?? '?'} sample=${JSON.stringify(r?.texts ?? []).slice(0, 120)})`);
   return false;
 }
 
@@ -214,7 +199,9 @@ export async function solveRotationViaCoords(page, { maxRounds = 80 } = {}) {
     const urlNow = page.url?.() ?? '';
     if (/signup_emailsent|verif|launch-code|account_verif/.test(urlNow)) { console.log(`[coords] R${round}: URL solved at ${urlNow}`); return true; }
     const box = await page.locator('iframe.js-octocaptcha-frame').first().boundingBox().catch(() => null);
-    if (!box) { for (let i = 0; i < 15; i++) { await new Promise(r => setTimeout(r, 1000)); const u = page.url?.() ?? ''; if (/signup_emailsent|verif|launch-code|account_verif/.test(u)) { console.log(`[coords] R${round}: iframe gone, URL advanced to ${u}`); return true; } } console.log(`[coords] R${round}: iframe gone, URL stuck at ${page.url?.() ?? ''}`); return false; }  // allow-raw-playwright: polling/rate-limit loop
+    if (!box) { await pageSettled(page);
+          const u = page.url?.() ?? '';
+          if (/signup_emailsent|verif|launch-code|account_verif/.test(u)) { console.log(`[coords] R${round}: iframe gone, URL advanced to ${u}`); return true; } console.log(`[coords] R${round}: iframe gone, URL stuck at ${page.url?.() ?? ''}`); return false; }  // allow-raw-playwright: polling/rate-limit loop
     let buf;
     try { buf = await page.screenshot({ type: 'png', clip: { x: box.x, y: box.y, width: box.width, height: box.height } }); }
     catch (e) { console.log(`[coords] R${round}: screenshot err: ${e.message?.slice(0, 120)}`); return false; }
@@ -229,14 +216,14 @@ export async function solveRotationViaCoords(page, { maxRounds = 80 } = {}) {
       if (g.screen === 'A') clickXY = { x: Math.round(w / 2), y: Number('262'), src: 'stado-model-A' };
       else if (g.screen === 'D') clickXY = { x: Number('120'), y: Number('418'), src: 'stado-model-D' };
       else if (g.screen === 'E') {
-        if (g.action === 'none') { console.log(`[coords] R${round} E-none — waiting for puzzle to load`); await new Promise(r => setTimeout(r, 3000)); continue; }  // allow-raw-playwright: review — context-dependent timer
+        if (g.action === 'none') { console.log(`[coords] R${round} E-none — waiting for puzzle to load`); await pageSettled(getEnforcementFrame(page) ?? page); continue; }  // allow-raw-playwright: review — context-dependent timer
         if (navCount > 20) { console.log(`IP_FLAGGED: Arkose nav=${navCount} on single puzzle without match — carousel exhausted, rotate`); process.exit(42); }
         bestScore = Math.max(bestScore, g.score || 0);
         const threshold = Math.max(7, 9 - Math.floor(navCount / 4));
         const submitNow = g.action === 'submit' || (g.score >= threshold && g.score >= bestScore);
         const needles = submitNow ? ['submit'] : ['navigate to next', 'next', 'arrow'];
         const domResult = await clickInEnforcement(page, needles);
-        if (domResult?.ok) { await humanClick(page, Math.round(box.x + domResult.x), Math.round(box.y + domResult.y)); console.log(`[coords] R${round} E-${submitNow?'submit':'next'} (score=${g.score} thresh=${threshold} nav=${navCount} submits=${totalSubmits}) humanClick: ${domResult.sig?.txt || domResult.sig?.aria}`); if (submitNow) { totalSubmits++; navCount = 0; bestScore = 0; if (totalSubmits > SUBMIT_BUDGET) { console.log(`IP_FLAGGED: Arkose served ${totalSubmits} puzzles without URL advance — treat as flagged, rotate proxy`); process.exit(42); } } else navCount++; await new Promise(r => setTimeout(r, 1500)); const u = page.url?.() ?? ''; if (/signup_emailsent|verif|launch-code|account_verif/.test(u)) return true; continue; }  // allow-raw-playwright: review — context-dependent timer
+        if (domResult?.ok) { await humanClick(page, Math.round(box.x + domResult.x), Math.round(box.y + domResult.y)); console.log(`[coords] R${round} E-${submitNow?'submit':'next'} (score=${g.score} thresh=${threshold} nav=${navCount} submits=${totalSubmits}) humanClick: ${domResult.sig?.txt || domResult.sig?.aria}`); if (submitNow) { totalSubmits++; navCount = 0; bestScore = 0; if (totalSubmits > SUBMIT_BUDGET) { console.log(`IP_FLAGGED: Arkose served ${totalSubmits} puzzles without URL advance — treat as flagged, rotate proxy`); process.exit(42); } } else navCount++; await pageSettled(getEnforcementFrame(page) ?? page); const u = page.url?.() ?? ''; if (/signup_emailsent|verif|launch-code|account_verif/.test(u)) return true; continue; }  // allow-raw-playwright: review — context-dependent timer
         const ex = g.x || (submitNow ? 226 : 370); const ey = g.y || (submitNow ? 340 : 300);
         clickXY = submitNow ? { x: ex, y: ey, src: 'stado-model-E-submit-coord' } : { x: ex, y: ey, src: 'stado-model-E-next-swipe', swipe: -100 };
       }
@@ -245,11 +232,11 @@ export async function solveRotationViaCoords(page, { maxRounds = 80 } = {}) {
         // puzzle starts at max threshold instead of inheriting a low one.
         navCount = 0; bestScore = 0;
         const r = await clickInEnforcement(page, ['try again', 'reload', 'restart']);
-        if (r?.ok) { await humanClick(page, Math.round(box.x + r.x), Math.round(box.y + r.y)); console.log(`[coords] R${round} G recover humanClick: ${JSON.stringify(r.sig ?? r.text)}`); await new Promise(r2 => setTimeout(r2, 4000)); continue; }  // allow-raw-playwright: review — context-dependent timer
+        if (r?.ok) { await humanClick(page, Math.round(box.x + r.x), Math.round(box.y + r.y)); console.log(`[coords] R${round} G recover humanClick: ${JSON.stringify(r.sig ?? r.text)}`); await pageSettled(getEnforcementFrame(page) ?? page); continue; }  // allow-raw-playwright: review — context-dependent timer
         clickXY = { x: g.x || Math.round(w / 2), y: g.y || 340, src: 'stado-model-G-try-coord' };
       }
       else if ((g.screen === 'B' || g.screen === 'F') && g.action !== 'none' && g.x) { navCount = 0; bestScore = 0; clickXY = { x: g.x, y: g.y, src: `stado-model-${g.screen}` }; }
-      else if ((g.screen === 'B' || g.screen === 'F' || g.screen === 'C') && g.action === 'none') { navCount = 0; bestScore = 0; console.log(`[coords] R${round} ${g.screen}-none — waiting for UI`); await new Promise(r => setTimeout(r, 3000)); continue; }  // allow-raw-playwright: review — context-dependent timer
+      else if ((g.screen === 'B' || g.screen === 'F' || g.screen === 'C') && g.action === 'none') { navCount = 0; bestScore = 0; console.log(`[coords] R${round} ${g.screen}-none — waiting for UI`); await pageSettled(getEnforcementFrame(page) ?? page); continue; }  // allow-raw-playwright: review — context-dependent timer
       else console.log(`[coords] R${round} Stado model-router screen=${g.screen ?? '?'} err=${g.err ?? '-'}, falling back`);
       if (clickXY) console.log(`[coords] R${round} ${clickXY.src}: (${clickXY.x},${clickXY.y})`);
     }
@@ -285,7 +272,7 @@ export async function solveRotationViaCoords(page, { maxRounds = 80 } = {}) {
     } catch (e) { console.log(`[coords] pointer err: ${e.message?.slice(0, 100)}`); }
     const gesture = clickXY.swipe ? `swipe(${clickXY.swipe}px)` : 'clicked';
     console.log(`[coords] R${round} ${clickXY.src} ${gesture} page(${Math.round(pageX)},${Math.round(pageY)})`);
-    await humanIdlePause('long');
+    await pageSettled(page);
     const u = page.url?.() ?? '';
     if (/signup_emailsent|verif|launch-code|account_verif/.test(u)) { console.log(`[coords] URL advanced to ${u}`); return true; }
   }

@@ -50,7 +50,7 @@ try {
   // Open the Commit-changes modal: toolbar button text is "Commit changes...".
   // GitHub's React editor renders it as <button> with primary styling.
   const openCommit = s.page.locator('button:has-text("Commit changes")').filter({ visible: true }).first();
-  await openCommit.waitFor({ state: 'visible', timeout: 10000 });
+  await openCommit.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, openCommit);
   await humanIdlePause('deliberate');
   // Modal commit message textarea — id="commit-message-input" / aria-label="Commit message".

@@ -4,9 +4,9 @@ import { humanFill, humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
 
 const SIGNUP_URL = 'https://accounts.google.com/signup/v2/createaccount?biz=false&cc=US&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue&dsh=S0&flowEntry=SignUp&flowName=GlifWebSignIn&hl=en&service=youtube';
-const MAX_RETRIES = 15;
+
 const BASE_PROXY = process.env.PROXY_URL || 'residential';
-const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
+import { pageSettled } from '../_shared/page/settled.mjs';  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
 
 // Rotate sticky-session id per attempt; works for PacketStream / IPRoyal / Pingproxies / Oxylabs URL formats embedding session-NNNN.
 function freshProxy() {
@@ -38,13 +38,13 @@ async function signup(s) {
   const isProxyErr = (m) => /TUNNEL_CONNECTION_FAILED|PROXY_CONNECTION_FAILED|ABORTED|EMPTY_RESPONSE|TIMED_OUT|502|nav_timed_out/.test(m ?? '');
   // Wall-clock watchdog around goto. Playwright's default timeout is disabled
   // in wsession (0=infinite), so without this a silent relay hangs forever.
-  const wallTime = (p, ms) => p;
+  
   // Navigate to signup URL. waitUntil: 'commit' fires when response headers
   // arrive (fastest sync point) — main content will finish loading during
   // our subsequent sleep. Budget: 90s since the residential relay can be
   // slow on the first real HTTP request through a fresh tunnel.
   try {
-    const r = await wallTime(s.page.goto(SIGNUP_URL, { waitUntil: 'commit' }), 90_000);
+    const r = await s.page.goto(SIGNUP_URL, { waitUntil: 'commit' });
     console.log(`[google] signup nav ok: status=${r?.status()} url=${r?.url()?.slice(0, 80)}`);
   } catch (e) {
     console.log(`[google] signup nav err: ${e.message?.slice(0, 200)}`);
@@ -54,16 +54,16 @@ async function signup(s) {
   // Wait for form to render: first-name input appears.
   try { await s.page.locator('input[name="firstName"]').waitFor({ state: 'visible' }); }
   catch (e) { console.log(`[google] form wait err: ${e.message?.slice(0, 150)}`); }
-  await sleep(2);
+  await pageSettled(s.page);
 
   // Step 2: first / last name
   console.log('[google] step 2: name');
   await s.fill('First name', firstName).catch(() => {});
-  await sleep(0.5);
+  await pageSettled(s.page);
   await s.fill('Last name', lastName).catch(() => {});
-  await sleep(1);
+  await pageSettled(s.page);
   await clickNext(s);
-  await sleep(4);
+  await pageSettled(s.page);
 
   // Step 3: birthday + gender
   // Google uses Material Design comboboxes — JS .click() is ignored (isTrusted=false).
@@ -72,25 +72,25 @@ async function signup(s) {
   const birthMonth = Number(id.birthMonth) || 6;
 
   await humanClickLocator(s.page, s.page.locator('#month').first()).catch((e) => console.log(`[google] #month click: ${e.message?.slice(0, 60)}`));
-  await sleep(1.5);
+  await pageSettled(s.page);
   // Material option list — force=true preserves the original force-click semantics.
   await s.page.locator(`li[data-value="${birthMonth}"]`).first().click({ force: true }).catch((e) => console.log(`[google] month option click: ${e.message?.slice(0, 60)}`));
-  await sleep(1);
+  await pageSettled(s.page);
 
   const dayLoc = s.page.locator('input[name="day"], input#day').first();
   if (await dayLoc.count()) await humanFill(s.page, dayLoc, String(id.birthDay)).catch(() => {});
-  await sleep(0.3);
+  await pageSettled(s.page);
   const yearLoc = s.page.locator('input[name="year"], input#year').first();
   if (await yearLoc.count()) await humanFill(s.page, yearLoc, String(id.birthYear)).catch(() => {});
-  await sleep(0.5);
+  await pageSettled(s.page);
 
   // Gender: click the role=combobox labeled "Gender", then click the "Rather not say" option
   const genderCombobox = s.page.getByRole('combobox', { name: /^gender$/i });
   await humanClickLocator(s.page, genderCombobox).catch((e) => console.log(`[google] gender combobox click: ${e.message?.slice(0, 60)}`));
-  await sleep(1.5);
+  await pageSettled(s.page);
   // Options render as [role="option"] after opening
   await humanClickLocator(s.page, s.page.getByRole('option', { name: /rather not say/i })).catch((e) => console.log(`[google] gender option click: ${e.message?.slice(0, 60)}`));
-  await sleep(1);
+  await pageSettled(s.page);
 
   const genderVal = await s.page.evaluate(`(() => {
     // Look for selected value — may be in combobox textContent or a hidden input
@@ -101,7 +101,7 @@ async function signup(s) {
 
   const urlBefore = s.page.url?.() ?? '';
   await clickNext(s);
-  await sleep(4);
+  await pageSettled(s.page);
   const urlAfter = s.page.url?.() ?? '';
   if (urlBefore === urlAfter && urlAfter.includes('birthdaygender')) {
     console.log('[google] stuck on birthday/gender page (URL unchanged)');
@@ -111,30 +111,30 @@ async function signup(s) {
   // Step 4: username
   console.log(`[google] step 4: username ${gmailUser}`);
   await s.click('Create your own Gmail address').catch(() => {});
-  await sleep(1);
+  await pageSettled(s.page);
   await s.fill('Username', gmailUser).catch(() => {});
-  await sleep(1);
+  await pageSettled(s.page);
   await clickNext(s);
-  await sleep(4);
+  await pageSettled(s.page);
 
   let pageText = await readPage(s);
   if (pageText.includes('taken') || pageText.includes('already')) {
     const retry = gmailUser + String(Math.floor(Math.random() * 900 + 100));
     console.log(`[google] username taken, retrying ${retry}`);
     await s.fill('Username', retry).catch(() => {});
-    await sleep(1);
+    await pageSettled(s.page);
     await clickNext(s);
-    await sleep(4);
+    await pageSettled(s.page);
   }
 
   // Step 5: password
   console.log('[google] step 5: password');
   await s.fill('Password', id.password).catch(() => {});
-  await sleep(0.5);
+  await pageSettled(s.page);
   await s.fill('Confirm', id.password).catch(() => {});
-  await sleep(1);
+  await pageSettled(s.page);
   await clickNext(s);
-  await sleep(5);
+  await pageSettled(s.page);
 
   // Step 6: phone verification (or QR code block). Try hard to reach a phone input.
   async function findPhoneInput() {
@@ -171,7 +171,7 @@ async function signup(s) {
     for (const alt of ['Try another way', "can't scan", 'Use phone instead', 'another method', 'Text message', 'Call me', 'Verify by phone']) {
       if (phoneSel) break;
       await s.click(alt).catch(() => {});
-      await sleep(3);
+      await pageSettled(s.page);
       phoneSel = await findPhoneInput();
       if (phoneSel) console.log(`[google] got phone input via "${alt}"`);
     }
@@ -199,7 +199,7 @@ async function signup(s) {
         await clickNext(s);
         await s.click('Continue').catch(() => {});
         await s.click('Use phone number').catch(() => {});
-        await sleep(3);
+        await pageSettled(s.page);
       }
     }
   }
@@ -217,9 +217,9 @@ async function signup(s) {
       const phoneLoc = s.page.locator(phoneSel).first();
       if (await phoneLoc.count()) await humanFill(s.page, phoneLoc, phone).catch(() => {});
     }
-    await sleep(1);
+    await pageSettled(s.page);
     await clickNext(s);
-    await sleep(6);
+    await pageSettled(s.page);
 
     console.log('[google] waiting for SMS code...');
     const code = await s.pollSmsCode();
@@ -234,22 +234,22 @@ async function signup(s) {
         break;
       }
     }
-    await sleep(1);
+    await pageSettled(s.page);
     await clickNext(s);
-    await sleep(5);
+    await pageSettled(s.page);
   } else if (pageText.includes('skip')) {
     await s.click('Skip').catch(() => {});
-    await sleep(3);
+    await pageSettled(s.page);
   }
 
   // Step 7+8: skip recovery email, accept terms, confirm
   for (let i = 0; i < 6; i++) {
     pageText = await readPage(s);
     if (pageText.includes('recovery') || pageText.includes('add another')) { await s.click('Skip').catch(() => {}); }
-    if (pageText.includes('i agree') || pageText.includes('agree to')) { await s.page.evaluate(`window.scrollTo(0, document.body.scrollHeight)`).catch(() => {}); await sleep(1); await s.click('I agree').catch(() => {}); await s.click('Accept').catch(() => {}); }
+    if (pageText.includes('i agree') || pageText.includes('agree to')) { await s.page.evaluate(`window.scrollTo(0, document.body.scrollHeight)`).catch(() => {}); await pageSettled(s.page); await s.click('I agree').catch(() => {}); await s.click('Accept').catch(() => {}); }
     if (pageText.includes('confirm') && pageText.includes('account')) { await s.click('Confirm').catch(() => {}); }
     await clickNext(s);
-    await sleep(3);
+    await pageSettled(s.page);
     const u = s.page.url?.() ?? '';
     if (u.includes('myaccount.google.com') || u.includes('mail.google.com') || u.includes('youtube.com')) break;
   }
@@ -279,20 +279,16 @@ function instrumentSession(s) {
 }
 // Cap s.close() at 5s — proxy_dead teardown otherwise hangs the retry loop forever (verified 2026-05-06).
 const closeBounded = (s) => s.close().catch(() => {}).catch(() => {});
-for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-  const proxy = freshProxy();
-  console.log(`\n=== Google signup attempt ${attempt}/${MAX_RETRIES} proxy=${proxy.slice(-60)} ===`);
-  const s = await WSession.start({ label: `google_register_${attempt}`, proxy, targetHost: 'accounts.google.com' });
-  instrumentSession(s);
-  try {
-    const username = await signup(s);
-    console.log(`PASS: ${username}`);
-    await closeBounded(s);
-    process.exit(0);
-  } catch (e) {
-    console.log(`FAIL (attempt ${attempt}): ${e.message?.slice(0, 200)}`);
-    await closeBounded(s);
-    if (attempt === MAX_RETRIES) { console.log('All attempts exhausted'); process.exit(1); }
-    await sleep(3);
-  }
+const proxy = freshProxy();
+console.log(`\n=== Google signup proxy=${proxy.slice(-60)} ===`);
+const s = await WSession.start({ label: 'google_register', proxy, targetHost: 'accounts.google.com' });
+instrumentSession(s);
+try {
+  const username = await signup(s);
+  console.log(`PASS: ${username}`);
+} catch (e) {
+  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+  process.exitCode = 1;
+} finally {
+  await s.close();
 }

@@ -65,7 +65,7 @@ try {
     await starBtn.scrollIntoViewIfNeeded().catch(() => {});
     await humanClickLocator(s.page, starBtn);
     // Wait for state flip — Unstar form appears, action attribute changes.
-    await s.page.locator('form[action$="/unstar"]').first().waitFor({ state: 'visible', timeout: 12000 });
+    await s.page.locator('form[action$="/unstar"]').first().waitFor({ state: 'visible' });
     ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
     console.log(`[ban-signal] ${ban?.signal}  PASS: starred`);
   }

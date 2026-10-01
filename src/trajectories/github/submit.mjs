@@ -11,7 +11,7 @@ export async function githubSubmitIssueComment(s, text) {
   // name="comment[body]") still ships for some repos / unauth views — keep
   // those in the selector union.
   const ta = s.page.locator('[data-testid="comment-composer"] textarea, textarea[aria-labelledby="comment-composer-heading"], textarea[placeholder*="Use Markdown to format your comment"], textarea#new_comment_field, textarea[name="comment[body]"], textarea[aria-label="Add a comment"]').filter({ visible: true }).first();
-  await ta.waitFor({ state: 'visible', timeout: 15000 });
+  await ta.waitFor({ state: 'visible' });
   await ta.scrollIntoViewIfNeeded().catch(() => {});
   await humanFill(s.page, ta, text);
   // Submit — primary "Comment" button, not [disabled]. Primer composer uses
@@ -28,7 +28,7 @@ export async function githubSubmitIssueComment(s, text) {
   // response-arrival and falsely reports action_failed.
   const writePOST = s.page.waitForResponse(
     (r) => r.request().method() === 'POST' && /(\/_graphql$|\/issues\/\d+\/comments)/.test(r.url()) && r.status() >= 200 && r.status() < 300,
-  ).catch(() => null);
+  );
   await humanClickLocator(s.page, submit);
   // Don't return until the POST response is captured — otherwise verify_write
   // sees an empty capturedResponses for this URL.
@@ -37,5 +37,5 @@ export async function githubSubmitIssueComment(s, text) {
   await s.page.waitForFunction(() => {
     const t = document.querySelector('[data-testid="comment-composer"] textarea, textarea[aria-labelledby="comment-composer-heading"], textarea#new_comment_field, textarea[name="comment[body]"]');
     return !t || (t.value ?? '').length === 0;
-  }, { timeout: 15000 }).catch(() => {});
+  }, undefined, { polling: 'raf' });
 }
