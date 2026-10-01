@@ -93,7 +93,6 @@ async function fillBySuffix(suffix, value) {
   let v = value;
   if (v.length > max) throw new Error(`${suffix} too long: ${v.length}/${max}`);
   await humanFill(page, loc, v);
-  await humanIdlePause('short');
   return { suffix, len: v.length, max };
 }
 

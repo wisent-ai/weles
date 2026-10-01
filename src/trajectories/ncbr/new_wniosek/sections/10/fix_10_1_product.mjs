@@ -78,7 +78,6 @@ async function fillText(name, value) {
   let v = value;
   if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
   await humanFill(page, loc, v);
-  await humanIdlePause('short');
   return `${name} ${v.length}/${max}`;
 }
 

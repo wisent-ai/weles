@@ -93,7 +93,6 @@ for (const s of slowa) {
 
 for (const t of texts) {
   await humanFill(page, page.locator(t.sel).first(), t.value);
-  await humanIdlePause('short');
   log.texts.push(`${t.key} (${t.value.length})`);
 }
 

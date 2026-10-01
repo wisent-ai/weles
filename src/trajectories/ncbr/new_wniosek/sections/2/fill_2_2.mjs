@@ -42,7 +42,6 @@ async function fillCapped(name, value) {
   const max = Number(await ta.getAttribute('maxlength')) || value.length;
   if (value.length > max) throw new Error(`${name} over limit: ${value.length}/${max}`);
   await humanFill(page, ta, value);
-  await humanIdlePause('short');
   return { max, len: value.length };
 }
 
@@ -55,7 +54,6 @@ await page.waitForSelector(`input[name="${NB}innowacja_produktowa_nazwa"]`);
 await humanIdlePause('short');
 
 await humanFill(page, page.locator(`input[name="${NB}innowacja_produktowa_nazwa"]`).first(), NAZWA);
-await humanIdlePause('short');
 const opisR = await fillCapped('innowacja_produktowa_opis_rezultatu_prac_br', OPIS);
 
 const czynniki = [];

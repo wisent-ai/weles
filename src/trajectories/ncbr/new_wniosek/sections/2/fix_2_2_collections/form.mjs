@@ -27,7 +27,6 @@ async function fillBySuffix(suffix, value) {
   let v = String(value || '');
   if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
   await humanFill(page, loc, v);
-  await humanIdlePause('short');
   return `${suffix} ${v.length}/${max}`;
 }
 
@@ -38,7 +37,6 @@ async function fillByName(name, value) {
   let v = String(value || '');
   if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
   await humanFill(page, loc, v);
-  await humanIdlePause('short');
   return `${name} ${v.length}/${max}`;
 }
 

@@ -19,7 +19,6 @@ async function fillByName(name, value) {
   let v = value || '';
   if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
   await humanFill(page, loc, v);
-  await humanIdlePause('short');
   return `${name} ${v.length}/${max}`;
 }
 
@@ -76,7 +75,6 @@ async function fillProjectSubrow(project, addIdx = 0) {
     let v = String(value || '');
     if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
     await humanFill(page, loc, v);
-    await humanIdlePause('short');
   };
 
   await fillNested('zrealizowane_projekty_tytul', project.tytul);

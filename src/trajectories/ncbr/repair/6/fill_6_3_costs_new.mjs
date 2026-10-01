@@ -106,7 +106,6 @@ async function fill(name, value) {
   let v = String(value);
   if (v.length > max) throw new Error(`${name} too long: ${v.length}/${max}`);
   await humanFill(page, loc, v);
-  await humanIdlePause('short');
 }
 
 async function saveForm() {

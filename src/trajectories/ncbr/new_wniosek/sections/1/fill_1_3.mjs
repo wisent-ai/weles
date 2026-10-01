@@ -40,7 +40,6 @@ async function radio(value) {
 }
 async function text(name, value) {
   await humanFill(page, page.locator(`[name="${name}"]`).first(), value);
-  await humanIdlePause('short');
 }
 async function setAuto(name, value) {
   const inp = page.locator(`input[name="${name}"]`).first();

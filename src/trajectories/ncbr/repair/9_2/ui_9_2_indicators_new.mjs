@@ -130,14 +130,13 @@ async function fillField(suffix, value, { preserve = false } = {}) {
   if (await loc.count() === 0) return null;
   if (await loc.evaluate((el) => el.readOnly || el.disabled)) return null; // allow-raw-playwright: check field mutability
   if (preserve) {
-    const cur = await loc.inputValue().catch(() => '');
+    const cur = await loc.inputValue();
     if (cur) return `${suffix}:preserved`;
   }
   const max = Number(await loc.getAttribute('maxlength')) || String(value || '').length;
   let v = String(value || '');
   if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
   await humanFill(page, loc, v);
-  await humanIdlePause('short');
   return `${suffix}:${v.length}/${max}`;
 }
 

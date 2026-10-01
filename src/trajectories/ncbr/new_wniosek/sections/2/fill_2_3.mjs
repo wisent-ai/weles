@@ -46,7 +46,6 @@ async function fillCapped(suffix, value) {
   const max = Number(await ta.getAttribute('maxlength')) || value.length;
   if (value.length > max) throw new Error(`${suffix} over limit: ${value.length}/${max}`);
   await humanFill(page, ta, value);
-  await humanIdlePause('short');
   return { max, len: value.length };
 }
 async function setApplicant() {
@@ -82,7 +81,6 @@ async function fillNamed(name, value) {
   const max = Number(await loc.getAttribute('maxlength')) || value.length;
   if (value.length > max) throw new Error(`${name} over limit: ${value.length}/${max}`);
   await humanFill(page, loc, value);
-  await humanIdlePause('short');
   return `${name} ${value.length}/${max}`;
 }
 async function saveSubform() {
@@ -170,7 +168,6 @@ if (process.env.DIAG) {
 }
 
 await humanFill(page, page.locator(`input[name$="innowacja_produktowa_nazwa"]`).first(), NAZWA);
-await humanIdlePause('short');
 const rynekR = await fillCapped('innowacja_produktowa_rynek_docelowy', RYNEK);
 const potR = await fillCapped('innowacja_produktowa_znaczacy_potencjal_gospodarczy_innowacji', POTENCJAL);
 
