@@ -129,7 +129,7 @@ export async function respondToRun(req, res, runTrajectory, validateAccountSecur
               account_id: accountId,
               ...requestBinding,
               status: 'failed',
-              error: String(error && error.message ? error.message : error).slice(0, 300),
+              error: String(error && error.message ? error.message : error),
               completed_at: new Date().toISOString(),
             },
           );
