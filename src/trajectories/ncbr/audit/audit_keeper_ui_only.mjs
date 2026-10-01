@@ -105,7 +105,7 @@ async function discoverSections() {
     for (const a of Array.from(document.querySelectorAll('a[href]'))) {
       if (!a.href.includes('/projekt_step/')) continue;
       const id = a.href.split('/projekt_step/')[1]?.split(/[?#/]/)[0];
-      const label = (a.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 80);
+      const label = (a.textContent || '').trim().replace(/\\s+/g, ' ');
       if (id) out.push([label || id, id]);
     }
     return out;
@@ -136,22 +136,21 @@ async function dumpSection(label, id) {
         len: raw.length,
         max,
         diff: max ? Number(max) - raw.length : null,
-        value: raw.slice(0, 260),
-        suffix: raw.slice(-260),
+        value: raw,
+        suffix: raw,
         invalid: el.getAttribute('aria-invalid') || '',
       };
     }).filter((f) => f.name && f.name !== 'table_search');
     const tables = Array.from(document.querySelectorAll('table')).map((table, i) => ({
       i,
       rows: table.querySelectorAll('tbody tr').length,
-      text: Array.from(table.querySelectorAll('tbody tr')).map((r) => r.innerText.trim().replace(/\\s+/g, ' ').slice(0, 600)).slice(0, 40),
+      text: Array.from(table.querySelectorAll('tbody tr')).map((r) => r.innerText.trim().replace(/\\s+/g, ' ')),
     }));
     return {
       url: location.href,
       title: document.title,
       heading: (document.querySelector('h1,h2,h3')?.textContent || '').trim(),
-      bodyHead: body.slice(0, 2400),
-      bodyTail: body.slice(-2400),
+      body,
       fields,
       tables,
       fileInputs: Array.from(document.querySelectorAll('input[type="file"]')).map((e) => ({ name: e.name, accept: e.accept, multiple: e.multiple })),
@@ -179,10 +178,10 @@ async function validateOnly() {
     const body = document.body.innerText || '';
     return {
       url: location.href,
-      dialogs: Array.from(document.querySelectorAll('[role="dialog"], .MuiDialog-root, .MuiAlert-root, .MuiSnackbar-root')).map((e) => e.textContent.trim().replace(/\\s+/g, ' ')).filter(Boolean).slice(0, 40),
+      dialogs: Array.from(document.querySelectorAll('[role="dialog"], .MuiDialog-root, .MuiAlert-root, .MuiSnackbar-root')).map((e) => e.textContent.trim().replace(/\\s+/g, ' ')).filter(Boolean),
       errorLikeLines: body.split('\\n').map((l) => l.trim()).filter((l) => /błąd|blad|wymagan|uzupeł|niepopraw|nie może|walid|popraw/i.test(l)).slice(0, 140),
       submitButtons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim(), disabled: b.disabled })).filter((b) => /Złóż|Sprawdź|Potwierdzam/i.test(b.text)),
-      bodyTail: body.slice(-5000),
+      body,
     };
   })()`);
   return { clicked, ...state, screenshot: await screenshot('validation') };

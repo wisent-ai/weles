@@ -218,8 +218,7 @@ for (let i = 0; i < sections.length; i += 1) {
       muiValues,
       tables,
       buttons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim(), disabled: b.disabled })).filter((b) => b.text),
-      bodyHead: body.slice(0, 1800),
-      bodyTail: body.slice(-1800),
+      body,
     };
   }, section); // allow-raw-playwright: extract read-only DOM state
   extracted.push(data);

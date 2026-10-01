@@ -40,7 +40,7 @@ export async function dumpSection(label, id) {
     const tables = Array.from(document.querySelectorAll('table')).map((table, i) => ({
       i,
       rows: table.querySelectorAll('tbody tr').length,
-      text: Array.from(table.querySelectorAll('tbody tr')).map((r) => r.innerText.trim().replace(/\\s+/g, ' ').slice(0, 800)),
+      text: Array.from(table.querySelectorAll('tbody tr')).map((r) => r.innerText.trim().replace(/\\s+/g, ' ')),
     }));
     const fields = Array.from(document.querySelectorAll('input, textarea, select')).map((el) => {
       const id = el.id || '';
@@ -51,8 +51,8 @@ export async function dumpSection(label, id) {
         type: el.getAttribute('type') || '',
         name: el.getAttribute('name') || '',
         label: lab || '',
-        value: raw.slice(0, 500),
-        suffix: raw.slice(-500),
+        value: raw,
+        suffix: raw,
         len: raw.length,
         max: el.getAttribute('maxlength') || '',
         invalid: el.getAttribute('aria-invalid') || '',
@@ -61,10 +61,9 @@ export async function dumpSection(label, id) {
     return {
       url: location.href,
       title: document.title,
-      bodyHead: body.slice(0, 3000),
-      bodyTail: body.slice(-3000),
+      body,
       fileInputs: Array.from(document.querySelectorAll('input[type="file"]')).map((e) => ({ name: e.name, accept: e.accept, multiple: e.multiple })),
-      buttons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim(), disabled: b.disabled })).filter((b) => b.text).slice(0, 120),
+      buttons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim(), disabled: b.disabled })).filter((b) => b.text),
       tables,
       fields,
       markdownLikeFields: fields.filter((f) => /(\\*\\*|#{1,6}\\s|\\(limit\\s*\\d|<!--|\\|---)/i.test(f.value) || /(\\*\\*|#{1,6}\\s|\\(limit\\s*\\d|<!--|\\|---)/i.test(f.suffix)),
@@ -83,14 +82,14 @@ export async function inspectDocuments() {
     const body = document.body.innerText || '';
     return {
       url: location.href,
-      body: body.slice(0, 12000),
+      body,
       tables: Array.from(document.querySelectorAll('table')).map((table, i) => ({
         i,
         rows: table.querySelectorAll('tbody tr').length,
-        text: Array.from(table.querySelectorAll('tbody tr')).map((r) => r.innerText.trim().replace(/\\s+/g, ' ').slice(0, 900)),
+        text: Array.from(table.querySelectorAll('tbody tr')).map((r) => r.innerText.trim().replace(/\\s+/g, ' ')),
       })),
       fileInputs: Array.from(document.querySelectorAll('input[type="file"]')).map((e) => ({ name: e.name, accept: e.accept, multiple: e.multiple })),
-      links: Array.from(document.querySelectorAll('a[href]')).map((a) => ({ text: a.textContent.trim().replace(/\\s+/g, ' ').slice(0, 180), href: a.href })).slice(0, 80),
+      links: Array.from(document.querySelectorAll('a[href]')).map((a) => ({ text: a.textContent.trim().replace(/\\s+/g, ' '), href: a.href })),
     };
   })()`);
   return { ...state, screenshot: await shot('documents') };
@@ -105,10 +104,10 @@ export async function validateOnly() {
     const body = document.body.innerText || '';
     return {
       url: location.href,
-      dialogs: Array.from(document.querySelectorAll('[role="dialog"], .MuiDialog-root, .MuiAlert-root, .MuiSnackbar-root')).map((e) => e.textContent.trim().replace(/\\s+/g, ' ')).filter(Boolean).slice(0, 40),
+      dialogs: Array.from(document.querySelectorAll('[role="dialog"], .MuiDialog-root, .MuiAlert-root, .MuiSnackbar-root')).map((e) => e.textContent.trim().replace(/\\s+/g, ' ')).filter(Boolean),
       errorLikeLines: body.split('\\n').map((l) => l.trim()).filter((l) => /błąd|blad|wymagan|uzupeł|niepopraw|nie może|walid|popraw/i.test(l)).slice(0, 120),
-      buttons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim(), disabled: b.disabled })).filter((b) => b.text).slice(0, 120),
-      bodyTail: body.slice(-5000),
+      buttons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim(), disabled: b.disabled })).filter((b) => b.text),
+      body,
     };
   })()`);
   return { ...state, screenshot: await shot('validation') };
@@ -119,24 +118,23 @@ export async function dumpCurrent(label) {
     const body = document.body.innerText || '';
     return {
       url: location.href,
-      bodyHead: body.slice(0, 5000),
-      bodyTail: body.slice(-5000),
+      body,
       tables: Array.from(document.querySelectorAll('table')).map((table, i) => ({
         i,
         rows: table.querySelectorAll('tbody tr').length,
-        text: Array.from(table.querySelectorAll('tbody tr')).map((r) => r.innerText.trim().replace(/\\s+/g, ' ').slice(0, 1000)),
+        text: Array.from(table.querySelectorAll('tbody tr')).map((r) => r.innerText.trim().replace(/\\s+/g, ' ')),
       })),
       fields: Array.from(document.querySelectorAll('input, textarea, select')).map((el) => ({
         tag: el.tagName,
         type: el.getAttribute('type') || '',
         name: el.getAttribute('name') || '',
-        value: (el.value || '').slice(0, 500),
-        suffix: (el.value || '').slice(-500),
+        value: el.value || '',
+        suffix: el.value || '',
         len: (el.value || '').length,
         max: el.getAttribute('maxlength') || '',
         invalid: el.getAttribute('aria-invalid') || '',
       })).filter((f) => f.name && f.name !== 'table_search'),
-      buttons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim(), disabled: b.disabled })).filter((b) => b.text).slice(0, 120),
+      buttons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim(), disabled: b.disabled })).filter((b) => b.text),
     };
   })()`);
   return { label, ...state, screenshot: await shot(label) };

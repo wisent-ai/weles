@@ -146,8 +146,7 @@ const state = await page.evaluate((responses) => {
   return {
     url: location.href,
     title: document.title,
-    bodyHead: body,
-    bodyTail: body.slice(-2500),
+    body,
     buttons,
     inputs: inputs,
     validation,

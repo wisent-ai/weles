@@ -52,8 +52,8 @@ try {
       ok: true,
       out: fp,
       url: state.url,
-      tables: state.tables.map((t) => ({ i: t.i, rows: t.rows, text: t.text.join(' || ').slice(0, 1800) })),
-      fields: state.fields.map((f) => ({ name: f.name, len: f.len, value: f.value, suffix: f.suffix.slice(-140) })).slice(0, 80),
+      tables: state.tables.map((t) => ({ i: t.i, rows: t.rows, text: t.text.join(' || ') })),
+      fields: state.fields.map((f) => ({ name: f.name, len: f.len, value: f.value })),
       buttons: state.buttons.filter((b) => /Złóż|Sprawdź|Zapisz/i.test(b.text)),
       shot: state.screenshot.path,
     }, null, 2));
@@ -67,10 +67,10 @@ try {
         const text = await res.text();
         let data = null;
         try { data = JSON.parse(text); } catch {}
-        return { status: res.status, text: text.slice(0, 2000), data };
+        return { status: res.status, text, data };
       }
       const links = Array.from(document.querySelectorAll('a[href], [href]')).map((a) => ({
-        text: (a.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 160),
+        text: (a.textContent || '').trim().replace(/\\s+/g, ' '),
         href: a.href || a.getAttribute('href') || '',
       })).filter((x) => x.href.includes('/projekt_step/'));
       const buttons = Array.from(document.querySelectorAll('button, [role="button"]')).map((b) => (b.textContent || '').trim().replace(/\\s+/g, ' ')).filter(Boolean);
@@ -85,7 +85,7 @@ try {
     })()`);
     const fp = join(OUT_DIR, 'meta.json');
     writeFileSync(fp, JSON.stringify({ ...out, meta }, null, 2));
-    console.log(JSON.stringify({ ok: true, out: fp, linkCount: meta.links.length, buttons: meta.buttons.slice(0, 80), resourceCount: meta.resources.length }, null, 2));
+    console.log(JSON.stringify({ ok: true, out: fp, linkCount: meta.links.length, buttons: meta.buttons, resourceCount: meta.resources.length }, null, 2));
     process.exit(0);
   }
   for (const [label, id] of SECTIONS) out.sections.push(await dumpSection(label, id));
