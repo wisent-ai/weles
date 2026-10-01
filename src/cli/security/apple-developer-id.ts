@@ -11,6 +11,7 @@
 // well-formed Apple 2FA receipt when one was needed, and writes the certificate.
 
 import { spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { chmodSync, existsSync, writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import type { ParsedCli } from '../../cli.js';
@@ -28,7 +29,52 @@ const RSA_BITS = '2048';
 const OWNER_ONLY_FILE = 0o600;
 const PUBLIC_FILE = 0o644;
 const START_OPTIONS = ['account-item', 'confirm', 'execution-host', 'execution-agent', 'private-key-out', 'expires-in-minutes', 'subject'];
-const READ_OPTIONS = ['run', 'certificate-out'];
+const READ_OPTIONS = ['run', 'certificate-out', 'private-key', 'store-host'];
+// The owner-vault item every darwin release recipe reads its signing identity
+// from (MACOS_CERT_P12, MACOS_CERT_PASSWORD, MACOS_SIGN_IDENTITY).
+const SIGNING_ITEM = 'wisent-apple-developer-id';
+const SIGNING_ITEM_KIND = 'apple_signing_identity';
+const P12_PASSWORD_BYTES = 24;
+
+// The certificate's common name, which is the identity codesign selects.
+function commonName(certificate: Buffer): string {
+  const subject = openssl(['x509', '-inform', 'DER', '-noout', '-subject', '-nameopt', 'multiline'], certificate);
+  const name = subject.match(/^\s*commonName\s*=\s*(.+)$/m)?.[1]?.trim();
+  if (!name) throw new Error('the issued certificate names no common name to sign with');
+  return name;
+}
+
+// Package key and certificate as one PKCS#12 and store it, with its password
+// and signing identity, in the vault the release recipes read. The password
+// reaches openssl through its environment, never its argument list.
+function storeSigningIdentity(certificate: Buffer, privateKey: string, storeHost: string): Record<string, unknown> {
+  if (!isAbsolute(privateKey) || !existsSync(privateKey)) throw new Error('--private-key must be the absolute path start mode wrote the key to');
+  if (!HOST.test(storeHost)) throw new Error('--store-host must name the Stado host whose vault owns release secrets');
+  const pem = openssl(['x509', '-inform', 'DER', '-outform', 'PEM'], certificate);
+  const password = randomBytes(P12_PASSWORD_BYTES).toString('base64');
+  const packed = spawnSync('openssl', ['pkcs12', '-export', '-inkey', privateKey, '-in', '/dev/stdin', '-passout', 'env:WELES_P12_PASSWORD'], {
+    input: pem,
+    env: { ...process.env, WELES_P12_PASSWORD: password },
+  });
+  if (packed.error || packed.status !== 0 || !packed.stdout?.length) {
+    throw new Error(`openssl pkcs12: ${(packed.stderr?.toString() || packed.error?.message || `exit ${packed.status}`).trim()}`);
+  }
+  const identity = commonName(certificate);
+  const payload = JSON.stringify({
+    kind: SIGNING_ITEM_KIND,
+    certificate_p12_base64: packed.stdout.toString('base64'),
+    certificate_password: password,
+    sign_identity: identity,
+  });
+  const stored = spawnSync('stado', ['credentials', 'item', 'put', '--host', storeHost, '--type', SIGNING_ITEM_KIND, SIGNING_ITEM, '--json'], {
+    input: payload,
+    encoding: 'utf8',
+  });
+  if (stored.error || stored.status !== 0) {
+    throw new Error(`stado credentials item put ${SIGNING_ITEM} on ${storeHost}: ${(stored.stderr || stored.error?.message || `exit ${stored.status}`).trim()}`);
+  }
+  return { item: SIGNING_ITEM, host: storeHost, sign_identity: identity };
+}
 
 function text(parsed: ParsedCli, key: string): string | undefined {
   const value = parsed.options[key];
@@ -83,7 +129,7 @@ async function start(parsed: ParsedCli): Promise<Record<string, unknown>> {
     execution_host: executionHost,
     private_key: keyOut,
     capabilities_expire_in_minutes: expiryMinutes,
-    next: `weles apple-developer-id --run ${runId} --certificate-out <absolute path>`,
+    next: `weles apple-developer-id --run ${runId} --certificate-out <absolute path> --private-key ${keyOut} --store-host <vault owner>`,
   };
 }
 
@@ -101,6 +147,11 @@ function receiptOf(stdout: string): unknown {
 async function read(parsed: ParsedCli): Promise<Record<string, unknown>> {
   const runId = text(parsed, 'run') ?? '';
   const certificateOut = text(parsed, 'certificate-out') ?? '';
+  const privateKey = text(parsed, 'private-key');
+  const storeHost = text(parsed, 'store-host');
+  if ((privateKey === undefined) !== (storeHost === undefined)) {
+    throw new Error('--private-key and --store-host go together: both store the identity in the vault, neither leaves it in files');
+  }
   if (!isAbsolute(certificateOut)) throw new Error('--certificate-out must be an absolute path on this machine');
   if (existsSync(certificateOut)) throw new Error(`refusing to replace an existing certificate at ${certificateOut}`);
   const run = await readAppleRun(runId);
@@ -114,7 +165,8 @@ async function read(parsed: ParsedCli): Promise<Record<string, unknown>> {
   openssl(['x509', '-inform', 'DER', '-noout'], certificate);
   const receipt = receiptOf(run.stdout);
   writeFileSync(certificateOut, certificate, { mode: PUBLIC_FILE, flag: 'wx' });
-  return { status: 'issued', run: run.id, certificate: certificateOut, two_factor: receipt };
+  const stored = privateKey && storeHost ? storeSigningIdentity(certificate, privateKey, storeHost) : null;
+  return { status: 'issued', run: run.id, certificate: certificateOut, two_factor: receipt, stored };
 }
 
 export async function runAppleDeveloperId(parsed: ParsedCli): Promise<void> {
