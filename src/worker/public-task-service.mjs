@@ -175,11 +175,32 @@ export function createPublicTaskService(options) {
     };
   }
 
+  /** Stop starting queued tasks; running ones finish. Idempotent. */
+  function stopWorker() {
+    dispatcher.pause();
+    return { ok: true, dispatcher: dispatcher.dispatcherStatus() };
+  }
+
+  /** Start a stopped dispatcher again on the queue it kept. */
+  async function resumeWorker() {
+    await dispatcher.resume();
+    const state = dispatcher.dispatcherStatus();
+    return {
+      ok: state.healthy && !state.draining && !state.paused,
+      ...(state.healthy && !state.draining && !state.paused
+        ? {}
+        : { error: 'worker_not_running_after_control_action' }),
+      dispatcher: state,
+    };
+  }
+
   return Object.freeze({
     health,
     handle,
     recover: operations.recover,
     shutdown: dispatcher.shutdown,
     restartWorker,
+    stopWorker,
+    resumeWorker,
   });
 }

@@ -59,6 +59,9 @@ export function createDispatcher({
   let dispatcherHealthy = true;
   let draining = false;
   let recovering = false;
+  // Stopped by the operator: no queued task starts, running ones finish, and
+  // submissions still queue. `resume` or a recovery ends it.
+  let paused = false;
   let failure = null;
 
   function dispatcherStatus() {
@@ -70,6 +73,7 @@ export function createDispatcher({
       dispatching,
       draining,
       recovering,
+      paused,
       failure,
     };
   }
@@ -106,7 +110,7 @@ export function createDispatcher({
     let controller = null;
     await withTaskLock(taskId, async () => {
       const task = await loadTask(taskId);
-      if (draining || recovering || task.receipt || task.completion) return;
+      if (draining || recovering || paused || task.receipt || task.completion) return;
       if (task.cancellation) {
         task.completion = {
           ...terminalCompletion(null, true, redact, task.executionInput.url),
@@ -138,10 +142,10 @@ export function createDispatcher({
   }
 
   async function dispatchQueue() {
-    if (dispatching || draining || recovering) return;
+    if (dispatching || draining || recovering || paused) return;
     dispatching = true;
     try {
-      while (!draining && !recovering && active.size < concurrency && queue.length > 0) {
+      while (!draining && !recovering && !paused && active.size < concurrency && queue.length > 0) {
         const taskId = queue.shift();
         queued.delete(taskId);
         try {
@@ -178,10 +182,20 @@ export function createDispatcher({
   function beginRecovery() {
     if (draining || dispatching || active.size > 0 || (recovering && !failure)) return false;
     recovering = true;
+    paused = false;
     failure = null;
     queue.length = 0;
     queued.clear();
     return true;
+  }
+
+  function pause() {
+    paused = true;
+  }
+
+  async function resume() {
+    paused = false;
+    await dispatchQueue();
   }
 
   async function finishRecovery(error = null) {
@@ -212,6 +226,8 @@ export function createDispatcher({
     dispatchQueue,
     beginRecovery,
     finishRecovery,
+    pause,
+    resume,
     shutdown,
   });
 }

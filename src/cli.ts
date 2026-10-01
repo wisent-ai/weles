@@ -49,7 +49,7 @@ Usage:
   weles apple-developer-id [--account-role <role>] --confirm "AUTHORIZE ONE APPLE DEVELOPER ID" --execution-host <host> --private-key-out <abs> [--execution-agent <agent>] [--expires-in-minutes <n>] [--subject <dn>]
   weles apple-developer-id --run <run-id> --certificate-out <abs>
   weles apple-login [--account-role <role>] --confirm "AUTHORIZE ONE APPLE LOGIN" --execution-host <host> [--execution-agent <agent>] [--expires-in-minutes <n>] | --run <run-id>
-  weles worker <status|start|restart> [--json]
+  weles worker <status|start|stop|restart> [--json]
   weles keeper start --session <id> [--url <url>] [--headless]
                           Hold one browser session that answers JSON commands on
                           ~/.weles/keeper/<id>/socket until its page closes

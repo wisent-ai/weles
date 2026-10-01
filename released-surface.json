@@ -106,6 +106,7 @@
     "http:POST /weles-builder",
     "http:POST /worker/restart",
     "http:POST /worker/start",
+    "http:POST /worker/stop",
     "mcp:weles_browser_close",
     "mcp:weles_browser_start",
     "mcp:weles_page_click",

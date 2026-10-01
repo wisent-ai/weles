@@ -3,7 +3,7 @@ import { printAnswer, UsageError } from '../usage.js';
 import { operatorJson, welesOperatorConnection } from '../../runtime/api/connection.js';
 import protocol from '../../worker/weles-api-server/worker-control/actions.json';
 
-type WorkerAction = keyof typeof protocol.actions;
+type WorkerAction = keyof typeof protocol.mutates;
 type Document = Record<string, unknown>;
 
 function object(value: unknown): value is Document {
@@ -21,19 +21,20 @@ function checkedState(value: unknown): Document {
 }
 
 async function request(action: WorkerAction) {
-  const declaration = protocol.actions[action];
+  // An action that changes the dispatcher is a POST; a reading is a GET.
+  const mutates = protocol.mutates[action];
   const connection = welesOperatorConnection(`/worker/${action}`);
   try {
     const response = await connection.fetch(connection.endpoint, {
-      method: declaration.method,
+      method: mutates ? 'POST' : 'GET',
       headers: connection.headers,
       redirect: 'error',
     });
     const body = await operatorJson(response);
     if (typeof body.ok !== 'boolean') throw new Error(`HTTP ${response.status}: invalid worker response`);
     if (response.ok && body.ok) {
-      const state = checkedState(declaration.mutation ? body.after : body.worker);
-      if (declaration.mutation && checkedState(body.before).pid !== state.pid) {
+      const state = checkedState(mutates ? body.after : body.worker);
+      if (mutates && checkedState(body.before).pid !== state.pid) {
         throw new Error('worker control replaced the service process');
       }
     }
@@ -46,14 +47,14 @@ async function request(action: WorkerAction) {
 
 export async function runWorker(parsed: ParsedCli): Promise<void> {
   const [action] = parsed.positional;
-  if (parsed.positional.length !== 1 || !Object.hasOwn(protocol.actions, action)
+  if (parsed.positional.length !== 1 || !Object.hasOwn(protocol.mutates, action)
       || Object.keys(parsed.options).some(key => key !== 'json')) {
-    throw new UsageError(`worker requires ${Object.keys(protocol.actions).join(', ')}; only --json is accepted`);
+    throw new UsageError(`worker requires ${Object.keys(protocol.mutates).join(', ')}; only --json is accepted`);
   }
   // Check the resident contract before an older endpoint can interpret a
   // control request as permission to recreate the retired native worker.
   let result = await request('status');
-  if (result.http_status < 400 && result.ok && protocol.actions[action as WorkerAction].mutation) {
+  if (result.http_status < 400 && result.ok && protocol.mutates[action as WorkerAction]) {
     result = await request(action as WorkerAction);
   }
   printAnswer(result, parsed.options.json === true);

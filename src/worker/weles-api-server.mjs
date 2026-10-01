@@ -36,7 +36,8 @@
 //   GET  /diagnostics/:run_id             -> authenticated artifact manifest
 //   GET  /diagnostics/:run_id/file?path=  -> authenticated artifact download
 //   GET  /worker/status                   -> authenticated resident dispatcher state
-//   POST /worker/start                    -> authenticated idempotent start
+//   POST /worker/start                    -> authenticated idempotent start; resumes a stopped dispatcher
+//   POST /worker/stop                     -> authenticated idempotent stop: queued tasks wait, running ones finish
 //   POST /worker/restart                  -> recover an idle dispatcher without another process
 //   POST /google-ads/keyword-volume       -> keyword planner harvest (planner bearer)
 //   POST /google-ads/keyword-report       -> keyword planner report (planner bearer)

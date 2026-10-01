@@ -74,7 +74,7 @@ export function createApiRequestHandler({
           // is the one it built, and `stado workload run weles-api-runtime`
           // used to report a revision from a launchctl restart alone.
           sourceRevision: RUN_RELEASE_IDENTITY.source_revision,
-          routes: ['GET /healthz', 'GET /api/v1/version', 'POST /api/v1/credential-operations', 'POST /api/v1/tasks', 'GET /api/v1/tasks/:task_id', 'GET /api/v1/tasks/:task_id?wait=terminal', 'POST /api/v1/tasks/:task_id/cancel', 'GET /worker/version', 'GET /worker/status', 'POST /worker/start', 'POST /worker/restart', 'POST /run', 'GET /diagnostics/:run_id', 'GET /diagnostics/:run_id/file?path=', 'POST /weles-builder', 'POST /reauth/resolve', 'POST /reauth', 'POST /reauth/enrol-authenticator', 'POST /google-ads/keyword-volume', 'POST /google-ads/keyword-report', 'POST /pages/snapshot', 'POST /pages/form-export', 'POST /records/accounts/list', 'POST /records/accounts/get', 'POST /records/accounts/upsert', 'POST /records/accounts/update', 'POST /records/settings/get', 'POST /records/settings/set'],
+          routes: ['GET /healthz', 'GET /api/v1/version', 'POST /api/v1/credential-operations', 'POST /api/v1/tasks', 'GET /api/v1/tasks/:task_id', 'GET /api/v1/tasks/:task_id?wait=terminal', 'POST /api/v1/tasks/:task_id/cancel', 'GET /worker/version', 'GET /worker/status', 'POST /worker/start', 'POST /worker/stop', 'POST /worker/restart', 'POST /run', 'GET /diagnostics/:run_id', 'GET /diagnostics/:run_id/file?path=', 'POST /weles-builder', 'POST /reauth/resolve', 'POST /reauth', 'POST /reauth/enrol-authenticator', 'POST /google-ads/keyword-volume', 'POST /google-ads/keyword-report', 'POST /pages/snapshot', 'POST /pages/form-export', 'POST /records/accounts/list', 'POST /records/accounts/get', 'POST /records/accounts/upsert', 'POST /records/accounts/update', 'POST /records/settings/get', 'POST /records/settings/set'],
           publicTask: publicTaskService.health,
           features: ['subscription_identity', 'fresh_profile'],
           account_source: 'skarbiec',
@@ -114,8 +114,7 @@ export function createApiRequestHandler({
         return;
       }
       const workerAction = url.pathname.startsWith('/worker/') ? url.pathname.slice('/worker/'.length) : '';
-      if (Object.hasOwn(workerActions, workerAction)
-          && workerActions[workerAction].mutation && req.method === workerActions[workerAction].method) {
+      if (workerActions[workerAction] === true && req.method === 'POST') {
         if (!requireTokenAuthorization(req, res)) return;
         if (workerControlBusy) {
           json(res, 409, { ok: false, error: 'worker_control_in_progress' });
