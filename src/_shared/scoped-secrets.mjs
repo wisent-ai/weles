@@ -69,8 +69,8 @@ function checkedTokenFile(fileName) {
   } catch {
     throw new Error(`required scoped Skarbiec token file is unavailable for ${fileName}`);
   }
-  const unsafeBits = Number.parseInt('77', Number('8'));
-  if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.uid !== process.getuid() || (metadata.mode & unsafeBits) !== Number('0')) {
+  const unsafeBits = Number.parseInt('77', 8);
+  if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.uid !== process.getuid() || (metadata.mode & unsafeBits) !== 0) {
     throw new Error(`refusing unsafe scoped Skarbiec token file for ${fileName}`);
   }
   return path;
@@ -123,9 +123,9 @@ export function readScopedSecret(serviceName, field) {
       WC_SKARBIEC_URL: endpoint,
     },
   });
-  const output = Buffer.isBuffer(result.stdout) ? result.stdout : Buffer.alloc(Number('0'));
+  const output = Buffer.isBuffer(result.stdout) ? result.stdout : Buffer.alloc(0);
   try {
-    if (result.error || result.status !== Number('0')) {
+    if (result.error || result.status !== 0) {
       // The same machine record the TypeScript reader writes
       // (src/secrets/scoped-service/acquisition-failure.ts acquisitionRecord),
       // with the cause the helper declared on its SKARBIEC_ACQUIRE_REASON line.
@@ -137,12 +137,12 @@ export function readScopedSecret(serviceName, field) {
         + ` [skarbiec_acquisition item=${service.item} field=${field} consumer=${consumer}${reason}]`);
     }
     const value = output.toString('utf8').replace(/[\r\n]+$/, '');
-    if (!value || /[\r\n]/.test(value) || value.includes(String.fromCharCode(Number('0')))) {
+    if (!value || /[\r\n]/.test(value) || value.includes(String.fromCharCode(0))) {
       throw new Error(`scoped Skarbiec returned an invalid value for ${serviceName}/${field}`);
     }
     return value;
   } finally {
-    output.fill(Number('0'));
+    output.fill(0);
   }
 }
 
@@ -167,7 +167,7 @@ export function writeScopedSecretItem(serviceName, fields) {
   const normalized = {};
   for (const [field, rawValue] of entries) {
     const value = String(rawValue ?? '').trim();
-    if (!value || /[\r\n]/.test(value) || value.includes(String.fromCharCode(Number('0')))) {
+    if (!value || /[\r\n]/.test(value) || value.includes(String.fromCharCode(0))) {
       throw new Error(`refusing invalid scoped secret write for ${serviceName}/${field}`);
     }
     normalized[field] = value;
@@ -186,11 +186,11 @@ export function writeScopedSecretItem(serviceName, fields) {
         WC_SKARBIEC_TOKEN_FILE: checkedTokenFile(service.writerTokenFile),
       },
     });
-    if (result.error || result.status !== Number('0')) {
+    if (result.error || result.status !== 0) {
       throw new Error(`scoped Skarbiec write failed for ${serviceName}`);
     }
   } finally {
-    input.fill(Number('0'));
+    input.fill(0);
   }
 }
 

@@ -214,8 +214,8 @@ export async function solveRotationViaCoords(page, { maxRounds = 80 } = {}) {
     {
       const g = await solveViaStadoModelRouter(b64, Math.round(box.width), Math.round(box.height));
       const w = Math.round(box.width), h = Math.round(box.height);
-      if (g.screen === 'A') clickXY = { x: Math.round(w / 2), y: Number('262'), src: 'stado-model-A' };
-      else if (g.screen === 'D') clickXY = { x: Number('120'), y: Number('418'), src: 'stado-model-D' };
+      if (g.screen === 'A') clickXY = { x: Math.round(w / 2), y: 262, src: 'stado-model-A' };
+      else if (g.screen === 'D') clickXY = { x: 120, y: 418, src: 'stado-model-D' };
       else if (g.screen === 'E') {
         if (g.action === 'none') { console.log(`[coords] R${round} E-none — waiting for puzzle to load`); await pageSettled(getEnforcementFrame(page) ?? page); continue; }  // allow-raw-playwright: review — context-dependent timer
         if (navCount > 20) { console.log(`IP_FLAGGED: Arkose nav=${navCount} on single puzzle without match — carousel exhausted, rotate`); process.exit(42); }

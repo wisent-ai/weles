@@ -23,7 +23,7 @@ const character = acct.metadata?.character;
 if (!character || typeof character !== 'object') { console.log(`FAIL: no character stored for tiktok/${acct.username}`); process.exit(1); }
 console.log(`[tt-profile] character: ${character.name} (niche=${character.niche})`);
 const avatarUrl = character.avatar_url
-  || (Array.isArray(character.training_images) ? character.training_images[Number('0')] : null);
+  || (Array.isArray(character.training_images) ? character.training_images[0] : null);
 
 // TikTok bio cap is 80 chars.
 const targetBio = (character.bio || '').slice(0, 80);

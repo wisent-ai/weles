@@ -33,7 +33,7 @@ mkdirSync(SHOT_DIR, { recursive: true });
 const login = await getGoogleSsoCreds();
 if (!login) {
   console.error('FAIL: exact weles-google-sso-login grant unavailable.');
-  process.exit(Number('1'));
+  process.exit(1);
 }
 console.log(`[history_scan] Google creds loaded for ${login.email}; project ${PROJECT}`);
 

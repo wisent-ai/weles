@@ -153,9 +153,9 @@ export async function solveAudioPuzzle(page, { maxRounds = 10 } = {}) {
 
     let pick;
     try {
-      pick = await classifyAudio(b64, mime, target, info.numOptions || Number('6'));
+      pick = await classifyAudio(b64, mime, target, info.numOptions || 6);
     } catch (error) {
-      console.log(`[audio] R${round}: Stado model-router failed: ${String(error?.message || error).slice(Number(false), Number('160'))}`);
+      console.log(`[audio] R${round}: Stado model-router failed: ${String(error?.message || error)}`);
       return false;
     }
     console.log(`[audio] R${round}: picking option ${pick}`);

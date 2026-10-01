@@ -24,7 +24,7 @@ export function requireStadoModelRouterConfig() {
   if (routerConfig) return routerConfig;
   const rawUrl = requiredEnv('STADO_MODEL_ROUTER_URL');
   const token = requiredEnv('WELES_STADO_MODEL_ROUTER_TOKEN');
-  if (Buffer.byteLength(token) < Number('32')) {
+  if (Buffer.byteLength(token) < 32) {
     throw new Error('WELES_STADO_MODEL_ROUTER_TOKEN must contain at least 32 bytes');
   }
   let parsed;

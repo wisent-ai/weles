@@ -20,7 +20,7 @@ export function loadOperatorCdpConfig(env: NodeJS.ProcessEnv = process.env): Ope
   const rawEndpoint = String(env.WELES_OPERATOR_CDP_URL ?? '').trim();
   const token = String(env.WELES_OPERATOR_CDP_TOKEN ?? '').trim();
   if (!rawEndpoint) throw new Error('operator CDP mode requires WELES_OPERATOR_CDP_URL');
-  if (Buffer.byteLength(token) < Number('32')) {
+  if (Buffer.byteLength(token) < 32) {
     throw new Error('operator CDP mode requires WELES_OPERATOR_CDP_TOKEN with at least 32 bytes');
   }
   for (const siblingName of TOKEN_SIBLINGS) {

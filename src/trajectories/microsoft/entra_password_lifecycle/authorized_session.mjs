@@ -208,7 +208,7 @@ export async function signIn(session, contract, password) {
   // A truncated username submit lands on the "isn't in our system" surface,
   // which still renders a (hidden) password input; detect it and resubmit the
   // full UPN instead of letting the password stage type into that page.
-  for (let attempt = Number('0'); attempt < Number('3'); attempt += Number('1')) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     await fillVerified(page, emailInput, contract.accountUpn);
     await humanClickLocator(page, page.locator('input[type="submit"]#idSIButton9, button[type="submit"]').first());
     await humanIdlePause('deliberate');

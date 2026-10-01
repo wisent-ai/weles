@@ -83,7 +83,7 @@ export async function handleGoogleLogin(creds) {
     }
 
     if (/Wrong code|Try again/i.test(text)) {
-      if (!await submitStoredGoogleCode(creds, Number('31000'))) return false;
+      if (!await submitStoredGoogleCode(creds, 31000)) return false;
       continue;
     }
 

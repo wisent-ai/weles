@@ -52,8 +52,8 @@ function credentialConstraintsText(): string {
   const configured = [
     process.env.GENERIC_TASK_CONSTRAINTS,
     process.env.WELES_CREDENTIAL_CONSTRAINTS,
-  ].filter((value): value is string => typeof value === 'string' && value.length > Number('0'));
-  if (configured.length > Number('1')) {
+  ].filter((value): value is string => typeof value === 'string' && value.length > 0);
+  if (configured.length > 1) {
     throw new Error('multiple credential constraint sources are not allowed');
   }
   return configured[0] ?? '{}';
@@ -61,7 +61,7 @@ function credentialConstraintsText(): string {
 
 export function isSkarbiecCredentialTask(): boolean {
   if (typeof process.env.WELES_CREDENTIAL_CONSTRAINTS === 'string'
-      && process.env.WELES_CREDENTIAL_CONSTRAINTS.length > Number('0')) {
+      && process.env.WELES_CREDENTIAL_CONSTRAINTS.length > 0) {
     return true;
   }
   try {
@@ -75,7 +75,7 @@ export function isSkarbiecCredentialTask(): boolean {
     );
   } catch {
     return typeof process.env.GENERIC_TASK_CONSTRAINTS === 'string'
-      && process.env.GENERIC_TASK_CONSTRAINTS.length > Number('0');
+      && process.env.GENERIC_TASK_CONSTRAINTS.length > 0;
   }
 }
 
@@ -199,7 +199,7 @@ async function captureCandidate(
         const value = String(candidate).trim();
         const secret = Buffer.from(value, 'utf8');
         if (isWelesAcquiredSecretValue(secretName, secret)) return secret;
-        secret.fill(Number('0'));
+        secret.fill(0);
       }
     }
   }
@@ -213,7 +213,7 @@ export async function wsStoreCredential(
   target: string,
   fieldClass: CredentialFieldClass,
 ): Promise<string> {
-  if (!target.trim() || target.length > Number('256')) throw new Error('credential target is invalid');
+  if (!target.trim()) throw new Error('credential target is empty');
   const constraints = storeConstraints();
   if (fieldClass !== constraints.fieldClass) {
     throw new Error('credential field class does not match the exact Weles acquisition allowlist');
@@ -248,7 +248,7 @@ export async function wsStoreCredential(
       storedAt: new Date().toISOString(),
     }), { mode: constants.S_IRUSR | constants.S_IWUSR });
   } finally {
-    secret.fill(Number('0'));
+    secret.fill(0);
   }
   return `credential stored in Skarbiec item ${constraints.itemId} field ${constraints.field}`;
 }

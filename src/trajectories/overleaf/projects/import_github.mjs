@@ -49,7 +49,7 @@ async function dieFatal(s, tag, msg) {
 const login = await getGoogleSsoCreds();
 if (!login) {
   console.error('FAIL: exact weles-google-sso-login grant unavailable.');
-  process.exit(Number('1'));
+  process.exit(1);
 }
 console.log(`[import_github] Google creds loaded for ${login.email}; importing ${REPO_SLUGS.length} repo(s)`);
 

@@ -42,7 +42,7 @@ export async function requestJson(request: IncomingMessage): Promise<unknown> {
   try {
     return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
   } catch {
-    throw new RequestFailure(Number('400'), 'request body must be valid JSON');
+    throw new RequestFailure(400, 'request body must be valid JSON');
   }
 }
 
@@ -81,11 +81,11 @@ export async function deliverObject(
     headers,
     redirect: 'error',
   });
-  if (upstream.status === Number('404')) {
-    jsonResponse(response, Number('404'), { error: 'artifact not found' });
+  if (upstream.status === 404) {
+    jsonResponse(response, 404, { error: 'artifact not found' });
     return;
   }
-  if (upstream.status === Number('416')) {
+  if (upstream.status === 416) {
     secureResponseHeaders(response);
     applyAllowedOrigin(request, response, config);
     response.statusCode = upstream.status;
@@ -94,8 +94,8 @@ export async function deliverObject(
     response.end();
     return;
   }
-  if (upstream.status !== Number('200') && upstream.status !== Number('206')) {
-    jsonResponse(response, Number('502'), { error: 'private artifact backend unavailable' });
+  if (upstream.status !== 200 && upstream.status !== 206) {
+    jsonResponse(response, 502, { error: 'private artifact backend unavailable' });
     return;
   }
 
@@ -107,7 +107,7 @@ export async function deliverObject(
     if (value) response.setHeader(header, value);
   }
   const contentType = upstream.headers.get('content-type') ?? 'application/octet-stream';
-  const fileName = uri.split('/').at(-Number(true)) ?? 'artifact';
+  const fileName = uri.split('/').at(-1) ?? 'artifact';
   const disposition = contentType.toLowerCase().startsWith('text/html') ? 'attachment' : 'inline';
   response.setHeader('Content-Disposition', `${disposition}; filename*=UTF-8''${encodeURIComponent(fileName)}`);
   if (!upstream.body) {
@@ -123,12 +123,12 @@ function subscriptionText(value: unknown): string | null {
 
 function publicSubscriptionRow(value: unknown): Record<string, unknown> {
   if (!isRecord(value)) {
-    throw new RequestFailure(Number('502'), 'Weles subscription store returned an invalid row');
+    throw new RequestFailure(502, 'Weles subscription store returned an invalid row');
   }
   const serviceName = subscriptionText(value.service_name);
   const provider = subscriptionText(value.provider);
   if (!serviceName || !provider) {
-    throw new RequestFailure(Number('502'), 'Weles subscription store returned an incomplete row');
+    throw new RequestFailure(502, 'Weles subscription store returned an incomplete row');
   }
   const metadata = isRecord(value.metadata) ? value.metadata : {};
   const monthlyCost = typeof value.monthly_cost_usd === 'number'
@@ -151,7 +151,7 @@ function publicSubscriptionRow(value: unknown): Record<string, unknown> {
 
 export async function listServiceSubscriptions(_config: ArtifactDeliveryConfig): Promise<Record<string, unknown>[]> {
   const rows = readSetting<unknown[]>('service_subscriptions', []);
-  if (!Array.isArray(rows)) throw new RequestFailure(Number('502'), 'Weles subscription store returned an invalid response');
+  if (!Array.isArray(rows)) throw new RequestFailure(502, 'Weles subscription store returned an invalid response');
   return rows
     .map(publicSubscriptionRow)
     .sort((left, right) => String(left.service_name).localeCompare(String(right.service_name)));

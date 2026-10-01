@@ -110,7 +110,7 @@ async function fillGoogleAuthenticatorTotp(page, creds) {
   // different one: the code of the next 30-second window, which Google's
   // one-step clock tolerance accepts, instead of waiting for the window to turn.
   const codeRejected = pageText !== PAGE_TEXT_UNREADABLE && /Wrong code|Try again/i.test(pageText);
-  if ((codeRejected || (/^\d+$/.test(existing) && existing.length === Number('6'))) && code === existing) {
+  if ((codeRejected || (/^\d+$/.test(existing) && existing.length === 6)) && code === existing) {
     code = generateTotp(secret, { now: Date.now() + 30 * 1000 });
   }
   await humanFill(page, input, '');

@@ -8,8 +8,8 @@ import {
 
 const SIGN_PATH = '/v1/artifacts/sign';
 const OBJECT_PATH = '/v1/artifacts/object';
-const HMAC_HEX_LENGTH = Number('64');
-const MIN_SECRET_BYTES = Number('32');
+const HMAC_HEX_LENGTH = 64;
+const MIN_SECRET_BYTES = 32;
 
 export type ArtifactDeliveryClientConfig = {
   baseUrl: string;
@@ -71,7 +71,7 @@ function validateSignedResponse(
   if (!Number.isFinite(expiryMilliseconds) || expiryMilliseconds <= nowMilliseconds) {
     throw new Error('Weles artifact delivery returned an invalid expiry');
   }
-  const expectedExpiry = String(Math.floor(expiryMilliseconds / Number('1000')));
+  const expectedExpiry = String(Math.floor(expiryMilliseconds / 1000));
   const signed = { screenshots: [], videos: [], dom: [], logs: [] } as ArtifactLocatorSet;
   for (const kind of ARTIFACT_KINDS) {
     const output = value.artifacts[kind];
@@ -85,8 +85,8 @@ function validateSignedResponse(
       if (url.origin !== config.publicBaseUrl
         || Boolean(url.username || url.password || url.hash)
         || url.pathname !== OBJECT_PATH
-        || queryKeys.length !== Number('3')
-        || !['uri', 'expires', 'signature'].every((key) => url.searchParams.getAll(key).length === Number(true))
+        || queryKeys.length !== 3
+        || !['uri', 'expires', 'signature'].every((key) => url.searchParams.getAll(key).length === 1)
         || url.searchParams.get('uri') !== source[kind].at(index)
         || url.searchParams.get('expires') !== expectedExpiry
         || !/^[a-f\d]+$/.test(url.searchParams.get('signature') ?? '')

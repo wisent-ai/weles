@@ -79,8 +79,8 @@ try {
       password: NEW_PASSWORD,
       host: 'isp.oxylabs.io',
       ports: Array.from(
-        { length: Number('10') },
-        (_, index) => String(Number('8001') + index),
+        { length: 10 },
+        (_, index) => String(8001 + index),
       ).join(','),
     });
     console.log('[trajectory] stored reset ISP credential through its exact Skarbiec writer');

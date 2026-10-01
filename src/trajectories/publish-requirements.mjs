@@ -153,7 +153,7 @@ if (put.status < 200 || put.status >= 300) {
 // consumers all arrive through this door.
 const got = await request('GET', api);
 process.stdout.write(`GET       HTTP ${got.status} (${got.body.byteLength} bytes, sha256 ${digest(got.body)})\n`);
-if (got.status !== Number('200') || !got.body.equals(bytes)) {
+if (got.status !== 200 || !got.body.equals(bytes)) {
   process.stderr.write(`FAIL: published object does not read back byte-identical (local ${bytes.byteLength} bytes ${digest(bytes)}, remote ${got.body.byteLength} bytes ${digest(got.body)}).\n`);
   process.exit(1);
 }

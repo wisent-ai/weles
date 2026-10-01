@@ -24,8 +24,8 @@ const WELES_ARTIFACT_PREFIX = 'stado://weles/recordings/';
 // its own copy of the same names, so a kind added here was signed by the
 // server and never uploaded by the client.
 export const ARTIFACT_KINDS = declaredKinds.kinds as readonly string[];
-const MILLIS_PER_SECOND = Number('1000');
-const HMAC_HEX_LENGTH = Number('64');
+const MILLIS_PER_SECOND = 1000;
+const HMAC_HEX_LENGTH = 64;
 
 /// A kind is whatever the declaration lists; the locator set carries one
 /// list of locators per kind.
@@ -40,47 +40,47 @@ export type SignedArtifactResponse = {
 
 function canonicalWelesArtifactUri(value: unknown): string {
   if (typeof value !== 'string' || value !== value.trim()) {
-    throw new RequestFailure(Number('400'), 'artifact locator must be a canonical string');
+    throw new RequestFailure(400, 'artifact locator must be a canonical string');
   }
   if (!value.startsWith(WELES_ARTIFACT_PREFIX)) {
-    throw new RequestFailure(Number('400'), 'artifact locator must use the private Weles recordings namespace');
+    throw new RequestFailure(400, 'artifact locator must use the private Weles recordings namespace');
   }
   if (value.includes('\\') || value.includes('\0') || value.includes('?') || value.includes('#')) {
-    throw new RequestFailure(Number('400'), 'artifact locator contains a forbidden character');
+    throw new RequestFailure(400, 'artifact locator contains a forbidden character');
   }
   for (const character of value) {
-    if (character.charCodeAt(Number(false)) < Number('32')) {
-      throw new RequestFailure(Number('400'), 'artifact locator contains a control character');
+    if (character.charCodeAt(0) < 32) {
+      throw new RequestFailure(400, 'artifact locator contains a control character');
     }
   }
 
   const relative = value.slice(WELES_ARTIFACT_PREFIX.length);
   const parts = relative.split('/');
-  if (parts.length < Number('2') || parts.some((part) => !part || part === '.' || part === '..')) {
-    throw new RequestFailure(Number('400'), 'artifact locator has an invalid path');
+  if (parts.length < 2 || parts.some((part) => !part || part === '.' || part === '..')) {
+    throw new RequestFailure(400, 'artifact locator has an invalid path');
   }
-  const runId = parts.at(Number(false)) ?? '';
+  const runId = parts.at(0) ?? '';
   const runParts = runId.split('-');
   const expectedRunPartLengths = ['8', '4', '4', '4', '12'].map(Number);
   if (runId !== runId.toLowerCase()
     || runParts.length !== expectedRunPartLengths.length
     || runParts.some((part, index) => part.length !== expectedRunPartLengths.at(index) || !/^[a-f\d]+$/.test(part))) {
-    throw new RequestFailure(Number('400'), 'artifact locator must contain a canonical run UUID');
+    throw new RequestFailure(400, 'artifact locator must contain a canonical run UUID');
   }
   return value;
 }
 
 export function normalizeArtifactLocators(value: unknown): ArtifactLocatorSet {
-  if (!isRecord(value)) throw new RequestFailure(Number('400'), 'artifacts must be an object');
+  if (!isRecord(value)) throw new RequestFailure(400, 'artifacts must be an object');
   const keys = Object.keys(value);
   if (keys.length !== ARTIFACT_KINDS.length || keys.some((key) => !ARTIFACT_KINDS.includes(key as ArtifactKind))) {
-    throw new RequestFailure(Number('400'), `artifacts must contain exactly ${ARTIFACT_KINDS.join(', ')}`);
+    throw new RequestFailure(400, `artifacts must contain exactly ${ARTIFACT_KINDS.join(', ')}`);
   }
 
   const normalized = { screenshots: [], videos: [], dom: [], logs: [] } as ArtifactLocatorSet;
   for (const kind of ARTIFACT_KINDS) {
     const entries = value[kind];
-    if (!Array.isArray(entries)) throw new RequestFailure(Number('400'), `artifacts.${kind} must be an array`);
+    if (!Array.isArray(entries)) throw new RequestFailure(400, `artifacts.${kind} must be an array`);
     normalized[kind] = entries.map(canonicalWelesArtifactUri);
   }
   return normalized;
@@ -123,26 +123,26 @@ export function signArtifactLocators(
 
 function verifiedObjectUri(url: URL, config: ArtifactDeliveryConfig, nowMilliseconds: number): string {
   const keys = [...url.searchParams.keys()];
-  if (keys.length !== Number('3')
-    || !['uri', 'expires', 'signature'].every((key) => url.searchParams.getAll(key).length === Number(true))) {
-    throw new RequestFailure(Number('403'), 'invalid artifact signature');
+  if (keys.length !== 3
+    || !['uri', 'expires', 'signature'].every((key) => url.searchParams.getAll(key).length === 1)) {
+    throw new RequestFailure(403, 'invalid artifact signature');
   }
   const uri = canonicalWelesArtifactUri(url.searchParams.get('uri'));
   const expires = url.searchParams.get('expires') ?? '';
   const signature = url.searchParams.get('signature') ?? '';
   if (!/^\d+$/.test(expires) || !/^[a-f\d]+$/.test(signature) || signature.length !== HMAC_HEX_LENGTH) {
-    throw new RequestFailure(Number('403'), 'invalid artifact signature');
+    throw new RequestFailure(403, 'invalid artifact signature');
   }
   const nowSeconds = Math.floor(nowMilliseconds / MILLIS_PER_SECOND);
   const expirySeconds = Number(expires);
   if (!Number.isSafeInteger(expirySeconds) || String(expirySeconds) !== expires
     || expirySeconds <= nowSeconds
     || expirySeconds - nowSeconds > config.ttlSeconds) {
-    throw new RequestFailure(Number('403'), 'artifact URL expired');
+    throw new RequestFailure(403, 'artifact URL expired');
   }
   const expected = artifactSignature(uri, expires, config.signingSecret);
   if (!constantTimeTextEqual(signature, expected)) {
-    throw new RequestFailure(Number('403'), 'invalid artifact signature');
+    throw new RequestFailure(403, 'invalid artifact signature');
   }
   return uri;
 }
@@ -158,9 +158,9 @@ export async function handleArtifactDeliveryRequest(
     if (request.method === 'GET' && url.pathname === SUBSCRIPTIONS_PATH && !url.search) {
       if (!bearerAuthorized(request, config.subscriptionsToken)) {
         response.setHeader('WWW-Authenticate', 'Bearer');
-        throw new RequestFailure(Number('401'), 'unauthorized');
+        throw new RequestFailure(401, 'unauthorized');
       }
-      jsonResponse(response, Number('200'), {
+      jsonResponse(response, 200, {
         subscriptions: await listServiceSubscriptions(config),
       });
       return;
@@ -168,16 +168,16 @@ export async function handleArtifactDeliveryRequest(
     if (request.method === 'POST' && url.pathname === SIGN_PATH) {
       if (!bearerAuthorized(request, config.clientToken)) {
         response.setHeader('WWW-Authenticate', 'Bearer');
-        throw new RequestFailure(Number('401'), 'unauthorized');
+        throw new RequestFailure(401, 'unauthorized');
       }
-      if (String(request.headers['content-type'] ?? '').split(';').at(Number(false))?.trim() !== 'application/json') {
-        throw new RequestFailure(Number('415'), 'content type must be application/json');
+      if (String(request.headers['content-type'] ?? '').split(';').at(0)?.trim() !== 'application/json') {
+        throw new RequestFailure(415, 'content type must be application/json');
       }
       const body = await requestJson(request);
-      if (!isRecord(body) || Object.keys(body).length !== Number(true) || !Object.hasOwn(body, 'artifacts')) {
-        throw new RequestFailure(Number('400'), 'request must contain exactly artifacts');
+      if (!isRecord(body) || Object.keys(body).length !== 1 || !Object.hasOwn(body, 'artifacts')) {
+        throw new RequestFailure(400, 'request must contain exactly artifacts');
       }
-      jsonResponse(response, Number('200'), signArtifactLocators(body.artifacts, config));
+      jsonResponse(response, 200, signArtifactLocators(body.artifacts, config));
       return;
     }
     if (request.method === 'GET' && url.pathname === OBJECT_PATH) {
@@ -185,13 +185,13 @@ export async function handleArtifactDeliveryRequest(
       await deliverObject(request, response, uri, config);
       return;
     }
-    throw new RequestFailure(Number('404'), 'not found');
+    throw new RequestFailure(404, 'not found');
   } catch (error) {
     if (response.headersSent) {
       response.destroy(error instanceof Error ? error : undefined);
       return;
     }
-    const status = error instanceof RequestFailure ? error.status : Number('500');
+    const status = error instanceof RequestFailure ? error.status : 500;
     const message = error instanceof RequestFailure ? error.message : 'internal server error';
     jsonResponse(response, status, { error: message });
   }

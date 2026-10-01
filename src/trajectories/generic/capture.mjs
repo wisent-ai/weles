@@ -85,8 +85,8 @@ function recordedVideo(directory) {
     .map((name) => join(directory, name))
     .map((path) => ({ path, at: statSync(path).mtimeMs }))
     .sort((left, right) => right.at - left.at);
-  if (videos.length === Number(false)) return null;
-  return videos[Number(false)].path;
+  if (videos.length === 0) return null;
+  return videos[0].path;
 }
 
 const plan = planFromEnv('GENERIC_CAPTURE_PLAN', parseCaptureParams);
@@ -94,7 +94,7 @@ const keyPrefix = captureKeyPrefix(plan.artifact_prefix);
 const signature = createHash('sha256')
   .update(JSON.stringify({ source_url: plan.source_url, steps: plan.steps, record_seconds: plan.record_seconds }))
   .digest('hex')
-  .slice(Number('0'), Number('8'));
+  .slice(0, 8);
 const base = [
   plan.site_slug,
   plan.axis,
@@ -124,7 +124,7 @@ try {
   if (plan.record_seconds > 0) {
     const remainingMs = plan.record_seconds * 1000 - (Date.now() - recordStartedAt);
     if (remainingMs > 0) await session.page.waitForTimeout(remainingMs);  // allow-raw-playwright: hold the recording open for the requested duration
-    recordedSeconds = Math.round((Date.now() - recordStartedAt) / Number('100')) / Number('10');
+    recordedSeconds = Math.round((Date.now() - recordStartedAt) / 100) / 10;
   }
 
   const capturedAt = new Date().toISOString();

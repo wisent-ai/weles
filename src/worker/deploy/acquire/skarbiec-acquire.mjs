@@ -13,10 +13,10 @@ import { resolveSkarbiecEndpoint, formatEndpointErrorMessage } from './endpoint-
 // process.stderr.write is asynchronous and process.exit may drop the line.
 function stop(reason, message) {
   writeSync(process.stderr.fd, `${message}\nSKARBIEC_ACQUIRE_REASON ${reason}\n`);
-  process.exit(Number('1'));
+  process.exit(1);
 }
 
-const [scopeFile, consumer, item, field, ...extraArgs] = process.argv.slice(Number('2'));
+const [scopeFile, consumer, item, field, ...extraArgs] = process.argv.slice(2);
 if (extraArgs.length > 0 || [scopeFile, consumer, item, field].some((value) => !value)) {
   throw new Error('usage: skarbiec-acquire.mjs <scope-file> <consumer> <item> <field>');
 }
@@ -41,7 +41,7 @@ const scopeRows = readFileSync(scopeFile, 'utf8')
   .filter((line) => line && !line.startsWith('#'));
 const parsedScopes = scopeRows.map((line) => {
   const columns = line.split('|');
-  if (columns.length !== Number('3') || !columns.every((value) => exactName.test(value))) {
+  if (columns.length !== 3 || !columns.every((value) => exactName.test(value))) {
     throw new Error('invalid Skarbiec bootstrap scope; expected consumer|item|field exact-name grammar');
   }
   return columns;
@@ -71,12 +71,12 @@ if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash
 
 
 
-const unsafeBits = Number.parseInt('077', Number('8'));
+const unsafeBits = Number.parseInt('077', 8);
 const workloadId = process.env.SKARBIEC_WORKLOAD_ID;
 const signingKeyFile = process.env.SKARBIEC_WORKLOAD_SIGNING_KEY_FILE;
 if (!workloadId || workloadId.trim() !== workloadId
     || [...workloadId].some((character) => character < ' ' || character === '\u007f')
-    || workloadId.length > Number('128')) {
+    || workloadId.length > 128) {
   throw new Error('invalid SKARBIEC_WORKLOAD_ID');
 }
 if (!signingKeyFile || !isAbsolute(signingKeyFile)) {
@@ -85,12 +85,12 @@ if (!signingKeyFile || !isAbsolute(signingKeyFile)) {
 const signingMetadata = lstatSync(signingKeyFile);
 if (!signingMetadata.isFile() || signingMetadata.isSymbolicLink()
     || signingMetadata.uid !== process.getuid()
-    || (signingMetadata.mode & unsafeBits) !== Number('0')) {
+    || (signingMetadata.mode & unsafeBits) !== 0) {
   throw new Error('unsafe Skarbiec workload signing key file');
 }
-const workloadTimestamp = Math.floor(Date.now() / Number('1000'));
-const workloadNonce = randomBytes(Number('32')).toString('base64url');
-const separator = Buffer.alloc(Number('1'));
+const workloadTimestamp = Math.floor(Date.now() / 1000);
+const workloadNonce = randomBytes(32).toString('base64url');
+const separator = Buffer.alloc(1);
 const proofPayload = Buffer.concat([
   Buffer.from('SKARBIEC-WORKLOAD-ACQUISITION\0v1\0', 'utf8'),
   Buffer.from(consumer, 'utf8'), separator,
@@ -105,12 +105,12 @@ let workloadSignature;
 try {
   workloadSignature = sign(null, proofPayload, signingKey).toString('hex');
 } finally {
-  signingKey.fill(Number('0'));
-  proofPayload.fill(Number('0'));
+  signingKey.fill(0);
+  proofPayload.fill(0);
 }
 const validHex = [...workloadSignature].every((character) =>
   (character >= '0' && character <= '9') || (character >= 'a' && character <= 'f'));
-if (workloadSignature.length !== Number('128') || !validHex) {
+if (workloadSignature.length !== 128 || !validHex) {
   throw new Error('invalid Skarbiec workload proof signature');
 }
 

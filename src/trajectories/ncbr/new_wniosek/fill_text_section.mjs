@@ -144,26 +144,26 @@ async function openRow(row) {
     const menuOf = (node) => node.querySelector('button[aria-label="overflow-options"], button[title="overflow-options"], [role="button"][aria-label*="overflow"], [aria-label*="overflow"]');
     const textOf = (node) => norm(Array.from(node.querySelectorAll('td, [role="cell"], [role="gridcell"]')).map((cell) => `${cell.getAttribute('title') || ''} ${cell.textContent || ''}`).join(' ') || node.textContent);
     const all = Array.from(document.querySelectorAll(rowSelector));
-    const described = all.map((node) => ({ tag: node.tagName.toLowerCase(), menu: Boolean(menuOf(node)), text: textOf(node).slice(0, Number('110')) }));
+    const described = all.map((node) => ({ tag: node.tagName.toLowerCase(), menu: Boolean(menuOf(node)), text: textOf(node) }));
     const rows = all.filter((node) => textOf(node).includes(norm(needle)));
     const inventory = {
       url: location.href,
       title: document.title,
-      widok: norm(document.body ? document.body.innerText : '').slice(0, Number('160')),
+      widok: norm(document.body ? document.body.innerText : ''),
       tables: document.querySelectorAll('table').length,
       tableRows: document.querySelectorAll('table tbody tr').length,
       roleRows: document.querySelectorAll('[role="row"]').length,
       overflowButtons: document.querySelectorAll('[aria-label*="overflow"]').length,
       textareas: document.querySelectorAll('textarea').length,
     };
-    if (rows.length === Number('1')) {
-      const menu = menuOf(rows[Number('0')]);
+    if (rows.length === 1) {
+      const menu = menuOf(rows[0]);
       if (menu) menu.setAttribute('data-weles-row-menu', 'open');
-      return { count: Number('1'), menu: Boolean(menu), inventory, described };
+      return { count: 1, menu: Boolean(menu), inventory, described };
     }
     return { count: rows.length, menu: false, inventory, described };
   }, { needle: row.rowNeedle, rowSelector: ROWS }); // allow-raw-playwright: locate the one row named by the plan and report what the page shows
-  if (seen.count !== Number('1') || !seen.menu) {
+  if (seen.count !== 1 || !seen.menu) {
     throw new Error(`${collection.label}: needle "${row.rowNeedle}" matched ${seen.count} rows, menu found: ${seen.menu}; stan strony ${JSON.stringify(seen.inventory)}; wiersze ${JSON.stringify(seen.described)}`);
   }
   const menuButton = page.locator('[data-weles-row-menu="open"]').first();
@@ -189,7 +189,7 @@ async function nestedPrefix(nested) {
       .map((el) => el.getAttribute('name')),
     nested.matchNeedle,
   ); // allow-raw-playwright: resolve the nested row prefix from its declared name field
-  if (names.length !== Number('1')) throw new Error(`nested needle matched ${names.length} rows: ${nested.matchNeedle}`);
+  if (names.length !== 1) throw new Error(`nested needle matched ${names.length} rows: ${nested.matchNeedle}`);
   return names[0].slice(0, -nested.matchFieldSuffix.length);
 }
 
@@ -212,7 +212,7 @@ if (collection) {
     }
     await closeDrawer();
   }
-  console.log(JSON.stringify({ collection: SECTION, url: page.url(), checks }, null, Number('2')));
+  console.log(JSON.stringify({ collection: SECTION, url: page.url(), checks }, null, 2));
   process.exit(0);
 }
 
@@ -224,7 +224,7 @@ await humanIdlePause('short');
 if (MODE === 'read') {
   const checks = [];
   for (const f of cfg.fields) checks.push(await readDeclared(f.label, f.value, SECTION));
-  console.log(JSON.stringify({ section: SECTION, url: page.url(), mode: MODE, checks }, null, Number('2')));
+  console.log(JSON.stringify({ section: SECTION, url: page.url(), mode: MODE, checks }, null, 2));
   process.exit(0);
 }
 
@@ -263,5 +263,5 @@ await humanIdlePause('short');
 const persistedLengths = await page.evaluate((sels) => sels.map((s) => { const el = document.querySelector(s); return el ? (el.value || '').length : null; }), cfg.fields.map((f) => f.sel));
 const persisted = cfg.fields.map((f, i) => `${f.label}: ${persistedLengths[i] === f.value.length ? 'persisted' : `NOT PERSISTED (${persistedLengths[i]} vs ${f.value.length})`}`);
 
-console.log(JSON.stringify({ section: SECTION, url: page.url(), filled, saveResult, readbackLengths: readback, persisted }, null, Number('2')));
+console.log(JSON.stringify({ section: SECTION, url: page.url(), filled, saveResult, readbackLengths: readback, persisted }, null, 2));
 process.exit(0);

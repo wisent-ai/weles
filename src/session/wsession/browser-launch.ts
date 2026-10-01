@@ -197,14 +197,14 @@ async function adoptOperatorBrowser(operatorCdp: OperatorCdpConfig, label: strin
   const browser = await chromium.connectOverCDP(operatorCdp.endpoint, {
     headers: { Authorization: `Bearer ${operatorCdp.token}` },
   });
-  const ctx = browser.contexts().at(Number(false)) || await browser.newContext({
+  const ctx = browser.contexts().at(0) || await browser.newContext({
     locale: 'en-US',
     ...(process.env.WELES_BROWSER_EVIDENCE_POLICY === 'spis-browser-evidence.1'
       ? { acceptDownloads: false, serviceWorkers: 'block' as const }
       : {}),
   });
   await installBrowserEvidencePolicy(ctx, label);
-  const page = ctx.pages().at(Number(false)) || await ctx.newPage();
+  const page = ctx.pages().at(0) || await ctx.newPage();
   return { kind: 'operator-cdp', ctx, page, capture: captureFor(page, label), label };
 }
 

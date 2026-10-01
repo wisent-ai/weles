@@ -20,7 +20,7 @@ import { PASSWORD_FIELD } from './queued_job.mjs';
 
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]+/g;
 const PROVIDER_EFFECTS = Object.freeze(['none', 'changed', 'unknown']);
-const RESUME_TOKEN_BYTES = Number('48');
+const RESUME_TOKEN_BYTES = 48;
 
 export function generatedPassword() {
   const groups = [
@@ -31,9 +31,9 @@ export function generatedPassword() {
   ];
   const all = groups.join('');
   const chars = groups.map((group) => group[randomInt(group.length)]);
-  while (chars.length < Number('32')) chars.push(all[randomInt(all.length)]);
-  for (let index = chars.length - Number('1'); index > Number('0'); index -= Number('1')) {
-    const target = randomInt(index + Number('1'));
+  while (chars.length < 32) chars.push(all[randomInt(all.length)]);
+  for (let index = chars.length - 1; index > 0; index -= 1) {
+    const target = randomInt(index + 1);
     [chars[index], chars[target]] = [chars[target], chars[index]];
   }
   return chars.join('');
@@ -135,12 +135,12 @@ export function outcome(contract, fields) {
   const directory = runRecordingsDir();
   writeFileSync(
     join(directory, 'service_action_result.json'),
-    JSON.stringify({ credential_operation: answer }, null, Number('2')),
+    JSON.stringify({ credential_operation: answer }, null, 2),
   );
   if (answer.status === 'needs_human_approval') {
     writeFileSync(
       join(directory, 'pending_review.json'),
-      JSON.stringify({ ...answer, reason: message }, null, Number('2')),
+      JSON.stringify({ ...answer, reason: message }, null, 2),
     );
   }
   return answer;
@@ -164,7 +164,7 @@ export function commitPassword(contract, password, writeOperation) {
       },
     );
   } finally {
-    for (let index = Number('0'); index < secret.length; index += Number('1')) secret[index] = Number('0');
+    for (let index = 0; index < secret.length; index += 1) secret[index] = 0;
   }
 }
 

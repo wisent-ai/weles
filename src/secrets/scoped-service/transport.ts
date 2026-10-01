@@ -89,10 +89,10 @@ export function checkedTokenFile(fileName: string, tenantId?: string | null): st
   } catch {
     return null;
   }
-  const unsafeBits = Number.parseInt('77', Number('8'));
+  const unsafeBits = Number.parseInt('77', 8);
   if (!metadata.isFile() || metadata.isSymbolicLink()
     || (typeof process.getuid === 'function' && metadata.uid !== process.getuid())
-    || (metadata.mode & unsafeBits) !== Number('0')) {
+    || (metadata.mode & unsafeBits) !== 0) {
     throw new Error(`refusing unsafe scoped Skarbiec token file for ${fileName}`);
   }
   return path;
@@ -122,18 +122,18 @@ export function readScopedField(
       WC_SKARBIEC_TOKEN_FILE: tokenFile,
     },
   });
-  const output = Buffer.isBuffer(result.stdout) ? result.stdout : Buffer.alloc(Number('0'));
+  const output = Buffer.isBuffer(result.stdout) ? result.stdout : Buffer.alloc(0);
   try {
-    if (result.error || result.status !== Number('0')) {
+    if (result.error || result.status !== 0) {
       throw new Error(`scoped Skarbiec read failed for ${item}/${field}`);
     }
     const value = output.toString('utf8').replace(/[\r\n]+$/, '');
-    if (!value || /[\r\n]/.test(value) || value.includes(String.fromCharCode(Number('0')))) {
+    if (!value || /[\r\n]/.test(value) || value.includes(String.fromCharCode(0))) {
       throw new Error(`scoped Skarbiec returned an invalid value for ${item}/${field}`);
     }
     return value;
   } finally {
-    output.fill(Number('0'));
+    output.fill(0);
   }
 }
 // A deploy-side file of THIS revision. The scope table and the code that checks
@@ -181,7 +181,7 @@ function managedReaderGrantedFields(
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
     const columns = trimmed.split('|');
-    if (columns.length !== Number('3')) continue;
+    if (columns.length !== 3) continue;
     const [consumer, item, field] = columns;
     // The consumer column carries the field too, so a row counts only when it
     // names exactly this contract's reader for exactly the field it grants.
@@ -270,9 +270,9 @@ export function readAcquiredField(
       WC_SKARBIEC_URL: endpoint,
     },
   });
-  const output = Buffer.isBuffer(result.stdout) ? result.stdout : Buffer.alloc(Number('0'));
+  const output = Buffer.isBuffer(result.stdout) ? result.stdout : Buffer.alloc(0);
   try {
-    if (result.error || result.status !== Number('0')) {
+    if (result.error || result.status !== 0) {
       // Repeat the authority's own words. Collapsing every refusal into one
       // sentence made an unregistered consumer, an out-of-window grant and a
       // missing scope line indistinguishable, and each needs a different fix.
@@ -294,6 +294,6 @@ export function readAcquiredField(
     }
     return value;
   } finally {
-    output.fill(Number('0'));
+    output.fill(0);
   }
 }

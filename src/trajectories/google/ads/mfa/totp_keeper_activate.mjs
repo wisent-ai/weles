@@ -12,7 +12,7 @@ async function main() {
 
   const creds = GOOGLE_ADS_LOGIN;
   if (!creds?.password || !creds?.totpSecret) {
-    writeResult({ ok: false, blocked: 'missing_google_ads_password_or_totp_secret', email: EMAIL }, Number('2'));
+    writeResult({ ok: false, blocked: 'missing_google_ads_password_or_totp_secret', email: EMAIL }, 2);
   }
   assertScopedSecretWriter('googleAds');
 

@@ -25,7 +25,7 @@ export function maybeOxylabsIspRow(): IspRow | undefined {
     provider: 'oxylabs',
     proxy_type: 'isp',
     secret_service: 'oxylabsIsp',
-    balance_usd: Number('0'),
+    balance_usd: 0,
     metadata: { country: 'us' },
   };
 }
@@ -41,7 +41,7 @@ export function maybeOxylabsDedicatedIspRow(): IspRow | undefined {
     provider: 'oxylabs',
     proxy_type: 'isp',
     secret_service: 'oxylabsDedicatedIsp',
-    balance_usd: Number('0'),
+    balance_usd: 0,
     metadata: { country: 'us' },
   };
 }
@@ -53,13 +53,13 @@ export function maybeDecodoIspRows(): IspRow[] {
   if (!host || !rawPorts) return [];
   const ports = [...new Set(rawPorts.split(',').map((port) => String(Number(port.trim()))).filter((port) => port !== 'NaN'))];
   return ports.map((port) => ({
-    display_name: ports.length === Number('1') ? 'Decodo ISP' : `Decodo ISP ${port}`,
+    display_name: ports.length === 1 ? 'Decodo ISP' : `Decodo ISP ${port}`,
     proxy_host: host,
     proxy_port: port,
     provider: 'decodo',
     proxy_type: 'isp',
     secret_service: 'decodoIsp',
-    balance_usd: Number('0'),
+    balance_usd: 0,
     metadata: { country: 'us' },
   }));
 }

@@ -108,10 +108,10 @@ export function fileAttribution(path) {
 }
 
 export function pngPixelSize(buffer) {
-  if (buffer.length < 24 || buffer.readUInt32BE(Number('0')) !== 0x89504e47) {
+  if (buffer.length < 24 || buffer.readUInt32BE(0) !== 0x89504e47) {
     throw new Error('the captured still is not a PNG, so its pixel size cannot be attributed');
   }
-  return { width: buffer.readUInt32BE(Number('16')), height: buffer.readUInt32BE(Number('20')) };
+  return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
 }
 
 export function captureKeyPrefix(artifactPrefix) {

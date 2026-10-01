@@ -41,10 +41,10 @@ export async function changeEntraPassword(session, currentPassword, nextPassword
   if (challenged === PAGE_TEXT_UNREADABLE) return 'unavailable';
   const passwordInputs = page.locator('input[type="password"]');
   const rendered = await appears(passwordInputs.first());
-  const count = await passwordInputs.count().catch(() => Number('0'));
-  if (!rendered || count < Number('3')) return 'unavailable';
+  const count = await passwordInputs.count().catch(() => 0);
+  if (!rendered || count < 3) return 'unavailable';
   await fill(page, passwordInputs.nth(''.length), currentPassword);
-  await fill(page, passwordInputs.nth(count - Number('2')), nextPassword);
+  await fill(page, passwordInputs.nth(count - 2), nextPassword);
   await fill(page, passwordInputs.nth(count - 'x'.length), nextPassword);
   await humanClickLocator(page, page.locator('input[type="submit"], button[type="submit"]').first());
   await humanIdlePause('long');
@@ -111,16 +111,16 @@ export async function openSelfServiceReset(session, contract) {
   const captcha = page.locator('iframe[src*="recaptcha"], iframe[title*="captcha" i], #wCaptchaDiv').first();
   if (await visible(captcha)) return 'identity_verification_required';
   const newPasswords = page.locator('input[type="password"]');
-  const count = await newPasswords.count().catch(() => Number('0'));
-  return count >= Number('2') ? 'password_form' : 'unavailable';
+  const count = await newPasswords.count().catch(() => 0);
+  return count >= 2 ? 'password_form' : 'unavailable';
 }
 
 export async function submitResetPasswordForm(session, nextPassword) {
   const page = session.page;
   const passwordInputs = page.locator('input[type="password"]');
-  const count = await passwordInputs.count().catch(() => Number('0'));
-  if (count < Number('2')) return 'unavailable';
-  await fill(page, passwordInputs.nth(count - Number('2')), nextPassword);
+  const count = await passwordInputs.count().catch(() => 0);
+  if (count < 2) return 'unavailable';
+  await fill(page, passwordInputs.nth(count - 2), nextPassword);
   await fill(page, passwordInputs.nth(count - 'x'.length), nextPassword);
   await humanClickLocator(page, page.locator('input[type="submit"], button[type="submit"]').first());
   await humanIdlePause('long');

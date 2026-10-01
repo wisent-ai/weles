@@ -21,7 +21,7 @@ const character = acct.metadata?.character;
 if (!character || typeof character !== 'object') { console.log(`FAIL: no character stored for linkedin/${acct.username}`); process.exit(1); }
 console.log(`[li-profile] character: ${character.name} (niche=${character.niche})`);
 const avatarUrl = character.avatar_url
-  || (Array.isArray(character.training_images) ? character.training_images[Number('0')] : null);
+  || (Array.isArray(character.training_images) ? character.training_images[0] : null);
 
 const targetName = character.name || '';
 // Headline = occupation if present, else niche. Caps at 220 chars.

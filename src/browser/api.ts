@@ -86,14 +86,14 @@ export class CDPWeles {
         };
         const localAuth = {
           username: 'weles',
-          password: randomBytes(Number('32')).toString('base64url'),
+          password: randomBytes(32).toString('base64url'),
         };
         const expectedLocalAuthorization = `Basic ${Buffer.from(`${localAuth.username}:${localAuth.password}`).toString('base64')}`;
         const isAuthorized = (header: string | string[] | undefined): boolean =>
           typeof header === 'string' && securelyEqual(header, expectedLocalAuthorization);
         const srv = createServer((req, res) => {
           if (!isAuthorized(req.headers['proxy-authorization'])) {
-            res.writeHead(Number('407'), {
+            res.writeHead(407, {
               'Connection': 'close',
               'Proxy-Authenticate': 'Basic realm="weles-local-proxy"',
             });
@@ -111,7 +111,7 @@ export class CDPWeles {
             },
           };
           const proxy = httpRequest(opts, (pRes) => {
-            res.writeHead(pRes.statusCode ?? Number('502'), pRes.headers);
+            res.writeHead(pRes.statusCode ?? 502, pRes.headers);
             pRes.pipe(res);
           });
           req.pipe(proxy);
@@ -142,13 +142,13 @@ export class CDPWeles {
             }
             clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
             const headerEnd = responseHead.indexOf('\r\n\r\n');
-            const rest = headerEnd >= Number(false) ? chunk.subarray(headerEnd + Number('4')) : Buffer.alloc(Number(false));
+            const rest = headerEnd >= 0 ? chunk.subarray(headerEnd + 4) : Buffer.alloc(0);
             if (rest.length) clientSocket.write(rest);
             upSocket.pipe(clientSocket);
             clientSocket.pipe(upSocket);
           });
         });
-        await new Promise<void>(resolve => srv.listen(Number(false), '127.0.0.1', resolve));
+        await new Promise<void>(resolve => srv.listen(0, '127.0.0.1', resolve));
         const addr = srv.address() as { port: number };
         proxyForChrome = `http://${encodeURIComponent(localAuth.username)}:${encodeURIComponent(localAuth.password)}@127.0.0.1:${addr.port}`;
         localProxy = srv;

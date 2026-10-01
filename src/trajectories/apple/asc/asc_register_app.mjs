@@ -10,7 +10,7 @@ const NAME = process.env.ASC_APP_NAME || 'Swiatowid';
 const SKU = process.env.ASC_SKU || 'swiatowidios2026';
 if (!KEY_ID || !ISSUER || !PEM) {
   console.error('Exact Weles App Store Connect API grant unavailable');
-  process.exit(Number('2'));
+  process.exit(2);
 }
 
 const b64url = (b) =>

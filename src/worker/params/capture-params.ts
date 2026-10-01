@@ -102,7 +102,7 @@ function artifactPrefix(value: unknown, action: string): string {
     throw new Error(`${action} rejects artifact_prefix ${JSON.stringify(value)}: artifact_prefix must end with a slash.`);
   }
   const key = value.slice(CAPTURE_ARTIFACT_ROOT.length);
-  const segments = key.slice(Number(false), key.length - Number('1')).split('/');
+  const segments = key.slice(0, key.length - 1).split('/');
   if (segments.some((segment) => !/^[A-Za-z\d._-]+$/.test(segment) || segment === '.' || segment === '..')) {
     throw new Error(`${action} rejects artifact_prefix ${JSON.stringify(value)}: every path segment must be letters, digits, dot, dash or underscore.`);
   }

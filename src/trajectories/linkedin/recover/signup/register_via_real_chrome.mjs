@@ -43,7 +43,7 @@ const NOPECHA_KEY = process.env.NOPECHA_API_KEY || '';
 const userDataDir = mkdtempSync(join(tmpdir(), 'reg-real-'));
 // This flow owns a dedicated Oxylabs Mobile grant and cannot run without it.
 const oxylabsMobile = readScopedProxy('oxylabsMobile');
-const proxySession = Math.floor(Math.random() * Number('9000000') + Number('1000000'));
+const proxySession = Math.floor(Math.random() * 9000000 + 1000000);
 const proxyOpt = {
   server: 'http://pr.oxylabs.io:7777',
   username: `customer-${oxylabsMobile.username}-cc-us-sessid-${proxySession}`,

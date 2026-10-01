@@ -34,7 +34,7 @@ const OUT      = process.env.OUT_JSONL ? createWriteStream(process.env.OUT_JSONL
 const login = await getGoogleSsoCreds();
 if (!login) {
   console.error('FAIL: exact weles-google-sso-login grant unavailable.');
-  process.exit(Number('1'));
+  process.exit(1);
 }
 console.log(`[list_auto] Google creds loaded for ${login.email}`);
 

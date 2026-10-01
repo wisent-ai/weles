@@ -51,7 +51,7 @@ function nonEmpty(value: unknown): string | null {
 
 function exactCredential(name: string): string | null {
   const value = process.env[name];
-  if (typeof value !== 'string' || value.length === Number('0')) return null;
+  if (typeof value !== 'string' || value.length === 0) return null;
   if (value.trim() !== value || /\s/.test(value)) {
     throw new Error(`${name} must be one exact non-whitespace credential`);
   }
@@ -98,7 +98,7 @@ function loadModelRouterConfig(): ModelRouterConfig {
   if (!routerToken) {
     throw new Error('missing required WELES_STADO_MODEL_ROUTER_TOKEN');
   }
-  if (Buffer.byteLength(routerToken) < Number('32')) {
+  if (Buffer.byteLength(routerToken) < 32) {
     throw new Error('WELES_STADO_MODEL_ROUTER_TOKEN must contain at least 32 bytes');
   }
   if (agentId !== WELES_AGENT_ID) {
@@ -163,7 +163,7 @@ async function completeThroughRouter(
     ...(tools ? { tools, tool_choice: 'required' } : {}),
     ...(maxOutputTokens === undefined ? {} : { max_tokens: maxOutputTokens }),
   });
-  const timestamp = Math.floor(Date.now() / Number('1000')).toString();
+  const timestamp = Math.floor(Date.now() / 1000).toString();
   const bodyHash = createHash('sha256').update(body).digest('hex');
   const signature = createHmac('sha256', cfg.agentAuthSecret)
     .update(`${cfg.agentId}:${timestamp}:${bodyHash}`)

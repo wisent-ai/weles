@@ -43,7 +43,7 @@ import { resolveCandidates } from './pull_github/resolve.mjs';
 const login = await getGoogleSsoCreds();
 if (!login) {
   console.error('FAIL: exact weles-google-sso-login grant unavailable.');
-  process.exit(Number('1'));
+  process.exit(1);
 }
 console.log(`[pull_github] Google creds loaded for ${login.email}; target repo ${REPO_SLUG}`);
 

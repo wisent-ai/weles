@@ -21,7 +21,7 @@ import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/
 import { getReceived, listReceived, receivingConfigured } from '../../../_shared/resend-receiving.mjs';
 
 const ACCT_USERNAME = process.env.ACCOUNT_USERNAME;
-if (!receivingConfigured()) { console.log('FAIL: the wisent-integrations inbox route is not configured'); process.exit(Number('1')); }
+if (!receivingConfigured()) { console.log('FAIL: the wisent-integrations inbox route is not configured'); process.exit(1); }
 
 const acct = ACCT_USERNAME
   ? await getSocialAccount('discord', { username: ACCT_USERNAME })

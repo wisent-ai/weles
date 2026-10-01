@@ -56,8 +56,8 @@ const PACKAGES = {
 
 // Limits declared by the live field zalaczniki_potwierdzajace_kryterium_nr1_zalacznik
 // in the submitted application: at most ten PDFs per collection row, ten million bytes each.
-const MAX_FILES = Number('10');
-const MAX_FILE_BYTES = Number('10000000');
+const MAX_FILES = 10;
+const MAX_FILE_BYTES = 10000000;
 const MODE = process.env.MODE || 'read';
 if (!['read', 'apply'].includes(MODE)) throw new Error(`Unsupported MODE=${MODE}`);
 const resumeStaged = process.env.RESUME_STAGED === '1';

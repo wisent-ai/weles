@@ -7,7 +7,7 @@ import fs from 'node:fs';
 
 const INGEST_PATH_SUFFIX = '/v1/ingest/stock-context';
 const CALLER_ID = 'weles';
-const MIN_SECRET_BYTES = Number('32');
+const MIN_SECRET_BYTES = 32;
 
 function requireEnv(name) {
   const value = String(process.env[name] || '').trim();
@@ -65,7 +65,7 @@ function screenshotBody(screenshotPath) {
 async function ingestStockContext(body) {
   const config = ingestConfig();
   const serialized = JSON.stringify(body);
-  const timestamp = String(Math.floor(Date.now() / Number('1000')));
+  const timestamp = String(Math.floor(Date.now() / 1000));
   const bodyDigest = createHash('sha256').update(serialized, 'utf8').digest('hex');
   const signature = createHmac('sha256', config.hmacSecret)
     .update(`${CALLER_ID}:${timestamp}:${bodyDigest}`, 'utf8')
@@ -83,8 +83,8 @@ async function ingestStockContext(body) {
     body: serialized,
   });
   const responseText = await response.text();
-  if (response.status !== Number('201')) {
-    throw new Error(`Trading Tools stock-context ingest failed (${response.status}): ${responseText.slice(0, Number('500'))}`);
+  if (response.status !== 201) {
+    throw new Error(`Trading Tools stock-context ingest failed (${response.status}): ${responseText.slice(0, 500)}`);
   }
   let stored;
   try {

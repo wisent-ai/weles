@@ -15,6 +15,6 @@ export function pickInstagramProxy() {
     return `http://${encodeURIComponent(dUser)}:${encodeURIComponent(dPass)}@${dHost}:${port}`;
   }
   const creds = readScopedProxy('oxylabsResidential');
-  const sid = Math.floor(Math.random() * Number('9999999'));
+  const sid = Math.floor(Math.random() * 9999999);
   return `http://customer-${encodeURIComponent(creds.username)}-cc-us-sessid-${sid}:${encodeURIComponent(creds.password)}@pr.oxylabs.io:7777`;
 }

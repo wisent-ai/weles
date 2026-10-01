@@ -56,9 +56,9 @@ function redactUrl(rawUrl: string): string {
 function parseDiagnosisOutput(raw: string): CaptureDiagnosis | null {
   const start = raw.indexOf('{');
   const end = raw.lastIndexOf('}');
-  if (start < Number('0') || end <= start) return null;
+  if (start < 0 || end <= start) return null;
   try {
-    const parsed = JSON.parse(raw.slice(start, end + Number('1'))) as Record<string, unknown>;
+    const parsed = JSON.parse(raw.slice(start, end + 1)) as Record<string, unknown>;
     if (typeof parsed.summary !== 'string') return null;
     const errors = Array.isArray(parsed.errors) ? parsed.errors : null;
     const anomalies = Array.isArray(parsed.anomalies) ? parsed.anomalies : null;
@@ -171,12 +171,12 @@ export async function diagnoseCapture(
       const routed = await callJeden(prompt, {
         modelOnly: false,
         cwd: framesDir,
-        maxSteps: Number('4'),
+        maxSteps: 4,
 
       });
       const diagnosis = parseDiagnosisOutput(routed.raw);
       if (!diagnosis) return 'Diagnosis unavailable: model output failed schema validation.';
-      return JSON.stringify(diagnosis, null, Number('2'));
+      return JSON.stringify(diagnosis, null, 2);
     } catch {
       return 'Diagnosis unavailable: authenticated Stado model routing failed closed.';
     }

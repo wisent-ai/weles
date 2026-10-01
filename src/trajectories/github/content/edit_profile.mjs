@@ -26,7 +26,7 @@ const targetBio = (character.bio || '').slice(0, 160);
 const targetLocation = [character.home_city, character.home_country].filter(Boolean).join(', ');
 // Avatar metadata must already contain a private Weles Stado object locator.
 const avatarUrl = character.avatar_url
-  || (Array.isArray(character.training_images) ? character.training_images[Number('0')] : null);
+  || (Array.isArray(character.training_images) ? character.training_images[0] : null);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'github_edit_profile', proxy: proxyUrl, persona });

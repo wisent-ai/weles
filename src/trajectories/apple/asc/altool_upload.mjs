@@ -38,7 +38,7 @@ export async function uploadIpa(opts) {
       cp.stderr.on('data', (data) => { err += data.toString(); });
       cp.on('error', reject);
       cp.on('close', (code) => {
-        if (code === Number('0')) {
+        if (code === 0) {
           console.log('[altool] upload accepted');
           resolve({ ok: true, stdout: out });
           return;

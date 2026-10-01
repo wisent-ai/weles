@@ -83,7 +83,7 @@ export function accountProfileDirectory(opts: WSessionOptions, browser: string):
   if (!accountId) return undefined;
   const action = process.env.ACTION?.trim() ?? '';
   const inferredPlatform = opts.platform?.trim()
-    || action.split('_').at(Number(false))?.trim()
+    || action.split('_').at(0)?.trim()
     || opts.targetHost?.trim()
     || 'unknown';
   const safePlatform = inferredPlatform.toLowerCase().replace(/[^\w.-]+/g, '-');
@@ -93,7 +93,7 @@ export function accountProfileDirectory(opts: WSessionOptions, browser: string):
     || join(userInfo().homedir, '.local', 'state', 'weles', 'browser-profiles');
   const parent = join(root, safePlatform, safeBrowser);
   const directory = join(parent, accountKey);
-  const ownerOnly = Number.parseInt('700', Number('8'));
+  const ownerOnly = Number.parseInt('700', 8);
   mkdirSync(parent, { recursive: true, mode: ownerOnly });
   if (process.env.WELES_FRESH_PROFILE === '1') {
     try {

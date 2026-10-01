@@ -37,8 +37,8 @@ if (!login) { console.log('FAIL: no Google SSO creds'); process.exit(1); }
 // Oxylabs ISP password rules (verified 2026-05-09 from the form's red error):
 // must contain at least one of `_ ~ + =`. We use `_` plus alphanumerics.
 const rand = (n) => Array.from({ length: n }, () => 'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 36)]).join('');
-const ISP_USERNAME = `wisentisp${rand(Number('6'))}`;
-const ISP_PASSWORD = `${rand(Number('8'))}Aa1_${rand(Number('3'))}`;
+const ISP_USERNAME = `wisentisp${rand(6)}`;
+const ISP_PASSWORD = `${rand(8)}Aa1_${rand(3)}`;
 console.log(`[trajectory] generated an ISP credential (password length=${ISP_PASSWORD.length})`);
 
 const s = await WSession.start({ label: 'oxylabs_isp_user', browser: 'chromium' });
@@ -138,8 +138,8 @@ try {
     password: ISP_PASSWORD,
     host: 'isp.oxylabs.io',
     ports: Array.from(
-      { length: Number('10') },
-      (_, index) => String(Number('8001') + index),
+      { length: 10 },
+      (_, index) => String(8001 + index),
     ).join(','),
   });
   console.log('[trajectory] stored ISP credential through its exact Skarbiec writer');

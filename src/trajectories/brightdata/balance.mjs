@@ -16,7 +16,7 @@ const DASH_URL  = 'https://brightdata.com/cp/api_example';
 const DISPLAY_NAME = 'Bright Data';
 
 const login = await getScopedGoogleLogin('brightdataDashboard');
-if (!login) { console.log('FAIL: dedicated Bright Data login is unavailable'); process.exit(Number('1')); }
+if (!login) { console.log('FAIL: dedicated Bright Data login is unavailable'); process.exit(1); }
 console.log(`[trajectory] Using service login: ${login.email}`);
 
 const s = await WSession.start({ label: 'brightdata_balance', browser: 'chromium' });

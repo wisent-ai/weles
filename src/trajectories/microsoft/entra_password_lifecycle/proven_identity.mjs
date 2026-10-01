@@ -22,9 +22,9 @@ const JWT_SCAN = /eyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]*/g;
 
 function decodedTokenClaims(token) {
   const segments = token.split('.');
-  if (segments.length !== Number('3')) return null;
+  if (segments.length !== 3) return null;
   try {
-    const payload = JSON.parse(Buffer.from(segments[Number('1')], 'base64url').toString('utf8'));
+    const payload = JSON.parse(Buffer.from(segments[1], 'base64url').toString('utf8'));
     return payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : null;
   } catch {
     return null;

@@ -15,7 +15,7 @@ export async function disagreementTiebreaker(
   minTiles: number,
 ): Promise<number[] | null> {
   try {
-    const grid = gridSize === Number('3') ? '1 2 3 / 4 5 6 / 7 8 9' : '1-4/5-8/9-12/13-16';
+    const grid = gridSize === 3 ? '1 2 3 / 4 5 6 / 7 8 9' : '1-4/5-8/9-12/13-16';
     const answer = await askJedenAboutImage(
       Buffer.from(gridImgB64, 'base64'),
       `reCAPTCHA grid (${grid}). Instruction: "${instr}". Return ONLY a JSON array of positions, e.g. [1,4,7].`,
@@ -25,16 +25,16 @@ export async function disagreementTiebreaker(
     if (!match) return null;
     let modelPositions: number[] | null = null;
     try {
-      const positions = JSON.parse(match[Number('0')]);
+      const positions = JSON.parse(match[0]);
       if (Array.isArray(positions)) modelPositions = positions as number[];
     } catch {
       return null;
     }
-    if (!modelPositions || modelPositions.length === Number('0')) return null;
+    if (!modelPositions || modelPositions.length === 0) return null;
     const modelSet = new Set<number>(modelPositions);
     console.log(`[recaptcha] Model disagreement-tiebreaker: ${JSON.stringify(modelPositions)}`);
     let best: number[] | null = null;
-    let bestOverlap = Number('0');
+    let bestOverlap = 0;
     for (const solverAnswer of answers) {
       const overlap = solverAnswer.positions.filter(position => modelSet.has(position));
       if (overlap.length > bestOverlap) {

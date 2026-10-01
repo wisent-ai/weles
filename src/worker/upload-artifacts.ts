@@ -60,7 +60,7 @@ function requireStadoObjectConfig(): { apiUrl: string; token: string } {
   const token = String(process.env.WELES_STADO_OBJECT_API_TOKEN ?? '').trim()
   if (!rawUrl) throw new Error('missing required STADO_API_URL')
   if (!token) throw new Error('missing required WELES_STADO_OBJECT_API_TOKEN')
-  if (Buffer.byteLength(token) < Number('32')) throw new Error('WELES_STADO_OBJECT_API_TOKEN must contain at least 32 bytes')
+  if (Buffer.byteLength(token) < 32) throw new Error('WELES_STADO_OBJECT_API_TOKEN must contain at least 32 bytes')
   let parsed: URL
   try { parsed = new URL(rawUrl) } catch { throw new Error('STADO_API_URL must be a valid URL') }
   if (parsed.username || parsed.password || parsed.search || parsed.hash
@@ -84,7 +84,7 @@ function privateStadoUri(namespace: string, key: string): string {
   if (!OBJECT_NAMESPACES[namespace]) throw new Error(`invalid Weles object namespace: ${namespace}`)
   const parts = key.split('/')
   if (!key || key.startsWith('/') || key.endsWith('/') || key.includes('\\') || key.includes('\0') || key.includes('?') || key.includes('#')
-    || [...key].some(character => character.charCodeAt(Number(false)) < Number('32'))
+    || [...key].some(character => character.charCodeAt(0) < 32)
     || parts.some(part => !part || part === '.' || part === '..')) {
     throw new Error(`invalid Weles object key: ${key}`)
   }
@@ -139,13 +139,13 @@ export async function readPrivateStadoObjectIdentity(
   uri: string,
   maximumBytes: number,
 ): Promise<{ bytes: number; sha256: string }> {
-  if (!Number.isSafeInteger(maximumBytes) || maximumBytes < Number('1')) {
+  if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 1) {
     throw new Error('Stado object readback requires a positive safe byte limit')
   }
   let parsed: URL
   try { parsed = new URL(uri) } catch { throw new Error('Stado object readback URI is invalid') }
   if (parsed.protocol !== 'stado:' || parsed.username || parsed.password || parsed.search || parsed.hash
-    || privateStadoUri(parsed.hostname, parsed.pathname.slice(Number('1'))) !== uri) {
+    || privateStadoUri(parsed.hostname, parsed.pathname.slice(1)) !== uri) {
     throw new Error('Stado object readback URI is not canonical')
   }
   const config = requireStadoObjectConfig()

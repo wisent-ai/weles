@@ -108,7 +108,7 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
     if (positions) console.log(`[recaptcha] Solver: ${JSON.stringify(positions)}`);
     // Authenticated Stado-routed vision fallback.
     if (!positions) {
-      const grid = gridSize === Number('3') ? '1 2 3\n4 5 6\n7 8 9' : '1  2  3  4\n5  6  7  8\n9  10 11 12\n13 14 15 16';
+      const grid = gridSize === 3 ? '1 2 3\n4 5 6\n7 8 9' : '1  2  3  4\n5  6  7  8\n9  10 11 12\n13 14 15 16';
       const prompt = `reCAPTCHA: "${instruction.replace(/\n/g,' ')}"\nGrid: ${grid}\nReturn ONLY JSON array of positions. Example: [1,4,7]`;
       const answer = await askPage(page as unknown as ScreenshottablePage, prompt, pageScreenshot).catch(() => '');
       positions = parsePositions(answer);

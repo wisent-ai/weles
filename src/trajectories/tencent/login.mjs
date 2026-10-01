@@ -84,7 +84,7 @@ export function loadTencentCookies() {
 
 async function main() {
   const creds = await getGoogleSsoCreds();
-  if (!creds) { console.log('FAIL: exact weles-google-sso-login grant unavailable'); process.exit(Number('1')); }
+  if (!creds) { console.log('FAIL: exact weles-google-sso-login grant unavailable'); process.exit(1); }
   console.log(`[login] Using Google SSO: ${creds.email}`);
 
   // Pin persona across runs so the post-captcha "Trust this device" cookie
