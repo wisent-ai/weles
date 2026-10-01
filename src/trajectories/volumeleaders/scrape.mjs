@@ -64,46 +64,32 @@ const s = await WSession.start({ label: `vl_scrape_${ticker}_${pageKey}`, proxy:
 async function login() {
   console.error('[vl] logging in');
   await s.goto(`${base}/Login`);
-  for (let i = 0; i < 30; i++) {
-    const ok = await s.page.evaluate('document.querySelector("input[name=Email]") && document.querySelector("input[name=Password]")').catch(() => false);
-    if (ok) break;
-    await pageSettled(s.page);
-  }
+  await s.page.waitForFunction(() => document.querySelector('input[name=Email]') && document.querySelector('input[name=Password]'));
   const fill = (sel, val) => s.page.evaluate(`(({ sel, val }) => { const el = document.querySelector(sel); if (!el) return false; el.focus(); const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(el, val); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); return true; })(${JSON.stringify({ sel, val })})`);
   const submit = async () => {
     const submitLoc = s.page.locator('button[type="submit"], input[type="submit"]').first();
     if (await submitLoc.count()) await submitLoc.click().catch(() => {});
     else await s.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
   };
-  const redirected = async (secs) => {
-    for (let i = 0; i < secs; i += 2) {
-      await pageSettled(s.page);
-      if (!s.page.url().toLowerCase().includes('/login')) return true;
-    }
-    return false;
+  // After a submit the page either leaves /login or settles on it.
+  const redirected = async () => {
+    await pageSettled(s.page);
+    return !s.page.url().toLowerCase().includes('/login');
   };
   // Submit with plain credentials first; only pay for a captcha solve if that
-  // is blocked. The solve is time-bounded so a hard challenge can't wedge the
-  // worker (solver chain can burn 5min+ per provider).
-  await fill('input[name="Email"]', email); await pageSettled(s.page);
-  await fill('input[name="Password"]', password); await pageSettled(s.page);
+  // is blocked.
+  await fill('input[name="Email"]', email);
+  await fill('input[name="Password"]', password);
   await submit();
-  if (await redirected(30)) return;
+  if (await redirected()) return;
   console.error('[vl] plain submit blocked — attempting captcha solve');
   await s.goto(`${base}/Login`);
-  await fill('input[name="Email"]', email); await pageSettled(s.page);
-  await fill('input[name="Password"]', password); await pageSettled(s.page);
-  const CAPTCHA_TIMEOUT_MS = 150_000;
-  try {
-    const res = await Promise.race([
-      s.solveCaptcha(),
-      new Promise((_, rej) => setTimeout(() => rej(new Error(`captcha solve exceeded ${CAPTCHA_TIMEOUT_MS}ms`)), CAPTCHA_TIMEOUT_MS)),
-    ]);
-    console.error(`[vl] captcha: ${res}`);
-  } catch (e) { console.error(`[vl] captcha solve aborted: ${e.message}`); }
+  await fill('input[name="Email"]', email);
+  await fill('input[name="Password"]', password);
+  console.error(`[vl] captcha: ${await s.solveCaptcha()}`);
   await submit();
-  if (await redirected(30)) return;
-  throw new Error('login did not redirect');
+  if (await redirected()) return;
+  throw new Error(`login did not leave /login after the captcha; still at ${s.page.url()}`);
 }
 
 

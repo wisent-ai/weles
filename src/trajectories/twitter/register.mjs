@@ -2,11 +2,10 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { chromium } from 'playwright';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { autoBindCharacter } from '../lib/character-bind.mjs';
+import { pageSettled } from '../_shared/page/settled.mjs';
 
 const URL = 'https://x.com/i/flow/signup?lang=en';
-const MAX_RETRIES = 5;
 const proxy = process.env.PROXY_URL || 'none';
-const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
 
 const SKIP_BUTTONS = ['Skip for now', 'Not now', 'Next', 'Skip'];
 
@@ -39,13 +38,13 @@ async function signup(s) {
   // Set language to English before navigating
   await s.ctx.addCookies([{ name: 'lang', value: 'en', domain: '.x.com', path: '/' }]).catch(() => {});
   await s.goto(URL);
-  await sleep(5);
+  await pageSettled(s.page);
 
   // Dismiss cookie consent if present
   const text = await readPage(s);
   if (text.includes('cookies') && text.includes('partners')) {
     await s.click('Refuse non-essential cookies').catch(() => {});
-    await sleep(2);
+    await pageSettled(s.page);
   }
 
   // Handle "Something went wrong" error
@@ -56,15 +55,15 @@ async function signup(s) {
 
   // Click Create account
   await s.click('Create account');
-  await sleep(3);
+  await pageSettled(s.page);
 
   // Fill name
   await s.fill('Name', name);
-  await sleep(1);
+  await pageSettled(s.page);
 
   // Switch to email
   await s.click('Use email instead').catch(() => {});
-  await sleep(1);
+  await pageSettled(s.page);
 
   // Fill email (or phone if email not available)
   const pageText = await readPage(s);
@@ -75,13 +74,13 @@ async function signup(s) {
     console.log(`[tw] SMS: ${phone}`);
     await s.fill('Phone', s.resolveEnv('$TWITTER_NEW_PHONE'));
   }
-  await sleep(1);
+  await pageSettled(s.page);
 
   // DOB
   await s.select('Month', id.birthMonth);
   await s.select('Day', id.birthDay);
   await s.select('Year', id.birthYear);
-  await sleep(1);
+  await pageSettled(s.page);
 
   // Click Next on form and wait for page to change. Use s.clickSelector so
   // the event is isTrusted=true (the comment at password-submit below already
@@ -91,7 +90,7 @@ async function signup(s) {
 
   // Poll until we leave the form page or hit a known state
   for (let w = 0; w < 30; w++) {
-    await sleep(2);
+    await pageSettled(s.page);
     const t = await readPage(s);
     const preview = t.slice(0, 80).replace(/\n/g, ' ');
     if (w % 5 === 0) console.log(`[tw] waiting ${w}: ${preview}`);
@@ -114,7 +113,7 @@ async function signup(s) {
         const iframe = document.querySelector('iframe#arkoseFrame, iframe[src*="arkoselabs"]');
         if (iframe?.contentWindow) iframe.contentWindow.postMessage(JSON.stringify({ eventId: 'challenge-complete', payload: { sessionToken: tk } }), '*');
       }, token).catch(() => {});
-      await sleep(3);
+      await pageSettled(s.page);
       continue;
     }
     if (t.includes('sent you a code') || t.includes('verification')) break;
@@ -144,9 +143,9 @@ async function signup(s) {
       console.log(`[tw] email code: ${code}`);
       await s.fill('code', code);
     }
-    await sleep(1);
+    await pageSettled(s.page);
     await s.click('Next');
-    await sleep(5);
+    await pageSettled(s.page);
 
     // Check for "unable to confirm you're human" error
     const afterCode = await readPage(s);
@@ -158,19 +157,19 @@ async function signup(s) {
   }
 
   // Password — wait for page to render after verification
-  await sleep(3);
+  await pageSettled(s.page);
   const text4 = await readPage(s);
   console.log(`[tw] password check: ${text4.slice(0, 80).replace(/\n/g, ' ')}`);
   if (text4.includes('password') || text4.includes('at least')) {
     await s.fill('Password', id.password);
-    await sleep(1);
+    await pageSettled(s.page);
     // Route through Playwright locator.click → CDP dispatchMouseEvent → Blink
     // SetTrusted(true). Previous page.evaluate(b.click()) produced isTrusted=false
     // which Arkose-gated submits reject (same pattern as TikTok select.ts fix
     // in commit ce369f6). Fall through to Enter key if neither selector matches.
     await humanClickLocator(s.page, s.page.locator('[data-testid="SignupButton"], [data-testid="LoginForm_Login_Button"]').first()).catch(() => {});
     await s.press('Enter').catch(() => {});
-    await sleep(5);
+    await pageSettled(s.page);
   }
 
   // Skip onboarding until home feed
@@ -180,16 +179,16 @@ async function signup(s) {
     console.log(`[tw] onboarding ${i}: url=${url.slice(-30)} text=${t.slice(0, 60).replace(/\n/g, ' ')}`);
     if (url.includes('/home') || t.includes('what\'s happening') || t.includes('post something') || t.includes('for you')) break;
     // Detect logged-out homepage (dead end)
-    if (url === 'https://x.com/' && t.includes('happening now') && t.includes('join today')) { await s.goto('https://x.com/home'); await sleep(3); break; }
+    if (url === 'https://x.com/' && t.includes('happening now') && t.includes('join today')) { await s.goto('https://x.com/home'); await pageSettled(s.page); break; }
     for (const btn of SKIP_BUTTONS) {
       const r = await s.click(btn);
-      if (r !== 'no-target-found') { await sleep(2); break; }
+      if (r !== 'no-target-found') { await pageSettled(s.page); break; }
     }
   }
   // Navigate to home if still stuck in flow
   if (!(s.page.url?.() ?? '').includes('/home')) {
     await s.goto('https://x.com/home');
-    await sleep(3);
+    await pageSettled(s.page);
   }
 
   // Verify success: check for auth cookies
@@ -211,21 +210,16 @@ async function signup(s) {
   return id.username;
 }
 
-for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-  console.log(`\n=== Twitter signup attempt ${attempt}/${MAX_RETRIES} ===`);
-  // Force chromium — Firefox persona picks fail at fill() because the
-  // weles fill path uses CDP newCDPSession which is Chromium-only.
-  const s = await WSession.start({ label: `twitter_register_${attempt}`, proxy });
-  try {
-    const username = await signup(s);
-    console.log(`PASS: ${username}`);
-    await s.close();
-    process.exit(0);
-  } catch (e) {
-    console.log(`FAIL (attempt ${attempt}): ${e.message?.slice(0, 200)}`);
-    await s.close().catch(() => {});
-    if (attempt === MAX_RETRIES) { console.log('All attempts exhausted'); process.exitCode = 1; }
-    console.log('Retrying with fresh proxy IP in 3s...');
-    await sleep(3);
-  }
+// Force chromium — Firefox persona picks fail at fill() because the
+// weles fill path uses CDP newCDPSession which is Chromium-only.
+const s = await WSession.start({ label: 'twitter_register', proxy });
+try {
+  const username = await signup(s);
+  console.log(`PASS: ${username}`);
+  await s.close();
+  process.exit(0);
+} catch (e) {
+  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+  await s.close();
+  process.exitCode = 1;
 }

@@ -80,9 +80,9 @@ async function inventoryPage(sess, urlPath) {
   for (let i = 0; i < 30; i++) {
     len = await sess.page.evaluate('document.body?.innerText?.length || 0').catch(() => 0);
     if (len > 500) break;
-    await sess.wait(1);
+    await pageSettled(sess.page);
   }
-  await sess.wait(4); // let charts settle
+  await pageSettled(sess.page); // let charts settle
   const info = await sess.page.evaluate(`(() => {
     const pick = (el) => ({
       text: (el.innerText || el.getAttribute('aria-label') || '').trim().slice(0, 80),
@@ -174,21 +174,21 @@ if (mode === 'inventory') {
           for (let i = 0; i < 30; i++) {
             const c = await sess.page.evaluate('document.querySelectorAll("input").length').catch(() => 0);
             if (c >= 2) break;
-            await sess.wait(1);
+            await pageSettled(sess.page);
           }
           const inputs = await sess.page.evaluate(`(() => Array.from(document.querySelectorAll('input')).map(i => ({ name: i.name, type: i.type, ph: i.placeholder })))()`);
           const em = inputs.find(i => i.type === 'email' || i.name === 'email' || /email|address/i.test(i.ph || ''));
           const pw = inputs.find(i => i.type === 'password' || i.name === 'password');
           const buildSel = (i) => i.name ? `input[name="${i.name}"]` : `input[placeholder="${i.ph}"]`;
-          await sess.fillSelector(buildSel(em), email); await sess.wait(1);
-          await sess.fillSelector(buildSel(pw), password); await sess.wait(1);
+          await sess.fillSelector(buildSel(em), email); await pageSettled(sess.page);
+          await sess.fillSelector(buildSel(pw), password); await pageSettled(sess.page);
           const submitLoc = sess.page.locator('button[type="submit"], input[type="submit"]').first();
           if (await submitLoc.count()) await submitLoc.click().catch(() => {});
           else await sess.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
-          for (let i = 0; i < 30; i++) { await sess.wait(2); if (!sess.page.url().includes('/login')) return; }
+          for (let i = 0; i < 30; i++) { await pageSettled(sess.page); if (!sess.page.url().includes('/login')) return; }
           throw new Error('relogin failed');
         })();
-        await sess.wait(3);
+        await pageSettled(sess.page);
       }
       const r = await inventoryPage(sess, p).catch((e) => ({ page: p, err: e.message }));
       existing.pages.push(r);

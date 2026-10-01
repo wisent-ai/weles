@@ -4,6 +4,7 @@ import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { persistFreshCookieJar } from '../_shared/auth/cookie-freshness.mjs';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { getReceived, listReceived } from '../../_shared/resend-receiving.mjs';
+import { pageSettled } from '../_shared/page/settled.mjs';
 
 const URL = 'https://github.com/login';
 
@@ -67,7 +68,7 @@ for (let retry = 0; retry < 3; retry++) {
     let rendered = false;
     for (let i = 0; i < 15; i++) {
       if (await s.page.evaluate('document.readyState === "complete" && document.body?.innerText?.length > 100').catch(() => false)) { rendered = true; break; }
-      await s.wait(1);
+      await pageSettled(s.page);
     }
     if (rendered) { console.log(`[login] Homepage rendered on attempt ${retry + 1}`); break; }
     console.log(`[login] Homepage failed on attempt ${retry + 1}, retrying...`);
@@ -81,7 +82,7 @@ try {
   // Cookie-first PASS branch removed. Always do form login.
   await s.ctx.clearCookies();
   await s.goto(URL);
-  await s.wait(3);
+  await pageSettled(s.page);
 
   // Confirm the login form actually loaded before filling. If we ended up
   // anywhere other than /login or /session/*, something redirected and the
@@ -93,9 +94,9 @@ try {
   }
 
   await s.fill('Username or email', '$SVC_EMAIL');
-  await s.wait(1);
+  await pageSettled(s.page);
   await s.fill('Password', '$SVC_PASSWORD');
-  await s.wait(1);
+  await pageSettled(s.page);
 
   // Submit — match ONLY the login form's submit control (value~="Sign in")
   // to avoid hitting unrelated submit buttons on other pages. Use Playwright
@@ -127,7 +128,7 @@ try {
   // Wait for redirect
   let url2 = '';
   for (let i = 0; i < 10; i++) {
-    await s.wait(2);
+    await pageSettled(s.page);
     url2 = s.page.url?.() ?? '';
     if (!url2.includes('/login') && !url2.includes('/session')) break;
   }
@@ -139,7 +140,7 @@ try {
     const emailAddr = process.env.SVC_EMAIL;
     let otp = null;
     for (let poll = 0; poll < 20 && !otp; poll++) {
-      await s.wait(5);
+      await pageSettled(s.page);
       const emails = await listReceived(10, emailAddr);
       for (const em of emails.data) {
         const to = (em.to ?? []).map(t => typeof t === 'string' ? t : t.email).join(',');
@@ -158,7 +159,7 @@ try {
         if (inputs.length === 1) { setter.call(inputs[0], code); inputs[0].dispatchEvent(new Event('input', {bubbles:true})); }
         else if (inputs.length >= code.length) { for (let i = 0; i < code.length; i++) { setter.call(inputs[i], code[i]); inputs[i].dispatchEvent(new Event('input', {bubbles:true})); } }
       })(${JSON.stringify(otp)})`).catch(() => {});
-      await s.wait(5);
+      await pageSettled(s.page);
       url2 = s.page.url?.() ?? '';
       console.log(`[login] After device verify: ${url2}`);
     } else {

@@ -99,9 +99,9 @@ async function inventoryPage(sess, urlPath) {
   for (let i = 0; i < 30; i++) {
     len = await sess.page.evaluate('document.body?.innerText?.length || 0').catch(() => 0);
     if (len > 500) break;
-    await sess.wait(1);
+    await pageSettled(sess.page);
   }
-  await sess.wait(4);
+  await pageSettled(sess.page);
   const info = await sess.page.evaluate(`(() => {
     const visible = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
     const tabs = Array.from(document.querySelectorAll('[role="tab"], [class*="tab"], .nav-link, button'))

@@ -1,4 +1,3 @@
-import { pageSettled } from '../_shared/page/settled.mjs';
 // Extract drawings from a TradingView chart via CDP connection to user's Chrome.
 // Prereq: user launches Chrome with:
 //   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
@@ -41,8 +40,20 @@ function cdp(method, params) {
     ws.send(JSON.stringify({ id, method, params }));
   });
 }
+/** Resolves with the params of the next CDP event named `method`. */
+function cdpEvent(method) {
+  const { promise, resolve } = Promise.withResolvers();
+  const handler = (event) => {
+    const msg = JSON.parse(event.data);
+    if (msg.method === method) {
+      ws.removeEventListener('message', handler);
+      resolve(msg.params);
+    }
+  };
+  ws.addEventListener('message', handler);
+  return promise;
+}
 const s = {
-  wait: (n) => new Promise(r => setTimeout(r, n * 1000)),  // allow-raw-playwright: review — context-dependent timer
   close: async () => ws.close(),
   page: { evaluate: async (js) => {
     const r = await cdp('Runtime.evaluate', { expression: `(async () => { ${js.startsWith('(') ? 'return ' + js : js} })()`, awaitPromise: true, returnByValue: true });
@@ -55,7 +66,6 @@ const FS = await import('node:fs');
 const OUT_FILE = args.out || '/tmp/tv_drawings.json';
 
 try {
-  await pageSettled(s.page);
 
   // Enable network monitoring with large buffers
   await cdp('Network.enable', { maxResourceBufferSize: 50_000_000, maxTotalBufferSize: 200_000_000 });
@@ -75,10 +85,13 @@ try {
     }
   });
 
-  // Reload the chart to capture the drawings API call
+  // Reload the chart to capture the drawings API call; the reload is done
+  // when Chrome reports the page's load event.
   console.error('[tv_draw] reloading to capture drawings API');
+  await cdp('Page.enable', {});
+  const loaded = cdpEvent('Page.loadEventFired');
   await cdp('Page.reload', { ignoreCache: false });
-  await pageSettled(s.page);
+  await loaded;
 
   // Get cookies + UA from Chrome via CDP
   const { cookies } = await cdp('Network.getAllCookies', {});

@@ -105,11 +105,7 @@ global._s = s;
 async function doLogin(sess) {
   console.error('[uw_scrape] logging in');
   await sess.goto('https://unusualwhales.com/login');
-  for (let i = 0; i < 30; i++) {
-    const count = await sess.page.evaluate('document.querySelectorAll("input").length').catch(() => 0);
-    if (count >= 2) break;
-    await sess.wait(1);
-  }
+  await sess.page.waitForFunction(() => document.querySelectorAll('input').length >= 2);
   const inputs = await sess.page.evaluate(`(() => Array.from(document.querySelectorAll('input')).map((i, idx) => ({ idx, name: i.name, type: i.type, id: i.id, ph: i.placeholder })))()`);
   const emailIn = inputs.find(i => i.type === 'email' || i.name === 'email' || /email|address/i.test(i.ph || ''));
   const passIn = inputs.find(i => i.type === 'password' || i.name === 'password');
@@ -123,43 +119,29 @@ async function doLogin(sess) {
     if (await submitLoc.count()) await submitLoc.click().catch(() => {});
     else await sess.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
   };
-  const redirected = async (secs) => {
-    for (let i = 0; i < secs; i += 2) {
-      await sess.wait(2);
-      if (!sess.page.url().includes('/login')) { console.error(`[uw_scrape] logged in, now at ${sess.page.url()}`); return true; }
-    }
-    return false;
+  // After a submit the page either leaves /login or settles on it.
+  const redirected = async () => {
+    await pageSettled(sess.page);
+    if (sess.page.url().includes('/login')) return false;
+    console.error(`[uw_scrape] logged in, now at ${sess.page.url()}`);
+    return true;
   };
   // UW's login carries a risk-based Google reCAPTCHA v2 checkbox that silently
   // auto-passes for low-risk sessions and only demands an image challenge
   // otherwise. So submit with plain credentials first (the common case), and
-  // only pay for a captcha solve when that submit is actually blocked. The
-  // solve is time-bounded: a hard image challenge can burn 5min+ per provider
-  // across the solver chain, which must never wedge the worker.
+  // only pay for a captcha solve when that submit is actually blocked.
   await sess.fillSelector(sel(emailIn), email);
-  await sess.wait(1);
   await sess.fillSelector(sel(passIn), password);
-  await sess.wait(1);
   await submit();
-  if (await redirected(30)) return;
+  if (await redirected()) return;
   console.error('[uw_scrape] plain submit blocked — attempting captcha solve');
   await sess.goto('https://unusualwhales.com/login');
   await sess.fillSelector(sel(emailIn), email);
-  await sess.wait(1);
   await sess.fillSelector(sel(passIn), password);
-  await sess.wait(1);
-  const CAPTCHA_TIMEOUT_MS = 150_000;
-  try {
-    const res = await Promise.race([
-      sess.solveCaptcha(),
-      new Promise((_, rej) => setTimeout(() => rej(new Error(`captcha solve exceeded ${CAPTCHA_TIMEOUT_MS}ms`)), CAPTCHA_TIMEOUT_MS)),
-    ]);
-    console.error(`[uw_scrape] captcha: ${res}`);
-  } catch (e) { console.error(`[uw_scrape] captcha solve aborted: ${e.message}`); }
+  console.error(`[uw_scrape] captcha: ${await sess.solveCaptcha()}`);
   await submit();
-  if (await redirected(30)) return;
-  console.error('FAIL: login did not redirect');
-  process.exit(1);
+  if (await redirected()) return;
+  throw new Error(`login did not leave /login after the captcha; still at ${sess.page.url()}`);
 }
 
 
@@ -179,10 +161,10 @@ async function scrapeOnePage(sess, tk, pg, ssPath) {
       reloaded = true;
       try { await sess.page.reload(); } catch (e) { console.error(`[uw_scrape] [${pg}] reload threw: ${e.message}`); }
     }
-    await sess.wait(1);
+    await pageSettled(sess.page);
   }
   if (!ready) { console.error(`[uw_scrape] [${pg}] never rendered — skipping`); return { skipped: true, reason: 'never_rendered' }; }
-  await sess.wait(5);
+  await pageSettled(sess.page);
   // For pages with a TIME RANGE calendar picker (option_flow_alerts),
   // drive the picker to the largest preset before extracting. Confirmed
   // on /dark-pool-flow (2026-05-08): the page disclaimer caps the
@@ -193,11 +175,11 @@ async function scrapeOnePage(sess, tk, pg, ssPath) {
       const timeBtn = sess.page.locator('button:has-text("TIME RANGE")').first();
       if (await timeBtn.count()) {
         await timeBtn.click();
-        await sess.wait(2);
+        await pageSettled(sess.page);
         const last7 = sess.page.locator('button:has-text("Last 7 Days")').first();
-        if (await last7.count()) { await last7.click(); await sess.wait(1); }
+        if (await last7.count()) { await last7.click(); await pageSettled(sess.page); }
         const applyBtn = sess.page.locator('button:has-text("Apply")').first();
-        if (await applyBtn.count()) { await applyBtn.click(); await sess.wait(8); }
+        if (await applyBtn.count()) { await applyBtn.click(); await pageSettled(sess.page); }
         console.error(`[uw_scrape] [${pg}] applied Last 7 Days TIME RANGE`);
       }
     } catch (e) { console.error(`[uw_scrape] [${pg}] TIME RANGE drive threw: ${e.message}`); }
@@ -214,7 +196,7 @@ async function scrapeOnePage(sess, tk, pg, ssPath) {
       });
       const origVp = sess.page.viewportSize();
       if (maxH > origVp.height) await sess.page.setViewportSize({ width: origVp.width, height: maxH }); // allow-raw-playwright: viewport resize for full-content capture
-      await sess.wait(2);
+      await pageSettled(sess.page);
       await sess.page.screenshot({ path: ssPath, fullPage: false }); // allow-raw-playwright: viewport-sized PNG (sized to full content)
       if (maxH > origVp.height) await sess.page.setViewportSize(origVp); // allow-raw-playwright: restore
       console.error(`[uw_scrape] [${pg}] screenshot at ${maxH}px tall`);

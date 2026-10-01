@@ -4,6 +4,7 @@ import { cpSync, mkdirSync, rmSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readScopedLogin } from '../../_shared/scoped-secrets.mjs';
+import { pageSettled } from '../_shared/page/settled.mjs';
 
 const VAST_LOGIN = readScopedLogin('vastDashboard');
 const EMAIL = VAST_LOGIN.email;
@@ -30,18 +31,18 @@ const ctx = await launchProfileChrome({
   channel: null,
 });
 const page = ctx.pages()[0] ?? await ctx.newPage();
-const wait = (s) => new Promise(r => setTimeout(r, s * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
+const wait = () => pageSettled(page);
 
 try {
   await page.goto('https://cloud.vast.ai/', { waitUntil: 'domcontentloaded' });
-  await wait(2);
+  await wait();
 
   // Always attempt login — unreliable to detect from DOM, cheap to retry.
   {
     const popupP = ctx.waitForEvent('page').catch(() => null);
     // Sign-in button: Playwright locator.click routes through CDP with isTrusted=true.
     await page.locator('a, button, [role="button"]').filter({ hasText: /^(sign\s*in|log\s*in|login)$/i }).first().click().catch(() => {});
-    await wait(3);
+    await wait();
     // "Continue with Google" — constrained to short buttons so we don't hit marketing copy.
     await page.locator('a, button, [role="button"], div').filter({ hasText: /google/i }).filter({ hasText: /continue|with google/i }).first().click().catch(() => {});
     const popup = await popupP;
@@ -60,7 +61,7 @@ try {
         } else if (path.includes('/signin/oauth/') || path.includes('/oauthconsent')) {
           await popup.locator('button, [role="button"], a').filter({ hasText: /^(continue|allow|confirm)$/i }).first().click().catch(() => {});
         }
-        await wait(1);
+        await wait();
       }
     }
   }
@@ -79,7 +80,7 @@ try {
   })()`);
 
   await page.goto('https://cloud.vast.ai/host/machines/', { waitUntil: 'domcontentloaded' });
-  await wait(7);
+  await wait();
 
   const uiTrace = [];
   page.on('request', (req) => {
@@ -93,7 +94,7 @@ try {
   const clicked = (await settingsLoc.count()) > 0;
   if (clicked) await settingsLoc.first().click().catch(() => {});
   console.log('settings_clicked ->', clicked);
-  await wait(3);
+  await wait();
 
   // Fill the first empty input inside the dialog. On-Demand Price is the
   // first price field rendered.
@@ -114,7 +115,7 @@ try {
     return { filled: false, inputs_count: inputs.length };
   }, PRICE_GPU);
   console.log('fill_price ->', JSON.stringify(filled));
-  await wait(2);
+  await wait();
   const listLoc = page.locator('[role="dialog"] button, [class*="odal"] button, [class*="ialog"] button').filter({ hasText: /^LIST$/ }).first();
   const list_exists = (await listLoc.count()) > 0;
   const list_disabled = list_exists ? await listLoc.isDisabled().catch(() => null) : null;
@@ -122,7 +123,7 @@ try {
   if (list_exists && list_disabled === false) { await listLoc.click().catch(() => {}); clicked_list = true; }
   const result = { list_exists, list_disabled, clicked_list };
   console.log('list_click ->', JSON.stringify(result));
-  await wait(5);
+  await wait();
   const toast = await page.evaluate(() => {
     const m = (document.body?.innerText || '').match(/[^\n]*(listed|success|error|fail|invalid)[^\n]*/i);
     return m ? m[0].slice(0, 200) : null;
