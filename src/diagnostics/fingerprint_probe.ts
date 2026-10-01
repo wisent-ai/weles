@@ -145,15 +145,14 @@ export const FP_SCRIPT = String.raw`(async () => {
       pc.createDataChannel('weles-diag');
       // Gathering ends with a null candidate; that event, not a timer, says
       // every local address has been offered.
-      const gathered = new Promise(resolve => {
-        pc.onicecandidate = (e) => {
-          if (!e.candidate) { resolve(undefined); return; }
-          const m = e.candidate.candidate?.match(/([0-9]{1,3}\.){3}[0-9]{1,3}/);
-          if (m) ips.add(m[0]);
-        };
-      });
+      const gathered = Promise.withResolvers();
+      pc.onicecandidate = (e) => {
+        if (!e.candidate) { gathered.resolve(undefined); return; }
+        const m = e.candidate.candidate?.match(/([0-9]{1,3}\.){3}[0-9]{1,3}/);
+        if (m) ips.add(m[0]);
+      };
       await pc.setLocalDescription(await pc.createOffer());
-      await gathered;
+      await gathered.promise;
       pc.close();
       return { localIPs: Array.from(ips) };
     } catch (e) { return { _err: String(e).slice(0, 100), localIPs: [] }; }
