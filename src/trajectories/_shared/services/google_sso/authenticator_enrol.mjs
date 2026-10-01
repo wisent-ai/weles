@@ -8,7 +8,7 @@
 // Every step is one attempt: a page that does not show what the step needs is
 // reported with what it showed instead, never clicked at again, and a browser
 // error is the caller's to see.
-import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../dist/human/keyboard.js';
 import { generateTotp } from './totp_secret.mjs';
 
@@ -45,14 +45,12 @@ export async function clickByText(page, pattern, label) {
   if (await role.isVisible()) {
     console.log(`[google-authenticator-enrol] clicking ${label} via role`);
     await humanClickLocator(page, role);
-    await humanIdlePause('deliberate');
     return true;
   }
   const textual = page.locator(CLICKABLE).filter({ hasText: pattern }).filter({ visible: true }).first();
   if (await textual.isVisible()) {
     console.log(`[google-authenticator-enrol] clicking ${label} via text`);
     await humanClickLocator(page, textual);
-    await humanIdlePause('deliberate');
     return true;
   }
   return false;
@@ -139,14 +137,18 @@ export async function confirmSetupCode(page, wait, secret) {
   // verification codes", so a text test for that phrase reported the field as
   // already shown, skipped the Next that reveals it, and refused with
   // `setup_code_input_not_found` while Google was still showing the setup key.
-  if (!(await input.isVisible().catch(() => false))) {
-    await clickByText(page, /^Next$/i, 'next');
+  if (!(await input.isVisible())) {
+    if (!await clickByText(page, /^Next$/i, 'next')) {
+      return { ok: false, blocked: 'setup_code_input_not_found', textPreview: preview(await bodyText(page)) };
+    }
     await wait();
   }
   await input.waitFor({ state: 'visible' });
   const code = freshCode(secret);
   await humanFill(page, input, code);
-  await clickByText(page, /^(Next|Verify|Turn on|Done)$/i, 'submit setup code');
+  if (!await clickByText(page, /^(Next|Verify|Turn on|Done)$/i, 'submit setup code')) {
+    return { ok: false, blocked: 'setup_code_submit_not_found', textPreview: preview(await bodyText(page)) };
+  }
   await wait();
   const text = await bodyText(page);
   if (/Wrong code|Try again|Invalid code|Couldn't verify|Enter the code/i.test(text)) {
