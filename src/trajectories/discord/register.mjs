@@ -6,7 +6,7 @@ import { humanFill } from '../../../dist/human/keyboard.js';
 import { autoBindCharacter } from '../lib/character-bind.mjs';
 import { harvestAfterRegister } from '../lib/discord_harvest.mjs';
 import { accountItemFor } from '../_shared/skarbiec/accounts.mjs';
-import { getReceived, listReceived } from '../../_shared/resend-receiving.mjs';
+import { getReceived, listReceivedFrom } from '../../_shared/resend-receiving.mjs';
 // burned.js is CommonJS; default-import then destructure (named ESM import
 // of a CJS export is fragile across rebuilds). This lineage exposes
 // markBurned(host,signal,platform) — no multi-level markBurnedIp.
@@ -54,29 +54,28 @@ async function solverProxyFields(proxy) {
 }
 
 // Opens the verify link of the Discord verification mail that is in the
-// inbox now; throws when it has not arrived.
+// inbox now: a mail from a discord.com sender to this address whose body
+// carries a click.discord.com link that resolves to /verify. Throws when no
+// such mail has arrived.
 async function verifyEmail(emailAddr) {
-  const emails = await listReceived(10, emailAddr);
-  const mail = (emails.data ?? []).find((em) => {
-    const to = (em.to ?? []).map(t => typeof t === 'string' ? t : t.email).join(',');
-    return to.includes(emailAddr) && em.from?.includes('discord') && em.subject?.includes('Verify');
-  });
-  if (!mail) throw new Error(`discord_register: no verification mail for ${emailAddr} has arrived yet; open its verify link once it is in the inbox`);
-  const full = await getReceived(mail.id);
-  if (!full.html) throw new Error(`discord_register: verification mail ${mail.id} has no HTML body`);
-  const links = full.html.match(/https:\/\/click\.discord\.com[^\s"]+/g);
-  if (!links) throw new Error(`discord_register: verification mail ${mail.id} carries no click.discord.com link`);
-  for (const link of links) {
-    const r = await fetch(link, { redirect: 'manual' });
-    const loc = r.headers.get('location');
-    if (!loc?.includes('/verify')) continue;
-    console.log('[register] Opening verify link in browser...');
-    await s.goto(loc);
-    await pageSettled(s.page);
-    console.log(`[register] After verify: ${s.page.url?.()}`);
-    return;
+  const fromDiscord = await listReceivedFrom(10, emailAddr, 'discord.com');
+  if (fromDiscord.length === 0) throw new Error(`discord_register: no mail from discord.com for ${emailAddr} has arrived yet; open its verify link once it is in the inbox`);
+  for (const mail of fromDiscord) {
+    const full = await getReceived(mail.id);
+    if (!full.html) continue;
+    const links = full.html.match(/https:\/\/click\.discord\.com[^\s"]+/g) ?? [];
+    for (const link of links) {
+      const r = await fetch(link, { redirect: 'manual' });
+      const loc = r.headers.get('location');
+      if (!loc || !new globalThis.URL(loc).pathname.startsWith('/verify')) continue;
+      console.log('[register] Opening verify link in browser...');
+      await s.goto(loc);
+      await pageSettled(s.page);
+      console.log(`[register] After verify: ${s.page.url?.()}`);
+      return;
+    }
   }
-  throw new Error(`discord_register: verification mail ${mail.id} carries no /verify link`);
+  throw new Error(`discord_register: ${fromDiscord.length} mail(s) from discord.com for ${emailAddr} carry no click.discord.com link to /verify`);
 }
 
 try {

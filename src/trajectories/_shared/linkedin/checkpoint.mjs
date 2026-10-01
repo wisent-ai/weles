@@ -2,7 +2,7 @@ import { CaptchaSolver } from '../../../../dist/captcha/solver.js';
 import { solveRecaptchaV2 as solveRecaptchaV2InPage } from '../../../../dist/captcha/recaptcha.js';
 import { humanIdlePause, humanClickLocator } from '../../../../dist/human/mouse.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
-import { getReceived, listReceived, receivingConfigured } from '../../../_shared/resend-receiving.mjs';
+import { getReceived, listReceivedFrom, receivingConfigured } from '../../../_shared/resend-receiving.mjs';
 
 const RECAPTCHA_SITEKEY = '6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC';
 const CHECKPOINT_RE = /\/(checkpoint|uas\/login|login\/recovery)/;
@@ -23,11 +23,10 @@ async function solveEmailPinChallenge({ page }, email) {
   let code = null;
   for (let i = 0; i < 18; i++) {
     await humanIdlePause('long');
-    let list;
-    try { list = await listReceived(20, email); }
+    let matches;
+    try { matches = await listReceivedFrom(20, email, 'linkedin.com'); }
     catch (e) { console.log(`[linkedin_login] inbox read failed: ${String(e?.message || e).slice(0, 160)}`); continue; }
-    const matches = list.data.filter((m) => m.to?.[0] === email && /linkedin/i.test(m.from || '') && new Date(m.created_at).getTime() >= challengeStart - 5000);
-    matches.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    matches = matches.filter((m) => new Date(m.created_at).getTime() >= challengeStart - 5000);
     const msg = matches[0];
     if (!msg) continue;
     const subj = msg.subject || '';
@@ -177,17 +176,18 @@ export async function confirmLinkedinEmail(page, email) {
   const start = Date.now() - 10 * 60 * 1000;
   let confirmUrl = null;
   for (let i = 0; i < 18; i++) {
-    let list;
-    try { list = await listReceived(20, email); }
+    let matches;
+    try { matches = await listReceivedFrom(20, email, 'linkedin.com'); }
     catch (e) { console.log(`[linkedin_register] inbox read failed: ${String(e?.message || e).slice(0, 160)}`); await humanIdlePause('long'); continue; }
-    const matches = list.data.filter((m) => m.to?.[0] === email && /confirm your email/i.test(m.subject || '') && new Date(m.created_at).getTime() >= start);
-    matches.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    if (matches[0]) {
-      const full = await getReceived(matches[0].id);
+    // The confirmation mail is the one from LinkedIn that carries the
+    // confirmation link, whatever its subject says.
+    for (const match of matches.filter((m) => new Date(m.created_at).getTime() >= start)) {
+      const full = await getReceived(match.id);
       const body = full?.text || full?.html || '';
       const m = body.match(/https:\/\/www\.linkedin\.com\/comm\/psettings\/email\/confirm\?[^\s<>"]+/);
       if (m) { confirmUrl = m[0]; break; }
     }
+    if (confirmUrl) break;
     await humanIdlePause('long');
   }
   if (!confirmUrl) { console.log('[linkedin_register] no email-confirmation link in inbox'); return { ok: false, reason: 'confirm_email_not_received' }; }

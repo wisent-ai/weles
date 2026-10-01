@@ -73,11 +73,10 @@ async function clearCaptchas(page, s) {
   // bounded pass count comes from the prior version of this script.
   for (let i = 0; i < 5; i++) {
     await solvePageCaptcha(page, solver, s);
-    const r = await safeEval(page, () => {
-      const t = document.body ? document.body.innerText : '';
-      return t.includes("Please show you're not a robot")
-        || t.includes('our systems have detected unusual traffic');
-    });
+    // Google's rate-limit interstitial is its /sorry/ page, or a captcha
+    // form rendered in place of the results.
+    const r = await safeEval(page, () => location.pathname.startsWith('/sorry')
+      || !!document.querySelector('#captcha-form, #gs_captcha_f, iframe[src*="recaptcha"]'));
     if (!r.ok) throw r.error;
     if (!r.value) return true;
     await pageSettled(s.page);

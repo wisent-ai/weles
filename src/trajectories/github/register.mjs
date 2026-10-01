@@ -5,7 +5,7 @@ import { solveRotationViaCoords } from './captcha/coords_solver.mjs';
 import { requireStadoModelRouterConfig } from './captcha/stado_model_router.mjs';
 import { humanClick, humanClickLocator, nextInterClickMs } from '../../../dist/human/mouse.js'; import { humanType } from '../../../dist/human/keyboard.js';
 import { autoBindCharacter } from '../lib/character-bind.mjs';
-import { getReceived, listReceived } from '../../_shared/resend-receiving.mjs';
+import { getReceived, listReceivedFrom } from '../../_shared/resend-receiving.mjs';
 
 const URL = 'https://github.com/signup';
 
@@ -75,11 +75,11 @@ try {
     const v = s.resolveEnv(value);
     try { const bb = await s.page.locator(selector).first().boundingBox(); if (!bb) return { ok: false, reason: 'no-bbox' };
       await humanClick(s.page, Math.round(bb.x + bb.width / 2), Math.round(bb.y + bb.height / 2));
-    } catch (e) { return { ok: false, reason: `click: ${e.message?.slice(0, 60)}` }; }
+    } catch (e) { return { ok: false, reason: `click: ${e.message?.slice(0, 60)}`, browserGone: s.page.isClosed() || !s.ctx.browser()?.isConnected() }; }
     await humanType(s.page, v); await s.page.keyboard.press('Tab').catch(() => {}); return { ok: true };
   };
   const pause = () => new Promise(r => setTimeout(r, nextInterClickMs()));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
-  const checkAlive = (tag, r) => { if (!r.ok && /closed|disconnect|Target/i.test(r.reason ?? '')) { console.log(`FAIL: browser died at ${tag} — ${r.reason}`); s.close().catch(()=>{}); process.exit(42); } };
+  const checkAlive = (tag, r) => { if (r.browserGone) { console.log(`FAIL: browser died at ${tag} — ${r.reason}`); s.close().catch(()=>{}); process.exit(42); } };
   const er = await fillField('#email', '$GITHUB_NEW_EMAIL'); console.log(`[register] Fill email: ${JSON.stringify(er)}`); checkAlive('email', er); await pause();
   const pr = await fillField('#password', '$GITHUB_NEW_PASSWORD'); console.log(`[register] Fill password: ${JSON.stringify(pr)}`); checkAlive('password', pr); await pause();
   const ur = await fillField('#login', '$GITHUB_NEW_USERNAME'); console.log(`[register] Fill username: ${JSON.stringify(ur)}`); checkAlive('username', ur); await pause();
@@ -244,10 +244,7 @@ try {
   let otp = null;
   for (let poll = 0; poll < 20 && !otp; poll++) {
     await s.wait(5);
-    const emails = await listReceived(10, emailAddr);
-    for (const em of emails.data) {
-      const to = (em.to ?? []).map(t => typeof t === 'string' ? t : t.email).join(',');
-      if (!to.includes(emailAddr) || !em.from?.toLowerCase().includes('github')) continue;
+    for (const em of await listReceivedFrom(10, emailAddr, 'github.com')) {
       const full = await getReceived(em.id);
       const body = (full.html ?? '') + (full.text ?? '');
       const m = body.match(/\b(\d{6,8})\b/);

@@ -3,7 +3,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { persistFreshCookieJar } from '../_shared/auth/cookie-freshness.mjs';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
-import { getReceived, listReceived } from '../../_shared/resend-receiving.mjs';
+import { getReceived, listReceivedFrom } from '../../_shared/resend-receiving.mjs';
 import { pageSettled } from '../_shared/page/settled.mjs';
 
 const URL = 'https://github.com/login';
@@ -141,10 +141,7 @@ try {
     let otp = null;
     for (let poll = 0; poll < 20 && !otp; poll++) {
       await pageSettled(s.page);
-      const emails = await listReceived(10, emailAddr);
-      for (const em of emails.data) {
-        const to = (em.to ?? []).map(t => typeof t === 'string' ? t : t.email).join(',');
-        if (!to.includes(emailAddr) || !em.from?.toLowerCase().includes('github')) continue;
+      for (const em of await listReceivedFrom(10, emailAddr, 'github.com')) {
         const full = await getReceived(em.id);
         const body = (full.html ?? '') + (full.text ?? '');
         const m = body.match(/\b(\d{6,8})\b/);

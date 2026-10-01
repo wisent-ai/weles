@@ -31,3 +31,26 @@ export async function listReceived(limit, email) {
 export async function getReceived(id) {
   return action('resend.receiving.get', { id });
 }
+
+/**
+ * The domain of a message's sender, from its `from` address (`Name <a@b.c>`
+ * or `a@b.c`), lower-cased; '' when there is none.
+ */
+export function senderDomain(message) {
+  const from = typeof message?.from === 'string' ? message.from : message?.from?.email ?? '';
+  return (from.match(/@([^>\s]+)/)?.[1] ?? '').toLowerCase();
+}
+
+/** Whether the message was sent from `domain` or a subdomain of it. */
+export function sentFrom(message, domain) {
+  const sender = senderDomain(message);
+  return sender === domain || sender.endsWith(`.${domain}`);
+}
+
+/** The newest received messages addressed to `email` and sent from `domain`, newest first. */
+export async function listReceivedFrom(limit, email, domain) {
+  const list = await listReceived(limit, email);
+  return (list.data ?? [])
+    .filter((m) => (m.to ?? []).map((t) => (typeof t === 'string' ? t : t.email)).includes(email) && sentFrom(m, domain))
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+}
