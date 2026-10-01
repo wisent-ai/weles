@@ -136,7 +136,6 @@ export async function doGoogleSso({
           try {
             await clickEmailRow(page, login.email);
             mark('gis_account_chooser');
-            await humanIdlePause('long');
             await waitForEnabledThenClick(page, /^(continue|dalej|next)$/i);
             await humanIdlePause('long');
           } catch (e) {

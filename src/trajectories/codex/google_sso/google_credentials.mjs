@@ -122,9 +122,7 @@ export async function enterGoogleCredentials({
   } catch (e) {
     if (!e.message.includes('Execution context was destroyed')) throw e;
   }
-  await humanIdlePause('short');
   await waitForEnabledThenClick(page, /next|continue|dalej/i);
-  await humanIdlePause('deliberate');
 
   const gPwIn = await waitForGooglePassword({ page, mark, humanClickLocator });
   await fillAndVerify(page, gPwIn, login.password, humanClickLocator, humanType);
@@ -136,7 +134,6 @@ export async function enterGoogleCredentials({
   } catch (e) {
     if (!e.message.includes('Execution context was destroyed')) throw e;
   }
-  await humanIdlePause('short');
   await waitForEnabledThenClick(page, /next|sign in|continue|dalej/i);
   await humanIdlePause('long');
   const passwordRejected = await navEval(page, () => {
