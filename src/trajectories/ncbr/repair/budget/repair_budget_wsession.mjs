@@ -2,12 +2,14 @@
 // Never submits. Uses visible LSI forms only.
 
 import { WSession } from '../../../../../dist/index.js';
-import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { validateProject } from '../../validation.mjs';
 import { lsiForm } from './repair_budget_wsession/form.mjs';
 import { budgetSections } from './repair_budget_wsession/sections.mjs';
 
 const PROJECT_ID = process.env.NCBR_PROJECT_ID || '7ee80d9a-67dd-4d99-becd-8dda407221c1';
-const BASE = `https://lsi2.ncbr.gov.pl/projekt/${PROJECT_ID}/projekt_step/`;
+const PROJECT_URL = `https://lsi2.ncbr.gov.pl/projekt/${PROJECT_ID}`;
+const BASE = `${PROJECT_URL}/projekt_step/`;
 const URL_63 = `${BASE}fb417879-403e-4241-a202-ec23c6a6b866`;
 const URL_65 = `${BASE}bdb2c7b3-92d9-4778-9ecc-b4c5bda7d32b`;
 const URL_8 = `${BASE}d31b6d68-33b7-45a0-a032-0f5f02b5aed8`;
@@ -49,44 +51,6 @@ async function compactReadback() {
   };
 }
 
-async function validateProject() {
-  const projectUrl = `https://lsi2.ncbr.gov.pl/projekt/${PROJECT_ID}`;
-  const responses = [];
-  page.on('response', async (res) => {
-    if (!res.url().includes('/validate-project')) return;
-    let text = '';
-    try { text = await res.text(); } catch { text = ''; }
-    responses.push({ status: res.status(), url: res.url(), text });
-  });
-  await page.goto(projectUrl, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: project page for validation-only action
-  await humanIdlePause('long');
-  const validate = page.getByRole('button', { name: 'Sprawdź wniosek', exact: true }).filter({ visible: true }).first();
-  const clicked = await validate.isEnabled().catch(() => false)
-    ? (await humanClickLocator(page, validate), { clicked: true })
-    : { clicked: false, reason: 'enabled Sprawdz wniosek button not found' };
-  await humanIdlePause('long');
-  await humanIdlePause('long');
-  await humanIdlePause('long');
-  const response = responses.at(-1) || null;
-  if (!response) return { clicked, response: null };
-  let parsed = null;
-  try { parsed = JSON.parse(response.text); } catch {}
-  const jsonSchemaErrors = [];
-  const expressionErrors = [];
-  if (parsed) {
-    for (const sec of parsed.jsonSchemaValidationErrors || []) {
-      for (const err of sec.validationResult?.errors || []) {
-        jsonSchemaErrors.push({ sectionId: sec.sectionId, dataPath: err.dataPath, message: err.message, valueId: err.valueId });
-      }
-    }
-    for (const sec of parsed.expressionValidationErrors || []) {
-      for (const err of sec.validationResult?.errors || []) {
-        expressionErrors.push({ sectionId: sec.sectionId, dataPath: err.dataPath, message: err.message, valueId: err.valueId });
-      }
-    }
-  }
-  return { clicked, status: response.status, jsonSchemaErrors, expressionErrors, rawHead: response.text };
-}
 
 try {
   await login();
@@ -95,13 +59,13 @@ try {
     const repaired8 = await repairSection8();
     const readback63 = await tableReadback(URL_63);
     const readback65 = await tableReadback(URL_65);
-    const validation = await validateProject();
+    const validation = await validateProject(page, PROJECT_URL);
     await finish({ repaired63, repaired8, readback63, readback65, validation });
   }
   if (process.env.REPAIR_63_GPU_NAME === '1') {
     const repairedGpuName = await repair63GpuNameOnly();
     const readback63 = await tableReadback(URL_63);
-    const validation = await validateProject();
+    const validation = await validateProject(page, PROJECT_URL);
     await finish({ repairedGpuName, readback63, validation });
   }
   if (process.env.DUMP === '1') {
@@ -152,7 +116,7 @@ try {
   const readback65 = await tableReadback(URL_65);
   const readback8 = await tableReadback(URL_8);
   const readbackCompact = await compactReadback();
-  const validation = process.env.VALIDATE === '1' ? await validateProject() : null;
+  const validation = process.env.VALIDATE === '1' ? await validateProject(page, PROJECT_URL) : null;
 
   await finish({ deleted63, rewritten63, repairedFields63, rewritten65, repaired8, repaired22, readback63, readback65, readback8, readbackCompact, validation });
 } catch (error) {

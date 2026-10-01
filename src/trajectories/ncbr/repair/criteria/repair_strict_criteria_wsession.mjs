@@ -2,7 +2,8 @@
 // UI-only Weles WSession. Never submits or withdraws the application.
 
 import { WSession } from '../../../../../dist/index.js';
-import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { validateProject } from '../../validation.mjs';
 import { lsiForm } from './repair_strict_criteria_wsession/form.mjs';
 import { criteriaRepairs } from './repair_strict_criteria_wsession/sections.mjs';
 
@@ -34,39 +35,6 @@ const form = lsiForm({ page, email, password });
 const { login, fillBySuffix, saveVisibleForm, closeVisibleForm } = form;
 const { repairScalarSections, repairTasks61, openIndicatorRowExact, openIndicatorRowByIndex, repairIndicators92 } = criteriaRepairs({ page, ...form, URLS });
 
-async function validateProject() {
-  const responses = [];
-  page.on('response', async (res) => {
-    if (!res.url().includes('/validate-project')) return;
-    let text = '';
-    try { text = await res.text(); } catch { text = ''; }
-    responses.push({ status: res.status(), url: res.url(), text });
-  });
-  await page.goto(PROJECT_URL, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: project page for validation-only action
-  await humanIdlePause('long');
-  const validate = page.getByRole('button', { name: 'Sprawdź wniosek', exact: true }).filter({ visible: true }).first();
-  const clicked = await validate.isEnabled().catch(() => false)
-    ? (await humanClickLocator(page, validate), { clicked: true })
-    : { clicked: false, reason: 'enabled Sprawdz wniosek button not found' };
-  await humanIdlePause('long');
-  await humanIdlePause('long');
-  await humanIdlePause('long');
-  const response = responses.at(-1) || null;
-  if (!response) return { clicked, response: null };
-  let parsed = null;
-  try { parsed = JSON.parse(response.text); } catch {}
-  const jsonSchemaErrors = [];
-  const expressionErrors = [];
-  if (parsed) {
-    for (const sec of parsed.jsonSchemaValidationErrors || []) {
-      for (const err of sec.validationResult?.errors || []) jsonSchemaErrors.push({ sectionId: sec.sectionId, dataPath: err.dataPath, message: err.message });
-    }
-    for (const sec of parsed.expressionValidationErrors || []) {
-      for (const err of sec.validationResult?.errors || []) expressionErrors.push({ sectionId: sec.sectionId, dataPath: err.dataPath, message: err.message });
-    }
-  }
-  return { clicked, status: response.status, jsonSchemaErrors, expressionErrors, rawHead: response.text };
-}
 
 async function readback() {
   const out = {};
@@ -155,7 +123,7 @@ if (process.env.DIAG_92_INDEX !== undefined) {
   process.exit(0);
 }
 if (process.env.VALIDATE_ONLY === '1') {
-  const validation = await validateProject();
+  const validation = await validateProject(page, PROJECT_URL);
   const evidence = await readback();
   console.log(JSON.stringify({ validation, evidence }, null, 2));
   await session.ctx.close();
@@ -165,7 +133,7 @@ const only92 = process.env.TAIL_92 === '1' || process.env.ERROR_92 === '1' || pr
 const scalar = only92 ? [] : await repairScalarSections();
 const tasks61 = only92 ? [] : await repairTasks61();
 const indicators92 = await repairIndicators92();
-const validation = await validateProject();
+const validation = await validateProject(page, PROJECT_URL);
 const evidence = await readback();
 
 console.log(JSON.stringify({ scalar, tasks61, indicators92, validation, evidence }, null, 2));

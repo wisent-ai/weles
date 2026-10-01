@@ -2,7 +2,8 @@
 // Edits only 6.1 task 5 and selected 9.2 indicator descriptions. Never submits.
 
 import { WSession } from '../../../../../dist/index.js';
-import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { validateProject } from '../../validation.mjs';
 import { lsiForm } from './repair_review_risks_wsession/form.mjs';
 import { riskRepairs } from './repair_review_risks_wsession/sections.mjs';
 import { task5 } from './repair_review_risks_wsession/text.mjs';
@@ -30,39 +31,6 @@ const form = lsiForm({ page, email, password });
 const { login } = form;
 const { repairTask5, repairIndicators92, repairManagement41, readManagement41 } = riskRepairs({ page, URL_41, URL_61, URL_92, ...form });
 
-async function validateProject() {
-  const responses = [];
-  page.on('response', async (res) => {
-    if (!res.url().includes('/validate-project')) return;
-    let text = '';
-    try { text = await res.text(); } catch { text = ''; }
-    responses.push({ status: res.status(), url: res.url(), text });
-  });
-  await page.goto(PROJECT_URL, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: project page for validation-only action
-  await humanIdlePause('long');
-  const validateButton = page.getByRole('button', { name: 'Sprawdź wniosek', exact: true }).filter({ visible: true }).first();
-  const clicked = await validateButton.count() && !await validateButton.isDisabled()
-    ? await humanClickLocator(page, validateButton).then(() => ({ clicked: true }))
-    : { clicked: false, reason: 'enabled Sprawdz wniosek button not found' };
-  await humanIdlePause('long');
-  await humanIdlePause('long');
-  await humanIdlePause('long');
-  const response = responses.at(-1) || null;
-  if (!response) return { clicked, response: null };
-  let parsed = null;
-  try { parsed = JSON.parse(response.text); } catch {}
-  const jsonSchemaErrors = [];
-  const expressionErrors = [];
-  if (parsed) {
-    for (const sec of parsed.jsonSchemaValidationErrors || []) {
-      for (const err of sec.validationResult?.errors || []) jsonSchemaErrors.push({ sectionId: sec.sectionId, dataPath: err.dataPath, message: err.message });
-    }
-    for (const sec of parsed.expressionValidationErrors || []) {
-      for (const err of sec.validationResult?.errors || []) expressionErrors.push({ sectionId: sec.sectionId, dataPath: err.dataPath, message: err.message });
-    }
-  }
-  return { clicked, status: response.status, jsonSchemaErrors, expressionErrors, rawHead: response.text };
-}
 
 async function readbackSnippets() {
   const out = {};
@@ -78,7 +46,7 @@ async function readbackSnippets() {
 await login();
 if (process.env.REPAIR_41_ONLY === '1') {
   const repaired41 = await repairManagement41();
-  const validation = await validateProject();
+  const validation = await validateProject(page, PROJECT_URL);
   console.log(JSON.stringify({ repaired41, validation }, null, 2));
   await session.ctx.close();
   process.exit(0);
@@ -91,7 +59,7 @@ if (process.env.READ_41_ONLY === '1') {
 }
 const repairedTask5 = await repairTask5();
 const repairedIndicators92 = await repairIndicators92();
-const validation = await validateProject();
+const validation = await validateProject(page, PROJECT_URL);
 const snippets = await readbackSnippets();
 
 console.log(JSON.stringify({

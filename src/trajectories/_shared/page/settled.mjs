@@ -112,3 +112,57 @@ export async function submitAnswered(page, stays, message) {
   await pageSettled(page);
   return answer;
 }
+
+// Correlates an action's first matching new request with its own response.
+// The caller owns this page's action; unrelated and already-running requests
+// cannot satisfy it. Network failure, closure and crash are terminal outcomes.
+export async function responseAfterAction(page, matches, action) {
+  let request;
+  const failure = (code, message) => Object.assign(new Error(message), {
+    code,
+    requestMethod: request?.method() ?? null,
+    requestUrl: request?.url() ?? null,
+    pageUrl: page.url(),
+  });
+  if (page.isClosed()) throw failure('PAGE_CLOSED', 'page is already closed before the request action');
+  const { promise, resolve, reject } = Promise.withResolvers();
+  const describe = () => request ? `${request.method()} ${request.url()}` : 'a matching request';
+  const onRequest = (candidate) => {
+    try {
+      if (!request && matches(candidate)) request = candidate;
+    } catch (error) {
+      reject(error);
+    }
+  };
+  const onResponse = (response) => {
+    if (response.request() === request) resolve(response);
+  };
+  const onRequestFailed = (failed) => {
+    if (failed !== request) return;
+    const errorText = failed.failure()?.errorText ?? null;
+    reject(Object.assign(failure('REQUEST_FAILED', `request failed: ${describe()}; ${errorText ?? 'the browser supplied no failure detail'}`), { errorText }));
+  };
+  const onClose = () => reject(failure('PAGE_CLOSED', `page closed before ${describe()} responded; last URL ${page.url()}`));
+  const onCrash = () => reject(failure('PAGE_CRASHED', `page crashed before ${describe()} responded; last URL ${page.url()}`));
+  page.on('request', onRequest);
+  page.on('response', onResponse);
+  page.on('requestfailed', onRequestFailed);
+  page.once('close', onClose);
+  page.once('crash', onCrash);
+  try {
+    const actionResult = Promise.resolve().then(action).catch((error) => {
+      reject(error);
+      throw error;
+    });
+    const [response, performed] = await Promise.allSettled([promise, actionResult]);
+    if (performed.status === 'rejected') throw performed.reason;
+    if (response.status === 'rejected') throw response.reason;
+    return response.value;
+  } finally {
+    page.off('request', onRequest);
+    page.off('response', onResponse);
+    page.off('requestfailed', onRequestFailed);
+    page.off('close', onClose);
+    page.off('crash', onCrash);
+  }
+}

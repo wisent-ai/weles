@@ -1,6 +1,7 @@
 // The 1.4 and 2.3 row steps of repair_competition_2_3_wsession.mjs, bound to the page and the form helpers.
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { competitors14 } from './source.mjs';
+import { validateProject as validateNcbrProject } from '../../../validation.mjs';
 
 export function competitionSteps({ page, progress, URLS, PROJECT_URL, setReactInputValue, visibleTableText, hasAnyName, clickDodaj, saveVisibleForm, selectApplicantIfPresent, fillNamedField, fillBySuffix }) {
 async function addCompetitor14(row) {
@@ -86,36 +87,7 @@ async function repairVisibleMissingNips14() {
 
 async function validateProject() {
   progress('validate:start');
-  const responses = [];
-  page.on('response', async (res) => {
-    if (!res.url().includes('/validate-project')) return;
-    let text = '';
-    try { text = await res.text(); } catch { text = ''; }
-    responses.push({ status: res.status(), url: res.url(), text });
-  });
-  await page.goto(PROJECT_URL, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: validation-only project navigation
-  await humanIdlePause('long');
-  const btn = page.locator('button:not([disabled])').filter({ hasText: /^Sprawdź wniosek$/ }).first();
-  const clicked = { clicked: await btn.count() > 0, reason: await btn.count() > 0 ? undefined : 'enabled Sprawdz wniosek button not found' };
-  if (clicked.clicked) await humanClickLocator(page, btn); // allow-raw-playwright: validation-only; never submit
-  await humanIdlePause('long');
-  await humanIdlePause('long');
-  await humanIdlePause('long');
-  const response = responses.at(-1) || null;
-  if (!response) return { clicked, response: null };
-  let parsed = null;
-  try { parsed = JSON.parse(response.text); } catch {}
-  const jsonSchemaErrors = [];
-  const expressionErrors = [];
-  if (parsed) {
-    for (const sec of parsed.jsonSchemaValidationErrors || []) {
-      for (const err of sec.validationResult?.errors || []) jsonSchemaErrors.push({ sectionId: sec.sectionId, dataPath: err.dataPath, message: err.message });
-    }
-    for (const sec of parsed.expressionValidationErrors || []) {
-      for (const err of sec.validationResult?.errors || []) expressionErrors.push({ sectionId: sec.sectionId, dataPath: err.dataPath, message: err.message });
-    }
-  }
-  return { clicked, status: response.status, jsonSchemaErrors, expressionErrors, rawHead: response.text };
+  return validateNcbrProject(page, PROJECT_URL);
 }
 
   return { addCompetitor14, addCompetition23, dumpOpenFields, addParameter23, editVisibleRowContaining, repairVisibleMissingNips14, validateProject };
