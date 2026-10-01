@@ -1,11 +1,5 @@
 import os from 'node:os';
 import { captureVersions } from '../../diagnostics/versions.js';
-import { writeSetting } from '../../state/skarbiec-records.js';
-
-const PRODUCTION_SETTING_KEY = 'weles_deployment_version';
-const DEFAULT_HEARTBEAT_MS = 60_000;
-
-type FetchLike = typeof fetch;
 
 type EnvLike = Record<string, string | undefined>;
 
@@ -152,45 +146,4 @@ export function buildDeploymentVersionValue(
       arch: process.arch,
     },
   };
-}
-
-export async function writeDeploymentVersion(options: {
-  env?: EnvLike;
-  fetchImpl?: FetchLike;
-  now?: Date;
-  versions?: Record<string, any>;
-  instanceId?: string;
-} = {}): Promise<{ ok: boolean; error?: string; value?: DeploymentVersionValue }> {
-  const env = options.env ?? process.env;
-  const instanceId = options.instanceId ?? deploymentInstanceId(env);
-  const ring = envValue(env, 'WELES_DEPLOYMENT_RING') || 'production';
-  const settingKey = ring === 'production' ? PRODUCTION_SETTING_KEY : `${PRODUCTION_SETTING_KEY}_${ring}_${instanceId}`;
-  const value = buildDeploymentVersionValue(options.versions ?? captureVersions(null), options.now ?? new Date(), instanceId, env);
-  try {
-    writeSetting(settingKey, value);
-    return { ok: true, value };
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error), value };
-  }
-}
-
-export function startDeploymentVersionHeartbeat(options: {
-  env?: EnvLike;
-  fetchImpl?: FetchLike;
-  logger?: Pick<Console, 'log' | 'error'>;
-  intervalMs?: number;
-} = {}): NodeJS.Timeout | null {
-  const env = options.env ?? process.env;
-  const logger = options.logger ?? console;
-  const intervalMs = options.intervalMs ?? Number(env.WELES_DEPLOYMENT_VERSION_HEARTBEAT_MS || DEFAULT_HEARTBEAT_MS);
-  const write = async () => {
-    const result = await writeDeploymentVersion({ env, fetchImpl: options.fetchImpl });
-    if (result.ok) logger.log(`[deployment-version] wrote ${result.value?.release?.source_revision.slice(0, 8) ?? result.value?.deployment.weles_commit_short ?? 'unknown'} instance=${result.value?.instance_id}`);
-    else logger.error(`[deployment-version] failed: ${result.error ?? 'unknown_error'}`);
-  };
-  void write();
-  if (!Number.isFinite(intervalMs) || intervalMs <= 0) return null;
-  const timer = setInterval(() => { void write(); }, intervalMs);
-  timer.unref?.();
-  return timer;
 }
