@@ -11,7 +11,7 @@ import { runRecordingsDir } from '../session/run-recordings.js';
 import { classifyGrid } from './grid/classify_grid.js';
 
 type Page = any;
-// MAX_ATTEMPTS removed 2026-05-06: blind retries trip LinkedIn login-restriction.
+// No attempt cap: blind retries trip LinkedIn's login restriction.
 
 function parsePositions(raw: string): number[] | null {
   const m = raw.match(/\[[\d,\s]*\]/);

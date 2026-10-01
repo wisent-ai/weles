@@ -10,7 +10,7 @@ import { randomBytes } from 'node:crypto';
 
 
 function generatePassword() {
-  // Oxylabs password rules observed 2026-06-23: allowed special symbols are
+  // Oxylabs password rules: allowed special symbols are
   // `_ ~ + =`. Standard base64 can produce `+` and `/`; remove `/` and `=`
   // but keep `+` since it is allowed. Then force uppercase, lowercase, digit,
   // and an allowed symbol at the end so the generated password always passes.

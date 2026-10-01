@@ -56,9 +56,9 @@ if (__weles.navigator) {
       // Hardcode v147 → idx 0 to match observed real-Chrome output.
       const greasey = parseInt(majorVersion) === 147 ? greaseyBrands[0] : greaseyBrands[seed];
       // Order must match real Chrome's navigator.userAgentData.brands:
-      // [Google Chrome, Not.A/Brand-variant, Chromium]. Measured 2026-04-18
-      // side-by-side with stock Chrome 147 on same Mac — Google Chrome is
-      // index 0, not index 2. TikTok's webmssdk reads brands[0].brand and
+      // [Google Chrome, Not.A/Brand-variant, Chromium]. Measured side-by-side
+      // with stock Chrome 147 on the same Mac — Google Chrome is index 0, not
+      // index 2. TikTok's webmssdk reads brands[0].brand and
       // signs it into x-mssdk-info; if brands[0] != "Google Chrome" the
       // signature identifies the session as non-Chrome.
       const brands = [

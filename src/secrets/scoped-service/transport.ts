@@ -137,13 +137,12 @@ export function readScopedField(
 // against it are one declaration split across two files, so they must come from one
 // tree: the previous default resolved them under ~/weles, which is a symlink into
 // whichever release is currently activated, while the trajectory itself ran from a
-// different checkout. Updating the table in the checkout that runs therefore left the
-// activated release's older table in force, and the read failed on the helper's own
-// scope check with "undeclared Skarbiec acquisition scope" while the authority was
-// never even asked (observed 2026-08-17 for claude-wisent-google-sso/username; the
-// host carried copies with 4, 2 and 0 claude lines). Resolving relative to this
-// module keeps the table and its reader in the same revision by construction; the
-// two environment variables still override for deployments that relocate them.
+// different checkout. Updating the table in the checkout that runs would leave the
+// activated release's older table in force, and the read would fail on the helper's
+// own scope check with "undeclared Skarbiec acquisition scope" while the authority
+// was never even asked. Resolving relative to this module keeps the table and its
+// reader in the same revision by construction; the two environment variables still
+// override for deployments that relocate them.
 export function deployedFile(name: string): string {
   return join(__dirname, '..', '..', '..', 'src', 'worker', 'deploy', 'acquire', name);
 }

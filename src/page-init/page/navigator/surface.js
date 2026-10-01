@@ -11,7 +11,7 @@
 // observes `supported:false` on weles but `supported:true` on real Chrome 147
 // on Mac. Cached as `hevc_support_key_v4=0` in localStorage, which webmssdk
 // signs into x-mssdk-info. Spoof HEVC as supported to match real Chrome.
-// Measured 2026-04-18 side-by-side on same Mac.
+// Measured side-by-side on the same Mac.
 
 (function installHevcShim() {
   try {

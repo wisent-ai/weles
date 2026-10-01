@@ -52,8 +52,7 @@ export async function detectRedditBanSignals(
   details.final_url = url;
 
   // Chrome system error page — proxy CONNECT or DNS failed. Same handling as
-  // base detector (added 2026-04-26 after Oxylabs traffic-limit incident
-  // surfaced it as fleet-wide).
+  // the base detector: a proxy traffic limit surfaces this fleet-wide.
   if (url.startsWith('chrome-error://')) {
     let chromeBody = '';
     try { chromeBody = (await page.evaluate(() => document.body?.innerText ?? '').catch(() => '')) || ''; } catch { /* noop */ }

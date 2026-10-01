@@ -46,8 +46,8 @@
 // into x-mssdk-info. A weles session reports false for ALL of these where
 // real Chrome reports true — a perfect "not Google Chrome" signal stable
 // across every fingerprint variant. Spoof support to match Chrome.
-// Measured 2026-04-18 side-by-side via instrument.mjs (h264_ms=false on
-// weles, true on real Chrome 147 Mac).
+// Measured side-by-side via instrument.mjs (h264_ms=false on weles, true on
+// real Chrome 147 Mac).
 (function installCodecShim() {
   try {
     // Whitelist of codec-family patterns Google Chrome supports that vanilla
