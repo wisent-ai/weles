@@ -80,13 +80,16 @@ export async function urlMatching(page, pattern) {
     resolve(frame.url());
   };
   const onClose = () => reject(new Error(`page closed before its URL matched ${pattern}; last URL ${page.url()}`));
+  const onCrash = () => reject(new Error(`page crashed before its URL matched ${pattern}; last URL ${page.url()}`));
   page.on('framenavigated', onNavigated);
   page.once('close', onClose);
+  page.once('crash', onCrash);
   try {
     return await promise;
   } finally {
     page.off('framenavigated', onNavigated);
     page.off('close', onClose);
+    page.off('crash', onCrash);
   }
 }
 

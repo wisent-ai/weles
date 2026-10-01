@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { pageSettled } from '../_shared/page/settled.mjs';
+import { urlMatching } from '../_shared/page/settled.mjs';
+import { closeOperatorRequest, openOperatorRequest } from '#operator-request';
 // Auto-wypełnianie wniosku SMART na generatorze PARP (lsi2.parp.gov.pl)
 // z draftów lokalnych Wisent Polska.
 //
@@ -10,7 +11,7 @@ import { pageSettled } from '../_shared/page/settled.mjs';
 //      iteruje po wartościach, wpisuje humanType dla każdego mapowanego pola.
 //
 // Uruchomienie:
-//   FENG_VALUES=/tmp/values.json FENG_FIELD_MAP=./field_map.json \
+//   FENG_VALUES=./build/values.json FENG_FIELD_MAP=./field_map.json \
 //     node smart_wniosek_fill.mjs
 //
 // Bez env: domyślne ścieżki względem tego pliku (parser i field_map.json
@@ -23,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanFill } from '../../../dist/human/keyboard.js';
-import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // Polski LSI dla SMART (PARP) działa na lsi.parp.gov.pl (Generator Wniosków FENG 2021–2027).
@@ -55,27 +56,54 @@ async function currentUrl(s) {
   return await s.page.url();
 }
 
-async function isOnLoginPage(s) {
-  const url = await currentUrl(s);
-  return /\/login|\/auth|\/signin/.test(url);
+function isLoginUrl(url) {
+  return /\/login|\/auth|\/signin/.test(new URL(url).pathname);
+}
+
+async function operatorAction(s, kind, instruction, observe, detail) {
+  const request = openOperatorRequest({
+    kind,
+    account: `PARP browser session ${s.label} (process ${process.pid}; identity selected in the browser)`,
+    run: s.label,
+    instruction,
+  });
+  console.log(`[feng] prośba operatora: ${request.id}; powiadomienie przyjęte: ${request.pages.some((attempt) => attempt.ok)}`);
+  try {
+    await observe();
+  } catch (error) {
+    closeOperatorRequest(request.id, false, `The browser stage failed: ${String(error?.message || error)}`);
+    throw error;
+  }
+  closeOperatorRequest(request.id, true, detail);
+}
+
+async function reviewPageClosed(page) {
+  if (page.isClosed()) throw new Error('FENG_REVIEW_PAGE_CLOSED: the page closed before review began');
+  const { promise, resolve, reject } = Promise.withResolvers();
+  const onCrash = () => reject(new Error('FENG_REVIEW_PAGE_CRASHED: the review page crashed'));
+  page.on('close', resolve);
+  page.on('crash', onCrash);
+  try {
+    await promise;
+  } finally {
+    page.off('close', resolve);
+    page.off('crash', onCrash);
+  }
 }
 
 async function fillTextLike(s, selector, value) {
   const locator = s.page.locator(selector).first();
   await locator.waitFor({ state: 'visible' });
   await humanFill(s, locator, value);
-  await humanIdlePause('short');
 }
 
 async function fillSelect(s, selector, option) {
   const trigger = s.page.locator(selector).first();
   await trigger.waitFor({ state: 'visible' });
   await humanClickLocator(s, trigger);
-  await humanIdlePause('short');
   const opt = s.page.locator(`${selector} option`, { hasText: option }).first();
   await opt.waitFor({ state: 'visible' });
   await humanClickLocator(s, opt);
-  await humanIdlePause('short');
 }
 
 async function fillCheckbox(s, selector, want) {
@@ -90,7 +118,6 @@ async function fillRadio(s, selector, optionValue) {
   const locator = s.page.locator(radioSel).first();
   await locator.waitFor({ state: 'visible' });
   await humanClickLocator(s, locator);
-  await humanIdlePause('short');
 }
 
 async function applyField(s, name, spec, payload, summary) {
@@ -130,64 +157,60 @@ async function main() {
     proxy: process.env.PROXY_URL,
     operatorCdp,
   });
-  if (operatorCdp) console.log('[feng] podłączony przez uwierzytelnioną bramę operatora CDP');
+  try {
+    if (operatorCdp) console.log('[feng] podłączony przez uwierzytelnioną bramę operatora CDP');
+    console.log(`[feng] otwieram generator: ${GENERATOR_URL}`);
+    await s.goto(GENERATOR_URL);
 
-  console.log(`[feng] otwieram generator: ${GENERATOR_URL}`);
-  await s.goto(GENERATOR_URL);
-
-  console.log('[feng] CZEKAM NA RĘCZNE ZALOGOWANIE w keeperze (PARP wymaga 2FA SMS).');
-  console.log('[feng] Otwórz osobne CDP-attached okno na tę WSession i przejdź przez login + 2FA.');
-  console.log('[feng] Trajektoria sprawdza co 5s czy URL nie jest już na /login.');
-  for (let i = 0; i < 240; i++) {
-    if (!(await isOnLoginPage(s))) break;
-    await pageSettled(s.page);
-  }
-  if (await isOnLoginPage(s)) {
-    console.error('FAIL: po 20 minutach wciąż na stronie loginu. Przerwałem.');
-    process.exitCode = 1;
-    await s.close();
-    return;
-  }
-  console.log(`[feng] zalogowany, URL: ${await currentUrl(s)}`);
-
-  if (process.env.FENG_WNIOSEK_URL) {
-    console.log(`[feng] nawiguję do wniosku: ${process.env.FENG_WNIOSEK_URL}`);
-    await s.goto(process.env.FENG_WNIOSEK_URL);
-    await humanIdlePause('deliberate');
-  } else {
-    console.log('[feng] FENG_WNIOSEK_URL nie ustawione — używam aktualnego URL.');
-    console.log('[feng] Otwórz w keeperze wniosek do edycji, dopisz URL do envu i uruchom ponownie jeśli trzeba.');
-  }
-
-  const summary = { filled: [], skipped: [], errors: [], missing_map: [] };
-
-  for (const [name, payload] of Object.entries(values)) {
-    const spec = fieldMap[name];
-    if (!spec) {
-      summary.missing_map.push(name);
-      continue;
+    if (isLoginUrl(await currentUrl(s))) {
+      await operatorAction(s, 'feng-portal-login',
+        'Zaloguj się do generatora PARP i wykonaj wymagane 2FA w tej sesji Weles. Automat wznowi pracę, gdy strona opuści ścieżkę logowania.',
+        () => urlMatching(s.page, (url) => !isLoginUrl(url)),
+        'The browser left its login route; this observation does not independently verify the signed-in account.');
     }
-    console.log(`[feng] -> ${name} (${spec.type}, ${payload.length} znaków)`);
-    await applyField(s, name, spec, payload, summary);
-  }
+    console.log(`[feng] aktualna strona po etapie logowania: ${await currentUrl(s)}`);
 
-  console.log('\n[feng] PODSUMOWANIE');
-  console.log(`  wypełnione:  ${summary.filled.length}`);
-  console.log(`  pominięte:   ${summary.skipped.length}`);
-  console.log(`  błędy:       ${summary.errors.length}`);
-  console.log(`  brak mapowania (do dopisania w field_map.json): ${summary.missing_map.length}`);
-  if (summary.missing_map.length > 0) {
-    console.log('  pierwsze 20 nazw bez mapowania:');
-    for (const n of summary.missing_map.slice(0, 20)) console.log(`    ${n}`);
+    if (process.env.FENG_WNIOSEK_URL) {
+      console.log(`[feng] nawiguję do wniosku: ${process.env.FENG_WNIOSEK_URL}`);
+      await s.goto(process.env.FENG_WNIOSEK_URL);
+    } else {
+      console.log('[feng] FENG_WNIOSEK_URL nie ustawione — używam aktualnego URL.');
+      console.log('[feng] Otwórz w keeperze wniosek do edycji, dopisz URL do envu i uruchom ponownie jeśli trzeba.');
+    }
+
+    const summary = { filled: [], skipped: [], errors: [], missing_map: [] };
+    for (const [name, payload] of Object.entries(values)) {
+      const spec = fieldMap[name];
+      if (!spec) {
+        summary.missing_map.push(name);
+        continue;
+      }
+      console.log(`[feng] -> ${name} (${spec.type}, ${payload.length} znaków)`);
+      await applyField(s, name, spec, payload, summary);
+    }
+
+    console.log('\n[feng] PODSUMOWANIE');
+    console.log(`  wypełnione:  ${summary.filled.length}`);
+    console.log(`  pominięte:   ${summary.skipped.length}`);
+    console.log(`  błędy:       ${summary.errors.length}`);
+    console.log(`  brak mapowania (do dopisania w field_map.json): ${summary.missing_map.length}`);
+    if (summary.missing_map.length > 0) {
+      console.log('  pierwsze 20 nazw bez mapowania:');
+      for (const n of summary.missing_map.slice(0, 20)) console.log(`    ${n}`);
+    }
+    if (summary.errors.length > 0) {
+      process.exitCode = 1;
+      console.log('  błędy szczegółowo:');
+      for (const e of summary.errors) console.log(`    ${e.name}: ${e.error}`);
+    }
+
+    await operatorAction(s, 'feng-form-review',
+      'Przejrzyj pola wniosku PARP w tej sesji Weles. Gdy skończysz, zamknij stronę przeglądarki. Automat nie potwierdza zapisu na serwerze ani nie wysyła wniosku. Ctrl+C anuluje przebieg.',
+      () => reviewPageClosed(s.page),
+      'The review page was closed; this does not prove that the form was saved or submitted.');
+  } finally {
+    await s.close();
   }
-  if (summary.errors.length > 0) {
-    console.log('  błędy szczegółowo:');
-    for (const e of summary.errors) console.log(`    ${e.name}: ${e.error}`);
-  }
-  console.log('\n[feng] Sesja zostaje otwarta na 1h żebyś mógł przejrzeć wypełnione pola i ręcznie poprawić.');
-  console.log('[feng] Ctrl+C kończy sesję.');
-  await pageSettled(s.page);
-  await s.close();
 }
 
 main().catch((e) => {
