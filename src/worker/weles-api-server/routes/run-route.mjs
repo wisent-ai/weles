@@ -15,6 +15,7 @@
 // nobody.
 
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
@@ -30,7 +31,7 @@ import {
   isCredentialTrajectory,
   storeCredential,
 } from '../run/credential-outcome.mjs';
-import { coalesceRun, persistRunResult, runAdmissionKey } from '../run/run-outcome.mjs';
+import { claimRunResult, coalesceRun, persistRunResult, runAdmissionKey, SAFE_RUN_ID } from '../run/run-outcome.mjs';
 
 export async function respondToRun(req, res, runTrajectory, validateAccountSecurityParams) {
   if (!authorized(req)) {
@@ -87,12 +88,27 @@ export async function respondToRun(req, res, runTrajectory, validateAccountSecur
   // software. `detached: true` starts the run, answers with its id, and writes
   // the result where it can be read afterwards.
   if (body.detached === true) {
+    // A caller may name the run. The same run id sent again starts nothing:
+    // it answers with the run that id already names, so a caller that lost
+    // its answer can ask again without acting on the account twice.
+    const namedId = typeof body.run_id === 'string' ? body.run_id.trim() : '';
+    if (body.run_id !== undefined && !SAFE_RUN_ID.test(namedId)) {
+      json(res, 400, { ok: false, error: 'invalid_run_id' });
+      return;
+    }
+    const detachedId = namedId || randomUUID();
+    const resultPath = join(RUN_RESULTS_DIR, `${detachedId}.json`);
+    const running = { ok: null, action, account_id: accountId, ...requestBinding, status: 'running', started_at: new Date().toISOString() };
+    if (namedId && !claimRunResult(resultPath, running)) {
+      const named = JSON.parse(readFileSync(resultPath, 'utf8'));
+      const existingId = named.status === 'joined' ? named.detached_run : detachedId;
+      json(res, 200, { ok: true, action, ...requestBinding, detached_run: existingId, result_path: join(RUN_RESULTS_DIR, `${existingId}.json`), existing: true });
+      return;
+    }
     const coalesced = isCredentialTrajectory(action);
     const admissionKey = coalesced
       ? runAdmissionKey('trajectory', { action, account_id: accountId, fresh_profile: freshProfile, params })
       : null;
-    const detachedId = randomUUID();
-    const resultPath = join(RUN_RESULTS_DIR, `${detachedId}.json`);
     const admission = admissionKey
       ? coalesceRun(
         admissionKey,
@@ -108,11 +124,13 @@ export async function respondToRun(req, res, runTrajectory, validateAccountSecur
       };
     const admittedId = admission.entry.metadata.detachedId;
     const admittedPath = admission.entry.metadata.resultPath;
+    if (admission.joined && namedId) {
+      // The named run joined one already running: its file says which, so
+      // the same run id sent again answers with the run doing the work.
+      persistRunResult(resultPath, { ...running, status: 'joined', detached_run: admittedId });
+    }
     if (!admission.joined) {
-      persistRunResult(
-        admittedPath,
-        { ok: null, action, account_id: accountId, ...requestBinding, status: 'running', started_at: new Date().toISOString() },
-      );
+      persistRunResult(admittedPath, running);
       admission.entry.promise
         .then((result) => {
           persistRunResult(

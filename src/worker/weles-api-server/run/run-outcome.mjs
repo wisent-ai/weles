@@ -30,6 +30,20 @@ export function persistRunResult(path, document) {
   renameSync(temporary, path);
 }
 
+// A run a caller names: its result file is created only if it does not exist
+// yet, in one exclusive step, so two requests carrying the same run id start
+// one run. Answers false when the run already exists.
+export function claimRunResult(path, document) {
+  mkdirSync(RUN_RESULTS_DIR, { recursive: true, mode: 0o700 });
+  try {
+    writeFileSync(path, JSON.stringify(document), { mode: 0o600, flag: 'wx' });
+    return true;
+  } catch (error) {
+    if (error.code === 'EEXIST') return false;
+    throw error;
+  }
+}
+
 export function runResultFile(runId) {
   const candidate = join(RUN_RESULTS_DIR, `${runId}.json`);
   try {
