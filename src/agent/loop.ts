@@ -170,7 +170,10 @@ export async function execute(
       if (replay && options?.replayOnly) {
         throw new AgentFailure(`replay failed at step ${step}: ${call.error}`, history);
       }
-      if (call.error.toLowerCase().includes('closed')) {
+      // The page the agent drove was closed (a popup that finished, a tab the
+      // site replaced): the page says so itself, so its state decides, not
+      // the error's wording.
+      if (activePage.isClosed()) {
         activePage = getActivePage(activePage);
         if (replay) { replay = null; console.log('[loop] replay aborted, switching to LLM'); }
       }
