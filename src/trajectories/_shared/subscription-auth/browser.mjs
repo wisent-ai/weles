@@ -37,7 +37,9 @@ async function emailPassword(session, login) {
 async function approveDevice(session, transaction, login, mark) {
   const context = session.page.context();
   let codeSubmitted = false;
-  while (Date.now() < transaction.expiresAt) {
+  // The provider ends this walk: consent granted, a success page, or a refusal
+  // (including an expired device code) that it states on the page.
+  for (;;) {
     for (const page of context.pages()) {
       if (page.isClosed()) continue;
       const url = new URL(page.url());
@@ -74,14 +76,13 @@ async function approveDevice(session, transaction, login, mark) {
       }
       const text = await page.locator('body').innerText();
       if (/successfully|you may close|you can close|authorized|authorization successful/i.test(text)) return;
-      if (/too many failed|account.*locked|incorrect.*code|invalid.*code/i.test(text)) {
+      if (/too many failed|account.*locked|incorrect.*code|invalid.*code|code.*expired|expired.*code/i.test(text)) {
         throw new AuthenticationFailure('provider_challenge_refused', 'provider_consent',
           'The provider refused authentication; the recorded DOM contains its response');
       }
     }
     await pageSettled(session.page);
   }
-  throw new AuthenticationFailure('authorization_not_completed', 'provider_consent', 'The provider did not complete device authorization');
 }
 
 /** The session is owned by Weles on its selected host; no OS browser opener runs. */

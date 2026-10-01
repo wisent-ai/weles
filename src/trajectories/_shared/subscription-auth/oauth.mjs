@@ -94,8 +94,7 @@ export async function beginOAuth(provider) {
   const path = provider === 'codex' ? '/api/accounts/deviceauth/usercode' : '/api/oauth/device_authorization';
   const data = accepted(await post(`${configuration.origin}${path}`, { client_id: configuration.client }, provider === 'kimi'), 'device_authorization');
   return { provider, data, url: provider === 'codex' ? `${OPENAI.origin}/codex/device` : data.verification_uri_complete,
-    code: data.user_code || data.usercode,
-    expiresAt: Date.now() + (data.expires_in || 900) * 1000 };
+    code: data.user_code || data.usercode };
 }
 
 export async function finishOAuth(transaction, expectedEmail, displayedCode) {

@@ -12,7 +12,8 @@
 // Flow:
 //   1. Quit any running Chrome (releases user-data-dir lock)
 //   2. Launch Chrome.app via macOS `open` with --profile-directory and the URL
-//   3. Wait for the page to render, screencapture the window
+//   3. Wait until Chrome reports the tab loaded (AppleScript `loading`),
+//      screencapture the window
 //   4. Quit Chrome again so the user can restart their normal session
 //
 // We do NOT drive Chrome via CDP/Playwright here — Chrome.app bundle launching
@@ -84,17 +85,29 @@ function chromeAlive() {
   return spawnSync('pgrep', ['-x', 'Google Chrome']).status === 0;
 }
 
+// AppleScript's `quit` returns once Chrome has quit; whatever is still running
+// afterwards is killed, and a Chrome that survives that is the error.
 function quitChrome() {
   if (!chromeAlive()) return;
   console.log('[gcp_credits] quitting Chrome (graceful)...');
   spawnSync('osascript', ['-e', 'tell application "Google Chrome" to quit']);
-  const deadline = Date.now() + 15_000;
-  while (Date.now() < deadline) { if (!chromeAlive()) return; }
-  console.log('[gcp_credits] graceful quit timed out, forcing pkill -9');
+  if (!chromeAlive()) return;
+  console.log('[gcp_credits] Chrome still running after quit, forcing pkill -9');
   spawnSync('pkill', ['-9', '-f', 'Google Chrome']);
-  const hard = Date.now() + 5_000;
-  while (Date.now() < hard) { if (!chromeAlive()) return; }
-  throw new Error('Chrome still running after pkill — abort');
+  if (chromeAlive()) throw new Error('Chrome still running after pkill — abort');
+}
+
+// Blocks until Chrome reports the active tab of its front window as loaded.
+function waitForTabLoaded() {
+  const r = spawnSync('osascript', [
+    '-e', 'tell application "Google Chrome"',
+    '-e', 'repeat until (exists front window)',
+    '-e', 'end repeat',
+    '-e', 'repeat while (loading of active tab of front window)',
+    '-e', 'end repeat',
+    '-e', 'end tell',
+  ]);
+  if (r.status !== 0) throw new Error(`gcp_credits: Chrome did not report the tab state: ${r.stderr?.toString().trim()}`);
 }
 
 quitChrome();
@@ -111,9 +124,8 @@ if (r.status !== 0) {
   throw new Error(`open failed: ${r.stderr?.toString()}`);
 }
 
-console.log('[gcp_credits] waiting for initial render...');
-const renderDeadline = Date.now() + 30_000;
-while (Date.now() < renderDeadline) {}
+console.log('[gcp_credits] waiting for Chrome to report the page loaded...');
+waitForTabLoaded();
 
 if (TAB === 'issued') {
   console.log('[gcp_credits] clicking Issued credits tab via injected JS');
@@ -131,13 +143,10 @@ if (TAB === 'issued') {
     '-e', `tell application "Google Chrome" to tell active tab of front window to execute javascript "${clickJs.replace(/"/g, '\\"')}"`,
   ]);
   console.log(`[gcp_credits] tab click result: ${(r.stdout?.toString() || '').trim() || (r.stderr?.toString() || '').trim()}`);
-  const settle = Date.now() + 6_000;
-  while (Date.now() < settle) {}
+  waitForTabLoaded();
 }
 
 spawnSync('osascript', ['-e', 'tell application "Google Chrome" to activate']);
-const focusDeadline = Date.now() + 1_500;
-while (Date.now() < focusDeadline) {}
 
 const cap = spawnSync('screencapture', ['-x', OUT_PNG]);
 if (cap.status !== 0) {
@@ -146,10 +155,5 @@ if (cap.status !== 0) {
 console.log(`[gcp_credits] screenshot saved to ${OUT_PNG}`);
 
 console.log('[gcp_credits] quitting Chrome...');
-spawnSync('osascript', ['-e', 'tell application "Google Chrome" to quit']);
-const finalDeadline = Date.now() + 8_000;
-while (Date.now() < finalDeadline) { if (!chromeAlive()) break; }
-if (chromeAlive()) {
-  spawnSync('pkill', ['-9', '-f', 'Google Chrome']);
-}
+quitChrome();
 console.log('[gcp_credits] done.');
