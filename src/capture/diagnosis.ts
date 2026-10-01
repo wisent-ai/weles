@@ -2,14 +2,11 @@
 // console and network excerpts, and the model verdict over them. Split out
 // of capture.ts, which owns the capture itself.
 import { execFileSync } from 'node:child_process';
-import { closeSync, existsSync, openSync, readSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { callJeden } from '../agent/jeden.js';
 import type { ResponseRecord } from './capture.js';
 
-const ARTIFACT_READ_LIMIT_BYTES = Number('32768');
-const MAX_CONSOLE_LINES = Number('80');
-const MAX_NETWORK_RECORDS = Number('40');
 const EMAIL_PATTERN = new RegExp('\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b', 'gi');
 const AUTH_PATTERN = new RegExp('\\b(Bearer|Basic)\\s+[A-Za-z0-9._~+/=-]+', 'gi');
 const JWT_PATTERN = new RegExp('\\beyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\b', 'g');
@@ -27,15 +24,8 @@ type CaptureDiagnosis = {
   next_steps: string[];
 };
 
-function readBoundedText(path: string): string {
-  const fd = openSync(path, 'r');
-  const bytes = Buffer.allocUnsafe(ARTIFACT_READ_LIMIT_BYTES);
-  try {
-    const length = readSync(fd, bytes, Number('0'), bytes.length, Number('0'));
-    return bytes.subarray(Number('0'), length).toString('utf8');
-  } finally {
-    closeSync(fd);
-  }
+function readText(path: string): string {
+  return readFileSync(path, 'utf8');
 }
 
 function redactDiagnosticText(value: string): string {
@@ -76,10 +66,10 @@ function parseDiagnosisOutput(raw: string): CaptureDiagnosis | null {
     if (!errors || !anomalies || !nextSteps) return null;
     if (![...errors, ...anomalies, ...nextSteps].every(item => typeof item === 'string')) return null;
     return {
-      summary: parsed.summary.trim().slice(Number('0'), Number('2000')),
-      errors: errors.slice(Number('0'), Number('20')).map(item => String(item)),
-      anomalies: anomalies.slice(Number('0'), Number('20')).map(item => String(item)),
-      next_steps: nextSteps.slice(Number('0'), Number('20')).map(item => String(item)),
+      summary: parsed.summary.trim(),
+      errors: errors.map(item => String(item)),
+      anomalies: anomalies.map(item => String(item)),
+      next_steps: nextSteps.map(item => String(item)),
     };
   } catch {
     return null;
@@ -111,10 +101,9 @@ export async function diagnoseCapture(
     let consoleLines: string[] = [];
     if (consolePath && existsSync(consolePath)) {
       try {
-        consoleLines = readBoundedText(consolePath)
+        consoleLines = readText(consolePath)
           .split('\n')
-          .slice(Number('0'), MAX_CONSOLE_LINES)
-          .map(line => redactDiagnosticText(line).slice(Number('0'), Number('1000')));
+          .map(line => redactDiagnosticText(line));
       } catch {
         consoleLines = [];
       }
@@ -123,19 +112,17 @@ export async function diagnoseCapture(
     let networkRecords: Array<Record<string, unknown>> = [];
     if (responsesPath && existsSync(responsesPath)) {
       try {
-        const parsedNetwork = JSON.parse(readBoundedText(responsesPath)) as unknown;
+        const parsedNetwork = JSON.parse(readText(responsesPath)) as unknown;
         if (Array.isArray(parsedNetwork)) {
           networkRecords = parsedNetwork
-            .slice(Number('0'), MAX_NETWORK_RECORDS)
             .filter(record => record && typeof record === 'object')
             .map(record => {
               const response = record as Partial<ResponseRecord>;
               return {
                 url: redactUrl(typeof response.url === 'string' ? response.url : ''),
-                method: typeof response.method === 'string' ? response.method.slice(Number('0'), Number('16')) : 'UNKNOWN',
+                method: typeof response.method === 'string' ? response.method : 'UNKNOWN',
                 status: typeof response.status === 'number' ? response.status : null,
-                body: redactDiagnosticText(typeof response.body === 'string' ? response.body : '')
-                  .slice(Number('0'), Number('1000')),
+                body: redactDiagnosticText(typeof response.body === 'string' ? response.body : ''),
               };
             });
         }
@@ -147,8 +134,7 @@ export async function diagnoseCapture(
     let domSnapshot = '';
     if (domPath && existsSync(domPath)) {
       try {
-        domSnapshot = redactDiagnosticText(readBoundedText(domPath))
-          .slice(Number('0'), Number('16000'));
+        domSnapshot = redactDiagnosticText(readText(domPath));
       } catch {
         domSnapshot = '';
       }

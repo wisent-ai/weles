@@ -11,8 +11,6 @@
 export const CAPTURE_AXES = ['composition', 'interaction', 'reactivity', 'state-change', 'subpage'] as const;
 export const CAPTURE_STEP_OPS = ['wait_selector', 'settle', 'click', 'hover', 'focus', 'press', 'scroll', 'goto'] as const;
 export const CAPTURE_ARTIFACT_ROOT = 'stado://weles-captures/';
-export const CAPTURE_MAX_RECORD_SECONDS = Number('120');
-export const CAPTURE_MAX_STEPS = Number('100');
 
 export type CaptureAxis = (typeof CAPTURE_AXES)[number];
 export type CaptureStepOp = (typeof CAPTURE_STEP_OPS)[number];
@@ -114,9 +112,6 @@ function artifactPrefix(value: unknown, action: string): string {
 function steps(value: unknown, action: string): CaptureStep[] {
   if (value === undefined || value === null) return [];
   if (!Array.isArray(value)) throw new Error(`${action} requires steps as an array.`);
-  if (value.length > CAPTURE_MAX_STEPS) {
-    throw new Error(`${action} rejects ${value.length} steps: steps must hold at most ${CAPTURE_MAX_STEPS} entries.`);
-  }
   return value.map((entry) => {
     const raw = record(entry, action, 'each steps entry');
     const op = raw.op;
@@ -129,7 +124,7 @@ function steps(value: unknown, action: string): CaptureStep[] {
     }
     if (op === 'goto') sourceUrl(stepValue, action);
     if (op === 'scroll' && stepValue.trim()) {
-      integer(stepValue, action, `step ${op} value`, op === 'scroll' ? Number('-100000') : Number(false), Number('100000'));
+      integer(stepValue, action, `step ${op} value`, Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER);
     }
     return { op: op as CaptureStepOp, value: stepValue };
   });
@@ -143,8 +138,8 @@ export function parseCaptureParams(params: Record<string, unknown>): CapturePlan
   }
   const recordSecondsRaw = params.record_seconds ?? 0;
   const recordSeconds = typeof recordSecondsRaw === 'string' ? Number(recordSecondsRaw) : recordSecondsRaw;
-  if (typeof recordSeconds !== 'number' || !Number.isFinite(recordSeconds) || recordSeconds < 0 || recordSeconds > CAPTURE_MAX_RECORD_SECONDS) {
-    throw new Error(`${action} rejects record_seconds ${JSON.stringify(recordSecondsRaw ?? null)}: record_seconds must be between 0 and ${CAPTURE_MAX_RECORD_SECONDS}.`);
+  if (typeof recordSeconds !== 'number' || !Number.isFinite(recordSeconds) || recordSeconds < 0) {
+    throw new Error(`${action} rejects record_seconds ${JSON.stringify(recordSecondsRaw ?? null)}: record_seconds must be a number of seconds, zero or more.`);
   }
   if (params.full_page !== undefined && typeof params.full_page !== 'boolean') {
     throw new Error(`${action} rejects full_page ${JSON.stringify(params.full_page)}: full_page must be true or false.`);
