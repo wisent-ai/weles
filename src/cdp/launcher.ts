@@ -121,19 +121,14 @@ export async function launchChromium(options: LaunchOptions = {}): Promise<Launc
     stdio: ['pipe', 'pipe', 'pipe'],
   });
 
+  // Chromium either prints its DevTools URL or exits; both are answers, and
+  // the exit carries its code and signal into the error.
   const wsUrl = await new Promise<string>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      child.kill();
-      reject(new Error('Timed out waiting for Chromium DevTools WebSocket URL'));
-    }, 30_000);
-
     child.on('error', (err) => {
-      clearTimeout(timeout);
       reject(new Error(`Failed to launch Chromium: ${err.message}`));
     });
 
     child.on('exit', (code, signal) => {
-      clearTimeout(timeout);
       reject(
         new Error(
           `Chromium exited before DevTools URL was found (code=${code}, signal=${signal})`
@@ -146,16 +141,11 @@ export async function launchChromium(options: LaunchOptions = {}): Promise<Launc
     rl.on('line', (line) => {
       const match = line.match(/DevTools listening on (ws:\/\/.+)/);
       if (match) {
-        clearTimeout(timeout);
         rl.close();
         // Remove the exit listener so normal process lifecycle doesn't reject
         child.removeAllListeners('exit');
         resolve(match[1]);
       }
-    });
-
-    rl.on('close', () => {
-      // stderr closed before we found the URL — the exit handler or timeout will reject
     });
   });
 

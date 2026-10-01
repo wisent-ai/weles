@@ -37,9 +37,10 @@ export async function preflightExit(input: ExitPreflightInput): Promise<ExitPref
     const net = await import('node:net');
     const status = await new Promise<number>((resolve) => {
       const sock = net.connect({ host, port: Number(p.proxy_port) }, () => sock.write(`CONNECT ${probeHost}:443 HTTP/1.1\r\nHost: ${probeHost}:443\r\nProxy-Authorization: Basic ${auth}\r\n\r\n`));
-      const timer = setTimeout(() => { sock.destroy(); resolve(-1); }, 4000);
-      sock.once('data', (d) => { clearTimeout(timer); sock.destroy(); const m = /^HTTP\/1\.[01] (\d{3})/.exec(d.toString()); resolve(m ? Number(m[1]) : 0); });
-      sock.once('error', () => { clearTimeout(timer); resolve(-1); });
+      // The proxy's status line, its error or its close is the answer; no timer decides for it.
+      sock.once('data', (d) => { sock.destroy(); const m = /^HTTP\/1\.[01] (\d{3})/.exec(d.toString()); resolve(m ? Number(m[1]) : 0); });
+      sock.once('error', () => { resolve(-1); });
+      sock.once('close', () => { resolve(0); });
     });
     const ok = status === 200;
     attemptDiag.connect_status = status;
