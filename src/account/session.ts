@@ -135,8 +135,9 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
       const reason = error instanceof Error ? error.message : String(error);
       if (reason.startsWith('capability_failed:')) throw error;
     }
-    const proxyType = savedProxy.proxy_type
-      ?? (provider === 'decodo' || host.toLowerCase().includes('isp') ? 'isp' : 'residential');
+    // A saved proxy carries its pool type; hydratePinnedProxy defaults the
+    // rest by provider (decodo is a static ISP pool).
+    const proxyType = savedProxy.proxy_type;
     cfg = hydratePinnedProxy({
       ...savedProxy,
       host,

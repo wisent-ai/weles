@@ -52,7 +52,7 @@ export async function probeCredsFor(displayName) {
   const proxy = findProxyByDisplayName(displayName);
   if (!proxy?.host || !proxy?.port || !proxy?.username || !proxy?.password) return null;
   let username = proxy.username;
-  if (displayName === 'Bright Data') {
+  if (proxy.provider === 'brightdata') {
     const zone = proxy.context.zone ?? proxy.metadata.zone;
     if (zone && !username.startsWith('brd-customer-')) {
       username = `brd-customer-${username}-zone-${zone}`;

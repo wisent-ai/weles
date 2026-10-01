@@ -3,22 +3,11 @@
 // ---------------------------------------------------------------------------
 
 import { readOptionalPinnedProxyCredential, readOptionalWelesServiceSecret } from '../secrets/scoped-service.js';
-import type { WelesServiceSecret } from '../secrets/scoped-service.js';
 import { providerFromHost } from './policy.js';
 import type { ExitReputation } from './policy.js';
+import { proxyTypeOf, secretServiceFor, stickyCredentials } from './sources/provider_credentials.js';
 
 export { resolveProxy } from './resolve/resolve_proxy.js';
-
-
-export const PROXY_SECRET_SERVICE_BY_DISPLAY_NAME: Readonly<Record<string, WelesServiceSecret>> = Object.freeze({
-  'Bright Data': 'brightdataProxy',
-  'Oxylabs Residential': 'oxylabsResidential',
-  'Oxylabs Mobile': 'oxylabsMobile',
-  PacketStream: 'packetstreamProxy',
-  'IPRoyal Residential': 'iproyalProxy',
-  'IPRoyal Mobile': 'iproyalMobileProxy',
-  Pingproxies: 'pingproxiesProxy',
-});
 
 export interface ProxyConfig {
   host: string;
@@ -114,21 +103,12 @@ export function hydratePinnedProxy(pin: ProxyConfig): ProxyConfig | undefined {
 
   const provider = pin.provider ?? providerFromHost(pin.host);
   if (!provider) return undefined;
-  const proxyType = pin.proxy_type ?? (provider === 'decodo' ? 'isp' : 'residential');
+  const proxyType = proxyTypeOf(pin.proxy_type) ?? (provider === 'decodo' ? 'isp' : 'residential');
   let username = accountCredential?.username;
   let password = accountCredential?.password;
   if (!username || !password) {
-    let secretService: WelesServiceSecret;
-    if (provider === 'decodo') secretService = 'decodoIsp';
-    else if (provider === 'oxylabs' && proxyType === 'isp') secretService = 'oxylabsDedicatedIsp';
-    else if (provider === 'oxylabs' && proxyType === 'mobile') secretService = 'oxylabsMobile';
-    else if (provider === 'oxylabs') secretService = 'oxylabsResidential';
-    else if (provider === 'packetstream') secretService = 'packetstreamProxy';
-    else if (provider === 'iproyal' && proxyType === 'mobile') secretService = 'iproyalMobileProxy';
-    else if (provider === 'iproyal') secretService = 'iproyalProxy';
-    else if (provider === 'pingproxies') secretService = 'pingproxiesProxy';
-    else if (provider === 'brightdata') secretService = 'brightdataProxy';
-    else return undefined;
+    const secretService = secretServiceFor(provider, proxyType);
+    if (!secretService) return undefined;
     username = readOptionalWelesServiceSecret(secretService, 'username');
     password = readOptionalWelesServiceSecret(secretService, 'password');
   }
@@ -137,27 +117,17 @@ export function hydratePinnedProxy(pin: ProxyConfig): ProxyConfig | undefined {
 
   const sessionId = pin.sticky_session_id;
   if (!sessionId) return undefined;
-  const country = (pin.country ?? 'us').toLowerCase();
-  let stickyUsername = username;
-  let stickyPassword = password;
-  if (provider === 'oxylabs') {
-    const cityPart = pin.city ? `-city-${pin.city}` : '';
-    stickyUsername = `customer-${username}-cc-${country}${cityPart}-sessid-${sessionId}`;
-  } else if (provider === 'packetstream') {
-    stickyPassword = `${password}_country-${country.toUpperCase()}_session-${sessionId}`;
-  } else if (provider === 'iproyal') {
-    stickyPassword = `${password}_country-${country}_session-${sessionId}`;
-  } else if (provider === 'pingproxies') {
-    stickyUsername = `${username}_c_${country}_s_${sessionId}`;
-  } else if (provider === 'brightdata') {
-    stickyUsername = `${username}-country-${country}-session-${sessionId}`;
-  }
+  const sticky = stickyCredentials(provider, proxyType, { username, password }, {
+    country: pin.country ?? 'us',
+    city: pin.city,
+    sessionId,
+  });
   return {
     ...pin,
     provider,
     proxy_type: proxyType,
-    username: stickyUsername,
-    password: stickyPassword,
+    username: sticky.username,
+    password: sticky.password,
   };
 }
 

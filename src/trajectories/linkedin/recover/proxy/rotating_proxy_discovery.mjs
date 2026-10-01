@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { runRecordingsDir } from '../../../../../dist/session/run-recordings.js';
 import { generatePersona } from '../../../../../dist/browser/persona.js';
 import { probeLinkedinSignup, verifyExitCountry, verifyExitReputation } from '../../../../../dist/proxy/policy.js';
-import { listProxies } from '../../../_shared/skarbiec/proxies.mjs';
+import { parseInclude, rotatingRows, stickySession } from '../../../_shared/skarbiec/proxies.mjs';
 
 const OUT = runRecordingsDir('linkedin_rotating_proxy_discovery');
 const WORK = join(process.cwd(), '.work', 'linkedin_rotating_proxy_discovery');
@@ -22,83 +22,17 @@ mkdirSync(WORK, { recursive: true });
 const SAMPLES_PER_PROVIDER = Math.max(1, Number(process.env.LINKEDIN_ROTATING_DISCOVERY_SAMPLES || 6));
 const TIMEOUT_SECS = Math.max(3, Number(process.env.LINKEDIN_ROTATING_DISCOVERY_TIMEOUT || 8));
 const TARGET_CC = (process.env.LINKEDIN_ROTATING_DISCOVERY_COUNTRY || 'us').toLowerCase();
-const INCLUDE = new Set(String(process.env.LINKEDIN_ROTATING_DISCOVERY_INCLUDE || 'mobile,residential,bright,pingproxies,packetstream,iproyal,oxylabs')
-  .split(',')
-  .map((s) => s.trim().toLowerCase())
-  .filter(Boolean));
+// Which rotating pools to sample: `provider[/type]` entries, by the provider
+// the endpoint derives and the pool type the Skarbiec item declares.
+const INCLUDE = parseInclude(process.env.LINKEDIN_ROTATING_DISCOVERY_INCLUDE || 'brightdata,pingproxies,packetstream,iproyal,oxylabs');
 
 function hash(value) {
   const text = String(value ?? '');
   return text ? createHash('sha256').update(text).digest('hex').slice(0, 16) : '';
 }
 
-function safeProviderKey(row) {
-  const name = String(row.display_name || '').toLowerCase();
-  if (name.includes('oxylabs')) return 'oxylabs';
-  if (name.includes('iproyal')) return 'iproyal';
-  if (name.includes('bright')) return 'brightdata';
-  if (name.includes('pingproxies')) return 'pingproxies';
-  if (name.includes('packetstream')) return 'packetstream';
-  return name.replace(/[^a-z0-9]+/g, '_') || 'unknown';
-}
-
-function isRotatingCandidate(row) {
-  const text = `${row.display_name || ''} ${row.proxy_host || ''}`.toLowerCase();
-  if (text.includes('isp')) return false;
-  if (text.includes('mobile') && INCLUDE.has('mobile')) return true;
-  if (text.includes('residential') && INCLUDE.has('residential')) return true;
-  for (const key of ['bright', 'pingproxies', 'packetstream', 'iproyal', 'oxylabs']) {
-    if (text.includes(key) && INCLUDE.has(key)) return true;
-  }
-  return false;
-}
-
-
-function buildStickyAuth(row, username, password, sessId, cc) {
-  const name = String(row.display_name || '').toLowerCase();
-  const host = String(row.proxy_host || '').toLowerCase();
-  const metadata = row.metadata || {};
-  const city = String(metadata.city_overrides?.linkedin || metadata.city || '')
-    .toLowerCase()
-    .replace(/\s+/g, '_');
-
-  if (name.includes('oxylabs') || host.includes('oxylabs')) {
-    const cityPart = city ? `-city-${city}` : '';
-    const raw = username.startsWith('customer-') ? username.replace(/^customer-/, '') : username;
-    return {
-      username: `customer-${raw}-cc-${cc}${cityPart}-sessid-${sessId}`,
-      password,
-    };
-  }
-  if (name.includes('packetstream') || host.includes('packetstream')) {
-    return {
-      username,
-      password: `${password}_country-${cc.toUpperCase()}_session-${sessId}`,
-    };
-  }
-  if (name.includes('iproyal') || host.includes('iproyal')) {
-    return {
-      username,
-      password: `${password}_country-${cc}_session-${sessId}`,
-    };
-  }
-  if (name.includes('pingproxies') || host.includes('pingproxies')) {
-    return {
-      username: `${username}_c_${cc}_s_${sessId}`,
-      password,
-    };
-  }
-  if (name.includes('bright') || host.includes('brd.superproxy.io')) {
-    return {
-      username: `${username}-country-${cc}-session-${sessId}`,
-      password,
-    };
-  }
-  return { username, password };
-}
-
 function proxyUrlFor(row, username, password) {
-  return `http://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${row.proxy_host}:${row.proxy_port}`;
+  return `http://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${row.host}:${row.port}`;
 }
 
 function sampleExitIp(proxyUrl, timeoutSecs = TIMEOUT_SECS) {
@@ -112,44 +46,26 @@ function sampleExitIp(proxyUrl, timeoutSecs = TIMEOUT_SECS) {
   }
 }
 
-function fetchRows() {
-  return listProxies()
-    .filter((proxy) => proxy.host && proxy.port && proxy.username && proxy.password)
-    .map((proxy) => ({
-      id: proxy.id,
-      display_name: proxy.displayName,
-      proxy_host: proxy.host,
-      proxy_port: proxy.port,
-      username: proxy.username,
-      password: proxy.password,
-      metadata: proxy.metadata,
-    }));
-}
-
 const startedAt = new Date().toISOString();
 const persona = generatePersona({ country: TARGET_CC.toUpperCase(), os: 'windows', browser: 'chromium' });
-const rows = fetchRows().filter(isRotatingCandidate);
-const results = [];
+const { candidates: rows, undeclared } = rotatingRows(INCLUDE);
+const results = undeclared.map((row) => ({
+  provider: row.provider,
+  display_name: row.displayName,
+  endpoint: { host: row.host, port: String(row.port) },
+  reason: 'proxy_type_undeclared',
+  skipped: true,
+}));
 
-console.log(`[rotating-discovery] providers=${rows.length} samples=${SAMPLES_PER_PROVIDER} cc=${TARGET_CC}`);
+console.log(`[rotating-discovery] providers=${rows.length} undeclared=${undeclared.length} samples=${SAMPLES_PER_PROVIDER} cc=${TARGET_CC}`);
+for (const row of undeclared) console.log(`[rotating-discovery] ${row.displayName} (${row.id}) declares no proxy_type in its Skarbiec context; set it to isp, mobile or residential`);
 
 for (const row of rows) {
-  const baseUser = row.username;
-  const basePass = row.password;
-  const provider = safeProviderKey(row);
-  if (!baseUser || !basePass) {
-    results.push({
-      provider,
-      display_name: row.display_name,
-      endpoint: { host: row.proxy_host, port: String(row.proxy_port) },
-      reason: 'incomplete_skarbiec_proxy',
-    });
-    continue;
-  }
+  const provider = row.provider;
 
   for (let i = 0; i < SAMPLES_PER_PROVIDER; i++) {
     const sessId = Math.floor(Math.random() * 9000000 + 1000000);
-    const auth = buildStickyAuth(row, baseUser, basePass, sessId, TARGET_CC);
+    const auth = stickySession(row, sessId, TARGET_CC, 'linkedin');
     const proxyUrl = proxyUrlFor(row, auth.username, auth.password);
     const exitIp = sampleExitIp(proxyUrl);
     const geo = exitIp ? await verifyExitCountry(exitIp, TARGET_CC) : { result: 'unknown' };
@@ -157,8 +73,8 @@ for (const row of rows) {
     const probe = exitIp ? await probeLinkedinSignup(proxyUrl, persona) : { result: 'unknown', error: 'exit_ip_missing' };
     const item = {
       provider,
-      display_name: row.display_name,
-      endpoint: { host: row.proxy_host, port: String(row.proxy_port) },
+      display_name: row.displayName,
+      endpoint: { host: row.host, port: String(row.port) },
       sticky_hash: hash(sessId),
       proxy_user_hash: hash(auth.username),
       exit_ip: exitIp || null,
@@ -174,7 +90,7 @@ for (const row of rows) {
       },
     };
     results.push(item);
-    console.log(`[rotating-discovery] ${row.display_name} sample=${i + 1}/${SAMPLES_PER_PROVIDER} exit=${exitIp || '?'} geo=${geo.result} rep=${reputation.result} linkedin=${probe.result}`);
+    console.log(`[rotating-discovery] ${row.displayName} sample=${i + 1}/${SAMPLES_PER_PROVIDER} exit=${exitIp || '?'} geo=${geo.result} rep=${reputation.result} linkedin=${probe.result}`);
   }
 }
 

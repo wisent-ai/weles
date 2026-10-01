@@ -7,6 +7,8 @@ export type IspRow = {
   display_name: string;
   proxy_host: string;
   proxy_port: string;
+  provider: string;
+  proxy_type: 'isp';
   secret_service: WelesServiceSecret;
   balance_usd: number;
   metadata?: { country?: string };
@@ -20,6 +22,8 @@ export function maybeOxylabsIspRow(): IspRow | undefined {
     display_name: 'Oxylabs ISP',
     proxy_host: host,
     proxy_port: port,
+    provider: 'oxylabs',
+    proxy_type: 'isp',
     secret_service: 'oxylabsIsp',
     balance_usd: Number('0'),
     metadata: { country: 'us' },
@@ -34,6 +38,8 @@ export function maybeOxylabsDedicatedIspRow(): IspRow | undefined {
     display_name: 'Oxylabs Dedicated ISP',
     proxy_host: host,
     proxy_port: port,
+    provider: 'oxylabs',
+    proxy_type: 'isp',
     secret_service: 'oxylabsDedicatedIsp',
     balance_usd: Number('0'),
     metadata: { country: 'us' },
@@ -50,6 +56,8 @@ export function maybeDecodoIspRows(): IspRow[] {
     display_name: ports.length === Number('1') ? 'Decodo ISP' : `Decodo ISP ${port}`,
     proxy_host: host,
     proxy_port: port,
+    provider: 'decodo',
+    proxy_type: 'isp',
     secret_service: 'decodoIsp',
     balance_usd: Number('0'),
     metadata: { country: 'us' },

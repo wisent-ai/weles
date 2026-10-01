@@ -9,36 +9,41 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { WSession } from '../../../../../dist/session/wsession.js';
 import { verifyExitCountry, verifyExitReputation } from '../../../../../dist/proxy/policy.js';
-import { INCLUDE, OUT, PROBE_OS, SAMPLES_PER_PROVIDER, STOP_AFTER_SUBMIT, SUBMIT_CANDIDATE, TARGET_CC, WORK } from './rotating_weles_probe/settings.mjs';
-import { buildStickyAuth, fetchRows, hash, includeRow, providerKey, proxyUrlFor, sampleExitIp } from './rotating_weles_probe/proxies.mjs';
+import { INCLUDE_TEXT, OUT, PROBE_OS, SAMPLES_PER_PROVIDER, STOP_AFTER_SUBMIT, SUBMIT_CANDIDATE, TARGET_CC, WORK } from './rotating_weles_probe/settings.mjs';
+import { buildStickyAuth, fetchRows, hash, proxyUrlFor, sampleExitIp } from './rotating_weles_probe/proxies.mjs';
 import { classifySummary, summarizeSignup } from './rotating_weles_probe/page.mjs';
 import { submitSignupCandidate } from './rotating_weles_probe/submit.mjs';
 import { pageSettled } from '../../../_shared/page/settled.mjs';
 
-const rows = fetchRows().filter(includeRow);
+const { candidates: rows, undeclared } = fetchRows();
 const startedAt = new Date().toISOString();
-const results = [];
+const results = undeclared.map((row) => ({
+  provider: row.provider,
+  display_name: row.displayName,
+  endpoint: { host: row.host, port: String(row.port) },
+  reason: 'proxy_type_undeclared',
+  skipped: true,
+}));
 let submitted = false;
 
-console.log(`[wprobe] providers=${rows.length} samples=${SAMPLES_PER_PROVIDER} cc=${TARGET_CC} submit=${SUBMIT_CANDIDATE} os=${PROBE_OS}`);
+console.log(`[wprobe] providers=${rows.length} undeclared=${undeclared.length} samples=${SAMPLES_PER_PROVIDER} cc=${TARGET_CC} submit=${SUBMIT_CANDIDATE} os=${PROBE_OS}`);
+for (const row of undeclared) console.log(`[wprobe] ${row.displayName} (${row.id}) declares no proxy_type in its Skarbiec context; set it to isp, mobile or residential`);
 
 for (const row of rows) {
   if (submitted && STOP_AFTER_SUBMIT) break;
-  const baseUser = row.username;
-  const basePass = row.password;
 
   for (let i = 0; i < SAMPLES_PER_PROVIDER; i++) {
     if (submitted && STOP_AFTER_SUBMIT) break;
     const sessId = Math.floor(Math.random() * 9000000 + 1000000);
-    const auth = buildStickyAuth(row, baseUser, basePass, sessId, TARGET_CC);
+    const auth = buildStickyAuth(row, sessId, TARGET_CC);
     const proxyUrl = proxyUrlFor(row, auth.username, auth.password);
     const exitIp = sampleExitIp(proxyUrl);
     const geo = exitIp ? await verifyExitCountry(exitIp, TARGET_CC) : { result: 'unknown' };
     const reputation = exitIp ? await verifyExitReputation(exitIp).catch(() => ({ result: 'unknown' })) : { result: 'unknown' };
     const item = {
-      provider: providerKey(row),
-      display_name: row.display_name,
-      endpoint: { host: row.proxy_host, port: String(row.proxy_port) },
+      provider: row.provider,
+      display_name: row.displayName,
+      endpoint: { host: row.host, port: String(row.port) },
       sticky_hash: hash(sessId),
       proxy_user_hash: hash(auth.username),
       exit_ip: exitIp || null,
@@ -98,7 +103,7 @@ const summary = {
   probe_os: PROBE_OS,
   submit_candidate: SUBMIT_CANDIDATE,
   stop_after_submit: STOP_AFTER_SUBMIT,
-  include: [...INCLUDE],
+  include: INCLUDE_TEXT,
   provider_count: rows.length,
   sample_count: results.filter((r) => !r.skipped).length,
   form_candidate_count: formCandidates.length,
