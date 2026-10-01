@@ -66,15 +66,16 @@ export async function acceptPendingWorkspaceInvite(page, login, mark) {
   }
   await page.goto(target, { waitUntil: 'commit' });
   await pause('deliberate');
-  try {
-    const clicked = await clickVisibleText(
-      page,
-      /^(accept invite|accept invitation|accept|join workspace|join|continue)$/i,
-    );
-    mark('workspace_invite_accepted');
-    console.log(`[google_sso] clicked the workspace acceptance control "${clicked}"`);
-  } catch (e) {
-    console.log(`[google_sso] no acceptance control on the invitation page: ${e.message}`);
+  const control = await clickVisibleText(
+    page,
+    /^(accept invite|accept invitation|accept|join workspace|join|continue)$/i,
+  );
+  if (!control.clicked) {
+    mark(`workspace_invite_control_${control.reason}`);
+    console.log(`[google_sso] invitation control not clicked: ${control.reason}`);
+  } else {
+    mark('workspace_invite_control_clicked');
+    console.log(`[google_sso] clicked the workspace acceptance control "${control.text}"`);
   }
   await pause('long');
   const landed = await navEval(page, () => location.href, '?');
@@ -145,7 +146,8 @@ export async function completeEmailVerification(page, login, mark) {
     await humanClickLocator(page, field);
     await humanFill(page, field, found.code);
     mark('email_verification_code_entered');
-    try { await clickVisibleText(page, /^(continue|verify|submit|next)$/i); } catch { /* some forms submit on entry */ }
+    const submitted = await clickVisibleText(page, /^(continue|verify|submit|next)$/i);
+    mark(submitted.clicked ? 'email_verification_submit_clicked' : `email_verification_submit_${submitted.reason}`);
     await pause('long');
   }
   const landed = await navEval(page, () => location.href, '?');

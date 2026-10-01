@@ -8,7 +8,7 @@
 // tripped Google's "browser may not be secure" block.
 import { humanClick } from '../../../../dist/human/mouse.js';
 import { DOCUMENT_REPLACED, readAcrossNavigation } from '../../_shared/services/google_sso/page_diagnostics.mjs';
-import { pageCondition } from '../../_shared/page/settled.mjs';
+import { pageCondition, pageSettled } from '../../_shared/page/settled.mjs';
 
 // In an OAuth redirect chain a navigation mid-call is the EXPECTED
 // transition, so in poll loops a read whose document was replaced means
@@ -58,9 +58,12 @@ export async function waitForEnabledThenClick(page, namePattern) {
   await humanClick(page, Math.round(state.x), Math.round(state.y));
 }
 
+// Optional controls are an observation, not a condition that must become true.
+// A replaced document and an absent match stay distinct; real failures propagate.
 export async function clickVisibleText(page, pattern) {
+  await pageSettled(page);
   const source = pattern.source;
-  const hit = await pageCondition(page, (patternSource) => {
+  const hit = await readAcrossNavigation(page, () => page.evaluate((patternSource) => {
     const matcher = new RegExp(patternSource, 'i');
     let best = null;
     for (const element of document.querySelectorAll('button,[role="button"],a,[role="link"],li,div,span')) {
@@ -74,9 +77,11 @@ export async function clickVisibleText(page, pattern) {
       }
     }
     return best;
-  }, source);
+  }, source));
+  if (hit === DOCUMENT_REPLACED) return { clicked: false, reason: 'document_replaced' };
+  if (!hit) return { clicked: false, reason: 'not_offered' };
   await humanClick(page, Math.round(hit.x), Math.round(hit.y));
-  return hit.text;
+  return { clicked: true, text: hit.text };
 }
 
 // Click "Use another account" / "Add account" on the Google account chooser so
