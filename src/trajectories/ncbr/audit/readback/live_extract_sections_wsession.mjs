@@ -88,7 +88,6 @@ if (await statute.count() > 0 && !await statute.isChecked()) {
     .filter({ has: statute }).filter({ visible: true }).first();
   await humanClickLocator(page, await statuteLabel.count() > 0 ? statuteLabel : statute);
 }
-await humanIdlePause('short');
 await page.waitForFunction(() => {
   const btn = document.querySelector('#login-btn') || Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Zaloguj');
   return !!btn && !btn.disabled;

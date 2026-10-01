@@ -36,7 +36,6 @@ async function login() {
   await setReactInputValue(page.locator('#password, input[name="password"]').first(), password);
   const checkbox = page.locator('#isStatuteAccepted, input[name="isStatuteAccepted"]').first();
   if (!(await checkbox.isChecked().catch(() => false))) await humanClickLocator(page, checkbox) // allow-raw-playwright: accept visible statute checkbox for login only
-  await humanIdlePause('short');
   await page.waitForFunction(() => {
     const btn = document.querySelector('#login-btn') || Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Zaloguj');
     return !!btn && !btn.disabled;
@@ -58,8 +57,6 @@ async function clickVisibleButton(text, nth = 0) {
 }
 
 async function saveVisibleForm() {
-  await humanIdlePause('deliberate');
-  await humanIdlePause('deliberate');
   await page.waitForFunction(() => Array.from(document.querySelectorAll('button')).some((b) => b.innerText.trim() === 'Zapisz' && !b.disabled && b.getClientRects().length), null, { polling: 'raf' }); // allow-raw-playwright: wait for enabled LSI save
   await humanClickLocator(page, page.locator('button:visible:not([disabled])').filter({ hasText: /^Zapisz$/ }).last()) // allow-raw-playwright: save visible row/form only
   await humanIdlePause('long');

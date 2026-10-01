@@ -40,7 +40,6 @@ async function login() {
   await setReactInputValue(page.locator('#password, input[name="password"]').first(), password);
   const statute = page.locator('#isStatuteAccepted, input[name="isStatuteAccepted"]').first();
   if (!await statute.isChecked().catch(() => false)) await humanClickLocator(page, statute.locator('xpath=ancestor-or-self::label[1]').or(statute));
-  await humanIdlePause('short');
   await page.waitForFunction(() => {
     const btn = document.querySelector('#login-btn') || Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Zaloguj');
     return !!btn && !btn.disabled;

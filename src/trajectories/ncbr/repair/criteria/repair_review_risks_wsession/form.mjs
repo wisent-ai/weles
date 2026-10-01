@@ -21,7 +21,6 @@ async function login() {
   await setReactInputValue(page.locator('#password, input[name="password"]').first(), password);
   const statute = page.locator('label:has(#isStatuteAccepted), label:has(input[name="isStatuteAccepted"]), #isStatuteAccepted, input[name="isStatuteAccepted"]:visible').first();
   if (await statute.count() && !await page.locator('#isStatuteAccepted, input[name="isStatuteAccepted"]').first().isChecked()) await humanClickLocator(page, statute);
-  await humanIdlePause('short');
   await page.waitForFunction(() => {
     const btn = document.querySelector('#login-btn') || Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Zaloguj');
     return !!btn && !btn.disabled;
