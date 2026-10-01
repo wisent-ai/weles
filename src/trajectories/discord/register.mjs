@@ -2,7 +2,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { autoBindCharacter } from '../lib/character-bind.mjs';
 import { harvestAfterRegister } from '../lib/discord_harvest.mjs';
-import { accountItemId } from '../_shared/skarbiec/accounts.mjs';
+import { accountItemFor } from '../_shared/skarbiec/accounts.mjs';
 import { getReceived, listReceived } from '../../_shared/resend-receiving.mjs';
 // burned.js is CommonJS; default-import then destructure (named ESM import
 // of a CJS export is fragile across rebuilds). This lineage exposes
@@ -213,7 +213,7 @@ try {
             await s.saveAccount('discord', { username: id.username, email: id.email, password: id.password });
             // saveAccount creates the Skarbiec item; add Discord's localStorage
             // token to that exact item because cookies alone do not authenticate.
-            const item = accountItemId('discord', id.username);
+            const item = accountItemFor('discord', id.username);
             await s.patchAccount(item, { metadata: { discord_token: authToken } });
             console.log('[test] persisted metadata.discord_token to Skarbiec');
             await autoBindCharacter(id.username, 'discord').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));

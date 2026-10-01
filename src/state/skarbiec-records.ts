@@ -1,4 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { isAbsolute, join } from 'node:path';
 
 export interface WelesAccountRecord {
@@ -37,7 +38,12 @@ function activeSkarbiecBinary(operation: string): string {
   return binary;
 }
 const VAULT = process.env.SKARBIEC_VAULT_FILE;
-const ACCOUNT_ID = /^weles-[a-z0-9][a-z0-9-]{0,126}-account$/;
+// Weles marks each record with the kind it is (Skarbiec namespace
+// weles:record:<kind>) and finds one by that tag and its own sealed context;
+// an item's id is random and nothing reads meaning out of it.
+const RECORD_TAG_PREFIX = 'weles:record:';
+const ACCOUNT_KIND = 'trajectory-account';
+const SETTING_KIND = 'runtime-setting';
 
 function skarbiec(args: string[], input?: string): string {
   return execFileSync(activeSkarbiecBinary(`run Skarbiec ${args[0] ?? 'operation'}`), args, {
@@ -115,16 +121,70 @@ function accountFromDocument(id: string, document: Record<string, any>): WelesAc
   };
 }
 
+/** The ids of the live items marked as Weles records of `kind`. */
+function recordIds(kind: string): string[] {
+  const tag = `${RECORD_TAG_PREFIX}${kind}`;
+  return listCredentialItems()
+    .filter((row) => Array.isArray(row.tags) && row.tags.includes(tag))
+    .map((row) => String(row.id ?? row.name ?? ''))
+    .filter(Boolean);
+}
+
+/** A new record of `kind` under a random id; returns the id. */
+function createRecord(kind: string, fields: string[]): string {
+  const id = randomUUID().replaceAll('-', '');
+  skarbiec(['set', id, '--type', 'bundle', '--tags', `${RECORD_TAG_PREFIX}${kind}`, ...fields]);
+  return id;
+}
+
+/** The account of `platform` signed in as `username`, active or not. */
+function findAccountId(platform: string, username: string): string | null {
+  const wanted = username.trim().toLowerCase();
+  return recordIds(ACCOUNT_KIND).find((id) => {
+    const account = accountFromDocument(id, readDocument(id));
+    return account.platform === platform && account.username.trim().toLowerCase() === wanted;
+  }) ?? null;
+}
+
+/**
+ * Mark every Weles record that carries no `weles:record:<kind>` tag yet with
+ * the kind its own context names (`context.owner === 'weles'` and
+ * `context.record_kind`). Records written before Weles found them by tag are
+ * found again this way; their ids are left as they are and mean nothing.
+ * Tags an item already carries are kept.
+ */
+export function adoptRecords(): { tagged: Array<{ id: string; kind: string }>; skipped: number } {
+  const tagged: Array<{ id: string; kind: string }> = [];
+  let skipped = 0;
+  for (const row of listCredentialItems()) {
+    const tags: string[] = Array.isArray(row.tags) ? row.tags.map(String) : [];
+    const id = String(row.id ?? row.name ?? '');
+    if (!id || tags.some((tag) => tag.startsWith(RECORD_TAG_PREFIX))) {
+      skipped += 1;
+      continue;
+    }
+    const context = readDocument(id).context ?? {};
+    const kind = typeof context.record_kind === 'string' ? context.record_kind : '';
+    if (context.owner !== 'weles' || !/^[a-z][a-z0-9-]{0,62}$/.test(kind)) {
+      skipped += 1;
+      continue;
+    }
+    skarbiec(['retag', id, '--tags', [...tags, `${RECORD_TAG_PREFIX}${kind}`].join(',')]);
+    tagged.push({ id, kind });
+  }
+  return { tagged, skipped };
+}
+
 /** Active trajectory accounts, optionally of one platform. */
 export function listAccounts(platform?: string): WelesAccountRecord[] {
-  return itemIds().filter((id) => ACCOUNT_ID.test(id))
+  return recordIds(ACCOUNT_KIND)
     .map((id) => accountFromDocument(id, readDocument(id)))
     .filter((account) => account.active && (!platform || account.platform === platform));
 }
 
-/** One account record whether active or not, or null when no such item exists. */
+/** One account record whether active or not, or null when no such account exists. */
 export function readAccount(id: string): WelesAccountRecord | null {
-  if (!ACCOUNT_ID.test(id) || !itemIds().includes(id)) return null;
+  if (!recordIds(ACCOUNT_KIND).includes(id)) return null;
   return accountFromDocument(id, readDocument(id));
 }
 
@@ -146,10 +206,8 @@ export function putAccountProfile(record: {
   metadata: Record<string, unknown>;
   displayName?: string;
 }): string {
-  const id = accountItemId(record.platform, record.username);
-  if (!itemIds().includes(id)) {
-    skarbiec(['set', id, '--type', 'bundle', `username=${record.username}`, `metadata_json=${JSON.stringify(record.metadata)}`]);
-  }
+  const id = findAccountId(record.platform, record.username)
+    ?? createRecord(ACCOUNT_KIND, [`username=${record.username}`, `metadata_json=${JSON.stringify(record.metadata)}`]);
   const document = readDocument(id);
   const fields = document.fields ?? {};
   const current = fields.metadata_json ? JSON.parse(String(fields.metadata_json)) : {};
@@ -167,13 +225,6 @@ export function putAccountProfile(record: {
   return id;
 }
 
-export function accountItemId(platform: string, username: string): string {
-  const slug = username.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  const id = `weles-${platform.toLowerCase()}-${slug}-account`;
-  if (!ACCOUNT_ID.test(id)) throw new Error('cannot derive a safe Weles account item id');
-  return id;
-}
-
 export function putAccount(record: {
   platform: string;
   username: string;
@@ -181,16 +232,14 @@ export function putAccount(record: {
   metadata: Record<string, unknown>;
   displayName?: string;
 }): string {
-  const id = accountItemId(record.platform, record.username);
-  skarbiec([
-    'set',
-    id,
-    '--type',
-    'bundle',
+  const fields = [
     `username=${record.username}`,
     `password=${record.password}`,
     `metadata_json=${JSON.stringify(record.metadata)}`,
-  ]);
+  ];
+  const existing = findAccountId(record.platform, record.username);
+  const id = existing ?? createRecord(ACCOUNT_KIND, fields);
+  if (existing) skarbiec(['set', id, '--type', 'bundle', ...fields]);
   const document = readDocument(id);
   document.context = {
     ...(document.context ?? {}),
@@ -205,7 +254,7 @@ export function putAccount(record: {
 }
 
 export function updateAccount(id: string, patch: { metadata?: Record<string, any>; active?: boolean }): boolean {
-  if (!ACCOUNT_ID.test(id)) return false;
+  if (!recordIds(ACCOUNT_KIND).includes(id)) return false;
   const document = readDocument(id);
   const fields = document.fields ?? {};
   const current = fields.metadata_json ? JSON.parse(String(fields.metadata_json)) : {};
@@ -216,15 +265,17 @@ export function updateAccount(id: string, patch: { metadata?: Record<string, any
   return true;
 }
 
-function settingItemId(key: string): string {
+/** The runtime setting record for `key`, or null when none was written. */
+function settingRecordId(key: string): string | null {
   if (!/^[a-z][a-z0-9_]{0,126}$/.test(key)) throw new Error(`invalid Weles setting: ${key}`);
-  return `weles-setting-${key.replaceAll('_', '-')}`;
+  return recordIds(SETTING_KIND).find((id) => readDocument(id).context?.setting_key === key) ?? null;
 }
 
 export function readSetting<T>(key: string, fallback: T): T {
   try {
-    const document = readDocument(settingItemId(key));
-    const raw = document.fields?.value_json;
+    const id = settingRecordId(key);
+    if (!id) return fallback;
+    const raw = readDocument(id).fields?.value_json;
     return raw ? JSON.parse(String(raw)) as T : fallback;
   } catch {
     return fallback;
@@ -232,8 +283,10 @@ export function readSetting<T>(key: string, fallback: T): T {
 }
 
 export function writeSetting<T>(key: string, value: T): void {
-  const id = settingItemId(key);
-  skarbiec(['set', id, '--type', 'bundle', `value_json=${JSON.stringify(value)}`]);
+  const field = `value_json=${JSON.stringify(value)}`;
+  const existing = settingRecordId(key);
+  const id = existing ?? createRecord(SETTING_KIND, [field]);
+  if (existing) skarbiec(['set', id, '--type', 'bundle', field]);
   const document = readDocument(id);
   document.context = {
     ...(document.context ?? {}),

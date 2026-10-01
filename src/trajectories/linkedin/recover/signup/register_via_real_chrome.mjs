@@ -16,7 +16,7 @@ import { humanFill, humanType } from '../../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause, humanScroll } from '../../../../../dist/human/mouse.js';
 import { readScopedProxy } from '../../../../_shared/scoped-secrets.mjs';
 import { launchGenuineChrome } from '../../../../browser/real_chrome.mjs';
-import { accountItemId, writeAccount } from '../../../_shared/skarbiec/accounts.mjs';
+import { accountItemFor, writeAccount } from '../../../_shared/skarbiec/accounts.mjs';
 
 const AGENT_DOMAIN = process.env.AGENT_DOMAIN ?? 'wisentmedia.com';
 const CHROME_BIN = process.env.CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -275,7 +275,7 @@ const metadata = {
   cookies, cookies_minted_at: now, cookies_updated_at: now, cookies_minted_persona: 'real-chrome-macos',
   linkedin_px_storage: lsItems, linkedin_px_storage_at: now,
 };
-const item = accountItemId('linkedin', id.handle);
+const item = accountItemFor('linkedin', id.handle);
 writeAccount({
   id: item,
   platform: 'linkedin',

@@ -12,7 +12,8 @@
 // token the process was started with. A missing token is refused by name.
 
 const SAFE_ACTION = /^[a-z][a-z0-9_]{0,127}$/;
-const ACCOUNT_ITEM = /^weles-[a-z0-9][a-z0-9-]{0,126}$/;
+// An account item's id is random and means nothing; only its shape is checked.
+const ACCOUNT_ITEM = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,190}$/;
 const STANDARD_API_PORT = '8788';
 const QUOTED_BODY_CHARS = 300;
 const BODY_START = 0;

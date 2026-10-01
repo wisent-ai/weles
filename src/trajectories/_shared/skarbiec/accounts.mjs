@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { activeSkarbiecBinary } from '../../../_shared/skarbiec-runtime.mjs';
@@ -6,7 +7,12 @@ import { activeSkarbiecBinary } from '../../../_shared/skarbiec-runtime.mjs';
 const HOME = os.homedir();
 const SKARBIEC = activeSkarbiecBinary();
 const VAULT = process.env.SKARBIEC_VAULT_FILE ?? path.join(HOME, '.stado', 'skarbiec.vault.json');
-const SAFE_ITEM = /^weles-[a-z0-9][a-z0-9-]{0,126}-account$/;
+// Weles marks each record with the kind it is (Skarbiec namespace
+// weles:record:<kind>) and finds one by that tag and its own context; an
+// item's id is random and nothing reads meaning out of it.
+const RECORD_TAG_PREFIX = 'weles:record:';
+const ACCOUNT_KIND = 'trajectory-account';
+const ITEM_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,190}$/;
 
 function run(args, input) {
   return execFileSync(SKARBIEC, args, {
@@ -17,20 +23,41 @@ function run(args, input) {
 }
 
 function requireItem(id) {
-  if (!SAFE_ITEM.test(String(id))) throw new Error('invalid Weles account item id');
+  if (!ITEM_ID.test(String(id))) throw new Error('invalid Weles Skarbiec record id');
   return String(id);
 }
 
-export function accountItemId(platform, username) {
-  const slug = String(username).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  return requireItem(`weles-${String(platform).toLowerCase()}-${slug}-account`);
+/** The ids of the live items marked as Weles records of `kind`. */
+function recordIds(kind) {
+  const tag = `${RECORD_TAG_PREFIX}${kind}`;
+  return JSON.parse(run(['list']))
+    .filter((row) => !row.deleted && Array.isArray(row.tags) && row.tags.includes(tag))
+    .map((row) => String(row.id ?? row.name ?? ''))
+    .filter(Boolean);
+}
+
+/**
+ * Write a record of `kind` under `id`, tagging it when it is new; `create`
+ * holds the `skarbiec set` arguments after the id.
+ */
+function setRecord(kind, id, create) {
+  const fresh = !recordIds(kind).includes(id);
+  run(['set', id, ...create, ...(fresh ? ['--tags', `${RECORD_TAG_PREFIX}${kind}`] : [])]);
+}
+
+/**
+ * The account of `platform` signed in as `username` — active or not — or a
+ * new random id for one that does not exist yet.
+ */
+export function accountItemFor(platform, username) {
+  const wanted = String(username).trim().toLowerCase();
+  const existing = recordIds(ACCOUNT_KIND).map((id) => readAccount(id)).find((account) =>
+    account.platform === String(platform) && account.username.trim().toLowerCase() === wanted);
+  return existing?.id ?? randomUUID().replaceAll('-', '');
 }
 
 export function readWelesRecord(id) {
-  if (!/^weles-[a-z0-9][a-z0-9-]{0,190}$/.test(String(id))) {
-    throw new Error('invalid Weles Skarbiec record id');
-  }
-  return JSON.parse(run(['get', String(id)]));
+  return JSON.parse(run(['get', requireItem(id)]));
 }
 
 export function updateWelesRecord(id, contextPatch = {}, fieldPatch = {}) {
@@ -80,15 +107,15 @@ export function findProduct(productId) {
 }
 
 export function writeServiceCredentials(service, { username, password }) {
-  const slug = String(service).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  const id = `weles-${slug}-service`;
-  if (!/^weles-[a-z0-9][a-z0-9-]{0,190}$/.test(id)) throw new Error('invalid Weles service item id');
-  run(['set', id, '--type', 'login', `username=${String(username)}`, `password=${String(password)}`]);
+  const kind = 'service-credential';
+  const id = recordIds(kind).find((recordId) =>
+    readWelesRecord(recordId).context?.service === String(service)) ?? randomUUID().replaceAll('-', '');
+  setRecord(kind, id, ['--type', 'login', `username=${String(username)}`, `password=${String(password)}`]);
   const document = readWelesRecord(id);
   document.context = {
     ...(document.context ?? {}),
     owner: 'weles',
-    record_kind: 'service-credential',
+    record_kind: kind,
     service: String(service),
   };
   run(['set-json', id], JSON.stringify(document));
@@ -96,26 +123,22 @@ export function writeServiceCredentials(service, { username, password }) {
 }
 
 export function writeDomainStatus(domain, status) {
-  const slug = String(domain).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  const id = `weles-resend-domain-${slug}`;
-  if (!/^weles-[a-z0-9][a-z0-9-]{0,190}$/.test(id)) throw new Error('invalid Weles domain item id');
-  run(['set', id, '--type', 'bundle', `domain=${String(domain)}`, `status=${String(status)}`]);
+  const kind = 'email-domain-status';
+  const id = recordIds(kind).find((recordId) =>
+    readWelesRecord(recordId).fields?.domain === String(domain)) ?? randomUUID().replaceAll('-', '');
+  setRecord(kind, id, ['--type', 'bundle', `domain=${String(domain)}`, `status=${String(status)}`]);
   const document = readWelesRecord(id);
   document.context = {
     ...(document.context ?? {}),
     owner: 'weles',
-    record_kind: 'email-domain-status',
+    record_kind: kind,
     updated_at: new Date().toISOString(),
   };
   run(['set-json', id], JSON.stringify(document));
   return id;
 }
 export function listAccounts(platform = '') {
-  const rows = JSON.parse(run(['list']));
-  return rows
-    .filter((row) => !row.deleted)
-    .map((row) => String(row.name ?? row.id ?? ''))
-    .filter((id) => SAFE_ITEM.test(id))
+  return recordIds(ACCOUNT_KIND)
     .map((id) => readAccount(id))
     .filter((account) => {
       const active = account.document.context?.active !== false;
@@ -149,7 +172,7 @@ export function writeAccount({ id, platform, username, password, metadata, displ
     `password=${String(password)}`,
     `metadata_json=${JSON.stringify(metadata ?? {})}`,
   ];
-  run(['set', item, '--type', 'bundle', ...fields]);
+  setRecord(ACCOUNT_KIND, item, ['--type', 'bundle', ...fields]);
   const document = JSON.parse(run(['get', item]));
   document.context = {
     ...(document.context ?? {}),

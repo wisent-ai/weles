@@ -10,8 +10,9 @@ import { runAppPassword } from './cli/security/app-password.js';
 import { runAppleDeveloperId } from './cli/security/apple-developer-id.js';
 import { runAppleLogin } from './cli/security/apple-login.js';
 import { runWorker } from './cli/worker/index.js';
+import { adoptRecords } from './state/skarbiec-records.js';
 
-type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import' | 'release' | 'figma' | 'operator-requests' | 'account-security' | 'app-password' | 'apple-developer-id' | 'apple-login' | 'worker';
+type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import' | 'release' | 'figma' | 'operator-requests' | 'account-security' | 'app-password' | 'apple-developer-id' | 'apple-login' | 'worker' | 'records';
 
 export type ParsedCli = {
   command: CliCommand;
@@ -47,6 +48,7 @@ Usage:
   weles apple-developer-id --run <run-id> --certificate-out <abs>
   weles apple-login [--account-role <role>] --confirm "AUTHORIZE ONE APPLE LOGIN" --execution-host <host> [--execution-agent <agent>] [--expires-in-minutes <n>] | --run <run-id>
   weles worker <status|start|restart> [--json]
+  weles records adopt     Tag every Weles record in this vault with weles:record:<kind> from its own context
   weles doctor
   weles version
 
@@ -147,7 +149,7 @@ export function parseCliArgs(argv: string[]): ParsedCli {
 function normalizeCommand(command?: string): CliCommand {
   if (!command || command === '--help' || command === '-h' || command === 'help') return 'help';
   if (command === '--version' || command === '-v' || command === 'version') return 'version';
-  if (command === 'account-security' || command === 'app-password' || command === 'apple-developer-id' || command === 'apple-login' || command === 'worker') return command;
+  if (command === 'account-security' || command === 'app-password' || command === 'apple-developer-id' || command === 'apple-login' || command === 'worker' || command === 'records') return command;
   if (command === 'doctor' || command === 'open' || command === 'screenshot' || command === 'mcp' || command === 'onboarding' || command === 'import' || command === 'release' || command === 'figma' || command === 'operator-requests') return command;
   throw new Error(`unknown command: ${command}`);
 }
@@ -284,6 +286,13 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   }
   if (parsed.command === 'worker') {
     await runWorker(parsed);
+    return;
+  }
+  if (parsed.command === 'records') {
+    if (parsed.positional.join(' ') !== 'adopt' || Object.keys(parsed.options).length) {
+      throw new Error('records takes exactly: adopt');
+    }
+    process.stdout.write(`${JSON.stringify(adoptRecords())}\n`);
     return;
   }
   if (parsed.command === 'mcp') {

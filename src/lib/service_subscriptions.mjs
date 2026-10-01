@@ -1,32 +1,32 @@
-// CRUD helper for Weles subscription records in Skarbiec.
+// CRUD helper for Weles subscription records in Skarbiec. A record is marked
+// weles:record:service-subscription and found by its own context — service,
+// provider and account — never by a name built from them; its id is random.
 import { execFileSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { activeSkarbiecBinary } from '../_shared/skarbiec-runtime.mjs';
 
 const SKARBIEC = activeSkarbiecBinary();
 const VAULT = process.env.SKARBIEC_VAULT_FILE ?? join(homedir(), '.stado', 'skarbiec.vault.json');
+const RECORD_TAG = 'weles:record:service-subscription';
 const run = (args, input) => execFileSync(SKARBIEC, args, {
   input,
   encoding: 'utf8',
   env: { ...process.env, SKARBIEC_VAULT_FILE: VAULT },
 });
-const itemId = (row) => {
-  const slug = [row.service_name, row.provider, row.account_identifier]
-    .map((value) => String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''))
-    .join('-');
-  const id = `weles-subscription-${slug}`;
-  if (!/^weles-[a-z0-9][a-z0-9-]{0,190}$/.test(id)) throw new Error('invalid subscription item id');
-  return id;
-};
 const read = (id) => JSON.parse(run(['get', id]));
 const record = (id, document) => ({ id, ...(document.context?.subscription ?? {}) });
 
-export async function listSubscriptions({ service, status, provider, account } = {}) {
+function subscriptionIds() {
   return JSON.parse(run(['list']))
-    .filter((row) => !row.deleted)
-    .map((row) => String(row.name ?? row.id ?? ''))
-    .filter((id) => id.startsWith('weles-subscription-'))
+    .filter((row) => !row.deleted && Array.isArray(row.tags) && row.tags.includes(RECORD_TAG))
+    .map((row) => String(row.id ?? row.name ?? ''))
+    .filter(Boolean);
+}
+
+export async function listSubscriptions({ service, status, provider, account } = {}) {
+  return subscriptionIds()
     .map((id) => record(id, read(id)))
     .filter((row) => (!service || row.service_name === service)
       && (!status || row.status === status)
@@ -36,8 +36,12 @@ export async function listSubscriptions({ service, status, provider, account } =
 }
 
 export async function upsertSubscription(row) {
-  const id = itemId(row);
-  run(['set', id, '--type', 'bundle', `value_json=${JSON.stringify(row.metadata ?? {})}`]);
+  const existing = (await listSubscriptions({
+    service: row.service_name, provider: row.provider, account: row.account_identifier,
+  }))[0]?.id;
+  const id = existing ?? randomUUID().replaceAll('-', '');
+  run(['set', id, '--type', 'bundle', `value_json=${JSON.stringify(row.metadata ?? {})}`,
+    ...(existing ? [] : ['--tags', RECORD_TAG])]);
   const document = read(id);
   document.context = {
     ...(document.context ?? {}),
