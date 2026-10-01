@@ -132,15 +132,22 @@ try {
   await fileInput.setInputFiles(BUNDLE_PATH);
   console.log(`[play-submit] uploading ${BUNDLE_PATH}`);
 
-  // Wait for the bundle to finish processing — a version-code row / "uploaded"
-  // marker appears when done, or Play Console reports an upload error.
+  // The bundle is processed once the file input is no longer busy and the
+  // release's artifact table has a row; Play Console marks an upload failure
+  // with an alert in the upload region. The condition reads those, not words.
   const upload = await pageCondition(s.page, () => {
-    const txt = (document.body?.innerText || '').toLowerCase();
-    if (txt.includes('error') && txt.includes('upload')) return 'error';
-    if (txt.includes('version code') || txt.includes('uploaded') || /\bapp bundle\b/.test(txt)) return 'done';
-    return false;
+    const alert = document.querySelector('[role="alert"], [role="alertdialog"]');
+    if (alert && alert.offsetParent !== null) return 'error';
+    const uploading = document.querySelector('[role="progressbar"]');
+    if (uploading && uploading.offsetParent !== null) return false;
+    const artifacts = document.querySelector('table tbody tr, [role="table"] [role="row"] + [role="row"]');
+    return artifacts ? 'done' : false;
   });
-  if (upload === 'error') { console.log('FAIL: Play Console reported an upload error'); process.exit(3); }
+  if (upload === 'error') {
+    const alert = await s.page.locator('[role="alert"], [role="alertdialog"]').first().innerText();
+    console.log(`FAIL: Play Console reported an upload error: ${alert.slice(0, 200)}`);
+    process.exit(3);
+  }
   console.log('[play-submit] bundle processed');
   await humanIdlePause('short');
 

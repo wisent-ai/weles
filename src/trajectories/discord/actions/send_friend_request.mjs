@@ -11,9 +11,9 @@
 //   3. Click "Add Friend" tab at the top.
 //   4. humanFill the username input with DISCORD_TARGET_HANDLE.
 //   5. Click "Send Friend Request" button.
-//   6. Watch for the toast / inline message that signals success vs error
-//      ("Friend request sent" vs "You need to enter a valid Username" or
-//      "You are blocked" or "Hm, didn't work."). Persist outcome.
+//   6. The outcome is the answer Discord gives its own UI to the relationship
+//      request the click sends: 204 means sent; any other status carries
+//      Discord's reason in its body. Persist outcome.
 //   7. Append to metadata.friend_requests_sent array on social_accounts.
 
 import { WSession } from '../../../../dist/session/wsession.js';
@@ -37,16 +37,11 @@ const opts = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'discord_send_friend_request', proxy: opts.proxyUrl, persona: opts.persona, targetHost: 'discord.com' });
 console.log(`[friend_request] account=${acct.username} target=${TARGET}`);
 
-async function detectOutcome() {
-  const toastHits = ['Friend request sent', 'is already your friend', 'Hm, didn', 'find a user with that username'];
-  for (const phrase of toastHits) {
-    const loc = s.page.locator(`text=${phrase}`).first();
-    if ((await loc.count()) > 0) {
-      try { return await loc.textContent(); }
-      catch (e) { console.log(`[friend_request] toast read err: ${e.message?.slice(0, 80)}`); }
-    }
-  }
-  return null;
+// The relationship request Discord's UI sends when "Send Friend Request" is
+// clicked, and what Discord answered it.
+function relationshipAnswer() {
+  return s.page.waitForResponse((r) => r.request().method() === 'POST'
+    && /\/users\/@me\/relationships$/.test(new globalThis.URL(r.url()).pathname));
 }
 
 try {
@@ -66,13 +61,12 @@ try {
 
   const sendBtn = s.page.locator('button').filter({ hasText: 'Send Friend Request' }).first();
   if ((await sendBtn.count()) === 0) { console.log('FAIL: Send Friend Request button not found'); process.exit(1); }
+  const answer = relationshipAnswer();
   await humanClickLocator(s.page, sendBtn);
-  await humanIdlePause('deliberate');
-
-  const outcome = await detectOutcome();
-  if (!outcome) { console.log('FAIL: no recognizable post-send outcome message'); process.exit(1); }
-  const success = outcome.includes('sent');
-  console.log(`[friend_request] outcome=${outcome.slice(0, 120)}`);
+  const response = await answer;
+  const success = response.status() === 204;
+  const outcome = success ? 'sent' : `refused with HTTP ${response.status()}: ${(await response.text()).slice(0, 160)}`;
+  console.log(`[friend_request] outcome=${outcome.slice(0, 200)}`);
 
   if (!acct.id) throw new Error('Discord account has no stable Skarbiec id');
   const list = Array.isArray(acct.metadata?.friend_requests_sent)

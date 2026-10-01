@@ -1,14 +1,16 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { approveQr } from './_qr_approve.mjs';
-import { humanFill, humanType } from '../../../dist/human/keyboard.js';
+import { humanFill } from '../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { pageSettled } from '../_shared/page/settled.mjs';
+import { autocompleteField, clickFirst, control, field } from '../_shared/page/offers.mjs';
 
 const SIGNUP_URL = 'https://accounts.google.com/signup/v2/createaccount?biz=false&cc=US&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue&dsh=S0&flowEntry=SignUp&flowName=GlifWebSignIn&hl=en&service=youtube';
 
 const BASE_PROXY = process.env.PROXY_URL || 'residential';
-import { pageSettled } from '../_shared/page/settled.mjs';  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
 
-// Rotate sticky-session id per attempt; works for PacketStream / IPRoyal / Pingproxies / Oxylabs URL formats embedding session-NNNN.
+// Rotate the sticky-session id per attempt; the URL forms of PacketStream,
+// IPRoyal, Pingproxies and Oxylabs embed it as session-NNNN / sessid-NNNN / _s_NNNN.
 function freshProxy() {
   if (!BASE_PROXY || BASE_PROXY === 'none' || !BASE_PROXY.startsWith('http')) return BASE_PROXY;
   const sid = Math.floor(Math.random() * 9_000_000 + 1_000_000);
@@ -18,247 +20,189 @@ function freshProxy() {
     .replace(/_s_\d+/g, `_s_${sid}`);
 }
 
-async function readPage(s) {
-  return (await s.page.evaluate(`(() => (document.body?.innerText ?? '').substring(0, 2000))()`).catch(() => '')).toLowerCase();
+// The flow's primary action: Google renders Next as a button or a
+// role="button" with the localized caption; the accessible name is the one
+// stable handle. False when the page offers none.
+async function clickNext(page) {
+  const next = page.getByRole('button', { name: /^(next|weiter|suivant|siguiente)$/i }).first();
+  if (!(await next.isVisible())) return false;
+  // Direct locator click: the session-idle timer expires during a longer wait.
+  await humanClickLocator(page, next);
+  return true;
 }
 
-async function clickNext(s) {
-  // Direct locator.click bypasses wsession.click's 30s data-weles-click locator wait, which during the wait was tripping Google's session-idle timer (verified 2026-05-06: /info/sessionexpired redirects after first Next).
-  await humanClickLocator(s.page, s.page.locator('button, div[role="button"]').filter({ hasText: /^(next|weiter|suivant|siguiente)$/i }).first()).catch(() => {});
+function hostOf(page) {
+  return new globalThis.URL(page.url()).hostname;
+}
+
+// A visible phone input: Google rotates its name and id, but it autocompletes
+// as tel; the birthday fields are type=tel too and are excluded by name.
+async function phoneInput(page) {
+  const tel = await autocompleteField(page, 'tel');
+  if (tel) return tel;
+  const candidates = page.locator('input[type="tel"]:not([name="day"]):not([name="month"]):not([name="year"]):not(#day):not(#month):not(#year)');
+  const first = candidates.first();
+  return (await first.isVisible()) ? first : null;
 }
 
 async function signup(s) {
+  const page = s.page;
   const id = await s.generateIdentity('google');
   const gmailUser = id.username.toLowerCase().replace(/[^a-z0-9]/g, '');
   const firstName = id.firstName;
   const lastName = id.lastName;
   console.log(`[google] identity: ${firstName} ${lastName} / ${gmailUser}@gmail.com`);
 
-  // Fail fast on proxy/tunnel errors so outer loop rotates to a fresh sticky session.
-  const isProxyErr = (m) => /TUNNEL_CONNECTION_FAILED|PROXY_CONNECTION_FAILED|ABORTED|EMPTY_RESPONSE|TIMED_OUT|502|nav_timed_out/.test(m ?? '');
-  // Wall-clock watchdog around goto. Playwright's default timeout is disabled
-  // in wsession (0=infinite), so without this a silent relay hangs forever.
-  
-  // Navigate to signup URL. waitUntil: 'commit' fires when response headers
-  // arrive (fastest sync point) — main content will finish loading during
-  // our subsequent sleep. Budget: 90s since the residential relay can be
-  // slow on the first real HTTP request through a fresh tunnel.
+  // A tunnel or proxy failure on the first request means this sticky exit is
+  // dead; the outer loop rotates to a fresh one on `proxy_dead`.
+  const isProxyErr = (m) => /TUNNEL_CONNECTION_FAILED|PROXY_CONNECTION_FAILED|ABORTED|EMPTY_RESPONSE|502|nav_timed_out/.test(m ?? '');
   try {
-    const r = await s.page.goto(SIGNUP_URL, { waitUntil: 'commit' });
+    const r = await page.goto(SIGNUP_URL, { waitUntil: 'commit' });
     console.log(`[google] signup nav ok: status=${r?.status()} url=${r?.url()?.slice(0, 80)}`);
   } catch (e) {
     console.log(`[google] signup nav err: ${e.message?.slice(0, 200)}`);
     if (isProxyErr(e.message)) throw new Error('proxy_dead');
     throw e;
   }
-  // Wait for form to render: first-name input appears.
-  try { await s.page.locator('input[name="firstName"]').waitFor({ state: 'visible' }); }
-  catch (e) { console.log(`[google] form wait err: ${e.message?.slice(0, 150)}`); }
-  await pageSettled(s.page);
+  await page.locator('input[name="firstName"]').waitFor({ state: 'visible' });
+  await pageSettled(page);
 
-  // Step 2: first / last name
   console.log('[google] step 2: name');
-  await s.fill('First name', firstName).catch(() => {});
-  await pageSettled(s.page);
-  await s.fill('Last name', lastName).catch(() => {});
-  await pageSettled(s.page);
-  await clickNext(s);
-  await pageSettled(s.page);
+  await s.fill('First name', firstName);
+  await pageSettled(page);
+  await s.fill('Last name', lastName);
+  await pageSettled(page);
+  await clickNext(page);
+  await pageSettled(page);
 
-  // Step 3: birthday + gender
-  // Google uses Material Design comboboxes — JS .click() is ignored (isTrusted=false).
-  // Use Playwright locator clicks directly (trusted via CDP).
+  // Birthday and gender: Material comboboxes need trusted clicks.
   console.log('[google] step 3: birthday + gender');
   const birthMonth = Number(id.birthMonth) || 6;
+  await humanClickLocator(page, page.locator('#month').first());
+  await pageSettled(page);
+  await page.locator(`li[data-value="${birthMonth}"]`).first().click({ force: true });
+  await pageSettled(page);
+  const dayLoc = page.locator('input[name="day"], input#day').first();
+  if (await dayLoc.count()) await humanFill(page, dayLoc, String(id.birthDay));
+  await pageSettled(page);
+  const yearLoc = page.locator('input[name="year"], input#year').first();
+  if (await yearLoc.count()) await humanFill(page, yearLoc, String(id.birthYear));
+  await pageSettled(page);
+  await humanClickLocator(page, page.getByRole('combobox', { name: /^gender$/i }));
+  await pageSettled(page);
+  await humanClickLocator(page, page.getByRole('option', { name: /rather not say/i }));
+  await pageSettled(page);
 
-  await humanClickLocator(s.page, s.page.locator('#month').first()).catch((e) => console.log(`[google] #month click: ${e.message?.slice(0, 60)}`));
-  await pageSettled(s.page);
-  // Material option list — force=true preserves the original force-click semantics.
-  await s.page.locator(`li[data-value="${birthMonth}"]`).first().click({ force: true }).catch((e) => console.log(`[google] month option click: ${e.message?.slice(0, 60)}`));
-  await pageSettled(s.page);
-
-  const dayLoc = s.page.locator('input[name="day"], input#day').first();
-  if (await dayLoc.count()) await humanFill(s.page, dayLoc, String(id.birthDay)).catch(() => {});
-  await pageSettled(s.page);
-  const yearLoc = s.page.locator('input[name="year"], input#year').first();
-  if (await yearLoc.count()) await humanFill(s.page, yearLoc, String(id.birthYear)).catch(() => {});
-  await pageSettled(s.page);
-
-  // Gender: click the role=combobox labeled "Gender", then click the "Rather not say" option
-  const genderCombobox = s.page.getByRole('combobox', { name: /^gender$/i });
-  await humanClickLocator(s.page, genderCombobox).catch((e) => console.log(`[google] gender combobox click: ${e.message?.slice(0, 60)}`));
-  await pageSettled(s.page);
-  // Options render as [role="option"] after opening
-  await humanClickLocator(s.page, s.page.getByRole('option', { name: /rather not say/i })).catch((e) => console.log(`[google] gender option click: ${e.message?.slice(0, 60)}`));
-  await pageSettled(s.page);
-
-  const genderVal = await s.page.evaluate(`(() => {
-    // Look for selected value — may be in combobox textContent or a hidden input
-    var cb = Array.from(document.querySelectorAll('[role="combobox"]')).find(el => /gender/i.test(el.textContent || ''));
-    return cb ? cb.textContent.trim() : '';
-  })()`).catch(() => '');
-  console.log(`[google] gender: ${genderVal || '(empty)'}`);
-
-  const urlBefore = s.page.url?.() ?? '';
-  await clickNext(s);
-  await pageSettled(s.page);
-  const urlAfter = s.page.url?.() ?? '';
-  if (urlBefore === urlAfter && urlAfter.includes('birthdaygender')) {
+  const urlBefore = page.url();
+  await clickNext(page);
+  await pageSettled(page);
+  if (urlBefore === page.url()) {
     console.log('[google] stuck on birthday/gender page (URL unchanged)');
     throw new Error('birthday_stuck');
   }
 
-  // Step 4: username
   console.log(`[google] step 4: username ${gmailUser}`);
-  await s.click('Create your own Gmail address').catch(() => {});
-  await pageSettled(s.page);
-  await s.fill('Username', gmailUser).catch(() => {});
-  await pageSettled(s.page);
-  await clickNext(s);
-  await pageSettled(s.page);
+  if (await clickFirst(page, 'button', ['Create your own Gmail address'])) await pageSettled(page);
+  await s.fill('Username', gmailUser);
+  await pageSettled(page);
+  await clickNext(page);
+  await pageSettled(page);
 
-  let pageText = await readPage(s);
-  if (pageText.includes('taken') || pageText.includes('already')) {
+  // A username Google refuses is marked invalid on its own input.
+  const username = page.locator('input[name="Username"], input[aria-label="Username"]').first();
+  if ((await username.isVisible()) && (await username.getAttribute('aria-invalid')) === 'true') {
     const retry = gmailUser + String(Math.floor(Math.random() * 900 + 100));
-    console.log(`[google] username taken, retrying ${retry}`);
-    await s.fill('Username', retry).catch(() => {});
-    await pageSettled(s.page);
-    await clickNext(s);
-    await pageSettled(s.page);
+    console.log(`[google] username refused, retrying ${retry}`);
+    await s.fill('Username', retry);
+    await pageSettled(page);
+    await clickNext(page);
+    await pageSettled(page);
   }
 
-  // Step 5: password
   console.log('[google] step 5: password');
-  await s.fill('Password', id.password).catch(() => {});
-  await pageSettled(s.page);
-  await s.fill('Confirm', id.password).catch(() => {});
-  await pageSettled(s.page);
-  await clickNext(s);
-  await pageSettled(s.page);
+  await s.fill('Password', id.password);
+  await pageSettled(page);
+  await s.fill('Confirm', id.password);
+  await pageSettled(page);
+  await clickNext(page);
+  await pageSettled(page);
 
-  // Step 6: phone verification (or QR code block). Try hard to reach a phone input.
-  async function findPhoneInput() {
-    return await s.page.evaluate(`(() => {
-      // Match any visible tel-like input. Google rotates name/id across locales
-      // and A/B tests, so also accept inputs whose aria-label mentions phone.
-      var el = Array.from(document.querySelectorAll('input')).find(i => {
-        if (i.offsetParent === null) return false;
-        var type = (i.type || '').toLowerCase();
-        var name = (i.name || '').toLowerCase();
-        var id = (i.id || '').toLowerCase();
-        var ac = (i.getAttribute('autocomplete') || '').toLowerCase();
-        var al = (i.getAttribute('aria-label') || '').toLowerCase();
-        // Exclude birthday fields — Google uses type=tel for them too.
-        if (/^(day|month|year)$/.test(name) || /^(day|month|year)$/.test(id) || /birth|day|month|year/.test(al)) return false;
-        return ac === 'tel' || /phone/.test(name) || /phone/.test(id) || /phone/.test(al);
-      });
-      if (!el) return null;
-      if (el.id) return '#' + el.id;
-      if (el.name) return 'input[name="' + el.name + '"]';
-      return 'input[type="tel"]';
-    })()`).catch(() => null);
-  }
-
-  pageText = await readPage(s);
-  const url = s.page.url?.() ?? '';
-  console.log(`[google] step 6: url=${url.slice(-40)} text=${pageText.slice(0, 100).replace(/\n/g, ' ')}`);
-
-  let phoneSel = await findPhoneInput();
-
-  // If page looks like QR code, systematically try alternative paths
-  if (!phoneSel && (pageText.includes('qr code') || pageText.includes('scan') || pageText.includes('verify some info'))) {
-    console.log('[google] QR/verify step — trying alternative paths');
-    for (const alt of ['Try another way', "can't scan", 'Use phone instead', 'another method', 'Text message', 'Call me', 'Verify by phone']) {
-      if (phoneSel) break;
-      await s.click(alt).catch(() => {});
-      await pageSettled(s.page);
-      phoneSel = await findPhoneInput();
-      if (phoneSel) console.log(`[google] got phone input via "${alt}"`);
-    }
-    if (!phoneSel) {
-      // No phone option — try QR approval via pre-saved approver cookies.
-      try {
-        await approveQr(s.page);
-        console.log('[google] QR approved — waiting for phone-entry page');
-      } catch (e) {
-        console.log(`[google] QR approval failed: ${e.message?.slice(0, 200)}`);
-        throw new Error('qr_code_blocked');
-      }
-      // After approval Google goes to /mophoneverification/initial which is
-      // an intro screen with a Next/Continue button, then /phonenumber which
-      // has the actual input. Click repeatedly and dump buttons when stuck.
-      for (let i = 0; i < 20; i++) {
-        phoneSel = await findPhoneInput();
-        const u = s.page.url?.() ?? '';
-        if (phoneSel) { console.log(`[google] phone input appeared via ${phoneSel} (url=${u.slice(-60)})`); break; }
-        if (i === 3 || i === 10) {
-          const btns = await s.page.evaluate(`(() => Array.from(document.querySelectorAll('button, [role="button"], a'))
-            .filter(e => e.offsetParent !== null).map(e => ((e.innerText || e.textContent || '').trim() || e.getAttribute('aria-label') || '').slice(0, 40)).filter(Boolean))()`).catch(() => []);
-          console.log(`[google] mophone buttons (url=${u.slice(-50)}): ${JSON.stringify(btns).slice(0, 300)}`);
-        }
-        await clickNext(s);
-        await s.click('Continue').catch(() => {});
-        await s.click('Use phone number').catch(() => {});
-        await pageSettled(s.page);
+  // Step 6: phone verification, or the QR block in front of it.
+  console.log(`[google] step 6: url=${page.url().slice(-40)}`);
+  let phone = await phoneInput(page);
+  if (!phone) {
+    // Whatever alternative the page offers that leads to a phone field.
+    for (const alt of ['Try another way', "Can't scan", 'Use phone instead', 'Another method', 'Text message', 'Call me', 'Verify by phone']) {
+      if (await clickFirst(page, 'button', [alt]) || await clickFirst(page, 'link', [alt])) {
+        await pageSettled(page);
+        phone = await phoneInput(page);
+        if (phone) { console.log(`[google] got phone input via "${alt}"`); break; }
       }
     }
   }
-
-  if (phoneSel) {
-    console.log(`[google] phone verification via ${phoneSel}`);
-    const smsRes = await s.checkSms('google', 'US');
-    if (smsRes.startsWith('error')) {
-      console.log(`[google] SMS error: ${smsRes}`);
-      throw new Error('sms_unavailable');
+  if (!phone) {
+    // No phone route offered: approve the QR with the saved approver session,
+    // then walk the intro screens until the phone field appears.
+    try {
+      await approveQr(page);
+      console.log('[google] QR approved — waiting for phone-entry page');
+    } catch (e) {
+      console.log(`[google] QR approval failed: ${e.message?.slice(0, 200)}`);
+      throw new Error('qr_code_blocked');
     }
-    const phone = smsRes.replace(/^phone:\s*/i, '').trim();
-    console.log(`[google] phone: ${phone}`);
-    {
-      const phoneLoc = s.page.locator(phoneSel).first();
-      if (await phoneLoc.count()) await humanFill(s.page, phoneLoc, phone).catch(() => {});
-    }
-    await pageSettled(s.page);
-    await clickNext(s);
-    await pageSettled(s.page);
-
-    console.log('[google] waiting for SMS code...');
-    const code = await s.pollSmsCode();
-    if (!code || code.startsWith('error') || code.includes('no code')) {
-      throw new Error('sms_timeout');
-    }
-    console.log(`[google] SMS code: ${code}`);
-    for (const cs of ['input[name="code"]', 'input[type="tel"]', 'input#code']) {
-      const el = s.page.locator(cs).first();
-      if (await el.isVisible().catch(() => false)) {
-        await humanFill(s.page, el, code).catch(() => {});
-        break;
+    for (let i = 0; i < 20 && !phone; i++) {
+      phone = await phoneInput(page);
+      if (phone) break;
+      if (!(await clickNext(page)) && !(await clickFirst(page, 'button', ['Continue', 'Use phone number']))) {
+        throw new Error(`google offers no phone field and no control to continue at ${page.url()}`);
       }
+      await pageSettled(page);
     }
-    await pageSettled(s.page);
-    await clickNext(s);
-    await pageSettled(s.page);
-  } else if (pageText.includes('skip')) {
-    await s.click('Skip').catch(() => {});
-    await pageSettled(s.page);
+    if (!phone) throw new Error('qr_code_blocked');
   }
 
-  // Step 7+8: skip recovery email, accept terms, confirm
+  console.log('[google] phone verification');
+  const smsRes = await s.checkSms('google', 'US');
+  if (smsRes.startsWith('error')) {
+    console.log(`[google] SMS error: ${smsRes}`);
+    throw new Error('sms_unavailable');
+  }
+  const number = smsRes.replace(/^phone:\s*/i, '').trim();
+  console.log(`[google] phone: ${number}`);
+  await humanFill(page, phone, number);
+  await pageSettled(page);
+  await clickNext(page);
+  await pageSettled(page);
+
+  console.log('[google] waiting for SMS code...');
+  const code = await s.pollSmsCode();
+  if (!code || code.startsWith('error') || code === 'no code received') throw new Error(`sms code not delivered: ${code}`);
+  console.log(`[google] SMS code: ${code}`);
+  const codeField = (await field(page, 'code')) ?? (await autocompleteField(page, 'one-time-code')) ?? (await phoneInput(page));
+  if (!codeField) throw new Error('google offers no field for the SMS code');
+  await humanFill(page, codeField, code);
+  await pageSettled(page);
+  await clickNext(page);
+  await pageSettled(page);
+
+  // Steps 7+: recovery email (skip), terms (agree), confirmation — each
+  // offers its control; the flow ends on a Google product.
   for (let i = 0; i < 6; i++) {
-    pageText = await readPage(s);
-    if (pageText.includes('recovery') || pageText.includes('add another')) { await s.click('Skip').catch(() => {}); }
-    if (pageText.includes('i agree') || pageText.includes('agree to')) { await s.page.evaluate(`window.scrollTo(0, document.body.scrollHeight)`).catch(() => {}); await pageSettled(s.page); await s.click('I agree').catch(() => {}); await s.click('Accept').catch(() => {}); }
-    if (pageText.includes('confirm') && pageText.includes('account')) { await s.click('Confirm').catch(() => {}); }
-    await clickNext(s);
-    await pageSettled(s.page);
-    const u = s.page.url?.() ?? '';
-    if (u.includes('myaccount.google.com') || u.includes('mail.google.com') || u.includes('youtube.com')) break;
+    const host = hostOf(page);
+    if (host === 'myaccount.google.com' || host === 'mail.google.com' || host.endsWith('youtube.com')) break;
+    if (await control(page, 'button', 'I agree') || await control(page, 'button', 'Accept')) {
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      await pageSettled(page);
+    }
+    if (await clickFirst(page, 'button', ['Skip', 'I agree', 'Accept', 'Confirm'])) { await pageSettled(page); continue; }
+    if (!(await clickNext(page))) throw new Error(`google offers no control to continue at ${page.url()}`);
+    await pageSettled(page);
   }
 
-  // Verify success
-  const finalUrl = s.page.url?.() ?? '';
-  const cookies = await s.ctx.cookies().catch(() => []);
+  // Success is the account session, not what the page says.
+  const cookies = await s.ctx.cookies();
   const googleCookies = cookies.filter(c => c.domain?.includes('google.com') && /^(SID|HSID|SSID|SAPISID|APISID|__Secure-\w+)/.test(c.name));
-  console.log(`[google] final url: ${finalUrl}, auth cookies: ${googleCookies.map(c => c.name).join(',')}`);
+  console.log(`[google] final url: ${page.url()}, auth cookies: ${googleCookies.map(c => c.name).join(',')}`);
   if (googleCookies.length < 2) throw new Error('no_auth_cookies');
 
   const result = await s.saveAccount('google', {
@@ -277,8 +221,6 @@ function instrumentSession(s) {
   const br = s.ctx.browser?.();
   if (br) br.on('disconnected', () => console.log('[evt] browser.disconnected'));
 }
-// Cap s.close() at 5s — proxy_dead teardown otherwise hangs the retry loop forever (verified 2026-05-06).
-const closeBounded = (s) => s.close().catch(() => {}).catch(() => {});
 const proxy = freshProxy();
 console.log(`\n=== Google signup proxy=${proxy.slice(-60)} ===`);
 const s = await WSession.start({ label: 'google_register', proxy, targetHost: 'accounts.google.com' });
