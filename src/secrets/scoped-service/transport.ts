@@ -98,6 +98,9 @@ export function checkedTokenFile(fileName: string, tenantId?: string | null): st
   return path;
 }
 
+/** The `stado` command group that reads credential fields. */
+const CREDENTIALS_GROUP = 'credentials';
+
 export function readScopedField(
   consumer: string,
   item: string,
@@ -107,7 +110,7 @@ export function readScopedField(
   const tokenFile = checkedTokenFile(tokenFileName);
   if (!tokenFile) return undefined;
   const binary = process.env.WELES_STADO_BIN?.trim() || join(homedir(), '.stado', 'bin', 'stado');
-  const result = spawnSync(binary, ['secrets', 'get', item, '--field', field], {
+  const result = spawnSync(binary, [CREDENTIALS_GROUP, 'get', item, '--field', field], {
     encoding: 'buffer',
     maxBuffer: Number('65536'),
     stdio: ['ignore', 'pipe', 'pipe'],
