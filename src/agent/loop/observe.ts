@@ -53,22 +53,20 @@ export async function askLlm(goal: string, state: string, screenshotPath: string
   let functionName: string | undefined;
   let routerMeta: Record<string, unknown> = {};
   let lastRouterError = '';
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      const routed = await modelDecision(prompt, { tools: BROWSER_TOOLS });
-      raw = routed.raw;
-      functionName = routed.functionName;
-      routerMeta = { model: routed.model, router_url: routed.routerUrl, attempt, finish_reason: routed.finishReason, usage: routed.usage, function_name: routed.functionName };
-      break;
-    } catch (e: any) {
-      lastRouterError = String(e.message ?? e).slice(0, 300);
-      routerMeta = { error: lastRouterError, attempt };
-      if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 3000));
-    }
+  // One call: Jeden already fails over between subscriptions and routes, and
+  // its error is what this step reports.
+  try {
+    const routed = await modelDecision(prompt, { tools: BROWSER_TOOLS });
+    raw = routed.raw;
+    functionName = routed.functionName;
+    routerMeta = { model: routed.model, router_url: routed.routerUrl, finish_reason: routed.finishReason, usage: routed.usage, function_name: routed.functionName };
+  } catch (e: any) {
+    lastRouterError = String(e.message ?? e).slice(0, 300);
+    routerMeta = { error: lastRouterError };
   }
   let decision: Record<string, any>;
   try {
-    if (!raw) throw new Error(`Jeden/Brama error after retries: ${lastRouterError}`);
+    if (!raw) throw new Error(`Jeden/Brama error: ${lastRouterError}`);
     const definition = BROWSER_TOOLS.find(tool => tool.function.name === functionName)?.function;
     if (!definition) throw new Error(`undeclared browser function: ${functionName}`);
     const args = JSON.parse(raw);
