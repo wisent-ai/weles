@@ -1,6 +1,7 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { injectProviderCookies } from '../../../dist/platforms/_shared/cross_platform_oauth.js';
 import { listAccounts } from '../_shared/skarbiec/accounts.mjs';
+import { pageSettled } from '../_shared/page/settled.mjs';
 
 async function findUsableInstagramAccount() {
   const rows = listAccounts('instagram');
@@ -15,9 +16,7 @@ async function findUsableInstagramAccount() {
 }
 
 const URL = 'https://www.threads.net/login';
-const MAX_RETRIES = 5;
 const proxy = process.env.PROXY_URL || 'none';
-const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
 
 async function readPage(s) {
   return (await s.page.evaluate(`(() => {
@@ -46,14 +45,14 @@ async function signup(s) {
 
   // 3. Navigate to Threads (redirects to threads.com)
   await s.goto(URL);
-  await sleep(4);
+  await pageSettled(s.page);
 
   // Dismiss cookie consent — stop after first successful click to avoid crash-on-double-click
   const text0 = await readPage(s);
   if (text0.includes('cookies') || text0.includes('cookie')) {
     const r1 = await s.click('Allow all cookies').catch(() => 'no-target-found');
     if (r1 === 'no-target-found') await s.click('Allow essential and optional cookies').catch(() => {});
-    await sleep(2);
+    await pageSettled(s.page);
     if (s.page.isClosed?.()) throw new Error('page_crashed_on_cookie_dismiss');
   }
 
@@ -64,7 +63,7 @@ async function signup(s) {
     await s.click('Continue with Instagram').catch(() => {});
     await s.click('Log in with Instagram').catch(() => {});
     await s.click('Use Instagram').catch(() => {});
-    await sleep(5);
+    await pageSettled(s.page);
   }
 
   // 5. If redirected to Instagram login page (cookies expired), re-authenticate
@@ -74,11 +73,11 @@ async function signup(s) {
     console.log('[threads] re-authenticating with instagram credentials');
     if (!igPassword) throw new Error('instagram_cookies_expired_no_password');
     await s.fill('username', igUsername);
-    await sleep(1);
+    await pageSettled(s.page);
     await s.fill('password', igPassword);
-    await sleep(1);
+    await pageSettled(s.page);
     await s.clickSelector('button[type="submit"]').catch(() => {});
-    await sleep(6);
+    await pageSettled(s.page);
   }
 
   // 6. Dismiss "Save login info" / "Turn on notifications" prompts
@@ -86,7 +85,7 @@ async function signup(s) {
     const t = await readPage(s);
     if (t.includes('save login') || t.includes('save info') || t.includes('not now')) {
       await s.click('Not now').catch(() => {});
-      await sleep(2);
+      await pageSettled(s.page);
     } else break;
   }
 
@@ -111,14 +110,14 @@ async function signup(s) {
     if (t.includes('import from instagram') || t.includes('use instagram')) {
       await s.click('Import from Instagram').catch(() => {});
       await s.click('Use Instagram').catch(() => {});
-      await sleep(3);
+      await pageSettled(s.page);
       continue;
     }
     if (t.includes('public profile') || t.includes('private profile') || t.includes('visibility')) {
       await s.click('Public profile').catch(() => {});
       await s.click('Continue').catch(() => {});
       await s.click('Next').catch(() => {});
-      await sleep(3);
+      await pageSettled(s.page);
       continue;
     }
     if (t.includes('follow the same') || t.includes('follow all') || t.includes('suggested')) {
@@ -126,27 +125,27 @@ async function signup(s) {
       await s.click('Continue').catch(() => {});
       await s.click('Next').catch(() => {});
       await s.click('Skip').catch(() => {});
-      await sleep(3);
+      await pageSettled(s.page);
       continue;
     }
     if (t.includes('join threads') || t.includes('sign up') || t.includes('get started')) {
       await s.click('Join Threads').catch(() => {});
       await s.click('Sign up').catch(() => {});
       await s.click('Get started').catch(() => {});
-      await sleep(4);
+      await pageSettled(s.page);
       continue;
     }
     if (t.includes('notifications')) {
       await s.click('Not now').catch(() => {});
       await s.click('Skip').catch(() => {});
-      await sleep(2);
+      await pageSettled(s.page);
       continue;
     }
     // Generic forward-click attempt when no specific pattern matched
     await s.click('Continue').catch(() => {});
     await s.click('Next').catch(() => {});
     await s.click('Done').catch(() => {});
-    await sleep(3);
+    await pageSettled(s.page);
   }
 
   // 8. Verify success — Threads auth cookies on threads.net domain
@@ -171,19 +170,13 @@ async function signup(s) {
   return igUsername;
 }
 
-for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-  console.log(`\n=== Threads signup attempt ${attempt}/${MAX_RETRIES} ===`);
-  const s = await WSession.start({ label: `threads_register_${attempt}`, proxy });
-  try {
-    const username = await signup(s);
-    console.log(`PASS: ${username}`);
-    await s.close();
-    process.exit(0);
-  } catch (e) {
-    console.log(`FAIL (attempt ${attempt}): ${e.message?.slice(0, 200)}`);
-    await s.close().catch(() => {});
-    if (attempt === MAX_RETRIES) { console.log('All attempts exhausted'); process.exit(1); }
-    console.log('Retrying in 3s...');
-    await sleep(3);
-  }
+const s = await WSession.start({ label: 'threads_register', proxy });
+try {
+  const username = await signup(s);
+  console.log(`PASS: ${username}`);
+} catch (e) {
+  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+  process.exitCode = 1;
+} finally {
+  await s.close();
 }

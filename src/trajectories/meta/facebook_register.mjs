@@ -16,8 +16,6 @@ import { humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 
 const URL = 'https://www.facebook.com/r.php';
-const MAX_RETRIES = 3;
-const sleep = (sec) => new Promise(r => setTimeout(r, sec * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
 
 async function signup(s) {
   const id = await s.generateIdentity('facebook');
@@ -138,18 +136,13 @@ async function signup(s) {
   return id.username;
 }
 
-for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-  console.log(`\n=== Facebook signup attempt ${attempt}/${MAX_RETRIES} ===`);
-  const s = await WSession.start({ label: `facebook_register_${attempt}`, proxy: process.env.PROXY_URL || 'none' });
-  try {
-    const username = await signup(s);
-    console.log(`PASS: ${username}`);
-    await s.close();
-    process.exit(0);
-  } catch (e) {
-    console.log(`FAIL (attempt ${attempt}): ${e.message?.slice(0, 200)}`);
-    await s.close().catch(() => {});
-    if (attempt === MAX_RETRIES) { console.log('All attempts exhausted'); process.exit(1); }
-    await sleep(3);
-  }
+const s = await WSession.start({ label: 'facebook_register', proxy: process.env.PROXY_URL || 'none' });
+try {
+  const username = await signup(s);
+  console.log(`PASS: ${username}`);
+} catch (e) {
+  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+  process.exitCode = 1;
+} finally {
+  await s.close();
 }

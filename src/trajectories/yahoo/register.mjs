@@ -3,12 +3,12 @@ import { join } from 'node:path';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import { pageSettled } from '../_shared/page/settled.mjs';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
 const LABEL = 'yahoo_register';
 const SIGNUP_URL = 'https://login.yahoo.com/account/create?specId=usernameregsimplified&done=https%3A%2F%2Ffinance.yahoo.com%2F';
 const FINANCE_URL = 'https://finance.yahoo.com/';
-const MAX_RETRIES = Number(process.env.YAHOO_REGISTER_RETRIES ?? 2);
 
 function writeJson(name, value) {
   const dir = runRecordingsDir(LABEL);
@@ -176,12 +176,12 @@ async function successState(s) {
   return { ok: !loggedOut && (/finance\.yahoo\.com/.test(url) || accountUi > 0), url, accountUi, sample: text.slice(0, 500) };
 }
 
-for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+{
   const s = await WSession.start({ label: LABEL, proxy: process.env.PROXY_URL || 'none', browser: 'chromium', platform: 'yahoo', headless: process.env.YAHOO_HEADLESS === '1' });
   try {
     const id = s.identity || await s.generateIdentity('yahoo');
     const accountEmail = id.email;
-    console.log(`[yahoo] attempt=${attempt}/${MAX_RETRIES} identity=${id.username} email=${accountEmail}`);
+    console.log(`[yahoo] identity=${id.username} email=${accountEmail}`);
 
     await s.goto(SIGNUP_URL);
     await humanIdlePause('deliberate');
@@ -193,7 +193,7 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       if (/captcha|robot|verify you are human|security check/i.test(text)) {
         const solved = await s.solveCaptcha().catch((e) => `captcha err: ${e.message}`);
         console.log(`[yahoo] captcha result=${solved}`);
-        await humanIdlePause('long');
+        await pageSettled(s.page);
       }
       if (await maybeOpenPasswordSetup(s.page)) continue;
       if (await maybeHandlePhone(s)) continue;
@@ -215,17 +215,16 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         await s.close();
         process.exit(0);
       }
-      await humanIdlePause('short');
+      await pageSettled(s.page);
     }
     const final = await successState(s);
     throw new Error(`yahoo_register_no_success final_url=${final.url} sample=${final.sample.slice(0, 160)}`);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    console.log(`FAIL attempt=${attempt}: ${message.slice(0, 300)}`);
+    console.log(`FAIL: ${message.slice(0, 300)}`);
     writeJson('yahoo_register_result.json', { ok: false, error: message, completed_at: new Date().toISOString() });
     writeJson('ban_signal.json', { action: LABEL, healthy: false, signal: 'register_failed', details: { error: message }, ts: new Date().toISOString() });
-    await s.close().catch(() => {});
-    if (attempt === MAX_RETRIES) process.exit(1);
-    await humanIdlePause('deliberate');
+    await s.close();
+    process.exit(1);
   }
 }

@@ -5,7 +5,6 @@ import { autoBindCharacter } from '../lib/character-bind.mjs';
 import { assertAuthed, AuthProbeError } from '../_shared/auth/auth-probe.mjs';
 
 const URL = 'https://accounts.google.com/signup?continue=https%3A%2F%2Fwww.youtube.com%2F&flowName=GlifWebSignIn&flowEntry=SignUp';
-const MAX_RETRIES = 3;
 
 async function clickNext(s) {
   await humanClickLocator(
@@ -15,9 +14,8 @@ async function clickNext(s) {
   await humanIdlePause('deliberate');
 }
 
-for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-  console.log(`\n=== YouTube/Google signup attempt ${attempt}/${MAX_RETRIES} ===`);
-  const s = await WSession.start({ label: `youtube_register_${attempt}`, proxy: process.env.PROXY_URL || 'none' });
+{
+  const s = await WSession.start({ label: 'youtube_register', proxy: process.env.PROXY_URL || 'none' });
   try {
     const id = await s.generateIdentity('youtube');
     console.log(`[yt] identity: ${id.username} / ${id.email}`);
@@ -151,9 +149,9 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     console.log(`PASS: ${id.username}`);
     process.exit(0);
   } catch (e) {
-    console.log(`FAIL (attempt ${attempt}): ${e.message?.slice(0, 200)}`);
-    if (attempt === MAX_RETRIES) { console.log('All attempts exhausted'); process.exit(1); }
+    console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+    process.exitCode = 1;
   } finally {
-    await s.close().catch(() => {});
+    await s.close();
   }
 }
