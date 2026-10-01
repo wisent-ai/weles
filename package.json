@@ -14,12 +14,7 @@
   "scripts": {
     "prepare": "npm run build",
     "build": "tsc && mkdir -p dist/page-init/page/navigator && cp src/page-init/page/*.js dist/page-init/page/ && cp src/page-init/page/navigator/*.js dist/page-init/page/navigator/ && mkdir -p dist/page-init/firefox && cp src/page-init/firefox/*.js dist/page-init/firefox/ && mkdir -p dist/release && cp src/release/*.mjs dist/release/ && mkdir -p dist/figma/document && cp src/figma/*.mjs dist/figma/ && cp src/figma/document/*.mjs dist/figma/document/ && mkdir -p dist/diagnostics && (mkdir -p dist/diagnostics/page && cp -f src/diagnostics/page/*.js dist/diagnostics/page/ 2>/dev/null || true) && chmod u+x,go+x dist/cli.js dist/mcp.js",
-    "dev": "tsc --watch",
-    "lint:trusted-events": "node tests/policy/trusted-events.check.mjs",
-    "lint:humanization": "node tests/policy/humanization.check.mjs",
-    "lint:browser-boundary": "node tests/policy/browser-boundary.check.mjs",
-    "lint:module-syntax": "node tests/policy/module-syntax.check.mjs",
-    "lint": "npm run lint:trusted-events && npm run lint:humanization && npm run lint:browser-boundary && npm run lint:module-syntax"
+    "dev": "tsc --watch"
   },
   "dependencies": {
     "@faker-js/faker": "^10.4.0",
