@@ -82,7 +82,8 @@ Options:
   --account <account>     The account the operator action belongs to.
   --run <run>             The run that is waiting.
   --instruction <text>    What the operator has to do, in his own terms.
-  --minutes <n>           How long the run will wait before giving up.
+  --pid <process>         The process that waits on the request (default: the caller's parent);
+                          a request whose process ended is reported abandoned, never timed out.
   --approved              The operator did the thing this request asked for.
   --unapproved            The wait ended without the operator doing it.
   --detail <text>         One sentence saying how the wait ended.
