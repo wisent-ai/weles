@@ -58,9 +58,9 @@ try {
       const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
       const inDialog = (el) => dialogs.some(d => d.contains(el));
       const allBtns = Array.from(document.querySelectorAll('button, [role="button"], a[href]'));
-      const modalBtns = allBtns.filter(b => inDialog(b) && b.offsetParent).map(b => `${b.tagName}[role=${b.getAttribute('role') || '-'}]:${(b.textContent || '').trim().slice(0, 60)}`);
+      const modalBtns = allBtns.filter(b => inDialog(b) && b.offsetParent).map(b => `${b.tagName}[role=${b.getAttribute('role') || '-'}]:${(b.textContent || '').trim()}`);
       const allInputs = Array.from(document.querySelectorAll('input, textarea, [contenteditable="true"]')).filter(i => i.offsetParent && inDialog(i)).map(i => `${i.tagName}:${i.type || 'text'}:${(i.name || i.placeholder || '').slice(0,30)}`);
-      const ccCandidates = Array.from(document.querySelectorAll('*')).filter(el => inDialog(el) && el.offsetParent && /credit card/i.test(el.textContent || '') && el.children.length <= 4).slice(0, 12).map(el => `${el.tagName}[role=${el.getAttribute('role') || '-'}, class="${(el.className || '').toString().slice(0, 50)}"]:${(el.textContent || '').trim().slice(0, 60)}`);
+      const ccCandidates = Array.from(document.querySelectorAll('*')).filter(el => inDialog(el) && el.offsetParent && /credit card/i.test(el.textContent || '') && el.children.length <= 4).slice(0, 12).map(el => `${el.tagName}[role=${el.getAttribute('role') || '-'}, class="${(el.className || '').toString().slice(0, 50)}"]:${(el.textContent || '').trim()}`);
       const iframes = Array.from(document.querySelectorAll('iframe')).filter(f => f.offsetParent).map(f => f.src.slice(0, 80));
       return { dialogCount: dialogs.length, modalBtns, modalInputs: allInputs, ccCandidates, iframes };
     });
@@ -143,7 +143,7 @@ try {
       const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
       const inDialog = (el) => dialogs.some(d => d.contains(el));
       const allBtns = Array.from(document.querySelectorAll('button, [role="button"], a[href]'));
-      const modalBtns = allBtns.filter(b => inDialog(b) && b.offsetParent).map(b => `${b.tagName}[${b.getAttribute('disabled') !== null ? 'DISABLED' : 'ena'}]:${(b.textContent || '').trim().slice(0, 60)}`);
+      const modalBtns = allBtns.filter(b => inDialog(b) && b.offsetParent).map(b => `${b.tagName}[${b.getAttribute('disabled') !== null ? 'DISABLED' : 'ena'}]:${(b.textContent || '').trim()}`);
       const modalInputs = Array.from(document.querySelectorAll('input, textarea, [contenteditable="true"]')).filter(i => i.offsetParent && inDialog(i)).map(i => `${i.tagName}:${i.type || 'text'}:${(i.name || i.placeholder || '').slice(0,30)}=${(i.value || '').slice(0,12)}`);
       const iframes = Array.from(document.querySelectorAll('iframe')).filter(f => f.offsetParent).map(f => `${f.src.slice(0, 80)}`);
       return { dialogs: dialogs.length, modalBtns, modalInputs, iframes };

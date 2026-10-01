@@ -80,7 +80,7 @@ async function fieldDump() {
       maxlength: el.getAttribute('maxlength') || '',
       placeholder: el.getAttribute('placeholder') || '',
       label: labelFor(el),
-      value: (el.value || '').slice(0, 60),
+      value: (el.value || ''),
     })).filter((f) => f.name || f.label);
   }); // allow-raw-playwright: read-only field dump
 }

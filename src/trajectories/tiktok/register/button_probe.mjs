@@ -21,7 +21,7 @@ export function probeButton(page, finder) {
         tag: el.tagName,
         text: (el.textContent || '').trim().slice(0, 40),
         id: el.id,
-        cls: (el.className || '').toString().slice(0, 60),
+        cls: (el.className || '').toString(),
         dataE2e: el.getAttribute && el.getAttribute('data-e2e'),
         isTrusted: e.isTrusted,
         clientX: e.clientX,

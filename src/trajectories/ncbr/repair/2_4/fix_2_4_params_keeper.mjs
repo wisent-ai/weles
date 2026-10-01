@@ -107,7 +107,7 @@ action(['nav', URL]);
 idle('long');
 for (const p of params) {
   const current = tableText();
-  if (current.includes(p.name.slice(0, 60))) {
+  if (current.includes(p.name)) {
     added.push({ name: p.name, skipped: true });
     continue;
   }

@@ -109,7 +109,7 @@ for (const row of rows) {
   filled.push(await fillSuffix('nazwa_zasobu', row.nazwa));
   filled.push(await fillSuffix('przeznaczenie', row.przeznaczenie));
   await saveEnabled();
-  added.push({ name: row.nazwa.slice(0, 60), picked, filled });
+  added.push({ name: row.nazwa, picked, filled });
 }
 
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });

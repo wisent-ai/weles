@@ -141,7 +141,7 @@ try {
   // Verify by reading the form back (the page reloads on save).
   const verifiedBio = await bioIn.inputValue().catch(() => '');
   if (verifiedBio.trim() !== targetBio.trim()) {
-    console.log(`FAIL: bio mismatch after save ("${verifiedBio.slice(0, 60)}..." != "${targetBio.slice(0, 60)}...")`);
+    console.log(`FAIL: bio mismatch after save ("${verifiedBio}..." != "${targetBio}...")`);
     process.exit(1);
   }
 

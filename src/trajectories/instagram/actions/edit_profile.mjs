@@ -145,7 +145,7 @@ try {
     process.exit(1);
   }
   if (verifiedBio.trim() !== targetBio.trim()) {
-    console.log(`FAIL: bio mismatch after submit ("${verifiedBio.slice(0, 60)}..." != "${targetBio.slice(0, 60)}...")`);
+    console.log(`FAIL: bio mismatch after submit ("${verifiedBio}..." != "${targetBio}...")`);
     process.exit(1);
   }
   console.log(`PASS: ${acct.username} profile updated to ${character.name}`);

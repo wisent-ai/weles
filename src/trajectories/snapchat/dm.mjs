@@ -74,7 +74,7 @@ try {
   }
   await humanIdlePause('deliberate');
 
-  const echoCount = await s.page.locator(`:text("${MESSAGE.slice(0, 60)}")`).filter({ visible: true }).count().catch(() => 0);
+  const echoCount = await s.page.locator(`:text("${MESSAGE}")`).filter({ visible: true }).count().catch(() => 0);
   if (!echoCount) { console.log('FAIL: composer typed but message not echoed in chat'); process.exit(1); }
   console.log(`PASS: DM sent to @${RECIPIENT}`);
 } catch (e) {

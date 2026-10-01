@@ -76,7 +76,7 @@ async function postComment(s, acct, sessionMeta) {
   await s.page.keyboard.press('Control+Enter').catch(() => {});
   await pageSettled(s.page);
 
-  const found = await s.page.evaluate(`(() => (document.body?.innerText || '').includes(${JSON.stringify(COMMENT_TEXT.slice(0, 60))}))()`).catch(() => false);
+  const found = await s.page.evaluate(`(() => (document.body?.innerText || '').includes(${JSON.stringify(COMMENT_TEXT)}))()`).catch(() => false);
   if (found) return targetUrl;
 
   // Otherwise click a submit button by label via Playwright locator.
@@ -89,7 +89,7 @@ async function postComment(s, acct, sessionMeta) {
   console.log(`[ph-comment] explicit submit button: ${btnClicked}`);
   await pageSettled(s.page);
 
-  const found2 = await s.page.evaluate(`(() => (document.body?.innerText || '').includes(${JSON.stringify(COMMENT_TEXT.slice(0, 60))}))()`).catch(() => false);
+  const found2 = await s.page.evaluate(`(() => (document.body?.innerText || '').includes(${JSON.stringify(COMMENT_TEXT)}))()`).catch(() => false);
   if (!found2) throw new Error(`comment_not_found_after_post: url=${s.page.url().slice(-60)}`);
   return targetUrl;
 }

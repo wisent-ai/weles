@@ -215,7 +215,7 @@ async function main() {
           const loc = s.page.locator(sel).first();
           if (await loc.count() > 0 && await loc.isVisible()) {
             const text = await loc.textContent();
-            console.log(`[login] activation CTA match: ${sel} → "${(text || '').trim().slice(0, 60)}"`);
+            console.log(`[login] activation CTA match: ${sel} → "${(text || '').trim()}"`);
             await humanClickLocator(s.page, loc);
             ctaClicked = sel;
             break;

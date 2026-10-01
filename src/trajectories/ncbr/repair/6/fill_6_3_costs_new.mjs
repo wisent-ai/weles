@@ -247,7 +247,7 @@ const added = [];
 const wanted = process.env.COSTS ? new Set(process.env.COSTS.split(',').map((x) => Number(x.trim())).filter(Boolean)) : null;
 const selectedRows = ROWS.map((r, i) => ({ ...r, rowNo: i + 1 })).filter((r) => !wanted || wanted.has(r.rowNo));
 for (const r of selectedRows) {
-  console.log(`START COST ${r.name.slice(0, 60)}`);
+  console.log(`START COST ${r.name}`);
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('long');
   await clickDodaj();
@@ -266,9 +266,9 @@ for (const r of selectedRows) {
   try {
     await saveForm();
     added.push(r.name);
-    console.log(`SAVED COST ${r.name.slice(0, 60)}`);
+    console.log(`SAVED COST ${r.name}`);
   } catch (e) {
-    console.log(`NOT SAVED COST ${r.name.slice(0, 60)}: ${String(e?.message || e)}`);
+    console.log(`NOT SAVED COST ${r.name}: ${String(e?.message || e)}`);
     break;
   }
 }

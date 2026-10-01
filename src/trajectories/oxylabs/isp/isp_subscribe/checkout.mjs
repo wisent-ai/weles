@@ -17,7 +17,7 @@ export async function completeCheckout(s) {
   for (let step = 0; step < 6; step++) {
     await pageSettled(s.page);
     const url = s.page.url();
-    const btns = await s.page.evaluate(() => Array.from(document.querySelectorAll('button')).filter(b => b.offsetParent).map(b => (b.textContent||'').trim().slice(0, 60)).filter(Boolean));
+    const btns = await s.page.evaluate(() => Array.from(document.querySelectorAll('button')).filter(b => b.offsetParent).map(b => (b.textContent||'').trim()).filter(Boolean));
     console.log(`[trajectory] checkout step ${step}: url=${url} btns=${JSON.stringify(btns)}`);
     await shot(s, `checkout_step${step}`);
 

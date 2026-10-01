@@ -217,7 +217,7 @@ const dump = await page.evaluate((tableTextLimit) => {
     const base = { label: labelFor(inp), name: inp.name || null, id: inp.id || null, type };
     if (type === 'radio') { const r = inp.closest('.MuiRadio-root'); out.radios.push({ ...base, value: inp.value, checked: inp.checked, muiChecked: r ? r.classList.contains('Mui-checked') : null }); }
     else if (type === 'checkbox') out.checkboxes.push({ ...base, checked: inp.checked });
-    else out.textInputs.push({ ...base, valueLength: (inp.value || '').length, value: (inp.value || '').slice(0, 60), placeholder: inp.placeholder || null, role: inp.getAttribute('role') });
+    else out.textInputs.push({ ...base, valueLength: (inp.value || '').length, value: (inp.value || ''), placeholder: inp.placeholder || null, role: inp.getAttribute('role') });
   }
   for (const sel of document.querySelectorAll('select')) {
     out.selects.push({ native: true, label: labelFor(sel), name: sel.name || null, id: sel.id || null, value: sel.value, options: Array.from(sel.options).map((o) => (o.textContent || '').trim()).slice(0, 50) });

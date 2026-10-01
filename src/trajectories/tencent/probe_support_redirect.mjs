@@ -40,7 +40,7 @@ async function main() {
       await s.page.goto(target, { waitUntil: 'domcontentloaded' }).catch((e) => console.log(`[probe] goto warn: ${e.message}`));
       await humanIdlePause('long');
       console.log(`[probe] final URL: ${s.page.url()}`);
-      const dump = await s.page.evaluate(() => ({ title: document.title, body: (document.body?.innerText || ''), btns: Array.from(document.querySelectorAll('button, a')).filter(e => e.offsetParent).slice(0, 8).map(e => (e.innerText || '').trim().slice(0, 60)).filter(t => t) })).catch(() => ({}));
+      const dump = await s.page.evaluate(() => ({ title: document.title, body: (document.body?.innerText || ''), btns: Array.from(document.querySelectorAll('button, a')).filter(e => e.offsetParent).slice(0, 8).map(e => (e.innerText || '').trim()).filter(t => t) })).catch(() => ({}));
       console.log(`[probe] title: ${dump.title}`);
       console.log(`[probe] body excerpt: ${(dump.body || '').replace(/\n/g, ' | ')}`);
       console.log(`[probe] visible buttons: ${JSON.stringify(dump.btns)}`);
