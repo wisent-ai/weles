@@ -1,34 +1,34 @@
 {
   "origin:https://accounts.google.com/email": {
-    "item": "weles-google-sso-login",
+    "tag": "stado:role:google-sso-login",
     "field": "username"
   },
   "origin:https://accounts.google.com/password": {
-    "item": "weles-google-sso-login",
+    "tag": "stado:role:google-sso-login",
     "field": "password"
   },
   "origin:https://dash.cloudflare.com/email": {
-    "item": "platform-admin-cloudflare",
+    "tag": "stado:role:cloudflare-admin",
     "field": "username"
   },
   "origin:https://dash.cloudflare.com/password": {
-    "item": "platform-admin-cloudflare",
+    "tag": "stado:role:cloudflare-admin",
     "field": "password"
   },
   "origin:https://lsi2.ncbr.gov.pl/email": {
-    "item": "platform-admin-ncbr",
+    "tag": "stado:role:ncbr-admin",
     "field": "username"
   },
   "origin:https://lsi2.ncbr.gov.pl/password": {
-    "item": "platform-admin-ncbr",
+    "tag": "stado:role:ncbr-admin",
     "field": "password"
   },
   "origin:https://idmsa.apple.com/email": {
-    "item": "weles-apple-control-account",
+    "tag": "stado:role:apple-account-holder",
     "field": "email"
   },
   "origin:https://idmsa.apple.com/password": {
-    "item": "weles-apple-control-account",
+    "tag": "stado:role:apple-account-holder",
     "field": "password"
   }
 }

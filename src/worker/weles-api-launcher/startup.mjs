@@ -90,11 +90,12 @@ export async function startup() {
 
   // Declare only Weles's origin routes. Copying its table over the shared
   // authority would erase every route another consumer already declared.
+  // Each route names the role tag its credential carries, never an item.
   const routes = JSON.parse(readFileSync(
     join(REPO, 'src/worker/deploy/weles-capability-routes.json'), 'utf8'));
-  for (const [resource, { item, field }] of Object.entries(routes)) {
+  for (const [resource, { tag, field }] of Object.entries(routes)) {
     run(skarbiecBin, [
-      'route', 'declare', '--resource', resource, '--item', item, '--field', field,
+      'route', 'declare', '--resource', resource, '--tag', tag, '--field', field,
       '--reason', 'Weles declares the credential field used by this sign-in origin.',
     ], `shared Skarbiec route ${resource}`);
   }
