@@ -46,7 +46,7 @@ if (process.env.DIAG) {
         name: el.getAttribute('name') || null,
         role: el.getAttribute('role') || null,
         max: el.getAttribute('maxlength') || null,
-        value: (el.value || '').slice(0, 80),
+        value: (el.value || ''),
         label,
         nearby: wrap ? wrap.textContent.trim() : null,
       };

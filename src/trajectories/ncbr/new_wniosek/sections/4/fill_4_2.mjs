@@ -100,7 +100,7 @@ const added = [];
 for (const row of rows) {
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('long');
-  const exists = await page.evaluate((needle) => (document.body.innerText || '').includes(needle), row.nazwa.slice(0, 80));
+  const exists = await page.evaluate((needle) => (document.body.innerText || '').includes(needle), row.nazwa);
   if (exists) continue;
   await clickDodaj();
   try { await setApplicant(); } catch (e) { /* single applicant may be auto-selected */ }

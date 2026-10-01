@@ -118,7 +118,7 @@ export async function clickAnalyze(page) {
   if (usableCandidates.length) {
     await usableCandidates[0].btn.scrollIntoViewIfNeeded();
     await humanClickLocator(page, usableCandidates[0].btn);
-    return `role:button:${usableCandidates[0].name.slice(0, 80)}`;
+    return `role:button:${usableCandidates[0].name}`;
   }
   const domScanButtons = page.locator('button,[role="button"],input[type="submit"]').filter({ visible: true });
   let clicked = null;
@@ -127,7 +127,7 @@ export async function clickAnalyze(page) {
     const text = `${await button.textContent()} ${await button.getAttribute('aria-label')} ${await button.getAttribute('value')}`.trim();
     if (labels.test(text) && !skip.test(text) && !await button.isDisabled().catch(() => true)) {
       await humanClickLocator(page, button);
-      clicked = text.slice(0, 80);
+      clicked = text;
       break;
     }
   }

@@ -164,7 +164,7 @@ function rowFieldLengths() {
 }
 
 function syncRow(rowNumberOneBased, feature) {
-  console.log(JSON.stringify({ stage: 'open-row', row: rowNumberOneBased, cecha: feature.cecha.slice(0, 80) }));
+  console.log(JSON.stringify({ stage: 'open-row', row: rowNumberOneBased, cecha: feature.cecha }));
   const opened = clickRow(rowNumberOneBased);
   console.log(JSON.stringify({ stage: 'fill-row', row: rowNumberOneBased }));
   const fills = [

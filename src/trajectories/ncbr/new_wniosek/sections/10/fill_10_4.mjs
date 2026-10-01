@@ -72,7 +72,7 @@ if (process.env.DIAG_ACT) {
   const fields = await page.evaluate(() => Array.from(document.querySelectorAll('input,textarea')).map((i) => {
     const label = i.id ? document.querySelector(`label[for="${CSS.escape(i.id)}"]`)?.textContent?.trim() : null;
     const wrap = i.closest('label, .MuiFormControl-root, .MuiFormGroup-root, .MuiBox-root');
-    return { tag: i.tagName, name: i.name || null, role: i.getAttribute('role'), max: i.getAttribute('maxlength'), value: (i.value || '').slice(0, 80), label, nearby: wrap ? wrap.textContent.trim() : null };
+    return { tag: i.tagName, name: i.name || null, role: i.getAttribute('role'), max: i.getAttribute('maxlength'), value: (i.value || ''), label, nearby: wrap ? wrap.textContent.trim() : null };
   }).filter((f) => f.name || f.label || f.nearby));
   const buttons = await page.evaluate(() => Array.from(document.querySelectorAll('button')).map((b) => b.innerText.trim()).filter(Boolean));
   const options = await page.evaluate(() => Array.from(document.querySelectorAll("[role='listbox'] [role='option']")).map((o) => o.textContent.trim()).slice(0, 30));

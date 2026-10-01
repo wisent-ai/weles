@@ -42,7 +42,7 @@ if (process.env.DIAG) {
       type: el.getAttribute('type') || null,
       name: el.getAttribute('name') || null,
       role: el.getAttribute('role') || null,
-      value: (el.value || '').slice(0, 80),
+      value: (el.value || ''),
       max: el.getAttribute('maxlength') || null,
     })).filter((f) => f.name),
     options: Array.from(document.querySelectorAll("[role='listbox'] [role='option']")).map((o) => o.textContent.trim()).slice(0, 20),

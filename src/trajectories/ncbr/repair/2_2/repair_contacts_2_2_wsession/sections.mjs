@@ -50,7 +50,7 @@ async function diag13() {
         name: el.getAttribute('name'),
         id,
         label,
-        value: (el.value || '').slice(0, 80),
+        value: (el.value || ''),
         max: el.getAttribute('maxlength'),
         visible: rect.width > 0 && rect.height > 0 && getComputedStyle(el).visibility !== 'hidden' && getComputedStyle(el).display !== 'none',
       };
@@ -79,7 +79,7 @@ async function diag13Edit() {
       const id = el.id || '';
       const label = id ? document.querySelector(`label[for="${CSS.escape(id)}"]`)?.textContent?.trim() : null;
       const rect = el.getBoundingClientRect();
-      return { tag: el.tagName, type: el.getAttribute('type'), name: el.getAttribute('name'), id, label, value: (el.value || '').slice(0, 80), max: el.getAttribute('maxlength'), visible: rect.width > 0 && rect.height > 0 };
+      return { tag: el.tagName, type: el.getAttribute('type'), name: el.getAttribute('name'), id, label, value: (el.value || ''), max: el.getAttribute('maxlength'), visible: rect.width > 0 && rect.height > 0 };
     }).filter((field) => field.visible && (field.name || field.label || field.value)),
     tables: Array.from(document.querySelectorAll('table')).map((table) => ({ rows: table.querySelectorAll('tbody tr').length, text: table.innerText.replace(/\s+/g, ' ').trim().slice(0, 1200) })),
     buttons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim(), disabled: b.disabled })).filter((b) => b.text),
@@ -98,7 +98,7 @@ async function diag13Edit() {
       const id = el.id || '';
       const label = id ? document.querySelector(`label[for="${CSS.escape(id)}"]`)?.textContent?.trim() : null;
       const rect = el.getBoundingClientRect();
-      return { tag: el.tagName, type: el.getAttribute('type'), name: el.getAttribute('name'), id, label, value: (el.value || '').slice(0, 80), max: el.getAttribute('maxlength'), visible: rect.width > 0 && rect.height > 0 };
+      return { tag: el.tagName, type: el.getAttribute('type'), name: el.getAttribute('name'), id, label, value: (el.value || ''), max: el.getAttribute('maxlength'), visible: rect.width > 0 && rect.height > 0 };
     }).filter((field) => field.visible && (field.name || field.label || field.value))); // allow-raw-playwright: read nested diagnostic fields
     nestedReports.push({ nestedAddIndex: i, fields });
   }
@@ -119,7 +119,7 @@ async function diag13ContactEdit() {
       const id = el.id || '';
       const label = id ? document.querySelector(`label[for="${CSS.escape(id)}"]`)?.textContent?.trim() : null;
       const rect = el.getBoundingClientRect();
-      return { tag: el.tagName, type: el.getAttribute('type'), name: el.getAttribute('name'), id, label, value: (el.value || '').slice(0, 80), max: el.getAttribute('maxlength'), visible: rect.width > 0 && rect.height > 0 };
+      return { tag: el.tagName, type: el.getAttribute('type'), name: el.getAttribute('name'), id, label, value: (el.value || ''), max: el.getAttribute('maxlength'), visible: rect.width > 0 && rect.height > 0 };
     }).filter((field) => field.visible && (field.name || field.label || field.value)),
     buttons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim(), disabled: b.disabled })).filter((b) => b.text),
   })); // allow-raw-playwright: read contact edit fields only
@@ -154,7 +154,7 @@ async function repair22() {
   for (const feature of FEATURES) {
     const current = await page.locator('body').innerText();
     if (current.includes(feature.cecha)) {
-      done.push({ collection: 'cecha', skippedExisting: feature.cecha.slice(0, 80) });
+      done.push({ collection: 'cecha', skippedExisting: feature.cecha });
       continue;
     }
     progress(`2.2:add-feature:${feature.cecha.slice(0, 50)}`);
@@ -166,7 +166,7 @@ async function repair22() {
     await fillByName('korzysc_przewaga', feature.korzysc);
     await fillByName('sposob_weryfikacji_osiagniecia_wartosci_docelowej', feature.weryfikacja);
     await saveVisibleForm();
-    done.push({ collection: 'cecha', added: feature.cecha.slice(0, 80) });
+    done.push({ collection: 'cecha', added: feature.cecha });
     await page.goto(URLS['2.2'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: reload after row save
     await humanIdlePause('long');
   }

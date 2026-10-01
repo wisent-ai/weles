@@ -200,7 +200,7 @@ async function main() {
       quota,
       ui_excerpt: {
         subscription_info: info.ui_excerpt,
-        billing: linesOf(billingText).slice(0, 80),
+        billing: linesOf(billingText),
         quota: quota.ui_excerpt,
       },
     },

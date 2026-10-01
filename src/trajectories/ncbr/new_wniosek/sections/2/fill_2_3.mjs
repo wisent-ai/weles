@@ -136,7 +136,7 @@ if (process.env.DIAG_DODAJ) {
   const out = await page.evaluate(() => ({
     fields: Array.from(document.querySelectorAll('input, textarea')).map((el) => {
       const label = el.id ? document.querySelector(`label[for="${CSS.escape(el.id)}"]`)?.textContent?.trim() : null;
-      return { tag: el.tagName, name: el.name || null, type: el.type || null, role: el.getAttribute('role'), max: el.getAttribute('maxlength'), value: (el.value || '').slice(0, 80), label };
+      return { tag: el.tagName, name: el.name || null, type: el.type || null, role: el.getAttribute('role'), max: el.getAttribute('maxlength'), value: (el.value || ''), label };
     }).filter((f) => f.name || f.label),
     buttons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim(), disabled: b.disabled })).filter((b) => b.text),
   }));

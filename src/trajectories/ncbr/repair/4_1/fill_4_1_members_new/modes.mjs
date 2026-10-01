@@ -37,7 +37,7 @@ if (process.env.REPAIR_PROJECT_ROW !== undefined) {
   if (!m?.projects?.length) throw new Error(`no project source for row ${idx}`);
   await fillProjectSubrow(m.projects[0], 0);
   await saveForm();
-  console.log(JSON.stringify({ repairedProjectRow: idx, person: `${m.imie} ${m.nazwisko}`, project: m.projects[0].tytul.slice(0, 80) }, null, 2));
+  console.log(JSON.stringify({ repairedProjectRow: idx, person: `${m.imie} ${m.nazwisko}`, project: m.projects[0].tytul }, null, 2));
   process.exit(0);
 }
 

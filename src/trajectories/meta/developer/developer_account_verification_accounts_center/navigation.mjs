@@ -39,7 +39,7 @@ export async function clickVisibleText(page, label, allow, includeDivs = false) 
   if (!target) return null;
   await page.mouse.click(target.x, target.y);
   await pageSettled(page);
-  console.log(JSON.stringify({ stage: 'clicked', label, text: target.text.slice(0, 80), x: target.x, y: target.y }));
+  console.log(JSON.stringify({ stage: 'clicked', label, text: target.text, x: target.x, y: target.y }));
   return target;
 }
 

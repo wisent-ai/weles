@@ -30,7 +30,7 @@ for (const feature of FEATURES) {
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('long');
   const exists = await page.evaluate((needle) => (document.body.innerText || '').includes(needle), feature.cecha);
-  if (exists) { done.push({ collection: 'cecha', skippedExisting: feature.cecha.slice(0, 80) }); continue; }
+  if (exists) { done.push({ collection: 'cecha', skippedExisting: feature.cecha }); continue; }
   await clickDodaj(0);
   const filled = [];
   filled.push(await fillByName('cecha_funkcjonalnosc_rezultatu_projektu', feature.cecha));
@@ -40,7 +40,7 @@ for (const feature of FEATURES) {
   filled.push(await fillByName('korzysc_przewaga', feature.korzysc));
   filled.push(await fillByName('sposob_weryfikacji_osiagniecia_wartosci_docelowej', feature.weryfikacja));
   await saveForm();
-  done.push({ collection: 'cecha', added: feature.cecha.slice(0, 80), filled });
+  done.push({ collection: 'cecha', added: feature.cecha, filled });
 }
 
 for (const factor of FACTORS) {

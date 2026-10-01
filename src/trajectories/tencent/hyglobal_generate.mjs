@@ -27,7 +27,7 @@ const PROMPTS = {
 async function dumpDOM(s, label) {
   const d = await s.page.evaluate(() => ({
     bodyText: (document.body?.innerText || '').slice(0, 3000),
-    buttons: Array.from(document.querySelectorAll('button, a, [role=button]')).filter(e => e.offsetParent).map(e => ({ tag: e.tagName, text: (e.innerText || '').trim().slice(0, 80), href: e.href || '' })).filter(o => o.text).slice(0, 30),
+    buttons: Array.from(document.querySelectorAll('button, a, [role=button]')).filter(e => e.offsetParent).map(e => ({ tag: e.tagName, text: (e.innerText || '').trim(), href: e.href || '' })).filter(o => o.text).slice(0, 30),
     inputs: Array.from(document.querySelectorAll('input, textarea')).filter(e => e.offsetParent).map(e => ({ tag: e.tagName, type: e.type, name: e.name, placeholder: e.placeholder || '' })).slice(0, 15),
   })).catch((e) => ({ err: e.message }));
   console.log(`[hy] ${label} URL=${s.page.url()}`);

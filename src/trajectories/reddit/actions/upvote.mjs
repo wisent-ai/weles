@@ -59,7 +59,7 @@ try {
   // pick" failure surfaces actionable info instead of a generic timeout.
   const pickedDebug = await upArrow.evaluate((arrow) => {
     let n = arrow.parentElement; let parents = [];
-    for (let i = 0; i < 4 && n; i++) { parents.push(`${n.tagName}.${(n.className||'').slice(0,80)}`); n = n.parentElement; }
+    for (let i = 0; i < 4 && n; i++) { parents.push(`${n.tagName}.${(n.className||'')}`); n = n.parentElement; }
     return { arrowCls: arrow.className, parents };
   }).catch(() => null);
   console.log(`[upvote] picked thing data-fullname=${pickedFullname} arrow.cls=${pickedDebug?.arrowCls} parents=${JSON.stringify(pickedDebug?.parents)}`);

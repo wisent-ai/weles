@@ -36,7 +36,7 @@ async function fillTextLikeField(predicate, value) {
     const predicate = new Function('el', `return (${predicateSource})(el);`);
     const fields = Array.from(document.querySelectorAll('input, textarea')).filter((el) => el.offsetParent !== null && !el.disabled && !el.readOnly);
     const field = fields.find((el) => predicate(el));
-    if (!field) return { filled: false, fields: fields.map((el) => ({ name: el.name || '', value: (el.value || '').slice(0, 80), tag: el.tagName, role: el.getAttribute('role') || '' })) };
+    if (!field) return { filled: false, fields: fields.map((el) => ({ name: el.name || '', value: (el.value || ''), tag: el.tagName, role: el.getAttribute('role') || '' })) };
     const max = Number(field.getAttribute('maxlength')) || value.length;
     let next = String(value);
     if (next.length > max) next = next.slice(0, max).replace(/\s+\S*$/, '');

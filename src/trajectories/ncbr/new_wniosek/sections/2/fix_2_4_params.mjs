@@ -131,7 +131,7 @@ if (process.env.DIAG) {
 const added = [];
 for (const p of params) {
   const result = await addParam(p);
-  added.push({ nazwa: p.nazwa.slice(0, 80), ...result });
+  added.push({ nazwa: p.nazwa, ...result });
 }
 
 await gotoSection();

@@ -101,7 +101,7 @@ const before = await page.evaluate(() => {
     tag: el.tagName,
     type: el.getAttribute('type'),
     name: el.getAttribute('name'),
-    value: (el.value || '').slice(0, 80),
+    value: (el.value || ''),
     checked: el.checked,
     label: el.id ? document.querySelector(`label[for="${CSS.escape(el.id)}"]`)?.textContent?.trim() : null,
   })).filter((x) => x.name || x.label);

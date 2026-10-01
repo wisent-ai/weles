@@ -12,7 +12,7 @@ function readPageState(page) {
   return page.evaluate(() => {
     const out = { ts: Date.now(), url: location.href };
     const inputs = Array.from(document.querySelectorAll('input')).map(i => ({ placeholder: i.placeholder, name: i.name, type: i.type, valueLen: (i.value||'').length, validity: { valid: i.validity?.valid, badInput: i.validity?.badInput, valueMissing: i.validity?.valueMissing, customError: i.validity?.customError, validationMessage: i.validationMessage } }));
-    const btns = Array.from(document.querySelectorAll('button')).map(b => ({ text: (b.textContent||'').trim().slice(0,30), disabled: b.disabled, ariaDisabled: b.getAttribute('aria-disabled'), dataE2e: b.getAttribute('data-e2e'), cls: (b.className||'').toString().slice(0,80) }));
+    const btns = Array.from(document.querySelectorAll('button')).map(b => ({ text: (b.textContent||'').trim().slice(0,30), disabled: b.disabled, ariaDisabled: b.getAttribute('aria-disabled'), dataE2e: b.getAttribute('data-e2e'), cls: (b.className||'').toString() }));
     const errs = Array.from(document.querySelectorAll('[class*="error" i],[class*="tip" i],[class*="warning" i]')).map(e => (e.textContent||'').trim()).filter(Boolean);
     const cookies = document.cookie;
     // Keys come from the storage itself, so every read below is of a present key.

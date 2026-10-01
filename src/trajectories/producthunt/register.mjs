@@ -94,7 +94,7 @@ async function signup(s) {
     if (s.page.isClosed?.()) throw new Error('page_crashed_during_onboarding');
     const url = s.page.url?.() ?? '';
     const t = await readPage(s);
-    console.log(`[ph] onboarding ${i}: url=${url.slice(-50)} text=${t.slice(0, 80).replace(/\n/g, ' ')}`);
+    console.log(`[ph] onboarding ${i}: url=${url.slice(-50)} text=${t.replace(/\n/g, ' ')}`);
 
     if (url.includes('twitter.com/login') || url.includes('x.com/login')) {
       throw new Error(`twitter_login_required: ${twUsername}`);

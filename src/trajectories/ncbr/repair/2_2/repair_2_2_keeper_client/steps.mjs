@@ -107,7 +107,7 @@ export function addFeature(row) {
   nav(SECTION_URL);
   const current = readState();
   if (current.tables.some((t) => t.text.includes(row.cecha))) {
-    return { row: row.cecha.slice(0, 80), status: 'already_present' };
+    return { row: row.cecha, status: 'already_present' };
   }
   click(':nth-match(button:has-text("Dodaj"), 1)');
   settle();
@@ -118,7 +118,7 @@ export function addFeature(row) {
   fill('textarea[name="korzysc_przewaga"]', row.korzysc);
   fill('textarea[name="sposob_weryfikacji_osiagniecia_wartosci_docelowej"]', row.weryfikacja);
   saveDrawerForm();
-  return { row: row.cecha.slice(0, 80), status: 'added' };
+  return { row: row.cecha, status: 'added' };
 }
 
 export function saveDrawerForm() {

@@ -83,7 +83,7 @@ if (process.env.DIAG) {
     name: el.name || null,
     role: el.getAttribute('role'),
     type: el.getAttribute('type'),
-    value: (el.value || '').slice(0, 80),
+    value: (el.value || ''),
     max: el.getAttribute('maxlength'),
   })).filter((f) => f.name));
   console.log(JSON.stringify({ fields }, null, 2));

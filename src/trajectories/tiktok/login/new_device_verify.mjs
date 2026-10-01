@@ -23,7 +23,7 @@ function findEmailRow(page) {
       if (!(/\bEmail\b/i.test(t) && /@/.test(t) && t.length < 200 && !/Email or username/i.test(t))) return false;
       const r = el.getBoundingClientRect();
       return r.width >= 150 && r.height >= 30 && r.y >= 0 && r.y + r.height <= vh && r.x >= 0 && r.x + r.width <= vw;
-    }).map(el => { const r = el.getBoundingClientRect(); return { tag: el.tagName, cls: (el.className?.toString?.() || '').slice(0,80), area: r.width * r.height, x: r.x + r.width/2, y: r.y + r.height/2, w: Math.round(r.width), h: Math.round(r.height) }; });
+    }).map(el => { const r = el.getBoundingClientRect(); return { tag: el.tagName, cls: (el.className?.toString?.() || ''), area: r.width * r.height, x: r.x + r.width/2, y: r.y + r.height/2, w: Math.round(r.width), h: Math.round(r.height) }; });
     cands.sort((a, b) => a.area - b.area);
     return cands[0] || false;
   }).catch(() => false);

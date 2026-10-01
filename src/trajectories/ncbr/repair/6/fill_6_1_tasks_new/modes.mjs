@@ -58,7 +58,7 @@ if (process.env.DIAG_EDIT) {
     tag: i.tagName,
     name: i.name || null,
     valueLength: (i.value || '').length,
-    value: (i.value || '').slice(0, 80),
+    value: (i.value || ''),
     max: i.getAttribute('maxlength'),
     readOnly: i.readOnly,
   })).filter((x) => x.name));

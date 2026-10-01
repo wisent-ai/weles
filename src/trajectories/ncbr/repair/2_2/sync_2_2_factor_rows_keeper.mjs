@@ -174,5 +174,5 @@ console.log(JSON.stringify({
   ok: true,
   out: OUT,
   rows: rows.length,
-  lengths: synced.map((r) => ({ param: r.param.slice(0, 80), paramName: `${r.paramName.len}/${r.paramName.max}`, method: `${r.method.len}/${r.method.max}`, verify: `${r.verify.len}/${r.verify.max}` })),
+  lengths: synced.map((r) => ({ param: r.param, paramName: `${r.paramName.len}/${r.paramName.max}`, method: `${r.method.len}/${r.method.max}`, verify: `${r.verify.len}/${r.verify.max}` })),
 }, null, 2));

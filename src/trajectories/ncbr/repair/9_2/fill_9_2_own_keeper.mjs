@@ -93,7 +93,7 @@ action(['nav', URL]);
 idle('long');
 for (const ind of ownIndicators) {
   const current = tableText();
-  if (current.includes(ind.name.slice(0, 80))) {
+  if (current.includes(ind.name)) {
     added.push({ name: ind.name, skipped: true });
     continue;
   }

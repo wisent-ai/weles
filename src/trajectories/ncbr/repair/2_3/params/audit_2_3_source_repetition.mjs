@@ -86,6 +86,6 @@ console.log(JSON.stringify({
   repeatedSentenceCount: repeatedSentences.length,
   repeatedSentences: repeatedSentences.slice(0, 20),
   cellEndingFindingCount: cellEndings.length,
-  cellEndings: cellEndings.slice(0, 80),
+  cellEndings: cellEndings,
   banned,
 }, null, 2));
