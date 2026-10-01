@@ -3,7 +3,7 @@ import { solveFunCaptcha } from './captcha/funcaptcha.mjs';
 import { solveAudioPuzzle } from './captcha/audio_solver.mjs';
 import { solveRotationViaCoords } from './captcha/coords_solver.mjs';
 import { requireStadoModelRouterConfig } from './captcha/stado_model_router.mjs';
-import { humanClick, humanClickLocator, nextInterClickMs } from '../../../dist/human/mouse.js'; import { humanType } from '../../../dist/human/keyboard.js';
+import { humanClick, humanClickLocator, humanScroll } from '../../../dist/human/mouse.js'; import { humanType } from '../../../dist/human/keyboard.js';
 import { autoBindCharacter } from '../lib/character-bind.mjs';
 import { getReceived, listReceivedFrom } from '../../_shared/resend-receiving.mjs';
 
@@ -31,10 +31,11 @@ try {
   const id = await s.generateIdentity('github');
   console.log(`[register] Identity: username=${id.username} email=${id.email}`);
 
-  // Human warm-up before signup (DataDome trust)
-  for (let i = 0; i < 5; i++) { await s.page.mouse.move(100 + Math.random() * 700, 100 + Math.random() * 500).catch(() => {}); await s.wait(0.5); }
-  await s.page.evaluate('window.scrollBy(0, 300)').catch(() => {});
-  await s.wait(2);
+  // Complete the pointer and scroll actions before opening signup.
+  for (let i = 0; i < 5; i++) {
+    await s.page.mouse.move(100 + Math.random() * 700, 100 + Math.random() * 500);
+  }
+  await humanScroll(s.page, 300, 1);
 
   // Intercept Arkose/FunCaptcha public_key + blob (context-level catches iframe requests)
   const captcha = { blob: null, pkey: null, apiSub: null };
@@ -72,17 +73,22 @@ try {
   console.log(`[register] Signup page: ${s.page.url?.()}`);
 
   const fillField = async (selector, value) => {
-    const v = s.resolveEnv(value);
-    try { const bb = await s.page.locator(selector).first().boundingBox(); if (!bb) return { ok: false, reason: 'no-bbox' };
-      await humanClick(s.page, Math.round(bb.x + bb.width / 2), Math.round(bb.y + bb.height / 2));
-    } catch (e) { return { ok: false, reason: `click: ${e.message}`, browserGone: s.page.isClosed() || !s.ctx.browser()?.isConnected() }; }
-    await humanType(s.page, v); await s.page.keyboard.press('Tab').catch(() => {}); return { ok: true };
+    const expected = s.resolveEnv(value);
+    const field = s.page.locator(selector).first();
+    const editable = field.and(s.page.locator('input:enabled:not([readonly])'));
+    await editable.waitFor({ state: 'visible' });
+    await humanClickLocator(s.page, editable);
+    await humanType(s.page, expected);
+    const actual = await field.inputValue();
+    if (actual !== expected) {
+      throw new Error(`fillField(${selector}): value mismatch after input dispatch; observed length=${actual.length}, expected length=${expected.length}`);
+    }
+    await s.page.keyboard.press('Tab');
+    console.log(`[register] Filled and verified ${selector}`);
   };
-  const pause = () => new Promise(r => setTimeout(r, nextInterClickMs()));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
-  const checkAlive = (tag, r) => { if (r.browserGone) { console.log(`FAIL: browser died at ${tag} — ${r.reason}`); s.close().catch(()=>{}); process.exit(42); } };
-  const er = await fillField('#email', '$GITHUB_NEW_EMAIL'); console.log(`[register] Fill email: ${JSON.stringify(er)}`); checkAlive('email', er); await pause();
-  const pr = await fillField('#password', '$GITHUB_NEW_PASSWORD'); console.log(`[register] Fill password: ${JSON.stringify(pr)}`); checkAlive('password', pr); await pause();
-  const ur = await fillField('#login', '$GITHUB_NEW_USERNAME'); console.log(`[register] Fill username: ${JSON.stringify(ur)}`); checkAlive('username', ur); await pause();
+  await fillField('#email', '$GITHUB_NEW_EMAIL');
+  await fillField('#password', '$GITHUB_NEW_PASSWORD');
+  await fillField('#login', '$GITHUB_NEW_USERNAME');
 
   // Country: check if auto-selected (usually from proxy IP). Only click dropdown if needed.
   const countryState = await s.page.evaluate(`(() => { const btn = document.querySelector('#country-dropdown-panel-button, button.country-select-button'); return { text: btn?.innerText?.trim().slice(0, 60) ?? '', found: !!btn }; })()`).catch(() => ({ found: false }));
@@ -112,7 +118,7 @@ try {
   try {
     const btn = s.page.locator(createBtnSelector).first();
     if (await btn.isVisible().catch(() => false)) {
-      await btn.scrollIntoViewIfNeeded().catch(() => {}); await s.wait(0.5);
+      await btn.scrollIntoViewIfNeeded();
       const bb = await btn.boundingBox();
       if (bb) { await humanClick(s.page, Math.round(bb.x + bb.width / 2), Math.round(bb.y + bb.height / 2)); clicked.via = 'humanClick'; }
       else { await humanClickLocator(s.page, btn); clicked.via = 'humanClickLocator'; }
@@ -258,7 +264,7 @@ try {
   if (verified) await autoBindCharacter(id.username, 'github').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message}`));
   console.log(verified ? `PASS: ${id.username} (verified)` : `PARTIAL: ${id.username} at ${finalUrl}`);
 } catch (e) {
-  console.log('FAIL:', e.message); process.exit(/ERR_TUNNEL|ERR_TIMED_OUT|ERR_PROXY|ERR_CONNECTION/.test(e.message ?? '') ? 42 : 1);
+  console.log('FAIL:', e.message); process.exitCode = /ERR_TUNNEL|ERR_TIMED_OUT|ERR_PROXY|ERR_CONNECTION/.test(e.message ?? '') ? 42 : 1;
 } finally {
   await s.close();
 }
