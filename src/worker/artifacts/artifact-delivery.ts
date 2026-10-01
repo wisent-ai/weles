@@ -25,8 +25,6 @@ const WELES_ARTIFACT_PREFIX = 'stado://weles/recordings/';
 // server and never uploaded by the client.
 export const ARTIFACT_KINDS = declaredKinds.kinds as readonly string[];
 const MILLIS_PER_SECOND = Number('1000');
-const MAX_ARTIFACT_COUNT = Number('10000');
-const MAX_LOCATOR_LENGTH = Number('4096');
 const HMAC_HEX_LENGTH = Number('64');
 
 /// A kind is whatever the declaration lists; the locator set carries one
@@ -41,8 +39,8 @@ export type SignedArtifactResponse = {
 };
 
 function canonicalWelesArtifactUri(value: unknown): string {
-  if (typeof value !== 'string' || value !== value.trim() || value.length > MAX_LOCATOR_LENGTH) {
-    throw new RequestFailure(Number('400'), 'artifact locator must be a bounded canonical string');
+  if (typeof value !== 'string' || value !== value.trim()) {
+    throw new RequestFailure(Number('400'), 'artifact locator must be a canonical string');
   }
   if (!value.startsWith(WELES_ARTIFACT_PREFIX)) {
     throw new RequestFailure(Number('400'), 'artifact locator must use the private Weles recordings namespace');
@@ -80,12 +78,9 @@ export function normalizeArtifactLocators(value: unknown): ArtifactLocatorSet {
   }
 
   const normalized = { screenshots: [], videos: [], dom: [], logs: [] } as ArtifactLocatorSet;
-  let count = Number(false);
   for (const kind of ARTIFACT_KINDS) {
     const entries = value[kind];
     if (!Array.isArray(entries)) throw new RequestFailure(Number('400'), `artifacts.${kind} must be an array`);
-    count += entries.length;
-    if (count > MAX_ARTIFACT_COUNT) throw new RequestFailure(Number('413'), 'too many artifact locators');
     normalized[kind] = entries.map(canonicalWelesArtifactUri);
   }
   return normalized;

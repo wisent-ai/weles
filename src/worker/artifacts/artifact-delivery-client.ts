@@ -8,8 +8,6 @@ import {
 
 const SIGN_PATH = '/v1/artifacts/sign';
 const OBJECT_PATH = '/v1/artifacts/object';
-// The server's declaration, not a second copy of it.
-const MAX_TTL_MILLISECONDS = Number('300000');
 const HMAC_HEX_LENGTH = Number('64');
 const MIN_SECRET_BYTES = Number('32');
 
@@ -70,9 +68,7 @@ function validateSignedResponse(
     throw new Error('Weles artifact delivery returned an invalid response envelope');
   }
   const expiryMilliseconds = Date.parse(value.expires_at);
-  if (!Number.isFinite(expiryMilliseconds)
-    || expiryMilliseconds <= nowMilliseconds
-    || expiryMilliseconds - nowMilliseconds > MAX_TTL_MILLISECONDS) {
+  if (!Number.isFinite(expiryMilliseconds) || expiryMilliseconds <= nowMilliseconds) {
     throw new Error('Weles artifact delivery returned an invalid expiry');
   }
   const expectedExpiry = String(Math.floor(expiryMilliseconds / Number('1000')));

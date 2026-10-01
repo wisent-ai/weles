@@ -1,8 +1,6 @@
 // What the artifact delivery service is configured with, read out of the
 // environment by name and refused when a value is missing or unsafe.
 
-const MIN_TTL_SECONDS = Number('30');
-const MAX_TTL_SECONDS = Number('300');
 const MIN_SECRET_BYTES = Number('32');
 const MIN_PORT = Number('1');
 const MAX_PORT = Number('65535');
@@ -57,9 +55,9 @@ export function loadArtifactDeliveryConfig(env: NodeJS.ProcessEnv = process.env)
   if (!Number.isInteger(port) || port < MIN_PORT || port > MAX_PORT) {
     throw new Error('WELES_ARTIFACT_DELIVERY_PORT must be a valid TCP port');
   }
-  const ttlSeconds = Number(env.WELES_ARTIFACT_URL_TTL_SECONDS ?? String(MAX_TTL_SECONDS));
-  if (!Number.isInteger(ttlSeconds) || ttlSeconds < MIN_TTL_SECONDS || ttlSeconds > MAX_TTL_SECONDS) {
-    throw new Error(`WELES_ARTIFACT_URL_TTL_SECONDS must be between ${MIN_TTL_SECONDS} and ${MAX_TTL_SECONDS}`);
+  const ttlSeconds = Number(requiredEnv(env, 'WELES_ARTIFACT_URL_TTL_SECONDS'));
+  if (!Number.isInteger(ttlSeconds) || ttlSeconds < Number('1')) {
+    throw new Error('WELES_ARTIFACT_URL_TTL_SECONDS must be a whole number of seconds, one or more');
   }
 
   const clientToken = requiredEnv(env, 'WELES_ARTIFACT_DELIVERY_TOKEN');

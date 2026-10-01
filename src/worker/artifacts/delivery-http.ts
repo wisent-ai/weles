@@ -1,5 +1,5 @@
-// The HTTP plumbing of the artifact delivery service: bearer checks, bounded
-// JSON bodies, the response headers every answer carries, streaming one
+// The HTTP plumbing of the artifact delivery service: bearer checks, JSON
+// bodies, the response headers every answer carries, streaming one
 // object out of Stado, and the subscription rows the Oko console reads.
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -7,10 +7,6 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { readSetting } from '../../state/skarbiec-records.js';
 import type { ArtifactDeliveryConfig } from './delivery-config.js';
-
-const MAX_REQUEST_BYTES = Number('1048576');
-const MAX_SUBSCRIPTION_COUNT = Number('1000');
-const MAX_SUBSCRIPTION_TEXT_LENGTH = Number('512');
 
 export class RequestFailure extends Error {
   readonly status: number;
@@ -39,13 +35,9 @@ export function bearerAuthorized(request: IncomingMessage, expectedToken: string
 }
 
 export async function requestJson(request: IncomingMessage): Promise<unknown> {
-  let size = Number(false);
   const chunks: Buffer[] = [];
   for await (const chunk of request) {
-    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    size += bytes.length;
-    if (size > MAX_REQUEST_BYTES) throw new RequestFailure(Number('413'), 'request body too large');
-    chunks.push(bytes);
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
   try {
     return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
@@ -125,17 +117,16 @@ export async function deliverObject(
   await pipeline(Readable.fromWeb(upstream.body as never), response);
 }
 
-function boundedSubscriptionText(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  return value.slice(Number(false), MAX_SUBSCRIPTION_TEXT_LENGTH);
+function subscriptionText(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
 }
 
 function publicSubscriptionRow(value: unknown): Record<string, unknown> {
   if (!isRecord(value)) {
     throw new RequestFailure(Number('502'), 'Weles subscription store returned an invalid row');
   }
-  const serviceName = boundedSubscriptionText(value.service_name);
-  const provider = boundedSubscriptionText(value.provider);
+  const serviceName = subscriptionText(value.service_name);
+  const provider = subscriptionText(value.provider);
   if (!serviceName || !provider) {
     throw new RequestFailure(Number('502'), 'Weles subscription store returned an incomplete row');
   }
@@ -145,23 +136,23 @@ function publicSubscriptionRow(value: unknown): Record<string, unknown> {
     ? value.monthly_cost_usd
     : null;
   return {
-    id: boundedSubscriptionText(value.id),
+    id: subscriptionText(value.id),
     service_name: serviceName,
     provider,
-    account_identifier: boundedSubscriptionText(value.account_identifier),
-    status: boundedSubscriptionText(value.status),
-    plan: boundedSubscriptionText(value.plan),
+    account_identifier: subscriptionText(value.account_identifier),
+    status: subscriptionText(value.status),
+    plan: subscriptionText(value.plan),
     monthly_cost_usd: monthlyCost,
-    expires_at: boundedSubscriptionText(value.expires_at),
-    last_verified_at: boundedSubscriptionText(value.last_verified_at),
-    label: boundedSubscriptionText(metadata.note),
+    expires_at: subscriptionText(value.expires_at),
+    last_verified_at: subscriptionText(value.last_verified_at),
+    label: subscriptionText(metadata.note),
   };
 }
 
 export async function listServiceSubscriptions(_config: ArtifactDeliveryConfig): Promise<Record<string, unknown>[]> {
   const rows = readSetting<unknown[]>('service_subscriptions', []);
   if (!Array.isArray(rows)) throw new RequestFailure(Number('502'), 'Weles subscription store returned an invalid response');
-  return rows.slice(0, MAX_SUBSCRIPTION_COUNT)
+  return rows
     .map(publicSubscriptionRow)
     .sort((left, right) => String(left.service_name).localeCompare(String(right.service_name)));
 }
