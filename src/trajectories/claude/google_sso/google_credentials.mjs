@@ -1,11 +1,9 @@
 // Signing this account in at accounts.google.com: identifier, password, and the
 // 2FA prompt Google puts between them and a session.
 //
-// The step is driven by what the page shows rather than by waiting: the field is
-// filled only once WIZ has bound its handlers, the typed value is read back, the
-// Next button is clicked only when it is genuinely enabled, and Google's
-// "browser may not be secure" block is raised as its own named error instead of
-// being waited out against a password field that will never render.
+// Entry observes a writable field and verifies its value after trusted typing.
+// Native input attributes do not prove WIZ hydration. The Next control must be
+// enabled, and provider refusals are reported by the corresponding stage.
 import { fillAndVerify, waitForEnabledThenClick } from './page_controls.mjs';
 import { resolveOtp } from './authenticator_code.mjs';
 import { selectAuthenticatorMethod, waitForGoogleChallengeExit } from '../../codex/google_sso/authenticator_code.mjs';
@@ -16,13 +14,8 @@ export async function enterGoogleCredentials({
   humanFill, humanClickLocator, humanIdlePause, humanType,
 }) {
   mark('google_email');
-  // Video evidence (2026-05-17): visible-wait passed the moment the
-  // input rendered, but Google's WIZ controller binds the keydown
-  // handlers a tick later, so humanFill's CDP keystrokes landed in a
-  // not-yet-live field and the value stayed empty across the whole run.
-  // Gate on editable+enabled (Playwright's `editable` waits past WIZ
-  // hydration) and then verify the typed value actually landed; retype
-  // up to 3 times if Google ate the keys.
+  // Visible markup alone does not guarantee that dispatched input is retained.
+  // Observe the writable state, then verify readback without blind retyping.
   // Google sign-in v2 renders the identifier field as input[type="text"]
   // with autocomplete="username webauthn" (id="identifierId") rather than
   // type="email". Match either variant so the locator survives A/B changes.
@@ -31,12 +24,8 @@ export async function enterGoogleCredentials({
   ).filter({ visible: true }).first();
   await gEmailIn.waitFor({ state: 'visible' });
   await fillAndVerify(page, gEmailIn, login.email, humanClickLocator, humanType);
-  // Google's WIZ Next button enables only after the input's blur+change
-  // event chain runs through their validator. fillAndVerify's
-  // native-setter path dispatches input+change, but blur is needed for
-  // the on-blur validator. Dispatch a focusout/blur, then verify the
-  // button is actually enabled before clicking — otherwise the click
-  // is a no-op against a disabled control.
+  // Trusted typing delivers key/input events. Dispatch focusout/blur for the
+  // field's on-blur validator before observing the Next control's enabled state.
   // best-effort blur — if the page has already navigated (Google
   // auto-submits some flows), the evaluate fails with
   // "Execution context was destroyed" which is HARMLESS; the
