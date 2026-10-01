@@ -87,10 +87,18 @@ export function buildCaptureCoverage(ws: any): any {
     { field: 'accesses.WebGPU', count: gpuCount },
   ]);
 
-  const cdpAny = len(ws?._instCdpFirehose) + len(ws?._instTargetEvents) + len(ws?._instFrameEvents);
-  add('C.cdp.firehose', 'C', 'CDP event firehose', 'subscribed CDP events with overflow accounting', status(cdpAny > 0, !!ws?._cdp), [
+  let cdpTargetCount = 0;
+  if (Array.isArray(ws?._instTargetEvents)) {
+    for (const event of ws._instTargetEvents) {
+      if (event?.phase !== 'attach_error') cdpTargetCount++;
+    }
+  }
+  const cdpAny = len(ws?._instCdpFirehose) + cdpTargetCount + len(ws?._instFrameEvents);
+  add('C.cdp.firehose', 'C', 'CDP event firehose', 'subscribed CDP events with overflow accounting', status(cdpAny > 0, !!ws?._cdpDiagnosticsReady), [
     { field: 'cdp_firehose', count: len(ws?._instCdpFirehose) },
     { field: 'cdp_firehose_overflow', count: Number(ws?._instCdpFirehoseOverflow ?? 0) },
+    { field: 'cdp_targets', count: cdpTargetCount, error: errorOf(ws, '_cdpAttachError') },
+    { field: 'cdp_frames', count: len(ws?._instFrameEvents) },
   ]);
   add('C.cdp.final_snapshots', 'C', 'final CDP snapshots', 'DOMSnapshot, pierced DOM, heap snapshot, browser/process state', status(present(ws?._instDomSnapshot) || present(ws?._instHeapSnapshot), !!ws?._cdp), [
     { field: 'dom_snapshot', present: present(ws?._instDomSnapshot), error: errorOf(ws, '_instDomSnapshotError') },
