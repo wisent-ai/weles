@@ -16,13 +16,11 @@ for (let retry = 0; retry < 3; retry++) {
     // accept-language headers to match US proxy geolocation.
     s = await WSession.start({ label: 'github_register', proxy: process.env.PROXY_URL || 'residential', locale: 'en-US' });
     await s.goto('https://github.com/');
-    let rendered = false;
-    for (let i = 0; i < 15; i++) {
-      if (await s.page.evaluate('document.readyState === "complete" && document.body && document.body.innerText.length > 100').catch(() => false)) { rendered = true; break; }
-      await s.wait(1);
-    }
-    if (rendered) { console.log(`[register] Homepage rendered on attempt ${retry + 1}`); break; }
-    console.log(`[register] Homepage failed on attempt ${retry + 1}, retrying...`);
+    // The page says when it has rendered; the trajectory waits for that, not
+    // for a counted number of seconds.
+    await s.page.waitForFunction('document.readyState === "complete" && document.body && document.body.innerText.length > 0', null, { timeout: 0 });
+    console.log(`[register] Homepage rendered on attempt ${retry + 1}`);
+    break;
   } catch (e) { console.log(`[register] Attempt ${retry + 1} crashed: ${e.message}`); }
   await s?.close().catch(() => {});
   s = null;
@@ -42,6 +40,8 @@ try {
   const captcha = { blob: null, pkey: null, apiSub: null };
   const seenArkoseUrls = [];
   const seenGithubPosts = [];
+  let captchaLoaded;
+  const captchaReady = new Promise((resolve) => { captchaLoaded = resolve; });
   s.ctx.on('request', (req) => {
     try {
       const u = req.url();
@@ -56,7 +56,7 @@ try {
           captcha.apiSub = new globalThis.URL(u).hostname;
           const body = req.postData() ?? '';
           const b = body.match(/data%5Bblob%5D=([^&]+)/) ?? body.match(/data\[blob\]=([^&]+)/);
-          if (b) captcha.blob = decodeURIComponent(b[1]);
+          if (b) { captcha.blob = decodeURIComponent(b[1]); captchaLoaded(); }
         }
         if ((u.includes('arkoselabs.com/fc/gc') || u.includes('arkoselabs.com/fc/gfct')) && !captcha.pkey) {
           const m = u.match(/[?&]public_key=([A-F0-9-]+)/i);
@@ -68,7 +68,7 @@ try {
   });
 
   await s.goto(URL);
-  await s.wait(5);
+  await s.page.locator('#email').first().waitFor({ state: 'visible', timeout: 0 });
   console.log(`[register] Signup page: ${s.page.url?.()}`);
 
   const fillField = async (selector, value) => {
@@ -90,7 +90,7 @@ try {
   if (countryState.found && !/united states|^us$/i.test(countryState.text)) {
     try {
       await humanClickLocator(s.page, s.page.locator('#country-dropdown-panel-button, button.country-select-button').first());
-      await s.wait(1);
+      await s.page.locator('[role="option"], li, button, a').filter({ hasText: /united states/i }).first().waitFor({ state: 'visible', timeout: 0 });
       // Pick the "United States" option via a trusted locator click. Re-check
       // innerText to exclude 'Virgin' / 'Minor' variants (hasText is substring).
       const all = await s.page.locator('[role="option"], li, button, a').filter({ hasText: /united states/i }).all().catch(() => []);
@@ -101,19 +101,10 @@ try {
   } else {
     console.log('[register] Country auto-selected — skipping');
   }
-  await s.wait(2);
 
-  // Wait for all 3 fields to show is-autocheck-successful (email/password/username validators pass)
-  for (let i = 0; i < 30; i++) {
-    const state = await s.page.evaluate(`(() => ({
-      email: document.querySelector('#email')?.classList?.contains('is-autocheck-successful') ?? false,
-      password: document.querySelector('#password')?.classList?.contains('is-autocheck-successful') ?? false,
-      login: document.querySelector('#login')?.classList?.contains('is-autocheck-successful') ?? false,
-    }))()`).catch(() => ({}));
-    if (state.email && state.password && state.login) { console.log(`[register] All autochecks successful: ${JSON.stringify(state)}`); break; }
-    if (i % 5 === 0) console.log(`[register] Waiting autocheck... ${i}s ${JSON.stringify(state)}`);
-    await s.wait(1);
-  }
+  // The three validators mark their fields when they pass; wait for that mark.
+  await s.page.waitForFunction(`['#email', '#password', '#login'].every((field) => document.querySelector(field)?.classList?.contains('is-autocheck-successful'))`, null, { timeout: 0 });
+  console.log('[register] All autochecks successful');
 
   // Click "Create account" via humanClick (Bezier path, isTrusted=true)
   const createBtnSelector = 'button.js-octocaptcha-load-captcha, button[type="submit"]:has-text("Create account")';
@@ -140,26 +131,17 @@ try {
   console.log(`[register] Create account click: ${JSON.stringify(clicked)}`);
   await s.screenshot('after_create_account_click').catch(() => {});
 
-  // Wait for captcha iframe to load on its own (from click)
-  for (let i = 0; i < 20 && !(captcha.pkey && captcha.blob); i++) {
-    if (i % 5 === 0) console.log(`[register] Waiting captcha... ${i}s (arkose urls: ${seenArkoseUrls.length}, pkey=${captcha.pkey ? 'Y' : 'N'}, blob=${captcha.blob ? 'Y' : 'N'})`);
-    await s.wait(1);
-  }
-
-  // Force iframe load if no arkose traffic seen
+  // The captcha frame appears with the click; load it if GitHub left it
+  // unloaded, acknowledge it (require_ack=true) so the inner Arkose widget
+  // loads, then wait for the widget's own public_key request to carry the blob.
+  await s.page.locator('iframe.js-octocaptcha-frame').first().waitFor({ state: 'attached', timeout: 0 });
   if (seenArkoseUrls.length === 0) {
     const forced = await s.page.evaluate(`(() => { const f = document.querySelector('iframe.js-octocaptcha-frame'); if (!f) return { ok: false, reason: 'no-frame' }; const ds = f.getAttribute('data-src'); if (f.getAttribute('src')?.length > 10) return { ok: true, reason: 'already-loaded' }; if (ds) { f.setAttribute('src', ds); return { ok: true, reason: 'forced' }; } return { ok: false, reason: 'no-data-src' }; })()`).catch(() => ({ ok: false, reason: 'eval-error' }));
     console.log(`[register] Force iframe: ${JSON.stringify(forced)}`);
   }
-  await s.wait(3);
-  // postMessage ack to octocaptcha iframe (require_ack=true) so inner Arkose widget loads
   const ackRes = await s.page.evaluate(`(() => { const f = document.querySelector('iframe.js-octocaptcha-frame'); if (!f?.contentWindow) return { ok: false, reason: 'no-content-window' }; for (const msg of [{ type: 'ack', acked: true }, 'ack', { event: 'ack' }, { type: 'octocaptcha:ack' }]) { try { f.contentWindow.postMessage(msg, 'https://octocaptcha.com'); } catch {} try { f.contentWindow.postMessage(msg, '*'); } catch {} } return { ok: true }; })()`).catch(() => ({ ok: false }));
   console.log(`[register] postMessage ack: ${JSON.stringify(ackRes)}`);
-
-  for (let i = 0; i < 60 && !captcha.blob; i++) {
-    if (i % 10 === 0) console.log(`[register] Waiting Arkose widget... ${i}s (urls: ${seenArkoseUrls.length})`);
-    await s.wait(1);
-  }
+  await captchaReady;
   console.log(`[register] Arkose URLs (${seenArkoseUrls.length}):`);
   for (const u of seenArkoseUrls.slice(0, 15)) console.log(`  - ${u}`);
   console.log(`[register] GitHub POSTs during flow (${seenGithubPosts.length}):`);
@@ -193,10 +175,16 @@ try {
   // The retired Bright Data Browser path depended on an ambient WebSocket
   // credential. Use only the provider-neutral Stado-backed solvers.
   requireStadoModelRouterConfig();
+  // A solved captcha moves GitHub on to the email step; a refused one shows an
+  // alert. Whichever the page shows first is the answer.
+  const verdict = () => Promise.race([
+    s.page.waitForURL(/signup_emailsent|verif|launch-code|account_verif/, { timeout: 0 }).then(() => true),
+    s.page.locator('.flash-error, [role="alert"]').first().waitFor({ state: 'visible', timeout: 0 }).then(() => false),
+  ]);
   for (const fn of [solveAudioPuzzle, solveRotationViaCoords]) {
     if (solved) break;
     const ok = await fn(s.page).catch(() => false);
-    if (ok) { await s.wait(Number('5')); const u = s.page.url?.() ?? ''; if (/signup_emailsent|verif|launch-code|account_verif/.test(u)) solved = true; }
+    if (ok) solved = await verdict();
   }
   // External solvers (anticaptcha/2captcha) return UNSOLVABLE on Arkose basket puzzles — opt-in only.
   const token = (solved || process.env.WELES_EXTERNAL_FUNCAPTCHA !== '1') ? null : (await solveFunCaptcha({ websiteURL: URL, publicKey: captcha.pkey, apiSub: captcha.apiSub, blob: captcha.blob, userAgent: ua, proxy: s.proxyConfig })).token;
@@ -217,15 +205,10 @@ try {
       return { injected: inputs.length, clicked: false, reason: 'no form.requestSubmit available' };
     })(${JSON.stringify(token)})`).catch(e => ({ error: e.message }));
     console.log(`[register] Token injection: ${JSON.stringify(inject)} region=${token.match(/r=([^|&]+)/)?.[1] ?? '?'}`);
-    // Wait up to 20s for URL to advance — GitHub validates the token server-side
-    // and the redirect can take several seconds even on a good token.
-    for (let w = 0; w < 20 && !solved; w++) {
-      await s.wait(1);
-      const u = s.page.url?.() ?? '';
-      if (/signup_emailsent|verif|launch-code|account_verif/.test(u)) { console.log(`[register] Captcha accepted at ${u} (after ${w}s)`); solved = true; }
-    }
+    solved = await verdict();
+    if (solved) console.log(`[register] Captcha accepted at ${s.page.url?.() ?? ''}`);
     if (!solved) {
-      const err = await s.page.evaluate("(() => { const e=document.querySelector('.flash-error,[role=\"alert\"]'); return e?e.innerText.trim().slice(0,200):null; })()").catch(() => null);
+      const err = await s.page.evaluate("(() => { const e=document.querySelector('.flash-error,[role=\"alert\"]'); return e?e.innerText.trim():null; })()").catch(() => null);
       if (err) console.log(`[register] Post-injection error: ${err}`);
     }
   }
@@ -264,7 +247,10 @@ try {
     return 'none';
   })(${JSON.stringify(otp)})`).catch(() => 'error');
   console.log(`[register] OTP entered: ${entered}`);
-  await s.wait(5);
+  await Promise.race([
+    s.page.waitForURL((url) => !url.href.includes('signup') && !url.href.includes('verify'), { timeout: 0 }),
+    s.page.locator('.flash-error, [role="alert"]').first().waitFor({ state: 'visible', timeout: 0 }),
+  ]);
 
   const finalUrl = s.page.url?.() ?? '';
   const verified = !finalUrl.includes('signup') && !finalUrl.includes('verify');
