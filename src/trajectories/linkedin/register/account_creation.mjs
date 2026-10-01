@@ -207,7 +207,7 @@ async function settleAuthenticatedSession({ session, identity, recordStage, prox
   }
   // Email verification: poll Resend for 6-digit code → fill PIN input → submit.
   const code = await session.checkEmail(identity.email, 'linkedin');
-  if (!code || /^no code|^error:/.test(code)) throw new Error(`linkedin verification email did not arrive: ${code}`);
+  if (!code || /^no (code|email)|^error:/.test(code)) throw new Error(`linkedin verification email did not arrive: ${code}`);
   const pinIn = session.page.locator('input[name="pin"], input[autocomplete="one-time-code"], input#input__email_verification_pin').filter({ visible: true }).first();
   await pinIn.waitFor({ state: 'visible' });
   await humanClickLocator(session.page, pinIn);

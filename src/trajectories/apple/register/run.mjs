@@ -99,7 +99,7 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
 
     // 8. Email OTP
     const emailCode = await s.checkEmail(id.email, 'apple');
-    if (!emailCode || /^no code|^error/i.test(emailCode)) throw new Error(`apple_email_otp_failed: ${emailCode}`);
+    if (!emailCode || /^no (code|email)|^error/i.test(emailCode)) throw new Error(`apple_email_otp_failed: ${emailCode}`);
     const emailCodeBoxes = await frame.locator('input[id*="email-verification" i], input[aria-label*="verification" i][type="tel"], input[aria-label*="digit" i]').all();
     if (emailCodeBoxes.length >= 6) {
       for (let i = 0; i < 6; i++) await emailCodeBoxes[i].fill(emailCode[i]).catch(() => {});

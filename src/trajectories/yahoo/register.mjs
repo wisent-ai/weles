@@ -115,7 +115,7 @@ async function maybeHandleCode(s, id) {
   let code = null;
   if (/email|e-mail|inbox|verification code/i.test(text)) {
     code = await s.checkEmail(id.email, 'yahoo');
-    if (!code || /^no code|^error/i.test(code)) throw new Error(`yahoo_email_otp_failed: ${code}`);
+    if (!code || /^no (code|email)|^error/i.test(code)) throw new Error(`yahoo_email_otp_failed: ${code}`);
   } else {
     code = await s.pollSmsCode();
     if (!code || /^no code|^error/i.test(code)) throw new Error(`yahoo_sms_otp_failed: ${code}`);

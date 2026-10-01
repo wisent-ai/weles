@@ -20,7 +20,7 @@ await runAction({
     const title = (idx > 5 && idx < 120 ? text.slice(0, idx) : text.slice(0, 100)).trim();
     const body  = (idx > 5 ? text.slice(idx + 1) : '').trim();
     const titleIn = s.page.locator('input[name="title"], textarea[name="title"]').filter({ visible: true }).first();
-    await titleIn.waitFor({ state: 'visible', timeout: 15000 });
+    await titleIn.waitFor({ state: 'visible' });
     await humanFill(s.page, titleIn, title);
     const bodyIn = s.page.locator('textarea[name="text"]').filter({ visible: true }).first();
     if (await bodyIn.count() && body) {
@@ -31,6 +31,6 @@ await runAction({
     const submitBtn = s.page.locator('form#newlink button.btn[type="submit"], button.btn:has-text("submit")').filter({ visible: true }).first();
     await submitBtn.waitFor({ state: 'visible' });
     await humanClickLocator(s.page, submitBtn);
-    await s.page.waitForFunction((sub) => /\/comments\//.test(location.pathname) && new RegExp(`/r/${sub}/`, 'i').test(location.pathname), SUBREDDIT, { timeout: 30000 });
+    await s.page.waitForFunction((sub) => /\/comments\//.test(location.pathname) && new RegExp(`/r/${sub}/`, 'i').test(location.pathname), SUBREDDIT);
   },
 });

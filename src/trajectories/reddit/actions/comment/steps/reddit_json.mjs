@@ -1,4 +1,4 @@
-import { BUSY_POST_COMMENTS, JSON_READ_WAIT_MS, LISTING_PICK_WINDOW } from './constants.mjs';
+import { BUSY_POST_COMMENTS, LISTING_PICK_WINDOW } from './constants.mjs';
 
 /** The signed-in account's handle from /api/me.json, or false when Reddit answers without one. */
 export function readOwnHandle(page) {
@@ -20,7 +20,7 @@ export function ownListingHas(page, handle, body, limit) {
 
 /** One JSON read through the session's request context: status plus body text. */
 export async function contextRead(s, url) {
-  const resp = await s.page.context().request.get(url, { headers: { 'Accept': 'application/json' }, ignoreHTTPSErrors: true, timeout: JSON_READ_WAIT_MS });
+  const resp = await s.page.context().request.get(url, { headers: { 'Accept': 'application/json' }, ignoreHTTPSErrors: true });
   return { status: resp.status(), body: await resp.text() };
 }
 

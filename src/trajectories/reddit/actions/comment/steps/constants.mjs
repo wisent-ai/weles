@@ -6,12 +6,6 @@
 // disable (legacy behaviour for tests).
 export const DEFER_VERIFY_MS = Number(process.env.DEFER_VERIFY_MS ?? 300_000);
 
-// One JSON read of old.reddit.com through the session's own request context.
-export const JSON_READ_WAIT_MS = 15000;
-
-// One origin visit while restoring localStorage from the stored storage state.
-export const ORIGIN_VISIT_WAIT_MS = 15000;
-
 // The public-visibility poll: twelve long pauses, roughly a minute, which the
 // permalink JSON needs to reflect a freshly posted comment.
 export const VISIBILITY_POLLS = 12;

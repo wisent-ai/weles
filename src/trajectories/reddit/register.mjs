@@ -86,7 +86,7 @@ try {
     throw new Error(`verify_init_rejected: status=${verifyInit.status} recaptcha_token=${verifyInit.recaptcha || 'n/a'} reason="${verifyInit.reason}"`);
   }
   const code = await s.checkEmail(id.email, 'reddit');
-  if (/^error|^no code/.test(code)) {
+  if (/^error|^no (code|email)/.test(code)) {
     const detail = verifyInit && !verifyInit.ok
       ? ` (verify_init status=${verifyInit.status} recaptcha_token=${verifyInit.recaptcha})`
       : '';

@@ -106,7 +106,7 @@ async function signup(s) {
     }
   } else {
     const emailCode = await s.checkEmail(id.email, 'facebook');
-    if (!emailCode || /^no code|^error/i.test(emailCode)) throw new Error(`fb_email_otp_failed: ${emailCode}`);
+    if (!emailCode || /^no (code|email)|^error/i.test(emailCode)) throw new Error(`fb_email_otp_failed: ${emailCode}`);
     const codeIn = s.page.locator('input[name="code"], input[name="confirmation_code"], input[aria-label*="confirmation" i]').filter({ visible: true }).first();
     if (await codeIn.count()) {
       await humanClickLocator(s.page, codeIn);

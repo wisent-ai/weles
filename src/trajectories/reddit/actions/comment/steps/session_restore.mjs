@@ -1,5 +1,3 @@
-import { ORIGIN_VISIT_WAIT_MS } from './constants.mjs';
-
 /**
  * Restore full storage state (cookies + per-origin localStorage). The
  * localStorage half is critical: Reddit's web app writes anti-bot tokens
@@ -21,7 +19,7 @@ export async function restoreRedditSession(s, acct) {
     for (const o of ss.origins ?? []) {
       if (!o?.origin || !Array.isArray(o.localStorage) || !o.localStorage.length) continue;
       try {
-        await s.page.goto(o.origin, { waitUntil: 'domcontentloaded', timeout: ORIGIN_VISIT_WAIT_MS });
+        await s.page.goto(o.origin, { waitUntil: 'domcontentloaded' });
         await s.page.evaluate((items) => {
           for (const it of items) { try { window.localStorage.setItem(it.name, it.value); } catch { /* the origin refused this key */ } }
         }, o.localStorage);

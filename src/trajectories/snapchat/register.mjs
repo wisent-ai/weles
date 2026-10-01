@@ -64,17 +64,17 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     // 5. Email/phone — Snap signup variants ask for one. Fill whichever appears.
     const emailIn = s.page.locator('input[name="email"], input[type="email"], input[autocomplete="email"]').filter({ visible: true }).first();
     const phoneIn = s.page.locator('input[name="phone"], input[type="tel"], input[autocomplete="tel"]').filter({ visible: true }).first();
-    if (await emailIn.count({ timeout: 1500 }).catch(() => 0)) {
+    if (await emailIn.count()) {
       await fillNext(s, emailIn, id.email);
       // 6. Email OTP — poll Resend, fill verification code.
       const code = await s.checkEmail(id.email, 'snap');
-      if (!code || /^no code|^error:/.test(code)) throw new Error(`snapchat verification email did not arrive: ${code}`);
+      if (!code || /^no (code|email)|^error:/.test(code)) throw new Error(`snapchat verification email did not arrive: ${code}`);
       await fillNext(s, s.page.locator('input[name="otp"], input[autocomplete="one-time-code"], input[name="code"], input[name="verificationCode"]').filter({ visible: true }).first(), code);
-    } else if (await phoneIn.count({ timeout: 1500 }).catch(() => 0)) {
+    } else if (await phoneIn.count()) {
       throw new Error('snapchat_phone_required: SMS verification path not implemented; rerun with email-mode signup variant');
     }
 
-    await s.page.waitForFunction(() => /accounts\.snapchat\.com\/(?!.*signup)|web\.snapchat\.com/.test(location.href), { timeout: 30000 }).catch(() => {});
+    await s.page.waitForFunction(() => /accounts\.snapchat\.com\/(?!.*signup)|web\.snapchat\.com/.test(location.href));
     await s.saveAccount('snapchat', { username: id.username, email: id.email, password: id.password, status: 'verified' });
     console.log(`PASS: ${id.username}`);
     process.exit(0);
