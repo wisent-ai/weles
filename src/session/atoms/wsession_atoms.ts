@@ -15,7 +15,7 @@ import { updateAccount } from '../../state/skarbiec-records.js';
 
 declare module '../wsession.js' {
   interface WSession {
-    waitFor(selector: string, opts?: { state?: 'attached' | 'visible' | 'hidden' | 'detached'; timeoutMs?: number }): Promise<string>;
+    waitFor(selector: string, opts?: { state?: 'attached' | 'visible' | 'hidden' | 'detached' }): Promise<string>;
     fillSelector(css: string, value: string): Promise<string>;
     writeBanSignal(banSignal: Record<string, unknown>, extras?: Record<string, unknown>): void;
     dwell(scrolls: number, dwellMsRange?: [number, number]): Promise<string>;
@@ -38,10 +38,10 @@ const LOGGED_OUT_SELECTORS: Record<string, string> = {
 export function installAtoms(W: typeof import('../wsession.js').WSession): void {
 W.prototype.waitFor = function (selector, opts) {
   const state = opts?.state ?? 'visible';
-  const timeout = opts?.timeoutMs ?? 0;
   return this.runStep(`waitFor_${selector.slice(0, 30)}`, async () => {
-    try { await (this as WSession).page.locator(selector).first().waitFor({ state, timeout }); return `waited ${state}: ${selector.slice(0, 60)}`; }
-    catch { return `wait failed ${state}: ${selector.slice(0, 60)}`; }
+    try { await (this as WSession).page.locator(selector).first().waitFor({ state }); }
+    catch (error) { throw new Error(`waiting for ${selector.slice(0, 60)} to become ${state} failed: ${error instanceof Error ? error.message : String(error)}`); }
+    return `waited ${state}: ${selector.slice(0, 60)}`;
   });
 };
 

@@ -214,7 +214,7 @@ async function probeExitIp(launch: LaunchedSession): Promise<void> {
   const proxy = launch.proxy;
   if (!proxy?.server) return;
   try {
-    const r = await launch.ctx.request.get('https://api.ipify.org', { timeout: 10_000 });
+    const r = await launch.ctx.request.get('https://api.ipify.org');
     if (r.ok()) { const t = (await r.text()).trim(); if (/^[0-9a-fA-F.:]+$/.test(t)) proxy.exit_ip = t; }
   } catch {}
 }

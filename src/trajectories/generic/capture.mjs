@@ -37,9 +37,7 @@ async function runStep(session, step) {
   if (step.op === 'wait_selector') {
     // `waitFor` carries no deadline of its own, which is the point of a
     // `wait_selector` step: the element appearing is what the step waits for.
-    const outcome = await session.waitFor(step.value);
-    if (outcome.startsWith('wait failed')) throw new Error(`step wait_selector ${JSON.stringify(step.value)} never became visible`);
-    return outcome;
+    return await session.waitFor(step.value);
   }
   if (step.op === 'click') {
     const outcome = await session.clickSelector(step.value);

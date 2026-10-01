@@ -5,7 +5,6 @@ import { assertNonCredentialInput, withCapability } from '../../../utils/capabil
 import type { CapabilityRef } from '../../../utils/capability.js';
 import type { WSession } from '../../wsession.js';
 import type { ElementHandle, Page } from 'playwright';
-import { setTimeout as delay } from 'node:timers/promises';
 import { fillPage } from '../finalize.js';
 import { humanFill } from '../../../human/keyboard.js';
 import { describeInputTarget, resolveObservedControl } from '../../observation/controls.js';
@@ -48,14 +47,11 @@ async function fillProtectedValue(
   }
 }
 
-// How long a credential field is given to appear before the fill is declined.
-// A sign-in page renders its input after load, and a two-step flow puts the
-// password on a page that does not exist yet, so "not there this millisecond"
-// is not the same answer as "not there".
-const CREDENTIAL_FIELD_WAIT_MS = 10_000;
-
 // The marker a declined credential fill returns. Not an error: the capability
-// is still unspent, so the field can be filled when it exists.
+// is still unspent, so the field can be filled once it exists. A sign-in page
+// renders its input after load and a two-step flow puts the password on a
+// page that does not exist yet; the caller waits for that page (`wait_for`)
+// and fills again instead of this lookup polling for it.
 export const CREDENTIAL_FIELD_ABSENT = 'credential-field-absent';
 
 // Resolve and retain the exact node before redeeming. The old presence probe
@@ -74,33 +70,29 @@ async function credentialField(
   const sels = kws.flatMap(k => ['input', 'textarea', '[contenteditable]'].flatMap(t => [`${t}[name*="${k}"]`, `${t}[placeholder*="${k}" i]`, `${t}[aria-label*="${k}" i]`]));
   if (/\b(email|e-mail)\b/i.test(target)) sels.unshift('input[type="email"], input[name*="mail" i], input[autocomplete*="email" i]');
   if (/password|passcode|secret/i.test(target)) sels.unshift('input[type="password"], input[name*="password" i], input[autocomplete*="current-password" i]');
-  const deadline = Date.now() + CREDENTIAL_FIELD_WAIT_MS;
-  do {
-    const frames = page.frames().filter(frame => new URL(frame.url()).origin === allowedOrigin);
-    const queries = explicitSelector ? [explicitSelector] : [null, ...sels];
-    for (const selector of queries) {
-      const handles: ElementHandle[] = [];
-      let selected: ElementHandle | null = null;
-      try {
-        for (const frame of frames) {
-          const locator = selector ? frame.locator(selector) : frame.getByLabel(target, { exact: false });
-          handles.push(...await locator.elementHandles());
-        }
-        for (const handle of handles) {
-          if (!await handle.isVisible() || !await handle.isEditable()) continue;
-          if (selected) throw new Error(`[credential_target_ambiguous] Multiple editable fields match ${JSON.stringify(target)}; capability not consumed`);
-          selected = handle;
-        }
-        if (selected) {
-          handles.splice(handles.indexOf(selected), 1);
-          return selected;
-        }
-      } finally {
-        await Promise.all(handles.map(handle => handle.dispose()));
+  const frames = page.frames().filter(frame => new URL(frame.url()).origin === allowedOrigin);
+  const queries = explicitSelector ? [explicitSelector] : [null, ...sels];
+  for (const selector of queries) {
+    const handles: ElementHandle[] = [];
+    let selected: ElementHandle | null = null;
+    try {
+      for (const frame of frames) {
+        const locator = selector ? frame.locator(selector) : frame.getByLabel(target, { exact: false });
+        handles.push(...await locator.elementHandles());
       }
+      for (const handle of handles) {
+        if (!await handle.isVisible() || !await handle.isEditable()) continue;
+        if (selected) throw new Error(`[credential_target_ambiguous] Multiple editable fields match ${JSON.stringify(target)}; capability not consumed`);
+        selected = handle;
+      }
+      if (selected) {
+        handles.splice(handles.indexOf(selected), 1);
+        return selected;
+      }
+    } finally {
+      await Promise.all(handles.map(handle => handle.dispose()));
     }
-    await delay(100);
-  } while (Date.now() < deadline);
+  }
   return null;
 }
 

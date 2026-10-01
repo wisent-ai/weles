@@ -28,9 +28,6 @@ import { assertFocusedLiteralInput } from '../wsession/page-actions.js';
 export { CREDENTIAL_FIELD_ABSENT, wsFillCredential, wsFillIdentity } from './close/credential_fill.js';
 export { wsCheckEmail, wsSaveAccount } from './close/account_record.js';
 
-
-const VISIBILITY_PROBE_MS = 1500;
-
 const asV = (p: any) => p as unknown as ScreenshottablePage;
 
 export function childFrames(s: WSession, allowedOrigin?: string): Frame[] {
@@ -53,7 +50,7 @@ export async function firstVisible(loc: any): Promise<any | null> {
     const first = loc?.first?.() ?? loc;
     let count = 1;
     if (typeof loc?.count === 'function') count = await loc.count().catch(() => 0);
-    if (count > 0 && await first.isVisible({ timeout: VISIBILITY_PROBE_MS }).catch(() => false)) return first;
+    if (count > 0 && await first.isVisible()) return first;
   } catch {}
   return null;
 }
@@ -69,7 +66,7 @@ export async function wsClick(s: WSession, target: string): Promise<string> {
     if (selected !== null) return selected;
     const tryLoc = async (loc: any, descPrefix: string): Promise<string | null> => {
       try {
-        if ((await loc.count?.()) > 0 && await loc.first().isVisible({ timeout: VISIBILITY_PROBE_MS }).catch(() => false)) {
+        if ((await loc.count?.()) > 0 && await loc.first().isVisible()) {
           await humanClickLocator(s.page, loc.first());
           return `clicked ${descPrefix}${target}`;
         }

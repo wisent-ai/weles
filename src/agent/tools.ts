@@ -112,7 +112,7 @@ export const BROWSER_TOOLS: readonly FunctionTool[] = [
   browserTool('press_key', 'Press a keyboard key such as Enter, Tab or Escape.', { key: TEXT }, []),
   browserTool('navigate', 'Navigate to the supplied URL.', { url: TEXT }),
   browserTool('scroll', 'Scroll the actual page up or down by a number of pixels.', { direction: { type: 'string', enum: ['up', 'down'] }, amount: NUMBER }, []),
-  browserTool('wait', 'Wait for the requested number of seconds.', { seconds: NUMBER }, []),
+  browserTool('wait_for', 'Wait until the element matching a CSS selector reaches a Playwright locator state (attached, visible, hidden or detached; default visible). Waits as long as the page takes; fails with the reason when the element cannot reach it.', { selector: TEXT, state: TEXT }, ['selector']),
   browserTool('read', 'Answer a question using only the current screenshot. This cannot click, scroll, navigate or change page state.', { question: TEXT }),
   browserTool('select_option', 'Select a dropdown option, including date pickers.', { target: TARGET, value: TEXT }),
   browserTool('set_control', 'Set and verify a non-credential input, select or textarea by CSS selector in the page or an iframe. The actual field is checked; this is not a workaround for a credential refusal.', { selector: TEXT, value: {}, checked: { type: 'boolean' } }, ['selector']),
@@ -160,7 +160,10 @@ export async function dispatch(session: WSession, tool: string, args: ToolArgs):
     case 'press_key': return session.press(stringArg(args, 'key', 'Enter'));
     case 'navigate': return session.goto(stringArg(args, 'url'));
     case 'scroll': return session.scroll(stringArg(args, 'direction', 'down'), args.amount ? Number(args.amount) : undefined);
-    case 'wait': return session.wait(Number(args.seconds ?? 1));
+    case 'wait_for': {
+      const state = (args.state === undefined ? 'visible' : stringArg(args, 'state')) as NonNullable<Parameters<WSession['waitFor']>[1]>['state'];
+      return session.waitFor(stringArg(args, 'selector'), { state });
+    }
     case 'read': return session.read(stringArg(args, 'question'));
     case 'select_option': return session.select(stringArg(args, 'target'), stringArg(args, 'value'));
     case 'set_control': {

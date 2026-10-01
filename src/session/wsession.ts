@@ -191,7 +191,6 @@ export class WSession {
   async setControl(selector: string, value?: unknown, checked?: unknown): Promise<string> { return wsSetControl(this, selector, value, checked); }
   async scroll(direction: string, amount?: number): Promise<string> { return wsScroll(this, direction, amount); }
 
-  async wait(seconds: number): Promise<string> { await new Promise(r => setTimeout(r, seconds * 1000)); return `waited ${seconds}s`; }  // allow-raw-playwright: review — context-dependent timer
   async read(question: string): Promise<string> { return await askPage(asV(this.page), question) ?? 'NONE'; }
   async solveCaptcha(): Promise<string> {
     return this.runStep('solveCaptcha', async () => {

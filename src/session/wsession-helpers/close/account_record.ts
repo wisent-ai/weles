@@ -27,31 +27,28 @@ export async function wsCheckEmail(s: WSession, email: string, sender: string): 
   const addr = s.resolveEnv(email).toLowerCase();
   const senderHint = sender.toLowerCase();
   const earliestAcceptMs = Date.now() - 90_000;
-  for (let attempt = 0; attempt < 18; attempt++) {
-    for (const em of (await listReceived(10, addr)).data) {
-      const to = (em.to ?? []).map((t: any) => (typeof t === 'string' ? t : t.email ?? '').toLowerCase());
-      if (!to.includes(addr)) continue;
-      if (senderHint && !(em.from ?? '').toLowerCase().includes(senderHint)) continue;
-      const emAt = em.created_at ? new Date(em.created_at).getTime() : 0;
-      if (emAt < earliestAcceptMs) continue;
-      const d = await getReceived(em.id) as { subject?: string; text?: string; html?: string };
-      const content = `${d.subject ?? ''}\n${d.text ?? ''}\n${d.html ?? ''}`;
-      const verificationMatch = content.match(/https:\/\/api-dashboard\.search\.brave\.com\/verification[^\s"'<>\]]+/);
-      if (verificationMatch) {
-        const verificationURL = verificationMatch[0].replace(/&amp;/g, '&').replace(/[),.;]+$/, '');
-        const target = new URL(verificationURL);
-        if (target.hostname === 'api-dashboard.search.brave.com' && target.pathname === '/verification') {
-          await s.page.goto(target.href, { waitUntil: 'domcontentloaded' });
-          return `verification email opened on ${target.origin}${target.pathname}`;
-        }
+  for (const em of (await listReceived(10, addr)).data) {
+    const to = (em.to ?? []).map((t: any) => (typeof t === 'string' ? t : t.email ?? '').toLowerCase());
+    if (!to.includes(addr)) continue;
+    if (senderHint && !(em.from ?? '').toLowerCase().includes(senderHint)) continue;
+    const emAt = em.created_at ? new Date(em.created_at).getTime() : 0;
+    if (emAt < earliestAcceptMs) continue;
+    const d = await getReceived(em.id) as { subject?: string; text?: string; html?: string };
+    const content = `${d.subject ?? ''}\n${d.text ?? ''}\n${d.html ?? ''}`;
+    const verificationMatch = content.match(/https:\/\/api-dashboard\.search\.brave\.com\/verification[^\s"'<>\]]+/);
+    if (verificationMatch) {
+      const verificationURL = verificationMatch[0].replace(/&amp;/g, '&').replace(/[),.;]+$/, '');
+      const target = new URL(verificationURL);
+      if (target.hostname === 'api-dashboard.search.brave.com' && target.pathname === '/verification') {
+        await s.page.goto(target.href, { waitUntil: 'domcontentloaded' });
+        return `verification email opened on ${target.origin}${target.pathname}`;
       }
-      const codes = content.match(/\b\d{5,6}\b/g);
-      if (codes) return codes[0];
-      return `email received without numeric code: ${content.replace(/\s+/g, ' ').trim().slice(0, 2000)}`;
     }
-    await new Promise(r => setTimeout(r, 10000));  // allow-raw-playwright: bounded polling/rate-limit loop
+    const codes = content.match(/\b\d{5,6}\b/g);
+    if (codes) return codes[0];
+    return `email received without numeric code: ${content.replace(/\s+/g, ' ').trim().slice(0, 2000)}`;
   }
-  return 'no matching email received within timeout';
+  return `no email${senderHint ? ` from a sender containing "${senderHint}"` : ''} has arrived at ${addr} yet; call check_email again once the platform has sent it`;
 }
 
 export async function wsSaveAccount(
