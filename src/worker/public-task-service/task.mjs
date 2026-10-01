@@ -100,6 +100,12 @@ export function createTaskOperations({
     });
   }
 
+  /** The task's status once it is terminal: the response is held until then. */
+  async function awaitTask(taskId) {
+    await store.awaitTerminal(taskId);
+    return getTask(taskId);
+  }
+
   async function cancel(request, taskId, body) {
     const key = idempotencyKey(request);
     const cancellation = parseCancellation(body, config);
@@ -221,5 +227,5 @@ export function createTaskOperations({
     await dispatchQueue();
   }
 
-  return Object.freeze({ submit, getTask, cancel, recover });
+  return Object.freeze({ submit, getTask, awaitTask, cancel, recover });
 }

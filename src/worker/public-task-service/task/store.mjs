@@ -1,7 +1,8 @@
+import { EventEmitter, once } from 'node:events';
 import { mkdir, open, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { PublicTaskError } from '../wire.mjs';
+import { PublicTaskError, TERMINAL_STATUSES } from '../wire.mjs';
 import { UUID_RE, isObject, sha256 } from '../wire/canonical-json.mjs';
 import { atomicJsonWrite, readJson, syncDirectory } from '../durable-write.mjs';
 
@@ -12,6 +13,10 @@ function safeTaskFilename(taskId) {
 
 export function createTaskStore({ runResultsRoot, taskRoot, mappingRoot, organizationId }) {
   const taskLocks = new Map();
+  // Every durable task write announces the task id, so a reader can wait for
+  // the record to change instead of re-reading it on a timer.
+  const changes = new EventEmitter();
+  changes.setMaxListeners(0);
   const taskPath = (taskId) => join(taskRoot, safeTaskFilename(taskId));
   const mappingPath = (key) => join(mappingRoot, `${sha256(`${organizationId}\0${key}`)}.json`);
 
@@ -45,6 +50,33 @@ export function createTaskStore({ runResultsRoot, taskRoot, mappingRoot, organiz
   async function persistTask(task) {
     task.updatedAt = new Date().toISOString();
     await atomicJsonWrite(taskPath(task.id), task);
+    changes.emit(task.id);
+  }
+
+  /**
+   * Resolve once the task's durable record holds a terminal status. The
+   * listener is registered before each read, so a write that lands between
+   * the read and the wait still wakes it.
+   */
+  async function awaitTerminal(taskId) {
+    for (;;) {
+      const abandon = new AbortController();
+      const changed = once(changes, taskId, { signal: abandon.signal });
+      let task;
+      try {
+        task = await loadTask(taskId);
+      } catch (error) {
+        abandon.abort();
+        await changed.catch(() => {});
+        throw error;
+      }
+      if (Object.hasOwn(TERMINAL_STATUSES, task.status)) {
+        abandon.abort();
+        await changed.catch(() => {});
+        return;
+      }
+      await changed;
+    }
   }
 
   async function withTaskLock(taskId, operation) {
@@ -142,6 +174,7 @@ export function createTaskStore({ runResultsRoot, taskRoot, mappingRoot, organiz
     ensureRoots,
     loadTask,
     persistTask,
+    awaitTerminal,
     withTaskLock,
     validateReservation,
     materializeReservation,

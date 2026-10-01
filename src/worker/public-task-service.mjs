@@ -145,7 +145,14 @@ export function createPublicTaskService(options) {
       throw new PublicTaskError(503, 'worker-recovering', 'task admission is paused while the worker recovers its durable state');
     }
     if (isSubmit) return operations.submit(request, await readBody(request));
-    if (isGet) return operations.getTask(taskMatch[1]);
+    if (isGet) {
+      const wait = url.searchParams.get('wait');
+      if (wait === null) return operations.getTask(taskMatch[1]);
+      if (wait !== 'terminal') {
+        throw new PublicTaskError(400, 'invalid-wait', 'wait accepts only "terminal"');
+      }
+      return operations.awaitTask(taskMatch[1]);
+    }
     return operations.cancel(request, cancelMatch[1], await readBody(request));
   }
 
