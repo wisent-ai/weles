@@ -8,8 +8,6 @@ import { assertAuthed, AuthProbeError } from '../auth/auth-probe.mjs';
 import { humanIdlePause } from '../../../../dist/human/mouse.js';
 
 const AUTH_WALL_RE = /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login)\b/;
-const ASSERT_AUTHED_MS = 8 * 1000;
-const SPA_SETTLE_MS = 3 * 1000;
 
 async function authPass({ s, cfg, feed, label }) {
   await s.goto(feed);
@@ -39,7 +37,7 @@ async function authPass({ s, cfg, feed, label }) {
       };
     }
     try {
-      const opts = { label, timeout: ASSERT_AUTHED_MS };
+      const opts = { label };
       await assertAuthed(cfg.platform, s, opts);
     } catch (probeErr) {
       if (probeErr instanceof AuthProbeError) {

@@ -10,7 +10,6 @@ import { gotoLoginRotating } from '../_shared/linkedin/signup/proxy_rotation.mjs
 import { chooseLoginProxy } from './login/proxy_choice.mjs';
 import { loginWithGoogleSso } from './login/google_sso.mjs';
 import { CHECKPOINT_RE, classifyLoginError, currentWelesFingerprintTag, markStaleAndFail, reapWelesFingerprintTag, writeBan } from './login/outcome.mjs';
-import { CONFIRM_EMAIL_WAIT_MS, GOTO_MS } from './login/constants.mjs';
 
 if (process.env.WELES_INPUT === 'native' && process.env.LINKEDIN_LOGIN_ALLOW_NATIVE !== '1') {
   console.error('FAIL: native OS input is blocked for linkedin_login. Set LINKEDIN_LOGIN_ALLOW_NATIVE=1 only during an observed, isolated run.');
@@ -62,7 +61,7 @@ async function gotoLogin() {
   // tears down the WSession, and restarts with a working proxy. Returns
   // the (possibly fresh) session + the proxyUrl actually in use, which
   // we persist in captureCookies via metadata.proxy.
-  const r = await gotoLoginRotating({ session: s, persona, restartFn: async (url, p) => WSession.start({ label: 'linkedin_login', proxy: url, persona: p, headless: HEADLESS, pageDiagnostics: false }), maxRotations: 5, gotoTimeoutMs: GOTO_MS });
+  const r = await gotoLoginRotating({ session: s, persona, restartFn: async (url, p) => WSession.start({ label: 'linkedin_login', proxy: url, persona: p, headless: HEADLESS, pageDiagnostics: false }), maxRotations: 5 });
   s = r.session;
   if (r.proxyUrl) proxyUrl = r.proxyUrl;
 }
@@ -73,17 +72,6 @@ async function captureCookies() {
     const cookies = await s.ctx.cookies();
     await persistFreshCookieJar(acct, cookies, { currentProxyUrl: proxyUrl, currentPersona: persona, persistProxy: true });
   } catch (e) { console.log('[cookie-capture] err:', e.message); }
-}
-
-/** Resolve with the promise's value, or with false once `ms` has passed. */
-function withTimeout(promise, ms, label) {
-  return Promise.race([
-    promise,
-    new Promise((resolve) => setTimeout(() => {
-      console.log(`[linkedin_login] ${label} timed out after ${ms}ms`);
-      resolve(false);
-    }, ms)),
-  ]);
 }
 
 /** Restore PX storage, then either solve an edge checkpoint or refuse a degraded shell. */
@@ -192,7 +180,7 @@ try {
     // still carry the unconfirmed-email yellow banner that suppresses feed
     // posts and triggers captcha_challenge on first write actions. The
     // helper is a no-op when no recent confirm-email is in the inbox.
-    await withTimeout(confirmLinkedinEmail(s.page, acct.metadata?.email ?? acct.username).catch((e) => console.log(`[linkedin_login] confirmLinkedinEmail: ${e.message?.slice(0, 120)}`)), CONFIRM_EMAIL_WAIT_MS, 'confirmLinkedinEmail');
+    await confirmLinkedinEmail(s.page, acct.metadata?.email ?? acct.username).catch((e) => console.log(`[linkedin_login] confirmLinkedinEmail: ${e.message?.slice(0, 120)}`));
     writeBan(acct, 'healthy', { final_url: finalUrl });
     console.log(`PASS: li_at cookie set — ${finalUrl}`);
   } else if (onCheckpoint) {

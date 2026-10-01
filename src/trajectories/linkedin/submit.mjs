@@ -13,7 +13,7 @@ export async function linkedinSubmitComment(s, text) {
     return;
   }
   const post = s.page.locator('button[aria-label*="React Like" i]').first().locator('xpath=ancestor::*[@data-testid="feed-post" or @data-id or contains(@class, "feed-post") or contains(@class, "update-components")][1]');
-  await post.waitFor({ state: 'visible', timeout: 15000 });
+  await post.waitFor({ state: 'visible' });
   await post.scrollIntoViewIfNeeded().catch(() => {});
   // Comment button — aria-label="Comment".
   const commentBtn = post.locator('button[aria-label="Comment"], button[aria-label*="comment" i]:not([aria-label*="React" i])').filter({ visible: true }).first();
@@ -23,7 +23,7 @@ export async function linkedinSubmitComment(s, text) {
   // bare contenteditable. Page-scoped because the comment composer can
   // attach outside the post wrapper depending on layout.
   const editor = s.page.locator('[data-testid*="editor"][contenteditable="true"], [data-testid*="composer"][contenteditable="true"], div[role="textbox"][contenteditable="true"], div.ql-editor[contenteditable="true"], [contenteditable="true"]:not([role="combobox"]):not([role="textbox"])').filter({ visible: true }).first();
-  await editor.waitFor({ state: 'visible', timeout: 10000 });
+  await editor.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, editor);
   await humanType(s.page, text);
   // Post submit button — once text is entered, button[disabled] flips.
@@ -34,7 +34,7 @@ export async function linkedinSubmitComment(s, text) {
   await s.page.waitForFunction(() => {
     const e = document.querySelector('div[role="textbox"][contenteditable="true"]');
     return !e || (e.textContent ?? '').trim().length === 0;
-  }, { timeout: 15000 }).catch(() => {});
+  });
 }
 
 export async function linkedinSubmitPost(s, text) {
@@ -44,17 +44,17 @@ export async function linkedinSubmitPost(s, text) {
   // stable marker (verified 2026-05-06 in captured /feed/ DOM at
   // recordings/linkedin_browse/after_001_goto__dom.html).
   const startPost = s.page.locator('[aria-label="Start a post"], button.share-box-feed-entry__trigger, button:has-text("Start a post")').filter({ visible: true }).first();
-  await startPost.waitFor({ state: 'visible', timeout: 15000 });
+  await startPost.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, startPost);
   // 2026-05-06: composer migrated off Quill (.ql-editor / div[role="textbox"]).
   // Match a wider set of editor shapes — data-testid is the stable LinkedIn
   // 2026 attribute; legacy + bare contenteditable kept as fall-throughs.
   const editor = s.page.locator('[data-testid*="editor"][contenteditable="true"], [data-testid*="composer"][contenteditable="true"], div[role="textbox"][contenteditable="true"], div.ql-editor[contenteditable="true"], [contenteditable="true"]:not([role="combobox"]):not([role="textbox"])').filter({ visible: true }).first();
-  await editor.waitFor({ state: 'visible', timeout: 10000 });
+  await editor.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, editor);
   await humanType(s.page, text);
   const postBtn = s.page.locator('button.share-actions__primary-action:not([disabled]), [data-testid*="post"][role="button"]:not([disabled]), button:has-text("Post"):not([disabled])').filter({ visible: true }).first();
   await postBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, postBtn);
-  await s.page.waitForFunction(() => !document.querySelector('div[role="dialog"][role="dialog"] div.ql-editor[contenteditable="true"]'), { timeout: 20000 }).catch(() => {});
+  await s.page.waitForFunction(() => !document.querySelector('div[role="dialog"] div.ql-editor[contenteditable="true"]'));
 }

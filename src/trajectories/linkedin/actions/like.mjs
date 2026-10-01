@@ -33,7 +33,7 @@ try {
   let authed = false;
   for (let attempt = 0; attempt < 2 && !authed; attempt++) {
     try {
-      await s.page.goto(TARGET_URL || 'https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded', timeout: 45000 });
+      await s.page.goto(TARGET_URL || 'https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded' });
       checkReachable(s, 'linkedin');
       await humanIdlePause('deliberate');
       await assertAuthed('linkedin', s, { label: 'linkedin_like' });

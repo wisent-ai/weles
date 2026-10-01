@@ -45,7 +45,7 @@ const userDataDir = mkdtempSync(join(workRoot, 'seed-px-'));
 const browser = await launchProfileChrome({ userDataDir, executablePath: CHROME_BIN });
 const page = browser.pages()[0] || await browser.newPage();
 console.log('[seed-px] navigating to linkedin.com/login (real Chrome, fingerprint genuine)');
-try { await page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded', timeout: 30000 }); }
+try { await page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded' }); }
 catch (e) { console.log(`[seed-px] goto err: ${e.message?.slice(0, 120)}`); }
 
 // Auto-fill from Skarbiec if AUTO_LOGIN=1 and credentials are present.
@@ -87,7 +87,7 @@ try {
   let scrapePage = browser.pages().find((p) => p.url().includes('linkedin.com')) ?? browser.pages()[0];
   if (!scrapePage || scrapePage.isClosed()) scrapePage = await browser.newPage();
   if (!scrapePage.url().includes('linkedin.com')) {
-    await scrapePage.goto('https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+    await scrapePage.goto('https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded' });
   }
   lsItems = await scrapePage.evaluate((reSrc) => {
     const re = new RegExp(reSrc);

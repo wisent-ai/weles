@@ -1,4 +1,4 @@
-import { humanIdlePause } from '../../../../dist/human/mouse.js';
+import { pageSettled } from '../page/settled.mjs';
 /**
  * Positive auth probe — the ONLY way an action trajectory or login flow may
  * claim "logged in". URL-bounce checks ("did /messages redirect to /login?")
@@ -221,49 +221,36 @@ export async function assertAuthed(platform, s, opts = {}) {
   if (!probe) {
     throw new AuthProbeError(`assertAuthed: no probe defined for platform=${platform} — add one to auth-probe.mjs`, { platform });
   }
-  const timeout = opts.timeout ?? 6000;
-  const settleMs = opts.settleMs ?? 1500;
   const label = opts.label ?? 'auth-probe';
 
-  // Give the SPA a moment to mount user-specific UI after the initial
-  // navigation. Twitter / Instagram / TikTok all hydrate the topbar via
-  // a post-load XHR; rushing the probe will false-fail on a healthy
-  // session that just hasn't finished mounting.
-  await humanIdlePause().catch(() => {});
+  // The SPA mounts user-specific UI after the initial navigation (Twitter /
+  // Instagram / TikTok hydrate the topbar via a post-load XHR), so the probe
+  // reads the page once it has settled rather than the moment it loaded.
+  await pageSettled(s.page);
 
   // Pass 1: any authed selector visible?
-  const deadline = Date.now() + timeout;
-  let lastErrors = [];
-  while (Date.now() < deadline) {
-    for (const sel of probe.authedSelectors) {
-      try {
-        const visible = await s.page.locator(sel).first().isVisible({ timeout: 500 });
-        if (visible) {
-          console.log(`[${label}] authed: ${platform} matched ${sel}`);
-          return sel;
-        }
-      } catch (e) { lastErrors.push(`${sel}: ${e.message?.slice(0, 60)}`); }
+  for (const sel of probe.authedSelectors) {
+    if (await s.page.locator(sel).first().isVisible()) {
+      console.log(`[${label}] authed: ${platform} matched ${sel}`);
+      return sel;
     }
-    // presenceSelectors: structural markers emitted by SSR only when authed
-    // but with no visible bounding box (e.g. shreddit's user-drawer-button-
-    // logged-in async-loader, username-bearing custom elements). Use count.
-    for (const sel of probe.presenceSelectors ?? []) {
-      try {
-        const n = await s.page.locator(sel).count();
-        if (n > 0) {
-          console.log(`[${label}] authed: ${platform} matched ${sel} (presence-only, count=${n})`);
-          return sel;
-        }
-      } catch (e) { lastErrors.push(`${sel}: ${e.message?.slice(0, 60)}`); }
+  }
+  // presenceSelectors: structural markers emitted by SSR only when authed
+  // but with no visible bounding box (e.g. shreddit's user-drawer-button-
+  // logged-in async-loader, username-bearing custom elements). Use count.
+  for (const sel of probe.presenceSelectors ?? []) {
+    const n = await s.page.locator(sel).count();
+    if (n > 0) {
+      console.log(`[${label}] authed: ${platform} matched ${sel} (presence-only, count=${n})`);
+      return sel;
     }
-    await humanIdlePause('short');
   }
 
   // Pass 2: collect logged-out markers + page-text negative for diagnostics.
   const foundLoggedOut = [];
   for (const sel of probe.loggedOutMarkers ?? []) {
     try {
-      if (await s.page.locator(sel).first().isVisible({ timeout: 500 })) foundLoggedOut.push(sel);
+      if (await s.page.locator(sel).first().isVisible()) foundLoggedOut.push(sel);
     } catch {}
   }
   let bodyTextHit = null;

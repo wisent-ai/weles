@@ -172,7 +172,6 @@ export async function solveLinkedinCheckpoint({ ctx, page }, reason, email) {
 // Body contains a https://www.linkedin.com/comm/psettings/email/confirm?...
 // link signed with id+ct+sig+crua. Hitting it on an authed session removes
 // the banner.
-const CONFIRM_GOTO_MS = 30 * 1000;
 export async function confirmLinkedinEmail(page, email) {
   if (!receivingConfigured()) { console.log('[linkedin_register] the wisent-integrations inbox route is not configured'); return { ok: false, reason: 'no_inbox_route' }; }
   const start = Date.now() - 10 * 60 * 1000;
@@ -193,7 +192,7 @@ export async function confirmLinkedinEmail(page, email) {
   }
   if (!confirmUrl) { console.log('[linkedin_register] no email-confirmation link in inbox'); return { ok: false, reason: 'confirm_email_not_received' }; }
   console.log(`[linkedin_register] navigating to email-confirmation URL`);
-  try { await page.goto(confirmUrl, { waitUntil: 'domcontentloaded', timeout: CONFIRM_GOTO_MS }); }
+  try { await page.goto(confirmUrl, { waitUntil: 'domcontentloaded' }); }
   catch (e) { return { ok: false, reason: `goto_err:${e.message?.slice(0, 80)}` }; }
   await humanIdlePause('deliberate');
   const finalUrl = page.url?.() ?? '';

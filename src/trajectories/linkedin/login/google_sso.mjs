@@ -1,9 +1,9 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { humanIdlePause, humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 import { googleSso, getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
-import { OAUTH_SURFACE_WAIT_MS } from './constants.mjs';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 
 /** The Google SSO credentials for one email, or false when the vault holds none. */
 async function ssoCredentials(email) {
@@ -15,21 +15,18 @@ async function ssoCredentials(email) {
   }
 }
 
-/** The largest visible "Sign in with Google" button among the gsi frames, or false. */
+/** The largest visible "Sign in with Google" button among the gsi frames of the settled page, or false. */
 async function findGoogleButton(page) {
-  for (let i = 0; i < 40; i++) {
-    await humanIdlePause('short');
-    const candidates = [];
-    for (const frame of page.frames().filter((f) => /accounts\.google\.com\/gsi\/button|\/gsi\/button/.test(f.url()))) {
-      const btn = frame.locator('div[role="button"], button').filter({ visible: true }).first();
-      if (!(await btn.isVisible().catch(() => false))) continue;
-      const box = await btn.boundingBox().catch(() => false);
-      if (box && box.width >= 20 && box.height >= 20) candidates.push({ frame, btn, area: box.width * box.height });
-    }
-    candidates.sort((a, b) => b.area - a.area);
-    if (candidates.length) return candidates[0];
+  await pageSettled(page);
+  const candidates = [];
+  for (const frame of page.frames().filter((f) => /accounts\.google\.com\/gsi\/button|\/gsi\/button/.test(f.url()))) {
+    const btn = frame.locator('div[role="button"], button').filter({ visible: true }).first();
+    if (!(await btn.isVisible())) continue;
+    const box = await btn.boundingBox();
+    if (box && box.width >= 20 && box.height >= 20) candidates.push({ frame, btn, area: box.width * box.height });
   }
-  return false;
+  candidates.sort((a, b) => b.area - a.area);
+  return candidates[0] ?? false;
 }
 
 /** Keep the page text and a screenshot beside the run when the SSO surface is missing. */
@@ -64,35 +61,20 @@ export async function loginWithGoogleSso(s, acct) {
   await keepEvidence(s.page, dir, 'google_sso_before_click');
   try { writeFileSync(join(dir, 'google_sso_frame.html'), await best.frame.content()); } catch {}
 
-  const popupPromise = s.page.waitForEvent('popup', { timeout: OAUTH_SURFACE_WAIT_MS }).catch(() => false);
-  const pagePromise = s.page.context().waitForEvent('page', { timeout: OAUTH_SURFACE_WAIT_MS }).catch(() => false);
+  // The Google surface is the popup or new tab the click opens; the sign-in
+  // is over when LinkedIn sets li_at or shows a signed-in page.
+  const opened = Promise.any([s.page.waitForEvent('popup'), s.page.context().waitForEvent('page')]);
   try {
     await humanClickLocator(s.page, best.btn);
   } catch (e) {
     console.log(`[linkedin_login] frame button click failed, clicking it once more: ${e.message?.slice(0, 120)}`);
     await humanClickLocator(s.page, best.btn);
   }
-  const oauthSurface = await Promise.race([popupPromise, pagePromise]);
-  const oauthPage = oauthSurface && typeof oauthSurface.url === 'function' ? oauthSurface : false;
-  if (!oauthPage) {
-    await keepEvidence(s.page, dir, 'google_sso_popup_not_opened');
-    throw new Error('google_sso_popup_not_opened');
-  }
-
-  for (let i = 0; i < 60; i++) {
-    const u = oauthPage.url();
-    if (/accounts\.google\.com/.test(u) && !/^about:blank/i.test(u)) break;
-    await humanIdlePause('short');
-  }
+  const oauthPage = await opened;
+  await oauthPage.waitForURL((url) => /accounts\.google\.com/.test(String(url)));
 
   const ok = await googleSso(s, login, { originHost: 'linkedin.com', page: oauthPage });
   if (!ok) throw new Error('google_sso_flow_failed');
 
-  for (let i = 0; i < 60; i++) {
-    const cookies = await s.ctx.cookies();
-    if (cookies.some((c) => c.name === 'li_at' && c.value)) break;
-    const u = s.page.url?.() ?? '';
-    if (/\/feed|\/in\/|\/m\/feed|\/onboarding/.test(u)) break;
-    await humanIdlePause('short');
-  }
+  await s.page.waitForURL((url) => /\/feed|\/in\/|\/m\/feed|\/onboarding/.test(String(url)));
 }

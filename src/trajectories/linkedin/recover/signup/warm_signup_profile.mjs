@@ -94,7 +94,7 @@ try {
   for (const url of urls) {
     try {
       await s.runStep(`warm_${transitions.length}`, async () => {
-        await s.page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+        await s.page.goto(url, { waitUntil: 'domcontentloaded' });
         return `warmed ${s.page.url()}`;
       });
       await humanScroll(s.page, 900, 3).catch(() => {});
@@ -111,7 +111,7 @@ try {
   }
 
   await s.runStep('warm_signup_landing', async () => {
-    await s.page.goto('https://www.linkedin.com/signup', { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    await s.page.goto('https://www.linkedin.com/signup', { waitUntil: 'domcontentloaded' });
     return `signup ${s.page.url()}`;
   });
   await humanScroll(s.page, 400, 2).catch(() => {});

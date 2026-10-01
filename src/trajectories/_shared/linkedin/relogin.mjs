@@ -23,7 +23,6 @@ import { solveLinkedinCheckpoint, injectV3LoginToken } from './checkpoint.mjs';
 
 const RECAPTCHA_SITEKEY = '6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC';
 const CHECKPOINT_RE = /\/(checkpoint|uas\/login|login\/recovery)/;
-const GOTO_MS = 30 * 1000;
 
 export async function reloginLinkedinInline(s, acct) {
   const email = acct?.metadata?.email ?? acct?.username;
@@ -34,7 +33,7 @@ export async function reloginLinkedinInline(s, acct) {
   // bounce us back to /feed via the auth-aware redirect.
   try { await s.ctx.clearCookies(); } catch {}
   try {
-    await s.page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded', timeout: GOTO_MS });
+    await s.page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded' });
   } catch (e) {
     return { ok: false, reason: `goto_err:${e.message?.slice(0, 80)}` };
   }
@@ -55,7 +54,7 @@ export async function reloginLinkedinInline(s, acct) {
     console.log(`[linkedin_relogin] not on /login — clearing storage and force-navigating`);
     try {
       await s.page.evaluate(`(()=>{try{localStorage.clear();sessionStorage.clear();}catch(e){}})()`);
-      await s.page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded', timeout: GOTO_MS });
+      await s.page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded' });
       await humanIdlePause('short');
       landedUrl = s.page.url?.() ?? '';
       console.log(`[linkedin_relogin] post-force-goto URL: ${landedUrl}`);

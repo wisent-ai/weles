@@ -24,14 +24,14 @@ function phoneDigitsForInput(phone, country) {
 async function findPhoneFrame(page) {
   // Top-level form first — LinkedIn renders the challenge directly on /signup.
   const topPhone = page.locator('input[name="phoneNumber"], input#register-verification-phone-number, input#phone-verification-phone-number, input[type="tel"]').filter({ visible: true }).first();
-  if (await topPhone.count() && await topPhone.isVisible({ timeout: 2000 }).catch(() => false)) {
+  if (await topPhone.count() && await topPhone.isVisible()) {
     return { frame: page, phoneInput: topPhone };
   }
   // Fallback: challenge rendered inside an iframe.
   const frames = page.frames();
   for (const frame of frames) {
     const phoneInput = frame.locator('input[name="phoneNumber"], input#register-verification-phone-number, input#phone-verification-phone-number, input[type="tel"]').filter({ visible: true }).first();
-    if (await phoneInput.count() && await phoneInput.isVisible({ timeout: 1000 }).catch(() => false)) {
+    if (await phoneInput.count() && await phoneInput.isVisible()) {
       return { frame, phoneInput };
     }
   }
@@ -40,7 +40,7 @@ async function findPhoneFrame(page) {
 
 async function findCodeInput(frame) {
   const loc = frame.locator('input[name="pin"], input#register-verification-phone-pin, input#phone-verification-pin, input[autocomplete="one-time-code"], input[type="tel"][maxlength="6"]').filter({ visible: true }).first();
-  if (await loc.count() && await loc.isVisible({ timeout: 2000 }).catch(() => false)) return loc;
+  if (await loc.count() && await loc.isVisible()) return loc;
   return null;
 }
 

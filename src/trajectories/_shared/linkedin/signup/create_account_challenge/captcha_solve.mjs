@@ -1,41 +1,33 @@
 // Solve LinkedIn's captcha challenge through the fleet's captcha solver and submit its token.
 import { CaptchaSolver } from '../../../../../../dist/captcha/solver.js';
 import { humanIdlePause } from '../../../../../../dist/human/mouse.js';
+import { pageSettled } from '../../../page/settled.mjs';
 import { getCaptchaCredentials } from '../../../../../../dist/utils/credentials.js';
 import { isChallengeCleared } from './detect.mjs';
 import { getCaptchaSitekey, getChallengeDataS, submitLinkedinCaptchaForm } from './captcha_form.mjs';
 
 export async function solveLinkedinCaptchaChallenge(page, proxy) {
   console.log('[create_account_challenge] waiting for captcha challenge iframe...');
-  const iframe = page.locator('iframe#captcha-internal').first();
-  for (let i = 0; i < 20; i++) {
-    if (await iframe.count() && await iframe.isVisible({ timeout: 1000 }).catch(() => false)) break;
-    await humanIdlePause('short');
-  }
+  await page.locator('iframe#captcha-internal').first().waitFor({ state: 'visible' });
 
   const sitekey = await getCaptchaSitekey(page);
   if (!sitekey) throw new Error('create_account_challenge: captcha sitekey not found');
   console.log(`[create_account_challenge] captcha sitekey=${sitekey.slice(0, 16)}...`);
   console.log('[create_account_challenge] reading data-s...');
-  const dataS = await Promise.race([
-    getChallengeDataS(page),
-    new Promise((_, reject) => setTimeout(() => reject(new Error('getChallengeDataS timeout')), 15_000)),
-  ]).catch((e) => { console.log(`[create_account_challenge] data-s read failed: ${e.message?.slice(0, 80)}`); return null; });
+  const dataS = await getChallengeDataS(page);
   if (dataS) console.log(`[create_account_challenge] captcha data-s=${dataS.slice(0, 24)}...`);
   else console.log('[create_account_challenge] no data-s found, proceeding without it');
 
-  // If a browser extension solver (e.g. NopeCHA) is active, give it a few
-  // seconds to clear the challenge before we start firing API solvers.
+  // If a browser extension solver (e.g. NopeCHA) is active, it works on the
+  // page by itself; read whether it cleared the challenge once the page settles.
   if (process.env.WELES_NOPECHA_EXT === '1') {
-    console.log('[create_account_challenge] NopeCHA extension detected; waiting for it to solve...');
-    for (let i = 0; i < 30; i++) {
-      await humanIdlePause('short');
-      if (await isChallengeCleared(page)) {
-        console.log('[create_account_challenge] challenge cleared by extension solver');
-        return;
-      }
+    console.log('[create_account_challenge] NopeCHA extension detected; reading the settled page');
+    await pageSettled(page);
+    if (await isChallengeCleared(page)) {
+      console.log('[create_account_challenge] challenge cleared by extension solver');
+      return;
     }
-    console.log('[create_account_challenge] extension did not clear challenge in time; falling back to API solvers');
+    console.log('[create_account_challenge] extension did not clear the challenge; using API solvers');
   }
 
   // LinkedIn's invisible enterprise reCAPTCHA is picky. Try each captcha

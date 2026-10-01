@@ -12,20 +12,12 @@ import { humanIdlePause } from '../../../../../dist/human/mouse.js';
 
 export async function pageHasLoginForm(page) {
   await humanIdlePause('deliberate');
-  try {
-    // page.evaluate has NO default timeout in Playwright — if the page's
-    // main thread is blocked by heavy PX crypto / infinite loops, evaluate
-    // never resolves. Cited .work/li-login-grid-fixed.log 2026-05-06: log
-    // idle 117s after "after goto", evaluate hung. Race with deadline.
-    const evalP = page.evaluate(() => {
-      const inputs = Array.from(document.querySelectorAll('input[type="email"], input[name="session_key"], input#username'));
-      const visible = inputs.filter(i => i.offsetParent !== null && i.offsetWidth > 0 && i.offsetHeight > 0);
-      return { visibleEmailInputs: visible.length };
-    });
-    const deadline = new Promise((_, rej) => setTimeout(() => rej(new Error('eval_deadline')), 10000));
-    const r = await Promise.race([evalP, deadline]);
-    return r.visibleEmailInputs > 0;
-  } catch { return false; }
+  const r = await page.evaluate(() => {
+    const inputs = Array.from(document.querySelectorAll('input[type="email"], input[name="session_key"], input#username'));
+    const visible = inputs.filter(i => i.offsetParent !== null && i.offsetWidth > 0 && i.offsetHeight > 0);
+    return { visibleEmailInputs: visible.length };
+  });
+  return r.visibleEmailInputs > 0;
 }
 
 // Defer to resolveProxy in src/proxy/config.ts so per-provider sticky
@@ -106,13 +98,13 @@ export async function findUnflaggedSticky(maxAttempts = PROVIDER_ROTATION.length
 // session, and restart with the working URL. Caller passes restartFn to
 // rebuild the WSession with the new proxy. Returns the (possibly fresh)
 // session + the proxyUrl actually in use.
-export async function gotoLoginRotating({ session, persona, restartFn, maxRotations = 5, gotoTimeoutMs = 30000 }) {
+export async function gotoLoginRotating({ session, persona, restartFn, maxRotations = 5 }) {
   let s = session;
   let activeProxy = null;
   let attempts = 0;
   while (true) {
     try {
-      await s.page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded', timeout: gotoTimeoutMs });
+      await s.page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded' });
       const url = s.page.url?.() ?? '';
       if (url.startsWith('chrome-error://')) throw new Error('goto_chrome_error');
       if (!(await pageHasLoginForm(s.page))) throw new Error('stripped_login_shell');

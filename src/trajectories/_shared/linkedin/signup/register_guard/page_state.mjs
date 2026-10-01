@@ -1,3 +1,4 @@
+import { pageSettled } from '../../../page/settled.mjs';
 // What the LinkedIn signup page shows: its form selectors, a summary of the page, the
 // challenge it presents, and whether the session is authenticated.
 
@@ -18,14 +19,11 @@ export const LINKEDIN_SIGNUP_PASSWORD_SELECTOR = [
   'input#password',
 ].join(', ');
 
-export async function firstVisible(page, selector, timeout = 2500) {
+/** The first visible match on the settled page, or null when it shows none. */
+export async function firstVisible(page, selector) {
+  await pageSettled(page);
   const loc = page.locator(selector).filter({ visible: true }).first();
-  try {
-    await loc.waitFor({ state: 'visible', timeout });
-    return loc;
-  } catch {
-    return null;
-  }
+  return await loc.isVisible() ? loc : null;
 }
 
 export async function summarizeLinkedinPage(page) {

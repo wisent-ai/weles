@@ -1,6 +1,7 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 import { detectLinkedInBanSignals } from '../../../../dist/platforms/linkedin/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -15,19 +16,12 @@ const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'linkedin_endorse', proxy: proxyUrl, persona });
 const _stored = (acct.metadata?.cookies ?? []).filter(c => /linkedin\.com/.test(c.domain ?? ''));
 if (_stored.length) await s.ctx.addCookies(_stored.map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
-// WSession's context disables Playwright's navigation timeout (defaults to
-// 0 = wait forever) for resilience on slow-loading platforms. That's wrong
-// for action trajectories: when LinkedIn /feed/ redirects through the auth
-// wall on stale cookies, page.goto stalls indefinitely instead of letting
-// the post-goto auth-wall classifier run. Cap nav to a finite ceiling here.
-s.page.setDefaultNavigationTimeout(45_000);
 let ban = null;
 try {
-  // page.goto with 45s timeout — see like.mjs note on s.goto hang.
   let authed = false;
   for (let attempt = 0; attempt < 2 && !authed; attempt++) {
     try {
-      await s.page.goto('https://www.linkedin.com/mynetwork/invite-connect/connections/', { waitUntil: 'domcontentloaded', timeout: 45000 });
+      await s.page.goto('https://www.linkedin.com/mynetwork/invite-connect/connections/', { waitUntil: 'domcontentloaded' });
       checkReachable(s, 'linkedin');
       await humanIdlePause('deliberate');
       await assertAuthed('linkedin', s, { label: 'linkedin_endorse' });
@@ -75,12 +69,13 @@ try {
   // OR a confirmation modal appears asking proficiency. Click "Endorse" in
   // modal if present.
   const modalConfirm = s.page.locator('div.artdeco-modal button:has-text("Endorse")').first();
-  if (await modalConfirm.isVisible({ timeout: 2000 }).catch(() => false)) {
+  await pageSettled(s.page);
+  if (await modalConfirm.isVisible()) {
     await humanClickLocator(s.page, modalConfirm);
+    await pageSettled(s.page);
   }
-  await s.page.waitForFunction(() => {
-    return Array.from(document.querySelectorAll('button[aria-label^="Endorsed "]')).length > 0;
-  }, { timeout: 6000 }).catch(() => {});
+  const endorsed = await s.page.locator('button[aria-label^="Endorsed "]').count();
+  if (endorsed === 0) throw new Error('linkedin_endorse: no Endorsed button after the endorse click');
   ban = await detectLinkedInBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  PASS: endorsed`);
 } catch (e) {

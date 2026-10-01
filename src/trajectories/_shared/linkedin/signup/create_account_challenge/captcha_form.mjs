@@ -58,7 +58,7 @@ export async function getChallengeDataS(page) {
     const v = await frame.evaluate(() => {
       const el = document.querySelector('input[name="_s"]');
       return el && el.value ? el.value : '';
-    }, undefined, { timeout: 3000 }).catch((e) => { console.log(`[create_account_challenge] data-s frame ${i} err: ${e.message?.slice(0, 60)}`); return ''; });
+    });
     if (v) { console.log(`[create_account_challenge] data-s found in frame ${i}`); return v; }
   }
   console.log('[create_account_challenge] data-s not found in any frame');
@@ -71,11 +71,7 @@ export async function submitLinkedinCaptchaForm(page, token, sitekey, dataS) {
   const { frame, tokenInput } = ctx;
   console.log(`[create_account_challenge] captcha token input found in frame=${frame.url?.() ?? 'main'}`);
 
-  try {
-    await tokenInput.waitFor({ state: 'attached', timeout: 10_000 });
-  } catch (e) {
-    return { ok: false, reason: `token_input_not_attached: ${e.message?.slice(0, 80)}` };
-  }
+  await tokenInput.waitFor({ state: 'attached' });
 
   await tokenInput.evaluate((el, t) => {
     el.value = t;
@@ -232,15 +228,8 @@ export async function submitLinkedinCaptchaForm(page, token, sitekey, dataS) {
   const form = frame.locator('form#captcha-challenge').first();
   if (await form.count()) {
     console.log('[create_account_challenge] submitting captcha form via form.submit()');
-    try {
-      await Promise.race([
-        form.evaluate((f) => f.submit()),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('form.submit timeout')), 5000)),
-      ]);
-      await frame.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
-    } catch (e) {
-      console.log(`[create_account_challenge] form.submit() failed or timed out: ${e.message?.slice(0, 120)}`);
-    }
+    await form.evaluate((f) => f.submit());
+    await frame.waitForLoadState('load');
     return { ok: true };
   }
 

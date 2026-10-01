@@ -13,6 +13,7 @@ import { INCLUDE, OUT, PROBE_OS, SAMPLES_PER_PROVIDER, STOP_AFTER_SUBMIT, SUBMIT
 import { buildStickyAuth, fetchRows, hash, includeRow, providerKey, proxyUrlFor, sampleExitIp } from './rotating_weles_probe/proxies.mjs';
 import { classifySummary, summarizeSignup } from './rotating_weles_probe/page.mjs';
 import { submitSignupCandidate } from './rotating_weles_probe/submit.mjs';
+import { pageSettled } from '../../../_shared/page/settled.mjs';
 
 const rows = fetchRows().filter(includeRow);
 const startedAt = new Date().toISOString();
@@ -61,8 +62,8 @@ for (const row of rows) {
         platform: 'linkedin',
       });
       let gotoError = '';
-      await s.page.goto('https://www.linkedin.com/signup', { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch((e) => { gotoError = String(e?.message ?? e).slice(0, 200); });
-      await s.page.waitForTimeout(2500).catch(() => {});
+      await s.page.goto('https://www.linkedin.com/signup', { waitUntil: 'domcontentloaded' }).catch((e) => { gotoError = String(e?.message ?? e).slice(0, 200); });
+      if (!gotoError) await pageSettled(s.page);
       const summary = await summarizeSignup(s.page);
       const classification = classifySummary(summary);
       item.browser = { ...classification, goto_error: gotoError, summary };

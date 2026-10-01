@@ -1,6 +1,7 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 import { detectLinkedInBanSignals } from '../../../../dist/platforms/linkedin/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -17,12 +18,11 @@ const _stored = (acct.metadata?.cookies ?? []).filter(c => /linkedin\.com/.test(
 if (_stored.length) await s.ctx.addCookies(_stored.map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
 let ban = null;
 try {
-  // Use page.goto with 45s timeout — WSession's defaultNavigationTimeout(0)
-  // makes s.goto hang forever on auth-walled redirect chains.
+  // A redirect chain that never ends is ended by cancelling the run.
   let authed = false;
   for (let attempt = 0; attempt < 2 && !authed; attempt++) {
     try {
-      await s.page.goto('https://www.linkedin.com/mynetwork/grow/', { waitUntil: 'domcontentloaded', timeout: 45000 });
+      await s.page.goto('https://www.linkedin.com/mynetwork/grow/', { waitUntil: 'domcontentloaded' });
       checkReachable(s, 'linkedin');
       await humanIdlePause('deliberate');
       await assertAuthed('linkedin', s, { label: 'linkedin_connect' });
@@ -45,13 +45,14 @@ try {
   await humanClickLocator(s.page, inviteBtn);
   // Optional confirm modal: <button aria-label="Send now"> or "Send" inside artdeco-modal.
   const sendBtn = s.page.locator('div.artdeco-modal button[aria-label="Send now"], div.artdeco-modal button:has-text("Send")').first();
-  if (await sendBtn.isVisible({ timeout: 2500 }).catch(() => false)) {
+  await pageSettled(s.page);
+  if (await sendBtn.isVisible()) {
     await humanClickLocator(s.page, sendBtn);
+    await pageSettled(s.page);
   }
   // Verify state flip: same card's button toggles to "Pending"/aria-label="Pending, click to withdraw invitation"
-  await s.page.waitForFunction(() => {
-    return Array.from(document.querySelectorAll('button[aria-label*="Pending" i]')).length > 0;
-  }, { timeout: 6000 }).catch(() => {});
+  const pending = await s.page.locator('button[aria-label*="Pending" i]').count();
+  if (pending === 0) throw new Error('linkedin_connect: no Pending button after the invite click');
   ban = await detectLinkedInBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  PASS: connection_requested`);
 } catch (e) {

@@ -36,18 +36,18 @@ async function nudgeIntoSignup(page) {
     'a[href*="/signup"]',
   ];
   for (const sel of joinSelectors) {
-    const loc = await firstVisible(page, sel, 1200);
+    const loc = await firstVisible(page, sel);
     if (!loc) continue;
     await humanClickLocator(page, loc).catch(() => {});
-    await page.waitForLoadState('domcontentloaded', { timeout: 8000 }).catch(() => {});
+    await page.waitForLoadState('domcontentloaded');
     return `clicked:${sel}`;
   }
   const url = page.url?.() ?? '';
   if (!/\/signup/.test(url)) {
-    await page.goto('https://www.linkedin.com/signup', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.goto('https://www.linkedin.com/signup', { waitUntil: 'domcontentloaded' });
     return 'goto:/signup';
   }
-  await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+  await page.reload({ waitUntil: 'domcontentloaded' });
   return 'reload:/signup';
 }
 
@@ -55,8 +55,8 @@ export async function ensureLinkedinSignupForm(session, maxAttempts = 3) {
   const page = session.page;
   const actions = [];
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const emailLoc = await firstVisible(page, LINKEDIN_SIGNUP_EMAIL_SELECTOR, attempt === 0 ? 3500 : 7000);
-    const pwdLoc = emailLoc ? await firstVisible(page, LINKEDIN_SIGNUP_PASSWORD_SELECTOR, 1500) : null;
+    const emailLoc = await firstVisible(page, LINKEDIN_SIGNUP_EMAIL_SELECTOR);
+    const pwdLoc = emailLoc ? await firstVisible(page, LINKEDIN_SIGNUP_PASSWORD_SELECTOR) : null;
     if (emailLoc && pwdLoc) {
       console.log(`[linkedin_register] signup form ready after ${attempt + 1} attempt(s) actions=${actions.join('|') || 'none'}`);
       return { emailLoc, pwdLoc };

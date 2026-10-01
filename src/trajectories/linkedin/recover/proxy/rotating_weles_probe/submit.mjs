@@ -1,6 +1,7 @@
 // Submitting one signup candidate through the probe's session, when the operator asked for it.
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
+import { pageSettled } from '../../../../_shared/page/settled.mjs';
 import { getLinkedinChallengeSignal } from '../../../../_shared/linkedin/signup/register_guard.mjs';
 import { hash } from './proxies.mjs';
 import { classifySummary, linkedinAuthState, summarizeApiResponse, summarizeSignup } from './page.mjs';
@@ -24,15 +25,15 @@ export async function submitSignupCandidate(session) {
 
   const emailLoc = session.page.locator('input[name="email-address"], input#email-address, input[type="email"]').filter({ visible: true }).first();
   const pwdLoc = session.page.locator('input[name="password"], input#password, input[type="password"]').filter({ visible: true }).first();
-  await emailLoc.waitFor({ state: 'visible', timeout: 8000 });
-  await pwdLoc.waitFor({ state: 'visible', timeout: 8000 });
+  await emailLoc.waitFor({ state: 'visible' });
+  await pwdLoc.waitFor({ state: 'visible' });
   await humanFill(session.page, emailLoc, id.email);
   await humanIdlePause('short');
   await humanFill(session.page, pwdLoc, id.password);
   await humanIdlePause('deliberate');
 
-  const submit1Req = session.page.waitForRequest((r) => /\/signup\/api\//.test(r.url()), { timeout: 12_000 }).catch(() => null);
-  const submit1Res = session.page.waitForResponse((r) => /\/signup\/api\//.test(r.url()), { timeout: 12_000 }).catch(() => null);
+  const submit1Req = session.page.waitForRequest((r) => /\/signup\/api\//.test(r.url()));
+  const submit1Res = session.page.waitForResponse((r) => /\/signup\/api\//.test(r.url()));
   await humanClickLocator(session.page, session.page.locator('button[type="submit"]:has-text("Agree"), button[type="submit"]:has-text("Continue"), button#join-form-submit').first());
   await humanIdlePause('deliberate');
   const [s1Req, s1Res] = await Promise.all([submit1Req, submit1Res]);
@@ -49,8 +50,9 @@ export async function submitSignupCandidate(session) {
 
   const firstLoc = session.page.locator('input[name="first-name"], input#first-name').filter({ visible: true }).first();
   const lastLoc = session.page.locator('input[name="last-name"], input#last-name').filter({ visible: true }).first();
-  const firstVisible = await firstLoc.isVisible({ timeout: 12_000 }).catch(() => false);
-  const lastVisible = await lastLoc.isVisible({ timeout: 3000 }).catch(() => false);
+  await pageSettled(session.page);
+  const firstVisible = await firstLoc.isVisible();
+  const lastVisible = await lastLoc.isVisible();
   if (!firstVisible || !lastVisible) {
     out.result = 'no_first_last_after_email_password';
     out.auth = await linkedinAuthState(session);
@@ -62,8 +64,8 @@ export async function submitSignupCandidate(session) {
   await humanFill(session.page, lastLoc, id.lastName);
   await humanIdlePause('deliberate');
 
-  const createReq = session.page.waitForRequest((r) => /\/signup\/api\/cors\/createAccount/.test(r.url()), { timeout: 20_000 }).catch(() => null);
-  const createRes = session.page.waitForResponse((r) => /\/signup\/api\/cors\/createAccount/.test(r.url()), { timeout: 20_000 }).catch(() => null);
+  const createReq = session.page.waitForRequest((r) => /\/signup\/api\/cors\/createAccount/.test(r.url()));
+  const createRes = session.page.waitForResponse((r) => /\/signup\/api\/cors\/createAccount/.test(r.url()));
   await humanClickLocator(session.page, session.page.locator('button[type="submit"]:has-text("Continue"), button#join-form-submit').first());
   const [cReq, cRes] = await Promise.all([createReq, createRes]);
   const createSummary = await summarizeApiResponse(cRes);
@@ -74,7 +76,7 @@ export async function submitSignupCandidate(session) {
 
   if (createSummary?.has_challenge_url) {
     const challengeUrl = new URL(createSummary.challenge_url_prefix, 'https://www.linkedin.com/').toString();
-    await session.page.goto(challengeUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {});
+    await session.page.goto(challengeUrl, { waitUntil: 'domcontentloaded' });
     await humanIdlePause('deliberate');
     const challengeSummary = await summarizeSignup(session.page).catch(() => null);
     out.challenge = {

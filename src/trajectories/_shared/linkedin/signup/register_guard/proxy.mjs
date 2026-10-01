@@ -45,7 +45,7 @@ export async function assertLinkedinProxyStable(session, stage, expectedExitIp =
   }
   let actual = '';
   try {
-    const res = await session.ctx.request.get('https://api.ipify.org', { timeout: 15000 });
+    const res = await session.ctx.request.get('https://api.ipify.org');
     actual = (await res.text()).trim();
   } catch (e) {
     throw new Error(`PROXY_DRIFT_CHECK_FAILED: stage=${stage} err=${e.message?.slice(0, 120)}`);
