@@ -120,8 +120,8 @@ export async function solveLinkedinCheckpoint({ ctx, page }, reason, email) {
   // not the invisible token flow. CapSolver's ReCaptchaV2EnterpriseTaskProxyLess
   // returns a g-recaptcha-response token in seconds, but injecting it via
   // outer-page DOM (textarea fill + grecaptcha.getResponse override) does NOT
-  // trigger the captcha widget's internal verify-callback — verified live
-  // 2026-05-03: 3 consecutive token-injects all left URL on /checkpoint.
+  // trigger the captcha widget's internal verify-callback: consecutive
+  // token-injects all leave the URL on /checkpoint.
   // Skip the token attempts entirely and call the in-page image-grid solver,
   // which clicks tiles inside the bframe via the trusted-event Playwright
   // pipeline; this path has demonstrated 'Frame detached — SOLVED!' success.

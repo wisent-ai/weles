@@ -1,7 +1,6 @@
 // Discord email-verify trajectory. Drives the SPA verify flow for a freshly
 // registered Discord account whose email is sitting on the Unverified state
-// in User Settings. Sequence captured 1:1 from the keeper-driven demo of
-// 2026-05-19 (account rileydawson221194).
+// in User Settings. Sequence captured 1:1 from a keeper-driven demo.
 //
 // The inbox has no push or blocking read, so the flow never waits for mail:
 //   1. Source account via getSocialAccount('discord') + persona/proxy from

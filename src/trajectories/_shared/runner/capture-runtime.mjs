@@ -51,10 +51,9 @@ export function planFromEnv(name, parse) {
 // A plan that asks for a recording gets the browser's own recorder. The
 // alternative — capture CDP screencast frames and stitch them with ffmpeg —
 // needs an ffmpeg that can read a PNG sequence off disk, and a managed
-// worker carries only the cut-down build its browser runtime installs: on
-// 2026-09-20 five captures of app.wisent.com in a row ended with
-// `Error opening input: No such file or directory` about a directory the
-// worker's own diagnostics listed with 4,637 frames in it. The recorder
+// worker carries only the cut-down build its browser runtime installs, so
+// a capture ends with `Error opening input: No such file or directory`
+// about a directory the worker's own diagnostics list as full of frames. The recorder
 // Playwright drives writes WebM through the same bundled binary by design,
 // so a recording needs nothing installed that a browser run does not.
 export async function startCaptureSession(label, plan) {

@@ -2,9 +2,9 @@
 // network call, which is cached to ~/.weles/asn_cache.json so repeated
 // burns on the same IP don't re-hit RIPEstat.
 //
-// Burn reputation aggregates at /19 + ASN for LinkedIn (verified
-// 2026-05-15: 28 createAccount challenges spanned 4 distinct /24s inside
-// one Comcast 135.132.64.0/19 — the /32 was never the discriminator).
+// Burn reputation aggregates at /19 + ASN for LinkedIn: createAccount
+// challenges span several distinct /24s inside one ISP /19, so the /32 is
+// never the discriminator.
 // markBurnedIp records every level so isIpBurned can answer at whichever
 // granularity the platform actually gates on.
 

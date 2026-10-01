@@ -122,8 +122,8 @@ export function toCppConfig(
     canvas: config.canvas, audio: config.audio,
     clientHints: { platform: chPlatform, platformVersion: chPlatformVersion, architecture: chArchitecture, bitness: '64', model: '', mobile: false, wow64: false, fullVersion,
       // Chrome's sec-ch-ua brand ORDER is produced by a deterministic
-      // version-keyed greasing algorithm. The empirical order for v147 (verified
-      // 2026-04-18 via side-by-side real Chrome capture) is
+      // version-keyed greasing algorithm. The empirical order for v147 (from
+      // a side-by-side real Chrome capture) is
       //   [Google Chrome, Not.A/Brand, Chromium]
       // NOT alphabetical and NOT [Not.A/Brand, Chromium, Google Chrome] as this
       // file previously hard-coded, which TikTok's mssdk detected as non-Chrome.

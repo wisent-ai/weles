@@ -8,8 +8,8 @@
 
 // Highest priority first. A live Google page always outranks the parent's
 // "Continue with Google" gate, because the parent still shows that gate while
-// the popup holds the account decision — that is exactly the pair of states the
-// 2026-08-17 run mistook for "nothing happened" and re-clicked.
+// the popup holds the account decision — exactly the pair of states a run
+// mistakes for "nothing happened" and re-clicks.
 const GIS_VARIANT_PRIORITY = [
   'code_page',
   'oauth_consent',
@@ -35,8 +35,8 @@ export function gisVariantRank(variant) {
   return i < 0 ? GIS_VARIANT_PRIORITY.length : i;
 }
 
-// Name the state the page is in. Every name here is either proven by the
-// 2026-08-17 recording or is a Google sign-in surface this file already drives
+// Name the state the page is in. Every name here is either proven by a
+// retained recording or is a Google sign-in surface this file already drives
 // elsewhere; anything else stays 'unknown' and ends up in the failure message
 // rather than being guessed at.
 export function classifyGisState(st) {

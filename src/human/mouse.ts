@@ -242,8 +242,8 @@ export async function humanHoverDwell(
   try { box = await locator.boundingBox?.(); } catch { return false; }
   if (!box || box.width < 4 || box.height < 4) return false;
   // Skip if outside the viewport — humanMove to a negative or off-screen Y
-  // silently kills the CDP session on weles-patched Chromium (verified
-  // 2026-04-30 on the comment composer flow).
+  // silently kills the CDP session on weles-patched Chromium (seen on the
+  // comment composer flow).
   let viewportH = 800;
   try { viewportH = await page.evaluate(() => window.innerHeight); } catch { /* keep heuristic 800 */ }
   if (box.y < 0 || box.y + box.height > viewportH) {

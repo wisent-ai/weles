@@ -1,5 +1,5 @@
 // Navigation + auth-wall + assertAuthed gate. Extracted from action-runner.mjs
-// 2026-05-04 to fit under the 300-line cap and to add cfg.inlineRelogin
+// to fit under the 300-line cap and to add cfg.inlineRelogin
 // support so engagement trajectories can recover from auth_wall on the
 // SAME WSession (rather than dying + queueing a routine tick that lands
 // on a different proxy sticky and re-burns).

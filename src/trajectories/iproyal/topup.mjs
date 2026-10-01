@@ -24,8 +24,8 @@ try {
 
   await urlMatching(s.page, /^(?!.*\/login)/);
 
-  // IPRoyal's actual topup flow: there is no /balance route (verified
-  // 2026-05-04: dashboard.iproyal.com/balance returns 404 Page Not Found).
+  // IPRoyal's actual topup flow: there is no /balance route
+  // (dashboard.iproyal.com/balance answers 404 Page Not Found).
   // The real entry point is the "+ Add funds" button in the topbar of the
   // home dashboard, next to the $0.00 balance display.
   await s.page.goto('https://dashboard.iproyal.com/', { waitUntil: 'domcontentloaded' }).catch(() => {});

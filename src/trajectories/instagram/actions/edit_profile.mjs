@@ -1,9 +1,9 @@
 // Write the linked character's persona content (bio, display_name, optional
 // external_url) onto the instagram profile via /accounts/edit/.
 //
-// 2026-05-06 evidence: 0 of 102 active social_accounts had avatar_url set
-// and only 90/102 had display_name; the character rows had rich bio +
-// personality but nothing was propagating to the platform UI.
+// Why: character rows carry a rich bio and personality while most active
+// social_accounts have no avatar_url and many no display_name, so nothing
+// propagates to the platform UI without this.
 //
 // Idempotent: skips writes when the form value already equals the character
 // row's value, so re-running is cheap.

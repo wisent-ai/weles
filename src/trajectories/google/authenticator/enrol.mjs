@@ -74,9 +74,9 @@ async function main() {
     process.exit(2);
   }
   const login = loginMaterial(loginItem);
-  // One persistent profile per GOOGLE ACCOUNT, not per login item: on
-  // 2026-09-21 `claude-wisent-google-sso` stopped at `google_push_not_approved`
-  // for an account already signed in from this host under another row.
+  // One persistent profile per GOOGLE ACCOUNT, not per login item: a profile
+  // per item stops at `google_push_not_approved` for an account already
+  // signed in from this host under another row.
   const userDataDir = accountProfileDir(login);
   const session = await WSession.start({
     label: `google-authenticator-enrol-${loginItem}`, browser: 'chromium', headless: false, userDataDir,

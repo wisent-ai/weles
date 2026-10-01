@@ -57,10 +57,9 @@ export const PROVIDER_ROTATION = (() => {
 
 // curl-based preflight: hit /login through the proxy and check whether the
 // response body contains the markers a real form has. Cheap (no Chromium
-// boot) — lets us probe many stickies before committing to one. Confirmed
-// 2026-05-04 04:41: a clean exit serves an HTML body containing
-// `name="session_key"` and an email input; a flagged exit serves a stripped
-// shell missing both.
+// boot) — lets us probe many stickies before committing to one. A clean
+// exit serves an HTML body containing `name="session_key"` and an email
+// input; a flagged exit serves a stripped shell missing both.
 export async function curlProbeLoginForm(proxyUrl) {
   const { execFile } = await import('node:child_process');
   return await new Promise((resolve) => {

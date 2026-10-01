@@ -1,7 +1,7 @@
 // The merged instrumentation dump of one WSession: wires every capture
 // surface at start, writes the dump on an interval and at close. The
 // complete network record itself lives in capture/network_record.ts.
-// 2026-05-15: extracted from wsession.ts to keep that file under the 300-line
+// Extracted from wsession.ts to keep that file under the 300-line
 // cap. Also handles the per-frame JS access-trap flush so the whole {accesses,
 // requests} dump lives in one helper. The shared `reqs` array is exposed via
 // `(ws as any)._instRequests` so finalize.ts can write the final dump shape.

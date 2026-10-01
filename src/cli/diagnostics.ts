@@ -60,12 +60,12 @@ export async function runDoctor(pkg: { version?: string; bin?: unknown }): Promi
   }
 
   // Which revision this host actually built, against the revision the
-  // deployment declares, and the Brama alias that revision will ask for. On
-  // 2026-09-06 the managed runtime was three weeks behind its own repository
-  // and asked Brama for `best`, a subscription route whose credentials had
-  // lapsed, so every browser task on the host failed while the host's own
-  // bearer was being served. Nothing reported the gap: `doctor` said the
-  // version in `package.json`, which is the repository's, not the runtime's.
+  // deployment declares, and the Brama alias that revision will ask for. A
+  // managed runtime weeks behind its own repository can ask Brama for a
+  // route whose credentials have lapsed, so every browser task on the host
+  // fails while the host's own bearer is being served; a `doctor` that
+  // reports the version in `package.json` reports the repository's, not the
+  // runtime's, and never names the gap.
   const managed = inspectManagedRuntime();
   report.managedRuntime = managed;
   if (!managed.ok) {

@@ -81,9 +81,9 @@ export async function patchEffectiveBalance(displayName, dashboardBalance) {
   // no-probe: write whatever the dashboard scraped, including 0 — every
   // balance trajectory now forensic-dumps on regex miss and throws before
   // calling this helper, so dashboardBalance==null cannot reach here. A
-  // scraped 0 is a real "depleted" reading and must be trusted; the prior
-  // 2026-05-08 "preserve prior balance on probe-OK + dashboard-zero" branch
-  // perpetuated $0 forever once a row was ever 0.
+  // scraped 0 is a real "depleted" reading and must be trusted; a "preserve
+  // prior balance on probe-OK + dashboard-zero" branch perpetuates $0
+  // forever once a row was ever 0.
   let effective = dashboardBalance;
   let note = null;
   if (probe && !probe.ok) {

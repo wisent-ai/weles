@@ -102,11 +102,10 @@ export async function selectAuthenticatorMethod(page, hasCode) {
     throw challengeFailure('google_sign_in_state_unavailable', 'Google sign-in state could not be read', observed);
   }
   if (!hasCode) {
-    // The refusal used to end at "has no authenticator seed", which left the
-    // reader to discover on their own which item, which field and which
-    // command. Every automatic sign-in for this pool failed on it through
-    // 2026-09-20, and the gateway above reported only "no working
-    // subscription model for signed agent".
+    // A refusal that ends at "has no authenticator seed" leaves the reader to
+    // discover on their own which item, which field and which command, while
+    // every automatic sign-in for the pool fails on it and the gateway above
+    // reports only "no working subscription model for signed agent".
     //
     // It then named the field but not the capability that fills it, so the
     // only reading left was "somebody must paste a secret in". There is a
