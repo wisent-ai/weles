@@ -13,7 +13,8 @@ import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { CaptchaSolver } from '../../../../../dist/captcha/solver.js';
 import { humanFill, humanType } from '../../../../../dist/human/keyboard.js';
-import { humanClickLocator, humanIdlePause, humanScroll } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanScroll } from '../../../../../dist/human/mouse.js';
+import { pageSettled } from '../../../../_shared/page/settled.mjs';
 import { readScopedProxy } from '../../../../_shared/scoped-secrets.mjs';
 import { launchGenuineChrome } from '../../../../browser/real_chrome.mjs';
 import { accountItemFor, writeAccount } from '../../../_shared/skarbiec/accounts.mjs';
@@ -69,27 +70,27 @@ if (NOPECHA_KEY) {
   // Magic URL config — cited nopecha-ext/pages/setup.js. Hash format:
   // KEY|setting=value|setting=value imported by setup content script.
   const hash = `${NOPECHA_KEY}|perimeterx_auto_solve=true|perimeterx_auto_open=true|perimeterx_solve_delay=false`;
-  try { await page.goto(`https://nopecha.com/setup#${encodeURIComponent(hash)}`, { waitUntil: 'domcontentloaded' }); await humanIdlePause('deliberate'); console.log(`[reg-real] NopeCha magic-URL configured (px_auto_solve=true)`); }
+  try { await page.goto(`https://nopecha.com/setup#${encodeURIComponent(hash)}`, { waitUntil: 'domcontentloaded' }); await pageSettled(page); console.log(`[reg-real] NopeCha magic-URL configured (px_auto_solve=true)`); }
   catch (e) { console.log(`[reg-real] NopeCha magic-URL err: ${e.message?.slice(0,100)}`); }
 }
 
 try {
   await page.goto('https://www.linkedin.com/', { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('deliberate');
+  await pageSettled(page);
   await humanScroll(page, { direction: 'down', distance: 600 }).catch(() => {});
-  await humanIdlePause('short');
+  await pageSettled(page);
   await page.goto('https://www.linkedin.com/signup', { waitUntil: 'domcontentloaded', referer: 'https://www.linkedin.com/' });
-  await humanIdlePause('deliberate');
+  await pageSettled(page);
 
   // Humanized fill — emits real keypress/keyup/keydown events with realistic
   // timing distributions. PX scores these positively. Cited weles/src/human/
   // keyboard.ts humanFill: clicks first, then types char-by-char with delays.
   const emailLoc = page.locator('input[name="email-address"], input#email-address, input[type="email"]').first();
   await humanFill(page, emailLoc, id.email);
-  await humanIdlePause('short');
+  await pageSettled(page);
   const pwLoc = page.locator('input[name="password"], input#password, input[type="password"]').first();
   await humanFill(page, pwLoc, id.password);
-  await humanIdlePause('deliberate');
+  await pageSettled(page);
   console.log('[reg-real] humanized email + password fill');
 
   // V3 invisible reCAPTCHA — solve + inject before Agree & Join
@@ -108,16 +109,16 @@ try {
 
   // Click Agree & Join
   await humanClickLocator(page, page.locator('button:has-text("Agree & Join"), button:has-text("Continue"), button[type="submit"]').first());
-  await humanIdlePause('long');
+  await pageSettled(page);
   console.log(`[reg-real] post-join url=${page.url()}`);
 
   // Optional name page
   const firstIn = page.locator('input[name="first-name"], input#first-name').first();
   if (await firstIn.isVisible().catch(() => false)) {
     await humanFill(page, firstIn, id.first);
-    await humanIdlePause('short');
+    await pageSettled(page);
     await humanFill(page, page.locator('input[name="last-name"], input#last-name').first(), id.last);
-    await humanIdlePause('deliberate');
+    await pageSettled(page);
     const v3b = await solver.solveRecaptchaV3(RECAPTCHA_SITEKEY, page.url(), 'signup');
     if (v3b) {
       await page.evaluate((tk) => {
@@ -129,85 +130,69 @@ try {
       }, v3b);
     }
     await humanClickLocator(page, page.locator('button:has-text("Continue"), button[type="submit"]').first());
-    await humanIdlePause('long');
+    await pageSettled(page);
     console.log(`[reg-real] post-name url=${page.url()}`);
   }
 
   // V2 modal: detect by visible "Security verification" modal text (not
-  // by iframe presence, since V3 invisible iframe uses the same selector).
-  // Cited 2026-05-06 .work/reg-real-humanized.log + .work/chrome-humanized-small.jpg:
-  // V2 anchor iframe loads AFTER initial detection window, so use the
-  // modal-text trigger then wait for V2 anchor sitekey.
-  for (let i = 0; i < 30; i++) {
-    const v2Visible = await page.evaluate(() => /Security verification|Let.s do a quick security check/i.test(document.body?.innerText || '')).catch(() => false);
-    if (v2Visible) {
-      console.log('[reg-real] V2 modal detected — finding anchor frame');
-      try {
-        // LinkedIn /signup V2 modal uses Google's standard reCAPTCHA
-        // iframe (no captchaInternal wrapper). Walk page.frames() to find
-        // the anchor frame directly. Cited 2026-05-06 register attempts:
-        // captchaInternal selector timed out on /signup but anchor URL
-        // pattern recaptcha/enterprise/anchor or recaptcha/api2/anchor
-        // is present in page.frames().
-        // Filter: V2 modal anchor has sitekey DIFFERENT from V3
-        // (RECAPTCHA_SITEKEY 6LcIy_MqAA...). V3 widget is invisible
-        // background, V2 is the visible "I'm not a robot" modal. Cited
-        // 2026-05-06: register found anchor with k=6LcIy... (V3) and
-        // clicking it timed out because that widget has no visible
-        // checkbox to click. The V2 anchor uses a different sitekey
-        // (e.g. 6LfmKkwrAAAAAAgHjKMj from earlier extraction).
-        let anchorFrame = null;
-        let v2Sitekey = null;
-        // 60s window — V2 anchor iframe loads lazily after modal renders.
-        for (let j = 0; j < 120; j++) {
-          for (const f of page.frames()) {
-            const u = f.url() || '';
-            if (!/recaptcha\/(enterprise|api2)\/anchor/.test(u)) continue;
-            const m = u.match(/[?&]k=([0-9A-Za-z_-]+)/);
-            if (m && m[1] !== RECAPTCHA_SITEKEY) { anchorFrame = f; v2Sitekey = m[1]; break; }
-          }
-          if (anchorFrame) break;
-          await humanIdlePause('short');
-        }
-        if (!anchorFrame) throw new Error(`V2 anchor frame not found (only V3 anchor present). frames=${page.frames().map(f => (f.url()||'').slice(0,80)).join('|').slice(0,400)}`);
-        console.log(`[reg-real] V2 anchor sitekey=${v2Sitekey?.slice(0, 20)}... url=${anchorFrame.url().slice(0, 80)}`);
-        await humanClickLocator(page, anchorFrame.locator('#recaptcha-anchor'));
-        console.log('[reg-real] V2 checkbox clicked');
-        await humanIdlePause('deliberate');
-        // Check if auto-passed (real Chrome often auto-passes V2 with valid PX trust)
-        const checked = await page.frameLocator('iframe[src*="anchor"]').first().locator('.recaptcha-checkbox').getAttribute('aria-checked').catch(() => null);
-        console.log(`[reg-real] post-click aria-checked=${checked}`);
-        // Image challenge: wait for bframe with grid, screenshot, classify
-        // via NopeCha API, click tiles, click Verify. The dist-bundled
-        // solveRecaptchaV2 doesn't work on /signup because it expects
-        // captchaInternal wrapper.
-        let bframe = null;
-        for (let k = 0; k < 20; k++) {
-          bframe = page.frames().find(f => /recaptcha\/(enterprise|api2)\/bframe/.test(f.url()));
-          if (bframe) {
-            const ready = await bframe.evaluate(() => !!document.querySelector('.rc-imageselect-desc, .rc-imageselect-desc-no-canonical')).catch(() => false);
-            if (ready) break;
-          }
-          await humanIdlePause('short');
-        }
+  // by iframe presence, since V3 invisible iframe uses the same selector),
+  // read once the page has settled after the join click.
+  await pageSettled(page);
+  const v2Visible = await page.evaluate(() => /Security verification|Let.s do a quick security check/i.test(document.body?.innerText || ''));
+  if (v2Visible) {
+    console.log('[reg-real] V2 modal detected — finding anchor frame');
+    try {
+      // LinkedIn /signup V2 modal uses Google's standard reCAPTCHA iframe (no
+      // captchaInternal wrapper). The V2 anchor carries a sitekey different
+      // from the invisible V3 widget's (RECAPTCHA_SITEKEY); it loads lazily
+      // after the modal renders, so it is taken from the frame that navigates
+      // to it.
+      const isV2Anchor = (f) => {
+        const m = (f.url() || '').match(/recaptcha\/(?:enterprise|api2)\/anchor.*[?&]k=([0-9A-Za-z_-]+)/);
+        return Boolean(m && m[1] !== RECAPTCHA_SITEKEY);
+      };
+      let anchorFrame = page.frames().find(isV2Anchor) ?? null;
+      if (!anchorFrame) {
+        const { promise, resolve } = Promise.withResolvers();
+        const onNavigated = (f) => { if (isV2Anchor(f)) resolve(f); };
+        page.on('framenavigated', onNavigated);
+        anchorFrame = await promise;
+        page.off('framenavigated', onNavigated);
+      }
+      await anchorFrame.waitForLoadState('load');
+      const v2Sitekey = anchorFrame.url().match(/[?&]k=([0-9A-Za-z_-]+)/)?.[1];
+      console.log(`[reg-real] V2 anchor sitekey=${v2Sitekey?.slice(0, 20)}... url=${anchorFrame.url().slice(0, 80)}`);
+      await humanClickLocator(page, anchorFrame.locator('#recaptcha-anchor'));
+      console.log('[reg-real] V2 checkbox clicked');
+      // Either the checkbox passes on its own (real Chrome often auto-passes
+      // V2 with valid PX trust) or Google opens the image challenge.
+      const challenge = page.frameLocator('iframe[src*="bframe"]').first().locator('.rc-imageselect-desc, .rc-imageselect-desc-no-canonical').first();
+      await Promise.any([
+        anchorFrame.locator('.recaptcha-checkbox[aria-checked="true"]').waitFor({ state: 'attached' }),
+        challenge.waitFor({ state: 'visible' }),
+      ]);
+      const checked = await anchorFrame.locator('.recaptcha-checkbox').getAttribute('aria-checked');
+      console.log(`[reg-real] post-click aria-checked=${checked}`);
+      if (checked !== 'true') {
+        // Image challenge: screenshot the grid, classify via NopeCha, click
+        // tiles, click Verify. The dist-bundled solveRecaptchaV2 doesn't work
+        // on /signup because it expects the captchaInternal wrapper.
+        const bframe = page.frames().find(f => /recaptcha\/(enterprise|api2)\/bframe/.test(f.url()));
         if (!bframe) throw new Error('bframe never appeared after V2 click');
         const instruction = await bframe.evaluate(() => document.querySelector('.rc-imageselect-desc, .rc-imageselect-desc-no-canonical')?.innerText ?? '');
         const gridSize = await bframe.evaluate(() => { const t = document.querySelector('table.rc-imageselect-table-44, table.rc-imageselect-table-33, table.rc-imageselect-table'); if (!t) return 3; return t.querySelectorAll('tr')[0]?.querySelectorAll('td').length || 3; });
         console.log(`[reg-real] V2 grid challenge: "${instruction.replace(/\n/g,' ').slice(0,60)}" ${gridSize}x${gridSize}`);
         const gridHandle = await bframe.$('div.rc-imageselect-payload, table.rc-imageselect-table-44, table.rc-imageselect-table-33, table.rc-imageselect-table');
         const gridImg = (await gridHandle.screenshot({ type: 'jpeg', quality: 90 })).toString('base64');
-        // NopeCha recognition
+        // NopeCha recognition: one result read; the API has no push or blocking answer.
         const npKey = process.env.NOPECHA_API_KEY;
         let positions = null;
         if (npKey) {
           const post = await (await fetch('https://api.nopecha.com/v1/recognition/recaptcha', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Basic ${npKey}` }, body: JSON.stringify({ type: 'recaptcha', task: instruction.replace(/\n/g, ' ').trim(), image_data: [gridImg], grid: `${gridSize}x${gridSize}` }) })).json();
           if (post?.data) {
-            for (let p = 0; p < 30; p++) {
-              await humanIdlePause('deliberate');
-              const get = await (await fetch(`https://api.nopecha.com/v1/recognition/recaptcha?id=${post.data}`, { headers: { Authorization: `Basic ${npKey}` } })).json();
-              if (Array.isArray(get?.data)) { positions = get.data.map((v, i) => v ? i + 1 : 0).filter(Boolean); break; }
-              if (get?.error && get.error !== 14) break;
-            }
+            const get = await (await fetch(`https://api.nopecha.com/v1/recognition/recaptcha?id=${post.data}`, { headers: { Authorization: `Basic ${npKey}` } })).json();
+            if (Array.isArray(get?.data)) positions = get.data.map((v, i) => v ? i + 1 : 0).filter(Boolean);
+            else if (get?.error === 14) console.log(`[reg-real] captcha_nopecha_processing: job ${post.data} has no result yet`);
           }
         }
         console.log(`[reg-real] V2 NopeCha positions=${JSON.stringify(positions)}`);
@@ -216,19 +201,17 @@ try {
             const row = Math.floor((pos - 1) / gridSize) + 1;
             const col = (pos - 1) % gridSize + 1;
             try { await humanClickLocator(page, bframe.locator(`table tr:nth-child(${row}) td:nth-child(${col})`)); } catch { /* tile may have animated away */ }
-            await humanIdlePause('short');
+            await pageSettled(page);
           }
         }
         try { await humanClickLocator(page, bframe.locator('#recaptcha-verify-button')); } catch { /* verify button may have moved */ }
         console.log('[reg-real] V2 verify clicked');
-        await humanIdlePause('long');
-        try { await humanClickLocator(page, page.locator('button:has-text("Verify"), button:has-text("Continue"), button:has-text("Submit"), button[type="submit"]').last()); } catch { /* submit button may be missing */ }
-        await humanIdlePause('long');
-        console.log(`[reg-real] post-V2 url=${page.url()}`);
-      } catch (e) { console.log(`[reg-real] V2 handler err: ${e.message?.slice(0, 120)}`); }
-      break;
-    }
-    await humanIdlePause('short');
+        await pageSettled(page);
+      }
+      try { await humanClickLocator(page, page.locator('button:has-text("Verify"), button:has-text("Continue"), button:has-text("Submit"), button[type="submit"]').last()); } catch { /* submit button may be missing */ }
+      await pageSettled(page);
+      console.log(`[reg-real] post-V2 url=${page.url()}`);
+    } catch (e) { console.log(`[reg-real] V2 handler err: ${e.message?.slice(0, 120)}`); }
   }
 
   // Wait for /feed or final state

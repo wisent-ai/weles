@@ -1,22 +1,19 @@
 import { humanIdlePause } from '../../../../dist/human/mouse.js';
+import { pageCondition, pageSettled } from '../../_shared/page/settled.mjs';
 
 const MODAL = '.captcha-verify-container, .captcha_verify_container, [class*="captcha-"]';
 
-/** Wait until the captcha modal shows at least two loaded images (up to ~12s). */
+/** Resolves once the captcha modal shows at least two loaded images, checked in the page every frame. */
 async function waitForPuzzleImages(page) {
-  for (let w = 0; w < 24; w++) {
-    const ready = await page.evaluate((modalSelector) => {
-      const m = document.querySelector(modalSelector);
-      if (!m) return false;
-      const imgs = Array.from(m.querySelectorAll('img')).filter((i) => {
-        const r = i.getBoundingClientRect();
-        return r.width > 50 && r.height > 50 && i.src && i.src.startsWith('data:');
-      });
-      return imgs.length >= 2;
-    }, MODAL).catch(() => false);
-    if (ready) return;
-    await humanIdlePause('short');
-  }
+  await pageCondition(page, (modalSelector) => {
+    const m = document.querySelector(modalSelector);
+    if (!m) return false;
+    const imgs = Array.from(m.querySelectorAll('img')).filter((i) => {
+      const r = i.getBoundingClientRect();
+      return r.width > 50 && r.height > 50 && i.src && i.src.startsWith('data:');
+    });
+    return imgs.length >= 2;
+  }, MODAL);
 }
 
 /** Extract the two puzzle images, the slider button and its track from the modal. */
@@ -146,15 +143,15 @@ export async function solveTiktokRotateCaptcha(page) {
   const dragX = Math.round(((trackWidth - buttonWidth) * angle) / 360);
   console.log(`[tt-captcha] dragging slider by ${dragX}px (trackW=${trackWidth} btnW=${buttonWidth})`);
   await dragSlider(page, probe.sliderInfo, dragX);
-  // Wait up to 5s for the modal to disappear.
-  for (let w = 0; w < 10; w++) {
-    await humanIdlePause('short');
-    const stillThere = await page.evaluate(() => !!document.querySelector('.captcha-verify-container, .captcha_verify_container')).catch(() => true);
-    if (!stillThere) {
-      console.log('[tt-captcha] modal dismissed — captcha solved');
-      return true;
-    }
+  // The verdict is the modal being removed (solved) or TikTok answering the
+  // verify request with a failure; the modal's state once the page has settled
+  // after the drag says which.
+  await pageSettled(page);
+  const stillThere = await page.evaluate(() => !!document.querySelector('.captcha-verify-container, .captcha_verify_container'));
+  if (!stillThere) {
+    console.log('[tt-captcha] modal dismissed — captcha solved');
+    return true;
   }
-  console.log('[tt-captcha] modal still present after drag — solve failed');
+  console.log('[tt-captcha] tiktok_captcha_unsolved: modal still present after drag');
   return false;
 }

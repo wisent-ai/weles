@@ -18,7 +18,7 @@
 
 import { CaptchaSolver } from '../../../../dist/captcha/solver.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
-import { humanIdlePause, humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { solveLinkedinCheckpoint, injectV3LoginToken } from './checkpoint.mjs';
 import { pageSettled, urlMatching } from '../page/settled.mjs';
 
@@ -68,14 +68,14 @@ export async function reloginLinkedinInline(s, acct) {
     const userLoc = s.page.locator(usernameSel).filter({ visible: true }).first();
     await userLoc.waitFor({ state: 'visible' });
     await humanClickLocator(s.page, userLoc);
-    await humanIdlePause('short');
+    await pageSettled(s.page);
     await humanType(s.page, email);
-    await humanIdlePause('short');
+    await pageSettled(s.page);
     const pwLoc = s.page.locator(passwordSel).filter({ visible: true }).first();
     await humanClickLocator(s.page, pwLoc);
-    await humanIdlePause('short');
+    await pageSettled(s.page);
     await humanType(s.page, password);
-    await humanIdlePause('short');
+    await pageSettled(s.page);
   } catch (e) { return { ok: false, reason: `fill_err:${e.message?.slice(0, 80)}` }; }
   const submitBtn = s.page.getByRole('button', { name: /^\s*sign\s*in\s*$/i }).filter({ visible: true }).first();
   try { await submitBtn.waitFor({ state: 'visible' }); } catch (e) { return { ok: false, reason: `submit_not_visible:${e.message?.slice(0, 60)}` }; }

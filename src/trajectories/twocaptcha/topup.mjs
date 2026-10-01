@@ -2,7 +2,6 @@
 import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { topupOpts } from '../_shared/services/topup_common.mjs';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
 import { pageCondition, pageSettled } from '../_shared/page/settled.mjs';
 
 const { usd } = topupOpts();
@@ -12,7 +11,7 @@ if (!login) { console.log('FAIL: no 2Captcha creds'); process.exit(1); }
 const s = await WSession.start({ label: 'twocaptcha_topup', browser: 'chromium' });
 try {
   await s.goto('https://2captcha.com/auth/login');
-  await humanIdlePause('long');
+  await pageSettled(s.page);
   await s.page.locator('input[name="email"]').fill(login.email);
   await s.page.locator('input[name="password"]').fill(login.password);
 
@@ -26,7 +25,7 @@ try {
 
   // 2Captcha funds-add page.
   await s.page.goto('https://2captcha.com/pay', { waitUntil: 'domcontentloaded' }).catch(() => {});
-  await humanIdlePause('long');
+  await pageSettled(s.page);
 
   const amtIn = s.page.locator('input[type="number"], input[name*="amount" i], input[inputmode="numeric"]').filter({ visible: true }).first();
   if (await amtIn.isVisible().catch(() => false)) { await amtIn.click(); await amtIn.fill(String(usd)); console.log(`[trajectory] amount filled: $${usd}`); }
@@ -40,7 +39,7 @@ try {
     console.log('FAIL: could not find pay/checkout button');
     process.exit(1);
   }
-  await humanIdlePause('long');
+  await pageSettled(s.page);
   console.log(`PASS-CHARGED: checkout initiated, url=${s.page.url().slice(0, 100)}`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));

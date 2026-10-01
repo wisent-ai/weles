@@ -6,7 +6,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { humanIdlePause } from '../../../../dist/human/mouse.js';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 import { writeSubmitDiagnostics } from './diagnostics.mjs';
 
@@ -51,7 +51,7 @@ export async function inspectCreateAccountChallenge(session, challengeUrl) {
   };
   try {
     await session.page.goto(absoluteUrl, { waitUntil: 'domcontentloaded' });
-    await humanIdlePause('deliberate');
+    await pageSettled(session.page);
     Object.assign(out, await session.page.evaluate(() => {
       const visible = (el) => {
         const r = el.getBoundingClientRect();

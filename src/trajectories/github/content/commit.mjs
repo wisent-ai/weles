@@ -5,7 +5,8 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
 import { humanType } from '../../../../dist/human/keyboard.js';
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { pageSettled, submitAnswered } from '../../_shared/page/settled.mjs';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 const REPO_URL = process.env.REPO_URL || '';
@@ -32,7 +33,7 @@ try {
   if (cookies.length) await s.ctx.addCookies(cookies).catch(() => {});
   await s.goto(`${repoBase}/edit/main/${FILE_PATH}`);
   checkReachable(s, 'github');
-  await humanIdlePause('long');
+  await pageSettled(s.page);
   const loggedOut = await s.page.evaluate(() => !!document.querySelector('a[href="/login"]'));
   if (loggedOut) throw new Error('not_logged_in: cookies stale');
   const is404 = await s.page.evaluate(() => /page not found/i.test(document.body.innerText || ''));
@@ -45,14 +46,14 @@ try {
   await s.page.keyboard.press('End').catch(() => {});
   await s.page.keyboard.press('Enter').catch(() => {});
   await humanType(s.page, FILE_APPEND.trim()).catch(() => {});
-  await humanIdlePause('short');
+  await pageSettled(s.page);
 
   // Open the Commit-changes modal: toolbar button text is "Commit changes...".
   // GitHub's React editor renders it as <button> with primary styling.
   const openCommit = s.page.locator('button:has-text("Commit changes")').filter({ visible: true }).first();
   await openCommit.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, openCommit);
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
   // Modal commit message textarea — id="commit-message-input" / aria-label="Commit message".
   const msgIn = s.page.locator('textarea[id="commit-message-input"], textarea[aria-label*="ommit message"], dialog textarea[name="commit_message"]').filter({ visible: true }).first();
   if (await msgIn.count()) {
@@ -62,17 +63,13 @@ try {
     await s.page.keyboard.press('Delete').catch(() => {});
     await humanType(s.page, COMMIT_MESSAGE);
   }
-  await humanIdlePause('short');
+  await pageSettled(s.page);
   // Modal confirm button — second "Commit changes" inside dialog/Box--overlay.
   const confirmCommit = s.page.locator('dialog button:has-text("Commit changes"), [role="dialog"] button:has-text("Commit changes"), .Box--overlay button:has-text("Commit changes")').filter({ visible: true }).first();
   await confirmCommit.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, confirmCommit);
 
-  for (let w = 0; w < 20; w++) {
-    await humanIdlePause('short');
-    const u = s.page.url?.() ?? '';
-    if (/\/(blob|commit|tree)\//.test(u) && !/\/edit\//.test(u)) break;
-  }
+  await submitAnswered(s.page, /\/edit\//, s.page.locator('.flash-error, [role="alert"]').filter({ hasText: /\S/ }).first());
   const finalUrl = s.page.url?.() ?? '';
   if (/\/edit\//.test(finalUrl)) throw new Error(`commit_not_applied: still at ${finalUrl}`);
   ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);

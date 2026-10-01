@@ -1,7 +1,8 @@
 // The Google account page as the activation reads and clicks it.
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../../../dist/human/mouse.js';
+import { pageSettled } from '../../../../_shared/page/settled.mjs';
 import { DIAG_DIR, redact, visibleTextSelector } from './settings.mjs';
 
 export async function diag(page, label, secret = '') {
@@ -60,7 +61,7 @@ export async function clickByText(page, pattern, label) {
   if (await role.isVisible().catch(() => false)) {
     console.log(`[google-totp-activate] clicking ${label} via role`);
     await role.click({ force: true }).catch(() => humanClickLocator(page, role));
-    await humanIdlePause('deliberate');
+    await pageSettled(page);
     return true;
   }
 
@@ -68,7 +69,7 @@ export async function clickByText(page, pattern, label) {
   if (await textual.isVisible().catch(() => false)) {
     console.log(`[google-totp-activate] clicking ${label} via text`);
     await textual.click({ force: true }).catch(() => humanClickLocator(page, textual));
-    await humanIdlePause('deliberate');
+    await pageSettled(page);
     return true;
   }
 
@@ -76,7 +77,7 @@ export async function clickByText(page, pattern, label) {
   const clickedByJs = await humanClickLocator(page, fallback).then(() => true).catch(() => false);
   if (clickedByJs) {
     console.log(`[google-totp-activate] clicking ${label} via JS`);
-    await humanIdlePause('deliberate');
+    await pageSettled(page);
     return true;
   }
   return false;

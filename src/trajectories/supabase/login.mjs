@@ -2,7 +2,8 @@
 // Run: node src/trajectories/supabase/login.mjs
 import { readScopedLogin } from '../../_shared/scoped-secrets.mjs';
 import { WSession } from '../../../dist/session/wsession.js';
-import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { pageSettled, submitAnswered } from '../_shared/page/settled.mjs';
 import { humanFill } from '../../../dist/human/keyboard.js';
 
 const SIGNIN_URL = 'https://supabase.com/dashboard/sign-in';
@@ -14,7 +15,7 @@ console.log(`[trajectory] Using exact Supabase dashboard login: ${login.email}`)
 const s = await WSession.start({ label: 'supabase_login', browser: 'chromium' });
 try {
   await s.goto(SIGNIN_URL);
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
 
   const emailInput = s.page.locator('input[name="email"], input[type="email"], input#email').filter({ visible: true }).first();
   const pwInput = s.page.locator('input[name="password"], input[type="password"], input#password').filter({ visible: true }).first();
@@ -28,9 +29,9 @@ try {
   }
 
   await humanFill(s.page, emailInput, login.email);
-  await humanIdlePause('short');
+  await pageSettled(s.page);
   await humanFill(s.page, pwInput, login.password);
-  await humanIdlePause('short');
+  await pageSettled(s.page);
 
   // Submit via the primary submit button.
   const submitBtn = s.page.locator('button[type="submit"]:has-text("Sign In"), button[type="submit"]:has-text("Sign in"), button:has-text("Sign in"), button:has-text("Sign In")').filter({ visible: true }).first();
@@ -41,27 +42,21 @@ try {
     process.exit(1);
   }
 
-  // Wait up to 30s for navigation away from /sign-in.
-  for (let i = 0; i < 30; i++) {
-    await humanIdlePause('short');
-    const u = s.page.url();
-    if (SUCCESS_URL_RE.test(u)) { console.log(`PASS: landed on ${u}`); process.exit(0); }
-    if (/\/dashboard\/sign-in/.test(u) === false && /supabase\.com/.test(u)) {
-      console.log(`[trajectory] off /sign-in but unexpected url=${u}`);
-    }
-  }
+  // Supabase answers by routing away from /sign-in or with its own alert.
+  const ERROR_SELECTOR = '[role="alert"], .error, [data-error="true"], p[class*="error" i]';
+  await submitAnswered(s.page, /\/dashboard\/sign-in/, s.page.locator(ERROR_SELECTOR).filter({ hasText: /\S/ }).first());
+  const url = s.page.url();
+  if (SUCCESS_URL_RE.test(url)) { console.log(`PASS: landed on ${url}`); process.exit(0); }
 
   // Diagnostic: dump current url + visible error text.
-  const url = s.page.url();
-  const errText = await s.page.evaluate(() => {
-    const sels = ['[role="alert"]', '.error', '[data-error="true"]', 'p[class*="error" i]'];
-    for (const sel of sels) {
+  const errText = await s.page.evaluate((selector) => {
+    for (const sel of selector.split(', ')) {
       const el = document.querySelector(sel);
       if (el && el.textContent?.trim()) return el.textContent.trim().slice(0, 200);
     }
     return null;
-  });
-  console.log(`FAIL: still on ${url} after 30s. error=${errText ?? '(none)'}`);
+  }, ERROR_SELECTOR);
+  console.log(`FAIL: supabase_login_refused at ${url}. error=${errText ?? '(none)'}`);
   process.exit(1);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));

@@ -92,3 +92,16 @@ export async function urlMatching(page, pattern) {
 export function popupOrNavigation(page, pattern) {
   return Promise.any([page.waitForEvent('popup'), urlMatching(page, pattern).then(() => null)]);
 }
+
+// A form submit is answered either by the page leaving the form's URL (`stays`
+// is a RegExp that matches while the form is shown) or by the page's own
+// message (`message`, a locator) becoming visible. Resolves 'navigated' or
+// 'message' once the answer has come and the page has settled.
+export async function submitAnswered(page, stays, message) {
+  const answer = await Promise.any([
+    urlMatching(page, (url) => !stays.test(url)).then(() => 'navigated'),
+    message.waitFor({ state: 'visible' }).then(() => 'message'),
+  ]);
+  await pageSettled(page);
+  return answer;
+}

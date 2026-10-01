@@ -8,7 +8,8 @@
 // Run: node src/trajectories/supabase/list_projects.mjs
 import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
-import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { pageSettled, submitAnswered } from '../_shared/page/settled.mjs';
 import { humanFill } from '../../../dist/human/keyboard.js';
 
 const SIGNIN_URL = 'https://supabase.com/dashboard/sign-in';
@@ -23,7 +24,7 @@ console.log(`[trajectory] Using service login: ${login.email}`);
 const s = await WSession.start({ label: 'supabase_list_projects', browser: 'chromium' });
 try {
   await s.goto(SIGNIN_URL);
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
 
   // If we already have a session cookie, sign-in redirects away on its own.
   if (!/\/dashboard\/sign-in/.test(s.page.url())) {
@@ -36,22 +37,18 @@ try {
       process.exit(1);
     }
     await humanFill(s.page, emailInput, login.email);
-    await humanIdlePause('short');
+    await pageSettled(s.page);
     await humanFill(s.page, pwInput, login.password);
-    await humanIdlePause('short');
+    await pageSettled(s.page);
     const submitBtn = s.page.locator('button[type="submit"]:has-text("Sign In"), button[type="submit"]:has-text("Sign in"), button:has-text("Sign in"), button:has-text("Sign In")').filter({ visible: true }).first();
     if (await submitBtn.isVisible().catch(() => false)) { try { await humanClickLocator(s.page, submitBtn); } catch { /* form may have submitted */ } }
     else { console.log('FAIL: submit button not visible'); process.exit(1); }
-    let landed = false;
-    for (let i = 0; i < 30; i++) {
-      await humanIdlePause('short');
-      if (!/\/dashboard\/sign-in/.test(s.page.url())) { landed = true; break; }
-    }
-    if (!landed) { console.log(`FAIL: stuck on /sign-in after 30s url=${s.page.url()}`); process.exit(1); }
+    const answer = await submitAnswered(s.page, /\/dashboard\/sign-in/, s.page.locator('[role="alert"], p[class*="error" i]').filter({ hasText: /\S/ }).first());
+    if (answer !== 'navigated') { console.log(`FAIL: supabase_login_refused, still on /sign-in url=${s.page.url()}`); process.exit(1); }
   }
 
   await s.page.goto(PROJECTS_URL, { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('long');
+  await pageSettled(s.page);
 
   const projects = await s.page.evaluate((PROJECT_REF_PATTERN) => {
     const refRe = new RegExp(PROJECT_REF_PATTERN);

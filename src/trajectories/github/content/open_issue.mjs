@@ -5,7 +5,8 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
 import { humanFill } from '../../../../dist/human/keyboard.js';
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { pageSettled, submitAnswered } from '../../_shared/page/settled.mjs';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 const REPO_URL = process.env.REPO_URL || '';
@@ -31,7 +32,7 @@ try {
   if (cookies.length) await s.ctx.addCookies(cookies).catch(() => {});
   await s.goto(`${repoBase}/issues/new/choose`);
   checkReachable(s, 'github');
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
   const loggedOut = await s.page.evaluate(() => !!document.querySelector('a[href="/login"]'));
   if (loggedOut) throw new Error('not_logged_in: cookies stale');
 
@@ -45,7 +46,7 @@ try {
   if (hasBlank) await humanClickLocator(s.page, blankLoc).catch(() => {});
   const blankClicked = { clicked: hasBlank, onForm: !!(await s.page.locator('input[name="issue[title]"]').count()) };
   console.log(`[open_issue] blank_picker: ${JSON.stringify(blankClicked)}`);
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
 
   // Humanized title+body fill — bare descriptor.set + dispatch('input')
   // bypassed all keystrokes which github's spam-ML reads.
@@ -60,7 +61,7 @@ try {
   await humanFill(s.page, titleLoc, ISSUE_TITLE);
   await humanFill(s.page, bodyLoc, ISSUE_BODY);
   console.log(`[open_issue] fill: ok title=${ISSUE_TITLE.length}c body=${ISSUE_BODY.length}c`);
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
 
   // Submit. New issue form has data-testid="create-issue-button"; classic UI
   // uses <button type="submit"> with text "Submit new issue".
@@ -69,11 +70,7 @@ try {
   await submitBtn.scrollIntoViewIfNeeded().catch(() => {});
   await humanClickLocator(s.page, submitBtn);
 
-  for (let w = 0; w < 20; w++) {
-    await humanIdlePause('short');
-    const u = s.page.url?.() ?? '';
-    if (/\/issues\/\d+/.test(u)) break;
-  }
+  await submitAnswered(s.page, /\/issues\/new\b/, s.page.locator('.flash-error, [role="alert"]').filter({ hasText: /\S/ }).first());
   const finalUrl = s.page.url?.() ?? '';
   if (!/\/issues\/\d+/.test(finalUrl)) throw new Error(`issue_not_submitted: final url=${finalUrl}`);
   ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);

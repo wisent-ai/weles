@@ -1,11 +1,12 @@
 import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
-import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { persistFreshCookieJar } from '../_shared/auth/cookie-freshness.mjs';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
+import { pageSettled, urlMatching } from '../_shared/page/settled.mjs';
 
 const URL = 'https://www.instagram.com/accounts/login/';
 
@@ -33,7 +34,7 @@ try {
   // now; action trajectories use assertAuthed() to verify before acting.
   // Direct Playwright form login. Instagram inputs use name=username/password.
   await s.page.goto(URL, { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
   // Instagram's actual selector names: email (not username) + pass (not
   // password). Earlier 'username'/'password' selectors never matched and
   // every login timed out at 30s before submit.
@@ -41,26 +42,29 @@ try {
   const pwIn = s.page.locator('input[name="pass"], input[name="password"], input[type="password"]').filter({ visible: true }).first();
   await userIn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, userIn);
-  await humanIdlePause('short');
+  await pageSettled(s.page);
   await humanType(s.page, process.env.SVC_EMAIL);
-  await humanIdlePause('short');
+  await pageSettled(s.page);
   await humanClickLocator(s.page, pwIn);
-  await humanIdlePause('short');
+  await pageSettled(s.page);
   await humanType(s.page, process.env.SVC_PASSWORD);
-  await humanIdlePause('short');
+  await pageSettled(s.page);
   // Instagram's submit is a <div role="button"> with text "Log in" — there
   // are no <button type="submit"> elements rendered. Match exact text "Log
   // in" to avoid hitting "Log in with Facebook" instead.
+  // Instagram answers the login by routing away from /accounts/login or by
+  // showing its own alert; whichever comes first ends the wait.
+  const ERR_SEL = '#slfErrorAlert, [data-bloks-name*="Error"], [role="alert"]';
   await humanClickLocator(s.page, s.page.locator('div[role="button"]').filter({ hasText: /^\s*Log in\s*$/ }).filter({ visible: true }).first());
-  for (let i = 0; i < 15; i++) {
-    await humanIdlePause('short');
-    if (!/\/accounts\/login\/?$/.test(s.page.url())) break;
-  }
+  await Promise.any([
+    urlMatching(s.page, (u) => !/\/accounts\/login\/?$/.test(u)),
+    s.page.locator(ERR_SEL).filter({ hasText: /\S/ }).first().waitFor({ state: 'visible' }),
+  ]);
+  await pageSettled(s.page);
   const finalUrl = s.page.url();
   console.log(`[instagram_login] post-submit url=${finalUrl}`);
   // Check for inline error text
-  const ERR_SEL = '#slfErrorAlert, [data-bloks-name*="Error"], [role="alert"]';
-  const err = await s.page.evaluate((sel) => Array.from(document.querySelectorAll(sel)).map(e => e.textContent?.trim()).filter(Boolean), ERR_SEL).catch(() => []);
+  const err = await s.page.evaluate((sel) => Array.from(document.querySelectorAll(sel)).map(e => e.textContent?.trim()).filter(Boolean), ERR_SEL);
   if (err.length && /incorrect|wasn't recognised|wasn't recognized|password|wait a few minutes/i.test(err.join(' '))) {
     throw new Error(`invalid_credentials_or_block: ${err.join(' | ').slice(0, 150)}`);
   }

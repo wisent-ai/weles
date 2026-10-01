@@ -4,7 +4,6 @@
 import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { parseBalanceFromText, patchServiceBalance } from '../_shared/services/google_sso.mjs';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
 import { pageCondition, pageSettled } from '../_shared/page/settled.mjs';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -25,7 +24,7 @@ console.log(`[trajectory] Using 2Captcha login: ${login.email}`);
 const s = await WSession.start({ label: 'twocaptcha_balance', browser: 'chromium' });
 try {
   await s.goto(LOGIN_URL);
-  await humanIdlePause('long');
+  await pageSettled(s.page);
 
   await s.page.locator('input[name="email"]').fill(login.email);
   await s.page.locator('input[name="password"]').fill(login.password);
@@ -70,10 +69,7 @@ try {
     const otpFirst = s.page.locator('input[name="otp-1"]');
     await otpFirst.click();
     await humanType(s.page, code, { delay: 60 });
-    for (let i = 0; i < 30; i++) {
-      await humanIdlePause('short');
-      if (!/\/confirm-email/.test(s.page.url())) break;
-    }
+    await pageSettled(s.page);
     console.log(`[trajectory] post-confirm url=${s.page.url()}`);
   }
 
@@ -82,11 +78,11 @@ try {
   if (/\/select-role/.test(s.page.url())) {
     console.log('[trajectory] selecting customer role (2nd Next button)');
     await s.page.locator('button:has-text("Next")').nth(1).click({ force: true }).catch(() => {});
-    await humanIdlePause('long');
+    await pageSettled(s.page);
     console.log(`[trajectory] post-role url=${s.page.url()}`);
   }
 
-  await humanIdlePause('long');
+  await pageSettled(s.page);
   const text = await s.page.evaluate(() => document.body.innerText);
   console.log(`[trajectory] dashboard text length=${text.length}`);
   const balance = parseBalanceFromText(text);

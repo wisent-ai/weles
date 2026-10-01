@@ -8,7 +8,8 @@
  */
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
-import { humanMove, humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanMove, humanClickLocator } from '../../../dist/human/mouse.js';
+import { pageSettled } from '../_shared/page/settled.mjs';
 import { autoBindCharacter } from '../lib/character-bind.mjs';
 import { findAccount } from '../_shared/skarbiec/accounts.mjs';
 
@@ -63,23 +64,23 @@ s.page.on('response', async (resp) => {
 
 try {
   await s.page.goto(URL, { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
   await vpJitter();
 
   // Step 1: email
   const emailIn = s.page.locator('input[type="email"], input[name="email"], input[autocomplete="email"]').filter({ visible: true }).first();
   await emailIn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, emailIn);
-  await humanIdlePause('short');
+  await pageSettled(s.page);
   await humanType(s.page, id.email);
-  await humanIdlePause('short');
+  await pageSettled(s.page);
   await vpJitter();
   const continueBtn = s.page.getByRole('button', { name: /continue/i }).filter({ visible: true }).first();
   await humanClickLocator(s.page, continueBtn);
   console.log('[register] submitted email');
 
   // Step 2: wait for verification code page, fetch code, fill it
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
   // If verify-init already came back rejected, fail fast with the real reason
   // (no code will ever arrive) rather than burning the full email-poll timeout.
   if (verifyInit && !verifyInit.ok) {
@@ -93,19 +94,19 @@ try {
     throw new Error(`email_code_failed: ${code}${detail}`);
   }
   console.log(`[register] got verification code: ${code}`);
-  await humanIdlePause('short');
+  await pageSettled(s.page);
   await vpJitter();
   const codeIn = s.page.locator('input[autocomplete="one-time-code"], input[name="code"], input[type="text"][maxlength="6"]').filter({ visible: true }).first();
   await codeIn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, codeIn);
-  await humanIdlePause('short');
+  await pageSettled(s.page);
   await humanType(s.page, code);
-  await humanIdlePause('short');
+  await pageSettled(s.page);
   await humanClickLocator(s.page, s.page.getByRole('button', { name: /continue|verify|submit/i }).filter({ visible: true }).first());
   console.log('[register] submitted code');
 
   // Step 3: username + password
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
   await vpJitter();
   const userIn = s.page.locator('input[name="username"], input[autocomplete="username"]').filter({ visible: true }).first();
   await userIn.waitFor({ state: 'visible' });
@@ -130,33 +131,28 @@ try {
   // because React re-injects the suggestion after the keyboard event.
   // After clearing we use humanType for the actual chosen value (real
   // CDP keystrokes — anti-bot clean).
-  for (let attempt = 0; attempt < 3; attempt++) {
-    await userIn.fill('').catch(() => {}); // lint-allow: bare-fill
-    await humanIdlePause('short');
-    await humanType(s.page, id.username);
-    const afterVal = await userIn.inputValue().catch(() => '');
-    console.log(`[register] username attempt ${attempt + 1}: after typing "${id.username}": "${afterVal}"`);
-    if (afterVal === id.username) break;
-  }
-  const afterVal = await userIn.inputValue().catch(() => '');
-  if (afterVal !== id.username) console.log(`[register] WARN: username field final value "${afterVal}" != chosen "${id.username}" — Reddit may use the wrong handle`);
-  await humanIdlePause('short');
+  // React may re-inject its suggestion after the clear; the settled field is
+  // what the typing lands in, and a field that still differs is a named failure.
+  await userIn.fill(''); // lint-allow: bare-fill
+  await pageSettled(s.page);
+  await humanType(s.page, id.username);
+  const afterVal = await userIn.inputValue();
+  console.log(`[register] after typing "${id.username}": "${afterVal}"`);
+  if (afterVal !== id.username) throw new Error(`reddit_username_not_set: field holds "${afterVal}" instead of "${id.username}"`);
+  await pageSettled(s.page);
   await vpJitter();
   const pwIn = s.page.locator('input[type="password"], input[autocomplete="new-password"]').filter({ visible: true }).first();
   await humanClickLocator(s.page, pwIn);
-  await humanIdlePause('short');
+  await pageSettled(s.page);
   await humanType(s.page, id.password);
-  await humanIdlePause('short');
+  await pageSettled(s.page);
   await vpJitter();
   await humanClickLocator(s.page, s.page.getByRole('button', { name: /sign up|continue|create/i }).filter({ visible: true }).first());
   console.log('[register] submitted username + password');
 
-  // Step 4: wait for post-signup redirect (/onboarding, /, etc)
-  for (let i = 0; i < 20; i++) {
-    await humanIdlePause('short');
-    const u = s.page.url();
-    if (!/\/register/.test(u)) break;
-  }
+  // Step 4: the post-signup redirect (/onboarding, /, etc) has happened once
+  // the page has settled.
+  await pageSettled(s.page);
   console.log(`[register] post-signup url=${s.page.url()}`);
 
   // Step 5: persist + verify

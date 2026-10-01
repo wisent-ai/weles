@@ -4,7 +4,8 @@
  * an entry path that does not reach the form ends the run with a refusal that
  * says where it stopped.
  */
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 import { DEFAULT_ENTRY_URL, SIGNUP_URL } from './run_request.mjs';
 import { writeSubmitDiagnostics } from './diagnostics.mjs';
 
@@ -23,7 +24,7 @@ export async function prewarmLinkedinGuestSession(session, urls) {
       // Fast scroll to generate behavioral signal without spending human-like time
       // on a cold guest session. The goal is cookie/telemetry warm-up, not realism.
       await session.scroll('down', 400);
-      await humanIdlePause('deliberate');
+      await pageSettled(session.page);
     } catch (prewarmErr) {
       console.log(`[register] prewarm skip ${url}: ${prewarmErr.message?.slice(0, 120)}`);
       diagnostics.transitions.push({ url, stage: 'prewarm_error', error: String(prewarmErr?.message ?? prewarmErr).slice(0, 200) });
@@ -121,7 +122,7 @@ export async function enterLinkedinSignup(session, entryUrl) {
     await session.page.goto(entry, { waitUntil: 'domcontentloaded' });
     return `entry ${session.page.url()}`;
   });
-  await humanIdlePause('deliberate');
+  await pageSettled(session.page);
   await record('after_entry');
 
   const explicitSelector = process.env.LINKEDIN_REGISTER_ENTRY_CLICK_SELECTOR || '';
@@ -167,7 +168,7 @@ export async function enterLinkedinSignup(session, entryUrl) {
     await writeSubmitDiagnostics('entry_path_diagnostics', diagnostics);
     throw new Error(`entry_path_no_signup_transition: the entry affordance was clicked but the browser never arrived at the signup form; it stopped at ${session.page.url().slice(0, 180)}`);
   }
-  await humanIdlePause('deliberate');
+  await pageSettled(session.page);
   await record('after_signup_transition');
   await writeSubmitDiagnostics('entry_path_diagnostics', diagnostics);
   return diagnostics;

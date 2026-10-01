@@ -1,6 +1,7 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { pageSettled, submitAnswered } from '../../_shared/page/settled.mjs';
 import { detectGitHubBanSignals } from '../../../../dist/platforms/github/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -28,7 +29,7 @@ try {
   if (cookies.length) await s.ctx.addCookies(cookies).catch(() => {});
   await s.goto(`${upstream}/fork`);
   checkReachable(s, 'github');
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
   const loggedOut = await s.page.evaluate(() => !!document.querySelector('a[href="/login"]'));
   if (loggedOut) throw new Error('not_logged_in: cookies stale');
 
@@ -51,11 +52,7 @@ try {
   await submitBtn.scrollIntoViewIfNeeded().catch(() => {});
   await humanClickLocator(s.page, submitBtn);
 
-  for (let w = 0; w < 30; w++) {
-    await humanIdlePause('short');
-    const u = s.page.url?.() ?? '';
-    if (new RegExp(`github\\.com/${acct.username}/`).test(u) && !/\/fork/.test(u)) break;
-  }
+  await submitAnswered(s.page, /\/fork\b/, s.page.locator('.flash-error, [role="alert"]').filter({ hasText: /\S/ }).first());
   const finalUrl = s.page.url?.() ?? '';
   if (!new RegExp(`github\\.com/${acct.username}/`).test(finalUrl) || /\/fork/.test(finalUrl)) {
     throw new Error(`fork_not_created: final url=${finalUrl}`);

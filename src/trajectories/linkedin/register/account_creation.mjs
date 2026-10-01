@@ -5,7 +5,8 @@
  * and the character bind. A challenge here ends the run — it is never solved.
  */
 import { humanFill, humanType } from '../../../../dist/human/keyboard.js';
-import { humanClickLocator, humanIdlePause, humanScroll } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanScroll } from '../../../../dist/human/mouse.js';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 import { assertLinkedinAuthenticatedRegistration, assertLinkedinProxyStable, assertNoLinkedinChallengePage, ensureLinkedinSignupForm } from '../../_shared/linkedin/signup/register_guard.mjs';
 import { fillPostRegisterOnboarding } from '../../_shared/linkedin/onboarding/work_school.mjs';
 import { confirmLinkedinEmail } from '../../_shared/linkedin/checkpoint.mjs';
@@ -37,11 +38,10 @@ async function saveVerifiedLinkedinAccount(session, account) {
   return result;
 }
 
+// The PIN form posts and LinkedIn moves the page off the verification step,
+// or keeps it there with its own message; the settled page answers which.
 async function waitPastEmailVerification(page) {
-  for (let i = 0; i < 30; i++) {
-    if (!/verify|email-verification|email_verification|checkpoint/.test(page.url())) return;
-    await humanIdlePause('deliberate');
-  }
+  await pageSettled(page);
 }
 
 async function submitEmailAndPassword({ session, identity, recordStage, proxyWatch }) {
@@ -49,11 +49,11 @@ async function submitEmailAndPassword({ session, identity, recordStage, proxyWat
   recordStage('signup_form_ready');
   // Simulate a human reading the signup form before interacting.
   await humanScroll(session.page, 400, 2);
-  await humanIdlePause('deliberate');
+  await pageSettled(session.page);
   await humanFill(session.page, emailLoc, identity.email);
-  await humanIdlePause('short');
+  await pageSettled(session.page);
   await humanFill(session.page, pwdLoc, identity.password);
-  await humanIdlePause('deliberate');
+  await pageSettled(session.page);
   recordStage('email_password_filled');
   console.log(`[register] fill email+pwd: ok`);
   proxyWatch.expectedExitIp = await assertLinkedinProxyStable(session, 'before_submit_email_password', proxyWatch.expectedExitIp);
@@ -66,7 +66,7 @@ async function submitEmailAndPassword({ session, identity, recordStage, proxyWat
   console.log(`[register] click Agree & Join: ${submit1}`);
   if (!submit1) throw new Error('Agree & Join button not clickable');
   recordStage('email_password_submitted', { clicked: submit1 });
-  await humanIdlePause('deliberate');
+  await pageSettled(session.page);
   const [submit1Req, submit1Res] = await Promise.all([submit1ReqWatch, submit1ResWatch]);
   const submit1After = await collectSubmitState(session.page, 'after_submit_email_password');
   const submit1Diagnostics = {
@@ -98,9 +98,9 @@ async function submitNames({ session, identity, recordStage, proxyWatch }) {
     return;
   }
   await humanFill(session.page, firstLoc, identity.first);
-  await humanIdlePause('short');
+  await pageSettled(session.page);
   await humanFill(session.page, lastLoc, identity.last);
-  await humanIdlePause('deliberate');
+  await pageSettled(session.page);
   recordStage('first_last_filled');
   proxyWatch.expectedExitIp = await assertLinkedinProxyStable(session, 'before_create_account', proxyWatch.expectedExitIp);
   recordStage('proxy_stable_before_create_account');
@@ -148,7 +148,7 @@ async function submitNames({ session, identity, recordStage, proxyWatch }) {
   });
   recordStage('create_account_response', { status: createAccountStatus, has_challenge_url: Boolean(challengeUrl) });
   if (challengeUrl) await refuseCreateAccountChallenge({ session, recordStage }, challengeUrl);
-  await humanIdlePause('long');
+  await pageSettled(session.page);
   await assertNoLinkedinChallengePage(session, 'after_create_account');
   recordStage('no_challenge_after_create_account');
 }
@@ -178,19 +178,10 @@ async function refuseCreateAccountChallenge({ session, recordStage }, challengeU
 }
 
 async function settleAuthenticatedSession({ session, identity, recordStage, proxyWatch }) {
-  // Wait for the post-signup redirect to /feed, /onboarding, or /checkpoint.
-  // /signup/api/cors/createAccount issues li_at via Set-Cookie on the next
-  // navigation; the redirect can take up to ~30s on the first signup. Check
-  // for li_at in the cookie jar directly — once it appears, the account is
-  // authenticated even if the URL hasn't fully resolved yet.
-  for (let i = 0; i < 30; i++) {
-    const u = session.page.url();
-    const ck = await session.ctx.cookies();
-    const haveLiAt = ck.some(c => c.name === 'li_at' && c.value);
-    if (haveLiAt || /\/feed|\/onboarding|\/check|\/m\/welcome/.test(u)) break;
-    if (/^https?:\/\/www\.linkedin\.com\/signup\/?$/.test(u)) break; // signup rejected, no point waiting
-    await humanIdlePause('deliberate');
-  }
+  // The createAccount answer was awaited before this step; LinkedIn's
+  // redirect after it (to /feed, /onboarding, /checkpoint, or back to /signup
+  // on a silent rejection) has happened once the page has settled.
+  await pageSettled(session.page);
   const verifyUrl = session.page.url();
   console.log(`[register] post-name URL: ${verifyUrl}`);
   recordStage('post_name_url', { verify_url: verifyUrl });

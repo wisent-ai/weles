@@ -6,7 +6,7 @@
 // and fills it back in.
 
 import { humanFill, humanType } from '../../../../../dist/human/keyboard.js';
-import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../../dist/human/mouse.js';
 import { pageSettled } from '../../page/settled.mjs';
 
 const DEFAULT_COUNTRY = 'US';
@@ -67,9 +67,9 @@ async function setCountry(frame, country) {
 
 async function submitPhoneForm(page, frame, phoneInput, country, phone) {
   await setCountry(frame, country);
-  await humanIdlePause('deliberate');
+  await pageSettled(page);
   await humanFill(page, phoneInput, phoneDigitsForInput(phone, country));
-  await humanIdlePause('deliberate');
+  await pageSettled(page);
   const submit = frame.locator('button[type="submit"], button#register-verification-submit, button:has-text("Submit"), button:has-text("Continue"), button:has-text("Send code")').filter({ visible: true }).first();
   if (!(await submit.count())) throw new Error('phone_verify: submit button not found');
   await humanClickLocator(page, submit);
@@ -81,7 +81,7 @@ async function submitCodeForm(page, frame, code) {
   if (!codeInput) throw new Error('phone_verify: code input not found after submitting phone');
   await humanClickLocator(page, codeInput);
   await humanType(page, code);
-  await humanIdlePause('deliberate');
+  await pageSettled(page);
   const submit = frame.locator('button[type="submit"], button#register-verification-pin-submit, button:has-text("Submit"), button:has-text("Continue"), button:has-text("Verify")').filter({ visible: true }).first();
   if (!(await submit.count())) throw new Error('phone_verify: code submit button not found');
   await humanClickLocator(page, submit);

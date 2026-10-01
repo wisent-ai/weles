@@ -28,7 +28,8 @@ import { fillStripeElements, loadTopupCardEnv } from '../_shared/services/topup_
 import { mkdirSync, writeFileSync, readFileSync, existsSync, appendFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { pageSettled, popupOrNavigation } from '../_shared/page/settled.mjs';
 import { humanType } from '../../../dist/human/keyboard.js';
 
 loadTopupCardEnv();
@@ -61,28 +62,25 @@ console.log(`[decodo] Using shared Google SSO: ${login.email}`);
 // pre_bash count-gate undismissable.
 const s = await WSession.start({ label: 'signup', browser: 'chromium' });
 try {
-  // Capture any popup the Google button opens via a ctx 'page' listener —
-  // no waitForEvent promise to reject, so nothing to swallow as a sentinel.
   let popup = null;
-  s.ctx.on('page', (p) => { if (!popup) popup = p; });
 
   await s.page.goto('https://dashboard.decodo.com/login', { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('long');
+  await pageSettled(s.page);
   await shot(s, '00_login');
 
   // Google Identity Services renders the sign-in button inside a cross-origin
   // accounts.google.com/gsi/button iframe that attaches asynchronously after
   // SPA hydration — run #3 failed because frames().find ran before it
   // attached and the page-level button selector matched a non-actionable
-  // wrapper (locator.click 30s timeout). Poll for the GSI frame; click its
-  // rendered button once visible. If GSI never attaches, click Decodo's own
-  // "Sign in with Google" button by exact text. humanClickLocator needs a
-  // Page (.mouse) as first arg, so pass s.page with the frame-scoped locator.
-  let gsiFrame = null;
-  for (let i = 0; i < 24 && !gsiFrame; i++) {
-    gsiFrame = s.page.frames().find((f) => /accounts\.google\.com\/gsi|gsi\/button/.test(f.url()));
-    if (!gsiFrame) await humanIdlePause('short');
-  }
+  // wrapper (locator.click 30s timeout). The GSI frame is read once the page
+  // has settled; its rendered button is clicked once visible. Without it,
+  // Decodo's own "Sign in with Google" button is clicked by exact text.
+  // humanClickLocator needs a Page (.mouse) as first arg, so pass s.page with
+  // the frame-scoped locator.
+  await pageSettled(s.page);
+  const gsiFrame = s.page.frames().find((f) => /accounts\.google\.com\/gsi|gsi\/button/.test(f.url()));
+  // The click opens Google in a popup or redirects this tab to it.
+  const surface = popupOrNavigation(s.page, /accounts\.google\./);
   if (gsiFrame) {
     const gi = gsiFrame.locator('div[role="button"]').first();
     await gi.waitFor({ state: 'visible' });
@@ -93,7 +91,7 @@ try {
     await gBtn.scrollIntoViewIfNeeded();
     await humanClickLocator(s.page, gBtn);
   }
-  for (let i = 0; i < 30 && !popup; i++) await humanIdlePause('short');
+  popup = await surface;
 
   const ok = await googleSso(s, login, { originHost: 'decodo.com', page: popup || undefined });
   if (!ok) { await shot(s, '01_sso_fail'); console.log('FAIL: Google SSO did not complete'); process.exit(1); }
@@ -119,26 +117,34 @@ try {
     return /Residential|Datacenter|Web Scraping|Dashboard|Proxies/i.test(t) && !/Welcome back/i.test(t);
   };
   const CONSENT = 'div[data-identifier]|div[role="link"][data-email]|div[data-authuser]|button:has-text("Continue")|button:has-text("Allow")'.split('|');
+  // Each consent control and the GSI re-trigger is used at most once; a settled
+  // page that offers none of them and is not the authenticated dashboard ends
+  // the walk with the named failure below.
   let loggedIn = false;
-  for (let i = 0; i < 50; i++) {
-    await humanIdlePause('short');
-    if (await authed()) { loggedIn = true; break; }
+  const used = new Set();
+  for (;;) {
     const dpg = (popup && !popup.isClosed()) ? popup : s.page;
+    await pageSettled(dpg);
+    if (dpg !== s.page) await pageSettled(s.page);
+    if (await authed()) { loggedIn = true; break; }
     let acted = false;
     for (const sel of CONSENT) {
+      if (used.has(sel)) continue;
       const b = dpg.locator(sel).filter({ visible: true }).first();
-      if (await present(b)) { await humanClickLocator(dpg, b); await humanIdlePause('deliberate'); acted = true; break; }
+      if (await present(b)) { used.add(sel); await humanClickLocator(dpg, b); acted = true; break; }
     }
     // If OAuth bounced back to Decodo's own login form, re-trigger the
     // Google button (the GSI iframe re-renders in place).
-    if (!acted && /dashboard\.decodo\.com/.test(s.page.url())) {
+    if (!acted && !used.has('gsi') && /dashboard\.decodo\.com/.test(s.page.url())) {
+      used.add('gsi');
       const reGsi = s.page.frames().find((f) => /accounts\.google\.com\/gsi|gsi\/button/.test(f.url()));
-      if (reGsi) { await humanClickLocator(s.page, reGsi.locator('div[role="button"]').first()); await humanIdlePause('deliberate'); }
+      if (reGsi) { await humanClickLocator(s.page, reGsi.locator('div[role="button"]').first()); acted = true; }
       else {
         const reBtn = s.page.locator('button:has-text("Sign in with Google"), a:has-text("Sign in with Google")').filter({ visible: true }).first();
-        if (await present(reBtn)) { await humanClickLocator(s.page, reBtn); await humanIdlePause('deliberate'); }
+        if (await present(reBtn)) { await humanClickLocator(s.page, reBtn); acted = true; }
       }
     }
+    if (!acted) break;
   }
   console.log(`[decodo] post-login url=${s.page.url()} loggedIn=${loggedIn}`);
   await shot(s, '02_dashboard');
@@ -148,7 +154,7 @@ try {
   // Static Residential (ISP) product. Left-nav label is "Static Residential
   // (ISP)"; route observed this session is /isp/pricing.
   await s.page.goto('https://dashboard.decodo.com/isp/pricing', { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('long');
+  await pageSettled(s.page);
   console.log(`[decodo] isp pricing url=${s.page.url()}`);
   await shot(s, '03_isp_pricing');
   const ispText = await dump(s, '03_isp_pricing');
@@ -162,19 +168,19 @@ try {
 
   // Pick USA where a country control exists, then walk buy -> checkout.
   const usOpt = s.page.locator('button:has-text("United States"), label:has-text("United States"), [role="option"]:has-text("United States")').filter({ visible: true }).first();
-  if (await present(usOpt)) { await humanClickLocator(s.page, usOpt); await humanIdlePause('deliberate'); await shot(s, '04_us_selected'); }
+  if (await present(usOpt)) { await humanClickLocator(s.page, usOpt); await pageSettled(s.page); await shot(s, '04_us_selected'); }
 
   const buyBtn = s.page.locator('button:has-text("Buy"), a:has-text("Buy"), button:has-text("Get"), button:has-text("Subscribe"), button:has-text("Checkout")').filter({ visible: true }).first();
   if (!(await present(buyBtn))) { await shot(s, '04b_no_buy'); console.log('FAIL: no buy/checkout control on ISP page'); process.exit(1); }
   await shot(s, '05_before_buy');
   await humanClickLocator(s.page, buyBtn);
-  await humanIdlePause('long');
+  await pageSettled(s.page);
   await shot(s, '06_after_buy');
   console.log(`[decodo] after buy url=${s.page.url()}`);
 
   const COMMIT = 'Subscribe|Pay|Place order|Complete|Confirm|Continue'.split('|');
   for (let step = 0; step < 7; step++) {
-    await humanIdlePause('deliberate');
+    await pageSettled(s.page);
     const url = s.page.url();
     await shot(s, `07_checkout_${step}`);
     console.log(`[decodo] checkout step ${step}: ${url}`);
@@ -185,7 +191,7 @@ try {
       const noLink = s.page.locator('button:has-text("Pay without Link"), a:has-text("Pay without Link")').filter({ visible: true }).first();
       if (!(await present(noLink))) { await shot(s, 'no_pay_without_link'); console.log('FAIL: Stripe Link OTP, no "Pay without Link"'); process.exit(2); }
       await humanClickLocator(s.page, noLink);
-      await humanIdlePause('long');
+      await pageSettled(s.page);
       await shot(s, 'after_pay_without_link');
     }
 
@@ -198,7 +204,7 @@ try {
       const nm = process.env.TOPUP_CARD_NAME || '';
       const nameLoc = s.page.locator('input[autocomplete="cc-name"], input[name="billingName"], input[placeholder*="Cardholder" i], input[placeholder*="name on card" i]').filter({ visible: true }).first();
       if (nm && (await present(nameLoc))) { await humanClickLocator(s.page, nameLoc); await humanType(s.page, nm); }
-      await humanIdlePause('deliberate');
+      await pageSettled(s.page);
       await shot(s, 'after_card_fill');
     }
 
@@ -215,16 +221,16 @@ try {
       break;
     }
     if (!clicked) { console.log(`[decodo] no committal button at step ${step}`); break; }
-    await humanIdlePause('long');
+    await pageSettled(s.page);
   }
 
   // Scrape issued proxy creds from the ISP overview / setup view.
   await s.page.goto('https://dashboard.decodo.com/isp', { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('long');
+  await pageSettled(s.page);
   await shot(s, '09_isp_overview');
   let ispOut = await dump(s, '09_isp_overview');
   const setupTab = s.page.locator('a:has-text("Authentication"), a:has-text("Setup"), a:has-text("Endpoint")').first();
-  if (await present(setupTab)) { await humanClickLocator(s.page, setupTab); await humanIdlePause('long'); await shot(s, '10_isp_auth'); ispOut += '\n' + await dump(s, '10_isp_auth'); }
+  if (await present(setupTab)) { await humanClickLocator(s.page, setupTab); await pageSettled(s.page); await shot(s, '10_isp_auth'); ispOut += '\n' + await dump(s, '10_isp_auth'); }
   writeFileSync(`${OUT_DIR}/${stamp()}_isp_auth.html`, await s.page.content());
 
   const ips = ispOut.match(/\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b/g) || [];

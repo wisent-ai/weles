@@ -7,7 +7,7 @@ import { fillStripeElements, loadTopupCardEnv, TOPUP_ENV_FILES } from '../../_sh
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import { humanIdlePause, humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { pageSettled, urlMatching } from '../../_shared/page/settled.mjs';
 import { humanFill } from '../../../../dist/human/keyboard.js';
 import { COMMIT_BUTTON_SELECTORS } from './selectors.mjs';
@@ -36,7 +36,7 @@ if (!login) { console.log('FAIL: no Google SSO creds'); process.exit(1); }
 const s = await WSession.start({ label: 'isp_us', browser: 'chromium' });
 try {
   await s.page.goto('https://dashboard.oxylabs.io/', { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('long');
+  await pageSettled(s.page);
 
   const gsiFrame = s.page.frames().find(f => /gsi\/button/.test(f.url()));
   if (!gsiFrame) { console.log('FAIL: GSI iframe not found'); await shot(s, 'no_gsi'); process.exit(1); }
@@ -57,7 +57,7 @@ try {
   await shot(s, 'dashboard_home');
 
   try { await s.page.goto('https://dashboard.oxylabs.io/en/overview/ISP', { waitUntil: 'domcontentloaded' }); } catch {}
-  await humanIdlePause('long');
+  await pageSettled(s.page);
   await shot(s, 'overview_isp');
 
 
@@ -66,7 +66,7 @@ try {
   const buyBtn = s.page.locator('a:has-text("Change IP setup"), button:has-text("Change IP setup"), button:has-text("Buy now"), a:has-text("Buy now"), button:has-text("Buy")').filter({ visible: true }).first();
   if (!(await isVisible(buyBtn))) { console.log('FAIL: no Buy/Change-IP-setup button on /overview/ISP'); await shot(s, 'no_buy'); process.exit(1); }
   await humanClickLocator(s.page, buyBtn);
-  await humanIdlePause('long');
+  await pageSettled(s.page);
   await shot(s, 'step1_choose_plan');
   console.log(`[trajectory] step1 url=${s.page.url()}`);
 
@@ -77,7 +77,7 @@ try {
   const step1Continue = s.page.locator('button:has-text("Continue"), button:has-text("Next"), button:has-text("Choose locations")').filter({ visible: true }).first();
   if (!(await isVisible(step1Continue))) { console.log('FAIL: no Continue on step 1'); await shot(s, 'no_step1_continue'); process.exit(1); }
   await humanClickLocator(s.page, step1Continue);
-  await humanIdlePause('long');
+  await pageSettled(s.page);
   await shot(s, 'step2_locations');
   console.log(`[trajectory] step2 url=${s.page.url()}`);
 
@@ -92,7 +92,7 @@ try {
   const realChecked = await s.page.evaluate(() => document.querySelector('input[name="isReallocation"]')?.checked ?? false);
   if (!realChecked) {
     await humanClickLocator(s.page, s.page.locator('input[name="isReallocation"]').first());
-    await humanIdlePause('deliberate');
+    await pageSettled(s.page);
   }
   await shot(s, 'step2_change_box_ticked');
 
@@ -102,7 +102,7 @@ try {
     const trashLoc = s.page.locator('button.css-b5jfu9.e1twrqfe0').filter({ visible: true }).first();
     if (!(await isVisible(trashLoc))) break;
     await humanClickLocator(s.page, trashLoc);
-    await humanIdlePause('short');
+    await pageSettled(s.page);
     console.log(`[trajectory] trashed selected row #${i + 1}`);
   }
 
@@ -112,12 +112,12 @@ try {
   const usAddLoc = s.page.locator('div, li').filter({ hasText: /^United States of America/ }).locator('button', { hasText: /^Add$/ }).first();
   if (!(await isVisible(usAddLoc))) { console.log('FAIL: no Add button next to United States'); await shot(s, 'no_us_add'); process.exit(1); }
   await humanClickLocator(s.page, usAddLoc);
-  await humanIdlePause('short');
+  await pageSettled(s.page);
   console.log('[trajectory] clicked Add next to United States');
 
   // Fill the newly-added selected-country input (the only remaining one) with 10.
   await humanFill(s.page, s.page.locator('input[name="selectedCountries.0.numberOfIps"]').first(), '10');
-  await humanIdlePause('short');
+  await pageSettled(s.page);
   const usVal = await s.page.evaluate(() => document.querySelector('input[name="selectedCountries.0.numberOfIps"]')?.value);
   console.log(`[trajectory] US count set to ${usVal}`);
   await shot(s, 'step2_us_set');
@@ -129,7 +129,7 @@ try {
   const changePlanBtn = s.page.locator('button:has-text("Change plan"), button:has-text("Confirm change"), button:has-text("Review")').filter({ visible: true }).first();
   if (!(await isVisible(changePlanBtn))) { console.log('FAIL: no Change-plan/Continue on step 2'); await shot(s, 'no_continue_step2'); process.exit(1); }
   await humanClickLocator(s.page, changePlanBtn);
-  await humanIdlePause('long');
+  await pageSettled(s.page);
   await shot(s, 'step3_review');
   console.log(`[trajectory] step3 url=${s.page.url()}`);
 
@@ -171,12 +171,12 @@ try {
       const enterManual = s.page.locator('button:has-text("Enter address manually"), a:has-text("Enter address manually")').filter({ visible: true }).first();
       if (await isVisible(enterManual)) {
         await humanClickLocator(s.page, enterManual);
-        await humanIdlePause('short');
+        await pageSettled(s.page);
       }
       if (process.env.TOPUP_CARD_ADDRESS) await humanFill(s.page, s.page.locator('input[name="billingAddressLine1"]'), process.env.TOPUP_CARD_ADDRESS);
       if (process.env.TOPUP_CARD_CITY) await humanFill(s.page, s.page.locator('input[name="billingLocality"]'), process.env.TOPUP_CARD_CITY);
       await humanFill(s.page, s.page.locator('input[name="billingPostalCode"]'), process.env.TOPUP_CARD_ZIP);
-      await humanIdlePause('long');
+      await pageSettled(s.page);
       await shot(s, `after_card_fill_step${step}`);
       void fillStripeElements;  // kept imported for iframe-variant Stripe checkouts used by other Oxylabs flows
       continue;
@@ -198,11 +198,11 @@ try {
       }
     }
     if (!clicked) { console.log(`[trajectory] no commit button at step ${step}`); break; }
-    await humanIdlePause('long');
+    await pageSettled(s.page);
   }
 
   await s.page.goto('https://dashboard.oxylabs.io/en/overview/ISP', { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('long');
+  await pageSettled(s.page);
   await shot(s, 'isp_ip_list');
   const ipsText = await s.page.evaluate(() => document.body.innerText);
   writeFileSync(`${OUT_DIR}/${stamp()}_post_purchase_isp_text.txt`, ipsText);

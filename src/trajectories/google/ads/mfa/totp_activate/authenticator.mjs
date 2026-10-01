@@ -1,6 +1,5 @@
 import { pageSettled } from '../../../../_shared/page/settled.mjs';
 // The authenticator setup on the Google security page, through to the first accepted code.
-import { humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
 import { generateTotp } from '../../../../_shared/services/google_sso.mjs';
 import { normalizeSecret, redact } from './settings.mjs';
@@ -65,40 +64,33 @@ export async function openAuthenticatorSetup(s, creds) {
 }
 
 export async function waitForCodeInput(page) {
-  for (let i = 0; i < 40; i++) {
-    const text = await page.evaluate(() => document.body?.innerText || '').catch(() => '');
-    if (!/Enter code|verification code|Authenticator app|scan/i.test(text)) {
-      await humanIdlePause('short');
-      continue;
-    }
-    const input = page.locator([
-      'input[name="totpPin"]',
-      'input[name="Pin"]',
-      'input[autocomplete="one-time-code"]',
-      'input[inputmode="numeric"]',
-      'input[type="tel"]',
-      'input[type="number"]',
-    ].join(', ')).filter({ visible: true }).first();
-    if (await input.isVisible().catch(() => false)) return input;
-    const textInput = page.locator('input[type="text"]').filter({ visible: true }).filter({ hasNotText: /Search/i }).first();
-    if (await textInput.isVisible().catch(async () => false)) {
-      const isSearch = await textInput.evaluate((el) => /search/i.test(`${el.getAttribute('aria-label') || ''} ${el.getAttribute('placeholder') || ''} ${el.getAttribute('autocomplete') || ''}`)).catch(() => true);
-      if (!isSearch) return textInput;
-    }
-    await humanIdlePause('short');
+  await pageSettled(page);
+  const text = await page.evaluate(() => document.body?.innerText || '');
+  if (!/Enter code|verification code|Authenticator app|scan/i.test(text)) return null;
+  const input = page.locator([
+    'input[name="totpPin"]',
+    'input[name="Pin"]',
+    'input[autocomplete="one-time-code"]',
+    'input[inputmode="numeric"]',
+    'input[type="tel"]',
+    'input[type="number"]',
+  ].join(', ')).filter({ visible: true }).first();
+  if (await input.isVisible().catch(() => false)) return input;
+  const textInput = page.locator('input[type="text"]').filter({ visible: true }).filter({ hasNotText: /Search/i }).first();
+  if (await textInput.isVisible().catch(async () => false)) {
+    const isSearch = await textInput.evaluate((el) => /search/i.test(`${el.getAttribute('aria-label') || ''} ${el.getAttribute('placeholder') || ''} ${el.getAttribute('autocomplete') || ''}`)).catch(() => true);
+    if (!isSearch) return textInput;
   }
   return null;
 }
 
+// A code different from `previous`: the current window's, or else the next
+// window's, which Google's one-step clock tolerance accepts. No waiting for the
+// window to turn.
 export async function waitForNewTotpCode(secret, previous = '') {
-  let code = generateTotp(secret);
+  const code = generateTotp(secret);
   if (!previous || code !== previous) return code;
-  for (let i = 0; i < 35; i++) {
-    await humanIdlePause('short');
-    code = generateTotp(secret);
-    if (code !== previous) return code;
-  }
-  return code;
+  return generateTotp(secret, { now: Date.now() + 30 * 1000 });
 }
 
 export async function activateAuthenticator(s, creds) {
@@ -152,20 +144,18 @@ export async function activateAuthenticator(s, creds) {
     };
   }
 
-  let lastCode = '';
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    const code = await waitForNewTotpCode(secret, lastCode);
-    lastCode = code;
-    await humanFill(s.page, input, '').catch(() => {});
-    await humanFill(s.page, input, code);
-    console.log(`[google-totp-activate] filled activation code attempt=${attempt}`);
-    await clickByText(s.page, /^(Next|Verify|Turn on|Done)$/i, 'submit activation code');
-    await pageSettled(s.page);
-    const text = await currentBodyText(s.page);
-    const url = s.page.url?.() || '';
-    await diag(s.page, `after_code_submit_${attempt}`, secret);
-    if (/Wrong code|Try again|Invalid code|Couldn't verify/i.test(text)) continue;
-    if (/Authenticator app.*(added|set up|turned on)|2-Step Verification is on|You’re protected|Authenticator/i.test(text) && !/Enter the code|Wrong code|Try again|Invalid code/i.test(text)) {
+  // One code: a rejected code is reported by name rather than retried.
+  const code = await waitForNewTotpCode(secret);
+  await humanFill(s.page, input, '');
+  await humanFill(s.page, input, code);
+  console.log('[google-totp-activate] filled activation code');
+  await clickByText(s.page, /^(Next|Verify|Turn on|Done)$/i, 'submit activation code');
+  await pageSettled(s.page);
+  const text = await currentBodyText(s.page);
+  const url = s.page.url?.() || '';
+  await diag(s.page, 'after_code_submit', secret);
+  if (!/Wrong code|Try again|Invalid code|Couldn't verify/i.test(text)) {
+    if (/Authenticator app.*(added|set up|turned on)|2-Step Verification is on|You’re protected|Authenticator/i.test(text) && !/Enter the code/i.test(text)) {
       return { ok: true, activated: true, url };
     }
     if (!/accounts\.google\.com|myaccount\.google\.com/.test(url)) return { ok: true, activated: true, url };

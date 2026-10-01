@@ -4,7 +4,7 @@
 import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { topupOpts } from '../_shared/services/topup_common.mjs';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { pageSettled } from '../_shared/page/settled.mjs';
 
 const PRESETS = [50, 100, 250, 500, 1000];
 const { usd } = topupOpts();
@@ -16,16 +16,17 @@ if (!login) { console.log('FAIL: no PacketStream creds'); process.exit(1); }
 const s = await WSession.start({ label: 'packetstream_topup', browser: 'chromium' });
 try {
   await s.goto('https://app.packetstream.io/login');
-  await humanIdlePause('short');
+  await pageSettled(s.page);
   const u = s.page.locator('input[name="username"]').filter({ visible: true }).first();
   await u.click(); await u.pressSequentially(login.email, { delay: 25 });
   const p = s.page.locator('input[name="password"]').filter({ visible: true }).first();
   await p.click(); await p.pressSequentially(login.password, { delay: 25 });
   await p.press('Enter');
-  for (let i = 0; i < 20; i++) { await humanIdlePause('short'); if (!/\/login/.test(s.page.url())) break; }
+  await pageSettled(s.page);
+  if (/\/login/.test(s.page.url())) { console.log(`FAIL: packetstream_login_refused (still on ${s.page.url()})`); process.exit(1); }
 
   await s.page.goto('https://app.packetstream.io/dashboard/deposit', { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
   await s.page.selectOption('#paypal-amount', String(target)).catch(() => {});
   console.log(`[trajectory] selected preset $${target} (requested $${usd})`);
 
@@ -37,11 +38,9 @@ try {
     const sel = document.querySelector('#paypal-amount');
     if (sel) { sel.value = String(amt); sel.dispatchEvent(new Event('change', { bubbles: true })); }
   }, target);
-  for (let i = 0; i < 30; i++) {
-    await humanIdlePause('short');
-    const u = s.page.url();
-    if (/paypal\.com|stripe\.com|checkout/i.test(u)) break;
-  }
+  // The change handler navigates to the payment provider; the page that
+  // navigation lands on settles before it is read.
+  await pageSettled(s.page);
   const finalUrl = s.page.url();
   console.log(`[trajectory] post-submit url=${finalUrl}`);
   if (/paypal\.com|stripe\.com|checkout/i.test(finalUrl)) {

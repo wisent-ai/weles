@@ -2,7 +2,8 @@ import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../..
 import { WSession } from '../../../dist/session/wsession.js';
 import { generatePersona } from '../../../dist/browser/persona.js';
 import { humanType } from '../../../dist/human/keyboard.js';
-import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { pageSettled, urlMatching } from '../_shared/page/settled.mjs';
 import { persistFreshCookieJar } from '../_shared/auth/cookie-freshness.mjs';
 import { solveLinkedinCheckpoint, injectV3LoginToken, confirmLinkedinEmail } from '../_shared/linkedin/checkpoint.mjs';
 import { captureLinkedinPxStorage, restoreLinkedinPxStorage } from '../_shared/linkedin/signup/px_storage.mjs';
@@ -82,7 +83,7 @@ async function prepareLoginPage() {
   // no-op. Page is already on linkedin.com origin after gotoLogin so
   // localStorage writes hit the right origin.
   await restoreLinkedinPxStorage(s, acct).catch((e) => console.log(`[linkedin_login] px storage not restored: ${e.message?.slice(0, 120)}`));
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
   // Pre-form-render checkpoint: PerimeterX edge-redirects flagged proxy IPs
   // from /login → /checkpoint/challenge before SDUI form renders. Detect
   // here so the form-fill below doesn't time out 30s on inputs that won't
@@ -119,14 +120,14 @@ async function loginWithPassword() {
   const userLoc = s.page.locator(usernameSel).filter({ visible: true }).first();
   await userLoc.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, userLoc);
-  await humanIdlePause('short');
+  await pageSettled(s.page);
   await humanType(s.page, process.env.SVC_EMAIL ?? '');
-  await humanIdlePause('short');
+  await pageSettled(s.page);
   const pwLoc = s.page.locator(passwordSel).filter({ visible: true }).first();
   await humanClickLocator(s.page, pwLoc);
-  await humanIdlePause('short');
+  await pageSettled(s.page);
   await humanType(s.page, process.env.SVC_PASSWORD ?? '');
-  await humanIdlePause('short');
+  await pageSettled(s.page);
   // LinkedIn serves two login shells:
   //   (A) Legacy checkpoint-frontend: <form> + <button type="submit">,
   //       PerimeterX iframe gates the click handler that POSTs
@@ -138,10 +139,13 @@ async function loginWithPassword() {
   await submitBtn.waitFor({ state: 'visible' });
   await injectV3LoginToken(s.page);
   await humanClickLocator(s.page, submitBtn);
-  for (let i = 0; i < 12; i++) {
-    await humanIdlePause('short');
-    if (!/^https?:\/\/www\.linkedin\.com\/login\/?$/.test(s.page.url())) break;
-  }
+  // LinkedIn answers by navigating away from /login, or by showing a field
+  // error in place; either ends the wait, and the page then settles.
+  await Promise.any([
+    urlMatching(s.page, (u) => !/^https?:\/\/www\.linkedin\.com\/login\/?$/.test(u)),
+    s.page.locator('#error-for-password, #error-for-username, [role="alert"]').filter({ hasText: /\S/ }).first().waitFor({ state: 'visible' }),
+  ]);
+  await pageSettled(s.page);
 }
 
 try {

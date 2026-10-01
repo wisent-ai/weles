@@ -1,6 +1,6 @@
 import { pageSettled } from '../../../../_shared/page/settled.mjs';
 // Landing on the right Google account: identifier navigation, the account switch and the sign-in.
-import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../../../dist/human/mouse.js';
 import { googleSso } from '../../../../_shared/services/google_sso.mjs';
 import { EMAIL, redact } from './settings.mjs';
 import { currentBodyText } from './page.mjs';
@@ -14,7 +14,7 @@ export async function navigateIdentifier(page, email, continueUrl = 'https://mya
   await page.goto(login.toString(), { waitUntil: 'domcontentloaded' }).catch((error) => {
     console.log(`[google-totp-activate] WARN identifier navigation failed ${String(error?.message || error).slice(0, 240)}`);
   });
-  await humanIdlePause('deliberate');
+  await pageSettled(page);
 }
 
 export async function currentGoogleAccountEmail(page) {
@@ -49,11 +49,7 @@ export async function switchToCorrectGoogleAccount(s, creds, continueUrl = 'http
     const account = s.page.locator('div[role="link"], li, [data-identifier], [data-email]').filter({ hasText: creds.email || EMAIL }).filter({ visible: true }).first();
     const clicked = await humanClickLocator(s.page, account).then(() => true).catch(() => false);
     if (!clicked) await humanClickLocator(s.page, preferred);
-    await humanIdlePause('deliberate');
-    for (let i = 0; i < 20; i++) {
-      if (!/accountchooser/i.test(s.page.url?.() || '')) break;
-      await humanIdlePause('short');
-    }
+    await pageSettled(s.page);
   }
   if (/accountchooser/i.test(s.page.url?.() || '')) {
     const direct = continueUrl.replace('https://myaccount.google.com/', 'https://myaccount.google.com/u/1/');
@@ -69,12 +65,7 @@ export async function switchToCorrectGoogleAccount(s, creds, continueUrl = 'http
   }
   if ((s.page.url?.() || '').includes('myaccount.google.com/u/1/')) return true;
 
-  for (let i = 0; i < 20; i++) {
-    const afterEmail = (await currentGoogleAccountEmail(s.page)).toLowerCase();
-    if (afterEmail === wanted) return true;
-    if ((s.page.url?.() || '').includes('myaccount.google.com/u/1/')) return true;
-    await humanIdlePause('short');
-  }
+  await pageSettled(s.page);
   return (await currentGoogleAccountEmail(s.page)).toLowerCase() === wanted;
 }
 

@@ -20,7 +20,8 @@
 
 import { WSession } from '../../../dist/session/wsession.js';
 import { fillStripeElements, loadTopupCardEnv, TOPUP_ENV_FILES } from '../_shared/services/topup_common.mjs';
-import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { pageSettled, urlMatching } from '../_shared/page/settled.mjs';
 import { humanType } from '../../../dist/human/keyboard.js';
 
 // One loader, so this works on a host that keeps the card under ~/.weles and
@@ -51,7 +52,7 @@ if (!card.num || !card.exp || !card.cvc) {
 const s = await WSession.start({ label: 'stripe_pay_checkout', browser: 'chromium' });
 try {
   await s.goto(url);
-  await humanIdlePause('long');
+  await pageSettled(s.page);
 
   // An expired or already-paid session renders no form at all, and saying so
   // is more useful than timing out on a missing input.
@@ -75,7 +76,7 @@ try {
   if (await withoutLink.isVisible().catch(() => false)) {
     console.log('[stripe-checkout] declining Link, entering the card by hand');
     await humanClickLocator(s.page, withoutLink).catch(() => {});
-    await humanIdlePause('short');
+    await pageSettled(s.page);
   }
 
   // A checkout for a European account opens on a payment-method chooser -
@@ -116,10 +117,7 @@ try {
     ];
     for (const [name, attempt] of attempts) {
       await attempt().catch(() => {});
-      for (let i = 0; i < 10; i++) {
-        if (await cardVisible()) break;
-        await humanIdlePause('short');
-      }
+      await pageSettled(s.page);
       if (await cardVisible()) {
         console.log(`[stripe-checkout] card method selected by ${name}`);
         break;
@@ -146,14 +144,8 @@ try {
   // through the shared Elements filler every other purchase trajectory uses.
   console.log(`[stripe-checkout] filling ****${card.num.slice(-4)} exp=${card.exp}`);
   const cardIn = s.page.locator('input[name="cardNumber"], input#cardNumber').filter({ visible: true }).first();
-  let onPage = false;
-  for (let i = 0; i < 20; i++) {
-    onPage = await cardIn.isVisible().catch(() => false);
-    if (onPage) break;
-    const inFrame = s.page.frames().some((f) => /stripe\.com|m\.stripe\.network/.test(f.url()));
-    if (inFrame && i > 4) break;
-    await humanIdlePause('short');
-  }
+  await pageSettled(s.page);
+  const onPage = await cardIn.isVisible().catch(() => false);
 
   if (onPage) {
     await humanClickLocator(s.page, cardIn);
@@ -209,26 +201,15 @@ try {
   console.log('[stripe-checkout] submitted');
 
   // Three things can happen: the page redirects to the success URL, the issuer
-  // demands 3-D Secure, or Stripe renders an inline decline. Watch for all of
-  // them rather than assuming the happy one.
-  let outcome = 'timeout';
-  for (let i = 0; i < 40; i++) {
-    await humanIdlePause('short');
-    const now = s.page.url();
-    if (!/checkout\.stripe\.com/.test(now)) { outcome = 'redirected'; break; }
-    const declined = await s.page
-      .locator('text=/declined|Your card was|could not be processed|incorrect/i')
-      .first()
-      .isVisible()
-      .catch(() => false);
-    if (declined) { outcome = 'declined'; break; }
-    const has3ds = await s.page
-      .locator('iframe[src*="3d_secure"], iframe[src*="hooks.stripe.com/3d_secure"], iframe[name*="3ds" i]')
-      .first()
-      .isVisible()
-      .catch(() => false);
-    if (has3ds) { outcome = '3ds'; break; }
-  }
+  // demands 3-D Secure, or Stripe renders an inline decline. Whichever the page
+  // shows first is the outcome.
+  const declinedText = s.page.locator('text=/declined|Your card was|could not be processed|incorrect/i').first();
+  const threeDs = s.page.locator('iframe[src*="3d_secure"], iframe[src*="hooks.stripe.com/3d_secure"], iframe[name*="3ds" i]').first();
+  const outcome = await Promise.any([
+    urlMatching(s.page, (u) => !/checkout\.stripe\.com/.test(u)).then(() => 'redirected'),
+    declinedText.waitFor({ state: 'visible' }).then(() => 'declined'),
+    threeDs.waitFor({ state: 'visible' }).then(() => '3ds'),
+  ]);
 
   if (outcome === '3ds') {
     // A live 3-D Secure challenge belongs to the cardholder's bank and phone.
