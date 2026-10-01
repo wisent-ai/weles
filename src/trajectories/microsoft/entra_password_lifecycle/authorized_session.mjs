@@ -14,6 +14,7 @@
 
 import { humanFill, humanType } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 
 import { persistFreshCookieJar } from '../../_shared/auth/cookie-freshness.mjs';
 import { commitPassword, outcome } from './answer_and_custody.mjs';
@@ -38,24 +39,11 @@ export async function visible(locator) {
   return count > Number('0') && locator.first().isVisible().catch(() => false);
 }
 
-// The wait itself is the proof that a control arrived, so its refusal is an
-// answer the caller names, not an error the caller never hears about.
-export async function appears(locator, waitMs) {
-  try {
-    await locator.waitFor({ state: 'visible', timeout: waitMs });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function settledOnUrl(page, pattern, waitMs) {
-  try {
-    await page.waitForURL(pattern, { timeout: waitMs });
-    return true;
-  } catch {
-    return false;
-  }
+// Whether the control shows once its page has settled; a missing control is
+// an answer the caller names, not an error the caller never hears about.
+export async function appears(locator) {
+  await pageSettled(locator.page());
+  return visible(locator);
 }
 
 // The rendered text of a Microsoft screen is what every verdict below is read
@@ -77,7 +65,7 @@ async function controlValue(locator) {
 }
 
 export async function fill(page, locator, value) {
-  await locator.waitFor({ state: 'visible', timeout: Number('30000') });
+  await locator.waitFor({ state: 'visible' });
   await humanFill(page, locator, value);
 }
 
@@ -89,12 +77,10 @@ export async function fill(page, locator, value) {
 // nothing about the typed value and is raised.
 async function fillVerified(page, locator, value) {
   let readback;
-  for (let attempt = Number('0'); attempt < Number('3'); attempt += Number('1')) {
-    await fill(page, locator, value);
-    await page.waitForTimeout(Number('800'));
+  await fill(page, locator, value);
+    await pageSettled(page);
     readback = await controlValue(locator);
     if (readback.ok && readback.value === value) return;
-  }
   if (!readback.ok) {
     throw new Error(`a typed sign-in value could not be verified: ${readback.reason}`);
   }
@@ -132,7 +118,7 @@ async function choosePasswordSignIn(page) {
     const passwordChoice = page.getByText(/^Use (?:your )?password$/i).first();
     if (await visible(passwordChoice)) {
       await humanClickLocator(page, passwordChoice);
-      await page.waitForTimeout(Number('1000'));
+      await pageSettled(page);
       return;
     }
     const passkeyFailed = page.getByText(/couldn.t sign you in with your passkey|something went wrong/i).first();
@@ -143,33 +129,33 @@ async function choosePasswordSignIn(page) {
       const otherWays = page.getByText(/Other ways to sign in|Use another way/i).first();
       if (await visible(otherWays)) {
         await humanClickLocator(page, otherWays);
-        await page.waitForTimeout(Number('1000'));
+        await pageSettled(page);
         continue;
       }
     }
     if (await visible(passkeyPage)) {
       await page.keyboard.press('Escape');
-      await page.waitForTimeout(Number('2500'));
+      await pageSettled(page);
       continue;
     }
     if (await visible(bareChooser)) {
       const back = page.locator('#idBtn_Back, button[aria-label="Back"]').first();
       if (!await visible(back)) return;
       await humanClickLocator(page, back);
-      await page.waitForTimeout(Number('1000'));
+      await pageSettled(page);
       continue;
     }
     if (await visible(emailInput)) {
       const next = page.locator('input[type="submit"]#idSIButton9, button[type="submit"]').first();
       if (!await visible(next)) return;
       await humanClickLocator(page, next);
-      await page.waitForTimeout(Number('2500'));
+      await pageSettled(page);
       continue;
     }
     const otherWays = page.getByText(/Other ways to sign in|Use another way/i).first();
     if (!await visible(otherWays)) return;
     await humanClickLocator(page, otherWays);
-    await page.waitForTimeout(Number('1000'));
+    await pageSettled(page);
   }
 }
 
@@ -200,7 +186,7 @@ export async function signIn(session, contract, password) {
   await page.goto(AUTHORIZED_CONTEXT_URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('deliberate');
   const emailInput = page.locator('input[name="loginfmt"], input#i0116, input[type="email"]').first();
-  if (!await appears(emailInput, Number('45000')) || !await visible(emailInput)) return 'unavailable';
+  if (!await appears(emailInput) || !await visible(emailInput)) return 'unavailable';
   // A truncated username submit lands on the "isn't in our system" surface,
   // which still renders a (hidden) password input; detect it and resubmit the
   // full UPN instead of letting the password stage type into that page.
@@ -214,7 +200,7 @@ export async function signIn(session, contract, password) {
   }
   await choosePasswordSignIn(page);
   const passwordInput = page.locator('input[name="passwd"], input#i0118, input[type="password"]').first();
-  if (!await appears(passwordInput, Number('45000')) || !await visible(passwordInput)) {
+  if (!await appears(passwordInput) || !await visible(passwordInput)) {
     return await identityChallengeState(page) === IDENTITY_CHALLENGE_PRESENT ? 'identity_challenge' : 'unavailable';
   }
   await fillVerified(page, passwordInput, password);

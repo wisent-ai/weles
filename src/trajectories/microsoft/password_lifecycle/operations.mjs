@@ -1,7 +1,6 @@
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
-import {
-  IDENTITY_CHALLENGE, LOGIN_HOSTS, LOGIN_URL, NEW_PASSWORD_FORM_WAIT_MS, PASSWORD_CHANGE_URL, RECOVERY_FIELD_WAIT_MS,
-} from './constants.mjs';
+import { pageSettled } from '../../_shared/page/settled.mjs';
+import { IDENTITY_CHALLENGE, LOGIN_HOSTS, LOGIN_URL, PASSWORD_CHANGE_URL } from './constants.mjs';
 import { bodyText, choosePasswordSignIn, completeEmailIdentityChallenge, fill, pageConfig, press, visible } from './sign_in_page.mjs';
 
 const EMAIL_INPUT = 'input[name="loginfmt"], input#i0116, input[type="email"]';
@@ -45,7 +44,7 @@ export async function verifyPassword(session, email, password) {
  */
 async function openRecovery(page, email) {
   const emailInput = page.locator(EMAIL_INPUT).first();
-  await emailInput.waitFor({ state: 'visible', timeout: RECOVERY_FIELD_WAIT_MS }).catch(noteAbsent('recovery email field'));
+  await pageSettled(page);
   if (await visible(emailInput)) {
     await fill(page, emailInput, email);
     const next = page.locator(SUBMIT).first();
@@ -55,7 +54,7 @@ async function openRecovery(page, email) {
   const resetUrl = await pageConfig(page, () => globalThis.$Config?.urlResetPassword ?? globalThis.ServerData?.urlResetPassword ?? '');
   if (!resetUrl) {
     const forgotPassword = page.getByText(/Forgot password|Reset password/i).first();
-    await forgotPassword.waitFor({ state: 'visible', timeout: RECOVERY_FIELD_WAIT_MS }).catch(noteAbsent('forgot-password link'));
+    await pageSettled(page);
     if (await visible(forgotPassword)) {
       await humanClickLocator(page, forgotPassword);
       await humanIdlePause('long');
@@ -90,7 +89,7 @@ async function openRecovery(page, email) {
   }
   await choosePasswordSignIn(page, false);
   const recoveryEmail = page.locator('input#iSigninName, input[name="iSigninName"], input[type="email"]').first();
-  await recoveryEmail.waitFor({ state: 'visible', timeout: RECOVERY_FIELD_WAIT_MS }).catch(noteAbsent('recovery sign-in name'));
+  await pageSettled(page);
   if (await visible(recoveryEmail)) {
     await fill(page, recoveryEmail, email);
     const recoveryNext = page.getByRole('button', { name: /^Next$/i }).first();
@@ -132,7 +131,7 @@ export async function changePassword(session, email, currentPassword, nextPasswo
     if (challengePage) page = challengePage;
     newPasswordInput = page.locator(NEW_PASSWORD).first();
     retypePasswordInput = page.locator(RETYPE_PASSWORD).first();
-    await newPasswordInput.waitFor({ state: 'visible', timeout: NEW_PASSWORD_FORM_WAIT_MS }).catch(noteAbsent('new-password form'));
+    await pageSettled(page);
     dedicatedFormReady = await visible(newPasswordInput) && await visible(retypePasswordInput);
   }
 

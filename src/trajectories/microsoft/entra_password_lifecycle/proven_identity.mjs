@@ -7,6 +7,7 @@
 // entry points.
 
 import { humanIdlePause } from '../../../../dist/human/mouse.js';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 
 import {
   AUTHORIZED_CONTEXT_HOST,
@@ -129,12 +130,8 @@ export async function assertEntraIdentity(session, contract, sink) {
     await humanIdlePause('deliberate');
   }
   let claims = { ok: true, identities: [] };
-  const deadline = Date.now() + Number('60000');
-  while (Date.now() < deadline) {
-    claims = await authorizedClaims(page, sink);
-    if (claims.identities.length) break;
-    await page.waitForTimeout(Number('2000'));
-  }
+  await pageSettled(page);
+  claims = await authorizedClaims(page, sink);
   const identities = claims.identities;
   clearBearerTokens(sink);
   if (!identities.length) {

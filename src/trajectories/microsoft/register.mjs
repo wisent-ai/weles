@@ -14,11 +14,9 @@ import { humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 
 const URL = 'https://signup.live.com';
-const MAX_RETRIES = 3;
 
-for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-  console.log(`\n=== Microsoft signup attempt ${attempt}/${MAX_RETRIES} ===`);
-  const s = await WSession.start({ label: `microsoft_register_${attempt}`, proxy: process.env.PROXY_URL || 'none' });
+{
+  const s = await WSession.start({ label: 'microsoft_register', proxy: process.env.PROXY_URL || 'none' });
   try {
     const id = await s.generateIdentity('microsoft');
     console.log(`[ms] identity: ${id.username} <${id.username}@outlook.com>`);
@@ -129,9 +127,8 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     console.log(`PASS: microsoft ${email}`);
     process.exit(0);
   } catch (e) {
-    console.log(`FAIL (attempt ${attempt}): ${e.message?.slice(0, 200)}`);
-    await s.close().catch(() => {});
-    if (attempt === MAX_RETRIES) { console.log('All attempts exhausted'); process.exit(1); }
-    await humanIdlePause('deliberate');
+    console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+    await s.close();
+    process.exit(1);
   }
 }

@@ -40,7 +40,7 @@ export async function changeEntraPassword(session, currentPassword, nextPassword
   if (challenged === IDENTITY_CHALLENGE_PRESENT) return 'challenged';
   if (challenged === PAGE_TEXT_UNREADABLE) return 'unavailable';
   const passwordInputs = page.locator('input[type="password"]');
-  const rendered = await appears(passwordInputs.first(), Number('60000'));
+  const rendered = await appears(passwordInputs.first());
   const count = await passwordInputs.count().catch(() => Number('0'));
   if (!rendered || count < Number('3')) return 'unavailable';
   await fill(page, passwordInputs.nth(''.length), currentPassword);
@@ -92,7 +92,7 @@ export async function openSelfServiceReset(session, contract) {
   const userInput = page.locator(
     'input#userNameInput, input[name="UserName"], input[type="email"], input[type="text"]',
   ).first();
-  if (await appears(userInput, Number('60000')) && await visible(userInput)) {
+  if (await appears(userInput) && await visible(userInput)) {
     await fill(page, userInput, contract.accountUpn);
     const proceed = page.getByRole('button', { name: /Next|Continue|Submit/i }).first();
     if (await visible(proceed)) {

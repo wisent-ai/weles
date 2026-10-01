@@ -1,11 +1,12 @@
-import { readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
-import { basename, isAbsolute, join } from 'node:path';
+import { existsSync, readFileSync, statSync, unlinkSync, watch, writeFileSync } from 'node:fs';
+import { basename, dirname, isAbsolute, join } from 'node:path';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 import {
-  CODE_FILE_MAX_BYTES, CODE_FILE_MODE, CODE_FILE_MODE_MASK, CODE_FILE_WAIT_MS, DISMISS_SETTLE_MS, FIELD_WAIT_MS,
-  IDENTITY_CHALLENGE, LOGIN_HOSTS, PAGE_SETTLE_MS, PASSWORD_PAGE_WAIT_MS, SECOND_PASSWORD_INPUT, STEP_SETTLE_MS,
+  CODE_FILE_MAX_BYTES, CODE_FILE_MODE, CODE_FILE_MODE_MASK,
+  IDENTITY_CHALLENGE, LOGIN_HOSTS, SECOND_PASSWORD_INPUT,
 } from './constants.mjs';
 
 const CODE_INPUT = 'input[type="tel"], input[type="number"], input[inputmode="numeric"], input[name*="otc" i], input[name*="code" i], input[type="text"]';
@@ -38,7 +39,7 @@ export function pageConfig(page, read) {
 
 /** Wait for the field to be visible, then fill it through the humanized atoms. */
 export async function fill(page, locator, value) {
-  await locator.waitFor({ state: 'visible', timeout: FIELD_WAIT_MS });
+  await locator.waitFor({ state: 'visible' });
   await humanFill(page, locator, value);
 }
 
@@ -47,7 +48,7 @@ export async function choosePasswordSignIn(page, selectPassword = true) {
   const passkeyPage = page.getByText(/Face, fingerprint, PIN or security key|device will open a security window/i).first();
   if (await visible(passkeyPage)) {
     await press(page, 'Escape');
-    await page.waitForTimeout(DISMISS_SETTLE_MS);
+    await pageSettled(page);
     const resume = await pageConfig(page, () => globalThis.$Config?.urlCancel ?? globalThis.$Config?.urlResume ?? '');
     if (resume) {
       const target = new URL(resume, page.url());
@@ -55,25 +56,25 @@ export async function choosePasswordSignIn(page, selectPassword = true) {
         throw new Error('Microsoft passkey resume URL escaped the login origin');
       }
       await page.goto(target.href, { waitUntil: 'domcontentloaded' });
-      await page.waitForTimeout(PAGE_SETTLE_MS);
+      await pageSettled(page);
     } else {
       const back = page.locator('#idBtn_Back, button[aria-label="Back"]').first();
       if (await visible(back)) {
         await humanClickLocator(page, back);
-        await page.waitForTimeout(PAGE_SETTLE_MS);
+        await pageSettled(page);
       }
     }
   }
   const otherWays = page.getByText(/Other ways to sign in|Sign-in options|Use another way/i).first();
   if (await visible(otherWays)) {
     await humanClickLocator(page, otherWays);
-    await page.waitForTimeout(PAGE_SETTLE_MS);
+    await pageSettled(page);
   }
   if (selectPassword) {
     const passwordChoice = page.getByText(/Use (?:your )?password|Password/i).first();
     if (await visible(passwordChoice)) {
       await humanClickLocator(page, passwordChoice);
-      await page.waitForTimeout(PAGE_SETTLE_MS);
+      await pageSettled(page);
     }
   }
 }
@@ -84,59 +85,64 @@ export async function hasIdentityChallenge(page) {
 
 /**
  * The verification code the operator drops into the named file: owner-only,
- * small, digits only, consumed once. False when no file is configured or
- * none arrived in time.
+ * small, digits only, consumed once. False when no file is configured. The
+ * file's appearance is awaited as a filesystem event, not on a clock.
  */
-async function waitForVerificationCode(page) {
+async function waitForVerificationCode() {
   const codeFile = process.env.MICROSOFT_VERIFICATION_CODE_FILE?.trim() ?? '';
   if (!codeFile) return false;
   if (!isAbsolute(codeFile) || basename(codeFile) !== 'microsoft-verification-code') {
     throw new Error('invalid Microsoft verification-code file path');
   }
-  const deadline = Date.now() + CODE_FILE_WAIT_MS;
-  while (Date.now() < deadline) {
+  if (!existsSync(codeFile)) {
+    console.log(`[microsoft] waiting for the operator to write the verification code to ${codeFile}`);
+    const { promise, resolve, reject } = Promise.withResolvers();
+    const watcher = watch(dirname(codeFile), (event, name) => {
+      if (name === basename(codeFile) && existsSync(codeFile)) resolve();
+    });
+    watcher.once('error', reject);
     try {
-      const metadata = statSync(codeFile);
-      if (!metadata.isFile()
-          || metadata.uid !== process.getuid()
-          || (metadata.mode & CODE_FILE_MODE_MASK) !== CODE_FILE_MODE
-          || metadata.size > CODE_FILE_MAX_BYTES) {
-        throw new Error('Microsoft verification-code file failed owner, mode, or size validation');
-      }
-      const code = readFileSync(codeFile, 'utf8').trim();
-      if (!/^\d{4,8}$/.test(code)) {
-        throw new Error('Microsoft verification-code file contains an invalid code');
-      }
-      unlinkSync(codeFile);
-      return code;
-    } catch (error) {
-      if (error?.code !== 'ENOENT') throw error;
+      if (!existsSync(codeFile)) await promise;
+    } finally {
+      watcher.close();
     }
-    await page.waitForTimeout(PAGE_SETTLE_MS);
   }
-  return false;
+  const metadata = statSync(codeFile);
+  if (!metadata.isFile()
+      || metadata.uid !== process.getuid()
+      || (metadata.mode & CODE_FILE_MODE_MASK) !== CODE_FILE_MODE
+      || metadata.size > CODE_FILE_MAX_BYTES) {
+    throw new Error('Microsoft verification-code file failed owner, mode, or size validation');
+  }
+  const code = readFileSync(codeFile, 'utf8').trim();
+  if (!/^\d{4,8}$/.test(code)) {
+    throw new Error('Microsoft verification-code file contains an invalid code');
+  }
+  unlinkSync(codeFile);
+  return code;
 }
 
-/** The page that shows the new-password form once the challenge is done, or false. */
-async function waitForPasswordPage(page) {
+/**
+ * The page that shows the new-password form once the challenge is done, read
+ * from every open page after the verification has settled; answers a "Stay
+ * signed in?" prompt on the way.
+ */
+async function findPasswordPage(page) {
+  await pageSettled(page);
   let statePage = page;
-  const deadline = Date.now() + PASSWORD_PAGE_WAIT_MS;
-  while (Date.now() < deadline) {
-    const pages = page.context().pages().filter((candidate) => !candidate.isClosed()).reverse();
-    for (const candidate of pages) {
-      if (/account\.live\.com\/password\/Change/i.test(candidate.url())) statePage = candidate;
-      if (/stay signed in/i.test(await bodyText(candidate))) {
-        const no = candidate.getByRole('button', { name: /^No$/i }).first();
-        if (await visible(no)) {
-          await humanClickLocator(candidate, no);
-          await humanIdlePause('long');
-        }
-      }
-      if (await visible(candidate.locator('input[type="password"]').nth(SECOND_PASSWORD_INPUT))) {
-        return { passwordPage: candidate, statePage: candidate };
+  const pages = page.context().pages().filter((candidate) => !candidate.isClosed()).reverse();
+  for (const candidate of pages) {
+    if (/account\.live\.com\/password\/Change/i.test(candidate.url())) statePage = candidate;
+    if (/stay signed in/i.test(await bodyText(candidate))) {
+      const no = candidate.getByRole('button', { name: /^No$/i }).first();
+      if (await visible(no)) {
+        await humanClickLocator(candidate, no);
+        await pageSettled(candidate);
       }
     }
-    await page.waitForTimeout(PAGE_SETTLE_MS);
+    if (await visible(candidate.locator('input[type="password"]').nth(SECOND_PASSWORD_INPUT))) {
+      return { passwordPage: candidate, statePage: candidate };
+    }
   }
   return { passwordPage: false, statePage };
 }
@@ -155,7 +161,7 @@ export async function completeEmailIdentityChallenge(page, email) {
     const otherOption = page.getByText(/Use a different verification option|Other ways to verify|Use another way/i).first();
     if (await visible(otherOption)) {
       await humanClickLocator(page, otherOption);
-      await humanIdlePause('long');
+      await pageSettled(page);
     }
     sendEmail = page.getByLabel(/Email.*@/i).last();
     if (!await visible(sendEmail)) {
@@ -167,9 +173,8 @@ export async function completeEmailIdentityChallenge(page, email) {
   const requestCode = page.getByRole('button', { name: /Get code|Send code|Next/i }).first();
   if (await visible(requestCode)) {
     await humanClickLocator(page, requestCode);
-    await humanIdlePause('long');
   }
-  await page.waitForTimeout(STEP_SETTLE_MS);
+  await pageSettled(page);
 
   let body = await bodyText(page);
   let visibleInput = page.locator('input:not([type="hidden"]):not([type="submit"]):not([type="button"])').first();
@@ -179,22 +184,21 @@ export async function completeEmailIdentityChallenge(page, email) {
     const send = page.getByRole('button', { name: /Next|Send code|Send/i }).first();
     if (!await visible(send)) return false;
     await humanClickLocator(page, send);
-    await page.waitForTimeout(STEP_SETTLE_MS);
+    await pageSettled(page);
   }
 
   body = await bodyText(page);
   if (!/code/i.test(body)) return false;
   visibleInput = page.locator(CODE_INPUT).first();
   if (!await visible(visibleInput)) return false;
-  const code = await waitForVerificationCode(page);
+  const code = await waitForVerificationCode();
   if (!code) return false;
   visibleInput = page.locator(CODE_INPUT).first();
   await fill(page, visibleInput, code);
   const verify = page.getByRole('button', { name: /Verify|Next|Submit|Continue/i }).first();
   if (!await visible(verify)) return false;
   await humanClickLocator(page, verify);
-  await humanIdlePause('long');
-  const { passwordPage, statePage } = await waitForPasswordPage(page);
+  const { passwordPage, statePage } = await findPasswordPage(page);
   const passwordReady = Boolean(passwordPage);
   const resultBody = await bodyText(statePage);
   if (!passwordReady
