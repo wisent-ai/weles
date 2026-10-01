@@ -50,17 +50,14 @@ try {
   await searchIn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, searchIn);
   await humanType(s.page, RECIPIENT);
-  await humanIdlePause('deliberate');
 
   const userRow = s.page.locator(`div[role="dialog"] div[role="button"]:has-text("${RECIPIENT}"), div[role="dialog"] [role="button"] span:has-text("${RECIPIENT}")`).filter({ visible: true }).first();
   await userRow.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, userRow);
-  await humanIdlePause('short');
 
-  const chatBtn = s.page.locator('div[role="dialog"] button:has-text("Chat"), div[role="dialog"] button:has-text("Next"), div[role="dialog"] [role="button"]:has-text("Chat")').filter({ visible: true }).first();
+  const chatBtn = s.page.locator('div[role="dialog"] button:enabled:not([aria-disabled="true"]):has-text("Chat"), div[role="dialog"] button:enabled:not([aria-disabled="true"]):has-text("Next"), div[role="dialog"] [role="button"]:not([disabled]):not([aria-disabled="true"]):has-text("Chat")').filter({ visible: true }).first();
   await chatBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, chatBtn);
-  await humanIdlePause('deliberate');
 
   // Composer is contenteditable div, aria-label="Message". Per
   // feedback_focus_before_type: humanClick the editable BEFORE humanType.

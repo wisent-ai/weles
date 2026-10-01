@@ -31,7 +31,6 @@ async function setApplicant() {
     .locator('xpath=ancestor::*[contains(@class, "MuiInputBase-root")][1]')
     .locator('.MuiSelect-select, [role="combobox"]').first();
   if (await applicant.count() > 0) await humanClickLocator(page, applicant);
-  await humanIdlePause('deliberate');
   const opt = page.getByRole('option', { name: 'Wisent Polska', exact: true }).first();
   await opt.waitFor({ state: 'visible' });
   await humanClickLocator(page, opt);

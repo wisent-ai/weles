@@ -257,7 +257,6 @@ catch (e) { saveResult = `NOT SAVED: ${String(e?.message || e)}`; }
 const readback = await page.evaluate((sels) => sels.map((s) => { const el = document.querySelector(s); return el ? (el.value || '').length : null; }), cfg.fields.map((f) => f.sel));
 
 await page.reload({ waitUntil: 'domcontentloaded' });
-await humanIdlePause('long');
 await page.waitForSelector(cfg.fields[0].sel);
 await humanIdlePause('short');
 const persistedLengths = await page.evaluate((sels) => sels.map((s) => { const el = document.querySelector(s); return el ? (el.value || '').length : null; }), cfg.fields.map((f) => f.sel));

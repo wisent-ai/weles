@@ -55,7 +55,6 @@ try {
     // <faceplate-form> web component — inputs live in shadow DOM, but Playwright
     // pierces open shadow roots automatically. Selectors target the slotted
     // <input> elements that bubble up: input#login-username, input#login-password.
-    await humanIdlePause('deliberate');
     const userIn = s.page.locator('input#login-username, input[name="username"], input[autocomplete="username"]').filter({ visible: true }).first();
     await userIn.waitFor({ state: 'visible' });
     await humanClickLocator(s.page, userIn);

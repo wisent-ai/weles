@@ -106,8 +106,7 @@ try {
   await humanIdlePause('short');
   await ta.focus();
   await humanType(s.page, commentText);
-  await humanIdlePause('short');
-  const submitBtn = ta.locator('xpath=ancestor::form[1]').locator('button.save, button[type="submit"]').first();
+  const submitBtn = ta.locator('xpath=ancestor::form[1]').locator('button.save:enabled:not([aria-disabled="true"]), button[type="submit"]:enabled:not([aria-disabled="true"])').first();
   await submitBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, submitBtn);
   // Confirm the body appears in page text — local visibility post-submit.

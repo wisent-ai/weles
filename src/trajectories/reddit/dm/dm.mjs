@@ -43,7 +43,6 @@ try {
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
 
   await s.goto(`https://old.reddit.com/message/compose/?to=${encodeURIComponent(RECIPIENT)}`);
-  await humanIdlePause('deliberate');
 
   const toIn = s.page.locator('input#send_to, input[name="to"]').filter({ visible: true }).first();
   await toIn.waitFor({ state: 'visible' });

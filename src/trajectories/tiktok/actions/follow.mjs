@@ -53,7 +53,6 @@ try {
     const followBtn = s.page.locator('button[data-e2e="follow-button"]').filter({ visible: true }).first();
     await followBtn.waitFor({ state: 'visible' });
     await humanClickLocator(s.page, followBtn);
-    await humanIdlePause('deliberate');
     await followingBtn.waitFor({ state: 'visible' });
     ban = await detectTikTokBanSignals(s.page, s.capturedResponses).catch(() => null);
     console.log(`[ban-signal] ${ban?.signal}  PASS: followed @${TARGET_USER}`);

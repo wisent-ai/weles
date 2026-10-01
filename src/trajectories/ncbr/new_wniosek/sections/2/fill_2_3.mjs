@@ -55,7 +55,6 @@ async function setApplicant() {
   const select = root.locator('.MuiSelect-select, [role="combobox"]').first();
   if (await select.count() === 0) throw new Error('applicant select not found');
   await humanClickLocator(page, select);
-  await humanIdlePause('deliberate');
   const opt = page.getByRole('option', { name: 'Wisent Polska', exact: true }).first();
   await opt.waitFor({ state: 'visible' });
   await humanClickLocator(page, opt);

@@ -203,7 +203,6 @@ async function repairSection8() {
 async function repair22MainFactor() {
   console.log('[2.2 repair] main dependency factors');
   await page.goto(URL_22, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: 2.2 section navigation
-  await humanIdlePause('long');
   const input = page.locator('input[name$="rezultat_prac_br_spelnia_nastepujace_czynniki"]').first();
   await input.waitFor({ state: 'visible' });
   await humanClickLocator(page, input); // allow-raw-playwright: open visible 2.2 multi-select

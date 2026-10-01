@@ -55,13 +55,11 @@ try {
     const findPill = s.page.locator('button:has-text("Find or start a conversation"), [role="button"]:has-text("Find or start a conversation")').filter({ visible: true }).first();
     await findPill.waitFor({ state: 'visible' });
     await humanClickLocator(s.page, findPill);
-    await humanIdlePause('short');
   }
   const queryIn = s.page.locator(switcherSel).filter({ visible: true }).first();
   await queryIn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, queryIn);
   await humanType(s.page, RECIPIENT);
-  await humanIdlePause('deliberate');
 
   const userRow = s.page.locator(`[role="listbox"] [role="option"]:has-text("${RECIPIENT}")`).filter({ visible: true }).first();
   await userRow.waitFor({ state: 'visible' });

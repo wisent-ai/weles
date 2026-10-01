@@ -29,7 +29,6 @@ console.log(`[trajectory] Using service login: ${login.email}`);
 const s = await WSession.start({ label: 'packetstream_balance', browser: 'chromium' });
 try {
   await s.goto(LOGIN_URL);
-  await humanIdlePause('short');
 
   const userIn = s.page.locator('input[name="username"], input[name="email"], input[autocomplete="username"]').filter({ visible: true }).first();
   await userIn.waitFor({ state: 'visible' });

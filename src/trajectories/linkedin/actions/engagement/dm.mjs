@@ -67,15 +67,13 @@ try {
     process.exit(1);
   }
   await humanClickLocator(s.page, s.page.locator(msgSel).filter({ visible: true }).first());
-  await humanIdlePause('deliberate');
 
   const composer = s.page.locator('div.msg-form__contenteditable[contenteditable="true"], div[role="textbox"][contenteditable="true"]').filter({ visible: true }).first();
   await composer.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, composer);
   await humanType(s.page, MESSAGE);
-  await humanIdlePause('short');
 
-  const sendBtn = s.page.locator('button.msg-form__send-button, button[aria-label*="Send" i]:not([disabled])').filter({ visible: true }).first();
+  const sendBtn = s.page.locator('button.msg-form__send-button:enabled:not([aria-disabled="true"]), button[aria-label*="Send" i]:enabled:not([aria-disabled="true"])').filter({ visible: true }).first();
   await sendBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, sendBtn);
   await humanIdlePause('deliberate');

@@ -22,7 +22,6 @@ console.log(`[trajectory] Using service login: ${login.email}`);
 const s = await WSession.start({ label: 'sadcaptcha_balance', browser: 'chromium' });
 try {
   await s.goto(LOGIN_URL);
-  await humanIdlePause('deliberate');
 
   const userIn = s.page.locator('input[name="username"], input[type="email"]').filter({ visible: true }).first();
   await userIn.waitFor({ state: 'visible' });
