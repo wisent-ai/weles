@@ -41,7 +41,6 @@ async function editDataRow(index) {
   await row.locator('button[aria-label="overflow-options"]').first().dispatchEvent('click'); // allow-raw-playwright: open row action menu
   await humanIdlePause('deliberate');
   await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit competitor row
-  await humanIdlePause('long');
   await page.waitForSelector("[name='nazwa_podmiotu_konkurencyjnego']");
 }
 
@@ -55,7 +54,6 @@ async function setApplicant() {
   const select = page.locator('.MuiInputBase-root').filter({ has: input })
     .locator('.MuiSelect-select, [role="combobox"]').first();
   await humanClickLocator(page, select);
-  await humanIdlePause('deliberate');
   const opt = page.getByRole('option', { name: 'Wisent Polska', exact: true }).first();
   await opt.waitFor({ state: 'visible' });
   await humanClickLocator(page, opt);

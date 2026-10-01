@@ -31,7 +31,6 @@ const page = browser.contexts()[0]?.pages()[0];
 if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' }, null, 2)); process.exit(1); }
 
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
-await humanIdlePause('long');
 await page.waitForSelector(`textarea[name="${NB}tytul_projektu"]`);
 
 await page.locator('input[type="radio"][value="samodzielnie"]').first().dispatchEvent('click'); // allow-raw-playwright: select single applicant mode

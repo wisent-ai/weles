@@ -99,7 +99,6 @@ async function editMemberRow(index) {
   await row.locator('button[aria-label="overflow-options"]').first().dispatchEvent('click'); // allow-raw-playwright: open member row menu
   await humanIdlePause('deliberate');
   await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit member row
-  await humanIdlePause('long');
   await page.waitForSelector('[name="imie"]');
 }
   return { clickDodaj, fillByName, setAuto, setApplicant, setStatus, saveForm, fillProjectSubrow, editMemberRow };

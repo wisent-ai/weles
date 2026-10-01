@@ -96,7 +96,6 @@ async function editTaskRow(nr) {
   await humanClickLocator(page, row.locator('button[aria-label="overflow-options"]')) // allow-raw-playwright: open exact task row menu by first-cell prefix
   await humanIdlePause('deliberate');
   await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit existing task row
-  await humanIdlePause('long');
   await page.waitForSelector('[name="numer_zadania"]');
 }
   return { clickDodaj, fillByName, fillSelector, assertTaskValuesBeforeSave, radio, setApplicant, saveForm, editTaskRow };

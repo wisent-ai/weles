@@ -22,7 +22,6 @@ async function openTaskRow(nr) {
   await humanClickLocator(page, taskRow.locator('button[aria-label="overflow-options"]'));
   await humanIdlePause('deliberate');
   await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit task row
-  await humanIdlePause('long');
   await page.waitForSelector('[name="nazwa_zadania"]');
 }
 

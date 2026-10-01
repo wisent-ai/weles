@@ -64,7 +64,6 @@ async function pickOption(name, search, value) {
 }
 
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
-await humanIdlePause('long');
 await page.waitForSelector(`textarea[name="${NB}nazwa_technologii"]`);
 await humanIdlePause('short');
 

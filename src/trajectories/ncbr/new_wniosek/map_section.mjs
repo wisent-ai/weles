@@ -24,7 +24,6 @@ if (!page) {
 
 const projectUrl = process.env.NCBR_PROJECT_URL || ['https://', 'lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1'].join('');
 await page.goto(projectUrl, { waitUntil: 'domcontentloaded' });
-await humanIdlePause('long');
 // The left rail is a MUI TreeView: every top-level section is a group <li role="treeitem"> whose click toggles
 // aria-expanded, and the openable sections are child tree items inside its <ul>. A group that is already open
 // collapses on click, so the group is only clicked when it is closed, and navigation always clicks the child.
@@ -38,7 +37,6 @@ if (SECTION_GROUP) {
   await group.waitFor({ state: 'visible' });
   if (await group.getAttribute('aria-expanded') !== 'true') {
     await humanClickLocator(page, group.locator('.MuiTreeItem-content').first());
-    await humanIdlePause('long');
     await page.waitForFunction((element) => element.getAttribute('aria-expanded') === 'true', await group.elementHandle(), { polling: 'raf' });
   }
   const children = group.locator(':scope > ul li[role="treeitem"]');
@@ -68,7 +66,6 @@ if (SECTION_GROUP) {
   }
   navLocator = page.locator(navPattern(SECTION_LABEL)).first();
 }
-await humanIdlePause('deliberate');
 
 let navInfo = { found: false, group: SECTION_GROUP || null, navChildren, sectionLabel: SECTION_LABEL };
 if (await navLocator.count()) {

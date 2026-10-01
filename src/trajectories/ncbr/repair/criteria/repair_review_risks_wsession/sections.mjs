@@ -12,7 +12,6 @@ async function openTask61(nr) {
   await humanClickLocator(page, btn);
   await humanIdlePause('deliberate');
   await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit existing task row
-  await humanIdlePause('long');
   await page.waitForSelector('[name="nazwa_zadania"]');
 }
 
@@ -47,7 +46,6 @@ async function openIndicator92(name) {
   await humanClickLocator(page, btn);
   await humanIdlePause('deliberate');
   await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit existing indicator row
-  await humanIdlePause('long');
   await page.waitForSelector('textarea[name$="opis_metodologii"], textarea[name$="opis_sposobu_weryfikacji"]');
 }
 
