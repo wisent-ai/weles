@@ -41,7 +41,7 @@ function plannerCandidates(paths) {
 }
 
 export async function selectGoogleAdsAccount() {
-  const s = await evalState(6000);
+  const s = await evalState();
   const text = s.text || '';
   if (!/Select a Google Ads account|Select an active account|No account|Google Ads account/i.test(text)) return true;
   const accountRow = [
@@ -52,7 +52,7 @@ export async function selectGoogleAdsAccount() {
   if (!await clickControl(accountRow, 'Google Ads account', { maxArea: 500_000 }).catch(() => false)) return false;
   for (let i = 0; i < 12; i += 1) {
     await idle('short');
-    const after = await evalState(4000);
+    const after = await evalState();
     if (!/selectaccount/i.test(after.url || '') && !/Select a Google Ads account|Select an active account/i.test(after.text || '')) return true;
   }
   return false;
@@ -61,12 +61,12 @@ export async function selectGoogleAdsAccount() {
 export async function ensureAdsReady(creds) {
   for (const url of plannerCandidates(['/aw/keywordplanner/ideas/new', '/aw/keywordplanner/ideas', '/aw/keywordplanner', '/aw/campaigns'])) {
     await nav(url);
-    const current = await evalState(6000);
+    const current = await evalState();
     if (/accounts\.google\.com/i.test(current.url || '')) {
       if (!await handleGoogleLogin(creds)) return false;
       await nav(url);
     }
-    const after = await evalState(6000);
+    const after = await evalState();
     if (/Google Ads 2-step verification required/i.test(after.text || '') && !/\/aw\/campaigns/i.test(url)) continue;
     if (/selectaccount/i.test(after.url || '') || /Select a Google Ads account|Select an active account|Google Ads account/i.test(after.text || '')) {
       if (await selectGoogleAdsAccount()) return true;
@@ -84,21 +84,21 @@ export async function openKeywordPlanner() {
     await nav(url);
     await selectGoogleAdsAccount();
     await dismissChrome();
-    let s = await evalState(9000);
+    let s = await evalState();
     for (let i = 0; i < 12 && !PLANNER_READY.test(s.text || ''); i += 1) {
       await idle('short');
-      s = await evalState(9000);
+      s = await evalState();
     }
     if (PLANNER_READY.test(s.text || '')) {
-      return { ok: true, path: url, url: s.url, textPreview: norm(s.text).slice(0, 1000) };
+      return { ok: true, path: url, url: s.url, text: norm(s.text) };
     }
   }
-  const s = await evalState(4000);
-  return { ok: false, url: s.url, textPreview: norm(s.text).slice(0, 1200) };
+  const s = await evalState();
+  return { ok: false, url: s.url, text: norm(s.text) };
 }
 
 async function keywordInputVisible() {
-  const s = await evalState(7000);
+  const s = await evalState();
   return s.inputs.some((input) => input.visible && /keyword|phrase|service|paste/i.test(`${input.aria} ${input.placeholder} ${input.tag}`) && !/website|domain|url/i.test(`${input.aria} ${input.placeholder}`));
 }
 

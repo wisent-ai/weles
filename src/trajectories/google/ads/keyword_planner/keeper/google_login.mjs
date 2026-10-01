@@ -12,7 +12,7 @@ const TOTP_INPUT = 'input[type="tel"], input[type="text"], input[inputmode="nume
 
 export async function handleGoogleLogin(creds) {
   for (let step = 0; step < 45; step += 1) {
-    const s = await evalState(8000);
+    const s = await evalState();
     const text = s.text || '';
     const url = s.url || '';
     if (!/accounts\.google\.com/i.test(url)) return true;
@@ -39,7 +39,7 @@ export async function handleGoogleLogin(creds) {
       if (/Try another way|More ways to verify/i.test(text)) {
         await clickControl('Try another way|More ways to verify', 'Try another way').catch(() => false);
         await idle('deliberate');
-        after = await evalState(8000);
+        after = await evalState();
       }
       if (/Tap Yes on your phone|Gmail app|phone or tablet/i.test(after.text || '') && !/Try another way|More ways to verify/i.test(after.text || '')) {
         await clickControl('Tap Yes on your phone|Gmail app|phone or tablet', 'phone prompt option').catch(() => false);

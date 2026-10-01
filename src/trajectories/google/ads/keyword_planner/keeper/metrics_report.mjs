@@ -44,13 +44,13 @@ export async function waitForResults() {
   let last = null;
   for (let i = 0; i < 48; i += 1) {
     await idle('short');
-    const s = await evalState(20_000);
+    const s = await evalState();
     last = s;
     const rows = parseRows(s.text || '');
     if (rows.length) return { state: s, rows };
     if (/No keywords|No results|No account|Unable|error/i.test(s.text || '') && /Keyword Planner/i.test(s.text || '')) break;
   }
-  return { state: last || await evalState(20_000), rows: [] };
+  return { state: last || await evalState(), rows: [] };
 }
 
 export function writeKeywordReport(result, steps) {
@@ -66,7 +66,7 @@ export function writeKeywordReport(result, steps) {
     title: result.state?.title || '',
     capturedAt: new Date().toISOString(),
     rows: result.rows,
-    textPreview: norm(result.state?.text || '').slice(0, 3000),
+    text: norm(result.state?.text || ''),
     steps,
   };
   writeResult(report, report.ok ? 0 : 7);

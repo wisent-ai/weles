@@ -63,14 +63,14 @@ export async function press(key) {
   await idle('deliberate');
 }
 
-export async function evalState(limit = 14_000) {
+export async function evalState() {
   const res = await action({
     action: 'eval',
     js: `(() => {${PAGE_HELPERS}
       return {
         url: location.href,
         title: document.title,
-        text: (document.body?.innerText || '').slice(0, ${Number(limit)}),
+        text: document.body?.innerText || '',
         inputs: Array.from(document.querySelectorAll('input, textarea, [contenteditable="true"], [role="textbox"]')).map((el) => ({
           tag: (el.tagName || '').toLowerCase(),
           type: attr(el, 'type'),
@@ -78,9 +78,9 @@ export async function evalState(limit = 14_000) {
           role: attr(el, 'role'),
           aria: attr(el, 'aria-label'),
           placeholder: attr(el, 'placeholder'),
-          value: String(el.value || el.textContent || '').slice(0, 300),
+          value: String(el.value || el.textContent || ''),
           visible: visible(el),
-        })).slice(0, 80),
+        })),
         controls: Array.from(document.querySelectorAll('${CONTROL_NODES}')).map((el) => {
           const r = el.getBoundingClientRect();
           return {
@@ -95,7 +95,7 @@ export async function evalState(limit = 14_000) {
             w: r.width,
             h: r.height,
           };
-        }).filter((item) => item.visible && (item.text || item.aria || item.href)).slice(0, 180),
+        }).filter((item) => item.visible && (item.text || item.aria || item.href)),
       };
     })()`,
   });
@@ -103,11 +103,13 @@ export async function evalState(limit = 14_000) {
   return res.result;
 }
 
+// Every visible control whose text, label or link matches, smallest first, so
+// the control itself wins over a container that merely holds its text.
+// options.minY / options.maxY keep only controls whose top edge lies in that band.
 export async function locateControl(patternSource, options = {}) {
   const source = JSON.stringify(patternSource);
-  const minY = Number(options.minY ?? -10_000);
-  const maxY = Number(options.maxY ?? 10_000);
-  const maxArea = Number(options.maxArea ?? 1_000_000);
+  const minY = options.minY === undefined ? '-Infinity' : Number(options.minY);
+  const maxY = options.maxY === undefined ? 'Infinity' : Number(options.maxY);
   const res = await action({
     action: 'eval',
     js: `(() => {${PAGE_HELPERS}
@@ -120,9 +122,9 @@ export async function locateControl(patternSource, options = {}) {
         if (!visible(el) || !re.test(haystack)) return null;
         const r = el.getBoundingClientRect();
         const area = r.width * r.height;
-        if (r.top < ${minY} || r.top > ${maxY} || area > ${maxArea}) return null;
+        if (r.top < ${minY} || r.top > ${maxY}) return null;
         return { index, tag: (el.tagName || '').toLowerCase(), role: attr(el, 'role'), text, aria, href: el.href || '', x: r.left, y: r.top, w: r.width, h: r.height, cx: r.left + r.width / 2, cy: r.top + r.height / 2, area };
-      }).filter(Boolean).sort((a, b) => a.area - b.area).slice(0, 20);
+      }).filter(Boolean).sort((a, b) => a.area - b.area);
     })()`,
   });
   if (!Array.isArray(res.result)) throw new Error(`keeper ran the control search for ${patternSource} but answered with no match list`);
@@ -150,10 +152,10 @@ export async function fillSelector(selector, text, label) {
 }
 
 // The planner's keyword box is the control whose label carries "keywords" or
-// "paste" — the same control chooseVolumeMode waits for. The page reports an
-// input value clipped to its first 300 characters, so the box counts as filled
-// when what it reports is the opening of the text this run sent. If nothing on
-// screen reports that, the form is not the one this run was written against.
+// "paste" — the same control chooseVolumeMode waits for. The box counts as
+// filled when the value it reports is the text this run sent (a box that drops
+// the line breaks still reports its start). If nothing on screen reports that,
+// the form is not the one this run was written against.
 export async function fillKeywordInput() {
   const text = keywords.join('\n');
   console.log('[google-ads-keyword-planner-keeper] filling keyword input');
@@ -163,7 +165,7 @@ export async function fillKeywordInput() {
     text,
   });
   await idle('deliberate');
-  const state = await evalState(4000);
+  const state = await evalState();
   const landed = state.inputs.some((input) => {
     const value = String(input.value || '');
     return value.length > 0 && text.startsWith(value);
