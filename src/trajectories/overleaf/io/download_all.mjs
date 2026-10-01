@@ -11,8 +11,9 @@
 // Exit: 0 all projects attempted; 1 no creds / SSO failed; 2 a UI step failed.
 
 import { WSession } from '../../../../dist/session/wsession.js';
-import { googleSso, getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
-import { humanIdlePause, humanClickLocator } from '../../../../dist/human/mouse.js';
+import { getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
+import { overleafGoogleSignIn } from '../../_shared/services/overleaf_google_sign_in.mjs';
+import { humanIdlePause } from '../../../../dist/human/mouse.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 const OUT_DIR = `${process.env.HOME}/Documents/CodingProjects/Wisent/weles/.work/ol_sources`;
@@ -43,61 +44,7 @@ console.log(`[download_all] Google creds loaded for ${login.email}`);
 const s = await WSession.start({ label: 'download_all', browser: 'chromium', headful: process.env.HEADLESS !== '1' });
 
 try {
-  await s.goto('https://www.overleaf.com/login');
-  await humanIdlePause('short');
-
-  if (/\/project(\?|$|\/)/.test(s.page.url())) {
-    console.log('[download_all] already authenticated via persisted cookies');
-  } else {
-    const cookieBtn = s.page.getByRole('button', { name: /essential cookies only|accept all cookies/i }).first();
-    if (await cookieBtn.count() > 0) {
-      console.log('[download_all] dismissing cookie banner');
-      await humanClickLocator(s.page, cookieBtn);
-      await s.page.waitForTimeout(500);  // allow-raw-playwright: cookie-banner settle
-    }
-    const googleBtn = s.page.getByRole('button', { name: /log in with google|sign in with google/i }).or(
-      s.page.getByRole('link', { name: /log in with google|sign in with google/i })
-    ).first();
-    await googleBtn.waitFor({ state: 'visible' });
-    await humanClickLocator(s.page, googleBtn);
-
-    let popup = null;
-    for (let i = 0; i < 20 && !popup; i += 1) {
-      for (const p of s.ctx.pages()) {
-        if (p !== s.page && /accounts\.google\.com/.test(p.url())) { popup = p; break; }
-      }
-      if (popup) break;
-      if (/accounts\.google\.com/.test(s.page.url())) break;
-      await s.page.waitForTimeout(250);  // allow-raw-playwright: SSO-surface poll
-    }
-
-    if (popup) {
-      console.log('[download_all] Google SSO in popup');
-      await popup.waitForLoadState('domcontentloaded');
-      const ok = await googleSso(s, login, { originHost: 'overleaf.com', page: popup });
-      if (!ok) { console.error('FAIL: Google SSO did not complete (popup)'); await s.close(); process.exit(1); }
-    } else {
-      console.log('[download_all] Google SSO in-place redirect');
-      const ok = await googleSso(s, login, { originHost: 'overleaf.com' });
-      if (!ok) { console.error('FAIL: Google SSO did not complete (in-place)'); await s.close(); process.exit(1); }
-    }
-
-    let prev = '';
-    let stableTicks = 0;
-    let settledUrl = null;
-    for (let i = 0; i < 60; i += 1) {
-      await s.page.waitForTimeout(500);  // allow-raw-playwright: settle poll
-      const u = s.page.url();
-      if (u !== prev) { prev = u; stableTicks = 0; continue; }
-      stableTicks += 1;
-      if (stableTicks >= 3 && !/accounts\.google\.com/.test(u)) { settledUrl = u; break; }
-    }
-    const finalUrl = settledUrl || s.page.url();
-    console.log(`[download_all] settled URL: ${finalUrl}`);
-    if (/\/login(\?|$|\/)/.test(finalUrl)) {
-      await dieUI(s, 'sso', `Overleaf returned to /login after SSO — ${finalUrl}`);
-    }
-  }
+  await overleafGoogleSignIn(s, login, { label: 'download_all' });
 
   if (!/\/project(\?|$|\/)/.test(s.page.url())) {
     await s.goto('https://www.overleaf.com/project');
@@ -128,7 +75,7 @@ try {
     let bytes = 0;
     let ok = false;
     try {
-      const resp = await s.ctx.request.get(url, { timeout: 60000 });
+      const resp = await s.ctx.request.get(url);
       if (resp.ok()) {
         const buf = await resp.body();
         bytes = buf.length;

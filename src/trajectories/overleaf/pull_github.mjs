@@ -33,6 +33,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { SessionStore } from '../../../dist/session/store.js';
 import { getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
+import { pageCondition } from '../_shared/page/settled.mjs';
 import { IS_ID, OVERLEAF_AUTH_LABEL, REPO_LC, REPO_SLUG } from './pull_github/settings.mjs';
 import { captureOverleafAuth, dieUI, shot } from './pull_github/evidence.mjs';
 import { signInToOverleaf } from './pull_github/sign_in.mjs';
@@ -89,24 +90,16 @@ try {
       if (await manualMergeBtn.count() > 0) {
         await humanClickLocator(s.page, manualMergeBtn);
         await humanIdlePause('deliberate');
-        let resultText = '';
-        let settled = false;
-        for (let i = 0; i < 90; i += 1) {
-          await s.page.waitForTimeout(1000);  // allow-raw-playwright: post-merge-continue settle poll
-          resultText = await s.page.evaluate(() => document.body.innerText);
-          const low = resultText.toLowerCase();
-          if (/merge conflict|could not be (?:automatically )?merged|failed to (?:pull|merge|sync)|merge failed|unable to merge/.test(low)) {
-            await dieUI(s, `merge_continue_conflict_${tag8}`, `Overleaf still reports a conflict/error after manual-merge continue for ${REPO_SLUG} in ${c.id}`);
-          }
-          if (!/checking project status in github|importing and merging changes in github|i have manually merged/.test(low)) {
-            settled = true;
-            break;
-          }
+        const outcome = await pageCondition(s.page, () => {
+          const low = (document.body?.innerText || '').toLowerCase();
+          if (/merge conflict|could not be (?:automatically )?merged|failed to (?:pull|merge|sync)|merge failed|unable to merge/.test(low)) return 'conflict';
+          if (!/checking project status in github|importing and merging changes in github|i have manually merged/.test(low)) return 'settled';
+          return false;
+        });
+        if (outcome === 'conflict') {
+          await dieUI(s, `merge_continue_conflict_${tag8}`, `Overleaf still reports a conflict/error after manual-merge continue for ${REPO_SLUG} in ${c.id}`);
         }
         const fin = await shot(s, `after_merge_continue_${tag8}`);
-        if (!settled) {
-          await dieUI(s, `merge_continue_unsettled_${tag8}`, `manual-merge continue did not settle for ${c.id}`);
-        }
         console.log(`\n[pull_github] OK — completed manual-merge continuation for ${REPO_SLUG} in ${c.id}.`);
         console.log(`[pull_github] final URL: ${s.page.url()}`);
         console.log(`[pull_github] post-continue DOM: ${fin}`);
@@ -131,26 +124,18 @@ try {
       await humanIdlePause('deliberate');
       // Self-verify the pull. Overleaf performs the merge then settles on
       // either a success/up-to-date state or surfaces a conflict/error.
-      // Poll the page text until it leaves the in-progress state; HARD
-      // FAIL on any conflict/error so success is never claimed silently.
-      let resultText = '';
-      let settled = false;
-      for (let i = 0; i < 90; i += 1) {
-        await s.page.waitForTimeout(1000);  // allow-raw-playwright: post-pull settle poll
-        resultText = await s.page.evaluate(() => document.body.innerText);
-        const low = resultText.toLowerCase();
-        if (/merge conflict|could not be (?:automatically )?merged|failed to (?:pull|merge|sync)|merge failed|unable to merge/.test(low)) {
-          await dieUI(s, `pull_conflict_${tag8}`, `Overleaf reported a conflict/error pulling ${REPO_SLUG} into ${c.id}`);
-        }
-        if (!/checking project status in github|importing and merging changes in github/.test(low)) {
-          settled = true;
-          break;
-        }
+      // Wait until the page leaves the in-progress state; HARD FAIL on any
+      // conflict/error so success is never claimed silently.
+      const outcome = await pageCondition(s.page, () => {
+        const low = (document.body?.innerText || '').toLowerCase();
+        if (/merge conflict|could not be (?:automatically )?merged|failed to (?:pull|merge|sync)|merge failed|unable to merge/.test(low)) return 'conflict';
+        if (!/checking project status in github|importing and merging changes in github/.test(low)) return 'settled';
+        return false;
+      });
+      if (outcome === 'conflict') {
+        await dieUI(s, `pull_conflict_${tag8}`, `Overleaf reported a conflict/error pulling ${REPO_SLUG} into ${c.id}`);
       }
       const fin = await shot(s, `after_pull_${tag8}`);
-      if (!settled) {
-        await dieUI(s, `pull_unsettled_${tag8}`, `pull did not settle for ${c.id} (still in progress after poll)`);
-      }
       console.log(`\n[pull_github] OK — pulled GitHub changes (${REPO_SLUG}) into ${c.id}; result settled with no conflict/error.`);
       console.log(`[pull_github] final URL: ${s.page.url()}`);
       console.log(`[pull_github] post-pull DOM: ${fin}`);

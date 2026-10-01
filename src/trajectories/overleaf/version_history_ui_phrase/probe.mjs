@@ -1,6 +1,7 @@
 // Probing the history state: revealing the phrase in the editor, clicking visible text,
 // and recording one probe.
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 import { humanType } from '../../../../dist/human/keyboard.js';
 import { dump, norm } from './page.mjs';
 import { summarizeVisible } from './summarize.mjs';
@@ -23,13 +24,13 @@ export async function revealQueryInEditor(page, queryText) {
   for (const shortcut of ['Meta+f', 'Control+f']) {
     try {
       await page.keyboard.press(shortcut);
-      await page.waitForTimeout(300);
+      await pageSettled(page);
       await humanType(page, wanted);
-      await page.waitForTimeout(700);
+      await pageSettled(page);
       await page.keyboard.press('Enter').catch(() => {});
-      await page.waitForTimeout(700);
+      await pageSettled(page);
       await page.keyboard.press('Escape').catch(() => {});
-      await page.waitForTimeout(1000);
+      await pageSettled(page);
       const after = await summarizeVisible(page, wanted);
       attempts.push({
         shortcut,
@@ -48,7 +49,7 @@ export async function revealQueryInEditor(page, queryText) {
       if (typeof window.find !== 'function') return false;
       return window.find(text, false, false, true, false, true, false);
     }, wanted);
-    await page.waitForTimeout(1000);
+    await pageSettled(page);
     const after = await summarizeVisible(page, wanted);
     attempts.push({
       method: 'window.find',
@@ -72,7 +73,7 @@ export async function clickVisibleText(page, text, tag, exact = false) {
   if (await loc.count() > 0) {
     await loc.scrollIntoViewIfNeeded().catch(() => {});
     await humanClickLocator(page, loc);
-    await page.waitForTimeout(1500);
+    await pageSettled(page);
     return { tag, text, clicked: true, method: 'locator' };
   }
 
@@ -85,7 +86,7 @@ export async function clickVisibleText(page, text, tag, exact = false) {
     role: el.getAttribute('role') || '',
   }));
   await humanClickLocator(page, fallback);
-  await page.waitForTimeout(1500);
+  await pageSettled(page);
   return { tag, text, clicked: true, method: 'locator-fallback', clicked: detail };
 }
 

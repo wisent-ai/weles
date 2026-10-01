@@ -53,14 +53,10 @@ export async function openGithubPanel(s) {
     // GitHub asynchronously, THEN renders the linked repo + pull action.
     // Reading innerText during the checking state yields a false "not
     // linked" (proven by the captured 04_github_6755b68d.html). Wait for
-    // the modal, then poll until the checking-status text clears.
+    // the modal, then for the checking-status text to go.
     const modalTitle = s.page.locator('.modal-title:has-text("Sync with GitHub")').first();
     await modalTitle.waitFor({ state: 'visible' });
-    for (let i = 0; i < 40; i += 1) {
-      const checking = await s.page.getByText('Checking project status in GitHub').count();
-      if (checking === 0) break;
-      await s.page.waitForTimeout(500);  // allow-raw-playwright: async GitHub-status poll
-    }
+    await s.page.getByText('Checking project status in GitHub').first().waitFor({ state: 'hidden' });
     await humanIdlePause('short');
     await shot(s, 'github_modal_loaded');
   }

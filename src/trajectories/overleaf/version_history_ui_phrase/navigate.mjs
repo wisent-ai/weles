@@ -1,70 +1,17 @@
 // Getting to the history panel: the Google sign-in through the Overleaf UI, opening the
 // project by id or title, and opening the History UI.
-import { googleSso, getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
+import { getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
+import { overleafGoogleSignIn } from '../../_shared/services/overleaf_google_sign_in.mjs';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { isId, target } from './settings.mjs';
 import { clickText } from './page.mjs';
 
 export async function loginWithGoogleUi(s) {
-  await s.goto('https://www.overleaf.com/login');
-  await humanIdlePause('short');
-  const cookieBtn = s.page.getByRole('button', { name: /essential cookies only|accept all cookies/i }).first();
-  if (await cookieBtn.count() > 0) {
-    await humanClickLocator(s.page, cookieBtn);
-    await s.page.waitForTimeout(500);
-  }
-  const googleBtn = s.page.getByRole('button', { name: /log in with google|sign in with google/i })
-    .or(s.page.getByRole('link', { name: /log in with google|sign in with google/i }))
-    .filter({ visible: true })
-    .first();
-  await googleBtn.waitFor({ state: 'visible', timeout: 15000 });
-
-  let popupCaught = null;
-  const popupPromise = s.page.waitForEvent('popup').then((p) => { popupCaught = p; return p; }, () => null);
-  await humanClickLocator(s.page, googleBtn);
-  const popup = await Promise.race([
-    popupPromise,
-    new Promise((resolve) => setTimeout(() => resolve(null), 5000)),
-  ]);
-
-  let surface = popup || popupCaught;
-  if (!surface) {
-    for (let i = 0; i < 40; i += 1) {
-      for (const p of s.ctx.pages()) {
-        if (p !== s.page && /accounts\.google\.com/.test(p.url())) { surface = p; break; }
-      }
-      if (surface) break;
-      if (/accounts\.google\.com/.test(s.page.url())) { surface = s.page; break; }
-      await s.page.waitForTimeout(250);
-    }
-  }
-  if (!surface) throw new Error('Google SSO surface did not open');
-
   const creds = await getGoogleSsoCreds();
   if (!creds) throw new Error('getGoogleSsoCreds() returned null for Overleaf Google SSO');
-
-  const emailInputCount = await surface.locator('input[type="email"], input[name="identifier"], input#identifierId').filter({ visible: true }).count().catch(() => 0);
-  if (emailInputCount === 0) {
-    const useAnother = surface.getByText(/Use another account/i).filter({ visible: true }).first();
-    if (await useAnother.count() > 0) {
-      await humanClickLocator(surface, useAnother);
-      await humanIdlePause('deliberate');
-    }
-  }
-
-  const ok = await googleSso(s, creds, { originHost: 'overleaf.com', page: surface });
-  if (!ok) throw new Error('Google SSO did not complete');
-
-  for (let i = 0; i < 60; i += 1) {
-    await s.page.waitForTimeout(500);
-    const url = s.page.url();
-    if (/overleaf\.com\/project/.test(url)) return true;
-    if (!/accounts\.google\.com|login/.test(url)) {
-      await s.goto('https://www.overleaf.com/project');
-      return true;
-    }
-  }
-  await s.goto('https://www.overleaf.com/project');
+  const signedIn = await overleafGoogleSignIn(s, creds, { label: 'version_history_ui_phrase', chooseAnotherAccount: true });
+  if (!/overleaf\.com\/project/.test(signedIn.url)) await s.goto('https://www.overleaf.com/project');
   return true;
 }
 
@@ -77,15 +24,15 @@ export async function resolveAndOpenProject(s) {
 
   const needle = target.toLowerCase();
   const anchorSel = 'a[href*="/project/"]';
-  await s.page.locator(anchorSel).first().waitFor({ state: 'visible', timeout: 15000 });
+  await s.page.locator(anchorSel).first().waitFor({ state: 'visible' });
+  // The dashboard lazy-loads rows on scroll: scroll to the last row until a
+  // settled page shows no more rows than before.
   const anchorLoc = s.page.locator(anchorSel);
   let lastCount = -1;
-  for (let i = 0; i < 20; i += 1) {
-    const count = await anchorLoc.count();
-    if (count > 0) await anchorLoc.nth(count - 1).scrollIntoViewIfNeeded().catch(() => {});
-    if (count === lastCount) break;
+  for (let count = await anchorLoc.count(); count !== lastCount; count = await anchorLoc.count()) {
     lastCount = count;
-    await s.page.waitForTimeout(500);
+    await anchorLoc.nth(count - 1).scrollIntoViewIfNeeded();
+    await pageSettled(s.page);
   }
 
   const match = await s.page.evaluate((needle) => {
@@ -116,7 +63,7 @@ export async function openHistoryUi(s) {
 
   const menuClick = await clickText(s.page, /^Menu$|^File$/i);
   if (menuClick) {
-    await s.page.waitForTimeout(800);
+    await pageSettled(s.page);
     const item = s.page.getByRole('menuitem', { name: /show version history/i }).filter({ visible: true }).first();
     if (await item.count() > 0) {
       await humanClickLocator(s.page, item);

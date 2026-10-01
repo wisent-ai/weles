@@ -18,9 +18,6 @@ export async function shot(s, tag) {
   console.log(`[pull_github] [${tag}] DOM ${p} (${html.length}b)`);
   return p;
 }
-export function waitMs(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 export async function dieUI(s, tag, msg) {
   console.error(`\n[pull_github] STEP FAILED: ${tag} — ${msg}`);
   const p = await shot(s, `fail_${tag}`);

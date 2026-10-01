@@ -12,6 +12,7 @@ import { dump, ensureDashboard, norm, writeSummary } from './version_history_ui_
 import { loginWithGoogleUi, openHistoryUi, resolveAndOpenProject } from './version_history_ui_phrase/navigate.mjs';
 import { summarizeVisible } from './version_history_ui_phrase/summarize.mjs';
 import { clickVisibleText, probeHistoryState } from './version_history_ui_phrase/probe.mjs';
+import { pageSettled } from '../_shared/page/settled.mjs';
 
 // The session modules read the recording switches at import time; the settings module
 // above has already set them, so they load here, not statically.
@@ -45,7 +46,7 @@ try {
   }
 
   const method = await openHistoryUi(s);
-  await s.page.waitForTimeout(3000);
+  await pageSettled(s.page);
   await dump(s, `history_open_${method}`);
 
   const summary = await summarizeVisible(s.page, queryText);

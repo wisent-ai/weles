@@ -23,8 +23,8 @@
 //   0 success; 1 no creds / no SSO completion; 2 page error (snapshot saved).
 
 import { WSession } from '../../../../dist/session/wsession.js';
-import { googleSso, getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
-import { humanIdlePause, humanClickLocator } from '../../../../dist/human/mouse.js';
+import { getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
+import { overleafGoogleSignIn } from '../../_shared/services/overleaf_google_sign_in.mjs';
 import { createWriteStream } from 'node:fs';
 
 const LIMIT    = Number(process.env.OVERLEAF_LIST_LIMIT || 500);
@@ -48,94 +48,12 @@ let pageError = null;
 const rows = [];
 
 try {
-  await s.goto('https://www.overleaf.com/login');
-  await humanIdlePause('short');
-
-  // If a stored cookie jar already authenticates us, /login redirects to
-  // /project — short-circuit the SSO dance.
-  if (/\/project(\?|$|\/)/.test(s.page.url())) {
-    console.log('[list_auto] already authenticated via persisted cookies');
-  } else {
-    // Dismiss the cookie banner if present — verified 2026-05-17 against
-    // overleaf.com/login: the bottom banner has "Essential cookies only"
-    // and "Accept all cookies" buttons. Use count() to test existence
-    // (no try/catch swallow) and only click if a match is found.
-    const cookieBtn = s.page.getByRole('button', { name: /essential cookies only|accept all cookies/i }).first();
-    if (await cookieBtn.count() > 0) {
-      console.log('[list_auto] dismissing cookie banner');
-      await humanClickLocator(s.page, cookieBtn);
-      await s.page.waitForTimeout(500);  // allow-raw-playwright: short cookie-banner dismiss settle
-    }
-
-    // Click "Log in with Google". Verified 2026-05-17 from rendered Overleaf
-    // login page screenshot — button text is "Log in with Google" (not "Sign
-    // in with..."), rendered as a <button>, not a link. Locator handles both.
-    const googleBtn = s.page.getByRole('button', { name: /log in with google|sign in with google/i }).or(
-      s.page.getByRole('link', { name: /log in with google|sign in with google/i })
-    ).first();
-    await googleBtn.waitFor({ state: 'visible' });
-    let popupCaught = null;
-    const popupPromise = s.page.waitForEvent('popup').then(p => { popupCaught = p; return p; }, () => null);
-    await humanClickLocator(s.page, googleBtn);
-    const popup = await Promise.race([
-      popupPromise,
-      new Promise(r => setTimeout(() => r(null), 5000)),  // allow-raw-playwright: Promise.race deadline
-    ]);
-
-    if (popup) {
-      console.log('[list_auto] Google SSO opened in popup; driving popup');
-      await popup.waitForLoadState('domcontentloaded');
-      const ok = await googleSso(s, login, { originHost: 'overleaf.com', page: popup });
-      if (!ok) {
-        console.error('FAIL: Google SSO did not complete (popup mode)');
-        process.exit(1);
-      }
-    } else {
-      console.log('[list_auto] Google SSO is in-place redirect; driving main page');
-      const ok = await googleSso(s, login, { originHost: 'overleaf.com' });
-      if (!ok) {
-        console.error('FAIL: Google SSO did not complete (in-place mode)');
-        process.exit(1);
-      }
-    }
-
-    // googleSso() returns true on a transient URL match — it can fire while
-    // the OAuth redirect chain is still bouncing through google.com. Wait
-    // for the URL to settle (unchanged for 3 consecutive checks @ 500ms),
-    // off accounts.google.com, before we trust the session. If we settle on
-    // overleaf.com/login* it means Overleaf rejected the OAuth (likely
-    // reCAPTCHA challenge) — surface that as a real failure.
-    let prev = '';
-    let stableTicks = 0;
-    let settledUrl = null;
-    for (let i = 0; i < 60; i += 1) {
-      await s.page.waitForTimeout(500);  // allow-raw-playwright: settle poll
-      const u = s.page.url();
-      if (u !== prev) {
-        prev = u;
-        stableTicks = 0;
-        continue;
-      }
-      stableTicks += 1;
-      if (stableTicks >= 3 && !/accounts\.google\.com/.test(u)) {
-        settledUrl = u;
-        break;
-      }
-    }
-    const finalUrl = settledUrl !== null ? settledUrl : s.page.url();
-    console.log(`[list_auto] settled URL: ${finalUrl}`);
-    if (/\/login(\?|$|\/)/.test(finalUrl)) {
-      console.error('FAIL: Overleaf returned to /login after SSO — OAuth rejected (reCAPTCHA challenge on callback).');
-      const snapPath = `${process.env.HOME}/Documents/CodingProjects/Wisent/weles/.work/list_auto/overleaf_post_sso_rejected.png`;
-      await s.page.screenshot({ path: snapPath, fullPage: true });
-      console.error(`[list_auto] post-SSO rejection screenshot: ${snapPath}`);
-      process.exit(1);
-    }
-    // If we're already on a /project URL (Overleaf's natural OAuth landing),
-    // no explicit nav needed. Otherwise nudge to the dashboard.
-    if (!/\/project(\?|$|\/)/.test(finalUrl)) {
-      await s.goto('https://www.overleaf.com/project');
-    }
+  // A stored cookie jar that already authenticates skips the SSO; otherwise
+  // the shared sign-in drives Google and throws with the URL when Overleaf
+  // rejects the OAuth callback.
+  const signedIn = await overleafGoogleSignIn(s, login, { label: 'list_auto' });
+  if (!signedIn.alreadySignedIn && !/\/project(\?|$|\/)/.test(signedIn.url)) {
+    await s.goto('https://www.overleaf.com/project');
   }
 
   // Wait for project anchors. Each row in Overleaf's dashboard contains an

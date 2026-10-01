@@ -9,8 +9,8 @@
 //   node src/trajectories/overleaf_rename/rename.mjs "<24hex>=New Name" [...]
 
 import { WSession } from '../../../dist/session/wsession.js';
-import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
-import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
+import { getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
+import { overleafGoogleSignIn } from '../_shared/services/overleaf_google_sign_in.mjs';
 
 const PAIRS = process.argv.slice(2).map((a) => {
   const i = a.indexOf('=');
@@ -29,36 +29,8 @@ console.log(`[rename] creds for ${login.email}; ${PAIRS.length} project(s)`);
 const s = await WSession.start({ label: 'overleaf_rename', browser: 'chromium', headful: process.env.HEADLESS !== '1' });
 
 async function ensureLoggedIn() {
-  await s.goto('https://www.overleaf.com/login');
-  await humanIdlePause('short');
-  if (/\/project(\?|$|\/)/.test(s.page.url())) { console.log('[rename] already authed via cookies'); return; }
-  const cookieBtn = s.page.getByRole('button', { name: /essential cookies only|accept all cookies/i }).first();
-  if (await cookieBtn.count() > 0) {
-    await humanClickLocator(s.page, cookieBtn);
-    await s.page.waitForTimeout(500);  // allow-raw-playwright: cookie-banner dismiss settle
-  }
-  const googleBtn = s.page.getByRole('button', { name: /log in with google|sign in with google/i })
-    .or(s.page.getByRole('link', { name: /log in with google|sign in with google/i })).first();
-  await googleBtn.waitFor({ state: 'visible' });
-  const pp = s.page.waitForEvent('popup').then((p) => p, () => null);
-  await humanClickLocator(s.page, googleBtn);
-  const popup = await Promise.race([pp, new Promise((r) => setTimeout(() => r(null), 5000))]);  // allow-raw-playwright: Promise.race deadline
-  const ok = popup
-    ? await googleSso(s, login, { originHost: 'overleaf.com', page: popup })
-    : await googleSso(s, login, { originHost: 'overleaf.com' });
-  if (!ok) { console.error('FAIL: Google SSO did not complete'); await s.close(); process.exit(1); }
-  let prev = '', stable = 0, settled = null;
-  for (let i = 0; i < 60; i += 1) {
-    await s.page.waitForTimeout(500);  // allow-raw-playwright: SSO URL settle poll
-    const u = s.page.url();
-    if (u !== prev) { prev = u; stable = 0; continue; }
-    stable += 1;
-    if (stable >= 3 && !/accounts\.google\.com/.test(u)) { settled = u; break; }
-  }
-  const fin = settled || s.page.url();
-  console.log(`[rename] settled URL: ${fin}`);
-  if (/\/login(\?|$|\/)/.test(fin)) { console.error('FAIL: back at /login after SSO'); await s.close(); process.exit(1); }
-  if (!/\/project(\?|$|\/)/.test(fin)) await s.goto('https://www.overleaf.com/project');
+  const signedIn = await overleafGoogleSignIn(s, login, { label: 'rename' });
+  if (!/\/project(\?|$|\/)/.test(signedIn.url)) await s.goto('https://www.overleaf.com/project');
 }
 
 async function currentName(id) {

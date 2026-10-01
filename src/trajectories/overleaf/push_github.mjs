@@ -14,7 +14,9 @@
 // Env: HEADLESS=1 headless. Exit: 0 pushed · 1 creds/SSO/args · 2 UI step.
 
 import { WSession } from '../../../dist/session/wsession.js';
-import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
+import { getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
+import { overleafGoogleSignIn } from '../_shared/services/overleaf_google_sign_in.mjs';
+import { pageCondition } from '../_shared/page/settled.mjs';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
 import { humanFill } from '../../../dist/human/keyboard.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -102,14 +104,10 @@ async function openGithubPanel(s) {
     // GitHub asynchronously, THEN renders the linked repo + pull action.
     // Reading innerText during the checking state yields a false "not
     // linked" (proven by the captured 04_github_6755b68d.html). Wait for
-    // the modal, then poll until the checking-status text clears.
+    // the modal, then for the checking-status text to go.
     const modalTitle = s.page.locator('.modal-title:has-text("Sync with GitHub")').first();
     await modalTitle.waitFor({ state: 'visible' });
-    for (let i = 0; i < 40; i += 1) {
-      const checking = await s.page.getByText('Checking project status in GitHub').count();
-      if (checking === 0) break;
-      await s.page.waitForTimeout(500);  // allow-raw-playwright: async GitHub-status poll
-    }
+    await s.page.getByText('Checking project status in GitHub').first().waitFor({ state: 'hidden' });
     await humanIdlePause('short');
     await shot(s, 'github_modal_loaded');
   }
@@ -118,69 +116,9 @@ async function openGithubPanel(s) {
 }
 
 try {
-  await s.goto('https://www.overleaf.com/login');
-  await humanIdlePause('short');
-
-  if (/\/project(\?|$|\/)/.test(s.page.url())) {
-    console.log('[pull_github] already authenticated via persisted cookies');
-  } else {
-    const cookieBtn = s.page.getByRole('button', { name: /essential cookies only|accept all cookies/i }).first();
-    if (await cookieBtn.count() > 0) {
-      console.log('[pull_github] dismissing cookie banner');
-      await humanClickLocator(s.page, cookieBtn);
-      await s.page.waitForTimeout(500);  // allow-raw-playwright: cookie-banner settle
-    }
-    const googleBtn = s.page.getByRole('button', { name: /log in with google|sign in with google/i }).or(
-      s.page.getByRole('link', { name: /log in with google|sign in with google/i })
-    ).first();
-    await googleBtn.waitFor({ state: 'visible' });
-    await humanClickLocator(s.page, googleBtn);
-
-    // Overleaf opens Google SSO either as a popup or an in-place redirect.
-    // Poll observable state (no rejecting waitForEvent, no catch): a new
-    // context page on accounts.google.com is the popup; the main page
-    // navigating there is the in-place redirect. Absence of both is then
-    // an explicit, surfaced condition handled by googleSso().
-    let popup = null;
-    for (let i = 0; i < 20 && !popup; i += 1) {
-      for (const p of s.ctx.pages()) {
-        if (p !== s.page && /accounts\.google\.com/.test(p.url())) { popup = p; break; }
-      }
-      if (popup) break;
-      if (/accounts\.google\.com/.test(s.page.url())) break;
-      await s.page.waitForTimeout(250);  // allow-raw-playwright: SSO-surface poll
-    }
-
-    if (popup) {
-      console.log('[pull_github] Google SSO in popup');
-      await popup.waitForLoadState('domcontentloaded');
-      const ok = await googleSso(s, login, { originHost: 'overleaf.com', page: popup });
-      if (!ok) { console.error('FAIL: Google SSO did not complete (popup)'); await s.close(); process.exit(1); }
-    } else {
-      console.log('[pull_github] Google SSO in-place redirect');
-      const ok = await googleSso(s, login, { originHost: 'overleaf.com' });
-      if (!ok) { console.error('FAIL: Google SSO did not complete (in-place)'); await s.close(); process.exit(1); }
-    }
-
-    let prev = '';
-    let stableTicks = 0;
-    let settledUrl = null;
-    for (let i = 0; i < 60; i += 1) {
-      await s.page.waitForTimeout(500);  // allow-raw-playwright: settle poll
-      const u = s.page.url();
-      if (u !== prev) { prev = u; stableTicks = 0; continue; }
-      stableTicks += 1;
-      if (stableTicks >= 3 && !/accounts\.google\.com/.test(u)) { settledUrl = u; break; }
-    }
-    let finalUrl = settledUrl;
-    if (finalUrl === null) finalUrl = s.page.url();
-    console.log(`[pull_github] settled URL: ${finalUrl}`);
-    if (/\/login(\?|$|\/)/.test(finalUrl)) {
-      await dieUI(s, 'sso', `Overleaf returned to /login after SSO (auth not established) — ${finalUrl}`);
-    }
-    if (!/\/project(\?|$|\/)/.test(finalUrl)) {
-      await s.goto('https://www.overleaf.com/project');
-    }
+  const signedIn = await overleafGoogleSignIn(s, login, { label: 'push_github' });
+  if (!signedIn.alreadySignedIn && !/\/project(\?|$|\/)/.test(signedIn.url)) {
+    await s.goto('https://www.overleaf.com/project');
   }
 
   // Build the candidate list.
@@ -250,27 +188,18 @@ try {
       await humanIdlePause('deliberate');
       // Self-verify the push. Overleaf commits the project's current state to
       // GitHub then settles on either a success/up-to-date state or surfaces a
-      // conflict/error. Poll the page text until it leaves the in-progress
-      // state; HARD FAIL on any conflict/error so success is never claimed
-      // silently.
-      let resultText = '';
-      let settled = false;
-      for (let i = 0; i < 90; i += 1) {
-        await s.page.waitForTimeout(1000);  // allow-raw-playwright: post-push settle poll
-        resultText = await s.page.evaluate(() => document.body.innerText);
-        const low = resultText.toLowerCase();
-        if (/merge conflict|could not be (?:automatically )?merged|failed to (?:push|merge|sync)|push failed|unable to (?:push|merge)/.test(low)) {
-          await dieUI(s, `push_conflict_${tag8}`, `Overleaf reported a conflict/error pushing ${c.id} to ${REPO_SLUG}`);
-        }
-        if (!/checking project status in github|pushing changes to github|importing and merging changes in github/.test(low)) {
-          settled = true;
-          break;
-        }
+      // conflict/error. Wait until the page leaves the in-progress state;
+      // HARD FAIL on any conflict/error so success is never claimed silently.
+      const outcome = await pageCondition(s.page, () => {
+        const low = (document.body?.innerText || '').toLowerCase();
+        if (/merge conflict|could not be (?:automatically )?merged|failed to (?:push|merge|sync)|push failed|unable to (?:push|merge)/.test(low)) return 'conflict';
+        if (!/checking project status in github|pushing changes to github|importing and merging changes in github/.test(low)) return 'settled';
+        return false;
+      });
+      if (outcome === 'conflict') {
+        await dieUI(s, `push_conflict_${tag8}`, `Overleaf reported a conflict/error pushing ${c.id} to ${REPO_SLUG}`);
       }
       const fin = await shot(s, `after_push_${tag8}`);
-      if (!settled) {
-        await dieUI(s, `push_unsettled_${tag8}`, `push did not settle for ${c.id} (still in progress after poll)`);
-      }
       console.log(`\n[push_github] OK — pushed Overleaf changes (${c.id}) to GitHub (${REPO_SLUG}); result settled with no conflict/error.`);
       console.log(`[push_github] final URL: ${s.page.url()}`);
       console.log(`[push_github] post-push DOM: ${fin}`);

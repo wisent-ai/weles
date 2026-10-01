@@ -16,8 +16,9 @@
 // Output: .work/history_scan/figure_deletions.json (raw API + filtered result).
 
 import { WSession } from '../../../../dist/session/wsession.js';
-import { googleSso, getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
-import { humanIdlePause, humanClickLocator } from '../../../../dist/human/mouse.js';
+import { getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
+import { overleafGoogleSignIn } from '../../_shared/services/overleaf_google_sign_in.mjs';
+import { humanIdlePause } from '../../../../dist/human/mouse.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 const PROJECT = process.argv[2] || process.env.OVERLEAF_PROJECT;
@@ -39,40 +40,7 @@ console.log(`[history_scan] Google creds loaded for ${login.email}; project ${PR
 const s = await WSession.start({ label: 'history_scan', browser: 'chromium', headful: process.env.HEADLESS !== '1' });
 
 try {
-  // ---- Google SSO (proven path from pull_github.mjs) ----
-  await s.goto('https://www.overleaf.com/login');
-  await humanIdlePause('short');
-  const alreadyAuthed = /\/project(\?|$|\/)/.test(s.page.url());
-  if (!alreadyAuthed) {
-    const cookieBtn = s.page.getByRole('button', { name: /essential cookies only|accept all cookies/i }).first();
-    if (await cookieBtn.count() > 0) { await humanClickLocator(s.page, cookieBtn); await s.page.waitForTimeout(500); } // allow-raw-playwright: cookie-banner settle
-    const googleBtn = s.page.getByRole('button', { name: /log in with google|sign in with google/i }).or(
-      s.page.getByRole('link', { name: /log in with google|sign in with google/i })).first();
-    await googleBtn.waitFor({ state: 'visible' });
-    await humanClickLocator(s.page, googleBtn);
-    let popup = null;
-    for (let i = 0; i < 20 && !popup; i += 1) {
-      for (const p of s.ctx.pages()) { if (p !== s.page && /accounts\.google\.com/.test(p.url())) { popup = p; break; } }
-      if (popup) break;
-      if (/accounts\.google\.com/.test(s.page.url())) break;
-      await s.page.waitForTimeout(250); // allow-raw-playwright: SSO-surface poll
-    }
-    if (popup) await popup.waitForLoadState('domcontentloaded');
-    const ssoOpts = popup ? { originHost: 'overleaf.com', page: popup } : { originHost: 'overleaf.com' };
-    const ok = await googleSso(s, login, ssoOpts);
-    if (!ok) { console.error('FAIL: Google SSO did not complete'); await s.close(); process.exit(1); }
-    let prev = '', stableTicks = 0, settledUrl = null;
-    for (let i = 0; i < 60; i += 1) {
-      await s.page.waitForTimeout(500); // allow-raw-playwright: settle poll
-      const u = s.page.url();
-      if (u !== prev) { prev = u; stableTicks = 0; continue; }
-      stableTicks += 1;
-      if (stableTicks >= 3 && !/accounts\.google\.com/.test(u)) { settledUrl = u; break; }
-    }
-    const finalUrl = settledUrl || s.page.url();
-    console.log(`[history_scan] settled URL: ${finalUrl}`);
-    if (/\/login(\?|$|\/)/.test(finalUrl)) { console.error('FAIL: returned to /login after SSO'); await s.close(); process.exit(1); }
-  }
+  await overleafGoogleSignIn(s, login, { label: 'history_scan' });
 
   // Land on the project so same-origin fetches to /project/<id>/... are allowed.
   await s.goto(`https://www.overleaf.com/project/${PROJECT}`);
