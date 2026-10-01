@@ -143,13 +143,17 @@ export const FP_SCRIPT = String.raw`(async () => {
       const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
       const ips = new Set();
       pc.createDataChannel('weles-diag');
-      pc.onicecandidate = (e) => {
-        if (!e.candidate?.candidate) return;
-        const m = e.candidate.candidate.match(/([0-9]{1,3}\.){3}[0-9]{1,3}/);
-        if (m) ips.add(m[0]);
-      };
+      // Gathering ends with a null candidate; that event, not a timer, says
+      // every local address has been offered.
+      const gathered = new Promise(resolve => {
+        pc.onicecandidate = (e) => {
+          if (!e.candidate) { resolve(undefined); return; }
+          const m = e.candidate.candidate?.match(/([0-9]{1,3}\.){3}[0-9]{1,3}/);
+          if (m) ips.add(m[0]);
+        };
+      });
       await pc.setLocalDescription(await pc.createOffer());
-      await new Promise(r => setTimeout(r, 1000));
+      await gathered;
       pc.close();
       return { localIPs: Array.from(ips) };
     } catch (e) { return { _err: String(e).slice(0, 100), localIPs: [] }; }
