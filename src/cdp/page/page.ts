@@ -176,10 +176,6 @@ export class CDPPage {
     return buf;
   }
 
-  waitForTimeout(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));  // allow-raw-playwright: review — context-dependent timer
-  }
-
   async waitForSelector(selector: string, options?: { state?: string }): Promise<void> {
     const state = options?.state ?? 'visible';
     // Resolved inside the page by a MutationObserver: the DOM change that
