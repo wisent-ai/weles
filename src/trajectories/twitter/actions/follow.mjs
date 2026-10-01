@@ -1,6 +1,7 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { urlMatching } from '../../_shared/page/settled.mjs';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/auth/cookie-freshness.mjs';
 
@@ -30,14 +31,14 @@ try {
   console.log(`[trajectory] injected ${prepared.length} stored cookies (jar fresh)`);
 
   await s.page.goto(TARGET_URL, { waitUntil: 'domcontentloaded' });
-  // x.com SPA needs ~6-8s to hydrate the profile page after domcontentloaded;
-  // a hard 4s sleep was racing the React mount and producing "no Follow
-  // button visible" with empty testid list. Use locator.waitFor on the
-  // canonical Follow / Following button selector instead — it polls until
-  // either appears or 30s expires. The selector intentionally allows BOTH
-  // states (-follow and -unfollow) so the wait succeeds even if the account
-  // already follows the target (we then branch on which one matched).
-  await s.page.locator(`[data-testid$="-follow"][aria-label*="${TARGET_HANDLE}"], [data-testid$="-unfollow"][aria-label*="${TARGET_HANDLE}"]`).first().waitFor({ state: 'visible', timeout: 30000 }).catch(() => {});
+  // x.com SPA hydrates the profile page after domcontentloaded; the Follow /
+  // Following button for the target (either state, so an account that already
+  // follows still passes) or the login redirect ends the wait — whichever the
+  // page shows first.
+  await Promise.any([
+    s.page.locator(`[data-testid$="-follow"][aria-label*="${TARGET_HANDLE}"], [data-testid$="-unfollow"][aria-label*="${TARGET_HANDLE}"]`).first().waitFor({ state: 'visible' }),
+    urlMatching(s.page, /\/i\/flow\/login/),
+  ]);
   const url = s.page.url();
   if (/\/i\/flow\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); await markCookiesStale(acct.id); process.exitCode = 1; }
   // Positive auth probe — see _shared/auth/auth-probe.mjs.

@@ -3,6 +3,7 @@
 import { randomBytes } from 'node:crypto';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { solverTaskResult } from '../_shared/captcha/solver_task.mjs';
 import { writeServiceCredentials } from '../_shared/skarbiec/accounts.mjs';
 
 const REGISTER_URL = 'https://2captcha.com/auth/register';
@@ -20,18 +21,14 @@ const password = (() => {
 
 console.log(`[trajectory] registering: ${EMAIL}`);
 
+// CapSolver has no push or blocking answer: one read of the task's result,
+// a task still being solved is a named error carrying its id.
 async function solveInvisibleRecaptcha() {
   const key = process.env.CAPSOLVER_API_KEY;
-  if (!key) return null;
-  const create = await fetch('https://api.capsolver.com/createTask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: key, task: { type: 'ReCaptchaV2TaskProxyLess', websiteURL: REGISTER_URL, websiteKey: RECAPTCHA_SITEKEY, isInvisible: true } }) }).then(r => r.json()).catch(() => null);
-  if (!create?.taskId) return null;
-  for (let i = 0; i < 60; i++) {
-    await new Promise(r => setTimeout(r, 3000));  // allow-raw-playwright: polling/rate-limit loop
-    const res = await fetch('https://api.capsolver.com/getTaskResult', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: key, taskId: create.taskId }) }).then(r => r.json()).catch(() => null);
-    if (res?.status === 'ready') return res.solution?.gRecaptchaResponse;
-    if (res?.errorId) return null;
-  }
-  return null;
+  if (!key) throw new Error('twocaptcha_register: CAPSOLVER_API_KEY is not configured');
+  const create = await (await fetch('https://api.capsolver.com/createTask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: key, task: { type: 'ReCaptchaV2TaskProxyLess', websiteURL: REGISTER_URL, websiteKey: RECAPTCHA_SITEKEY, isInvisible: true } }) })).json();
+  if (!create.taskId) throw new Error(`twocaptcha_register: CapSolver refused the task: ${create.errorCode ?? JSON.stringify(create)}`);
+  return solverTaskResult({ name: 'capsolver', url: 'https://api.capsolver.com' }, key, create.taskId);
 }
 
 const s = await WSession.start({ label: 'twocaptcha_register', browser: 'chromium' });
@@ -44,7 +41,6 @@ try {
   await s.page.locator('input[name="agreement"]').check({ force: true });
 
   const token = await solveInvisibleRecaptcha();
-  if (!token) { console.log('FAIL: invisible reCAPTCHA solve failed'); process.exit(1); }
   await s.page.evaluate((t) => {
     document.querySelectorAll('textarea[name="g-recaptcha-response"]').forEach(el => el.value = t);
     if (typeof window.onRecaptchaSubmit === 'function') window.onRecaptchaSubmit(t);

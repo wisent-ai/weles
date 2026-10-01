@@ -6,7 +6,6 @@ import { pageSettled } from '../../_shared/page/settled.mjs';
 
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { setTimeout as sleep } from 'node:timers/promises';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { randomBytes } from 'node:crypto';
@@ -90,23 +89,20 @@ function resetLink(body) {
   });
 }
 
-async function pollMailForResetLink(maxIterations, requestedAt) {
+// One sync and read of the PARP mailbox in Skrzynka; Skrzynka offers no push
+// or blocking read, so a reset mail that has not arrived yet is null for the
+// caller to report.
+function readResetLink(requestedAt) {
   const mailboxId = resetMailbox();
-  for (let i = 0; i < maxIterations; i++) {
-    skrzynka(['sync', '--mailbox', mailboxId]);
-    const link = skrzynka(['message', 'list', '--mailbox', mailboxId, '--limit', '100'])
-      .filter((m) => m.sender.toLowerCase().includes(RESET_SENDER.toLowerCase())
-        && Date.parse(m.received_at) >= requestedAt)
-      .sort((a, b) => b.received_at.localeCompare(a.received_at))
-      .map((m) => resetLink(m.body_text))
-      .find(Boolean);
-    if (link) {
-      logn(`znalazłem link reset: ${link.slice(0, 80)}...`);
-      return link;
-    }
-    await sleep(10_000);
-  }
-  return null;
+  skrzynka(['sync', '--mailbox', mailboxId]);
+  const link = skrzynka(['message', 'list', '--mailbox', mailboxId, '--limit', '100'])
+    .filter((m) => m.sender.toLowerCase().includes(RESET_SENDER.toLowerCase())
+      && Date.parse(m.received_at) >= requestedAt)
+    .sort((a, b) => b.received_at.localeCompare(a.received_at))
+    .map((m) => resetLink(m.body_text))
+    .find(Boolean);
+  if (link) logn(`znalazłem link reset: ${link.slice(0, 80)}...`);
+  return link ?? null;
 }
 
 async function main() {
@@ -146,10 +142,10 @@ async function main() {
   await humanIdlePause('deliberate');
   await screenshot(s, 'reset_submitted');
 
-  logn('czekam na mail resetu w Skrzynce');
-  const link = await pollMailForResetLink(30, requestedAt);
+  logn('czytam skrzynkę PARP w Skrzynce');
+  const link = readResetLink(requestedAt);
   if (!link) {
-    logn('FAIL: nie dostałem maila resetowego. Może PARP ma captcha, blokadę reset, albo email idzie indziej.');
+    logn(`FAIL: mail resetowy od ${RESET_SENDER} jeszcze nie dotarł do skrzynki ${EMAIL} w Skrzynce; uruchom ponownie, gdy przyjdzie (albo PARP ma captcha / blokadę resetu).`);
     process.exitCode = 1;
     await s.close();
     return;

@@ -112,7 +112,6 @@ function request(method, api, body) {
       res.on('data', (chunk) => chunks.push(chunk));
       res.on('end', () => resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks) }));
     });
-    req.setTimeout(Number('60000'), () => req.destroy(new Error(`${method} ${OBJECT_URI} timed out`)));
     req.on('error', reject);
     if (body) req.write(body);
     req.end();

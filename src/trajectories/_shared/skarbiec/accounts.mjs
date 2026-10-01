@@ -137,6 +137,35 @@ export function writeDomainStatus(domain, status) {
   run(['set-json', id], JSON.stringify(document));
   return id;
 }
+
+// The receiving probe last sent to `domain`, kept in its status record so the
+// next health run looks for exactly that mail in the inbox.
+export function writeDomainProbe(domain, marker) {
+  const kind = 'email-domain-status';
+  let id = recordIds(kind).find((recordId) =>
+    readWelesRecord(recordId).fields?.domain === String(domain));
+  if (!id) {
+    id = randomUUID().replaceAll('-', '');
+    setRecord(kind, id, ['--type', 'bundle', `domain=${String(domain)}`, 'status=unprobed']);
+  }
+  const document = readWelesRecord(id);
+  document.context = {
+    ...(document.context ?? {}),
+    owner: 'weles',
+    record_kind: kind,
+    probe_marker: String(marker),
+    probe_sent_at: new Date().toISOString(),
+  };
+  run(['set-json', id], JSON.stringify(document));
+}
+
+// domain -> { marker, sentAt } for every domain with a recorded probe.
+export function readDomainProbes() {
+  return Object.fromEntries(recordIds('email-domain-status')
+    .map((id) => readWelesRecord(id))
+    .filter((document) => document.context?.probe_marker && document.fields?.domain)
+    .map((document) => [document.fields.domain, { marker: document.context.probe_marker, sentAt: document.context.probe_sent_at }]));
+}
 export function listAccounts(platform = '') {
   return recordIds(ACCOUNT_KIND)
     .map((id) => readAccount(id))

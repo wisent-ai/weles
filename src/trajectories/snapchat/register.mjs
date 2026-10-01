@@ -1,9 +1,9 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import { urlMatching } from '../_shared/page/settled.mjs';
 
 const URL = 'https://accounts.snapchat.com/accounts/signup';
-const MAX_RETRIES = 3;
 
 async function fillNext(s, locator, value) {
   await locator.waitFor({ state: 'visible' });
@@ -13,9 +13,8 @@ async function fillNext(s, locator, value) {
   await humanIdlePause('short');
 }
 
-for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-  console.log(`\n=== Snapchat signup attempt ${attempt}/${MAX_RETRIES} ===`);
-  const s = await WSession.start({ label: `snapchat_register_${attempt}`, proxy: process.env.PROXY_URL || 'none' });
+{
+  const s = await WSession.start({ label: 'snapchat_register', proxy: process.env.PROXY_URL || 'none' });
   try {
     const id = await s.generateIdentity('snapchat');
     console.log(`[sc] identity: ${id.username} / ${id.email}`);
@@ -74,14 +73,14 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       throw new Error('snapchat_phone_required: SMS verification path not implemented; rerun with email-mode signup variant');
     }
 
-    await s.page.waitForFunction(() => /accounts\.snapchat\.com\/(?!.*signup)|web\.snapchat\.com/.test(location.href));
+    await urlMatching(s.page, /accounts\.snapchat\.com\/(?!.*signup)|web\.snapchat\.com/);
     await s.saveAccount('snapchat', { username: id.username, email: id.email, password: id.password, status: 'verified' });
     console.log(`PASS: ${id.username}`);
     process.exit(0);
   } catch (e) {
-    console.log(`FAIL (attempt ${attempt}): ${e.message?.slice(0, 200)}`);
-    if (attempt === MAX_RETRIES) { console.log('All attempts exhausted'); process.exit(1); }
+    console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+    process.exitCode = 1;
   } finally {
-    await s.close().catch(() => {});
+    await s.close();
   }
 }

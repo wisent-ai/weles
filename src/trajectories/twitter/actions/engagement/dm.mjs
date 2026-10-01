@@ -2,6 +2,7 @@ import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../..
 import { WSession } from '../../../../../dist/session/wsession.js';
 import { humanType } from '../../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { pageSettled } from '../../../_shared/page/settled.mjs';
 import { assertAuthed, AuthProbeError } from '../../../_shared/auth/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../../_shared/auth/cookie-freshness.mjs';
 
@@ -47,7 +48,7 @@ try {
   // Recipient search input — Twitter uses input[data-testid="searchPeople"]
   // inside the new-conversation modal/panel.
   const searchIn = s.page.locator('input[data-testid="searchPeople"], input[aria-label*="Search people" i], div[role="dialog"] input[role="combobox"]').filter({ visible: true }).first();
-  await searchIn.waitFor({ state: 'visible', timeout: 15000 });
+  await searchIn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, searchIn);
   await humanType(s.page, RECIPIENT);
   await humanIdlePause('deliberate');
@@ -59,14 +60,15 @@ try {
   await humanIdlePause('short');
   // "Next" button to confirm recipient selection.
   const nextBtn = s.page.locator('button[data-testid="nextButton"], div[role="button"]:has-text("Next")').filter({ visible: true }).first();
-  if (await nextBtn.isVisible({ timeout: 2500 }).catch(() => false)) {
+  await pageSettled(s.page);
+  if (await nextBtn.isVisible()) {
     await humanClickLocator(s.page, nextBtn);
     await humanIdlePause('deliberate');
   }
 
   // Message body — contenteditable div with data-testid="dmComposerTextInput".
   const msgIn = s.page.locator('div[data-testid="dmComposerTextInput"], div[contenteditable="true"][data-testid*="ComposerTextInput"], div[role="textbox"][data-testid*="dm" i]').filter({ visible: true }).first();
-  await msgIn.waitFor({ state: 'visible', timeout: 15000 });
+  await msgIn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, msgIn);
   await humanType(s.page, MESSAGE);
   await humanIdlePause('short');

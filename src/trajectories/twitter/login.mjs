@@ -25,49 +25,6 @@ async function captureCookies() {
   } catch (e) { console.log('[cookie-capture] err:', e.message); }
 }
 
-// REMOVED tryCookieFirstLogin — cookies-as-login is a false-positive
-// generator. See _shared/auth/auth-probe.mjs for the rationale. Login always
-// means form login now; action trajectories use assertAuthed() to verify
-// a real authed session before doing anything.
-async function _removedCookieFirstLogin_doNotReintroduce() {
-  const stored = Array.isArray(acct.metadata?.cookies) ? acct.metadata.cookies : [];
-  if (stored.length === 0) return false;
-  const hasAuthToken = stored.some((c) => c?.name === 'auth_token');
-  if (!hasAuthToken) return false;
-
-  const prepared = stored
-    .filter((c) => c && c.name && c.value && (c.domain || c.url))
-    .map((c) => ({ ...c, path: c.path || '/' }));
-  if (prepared.length === 0) return false;
-
-  try {
-    await s.ctx.addCookies(prepared);
-    console.log(`[trajectory] injected ${prepared.length} stored cookies (auth_token present) — trying cookie-first login`);
-  } catch (e) {
-    console.log(`[trajectory] cookie inject failed: ${e.message?.slice(0, 200)}`);
-    return false;
-  }
-
-  await s.goto(HOME_URL);
-  await s.page.waitForLoadState('domcontentloaded').catch(() => {});
-  await new Promise((r) => setTimeout(r, 4000));
-
-  const url = s.page.url();
-  // If the cookies worked, we land on /home. Otherwise Twitter redirects to
-  // /i/flow/login or shows the logged-out splash.
-  if (/\/home/.test(url) && !/\/i\/flow\/login/.test(url)) {
-    // Double-check by looking for the primary column (only visible when authed)
-    // or absence of the Sign-in modal.
-    const hasPrimaryCol = await s.page.locator('[data-testid="primaryColumn"], [aria-label="Home timeline"]').first().isVisible().catch(() => false);
-    if (hasPrimaryCol) {
-      await s.screenshot('cookie_first_ok').catch(() => {});
-      return true;
-    }
-  }
-  await s.screenshot('cookie_first_not_logged_in').catch(() => {});
-  return false;
-}
-
 async function deterministicLogin() {
   const usernameSel = 'input[autocomplete="username"], input[name="text"]';
   const passwordSel = 'input[autocomplete="current-password"], input[name="password"]';
@@ -94,7 +51,7 @@ async function deterministicLogin() {
 try {
   // Cookie-first removed — login always means form login. See auth-probe.mjs.
   await s.goto(LOGIN_URL);
-  await new Promise((r) => setTimeout(r, 3000));
+  await s.page.waitForLoadState('domcontentloaded');
   await deterministicLogin();
   console.log('PASS: logged in (deterministic email/password)');
   await captureCookies();

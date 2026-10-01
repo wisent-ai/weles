@@ -1,6 +1,7 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/auth/cookie-freshness.mjs';
 
@@ -53,15 +54,14 @@ try {
   // a populated profile timeline (elonmusk's). Verified 2026-04-29 with
   // eddiekeeling2594: /home cellInnerDiv count=0, /elonmusk has 20+
   // visible tweets within 5s.
+  await pageSettled(s.page);
   let likeBtn = s.page.locator('[data-testid="like"]').filter({ visible: true }).first();
-  let hasLikeBtn = await likeBtn.waitFor({ state: 'visible', timeout: 8000 }).then(() => true).catch(() => false);
-  if (!hasLikeBtn) {
+  if (!await likeBtn.isVisible()) {
     console.log('[trajectory] /home empty — falling to /elonmusk timeline');
     await s.page.goto('https://x.com/elonmusk', { waitUntil: 'domcontentloaded' });
     await humanIdlePause('deliberate');
     likeBtn = s.page.locator('[data-testid="like"]').filter({ visible: true }).first();
-    hasLikeBtn = await likeBtn.waitFor({ state: 'visible', timeout: 30000 }).then(() => true).catch(() => false);
-    if (!hasLikeBtn) { console.log('FAIL: no like button visible on either /home or /elonmusk'); process.exitCode = 1; }
+    await likeBtn.waitFor({ state: 'visible' });
   }
   await likeBtn.scrollIntoViewIfNeeded();
   await humanClickLocator(s.page, likeBtn);

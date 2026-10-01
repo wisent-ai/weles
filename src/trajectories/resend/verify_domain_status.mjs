@@ -4,10 +4,13 @@
 // Runs on a whitelisted mac-mini runner (enqueued by wisent-compute cron). It:
 //   0. IP GATE — refuses to run unless the runner's egress IP is whitelisted.
 //   1. re-verifies any Resend domain whose status drifted to `failed` (the stale-status
-//      bug that silently kills receiving — a re-verify trigger flips it back).
-//   2. CONFIRMS REAL RECEIVING (status labels lie): one live probe per domain
-//      (email-domains/resend.domain.probe), then a batched inbox poll
-//      (content/resend.receiving.list). Landed = healthy.
+//      bug that silently kills receiving — a re-verify trigger flips it back) and
+//      reads its status once.
+//   2. CONFIRMS REAL RECEIVING (status labels lie): reads the inbox once for the
+//      probe each domain was sent on the previous run (marker kept in Skarbiec);
+//      landed = healthy, not landed = broken, never probed = unprobed. Then sends
+//      this run's probe to every verified domain and records its marker, so mail
+//      delivery time is the gap between runs — no run waits for mail.
 //   3. reconciles per-domain status in Skarbiec (active / mx_broken).
 //   4. emits a Slack-ready summary and queues delivery through Stado.
 //
@@ -22,7 +25,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { promises as dnsp } from 'node:dns';
 import { submitWelesRun } from '../../../dist/worker/run-submit/index.js';
-import { writeDomainStatus } from '../_shared/skarbiec/accounts.mjs';
+import { readDomainProbes, writeDomainProbe, writeDomainStatus } from '../_shared/skarbiec/accounts.mjs';
 import { integrationAction, integrationsConfigured } from '../../_shared/integrations.mjs';
 import { listReceived } from '../../_shared/resend-receiving.mjs';
 
@@ -31,7 +34,6 @@ const MESSAGE_FILE = resolve(process.env.MESSAGE_FILE || runOutputPath('resend-d
 const SLACK_CHANNEL = process.env.SLACK_CHANNEL || 'jakub';   // who Swiatowid messages
 const SKIP = new Set(['wisent.com','agents.trade.wisent.ai','ralph.agents.trade.wisent.ai',
   'testagent.agents.trade.wisent.ai','influencers.wisent.ai','needher.ai','macchiavelli.ai']);
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 // ---- 0. IP whitelist gate ---------------------------------------------------
 async function egressIp() {
@@ -54,8 +56,8 @@ function domains(action, body) {
 }
 async function reverify(id) {
   await domains('resend.domain.verify', { id });
-  for (let i = 0; i < 6; i++) { await sleep(20_000); const d = await domains('resend.domain.get', { id }); if (d.status === 'verified') return true; }
-  return false;
+  const d = await domains('resend.domain.get', { id });
+  return d.status === 'verified';
 }
 function updateRow(domain, status) {
   writeDomainStatus(domain, status);
@@ -94,63 +96,45 @@ const main = async () => {
   for (const d of targets) {
     if (d.status !== 'verified') { console.log(`[verify] ${d.name} status=${d.status} -> re-verifying`); if (await reverify(d.id)) { d.status = 'verified'; d._repaired = true; } }
   }
-  // 2. receiving probe. Resend rate-limits sends (~2/s); firing all probes in a
-  // tight loop trips 429s, and a DROPPED SEND looks exactly like a broken domain.
-  // So throttle (~2/s) and retry a refused send before giving up on it.
-  const verifiedTargets = targets.filter(x => x.status === 'verified');
-  const sendProbe = async (dom) => {
-    let refusal = '';
-    for (let attempt = 0; attempt < 4; attempt++) {
-      try { return (await domains('resend.domain.probe', { domain: dom })).marker; }
-      catch (error) { refusal = error.message; await sleep(1500); }
+  // 2a. judge the probes the previous run sent: one inbox read.
+  const previous = readDomainProbes();
+  const inbox = (await listReceived(100)).data || [];
+  const landed = new Set(Object.entries(previous)
+    .filter(([, probe]) => inbox.some((m) => String(m.subject || '').includes(probe.marker)
+      || (Array.isArray(m.to) ? m.to : []).map((x) => typeof x === 'string' ? x : x.email).join(',').includes(probe.marker)))
+    .map(([dom]) => dom));
+  // 2b. send this run's probe to every verified domain; a refused send is
+  // reported by name and that domain stays without a fresh probe.
+  const refused = {};
+  for (const d of targets.filter((x) => x.status === 'verified')) {
+    try {
+      writeDomainProbe(d.name, (await domains('resend.domain.probe', { domain: d.name })).marker);
+    } catch (error) {
+      refused[d.name] = error.message;
+      console.log(`[probe] ${d.name} send refused: ${error.message.slice(0, 160)}`);
     }
-    console.log(`[probe] ${dom} send failed after retries: ${refusal.slice(0, 160)}`);
-    return null;
-  };
-  const probes = {};            // domain -> marker
-  for (const d of verifiedTargets) {
-    probes[d.name] = await sendProbe(d.name);
-    await sleep(600);           // stay under Resend's ~2 req/s
-  }
-  const landed = new Set();
-  const pollInbox = async (markers, maxIters) => {
-    const want = Object.values(markers).filter(Boolean).length;
-    for (let i = 0; i < maxIters && [...Object.keys(markers)].filter(d => landed.has(d)).length < want; i++) {
-      await sleep(10_000);
-      const inbox = (await listReceived(50)).data || [];
-      for (const [dom, mk] of Object.entries(markers)) {
-        if (!mk || landed.has(dom)) continue;
-        if (inbox.some(m => String(m.subject||'').includes(mk) || (Array.isArray(m.to)?m.to:[]).map(x=>typeof x==='string'?x:x.email).join(',').includes(mk))) landed.add(dom);
-      }
-    }
-  };
-  await pollInbox(probes, 12);
-  // CONFIRMATION re-probe: re-send to EVERY verified domain not yet landed —
-  // covers BOTH a slow first delivery and a rate-limited first send — then poll
-  // again. Only domains that miss this second pass too get flagged broken, so a
-  // healthy domain is never flipped to mx_broken (and alerted) on one bad run.
-  const suspects = verifiedTargets.map((d) => d.name).filter((dom) => !landed.has(dom));
-  if (suspects.length) {
-    console.log(`[probe] re-confirming ${suspects.length} not-yet-landed: ${suspects.join(', ')}`);
-    const reprobes = {};
-    for (const dom of suspects) { reprobes[dom] = await sendProbe(dom); await sleep(600); }
-    await pollInbox(reprobes, 12);
   }
   // 3. classify + reconcile (diagnose the cause for anything broken)
+  out.unprobed = [];
   for (const d of targets) {
-    const healthy = landed.has(d.name);
-    const rec = { domain: d.name, status: d.status, receives: landed.has(d.name), repaired: !!d._repaired };
-    if (healthy) { out.healthy.push(rec); if (d._repaired) out.repaired.push(rec); await updateRow(d.name, 'active'); }
+    const rec = { domain: d.name, status: d.status, receives: landed.has(d.name), repaired: !!d._repaired, probe_refused: refused[d.name] ?? null };
+    if (!previous[d.name]) {
+      out.unprobed.push(rec);
+      console.log(`[verify] ${d.name}: no probe from an earlier run yet -> UNPROBED`);
+      continue;
+    }
+    if (rec.receives) { out.healthy.push(rec); if (d._repaired) out.repaired.push(rec); await updateRow(d.name, 'active'); }
     else {
       rec.diagnosis = await diagnoseBroken(d.name);
       out.broken.push(rec); await updateRow(d.name, 'mx_broken');
     }
-    console.log(`[verify] ${d.name}: status=${d.status} receives=${rec.receives} -> ${healthy ? 'HEALTHY' : 'BROKEN'}${rec.diagnosis ? ` [${rec.diagnosis.code}]` : ''}${d._repaired ? ' (repaired)' : ''}`);
+    console.log(`[verify] ${d.name}: status=${d.status} receives=${rec.receives} -> ${rec.receives ? 'HEALTHY' : 'BROKEN'}${rec.diagnosis ? ` [${rec.diagnosis.code}]` : ''}${d._repaired ? ' (repaired)' : ''}`);
   }
   // 4. Slack message
   const lines = [`*Resend email-domain health* — ${out.healthy.length}/${out.checked} healthy`];
   if (out.healthy.length) lines.push(`:white_check_mark: healthy: ${out.healthy.map(r => r.domain).sort().join(', ')}`);
   if (out.repaired.length) lines.push(`:wrench: auto-repaired (re-verified): ${out.repaired.map(r => r.domain).join(', ')}`);
+  if (out.unprobed.length) lines.push(`:hourglass: first probe sent, judged on the next run: ${out.unprobed.map(r => r.domain).sort().join(', ')}`);
   if (out.broken.length) {
     const SHORT = {
       whois_hold: 'WHOIS/registrant-contact verification hold — verify the registrant contact at the registrar (no API fix)',
