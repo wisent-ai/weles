@@ -84,7 +84,7 @@ export function loadArtifactDeliveryConfig(env: NodeJS.ProcessEnv = process.env)
   if (new Set(serviceCredentials).size !== serviceCredentials.length) {
     throw new Error('Weles artifact, subscription, and Stado credentials must be distinct');
   }
-  for (const siblingName of ['WELES_STADO_MODEL_ROUTER_TOKEN', 'WELES_STADO_MEDIA_ROUTER_TOKEN']) {
+  for (const siblingName of ['WELES_STADO_MODEL_ROUTER_TOKEN']) {
     const sibling = String(env[siblingName] ?? '').trim();
     if (sibling && serviceCredentials.includes(sibling)) {
       throw new Error(`${siblingName} must be distinct from Weles service credentials`);

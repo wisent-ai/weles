@@ -72,7 +72,7 @@ function requireStadoObjectConfig(): { apiUrl: string; token: string } {
   if (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && loopback)) {
     throw new Error('STADO_API_URL must use HTTPS, except for loopback HTTP')
   }
-  for (const siblingName of ['WELES_STADO_MODEL_ROUTER_TOKEN', 'WELES_STADO_MEDIA_ROUTER_TOKEN', 'WELES_ARTIFACT_DELIVERY_TOKEN', 'WELES_ARTIFACT_SIGNING_SECRET']) {
+  for (const siblingName of ['WELES_STADO_MODEL_ROUTER_TOKEN', 'WELES_ARTIFACT_DELIVERY_TOKEN', 'WELES_ARTIFACT_SIGNING_SECRET']) {
     const sibling = String(process.env[siblingName] ?? '').trim()
     if (sibling && sibling === token) throw new Error(`WELES_STADO_OBJECT_API_TOKEN must be distinct from ${siblingName}`)
   }

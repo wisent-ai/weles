@@ -1,8 +1,8 @@
 /**
  * Instagram original-post trajectory. Unlike text-only platforms, IG requires
- * a media attachment — we generate one via Echo's /api/worker/
- * media/image route (ComfyUI), then drive the Create-post flow on
- * instagram.com to upload + caption + share.
+ * a media attachment — Brama's image-model generates one, then the
+ * trajectory drives the Create-post flow on instagram.com to upload +
+ * caption + share.
  *
  * Organic vs promote is controlled by env POST_PROMOTE (same as other posts).
  * The generated image prompt pulls from the character's niche so the media
@@ -45,11 +45,7 @@ const caption = process.env.SVC_TEXT || await generatePost({ persona: personaCtx
 console.log(`[instagram:${ACTION}] caption: ${caption.slice(0, 120)}...`);
 
 const imagePrompt = process.env.IMAGE_PROMPT || `${character.niche ?? 'casual lifestyle'} photo, authentic amateur aesthetic, natural lighting, mobile phone camera, candid composition, no text or logos`;
-const imagePath = await generateImageFile({
-  prompt: imagePrompt,
-  width: 1024, height: 1024,
-  character_id: character.id, account_id: acct.id,
-});
+const imagePath = await generateImageFile({ prompt: imagePrompt, width: 1024, height: 1024 });
 console.log(`[instagram:${ACTION}] image file: ${imagePath}`);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);

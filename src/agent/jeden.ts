@@ -111,7 +111,7 @@ function loadModelRouterConfig(): ModelRouterConfig {
     throw new Error('Weles Brama bearer and agent HMAC secret must be distinct');
   }
   const secureRouterUrl = secureRouterOrigin(routerUrl);
-  for (const siblingName of ['WELES_STADO_OBJECT_API_TOKEN', 'WELES_STADO_MEDIA_ROUTER_TOKEN', 'WELES_ARTIFACT_DELIVERY_TOKEN', 'WELES_ARTIFACT_SIGNING_SECRET']) {
+  for (const siblingName of ['WELES_STADO_OBJECT_API_TOKEN', 'WELES_ARTIFACT_DELIVERY_TOKEN', 'WELES_ARTIFACT_SIGNING_SECRET']) {
     const sibling = nonEmpty(process.env[siblingName]);
     if (sibling && (sibling === routerToken || sibling === agentAuthSecret)) {
       throw new Error(`Weles Brama credentials must be distinct from ${siblingName}`);
