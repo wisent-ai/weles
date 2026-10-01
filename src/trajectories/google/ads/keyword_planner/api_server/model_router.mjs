@@ -10,11 +10,27 @@ let routerConfig = null;
 
 export function loadModelRouterConfig() {
   if (routerConfig) return routerConfig;
+  // A user without Brama names an OpenAI-compatible provider and its model,
+  // as for every other Weles model call; nothing is signed for it.
+  const directUrl = String(process.env.WELES_MODEL_ENDPOINT || '').trim().replace(/\/+$/, '');
+  if (directUrl) {
+    const model = String(process.env.WELES_MODEL || '').trim();
+    if (!model) throw new Error('WELES_MODEL_ENDPOINT is set but WELES_MODEL is not; name the provider model Weles asks');
+    routerConfig = {
+      routerUrl: directUrl,
+      routerToken: String(process.env.WELES_MODEL_KEY || '').trim() || null,
+      agentId: null,
+      agentAuthSecret: null,
+      model,
+      configId: 'direct-provider',
+    };
+    return routerConfig;
+  }
   const routerUrl = String(process.env.STADO_MODEL_ROUTER_URL || '').trim().replace(/\/+$/, '');
   const routerToken = String(process.env.WELES_STADO_MODEL_ROUTER_TOKEN || '').trim();
   const agentId = String(process.env.WELES_STADO_MODEL_ROUTER_AGENT_ID || '').trim();
   const agentAuthSecret = String(process.env.WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET || '');
-  if (!routerUrl) throw new Error('missing required STADO_MODEL_ROUTER_URL');
+  if (!routerUrl) throw new Error('missing required STADO_MODEL_ROUTER_URL; without Brama set WELES_MODEL_ENDPOINT and WELES_MODEL to an OpenAI-compatible provider');
   if (!routerToken) throw new Error('missing required WELES_STADO_MODEL_ROUTER_TOKEN');
   if (!agentId) throw new Error('missing required WELES_STADO_MODEL_ROUTER_AGENT_ID');
   if (!agentAuthSecret) throw new Error('missing required WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET');
@@ -36,14 +52,16 @@ export function loadModelRouterConfig() {
 }
 
 function routerHeaders(cfg, body) {
+  const headers = { 'content-type': 'application/json' };
+  if (cfg.routerToken) headers.Authorization = `Bearer ${cfg.routerToken}`;
+  if (!cfg.agentAuthSecret) return headers;
   const timestamp = String(Date.now());
   const bodyHash = createHash('sha256').update(body, 'utf8').digest('hex');
   const signature = createHmac('sha256', cfg.agentAuthSecret)
     .update(`${cfg.agentId}:${timestamp}:${bodyHash}`, 'utf8')
     .digest('hex');
   return {
-    Authorization: `Bearer ${cfg.routerToken}`,
-    'content-type': 'application/json',
+    ...headers,
     'x-agent-id': cfg.agentId,
     'x-agent-timestamp': timestamp,
     'x-agent-signature': signature,

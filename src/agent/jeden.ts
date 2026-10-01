@@ -7,16 +7,23 @@ import { modelMessageContent } from './model/message.js';
 
 // Text decisions use this workload's Brama alias. Image questions use `best`,
 // which selects an image-capable model from the same caller's authorized pool.
-// Brama owns provider choice and permissions; Weles never substitutes a vendor.
+// Brama owns provider choice and permissions; Weles never substitutes a vendor
+// on its own. Only a user without Brama names one, with WELES_MODEL_ENDPOINT
+// and WELES_MODEL: that provider then answers both text and image questions.
 export const WELES_AGENT_MODEL = 'weles';
 const WELES_AGENT_ID = 'weles';
 
 type ModelRouterConfig = {
   routerUrl: string;
-  routerToken: string;
+  /** The bearer; a direct provider that takes none has `null`. */
+  routerToken: string | null;
   agentId: string;
-  agentAuthSecret: string;
+  /** Brama's HMAC secret; a direct provider is not signed for and has `null`. */
+  agentAuthSecret: string | null;
   model: string;
+  imageModel: string;
+  /** True when WELES_MODEL_ENDPOINT names a provider called without Brama. */
+  direct: boolean;
 };
 
 export type FunctionTool = {
@@ -65,21 +72,21 @@ function canonicalModel(value: string): string {
   return value;
 }
 
-function secureRouterOrigin(rawUrl: string): string {
+function secureRouterOrigin(rawUrl: string, name = 'STADO_MODEL_ROUTER_URL'): string {
   let parsed: URL;
   try {
     parsed = new URL(rawUrl);
   } catch {
-    throw new Error('STADO_MODEL_ROUTER_URL must be a valid URL');
+    throw new Error(`${name} must be a valid URL`);
   }
   if (parsed.username || parsed.password || parsed.search || parsed.hash
     || (parsed.pathname !== '/' && parsed.pathname !== '')) {
-    throw new Error('STADO_MODEL_ROUTER_URL must be an origin without credentials, path, query, or fragment');
+    throw new Error(`${name} must be an origin without credentials, path, query, or fragment`);
   }
   const loopback = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1'
     || parsed.hostname === '::1' || parsed.hostname === '[::1]';
   if (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && loopback)) {
-    throw new Error('STADO_MODEL_ROUTER_URL must use HTTPS, except for loopback HTTP');
+    throw new Error(`${name} must use HTTPS, except for loopback HTTP`);
   }
   return parsed.origin;
 }
@@ -88,12 +95,29 @@ function secureRouterOrigin(rawUrl: string): string {
 
 function loadModelRouterConfig(): ModelRouterConfig {
   if (modelRouterConfig) return modelRouterConfig;
+  const directUrl = nonEmpty(process.env.WELES_MODEL_ENDPOINT);
+  if (directUrl) {
+    const model = nonEmpty(process.env.WELES_MODEL);
+    if (!model) {
+      throw new Error('WELES_MODEL_ENDPOINT is set but WELES_MODEL is not; name the provider model Weles asks');
+    }
+    modelRouterConfig = {
+      routerUrl: secureRouterOrigin(directUrl, 'WELES_MODEL_ENDPOINT'),
+      routerToken: exactCredential('WELES_MODEL_KEY'),
+      agentId: WELES_AGENT_ID,
+      agentAuthSecret: null,
+      model,
+      imageModel: model,
+      direct: true,
+    };
+    return modelRouterConfig;
+  }
   const routerUrl = nonEmpty(process.env.STADO_MODEL_ROUTER_URL);
   const routerToken = exactCredential('WELES_STADO_MODEL_ROUTER_TOKEN');
   const agentId = nonEmpty(process.env.WELES_STADO_MODEL_ROUTER_AGENT_ID);
   const agentAuthSecret = exactCredential('WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET');
   if (!routerUrl) {
-    throw new Error('missing required STADO_MODEL_ROUTER_URL');
+    throw new Error('missing required STADO_MODEL_ROUTER_URL; without Brama set WELES_MODEL_ENDPOINT and WELES_MODEL to an OpenAI-compatible provider');
   }
   if (!routerToken) {
     throw new Error('missing required WELES_STADO_MODEL_ROUTER_TOKEN');
@@ -123,6 +147,8 @@ function loadModelRouterConfig(): ModelRouterConfig {
     agentId,
     agentAuthSecret,
     model: canonicalModel(nonEmpty(process.env.WELES_AGENT_MODEL) ?? WELES_AGENT_MODEL),
+    imageModel: 'best',
+    direct: false,
   };
   return modelRouterConfig;
 }
@@ -156,32 +182,32 @@ async function completeThroughRouter(
   options: ModelOnlyOptions,
 ): Promise<JedenResult> {
   const { images, tools, maxOutputTokens } = options;
-  const model = images?.length ? 'best' : cfg.model;
+  const model = images?.length ? cfg.imageModel : cfg.model;
   const body = JSON.stringify({
     model,
     messages: [{ role: 'user', content: await modelMessageContent(prompt, images) }],
     ...(tools ? { tools, tool_choice: 'required' } : {}),
     ...(maxOutputTokens === undefined ? {} : { max_tokens: maxOutputTokens }),
   });
-  const timestamp = Math.floor(Date.now() / 1000).toString();
-  const bodyHash = createHash('sha256').update(body).digest('hex');
-  const signature = createHmac('sha256', cfg.agentAuthSecret)
-    .update(`${cfg.agentId}:${timestamp}:${bodyHash}`)
-    .digest('hex');
+  const headers: Record<string, string> = { 'content-type': 'application/json' };
+  if (cfg.routerToken) headers.authorization = `Bearer ${cfg.routerToken}`;
+  if (cfg.agentAuthSecret) {
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const bodyHash = createHash('sha256').update(body).digest('hex');
+    headers['x-agent-id'] = cfg.agentId;
+    headers['x-agent-timestamp'] = timestamp;
+    headers['x-agent-body-sha256'] = bodyHash;
+    headers['x-agent-signature'] = createHmac('sha256', cfg.agentAuthSecret)
+      .update(`${cfg.agentId}:${timestamp}:${bodyHash}`)
+      .digest('hex');
+  }
   const response = await fetch(`${cfg.routerUrl.replace(/\/+$/, '')}/v1/chat/completions`, {
     method: 'POST',
-    headers: {
-      authorization: `Bearer ${cfg.routerToken}`,
-      'content-type': 'application/json',
-      'x-agent-id': cfg.agentId,
-      'x-agent-timestamp': timestamp,
-      'x-agent-body-sha256': bodyHash,
-      'x-agent-signature': signature,
-    },
+    headers,
     body,
   }).catch(error => {
     const cause = error instanceof Error ? error.cause : undefined;
-    throw new Error(`Brama POST ${cfg.routerUrl.replace(/\/+$/, '')}/v1/chat/completions for ${model} failed: ${String(error)}${cause ? `; cause: ${String(cause)}` : ''}`, { cause: error });
+    throw new Error(`${cfg.direct ? 'WELES_MODEL_ENDPOINT' : 'Brama'} POST ${cfg.routerUrl.replace(/\/+$/, '')}/v1/chat/completions for ${model} failed: ${String(error)}${cause ? `; cause: ${String(cause)}` : ''}`, { cause: error });
   });
   const text = await response.text();
   if (!response.ok) {
@@ -261,14 +287,22 @@ export async function callJeden(prompt: string, options: JedenCallOptions = {}):
     const value = process.env[envName];
     if (value) jedenEnv[envName] = value;
   }
+  const routing: NodeJS.ProcessEnv = cfg.direct
+    ? {
+      JEDEN_MODEL_ENDPOINT: cfg.routerUrl,
+      ...(cfg.routerToken ? { JEDEN_MODEL_KEY: cfg.routerToken } : {}),
+    }
+    : {
+      STADO_MODEL_ROUTER_URL: cfg.routerUrl,
+      STADO_MODEL_ROUTER_TOKEN: cfg.routerToken ?? undefined,
+      BRAMA_URL: cfg.routerUrl,
+      BRAMA_TOKEN: cfg.routerToken ?? undefined,
+      WISENT_APP_AGENT_ID: cfg.agentId,
+      WISENT_APP_AGENT_AUTH_SECRET: cfg.agentAuthSecret ?? undefined,
+    };
   const { stdout } = await runJedenProcess(binary, args, {
     ...jedenEnv,
-    STADO_MODEL_ROUTER_URL: cfg.routerUrl,
-    STADO_MODEL_ROUTER_TOKEN: cfg.routerToken,
-    BRAMA_URL: cfg.routerUrl,
-    BRAMA_TOKEN: cfg.routerToken,
-    WISENT_APP_AGENT_ID: cfg.agentId,
-    WISENT_APP_AGENT_AUTH_SECRET: cfg.agentAuthSecret,
+    ...routing,
     JEDEN_SESSION_ROOT: sessionRoot,
   });
   let envelope: { ok?: boolean; text?: unknown; originalError?: unknown };
