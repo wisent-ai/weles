@@ -1,11 +1,11 @@
-// Recorded operator geometry and timing observations, loaded once per run.
+// Recorded operator pointer geometry, loaded once per run.
 // Pointer replay uses spatially perturbed geometry, not inter-step pauses.
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { humanRandom } from '../utils/motion/timing.js';
 
-interface TraceEvent { t: number; type: string; x?: number|null; y?: number|null; code?: string|null; }
+interface TraceEvent { type: string; x?: number|null; y?: number|null; }
 
 function loadLatestTrace(): TraceEvent[] {
   const dir = join(process.cwd(), 'recordings');
@@ -27,30 +27,12 @@ interface Segment { points: Waypoint[]; aspect: number; }
 
 function derive() {
   const evts = loadLatestTrace();
-  const interKey: number[] = [], dwell: number[] = [], stepMs: number[] = [], reaction: number[] = [], interClick: number[] = [];
   const segments: Segment[] = [];
-  const lastDown: Record<string, number> = {};
-  let lastKeyDownT = -1;
-  let lastPointerT = -1;
-  let lastPointerDownT = -1;
-  let lastClickT = -1;
   let segBuf: { x: number; y: number }[] = [];
   for (const e of evts) {
-    if (e.type === 'keydown' && e.code) {
-      lastDown[e.code] = e.t;
-      if (lastKeyDownT > 0) { const d = e.t - lastKeyDownT; if (d > 0 && d < 5000) interKey.push(d); }
-      lastKeyDownT = e.t;
-    } else if (e.type === 'keyup' && e.code && lastDown[e.code]) {
-      const d = e.t - lastDown[e.code]; if (d > 0 && d < 1000) dwell.push(d);
-    } else if (e.type === 'pointermove' && e.x != null && e.y != null) {
-      if (lastPointerT > 0) { const d = e.t - lastPointerT; if (d > 0 && d < 500) stepMs.push(d); }
-      lastPointerT = e.t;
+    if (e.type === 'pointermove' && e.x != null && e.y != null) {
       segBuf.push({ x: e.x, y: e.y });
-    } else if (e.type === 'pointerdown') { lastPointerDownT = e.t; }
-    else if (e.type === 'click') {
-      if (lastPointerDownT > 0) { const d = e.t - lastPointerDownT; if (d > 0 && d < 2000) reaction.push(d); lastPointerDownT = -1; }
-      if (lastClickT > 0) { const g = e.t - lastClickT; if (g > 50 && g < 30000) interClick.push(g); }
-      lastClickT = e.t;
+    } else if (e.type === 'click') {
       // Finalize segment: normalize (dx,dy) against the end-to-start delta.
       if (segBuf.length >= 4) {
         const s = segBuf[0], end = segBuf[segBuf.length - 1];
@@ -65,32 +47,13 @@ function derive() {
       segBuf = [];
     }
   }
-  return { interKey, dwell, stepMs, reaction, interClick, segments, sourceCount: evts.length };
+  return { segments, sourceCount: evts.length };
 }
 
 const T = derive();
 if (T.sourceCount > 0) {
-  console.log(`[human/trace] loaded ${T.sourceCount} events: interKey=${T.interKey.length} dwell=${T.dwell.length} stepMs=${T.stepMs.length} reaction=${T.reaction.length} interClick=${T.interClick.length} segments=${T.segments.length}`);
+  console.log(`[human/trace] loaded ${T.sourceCount} events: segments=${T.segments.length}`);
 }
-
-function jitter(v: number, frac: number): number {
-  const f = 1 + (humanRandom() * 2 - 1) * frac;
-  return Math.max(1, Math.round(v * f));
-}
-
-const cursors = { interKey: 0, dwell: 0, reaction: 0, interClick: 0 };
-function nextFrom(arr: number[], key: keyof typeof cursors, frac: number, defaultMs: number): number {
-  if (!arr.length) return defaultMs;
-  const v = arr[cursors[key] % arr.length];
-  cursors[key]++;
-  return jitter(v, frac);
-}
-
-export function traceAvailable(): boolean { return T.interKey.length > 0; }
-export function nextInterKeyMs(): number { return nextFrom(T.interKey, 'interKey', 0.30, 170); }
-export function nextDwellMs(): number { return nextFrom(T.dwell, 'dwell', 0.25, 105); }
-export function nextReactionMs(): number { return nextFrom(T.reaction, 'reaction', 0.25, 200); }
-export function nextInterClickMs(): number { return nextFrom(T.interClick, 'interClick', 0.25, 3000); }
 
 // Return a denormalized waypoint sequence for a move from (ax,ay) to (bx,by),
 // using a real recorded pointer segment of matching aspect ratio. Output page

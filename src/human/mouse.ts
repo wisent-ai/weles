@@ -3,12 +3,10 @@
 
 import { cubicBezier } from '../utils/motion/bezier.js';
 import { randomBetween, waitMs, humanRandom } from '../utils/motion/timing.js';
-import { traceAvailable, nextInterClickMs, getMoveTemplate } from './trace.js';
+import { getMoveTemplate } from './trace.js';
 import { getOffsetFromPage, nativeClick, nativeBatchMove, nativeMove } from './mouse-native.js';
 import { settledTargetBox } from './pointer/target-box.js';
 import { pageSettled, type EvaluatingPage } from '../browser/settled.js';
-
-export { nextInterClickMs };
 
 export interface MousePage {
   mouse: {
@@ -93,7 +91,7 @@ export async function humanMove(page: any, x: number, y: number, startX?: number
   const off = cdpInput() ? null : await getOffsetFromPage(page);
   const sx = startX ?? randomBetween(200, 600);
   const sy = startY ?? randomBetween(150, 450);
-  const points = traceAvailable() ? getMoveTemplate(sx, sy, x, y) : [];
+  const points = getMoveTemplate(sx, sy, x, y);
   if (points.length) {
     points.push({ x, y });
     await emitPath(page, off, points);
