@@ -1,7 +1,7 @@
 import { getGoogleSsoCreds, googleSso } from '../../_shared/services/google_sso.mjs';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
-import { DASHBOARD_WAIT_MS, LOGIN_LEAVE_WAIT_MS, OAUTH_PAGE_WAIT_MS, PASSWORD_FIELD_WAIT_MS } from './constants.mjs';
 
 const GOOGLE_BUTTON = /continue with google|log in with google|sign in with google/i;
 const FIGMA_LOGIN = /figma\.com\/login(?:[/?#]|$)/i;
@@ -11,10 +11,13 @@ function noteCutShort(step) {
   return (error) => console.log(`[sso] ${step} cut short: ${String(error?.message ?? error).slice(0, 120)}`);
 }
 
-/** The Google OAuth page: the one the click opened, else one already open, else the page itself. */
-async function oauthPageAfterClick(context, page, opened) {
-  const popup = await opened;
-  return popup || context.pages().find((candidate) => /accounts\.google\.com/i.test(candidate.url())) || page;
+/** Click the Google control and return the Google OAuth surface: the page the
+ * click opened, or this page once it has moved to accounts.google.com. */
+async function clickToOAuthPage(context, page, googleButton) {
+  const opened = context.waitForEvent('page');
+  const inPlace = page.waitForURL(/accounts\.google\.com/i).then(() => page);
+  await humanClickLocator(page, googleButton);
+  return Promise.any([opened, inPlace]);
 }
 
 /** Sign the session into Supabase through Google SSO when the task acquires a Supabase token. */
@@ -38,13 +41,11 @@ export async function ensureSupabaseSession(activeSession, taskConstraints) {
     if (!await googleButton.isVisible().catch(() => false)) {
       throw new Error('Supabase Google sign-in control is unavailable');
     }
-    const opened = page.context().waitForEvent('page', { timeout: OAUTH_PAGE_WAIT_MS }).catch(() => false);
-    await humanClickLocator(page, googleButton);
-    authPage = await oauthPageAfterClick(page.context(), page, opened);
+    authPage = await clickToOAuthPage(page.context(), page, googleButton);
   }
   const signedIn = await googleSso(activeSession, credentials, { page: authPage, originHost: 'supabase.com' });
   if (!signedIn) throw new Error(`Google SSO failed for ${accountEmail}`);
-  await page.waitForURL(/supabase\.com\/dashboard/, { timeout: DASHBOARD_WAIT_MS }).catch(noteCutShort('supabase dashboard'));
+  await page.waitForURL(/supabase\.com\/dashboard/);
 }
 
 /** Try Figma's own email + password form first; true when it established a session. */
@@ -55,12 +56,12 @@ async function figmaDirectLogin(page, credentials) {
   const continueButton = page.getByRole('button', { name: /^(continue|log in)$/i }).filter({ visible: true }).first();
   if (!await continueButton.isVisible().catch(() => false)) return false;
   await humanClickLocator(page, continueButton);
+  await pageSettled(page);
   const passwordInput = page.locator('input[type="password"], input[name="password"]').filter({ visible: true }).first();
-  await passwordInput.waitFor({ state: 'visible', timeout: PASSWORD_FIELD_WAIT_MS }).catch(noteCutShort('figma password field'));
-  if (!await passwordInput.isVisible().catch(() => false)) return false;
+  if (!await passwordInput.isVisible()) return false;
   await humanFill(page, passwordInput, credentials.password);
   await page.keyboard.press('Enter');
-  await page.waitForURL((current) => !FIGMA_LOGIN.test(current.href), { timeout: LOGIN_LEAVE_WAIT_MS }).catch(noteCutShort('figma login leave'));
+  await pageSettled(page);
   if (!FIGMA_LOGIN.test(page.url())) {
     console.log('[figma_sso] established Figma session with direct credentials');
     return true;
@@ -107,19 +108,13 @@ export async function ensureFigmaSession(activeSession, taskConstraints) {
   if (!/accounts\.google\.com/i.test(page.url())) {
     recoveryPage = await context.newPage();
     await recoveryPage.goto('about:blank');
-    const opened = context.waitForEvent('page', { timeout: OAUTH_PAGE_WAIT_MS }).catch(() => false);
     const buttonMetadata = await googleButton.evaluate((element) => ({
       tag: element.tagName,
       href: element instanceof HTMLAnchorElement ? element.href : '',
       target: element instanceof HTMLAnchorElement ? element.target : '',
-    })).catch((error) => ({ tag: 'unknown', href: '', target: '', error: error.message }));
+    }));
     console.log(`[figma_sso] Google control=${JSON.stringify(buttonMetadata)}`);
-    let clickError = false;
-    await humanClickLocator(page, googleButton).catch((error) => {
-      clickError = error;
-    });
-    authPage = await oauthPageAfterClick(context, page, opened);
-    if (clickError && !/accounts\.google\.com/i.test(authPage.url())) throw clickError;
+    authPage = await clickToOAuthPage(context, page, googleButton);
   }
   const signedIn = await googleSso(activeSession, credentials, { page: authPage, originHost: 'figma.com' });
   if (!signedIn) throw new Error(`Figma Google SSO failed for ${accountEmail}`);
@@ -137,7 +132,7 @@ export async function ensureFigmaSession(activeSession, taskConstraints) {
   if (!targetPage || targetPage.isClosed?.()) {
     throw new Error(`Figma closed every recoverable page after Google SSO for ${accountEmail}`);
   }
-  await targetPage.waitForURL(/figma\.com\/(files|settings)/, { timeout: DASHBOARD_WAIT_MS }).catch(noteCutShort('figma files'));
+  if (!FIGMA_LOGIN.test(targetPage.url())) await targetPage.waitForURL(/figma\.com\/(files|settings)/);
   if (FIGMA_LOGIN.test(targetPage.url())) {
     await targetPage.goto('https://www.figma.com/settings?tab=security');
     await targetPage.waitForLoadState?.('domcontentloaded').catch(noteCutShort('figma settings load'));

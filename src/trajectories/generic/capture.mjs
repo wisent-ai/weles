@@ -26,6 +26,7 @@ import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { parseCaptureParams } from '../../../dist/worker/params/capture-params.js';
 import { humanHoverDwell, humanScroll } from '../../../dist/human/mouse.js';
+import { pageSettled } from '../_shared/page/settled.mjs';
 import {
   captureKeyPrefix, fileAttribution, planFromEnv, pngPixelSize,
   startCaptureSession, uploadCaptureObject, welesVersion, writeLocalArtifact,
@@ -59,9 +60,11 @@ async function runStep(session, step) {
     await humanScroll(session.page, Number(step.value || '1200'));
     return `scrolled ${step.value || '1200'}`;
   }
-  if (step.op === 'wait_ms') {
-    await session.page.waitForTimeout(Number(step.value || '1000'));  // allow-raw-playwright: the plan asked for an explicit settle pause
-    return `waited ${step.value || '1000'}ms`;
+  if (step.op === 'settle') {
+    // The page has finished what the previous step started: loaded, and the
+    // DOM unchanged across two animation frames.
+    await pageSettled(session.page);
+    return 'settled';
   }
   return session.goto(step.value);
 }

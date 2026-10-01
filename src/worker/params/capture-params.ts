@@ -9,7 +9,7 @@
 // sentences below are part of the action's contract and callers match on them.
 
 export const CAPTURE_AXES = ['composition', 'interaction', 'reactivity', 'state-change', 'subpage'] as const;
-export const CAPTURE_STEP_OPS = ['wait_selector', 'click', 'hover', 'focus', 'press', 'scroll', 'wait_ms', 'goto'] as const;
+export const CAPTURE_STEP_OPS = ['wait_selector', 'settle', 'click', 'hover', 'focus', 'press', 'scroll', 'goto'] as const;
 export const CAPTURE_ARTIFACT_ROOT = 'stado://weles-captures/';
 export const CAPTURE_MAX_RECORD_SECONDS = Number('120');
 export const CAPTURE_MAX_STEPS = Number('100');
@@ -128,7 +128,7 @@ function steps(value: unknown, action: string): CaptureStep[] {
       throw new Error(`${action} rejects step op ${JSON.stringify(op)} without a value: ${op} requires a value.`);
     }
     if (op === 'goto') sourceUrl(stepValue, action);
-    if ((op === 'wait_ms' || op === 'scroll') && stepValue.trim()) {
+    if (op === 'scroll' && stepValue.trim()) {
       integer(stepValue, action, `step ${op} value`, op === 'scroll' ? Number('-100000') : Number(false), Number('100000'));
     }
     return { op: op as CaptureStepOp, value: stepValue };
