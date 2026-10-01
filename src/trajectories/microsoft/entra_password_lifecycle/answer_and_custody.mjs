@@ -19,12 +19,7 @@ import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 import { PASSWORD_FIELD } from './queued_job.mjs';
 
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]+/g;
-const MESSAGE_LIMIT = Number('512');
-const HOST_LIMIT = Number('128');
 const PROVIDER_EFFECTS = Object.freeze(['none', 'changed', 'unknown']);
-// A human approval holds the lease. Four hours is long enough for a person to
-// answer and short enough that an unanswered approval releases on its own.
-const APPROVAL_TTL_MS = Number('14400000');
 const RESUME_TOKEN_BYTES = Number('48');
 
 export function generatedPassword() {
@@ -45,7 +40,7 @@ export function generatedPassword() {
 }
 
 function sanitizedMessage(reason) {
-  return String(reason).replace(CONTROL_CHARACTERS, ' ').trim().slice(''.length, MESSAGE_LIMIT);
+  return String(reason).replace(CONTROL_CHARACTERS, ' ').trim();
 }
 
 // The digest covers the ordered phase verdicts of this run together with the
@@ -65,18 +60,17 @@ function evidenceDigest(contract, evidence) {
 }
 
 function executionHost() {
-  return hostname().slice(''.length, HOST_LIMIT);
+  return hostname();
 }
 
 // An approval is a resource, not a hint: the id is stable for the exact run and
-// phase that asked for it, the lease expires on its own, and the resume token is
-// the only way back into this operation.
+// phase that asked for it, and the resume token is the only way back into this
+// operation. It holds until a person answers it.
 function approvalResource(contract, phase, providerEffect, instruction) {
   return {
     approval_id: createHash('sha256').update(`${contract.actionLogId}|${phase}`, 'utf8').digest('hex'),
     phase,
     provider_effect: providerEffect,
-    expires_at: new Date(Date.now() + APPROVAL_TTL_MS).toISOString(),
     resume_token: randomBytes(RESUME_TOKEN_BYTES).toString('base64url'),
     instruction,
   };
