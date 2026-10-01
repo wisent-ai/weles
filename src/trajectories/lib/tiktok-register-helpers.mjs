@@ -6,11 +6,6 @@ import { pageSettled } from '../_shared/page/settled.mjs';
 // return shape. Don't change behavior here without also changing the
 // matching test/integration paths.
 
-// Timeout values preserved verbatim from the original tiktok_register.mjs
-// inline code. Pulled out as named constants so the helper file does not
-// introduce new literal timeout values relative to the original.
-const SUBMIT_VISIBILITY_PROBE_MS = 1500;
-
 /**
  * React-aware input value sync. React keeps a private value tracker and
  * ignores input events if it believes the value did not change; we reset
@@ -131,7 +126,7 @@ export async function runUsernameStep(s, id, humanClickLocator) {
   for (const txt of ['Sign up', 'Next', 'Continue', 'Done']) {
     try {
       const btn = s.page.getByRole('button', { name: new RegExp(`^\\s*${txt}\\s*$`, 'i') }).first();
-      if ((await btn.count()) && await btn.isVisible({ timeout: SUBMIT_VISIBILITY_PROBE_MS }).catch(() => false) && !(await btn.isDisabled().catch(() => false))) {
+      if ((await btn.count()) && await btn.isVisible().catch(() => false) && !(await btn.isDisabled().catch(() => false))) {
         await humanClickLocator(s.page, btn);
         console.log(`[test] clicked ${txt} on username step`);
         break;

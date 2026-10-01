@@ -171,7 +171,7 @@ function ffmpegAnswer(
   probe: string[],
 ): string {
   try {
-    return execFileSync(binary, probe, { encoding: 'utf8', timeout: Number('10000') });
+    return execFileSync(binary, probe, { encoding: 'utf8' });
   } catch (error) {
     throw new Error(
       `${binary} is the ${tool} this host holds (${variable} pins another) and it did `

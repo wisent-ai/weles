@@ -116,7 +116,7 @@ export function stitchFrames(frameDir: string, outputDir: string, frameCount: nu
     execFileSync(ffmpeg, [
       '-y', '-framerate', '5', '-start_number', '1', '-i', pattern,
       '-c:v', 'libvpx', '-pix_fmt', 'yuv420p', '-b:v', '1M', outPath,
-    ], { encoding: 'utf-8', stdio: 'pipe', timeout: Number('300000') });
+    ], { encoding: 'utf-8', stdio: 'pipe' });
   } catch (error) {
     const captured = error && typeof error === 'object' && 'stderr' in error
       ? String(error.stderr ?? '').trim()

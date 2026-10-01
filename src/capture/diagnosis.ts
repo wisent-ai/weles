@@ -102,10 +102,7 @@ export async function diagnoseCapture(
         '-vf',
         'fps=1',
         join(framesDir, 'frame_%04d.png'),
-      ], {
-        stdio: 'ignore',
-        timeout: Number('60000'),
-      });
+      ], { stdio: 'ignore' });
       framesAvailable = true;
     } catch {
       // A missing decoder or empty recording leaves the visual input absent.

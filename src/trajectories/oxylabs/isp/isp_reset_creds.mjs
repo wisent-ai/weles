@@ -85,7 +85,7 @@ try {
     });
     console.log('[trajectory] stored reset ISP credential through its exact Skarbiec writer');
     // Probe :8001
-    const probe = spawnSync('curl', ['-s', '--max-time', '15', '-o', '/dev/null', '-w', '%{http_code}', '-x', `http://${encodeURIComponent(fullUsername)}:${encodeURIComponent(NEW_PASSWORD)}@isp.oxylabs.io:8001`, 'https://lumtest.com/myip.json'], { encoding: 'utf8' });
+    const probe = spawnSync('curl', ['-s', '-o', '/dev/null', '-w', '%{http_code}', '-x', `http://${encodeURIComponent(fullUsername)}:${encodeURIComponent(NEW_PASSWORD)}@isp.oxylabs.io:8001`, 'https://lumtest.com/myip.json'], { encoding: 'utf8' });
     console.log(`[trajectory] probe :8001 http=${(probe.stdout || '').trim()}`);
   }
   console.log('[trajectory] done');
