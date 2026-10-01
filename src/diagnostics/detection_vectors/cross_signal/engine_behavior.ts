@@ -48,9 +48,17 @@ export const engineBehaviorRules: DetectionRule[] = [
       const smin = s?.js?.performance?.nowMinDelta;
       const bmin = b?.js?.performance?.nowMinDelta;
       if (typeof smin !== 'number') return null;
-      // A real browser with 5–15 ms gaps between samples must show positive deltas.
-      // If the baseline also shows 0, the probe measurement is unreliable for this
-      // engine and we should not flag it as a detection signal.
+      if (s?.js?.performance?.sampling !== b?.js?.performance?.sampling) {
+        return {
+          id: 'performance_timing_regular',
+          category: 'behavior',
+          severity: 'info',
+          message: 'Clock observations use different collection methods. Collect a baseline with the same probe revision before comparing them.',
+          evidence: { subjectSampling: s?.js?.performance?.sampling, baselineSampling: b?.js?.performance?.sampling },
+        };
+      }
+      // Compare observed frame boundaries only against the same collection method.
+      // A zero delta in both captures is not evidence against the subject.
       if (smin < 0.001 && (typeof bmin !== 'number' || bmin > 0.001)) {
         const baselineHint = typeof bmin === 'number' ? ` (baseline minDelta=${bmin.toFixed(3)})` : '';
         return {

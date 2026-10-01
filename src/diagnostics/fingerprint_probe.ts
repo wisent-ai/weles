@@ -209,17 +209,39 @@ export const FP_SCRIPT = String.raw`(async () => {
     dynamicRange: matchMedia('(dynamic-range: high)').matches, forcedColors: matchMedia('(forced-colors: active)').matches,
   }));
 
-  // ---- 22. performance — time origin + now() precision ----
+  // ---- 22. performance — clock readings at observed animation frames ----
   r.performance = await (async () => {
     try {
-      const samples = [];
+      const samples = [], frameTimestamps = [];
+      const nextFrame = () => new Promise((resolve, reject) => {
+        let frame;
+        const finish = (success, value) => {
+          try {
+            document.removeEventListener('visibilitychange', onVisibility);
+            if (frame !== undefined) cancelAnimationFrame(frame);
+          } catch (error) {
+            if (success) { success = false; value = error; }
+          }
+          if (success) resolve(value); else reject(value);
+        };
+        const onVisibility = () => {
+          if (document.visibilityState !== 'visible') {
+            finish(false, new Error('clock frame sampling unavailable: visibility=' + document.visibilityState));
+          }
+        };
+        try {
+          document.addEventListener('visibilitychange', onVisibility);
+          if (document.visibilityState !== 'visible') { onVisibility(); return; }
+          frame = requestAnimationFrame((timestamp) => finish(true, timestamp));
+        } catch (error) { finish(false, error); }
+      });
       for (let i = 0; i < 5; i++) {
+        frameTimestamps.push(await nextFrame());
         samples.push(performance.now());
-        if (i < 4) await new Promise(r => setTimeout(r, 5 + Math.floor(Math.random() * 10)));
       }
       const deltas = samples.slice(1).map((v, i) => v - samples[i]);
-      return { timeOrigin: performance.timeOrigin, nowSamples: samples, nowMinDelta: Math.min(...deltas), nowMaxDelta: Math.max(...deltas) };
-    } catch (e) { return { _err: String(e).slice(0, 100) }; }
+      return { sampling: 'animation-frame', frameTimestamps, timeOrigin: performance.timeOrigin, nowSamples: samples, nowMinDelta: Math.min(...deltas), nowMaxDelta: Math.max(...deltas) };
+    } catch (e) { return { sampling: 'animation-frame', _err: String(e).slice(0, 100) }; }
   })();
 
   // ---- 23. document attributes + cookies ----
