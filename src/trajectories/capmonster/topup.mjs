@@ -36,7 +36,7 @@ try {
     process.exit(1);
   }
   await humanIdlePause('long');
-  console.log(`PASS-CHARGED: checkout initiated, url=${s.page.url().slice(0, 100)}`);
+  console.log(`PASS-CHARGED: checkout initiated, url=${s.page.url()}`);
 } catch (e) {
   console.log('FAIL:', e.message);
   process.exit(1);

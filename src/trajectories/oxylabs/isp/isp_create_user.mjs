@@ -146,7 +146,7 @@ try {
 
   // Probe :8001 with new creds.
   const probe = spawnSync('curl', ['-s', '-x', `http://${encodeURIComponent(finalUsername)}:${encodeURIComponent(ISP_PASSWORD)}@isp.oxylabs.io:8001`, 'https://lumtest.com/myip.json'], { encoding: 'utf8' });
-  console.log(`[trajectory] probe :8001 stdout="${(probe.stdout || '').slice(0, 200)}" status=${probe.status}`);
+  console.log(`[trajectory] probe :8001 stdout="${(probe.stdout || '')}" status=${probe.status}`);
 
   console.log('[trajectory] done');
 } catch (e) {

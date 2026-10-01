@@ -104,7 +104,7 @@ await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
 const readback = await page.evaluate(() => {
   const table = document.querySelector('table');
-  return { rows: table ? table.querySelectorAll('tbody tr').length : 0, text: (table?.innerText || '').replace(/\s+/g, ' ').slice(0, 1000) };
+  return { rows: table ? table.querySelectorAll('tbody tr').length : 0, text: (table?.innerText || '').replace(/\s+/g, ' ') };
 });
 console.log(JSON.stringify({ parsed: risks.length, added, readback }, null, 2));
 process.exit(0);

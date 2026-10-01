@@ -32,7 +32,7 @@ const urls = String(process.env.LINKEDIN_WARM_URLS || [
 
 function safeProxy(value = '') {
   const raw = String(value ?? '');
-  return /^(https?:|socks)/i.test(raw) ? '[url-form]' : raw.slice(0, 80);
+  return /^(https?:|socks)/i.test(raw) ? '[url-form]' : raw;
 }
 
 function buildProxyReplayUrl(cfg = {}) {
@@ -53,12 +53,12 @@ function visibleSummaryScript(stage) {
     url: location.href,
     title: document.title,
     page_key: document.querySelector('meta[name="pageKey"]')?.getAttribute('content') || '',
-    body_text_sample: (document.body?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 500),
+    body_text_sample: (document.body?.innerText || '').replace(/\s+/g, ' ').trim(),
     signup_ready: Boolean(document.querySelector('input[name="email-address"], input#email-address, input[type="email"]')) &&
       Boolean(document.querySelector('input[name="password"], input#password, input[type="password"]')),
     iframes: Array.from(document.querySelectorAll('iframe')).map((f) => ({
       title: f.title,
-      src: f.src.slice(0, 240),
+      src: f.src,
       width: Math.round(f.getBoundingClientRect().width),
       height: Math.round(f.getBoundingClientRect().height),
     })).slice(0, 20),

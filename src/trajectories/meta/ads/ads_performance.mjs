@@ -115,7 +115,7 @@ async function browserPerformance() {
       .map((row) => (row.innerText || row.textContent || '').replace(/\s+/g, ' ').trim())
       .filter(Boolean)
       .slice(0, 50)).catch(() => []);
-    console.log(JSON.stringify({ account: visibleLabel, rows, empty: /Brak wyników|No results|Nie utworzono/i.test(text) }, null, 2).slice(0, 8000));
+    console.log(JSON.stringify({ account: visibleLabel, rows, empty: /Brak wyników|No results|Nie utworzono/i.test(text) }, null, 2));
     console.log('PASS: Meta Ads performance read completed (browser)');
   } finally {
     await s.close().catch(() => {});
@@ -155,7 +155,7 @@ const auth = await runMeta(['auth', 'status']).catch((e) => ({ code: 127, out: '
 if (auth.code !== 0) {
   if (META_CLI_REQUIRED) {
     console.log('FAIL: Meta Ads CLI is not installed or not authenticated');
-    if (auth.err || auth.out) console.log((auth.err || auth.out).slice(0, 500));
+    if (auth.err || auth.out) console.log((auth.err || auth.out));
     process.exit(2);
   }
   console.log('[meta-ads-performance] Meta CLI unavailable; using browser fallback');
@@ -174,8 +174,8 @@ const args = META_ADS_CLI_ARGS ? splitArgs(META_ADS_CLI_ARGS) : [
 
 console.log(`[meta-ads-performance] ${META_CLI_BIN} ${args.map((a) => /\s/.test(a) ? JSON.stringify(a) : a).join(' ')}`);
 const result = await runMeta(args);
-if (result.out) console.log(result.out.trim().slice(0, 8000));
-if (result.err) console.error(result.err.trim().slice(0, 2000));
+if (result.out) console.log(result.out.trim());
+if (result.err) console.error(result.err.trim());
 if (result.code !== 0) {
   console.log(`FAIL: meta CLI exited ${result.code}`);
   process.exit(result.code || 1);

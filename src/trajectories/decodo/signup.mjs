@@ -43,7 +43,7 @@ const present = async (loc) => (await loc.count()) > 0;
 async function shot(s, label) {
   const fp = `${OUT_DIR}/${stamp()}_${label}.png`;
   try { await s.page.screenshot({ path: fp, fullPage: true }); console.log(`[shot] ${fp}`); }
-  catch (e) { console.log(`[shot] skip ${label}: ${(e.message || '').slice(0, 80)}`); }
+  catch (e) { console.log(`[shot] skip ${label}: ${(e.message || '')}`); }
   return fp;
 }
 async function dump(s, label) {
@@ -244,10 +244,10 @@ try {
   }
   console.log(`PASS: decodo Google-SSO login + US ISP purchase flow complete — audit screenshots in ${OUT_DIR}`);
 } catch (e) {
-  console.log(`FAIL: ${(e.message || String(e)).slice(0, 200)}`);
+  console.log(`FAIL: ${(e.message || String(e))}`);
   try { await s.page.screenshot({ path: `${OUT_DIR}/${stamp()}_error.png`, fullPage: true }); }
-  catch (e2) { console.log(`[shot] error-shot skip: ${(e2.message || '').slice(0, 60)}`); }
+  catch (e2) { console.log(`[shot] error-shot skip: ${(e2.message || '')}`); }
   process.exit(1);
 } finally {
-  try { await s.close(); } catch (e) { console.log(`[decodo] close: ${(e.message || '').slice(0, 60)}`); }
+  try { await s.close(); } catch (e) { console.log(`[decodo] close: ${(e.message || '')}`); }
 }

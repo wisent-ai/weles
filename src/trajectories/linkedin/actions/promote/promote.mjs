@@ -16,7 +16,7 @@ await runAction({
         const el = document.querySelector('.feed-shared-update-v2__description, .update-components-text');
         return el?.textContent?.trim() ?? '';
       });
-      return { postTitle: (text || '').slice(0, 400), postBody: '' };
+      return { postTitle: (text || ''), postBody: '' };
     } catch { return { postTitle: '', postBody: '' }; }
   },
   submitComment: linkedinSubmitComment,

@@ -79,8 +79,8 @@ export async function upgradeTier(s, plan, currentPlanName) {
     for (const f of s.page.frames()) {
       try {
         const inputs = await f.evaluate(() => Array.from(document.querySelectorAll('input')).map(i => `${i.type || 'text'}:name=${i.name || ''}:placeholder=${i.placeholder || ''}:autocomplete=${i.autocomplete || ''}`));
-        const url = f.url().slice(0, 120);
-        if (inputs.length) console.log(`[diag] frame=${url} inputs=${JSON.stringify(inputs).slice(0, 600)}`);
+        const url = f.url();
+        if (inputs.length) console.log(`[diag] frame=${url} inputs=${JSON.stringify(inputs)}`);
       } catch {}
     }
   } catch {}
@@ -97,6 +97,6 @@ export async function upgradeTier(s, plan, currentPlanName) {
   await pageSettled(s.page);
 
   const url = s.page.url();
-  if (stripeChargeFired) console.log(`PASS-CHARGED: Stripe payment_intents/confirm POST fired, url=${url.slice(0, 100)}`);
-  else console.log(`FAIL: no Stripe charge POST observed by the time the page settled, url=${url.slice(0, 100)}`);
+  if (stripeChargeFired) console.log(`PASS-CHARGED: Stripe payment_intents/confirm POST fired, url=${url}`);
+  else console.log(`FAIL: no Stripe charge POST observed by the time the page settled, url=${url}`);
 }

@@ -48,7 +48,7 @@ for (const url of urls) {
           statusText: r.statusText,
           allow: r.headers.get('allow'),
           contentType: r.headers.get('content-type'),
-          text: text.slice(0, 1500),
+          text: text,
         };
       } catch (error) {
         return { method, url, error: String(error?.message || error) };

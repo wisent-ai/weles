@@ -101,7 +101,7 @@ function readResetLink(requestedAt) {
     .sort((a, b) => b.received_at.localeCompare(a.received_at))
     .map((m) => resetLink(m.body_text))
     .find(Boolean);
-  if (link) logn(`znalazłem link reset: ${link.slice(0, 80)}...`);
+  if (link) logn(`znalazłem link reset: ${link}...`);
   return link ?? null;
 }
 

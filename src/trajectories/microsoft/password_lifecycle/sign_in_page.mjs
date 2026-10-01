@@ -219,7 +219,7 @@ export async function completeEmailIdentityChallenge(page, email) {
       id: node.id,
       ariaLabel: node.getAttribute('aria-label'),
       autocomplete: node.getAttribute('autocomplete'),
-      outerHTML: node.outerHTML.slice(0, 1000),
+      outerHTML: node.outerHTML,
     }))).catch((error) => [{ unreadable: error.message }]),
   }, null, 2));
   return passwordPage;

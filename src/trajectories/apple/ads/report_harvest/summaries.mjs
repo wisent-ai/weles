@@ -18,7 +18,7 @@ export function sanitizeResponses(responses) {
         status: response.status,
         contentType,
         bodyLength: body.length,
-        bodyPreview: /json|text|javascript|html|xml/i.test(contentType) ? body.slice(0, 5000) : '',
+        bodyPreview: /json|text|javascript|html|xml/i.test(contentType) ? body : '',
       };
     })
     .slice(-300);
@@ -48,7 +48,7 @@ export function summarizeReport(pageState, responses) {
       control.className,
       control.name,
       control.id,
-    ].join(' '))).slice(0, 80),
+    ].join(' '))),
     reportControls: (pageState.controls || []).filter((control) => /report|filter|view|column|download|export|campaign|spend|impression|tap|install/i.test([
       control.text,
       control.ariaLabel,
@@ -58,7 +58,7 @@ export function summarizeReport(pageState, responses) {
       control.className,
       control.name,
       control.id,
-    ].join(' '))).slice(0, 120),
+    ].join(' '))),
     relevantResponseCount: responses.length,
     relevantResponseUrls: [...new Set(responses.map((response) => response.url))].slice(-120),
   };
@@ -78,7 +78,7 @@ export function summarizeGraphqlRequests(requests) {
       operations: rows.map((row) => ({
         operationName: row.operationName,
         variables: row.variables,
-        queryPreview: String(row.query || '').replace(/\s+/g, ' ').slice(0, 500),
+        queryPreview: String(row.query || '').replace(/\s+/g, ' '),
       })),
     };
   });
@@ -98,7 +98,7 @@ export function summarizeGraphqlResponses(responses) {
       contentType: response.contentType,
       bodyLength: response.body.length,
       keys: parsed && typeof parsed === 'object' ? Object.keys(parsed) : [],
-      preview: response.body.slice(0, 2000),
+      preview: response.body,
     };
   });
 }

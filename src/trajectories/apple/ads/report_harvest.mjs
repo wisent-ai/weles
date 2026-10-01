@@ -125,7 +125,7 @@ async function main() {
     writeFileSync(outPath, JSON.stringify(output, null, 2));
     await s.saveCookies().catch(() => null);
     console.log(`[apple-ads-report-harvest] json=${outPath}`);
-    console.log(JSON.stringify(summary, null, 2).slice(0, 12000));
+    console.log(JSON.stringify(summary, null, 2));
   } finally {
     process.exitCode = exitCode;
     await keepOpen(s);

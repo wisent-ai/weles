@@ -56,7 +56,7 @@ export function startPcap(ws: any, label: string | undefined): void {
   } catch (e: any) { status.spawn_error = String(e?.message ?? e); return; }
   status.enabled = true;
   status.pid = child.pid ?? null;
-  child.stderr?.on('data', (d) => { status.stderr = (status.stderr + d.toString()).slice(0, 4000); });
+  child.stderr?.on('data', (d) => { status.stderr = (status.stderr + d.toString()); });
   child.on('exit', (code, signal) => { status.exit_code = code; status.exit_signal = signal; });
   child.on('error', (err) => { status.spawn_error = String(err?.message ?? err); });
   ws._instPcapChild = child;

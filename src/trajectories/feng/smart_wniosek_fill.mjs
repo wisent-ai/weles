@@ -115,7 +115,7 @@ async function applyField(s, name, spec, payload, summary) {
     }
     summary.filled.push({ name, length: payload.length });
   } catch (e) {
-    summary.errors.push({ name, error: (e.message || '').slice(0, 200) });
+    summary.errors.push({ name, error: (e.message || '') });
   }
 }
 

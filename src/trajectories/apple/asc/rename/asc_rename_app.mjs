@@ -36,7 +36,7 @@ async function api(path, opts = {}) {
   const r = await fetch(`${API}${path}`, { ...opts, headers: { ...H, 'Content-Type': 'application/json', ...(opts.headers || {}) } });
   const t = await r.text();
   let j; try { j = JSON.parse(t); } catch { j = t; }
-  if (!r.ok) { console.log(`HTTP ${r.status} ${opts.method || 'GET'} ${path}: ${t.slice(0, 400)}`); throw new Error(`http ${r.status}`); }
+  if (!r.ok) { console.log(`HTTP ${r.status} ${opts.method || 'GET'} ${path}: ${t}`); throw new Error(`http ${r.status}`); }
   return j;
 }
 

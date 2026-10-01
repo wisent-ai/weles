@@ -113,7 +113,7 @@ await page.goto(PROJ + cfg.id, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
 const readback = await page.evaluate(() => ({
   rows: Array.from(document.querySelectorAll('table tbody tr')).filter((r) => r.querySelector('button[aria-label="overflow-options"]')).length,
-  table: (document.querySelector('table')?.innerText || '').replace(/\s+/g, ' ').slice(0, 800),
+  table: (document.querySelector('table')?.innerText || '').replace(/\s+/g, ' '),
 }));
 console.log(JSON.stringify({ section: SECTION, answer: ANSWER, readback }, null, 2));
 process.exit(0);

@@ -35,7 +35,7 @@ export async function activateSetup(creds) {
   for (let i = 0; i < 30; i += 1) {
     const s = await state();
     const text = s.text || '';
-    steps.push({ i, url: s.url, textPreview: redact(text).slice(0, 500) });
+    steps.push({ i, url: s.url, textPreview: redact(text) });
 
     if (/accounts\.google\.com/.test(s.url || '')) {
       if (!await handleGoogleLogin(creds)) return { ok: false, blocked: 'google_reauth_failed_or_manual_code_timeout', steps };

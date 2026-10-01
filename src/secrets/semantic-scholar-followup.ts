@@ -133,7 +133,7 @@ async function validateCandidate(candidate: string): Promise<{ ok: boolean; stat
     return { ok: response.ok, status: `HTTP ${response.status}` };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return { ok: false, status: `validation error: ${message.slice(0, 120)}` };
+    return { ok: false, status: `validation error: ${message}` };
   }
 }
 

@@ -47,7 +47,7 @@ async function request(page, method, url) {
         statusText: res.statusText,
         allow: res.headers.get('allow'),
         contentType: res.headers.get('content-type'),
-        text: text.slice(0, 1600),
+        text: text,
       };
     } catch (error) {
       return {

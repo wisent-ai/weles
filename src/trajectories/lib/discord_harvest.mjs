@@ -98,7 +98,7 @@ async function tryDispatch(token, country) {
     return { ok: false, reason: 'voip', num };
   }
   if (dispatch.status !== 204 && dispatch.status !== 200) {
-    console.log(`[phone-verify] ${country} dispatch status=${dispatch.status} body=${JSON.stringify(dispatch.body).slice(0, 160)}`);
+    console.log(`[phone-verify] ${country} dispatch status=${dispatch.status} body=${JSON.stringify(dispatch.body)}`);
     await cancelOrder(num.orderId, num.provider);
     return { ok: false, reason: `dispatch_${dispatch.body?.code || dispatch.status}`, num };
   }
@@ -145,7 +145,7 @@ async function phoneVerify(token) {
     confirm = await discordApi(token, '/users/@me/phone', { method: 'POST', body: JSON.stringify(body) });
   }
   if (confirm.status !== 200 && confirm.status !== 204) {
-    console.log(`[phone-verify] confirm status=${confirm.status} body=${JSON.stringify(confirm.body).slice(0, 200)}`);
+    console.log(`[phone-verify] confirm status=${confirm.status} body=${JSON.stringify(confirm.body)}`);
     return { ok: false, reason: 'confirm_failed', detail: confirm };
   }
   const newToken = confirm.body?.token;
@@ -157,7 +157,7 @@ async function joinByInvite(token, code) {
   const meta = await discordApi(token, `/invites/${code}?with_counts=true`);
   if (meta.status !== 200) { console.log(`[harvest] /invites/${code} GET status=${meta.status}`); return null; }
   const join = await discordApi(token, `/invites/${code}`, { method: 'POST', body: '{}' });
-  if (join.status !== 200) { console.log(`[harvest] /invites/${code} POST status=${join.status} body=${JSON.stringify(join.body).slice(0, 200)}`); return null; }
+  if (join.status !== 200) { console.log(`[harvest] /invites/${code} POST status=${join.status} body=${JSON.stringify(join.body)}`); return null; }
   return { guild: join.body.guild || meta.body.guild, channel: join.body.channel || meta.body.channel };
 }
 

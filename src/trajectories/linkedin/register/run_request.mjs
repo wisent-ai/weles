@@ -95,7 +95,7 @@ export const registerOs = process.env.WELES_REGISTER_OS || warmManifest?.persona
 export const registerPersona = warmManifest?.persona || undefined;
 export function safeRequestedProxy(value = '') {
   const raw = String(value ?? '');
-  return /^(https?:|socks)/i.test(raw) ? '[url-form]' : raw.slice(0, 80);
+  return /^(https?:|socks)/i.test(raw) ? '[url-form]' : raw;
 }
 
 export async function replayWarmProfile(s) {

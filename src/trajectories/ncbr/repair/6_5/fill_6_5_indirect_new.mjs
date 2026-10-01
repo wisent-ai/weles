@@ -114,7 +114,7 @@ if (process.env.DIAG) {
   const fields = await page.evaluate(() => Array.from(document.querySelectorAll('input, textarea')).map((i) => {
     const label = i.id ? document.querySelector(`label[for="${CSS.escape(i.id)}"]`)?.textContent?.trim() : null;
     const wrap = i.closest('label, .MuiFormControlLabel-root, .MuiFormGroup-root, .MuiBox-root');
-    return { tag: i.tagName, type: i.type || null, name: i.name || null, value: i.value || null, readOnly: i.readOnly, disabled: i.disabled, role: i.getAttribute('role'), max: i.getAttribute('maxlength'), label, nearby: wrap ? wrap.textContent.trim().slice(0, 180) : null };
+    return { tag: i.tagName, type: i.type || null, name: i.name || null, value: i.value || null, readOnly: i.readOnly, disabled: i.disabled, role: i.getAttribute('role'), max: i.getAttribute('maxlength'), label, nearby: wrap ? wrap.textContent.trim() : null };
   }).filter((x) => x.name || x.label));
   const buttons = await page.evaluate(() => Array.from(document.querySelectorAll('button')).map((b) => b.innerText.trim()).filter(Boolean));
   const saveDisabled = await page.evaluate(() => Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz').map((b) => b.disabled));

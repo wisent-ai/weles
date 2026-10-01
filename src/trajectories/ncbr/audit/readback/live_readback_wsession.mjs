@@ -140,16 +140,16 @@ const state = await page.evaluate((responses) => {
       }
     } catch (e) {
       validation.parseError = String(e?.message || e);
-      validation.rawHead = vr.text.slice(0, 1000);
+      validation.rawHead = vr.text;
     }
   }
   return {
     url: location.href,
     title: document.title,
-    bodyHead: body.slice(0, 2500),
+    bodyHead: body,
     bodyTail: body.slice(-2500),
     buttons,
-    inputs: inputs.slice(0, 120),
+    inputs: inputs,
     validation,
   };
 }, validationResponses); // allow-raw-playwright: read-only DOM state extraction

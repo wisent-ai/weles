@@ -20,10 +20,10 @@ const character = acct.metadata?.character;
 if (!character || typeof character !== 'object') { console.log(`FAIL: no character stored for twitter/${acct.username}`); process.exit(1); }
 console.log(`[tw-profile] character: ${character.name} (niche=${character.niche})`);
 const avatarUrl = character.avatar_url
-  || (Array.isArray(character.training_images) ? character.training_images[Number('0')] : null);
+  || (Array.isArray(character.training_images) ? character.training_images[0] : null);
 
 const targetName = character.name || '';
-const targetBio = (character.bio || '').slice(0, 160);
+const targetBio = (character.bio || '').slice(0, 160); // X (Twitter) bio limit
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'twitter_edit_profile', proxy: proxyUrl, persona });

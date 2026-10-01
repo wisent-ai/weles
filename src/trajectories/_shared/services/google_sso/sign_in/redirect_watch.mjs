@@ -95,7 +95,7 @@ export async function watchGoogleRedirect(page, session, creds, opts) {
         await logGooglePageDiag(page, 'device_prompt_not_approved');
         if (await clickTryAnotherWay(page)) {
           const methods = await collectGoogleAuthMethods(page);
-          console.log(`[google_sso] available second-factor methods=${JSON.stringify(methods).slice(0, 3000)}`);
+          console.log(`[google_sso] available second-factor methods=${JSON.stringify(methods)}`);
         }
         console.log(`[google_sso] FAIL: Google device prompt was not approved (${page.url()})`);
         return false;
@@ -128,7 +128,7 @@ export async function watchGoogleRedirect(page, session, creds, opts) {
       await Promise.any([urlMatching(page, (next) => next !== u), message.waitFor({ state: 'visible' })]);
       if (page.url() === u) {
         await logGooglePageDiag(page, 'password_refused');
-        console.log(`[google_sso] FAIL: google_password_refused — ${(await message.innerText()).slice(0, 200)}`);
+        console.log(`[google_sso] FAIL: google_password_refused — ${(await message.innerText())}`);
         return false;
       }
       continue;

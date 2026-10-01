@@ -151,7 +151,7 @@ const readback = await page.evaluate(() => ({
     name: (t.name || '').split('.').pop(),
     length: (t.value || '').length,
   })),
-  tables: Array.from(document.querySelectorAll('table')).map((t) => ({ rows: t.querySelectorAll('tbody tr').length, text: (t.innerText || '').replace(/\s+/g, ' ').slice(0, 600) })),
+  tables: Array.from(document.querySelectorAll('table')).map((t) => ({ rows: t.querySelectorAll('tbody tr').length, text: (t.innerText || '').replace(/\s+/g, ' ') })),
   buttons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim(), disabled: b.disabled })).filter((b) => b.text === 'Zapisz'),
 })); // allow-raw-playwright: read 10.4 state after save attempt
 

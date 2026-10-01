@@ -46,10 +46,10 @@ try {
     try {
       const u = req.url();
       if (req.method() === 'POST' && u.includes('github.com') && !u.includes('analytics') && !u.includes('_metric')) {
-        seenGithubPosts.push(`${u.slice(0, 120)} body=${(req.postData() ?? '').slice(0, 150)}`);
+        seenGithubPosts.push(`${u} body=${(req.postData() ?? '')}`);
       }
       if (u.includes('arkoselabs.com') || u.includes('octocaptcha.com')) {
-        seenArkoseUrls.push(u.slice(0, 150));
+        seenArkoseUrls.push(u);
         if (u.includes('arkoselabs.com/fc/gt2/public_key')) {
           const m = u.match(/public_key\/([A-F0-9-]+)/i);
           if (m) captcha.pkey = m[1];
@@ -154,7 +154,7 @@ try {
       const frames = Array.from(document.querySelectorAll('iframe'));
       return frames.map(f => ({ src: f.src?.slice(0, 200) ?? '', dataSrc: f.getAttribute('data-src')?.slice(0, 200) ?? '', cls: f.className?.slice(0, 80) ?? '' })).filter(f => f.src || f.dataSrc);
     })()`).catch(() => []);
-    console.log(`[register] All iframes: ${JSON.stringify(iframeInfo).slice(0, 500)}`);
+    console.log(`[register] All iframes: ${JSON.stringify(iframeInfo)}`);
     for (const f of iframeInfo) {
       const url = f.src || f.dataSrc;
       const m = url.match(/public_key=([A-F0-9-]+)/i) || url.match(/public_key\/([A-F0-9-]+)/i);

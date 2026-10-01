@@ -159,14 +159,14 @@ export async function enterLinkedinSignup(session, entryUrl) {
   diagnostics.click_error = clickError;
   if (!clicked) {
     await writeSubmitDiagnostics('entry_path_diagnostics', diagnostics);
-    throw new Error(`entry_path_no_signup_click: the declared entry path offered no clickable "Sign up" or "Join now" affordance, so the run never reached the signup form; it stopped at ${session.page.url().slice(0, 180)}`);
+    throw new Error(`entry_path_no_signup_click: the declared entry path offered no clickable "Sign up" or "Join now" affordance, so the run never reached the signup form; it stopped at ${session.page.url()}`);
   }
   try {
     await session.page.waitForURL(/\/signup(?:$|[/?#])/);
   } catch (transitionError) {
     diagnostics.signup_transition_error = String(transitionError?.message ?? transitionError);
     await writeSubmitDiagnostics('entry_path_diagnostics', diagnostics);
-    throw new Error(`entry_path_no_signup_transition: the entry affordance was clicked but the browser never arrived at the signup form; it stopped at ${session.page.url().slice(0, 180)}`);
+    throw new Error(`entry_path_no_signup_transition: the entry affordance was clicked but the browser never arrived at the signup form; it stopped at ${session.page.url()}`);
   }
   await pageSettled(session.page);
   await record('after_signup_transition');

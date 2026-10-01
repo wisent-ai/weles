@@ -233,7 +233,7 @@ export async function captureStepArtifacts(ws: WSession, phase: StepPhase, step:
     failures.push({ step, phase, artifact: 'dom', reason: `the ${phase} DOM dump could not be written: ${reason}`, at });
   }
   if (failures.length === 0) return;
-  for (const failure of failures) console.log(`[wsession] ${step} ARTIFACT MISSING ${failure.artifact} — ${failure.reason.slice(0, 300)}`);
+  for (const failure of failures) console.log(`[wsession] ${step} ARTIFACT MISSING ${failure.artifact} — ${failure.reason}`);
   ws.stepArtifactFailures.push(...failures);
   try {
     writeFileSync(

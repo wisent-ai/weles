@@ -11,7 +11,7 @@ import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 const REPO_URL = process.env.REPO_URL || '';
 const FILE_PATH = process.env.FILE_PATH || 'README.md';
-const COMMIT_MESSAGE = (process.env.COMMIT_MESSAGE || 'update notes').slice(0, 200);
+const COMMIT_MESSAGE = (process.env.COMMIT_MESSAGE || 'update notes');
 const FILE_APPEND = process.env.FILE_APPEND || `\n- ${new Date().toISOString().slice(0, 10)}: quick note\n`;
 
 function normalize(raw) {

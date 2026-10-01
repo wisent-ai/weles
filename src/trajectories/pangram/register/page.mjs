@@ -13,7 +13,7 @@ export async function dismissCookies(page) {
 export async function dumpControls(page) {
   return page.evaluate(() => ({
     url: location.href,
-    body: (document.body?.innerText || '').replace(/\s+/g, ' ').slice(0, 1500),
+    body: (document.body?.innerText || '').replace(/\s+/g, ' '),
     inputs: Array.from(document.querySelectorAll('input, textarea')).filter((el) => el.getClientRects().length).map((el) => ({
       tag: el.tagName,
       type: el.getAttribute('type'),
@@ -25,7 +25,7 @@ export async function dumpControls(page) {
     buttons: Array.from(document.querySelectorAll('button, [role="button"], a')).filter((el) => el.getClientRects().length).map((el) => ({
       tag: el.tagName,
       role: el.getAttribute('role'),
-      text: ([el.textContent, el.getAttribute('aria-label')].find(Boolean) ?? '').replace(/\s+/g, ' ').trim().slice(0, 120),
+      text: ([el.textContent, el.getAttribute('aria-label')].find(Boolean) ?? '').replace(/\s+/g, ' ').trim(),
       href: el.getAttribute('href'),
       disabled: Boolean(el.disabled) || el.getAttribute('aria-disabled') === 'true',
     })).filter((x) => x.text || x.href).slice(0, 80),

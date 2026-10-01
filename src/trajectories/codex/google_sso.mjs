@@ -180,7 +180,7 @@ export async function doGoogleSso({
       await page.goto(authorizeUrl, { waitUntil: 'commit' });
       await humanIdlePause('deliberate');
     }
-    const d = await navEval(page, () => ({ url: location.href, body: (document.body?.innerText || '').replace(/\s+/g, ' ').slice(0, 220) }), { url: '?', body: 'context destroyed' });
+    const d = await navEval(page, () => ({ url: location.href, body: (document.body?.innerText || '').replace(/\s+/g, ' ') }), { url: '?', body: 'context destroyed' });
     d.trail = trail;
     throw new Error(`gis_continue: no consent/code after 4 attempts diag=${JSON.stringify(d)}`);
   } finally {

@@ -87,7 +87,7 @@ async function main() {
 
   const steps = [];
   const mark = async (name) => {
-    steps.push({ name, url: await url(args.session), text: (await text(args.session)).slice(0, 240) });
+    steps.push({ name, url: await url(args.session), text: (await text(args.session)) });
   };
 
   await mark('start');
@@ -152,7 +152,7 @@ async function main() {
   console.log(JSON.stringify({
     ok: true,
     finalUrl: await url(args.session),
-    finalText: (await text(args.session)).slice(0, 1000),
+    finalText: (await text(args.session)),
     steps,
   }, null, 2));
 }

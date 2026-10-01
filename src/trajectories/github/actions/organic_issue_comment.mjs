@@ -14,7 +14,7 @@ await runAction({
   pickPost: async (s) => {
     try {
       const title = await s.page.evaluate(() => document.querySelector('bdi.js-issue-title, .js-issue-title')?.textContent?.trim() ?? '');
-      const body = await s.page.evaluate(() => document.querySelector('.markdown-body')?.textContent?.trim().slice(0, 600) ?? '');
+      const body = await s.page.evaluate(() => document.querySelector('.markdown-body')?.textContent?.trim() ?? '');
       return { postTitle: title || '', postBody: body || '' };
     } catch { return { postTitle: '', postBody: '' }; }
   },

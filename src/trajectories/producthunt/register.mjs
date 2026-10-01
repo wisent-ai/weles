@@ -58,7 +58,7 @@ async function signup(s) {
   // Choose Twitter OAuth. Use accessible-name match so we don't misfire onto
   // adjacent provider buttons (Google/Apple) at larger viewports.
   const t1 = await readPage(s);
-  console.log(`[ph] signup modal: ${t1.slice(0, 120).replace(/\n/g, ' ')}`);
+  console.log(`[ph] signup modal: ${t1.replace(/\n/g, ' ')}`);
   const twitterLabel = /^\s*(Sign in with X|Continue with X|Sign up with Twitter|Continue with Twitter)\s*$/i;
   const clickedTw = await clickOAuthProviderButton(s, twitterLabel);
   if (!clickedTw) {

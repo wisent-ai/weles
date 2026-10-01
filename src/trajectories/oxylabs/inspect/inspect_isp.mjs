@@ -72,12 +72,12 @@ try {
         }
       }
     } catch (e) {
-      console.log(`[inspect] nav "${label}" err: ${(e.message || String(e)).slice(0, 120)}`);
+      console.log(`[inspect] nav "${label}" err: ${(e.message || String(e))}`);
     }
   }
   console.log(`PASS: oxylabs ISP dashboard dumped to ${OUT}/ — inspect txt/html/png`);
 } catch (e) {
-  console.log('FAIL:', (e.message || String(e)).slice(0, 200));
+  console.log('FAIL:', (e.message || String(e)));
   process.exit(1);
 } finally {
   await s.close();

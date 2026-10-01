@@ -22,7 +22,7 @@ function run(command, args, options = {}) {
     ...options,
   });
   if (result.status !== 0) {
-    const detail = String(result.stderr || '').replace(/[A-Za-z0-9_-]{32,}/g, '[redacted]').slice(0, 500);
+    const detail = String(result.stderr || '').replace(/[A-Za-z0-9_-]{32,}/g, '[redacted]');
     throw new Error(`${basename(command)} failed: ${detail || `exit ${result.status}`}`);
   }
   return result.stdout;

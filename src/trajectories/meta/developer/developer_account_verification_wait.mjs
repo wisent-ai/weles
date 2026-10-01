@@ -35,7 +35,7 @@ async function pageState(page) {
     return {
       url: location.href,
       title: document.title || '',
-      text: text.slice(0, 1000),
+      text: text,
       registerDialog: /Create a Meta for Developers account|Register Verify account Contact info About you/i.test(text),
       phoneOrCard: /phone|mobile|telefon|credit card|debit card|karta/i.test(text),
       developerHome: /Meta for Developers|Social technologies/i.test(text),

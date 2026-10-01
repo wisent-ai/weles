@@ -51,7 +51,7 @@ export async function detectCaptcha(page: Page): Promise<CaptchaInfo | null> {
   const frames = page.frames?.() ?? [page.mainFrame?.() ?? page];
   for (const f of frames) {
     const info: any = await (f.evaluate ? f.evaluate(FRAME_DETECT_SCRIPT) : page.evaluate(FRAME_DETECT_SCRIPT)).catch(() => null);
-    if (info) { console.log(`[captcha] Detected: ${info.type} sitekey=${(info.sitekey || '').slice(0, 20)} frame=${f.url?.().slice(0, 80) ?? 'main'}`); return info; }
+    if (info) { console.log(`[captcha] Detected: ${info.type} sitekey=${(info.sitekey || '').slice(0, 20)} frame=${f.url?.() ?? 'main'}`); return info; }
   }
   console.log(`[captcha] No captcha iframe on the loaded page (${frames.length} frames)`);
   return null;
@@ -197,7 +197,7 @@ async function solveHcaptchaEnterprise(page: Page, sitekey: string, solver: Capt
   const body = JSON.stringify(formData);
   const endpoint = session?.captchaEndpoint || '/api/v9/auth/register';
   const result = await page.evaluate(`(async()=>{var r=await fetch(${JSON.stringify(endpoint)},{method:'POST',headers:${hdrs},body:${JSON.stringify(body)}});var d=await r.json().catch(()=>({}));return{status:r.status,data:d}})()`).catch((e: any) => ({ error: e.message }));
-  console.log(`[captcha] Resubmit: ${JSON.stringify(result).slice(0, 200)}`);
+  console.log(`[captcha] Resubmit: ${JSON.stringify(result)}`);
   if (result?.status >= 200 && result?.status < 300) return true;
   if (result?.data?.captcha_key) console.log('[captcha] hcaptcha_enterprise_token_refused: the endpoint asked for a captcha again');
   return false;

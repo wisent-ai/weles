@@ -135,7 +135,7 @@ export async function execute(
       args: decision.args ?? {},
       thought: decision.thought ?? '',
     };
-    console.log(`[loop] step ${step} thought: ${(call.thought ?? '').slice(0, 140)}`);
+    console.log(`[loop] step ${step} thought: ${(call.thought ?? '')}`);
     console.log(`[loop] step ${step} tool: ${call.tool} args=${JSON.stringify(call.args)}`);
 
     if (call.tool === 'done') {
@@ -183,7 +183,7 @@ export async function execute(
     const afterAction = getActivePage(activePage);
     if (afterAction !== activePage) {
       activePage = afterAction;
-      console.log(`[loop] popup detected: ${activePage.url()}`.slice(0, 120));
+      console.log(`[loop] popup detected: ${activePage.url()}`);
       await pageSettled(activePage);
     }
   }

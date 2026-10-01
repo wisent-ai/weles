@@ -46,10 +46,10 @@ export function installNetworkLogger(s) {
     const body = (() => { try { return req.postData() || ''; } catch { return ''; } })();
     const h = req.headers();
     const ttHeaders = Object.keys(h).filter(k => /tt-|ticket|passport|csrf|x-ms|x-bogus|signature/i.test(k));
-    console.log(`[req] ${req.method()} ${u.slice(0, 140)}`);
-    if (ttHeaders.length) console.log(`[req-tt-hdrs] ${ttHeaders.map(k => k + '=' + (h[k] || '').slice(0, 120)).join(' | ')}`);
+    console.log(`[req] ${req.method()} ${u}`);
+    if (ttHeaders.length) console.log(`[req-tt-hdrs] ${ttHeaders.map(k => k + '=' + (h[k] || '')).join(' | ')}`);
     else console.log(`[req-tt-hdrs] NONE — header keys: ${Object.keys(h).join(',')}`);
-    if (body) console.log(`[req-body] ${body.slice(0, 400)}`);
+    if (body) console.log(`[req-body] ${body}`);
     if (/email\/send_code/i.test(u)) state.sendCodeSeen = true;
     if (/register_verify_login/i.test(u)) state.registerVerifySeen = true;
   });
@@ -60,9 +60,9 @@ export function installNetworkLogger(s) {
     try { body = (await resp.text()); } catch {}
     const h = resp.headers();
     const hdrJson = JSON.stringify(h);
-    console.log(`[res] ${resp.status()} ${u.slice(0, 140)}`);
-    console.log(`[res-body] ${body.slice(0, 500).replace(/\s+/g, ' ')}`);
-    console.log(`[res-hdrs] ${hdrJson.slice(0, 600)}`);
+    console.log(`[res] ${resp.status()} ${u}`);
+    console.log(`[res-body] ${body.replace(/\s+/g, ' ')}`);
+    console.log(`[res-hdrs] ${hdrJson}`);
     if (/email\/send_code/i.test(u)) {
       try {
         const parsed = JSON.parse(body);
@@ -103,7 +103,7 @@ export async function runUsernameStep(s, id, humanClickLocator) {
     }).map(b => ({ text: (b.textContent || '').trim().slice(0, 30), disabled: b.disabled }));
     return { inputs, btns };
   })()`).catch(() => ({}));
-  console.log(`[test] username step DOM: ${JSON.stringify(unInfo).slice(0, 600)}`);
+  console.log(`[test] username step DOM: ${JSON.stringify(unInfo)}`);
 
   const unLoc = s.page.locator('input[placeholder*="username" i], input[name*="username" i]').first();
   if (await unLoc.count()) {

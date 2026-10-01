@@ -9,11 +9,11 @@ export async function pageDiag(page, { html = false } = {}) {
   let content;
   if (html) {
     content = await page.content()
-      .then((h) => h.replace(/\s+/g, ' ').slice(0, 2500))
+      .then((h) => h.replace(/\s+/g, ' '))
       .catch((x) => `html-err:${x.message}`);
   } else {
     content = await page.locator('body').innerText()
-      .then((b) => b.replace(/\s+/g, ' ').slice(0, 800))
+      .then((b) => b.replace(/\s+/g, ' '))
       .catch((x) => `body-err:${x.message}`);
   }
   const key = html ? 'html' : 'bodyText';

@@ -140,7 +140,7 @@ export async function activateAuthenticator(s, creds) {
       ok: false,
       blocked: 'totp_activation_code_input_not_found',
       url: s.page.url?.() || '',
-      textPreview: redact((await currentBodyText(s.page)).slice(0, 1600), secret),
+      textPreview: redact((await currentBodyText(s.page)), secret),
     };
   }
 
@@ -165,6 +165,6 @@ export async function activateAuthenticator(s, creds) {
     ok: false,
     blocked: 'totp_activation_code_rejected',
     url: s.page.url?.() || '',
-    textPreview: redact((await currentBodyText(s.page)).slice(0, 1600), secret),
+    textPreview: redact((await currentBodyText(s.page)), secret),
   };
 }

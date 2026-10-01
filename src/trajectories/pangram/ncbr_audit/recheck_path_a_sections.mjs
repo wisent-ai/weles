@@ -55,7 +55,7 @@ function textStats(text) {
     words,
     estimatedCredits: Math.max(1, Math.ceil(words / 1000)),
     sha256: createHash('sha256').update(text).digest('hex'),
-    preview: text.replace(/\s+/g, ' ').trim().slice(0, 120),
+    preview: text.replace(/\s+/g, ' ').trim(),
   };
 }
 

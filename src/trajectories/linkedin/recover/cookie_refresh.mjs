@@ -42,7 +42,7 @@ const html = await loginPage.text();
 const csrfMatch = html.match(/name="loginCsrfParam"\s+value="([^"]+)"/);
 const csrf = csrfMatch?.[1] ?? '';
 console.log(`[refresh] login_page status=${loginPage.status} csrf=${csrf.slice(0, 16)} cookies=${setCookieMap.size}`);
-if (!csrf) { writeBan('no_csrf', { status: loginPage.status, body_excerpt: html.slice(0, 200) }); console.log('FAIL: no CSRF token'); process.exit(1); }
+if (!csrf) { writeBan('no_csrf', { status: loginPage.status, body_excerpt: html }); console.log('FAIL: no CSRF token'); process.exit(1); }
 
 const formBody = new URLSearchParams({
   session_key: email, session_password: password,
@@ -70,7 +70,7 @@ if (liAt) {
   console.log(`PASS: li_at refreshed for ${acct.username}`);
 } else {
   const body = await submit.text().catch(() => '');
-  writeBan('checkpoint', { status: submit.status, location, has_set_cookie: submitCookies.length, body_excerpt: body.slice(0, 300) });
+  writeBan('checkpoint', { status: submit.status, location, has_set_cookie: submitCookies.length, body_excerpt: body });
   console.log(`FAIL: no li_at — server response status=${submit.status} location=${location}`);
   process.exit(1);
 }

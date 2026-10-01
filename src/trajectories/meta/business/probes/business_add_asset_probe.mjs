@@ -55,7 +55,7 @@ async function snapshot(page, label) {
         const rect = el.getBoundingClientRect();
         const text = textOf(el) || el.getAttribute('placeholder') || '';
         return {
-          text: text.slice(0, 220),
+          text: text,
           role: el.getAttribute('role') || el.tagName.toLowerCase(),
           href: el.getAttribute('href') || '',
           placeholder: el.getAttribute('placeholder') || '',
@@ -64,8 +64,7 @@ async function snapshot(page, label) {
           y: Math.round(rect.top + rect.height / 2),
         };
       })
-      .filter((item) => item.text || item.href || item.placeholder)
-      .slice(0, 120);
+      .filter((item) => item.text || item.href || item.placeholder);
     return {
       title: document.title || null,
       bodyText: textOf(document.body).slice(0, 3200),

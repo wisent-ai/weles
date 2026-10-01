@@ -184,7 +184,7 @@ async function googleAnalyticsRegisterSite(s) {
   const text = await bodyText(s.page);
   const measurementId = extractGaMeasurementId(text);
   if (measurementId) return { registration: { ...values, measurementId } };
-  throw new Error(`GA registration completed no visible measurement id; final_url=${s.page.url()}; body_preview=${text.slice(0, 800).replace(/\s+/g, ' ')}`);
+  throw new Error(`GA registration completed no visible measurement id; final_url=${s.page.url()}; body_preview=${text.replace(/\s+/g, ' ')}`);
 }
 
 export {

@@ -47,7 +47,7 @@ async function snapshot(page, label) {
       .map((el) => {
         const rect = el.getBoundingClientRect();
         return {
-          text: textOf(el).slice(0, 220),
+          text: textOf(el),
           role: el.getAttribute('role') || el.tagName.toLowerCase(),
           href: el.getAttribute('href') || '',
           disabled: el.disabled === true || el.getAttribute('aria-disabled') === 'true',
@@ -55,11 +55,10 @@ async function snapshot(page, label) {
           y: Math.round(rect.top + rect.height / 2),
         };
       })
-      .filter((item) => item.text || item.href)
-      .slice(0, 140);
+      .filter((item) => item.text || item.href);
     const links = Array.from(document.querySelectorAll('a[href]'))
       .map((el) => ({
-        text: textOf(el).slice(0, 180),
+        text: textOf(el),
         href: el.getAttribute('href') || '',
       }))
       .filter(({ href }) => /business_id=|business\.facebook\.com/.test(href))

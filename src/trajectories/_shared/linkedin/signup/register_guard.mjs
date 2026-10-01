@@ -72,12 +72,12 @@ export async function ensureLinkedinSignupForm(session) {
       inputs: summary.inputs, buttons: summary.buttons,
     });
     if (observed.has(state)) {
-      throw new Error(`signup_form_unavailable: state_repeated after ${lastAction}; ${JSON.stringify(summary).slice(0, 900)}`);
+      throw new Error(`signup_form_unavailable: state_repeated after ${lastAction}; ${JSON.stringify(summary)}`);
     }
     observed.add(state);
     const action = await nudgeIntoSignup(page);
     if (!action) {
-      throw new Error(`signup_form_unavailable: no_signup_transition after ${lastAction}; ${JSON.stringify(summary).slice(0, 900)}`);
+      throw new Error(`signup_form_unavailable: no_signup_transition after ${lastAction}; ${JSON.stringify(summary)}`);
     }
     lastAction = action;
   }

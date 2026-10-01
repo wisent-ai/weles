@@ -62,8 +62,8 @@
     try {
       const s = new Error().stack || '';
       const lines = s.split('\n').slice(2);
-      for (const l of lines) { if (!l.includes('property_trap') && !l.includes('native code')) return l.trim().slice(0, 180); }
-      return lines[0] ? lines[0].trim().slice(0, 180) : '';
+      for (const l of lines) { if (!l.includes('property_trap') && !l.includes('native code')) return l.trim(); }
+      return lines[0] ? lines[0].trim() : '';
     } catch { return ''; }
   }
   function logAccess(obj, prop, val) {
@@ -72,7 +72,7 @@
       if (val === null) vs = 'null';
       else if (vt === 'undefined') vs = 'undefined';
       else if (vt === 'function') vs = 'function';
-      else if (vt === 'object') { try { vs = JSON.stringify(val).slice(0, 200); } catch { vs = '[object]'; } }
+      else if (vt === 'object') { try { vs = JSON.stringify(val); } catch { vs = '[object]'; } }
       else vs = String(val);
       logs.push({ t: performance.now(), o: obj, p: prop, vt, vs, s: stack() });
       if (logs.length > 20000) logs.shift();
@@ -120,15 +120,15 @@
 
   try { hook(OfflineAudioContext.prototype, 'createOscillator', (o) => function() { logAccess('OfflineAudioContext', 'createOscillator', ''); return o.apply(this, arguments); }); } catch {}
   try { hook(Performance.prototype, 'getEntriesByType', (o) => function(t) { const v = o.apply(this, arguments); logAccess('Performance', 'getEntriesByType:' + t, 'n=' + (v?.length || 0)); return v; }); } catch {}
-  try { hook(Storage.prototype, 'setItem', (o) => function(k, v) { logAccess('Storage', 'setItem:' + k, (v + '').slice(0, 80)); return o.apply(this, arguments); }); } catch {}
-  try { hook(Storage.prototype, 'getItem', (o) => function(k) { const r = o.apply(this, arguments); logAccess('Storage', 'getItem:' + k, r === null ? 'null' : (r + '').slice(0, 80)); return r; }); } catch {}
+  try { hook(Storage.prototype, 'setItem', (o) => function(k, v) { logAccess('Storage', 'setItem:' + k, (v + '')); return o.apply(this, arguments); }); } catch {}
+  try { hook(Storage.prototype, 'getItem', (o) => function(k) { const r = o.apply(this, arguments); logAccess('Storage', 'getItem:' + k, r === null ? 'null' : (r + '')); return r; }); } catch {}
   try { if (navigator.permissions) hook(navigator.permissions, 'query', (o) => function(desc) { logAccess('Permissions', 'query:' + (desc?.name || '?'), ''); return o.apply(this, arguments); }); } catch {}
 
   try { if (typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported) hook(MediaSource, 'isTypeSupported', (o) => function(mime) { const r = o.call(this, mime); logAccess('MediaSource', 'isTypeSupported:' + String(mime), String(r)); return r; }); } catch {}
   try { hook(HTMLMediaElement.prototype, 'canPlayType', (o) => function(mime) { const r = o.call(this, mime); logAccess('HTMLMediaElement', 'canPlayType:' + String(mime), String(r)); return r; }); } catch {}
   try {
     if (navigator.mediaCapabilities) for (const k of ['decodingInfo', 'encodingInfo']) {
-      hook(navigator.mediaCapabilities, k, (o) => function(cfg) { let key = ''; try { key = JSON.stringify(cfg).slice(0, 120); } catch {} return o.call(this, cfg).then(r => { let v = ''; try { v = JSON.stringify(r).slice(0, 120); } catch {} logAccess('MediaCapabilities', k + ':' + key, v); return r; }); });
+      hook(navigator.mediaCapabilities, k, (o) => function(cfg) { let key = ''; try { key = JSON.stringify(cfg); } catch {} return o.call(this, cfg).then(r => { let v = ''; try { v = JSON.stringify(r); } catch {} logAccess('MediaCapabilities', k + ':' + key, v); return r; }); });
     }
   } catch {}
   try { hook(Document.prototype, 'hasFocus', (o) => function() { const r = o.call(this); logAccess('Document', 'hasFocus', String(r)); return r; }); } catch {}
@@ -137,7 +137,7 @@
   try { hook(Intl.DateTimeFormat.prototype, 'resolvedOptions', (o) => function() { const r = o.call(this); logAccess('Intl.DateTimeFormat', 'resolvedOptions', r?.timeZone + '|' + r?.locale); return r; }); } catch {}
   try { if (navigator.mediaDevices?.enumerateDevices) hook(navigator.mediaDevices, 'enumerateDevices', (o) => function() { return o.call(this).then(d => { logAccess('MediaDevices', 'enumerateDevices', 'n=' + (d?.length || 0)); return d; }); }); } catch {}
   try { hook(EventTarget.prototype, 'addEventListener', (o) => function(type, listener, opts) { logAccess('EventTarget', 'addEventListener:' + type, String(this?.constructor?.name || 'unknown')); return o.call(this, type, listener, opts); }); } catch {}
-  try { hook(PerformanceObserver.prototype, 'observe', (o) => function(opts) { let key = ''; try { key = JSON.stringify(opts).slice(0, 100); } catch {} logAccess('PerformanceObserver', 'observe', key); return o.call(this, opts); }); } catch {}
+  try { hook(PerformanceObserver.prototype, 'observe', (o) => function(opts) { let key = ''; try { key = JSON.stringify(opts); } catch {} logAccess('PerformanceObserver', 'observe', key); return o.call(this, opts); }); } catch {}
 
   // SubtleCrypto.encrypt — Arkose encrypts the fingerprint blob before POSTing
   // to /fc/gt2/public_key; logging the plaintext reveals what was serialised.
@@ -153,8 +153,8 @@
     });
   } catch {}
 
-  try { hook(XMLHttpRequest.prototype, 'open', (o) => function(method, url) { try { logAccess('XHR', 'open:' + method, (url + '').slice(0, 120)); } catch {} return o.apply(this, arguments); }); } catch {}
-  try { hook(XMLHttpRequest.prototype, 'send', (o) => function(body) { try { logAccess('XHR', 'send', (typeof body === 'string' ? body : '[non-string]').slice(0, 600)); } catch {} return o.apply(this, arguments); }); } catch {}
+  try { hook(XMLHttpRequest.prototype, 'open', (o) => function(method, url) { try { logAccess('XHR', 'open:' + method, (url + '')); } catch {} return o.apply(this, arguments); }); } catch {}
+  try { hook(XMLHttpRequest.prototype, 'send', (o) => function(body) { try { logAccess('XHR', 'send', (typeof body === 'string' ? body : '[non-string]')); } catch {} return o.apply(this, arguments); }); } catch {}
 
   // window.fetch — Reddit/GraphQL POSTs bypass XHR; log URL, method, body, status.
   try {
@@ -163,10 +163,10 @@
       try {
         if (typeof input === 'string') url = input;
         else if (input && typeof input === 'object') { url = input.url || ''; method = input.method || 'GET'; }
-        if (init) { if (init.method) method = init.method; const b = init.body; if (typeof b === 'string') body = b.slice(0, 4000); else if (b instanceof URLSearchParams) body = b.toString().slice(0, 4000); else if (typeof FormData !== 'undefined' && b instanceof FormData) body = '[FormData]'; else if (b && b.byteLength != null) body = '[binary len=' + b.byteLength + ']'; }
+        if (init) { if (init.method) method = init.method; const b = init.body; if (typeof b === 'string') body = b; else if (b instanceof URLSearchParams) body = b.toString(); else if (typeof FormData !== 'undefined' && b instanceof FormData) body = '[FormData]'; else if (b && b.byteLength != null) body = '[binary len=' + b.byteLength + ']'; }
       } catch {}
-      logAccess('Fetch', String(method).toUpperCase() + ':' + url.slice(0, 200), body);
-      return o.apply(this, arguments).then(function(r) { try { logAccess('Fetch', 'res:' + url.slice(0, 200), 'status=' + r.status); } catch {} return r; });
+      logAccess('Fetch', String(method).toUpperCase() + ':' + url, body);
+      return o.apply(this, arguments).then(function(r) { try { logAccess('Fetch', 'res:' + url, 'status=' + r.status); } catch {} return r; });
     });
   } catch (e) { logs.push({ t: performance.now(), o: '_fetch_', p: '<init-error>', vt: 'string', vs: String(e), s: '' }); }
 

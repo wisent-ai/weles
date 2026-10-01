@@ -118,7 +118,7 @@ try {
       results.push({ product, status });
       console.log(`[reset] ${product} done status=${status}`);
     } catch (e) {
-      console.log(`[reset] ${product} err: ${(e.message || String(e)).slice(0, 150)}`);
+      console.log(`[reset] ${product} err: ${(e.message || String(e))}`);
       results.push({ product, status: 'error', error: e.message });
     }
   }
@@ -132,7 +132,7 @@ try {
     console.log(`  ${r.product}: ${r.status}`);
   }
 } catch (e) {
-  console.log('FAIL:', (e.message || String(e)).slice(0, 200));
+  console.log('FAIL:', (e.message || String(e)));
   process.exit(1);
 } finally {
   await s.close();

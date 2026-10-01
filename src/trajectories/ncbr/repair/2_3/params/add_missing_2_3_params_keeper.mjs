@@ -135,4 +135,4 @@ for (const row of missing) {
   console.log(`added: ${row.name}`);
 }
 
-console.log(JSON.stringify({ done: true, remainingVisibleText: currentParamTableText().slice(0, 2000) }, null, 2));
+console.log(JSON.stringify({ done: true, remainingVisibleText: currentParamTableText() }, null, 2));

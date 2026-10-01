@@ -64,7 +64,7 @@ async function fetchCodeFromGmail(s, sentAtMs) {
   const allRows = await tab.evaluate(() => {
     const rows = Array.from(document.querySelectorAll('tr.zA, [role="main"] tr'));
     return rows.slice(0, 15).map(r => {
-      const t = (r.innerText || '').replace(/\s+/g, ' ').slice(0, 200);
+      const t = (r.innerText || '').replace(/\s+/g, ' ');
       const dateSpan = r.querySelector('span[title]');
       return { title: dateSpan?.title || '', preview: t };
     });
@@ -174,14 +174,14 @@ async function landAndLogin(s) {
   // Dump page state after Send to detect rate-limit / captcha / error toast
   try {
     const postSend = await s.page.evaluate(() => {
-      const txt = (document.body?.innerText || '').slice(0, 2000);
+      const txt = (document.body?.innerText || '');
       const toasts = Array.from(document.querySelectorAll('.t-message, [class*="toast" i], [class*="error" i], [class*="alert" i], [role="alert"]')).map(e => (e.innerText || '').trim()).filter(t => t).slice(0, 10);
       const iframes = Array.from(document.querySelectorAll('iframe')).map(f => ({ src: f.src, w: f.offsetWidth, h: f.offsetHeight }));
       return { txt, toasts, iframes };
     });
     console.log(`[hy] post-Send toasts: ${JSON.stringify(postSend.toasts)}`);
     console.log(`[hy] post-Send iframes: ${JSON.stringify(postSend.iframes)}`);
-    console.log(`[hy] post-Send body first 800: ${postSend.txt.replace(/\n/g, ' | ').slice(0, 800)}`);
+    console.log(`[hy] post-Send body first 800: ${postSend.txt.replace(/\n/g, ' | ')}`);
   } catch {}
 
   const sentAt = Date.now();

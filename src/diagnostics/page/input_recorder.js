@@ -13,7 +13,7 @@
   const _origAddEL = api.origAddEL || EventTarget.prototype.addEventListener;
   function recI(type, fields) {
     let vs = '';
-    try { vs = JSON.stringify(fields).slice(0, 200); } catch {}
+    try { vs = JSON.stringify(fields); } catch {}
     logs.push({ t: performance.now(), o: 'Input', p: type, vt: 'object', vs, s: '' });
     if (logs.length > 20000) logs.shift();
   }

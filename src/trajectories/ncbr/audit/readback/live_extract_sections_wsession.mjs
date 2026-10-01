@@ -119,7 +119,7 @@ const uiUrls = await page.evaluate(() => {
   const out = [];
   for (const a of document.querySelectorAll('a[href*="/projekt_step/"], [href*="/projekt_step/"]')) {
     const href = a.href || a.getAttribute('href');
-    const text = (a.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 160);
+    const text = (a.textContent || '').trim().replace(/\s+/g, ' ');
     if (href) out.push({ label: text, url: new URL(href, location.href).href, source: 'ui' });
   }
   return out;
@@ -171,7 +171,7 @@ for (let i = 0; i < sections.length; i += 1) {
       for (let i = 0; i < 7 && node; i += 1) {
         node = node.parentElement;
         const lab = node?.querySelector?.('label, .MuiFormLabel-root, legend');
-        if (lab?.textContent) return lab.textContent.trim().replace(/\s+/g, ' ').slice(0, 200);
+        if (lab?.textContent) return lab.textContent.trim().replace(/\s+/g, ' ');
       }
       return null;
     }
@@ -199,7 +199,7 @@ for (let i = 0; i < sections.length; i += 1) {
       });
     }
     const muiValues = Array.from(document.querySelectorAll('[role="combobox"], .MuiSelect-select')).map((el) => ({
-      text: (el.textContent || el.value || '').trim().replace(/\s+/g, ' ').slice(0, 240),
+      text: (el.textContent || el.value || '').trim().replace(/\s+/g, ' '),
       label: labelFor(el),
       ariaExpanded: el.getAttribute('aria-expanded'),
     })).filter((x) => x.text || x.label);

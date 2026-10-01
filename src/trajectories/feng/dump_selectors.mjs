@@ -105,7 +105,7 @@ async function dumpFromDom(s) {
       const selector = pickSelector(el);
       if (!selector) continue;
       out.push({
-        label: pickLabel(el).slice(0, 200),
+        label: pickLabel(el),
         selector,
         type,
         maxLength: el.maxLength > 0 ? el.maxLength : null,
@@ -133,7 +133,7 @@ function fuzzyMatch(values, discovered) {
       matched[name] = {
         selector: best.selector,
         type: best.type,
-        note: `discovered (jaccard=${bestScore.toFixed(2)}, label="${best.label.slice(0, 80)}")`,
+        note: `discovered (jaccard=${bestScore.toFixed(2)}, label="${best.label}")`,
       };
     } else {
       missing.push(`${name}\t${bestScore.toFixed(2)}\t${best?.label?.slice(0, 60) || '(no match)'}`);

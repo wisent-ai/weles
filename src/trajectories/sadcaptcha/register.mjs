@@ -47,7 +47,7 @@ try {
   console.log(`[trajectory] post-register url=${s.page.url()}`);
 
   if (/\/register/.test(s.page.url())) {
-    const errText = await s.page.evaluate(() => document.body.innerText.slice(0, 500));
+    const errText = await s.page.evaluate(() => document.body.innerText);
     console.log(`FAIL: still on /register. Body: ${errText.replace(/\n/g, ' | ')}`);
     process.exit(1);
   }

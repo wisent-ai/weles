@@ -129,7 +129,7 @@ export async function openKeywordPlanner(s) {
     }
     const dom = await collectDom(s.page);
     const matched = /keyword planner|discover new keywords|get search volume|forecasts?|keyword ideas|avg\.? monthly searches/i.test(dom.text);
-    attempts.push({ path, url: dom.url || url, matched, textPreview: norm(dom.text).slice(0, 800), controls: dom.controls.slice(0, 20) });
+    attempts.push({ path, url: dom.url || url, matched, textPreview: norm(dom.text), controls: dom.controls.slice(0, 20) });
     if (matched) return { ok: true, path, attempts };
   }
   const clickedTools = await clickByText(s.page, /Tools|Tools and settings|Planning|Keyword Planner/i, 'tools/planning navigation');
@@ -138,7 +138,7 @@ export async function openKeywordPlanner(s) {
     await pageSettled(s.page);
     const dom = await collectDom(s.page);
     const matched = /keyword planner|discover new keywords|get search volume|forecasts?|keyword ideas|avg\.? monthly searches/i.test(dom.text);
-    attempts.push({ path: 'menu_keyword_planner', url: dom.url, matched, textPreview: norm(dom.text).slice(0, 800), controls: dom.controls.slice(0, 20) });
+    attempts.push({ path: 'menu_keyword_planner', url: dom.url, matched, textPreview: norm(dom.text), controls: dom.controls.slice(0, 20) });
     if (matched) return { ok: true, path: 'menu_keyword_planner', attempts };
   }
   return { ok: false, attempts };

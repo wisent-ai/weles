@@ -99,7 +99,7 @@ export function observeSessionNetwork(ws: WSession, ctx: BrowserContext, page: P
       // string there would read as a response that arrived empty.
       const read: Promise<void> = res.text().then(
         (text: string) => { entry.body = text.slice(0, 8192); },
-        (error: unknown) => { entry.body = `[body unavailable: ${(error instanceof Error ? error.message : String(error)).slice(0, 160)}]`; },
+        (error: unknown) => { entry.body = `[body unavailable: ${(error instanceof Error ? error.message : String(error))}]`; },
       ).finally(() => { ws.pendingResponseBodies.delete(read); });
       ws.pendingResponseBodies.add(read);
     } catch {}

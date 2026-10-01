@@ -29,7 +29,7 @@ if (process.env.DIAG) {
   const fields = await page.evaluate(() => Array.from(document.querySelectorAll('input, textarea')).map((i) => {
     const label = i.id ? document.querySelector(`label[for="${CSS.escape(i.id)}"]`)?.textContent?.trim() : null;
     const wrap = i.closest('label, .MuiFormControlLabel-root, .MuiFormGroup-root, .MuiBox-root');
-    return { tag: i.tagName, type: i.type || null, name: i.name || null, value: i.value || null, role: i.getAttribute('role'), max: i.getAttribute('maxlength'), label, nearby: wrap ? wrap.textContent.trim().slice(0, 180) : null };
+    return { tag: i.tagName, type: i.type || null, name: i.name || null, value: i.value || null, role: i.getAttribute('role'), max: i.getAttribute('maxlength'), label, nearby: wrap ? wrap.textContent.trim() : null };
   }).filter((x) => x.name || x.label));
   const buttons = await page.evaluate(() => Array.from(document.querySelectorAll('button')).map((b) => b.innerText.trim()).filter(Boolean));
   let taskOptions = [];
@@ -202,10 +202,10 @@ if (process.env.VERIFY_DETAILS) {
       return {
         nazwa: v('nazwa_kosztu'),
         uzLen: v('uzasadnienie_kosztu').length,
-        uz: v('uzasadnienie_kosztu').slice(0, 180),
+        uz: v('uzasadnienie_kosztu'),
         uzSuffix: v('uzasadnienie_kosztu').slice(-220),
         metLen: v('metoda_szacowania').length,
-        met: v('metoda_szacowania').slice(0, 180),
+        met: v('metoda_szacowania'),
         metSuffix: v('metoda_szacowania').slice(-220),
       };
     }); // allow-raw-playwright: read existing cost row fields without saving

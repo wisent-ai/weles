@@ -42,8 +42,7 @@ export async function braveProofOfWorkState(page: Page): Promise<BraveProofOfWor
     const errorText = Array.from(document.querySelectorAll<HTMLElement>('.alert, [role="alert"], .error'))
       .map(element => element.innerText.trim())
       .filter(Boolean)
-      .join(' ')
-      .slice(0, 500);
+      .join(' ');
     return {
       present: true,
       formValid: form?.checkValidity() ?? false,
@@ -74,7 +73,7 @@ export async function solveBraveProofOfWork(page: Page, initial: BraveProofOfWor
       return false;
     }
     if (ready.errorText) {
-      console.log(`[captcha] Brave proof-of-work validation failed: ${ready.errorText.slice(0, 160)}`);
+      console.log(`[captcha] Brave proof-of-work validation failed: ${ready.errorText}`);
       return false;
     }
   }
@@ -120,7 +119,7 @@ export async function solveBraveProofOfWork(page: Page, initial: BraveProofOfWor
       return true;
     }
     if (state.errorText && !/verifying/i.test(state.buttonText)) {
-      console.log(`[captcha] Brave proof-of-work failed: ${state.errorText.slice(0, 160)}`);
+      console.log(`[captcha] Brave proof-of-work failed: ${state.errorText}`);
       return false;
     }
     if (!state.formValid) {

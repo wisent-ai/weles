@@ -122,11 +122,11 @@ try {
   }
   const nameOf = (ids) => (ids || []).map((x) => idName[x] || x).join(', ') || '(unknown)';
 
-  console.log(`[history_scan] users=${JSON.stringify(ulist).slice(0, 600)}`);
+  console.log(`[history_scan] users=${JSON.stringify(ulist)}`);
   console.log(`[history_scan] updates=${data.updateCount} range=${data.minV}..${data.maxV} fileErrors=${JSON.stringify(data.fileErrors)}`);
   console.log(`[history_scan] net figure deletions (stuck): ${data.figEvents.length}`);
   for (const e of data.figEvents) {
-    const flat = e.text.replace(/\s+/g, ' ').slice(0, 150);
+    const flat = e.text.replace(/\s+/g, ' ');
     console.log(`[history_scan] NET-DEL ${e.file} by=[${nameOf(e.users)}] ts=${e.ts} :: ${flat}`);
   }
   console.log(`[history_scan] Sarthak save-batches: ${data.sRangeCount}; diff calls: ${data.diffCalls}; Sarthak figure deletions: ${data.sarthakFigDeletes.length}`);

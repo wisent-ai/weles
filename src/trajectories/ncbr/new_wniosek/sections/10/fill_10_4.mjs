@@ -72,7 +72,7 @@ if (process.env.DIAG_ACT) {
   const fields = await page.evaluate(() => Array.from(document.querySelectorAll('input,textarea')).map((i) => {
     const label = i.id ? document.querySelector(`label[for="${CSS.escape(i.id)}"]`)?.textContent?.trim() : null;
     const wrap = i.closest('label, .MuiFormControl-root, .MuiFormGroup-root, .MuiBox-root');
-    return { tag: i.tagName, name: i.name || null, role: i.getAttribute('role'), max: i.getAttribute('maxlength'), value: (i.value || '').slice(0, 80), label, nearby: wrap ? wrap.textContent.trim().slice(0, 200) : null };
+    return { tag: i.tagName, name: i.name || null, role: i.getAttribute('role'), max: i.getAttribute('maxlength'), value: (i.value || '').slice(0, 80), label, nearby: wrap ? wrap.textContent.trim() : null };
   }).filter((f) => f.name || f.label || f.nearby));
   const buttons = await page.evaluate(() => Array.from(document.querySelectorAll('button')).map((b) => b.innerText.trim()).filter(Boolean));
   const options = await page.evaluate(() => Array.from(document.querySelectorAll("[role='listbox'] [role='option']")).map((o) => o.textContent.trim()).slice(0, 30));
@@ -95,7 +95,7 @@ if (process.env.DIAG_WSK) {
       inputName: inp.getAttribute('name'),
       inputValue: inp.value || '',
       formControlHTML: fc ? fc.outerHTML.slice(0, 2200) : null,
-      rootHTML: root ? root.outerHTML.slice(0, 1600) : null,
+      rootHTML: root ? root.outerHTML : null,
     };
   }); // allow-raw-playwright: read 10.4 wskazniki control structure
   const wskaznikiSelect = page.locator('.MuiInputBase-root:has(input[name$="zasady_szesc_r_wskazniki"])').locator('.MuiSelect-select, [role="combobox"] , .MuiInputBase-root').first();
@@ -189,7 +189,7 @@ if (process.env.WSK_ONLY) {
     const root = inp && inp.closest('.MuiInputBase-root');
     return {
       hiddenValue: inp?.value || '',
-      display: root ? root.textContent.trim().slice(0, 500) : '',
+      display: root ? root.textContent.trim() : '',
     };
   }); // allow-raw-playwright: read selected 10.4 wskazniki
   console.log(JSON.stringify({ saveResult, picked, readback }, null, 2));

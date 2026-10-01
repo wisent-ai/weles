@@ -181,7 +181,7 @@ async function clickVisualPuzzleInEnforcement(page) {
   await pageSettled(getEnforcementFrame(page) ?? page);
   const r = await clickInEnforcement(page, ['visual puzzle', 'visual challenge', 'visual']);
   if (r?.ok) { console.log(`[coords] clicked Visual puzzle in enforcement: "${r.text}" at (${Math.round(r.x)},${Math.round(r.y)})`); return true; }
-  console.log(`[coords] no Visual puzzle button (count=${r?.count ?? '?'} sample=${JSON.stringify(r?.texts ?? []).slice(0, 120)})`);
+  console.log(`[coords] no Visual puzzle button (count=${r?.count ?? '?'} sample=${JSON.stringify(r?.texts ?? [])})`);
   return false;
 }
 

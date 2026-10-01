@@ -99,7 +99,7 @@ export async function graphRequest(method, path, params = {}, opts = {}) {
   if (!requestEnabled(opts)) throw new Error('SUBMIT=1 required for Meta Marketing API request');
   const target = graphTarget(path);
   const json = await integrationAction('echo-paid-ads', graphAction(method, target), { ...target, params: graphParams(params) });
-  console.log(JSON.stringify(json, null, 2).slice(0, 20000));
+  console.log(JSON.stringify(json, null, 2));
   return json;
 }
 
@@ -113,6 +113,6 @@ export async function graphUpload(path, fields, _fileField, filePath, opts = {})
     filename: basename(filePath),
     content_base64: readFileSync(filePath).toString('base64'),
   });
-  console.log(JSON.stringify(json, null, 2).slice(0, 20000));
+  console.log(JSON.stringify(json, null, 2));
   return json;
 }

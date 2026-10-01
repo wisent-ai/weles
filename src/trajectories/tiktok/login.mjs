@@ -62,7 +62,7 @@ function observeLoginTraffic(page) {
     if (/passport|tiktok|webmssdk|secsdk|verification|captcha/i.test(u)) {
       const headers = req.headers ? req.headers() : {};
       loginDiag.failedRequests.push({
-        url: u.slice(0, 200),
+        url: u,
         failure: f?.errorText,
         method: req.method(),
         origin: headers.origin || headers.referer?.slice(0, 80),
@@ -73,9 +73,9 @@ function observeLoginTraffic(page) {
     if (msg.type() === 'error' || msg.type() === 'warning') {
       const text = msg.text();
       if (/Maximum number of attempts reached|account-api error/i.test(text)) {
-        loginDiag.accountApiError = text.slice(0, 200);
+        loginDiag.accountApiError = text;
       }
-      console.log(`[tiktok_login] page-${msg.type()}: ${text.slice(0, 200)}`);
+      console.log(`[tiktok_login] page-${msg.type()}: ${text}`);
     }
   });
 }

@@ -58,9 +58,9 @@ try {
   // Should redirect to stripe.com or payment partner
   const url = s.page.url();
   if (/stripe\.com|checkout/i.test(url)) {
-    console.log(`PASS-CHARGED: redirected to ${url.slice(0, 80)}... (complete payment manually)`);
+    console.log(`PASS-CHARGED: redirected to ${url}... (complete payment manually)`);
   } else {
-    console.log(`PASS-CHARGED: amount $${amount} selected, url=${url.slice(0, 80)}`);
+    console.log(`PASS-CHARGED: amount $${amount} selected, url=${url}`);
   }
 } catch (e) {
   console.log('FAIL:', e.message);

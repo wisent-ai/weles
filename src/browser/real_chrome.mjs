@@ -173,7 +173,7 @@ export async function googleSsoRealChrome(page, creds) {
     }
     await Promise.any(watched);
     if (await password.isVisible()) break;
-    console.log(`[google_sso_chrome] url=${page.url().slice(0, 80)}`);
+    console.log(`[google_sso_chrome] url=${page.url()}`);
     if (!usedEnterPw && await enterPw.isVisible()) { usedEnterPw = true; console.log('[google_sso_chrome] clicking Enter your password'); await enterPw.click({ force: true }); await pageSettled(page); continue; }
     if (!usedTryAnother && await tryAnother.isVisible()) { usedTryAnother = true; console.log('[google_sso_chrome] clicking Try another way'); await tryAnother.click({ force: true }); await pageSettled(page); continue; }
   }

@@ -40,7 +40,7 @@ page.on('request', (req) => {
   if (!isRelevant(req.url(), method)) return;
   let postData = req.postData() || '';
   if (postData) postData = postData.replace(password, '[REDACTED]').replace(email, '[EMAIL]');
-  events.push({ kind: 'request', method, url: req.url(), postData: postData.slice(0, 800) });
+  events.push({ kind: 'request', method, url: req.url(), postData: postData });
 });
 
 page.on('response', async (res) => {
@@ -69,7 +69,7 @@ async function authStatus() {
         'https://lsi2.ncbr.gov.pl/api/beneficiary/project/433468ab-ff8a-4bd2-9f03-7da65ba73e1f/get-user-permissions',
         { credentials: 'include', headers: { Accept: 'application/json' } },
       );
-      return { status: res.status, text: (await res.text()).slice(0, 500) };
+      return { status: res.status, text: (await res.text()) };
     } catch (error) {
       return { error: String(error?.message || error) };
     }
@@ -112,7 +112,7 @@ await humanClickLocator(page, button);
 await pageSettled(page);
 
 const auth = await authStatus();
-const bodyText = (await page.locator('body').innerText().catch(() => '')).slice(0, 1600);
+const bodyText = (await page.locator('body').innerText().catch(() => ''));
 
 console.log(JSON.stringify({
   before,

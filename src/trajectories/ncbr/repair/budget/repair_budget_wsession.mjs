@@ -85,7 +85,7 @@ async function validateProject() {
       }
     }
   }
-  return { clicked, status: response.status, jsonSchemaErrors, expressionErrors, rawHead: response.text.slice(0, 500) };
+  return { clicked, status: response.status, jsonSchemaErrors, expressionErrors, rawHead: response.text };
 }
 
 try {

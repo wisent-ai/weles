@@ -115,7 +115,7 @@ if (process.env.APPLICANT_ONLY) {
     const info = await page.evaluate(() => {
       const inp = Array.from(document.querySelectorAll('input')).find((i) => /nazwa_skrocona_wnioskodawcy/.test(i.name || ''));
       const fc = inp?.closest('.MuiFormControl-root') || inp?.parentElement;
-      return { name: inp?.name || null, value: inp?.value || null, html: fc ? fc.outerHTML.slice(0, 1600) : null };
+      return { name: inp?.name || null, value: inp?.value || null, html: fc ? fc.outerHTML : null };
     }); // allow-raw-playwright: inspect applicant control
     console.log(JSON.stringify(info, null, 2));
     process.exit(0);

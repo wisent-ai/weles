@@ -145,7 +145,7 @@ try {
   });
   if (upload === 'error') {
     const alert = await s.page.locator('[role="alert"], [role="alertdialog"]').first().innerText();
-    console.log(`FAIL: Play Console reported an upload error: ${alert.slice(0, 200)}`);
+    console.log(`FAIL: Play Console reported an upload error: ${alert}`);
     process.exit(3);
   }
   console.log('[play-submit] bundle processed');

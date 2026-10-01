@@ -95,7 +95,7 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
 
     const gridInfo = await bframe.evaluate(`(() => { const t = document.querySelector('table.rc-imageselect-table, table.rc-imageselect-table-33, table.rc-imageselect-table-44'); if (!t) return null; const rows = t.querySelectorAll('tr'); return { cols: rows[0]?.querySelectorAll('td').length || 3 }; })()`).catch(() => null);
     const gridSize = gridInfo?.cols || 3;
-    console.log(`[recaptcha] Attempt ${attempt+1}: "${instruction.replace(/\n/g,' ').slice(0,60)}" grid=${gridSize}`);
+    console.log(`[recaptcha] Attempt ${attempt+1}: "${instruction.replace(/\n/g,' ')}" grid=${gridSize}`);
 
     // Save diagnostics: page screenshot + extracted grid image for comparison
     const diagDir = runRecordingsDir('vision'); // G17: recordings/<run_uuid>/vision/

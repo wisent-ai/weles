@@ -72,7 +72,7 @@ try {
     await pwIn.press('Enter');
     for (let i = 0; i < 15; i++) { await humanIdlePause('short'); if (!/\/login/.test(s.page.url())) break; }
     banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch((e) => ({ healthy: false, signal: 'unknown_error', details: { detector_error: e.message } }));
-    console.log(`[ban-signal] ${banSignal.signal} (${JSON.stringify(banSignal.details).slice(0, 200)})`);
+    console.log(`[ban-signal] ${banSignal.signal} (${JSON.stringify(banSignal.details)})`);
     if (banSignal?.signal === 'ip_blocked') await wipeStoredProxy(acct.id);
     else if (banSignal?.signal === 'healthy') await captureCookies();
     console.log(`PASS: logged in (${s.page.url()})`);

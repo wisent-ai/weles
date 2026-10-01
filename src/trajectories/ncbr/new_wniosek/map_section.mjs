@@ -203,7 +203,7 @@ const dump = await page.evaluate((tableTextLimit) => {
       node = node.parentElement;
       if (!node) break;
       const lab = node.querySelector('label, .MuiFormLabel-root, legend');
-      if (lab && lab.textContent) return lab.textContent.trim().slice(0, 140);
+      if (lab && lab.textContent) return lab.textContent.trim();
     }
     return null;
   }

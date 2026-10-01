@@ -17,6 +17,6 @@ export async function deactivateAccount(
     console.log(`[account-state] deactivated ${accountId} (${reason})`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.log(`[account-state] deactivate err: ${message.slice(0, 100)}`);
+    console.log(`[account-state] deactivate err: ${message}`);
   }
 }

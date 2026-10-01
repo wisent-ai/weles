@@ -77,7 +77,7 @@ if (browserEvidencePolicyActive && storesCredentialInSkarbiec) {
 const envHints = safeStringMap(parseJsonEnv('GENERIC_TASK_ENV', {}));
 for (const [key, value] of Object.entries(envHints)) process.env[key] = value;
 
-const flowName = envString('GENERIC_TASK_FLOW_NAME') || `generic:${new URL(url).hostname}:${objective.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60)}`;
+const flowName = envString('GENERIC_TASK_FLOW_NAME') || `generic:${new URL(url).hostname}:${objective.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 const proxy = envString('GENERIC_TASK_PROXY', process.env.PROXY_URL_OVERRIDE || 'none');
 const headless = envString('GENERIC_TASK_HEADLESS') === '1';
 const browser = envString('GENERIC_TASK_BROWSER', 'chromium');
@@ -228,7 +228,7 @@ try {
       completed_at: new Date().toISOString(),
     });
   }
-  console.log('FAIL:', message.slice(0, 300));
+  console.log('FAIL:', message);
   process.exitCode = needsHumanApproval ? 0 : 1;
 } finally {
   if (session) await session.close();

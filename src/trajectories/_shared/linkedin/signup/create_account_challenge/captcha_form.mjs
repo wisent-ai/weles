@@ -201,9 +201,9 @@ export async function submitLinkedinCaptchaForm(page, token, sitekey, dataS) {
       const out = {
         url: location.href,
         title: document.title,
-        forms: Array.from(document.querySelectorAll('form')).map(f => ({ id: f.id, action: f.action, method: f.method, outerHTML: f.outerHTML.slice(0, 500) })),
-        buttons: Array.from(document.querySelectorAll('button, input[type="submit"]')).map(b => ({ tag: b.tagName, type: b.type, id: b.id, text: b.textContent?.slice(0, 40), outerHTML: b.outerHTML.slice(0, 300) })),
-        recaptcha: Array.from(document.querySelectorAll('iframe[src*="recaptcha"], .g-recaptcha, textarea[name="g-recaptcha-response"], input[name="captchaUserResponseToken"]')).map(el => ({ tag: el.tagName, name: el.name, id: el.id, src: el.src, outerHTML: el.outerHTML.slice(0, 300) })),
+        forms: Array.from(document.querySelectorAll('form')).map(f => ({ id: f.id, action: f.action, method: f.method, outerHTML: f.outerHTML })),
+        buttons: Array.from(document.querySelectorAll('button, input[type="submit"]')).map(b => ({ tag: b.tagName, type: b.type, id: b.id, text: b.textContent?.slice(0, 40), outerHTML: b.outerHTML })),
+        recaptcha: Array.from(document.querySelectorAll('iframe[src*="recaptcha"], .g-recaptcha, textarea[name="g-recaptcha-response"], input[name="captchaUserResponseToken"]')).map(el => ({ tag: el.tagName, name: el.name, id: el.id, src: el.src, outerHTML: el.outerHTML })),
       };
       return out;
     });

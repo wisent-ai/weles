@@ -161,7 +161,7 @@ async function reportDraftOutcomeWithoutFields(s, createClicked, filledCount) {
     process.exit(2);
   }
   const controls = await visibleControlDebug(s);
-  console.log(`[meta-ads] visible controls debug: ${controls.ok === false ? controls.reason : JSON.stringify(controls).slice(0, 6000)}`);
+  console.log(`[meta-ads] visible controls debug: ${controls.ok === false ? controls.reason : JSON.stringify(controls)}`);
   console.log(`FAIL: Meta Ads campaign form was not reached (createClicked=${createClicked}, filled=${filledCount}, url=${s.page.url?.() ?? ''})`);
   process.exit(1);
 }

@@ -84,7 +84,7 @@ try {
   await s.page.keyboard.press('Enter');
   await humanIdlePause('deliberate');
 
-  const echoCount = await s.page.locator(`[role="article"]:has-text("${MESSAGE.slice(0, 60)}"), li[id^="chat-messages-"]:has-text("${MESSAGE.slice(0, 60)}")`).filter({ visible: true }).count().catch(() => 0);
+  const echoCount = await s.page.locator(`[role="article"]:has-text("${MESSAGE}"), li[id^="chat-messages-"]:has-text("${MESSAGE}")`).filter({ visible: true }).count().catch(() => 0);
   if (!echoCount) { console.log('FAIL: composer typed but message not echoed in chat'); process.exit(1); }
   console.log(`PASS: DM sent to @${RECIPIENT}`);
 } catch (e) {

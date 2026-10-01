@@ -12,7 +12,7 @@ export async function summarizeSignup(page) {
       url: location.href,
       title: document.title,
       pageKey: document.querySelector('meta[name="pageKey"]')?.getAttribute('content') || '',
-      bodyText: (document.body?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 800),
+      bodyText: (document.body?.innerText || '').replace(/\s+/g, ' ').trim(),
       inputs: Array.from(document.querySelectorAll('input')).map((i) => ({
         name: i.name,
         id: i.id,
@@ -22,7 +22,7 @@ export async function summarizeSignup(page) {
       })).slice(0, 30),
       buttons: Array.from(document.querySelectorAll('button,a')).filter(visible).map((el) => ({
         tag: el.tagName.toLowerCase(),
-        text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120),
+        text: (el.textContent || '').replace(/\s+/g, ' ').trim(),
         href: el instanceof HTMLAnchorElement ? el.href : '',
       })).slice(0, 30),
       iframes: Array.from(document.querySelectorAll('iframe')).map((f) => ({
@@ -54,8 +54,7 @@ export function classifySummary(summary) {
 export function redactText(text = '') {
   return String(text)
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '<redacted-email>')
-    .replace(/("(?:password|email|emailAddress|firstName|lastName|first-name|last-name|csrfToken|loginCsrfParam)"\s*:\s*)"[^"]*"/gi, '$1"<redacted>"')
-    .slice(0, 3000);
+    .replace(/("(?:password|email|emailAddress|firstName|lastName|first-name|last-name|csrfToken|loginCsrfParam)"\s*:\s*)"[^"]*"/gi, '$1"<redacted>"');
 }
 
 export async function summarizeApiResponse(res) {

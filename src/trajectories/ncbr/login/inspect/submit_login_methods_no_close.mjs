@@ -42,7 +42,7 @@ async function authStatus() {
         'https://lsi2.ncbr.gov.pl/api/beneficiary/project/433468ab-ff8a-4bd2-9f03-7da65ba73e1f/get-user-permissions',
         { credentials: 'include', headers: { Accept: 'application/json' } },
       );
-      return { status: res.status, text: (await res.text()).slice(0, 500) };
+      return { status: res.status, text: (await res.text()) };
     } catch (error) {
       return { error: String(error?.message || error) };
     }
@@ -122,6 +122,6 @@ methods.push(await tryMethod('request-submit', async () => {
   });
 }));
 
-const bodyText = (await page.locator('body').innerText().catch(() => '')).slice(0, 1600);
+const bodyText = (await page.locator('body').innerText().catch(() => ''));
 console.log(JSON.stringify({ methods, events, bodyText }, null, 2));
 process.exit(0);

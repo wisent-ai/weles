@@ -74,7 +74,7 @@ for (const url of directUrls) {
       values.push({
         name,
         len: value.length,
-        prefix: value.slice(0, 220),
+        prefix: value,
         artifact: Boolean(match),
         artifactSnippet: match ? value.slice(Math.max(0, matchIndex - 120), matchIndex + 220) : null,
       });

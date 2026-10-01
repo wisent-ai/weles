@@ -172,14 +172,14 @@ export function attachProtocolHandlerWatcher(context: BrowserContext) {
       const scheme = url.split(':', 1)[0];
       if (scheme && scheme !== 'http' && scheme !== 'https'
           && scheme !== 'about' && scheme !== 'data' && scheme !== 'blob') {
-        if (shouldLog('nav', url)) console.log(`[async_api] custom-protocol nav attempted: ${url.slice(0, 200)}`);
+        if (shouldLog('nav', url)) console.log(`[async_api] custom-protocol nav attempted: ${url}`);
       }
     });
     page.on('request', (req) => {
       const url = req.url();
       if (url.startsWith('http') || url.startsWith('about:') || url.startsWith('data:') || url.startsWith('blob:')) return;
       const frameUrl = req.frame()?.url?.() ?? '';
-      if (shouldLog('request', url, frameUrl)) console.log(`[async_api] custom-protocol request: ${url.slice(0, 200)} (frame=${frameUrl.slice(0, 80)})`);
+      if (shouldLog('request', url, frameUrl)) console.log(`[async_api] custom-protocol request: ${url} (frame=${frameUrl})`);
     });
   });
 }

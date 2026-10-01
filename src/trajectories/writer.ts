@@ -83,7 +83,7 @@ export async function writeWelesTrajectoryDraft(input: WelesTrajectoryWriterInpu
       source: 'model-router',
       model: routed.model,
       routerUrl: routed.routerUrl,
-      raw: routed.raw.slice(0, 2000),
+      raw: routed.raw,
       steps: normalizedSteps,
       guidance: formatGuidance(normalizedSteps, 'model-router', routed.model),
     };

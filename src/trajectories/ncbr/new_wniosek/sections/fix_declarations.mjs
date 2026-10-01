@@ -36,7 +36,7 @@ function dumpExpr(names) {
       checked: input.checked,
       requiredTarget: names.some((n) => (input.name || '').endsWith(n)),
       label,
-      nearby: wrap ? wrap.textContent.trim().slice(0, 240) : null,
+      nearby: wrap ? wrap.textContent.trim() : null,
     };
   }).filter((x) => x.name || x.label || x.nearby);
 }

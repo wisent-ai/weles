@@ -18,7 +18,7 @@ page.on('response', async (res) => {
   let text = '';
   try {
     const raw = await res.text();
-    text = url.includes('/validate-project') ? raw : raw.slice(0, 12000);
+    text = url.includes('/validate-project') ? raw : raw;
   } catch (e) { text = ''; }
   responses.push({ status: res.status(), url, text });
 });
@@ -69,7 +69,7 @@ const out = await page.evaluate((capturedResponses) => {
     dialogs: dialogs.slice(0, 20),
     dialogHtml: Array.from(document.querySelectorAll('[role="dialog"], .MuiDialog-root')).map((e) => e.outerHTML.slice(0, 3000)).slice(0, 5),
     errors: errors.slice(0, 80),
-    lines: lines.slice(0, 200),
+    lines: lines,
     buttons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim() || b.getAttribute('aria-label') || b.title, disabled: b.disabled })).filter((b) => b.text).slice(0, 80),
     responses: capturedResponses.slice(-40),
     bodyTail: body.slice(-4000),

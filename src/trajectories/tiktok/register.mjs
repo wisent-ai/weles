@@ -218,8 +218,8 @@ const PROBE = `(() => { const t = document.body.innerText || ''; const i = []; i
         if (/create-username|foryou|\/@|onboarding|interests|choose.*username|create a username|profile picture|turn on notifications/i.test(postUrl + ' ' + t)) {
           console.log(`[test] post-next state found at wait ${w}: url=${postUrl}`); break;
         }
-        if (/drag|puzzle|captcha|verify/i.test(t)) { console.log(`[test] captcha-like at wait ${w}: ${t.slice(0, 120)}`); break; }
-        if (/incorrect|invalid|attempts reached|try again later|account.*already/i.test(t)) { console.log(`[test] error at wait ${w}: ${t.slice(0, 200)}`); break; }
+        if (/drag|puzzle|captcha|verify/i.test(t)) { console.log(`[test] captcha-like at wait ${w}: ${t}`); break; }
+        if (/incorrect|invalid|attempts reached|try again later|account.*already/i.test(t)) { console.log(`[test] error at wait ${w}: ${t}`); break; }
       }
       await screenshotIfPossible(s, `after_next_r${retry}`);
 

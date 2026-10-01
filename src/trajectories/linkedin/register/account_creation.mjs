@@ -128,7 +128,7 @@ async function submitNames({ session, identity, recordStage, proxyWatch }) {
       createAccountBody = await apiRes.event.json();
       challengeUrl = createAccountBody?.challengeUrl ?? '';
       createAccountStatus = apiRes.event.status();
-      console.log(`[register] createAccount status=${createAccountStatus} submissionId=${(createAccountBody?.submissionId ?? '').slice(0, 12)} challengeUrl=${challengeUrl ? challengeUrl.slice(0, 60) + '...' : 'none'}`);
+      console.log(`[register] createAccount status=${createAccountStatus} submissionId=${(createAccountBody?.submissionId ?? '').slice(0, 12)} challengeUrl=${challengeUrl ? challengeUrl + '...' : 'none'}`);
     } catch (e) { console.log(`[register] createAccount body parse err: ${e.message}`); }
   }
   const submit2After = await collectSubmitState(session.page, 'after_create_account');
@@ -142,7 +142,7 @@ async function submitNames({ session, identity, recordStage, proxyWatch }) {
     create_account: {
       status: createAccountStatus,
       has_challenge_url: Boolean(challengeUrl),
-      challenge_url: challengeUrl ? challengeUrl.slice(0, 200) : '',
+      challenge_url: challengeUrl ? challengeUrl : '',
       body_keys: createAccountBody && typeof createAccountBody === 'object' ? Object.keys(createAccountBody).slice(0, 40) : null,
     },
   });
@@ -166,7 +166,7 @@ async function refuseCreateAccountChallenge({ session, recordStage }, challengeU
     recordStage('create_account_challenge_classified', {
       challenge_kind: challenge.kind,
       challenge_title: challenge.title || '',
-      challenge_url: challenge.challenge_url.slice(0, 200),
+      challenge_url: challenge.challenge_url,
     });
   } catch (inspectError) {
     classifyError = String(inspectError?.message ?? inspectError);

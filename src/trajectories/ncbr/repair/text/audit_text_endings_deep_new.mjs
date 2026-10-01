@@ -116,7 +116,7 @@ async function fieldDump(scope) {
       type: el.getAttribute('type') || '',
       role: el.getAttribute('role') || '',
       name: el.getAttribute('name') || '',
-      label: labelFor(el).slice(0, 180),
+      label: labelFor(el),
       value: el.value || '',
       max: el.getAttribute('maxlength') || '',
       readOnly: el.readOnly,

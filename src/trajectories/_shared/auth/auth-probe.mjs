@@ -256,7 +256,7 @@ export async function assertAuthed(platform, s, opts = {}) {
   let bodyTextHit = null;
   if (probe.bodyTextNegative) {
     try {
-      const text = await s.page.evaluate(() => (document.body?.innerText || '').slice(0, 4000));
+      const text = await s.page.evaluate(() => (document.body?.innerText || ''));
       const m = text.match(probe.bodyTextNegative);
       if (m) bodyTextHit = m[0];
     } catch {}

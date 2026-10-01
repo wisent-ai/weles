@@ -14,7 +14,7 @@ await runAction({
         const last = messages[messages.length - 1];
         return last?.textContent?.trim() ?? '';
       });
-      return { postTitle: (text || '').slice(0, 300), postBody: '' };
+      return { postTitle: (text || ''), postBody: '' };
     } catch { return { postTitle: '', postBody: '' }; }
   },
   submitComment: discordSubmitMessage,

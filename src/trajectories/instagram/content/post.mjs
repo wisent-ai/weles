@@ -42,7 +42,7 @@ if (ACTION === 'post_promote') {
 
 const personaCtx = { name: character.name, bio: character.bio, personality: character.personality, niche: character.niche };
 const caption = process.env.SVC_TEXT || await generatePost({ persona: personaCtx, surface: 'instagram', product });
-console.log(`[instagram:${ACTION}] caption: ${caption.slice(0, 120)}...`);
+console.log(`[instagram:${ACTION}] caption: ${caption}...`);
 
 const imagePrompt = process.env.IMAGE_PROMPT || `${character.niche ?? 'casual lifestyle'} photo, authentic amateur aesthetic, natural lighting, mobile phone camera, candid composition, no text or logos`;
 const imagePath = await generateImageFile({ prompt: imagePrompt, width: 1024, height: 1024 });

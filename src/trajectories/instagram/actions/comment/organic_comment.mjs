@@ -12,7 +12,7 @@ await runAction({
         const el = document.querySelector('article img[alt]') || document.querySelector('img[alt]');
         return el?.getAttribute?.('alt') ?? '';
       });
-      return { postTitle: (caption || '').slice(0, 280), postBody: '' };
+      return { postTitle: (caption || ''), postBody: '' };
     } catch { return { postTitle: '', postBody: '' }; }
   },
   submitComment: instagramSubmitComment,

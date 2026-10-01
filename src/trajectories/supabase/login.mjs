@@ -52,7 +52,7 @@ try {
   const errText = await s.page.evaluate((selector) => {
     for (const sel of selector.split(', ')) {
       const el = document.querySelector(sel);
-      if (el && el.textContent?.trim()) return el.textContent.trim().slice(0, 200);
+      if (el && el.textContent?.trim()) return el.textContent.trim();
     }
     return null;
   }, ERROR_SELECTOR);

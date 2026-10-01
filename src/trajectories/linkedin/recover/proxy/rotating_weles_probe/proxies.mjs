@@ -28,7 +28,7 @@ export function sampleExitIp(proxyUrl) {
       maxBuffer: 128 * 1024,
     }).trim();
   } catch (error) {
-    console.log(`[rotating-probe] proxy_sample_failed: ${String(error.stderr || error.message).trim().slice(0, 200)}`);
+    console.log(`[rotating-probe] proxy_sample_failed: ${String(error.stderr || error.message).trim()}`);
     return '';
   }
 }

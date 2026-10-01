@@ -19,10 +19,10 @@ const character = acct.metadata?.character;
 if (!character || typeof character !== 'object') { console.log(`FAIL: no character stored for reddit/${acct.username}`); process.exit(1); }
 console.log(`[rd-profile] character: ${character.name} (niche=${character.niche})`);
 const avatarUrl = character.avatar_url
-  || (Array.isArray(character.training_images) ? character.training_images[Number('0')] : null);
+  || (Array.isArray(character.training_images) ? character.training_images[0] : null);
 
 const targetName = (character.name || '').slice(0, 30); // reddit display name cap
-const targetBio = (character.bio || '').slice(0, 200);  // reddit "about" cap
+const targetBio = (character.bio || '').slice(0, 200); // reddit "about" cap
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'reddit_edit_profile', proxy: proxyUrl, persona });

@@ -33,7 +33,7 @@ try {
   const meResp = sIn.capturedResponses.find(r => /\/api\/me\.json/.test(r.url));
   if (meResp) {
     loggedIn.status = meResp.status;
-    try { loggedIn.body = JSON.parse(meResp.body); } catch { loggedIn.body = meResp.body?.slice(0, 2000) ?? null; }
+    try { loggedIn.body = JSON.parse(meResp.body); } catch { loggedIn.body = meResp.body ?? null; }
   }
   loggedIn.signal = await detectRedditBanSignals(sIn.page, sIn.capturedResponses).catch(() => null);
 } catch (e) {
@@ -53,7 +53,7 @@ try {
   const aboutResp = sOut.capturedResponses.find(r => /\/user\/.+\/about\.json/.test(r.url));
   if (aboutResp) {
     loggedOut.status = aboutResp.status;
-    try { loggedOut.body = JSON.parse(aboutResp.body); } catch { loggedOut.body = aboutResp.body?.slice(0, 2000) ?? null; }
+    try { loggedOut.body = JSON.parse(aboutResp.body); } catch { loggedOut.body = aboutResp.body ?? null; }
   }
 } catch (e) {
   loggedOut.error = e.message;

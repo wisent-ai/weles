@@ -67,7 +67,7 @@ export async function inspectCreateAccountChallenge(session, challengeUrl) {
         url: location.href,
         title: document.title,
         page_key: attr(document.querySelector('meta[name="pageKey"]'), 'content'),
-        body_text_sample: (document.body?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 1200),
+        body_text_sample: (document.body?.innerText || '').replace(/\s+/g, ' ').trim(),
         inputs: Array.from(document.querySelectorAll('input')).map((input) => ({
           id: input.id,
           name: input.name,
@@ -77,7 +77,7 @@ export async function inspectCreateAccountChallenge(session, challengeUrl) {
         })).slice(0, 30),
         buttons: Array.from(document.querySelectorAll('button,a')).filter(visible).map((el) => ({
           tag: el.tagName.toLowerCase(),
-          text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120),
+          text: (el.textContent || '').replace(/\s+/g, ' ').trim(),
           href: el instanceof HTMLAnchorElement ? el.href : '',
         })).slice(0, 30),
         iframes: Array.from(document.querySelectorAll('iframe')).map((frame) => ({

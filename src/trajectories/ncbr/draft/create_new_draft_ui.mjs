@@ -20,7 +20,7 @@ page.on('response', async (res) => {
   if (!/project|contest|round|konkurs|wniosek/i.test(url)) return;
   let text = '';
   try { text = await res.text(); } catch {}
-  responses.push({ status: res.status(), url, text: text.slice(0, 2000) });
+  responses.push({ status: res.status(), url, text: text });
 });
 
 await page.goto(LIST_URL, { waitUntil: 'domcontentloaded' });
@@ -53,14 +53,14 @@ async function snapshot() {
     return {
       url: location.href,
       title: document.title,
-      bodyHead: body.slice(0, 2500),
+      bodyHead: body,
       candidates,
       visibleButtons: Array.from(document.querySelectorAll('button, a')).map((b) => ({
         text: (b.innerText || b.getAttribute('aria-label') || b.title || '').trim(),
         href: b.href || null,
         disabled: Boolean(b.disabled),
         visible: Boolean(b.getClientRects().length) && getComputedStyle(b).visibility !== 'hidden',
-      })).filter((b) => (b.text || b.href) && b.visible).slice(0, 160),
+      })).filter((b) => (b.text || b.href) && b.visible),
     };
   }, CALL); // allow-raw-playwright: read call list DOM
 }

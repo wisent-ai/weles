@@ -29,7 +29,7 @@ const done = [];
 for (const feature of FEATURES) {
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('long');
-  const exists = await page.evaluate((needle) => (document.body.innerText || '').includes(needle.slice(0, 120)), feature.cecha);
+  const exists = await page.evaluate((needle) => (document.body.innerText || '').includes(needle), feature.cecha);
   if (exists) { done.push({ collection: 'cecha', skippedExisting: feature.cecha.slice(0, 80) }); continue; }
   await clickDodaj(0);
   const filled = [];
@@ -76,7 +76,7 @@ if (await pow.count() > 0 && (await pow.inputValue()).length > 0) {
 }
 
 const readback = await page.evaluate(() => ({
-  tables: Array.from(document.querySelectorAll('table')).map((t) => ({ rows: t.querySelectorAll('tbody tr').length, text: t.innerText.replace(/\s+/g, ' ').slice(0, 350) })),
+  tables: Array.from(document.querySelectorAll('table')).map((t) => ({ rows: t.querySelectorAll('tbody tr').length, text: t.innerText.replace(/\s+/g, ' ') })),
   powLen: document.querySelector('textarea[name$="innowacja_produktowa_powiazanie_rezultatu_prac_br_z_lancuchem_wartosci"]')?.value.length ?? null,
 }));
 console.log(JSON.stringify({ done, readback }, null, 2));

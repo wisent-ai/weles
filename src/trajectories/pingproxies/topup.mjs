@@ -168,8 +168,8 @@ try {
   await s.page.keyboard.press('Enter');
   console.log('[trajectory] focused + pressed Enter on Add store credit');
   await pageSettled(s.page);
-  if (stripeChargeFired) console.log(`PASS-CHARGED: Stripe payment_intents/confirm POST fired, url=${s.page.url().slice(0, 100)}`);
-  else console.log(`FAIL: deposit-confirm clicked but no Stripe charge POST observed by the time the page settled, url=${s.page.url().slice(0, 100)}`);
+  if (stripeChargeFired) console.log(`PASS-CHARGED: Stripe payment_intents/confirm POST fired, url=${s.page.url()}`);
+  else console.log(`FAIL: deposit-confirm clicked but no Stripe charge POST observed by the time the page settled, url=${s.page.url()}`);
 } catch (e) {
   console.log('FAIL:', e.message);
   process.exit(1);

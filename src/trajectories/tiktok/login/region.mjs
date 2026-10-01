@@ -30,7 +30,7 @@ export async function seedRegionCookies(ctx) {
 export async function mockRegionEndpoint(page) {
   await page.route(/\/passport\/web\/region\//, async (route) => {
     const req = route.request();
-    console.log(`[tiktok_login] mocking region: ${req.url().slice(0, 100)}`);
+    console.log(`[tiktok_login] mocking region: ${req.url()}`);
     await route.fulfill({
       status: 200,
       contentType: 'application/json',

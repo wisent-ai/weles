@@ -40,7 +40,7 @@ export async function handlePost(s, cfg, ctx) {
     if (!character) throw new Error('no character — cannot LLM-generate post without persona');
     const personaCtx = { name: character.name, bio: character.bio, personality: character.personality, niche: character.niche };
     text = await generatePost({ persona: personaCtx, surface: cfg.platform, product: product ?? undefined });
-    console.log(`[post-text] ${text.slice(0, 140)}...`);
+    console.log(`[post-text] ${text}...`);
   }
   if (cfg.action === 'post_promote' && REQUIRE_APPROVAL && !preapprovedText) {
     const dir = runRecordingsDir(label);
@@ -69,7 +69,7 @@ export async function handleComment(s, cfg, ctx) {
   let text = preapprovedText;
   if (!text) {
     text = await genComment({ character, product, variant: (process.env.VARIANT || character?.promotion_config?.variant || 'mention').toLowerCase(), surfaceLabel, postTitle, postBody });
-    console.log(`[comment-text] ${text.slice(0, 140)}...`);
+    console.log(`[comment-text] ${text}...`);
   } else {
     console.log(`[preapproved] using operator-reviewed text (${text.length} chars)`);
   }
@@ -79,7 +79,7 @@ export async function handleComment(s, cfg, ctx) {
     writeFileSync(join(dir, 'pending_review.json'), JSON.stringify({
       account_id: acct.id, username: acct.username, action: label,
       post_url: targetedMode ? feed : null, surface_label: surfaceLabel,
-      post_title: postTitle, post_body: (postBody || '').slice(0, 600),
+      post_title: postTitle, post_body: (postBody || ''),
       character: character ? { name: character.name, niche: character.niche } : null,
       product: product ? { name: product.name } : null,
       variant: (process.env.VARIANT || character?.promotion_config?.variant || 'mention').toLowerCase(),

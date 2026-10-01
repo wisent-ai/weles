@@ -218,7 +218,7 @@ function extractFromText(bodyText) {
     result.verdict = result.ai_percent > result.human_percent ? 'ai_generated' : 'human';
   }
   if (!Object.keys(result).length) return null;
-  return { source: 'ui', ...result, body_text_sample: text.slice(0, 500) };
+  return { source: 'ui', ...result, body_text_sample: text };
 }
 
 export function authRequiredState(finalUrl, result) {

@@ -56,17 +56,16 @@ async function snapshot(page, label) {
         const rect = el.getBoundingClientRect();
         const text = textOf(el) || el.getAttribute('placeholder') || '';
         return {
-          text: text.slice(0, 200),
+          text: text,
           role: el.getAttribute('role') || el.tagName.toLowerCase(),
           placeholder: el.getAttribute('placeholder') || '',
-          value: (el.value || '').slice(0, 200),
+          value: (el.value || ''),
           disabled: el.disabled === true || el.getAttribute('aria-disabled') === 'true',
           x: Math.round(rect.left + rect.width / 2),
           y: Math.round(rect.top + rect.height / 2),
         };
       })
-      .filter((item) => item.text || item.placeholder)
-      .slice(0, 100);
+      .filter((item) => item.text || item.placeholder);
     const bodyText = textOf(document.body);
     return {
       title: document.title || null,
@@ -133,7 +132,7 @@ async function clickFirst(page, label, allow, deny = /delete|remove|usuń|anuluj
   if (!target) return null;
   await page.mouse.click(target.x, target.y);
   await pageSettled(page);
-  console.log(JSON.stringify({ stage: 'clicked', label, text: target.text.slice(0, 180), x: target.x, y: target.y }));
+  console.log(JSON.stringify({ stage: 'clicked', label, text: target.text, x: target.x, y: target.y }));
   return target;
 }
 
@@ -181,7 +180,7 @@ async function clickEnabledDialogAction(page, label, allow) {
   if (!target) return null;
   await page.mouse.click(target.x, target.y);
   await pageSettled(page);
-  console.log(JSON.stringify({ stage: 'clicked', label, text: target.text.slice(0, 180), x: target.x, y: target.y }));
+  console.log(JSON.stringify({ stage: 'clicked', label, text: target.text, x: target.x, y: target.y }));
   return target;
 }
 
@@ -218,7 +217,7 @@ async function selectRole(page) {
   if (!target) return null;
   if (!target.checked) await page.mouse.click(target.x, target.y);
   await pageSettled(page);
-  console.log(JSON.stringify({ stage: 'selected_role', text: target.text.slice(0, 180), x: target.x, y: target.y, alreadyChecked: target.checked }));
+  console.log(JSON.stringify({ stage: 'selected_role', text: target.text, x: target.x, y: target.y, alreadyChecked: target.checked }));
   return target;
 }
 

@@ -65,7 +65,7 @@ async function snapshot(page, label) {
       .map((el) => {
         const rect = el.getBoundingClientRect();
         return {
-          text: (textOf(el) || el.getAttribute('placeholder') || '').slice(0, 200),
+          text: (textOf(el) || el.getAttribute('placeholder') || ''),
           role: el.getAttribute('role') || el.tagName.toLowerCase(),
           href: el.getAttribute('href') || '',
           placeholder: el.getAttribute('placeholder') || '',
@@ -74,8 +74,7 @@ async function snapshot(page, label) {
           y: Math.round(rect.top + rect.height / 2),
         };
       })
-      .filter((item) => item.text || item.href || item.placeholder)
-      .slice(0, 120);
+      .filter((item) => item.text || item.href || item.placeholder);
     return {
       title: document.title || null,
       bodyText: bodyText.slice(0, 3000),

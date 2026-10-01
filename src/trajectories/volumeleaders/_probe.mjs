@@ -48,7 +48,7 @@ async function login() {
     if (!u.toLowerCase().includes('/login')) { console.error(`[vl] logged in, at ${u}`); return; }
     // Look for error message
     const err = await s.page.evaluate(`(() => document.querySelector('.field-validation-error, .alert-danger, [class*="error"]')?.innerText || null)()`).catch(() => null);
-    if (err) console.error(`[vl] error: ${err.slice(0, 200)}`);
+    if (err) console.error(`[vl] error: ${err}`);
   }
   throw new Error('login did not redirect');
 }
@@ -182,7 +182,7 @@ try {
         .filter(t => t && t.length > 0 && t.length < 60)
         .slice(0, 40),
     }))()`).catch(e => ({ err: e.message }));
-    console.error('[vl] dashboard diag: ' + JSON.stringify(diag).slice(0, 800));
+    console.error('[vl] dashboard diag: ' + JSON.stringify(diag));
     fs.writeFileSync(path.join(dashDir, 'executive_summary_diag.json'), JSON.stringify(diag, null, 2));
 
     const dashboardLinks = await collectLinks();

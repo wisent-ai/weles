@@ -174,7 +174,7 @@ export async function probeLinkedinSignup(proxyUrl: string, persona?: LinkedInPr
       result: 'unknown',
       request,
       transport: { curl_version: curlVersion, curl_features: curlFeatures },
-      error: String(e?.message ?? e).replace(proxyUrl, '[proxy-url]').slice(0, 200),
+      error: String(e?.message ?? e).replace(proxyUrl, '[proxy-url]'),
     };
   }
 }

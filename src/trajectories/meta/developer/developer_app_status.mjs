@@ -45,17 +45,16 @@ async function snapshot(page, label) {
       const rect = el.getBoundingClientRect();
       return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
     };
-    const bodyText = textOf(document.body).slice(0, 5000);
+    const bodyText = textOf(document.body);
     const controls = Array.from(document.querySelectorAll('button, [role="button"], a, input[type="button"], input[type="submit"]'))
       .filter(visible)
       .map((el) => ({
-        text: textOf(el).slice(0, 160),
+        text: textOf(el),
         role: el.getAttribute('role') || el.tagName.toLowerCase(),
         href: el.getAttribute('href') || '',
         disabled: el.disabled === true || el.getAttribute('aria-disabled') === 'true',
       }))
-      .filter((item) => item.text || item.href)
-      .slice(0, 120);
+      .filter((item) => item.text || item.href);
     return {
       title: document.title || null,
       bodyText,

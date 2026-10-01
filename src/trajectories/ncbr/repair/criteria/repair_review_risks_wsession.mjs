@@ -61,7 +61,7 @@ async function validateProject() {
       for (const err of sec.validationResult?.errors || []) expressionErrors.push({ sectionId: sec.sectionId, dataPath: err.dataPath, message: err.message });
     }
   }
-  return { clicked, status: response.status, jsonSchemaErrors, expressionErrors, rawHead: response.text.slice(0, 500) };
+  return { clicked, status: response.status, jsonSchemaErrors, expressionErrors, rawHead: response.text };
 }
 
 async function readbackSnippets() {

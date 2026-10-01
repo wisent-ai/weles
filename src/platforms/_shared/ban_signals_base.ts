@@ -53,7 +53,7 @@ export async function detectFromConfig(
   if (url.startsWith('chrome-error://')) {
     let chromeBody = '';
     try { chromeBody = (await page.evaluate(() => document.body?.innerText ?? '').catch(() => '')) || ''; } catch { /* noop */ }
-    details.body_text_sample = chromeBody.slice(0, 240);
+    details.body_text_sample = chromeBody;
     const sig: BanSignalKind = /HTTP ERROR 407|ERR_PROXY_AUTH/i.test(chromeBody) ? 'proxy_auth_failed' as BanSignalKind
       : /HTTP ERROR 4|ERR_HTTP_RESPONSE_CODE/i.test(chromeBody) ? 'ip_blocked'
       : 'proxy_failed' as BanSignalKind;
@@ -70,7 +70,7 @@ export async function detectFromConfig(
   // 2. DOM text
   let bodyText = '';
   try { bodyText = (await page.evaluate(() => document.body?.innerText ?? '').catch(() => '')) || ''; } catch { /* noop */ }
-  details.body_text_sample = bodyText.slice(0, 240);
+  details.body_text_sample = bodyText;
   for (const [sig, patterns] of Object.entries(cfg.text ?? {})) {
     for (const pat of patterns ?? []) {
       if (pat.test(bodyText)) return { healthy: false, signal: sig as BanSignalKind, details: { ...details, matched_text: pat.source } };

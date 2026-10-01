@@ -46,17 +46,17 @@ const res = await fetch('https://api.linear.app/graphql', {
 
 const body = await res.text();
 if (!res.ok) {
-  console.log(`FAIL: linear graphql HTTP ${res.status}: ${body.slice(0, 300)}`);
+  console.log(`FAIL: linear graphql HTTP ${res.status}: ${body}`);
   process.exit(1);
 }
 
 let parsed;
 try { parsed = JSON.parse(body); } catch {
-  console.log(`FAIL: non-JSON response: ${body.slice(0, 300)}`);
+  console.log(`FAIL: non-JSON response: ${body}`);
   process.exit(1);
 }
 if (parsed.errors) {
-  console.log(`FAIL: graphql errors: ${JSON.stringify(parsed.errors).slice(0, 400)}`);
+  console.log(`FAIL: graphql errors: ${JSON.stringify(parsed.errors)}`);
   process.exit(1);
 }
 
@@ -67,7 +67,7 @@ if (nodes.length === 0) {
 }
 
 for (const p of nodes) {
-  const desc = (p.description || '').replace(/\n/g, ' ').slice(0, 120);
+  const desc = (p.description || '').replace(/\n/g, ' ');
   console.log(`${p.id}\t${p.name}\t${desc}`);
 }
 console.log(`PASS: ${nodes.length} project(s) listed`);

@@ -110,7 +110,7 @@ export class WSession {
     const retainStepArtifacts = !this._secureCredentialTask
       && process.env.WELES_NO_INSTRUMENT !== '1'
       && process.env.WELES_BROWSER_EVIDENCE_POLICY !== 'spis-browser-evidence.1';
-    console.log(`[wsession] ${label} START url=${url.slice(0, 80)} closed=${closed} viewport=${vs.width}x${vs.height}`);
+    console.log(`[wsession] ${label} START url=${url} closed=${closed} viewport=${vs.width}x${vs.height}`);
     if (retainStepArtifacts) await captureStepArtifacts(this, 'before', label);
     try {
       const result = await fn();
@@ -123,7 +123,7 @@ export class WSession {
       return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.log(`[wsession] ${label} ERROR ${message.slice(0, 300)}`);
+      console.log(`[wsession] ${label} ERROR ${message}`);
       if (retainStepArtifacts) await captureStepArtifacts(this, 'error', label, error);
       throw error;
     }

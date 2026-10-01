@@ -45,6 +45,6 @@ console.log(JSON.stringify({
   beforeClick,
   url: page.url(),
   title: await page.title().catch(() => ''),
-  body: (await page.locator('body').innerText().catch(() => '')).slice(0, 1000),
+  body: (await page.locator('body').innerText().catch(() => '')),
 }, null, 2));
 process.exit(0);

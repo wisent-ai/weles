@@ -77,7 +77,7 @@ try {
     persona: { name: character.name, bio: character.bio, personality: character.personality, niche: character.niche },
     post: { surface: `r/${SUBREDDIT}`, title: postTitle, body: postBody },
   });
-  console.log(`[comment-text] ${commentText.slice(0, 120)}...`);
+  console.log(`[comment-text] ${commentText}...`);
 
   // Translate www.reddit.com permalink → old.reddit.com so the comment
   // composer is a plain visible <textarea name="text"> rather than the

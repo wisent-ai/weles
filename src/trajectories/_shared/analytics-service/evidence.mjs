@@ -107,7 +107,7 @@ async function captureEvidence(s, cfg, extra = {}) {
     title: await s.page.title(),
     required: cfg.required,
     inputs: Object.fromEntries(cfg.required.map((key) => [key, process.env[key] ?? null])),
-    bodyText: text.slice(0, 12000),
+    bodyText: text,
     formValues,
     capturedRequests: s.capturedResponses.slice(-50).map((r) => ({ method: r.method, url: r.url, status: r.status })),
     ...extra,

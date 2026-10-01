@@ -42,7 +42,7 @@ export async function runHealthProbe(cfg) {
     const resp = sIn.capturedResponses.find(r => cfg.loggedInRegex.test(r.url));
     if (resp) {
       loggedIn.url = resp.url; loggedIn.status = resp.status;
-      try { loggedIn.body = JSON.parse(resp.body); } catch { loggedIn.body = resp.body?.slice(0, 2000) ?? null; }
+      try { loggedIn.body = JSON.parse(resp.body); } catch { loggedIn.body = resp.body ?? null; }
     } else {
       // No matching captured response — fall back to the page's current URL.
       // Discord SPA does client-side redirects (no HTTP response captured for /login).
@@ -73,7 +73,7 @@ export async function runHealthProbe(cfg) {
       const resp = sOut.capturedResponses.find(r => cfg.loggedOutRegex.test(r.url));
       if (resp) {
         loggedOut.url = resp.url; loggedOut.status = resp.status;
-        try { loggedOut.body = JSON.parse(resp.body); } catch { loggedOut.body = resp.body?.slice(0, 2000) ?? null; }
+        try { loggedOut.body = JSON.parse(resp.body); } catch { loggedOut.body = resp.body ?? null; }
       }
     } catch (e) {
       loggedOut.error = e.message;

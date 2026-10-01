@@ -67,7 +67,7 @@ function stats(text) {
     chars: text.length,
     words: normalized ? normalized.split(/\s+/).length : 0,
     sha256: createHash('sha256').update(text).digest('hex'),
-    preview: normalized.slice(0, 180),
+    preview: normalized,
   };
 }
 
@@ -102,7 +102,7 @@ async function visibleFields(page) {
     };
     return Array.from(document.querySelectorAll('textarea, input[type="text"]')).map((el) => ({
       name: el.getAttribute('name') || '',
-      label: labelFor(el).slice(0, 180),
+      label: labelFor(el),
       value: el.value || '',
       max: el.getAttribute('maxlength') || '',
     })).filter((f) => f.name && f.value.trim().length >= 80 && f.name !== 'table_search');

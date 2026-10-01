@@ -70,16 +70,14 @@ export async function inspectExistingAppleAdsApi(page, pageState) {
     const rows = Array.from(document.querySelectorAll('tr, [role="row"], li, section, article'))
       .filter(visible)
       .map((el) => norm(el.innerText || el.textContent))
-      .filter((text) => /API|Client|Team ID|Key ID|Public Key|Generate|Create/i.test(text))
-      .slice(0, 120);
+      .filter((text) => /API|Client|Team ID|Key ID|Public Key|Generate|Create/i.test(text));
     const controls = Array.from(document.querySelectorAll('button, [role="button"], a'))
       .filter(visible)
       .map((el) => ({
         text: norm(el.innerText || el.textContent || el.getAttribute('aria-label')),
         href: el.href || '',
       }))
-      .filter((item) => /API|Client|Key|Generate|Create|Public Key/i.test(`${item.text} ${item.href}`))
-      .slice(0, 120);
+      .filter((item) => /API|Client|Key|Generate|Create|Public Key/i.test(`${item.text} ${item.href}`));
     return { rows, controls };
   }).catch((error) => ({ error: error.message, rows: [], controls: [] }));
 

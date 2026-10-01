@@ -11,8 +11,7 @@ export interface FrameObservation {
 // The same browser-side description both produces an observation and resolves
 // its target. A numeric position alone is never authority to click an element.
 function captureFrame(request: { target?: string; index?: number }): FrameObservation | Element | null {
-  const elements = Array.from(document.querySelectorAll('input, textarea, select, button, a, [role="button"], [role="link"]'))
-    .slice(0, 80);
+  const elements = Array.from(document.querySelectorAll('input, textarea, select, button, a, [role="button"], [role="link"]'));
   const describe = (el: Element): string => {
     const control = el as HTMLElement & { value?: string; type?: string; name?: string; href?: string; checked?: boolean; selectedOptions?: HTMLCollectionOf<HTMLOptionElement> };
     let label = control.getAttribute('aria-label');
@@ -23,10 +22,10 @@ function captureFrame(request: { target?: string; index?: number }): FrameObserv
     const name = control.name;
     const value = typeof control.value === 'string' ? control.value.replace(/\s+/g, ' ').trim() : undefined;
     const sensitive = /password|token|key|secret|email|captcha|cookie|authorization/i.test(`${type} ${name} ${label}`);
-    const selected = control.selectedOptions?.[0]?.text.replace(/\s+/g, ' ').trim().slice(0, 80);
+    const selected = control.selectedOptions?.[0]?.text.replace(/\s+/g, ' ').trim();
     const valueState = value ? (sensitive || !selected ? `[set len=${value.length}]` : selected) : undefined;
     const role = control.getAttribute('role');
-    const normalizedLabel = label?.replace(/\s+/g, ' ').trim().slice(0, 120);
+    const normalizedLabel = label?.replace(/\s+/g, ' ').trim();
     const bits = [
       control.tagName.toLowerCase(), role && `role=${role}`, name && `name=${name}`,
       type && `type=${type}`, normalizedLabel && `label=${normalizedLabel}`,
@@ -50,7 +49,7 @@ function captureFrame(request: { target?: string; index?: number }): FrameObserv
   }
   return {
     title: document.title,
-    text: document.body?.innerText.replace(/\s+/g, ' ').trim().slice(0, 4000),
+    text: document.body?.innerText.replace(/\s+/g, ' ').trim(),
     controls: elements.map((element, index) => `[${index}] ${describe(element)}`),
   };
 }

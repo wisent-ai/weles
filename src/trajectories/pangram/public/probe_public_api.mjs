@@ -68,10 +68,10 @@ console.log(JSON.stringify({
   csrfTokenPresent: Boolean(csrfToken),
   cookiePresent: Boolean(csrfCookie),
   remainingStatus: remainingResp.status,
-  remainingSample: remainingBody.replace(/\s+/g, ' ').trim().slice(0, 1000),
+  remainingSample: remainingBody.replace(/\s+/g, ' ').trim(),
   postStatus: postResp.status,
   postContentType: postResp.headers.get('content-type'),
   taskId,
-  bodySample: body.replace(/\s+/g, ' ').trim().slice(0, 1000),
+  bodySample: body.replace(/\s+/g, ' ').trim(),
   status,
 }, null, 2));

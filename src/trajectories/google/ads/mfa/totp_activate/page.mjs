@@ -12,13 +12,12 @@ export async function diag(page, label, secret = '') {
       .map((el) => ({
         tag: (el.tagName || '').toLowerCase(),
         role: el.getAttribute('role') || '',
-        text: norm(el.innerText || el.textContent || '').slice(0, 240),
+        text: norm(el.innerText || el.textContent || ''),
         aria: el.getAttribute('aria-label') || '',
         href: el.href || '',
         disabled: Boolean(el.disabled || el.getAttribute('aria-disabled') === 'true'),
       }))
-      .filter((item) => item.text || item.aria || item.href)
-      .slice(0, 160);
+      .filter((item) => item.text || item.aria || item.href);
     const inputs = Array.from(document.querySelectorAll('input'))
       .map((el) => ({
         type: el.getAttribute('type') || '',
@@ -33,7 +32,7 @@ export async function diag(page, label, secret = '') {
     return {
       url: location.href,
       title: document.title,
-      text: norm(document.body?.innerText || '').slice(0, 5000),
+      text: norm(document.body?.innerText || ''),
       controls,
       inputs,
     };

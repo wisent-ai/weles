@@ -80,7 +80,7 @@ async function fillSignupForm(page) {
     ].filter(Boolean).join(' ').toLowerCase());
     if (/terms|conditions|privacy/.test(context) && !await box.isChecked()) {
       await humanClickLocator(page, box);
-      termsResult = { clicked: true, context: context.slice(0, 120) };
+      termsResult = { clicked: true, context: context };
       break;
     }
   }

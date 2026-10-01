@@ -50,7 +50,7 @@ async function snapshot(page, label) {
       .map((el) => {
         const rect = el.getBoundingClientRect();
         return {
-          text: textOf(el).slice(0, 180),
+          text: textOf(el),
           role: el.getAttribute('role') || el.tagName.toLowerCase(),
           href: el.getAttribute('href') || '',
           disabled: el.disabled === true || el.getAttribute('aria-disabled') === 'true',
@@ -58,8 +58,7 @@ async function snapshot(page, label) {
           y: Math.round(rect.top + rect.height / 2),
         };
       })
-      .filter((item) => item.text || item.href)
-      .slice(0, 140);
+      .filter((item) => item.text || item.href);
     return {
       title: document.title || null,
       bodyText: bodyText.slice(0, 4200),
@@ -125,7 +124,7 @@ async function clickFirst(page, label, allow, deny = /cancel|anuluj|delete|remov
   if (!target) return null;
   await page.mouse.click(target.x, target.y);
   await pageSettled(page);
-  console.log(JSON.stringify({ stage: 'clicked', label, text: target.text.slice(0, 180), x: target.x, y: target.y }));
+  console.log(JSON.stringify({ stage: 'clicked', label, text: target.text, x: target.x, y: target.y }));
   return target;
 }
 

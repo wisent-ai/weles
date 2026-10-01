@@ -65,7 +65,7 @@ async function validateProject() {
       for (const err of sec.validationResult?.errors || []) expressionErrors.push({ sectionId: sec.sectionId, dataPath: err.dataPath, message: err.message });
     }
   }
-  return { clicked, status: response.status, jsonSchemaErrors, expressionErrors, rawHead: response.text.slice(0, 500) };
+  return { clicked, status: response.status, jsonSchemaErrors, expressionErrors, rawHead: response.text };
 }
 
 async function readback() {
@@ -83,7 +83,7 @@ async function readback() {
   await humanIdlePause('long');
   out.indicators92 = await page.evaluate(() => {
     const rows = Array.from(document.querySelectorAll('table tbody tr')).map((r) => Array.from(r.querySelectorAll('td')).map((td) => td.innerText.trim().replace(/\s+/g, ' ')));
-    return rows.map((cells) => ({ name: cells[0], year: cells[4], value: cells[5], methodologyHead: (cells[6] || '').slice(0, 120) }));
+    return rows.map((cells) => ({ name: cells[0], year: cells[4], value: cells[5], methodologyHead: (cells[6] || '') }));
   }); // allow-raw-playwright: read 9.2 row cells after save
   await page.goto(URLS['6.1'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: read 6.1 table only
   await humanIdlePause('long');
@@ -97,7 +97,7 @@ if (process.env.DIAG_92) {
   const fields = await page.evaluate(() => Array.from(document.querySelectorAll('input, textarea')).map((el) => ({
     name: el.name || null,
     label: el.id ? document.querySelector(`label[for="${CSS.escape(el.id)}"]`)?.textContent?.trim() : null,
-    value: (el.value || '').slice(0, 220),
+    value: (el.value || ''),
     len: (el.value || '').length,
     max: el.getAttribute('maxlength'),
     readOnly: el.readOnly,
@@ -124,7 +124,7 @@ if (process.env.DIAG_92_ALL === '1') {
         targetValue: val('wartosc_docelowa'),
         methodologyLen: val('opis_metodologii').length,
         verificationLen: val('opis_sposobu_weryfikacji').length,
-        methodologyHead: val('opis_metodologii').slice(0, 120),
+        methodologyHead: val('opis_metodologii'),
       };
     }, i)); // allow-raw-playwright: read exact open indicator row field values
     await closeVisibleForm();
@@ -146,8 +146,8 @@ if (process.env.DIAG_92_INDEX !== undefined) {
       targetValue: val('wartosc_docelowa'),
       methodologyLen: val('opis_metodologii').length,
       verificationLen: val('opis_sposobu_weryfikacji').length,
-      methodologyHead: val('opis_metodologii').slice(0, 160),
-      verificationHead: val('opis_sposobu_weryfikacji').slice(0, 160),
+      methodologyHead: val('opis_metodologii'),
+      verificationHead: val('opis_sposobu_weryfikacji'),
     };
   }, idx); // allow-raw-playwright: diagnostic read of one 9.2 row by collection-visible index
   console.log(JSON.stringify({ row }, null, 2));

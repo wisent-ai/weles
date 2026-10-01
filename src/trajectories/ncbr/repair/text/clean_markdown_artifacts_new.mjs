@@ -88,7 +88,7 @@ for (const target of targets) {
     beforeLen: before.length,
     afterLen: after.length,
     hasMarkdown: /\*\*|^#{1,6}\s|<!--|\|---/m.test(read),
-    prefix: read.slice(0, 180),
+    prefix: read,
     suffix: read.slice(-260),
     len: read.length,
   });

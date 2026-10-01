@@ -44,7 +44,7 @@ async function wda(method, path, body) {
   let json = null;
   try { json = JSON.parse(text); } catch { /* non-JSON 5xx body */ }
   if (!res.ok) {
-    const reason = json?.value?.message?.slice(0, 200) ?? text.slice(0, 200);
+    const reason = json?.value?.message?.slice(0, 200) ?? text;
     throw new Error(`WDA ${method} ${path} → ${res.status}: ${reason}`);
   }
   return json;
@@ -113,7 +113,7 @@ async function dumpUiSource(sid, label) {
     const r = await wda('GET', `/session/${sid}/source`);
     const src = r?.value ?? '';
     console.log(`[ios-review] UI source dump (${label}, ${src.length} chars, first 4000):`);
-    console.log(src.slice(0, 4000));
+    console.log(src);
   } catch (e) {
     console.log(`[ios-review] UI source dump failed: ${e.message}`);
   }

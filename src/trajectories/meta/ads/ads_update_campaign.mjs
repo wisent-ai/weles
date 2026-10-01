@@ -90,7 +90,7 @@ const auth = await runMeta(['auth', 'status']).catch((e) => ({ code: 127, out: '
 if (auth.code !== 0) {
   if (runBrowserFallback()) await new Promise(() => {});
   console.log('FAIL: Meta Ads CLI is not installed or not authenticated');
-  if (auth.err || auth.out) console.log((auth.err || auth.out).slice(0, 500));
+  if (auth.err || auth.out) console.log((auth.err || auth.out));
   process.exit(2);
 }
 
@@ -105,8 +105,8 @@ const args = META_ADS_CLI_ARGS ? splitArgs(META_ADS_CLI_ARGS) : [
 
 console.log(`[meta-ads-update] ${META_CLI_BIN} ${args.map((a) => /\s/.test(a) ? JSON.stringify(a) : a).join(' ')}`);
 const result = await runMeta(args);
-if (result.out) console.log(result.out.trim().slice(0, 8000));
-if (result.err) console.error(result.err.trim().slice(0, 2000));
+if (result.out) console.log(result.out.trim());
+if (result.err) console.error(result.err.trim());
 if (result.code !== 0) {
   console.log(`FAIL: meta CLI exited ${result.code}`);
   process.exit(result.code || 1);

@@ -134,6 +134,6 @@ export async function topUpPayAsYouGo(s, usd) {
   if (await finalBtn.isVisible().catch(() => false)) { await finalBtn.click({ force: true }).catch(() => {}); console.log('[trajectory] clicked final Stripe submit'); }
   await pageSettled(s.page);
   if (stripeChargeFired) console.log(`PASS-CHARGED: Stripe payment_intents/confirm POST fired — purchased ${targetGb} GB at $${GB_PRICE}/GB ($${targetGb * GB_PRICE})`);
-  else console.log(`FAIL: no Stripe charge POST observed by the time the page settled, url=${s.page.url().slice(0, 100)}`);
+  else console.log(`FAIL: no Stripe charge POST observed by the time the page settled, url=${s.page.url()}`);
   process.exit(stripeChargeFired ? 0 : 1);
 }

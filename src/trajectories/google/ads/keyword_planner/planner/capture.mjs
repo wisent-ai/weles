@@ -130,8 +130,8 @@ export function summarizeKeywordPlannerResponses(responses) {
   return {
     responseCount: responses.length,
     endpointCounts,
-    keywordMentions: keywordMentions.slice(0, 200),
-    metricsMentions: metricsMentions.slice(0, 200),
+    keywordMentions: keywordMentions,
+    metricsMentions: metricsMentions,
     numericMentions: numericMentions.slice(0, 300),
   };
 }

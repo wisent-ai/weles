@@ -39,9 +39,9 @@ if (action === 'dump') {
   writeFileSync(fp, html);
   const summary = await page.evaluate(() => {
     const inputs = Array.from(document.querySelectorAll('input, textarea, select')).filter(e => e.offsetParent).map(e => ({ tag: e.tagName, type: e.type, name: e.name, placeholder: e.placeholder || '', value: (e.value || '').slice(0, 40), classes: e.className?.slice(0, 80) }));
-    const buttons = Array.from(document.querySelectorAll('button, a, [role=button]')).filter(e => e.offsetParent).map(e => ({ tag: e.tagName, text: (e.innerText || '').trim().slice(0, 80), href: e.href || '', classes: e.className?.slice(0, 80) })).filter(o => o.text || o.classes);
+    const buttons = Array.from(document.querySelectorAll('button, a, [role=button]')).filter(e => e.offsetParent).map(e => ({ tag: e.tagName, text: (e.innerText || '').trim(), href: e.href || '', classes: e.className?.slice(0, 80) })).filter(o => o.text || o.classes);
     const iframes = Array.from(document.querySelectorAll('iframe')).map(f => ({ src: f.src, id: f.id, w: f.offsetWidth, h: f.offsetHeight }));
-    const modals = Array.from(document.querySelectorAll('[class*="modal" i], [class*="dialog" i], [class*="drawer" i], [role="dialog"]')).filter(e => e.offsetParent).map(e => ({ tag: e.tagName, classes: e.className?.slice(0, 100), text: (e.innerText || '').slice(0, 200) }));
+    const modals = Array.from(document.querySelectorAll('[class*="modal" i], [class*="dialog" i], [class*="drawer" i], [role="dialog"]')).filter(e => e.offsetParent).map(e => ({ tag: e.tagName, classes: e.className?.slice(0, 100), text: (e.innerText || '') }));
     return { url: location.href, title: document.title, inputs, buttons: buttons.slice(0, 30), iframes, modals };
   });
   const sp = join(OUT, `summary_${ts}.json`);

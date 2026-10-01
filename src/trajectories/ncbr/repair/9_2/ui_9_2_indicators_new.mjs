@@ -60,7 +60,7 @@ if (process.env.INSPECT) {
     title: document.title,
     buttons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim(), aria: b.getAttribute('aria-label'), disabled: b.disabled })).filter((b) => b.text || b.aria).slice(0, 80),
     rows: Array.from(document.querySelectorAll('table tbody tr')).map((r) => Array.from(r.querySelectorAll('td')).map((td) => td.innerText.trim().replace(/\s+/g, ' ')).join(' | ')).slice(0, 40),
-    fields: Array.from(document.querySelectorAll('input, textarea')).filter((el) => el.offsetParent !== null).map((el) => ({ name: el.name || '', role: el.getAttribute('role'), value: (el.value || '').slice(0, 140), len: (el.value || '').length, readOnly: el.readOnly, disabled: el.disabled })).slice(0, 80),
+    fields: Array.from(document.querySelectorAll('input, textarea')).filter((el) => el.offsetParent !== null).map((el) => ({ name: el.name || '', role: el.getAttribute('role'), value: (el.value || ''), len: (el.value || '').length, readOnly: el.readOnly, disabled: el.disabled })).slice(0, 80),
   })); // allow-raw-playwright: read current 9.2 UI state only
   console.log(JSON.stringify(data, null, 2));
   process.exit(0);

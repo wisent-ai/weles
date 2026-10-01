@@ -13,7 +13,7 @@ function legalRows() {
       const cells = line.split('|').map((cell) => cell.trim());
       const act = (cells[1] || '').replace(/\*\*/g, '');
       const justification = (cells[2] || '').replace(/\*\*/g, '');
-      if (!act || !justification) throw new Error(`malformed legal-act row: ${line.slice(0, 120)}`);
+      if (!act || !justification) throw new Error(`malformed legal-act row: ${line}`);
       const formJustification = act.startsWith('Inne:') ? `${act}. ${justification}` : justification;
       if (formJustification.length > 1000) throw new Error(`legal-act justification too long: ${act} ${formJustification.length}/1000`);
       return { act, kind: act.startsWith('Inne:') ? 'inne' : 'lista', justification, justificationLength: justification.length, formJustification, formJustificationLength: formJustification.length };

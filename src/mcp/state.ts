@@ -39,10 +39,10 @@ export function addPage(browserId: string, page: Page): string {
   const pageId = `page-${nextPageId++}`;
   const events: PageEvents = { consoleErrors: [], failedRequests: [], responses: [] };
   page.on('console', (message) => {
-    if (message.type() === 'error') keep(events.consoleErrors, message.text().slice(0, 500));
+    if (message.type() === 'error') keep(events.consoleErrors, message.text());
   });
   page.on('requestfailed', (request) => {
-    keep(events.failedRequests, `${request.method()} ${request.url()} — ${request.failure()?.errorText || 'failed'}`.slice(0, 700));
+    keep(events.failedRequests, `${request.method()} ${request.url()} — ${request.failure()?.errorText || 'failed'}`);
   });
   page.on('response', (response) => {
     keep(events.responses, { url: response.url(), status: response.status(), method: response.request().method() });

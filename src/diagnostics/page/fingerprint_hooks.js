@@ -118,7 +118,7 @@
         const cur = Object.getOwnPropertyDescriptor(window, k);
         if (cur && cur.configurable === false) continue;
         let val = window[k];
-        const g = makeNative(function() { logAccess('window-flag', k, val === undefined ? 'undefined' : (val + '').slice(0, 80)); return val; }, NATIVE_GET);
+        const g = makeNative(function() { logAccess('window-flag', k, val === undefined ? 'undefined' : (val + '')); return val; }, NATIVE_GET);
         const s = makeNative(function(v) { val = v; }, NATIVE_GET);
         Object.defineProperty(window, k, { configurable: true, get: g, set: s });
       } catch (err) { logAccess('_fp_', 'win-flag-init:' + k, String(err)); }
@@ -126,7 +126,7 @@
     try {
       if (window.chrome && window.chrome.runtime) {
         const origId = window.chrome.runtime.id;
-        const g = makeNative(function() { logAccess('chrome.runtime', 'id', origId === undefined ? 'undefined' : (origId + '').slice(0, 80)); return origId; }, NATIVE_GET);
+        const g = makeNative(function() { logAccess('chrome.runtime', 'id', origId === undefined ? 'undefined' : (origId + '')); return origId; }, NATIVE_GET);
         Object.defineProperty(window.chrome.runtime, 'id', { configurable: true, get: g });
       }
     } catch (err) { logAccess('_fp_', 'chrome-runtime-init', String(err)); }
@@ -137,14 +137,14 @@
     if (typeof RTCPeerConnection !== 'undefined') {
       hook(RTCPeerConnection.prototype, 'createOffer', (o) => function() {
         const p = o.apply(this, arguments);
-        return p.then(function(desc) { try { logAccess('RTCPeerConnection', 'createOffer', (desc && desc.sdp ? desc.sdp.slice(0, 4000) : 'no-sdp')); } catch {} return desc; });
+        return p.then(function(desc) { try { logAccess('RTCPeerConnection', 'createOffer', (desc && desc.sdp ? desc.sdp : 'no-sdp')); } catch {} return desc; });
       });
       hook(RTCPeerConnection.prototype, 'setLocalDescription', (o) => function(desc) {
-        try { logAccess('RTCPeerConnection', 'setLocalDescription', (desc && desc.sdp ? desc.sdp.slice(0, 4000) : 'no-sdp')); } catch {}
+        try { logAccess('RTCPeerConnection', 'setLocalDescription', (desc && desc.sdp ? desc.sdp : 'no-sdp')); } catch {}
         return o.apply(this, arguments);
       });
       hook(RTCPeerConnection.prototype, 'addIceCandidate', (o) => function(cand) {
-        try { logAccess('RTCPeerConnection', 'addIceCandidate', (cand && cand.candidate ? cand.candidate.slice(0, 400) : (cand + '').slice(0, 400))); } catch {}
+        try { logAccess('RTCPeerConnection', 'addIceCandidate', (cand && cand.candidate ? cand.candidate : (cand + ''))); } catch {}
         return o.apply(this, arguments);
       });
       hook(RTCPeerConnection.prototype, 'getStats', (o) => function() {

@@ -133,7 +133,7 @@ try {
     await s.screenshot('stripe_post_submit');
   }
 
-  console.log(`PASS-CHARGED: final url=${s.page.url().slice(0, 100)}`);
+  console.log(`PASS-CHARGED: final url=${s.page.url()}`);
 } catch (e) {
   console.log('FAIL:', e.message);
   process.exit(1);

@@ -36,7 +36,7 @@ async function openOutdatedRow() {
   }
   const button = targetRow.locator('button[aria-label="overflow-options"], button, [role="button"]').first();
   if (await button.count() === 0) throw new Error(JSON.stringify({ opened: false, reason: 'row menu not found', row: (await targetRow.innerText()).trim().replace(/\s+/g, ' ') }));
-  const row = (await targetRow.innerText()).trim().replace(/\s+/g, ' ').slice(0, 600);
+  const row = (await targetRow.innerText()).trim().replace(/\s+/g, ' ');
   await humanClickLocator(page, button);
   await humanIdlePause('deliberate');
   const edit = page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first();
@@ -67,7 +67,7 @@ async function openRowByNeedle(needles) {
   }
   const button = targetRow.locator('button[aria-label="overflow-options"], button, [role="button"]').first();
   if (await button.count() === 0) throw new Error(JSON.stringify({ opened: false, reason: 'row menu not found', row: (await targetRow.innerText()).trim().replace(/\s+/g, ' ') }));
-  const row = (await targetRow.innerText()).trim().replace(/\s+/g, ' ').slice(0, 600);
+  const row = (await targetRow.innerText()).trim().replace(/\s+/g, ' ');
   await humanClickLocator(page, button);
   await humanIdlePause('deliberate');
   await humanClickLocator(page, page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first());
@@ -88,7 +88,7 @@ async function openMenuByNeedle(needles) {
     }
     await humanClickLocator(page, button);
     await humanIdlePause('deliberate');
-    return { opened: true, row: text.trim().replace(/\s+/g, ' ').slice(0, 600) };
+    return { opened: true, row: text.trim().replace(/\s+/g, ' ') };
   }
   return { opened: false, reason: 'target row not found', needles: items };
 }

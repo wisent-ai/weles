@@ -46,7 +46,7 @@ async function dumpFields() {
       tag: i.tagName,
       type: i.type || null,
       name: i.name || null,
-      value: (i.value || '').slice(0, 220),
+      value: (i.value || ''),
       max: i.getAttribute('maxlength'),
       readOnly: i.readOnly,
       disabled: i.disabled,

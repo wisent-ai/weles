@@ -6,7 +6,7 @@ for (const b of d.network_api || []) {
   try { body = JSON.parse(b.body); } catch (e) { process.stderr.write('parse fail: ' + e.message + '\n'); continue; }
   if (!body.success) continue;
   const srcs = body.payload?.sources || {};
-  process.stderr.write(`URL: ${b.url.slice(0, 120)}... sources=${Object.keys(srcs).length}\n`);
+  process.stderr.write(`URL: ${b.url}... sources=${Object.keys(srcs).length}\n`);
   let dumped = false;
   for (const [id, src] of Object.entries(srcs)) {
     const t = src.state?.type || '';

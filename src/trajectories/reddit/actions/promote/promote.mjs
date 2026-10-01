@@ -87,7 +87,7 @@ try {
       post: { surface: `r/${SUBREDDIT}`, title: postTitle, body: postBody },
       product: { name: product.name, description: product.description, variant: VARIANT },
     });
-    console.log(`[comment-text] ${commentText.slice(0, 160)}...`);
+    console.log(`[comment-text] ${commentText}...`);
   } else {
     console.log(`[preapproved] using operator-reviewed text (${commentText.length} chars)`);
   }
@@ -98,7 +98,7 @@ try {
     writeFileSync(join(dir, 'pending_review.json'), JSON.stringify({
       account_id: acct.id, username: acct.username, action: 'reddit_promote',
       subreddit: SUBREDDIT, product_id: PRODUCT_ID, variant: VARIANT,
-      post_url: postUrl, post_title: postTitle, post_body: postBody.slice(0, 600),
+      post_url: postUrl, post_title: postTitle, post_body: postBody,
       character: { name: character.name, niche: character.niche },
       product: { name: product.name },
       comment_text: commentText, ts: new Date().toISOString(),

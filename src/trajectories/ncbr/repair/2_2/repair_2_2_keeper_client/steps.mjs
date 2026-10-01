@@ -106,7 +106,7 @@ export function ensureFactorSelected(label) {
 export function addFeature(row) {
   nav(SECTION_URL);
   const current = readState();
-  if (current.tables.some((t) => t.text.includes(row.cecha.slice(0, 120)))) {
+  if (current.tables.some((t) => t.text.includes(row.cecha))) {
     return { row: row.cecha.slice(0, 80), status: 'already_present' };
   }
   click(':nth-match(button:has-text("Dodaj"), 1)');

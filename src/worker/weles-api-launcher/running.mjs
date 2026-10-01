@@ -35,7 +35,7 @@ export function run(command, args, label) {
   const result = spawnSync(command, args, { encoding: 'utf8', env: process.env });
   if (result.error) refuse(`${label} could not run: ${result.error.message}`);
   if (result.status !== 0) {
-    refuse(`${label} refused (exit ${result.status ?? 'none'}, signal ${result.signal ?? 'none'}): ${(result.stderr || result.stdout || 'no diagnostic output').trim().slice(0, 400)}`);
+    refuse(`${label} refused (exit ${result.status ?? 'none'}, signal ${result.signal ?? 'none'}): ${(result.stderr || result.stdout || 'no diagnostic output').trim()}`);
   }
   return result.stdout.trim();
 }

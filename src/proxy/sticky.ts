@@ -28,7 +28,7 @@ async function preflight(cfg: ProxyConfig, host: string): Promise<boolean> {
   sock.once('data', (d) => {
     sock.destroy();
     const status = d.toString().split('\r\n')[0];
-    if (!/^HTTP\/1\.[01] 200/.test(status)) console.log(`[sticky] proxy_connect_refused on ${cfg.host}: ${status.slice(0, 80)}`);
+    if (!/^HTTP\/1\.[01] 200/.test(status)) console.log(`[sticky] proxy_connect_refused on ${cfg.host}: ${status}`);
     resolve(/^HTTP\/1\.[01] 200/.test(status));
   });
   sock.once('error', (error: NodeJS.ErrnoException) => {

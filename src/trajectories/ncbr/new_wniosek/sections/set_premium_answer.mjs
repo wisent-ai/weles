@@ -50,11 +50,11 @@ if (process.env.DIAG) {
       const label = el.id ? document.querySelector(`label[for="${CSS.escape(el.id)}"]`)?.textContent?.trim() : null;
       const wrap = el.closest('label, .MuiFormControlLabel-root, .MuiFormGroup-root');
       const mui = el.closest('.MuiRadio-root, .MuiFormControlLabel-root');
-      return { tag: el.tagName, type: el.type || null, name: el.name || null, value: el.value || null, checked: el.checked || false, muiChecked: Boolean(mui?.classList?.contains('Mui-checked') || mui?.querySelector?.('.Mui-checked')), label, nearby: wrap ? wrap.textContent.trim().slice(0, 220) : null };
+      return { tag: el.tagName, type: el.type || null, name: el.name || null, value: el.value || null, checked: el.checked || false, muiChecked: Boolean(mui?.classList?.contains('Mui-checked') || mui?.querySelector?.('.Mui-checked')), label, nearby: wrap ? wrap.textContent.trim() : null };
     }).filter((f) => f.name || f.label || f.nearby),
     buttons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim(), disabled: b.disabled })).filter((b) => b.text),
     bodyTail: (document.body.innerText || '').slice(-3000),
-    formControls: Array.from(document.querySelectorAll('.MuiFormControl-root, .MuiFormGroup-root')).map((e) => e.textContent.trim().replace(/\s+/g, ' ').slice(0, 500)).filter(Boolean).slice(-20),
+    formControls: Array.from(document.querySelectorAll('.MuiFormControl-root, .MuiFormGroup-root')).map((e) => e.textContent.trim().replace(/\s+/g, ' ')).filter(Boolean).slice(-20),
   }));
   console.log(JSON.stringify({ section: SECTION, out }, null, 2));
   process.exit(0);
@@ -74,7 +74,7 @@ await saveForm();
 
 const readback = await page.evaluate(() => ({
   section: document.body.innerText.match(/5\\.[34]\\.[^\n]+/)?.[0] || null,
-  tables: Array.from(document.querySelectorAll('table')).map((t) => ({ rows: t.querySelectorAll('tbody tr').length, text: t.innerText.replace(/\s+/g, ' ').slice(0, 400) })),
+  tables: Array.from(document.querySelectorAll('table')).map((t) => ({ rows: t.querySelectorAll('tbody tr').length, text: t.innerText.replace(/\s+/g, ' ') })),
 }));
 console.log(JSON.stringify({ section: SECTION, answer: ANSWER, readback }, null, 2));
 process.exit(0);

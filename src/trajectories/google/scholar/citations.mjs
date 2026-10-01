@@ -102,7 +102,7 @@ try {
       const result = await fetchOne(arg);
       console.log(`${arg}\t${result.citations == null ? 'NA' : result.citations}\t${result.title || ''}`);
     } catch (e) {
-      console.log(`${arg}\tERR\t${(e.message || '').slice(0, 200)}`);
+      console.log(`${arg}\tERR\t${(e.message || '')}`);
     }
   }
 } finally {

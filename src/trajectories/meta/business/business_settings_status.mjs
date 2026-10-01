@@ -69,13 +69,12 @@ async function snapshot(page, label) {
     const controls = Array.from(document.querySelectorAll('button, [role="button"], a, input[type="button"], input[type="submit"]'))
       .filter(visible)
       .map((el) => ({
-        text: textOf(el).slice(0, 140),
+        text: textOf(el),
         role: el.getAttribute('role') || el.tagName.toLowerCase(),
         href: el.getAttribute('href') || '',
         disabled: el.disabled === true || el.getAttribute('aria-disabled') === 'true',
       }))
-      .filter((item) => item.text || item.href)
-      .slice(0, 100);
+      .filter((item) => item.text || item.href);
     return {
       title: document.title || null,
       bodyText,

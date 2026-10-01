@@ -112,7 +112,7 @@ export async function assertNoLinkedinChallengePage(session, stage = '') {
   const summary = await summarizeLinkedinPage(session.page);
   const signal = getLinkedinChallengeSignal(summary);
   if (signal) {
-    throw new Error(`DETECTION_TRIGGERED: ${signal} stage=${stage} summary=${JSON.stringify(summary).slice(0, 700)}`);
+    throw new Error(`DETECTION_TRIGGERED: ${signal} stage=${stage} summary=${JSON.stringify(summary)}`);
   }
   return summary;
 }

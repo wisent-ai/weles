@@ -86,7 +86,7 @@ try {
   page.on('request', (req) => {
     const u = req.url();
     if (u.includes('vast.ai/api') && !u.includes('csp-reports') && req.method() !== 'GET') {
-      uiTrace.push(`${req.method()} ${u.slice(0, 140)} ${(req.postData() || '').slice(0, 200)}`);
+      uiTrace.push(`${req.method()} ${u} ${(req.postData() || '')}`);
     }
   });
 
@@ -126,7 +126,7 @@ try {
   await wait();
   const toast = await page.evaluate(() => {
     const m = (document.body?.innerText || '').match(/[^\n]*(listed|success|error|fail|invalid)[^\n]*/i);
-    return m ? m[0].slice(0, 200) : null;
+    return m ? m[0] : null;
   });
   console.log('toast ->', toast);
   for (const t of uiTrace.slice(0, 20)) console.log('net:', t);

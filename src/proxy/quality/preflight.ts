@@ -33,7 +33,7 @@ export async function preflightProxy(proxyUrl: string): Promise<PreflightResult>
     const { stdout } = await exec('curl', buildCurlArgs(proxyUrl));
     const ip = stdout.trim();
     if (!/^\d+\.\d+\.\d+\.\d+$/.test(ip)) {
-      return { ok: false, ip, error: `probe returned non-IPv4: ${ip.slice(0, 60)}` };
+      return { ok: false, ip, error: `probe returned non-IPv4: ${ip}` };
     }
     const classification = await classifyIp(ip);
     const acceptable = isAcceptableForRegister(classification.quality);

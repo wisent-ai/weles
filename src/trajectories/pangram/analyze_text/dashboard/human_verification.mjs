@@ -31,7 +31,7 @@ async function publicVerificationState(page) {
         el.getAttribute('name'),
         el.getAttribute('id'),
         el.getAttribute('class'),
-        el.outerHTML.slice(0, 500),
+        el.outerHTML,
       ].filter((part) => part).join(' ');
       return {
         marker,
@@ -52,7 +52,7 @@ async function publicVerificationState(page) {
     }).map((el) => {
       const rect = el.getBoundingClientRect();
       return {
-        marker: (el.outerHTML || '').slice(0, 500),
+        marker: (el.outerHTML || ''),
         width: Math.round(rect.width),
         height: Math.round(rect.height),
         x: Math.round(rect.x),
@@ -117,7 +117,7 @@ async function clickPublicTurnstileIfPresent(page) {
       const html = await elementLocator.evaluate((el) => {
         const outer = el.outerHTML;
         if (!outer) return '';
-        return outer.slice(0, 800);
+        return outer;
       });
       const marker = [selector, title, src, html].filter((part) => part).join(' ');
       const markerLooksRelevant = /cloudflare|turnstile|challenge|verify|human/i.test(marker);

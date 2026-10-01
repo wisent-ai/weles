@@ -61,7 +61,7 @@ try {
       const ref = m[1];
       if (!refRe.test(ref)) continue;
       const card = a.closest('[role="row"]') || a.closest('li') || a.closest('article') || a.closest('div');
-      const cardText = (card?.textContent || a.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 400);
+      const cardText = (card?.textContent || a.textContent || '').replace(/\s+/g, ' ').trim();
       // Project name is usually the largest text inside the card. Heuristic:
       // pick the first <h1>/<h2>/<h3>/[role=heading] text we find inside the
       // card, falling back to the anchor text itself.
@@ -89,7 +89,7 @@ try {
   }, PROJECT_REF_RE.source);
 
   if (!projects.length) {
-    const snippet = await s.page.evaluate(() => document.body.innerText.slice(0, 800));
+    const snippet = await s.page.evaluate(() => document.body.innerText);
     console.log(`FAIL: no projects found at ${s.page.url()}. First 800 chars: ${snippet.replace(/\n/g, ' | ')}`);
     process.exit(1);
   }

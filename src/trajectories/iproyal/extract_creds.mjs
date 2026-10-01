@@ -55,7 +55,7 @@ try {
     try {
       await s.page.goto(url, { waitUntil: 'domcontentloaded' });
       await humanIdlePause('long');
-      const tag = url.replace(/[^a-z0-9]+/gi, '_').slice(0, 60);
+      const tag = url.replace(/[^a-z0-9]+/gi, '_');
       text = await s.page.evaluate(() => document.body.innerText);  // allow-raw-playwright: read-only innerText, no DOM interaction
       writeFileSync(join(OUT, `${tag}.txt`), text);
       writeFileSync(join(OUT, `${tag}.html`), await s.page.content());
@@ -88,7 +88,7 @@ try {
 
       if (found.username && found.password) { console.log(`[extract] credentials found on ${url}`); break; }
     } catch (e) {
-      console.log(`[extract] ${url} err: ${(e.message || String(e)).slice(0, 120)}`);
+      console.log(`[extract] ${url} err: ${(e.message || String(e))}`);
     }
   }
 
@@ -100,7 +100,7 @@ try {
     process.exit(1);
   }
 } catch (e) {
-  console.log('FAIL:', (e.message || String(e)).slice(0, 200));
+  console.log('FAIL:', (e.message || String(e)));
   process.exit(1);
 } finally {
   await s.close();

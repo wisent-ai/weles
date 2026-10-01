@@ -48,18 +48,17 @@ async function snapshot(page, label) {
       .map((el) => {
         const rect = el.getBoundingClientRect();
         return {
-          text: (textOf(el) || el.getAttribute('placeholder') || '').slice(0, 220),
+          text: (textOf(el) || el.getAttribute('placeholder') || ''),
           role: el.getAttribute('role') || el.tagName.toLowerCase(),
           href: el.getAttribute('href') || '',
           placeholder: el.getAttribute('placeholder') || '',
-          value: (el.value || '').slice(0, 180),
+          value: (el.value || ''),
           disabled: el.disabled === true || el.getAttribute('aria-disabled') === 'true',
           x: Math.round(rect.left + rect.width / 2),
           y: Math.round(rect.top + rect.height / 2),
         };
       })
-      .filter((item) => item.text || item.href || item.placeholder)
-      .slice(0, 140);
+      .filter((item) => item.text || item.href || item.placeholder);
     return {
       title: document.title || null,
       bodyText: bodyText.slice(0, 4200),
@@ -122,7 +121,7 @@ async function clickFirst(page, label, allow, deny = /delete|remove|usuń|anuluj
   if (!target) return null;
   await page.mouse.click(target.x, target.y);
   await pageSettled(page);
-  console.log(JSON.stringify({ stage: 'clicked', label, text: target.text.slice(0, 180), x: target.x, y: target.y }));
+  console.log(JSON.stringify({ stage: 'clicked', label, text: target.text, x: target.x, y: target.y }));
   return target;
 }
 

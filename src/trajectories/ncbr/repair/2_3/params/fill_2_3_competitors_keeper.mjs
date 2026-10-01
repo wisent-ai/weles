@@ -142,5 +142,5 @@ console.log(JSON.stringify({
   source: { eu: eu.length, nonEu: nonEu.length },
   added,
   tableCounts: tableCounts(),
-  tableText: tableText().slice(0, 5000),
+  tableText: tableText(),
 }, null, 2));

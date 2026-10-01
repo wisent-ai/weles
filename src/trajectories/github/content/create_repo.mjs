@@ -20,7 +20,7 @@ function slug() {
 }
 
 const REPO_NAME = (process.env.REPO_NAME || slug()).replace(/[^a-zA-Z0-9_.-]/g, '').slice(0, 90);
-const REPO_DESC = (process.env.REPO_DESC || 'personal workspace').slice(0, 300);
+const REPO_DESC = (process.env.REPO_DESC || 'personal workspace');
 
 const acct = await getSocialAccount('github');
 if (!acct) { console.log('FAIL: no active github account'); process.exit(1); }

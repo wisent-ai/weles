@@ -98,7 +98,7 @@ try {
   writeFileSync(join(OUT, 'after_send.txt'), after);
   console.log(`PASS: message typed + send triggered — verify ${OUT}/05_sent.png shows it in the thread`);
 } catch (e) {
-  console.log('FAIL:', (e.message || String(e)).slice(0, 200));
+  console.log('FAIL:', (e.message || String(e)));
   try { await s.page.screenshot({ path: join(OUT, 'error.png'), fullPage: true }); } catch {}
   process.exit(1);
 } finally {

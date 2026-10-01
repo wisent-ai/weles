@@ -16,7 +16,7 @@ export async function approveQr(page) {
   await assertPixelReady();
 
   const qrUrl = await extractQrTargetUrl(page);
-  console.log(`[qr_approve] target url: ${qrUrl.slice(0, 120)}`);
+  console.log(`[qr_approve] target url: ${qrUrl}`);
 
   await adb('shell', 'svc', 'power', 'stayon', 'true');
   await adb('shell', 'input', 'keyevent', '224');

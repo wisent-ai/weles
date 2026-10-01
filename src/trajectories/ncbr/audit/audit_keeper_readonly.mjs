@@ -40,7 +40,7 @@ try {
         ok: true,
         out: fp,
         url: editState.url,
-        fields: editState.fields.map((f) => ({ name: f.name, type: f.type, len: f.len, value: f.value, suffix: f.suffix })).slice(0, 100),
+        fields: editState.fields.map((f) => ({ name: f.name, type: f.type, len: f.len, value: f.value, suffix: f.suffix })),
         buttons: editState.buttons.filter((b) => /Zapisz|Anuluj/i.test(b.text)),
         shot: editState.screenshot.path,
       }, null, 2));
@@ -53,7 +53,7 @@ try {
       out: fp,
       url: state.url,
       tables: state.tables.map((t) => ({ i: t.i, rows: t.rows, text: t.text.join(' || ').slice(0, 1800) })),
-      fields: state.fields.map((f) => ({ name: f.name, len: f.len, value: f.value.slice(0, 140), suffix: f.suffix.slice(-140) })).slice(0, 80),
+      fields: state.fields.map((f) => ({ name: f.name, len: f.len, value: f.value, suffix: f.suffix.slice(-140) })).slice(0, 80),
       buttons: state.buttons.filter((b) => /Złóż|Sprawdź|Zapisz/i.test(b.text)),
       shot: state.screenshot.path,
     }, null, 2));

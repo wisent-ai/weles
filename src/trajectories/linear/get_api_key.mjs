@@ -190,7 +190,7 @@ try {
       .map(b => ({ tag: b.tagName.toLowerCase(), text: (b.innerText || b.textContent || '').trim(), aria: b.getAttribute('aria-label') }));
     return { found: true, headingText: (h.innerText || '').trim(), buttons };
   });
-  console.log(`[linear-key] personal-key probe: ${JSON.stringify(personalProbe).slice(0, 600)}`);
+  console.log(`[linear-key] personal-key probe: ${JSON.stringify(personalProbe)}`);
   await humanIdlePause('short');
 
   // Click "New API key" / "Create new" / "Create key" inside the personal

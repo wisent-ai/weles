@@ -24,7 +24,7 @@ const API = 'https://api.appstoreconnect.apple.com/v1';
 async function api(path, opts = {}) {
   const r = await fetch(`${API}${path}`, { ...opts, headers: { Authorization: `Bearer ${JWT}`, 'Content-Type': 'application/json', ...(opts.headers || {}) } });
   const t = await r.text();
-  if (!r.ok) { console.log(`HTTP ${r.status} ${opts.method || 'GET'} ${path}: ${t.slice(0, 300)}`); throw new Error(`http ${r.status}`); }
+  if (!r.ok) { console.log(`HTTP ${r.status} ${opts.method || 'GET'} ${path}: ${t}`); throw new Error(`http ${r.status}`); }
   return t ? JSON.parse(t) : {};
 }
 
@@ -34,7 +34,7 @@ if (process.env.EXPIRE_BUILD) {
   console.log('EXPIRED build', id);
 } else if (process.env.ASC_PATH) {
   const j = await api(process.env.ASC_PATH);
-  console.log(JSON.stringify(j, null, 2).slice(0, 6000));
+  console.log(JSON.stringify(j, null, 2));
 } else if (REVOKE) {
   await api(`/certificates/${REVOKE}`, { method: 'DELETE' });
   console.log('REVOKED', REVOKE);

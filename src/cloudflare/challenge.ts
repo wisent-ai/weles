@@ -26,7 +26,7 @@ async function looksLikeCloudflareDom(page: any): Promise<boolean> {
   try {
     const r = await page.evaluate(() => {
       const t = (document.title || '').toLowerCase();
-      const b = (document.body?.innerText || '').slice(0, 600).toLowerCase();
+      const b = (document.body?.innerText || '').toLowerCase();
       const hasCfMarker = /cloudflare|just a moment|attention required|checking your browser|verifying you are human|enable javascript and cookies/.test(t + ' ' + b);
       const hasCfFrame = !!document.querySelector('iframe[src*="challenges.cloudflare.com"], iframe[src*="cdn-cgi/challenge-platform"]');
       return hasCfMarker || hasCfFrame;

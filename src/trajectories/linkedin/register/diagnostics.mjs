@@ -43,7 +43,7 @@ export function summarizeHeaders(headers = {}) {
     names: entries.map(([name]) => name),
     values: Object.fromEntries(entries.map(([name, value]) => [
       name,
-      sensitiveHeader.test(name) ? '<redacted>' : redactDiagnosticText(String(value)).slice(0, 500),
+      sensitiveHeader.test(name) ? '<redacted>' : redactDiagnosticText(String(value)),
     ])),
   };
 }
@@ -132,7 +132,7 @@ export async function summarizeResponse(res) {
     header_names: headers.names,
     headers_redacted: headers.values,
     body_json_keys: bodyJsonKeys,
-    body_text_redacted: redactDiagnosticText(bodyText).slice(0, 2000),
+    body_text_redacted: redactDiagnosticText(bodyText),
   };
 }
 

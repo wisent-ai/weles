@@ -35,7 +35,7 @@ if (process.env.DIAG) {
   const fields = await page.evaluate(() => Array.from(document.querySelectorAll('input, textarea')).map((i) => {
     const label = i.id ? document.querySelector(`label[for="${CSS.escape(i.id)}"]`)?.textContent?.trim() : null;
     const wrap = i.closest('label, .MuiFormControlLabel-root, .MuiFormGroup-root, .MuiBox-root');
-    return { tag: i.tagName, type: i.type || null, name: i.name || null, value: i.value || null, role: i.getAttribute('role'), max: i.getAttribute('maxlength'), label, nearby: wrap ? wrap.textContent.trim().slice(0, 160) : null };
+    return { tag: i.tagName, type: i.type || null, name: i.name || null, value: i.value || null, role: i.getAttribute('role'), max: i.getAttribute('maxlength'), label, nearby: wrap ? wrap.textContent.trim() : null };
   }).filter((x) => x.name || x.label));
   const buttons = await page.evaluate(() => Array.from(document.querySelectorAll('button')).map((b) => b.innerText.trim()).filter(Boolean));
   console.log(JSON.stringify({ parsedTasks: tasks().length, firstTask: tasks()[0], fields, buttons }, null, 2));
@@ -88,10 +88,10 @@ if (process.env.VERIFY_MILESTONES) {
       nr,
       milestones: milestonesRead.map((m) => ({
         idx: m.idx,
-        nazwa: m.nazwa.slice(0, 180),
+        nazwa: m.nazwa,
         weryfikacjaLen: m.weryfikacja.length,
         weakHit: weak.test(`${m.nazwa}\n${m.weryfikacja}`),
-        weryfikacjaStart: m.weryfikacja.slice(0, 220),
+        weryfikacjaStart: m.weryfikacja,
       })),
     });
     const cancel = page.locator('button').filter({ hasText: /^Anuluj$/ }).first();

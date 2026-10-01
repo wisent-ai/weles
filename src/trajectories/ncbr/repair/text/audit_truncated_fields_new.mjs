@@ -75,7 +75,7 @@ for (const url of directUrls) {
       return {
         tag: el.tagName,
         name,
-        label: labelFor(el).slice(0, 160),
+        label: labelFor(el),
         max,
         len: value.length,
         suffix: value.slice(-260),

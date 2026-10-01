@@ -27,7 +27,7 @@ export function recordLoginFailure(error, s, acct, loginDiag) {
   const finalUrl = s?.page?.url?.() ?? '';
   const message = error.message ?? '';
   const ts = new Date().toISOString();
-  writeFileSync(join(dir, 'login_diag.json'), JSON.stringify({ ...loginDiag, error: message.slice(0, 200), final_url: finalUrl, ts }, null, 2));
+  writeFileSync(join(dir, 'login_diag.json'), JSON.stringify({ ...loginDiag, error: message, final_url: finalUrl, ts }, null, 2));
   const signal = classifyLoginFailure(message, finalUrl);
   writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({
     account_id: acct.id,

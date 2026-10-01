@@ -48,7 +48,7 @@ if (process.env.DIAG) {
         max: el.getAttribute('maxlength') || null,
         value: (el.value || '').slice(0, 80),
         label,
-        nearby: wrap ? wrap.textContent.trim().slice(0, 180) : null,
+        nearby: wrap ? wrap.textContent.trim() : null,
       };
     }).filter((f) => f.name || f.label || f.nearby),
     buttons: Array.from(document.querySelectorAll('button')).map((b) => b.innerText.trim()).filter(Boolean),
@@ -155,7 +155,7 @@ for (const c of CONTACTS) {
 const readback = await page.evaluate(() => ({
   tables: Array.from(document.querySelectorAll('table')).map((t) => ({
     rows: t.querySelectorAll('tbody tr').length,
-    text: t.innerText.replace(/\s+/g, ' ').slice(0, 700),
+    text: t.innerText.replace(/\s+/g, ' '),
   })),
 }));
 console.log(JSON.stringify({ deleted, edoreczenia, added, readback }, null, 2));

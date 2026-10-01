@@ -138,7 +138,7 @@ if (process.env.DIAG_EDIT !== undefined) {
       tag: i.tagName,
       type: i.type || null,
       name: i.name || null,
-      value: (i.value || '').slice(0, 140),
+      value: (i.value || ''),
       max: i.getAttribute('maxlength'),
       readOnly: i.readOnly,
       label: i.id ? document.querySelector(`label[for="${CSS.escape(i.id)}"]`)?.textContent?.trim() : null,
@@ -157,7 +157,7 @@ if (process.env.DIAG_ADD) {
       type: i.type || null,
       name: i.name || null,
       role: i.getAttribute('role'),
-      value: (i.value || '').slice(0, 140),
+      value: (i.value || ''),
       max: i.getAttribute('maxlength'),
       readOnly: i.readOnly,
       label: i.id ? document.querySelector(`label[for="${CSS.escape(i.id)}"]`)?.textContent?.trim() : null,
@@ -185,7 +185,7 @@ if (process.env.VERIFY_DETAILS) {
         return el ? String(el.value || '') : '';
       };
       return {
-        name: v('nazwa_wskaznika').slice(0, 160),
+        name: v('nazwa_wskaznika'),
         methodologyLen: v('opis_metodologii').length,
         methodologySuffix: v('opis_metodologii').slice(-220),
         verificationLen: v('opis_sposobu_weryfikacji').length,

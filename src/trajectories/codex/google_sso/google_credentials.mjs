@@ -73,7 +73,7 @@ export async function waitForGooglePassword({ page, mark, humanClickLocator }) {
   }
   const observed = await navEval(page, () => ({
     host: location.host, path: location.pathname,
-    text: (document.body?.innerText || '').replace(/\s+/g, ' ').slice(0, 500),
+    text: (document.body?.innerText || '').replace(/\s+/g, ' '),
   }), { state: 'page navigated before diagnosis' });
   const error = new Error(`Google did not show the selected password challenge: ${JSON.stringify(observed)}`);
   error.code = 'google_password_challenge_unavailable';

@@ -83,7 +83,7 @@ async function rotationAngle(apiKey, probe) {
     });
     if (!resp.ok) {
       const txt = await resp.text();
-      console.log(`[tt-captcha] sadcaptcha api status=${resp.status} body=${txt.slice(0, 200)}`);
+      console.log(`[tt-captcha] sadcaptcha api status=${resp.status} body=${txt}`);
       return 0;
     }
     const j = await resp.json();

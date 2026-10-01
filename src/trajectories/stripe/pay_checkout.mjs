@@ -178,7 +178,7 @@ try {
     if (!filled.ok) {
       await s.screenshot('card_form_not_found');
       const offered = await s.page.locator('button, [role="button"]').allInnerTexts().catch(() => []);
-      console.log(`FAIL: no card form to fill (${filled.reason ?? 'partial'}); the page offered: ${offered.filter(Boolean).slice(0, 8).join(' | ').slice(0, 200)}`);
+      console.log(`FAIL: no card form to fill (${filled.reason ?? 'partial'}); the page offered: ${offered.filter(Boolean).slice(0, 8).join(' | ')}`);
       process.exit(1);
     }
     // The hosted page keeps name and postal code outside the Elements frames.
@@ -225,15 +225,15 @@ try {
       .first()
       .innerText()
       .catch(() => '');
-    console.log(`FAIL: card refused on the page: ${text.slice(0, 160).replace(/\s+/g, ' ')}`);
+    console.log(`FAIL: card refused on the page: ${text.replace(/\s+/g, ' ')}`);
     process.exit(1);
   }
   await s.screenshot('post_submit');
   if (outcome !== 'redirected') {
-    console.log(`FAIL: still on the checkout page after submitting; url=${s.page.url().slice(0, 120)}`);
+    console.log(`FAIL: still on the checkout page after submitting; url=${s.page.url()}`);
     process.exit(1);
   }
-  console.log(`PASS-CHARGED: final url=${s.page.url().slice(0, 160)}`);
+  console.log(`PASS-CHARGED: final url=${s.page.url()}`);
 } catch (e) {
   console.log('FAIL:', e.message);
   process.exit(1);

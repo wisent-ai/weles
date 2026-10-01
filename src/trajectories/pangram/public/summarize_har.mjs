@@ -13,13 +13,13 @@ const rows = entries
     const req = e.request || {};
     const res = e.response || {};
     const contentText = res.content?.text || '';
-    const body = contentText.length > 2000 ? `${contentText.slice(0, 2000)}...` : contentText;
+    const body = contentText.length > 2000 ? `${contentText}...` : contentText;
     return {
       method: req.method,
       url: req.url,
       status: res.status,
       mimeType: res.content?.mimeType || null,
-      requestPostSample: req.postData?.text ? req.postData.text.slice(0, 500) : null,
+      requestPostSample: req.postData?.text ? req.postData.text : null,
       responseSample: /api|signup|dashboard|anonymous|session|feature|csrf|turnstile|classify/i.test(req.url)
         ? body.replace(/\s+/g, ' ').slice(0, 1200)
         : undefined,

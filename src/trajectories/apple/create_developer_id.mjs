@@ -52,7 +52,7 @@ async function createCertificate(page) {
   console.log('[apple-create-developer-id] CERTIFICATE_TYPE_PAGE');
 
   if (!(await clickChoice(page, /^Developer ID Application$/i))) {
-    const text = (await page.locator('body').innerText().catch((e) => `unreadable: ${e.message}`)).replace(/\s+/g, ' ').slice(0, 1000);
+    const text = (await page.locator('body').innerText().catch((e) => `unreadable: ${e.message}`)).replace(/\s+/g, ' ');
     throw new Error(`Developer ID Application choice missing; page=${text}`);
   }
   await pageSettled(s.page);

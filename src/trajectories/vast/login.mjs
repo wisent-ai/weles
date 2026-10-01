@@ -114,7 +114,7 @@ try {
     try { clip = await navigator.clipboard.readText(); } catch (e) { clip = 'ERR ' + e.message; }
     return { ok: true, raw, raw_len: raw.length, btn_label: copyBtn ? tidy(copyBtn.b.innerText || copyBtn.b.getAttribute('aria-label') || '') : null, btn_dist: copyBtn ? copyBtn.d : null, clipboard: clip };
   })()`);
-  console.log('[vast] install block result ->', JSON.stringify(result).slice(0, 2000));
+  console.log('[vast] install block result ->', JSON.stringify(result));
 
   await ws.page.screenshot({ path: '/tmp/vast_install_cmd.png', fullPage: true }).catch(() => {});
   console.log('[vast] final screenshot -> /tmp/vast_install_cmd.png');

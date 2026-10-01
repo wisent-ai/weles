@@ -35,7 +35,7 @@ try {
   // Reddit SPA needs time to hydrate — wait for content to appear
   await humanIdlePause('long');
   const homeUrl = s.page.url();
-  const homeText = await s.page.evaluate(() => document.body?.innerText?.slice(0, 8000) ?? '');
+  const homeText = await s.page.evaluate(() => document.body?.innerText ?? '');
   await s.page.screenshot({ path: `${runRecordingsDir('reddit_inspect_ban')}/homepage_logged_in.png` });
   console.log(`[inspect] homepage url: ${homeUrl}`);
   console.log(`[inspect] homepage text:\n${homeText}`);
@@ -63,7 +63,7 @@ try {
   await s.page.goto(profileUrl, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('long');
   const finalUrl = s.page.url();
-  const fullText = await s.page.evaluate(() => document.body?.innerText?.slice(0, 8000) ?? '');
+  const fullText = await s.page.evaluate(() => document.body?.innerText ?? '');
   await s.page.screenshot({ path: `${runRecordingsDir('reddit_inspect_ban')}/profile_logged_in.png` });
   console.log(`[inspect] profile url: ${finalUrl}`);
   console.log(`[inspect] profile text:\n${fullText}`);

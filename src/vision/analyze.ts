@@ -43,7 +43,7 @@ export class VisionRefusedError extends Error {
   question: string;
   answer: string;
   constructor(question: string, answer: string) {
-    super(`Jeden refused vision query. Question: ${question.slice(0, 200)}. Answer: ${answer.slice(0, 300)}`);
+    super(`Jeden refused vision query. Question: ${question}. Answer: ${answer}`);
     this.question = question;
     this.answer = answer;
   }
@@ -51,7 +51,7 @@ export class VisionRefusedError extends Error {
 
 export class PageQuestionError extends Error {
   constructor(question: string, cause: string) {
-    super(`the page question "${question.slice(0, 120)}" could not be answered: ${cause}`);
+    super(`the page question "${question}" could not be answered: ${cause}`);
     this.name = 'PageQuestionError';
   }
 }

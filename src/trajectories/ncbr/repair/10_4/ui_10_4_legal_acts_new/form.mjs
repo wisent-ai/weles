@@ -17,7 +17,7 @@ async function diagForm(opened) {
         type: el.type || '',
         name: el.name || '',
         role: el.getAttribute('role') || '',
-        value: (el.value || '').slice(0, 220),
+        value: (el.value || ''),
         len: (el.value || '').length,
         max: el.getAttribute('maxlength'),
         label,

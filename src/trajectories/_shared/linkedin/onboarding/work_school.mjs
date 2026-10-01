@@ -88,7 +88,7 @@ export async function fillPostRegisterOnboarding(page) {
     await page.goto('https://www.linkedin.com/in/williamhgates/', { waitUntil: 'domcontentloaded' });
     await humanIdlePause('long');
     let body = '';
-    try { body = await page.evaluate(() => document.body.innerText.slice(0, 4000)); }
+    try { body = await page.evaluate(() => document.body.innerText); }
     catch (e) { console.log(`[onboarding] body read err: ${e.message}`); }
     const gated = /one step away from viewing|complete one quick step|Add a job or school to continue/i.test(body);
     viewable = !gated && body.length > 500;

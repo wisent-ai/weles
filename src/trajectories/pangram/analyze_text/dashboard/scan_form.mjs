@@ -81,7 +81,7 @@ export async function dismissCookieBanner(page) {
     const nodes = Array.from(document.querySelectorAll('[id*="Cookie"], [class*="cookie"], [class*="Cookie"], [aria-label*="cookie" i], div'));
     let hidden = 0;
     for (const el of nodes) {
-      const text = (el.textContent || '').slice(0, 500);
+      const text = (el.textContent || '');
       if (/This website uses cookies|Allow all|Allow selection|cookie/i.test(text) && el.getClientRects().length) {
         el.style.pointerEvents = 'none';
         if (/This website uses cookies|Allow all|Allow selection/i.test(text)) {

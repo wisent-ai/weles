@@ -67,7 +67,7 @@ async function clickByText(page, rx) {
 async function clickGenerate(page) {
   const clickables = await page.evaluate(() => {
     const els = [...document.querySelectorAll('button, a, [role="button"], [role="menuitem"]')];
-    return [...new Set(els.map(e => (e.getAttribute('aria-label') || e.textContent || '').replace(/\s+/g, ' ').trim()).filter(Boolean))].slice(0, 60);
+    return [...new Set(els.map(e => (e.getAttribute('aria-label') || e.textContent || '').replace(/\s+/g, ' ').trim()).filter(Boolean))];
   });
   console.log('[asc-create] klikalne na stronie: ' + JSON.stringify(clickables));
 

@@ -43,7 +43,7 @@ export async function request(url, options = {}) {
   if (response.ok) return response;
   const body = await response.text();
   const retryAfter = response.headers.get('retry-after');
-  const reason = body.replace(/[A-Za-z0-9_-]{32,}/g, '[redacted]').slice(0, 240);
+  const reason = body.replace(/[A-Za-z0-9_-]{32,}/g, '[redacted]');
   const after = retryAfter ? ` (Retry-After: ${retryAfter})` : '';
   throw new Error(`Figma HTTP ${response.status} for ${path}${after}: ${reason}`);
 }

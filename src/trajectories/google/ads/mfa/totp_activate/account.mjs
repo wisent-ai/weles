@@ -103,7 +103,7 @@ export async function classifyGoogleAuthBlock(page, secret = '') {
     blocked,
     url,
     activeEmail: await currentGoogleAccountEmail(page),
-    textPreview: redact(text.slice(0, 1600), secret),
+    textPreview: redact(text, secret),
   };
 
 }

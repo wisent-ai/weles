@@ -19,7 +19,7 @@ page.on('response', async (res) => {
   if (!/submit|send|sign|zloz|wniosek|project|validate/i.test(url)) return;
   let text = '';
   try { text = await res.text(); } catch {}
-  responses.push({ status: res.status(), url, text: text.slice(0, 2000) });
+  responses.push({ status: res.status(), url, text: text });
 });
 
 await page.goto(PROJECT_URL, { waitUntil: 'domcontentloaded' });
@@ -87,7 +87,7 @@ const before = await page.evaluate(() => ({
     text: b.innerText.trim() || b.getAttribute('aria-label') || b.title,
     disabled: b.disabled,
     visible: Boolean(b.getClientRects().length) && getComputedStyle(b).visibility !== 'hidden',
-  })).filter((b) => b.text).slice(0, 100),
+  })).filter((b) => b.text),
 }));
 
 const submittedClick = await clickVisibleButton('Złóż wniosek');
@@ -123,8 +123,8 @@ const after = await page.evaluate((capturedResponses) => {
     buttons: Array.from(document.querySelectorAll('button')).map((b) => ({
       text: b.innerText.trim() || b.getAttribute('aria-label') || b.title,
       disabled: b.disabled,
-    })).filter((b) => b.text).slice(0, 100),
-    bodyHead: body.slice(0, 2500),
+    })).filter((b) => b.text),
+    bodyHead: body,
     bodyTail: body.slice(-2500),
     responses: capturedResponses.slice(-40),
   };

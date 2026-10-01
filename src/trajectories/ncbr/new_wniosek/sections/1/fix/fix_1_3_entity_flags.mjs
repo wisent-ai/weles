@@ -27,10 +27,10 @@ async function firstTableInfo() {
     const rows = Array.from(table.querySelectorAll('tbody tr'));
     return {
       rowCount: rows.length,
-      tableText: table.innerText.replace(/\s+/g, ' ').trim().slice(0, 1000),
+      tableText: table.innerText.replace(/\s+/g, ' ').trim(),
       rows: rows.map((row, idx) => ({
         idx,
-        text: row.innerText.replace(/\s+/g, ' ').trim().slice(0, 500),
+        text: row.innerText.replace(/\s+/g, ' ').trim(),
         buttons: Array.from(row.querySelectorAll('button')).map((b, bidx) => ({
           bidx,
           text: b.innerText.trim(),
@@ -38,7 +38,7 @@ async function firstTableInfo() {
           title: b.getAttribute('title'),
           html: b.outerHTML.slice(0, 300),
         })),
-        html: row.outerHTML.slice(0, 1600),
+        html: row.outerHTML,
       })),
     };
   }); // allow-raw-playwright: read DOM only
@@ -94,7 +94,7 @@ const before = await page.evaluate(() => {
     checked: r.checked,
     label: r.id ? document.querySelector(`label[for="${CSS.escape(r.id)}"]`)?.textContent?.trim() : null,
     muiChecked: !!r.closest('.Mui-checked, .MuiRadio-root.Mui-checked'),
-    nearby: (r.closest('label, .MuiFormControlLabel-root, .MuiFormGroup-root, .MuiBox-root')?.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 160),
+    nearby: (r.closest('label, .MuiFormControlLabel-root, .MuiFormGroup-root, .MuiBox-root')?.textContent || '').replace(/\s+/g, ' ').trim(),
   }));
   const vat = document.querySelector('textarea[name="uzasadnienie_braku_mozliwosci_odzyskania_vat"]')?.value || null;
   const inputs = Array.from(document.querySelectorAll('input,textarea')).map((el) => ({
@@ -140,7 +140,7 @@ const after = await page.evaluate(() => ({
   bodyHasWisent: (document.body.innerText || '').includes('Wisent Polska'),
   tables: Array.from(document.querySelectorAll('table')).map((t) => ({
     rows: t.querySelectorAll('tbody tr').length,
-    text: t.innerText.replace(/\s+/g, ' ').trim().slice(0, 900),
+    text: t.innerText.replace(/\s+/g, ' ').trim(),
   })).slice(0, 4),
 }));
 

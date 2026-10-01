@@ -80,7 +80,7 @@ try {
   await humanClickLocator(s.page, sendBtn);
   await humanIdlePause('deliberate');
 
-  const echoCount = await s.page.locator(`.msg-s-event-listitem :text("${MESSAGE.slice(0, 60)}"), li.msg-s-message-list__event :text("${MESSAGE.slice(0, 60)}"), :text("${MESSAGE.slice(0, 60)}")`).filter({ visible: true }).count().catch(() => 0);
+  const echoCount = await s.page.locator(`.msg-s-event-listitem :text("${MESSAGE}"), li.msg-s-message-list__event :text("${MESSAGE}"), :text("${MESSAGE}")`).filter({ visible: true }).count().catch(() => 0);
   if (!echoCount) { console.log('FAIL: composer typed but message not echoed in conversation'); process.exit(1); }
   console.log(`PASS: DM sent to ${RECIPIENT}`);
 } catch (e) {

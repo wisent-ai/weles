@@ -33,7 +33,7 @@ async function dumpOpenFields() {
     name: el.name || null,
     type: el.type || null,
     max: el.getAttribute('maxlength'),
-    value: (el.value || '').slice(0, 100),
+    value: (el.value || ''),
     visible: Boolean(el.getClientRects().length),
   })).filter((field) => field.name || field.value)); // allow-raw-playwright: diagnostic read of open row fields
 }
@@ -115,7 +115,7 @@ async function validateProject() {
       for (const err of sec.validationResult?.errors || []) expressionErrors.push({ sectionId: sec.sectionId, dataPath: err.dataPath, message: err.message });
     }
   }
-  return { clicked, status: response.status, jsonSchemaErrors, expressionErrors, rawHead: response.text.slice(0, 500) };
+  return { clicked, status: response.status, jsonSchemaErrors, expressionErrors, rawHead: response.text };
 }
 
   return { addCompetitor14, addCompetition23, dumpOpenFields, addParameter23, editVisibleRowContaining, repairVisibleMissingNips14, validateProject };

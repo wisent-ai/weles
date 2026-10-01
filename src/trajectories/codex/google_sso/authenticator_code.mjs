@@ -45,7 +45,7 @@ async function googleChallengeState(page) {
     host: location.host,
     path: location.pathname,
     text: (document.querySelector('main')?.innerText || document.body?.innerText || '')
-      .replace(/\s+/g, ' ').slice(0, 500),
+      .replace(/\s+/g, ' '),
     challenge: location.hostname === 'accounts.google.com'
       && (/\/challenge(?:\/|$)/.test(location.pathname)
         || /2-step verification|get a code to sign in|verify it.s you|weryfikacja dwuetapowa/i.test(document.body?.innerText || '')),

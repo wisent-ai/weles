@@ -33,7 +33,7 @@ export function stats(text) {
     chars: text.length,
     words: clean ? clean.split(/\s+/).length : 0,
     sha256: sha(text),
-    preview: clean.slice(0, 180),
+    preview: clean,
   };
 }
 

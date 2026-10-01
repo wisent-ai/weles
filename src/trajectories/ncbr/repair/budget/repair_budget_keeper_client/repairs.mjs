@@ -155,5 +155,5 @@ export async function validate() {
   
   const after = await ro(`document.body.innerText.slice(0,8000)`);
   const url = (await send({ action: 'url' })).url;
-  evidence.steps.push({ step: 'validate', clicked, url, beforeSnippet: before.slice(0, 1000), afterSnippet: after });
+  evidence.steps.push({ step: 'validate', clicked, url, beforeSnippet: before, afterSnippet: after });
 }

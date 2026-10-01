@@ -54,7 +54,7 @@ export async function ensureDashboard(s) {
   await humanIdlePause('deliberate');
   const current = s.page.url();
   const body = await s.page.evaluate(() => document.body.innerText).catch(() => '');
-  if (/\/login(?:[/?#]|$)/.test(current) || /Log in with Google|Log in/i.test(body.slice(0, 1000))) {
+  if (/\/login(?:[/?#]|$)/.test(current) || /Log in with Google|Log in/i.test(body)) {
     return false;
   }
   return true;

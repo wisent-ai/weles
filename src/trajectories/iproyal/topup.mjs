@@ -55,7 +55,7 @@ try {
       if (!/js\.stripe\.com|m\.stripe\.network/.test(f.url())) continue;
       try {
         const inputs = await f.evaluate(() => Array.from(document.querySelectorAll('input, [contenteditable="true"]')).map(i => `${i.tagName}:${i.type || ''}:name=${i.name || ''}:placeholder=${i.placeholder || ''}:autocomplete=${i.autocomplete || ''}`));
-        const url = f.url().match(/elements-inner-([^-]+(?:-[^-]+)?)|m-outer|m\.stripe\.network/)?.[0] || f.url().slice(0, 60);
+        const url = f.url().match(/elements-inner-([^-]+(?:-[^-]+)?)|m-outer|m\.stripe\.network/)?.[0] || f.url();
         if (inputs.length) console.log(`[diag] frame=${url} inputs=${JSON.stringify(inputs)}`);
       } catch {}
     }
@@ -85,14 +85,14 @@ try {
   // Probe for validation errors / captcha after the deposit click.
   try {
     const post = await s.page.evaluate(() => {
-      const errs = Array.from(document.querySelectorAll('[class*="error" i], [role="alert"], [aria-invalid="true"], .invalid')).filter(e => e.offsetParent).map(e => (e.textContent || '').trim().slice(0, 200));
-      const captcha = Array.from(document.querySelectorAll('iframe')).filter(i => /captcha|hcaptcha|recaptcha/i.test(i.src || '') && i.offsetParent).map(i => i.src.slice(0, 100));
+      const errs = Array.from(document.querySelectorAll('[class*="error" i], [role="alert"], [aria-invalid="true"], .invalid')).filter(e => e.offsetParent).map(e => (e.textContent || '').trim());
+      const captcha = Array.from(document.querySelectorAll('iframe')).filter(i => /captcha|hcaptcha|recaptcha/i.test(i.src || '') && i.offsetParent).map(i => i.src);
       return { errs, captcha };
     });
     console.log('[diag] post-deposit:', JSON.stringify(post));
   } catch {}
-  if (stripeChargeFired) console.log(`PASS-CHARGED: Stripe payment_intents/confirm POST fired, url=${s.page.url().slice(0, 100)}`);
-  else console.log(`FAIL: Deposit clicked but no Stripe charge POST observed by the time the page settled, url=${s.page.url().slice(0, 100)}`);
+  if (stripeChargeFired) console.log(`PASS-CHARGED: Stripe payment_intents/confirm POST fired, url=${s.page.url()}`);
+  else console.log(`FAIL: Deposit clicked but no Stripe charge POST observed by the time the page settled, url=${s.page.url()}`);
 } catch (e) {
   console.log('FAIL:', e.message);
   process.exit(1);

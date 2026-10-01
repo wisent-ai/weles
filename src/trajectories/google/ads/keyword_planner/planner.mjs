@@ -79,7 +79,7 @@ async function main() {
         url: s.page.url?.() || '',
       };
       writeFileSync(RESULT_FILE, JSON.stringify(report, null, 2));
-      console.log(JSON.stringify(report, null, 2).slice(0, 12000));
+      console.log(JSON.stringify(report, null, 2));
       process.exit(4);
     }
 
@@ -88,7 +88,7 @@ async function main() {
     report.ok = report.parsedRows.length > 0 || report.rpc.keywordMentions.length > 0;
     writeFileSync(RESULT_FILE, JSON.stringify(report, null, 2));
     console.log(`GOOGLE_ADS_KEYWORD_PLANNER_REPORT ${JSON.stringify(report)}`);
-    console.log(JSON.stringify(report, null, 2).slice(0, 20000));
+    console.log(JSON.stringify(report, null, 2));
     console.log('PASS: Google Ads keyword planner read completed (browser)');
   } finally {
     if (CLOSE_AFTER_HARVEST) await s.close().catch(() => {});

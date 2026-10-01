@@ -56,7 +56,7 @@ export async function detectRedditBanSignals(
   if (url.startsWith('chrome-error://')) {
     let chromeBody = '';
     try { chromeBody = (await page.evaluate(() => document.body?.innerText ?? '').catch(() => '')) || ''; } catch { /* noop */ }
-    details.body_text_sample = chromeBody.slice(0, 240);
+    details.body_text_sample = chromeBody;
     const sig = /HTTP ERROR 407|ERR_PROXY_AUTH/i.test(chromeBody) ? 'proxy_auth_failed'
       : /HTTP ERROR 4|ERR_HTTP_RESPONSE_CODE/i.test(chromeBody) ? 'ip_blocked'
       : 'proxy_failed';
@@ -76,7 +76,7 @@ export async function detectRedditBanSignals(
   try {
     bodyText = (await page.evaluate(() => document.body?.innerText ?? '').catch(() => '')) || '';
   } catch { /* noop */ }
-  details.body_text_sample = bodyText.slice(0, 240);
+  details.body_text_sample = bodyText;
 
   for (const pat of IP_BLOCKED_TEXT_PATTERNS) {
     if (pat.test(bodyText)) return { healthy: false, signal: 'ip_blocked', details: { ...details, matched_text: pat.source } };
@@ -95,7 +95,7 @@ export async function detectRedditBanSignals(
   // Only flag when on root or shallow path — subreddit pages also show
   // "Log In" but with feed content, which is fine.
   const onRedditRootish = /^https?:\/\/(www\.)?reddit\.com\/?(\?|$)/.test(url);
-  const sampleHead = bodyText.slice(0, 200);
+  const sampleHead = bodyText;
   if (onRedditRootish && /\bLog In\b/.test(sampleHead) && /\bGet App\b|\bSign Up\b/.test(sampleHead)) {
     return { healthy: false, signal: 'checkpoint', details: { ...details, matched_text: 'reddit-homepage-logged-out', reason: 'reddit homepage rendered logged-out chrome (Log In + Get App in body)' } };
   }

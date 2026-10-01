@@ -17,7 +17,7 @@ const out = await page.evaluate(() => {
   const tables = Array.from(document.querySelectorAll('table')).map((table, i) => ({
     i,
     rows: table.querySelectorAll('tbody tr').length,
-    text: Array.from(table.querySelectorAll('tbody tr')).map((r) => r.innerText.trim().replace(/\s+/g, ' ').slice(0, 160)),
+    text: Array.from(table.querySelectorAll('tbody tr')).map((r) => r.innerText.trim().replace(/\s+/g, ' ')),
   }));
   return {
     url: location.href,

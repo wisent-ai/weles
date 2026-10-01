@@ -91,7 +91,7 @@ export async function solveAudioPuzzle(page, { maxRounds = 10 } = {}) {
   await page.evaluate(AUDIO_HOOK_SCRIPT).catch(() => {});
   const frame = await getGameFrame(page);
   if (!frame) { console.log('[audio] No Arkose game frame found'); return false; }
-  console.log(`[audio] Game frame: ${frame.url().slice(0, 100)}`);
+  console.log(`[audio] Game frame: ${frame.url()}`);
   await frame.evaluate(AUDIO_HOOK_SCRIPT).catch(() => {});
 
   // The puzzle UI renders its buttons in the game frame; read them once the
@@ -117,7 +117,7 @@ export async function solveAudioPuzzle(page, { maxRounds = 10 } = {}) {
       return { text: text.slice(0, 600), buttons, numOptions: nums.length };
     })()`).catch(() => null);
     if (!info) { console.log(`[audio] Round ${round}: frame eval failed`); break; }
-    console.log(`[audio] R${round}: ${info.text.slice(0, 150).replace(/\n/g, ' ')}`);
+    console.log(`[audio] R${round}: ${info.text.replace(/\n/g, ' ')}`);
 
     if (/complete|success|solved|verified/i.test(info.text)) { console.log('[audio] Success text detected'); return true; }
     if (/blocked|try again|failed/i.test(info.text)) { console.log('[audio] Blocked'); return false; }

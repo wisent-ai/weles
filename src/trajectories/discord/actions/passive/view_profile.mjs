@@ -56,7 +56,7 @@ try {
     return { display, username, bio: bioEl ? (bioEl.textContent || '').trim() : null, avatar: avatar ? avatar.src : null, banner: banner ? banner.src : null, connected };
   });
   if (!profile) { console.log('FAIL: profile popout did not render'); process.exit(1); }
-  console.log(`[view_profile] dump=${JSON.stringify(profile).slice(0, 200)}`);
+  console.log(`[view_profile] dump=${JSON.stringify(profile)}`);
 
   const outDir = runOutputPath('discord_view_profile');
   fs.mkdirSync(outDir, { recursive: true });

@@ -69,7 +69,7 @@ if (process.env.DIAG) {
       role: i.getAttribute('role'),
       value: i.value,
       label: i.id ? document.querySelector(`label[for="${CSS.escape(i.id)}"]`)?.textContent?.trim() : null,
-      html: i.closest('.MuiFormControl-root')?.outerHTML.slice(0, 900) || null,
+      html: i.closest('.MuiFormControl-root')?.outerHTML || null,
     })).filter((x) => x.name.includes('rodzaj_innowacji') || x.name.includes('nazwa_skrocona')),
   }));
   const kind = page.locator('input[name$="rodzaj_innowacji"]').first();
@@ -88,7 +88,7 @@ if (process.env.DIAG_SELECT) {
       tag: i.tagName,
       name: i.name,
       role: i.getAttribute('role'),
-      value: (i.value || '').slice(0, 120),
+      value: (i.value || ''),
       visible: Boolean(i.offsetParent),
     })).filter((x) => x.name.includes('rodzaj_innowacji') || x.name.includes('innowacja_produktowa')),
     bodyHasProductName: (document.body.innerText || '').includes('Nazwa produktu'),
@@ -106,7 +106,7 @@ if (process.env.DIAG_APP) {
       tag: e.tagName,
       cls: e.className || null,
       role: e.getAttribute('role'),
-      text: (e.textContent || '').trim().slice(0, 120),
+      text: (e.textContent || '').trim(),
       name: e.getAttribute('name'),
     })).slice(0, 20) : [];
     return { input: inp ? { name: inp.name, type: inp.type, value: inp.value } : null, hasRoot: Boolean(root), html: fc?.outerHTML.slice(0, 3000) || null, candidates };

@@ -46,7 +46,7 @@ export async function wsCheckEmail(s: WSession, email: string, sender: string): 
     }
     const codes = content.match(/\b\d{5,6}\b/g);
     if (codes) return codes[0];
-    return `email received without numeric code: ${content.replace(/\s+/g, ' ').trim().slice(0, 2000)}`;
+    return `email received without numeric code: ${content.replace(/\s+/g, ' ').trim()}`;
   }
   return `no email${senderHint ? ` from a sender containing "${senderHint}"` : ''} has arrived at ${addr} yet; call check_email again once the platform has sent it`;
 }

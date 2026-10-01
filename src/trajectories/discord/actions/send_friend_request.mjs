@@ -65,17 +65,17 @@ try {
   await humanClickLocator(s.page, sendBtn);
   const response = await answer;
   const success = response.status() === 204;
-  const outcome = success ? 'sent' : `refused with HTTP ${response.status()}: ${(await response.text()).slice(0, 160)}`;
-  console.log(`[friend_request] outcome=${outcome.slice(0, 200)}`);
+  const outcome = success ? 'sent' : `refused with HTTP ${response.status()}: ${(await response.text())}`;
+  console.log(`[friend_request] outcome=${outcome}`);
 
   if (!acct.id) throw new Error('Discord account has no stable Skarbiec id');
   const list = Array.isArray(acct.metadata?.friend_requests_sent)
     ? [...acct.metadata.friend_requests_sent]
     : [];
-  list.push({ target: TARGET, at: new Date().toISOString(), success, outcome: outcome.slice(0, 200) });
+  list.push({ target: TARGET, at: new Date().toISOString(), success, outcome: outcome });
   updateAccountMetadata(acct.id, { friend_requests_sent: list });
   console.log('[friend_request] persisted metadata.friend_requests_sent[] in Skarbiec');
-  if (!success) { console.log(`FAIL: ${outcome.slice(0, 80)}`); process.exit(1); }
+  if (!success) { console.log(`FAIL: ${outcome}`); process.exit(1); }
   console.log(`PASS: ${acct.username} sent friend request to ${TARGET}`);
 } catch (e) {
   console.log(`FAIL: ${e.message}`);

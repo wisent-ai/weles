@@ -44,7 +44,7 @@ if (process.env.ADD_OOS_ONLY) {
   const formState = await page.evaluate(() => ({
     visibleFields: Array.from(document.querySelectorAll('input, textarea')).filter((el) => el.offsetParent !== null).map((el) => ({
       name: el.name || '',
-      value: (el.value || '').slice(0, 160),
+      value: (el.value || ''),
       len: (el.value || '').length,
       role: el.getAttribute('role') || '',
       invalid: el.getAttribute('aria-invalid') || '',
@@ -53,7 +53,7 @@ if (process.env.ADD_OOS_ONLY) {
       disabled: button.disabled,
       visible: !!button.getClientRects().length,
     })),
-    errors: Array.from(document.querySelectorAll('[aria-invalid="true"], .Mui-error')).map((el) => (el.getAttribute('name') || el.textContent || '').trim().slice(0, 160)).filter(Boolean).slice(0, 20),
+    errors: Array.from(document.querySelectorAll('[aria-invalid="true"], .Mui-error')).map((el) => (el.getAttribute('name') || el.textContent || '').trim()).filter(Boolean).slice(0, 20),
   })); // allow-raw-playwright: read add-form state before save
   console.log(JSON.stringify({ stage: 'formState', formState }));
   const save = await saveRow();

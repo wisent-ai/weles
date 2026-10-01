@@ -79,7 +79,7 @@ async function fieldDump() {
       role: el.getAttribute('role') || '',
       maxlength: el.getAttribute('maxlength') || '',
       placeholder: el.getAttribute('placeholder') || '',
-      label: labelFor(el).slice(0, 120),
+      label: labelFor(el),
       value: (el.value || '').slice(0, 60),
     })).filter((f) => f.name || f.label);
   }); // allow-raw-playwright: read-only field dump

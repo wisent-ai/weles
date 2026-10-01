@@ -75,11 +75,11 @@ if (process.env.DOWNLOAD_CURRENT_PDF) {
 const out = await page.evaluate(() => {
   const visibleText = (document.body.innerText || '').slice(0, 16000);
   const buttons = Array.from(document.querySelectorAll('button, [role="button"], a')).map((e) => ({
-    text: (e.textContent || e.getAttribute('aria-label') || e.getAttribute('title') || '').trim().replace(/\s+/g, ' ').slice(0, 180),
+    text: (e.textContent || e.getAttribute('aria-label') || e.getAttribute('title') || '').trim().replace(/\s+/g, ' '),
     tag: e.tagName,
     href: e.href || e.getAttribute('href') || null,
     disabled: Boolean(e.disabled || e.getAttribute('aria-disabled') === 'true'),
-  })).filter((e) => e.text || e.href).slice(0, 160);
+  })).filter((e) => e.text || e.href);
   const inputs = Array.from(document.querySelectorAll('input, textarea, select')).map((e) => {
     const label = e.id ? document.querySelector(`label[for="${CSS.escape(e.id)}"]`)?.textContent?.trim() : null;
     const wrap = e.closest('label, .MuiFormControl-root, .MuiBox-root, .MuiCard-root, section, form');
@@ -91,10 +91,10 @@ const out = await page.evaluate(() => {
       multiple: Boolean(e.multiple),
       value: (e.value || '').slice(0, 120),
       label,
-      nearby: wrap ? wrap.textContent.trim().replace(/\s+/g, ' ').slice(0, 500) : null,
+      nearby: wrap ? wrap.textContent.trim().replace(/\s+/g, ' ') : null,
     };
   }).filter((e) => e.name || e.type === 'file' || e.label || e.nearby).slice(0, 120);
-  const links = Array.from(document.querySelectorAll('a[href]')).map((a) => ({ text: a.textContent.trim().replace(/\s+/g, ' ').slice(0, 160), href: a.href })).slice(0, 80);
+  const links = Array.from(document.querySelectorAll('a[href]')).map((a) => ({ text: a.textContent.trim().replace(/\s+/g, ' '), href: a.href })).slice(0, 80);
   return { url: location.href, visibleText, buttons, inputs, links };
 }); // allow-raw-playwright: read-only DOM inspection
 if (process.env.SCREENSHOT_PATH) {

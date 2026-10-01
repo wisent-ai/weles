@@ -36,7 +36,7 @@ const result = await page.evaluate(() => {
     title: document.title,
     fields,
     buttons,
-    bodyText: (document.body?.innerText || '').slice(0, 1600),
+    bodyText: (document.body?.innerText || ''),
   };
 });
 

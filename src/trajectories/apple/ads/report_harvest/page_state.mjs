@@ -82,8 +82,7 @@ export async function collectPageState(page) {
           path: cssPath(el),
         };
       })
-      .filter((item) => item.visible || item.text || item.ariaLabel || item.value || item.href)
-      .slice(0, 1000);
+      .filter((item) => item.visible || item.text || item.ariaLabel || item.value || item.href);
 
     const rows = all
       .filter(({ el }) => /^(tr|li|section|article)$/i.test(el.tagName) || el.getAttribute('role') === 'row')
@@ -95,8 +94,7 @@ export async function collectPageState(page) {
         visible: visible(el),
         path: cssPath(el),
       }))
-      .filter((row) => row.visible && row.text)
-      .slice(0, 500);
+      .filter((row) => row.visible && row.text);
 
     const storage = {};
     for (const storeName of ['localStorage', 'sessionStorage']) {

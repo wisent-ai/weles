@@ -62,7 +62,7 @@ async function selectFacebookPage(s) {
     return false;
   }
   await s.page.mouse.click(target.x, target.y);
-  console.log(`[meta-ads] selected Facebook Page: ${target.text.slice(0, 120)}`);
+  console.log(`[meta-ads] selected Facebook Page: ${target.text}`);
   await pageSettled(s.page);
   return true;
 }

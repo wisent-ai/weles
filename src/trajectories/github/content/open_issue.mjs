@@ -10,8 +10,8 @@ import { pageSettled, submitAnswered } from '../../_shared/page/settled.mjs';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 const REPO_URL = process.env.REPO_URL || '';
-const ISSUE_TITLE = (process.env.ISSUE_TITLE || 'question about usage').slice(0, 250);
-const ISSUE_BODY = (process.env.ISSUE_BODY || 'Hi! Following this project. Curious about the roadmap — is there a recommended way to get started?').slice(0, 4000);
+const ISSUE_TITLE = (process.env.ISSUE_TITLE || 'question about usage');
+const ISSUE_BODY = (process.env.ISSUE_BODY || 'Hi! Following this project. Curious about the roadmap — is there a recommended way to get started?');
 
 function normalize(raw) {
   if (!raw) return '';

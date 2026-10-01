@@ -153,7 +153,7 @@ async function repair22() {
   await humanIdlePause('long');
   for (const feature of FEATURES) {
     const current = await page.locator('body').innerText();
-    if (current.includes(feature.cecha.slice(0, 120))) {
+    if (current.includes(feature.cecha)) {
       done.push({ collection: 'cecha', skippedExisting: feature.cecha.slice(0, 80) });
       continue;
     }

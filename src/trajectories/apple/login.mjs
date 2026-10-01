@@ -118,8 +118,8 @@ try {
       opacity: style.opacity,
       disabled: el.disabled,
       readOnly: el.readOnly,
-      hit: hit?.outerHTML.slice(0, 300) ?? null,
-      field: el.outerHTML.slice(0, 300),
+      hit: hit?.outerHTML ?? null,
+      field: el.outerHTML,
     };
   });
   console.log('[apple-login] email actionability:', JSON.stringify(emailActionability));

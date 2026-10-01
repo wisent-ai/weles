@@ -61,7 +61,7 @@ export async function createBotApp({ page, weles, shot }) {
     if (!/api\/apps\.manifest|api\/auth\.test/.test(u)) return;
     try {
       const body = await resp.text();
-      console.log(`[bot][api] ${resp.status()} ${u.split('?')[0]} -> ${body.slice(0, 600)}`);
+      console.log(`[bot][api] ${resp.status()} ${u.split('?')[0]} -> ${body}`);
     } catch (e) { /* body unavailable */ }
   });
 
@@ -89,7 +89,7 @@ export async function createBotApp({ page, weles, shot }) {
     multipart: { manifest, token: xoxc },
   });
   const validate = await validateResp.json();
-  console.log(`[bot][validate] ${JSON.stringify(validate).slice(0, 1500)}`);
+  console.log(`[bot][validate] ${JSON.stringify(validate)}`);
   if (!validate.ok) throw new Error(`[bot] apps.manifest.validate failed: ${JSON.stringify(validate)}`);
 
   const createResp = await page.context().request.post('https://slack.com/api/apps.manifest.create', {
@@ -97,7 +97,7 @@ export async function createBotApp({ page, weles, shot }) {
     multipart: { manifest, token: xoxc },
   });
   const create = await createResp.json();
-  console.log(`[bot][create] ${JSON.stringify(create).slice(0, 1500)}`);
+  console.log(`[bot][create] ${JSON.stringify(create)}`);
   if (!create.ok) {
     throw new Error(`[bot] apps.manifest.create failed: ${JSON.stringify(create)}`);
   }

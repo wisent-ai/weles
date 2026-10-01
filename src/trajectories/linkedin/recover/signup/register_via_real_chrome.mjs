@@ -161,7 +161,7 @@ try {
       }
       await anchorFrame.waitForLoadState('load');
       const v2Sitekey = anchorFrame.url().match(/[?&]k=([0-9A-Za-z_-]+)/)?.[1];
-      console.log(`[reg-real] V2 anchor sitekey=${v2Sitekey?.slice(0, 20)}... url=${anchorFrame.url().slice(0, 80)}`);
+      console.log(`[reg-real] V2 anchor sitekey=${v2Sitekey?.slice(0, 20)}... url=${anchorFrame.url()}`);
       await humanClickLocator(page, anchorFrame.locator('#recaptcha-anchor'));
       console.log('[reg-real] V2 checkbox clicked');
       // Either the checkbox passes on its own (real Chrome often auto-passes
@@ -181,7 +181,7 @@ try {
         if (!bframe) throw new Error('bframe never appeared after V2 click');
         const instruction = await bframe.evaluate(() => document.querySelector('.rc-imageselect-desc, .rc-imageselect-desc-no-canonical')?.innerText ?? '');
         const gridSize = await bframe.evaluate(() => { const t = document.querySelector('table.rc-imageselect-table-44, table.rc-imageselect-table-33, table.rc-imageselect-table'); if (!t) return 3; return t.querySelectorAll('tr')[0]?.querySelectorAll('td').length || 3; });
-        console.log(`[reg-real] V2 grid challenge: "${instruction.replace(/\n/g,' ').slice(0,60)}" ${gridSize}x${gridSize}`);
+        console.log(`[reg-real] V2 grid challenge: "${instruction.replace(/\n/g,' ')}" ${gridSize}x${gridSize}`);
         const gridHandle = await bframe.$('div.rc-imageselect-payload, table.rc-imageselect-table-44, table.rc-imageselect-table-33, table.rc-imageselect-table');
         const gridImg = (await gridHandle.screenshot({ type: 'jpeg', quality: 90 })).toString('base64');
         // NopeCha recognition: one result read; the API has no push or blocking answer.

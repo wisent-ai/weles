@@ -54,7 +54,7 @@ if (process.env.DIAG) {
       max: el.getAttribute('maxlength') || null,
       value: (el.value || '').slice(0, 60),
       label,
-      nearby: wrap ? wrap.textContent.trim().slice(0, 180) : null,
+      nearby: wrap ? wrap.textContent.trim() : null,
     };
   }).filter((f) => f.name || f.label || f.nearby));
   const buttons = await page.evaluate(() => Array.from(document.querySelectorAll('button')).map((b) => b.innerText.trim()).filter(Boolean));
@@ -111,7 +111,7 @@ const readback = await page.evaluate(() => {
   const table = document.querySelector('table');
   return {
     rows: table ? table.querySelectorAll('tbody tr').length : 0,
-    text: (table?.innerText || '').slice(0, 1000),
+    text: (table?.innerText || ''),
   };
 });
 console.log(JSON.stringify({ added, readback }, null, 2));

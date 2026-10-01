@@ -39,7 +39,7 @@ async function jpost(url, body) {
 // 0) sanity: confirm the JWT works at all
 let me = await jget(`${API}/v1/apps?limit=1`);
 if (!me.ok) {
-  console.error('AUTH FAILED', me.status, JSON.stringify(me.j).slice(0, 400));
+  console.error('AUTH FAILED', me.status, JSON.stringify(me.j));
   process.exit(1);
 }
 console.log('auth ok; existing apps visible:', (me.j.data || []).length);
@@ -62,7 +62,7 @@ if (found) {
   const reg = await jpost(`${API}/v1/bundleIds`, {
     data: { type: 'bundleIds', attributes: { identifier: BUNDLE, name: 'Swiatowid', platform: 'IOS' } },
   });
-  if (!reg.ok) { console.error('bundleId create FAILED', reg.status, JSON.stringify(reg.j).slice(0, 500)); process.exit(1); }
+  if (!reg.ok) { console.error('bundleId create FAILED', reg.status, JSON.stringify(reg.j)); process.exit(1); }
   bid = reg.j.data.id;
   console.log('bundleId registered:', bid);
 }
@@ -79,5 +79,5 @@ if (create.ok) {
   console.log('APP_CREATED', create.j.data?.id, NAME);
   process.exit(0);
 }
-console.error('app create FAILED', create.status, JSON.stringify(create.j).slice(0, 900));
+console.error('app create FAILED', create.status, JSON.stringify(create.j));
 process.exit(1);

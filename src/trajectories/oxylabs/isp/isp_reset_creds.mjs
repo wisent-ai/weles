@@ -33,7 +33,7 @@ try {
   await humanIdlePause('long');
 
   // 1. Read all visible text — find the existing proxy user name (full, with suffix).
-  const text = await s.page.evaluate(() => (document.body && document.body.innerText || '').slice(0, 8000));
+  const text = await s.page.evaluate(() => (document.body && document.body.innerText || ''));
   // Look for "wisentisp..." pattern with optional _XXX suffix
   const userMatch = text.match(/\bwisentisp\w+\b/);
   const fullUsername = userMatch ? userMatch[0] : null;

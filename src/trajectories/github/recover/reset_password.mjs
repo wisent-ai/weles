@@ -98,7 +98,7 @@ try {
     }
   }
   if (!resetUrl) throw new Error('no reset email received');
-  console.log(`[reset] Reset URL: ${resetUrl.slice(0, 60)}...`);
+  console.log(`[reset] Reset URL: ${resetUrl}...`);
 
   await s.goto(resetUrl);
   await pageSettled(s.page);

@@ -30,7 +30,7 @@ if (process.env.ONLY_MAIN === '1') {
     mode: 'ONLY_MAIN',
     lengths: evidence.sourceLengths,
     chips: evidence.readback.chips,
-    tables: evidence.readback.tables.map((t) => ({ i: t.i, rows: t.rows, sample: t.text.slice(0, 240) })),
+    tables: evidence.readback.tables.map((t) => ({ i: t.i, rows: t.rows, sample: t.text })),
     fields: evidence.readback.fields.filter((f) => /opis_rezultatu|wplyw_rezultatu/.test(f.name)).map((f) => ({ name: f.name.split('.').at(-1), len: f.len, max: f.max, suffix: f.suffix.slice(-80) })),
   }, null, 2));
   process.exit(0);
@@ -52,7 +52,7 @@ console.log(JSON.stringify({
   out: OUT,
   lengths: evidence.sourceLengths,
   chips: evidence.readback.chips,
-  tables: evidence.readback.tables.map((t) => ({ i: t.i, rows: t.rows, sample: t.text.slice(0, 240) })),
+  tables: evidence.readback.tables.map((t) => ({ i: t.i, rows: t.rows, sample: t.text })),
   fields: evidence.readback.fields.filter((f) => /opis_rezultatu|wplyw_rezultatu/.test(f.name)).map((f) => ({ name: f.name.split('.').at(-1), len: f.len, max: f.max, suffix: f.suffix.slice(-80) })),
   screenshot: evidence.screenshot?.path,
 }, null, 2));

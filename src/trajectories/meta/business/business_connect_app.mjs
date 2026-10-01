@@ -50,7 +50,7 @@ async function snapshot(page, label) {
         const rect = el.getBoundingClientRect();
         const text = textOf(el) || el.getAttribute('placeholder') || '';
         return {
-          text: text.slice(0, 200),
+          text: text,
           role: el.getAttribute('role') || el.tagName.toLowerCase(),
           placeholder: el.getAttribute('placeholder') || '',
           disabled: el.disabled === true || el.getAttribute('aria-disabled') === 'true',
@@ -58,8 +58,7 @@ async function snapshot(page, label) {
           y: Math.round(rect.top + rect.height / 2),
         };
       })
-      .filter((item) => item.text || item.placeholder)
-      .slice(0, 100);
+      .filter((item) => item.text || item.placeholder);
     const bodyText = textOf(document.body);
     return {
       title: document.title || null,
@@ -123,7 +122,7 @@ async function clickFirst(page, label, allow, deny = /delete|remove|usuń|anuluj
   if (!target) return null;
   await page.mouse.click(target.x, target.y);
   await pageSettled(page);
-  console.log(JSON.stringify({ stage: 'clicked', label, text: target.text.slice(0, 180), x: target.x, y: target.y }));
+  console.log(JSON.stringify({ stage: 'clicked', label, text: target.text, x: target.x, y: target.y }));
   return target;
 }
 
@@ -172,10 +171,10 @@ try {
   if (!submitted) throw new Error('Meta did not expose an enabled app connect submit button');
   const result = await snapshot(s.page, 'after_submit');
   if (result.statusHints.technicalError) {
-    throw new Error(`Meta returned a technical error while connecting app ${APP_ID}: ${result.bodyText.slice(0, 500)}`);
+    throw new Error(`Meta returned a technical error while connecting app ${APP_ID}: ${result.bodyText}`);
   }
   if (result.statusHints.permissionDenied) {
-    throw new Error(`Meta refused app connection for app ${APP_ID}: ${result.bodyText.slice(0, 500)}`);
+    throw new Error(`Meta refused app connection for app ${APP_ID}: ${result.bodyText}`);
   }
   console.log('PASS: Meta app connection flow submitted');
 } catch (error) {

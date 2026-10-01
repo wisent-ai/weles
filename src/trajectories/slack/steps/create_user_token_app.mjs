@@ -203,7 +203,7 @@ export async function createUserTokenApp({ page, shot, appId: requestedAppId = '
     multipart: { manifest, token: xoxc },
   });
   const validate = await validateResp.json();
-  console.log(`[user-token][validate] ${JSON.stringify(validate).slice(0, 1500)}`);
+  console.log(`[user-token][validate] ${JSON.stringify(validate)}`);
   if (!validate.ok) throw new Error(`[user-token] apps.manifest.validate failed: ${JSON.stringify(validate)}`);
 
   const createResp = await page.context().request.post('https://slack.com/api/apps.manifest.create', {
@@ -211,7 +211,7 @@ export async function createUserTokenApp({ page, shot, appId: requestedAppId = '
     multipart: { manifest, token: xoxc },
   });
   const create = await createResp.json();
-  console.log(`[user-token][create] ${JSON.stringify(create).slice(0, 1500)}`);
+  console.log(`[user-token][create] ${JSON.stringify(create)}`);
   if (!create.ok) throw new Error(`[user-token] apps.manifest.create failed: ${JSON.stringify(create)}`);
   const appId = create.app_id;
   if (!appId) throw new Error(`[user-token] apps.manifest.create returned no app_id: ${JSON.stringify(create)}`);

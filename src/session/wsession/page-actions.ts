@@ -48,7 +48,7 @@ export async function wsFocus(s: WSession, selector: string): Promise<string> {
 }
 
 export async function wsClickSelector(s: WSession, selector: string): Promise<string> {
-  return s.runStep(`clickSel_${selector.slice(0,30)}`, async () => { const loc = s.page.locator(selector).first(); if (!(await loc.count())) return 'no-element-found'; await humanClickLocator(s.page, loc); return `clicked ${selector.slice(0,60)}`; });
+  return s.runStep(`clickSel_${selector.slice(0,30)}`, async () => { const loc = s.page.locator(selector).first(); if (!(await loc.count())) return 'no-element-found'; await humanClickLocator(s.page, loc); return `clicked ${selector}`; });
 }
 
 export async function wsJsClick(s: WSession, selector?: string, text?: string): Promise<string> {
@@ -61,7 +61,7 @@ export async function wsJsClick(s: WSession, selector?: string, text?: string): 
       if (selector) {
         try {
           const loc = frame.locator(selector).first();
-          if (await loc.count()) { await loc.click(); return `clicked frame: ${selector.slice(0, 60)}`; }
+          if (await loc.count()) { await loc.click(); return `clicked frame: ${selector}`; }
         } catch { /* try frame eval */ }
       }
       if (text) {
@@ -69,22 +69,22 @@ export async function wsJsClick(s: WSession, selector?: string, text?: string): 
           const loc = frame.getByText(new RegExp(text, 'i')).first();
           if (await loc.count() && await loc.isVisible().catch(() => false)) {
             await humanClickLocator(s.page, loc);
-            return `clicked frame text: ${text.slice(0, 60)}`;
+            return `clicked frame text: ${text}`;
           }
         } catch { /* try frame eval */ }
       }
       const frameHit = await frame.evaluate(`(()=>{function F(r,s){var a=Array.from(r.querySelectorAll(s));r.querySelectorAll('*').forEach(function(e){if(e.shadowRoot)a=a.concat(F(e.shadowRoot,s))});return a}var s=${sel},t=${txt};function fire(e){e.click();if((e instanceof HTMLInputElement)&&(e.type==='checkbox'||e.type==='radio')){e.checked=true;e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}))}}if(s){try{var e=F(document,s)[0];if(e){fire(e);return'clicked-frame-untrusted: '+s}}catch(e){}}if(t){var els=F(document,'label,button,a,[role="button"],[role="checkbox"],[role="radio"],input[type="checkbox"],input[type="radio"]');for(var i=0;i<els.length;i++){var x=((els[i].textContent||'')+(els[i].getAttribute('aria-label')||'')+(els[i].getAttribute('name')||'')).toLowerCase();if(x.indexOf(t)>=0){fire(els[i]);var forId=els[i].getAttribute&&els[i].getAttribute('for');if(forId){var input=document.getElementById(forId);if(input)fire(input)}return'clicked-frame-untrusted: '+x.trim().slice(0,40)}}}return null})()`);
       if (frameHit) return frameHit;
     }
-    if (selector) { try { const loc = s.page.locator(selector).first(); if (await loc.count()) { await loc.click(); return `clicked: ${selector.slice(0, 60)}`; } } catch { /* try eval */ } }
-    if (text) { try { const loc = s.page.getByRole('button', { name: new RegExp(text, 'i') }).first(); if (await loc.count()) { await loc.click(); return `clicked text: ${text.slice(0, 60)}`; } } catch { /* try eval */ } }
+    if (selector) { try { const loc = s.page.locator(selector).first(); if (await loc.count()) { await loc.click(); return `clicked: ${selector}`; } } catch { /* try eval */ } }
+    if (text) { try { const loc = s.page.getByRole('button', { name: new RegExp(text, 'i') }).first(); if (await loc.count()) { await loc.click(); return `clicked text: ${text}`; } } catch { /* try eval */ } }
     const r = await s.page.evaluate(`(()=>{function F(r,s){var a=Array.from(r.querySelectorAll(s));r.querySelectorAll('*').forEach(function(e){if(e.shadowRoot)a=a.concat(F(e.shadowRoot,s))});return a}var s=${sel},t=${txt};if(s){try{var e=F(document,s)[0];if(e){e.click();return'clicked-untrusted: '+s}}catch(e){}}if(t){var els=F(document,'button,a,[role="button"],[class*="vote"],[class*="like"],[class*="star"],[class*="follow"]');for(var i=0;i<els.length;i++){var x=((els[i].textContent||'')+(els[i].getAttribute('aria-label')||'')).toLowerCase();if(x.indexOf(t)>=0){els[i].click();return'clicked-untrusted: '+(els[i].getAttribute('aria-label')||els[i].textContent||'').trim().slice(0,40)}}}return null})()`);
     return r ?? 'no-element-found';
   });
 }
 
 export async function wsSetControl(s: WSession, selector: string, value?: unknown, checked?: unknown): Promise<string> {
-  return s.runStep(`setControl_${selector.slice(0, 60)}`, async () => {
+  return s.runStep(`setControl_${selector}`, async () => {
     if (!selector.trim()) return 'no-selector';
     const resolvedValue = typeof value === 'string' ? assertNonCredentialInput(value, selector) : value;
     const desiredChecked = typeof checked === 'boolean' ? checked : undefined;
@@ -151,7 +151,7 @@ export async function wsSetControl(s: WSession, selector: string, value?: unknow
           validation,
         };
         }, { value: resolvedValue, checked: desiredChecked }).catch((error: Error) => ({ error: error.message }));
-        if (result) return `set_control ${JSON.stringify(result).slice(0, 500)}`;
+        if (result) return `set_control ${JSON.stringify(result)}`;
       } finally {
         await handle.dispose();
       }

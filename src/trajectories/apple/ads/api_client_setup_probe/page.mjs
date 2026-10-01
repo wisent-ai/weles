@@ -17,11 +17,10 @@ export function stableProfilePersona() {
 export async function pageDiag(page, label) {
   const frameStates = await Promise.all(page.frames().map(async (frame) => {
     return await frame.evaluate(() => {
-      const text = (document.body?.innerText || '').replace(/\s+/g, ' ').slice(0, 5000);
+      const text = (document.body?.innerText || '').replace(/\s+/g, ' ');
       const buttons = Array.from(document.querySelectorAll('button, [role="button"], a'))
         .map((b) => (b.innerText || b.textContent || b.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim())
-        .filter(Boolean)
-        .slice(0, 80);
+        .filter(Boolean);
       const inputs = Array.from(document.querySelectorAll('input, textarea'))
         .map((el) => ({
           tag: el.tagName,
@@ -29,21 +28,18 @@ export async function pageDiag(page, label) {
           name: el.getAttribute('name') || '',
           label: el.getAttribute('aria-label') || el.getAttribute('placeholder') || '',
           visible: Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length),
-        }))
-        .slice(0, 80);
+        }));
       return { url: location.href, title: document.title, text, buttons, inputs };
     }).catch((e) => ({ error: e.message, url: frame.url?.() ?? '' }));
   }));
   const data = await page.evaluate(() => {
-    const text = (document.body?.innerText || '').replace(/\s+/g, ' ').slice(0, 5000);
+    const text = (document.body?.innerText || '').replace(/\s+/g, ' ');
     const links = Array.from(document.querySelectorAll('a'))
       .map((a) => ({ text: (a.innerText || a.textContent || '').replace(/\s+/g, ' ').trim(), href: a.href }))
-      .filter((a) => a.text || a.href)
-      .slice(0, 80);
+      .filter((a) => a.text || a.href);
     const buttons = Array.from(document.querySelectorAll('button, [role="button"]'))
       .map((b) => (b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim())
-      .filter(Boolean)
-      .slice(0, 80);
+      .filter(Boolean);
     const inputs = Array.from(document.querySelectorAll('input, textarea'))
       .map((el) => ({
         tag: el.tagName,
@@ -51,8 +47,7 @@ export async function pageDiag(page, label) {
         name: el.getAttribute('name') || '',
         label: el.getAttribute('aria-label') || el.getAttribute('placeholder') || '',
         visible: Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length),
-      }))
-      .slice(0, 80);
+      }));
     return { url: location.href, title: document.title, text, links, buttons, inputs };
   }).catch((e) => ({ error: e.message, url: page.url?.() ?? '' }));
   data.frames = frameStates;

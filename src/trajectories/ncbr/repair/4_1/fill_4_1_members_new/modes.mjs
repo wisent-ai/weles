@@ -20,7 +20,7 @@ if (process.env.DIAG) {
   const info = await page.evaluate(() => Array.from(document.querySelectorAll('input, textarea')).map((i) => {
     const label = i.id ? document.querySelector(`label[for="${CSS.escape(i.id)}"]`)?.textContent?.trim() : null;
     const wrap = i.closest('label, .MuiFormControlLabel-root, .MuiFormGroup-root, .MuiBox-root');
-    return { tag: i.tagName, type: i.type || null, name: i.name || null, value: i.value || null, role: i.getAttribute('role'), max: i.getAttribute('maxlength'), label, nearby: wrap ? wrap.textContent.trim().slice(0, 140) : null };
+    return { tag: i.tagName, type: i.type || null, name: i.name || null, value: i.value || null, role: i.getAttribute('role'), max: i.getAttribute('maxlength'), label, nearby: wrap ? wrap.textContent.trim() : null };
   }).filter((x) => x.name || x.label));
   console.log(JSON.stringify({ parsedMembers: members().length, fields: info }, null, 2));
   process.exit(0);
@@ -49,7 +49,7 @@ if (process.env.DIAG_EDIT !== undefined) {
       tag: i.tagName,
       name: i.name || null,
       valueLength: (i.value || '').length,
-      value: (i.value || '').slice(0, 120),
+      value: (i.value || ''),
       max: i.getAttribute('maxlength'),
       readOnly: i.readOnly,
     })).filter((x) => x.name),
@@ -66,7 +66,7 @@ if (process.env.DIAG_BUTTONS !== undefined) {
     i,
     text: b.innerText.trim(),
     disabled: b.disabled,
-    context: (b.closest('div')?.innerText || '').replace(/\s+/g, ' ').slice(0, 400),
+    context: (b.closest('div')?.innerText || '').replace(/\s+/g, ' '),
   })).filter((b) => b.text));
   console.log(JSON.stringify({ row: idx, buttons }, null, 2));
   process.exit(0);
@@ -86,7 +86,7 @@ if (process.env.DIAG_SUB !== undefined) {
       tag: i.tagName,
       type: i.type || null,
       name: i.name || null,
-      value: (i.value || '').slice(0, 120),
+      value: (i.value || ''),
       max: i.getAttribute('maxlength'),
       label: i.id ? document.querySelector(`label[for="${CSS.escape(i.id)}"]`)?.textContent?.trim() : null,
     })).filter((x) => x.name || x.label),
@@ -149,7 +149,7 @@ if (process.env.REPAIR_EXP) {
     const table = document.querySelector('table');
     return {
       rows: table ? table.querySelectorAll('tbody tr').length : 0,
-      text: (table?.innerText || '').replace(/\s+/g, ' ').slice(0, 1000),
+      text: (table?.innerText || '').replace(/\s+/g, ' '),
     };
   });
   console.log(JSON.stringify({ repaired, readback }, null, 2));

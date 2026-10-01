@@ -86,7 +86,7 @@ export class CaptchaSolver {
     const task: Record<string, any> = { type: 'AntiCloudflareTask', websiteURL: url };
     if (proxyStr) task.proxy = proxyStr;
     if (options?.userAgent) task.userAgent = options.userAgent;
-    console.log(`[captcha:solver] solveCloudflare url=${url.slice(0, 80)} proxy=${!!proxyStr} ua=${!!options?.userAgent}`);
+    console.log(`[captcha:solver] solveCloudflare url=${url} proxy=${!!proxyStr} ua=${!!options?.userAgent}`);
     const res = await (await fetch('https://api.capsolver.com/createTask', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ clientKey: this._creds.capsolver, task }),
@@ -111,7 +111,7 @@ export class CaptchaSolver {
     const userAgent = sol.userAgent ?? '';
     const cookies = (sol.cookies && typeof sol.cookies === 'object') ? sol.cookies : {};
     if (!token) { console.log('[captcha:api] capsolver AntiCloudflare returned no token'); markAllProvidersFailed('cloudflare'); return null; }
-    console.log(`[captcha:solver] Cloudflare solved via capsolver token=${token.slice(0, 20)}... ua=${userAgent.slice(0, 60)}`);
+    console.log(`[captcha:solver] Cloudflare solved via capsolver token=${token.slice(0, 20)}... ua=${userAgent}`);
     costTracker.recordCaptcha('capsolver', 'cloudflare');
     return { token, userAgent, cookies };
   }
@@ -182,7 +182,7 @@ export class CaptchaSolver {
         if (pp.username) task.proxyLogin = decodeURIComponent(pp.username);
         if (pp.password) task.proxyPassword = decodeURIComponent(pp.password);
       }
-      console.log(`[captcha:api] capsolver AntiPerimeterx createTask type=${task.type} url=${url.slice(0, 80)}`);
+      console.log(`[captcha:api] capsolver AntiPerimeterx createTask type=${task.type} url=${url}`);
       try {
         const cr = await (await fetch('https://api.capsolver.com/createTask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: this._creds.capsolver, task }) })).json() as any;
         if (cr.errorId) console.log(`[captcha:api] capsolver AntiPerimeterx createTask err: ${cr.errorCode} ${cr.errorDescription}`);
@@ -211,7 +211,7 @@ export class CaptchaSolver {
       const p = new URL(proxy);
       body.proxy = p.username ? `${p.username}:${p.password}@${p.hostname}:${p.port}` : `${p.hostname}:${p.port}`;
     }
-    console.log(`[captcha:api] nocaptcha PerimeterX solve href=${url.slice(0, 80)} proxy=${!!proxy}`);
+    console.log(`[captcha:api] nocaptcha PerimeterX solve href=${url} proxy=${!!proxy}`);
     try {
       const r = await fetch('http://api.nocaptcha.io/api/wanda/perimeterx/universal', {
         method: 'POST',
@@ -219,7 +219,7 @@ export class CaptchaSolver {
         body: JSON.stringify(body),
       });
       const j = await r.json() as any;
-      if (j?.status !== 1) { console.log(`[captcha:api] nocaptcha PerimeterX err status=${j?.status} msg=${j?.msg ?? j?.message ?? JSON.stringify(j).slice(0, 200)}`); markAllProvidersFailed('perimeterx'); return null; }  // G8
+      if (j?.status !== 1) { console.log(`[captcha:api] nocaptcha PerimeterX err status=${j?.status} msg=${j?.msg ?? j?.message ?? JSON.stringify(j)}`); markAllProvidersFailed('perimeterx'); return null; }  // G8
       const out: Array<{ name: string; value: string; domain: string; path: string }> = [];
       const dot = u.hostname.startsWith('www.') ? u.hostname.slice(3) : ('.' + u.hostname);
       for (const [name, value] of Object.entries(j.data?.cookies ?? {})) out.push({ name, value: String(value), domain: dot, path: '/' });
