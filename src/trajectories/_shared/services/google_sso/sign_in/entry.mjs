@@ -8,7 +8,7 @@
 // "already signed in" from "cannot sign in".
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../../../../dist/human/mouse.js';
-import { pageSettled, urlMatching } from '../../../page/settled.mjs';
+import { pageSettled, submitAnswered } from '../../../page/settled.mjs';
 import { logGooglePageDiag } from '../page_diagnostics.mjs';
 
 // A click on a Google sign-in control either moves the page to another URL or
@@ -16,11 +16,7 @@ import { logGooglePageDiag } from '../page_diagnostics.mjs';
 // wait, and the page then settles before it is read.
 async function googleAnswered(page, beforeUrl) {
   const message = page.locator('[aria-live="assertive"]').filter({ hasText: /\S/ }).filter({ visible: true }).first();
-  await Promise.any([
-    urlMatching(page, (u) => u !== beforeUrl),
-    message.waitFor({ state: 'visible' }),
-  ]);
-  await pageSettled(page);
+  await submitAnswered(page, url => url === beforeUrl, message);
 }
 
 // { at: 'caller_site' }  Google finished and the browser is back on the caller's
@@ -51,20 +47,19 @@ export async function reachGooglePasswordStep(page, creds) {
       .filter({ visible: true })
       .last()
       .or(page.getByText(creds.email, { exact: true }).filter({ visible: true }).first());
-    if (await accountOption.isVisible().catch(() => false)) {
+    if (await accountOption.isVisible()) {
       console.log(`[google_sso] selecting known account (${creds.email})`);
       const beforeUrl = page.url();
-      await humanClickLocator(page, accountOption).catch(() => accountOption.click({ force: true }));
+      await humanClickLocator(page, accountOption);
       await googleAnswered(page, beforeUrl);
     } else {
       // The declared account is not on the list. "Use another account" leads to
-      // the identifier step this function already knows how to drive; without
-      // it the run sits on the chooser until it times out.
+      // the identifier step; without it, the chooser offers no fresh entry.
       const another = page.getByText(/use another account/i).filter({ visible: true }).first();
-      if (await another.isVisible().catch(() => false)) {
+      if (await another.isVisible()) {
         console.log('[google_sso] account not listed on the chooser; choosing another account');
         const beforeUrl = page.url();
-        await humanClickLocator(page, another).catch(() => another.click({ force: true }));
+        await humanClickLocator(page, another);
         await googleAnswered(page, beforeUrl);
       }
     }
@@ -77,9 +72,9 @@ export async function reachGooglePasswordStep(page, creds) {
     const continueButton = page.getByRole('button', { name: /^(Continue|Allow)$/i })
       .filter({ visible: true })
       .first();
-    if (await continueButton.isVisible().catch(() => false)) {
+    if (await continueButton.isVisible()) {
       const beforeUrl = page.url();
-      await humanClickLocator(page, continueButton).catch(() => continueButton.click({ force: true }));
+      await humanClickLocator(page, continueButton);
       await googleAnswered(page, beforeUrl);
       if (!/accounts\.google\.com/.test(page.url())) {
         console.log(`[google_sso] consent returned to ${page.url()}`);
@@ -90,7 +85,7 @@ export async function reachGooglePasswordStep(page, creds) {
 
   const emailIn = page.locator('input[type="email"], input[name="identifier"], input#identifierId').filter({ visible: true }).first();
   let pwInVisible = await page.locator('input[type="password"], input[name="Passwd"]').filter({ visible: true }).count();
-  if (!await emailIn.isVisible().catch(() => false) && pwInVisible === 0) {
+  if (!await emailIn.isVisible() && pwInVisible === 0) {
     await pageSettled(page);
     if (!/accounts\.google\.com/.test(page.url())) {
       console.log(`[google_sso] account selection returned to ${page.url()}`);
@@ -100,7 +95,7 @@ export async function reachGooglePasswordStep(page, creds) {
       .filter({ visible: true })
       .count();
   }
-  if (await emailIn.isVisible().catch(() => false)) {
+  if (await emailIn.isVisible()) {
     await humanFill(page, emailIn, creds.email);
     console.log(`[google_sso] identifier filled (${creds.email})`);
 

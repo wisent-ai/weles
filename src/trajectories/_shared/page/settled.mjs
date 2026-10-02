@@ -143,7 +143,7 @@ export async function popupOrNavigation(page, pattern, action) {
 }
 
 // A form submit is answered either by the page leaving the form's URL (`stays`
-// is a RegExp that matches while the form is shown) or by the page's own
+// uses the same pattern contract as urlMatching) or by the page's own
 // message (`message`, a locator) becoming visible. Resolves 'navigated' or
 // 'message' once the answer has come and the page has settled.
 export async function submitAnswered(page, stays, message) {
@@ -153,7 +153,7 @@ export async function submitAnswered(page, stays, message) {
         throw Object.assign(new Error(`page closed before the form answered; last URL ${page.url()}`),
           { code: 'PAGE_CLOSED', pageUrl: page.url() });
       }
-      const answer = !stays.test(page.url()) ? 'navigated'
+      const answer = !matchesUrl(stays, page.url()) ? 'navigated'
         : await message.isVisible() ? 'message' : null;
       if (answer) {
         await pageSettled(page);

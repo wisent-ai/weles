@@ -8,14 +8,18 @@
 // state of a live page, so the step reads the settled page, answers the state
 // it shows once, and names the state it cannot leave.
 import { humanClickLocator } from '../../../../../../dist/human/mouse.js';
-import { pageSettled, urlMatching } from '../../../page/settled.mjs';
+import { pageSettled, submitAnswered, urlMatching } from '../../../page/settled.mjs';
 import { collectGoogleAuthMethods, logGooglePageDiag } from '../page_diagnostics.mjs';
 import { resolveTotpSecret } from '../totp_secret.mjs';
 import { clickTryAnotherWay, handleGoogleAuthenticatorTotp } from '../authenticator_challenge.mjs';
 
-// Settles `page`, or resolves when it closes first.
-async function settledOrClosed(page) {
-  await Promise.any([page.waitForEvent('close'), pageSettled(page)]);
+// Only closure of the owned OAuth popup can replace page readiness.
+async function settledOrClosed(page, isPopup) {
+  try {
+    await pageSettled(page);
+  } catch (error) {
+    if (!isPopup || !page.isClosed()) throw error;
+  }
 }
 
 // true when the browser reached the caller's own site (or left Google for it);
@@ -27,7 +31,7 @@ export async function watchGoogleRedirect(page, session, creds, opts) {
   let phonePromptChosen = false;
   const consentAnswered = new Set();
   for (;;) {
-    if (!(isPopup && page.isClosed?.())) await settledOrClosed(page);
+    if (!(isPopup && page.isClosed?.())) await settledOrClosed(page, isPopup);
     if (isPopup && page.isClosed?.()) {
       console.log('[google_sso] OAuth popup closed; checking main page');
       await pageSettled(session.page);
@@ -125,7 +129,7 @@ export async function watchGoogleRedirect(page, session, creds, opts) {
     // by moving the page on, or by saying in place why it will not.
     if (/challenge\/pwd/.test(u)) {
       const message = page.locator('[aria-live="assertive"]').filter({ hasText: /\S/ }).filter({ visible: true }).first();
-      await Promise.any([urlMatching(page, (next) => next !== u), message.waitFor({ state: 'visible' })]);
+      await submitAnswered(page, next => next === u, message);
       if (page.url() === u) {
         await logGooglePageDiag(page, 'password_refused');
         console.log(`[google_sso] FAIL: google_password_refused — ${(await message.innerText())}`);
