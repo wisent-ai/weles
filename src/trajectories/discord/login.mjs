@@ -1,4 +1,4 @@
-import { pageCondition, pageSettled } from '../_shared/page/settled.mjs';
+import { pageCondition, pageSettled, responseAfterAction } from '../_shared/page/settled.mjs';
 import { solverTaskResult } from '../_shared/captcha/solver_task.mjs';
 import { getSocialAccount } from '../../../dist/utils/credentials.js';
 import { resolveAccountSession } from '../../../dist/account/session.js';
@@ -10,8 +10,8 @@ import { getReceived, listReceived } from '../../_shared/resend-receiving.mjs';
 const URL = 'https://discord.com/login';
 
 const acct = await getSocialAccount('discord');
-if (!acct) { console.log('FAIL: no active discord account in Skarbiec'); process.exitCode = 1; }
-if (!acct.metadata.password) { console.log(`FAIL: account ${acct.username} has no password`); process.exitCode = 1; }
+if (!acct) throw Object.assign(new Error('No active Discord account in Skarbiec'), { code: 'DISCORD_ACCOUNT_UNAVAILABLE' });
+if (!acct.metadata?.password) throw Object.assign(new Error(`Discord account ${acct.username} has no password`), { code: 'DISCORD_PASSWORD_UNAVAILABLE' });
 process.env.SVC_EMAIL = acct.metadata.email ?? acct.username;
 process.env.SVC_PASSWORD = acct.metadata.password;
 const accountSession = await resolveAccountSession(acct);
@@ -145,11 +145,25 @@ try {
       if (!authorizeLink) throw new Error(`discord_login: verification mail ${verifyMail.id} carries no authorize-ip link`);
       console.log('[login] Found authorize-ip link, opening in new tab...');
       const newPage = await s.ctx.newPage();
-      const authorized = newPage.waitForResponse((resp) => resp.url().includes('authorize-ip') && resp.request().method() === 'POST');
-      await newPage.goto(authorizeLink, { waitUntil: 'domcontentloaded' });
-      const authorizeResponse = await authorized;
-      console.log(`[login] authorize-ip API: ${authorizeResponse.status()}`);
-      await newPage.close();
+      try {
+        const authorizeResponse = await responseAfterAction(newPage,
+          (request) => request.url().includes('authorize-ip') && request.method() === 'POST',
+          () => newPage.goto(authorizeLink, { waitUntil: 'domcontentloaded' }));
+        const status = authorizeResponse.status();
+        const requestUrl = authorizeResponse.url();
+        let body;
+        try {
+          body = await authorizeResponse.text();
+        } catch (cause) {
+          throw Object.assign(new Error(`Discord IP authorization response could not be read at ${requestUrl}`, { cause }),
+            { code: 'DISCORD_IP_AUTHORIZATION_RESPONSE_FAILED', requestMethod: 'POST', requestUrl, status });
+        }
+        console.log(`[login] authorize-ip API: ${status}`);
+        if (!authorizeResponse.ok()) throw Object.assign(new Error(`Discord IP authorization refused with HTTP ${status}: ${body}`),
+          { code: 'DISCORD_IP_AUTHORIZATION_REFUSED', requestMethod: 'POST', requestUrl, status });
+      } finally {
+        if (!newPage.isClosed()) await newPage.close();
+      }
       await pageSettled(s.page);
       // After IP authorize, re-fire the /api/v9/auth/login XHR directly
       // (same path the captcha-success branch uses).
@@ -190,15 +204,26 @@ try {
     const dir = runRecordingsDir('discord_login');
     fs.mkdirSync(dir, { recursive: true });
     const finalUrl = s?.page?.url?.() ?? '';
-    const msg = e.message ?? '';
+    const msg = e?.message ?? String(e);
     let sig = 'action_failed';
     if (/ERR_HTTP_RESPONSE_CODE_FAILURE|ERR_BLOCKED_BY_RESPONSE|ERR_BLOCKED_BY_CLIENT|ERR_BLOCKED_BY_ADMINISTRATOR/.test(msg)) sig = 'ip_blocked';
     else if (/ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED/.test(msg)) sig = 'proxy_failed';
     else if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
     else if (/hcaptcha|captcha/i.test(msg) || /\/login/.test(finalUrl)) sig = 'checkpoint';
-    fs.writeFileSync(path.join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'discord_login', signal: sig, healthy: false, details: { final_url: finalUrl, reason: e.message ?? 'no message' }, ts: new Date().toISOString() }, null, 2));
-  } catch {}
-  console.log('FAIL:', e.message);
+    fs.writeFileSync(path.join(dir, 'ban_signal.json'), JSON.stringify({
+      account_id: acct.id, username: acct.username, action: 'discord_login', signal: sig, healthy: false,
+      details: {
+        final_url: finalUrl, reason: msg, error_code: e?.code,
+        request_method: e?.requestMethod, request_url: e?.requestUrl, response_status: e?.status,
+        operation_page_url: e?.pageUrl, network_error: e?.errorText,
+        cause: e?.cause === undefined ? undefined : String(e.cause),
+      },
+      ts: new Date().toISOString(),
+    }, null, 2));
+  } catch (reportError) {
+    console.log('[login] Failed to record ban_signal:', reportError);
+  }
+  console.log('FAIL:', e);
   process.exitCode = 1;
 } finally {
   await s.close();
