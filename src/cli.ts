@@ -105,6 +105,9 @@ async function runOpen(parsed: ParsedCli): Promise<void> {
   routeConsoleToStderr();
   const { AsyncNewBrowser } = await import('./async_api.js');
   const context = await AsyncNewBrowser(cliOptionsToBrowserOptions(parsed.options));
+  let out: Record<string, unknown> | undefined;
+  let operationError: unknown;
+  let operationFailed = false;
   try {
     const page = await context.newPage();
     const response = await page.goto(url, { waitUntil: 'domcontentloaded' });
@@ -112,7 +115,7 @@ async function runOpen(parsed: ParsedCli): Promise<void> {
       await page.getByText(parsed.options['wait-for-text'], { exact: false }).first().waitFor({ state: 'visible' });
     }
     const title = await page.title();
-    const out: Record<string, unknown> = {
+    out = {
       ok: true,
       url: page.url(),
       title,
@@ -127,10 +130,25 @@ async function runOpen(parsed: ParsedCli): Promise<void> {
       out.text = await page.locator('body').innerText();
     }
 
-    printAnswer(out, parsed.options.json === true);
+  } catch (error) {
+    operationError = error;
+    operationFailed = true;
+    throw error;
   } finally {
-    await context.close().catch(() => undefined);
+    try {
+      await context.close();
+    } catch (closeError) {
+      const closeDetail = closeError instanceof Error ? closeError.message : String(closeError);
+      if (operationFailed) {
+        const operationDetail = operationError instanceof Error ? operationError.message : String(operationError);
+        throw new AggregateError([operationError, closeError],
+          `${parsed.command} failed: ${operationDetail}; browser close failed: ${closeDetail}`);
+      }
+      throw new Error(`closing browser after ${parsed.command} failed: ${closeDetail}`, { cause: closeError });
+    }
   }
+  if (!out) throw new Error(`${parsed.command} completed without a navigation result`);
+  printAnswer(out, parsed.options.json === true);
 }
 
 async function runScreenshot(parsed: ParsedCli): Promise<void> {
