@@ -20,7 +20,8 @@ const targetReader = 'src/trajectories/_shared/discord/message-target.mjs';
 const replyReader = 'src/trajectories/_shared/discord/response.mjs';
 const profile = 'src/trajectories/discord/actions/passive/view_profile.mjs';
 const invite = 'src/trajectories/discord/actions/join_server.mjs';
-for (const path of [friend, forum, thread, reply, profile, invite, targetReader, replyReader, 'tests/discord/action-preflight.mjs']) {
+const directMessage = 'src/trajectories/discord/actions/engagement/dm.mjs';
+for (const path of [friend, forum, thread, reply, profile, invite, directMessage, targetReader, replyReader, 'tests/discord/action-preflight.mjs']) {
   evidence.report.source_sha256[path] = createHash('sha256').update(await readFile(join(root, path))).digest('hex');
 }
 const scenarios = [
@@ -51,6 +52,9 @@ const scenarios = [
   { name: 'credential_bearing_invite_url', entry: invite,
     settings: { INVITE_URL: 'https://operator:example@discord.gg/abc123' },
     diagnostics: ['DISCORD_INVITE_URL_INVALID', 'https://operator:example@discord.gg/abc123'] },
+  { name: 'blank_direct_message_recipient', entry: directMessage,
+    settings: { RECIPIENT_HANDLE: '   ' },
+    diagnostics: ['DISCORD_DM_RECIPIENT_REQUIRED', 'RECIPIENT_HANDLE'] },
 ];
 const failures = [];
 try {
@@ -65,6 +69,7 @@ try {
       REPLY_TEXT: '',
       DISCORD_TARGET_USER_ID: '',
       INVITE_URL: '',
+      RECIPIENT_HANDLE: '', DM_MESSAGE: '',
       ...scenario.settings,
     };
     const operation = { scenario: scenario.name, command: [process.execPath, entry], cwd: home, environment_overrides: overrides };
