@@ -59,7 +59,14 @@ export async function respondToRun(req, res, runTrajectory, validateAccountSecur
   let requestBinding = {};
   if (action === 'google_mfa_status') {
     try {
-      requestBinding = { params: { login_item: validateAccountSecurityParams(params) } };
+      const loginItem = validateAccountSecurityParams(params);
+      requestBinding = {
+        params: {
+          login_item: loginItem,
+          ...(typeof params.login_role === 'string' ? { login_role: params.login_role.trim() } : {}),
+        },
+      };
+      params = { login_item: loginItem };
     } catch (error) {
       json(res, 400, { ok: false, error: error.message });
       return;

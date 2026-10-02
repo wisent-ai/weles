@@ -32,7 +32,13 @@ function parseRun(value: unknown): AccountSecurityRun {
   if (!row || typeof row !== 'object' || row.action !== 'google_mfa_status'
     || typeof row.id !== 'string' || typeof row.status !== 'string'
     || (typeof row.params?.login_role !== 'string' && typeof row.params?.login_item !== 'string')) {
-    throw new Error('Weles returned an unrelated account-security run');
+    throw new Error(`Weles returned an unrelated account-security run: ${JSON.stringify({
+      id: row?.id ?? null,
+      action: row?.action ?? null,
+      status: row?.status ?? null,
+      login_role: row?.params?.login_role ?? null,
+      login_item: row?.params?.login_item ?? null,
+    })}; the executor must return the run identifier, google_mfa_status action and requested login binding`);
   }
   if (row.result !== null && row.result !== undefined) {
     const result = row.result;
@@ -76,7 +82,12 @@ export async function accountSecurityRun(
       completed_at: body.completed_at ?? null, result: body.result ?? null,
       error: body.error ?? (body.ok === false ? body.stderr_tail ?? 'Account security execution failed' : null),
     });
-    if (creating ? row.params.login_role !== value : row.id !== value) throw new Error('Weles returned a different account-security request');
+    if (creating ? row.params.login_role !== value : row.id !== value) {
+      throw new Error(`Weles returned a different account-security request: ${JSON.stringify({
+        requested: creating ? { login_role: value } : { id: value },
+        observed: { id: row.id, login_role: row.params.login_role, login_item: row.params.login_item },
+      })}`);
+    }
     return row;
   } catch (cause) {
     const error = cause instanceof Error ? cause.message : String(cause);
