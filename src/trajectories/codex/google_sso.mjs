@@ -22,7 +22,7 @@ export { waitForEnabledThenClick } from './google_sso/page_controls.mjs';
 
 export async function doGoogleSso({
   page, login, authorizeUrl, mark,
-  humanFill, humanClickLocator, humanIdlePause, humanType,
+  humanFill, humanClickLocator, humanType,
 }) {
   // WSession may reuse a provider profile. A pre-existing Google session can
   // make GIS silently authorize its default account even after we authenticated
@@ -117,15 +117,11 @@ export async function doGoogleSso({
           .locator('input[type="email"], input[name="username"], input[name="email"], input[autocomplete="username"]')
           .filter({ visible: true })
           .first();
-        if (await emailField.count() > 0 && await emailField.isVisible().catch(() => false)) {
+        if (await emailField.count() > 0 && await emailField.isVisible()) {
           mark('openai_email_first');
-          try {
-            await fillAndVerify(page, emailField, login.email, humanClickLocator, humanType);
-            await waitForEnabledThenClick(page, /^(continue|next|dalej)$/i);
-            await humanIdlePause('long');
-          } catch (e) {
-            console.log(`[google_sso] email-first entry failed: ${e.message}`);
-          }
+          await fillAndVerify(page, emailField, login.email, humanClickLocator, humanType);
+          await waitForEnabledThenClick(page, /^(continue|next|dalej)$/i);
+          await pageSettled(page);
         }
       }
       const gate = await observeGisPage(page, login.email);

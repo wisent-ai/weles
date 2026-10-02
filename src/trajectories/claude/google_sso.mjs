@@ -80,7 +80,7 @@ async function clickOfferedControl(active, kind) {
 
 export async function doGoogleSso({
   page, login, authorizeUrl, mark,
-  humanFill, humanClickLocator, humanIdlePause, humanType,
+  humanFill, humanClickLocator, humanType,
 }) {
   mark('google_prelogin_goto');
   await page.goto('https://accounts.google.com/ServiceLogin?hl=en', { waitUntil: 'commit' });
@@ -157,7 +157,6 @@ export async function doGoogleSso({
         claim();
         mark('gis_click_continue');
         await clickOfferedControl(active, 'gis_button');
-        await humanIdlePause('deliberate');
         continue;
       }
 
@@ -172,7 +171,6 @@ export async function doGoogleSso({
         // Only the configured identity's exact data-identifier match is selected.
         console.log(`[google_sso] selecting account row by ${st.accountRowMatchedBy} (${st.rowIdentifiers.join(', ')})`);
         await clickOfferedControl(active, 'account_row');
-        await humanIdlePause('long');
         continue;
       }
 
@@ -188,7 +186,6 @@ export async function doGoogleSso({
         claim();
         mark('gis_use_another_account');
         await clickOfferedControl(active, 'other_account');
-        await humanIdlePause('long');
         continue;
       }
 
@@ -204,7 +201,6 @@ export async function doGoogleSso({
         claim();
         mark('gis_confirm_continue');
         await clickOfferedControl(active, 'primary');
-        await humanIdlePause('long');
         continue;
       }
 
@@ -215,7 +211,6 @@ export async function doGoogleSso({
         // The SPA POSTs /v1/oauth/.../authorize (slow in headless, renders a
         // spinner) and then redirects to platform.claude.com. That redirect is
         // just another state this same loop observes.
-        await humanIdlePause('long');
         continue;
       }
 
