@@ -1,7 +1,7 @@
-// App Store review (iOS): drives the App Store app on the physical iPhone at
-// http://10.0.0.234:8100 (WebDriverAgent) to submit a review. Use this when
-// the web flow at apps.apple.com refuses (storefront restriction, Apple ID
-// not registered for web review, the modal redirects to idmsa for stale
+// App Store review (iOS): drives the App Store app on a physical iPhone
+// through WebDriverAgent, reached at WDA_URL, to submit a review. Use this
+// when the web flow at apps.apple.com refuses (storefront restriction, Apple
+// ID not registered for web review, the modal redirects to idmsa for stale
 // cookies).
 //
 // PRECONDITIONS (manual, one-time per device):
@@ -13,21 +13,25 @@
 //   4. The target app must be installed or previously installed on this Apple
 //      ID — Apple gates reviews behind ownership for most app categories.
 //
-// Args: APP_ID (numeric), RATING (1-5), TITLE, REVIEW_TEXT,
-//       WDA_URL (override, default http://10.0.0.234:8100).
+// Args: APP_ID (numeric), RATING (1-5), TITLE, REVIEW_TEXT and WDA_URL (the
+// WebDriverAgent address of the phone this run drives) are all required;
+// no phone, rating or wording is assumed.
 
 import { getSocialAccount } from '../../../../dist/utils/credentials.js';
 import { humanIdlePause } from '../../../../dist/human/mouse.js';
 
 const APP_ID = process.env.APP_ID;
-const RATING = parseInt(process.env.RATING || '5', 10);
-const TITLE = process.env.TITLE || 'Great app';
-const REVIEW_TEXT = process.env.REVIEW_TEXT || 'Works as expected. Recommend it.';
-const WDA_URL = process.env.WDA_URL || 'http://10.0.0.234:8100';
+const RATING = parseInt(process.env.RATING ?? '', 10);
+const TITLE = process.env.TITLE;
+const REVIEW_TEXT = process.env.REVIEW_TEXT;
+const WDA_URL = process.env.WDA_URL;
 
 if (!APP_ID) { console.log('FAIL: APP_ID env var required'); process.exit(1); }
 if (!/^\d+$/.test(APP_ID)) { console.log('FAIL: APP_ID must be numeric'); process.exit(1); }
-if (RATING < 1 || RATING > 5) { console.log('FAIL: RATING must be 1-5'); process.exit(1); }
+if (!Number.isInteger(RATING) || RATING < 1 || RATING > 5) { console.log('FAIL: RATING env var required, 1-5'); process.exit(1); }
+if (!TITLE) { console.log('FAIL: TITLE env var required'); process.exit(1); }
+if (!REVIEW_TEXT) { console.log('FAIL: REVIEW_TEXT env var required'); process.exit(1); }
+if (!WDA_URL) { console.log('FAIL: WDA_URL env var required: the WebDriverAgent address of the phone this run drives; no phone is assumed'); process.exit(1); }
 
 // Informational only — the active Apple ID is whatever the device is signed
 // in to. The account row is used for log/audit, not for credentials.

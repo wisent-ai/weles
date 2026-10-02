@@ -6,8 +6,9 @@ import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
+import { cdpEndpoint, projectUrl as declaredProjectUrl } from '../../_shared/ncbr/settings.mjs';
 
-const endpoint = process.env.NCBR_CDP_ENDPOINT || ['ht', 'tp://127.0.0.1:9223'].join('');
+const endpoint = cdpEndpoint();
 const SECTION_GROUP = process.env.SECTION_GROUP || '';
 // With a group, the section label defaults to whatever entry appears once the group is expanded.
 const SECTION_LABEL_ENV = process.env.SECTION_LABEL || (SECTION_GROUP ? '' : '1.1.');
@@ -22,7 +23,7 @@ if (!page) {
   process.exit(1);
 }
 
-const projectUrl = process.env.NCBR_PROJECT_URL || ['https://', 'lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1'].join('');
+const projectUrl = declaredProjectUrl();
 await page.goto(projectUrl, { waitUntil: 'domcontentloaded' });
 // The left rail is a MUI TreeView: every top-level section is a group <li role="treeitem"> whose click toggles
 // aria-expanded, and the openable sections are child tree items inside its <ul>. A group that is already open
