@@ -138,6 +138,14 @@ async function closeRequest(parsed: ParsedCli): Promise<void> {
   process.stdout.write(`${detail(request, false)}\n`);
 }
 
+async function reopenRequest(parsed: ParsedCli): Promise<void> {
+  const api = await requests();
+  const id = parsed.positional[1];
+  if (!id) throw new UsageError('operator-requests reopen requires <id>');
+  const request = api.reopenOperatorRequest(id);
+  process.stdout.write(`${detail(request, false)}\n`);
+}
+
 export async function runOperatorRequests(parsed: ParsedCli): Promise<void> {
   if (parsed.options.local !== undefined && parsed.options.local !== true) {
     throw new UsageError('--local is a flag; omit it to read the managed Weles worker');
@@ -147,7 +155,8 @@ export async function runOperatorRequests(parsed: ParsedCli): Promise<void> {
   if (action === 'show') return showRequest(parsed);
   if (action === 'open') return openRequest(parsed);
   if (action === 'close') return closeRequest(parsed);
+  if (action === 'reopen') return reopenRequest(parsed);
   throw new Error(
-    `unknown operator-requests action: ${action}; weles operator-requests takes list, show, open or close`,
+    `unknown operator-requests action: ${action}; weles operator-requests takes list, show, open, close or reopen`,
   );
 }

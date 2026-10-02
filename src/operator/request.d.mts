@@ -41,6 +41,7 @@ export declare function pageBody(request: OperatorRequest): string;
 export declare function pageSubject(request: OperatorRequest): string;
 export declare function openOperatorRequest(input: OpenOperatorRequestInput): OperatorRequest;
 export declare function closeOperatorRequest(id: string, approved: boolean, detail: string): OperatorRequest;
+export declare function reopenOperatorRequest(id: string): OperatorRequest;
 export declare function readOperatorRequest(id: string): OperatorRequest;
 export declare function isOpen(request: OperatorRequest): boolean;
 export declare function isAbandoned(request: OperatorRequest): boolean | null;

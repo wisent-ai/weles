@@ -60,6 +60,7 @@ Usage:
   weles operator-requests show <id> [--local] [--json]
   weles operator-requests open --kind <kind> --account <account> --run <run> --instruction <text> [--pid <waiting-process>]
   weles operator-requests close <id> --approved|--unapproved --detail <text>
+  weles operator-requests reopen <id>
   weles account-security --login-role <skarbiec-role> [--json]
   weles account-security --run <run-id> [--json]
   weles app-password --login-role <skarbiec-role> --organization <skrzynka-organization> [--json]

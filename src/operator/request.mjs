@@ -214,6 +214,24 @@ export function closeOperatorRequest(id, approved, detail) {
   return write(request);
 }
 
+/**
+ * Reopen a request closed by mistake: the inverse of close. The verdict,
+ * the waited time and the outcome sentence are cleared, so the request is
+ * waiting again exactly as it was; a request still open is refused, so a
+ * reopen never pretends to undo a close that did not happen.
+ */
+export function reopenOperatorRequest(id) {
+  const request = readOperatorRequest(id);
+  if (isOpen(request)) {
+    throw new Error(`operator request ${id} is still open; there is no close to undo`);
+  }
+  request.approved = null;
+  request.closed_at = null;
+  request.waited_seconds = null;
+  request.outcome_detail = '';
+  return write(request);
+}
+
 export function readOperatorRequest(id) {
   const parsed = JSON.parse(readFileSync(requestFile(id), 'utf8'));
   if (parsed?.schema !== OPERATOR_REQUEST_SCHEMA) {
