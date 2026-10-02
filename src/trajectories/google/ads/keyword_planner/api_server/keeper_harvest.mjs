@@ -5,7 +5,7 @@
 // redacted before anyone else sees it. It never starts a keeper: a detached
 // keeper would outlive the request as a second permanent Weles process.
 
-import net from 'node:net';
+import { keeperRequest, keeperSocket } from '../../../../_shared/keeper/client.mjs';
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -18,47 +18,21 @@ import {
 } from './service_settings.mjs';
 import { safeSlug } from './request_intake.mjs';
 
-function keeperSocketPath(session) {
-  return join(process.env.HOME || '', '.weles', 'keeper', session, 'socket');
-}
-
-function keeperAction(session, cmd) {
-  return new Promise((resolveAction) => {
-    const socket = keeperSocketPath(session);
-    if (!existsSync(socket)) {
-      resolveAction({ ok: false, error: 'keeper_socket_missing', socket });
-      return;
-    }
-    const conn = net.createConnection(socket);
-    let done = false;
-    let buf = '';
-    conn.on('connect', () => conn.write(`${JSON.stringify(cmd)}\n`));
-    conn.on('data', (chunk) => {
-      buf += chunk.toString();
-      const nl = buf.indexOf('\n');
-      if (nl < 0 || done) return;
-      done = true;
-      conn.end();
-      try {
-        resolveAction(JSON.parse(buf.slice(0, nl)));
-      } catch (error) {
-        resolveAction({ ok: false, error: String(error?.message || error), socket });
-      }
-    });
-    conn.on('error', (error) => {
-      if (done) return;
-      done = true;
-      resolveAction({ ok: false, error: String(error?.message || error), socket });
-    });
-  });
+async function keeperAction(session, cmd) {
+  const socket = keeperSocket(session);
+  try {
+    return await keeperRequest(socket, cmd);
+  } catch (error) {
+    return { ok: false, error: String(error?.message || error), socket };
+  }
 }
 
 async function ensureKeeper(session) {
   const existing = await keeperAction(session, { action: 'url' });
-  if (existing?.ok) return { ready: true, socket: keeperSocketPath(session) };
+  if (existing?.ok) return { ready: true, socket: keeperSocket(session) };
   return {
     ready: false,
-    socket: keeperSocketPath(session),
+    socket: keeperSocket(session),
     lastError: existing?.error || 'keeper_not_running',
   };
 }

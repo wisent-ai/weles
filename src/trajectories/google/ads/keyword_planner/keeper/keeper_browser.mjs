@@ -4,7 +4,7 @@
 // changes it. Nothing here is retried behind the caller's back — a command the
 // keeper refused comes back as an error.
 
-import net from 'node:net';
+import { keeperRequest } from '../../../../_shared/keeper/client.mjs';
 import { SOCK, keywords } from './run_brief.mjs';
 
 // Shared by both page scripts: an attribute the element does not carry reads as
@@ -21,32 +21,10 @@ const PAGE_HELPERS = `
 
 const CONTROL_NODES = 'button, [role="button"], [role="menuitem"], a, [role="link"], li, div[role="option"], material-button, material-list-item';
 
-export function action(cmd) {
-  return new Promise((resolve, reject) => {
-    const conn = net.createConnection(SOCK);
-    let done = false;
-    let buf = '';
-    conn.on('connect', () => conn.write(`${JSON.stringify(cmd)}\n`));
-    conn.on('data', (chunk) => {
-      buf += chunk.toString();
-      const nl = buf.indexOf('\n');
-      if (nl < 0 || done) return;
-      done = true;
-      conn.end();
-      try {
-        const parsed = JSON.parse(buf.slice(0, nl));
-        if (!parsed.ok) reject(new Error(parsed.error || `keeper action failed: ${cmd.action}`));
-        else resolve(parsed);
-      } catch (error) {
-        reject(error);
-      }
-    });
-    conn.on('error', (error) => {
-      if (done) return;
-      done = true;
-      reject(error);
-    });
-  });
+export async function action(cmd) {
+  const answer = await keeperRequest(SOCK, cmd);
+  if (!answer.ok) throw new Error(answer.error || `keeper action failed: ${cmd.action}`);
+  return answer;
 }
 
 export async function idle(kind = 'deliberate') {
