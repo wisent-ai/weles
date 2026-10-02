@@ -8,7 +8,7 @@
 // passwords page in a signed-in browser. This trajectory signs the login in
 // (password and authenticator seed from Skarbiec), creates a password named
 // Skrzynka, reads it from the one dialog that shows it, and pipes it to
-// `skrzynka gmail app-password --email <address>`, which proves it with an
+// `skrzynka account app-password --provider gmail --email <address>`, which proves it with an
 // IMAP login, stores it in Skarbiec and declares the mailbox. The password is
 // never written to a file, a log or this run's result.
 //
@@ -69,7 +69,7 @@ async function issue(page, wait, login) {
 /** Hand the password to Skrzynka on stdin; its JSON answer is the verdict. */
 function giveToSkrzynka(email, password) {
   const binary = String(process.env[SKRZYNKA_BIN_VARIABLE] || '').trim() || SKRZYNKA_DEFAULT_BIN;
-  const result = spawnSync(binary, ['gmail', 'app-password', '--email', email], {
+  const result = spawnSync(binary, ['account', 'app-password', '--provider', 'gmail', '--email', email], {
     input: password,
     encoding: 'utf8',
   });

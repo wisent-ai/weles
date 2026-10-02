@@ -269,7 +269,7 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   authenticator_enrol: (p) => p === 'google' ? 'src/trajectories/google/authenticator/enrol.mjs' : null,
   mfa_status: (p) => p === 'google' ? 'src/trajectories/google/authenticator/status.mjs' : null,
   // google_app_password: create a Google app password for one Skarbiec login
-  // item and hand it to `skrzynka gmail app-password` (params.login_item).
+  // item and hand it to `skrzynka account app-password --provider gmail` (params.login_item).
   app_password: (p) => p === 'google' ? 'src/trajectories/google/app_password/create.mjs' : null,
 };
 
