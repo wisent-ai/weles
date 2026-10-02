@@ -1,6 +1,5 @@
 // Solve LinkedIn's captcha challenge through the fleet's captcha solver and submit its token.
 import { CaptchaSolver } from '../../../../../../dist/captcha/solver.js';
-import { humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { pageSettled } from '../../../page/settled.mjs';
 import { getCaptchaCredentials } from '../../../../../../dist/utils/credentials.js';
 import { isChallengeCleared } from './detect.mjs';
@@ -51,12 +50,12 @@ export async function solveLinkedinCaptchaChallenge(page, proxy) {
         console.log(`[create_account_challenge] ${provider} v3 token=${v3Token.slice(0, 20)}...`);
         const submitResult = await submitLinkedinCaptchaForm(page, v3Token, sitekey, dataS);
         if (submitResult.ok) {
-          await humanIdlePause('medium');
+          await pageSettled(page);
           if (await isChallengeCleared(page)) {
             console.log(`[create_account_challenge] captcha cleared with ${provider} v3`);
             return;
           }
-          console.log(`[create_account_challenge] ${provider} v3 token was rejected, retrying...`);
+          console.log(`[create_account_challenge] challenge remained visible after ${provider} v3 submission`);
         } else {
           console.log(`[create_account_challenge] ${provider} v3 submit failed: ${submitResult.reason}`);
         }
@@ -83,12 +82,12 @@ export async function solveLinkedinCaptchaChallenge(page, proxy) {
         continue;
       }
 
-      await humanIdlePause('medium');
+      await pageSettled(page);
       if (await isChallengeCleared(page)) {
         console.log(`[create_account_challenge] captcha cleared with ${provider} v2 (enterprise=${entFlag})`);
         return;
       }
-      console.log(`[create_account_challenge] ${provider} v2 token was rejected (enterprise=${entFlag}), retrying...`);
+      console.log(`[create_account_challenge] challenge remained visible after ${provider} v2 submission (enterprise=${entFlag})`);
     }
   }
   throw new Error('create_account_challenge: all captcha providers failed to clear the challenge');

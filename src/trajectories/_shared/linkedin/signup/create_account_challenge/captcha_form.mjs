@@ -50,7 +50,7 @@ export async function findCaptchaTokenContext(page) {
 
 export async function getChallengeDataS(page) {
   // LinkedIn's challenge form carries a hidden _s input (reCAPTCHA Enterprise payload).
-  // Use frame.evaluate with a short timeout so a frozen/cross-origin frame cannot block.
+  // Read each frame directly; a failed frame read preserves its browser error.
   const frames = page.frames();
   console.log(`[create_account_challenge] data-s scanning ${frames.length} frames`);
   for (let i = 0; i < frames.length; i++) {
