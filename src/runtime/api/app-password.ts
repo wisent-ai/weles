@@ -23,17 +23,18 @@ function parseRun(value: unknown): AppPasswordRun {
 }
 
 /**
- * Start google_app_password for the Skarbiec Google login that plays a role
- * on the managed executor, or read a started run back. The password itself
+ * Start google_app_password by Skarbiec role or exact login item on the
+ * managed executor, or read a started run back. The password itself
  * never crosses this interface: the trajectory hands it to Skrzynka on the
  * executor's host.
  */
 export async function appPasswordRun(
-  input: { loginRole: string } | { runId: string }, options: WelesApiOptions = {},
+  input: { loginRole: string } | { loginItem: string } | { runId: string }, options: WelesApiOptions = {},
 ): Promise<AppPasswordRun> {
-  const creating = 'loginRole' in input;
-  const value = (creating ? input.loginRole : input.runId).trim();
-  if (!value) throw new Error(creating ? 'login_role_required' : 'run_id_required');
+  const creating = !('runId' in input);
+  const selector = 'loginRole' in input ? 'login_role' : 'loginItem' in input ? 'login_item' : 'run_id';
+  const value = ('loginRole' in input ? input.loginRole : 'loginItem' in input ? input.loginItem : input.runId).trim();
+  if (!value) throw new Error(`${selector}_required`);
   const path = creating ? '/run' : `/diagnostics/${encodeURIComponent(value)}/file?path=run-result.json`;
   const connection = welesOperatorConnection(path, options);
   const operation = creating ? 'submit_app_password' : 'read_app_password_result';
@@ -41,7 +42,7 @@ export async function appPasswordRun(
     const response = await connection.fetch(connection.endpoint, {
       method: creating ? 'POST' : 'GET', headers: connection.headers, redirect: 'error',
       ...(creating ? { body: JSON.stringify({
-        action: 'google_app_password', params: { login_role: value }, detached: true,
+        action: 'google_app_password', params: { [selector]: value }, detached: true,
       }) } : {}),
     });
     const body = await operatorJson(response);
@@ -56,7 +57,7 @@ export async function appPasswordRun(
       stdout: typeof body.stdout === 'string' ? body.stdout : null,
       error: body.error ?? (body.ok === false ? body.stderr_tail ?? 'App password execution failed' : null),
     });
-    if (creating ? row.params.login_role !== value : row.id !== value) throw new Error('Weles returned a different app-password request');
+    if (selector === 'run_id' ? row.id !== value : row.params[selector] !== value) throw new Error('Weles returned a different app-password request');
     return row;
   } catch (cause) {
     const error = cause instanceof Error ? cause.message : String(cause);

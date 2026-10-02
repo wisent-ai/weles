@@ -47,34 +47,50 @@ try {
     assert.equal(refusal.value.error, 'provide exactly one of login_role or login_item');
     assert.equal(refusal.value.detached_run, undefined, 'a refused selector must not admit a browser run');
   }
-  const cli = (...args) => {
+  const invoke = (...args) => {
     const command = [join(root, 'dist/cli.js'), 'app-password', ...args, '--json'];
     const result = spawnSync(process.execPath, command, { cwd: root, encoding: 'utf8' });
     report.operations.push({ command: [process.execPath, ...command], exit_status: result.status,
       stdout: result.stdout, stderr: result.stderr, error: result.error?.message });
+    return result;
+  };
+  const cli = (...args) => {
+    const result = invoke(...args);
     assert.equal(result.status, 0, result.error?.message ?? result.stderr);
     return JSON.parse(result.stdout);
   };
-  const admitted = cli('--login-role', values['login-role']);
-  assert.equal(admitted.action, 'google_app_password');
-  assert.equal(admitted.params.login_role, values['login-role']);
-  assert.equal(admitted.params.login_item, values['login-item']);
-  report.run_id = admitted.id;
-  const terminal = await request(`/diagnostics/${encodeURIComponent(admitted.id)}/file?path=run-result.json&wait=terminal`);
-  assert.equal(terminal.response.status, 200);
-  assert.equal(terminal.value.status, 'finished');
-  assert.equal(terminal.value.ok, true, terminal.value.error ?? terminal.value.stderr_tail);
-  const persisted = cli('--run', admitted.id);
-  assert.equal(persisted.params.login_role, values['login-role']);
-  assert.equal(persisted.params.login_item, values['login-item']);
-  assert.equal(persisted.ok, true);
-  assert.equal(persisted.stdout, terminal.value.stdout);
-  const outcome = JSON.parse(persisted.stdout);
-  assert.equal(outcome.ok, true);
-  assert.equal(outcome.login_item, values['login-item']);
-  assert.equal(outcome.email, values.email);
-  assert.equal(outcome.app_name, 'Skrzynka');
-  assert.equal(outcome.skrzynka.email, values.email);
+  for (const args of [
+    ['--login-role', values['login-role'], '--login-item', values['login-item']],
+    ['--login-item', ''],
+    ['--login-item', values['login-item'], '--run', 'not-an-admitted-run'],
+  ]) {
+    const refused = invoke(...args);
+    assert.equal(refused.status, 2, refused.stderr);
+    assert.equal(refused.stdout, '');
+    assert.match(refused.stderr, /--login-role.*--login-item.*--run/);
+  }
+  for (const selector of ['login-role', 'login-item']) {
+    const admitted = cli(`--${selector}`, values[selector]);
+    assert.equal(admitted.action, 'google_app_password');
+    const expectedRole = selector === 'login-role' ? values['login-role'] : undefined;
+    assert.equal(admitted.params.login_role, expectedRole);
+    assert.equal(admitted.params.login_item, values['login-item']);
+    const terminal = await request(`/diagnostics/${encodeURIComponent(admitted.id)}/file?path=run-result.json&wait=terminal`);
+    assert.equal(terminal.response.status, 200);
+    assert.equal(terminal.value.status, 'finished');
+    assert.equal(terminal.value.ok, true, terminal.value.error ?? terminal.value.stderr_tail);
+    const persisted = cli('--run', admitted.id);
+    assert.equal(persisted.params.login_role, expectedRole);
+    assert.equal(persisted.params.login_item, values['login-item']);
+    assert.equal(persisted.ok, true);
+    assert.equal(persisted.stdout, terminal.value.stdout);
+    const outcome = JSON.parse(persisted.stdout);
+    assert.equal(outcome.ok, true);
+    assert.equal(outcome.login_item, values['login-item']);
+    assert.equal(outcome.email, values.email);
+    assert.equal(outcome.app_name, 'Skrzynka');
+    assert.equal(outcome.skrzynka.email, values.email);
+  }
   report.status = 'passed';
 } catch (error) {
   report.status = 'failed';
