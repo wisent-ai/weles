@@ -1,7 +1,7 @@
 // The LSI form helpers of repair_budget_wsession.mjs, bound to the page they act on.
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
-import { reviewUntilClosed } from '../../../../_shared/page/settled.mjs';
+import { pageSettled, reviewUntilClosed } from '../../../../_shared/page/settled.mjs';
 
 export function lsiForm({ page, session, email, password, KEEP_OPEN }) {
 async function finish(payload, code = 0) {
@@ -34,7 +34,7 @@ async function setReactInputValue(locator, value) {
     el.dispatchEvent(new Event('change', { bubbles: true }));
     el.dispatchEvent(new Event('blur', { bubbles: true }));
   }, value); // allow-raw-playwright: set controlled LSI field value
-  await humanIdlePause('short');
+  await pageSettled(page);
 }
 
 async function login() {
@@ -105,7 +105,7 @@ async function typeFill(name, value) {
   await loc.scrollIntoViewIfNeeded(); // allow-raw-playwright: keep visible LSI textarea focused for text insertion
   await humanClickLocator(page, loc); // allow-raw-playwright: focus visible LSI field before human typing
   await humanFill(page, loc, String(value)); // allow-raw-playwright: fill visible editable LSI textarea with Playwright input events
-  await humanIdlePause('short');
+  await pageSettled(page);
 }
 
 async function saveVisibleForm({ allowNoChange = false } = {}) {
