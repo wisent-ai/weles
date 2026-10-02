@@ -5,7 +5,7 @@
 // Neither step reads a second credential and neither involves a phone number:
 // the session is already signed in as the very account both messages were sent
 // to. Both are bounded and run once per run.
-import { humanClick, humanClickLocator, humanIdlePause as pause } from '../../../../dist/human/mouse.js';
+import { humanClick, humanClickLocator } from '../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
 import { clickVisibleText, navEval } from './page_controls.mjs';
 import { pageSettled } from '../../_shared/page/settled.mjs';
@@ -65,7 +65,7 @@ export async function acceptPendingWorkspaceInvite(page, login, mark) {
     return null;
   }
   await page.goto(target, { waitUntil: 'commit' });
-  await pause('deliberate');
+  await pageSettled(page);
   const control = await clickVisibleText(
     page,
     /^(accept invite|accept invitation|accept|join workspace|join|continue)$/i,
@@ -77,7 +77,7 @@ export async function acceptPendingWorkspaceInvite(page, login, mark) {
     mark('workspace_invite_control_clicked');
     console.log(`[google_sso] clicked the workspace acceptance control "${control.text}"`);
   }
-  await pause('long');
+  await pageSettled(page);
   const landed = await navEval(page, () => location.href, '?');
   console.log(`[google_sso] the workspace invitation flow ended at ${landed}`);
   return landed;
@@ -134,7 +134,7 @@ export async function completeEmailVerification(page, login, mark) {
   }
   if (found.link) {
     await page.goto(found.link, { waitUntil: 'commit' });
-    await pause('deliberate');
+    await pageSettled(page);
     mark('email_verification_link_used');
   } else {
     await page.goBack({ waitUntil: 'commit' });
@@ -148,7 +148,7 @@ export async function completeEmailVerification(page, login, mark) {
     mark('email_verification_code_entered');
     const submitted = await clickVisibleText(page, /^(continue|verify|submit|next)$/i);
     mark(submitted.clicked ? 'email_verification_submit_clicked' : `email_verification_submit_${submitted.reason}`);
-    await pause('long');
+    await pageSettled(page);
   }
   const landed = await navEval(page, () => location.href, '?');
   console.log(`[google_sso] email verification ended at ${landed}`);
