@@ -11,6 +11,8 @@
 //                       LSI2 project page of NCBR_PROJECT_ID
 //   NCBR_SECTION_<KEY>  the projekt_step id of one section, by the key a
 //                       script asks for (NCBR_SECTION_1_3 for key 1_3)
+//   NCBR_PROJECT_VERSION_ID  the application's version id, for the pages
+//                       addressed by version
 
 const LSI2_PROJECT_BASE = 'https://lsi2.ncbr.gov.pl/projekt/';
 
@@ -42,11 +44,20 @@ export function sectionBase() {
 }
 
 /**
- * One section's page, by the key the script asks for. Section ids differ per
- * application, so they are declared beside the project id rather than
- * written into a script.
+ * One section's projekt_step id, by the key the script asks for. Section ids
+ * differ per application, so they are declared beside the project id rather
+ * than written into a script.
  */
+export function sectionId(key) {
+  return required(`NCBR_SECTION_${key}`, `name the projekt_step id of section ${key.replace(/_/g, '.')}`);
+}
+
+/** One section's page, by its key. */
 export function sectionUrl(key) {
-  const id = required(`NCBR_SECTION_${key}`, `name the projekt_step id of section ${key.replace(/_/g, '.')}`);
-  return `${sectionBase()}${id}`;
+  return `${sectionBase()}${sectionId(key)}`;
+}
+
+/** The project version (wersja wniosku) id the version-scoped pages use. */
+export function projectVersionId() {
+  return required('NCBR_PROJECT_VERSION_ID', 'name the LSI2 version id of the application this run works on');
 }

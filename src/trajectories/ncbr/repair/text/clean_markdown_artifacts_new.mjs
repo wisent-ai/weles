@@ -12,22 +12,22 @@ const base = ['https://', `lsi2.ncbr.gov.pl/projekt/${projectId}/projekt_step/`]
 const targets = [
   {
     section: '3.5',
-    url: `${base}41b2184d-76e9-4b79-8ece-b2e227dc471f`,
+    url: (await import('#ncbr-settings')).sectionUrl('3_5'),
     suffix: 'wykazanie_braku_barier',
   },
   {
     section: '10.4',
-    url: `${base}4e260fae-c455-41ce-bba3-d0df2a8767fd`,
+    url: (await import('#ncbr-settings')).sectionUrl('10_4'),
     suffix: 'opis_zasady_szesc_r',
   },
   {
     section: '10.2',
-    url: `${base}51455d27-6e3d-4629-9cc6-2a124f5432c8`,
+    url: (await import('#ncbr-settings')).sectionUrl('10_2'),
     suffix: 'zgodnosc_z_karta_praw_podstawowych',
   },
   {
     section: '10.3',
-    url: `${base}256ac98a-bb3c-4715-ad13-e8dbcd3f94f4`,
+    url: (await import('#ncbr-settings')).sectionUrl('10_3'),
     suffix: 'zgodnosc_z_konwencja_o_prawach_osob_niepelnosprawnych',
   },
 ];

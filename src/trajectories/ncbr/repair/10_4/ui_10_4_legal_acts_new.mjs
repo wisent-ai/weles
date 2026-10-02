@@ -10,7 +10,7 @@ import { runModes } from './ui_10_4_legal_acts_new/modes.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const projectId = (await import('#ncbr-settings')).projectId();
-const SECTION_URL = `https://lsi2.ncbr.gov.pl/projekt/${projectId}/projekt_step/4e260fae-c455-41ce-bba3-d0df2a8767fd`;
+const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('10_4');
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
 if (!page) {

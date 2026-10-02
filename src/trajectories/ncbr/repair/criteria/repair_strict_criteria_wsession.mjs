@@ -11,12 +11,12 @@ const PROJECT_ID = (await import('#ncbr-settings')).projectId();
 const PROJECT_URL = `https://lsi2.ncbr.gov.pl/projekt/${PROJECT_ID}`;
 const BASE = `${PROJECT_URL}/projekt_step/`;
 const URLS = {
-  '1.2': `${BASE}0ca77e3d-373e-464f-9e9d-a35f5193864d`,
-  '2.2': `${BASE}80ebca16-a9dd-4798-a334-5ac007cecbf7`,
-  '2.3': `${BASE}c5dbdc83-5baf-4866-b3d8-4da3ae553865`,
-  '3.2': `${BASE}06a70163-2dcc-47a0-b64b-201656946538`,
-  '6.1': `${BASE}566c735c-8ad0-406f-a948-f3ea921c2cc7`,
-  '9.2': `${BASE}e95d0c23-8a39-4d56-96fa-ace3e4f0d23a`,
+  '1.2': (await import('#ncbr-settings')).sectionUrl('1_2'),
+  '2.2': (await import('#ncbr-settings')).sectionUrl('2_2'),
+  '2.3': (await import('#ncbr-settings')).sectionUrl('2_3'),
+  '3.2': (await import('#ncbr-settings')).sectionUrl('3_2'),
+  '6.1': (await import('#ncbr-settings')).sectionUrl('6_1'),
+  '9.2': (await import('#ncbr-settings')).sectionUrl('9_2'),
 };
 const email = process.env.NCBR_EMAIL;
 const password = process.env.NCBR_PASSWORD;

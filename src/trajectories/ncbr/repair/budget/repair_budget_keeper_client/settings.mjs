@@ -9,10 +9,10 @@ export const PROJECT_ID = (await import('#ncbr-settings')).projectId();
 export const BASE = `https://lsi2.ncbr.gov.pl/projekt/${PROJECT_ID}/projekt_step/`;
 export const PROJECT_URL = `https://lsi2.ncbr.gov.pl/projekt/${PROJECT_ID}`;
 export const URLS = {
-  s22: `${BASE}80ebca16-a9dd-4798-a334-5ac007cecbf7`,
-  s63: `${BASE}fb417879-403e-4241-a202-ec23c6a6b866`,
-  s65: `${BASE}bdb2c7b3-92d9-4778-9ecc-b4c5bda7d32b`,
-  s8: `${BASE}d31b6d68-33b7-45a0-a032-0f5f02b5aed8`,
+  s22: (await import('#ncbr-settings')).sectionUrl('2_2'),
+  s63: (await import('#ncbr-settings')).sectionUrl('6_3'),
+  s65: (await import('#ncbr-settings')).sectionUrl('6_5'),
+  s8: (await import('#ncbr-settings')).sectionUrl('8'),
 };
 
 export const email = process.env.NCBR_EMAIL;

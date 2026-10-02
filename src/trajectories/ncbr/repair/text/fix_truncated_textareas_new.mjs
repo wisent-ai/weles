@@ -12,7 +12,7 @@ const base = ['https://', `lsi2.ncbr.gov.pl/projekt/${projectId}/projekt_step/`]
 const repairs = [
   {
     section: '3.5',
-    url: `${base}41b2184d-76e9-4b79-8ece-b2e227dc471f`,
+    url: (await import('#ncbr-settings')).sectionUrl('3_5'),
     suffix: 'wykazanie_braku_barier',
     repair(value) {
       return value.replace(/\s+Brak\s*$/, '').trim();
@@ -20,7 +20,7 @@ const repairs = [
   },
   {
     section: '10.4',
-    url: `${base}4e260fae-c455-41ce-bba3-d0df2a8767fd`,
+    url: (await import('#ncbr-settings')).sectionUrl('10_4'),
     suffix: 'opis_zasady_szesc_r',
     repair(value) {
       return value.replace(/Działania te są zgodne z AI\s*$/, 'Działania te są zgodne z AI Act.').trim();

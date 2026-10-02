@@ -7,8 +7,8 @@ import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mou
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const PROJ = (await import('#ncbr-settings')).sectionBase();
 const IDS = {
-  '5.1': '557f18a2-ec63-44bf-a429-88dfde7444e4',
-  '5.2': '01ba2656-83fd-44d0-8908-bb31034018b0',
+  '5.1': (await import('#ncbr-settings')).sectionId('5_1'),
+  '5.2': (await import('#ncbr-settings')).sectionId('5_2'),
 };
 
 const SECTION = process.env.SECTION;

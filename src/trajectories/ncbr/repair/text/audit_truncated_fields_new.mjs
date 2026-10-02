@@ -28,19 +28,10 @@ const urls = await page.evaluate(() => {
   return Array.from(out);
 }); // allow-raw-playwright: read visible section links only
 
-const directUrls = urls.length ? urls : [
-  `${projectUrl}/projekt_step/71acd162-e35d-4aff-88a6-ea2fe179a259`,
-  `${projectUrl}/projekt_step/0ca77e3d-373e-464f-9e9d-a35f5193864d`,
-  `${projectUrl}/projekt_step/c048ab30-3dda-4228-bf71-4ec6904cffda`,
-  `${projectUrl}/projekt_step/80ebca16-a9dd-4798-a334-5ac007cecbf7`,
-  `${projectUrl}/projekt_step/c5dbdc83-5baf-4866-b3d8-4da3ae553865`,
-  `${projectUrl}/projekt_step/94fb1adb-38a5-4949-b4c1-b0a79472bfd3`,
-  `${projectUrl}/projekt_step/06a70163-2dcc-47a0-b64b-201656946538`,
-  `${projectUrl}/projekt_step/bb231ac1-d863-41a8-89a7-88c1db3a1bd7`,
-  `${projectUrl}/projekt_step/836f13ca-f474-4d5c-8388-6afd84eaf353`,
-  `${projectUrl}/projekt_step/41b2184d-76e9-4b79-8ece-b2e227dc471f`,
-  `${projectUrl}/projekt_step/4e260fae-c455-41ce-bba3-d0df2a8767fd`,
-];
+if (!urls.length) {
+  throw new Error(`${projectUrl} lists no projekt_step links: the audit reads the sections the project page shows and assumes none`);
+}
+const directUrls = urls;
 
 function looksComplete(value) {
   const v = (value || '').trim();

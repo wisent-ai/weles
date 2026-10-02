@@ -16,7 +16,7 @@ const SRC = `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_s
 // Char-limit constants mirror the live LSI maxlength config per field.
 const REGISTRY = {
   '2.1': {
-    sectionId: 'c048ab30-3dda-4228-bf71-4ec6904cffda',
+    sectionId: (await import('#ncbr-settings')).sectionId('2_1'),
     md: 'wersja_B_2.1_cel_i_potrzeba.md',
     fields: [
       { sel: 'textarea[name$="cel_projektu.cel_projektu"]', header: 'Cel projektu', max: 2000 },
@@ -24,14 +24,14 @@ const REGISTRY = {
     ],
   },
   '2.4': {
-    sectionId: '94fb1adb-38a5-4949-b4c1-b0a79472bfd3',
+    sectionId: (await import('#ncbr-settings')).sectionId('2_4'),
     md: 'wersja_B_2.4_efekty_zewnetrzne.md',
     fields: [
       { sel: 'textarea[name$="dodatkowe_efekty_zewnetrzne"]', header: 'Dodatkowe efekty zewnętrzne innowacji', max: 3000 },
     ],
   },
   '3.5': {
-    sectionId: '41b2184d-76e9-4b79-8ece-b2e227dc471f',
+    sectionId: (await import('#ncbr-settings')).sectionId('3_5'),
     md: 'wersja_B_3.5_prawa_wlasnosci.md',
     fields: [
       { sel: 'textarea[name$="wykazanie_braku_barier"]', header: 'Wykazanie braku barier', max: 3000 },

@@ -17,7 +17,7 @@ if (!page) {
   process.exit(1);
 }
 
-await page.goto(`${base}/projekt/${projectId}/projekt_step/4e260fae-c455-41ce-bba3-d0df2a8767fd`, { waitUntil: 'domcontentloaded' });
+await page.goto((await import('#ncbr-settings')).sectionUrl('10_4'), { waitUntil: 'domcontentloaded' });
 await pageSettled(page);
 
 const result = await page.evaluate(async ({ base, projectId }) => {

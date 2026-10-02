@@ -17,29 +17,29 @@ const clean = (s) => s
 
 const WD = 'wersja_B_3.1_3.2_3.3_3.4_wdrozenie.md';
 const REG = {
-  '3.2': { id: '06a70163-2dcc-47a0-b64b-201656946538', md: WD, rodzaj: true, fields: [
+  '3.2': { id: (await import('#ncbr-settings')).sectionId('3_2'), md: WD, rodzaj: true, fields: [
     { suffix: 'innowacja_produktowa_nazwa', start: '**Nazwa produktu (limit 100 znaków)**\n\n', end: '**Plan wprowadzenia rezultatu projektu na rynek – innowacja produktowa' },
     { suffix: 'innowacja_produktowa_plan_wprowadzenia', start: '**Plan wprowadzenia rezultatu projektu na rynek – innowacja produktowa (limit 6 000 znaków)**\n\n', end: '---\n\n## 3.3.' },
   ], applicant: true },
-  '3.3': { id: 'bb231ac1-d863-41a8-89a7-88c1db3a1bd7', md: WD, fields: [
+  '3.3': { id: (await import('#ncbr-settings')).sectionId('3_3'), md: WD, fields: [
     { suffix: 'analiza_oplacalnosci', start: '## 3.3. Analiza opłacalności wdrożenia (limit 4 000 znaków)\n\n', end: '---\n\n## 3.4.' },
   ] },
-  '3.4': { id: '836f13ca-f474-4d5c-8388-6afd84eaf353', md: WD, fields: [
+  '3.4': { id: (await import('#ncbr-settings')).sectionId('3_4'), md: WD, fields: [
     { suffix: 'zasoby_kadrowe_niezbedne_do_wdrozenia', start: '### Zasoby kadrowe niezbędne do wdrożenia (limit 2 000 znaków)\n\n', end: '### Zasoby techniczne' },
     { suffix: 'zasoby_techniczne_niezbedne_do_wdrozenia', start: '### Zasoby techniczne niezbędne do wdrożenia (limit 2 000 znaków)\n\n', end: '### Pozostałe zasoby' },
     { suffix: 'pozostale_zasoby_niezbedne_do_wdrozenia', start: '### Pozostałe zasoby niezbędne do wdrożenia (limit 2 000 znaków)\n\n', end: '---\n\n## Podsumowanie zmian' },
   ] },
-  '10.2': { id: '51455d27-6e3d-4629-9cc6-2a124f5432c8', md: 'wersja_B_10_2_karta_praw.md', fields: [
+  '10.2': { id: (await import('#ncbr-settings')).sectionId('10_2'), md: 'wersja_B_10_2_karta_praw.md', fields: [
     { suffix: 'zgodnosc_z_karta_praw_podstawowych', start: '**Zgodność projektu z Kartą Praw Podstawowych** (limit 4 000 znaków)', end: null },
   ] },
-  '10.3': { id: '256ac98a-bb3c-4715-ad13-e8dbcd3f94f4', md: 'wersja_B_10_3_niepelnosprawni.md', fields: [
+  '10.3': { id: (await import('#ncbr-settings')).sectionId('10_3'), md: 'wersja_B_10_3_niepelnosprawni.md', fields: [
     { suffix: 'zgodnosc_z_konwencja_o_prawach_osob_niepelnosprawnych', start: '## **Zgodność projektu z Konwencją o Prawach Osób Niepełnosprawnych**', end: null },
   ] },
-  '10.1': { id: 'e5bd23d7-9d4d-4f2e-948a-97c95041ef18', md: 'wersja_B_10_1_rowność.md', fields: [
+  '10.1': { id: (await import('#ncbr-settings')).sectionId('10_1'), md: 'wersja_B_10_1_rowność.md', fields: [
     { suffix: 'wplyw_projektu_zasady_rownosci', start: '**Pozytywny wpływ projektu na realizację zasady równości szans i niedyskryminacji, w tym dostępności dla osób z niepełnosprawnościami** (limit 4 000 znaków)', end: '**Dostępność produktu/usługi w projekcie**' },
     { suffix: 'rownosc_kobiet_i_mezczyzn', start: '**Zgodność projektu z zasadą równości kobiet i mężczyzn** (limit 3 000 znaków)', end: null },
   ] },
-  '4.1': { id: '5af236aa-03b2-4650-b5a2-95c299dfeeaf', md: 'wersja_B_4_1_zespol.md', fields: [
+  '4.1': { id: (await import('#ncbr-settings')).sectionId('4_1'), md: 'wersja_B_4_1_zespol.md', fields: [
     { suffix: 'udzial_procentowy_kobiet_w_kluczowym_zespole_projektowym', value: '60.00' },
     { suffix: 'pozostaly_personel_br', start: '## Pozostały personel B+R (jeśli dotyczy)', end: '---\n\n## Personel B+R planowany do zaangażowania' },
     { suffix: 'personel_planowany_br', start: '## Personel B+R planowany do zaangażowania (jeśli dotyczy)', end: '---\n\n## Sposób zarządzania projektem' },

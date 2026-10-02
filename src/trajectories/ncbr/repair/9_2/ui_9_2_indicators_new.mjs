@@ -8,7 +8,7 @@ import { humanFill } from '../../../../../dist/human/keyboard.js';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const projectId = (await import('#ncbr-settings')).projectId();
-const SECTION_URL = `https://lsi2.ncbr.gov.pl/projekt/${projectId}/projekt_step/e95d0c23-8a39-4d56-96fa-ace3e4f0d23a`;
+const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('9_2');
 const MD = readFileSync(`${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_9.2_wskazniki.md`, 'utf8');
 
 function cell(block, label) {

@@ -15,9 +15,9 @@ const OUT_DIR = runRecordingsDir(LABEL);
 mkdirSync(OUT_DIR, { recursive: true });
 
 const BASE = 'https://lsi2.ncbr.gov.pl';
-const VERSION_ID = 'a11cf7c9-9306-4ac6-a43a-7048789ce0ff';
-const PROJECT_ID = '433468ab-ff8a-4bd2-9f03-7da65ba73e1f';
-const SECTION_6_5 = 'bdb2c7b3-92d9-4778-9ecc-b4c5bda7d32b';
+const VERSION_ID = (await import('#ncbr-settings')).projectVersionId();
+const PROJECT_ID = (await import('#ncbr-settings')).projectId();
+const SECTION_6_5 = (await import('#ncbr-settings')).sectionId('6_5');
 const COLLECTION = 'koszty_posrednie_kolekcja';
 const GOOD_RYCZALT = '1bce6c18-c3c3-4391-bfc3-4b17b56e680a';
 

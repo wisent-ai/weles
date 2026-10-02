@@ -6,9 +6,9 @@ import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mou
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const PROJ = (await import('#ncbr-settings')).sectionBase();
 const REG = {
-  '4.3': { id: 'e8020b59-7947-4c3d-9851-0fc499f42427', answer: 'Nie' },
-  '5.3': { id: '72d09821-7019-4ac0-ab4f-09fdd4883fc2', answer: 'Tak', locationPremium: true },
-  '5.4': { id: 'e635f786-a34c-4a29-b142-4f4081401a5c', answer: 'Nie' },
+  '4.3': { id: (await import('#ncbr-settings')).sectionId('4_3'), answer: 'Nie' },
+  '5.3': { id: (await import('#ncbr-settings')).sectionId('5_3'), answer: 'Tak', locationPremium: true },
+  '5.4': { id: (await import('#ncbr-settings')).sectionId('5_4'), answer: 'Nie' },
 };
 
 const SECTION = process.env.SECTION;

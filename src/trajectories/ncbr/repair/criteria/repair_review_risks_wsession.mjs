@@ -11,9 +11,9 @@ import { task5 } from './repair_review_risks_wsession/text.mjs';
 const PROJECT_ID = (await import('#ncbr-settings')).projectId();
 const PROJECT_URL = `https://lsi2.ncbr.gov.pl/projekt/${PROJECT_ID}`;
 const BASE = `${PROJECT_URL}/projekt_step/`;
-const URL_41 = `${BASE}5af236aa-03b2-4650-b5a2-95c299dfeeaf`;
-const URL_61 = `${BASE}566c735c-8ad0-406f-a948-f3ea921c2cc7`;
-const URL_92 = `${BASE}e95d0c23-8a39-4d56-96fa-ace3e4f0d23a`;
+const URL_41 = (await import('#ncbr-settings')).sectionUrl('4_1');
+const URL_61 = (await import('#ncbr-settings')).sectionUrl('6_1');
+const URL_92 = (await import('#ncbr-settings')).sectionUrl('9_2');
 const email = process.env.NCBR_EMAIL;
 const password = process.env.NCBR_PASSWORD;
 

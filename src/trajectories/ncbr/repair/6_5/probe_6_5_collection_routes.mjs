@@ -12,8 +12,8 @@ const OUT_DIR = runRecordingsDir(LABEL);
 mkdirSync(OUT_DIR, { recursive: true });
 
 const BASE = 'https://lsi2.ncbr.gov.pl';
-const VERSION_ID = 'a11cf7c9-9306-4ac6-a43a-7048789ce0ff';
-const SECTION_ID = 'bdb2c7b3-92d9-4778-9ecc-b4c5bda7d32b';
+const VERSION_ID = (await import('#ncbr-settings')).projectVersionId();
+const SECTION_ID = (await import('#ncbr-settings')).sectionId('6_5');
 const COLLECTION = 'koszty_posrednie_kolekcja';
 const PREFIX = `${BASE}/api/beneficiary/project-versions/${VERSION_ID}/project-sections/${SECTION_ID}/registries-values`;
 

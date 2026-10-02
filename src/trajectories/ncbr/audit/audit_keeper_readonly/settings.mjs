@@ -15,19 +15,19 @@ export const PASSWORD = process.env.NCBR_PASSWORD || '';
 delete process.env.NCBR_PASSWORD;
 
 export const SECTIONS = [
-  ['1.3', '317a21dd-e798-4115-ab53-6ab5a2912fb0'],
-  ['1.4', '4a6e9d5d-10e7-4436-8fd8-728a8e8b8ddc'],
-  ['2.1', 'c048ab30-3dda-4228-bf71-4ec6904cffda'],
-  ['2.2', '80ebca16-a9dd-4798-a334-5ac007cecbf7'],
-  ['2.3', 'c5dbdc83-5baf-4866-b3d8-4da3ae553865'],
-  ['2.4', '94fb1adb-38a5-4949-b4c1-b0a79472bfd3'],
-  ['6.1', '566c735c-8ad0-406f-a948-f3ea921c2cc7'],
-  ['6.3', 'fb417879-403e-4241-a202-ec23c6a6b866'],
-  ['6.4', '7f63b840-57b3-4e73-9fb0-91c6f24cad44'],
-  ['6.5', 'bdb2c7b3-92d9-4778-9ecc-b4c5bda7d32b'],
-  ['8', 'd31b6d68-33b7-45a0-a032-0f5f02b5aed8'],
-  ['9.2', 'e95d0c23-8a39-4d56-96fa-ace3e4f0d23a'],
-  ['10.4', '4e260fae-c455-41ce-bba3-d0df2a8767fd'],
+  ['1.3', (await import('#ncbr-settings')).sectionId('1_3')],
+  ['1.4', (await import('#ncbr-settings')).sectionId('1_4')],
+  ['2.1', (await import('#ncbr-settings')).sectionId('2_1')],
+  ['2.2', (await import('#ncbr-settings')).sectionId('2_2')],
+  ['2.3', (await import('#ncbr-settings')).sectionId('2_3')],
+  ['2.4', (await import('#ncbr-settings')).sectionId('2_4')],
+  ['6.1', (await import('#ncbr-settings')).sectionId('6_1')],
+  ['6.3', (await import('#ncbr-settings')).sectionId('6_3')],
+  ['6.4', (await import('#ncbr-settings')).sectionId('6_4')],
+  ['6.5', (await import('#ncbr-settings')).sectionId('6_5')],
+  ['8', (await import('#ncbr-settings')).sectionId('8')],
+  ['9.2', (await import('#ncbr-settings')).sectionId('9_2')],
+  ['10.4', (await import('#ncbr-settings')).sectionId('10_4')],
 ];
 
 mkdirSync(OUT_DIR, { recursive: true });

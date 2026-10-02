@@ -11,8 +11,8 @@ const PROJECT_ID = (await import('#ncbr-settings')).projectId();
 const PROJECT_URL = `https://lsi2.ncbr.gov.pl/projekt/${PROJECT_ID}`;
 const BASE = `${PROJECT_URL}/projekt_step/`;
 const URLS = {
-  '1.3': `${BASE}317a21dd-e798-4115-ab53-6ab5a2912fb0`,
-  '2.2': `${BASE}80ebca16-a9dd-4798-a334-5ac007cecbf7`,
+  '1.3': (await import('#ncbr-settings')).sectionUrl('1_3'),
+  '2.2': (await import('#ncbr-settings')).sectionUrl('2_2'),
 };
 const OUT = process.env.OUT || `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/contacts_2_2_repair_evidence.json`;
 const email = process.env.NCBR_EMAIL;
