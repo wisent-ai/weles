@@ -67,8 +67,7 @@ async function pickOption(name, search, value) {
 }
 
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
-await page.waitForSelector(`textarea[name="${NB}nazwa_technologii"]`);
-await humanIdlePause('short');
+await page.locator(`textarea[name="${NB}nazwa_technologii"]`).first().waitFor({ state: 'visible' });
 
 const log = { radios: [], autocompletes: {}, slowa: [], texts: [] };
 

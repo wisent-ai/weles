@@ -87,8 +87,7 @@ async function openEntityEdit() {
 }
 
 const open = await openEntityEdit();
-await page.waitForSelector('textarea[name="nazwa"]');
-await humanIdlePause('short');
+await page.locator('textarea[name="nazwa"]').first().waitFor({ state: 'visible' });
 
 const before = await page.evaluate(() => {
   const radios = Array.from(document.querySelectorAll('input[type="radio"]')).map((r) => ({

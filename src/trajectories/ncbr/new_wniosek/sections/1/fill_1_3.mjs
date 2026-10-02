@@ -59,8 +59,7 @@ await humanIdlePause('long');
 await page.evaluate(() => { const b = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies')); if (b) b.style.pointerEvents = 'none'; }); // allow-raw-playwright: neutralise cookie banner (Kimi reference)
 
 await clickDodaj(0);
-await page.waitForSelector("textarea[name='nazwa']");
-await humanIdlePause('short');
+await page.locator("textarea[name='nazwa']").first().waitFor({ state: 'visible' });
 
 await radio('wnioskodawca_samodzielny');
 await text('nazwa', 'WISENT POLSKA SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ');

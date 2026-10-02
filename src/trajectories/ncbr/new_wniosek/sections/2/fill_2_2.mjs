@@ -53,8 +53,7 @@ await humanIdlePause('long');
 await page.evaluate(() => { const b = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies')); if (b) b.style.pointerEvents = 'none'; }); // allow-raw-playwright: cookie banner
 
 await setAuto('rodzaj_innowacji', 'Innowacja produktowa');
-await page.waitForSelector(`input[name="${NB}innowacja_produktowa_nazwa"]`);
-await humanIdlePause('short');
+await page.locator(`input[name="${NB}innowacja_produktowa_nazwa"]`).first().waitFor({ state: 'visible' });
 
 await humanFill(page, page.locator(`input[name="${NB}innowacja_produktowa_nazwa"]`).first(), NAZWA);
 const opisR = await fillCapped('innowacja_produktowa_opis_rezultatu_prac_br', OPIS);

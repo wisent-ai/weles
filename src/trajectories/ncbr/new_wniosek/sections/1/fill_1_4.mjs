@@ -132,8 +132,7 @@ if (process.env.REPAIR) {
 let added = 0;
 for (const r of ROWS) {
   await clickDodaj(0);
-  await page.waitForSelector("[name='nazwa_podmiotu_konkurencyjnego']");
-  await humanIdlePause('short');
+  await page.locator("[name='nazwa_podmiotu_konkurencyjnego']").first().waitFor({ state: 'visible' });
   try { await setApplicant(); } catch (e) { /* applicant is auto-assigned for a single applicant */ }
   await humanFill(page, page.locator("[name='nazwa_podmiotu_konkurencyjnego']").first(), r.nazwa);
   await humanFill(page, page.locator("[name='nip']").first(), r.nip);
