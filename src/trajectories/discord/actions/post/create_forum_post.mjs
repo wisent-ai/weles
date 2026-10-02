@@ -20,9 +20,11 @@
 //   7. Click Post.
 
 import { WSession } from '../../../../../dist/session/wsession.js';
-import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../dist/human/keyboard.js';
 import { getSocialAccount, resolveAccountSession } from '../../../../../dist/utils/credentials.js';
+import { pageSettled, responseAfterAction } from '../../../_shared/page/settled.mjs';
+import { checkReachable } from '../../../_shared/action-runner.mjs';
 
 const ACCT_USERNAME = process.env.ACCOUNT_USERNAME;
 const CHANNEL = process.env.FORUM_CHANNEL_PATH;
@@ -33,6 +35,12 @@ if (!CHANNEL || !TITLE || !BODY) {
   console.log('FAIL: FORUM_CHANNEL_PATH + POST_TITLE + POST_BODY all required');
   process.exit(1);
 }
+const channel = /^(\d+)\/(\d+)$/.exec(CHANNEL);
+if (!channel) {
+  console.error(`DISCORD_FORUM_CHANNEL_INVALID: FORUM_CHANNEL_PATH must be guild_id/forum_channel_id; observed ${JSON.stringify(CHANNEL)}`);
+  process.exit(1);
+}
+const createPath = new RegExp(`^/api/v\\d+/channels/${channel[2]}/threads$`);
 
 const acct = ACCT_USERNAME
   ? await getSocialAccount('discord', { username: ACCT_USERNAME })
@@ -48,49 +56,70 @@ console.log(`[forum_post] account=${acct.username} channel=${CHANNEL} title=${TI
 try {
   await s.ctx.addInitScript(`(()=>{try{if(location.hostname.indexOf('discord')>=0){localStorage.setItem('token',JSON.stringify(${JSON.stringify(token)}))}}catch(e){}})()`);
   await s.goto(`https://discord.com/channels/${CHANNEL}`);
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
+  checkReachable(s, 'discord');
 
   // "New Post" button at top-right of the forum view.
-  const newPostBtn = s.page.locator('button').filter({ hasText: /^New Post$/ }).first();
-  if ((await newPostBtn.count()) === 0) { console.log('FAIL: New Post button not found (is this actually a forum channel?)'); process.exit(1); }
+  const newPostBtn = s.page.locator('button').filter({ hasText: /^New Post$/ }).filter({ visible: true }).first();
+  await newPostBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, newPostBtn);
-  await humanIdlePause('deliberate');
 
-  const titleInput = s.page.locator('input[placeholder*="title"], input[placeholder*="Title"], input[maxlength="100"]').first();
-  if ((await titleInput.count()) === 0) { console.log('FAIL: title input not visible'); process.exit(1); }
+  const titleInput = s.page.locator('input[placeholder*="title"], input[placeholder*="Title"], input[maxlength="100"]').filter({ visible: true }).first();
+  await titleInput.waitFor({ state: 'visible' });
   await humanFill(s.page, titleInput, TITLE);
-  await humanIdlePause('short');
+  await s.page.keyboard.press('Tab');
+  const enteredTitle = await titleInput.inputValue();
+  if (enteredTitle !== TITLE) throw Object.assign(new Error('DISCORD_FORUM_TITLE_MISMATCH'),
+    { expectedLength: TITLE.length, observedLength: enteredTitle.length, pageUrl: s.page.url() });
 
   for (const tag of TAGS) {
-    const chip = s.page.locator('div, button').filter({ hasText: new RegExp(`^${tag}$`, 'i') }).first();
-    if ((await chip.count()) > 0) {
-      try { await humanClickLocator(s.page, chip); console.log(`[forum_post] tag=${tag} selected`); }
-      catch (e) { console.log(`[forum_post] tag ${tag} click err: ${e.message}`); }
-      await humanIdlePause('short');
-    }
+    const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const chip = s.page.locator('div, button').filter({ hasText: new RegExp(`^${escaped}$`, 'i') }).filter({ visible: true }).first();
+    await chip.waitFor({ state: 'visible' });
+    await humanClickLocator(s.page, chip);
+    console.log(`[forum_post] clicked tag control ${tag}`);
   }
 
   const bodyComposer = s.page.locator('[role="textbox"][data-slate-editor], div[role="textbox"]').filter({ visible: true }).first();
-  if ((await bodyComposer.count()) === 0) { console.log('FAIL: body composer not visible'); process.exit(1); }
+  await bodyComposer.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, bodyComposer);
-  await humanIdlePause('short');
   await humanFill(s.page, bodyComposer, BODY);
-  await humanIdlePause('short');
 
-  const postBtn = s.page.locator('button').filter({ hasText: /^Post$/ }).first();
-  if ((await postBtn.count()) === 0) { console.log('FAIL: Post button not visible'); process.exit(1); }
-  await humanClickLocator(s.page, postBtn);
-  await humanIdlePause('deliberate');
-
-  // After post, URL changes to /channels/<guild>/<thread_id>
-  const newUrl = s.page.url();
-  const inPostUrl = /\/channels\/\d+\/\d+\/\d+/.test(newUrl) || newUrl !== `https://discord.com/channels/${CHANNEL}`;
-  if (!inPostUrl) { console.log(`FAIL: forum post did not navigate (url=${newUrl})`); process.exit(1); }
-  console.log(`PASS: ${acct.username} posted "${TITLE.slice(0, 40)}" -> ${newUrl}`);
+  const postBtn = s.page.locator('button').filter({ hasText: /^Post$/ }).filter({ visible: true }).first();
+  await postBtn.waitFor({ state: 'visible' });
+  const response = await responseAfterAction(s.page, (request) => {
+    const url = new URL(request.url());
+    return request.method() === 'POST' && url.origin === 'https://discord.com' && createPath.test(url.pathname);
+  }, () => humanClickLocator(s.page, postBtn));
+  const details = { operation: 'create_forum_post', requestUrl: response.url(), httpStatus: response.status() };
+  let text;
+  try {
+    text = await response.text();
+  } catch (cause) {
+    throw Object.assign(new Error('DISCORD_FORUM_RESPONSE_READ_FAILED', { cause }), details);
+  }
+  if (!response.ok()) throw Object.assign(new Error(`DISCORD_FORUM_POST_REFUSED: HTTP ${response.status()}: ${text}`), details);
+  let thread;
+  try {
+    thread = JSON.parse(text);
+  } catch (cause) {
+    throw Object.assign(new Error('DISCORD_FORUM_RESPONSE_INVALID', { cause }), details, { responseBody: text });
+  }
+  if (typeof thread?.id !== 'string' || !/^\d+$/.test(thread.id)
+      || thread.parent_id !== channel[2] || thread.type !== 11 || thread.name !== TITLE
+      || typeof thread.message?.id !== 'string' || !/^\d+$/.test(thread.message.id)
+      || thread.message.channel_id !== thread.id || thread.message.content !== BODY) {
+    throw Object.assign(new Error('DISCORD_FORUM_POST_UNCONFIRMED: the response does not confirm the requested forum post; reconcile it before another attempt'),
+      details, { responseBody: text });
+  }
+  console.log(JSON.stringify({
+    ok: true, operation: 'create_forum_post', acknowledgement: 'provider_response',
+    guild_id: channel[1], parent_id: thread.parent_id, thread_id: thread.id, message_id: thread.message.id,
+    url: `https://discord.com/channels/${channel[1]}/${thread.id}`,
+  }));
 } catch (e) {
-  console.log(`FAIL: ${e.message}`);
-  process.exit(1);
+  console.error('DISCORD_FORUM_POST_FAILED:', e);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }
-process.exit(0);

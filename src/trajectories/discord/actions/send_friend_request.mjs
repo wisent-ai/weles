@@ -22,6 +22,7 @@ import { updateAccountMetadata } from '../../_shared/skarbiec/accounts.mjs';
 import { humanFill } from '../../../../dist/human/keyboard.js';
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { pageSettled, responseAfterAction } from '../../_shared/page/settled.mjs';
+import { checkReachable } from '../../_shared/action-runner.mjs';
 
 const ACCT_USERNAME = process.env.ACCOUNT_USERNAME;
 const TARGET = process.env.DISCORD_TARGET_HANDLE;
@@ -44,6 +45,7 @@ try {
   await s.ctx.addInitScript(`(()=>{try{if(location.hostname.indexOf('discord')>=0){localStorage.setItem('token',JSON.stringify(${JSON.stringify(token)}))}}catch(e){}})()`);
   await s.goto('https://discord.com/channels/@me');
   await pageSettled(s.page);
+  checkReachable(s, 'discord');
 
   const addTab = s.page.locator('div, button').filter({ hasText: /^Add Friend$/ }).filter({ visible: true }).first();
   await addTab.waitFor({ state: 'visible' });
