@@ -12,30 +12,31 @@ import { waitCloudflare } from '../../cloudflare/challenge.js';
 /** The page surface this flow uses, named rather than left untyped. */
 interface LoginPage {
   url: (() => string) | string;
-  waitForFunction: (expression: string, options?: { timeout?: number }) => Promise<unknown>;
+  waitForFunction: (expression: string) => Promise<unknown>;
   keyboard: { press: (key: string) => Promise<void> };
   evaluate: (expression: string) => Promise<unknown>;
   context: () => unknown;
 }
 
 function getUrl(page: LoginPage): string {
-  try { return typeof page.url === 'function' ? page.url() : page.url; } catch { /* skip */ }
-  return '';
+  let url: string;
+  try {
+    url = typeof page.url === 'function' ? page.url() : page.url;
+  } catch (error) {
+    throw new Error('reading the login page URL failed', { cause: error });
+  }
+  if (!url) throw new Error('the login page URL is empty');
+  return url;
 }
 
-/**
- * Wait until the page leaves the URL it was on. The browser launcher clears
- * Playwright's own deadlines for the whole context, so this waits for the
- * navigation and nothing else.
- */
-async function waitNavigation(page: LoginPage, preUrl: string): Promise<boolean> {
+/** Observe navigation after submit; a browser failure retains its cause. */
+async function waitNavigation(page: LoginPage, preUrl: string): Promise<void> {
   try {
     await page.waitForFunction(
       `() => window.location.href !== ${JSON.stringify(preUrl)}`,
     );
-    return true;
-  } catch {
-    return false;
+  } catch (error) {
+    throw new Error(`login navigation from ${preUrl} failed`, { cause: error });
   }
 }
 
@@ -83,10 +84,7 @@ export async function run(
     await page.keyboard.press('Enter');
   }
   console.log('[login] submitted, waiting for navigation');
-  if (!await waitNavigation(page, preLoginUrl)) {
-    console.log('[login] the page never navigated away from the login URL');
-    return false;
-  }
+  await waitNavigation(page, preLoginUrl);
 
   await waitCloudflare(page);
 
