@@ -1,9 +1,9 @@
 /**
- * The one parse of a Figma document, run by `weles figma export-design-assets`
- * and by `weles figma parse-document`.
+ * The one parse of a Figma document, run by `weles design export-assets
+ * --provider figma` and by `weles design parse-document --provider figma`.
  */
 
-/** The paths `weles figma parse-document` needs before the optional vocabulary. */
+/** The paths `weles design parse-document` needs before the optional vocabulary. */
 export declare const REQUIRED_PATHS: number;
 
 /**

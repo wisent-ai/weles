@@ -1,12 +1,13 @@
 /**
  * Walk a Figma document file and write its summary, node list and vocabulary.
  *
- *     weles figma parse-document <document.json[.gz]> <summary.json> <nodes.json> [<vocabulary.json>]
+ *     weles design parse-document --provider figma <document.json[.gz]> <summary.json> <nodes.json> [<vocabulary.json>]
  *
- * Part of the Weles program, never a second one: `weles figma
- * export-design-assets` calls `parseFigmaDocument` in process at export
- * time, and `wisent-components` runs `weles figma parse-document` once more
- * over a committed `document.json.gz` whose export predates the vocabulary.
+ * Part of the Weles program, never a second one: `weles design export-assets
+ * --provider figma` calls `parseFigmaDocument` in process at export time,
+ * and `wisent-components` runs `weles design parse-document --provider figma`
+ * once more over a committed `document.json.gz` whose export predates the
+ * vocabulary.
  * A Figma file routinely exceeds the longest string Node can hold, so the
  * document is read from its bytes (`json-bytes.mjs`) and never becomes one
  * string.
@@ -32,7 +33,7 @@ import { FloatNumber, parseJsonBytes, stringifyOrdered } from './json-bytes.mjs'
 const SCHEMA_VERSION = 1;
 /** Spaces per level in the vocabulary, which is committed and read by people. */
 const VOCABULARY_INDENT = 2;
-/** The paths `weles figma parse-document` needs before the optional vocabulary. */
+/** The paths `weles design parse-document` needs before the optional vocabulary. */
 export const REQUIRED_PATHS = 3;
 
 function sizeOf(value) {

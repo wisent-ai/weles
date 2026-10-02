@@ -166,33 +166,41 @@ export async function runRelease(parsed: ParsedCli): Promise<void> {
 }
 
 /**
- * `weles figma export-design-assets` — export the Figma design files this
- * organization owns and publish them to the design-assets repository. The
- * exporter reads its Figma credential through the fleet's Skarbiec endpoint,
- * which is why `WC_SKARBIEC_URL` is the one coordinate it still takes from the
- * environment.
+ * `weles design export-assets --provider figma` — export the design files
+ * this organization owns in the provider and publish them to the
+ * design-assets repository. The exporter reads its provider credential
+ * through the fleet's Skarbiec endpoint, which is why `WC_SKARBIEC_URL` is
+ * the one coordinate it still takes from the environment.
  *
- * `weles figma parse-document <document.json[.gz]> <summary.json> <nodes.json>
- * [<vocabulary.json>]` — the exporter's one parse of a document, on its own,
- * for a committed document whose export predates its vocabulary. It reads no
- * credential and reaches no network.
+ * `weles design parse-document --provider figma <document.json[.gz]>
+ * <summary.json> <nodes.json> [<vocabulary.json>]` — the exporter's one parse
+ * of a document, on its own, for a committed document whose export predates
+ * its vocabulary. It reads no credential and reaches no network.
+ *
+ * The command is named for what it does; the design tool is `--provider`,
+ * and Figma is the one implemented.
  */
-export async function runFigma(parsed: ParsedCli): Promise<void> {
+const DESIGN_PROVIDER = 'figma';
+
+export async function runDesign(parsed: ParsedCli): Promise<void> {
   const [action, ...paths] = parsed.positional;
-  // The figma modules are ES modules and this CLI compiles to CommonJS, which
-  // cannot static-import ESM.
-  if (action === 'export-design-assets') {
+  if (parsed.options.provider !== DESIGN_PROVIDER) {
+    throw new UsageError(`design needs --provider naming the design tool; Weles implements ${DESIGN_PROVIDER}`);
+  }
+  // The provider modules are ES modules and this CLI compiles to CommonJS,
+  // which cannot static-import ESM.
+  if (action === 'export-assets') {
     await import('../figma/export-design-assets.mjs');
     return;
   }
   if (action === 'parse-document') {
     const parser = await import('../figma/document/parse-figma-document.mjs');
     if (paths.length < parser.REQUIRED_PATHS) {
-      throw new UsageError('weles figma parse-document takes <document.json[.gz]> <summary.json> <nodes.json> [<vocabulary.json>]');
+      throw new UsageError('weles design parse-document takes --provider figma <document.json[.gz]> <summary.json> <nodes.json> [<vocabulary.json>]');
     }
     const [source, summaryPath, nodesPath, vocabularyPath] = paths;
     parser.parseFigmaDocument(source, summaryPath, nodesPath, vocabularyPath);
     return;
   }
-  throw new UsageError(`weles figma takes export-design-assets or parse-document, not ${action ?? '<nothing>'}`);
+  throw new UsageError(`weles design takes export-assets or parse-document, not ${action ?? '<nothing>'}`);
 }
