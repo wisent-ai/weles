@@ -4,7 +4,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, parseBalanceFromText, getScopedGoogleLogin } from '../_shared/services/google_sso.mjs'
 import { patchEffectiveBalance } from '../_shared/services/proxy_probe.mjs';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
-import { urlMatching } from '../_shared/page/settled.mjs';
+import { reviewUntilClosed, urlMatching } from '../_shared/page/settled.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
@@ -97,13 +97,16 @@ try {
   const r2 = await patchEffectiveBalance('Oxylabs Mobile', balance);
   if (!r1 || !r2) { console.log(`FAIL: PATCH residential=${r1} mobile=${r2}`); throw new Error(`PATCH residential=${r1} mobile=${r2}`); }
   console.log(`PASS: dashboard=$${balance} (effective balance written + probed)`);
-} catch (e) {
-  console.log('FAIL:', e.message);
-  if (process.env.KEEP_OPEN === '1') {
-    console.log('[trajectory] KEEP_OPEN=1 — browser left open for manual intervention');
-    await new Promise(() => {});
-  }
-  process.exit(1);
+} catch (error) {
+  console.error('FAIL:', error);
+  process.exitCode = 1;
 } finally {
-  if (process.env.KEEP_OPEN !== '1') await s.close();
+  try {
+    if (process.env.KEEP_OPEN === '1' && !s.page.isClosed()) {
+      console.log('[trajectory] KEEP_OPEN=1 — close the browser window or stop the command to finish review');
+      await reviewUntilClosed(s);
+    }
+  } finally {
+    await s.close();
+  }
 }

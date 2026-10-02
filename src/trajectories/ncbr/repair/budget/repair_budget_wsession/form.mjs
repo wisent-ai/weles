@@ -1,15 +1,19 @@
 // The LSI form helpers of repair_budget_wsession.mjs, bound to the page they act on.
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
+import { reviewUntilClosed } from '../../../../_shared/page/settled.mjs';
 
 export function lsiForm({ page, session, email, password, KEEP_OPEN }) {
 async function finish(payload, code = 0) {
   console.log(JSON.stringify(payload, null, 2));
-  if (KEEP_OPEN) {
-    console.log(`[keep-open] WSession zostaje otwarta; kod wyniku=${code}. Nie kliknięto Złóż wniosek.`);
-    await new Promise(() => {});
+  try {
+    if (KEEP_OPEN && !page.isClosed()) {
+      console.log(`[keep-open] WSession zostaje otwarta do zamknięcia okna lub zatrzymania polecenia; kod wyniku=${code}. Nie kliknięto Złóż wniosek.`);
+      await reviewUntilClosed(session);
+    }
+  } finally {
+    await session.close();
   }
-  await session.ctx.close();
   process.exit(code);
 }
 
