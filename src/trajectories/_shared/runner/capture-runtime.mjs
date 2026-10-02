@@ -48,20 +48,12 @@ export function planFromEnv(name, parse) {
 // A pristine chromium session on the Stado-selected host, with the requested
 // viewport and device scale factor already in force.
 //
-// A plan that asks for a recording gets the browser's own recorder. The
-// alternative — capture CDP screencast frames and stitch them with ffmpeg —
-// needs an ffmpeg that can read a PNG sequence off disk, and a managed
-// worker carries only the cut-down build its browser runtime installs, so
-// a capture ends with `Error opening input: No such file or directory`
-// about a directory the worker's own diagnostics list as full of frames. The recorder
-// Playwright drives writes WebM through the same bundled binary by design,
-// so a recording needs nothing installed that a browser run does not.
+// generic_capture owns its JPEG-to-WebM encoder and verifies the completed
+// file. Disable the separate session recorder so two recordings do not compete
+// for the same page or leave an unattributed video beside the capture.
 export async function startCaptureSession(label, plan) {
   process.env.WELES_PAGE_DIAGNOSTICS = '0';
-  process.env.WELES_DISABLE_RECORDING = plan.record_seconds > 0 ? '0' : '1';
-  if (plan.record_seconds > 0) {
-    process.env.WELES_VIDEO_SIZE = `${plan.viewport.width}x${plan.viewport.height}`;
-  }
+  process.env.WELES_DISABLE_RECORDING = '1';
   const session = await WSession.start({
     label,
     proxy: 'none',

@@ -21,12 +21,13 @@
  * left on the host is not evidence.
  */
 import { createHash } from 'node:crypto';
-import { readdirSync, statSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { parseCaptureParams } from '../../../dist/worker/params/capture-params.js';
 import { humanHoverLocator, humanScroll } from '../../../dist/human/mouse.js';
 import { pageSettled } from '../_shared/page/settled.mjs';
+import { captureVideoTools, recordCaptureVideo } from '../_shared/runner/capture-video.mjs';
 import {
   captureKeyPrefix, fileAttribution, planFromEnv, pngPixelSize,
   startCaptureSession, uploadCaptureObject, welesVersion, writeLocalArtifact,
@@ -68,26 +69,6 @@ async function runStep(session, step) {
   return session.goto(step.value);
 }
 
-// The WebM the browser's recorder left behind, by modification time.
-//
-// `WSession.close()` saves it as `<label>_<iso>.webm` in this run's own
-// recordings directory; nothing else in that directory is a video. Reading
-// the file back, rather than trusting the name the session chose, keeps the
-// attribution about the object that actually exists.
-//
-// There is no ffprobe here on purpose. A managed worker carries none, and
-// the two facts a sidecar needs are already known without one: the frame
-// size is the viewport the recorder was given, and the duration is the wall
-// clock the recording was held open for.
-function recordedVideo(directory) {
-  const videos = readdirSync(directory)
-    .filter((name) => name.endsWith('.webm'))
-    .map((name) => join(directory, name))
-    .map((path) => ({ path, at: statSync(path).mtimeMs }))
-    .sort((left, right) => right.at - left.at);
-  if (videos.length === 0) return null;
-  return videos[0].path;
-}
 
 const plan = planFromEnv('GENERIC_CAPTURE_PLAN', parseCaptureParams);
 const keyPrefix = captureKeyPrefix(plan.artifact_prefix);
@@ -104,27 +85,40 @@ const base = [
 ].join('--');
 
 let started = null;
-let closed = false;
+let sessionClosure = null;
+const closeSession = () => {
+  sessionClosure ??= started.session.close();
+  return sessionClosure;
+};
 const stepsExecuted = [];
 const artifacts = [];
 try {
   console.log(`[capture] ${plan.batch}/${plan.site_slug}/${plan.axis} url=${plan.source_url} viewport=${plan.viewport.width}x${plan.viewport.height}@${plan.viewport.device_scale_factor}x full_page=${plan.full_page} record=${plan.record_seconds}s steps=${plan.steps.length}`);
+  const videoTools = plan.record_seconds > 0 ? captureVideoTools() : null;
   started = await startCaptureSession(label, plan);
   const { session, renderer } = started;
   const version = welesVersion();
   await session.goto(plan.source_url);
-  await session.page.waitForLoadState('load').catch(() => {});
+  await session.page.waitForLoadState('load');
 
-  const recordStartedAt = Date.now();
-  for (const step of plan.steps) {
-    const outcome = await runStep(session, step);
-    stepsExecuted.push({ op: step.op, value: step.value, outcome: String(outcome) });
-  }
-  let recordedSeconds = null;
+  const performSteps = async () => {
+    for (const step of plan.steps) {
+      const outcome = await runStep(session, step);
+      stepsExecuted.push({ op: step.op, value: step.value, outcome: String(outcome) });
+    }
+  };
+  let recorded = null;
   if (plan.record_seconds > 0) {
-    const remainingMs = plan.record_seconds * 1000 - (Date.now() - recordStartedAt);
-    if (remainingMs > 0) await session.page.waitForTimeout(remainingMs);  // allow-raw-playwright: hold the recording open for the requested duration
-    recordedSeconds = Math.round((Date.now() - recordStartedAt) / 100) / 10;
+    recorded = await recordCaptureVideo({
+      page: session.page,
+      path: join(runRecordingsDir(label), `${base}.webm`),
+      seconds: plan.record_seconds,
+      tools: videoTools,
+      perform: performSteps,
+      closeSession,
+    });
+  } else {
+    await performSteps();
   }
 
   const capturedAt = new Date().toISOString();
@@ -159,20 +153,9 @@ try {
     sha256: still.sha256,
   });
 
-  // The recorder seals its file when the session closes, so the close has to
-  // happen before the video can be read at all. Everything the still needed
-  // from the live page is already captured above.
-  if (plan.record_seconds > 0) {
-    await started.session.close();
-    closed = true;
-    const videoPath = recordedVideo(runRecordingsDir(label));
-    if (!videoPath) {
-      throw new Error(
-        `record_seconds ${plan.record_seconds} produced no video: the browser's recorder `
-        + `left no .webm in ${runRecordingsDir(label)} for ${plan.source_url}`,
-      );
-    }
-    const video = fileAttribution(videoPath);
+  if (recorded) {
+    await closeSession();
+    const video = fileAttribution(recorded.path);
     const videoSidecar = {
       source_url: plan.source_url,
       axis: plan.axis,
@@ -183,12 +166,13 @@ try {
       renderer,
       weles_version: version,
       media_kind: 'video-webm',
-      width: plan.viewport.width,
-      height: plan.viewport.height,
-      duration_seconds: recordedSeconds,
+      width: recorded.width,
+      height: recorded.height,
+      duration_seconds: recorded.duration_seconds,
+      frames: recorded.frames,
       bytes: video.bytes,
       sha256: video.sha256,
-      capture_method: `Recorded ${plan.source_url} in ${renderer} on the Stado-selected Weles host for ${recordedSeconds}s at ${plan.viewport.width}x${plan.viewport.height} CSS px and device scale factor ${plan.viewport.device_scale_factor} while executing ${stepsExecuted.length} scripted step(s), written as WebM by the browser's own recorder.`,
+      capture_method: `Captured viewport JPEG frames of ${plan.source_url} in ${renderer} on the Stado-selected Weles host while executing ${stepsExecuted.length} scripted step(s), preserving observed capture spacing at 25 encoded frames per second. ${videoTools.encoder} encoded WebM; ${videoTools.probe} read the written file's ${recorded.width}x${recorded.height} dimensions, ${recorded.frames} decoded frames and ${recorded.duration_seconds}s duration.`,
     };
     artifacts.push({
       key: `${keyPrefix}${base}.webm`,
@@ -217,7 +201,6 @@ try {
   console.log(`PASS: ${label} ${artifacts.map((artifact) => artifact.uri).join(' ')}`);
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
-  // The recording path closes the session itself to seal the video.
   writeFileSync(join(runRecordingsDir(label), 'capture_result.json'), JSON.stringify({
     ok: false,
     batch: plan.batch,
@@ -228,12 +211,20 @@ try {
     artifacts,
     steps_executed: stepsExecuted,
     error: message,
+    error_details: {
+      code: error?.code, operation: error?.operation,
+      encoder: error?.encoder, probe: error?.probe, path: error?.path,
+      status: error?.status, signal: error?.signal, stderr: error?.stderr,
+      requested_seconds: error?.requestedSeconds, written_frames: error?.writtenFrames,
+      input_ended: error?.inputEnded, observed: error?.observed,
+      cause: error?.cause?.message,
+    },
     completed_at: new Date().toISOString(),
   }, null, 2));
-  console.log('FAIL:', message);
+  console.error('FAIL:', error);
   process.exitCode = 1;
 } finally {
-  if (started && !closed) await started.session.close();
+  if (started) await closeSession();
 }
 
 process.exit(process.exitCode ?? 0);
