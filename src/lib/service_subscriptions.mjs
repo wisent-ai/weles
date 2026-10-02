@@ -7,10 +7,10 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { activeSkarbiecBinary } from '../_shared/skarbiec-runtime.mjs';
 
-const SKARBIEC = activeSkarbiecBinary();
+let resolvedSkarbiecBinary;
 const VAULT = process.env.SKARBIEC_VAULT_FILE ?? join(homedir(), '.stado', 'skarbiec.vault.json');
 const RECORD_TAG = 'weles:record:service-subscription';
-const run = (args, input) => execFileSync(SKARBIEC, args, {
+const run = (args, input) => execFileSync(resolvedSkarbiecBinary ??= activeSkarbiecBinary(), args, {
   input,
   encoding: 'utf8',
   env: { ...process.env, SKARBIEC_VAULT_FILE: VAULT },

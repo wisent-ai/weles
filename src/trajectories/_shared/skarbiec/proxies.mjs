@@ -14,11 +14,11 @@ import { providerFromHost } from '../../../dist/proxy/policy.js';
 import { proxyTypeOf, stickyCredentials } from '../../../dist/proxy/sources/provider_credentials.js';
 
 const HOME = os.homedir();
-const SKARBIEC = activeSkarbiecBinary();
+let resolvedSkarbiecBinary;
 const VAULT = process.env.SKARBIEC_VAULT_FILE ?? path.join(HOME, '.stado', 'skarbiec.vault.json');
 
 function skarbiec(args, input) {
-  return execFileSync(SKARBIEC, args, {
+  return execFileSync(resolvedSkarbiecBinary ??= activeSkarbiecBinary(), args, {
     input,
     encoding: 'utf8',
     env: {

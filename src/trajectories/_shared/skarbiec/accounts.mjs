@@ -5,7 +5,7 @@ import path from 'node:path';
 import { activeSkarbiecBinary } from '../../../_shared/skarbiec-runtime.mjs';
 
 const HOME = os.homedir();
-const SKARBIEC = activeSkarbiecBinary();
+let resolvedSkarbiecBinary;
 const VAULT = process.env.SKARBIEC_VAULT_FILE ?? path.join(HOME, '.stado', 'skarbiec.vault.json');
 // Weles marks each record with the kind it is (Skarbiec namespace
 // weles:record:<kind>) and finds one by that tag and its own context; an
@@ -15,7 +15,7 @@ const ACCOUNT_KIND = 'trajectory-account';
 const ITEM_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,190}$/;
 
 function run(args, input) {
-  return execFileSync(SKARBIEC, args, {
+  return execFileSync(resolvedSkarbiecBinary ??= activeSkarbiecBinary(), args, {
     input,
     encoding: 'utf8',
     env: { ...process.env, SKARBIEC_VAULT_FILE: VAULT },

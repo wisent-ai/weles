@@ -4,11 +4,11 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { activeSkarbiecBinary } from '../_shared/skarbiec-runtime.mjs';
 
-const SKARBIEC_BIN = activeSkarbiecBinary();
+let resolvedSkarbiecBinary;
 const SKARBIEC_VAULT_FILE = process.env.SKARBIEC_VAULT_FILE ?? join(homedir(), '.stado', 'skarbiec.vault.json');
 
 function skarbiec(args, input) {
-  return execFileSync(SKARBIEC_BIN, args, {
+  return execFileSync(resolvedSkarbiecBinary ??= activeSkarbiecBinary(), args, {
     input,
     encoding: 'utf8',
     env: { ...process.env, SKARBIEC_VAULT_FILE },
