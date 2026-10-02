@@ -50,7 +50,10 @@ const radios = ['rozwoj_technologii_krytycznej', 'produkt_koncowy', 'pkd_2025'];
 
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
-if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' })); process.exit(0); }
+if (!page) {
+  console.log(JSON.stringify({ error: 'NO_PAGE' }));
+  process.exit(1);
+}
 
 async function pickOption(name, search, value) {
   const loc = page.locator(`input[name="${NB}${name}"]`).first();

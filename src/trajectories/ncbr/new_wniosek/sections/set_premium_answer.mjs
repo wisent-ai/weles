@@ -18,7 +18,10 @@ if (!['Tak', 'Nie'].includes(ANSWER)) throw new Error('ANSWER must be Tak or Nie
 
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
-if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' })); process.exit(0); }
+if (!page) {
+  console.log(JSON.stringify({ error: 'NO_PAGE' }));
+  process.exit(1);
+}
 
 
 await page.goto(PROJ + IDS[SECTION], { waitUntil: 'domcontentloaded' });

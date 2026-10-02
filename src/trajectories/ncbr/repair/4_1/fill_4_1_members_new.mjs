@@ -11,7 +11,10 @@ const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/5af236aa-03b2-4650-b5a2-95c299dfeeaf';
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
-if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' })); process.exit(0); }
+if (!page) {
+  console.log(JSON.stringify({ error: 'NO_PAGE' }));
+  process.exit(1);
+}
 
 
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });

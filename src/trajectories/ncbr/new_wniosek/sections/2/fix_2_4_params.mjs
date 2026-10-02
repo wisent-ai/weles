@@ -36,7 +36,7 @@ const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
 if (!page) {
   console.log(JSON.stringify({ error: 'NO_PAGE' }, null, 2));
-  process.exit(0);
+  process.exit(1);
 }
 
 async function clickVisibleButton(text) {

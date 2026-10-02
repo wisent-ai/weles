@@ -30,7 +30,10 @@ const NON_EU_COMP = competitorRows('## Oferta konkurencji spoza UE', '## Rynek d
 
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
-if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' })); process.exit(0); }
+if (!page) {
+  console.log(JSON.stringify({ error: 'NO_PAGE' }));
+  process.exit(1);
+}
 
 async function setAuto(suffix, value) {
   const inp = page.locator(`input[name$="${suffix}"]`).first();

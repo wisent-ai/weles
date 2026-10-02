@@ -11,7 +11,10 @@ const NEEDLE = 'Udział cykli treningowych RNM z raportem energii, CO2eq i kryte
 
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
-if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' }, null, 2)); process.exit(0); }
+if (!page) {
+  console.log(JSON.stringify({ error: 'NO_PAGE' }, null, 2));
+  process.exit(1);
+}
 
 
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: UI navigation to authenticated draft section

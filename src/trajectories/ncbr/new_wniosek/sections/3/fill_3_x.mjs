@@ -56,7 +56,10 @@ for (const f of cfg.fields) { if (f.value === undefined) f.value = bt(f.start, f
 
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
-if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' })); process.exit(0); }
+if (!page) {
+  console.log(JSON.stringify({ error: 'NO_PAGE' }));
+  process.exit(1);
+}
 
 await page.goto(PROJ + cfg.id, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');

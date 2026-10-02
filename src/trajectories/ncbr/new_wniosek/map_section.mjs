@@ -19,7 +19,7 @@ const page = context?.pages()[0];
 
 if (!page) {
   console.log(JSON.stringify({ error: 'NO_PAGE', url: null }, null, 2));
-  process.exit(0);
+  process.exit(1);
 }
 
 const projectUrl = process.env.NCBR_PROJECT_URL || ['https://', 'lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1'].join('');

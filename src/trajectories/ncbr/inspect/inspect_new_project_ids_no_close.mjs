@@ -14,7 +14,7 @@ const page = context?.pages()[0];
 
 if (!page) {
   console.log(JSON.stringify({ error: 'NO_PAGE' }, null, 2));
-  process.exit(0);
+  process.exit(1);
 }
 
 await page.goto(`${base}/projekt/${projectId}/projekt_step/4e260fae-c455-41ce-bba3-d0df2a8767fd`, { waitUntil: 'domcontentloaded' });
