@@ -19,7 +19,8 @@ const reply = 'src/trajectories/discord/actions/comment/reply_message.mjs';
 const targetReader = 'src/trajectories/_shared/discord/message-target.mjs';
 const replyReader = 'src/trajectories/_shared/discord/response.mjs';
 const profile = 'src/trajectories/discord/actions/passive/view_profile.mjs';
-for (const path of [friend, forum, thread, reply, profile, targetReader, replyReader, 'tests/discord/action-preflight.mjs']) {
+const invite = 'src/trajectories/discord/actions/join_server.mjs';
+for (const path of [friend, forum, thread, reply, profile, invite, targetReader, replyReader, 'tests/discord/action-preflight.mjs']) {
   evidence.report.source_sha256[path] = createHash('sha256').update(await readFile(join(root, path))).digest('hex');
 }
 const scenarios = [
@@ -40,6 +41,16 @@ const scenarios = [
   { name: 'invalid_profile_target', entry: profile,
     settings: { DISCORD_TARGET_USER_ID: '../../profile-escape' },
     diagnostics: ['DISCORD_PROFILE_TARGET_INVALID', '../../profile-escape'] },
+  { name: 'missing_invite_url', entry: invite, diagnostics: ['INVITE_URL'] },
+  { name: 'foreign_invite_origin', entry: invite,
+    settings: { INVITE_URL: 'https://example.com/invite/abc123' },
+    diagnostics: ['DISCORD_INVITE_URL_INVALID', 'https://example.com/invite/abc123'] },
+  { name: 'non_invite_discord_path', entry: invite,
+    settings: { INVITE_URL: 'https://discord.com/channels/@me' },
+    diagnostics: ['DISCORD_INVITE_URL_INVALID', 'https://discord.com/channels/@me'] },
+  { name: 'credential_bearing_invite_url', entry: invite,
+    settings: { INVITE_URL: 'https://operator:example@discord.gg/abc123' },
+    diagnostics: ['DISCORD_INVITE_URL_INVALID', 'https://operator:example@discord.gg/abc123'] },
 ];
 const failures = [];
 try {
@@ -53,6 +64,7 @@ try {
       POST_TAGS: '', SERVER_CHANNEL_PATH: '', TARGET_MESSAGE_SUBSTRING: '', THREAD_NAME: '', THREAD_FIRST_MESSAGE: '',
       REPLY_TEXT: '',
       DISCORD_TARGET_USER_ID: '',
+      INVITE_URL: '',
       ...scenario.settings,
     };
     const operation = { scenario: scenario.name, command: [process.execPath, entry], cwd: home, environment_overrides: overrides };
