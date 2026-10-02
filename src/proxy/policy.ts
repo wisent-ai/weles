@@ -51,9 +51,8 @@ export function providerFromHost(host: string | undefined, username?: string): s
 
 // Retired provider pools. Accounts whose stored metadata.proxy points at one
 // of these MUST be burned (is_active=false) rather than rerouted through any
-// other provider. The principle pinned 2026-05-21: one dedicated ISP IP per
-// account, set at registration time, used forever. When the pinned pool
-// retires, the account retires with it.
+// other provider. Each account retains the dedicated ISP IP assigned at
+// registration. When its pinned pool retires, the account retires with it.
 //
 // Each retired pattern names what we observed in the wild:
 //   - pr.oxylabs.io / 195.86.* / 152.233.* on port 7777: Oxylabs Residential
@@ -64,10 +63,7 @@ const RETIRED_PROVIDER_HOSTS: { pattern: RegExp; reason: string }[] = [
   { pattern: /(^|\.)pr\.oxylabs\.io$/i,        reason: 'oxylabs_residential_rotating' },
   { pattern: /^195\.86\./,                      reason: 'oxylabs_residential_exit_range' },
   { pattern: /^152\.233\./,                     reason: 'oxylabs_residential_exit_range' },
-  // Oxylabs shared ISP pool (isp.oxylabs.io) exits on datacenter ASNs
-  // (NetEnterprise AS11563, CenturyLink AS3561, EGIHosting AS32444) per live
-  // audit 2026-05-21. Oxylabs Dedicated ISP (disp.oxylabs.io) exits on
-  // Comcast (AS33667) and is viable for LinkedIn; do NOT retire it here.
+  // Treat the shared ISP pool separately from the dedicated ISP endpoint.
   { pattern: /(^|\.)isp\.oxylabs\.io$/i,        reason: 'oxylabs_shared_isp_serves_datacenter' },
 ];
 // Port-only signal: 7777 is the Oxylabs Residential rotating port across
@@ -90,15 +86,13 @@ export function isProviderBlockedForPlatform(provider: string | undefined, platf
   return (PROVIDER_PLATFORM_BLOCK[provider] ?? []).includes(platform);
 }
 
-// Signup-specific burned exits from the 2026-06-23 Chrome-vs-Weles A/B
-// diagnosis. These are intentionally NOT global LinkedIn burns: existing
+// Signup-specific exclusions, not global LinkedIn account exclusions:
 // account sessions can still be healthy on an exit that cold signup challenges.
 // Apply only when the current runner is linkedin_register.
 const LINKEDIN_SIGNUP_CHALLENGE_EXITS: Record<string, string> = {
   // Decodo ISP: Chrome and Weles both hit captcha_gauntlet on createAccount.
   '23.26.170.193': 'linkedin_signup_ab_challenge_decodo_2026_06_23',
-  // Decodo ISP extra static ports audited 2026-06-24: cold /signup probe
-  // returns challenge on every attempt, before browser launch.
+  // Additional excluded Decodo ISP exits.
   '82.21.167.146': 'linkedin_signup_probe_challenge_decodo_10002_2026_06_24',
   '48.44.47.67': 'linkedin_signup_probe_challenge_decodo_10003_2026_06_24',
   // Oxylabs Dedicated ISP ports 8001-8005: all challenged in Chrome and Weles.
@@ -164,14 +158,8 @@ export async function verifyExitCountry(exitIp: string, expectedCc: string): Pro
   }
 }
 
-// Reputation-check an exit IP via ip-api.coms free `proxy` and `hosting`
-// fields. Verified 2026-05-04 against the Oxylabs sticky 4691193 exit IP
-// (108.28.42.110) that produced a healthy /feed PASS at 03:51:23 — ip-api
-// reported proxy:false, hosting:false, as:AS701 Verizon Business, matching
-// its actual residential FiOS upstream. ip-api flags datacenter ASNs and
-// known proxy exits with proxy:true or hosting:true. Pre-bind reputation
-// rejection cuts the wasted Chromium boot we'd otherwise burn on a flagged
-// exit before the post-goto form-render probe catches it.
+// Read the provider's proxy and hosting classification before binding an exit.
+// A failed measurement remains unknown rather than proving a clean address.
 export type ReputationResult = 'clean' | 'proxy' | 'hosting' | 'mobile' | 'unknown';
 export interface ExitReputation {
   result: ReputationResult;
@@ -216,11 +204,7 @@ export {
 } from './quality/platform_probes.js';
 
 
-// Event-driven topup enqueue triggered by 407 on gateway preflight CONNECT.
-// Cited 2026-05-04: IPRoyal, Pingproxies, BrightData all return HTTP 407
-// from gateway CONNECT when the account is unfunded or suspended. Same
-// credential drives every sticky, so all retries hit the same 407 — making
-// 407 a deterministic signal that the topup trajectory needs to run NOW.
+// Enqueue an account-level top-up check when gateway CONNECT returns 407.
 const _enqueuedTopupThisProcess = new Set<string>();
 const _TOPUP_SLUG: Record<string, string> = {
   'Bright Data': 'brightdata', 'PacketStream': 'packetstream',

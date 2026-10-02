@@ -1,10 +1,8 @@
 import { readScopedProxy } from '../../_shared/scoped-secrets.mjs';
 
 // Pick the best available US static-ISP proxy for Instagram trajectories.
-// Oxylabs Residential rotating sticky triggered IG silent-SMS-suppression
-// on 12/12 attempts 2026-05-19. Decodo Dedicated Static ISP (3 US IPs,
-// AS Comcast) is the new default; Oxylabs rotating is used only when
-// Decodo is not configured.
+// Prefer the configured dedicated ISP endpoint; use the existing residential
+// fallback only when that endpoint is not configured.
 export function pickInstagramProxy() {
   const dPorts = (process.env.DECODO_ISP_PORTS || '').split(',').filter(Boolean);
   const dHost = process.env.DECODO_ISP_HOST;

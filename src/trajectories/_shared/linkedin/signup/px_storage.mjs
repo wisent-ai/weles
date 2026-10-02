@@ -1,13 +1,6 @@
 // PerimeterX localStorage persistence for LinkedIn.
 //
-// Diff harness 2026-05-03 (.work/inst/linkedin_login_diff_2026-05-03T21-02-42-556Z.md
-// lines 25-30) shows chrome's session reads PXdOjV695v__pxvid count=2 and writes
-// PXdOjV695v_px_hvd count=2, while weles reads/writes neither — meaning chrome
-// has a CACHED PerimeterX visitor identity from prior visits. weles starts fresh
-// every session, so PX treats us as a brand-new visitor on a residential proxy
-// and challenges by default (3 POSTs to /Aa2cBLc-islKN9O per session, plus 1
-// to /sensorCollect/?action=reportMetrics). Persisting these keys across
-// sessions makes PX recognize the account as a returning visitor.
+// Retain the account's selected browser storage keys across its sessions.
 //
 // Keys captured (matched by single regex):
 //   PXdOjV695v_*  — PerimeterX visitor id, fingerprint, high-value-detection

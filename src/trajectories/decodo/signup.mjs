@@ -109,12 +109,8 @@ try {
   // Finish OAuth here: click the account tile / Continue / Allow on whichever
   // page is live until we are genuinely on dashboard.decodo.com and NOT on
   // /login. No false PASS — hard-fail if the session never establishes.
-  // Auth is verified by DOM, NOT url. Decodo's SPA renders the "Welcome
-  // back" login form at dashboard.decodo.com/ itself when unauthenticated
-  // (no /login path redirect), so a url-only check false-positived (run
-  // 2026-05-17T19:12: url=dashboard.decodo.com/ but 02_dashboard.png was the
-  // login form). Authed = on decodo dashboard host, no visible password
-  // input, and authenticated chrome text present.
+  // The SPA can render a login form at the dashboard URL. Require authenticated
+  // page content and the absence of a visible password input.
   const authed = async () => {
     if (!/dashboard\.decodo\.com/.test(s.page.url())) return false;
     if ((await s.page.locator('input[type="password"]').filter({ visible: true }).count()) > 0) return false;

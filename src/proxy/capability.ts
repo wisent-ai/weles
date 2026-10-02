@@ -26,8 +26,8 @@ import declaredProviders from './data/providers.json';
 
 
 // Defaults are overridden by the proxy_rate_cards Skarbiec setting.
-// Verified 2026-04-29 from each provider's pricing page. PacketStream is
-// pay-as-you-go residential, Pingproxies/IPRoyal residential pools.
+// PacketStream is pay-as-you-go residential; Pingproxies and IPRoyal offer
+// residential pools.
 // Update if any provider's published rate changes.
 const DEFAULT_RATES: Record<string, { per_gb: number }> = {
   oxylabs:      { per_gb: 4.00 },

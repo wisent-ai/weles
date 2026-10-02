@@ -1,14 +1,5 @@
 import { pageSettled } from '../../page/settled.mjs';
 // Provider rotation + form-rendering probe for linkedin_login.mjs.
-//
-// Cited from 2026-05-04 04:44 run output: 5 consecutive Oxylabs sticky
-// re-rolls each served the degraded /login shell (zero email input) while
-// the same weles binary direct from this Macs home IP rendered the full
-// form (6 inputs, email present). LinkedIns edge fingerprints proxy IPs at
-// first byte and serves a stripped page on flagged exits regardless of
-// browser fingerprint. Re-rolling within a single provider exhausts when
-// LinkedIn has flagged that providers exit pool for the day; rotating
-// between providers gives us 4x the surface area before giving up.
 
 export async function pageHasLoginForm(page) {
   await pageSettled(page);
@@ -29,10 +20,7 @@ export async function pageHasLoginForm(page) {
 export async function freshProviderUrl(provider) {
   try {
     const mod = await import('../../../../../dist/proxy/config.js');
-    // User rule (explicit, 2026-05-11): ISP-sticky pool for all LinkedIn
-    // traffic. Earlier mobile/residential pin removed — random sticky exits
-    // burned the signup flow per session telemetry. Only Oxylabs ISP
-    // (isp.oxylabs.io:8001-8010, dedicated static IPs).
+    // Request the ISP tier through the configured provider resolver.
     const tier = 'isp';
     const pw = await mod.resolveProxy(`${tier} ${provider} us`, 'www.linkedin.com');
     if (!pw?.server || !pw?.username) return null;
@@ -43,11 +31,7 @@ export async function freshProviderUrl(provider) {
   } catch { return null; }
 }
 
-// Weighted toward Oxylabs because account_action_logs cited 2026-05-04
-// shows Oxylabs sticky 4691193 produced a healthy /feed PASS at 03:51:23
-// while sticky 9764033 (same pr.oxylabs.io gateway) hit hard-timeout at
-// 00:57 and 9716730 hit checkpoint at 22:29 — only the sticky session id
-// varied. Roll many Oxylabs sessids before falling back to other providers.
+// The sequence orders provider choices for this trajectory.
 export const PROVIDER_ROTATION = (() => {
   const seq = [];
   for (let i = 0; i < 20; i++) seq.push('oxylabs');

@@ -42,11 +42,8 @@ try {
 
   mkdirSync(OUT_DIR, { recursive: true });
 
-  // /dashboard and /orders return 404 (verified 2026-05-20). Real in-app
-  // routes from the Ziggy table: /myorders (SMS order history), /myaccount
-  // (profile + settings), /addfunds (top-up history), /hire-panel (active
-  // hire contracts). The marketing-nav regex on / missed these because
-  // they only appear in the logged-in user-menu dropdown.
+  // Capture the authenticated application routes, including pages exposed by
+  // its user menu rather than by the public marketing navigation.
   async function dumpPath(path) {
     await openJuicyPage(s, `https://juicysms.com${path}`);
     const slug = path === '/' ? 'home' : path.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');

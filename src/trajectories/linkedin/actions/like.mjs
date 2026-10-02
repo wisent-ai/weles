@@ -49,13 +49,8 @@ try {
     }
   }
   // LinkedIn's like button is a <button aria-label="React Like"> that flips
-  // aria-pressed false→true on click. 2026-05-06: the legacy post-container
-  // selectors (.feed-shared-update-v2, .fie-impression-container,
-  // [data-id^="urn:li:activity"]) are gone in the new design system, so
-  // target the first React-Like button on the page directly. The aria-label
-  // is semantic and stable; comment-level likes have a different
-  // aria-label ("Like this comment") so the React-Like prefix already
-  // excludes them.
+  // aria-pressed false→true on click. The React-Like label excludes
+  // comment-level actions labeled "Like this comment".
   const likeBtn = s.page.locator('button[aria-label*="React Like" i]:not([aria-pressed="true"])').first();
   if (!(await likeBtn.count())) {
     // Already liked OR no posts on the page — idempotent PASS-or-noop.

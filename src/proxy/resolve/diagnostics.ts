@@ -72,6 +72,6 @@ export function platformFromTarget(host: string | undefined): string | undefined
   if (h.includes('tiktok.com')) return 'tiktok';
   if (h.includes('producthunt.com')) return 'producthunt';
   if (h.includes('youtube.com')) return 'youtube';
-  if (h.includes('google.com')) return 'google';  // accounts.google.com etc — was undefined → legacy isBurned blocked all PacketStream LB IPs (verified 2026-05-07)
+  if (h.includes('google.com')) return 'google';
   return undefined;
 }
