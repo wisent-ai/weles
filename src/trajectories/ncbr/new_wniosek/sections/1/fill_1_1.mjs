@@ -8,7 +8,7 @@ import { humanFill } from '../../../../../../dist/human/keyboard.js';
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const PROJECT_ID = (await import('#ncbr-settings')).projectId();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('1_1');
-const MD = `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_1_1_informacje_ogolne.md`;
+const MD = (await import('#ncbr-settings')).applicationFile('wersja_B_1_1_informacje_ogolne.md');
 const NB = 'MODUL_DANE_PAKIETU.czesc_ogolna.informacje_ogolne_o_projekcie.';
 
 const md = readFileSync(MD, 'utf8');

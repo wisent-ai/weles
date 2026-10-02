@@ -7,7 +7,7 @@ import { humanFill } from '../../../../../../dist/human/keyboard.js';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('2_3');
-const MD = `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_2.3_rynek_i_potencjal.md`;
+const MD = (await import('#ncbr-settings')).applicationFile('wersja_B_2.3_rynek_i_potencjal.md');
 
 const md = readFileSync(MD, 'utf8');
 const clean = (s) => s.replace(/\s*<!--[\s\S]*?-->\s*/g, ' ').trim();

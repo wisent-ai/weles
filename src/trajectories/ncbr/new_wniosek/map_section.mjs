@@ -78,7 +78,7 @@ if (await navLocator.count()) {
 }
 
 if (process.env.FIX_10_4) {
-  const md = readFileSync(`${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_10.4_zrownowazony_rozwoj.md`, 'utf8');
+  const md = readFileSync((await import('#ncbr-settings')).applicationFile('wersja_B_10.4_zrownowazony_rozwoj.md'), 'utf8');
   const rest = md.split('## Opis sposobu realizacji projektu zgodnie z wybranymi zasadami 6R (limit 4 000 znaków)')[1] || '';
   let opis6r = rest.split('## Stosowanie zasad 6R zostało odzwierciedlone')[0].replace(/\s*<!--[\s\S]*?-->\s*/g, ' ').trim();
   const repair = { indicatorsOff: [], indicatorsOn: [], principles: [], opis6r: null };

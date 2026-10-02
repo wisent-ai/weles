@@ -11,7 +11,7 @@ import { humanFill } from '../../../../dist/human/keyboard.js';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const BASE = (await import('#ncbr-settings')).sectionBase();
-const SRC = `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/`;
+const SRC = (await import('#ncbr-settings')).applicationTextDir();
 
 // Char-limit constants mirror the live LSI maxlength config per field.
 const REGISTRY = {
@@ -45,9 +45,13 @@ const REGISTRY = {
   },
 };
 
-const SECTION = process.env.SECTION || '2.1';
+const SECTION = process.env.SECTION;
+if (!SECTION) throw new Error('SECTION is required: a plan section label, a plan collection label or a registry entry; none is assumed');
 const PLAN_FILE = process.env.NCBR_CORRECTION_PLAN_FILE || '';
-const MODE = process.env.MODE || 'apply';
+// MODE=read compares live values with the plan and types nothing; MODE=apply
+// types them. Neither is assumed.
+const MODE = process.env.MODE;
+if (!MODE) throw new Error('MODE is required: read compares live values with the plan, apply types them');
 
 // A correction plan (weles.ncbr.correction-plan.v1) is the single source of truth for
 // fields it declares: value and character limit come from the plan, not from markdown.

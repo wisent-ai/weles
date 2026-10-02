@@ -10,7 +10,7 @@ const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('1_3');
 // People's names, phones and addresses live with the application text in the
 // private application folder, never in this repository.
 const CONTACTS_FILE = process.env.NCBR_CONTACTS_FILE
-  || `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/contacts/applicant-contacts.json`;
+  || (await import('#ncbr-settings')).applicationFile('contacts/applicant-contacts.json');
 const APPLICANT = JSON.parse(readFileSync(CONTACTS_FILE, 'utf8'));
 const CONTACTS = APPLICANT.contacts;
 const EDORECZENIA = APPLICANT.applicant.e_doreczenie;

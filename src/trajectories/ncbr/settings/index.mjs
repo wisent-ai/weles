@@ -13,6 +13,9 @@
 //                       script asks for (NCBR_SECTION_1_3 for key 1_3)
 //   NCBR_PROJECT_VERSION_ID  the application's version id, for the pages
 //                       addressed by version
+//   NCBR_APPLICATION_TEXT_DIR  the applicant's folder holding the application
+//                       text (markdown sections, contacts, audit outputs);
+//                       the scripts used to name one person's home directory
 
 const LSI2_PROJECT_BASE = 'https://lsi2.ncbr.gov.pl/projekt/';
 
@@ -60,4 +63,16 @@ export function sectionUrl(key) {
 /** The project version (wersja wniosku) id the version-scoped pages use. */
 export function projectVersionId() {
   return required('NCBR_PROJECT_VERSION_ID', 'name the LSI2 version id of the application this run works on');
+}
+
+/** The applicant's folder holding the application text, with a trailing slash. */
+export function applicationTextDir() {
+  const dir = required('NCBR_APPLICATION_TEXT_DIR', "name the applicant's folder holding the application text");
+  return dir.endsWith('/') ? dir : `${dir}/`;
+}
+
+/** One file of the application text, by its name inside the folder. */
+export function applicationFile(name) {
+  if (!name) throw new Error('a file name inside the application text folder is required');
+  return `${applicationTextDir()}${name}`;
 }

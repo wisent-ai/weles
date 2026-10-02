@@ -9,7 +9,7 @@ import { cdpEndpoint, sectionUrl } from '#ncbr-settings';
 const endpoint = cdpEndpoint();
 // The section id differs per application, so it is declared beside the project id.
 const SECTION_URL = sectionUrl('10_4');
-const md = readFileSync(`${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_10.4_zrownowazony_rozwoj.md`, 'utf8');
+const md = readFileSync((await import('#ncbr-settings')).applicationFile('wersja_B_10.4_zrownowazony_rozwoj.md'), 'utf8');
 function bt(start, end) { let s = md.split(start)[1]; if (s === undefined) return ''; if (end) s = s.split(end)[0]; return s.replace(/\s*<!--[\s\S]*?-->\s*/g, ' ').trim(); }
 const OPIS_6R = bt('## Opis sposobu realizacji projektu zgodnie z wybranymi zasadami 6R (limit 4 000 znaków)', '## Stosowanie zasad 6R zostało odzwierciedlone');
 const OPIS_INNE = bt('## Opis pozytywnego wpływu na inne aspekty środowiskowe w ramach projektu (nie objęte zasadami 6R)', '## Pozytywny wpływ na inne aspekty środowiskowe');

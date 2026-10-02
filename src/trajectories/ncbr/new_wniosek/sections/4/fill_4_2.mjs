@@ -7,7 +7,7 @@ import { humanFill } from '../../../../../../dist/human/keyboard.js';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('4_2');
-const MD = readFileSync(`${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_4_2_zasoby_techniczne.md`, 'utf8');
+const MD = readFileSync((await import('#ncbr-settings')).applicationFile('wersja_B_4_2_zasoby_techniczne.md'), 'utf8');
 
 function val(block, label) {
   const marker = `**${label}:**`;

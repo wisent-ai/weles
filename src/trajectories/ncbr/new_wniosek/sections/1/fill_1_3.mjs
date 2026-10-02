@@ -15,7 +15,7 @@ const VAT = 'Nie dotyczy.';
 // The applicant's phone and addresses live with the application text in the
 // private application folder, never in this repository.
 const CONTACTS_FILE = process.env.NCBR_CONTACTS_FILE
-  || `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/contacts/applicant-contacts.json`;
+  || (await import('#ncbr-settings')).applicationFile('contacts/applicant-contacts.json');
 const { applicant: APPLICANT } = JSON.parse(readFileSync(CONTACTS_FILE, 'utf8'));
 
 const browser = await chromium.connectOverCDP(endpoint);

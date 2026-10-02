@@ -5,9 +5,8 @@ import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 const SESSION = process.env.SESSION || 'ncbr-step-b';
-const ROOT = `${process.env.HOME}/Documents/CodingProjects/Wisent`;
-const SRC = `${ROOT}/backends/STEP_sciezka_A_Wisent`;
-const WELES = `${ROOT}/weles`;
+const SRC = (await import('#ncbr-settings')).applicationTextDir().replace(/\/$/, '');
+const WELES = new URL('../../..', import.meta.url).pathname.replace(/\/$/, '');
 const PROJECT = (await import('#ncbr-settings')).sectionBase();
 
 const clean = (s) => String(s || '')

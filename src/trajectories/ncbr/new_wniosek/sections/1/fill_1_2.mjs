@@ -11,7 +11,7 @@ import { humanFill } from '../../../../../../dist/human/keyboard.js';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('1_2');
-const MD = `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_1_2_klasyfikacja.md`;
+const MD = (await import('#ncbr-settings')).applicationFile('wersja_B_1_2_klasyfikacja.md');
 const NB = 'MODUL_DANE_PAKIETU.czesc_ogolna.klasyfikacja_projektu.';
 
 const md = readFileSync(MD, 'utf8').split('\n');

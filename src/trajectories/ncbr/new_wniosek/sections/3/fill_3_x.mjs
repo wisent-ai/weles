@@ -8,7 +8,7 @@ import { humanFill } from '../../../../../../dist/human/keyboard.js';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const PROJ = (await import('#ncbr-settings')).sectionBase();
-const SRC = `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/`;
+const SRC = (await import('#ncbr-settings')).applicationTextDir();
 const clean = (s) => s
   .replace(/\s*<!--[\s\S]*?-->\s*/g, ' ')
   .replace(/\*\*([^*]+)\*\*/g, '$1')

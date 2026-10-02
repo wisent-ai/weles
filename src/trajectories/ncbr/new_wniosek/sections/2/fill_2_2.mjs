@@ -7,7 +7,7 @@ import { humanFill } from '../../../../../../dist/human/keyboard.js';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('2_2');
-const MD = `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_2.2_innowacyjnosc_i_zaleznosci.md`;
+const MD = (await import('#ncbr-settings')).applicationFile('wersja_B_2.2_innowacyjnosc_i_zaleznosci.md');
 const NB = 'MODUL_DANE_PAKIETU.istota_projektu_sciezka_b.opis_rezultatu_prac_br.';
 
 const md = readFileSync(MD, 'utf8');

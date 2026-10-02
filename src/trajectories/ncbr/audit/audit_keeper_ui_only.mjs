@@ -8,7 +8,7 @@ const SESSION = process.env.SESSION || 'ncbr-step-b';
 const PROJECT_ID = (await import('#ncbr-settings')).projectId();
 const PROJECT_URL = `https://lsi2.ncbr.gov.pl/projekt/${PROJECT_ID}`;
 const BASE = `${PROJECT_URL}/projekt_step/`;
-const OUT_DIR = process.env.OUT_DIR || `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/audit_keeper_ui_only`;
+const OUT_DIR = process.env.OUT_DIR || (await import('#ncbr-settings')).applicationFile('audit_keeper_ui_only');
 const EMAIL = process.env.NCBR_EMAIL || '';
 const PASSWORD = process.env.NCBR_PASSWORD || '';
 delete process.env.NCBR_PASSWORD;
