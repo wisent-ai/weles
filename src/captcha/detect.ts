@@ -3,7 +3,7 @@
  */
 
 import { CaptchaSolver } from './solver.js';
-import { humanIdlePause } from '../human/mouse.js';
+import { pageSettled } from '../browser/settled.js';
 import { braveProofOfWorkState, solveBraveProofOfWork } from './brave_proof_of_work.js';
 
 type Page = any;
@@ -210,7 +210,7 @@ async function solveFuncaptchaOnPage(page: Page, publicKey: string, blob?: strin
   const token = await s.solveFuncaptcha(publicKey, url, subdomain, blob);
   if (!token) { console.log('[captcha] FunCaptcha solve failed'); return false; }
   console.log(`[captcha] FunCaptcha solved, injecting token`);
-  await page.evaluate(`window.postMessage({eventId:"challenge-complete",payload:{sessionToken:${JSON.stringify(token)}}},"*")`).catch(() => {});
-  await humanIdlePause('deliberate');
+  await page.evaluate(`window.postMessage({eventId:"challenge-complete",payload:{sessionToken:${JSON.stringify(token)}}},"*")`);
+  await pageSettled(page);
   return true;
 }
