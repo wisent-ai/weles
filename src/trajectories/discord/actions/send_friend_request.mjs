@@ -17,11 +17,11 @@
 //   7. Append to metadata.friend_requests_sent array on social_accounts.
 
 import { WSession } from '../../../../dist/session/wsession.js';
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { updateAccountMetadata } from '../../_shared/skarbiec/accounts.mjs';
 import { humanFill } from '../../../../dist/human/keyboard.js';
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
-import { responseAfterAction } from '../../_shared/page/settled.mjs';
+import { pageSettled, responseAfterAction } from '../../_shared/page/settled.mjs';
 
 const ACCT_USERNAME = process.env.ACCOUNT_USERNAME;
 const TARGET = process.env.DISCORD_TARGET_HANDLE;
@@ -43,23 +43,22 @@ console.log(`[friend_request] account=${acct.username} target=${TARGET}`);
 try {
   await s.ctx.addInitScript(`(()=>{try{if(location.hostname.indexOf('discord')>=0){localStorage.setItem('token',JSON.stringify(${JSON.stringify(token)}))}}catch(e){}})()`);
   await s.goto('https://discord.com/channels/@me');
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
 
-  const addTab = s.page.locator('div, button').filter({ hasText: /^Add Friend$/ }).first();
-  if ((await addTab.count()) === 0) throw new Error('Add Friend tab not found on Friends panel');
+  const addTab = s.page.locator('div, button').filter({ hasText: /^Add Friend$/ }).filter({ visible: true }).first();
+  await addTab.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, addTab);
-  await humanIdlePause('deliberate');
 
-  const input = s.page.locator('input[placeholder*="username"], input[placeholder*="Username"]').first();
-  if ((await input.count()) === 0) throw new Error('Username input not found on Add Friend panel');
+  const input = s.page.locator('input[placeholder*="username"], input[placeholder*="Username"]').filter({ visible: true }).first();
+  await input.waitFor({ state: 'visible' });
   await humanFill(s.page, input, TARGET);
   await s.page.keyboard.press('Tab');
   const observedTarget = await input.inputValue();
   if (observedTarget !== TARGET) throw Object.assign(new Error('Friend-request input does not match the requested handle'),
     { code: 'DISCORD_FRIEND_TARGET_MISMATCH', expectedTarget: TARGET, observedTarget });
 
-  const sendBtn = s.page.locator('button').filter({ hasText: 'Send Friend Request' }).first();
-  if ((await sendBtn.count()) === 0) throw new Error('Send Friend Request button not found');
+  const sendBtn = s.page.locator('button').filter({ hasText: 'Send Friend Request' }).filter({ visible: true }).first();
+  await sendBtn.waitFor({ state: 'visible' });
   if (!await sendBtn.isEnabled()) throw Object.assign(new Error('Send Friend Request button is disabled after target entry'),
     { code: 'DISCORD_FRIEND_REQUEST_NOT_ENABLED', pageUrl: s.page.url() });
   const response = await responseAfterAction(s.page,
@@ -79,7 +78,7 @@ try {
   if (!success) { console.log(`FAIL: ${outcome}`); process.exitCode = 1; }
   else console.log(`PASS: ${acct.username} sent friend request to ${TARGET}`);
 } catch (e) {
-  console.log('FAIL:', e);
+  console.error('DISCORD_FRIEND_REQUEST_FAILED:', e);
   process.exitCode = 1;
 } finally {
   await s.close();
