@@ -4,7 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { access, readFile, realpath } from 'node:fs/promises';
 import { delimiter, dirname, isAbsolute, join, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { evidenceFor } from '../security/evidence.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -66,7 +66,7 @@ try {
   const manifest = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
   assert.equal(manifest.name, 'weles', 'WELES_BIN must name the installed Weles Node CLI');
   identity.version = manifest.version;
-  for (const relative of ['dist/cli.js', 'dist/cli/worker/index.js']) {
+  for (const relative of ['dist/cli.js', 'dist/cli/worker/index.js', 'dist/runtime/api/connection.js']) {
     identity.files_sha256[relative] = createHash('sha256').update(await readFile(join(packageRoot, relative))).digest('hex');
   }
   try {
@@ -78,6 +78,22 @@ try {
 
   // A status read remains useful evidence even when an old package cannot be
   // qualified. It never starts a browser or sends a worker control request.
+  const version = { interface: 'installed_runtime', method: 'GET', path: '/worker/version' };
+  evidence.report.operations.push(version);
+  try {
+    const api = await import(pathToFileURL(join(packageRoot, 'dist/runtime/api/connection.js')).href);
+    const connection = api.welesOperatorConnection(version.path);
+    version.endpoint = connection.endpoint.toString();
+    const response = await connection.fetch(connection.endpoint, {
+      method: version.method, headers: connection.headers, redirect: 'error',
+    });
+    version.http_status = response.status;
+    version.body = await api.operatorJson(response);
+    version.status = response.ok ? 'observed' : 'refusal_observed';
+  } catch (error) {
+    version.status = 'unavailable';
+    version.failure = { message: String(error), stack: error?.stack, cause: String(error?.cause ?? '') };
+  }
   const configured = observe(cli, 'configured_status');
   if (identity.source_revision !== evidence.report.source_revision) {
     evidence.report.status = 'blocked';
