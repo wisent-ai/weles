@@ -4,7 +4,7 @@ import { getServiceLogin } from '../../../../dist/utils/credentials.js';
 import { googleSso, getGoogleSsoCreds } from '../services/google_sso.mjs';
 import { UMAMI_BASE, GA_BASE } from './action-catalog.mjs';
 import { clickFirst, fillAny } from './page-interaction.mjs';
-import { pageSettled } from '../page/settled.mjs';
+import { pageSettled, responseAfterAction, urlMatching } from '../page/settled.mjs';
 
 // Umami's sign-in form posts to /api/auth/login; that answer decides the
 // login, and the app routes away from /login once it is accepted.
@@ -13,19 +13,31 @@ const UMAMI_LOGIN_API = /\/api\/auth\/login\b/;
 async function umamiLogin(s) {
   await s.goto(UMAMI_BASE);
   await pageSettled(s.page);
-  if (!/login|signin/i.test(s.page.url()) && !await s.page.locator('input[type="password"]').first().isVisible().catch(() => false)) return true;
+  if (!/login|signin/i.test(s.page.url()) && !await s.page.locator('input[type="password"]').first().isVisible()) return true;
   const scopedLogin = readScopedLogin('umamiDashboard');
   const login = { email: scopedLogin.email, password: scopedLogin.password, loginMethod: 'email_password' };
   await fillAny(s.page, login.email, [/email/i, /user/i]);
   await fillAny(s.page, login.password, [/password/i]);
-  const answered = s.page.waitForResponse((r) => UMAMI_LOGIN_API.test(r.url()) && r.request().method() === 'POST');
-  if (!await clickFirst(s.page, [/^log in$/i, /^login$/i, /^sign in$/i, /^continue$/i])) {
-    await s.page.locator('input[type="password"], input[name="password"]').filter({ visible: true }).first().press('Enter');
+  const response = await responseAfterAction(s.page,
+    (request) => UMAMI_LOGIN_API.test(request.url()) && request.method() === 'POST',
+    async () => {
+      if (!await clickFirst(s.page, [/^log in$/i, /^login$/i, /^sign in$/i, /^continue$/i], { settle: false })) {
+        await s.page.locator('input[type="password"], input[name="password"]').filter({ visible: true }).first().press('Enter');
+      }
+    });
+  const requestUrl = response.url();
+  const status = response.status();
+  let body;
+  try {
+    body = await response.text();
+  } catch (cause) {
+    throw Object.assign(new Error(`Umami login response could not be read at ${requestUrl}`, { cause }),
+      { code: 'UMAMI_LOGIN_RESPONSE_FAILED', requestMethod: 'POST', requestUrl, status });
   }
-  const response = await answered;
-  if (!response.ok()) throw new Error(`umami_login_refused: ${response.status()} ${(await response.text())}`);
+  if (!response.ok()) throw Object.assign(new Error(`umami_login_refused: ${status} ${body}`),
+    { code: 'UMAMI_LOGIN_REFUSED', requestMethod: 'POST', requestUrl, status });
+  await urlMatching(s.page, (url) => !/login|signin/i.test(url));
   await pageSettled(s.page);
-  if (/login|signin/i.test(s.page.url())) throw new Error(`Umami login did not leave login page: ${s.page.url()}`);
   return true;
 }
 

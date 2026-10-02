@@ -7,7 +7,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { responseAfterAction } from '../../src/trajectories/_shared/page/settled.mjs';
+import { responseAfterAction, urlMatching } from '../../src/trajectories/_shared/page/settled.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const runId = randomUUID();
@@ -81,6 +81,12 @@ try {
       () => page.goto('https://weles.wisent.com/docs')), { code: 'PAGE_CLOSED', requestUrl: null }); // allow-raw-playwright: a closed page must reject before navigation
     return { closed: page.isClosed() };
   });
+  await runCase('closed_page_url_is_not_success', async () => {
+    assert.equal(page.isClosed(), true, 'the owned browser page must already be closed');
+    const lastUrl = page.url();
+    await assert.rejects(urlMatching(page, lastUrl), { code: 'PAGE_CLOSED', pageUrl: lastUrl });
+    return { closed: page.isClosed(), last_url: lastUrl };
+  });
 } catch (error) {
   report.error = describeError(error);
 } finally {
@@ -89,7 +95,7 @@ try {
     catch (error) { report.cleanup_error = describeError(error); }
   }
   report.finished_at = new Date().toISOString();
-  report.status = !report.error && !report.cleanup_error && report.cases.length === 3
+  report.status = !report.error && !report.cleanup_error && report.cases.length === 4
     && report.cases.every((entry) => entry.status === 'passed') ? 'passed' : 'failed';
   process.exitCode = report.status === 'passed' ? 0 : 1;
   const reportPath = join(evidence, 'report.json');

@@ -43,12 +43,12 @@ async function waitRendered(page, minLength = 80) {
   return text;
 }
 
-async function clickFirst(page, names) {
+async function clickFirst(page, names, { settle = true } = {}) {
   for (const name of names) {
     const loc = page.getByRole('button', { name }).or(page.getByRole('link', { name })).or(page.getByText(name)).filter({ visible: true }).first();
-    if (await loc.isVisible().catch(() => false)) {
+    if (await loc.isVisible()) {
       await humanClickLocator(page, loc);
-      await pageSettled(page);
+      if (settle) await pageSettled(page);
       return true;
     }
   }

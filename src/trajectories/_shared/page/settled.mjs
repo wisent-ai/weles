@@ -68,6 +68,8 @@ export async function pageCondition(page, predicate, arg) {
 // the page's own navigations, so it ends when the page gets there, not on a
 // clock.
 export async function urlMatching(page, pattern) {
+  if (page.isClosed()) throw Object.assign(new Error(`page closed before its URL matched ${pattern}; last URL ${page.url()}`),
+    { code: 'PAGE_CLOSED', pageUrl: page.url() });
   const matches = (url) => {
     if (pattern instanceof RegExp) return pattern.test(url);
     if (typeof pattern === 'function') return pattern(url);
@@ -79,8 +81,10 @@ export async function urlMatching(page, pattern) {
     if (frame !== page.mainFrame() || !matches(frame.url())) return;
     resolve(frame.url());
   };
-  const onClose = () => reject(new Error(`page closed before its URL matched ${pattern}; last URL ${page.url()}`));
-  const onCrash = () => reject(new Error(`page crashed before its URL matched ${pattern}; last URL ${page.url()}`));
+  const onClose = () => reject(Object.assign(new Error(`page closed before its URL matched ${pattern}; last URL ${page.url()}`),
+    { code: 'PAGE_CLOSED', pageUrl: page.url() }));
+  const onCrash = () => reject(Object.assign(new Error(`page crashed before its URL matched ${pattern}; last URL ${page.url()}`),
+    { code: 'PAGE_CRASHED', pageUrl: page.url() }));
   page.on('framenavigated', onNavigated);
   page.once('close', onClose);
   page.once('crash', onCrash);
