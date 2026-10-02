@@ -189,7 +189,7 @@ try {
   ]);
   for (const fn of [solveAudioPuzzle, solveRotationViaCoords]) {
     if (solved) break;
-    const ok = await fn(s.page).catch(() => false);
+    const ok = await fn(s.page);
     if (ok) solved = await verdict();
   }
   // External solvers (anticaptcha/2captcha) return UNSOLVABLE on Arkose basket puzzles — opt-in only.
@@ -264,7 +264,8 @@ try {
   if (verified) await autoBindCharacter(id.username, 'github').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message}`));
   console.log(verified ? `PASS: ${id.username} (verified)` : `PARTIAL: ${id.username} at ${finalUrl}`);
 } catch (e) {
-  console.log('FAIL:', e.message); process.exitCode = /ERR_TUNNEL|ERR_TIMED_OUT|ERR_PROXY|ERR_CONNECTION/.test(e.message ?? '') ? 42 : 1;
+  console.error('FAIL:', e);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }

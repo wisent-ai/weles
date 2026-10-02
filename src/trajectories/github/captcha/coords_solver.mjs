@@ -4,7 +4,7 @@
 // Both strategies consume the same iframe screenshot and emit a pixel center.
 
 import { writeFileSync, mkdirSync } from 'node:fs';
-import { humanClick, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanClick } from '../../../../dist/human/mouse.js';
 import { pageSettled } from '../../_shared/page/settled.mjs';
 import { completeMultimodal, requireStadoModelRouterConfig } from './stado_model_router.mjs';
 
@@ -251,26 +251,30 @@ export async function solveRotationViaCoords(page, { maxRounds = 80 } = {}) {
     }
     if (!clickXY) { console.log(`[coords] R${round}: no coords from any solver`); continue; }
     const pageX = box.x + clickXY.x, pageY = box.y + clickXY.y;
-    // Hover first then split mousedown/up — Arkose ignores instant clicks.
-    // When swipe is set, drag horizontally by that delta through 5 micro-moves
-    // so the canvas sees a real pointer trajectory (mobile-first carousel).
+    // Each acknowledged pointer operation advances the gesture. Preserve the
+    // six drag waypoints, but do not add inter-waypoint idle time.
+    await page.mouse.move(pageX - 5, pageY - 3);
+    await page.mouse.move(pageX, pageY);
+    let pointerFailure;
     try {
-      await page.mouse.move(pageX - 5, pageY - 3);
-      await humanIdlePause('short');
-      await page.mouse.move(pageX, pageY);
-      await humanIdlePause('short');
       await page.mouse.down();
-      await humanIdlePause('short');
       if (clickXY.swipe) {
         const steps = 6, dx = clickXY.swipe;
         for (let i = 1; i <= steps; i++) {
           await page.mouse.move(pageX + Math.round(dx * i / steps), pageY + (i % 2 === 0 ? 1 : -1));
-          await humanIdlePause('short');
         }
-        await humanIdlePause('short');
       }
-      await page.mouse.up();
-    } catch (e) { console.log(`[coords] pointer err: ${e.message}`); }
+    } catch (error) {
+      pointerFailure = error;
+      throw error;
+    } finally {
+      try {
+        await page.mouse.up();
+      } catch (releaseError) {
+        if (pointerFailure) throw new AggregateError([pointerFailure, releaseError], 'captcha pointer action and button release failed');
+        throw releaseError;
+      }
+    }
     const gesture = clickXY.swipe ? `swipe(${clickXY.swipe}px)` : 'clicked';
     console.log(`[coords] R${round} ${clickXY.src} ${gesture} page(${Math.round(pageX)},${Math.round(pageY)})`);
     await pageSettled(page);
