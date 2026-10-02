@@ -17,7 +17,12 @@ function parseRun(value: unknown): AppPasswordRun {
   if (!row || typeof row !== 'object' || row.action !== 'google_app_password'
     || typeof row.id !== 'string' || typeof row.status !== 'string'
     || (typeof row.params?.login_role !== 'string' && typeof row.params?.login_item !== 'string')) {
-    throw new Error('Weles returned an unrelated app-password run');
+    // Name what came back, so a refusal says which field was missing or
+    // different instead of only that the answer did not fit.
+    const observed = row && typeof row === 'object'
+      ? `action=${JSON.stringify(row.action)}, id=${JSON.stringify(row.id)}, status=${JSON.stringify(row.status)}, params=${JSON.stringify(row.params)}`
+      : JSON.stringify(row);
+    throw new Error(`Weles returned an unrelated app-password run (${observed})`);
   }
   return row as AppPasswordRun;
 }
