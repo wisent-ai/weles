@@ -26,6 +26,8 @@ and how it can be fixed.
 
 Read Google 2FA without changing it: configure the Stado-managed operator endpoint with `WELES_WORKER_API_BASE` and `WELES_WORKER_TOKEN`, then use `weles account-security --login-role <skarbiec-role>` and `weles account-security --run <run-id>`. This uses detached `/run` execution and retained diagnostics, not the removed database queue. The [account-security reference](https://weles.wisent.com/docs/account-security) distinguishes a provider-confirmed boolean from an unknown state; a saved seed proves neither.
 
+Connect Gmail through the managed executor with `weles app-password --login-role <skarbiec-role>`, then read its result with `weles app-password --run <run-id>`. Admission binds the requested role to one exact Skarbiec login before the browser starts. Skrzynka accepts the generated password only after a real IMAP login; accepting a run is not proof that the mailbox connected. See the [app-password reference](https://weles.wisent.com/docs/app-password) for refusals and the real `tests/security/app-password.mjs` qualification command, which requires a dedicated Google test account.
+
 [Documentation](https://weles.wisent.com/docs) · [Releases](https://github.com/wisent-ai/weles/releases) · [MIT licence](LICENSE)
 
 ## See Weles work
