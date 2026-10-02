@@ -3,7 +3,7 @@
 
 import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
-import { humanFill } from '../../../../../../dist/human/keyboard.js';
+import { fillField } from '../../../form-input.mjs';
 import { openNewRow, openRowEditor } from '../../../forms/row-editor.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
@@ -58,9 +58,7 @@ async function setApplicant() {
 
 async function fillBySuffix(fragment, value) {
   const loc = page.locator(`input[name*="${fragment}"], textarea[name*="${fragment}"]`).first();
-  await loc.waitFor({ state: 'visible' });
-  await humanFill(page, loc, value); // allow-raw-playwright: fill section 8 amount field
-  await humanIdlePause('short');
+  await fillField(page, loc, String(value), { truncate: false });
   return { fragment, value };
 }
 

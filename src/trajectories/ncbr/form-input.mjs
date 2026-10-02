@@ -1,10 +1,17 @@
 import { humanFill } from '../../../dist/human/keyboard.js';
 
-export async function fillField(page, locator, value) {
+export async function fillField(page, locator, value, { truncate = true } = {}) {
   await locator.waitFor({ state: 'visible' });
   const max = Number(await locator.getAttribute('maxlength')) || String(value || '').length;
   let next = String(value || '');
-  if (next.length > max) next = next.slice(0, max).replace(/\s+\S*$/, '');
+  if (next.length > max) {
+    if (!truncate) {
+      throw Object.assign(new Error(`LSI_FIELD_TOO_LONG: ${locator}; expected length=${next.length}, maximum=${max}`), {
+        code: 'LSI_FIELD_TOO_LONG', expectedLength: next.length, max,
+      });
+    }
+    next = next.slice(0, max).replace(/\s+\S*$/, '');
+  }
   const before = await locator.inputValue();
   if (before === next) return { len: next.length, max, changed: false };
   const state = await locator.evaluate((el) => ({

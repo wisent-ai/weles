@@ -5,6 +5,7 @@ import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../dist/human/keyboard.js';
 import { openNewRow } from '../../forms/row-editor.mjs';
+import { fillField } from '../../form-input.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('6_5');
@@ -89,16 +90,7 @@ async function setAuto(name, search) {
 
 async function fill(name, value) {
   const loc = page.locator(`[name="${name}"]`).first();
-  await loc.waitFor({ state: 'visible' });
-  if (await loc.evaluate((el) => el.readOnly || el.disabled)) {
-    console.log(`SKIP READONLY ${name}`);
-    return;
-  }
-  const max = Number(await loc.getAttribute('maxlength')) || String(value).length;
-  let v = String(value);
-  if (v.length > max) throw new Error(`${name} too long: ${v.length}/${max}`);
-  await humanFill(page, loc, v); // allow-raw-playwright: text/number field
-  await humanIdlePause('short');
+  await fillField(page, loc, String(value), { truncate: false });
 }
 
 async function saveForm() {
@@ -110,7 +102,7 @@ async function saveForm() {
 if (process.env.DIAG) {
   await clickDodaj();
   if (process.env.AFTER_HELP) {
-    try { await fill('nazwa_zadania', '0. Koszty pośrednie: Koszty pośrednie'); } catch (e) { /* may be read-only */ }
+    await fill('nazwa_zadania', '0. Koszty pośrednie: Koszty pośrednie');
     try { await pickSelect('nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta', 'Wisent Polska'); } catch (e) { /* may be auto */ }
     await setAuto('rodzaj_pomocy', process.env.HELP || 'Badania przemysłowe');
     await humanIdlePause('long');
@@ -171,7 +163,7 @@ for (const r of selectedRows) {
   console.log(`START INDIRECT ${r.help}`);
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
   await clickDodaj();
-  try { await fill('nazwa_zadania', '0. Koszty pośrednie: Koszty pośrednie'); } catch (e) { /* 6.5 may auto-bind task 0 */ }
+  await fill('nazwa_zadania', '0. Koszty pośrednie: Koszty pośrednie');
   try { await pickSelect('nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta', 'Wisent Polska'); } catch (e) { /* sometimes auto */ }
   await setAuto('rodzaj_pomocy', r.help);
   try { await setAuto('rodzaj_metody_uproszczonej', r.method); } catch (e) { console.log(`SKIP METHOD ${String(e?.message || e)}`); }
