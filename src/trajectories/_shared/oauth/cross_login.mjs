@@ -30,10 +30,8 @@ import { pageSettled } from '../page/settled.mjs';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 // Provider name on the OAuth button → social_accounts platform key for the
-// row that holds the cookies. Identity is the same for every provider here:
-// google/register.mjs saves as platform='google', etc. (The 2026-05-04 era
-// youtube/register.mjs that saved as 'youtube' has been retired in favor of
-// google/register.mjs which is the canonical Gmail signup flow.)
+// row that holds the cookies. Google-backed identities use the canonical
+// google platform key, including accounts used for Gmail and YouTube.
 const PROVIDER_TO_ACCOUNT_PLATFORM = {
   google: 'google',
   twitter: 'twitter',

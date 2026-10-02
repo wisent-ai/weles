@@ -1,13 +1,7 @@
 // Inline auto-relogin for LinkedIn engagement trajectories.
 //
-// Why: cookies stored after a successful linkedin_login are bound to the exit
-// IP that minted them. Oxylabs residential sticky sessions recycle their
-// exit IP on idle, so a few ticks later when an engagement trajectory tries
-// to use those cookies through a fresh sticky, LinkedIn redirects to
-// /uas/login. The previous handling (markCookiesStale + exit) put the
-// account back into the linkedin_login queue, but the NEXT linkedin_login
-// also lands on a different sticky than the one the engagement will then
-// use, perpetuating the loop. Verified 2026-05-04 with sagekoepp7919.
+// Reauthentication uses the caller's existing connection so the resulting
+// cookies and the following action share one provider session.
 //
 // This helper performs the form-fill + reCAPTCHA V3 + emailPinChallenge on
 // the SAME WSession passed in, so the resulting li_at cookies are minted on

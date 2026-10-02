@@ -36,10 +36,8 @@ import { pageSettled } from '../page/settled.mjs';
 
 const PROBES = {
   tiktok: {
-    // Verified 2026-05-01: when device-mismatched cookies are injected,
-    // TikTok serves /foryou and /messages without redirect, but the
-    // comment panel shows "Log in to comment" and the create-post button
-    // is absent. Use the topbar profile / DM markers as the authed signal.
+    // A logged-out shell can retain the requested URL. Require authenticated
+    // profile or messaging markers rather than treating no redirect as proof.
     authedSelectors: [
       '[data-e2e="profile-icon"]',
       '[data-e2e="nav-profile"]',
@@ -133,11 +131,7 @@ const PROBES = {
   },
   linkedin: {
     authedSelectors: [
-      // LinkedIn 2026 design-system selectors — class names are hashed
-      // (e.g. class="d35743eb"), but data-testid attributes are stable.
-      // Captured 2026-05-06 from rileywest6465 /feed/ DOM at
-      // recordings/linkedin_browse/after_001_goto__dom.html — old
-      // .global-nav__me-photo selectors had zero matches.
+      // Prefer stable data-testid attributes over generated class names.
       '[data-testid="primary-nav"]',
       '[data-testid="mainFeed"]',
       '[data-testid="typeahead-input"]',
@@ -160,24 +154,13 @@ const PROBES = {
     ],
   },
   producthunt: {
-    // Verified 2026-05-02 18:40Z by .work/ph-probe/probe_assert_authed.mjs
-    // after a loginViaTwitter SSO refresh on jannieerdman414805. Authed PH
-    // topbar renders an <a href="/@<ph-handle>" data-test="user-image-link-
-    // <numeric-id>" aria-label="<full name>"> as the user-avatar link, plus
-    // <a href="/notifications" data-test="notification-bell">. The
-    // button[data-test="user-menu"] selector that previously sat here matched
-    // nothing on the live DOM — removed.
+    // The authenticated topbar exposes user-avatar and notification links.
     authedSelectors: [
       'a[href*="/@"][data-test*="user"]',
       'a[data-test^="user-image-link-"]',
       'a[data-test="notification-bell"]',
     ],
-    // Verified 2026-05-02 18:35Z by the same probe: logged-out PH topbar
-    // renders <button data-test="header-nav-link-sign-in">. The previous
-    // selectors (a[href*="/sign-in"], a[href*="/sign-up"]) matched nothing —
-    // the "Sign in" button has no href (modal-trigger) and the only "Sign Up"
-    // anchor on the homepage goes to /newsletters?campaign=weekly_newsletter,
-    // not to a signup flow.
+    // Sign-in is a modal button, not necessarily an anchor with a login URL.
     loggedOutMarkers: [
       'button[data-test="header-nav-link-sign-in"]',
       '[data-test="header-nav-link-sign-in"]',

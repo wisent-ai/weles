@@ -9,12 +9,8 @@ import { findWelesRecordId, updateWelesRecord } from '../../skarbiec/accounts.mj
 
 export function parseBalanceFromText(text) {
   // Require a "Balance:" / "Credits:" / "Wallet:" / "Funds:" labelled
-  // match. The earlier first-$X.XX path returned a service price on
-  // JuicySMS / FiveSim landing pages (verified live 2026-05-19: JuicySMS
-  // post-SSO landed on the rentals homepage whose first row was Discord
-  // "$0.53"; the parser reported it as the balance). Now return null when
-  // no labelled balance is found, so callers can detect a scrape that
-  // landed on the wrong page instead of persisting a misleading number.
+  // match. An unlabelled service price is not an account balance. Return null
+  // when no labelled balance is found rather than persisting a misleading value.
   if (!text) return null;
   const labeled = text.match(/(?:balance|credit[s]?|wallet|funds)[^\n$€£]{0,40}\$([0-9]+(?:\.[0-9]{1,4})?)/i);
   if (labeled) return Number(labeled[1]);

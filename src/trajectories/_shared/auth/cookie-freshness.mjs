@@ -3,15 +3,9 @@ import { updateAccountMetadata } from '../skarbiec/accounts.mjs';
 /**
  * Cookie-jar freshness gate — second line of defense after auth-probe.mjs.
  *
- * Why this exists:
- *   The cookie-first false-pass bug (2026-04-30) was caused by trajectories
- *   trusting jars persisted at registration time, sometimes weeks ago and
- *   from a different proxy / device fingerprint. Even when a jar's bytes
- *   look intact, the platform binds (sessionid, auth_token, ...) to a
- *   device + IP signature it minted alongside; replaying that jar from a
- *   different residential proxy produces a soft-failed session that
- *   serves a logged-out shell with no URL bounce. We were declaring PASS
- *   based purely on "/foryou didn't redirect to /login".
+ * Stored cookies alone do not prove an authenticated session. Providers can
+ * bind them to the device and connection that established the session and
+ * return a logged-out shell without redirecting.
  *
  *   auth-probe.mjs catches the symptom (no authed DOM marker visible).
  *   This module catches it earlier and cheaper: if the stored jar wasn't

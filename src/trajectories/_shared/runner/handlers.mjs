@@ -1,9 +1,6 @@
-// Per-action dispatchers extracted from _shared/action-runner.mjs 2026-05-04
-// to bring that file under the 300-line cap so it can adopt
-// _shared/linkedin/auth-gate.mjs's runAuthGate (which supports
-// cfg.inlineRelogin). Each dispatcher receives the prepared session +
-// context and returns resultValue. Mutations stay on s; nothing else is
-// shared cross-action.
+// Per-action dispatchers receive the prepared session and context and return
+// resultValue. Mutations stay on the session; no other state is shared across
+// actions.
 
 import { generateOrganicComment, generatePromoteComment, generatePost } from '../content/llm.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
