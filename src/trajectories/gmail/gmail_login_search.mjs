@@ -21,7 +21,8 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso } from '../_shared/services/google_sso.mjs';
 import { DOCUMENT_REPLACED, readAcrossNavigation } from '../_shared/services/google_sso/page_diagnostics.mjs';
-import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { pageSettled } from '../_shared/page/settled.mjs';
 import { readScopedLogin } from '../../_shared/scoped-secrets.mjs';
 
 const QUERY = process.env.GM_QUERY;
@@ -56,26 +57,32 @@ async function resolveCreds() {
 // nudge). It is NOT a challenge — dismiss with the visible secondary button
 // so the flow can continue to Gmail.
 async function dismissSpeedbump(page) {
-  for (let i = 0; i < 8; i++) {
-    if (!/accounts\.google\.com/.test(page.url())) return;
+  const dismissed = new Set();
+  for (;;) {
+    await pageSettled(page);
+    const url = page.url();
+    if (new URL(url).hostname !== 'accounts.google.com') return;
     const btn = page
       .locator('button:has-text("Not now"), button:has-text("Skip"), button:has-text("Cancel")')
       .filter({ visible: true })
       .first();
-    if (await visible(btn)) {
-      log('dismissing post-login speedbump');
-      try { await humanClickLocator(page, btn); }
-      catch (e) { log('speedbump click: ' + e.message); }
-      await humanIdlePause('deliberate');
-      continue;
+    if (!(await visible(btn))) {
+      throw new Error(`GMAIL_POST_LOGIN_CONTROL_UNAVAILABLE: no offered dismissal control at ${url}`);
     }
-    await humanIdlePause('short');
+    const control = await btn.innerText();
+    const state = JSON.stringify([url, control]);
+    if (dismissed.has(state)) {
+      throw new Error(`GMAIL_POST_LOGIN_STATE_REPEATED: the dismissed control remained at ${url}`);
+    }
+    dismissed.add(state);
+    log('dismissing post-login speedbump');
+    await humanClickLocator(page, btn);
   }
 }
 
-// Returns 'in' | 'login' | 'unknown'. Mirrors gmail_search.mjs.
+// Returns 'in' or 'login' from observed page state. Browser failures propagate.
 async function detectSession(page) {
-  for (let i = 0; i < 40; i++) {
+  for (;;) {
     if (/accounts\.google\.com|ServiceLogin|signin|challenge/.test(page.url())) {
       return 'login';
     }
@@ -84,17 +91,16 @@ async function detectSession(page) {
       page.getByText(/No messages matched|No results found|did not match any messages/i).first(),
     );
     if (rows > 0 || empty) return 'in';
-    await humanIdlePause('short');
+    await pageSettled(page);
   }
-  return 'unknown';
 }
 
 async function needsGoogleLogin(page) {
   if (new URL(page.url()).hostname !== 'mail.google.com') return true;
   if (/accounts\.google\.com|ServiceLogin|signin|challenge/.test(page.url())) return true;
-  const heading = await page.getByRole('heading', { name: /^Sign in$/i }).count().catch(() => 0);
+  const heading = await page.getByRole('heading', { name: /^Sign in$/i }).count();
   if (heading > 0) return true;
-  const identifier = await page.locator('input[type="email"], input[name="identifier"], input#identifierId').count().catch(() => 0);
+  const identifier = await page.locator('input[type="email"], input[name="identifier"], input#identifierId').count();
   return identifier > 0;
 }
 
@@ -108,7 +114,7 @@ const s = await WSession.start({
 try {
   log('engine:', s.personaConfig?.browser ?? 'unknown', '| query:', QUERY);
   await s.page.goto(inboxUrl, { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
 
   const gmailNeedsLogin = await needsGoogleLogin(s.page);
   if (gmailNeedsLogin) {
@@ -116,7 +122,7 @@ try {
     if (await visible(useAnotherAccount)) {
       log('choosing another Google account');
       await humanClickLocator(s.page, useAnotherAccount);
-      await humanIdlePause('deliberate');
+      await pageSettled(s.page);
     }
   }
   if (gmailNeedsLogin) {
@@ -134,7 +140,7 @@ try {
   }
 
   await s.page.goto(searchUrl, { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
   const status = await detectSession(s.page);
   if (status !== 'in') {
     log('FAIL: search did not render (status=' + status + ', url='

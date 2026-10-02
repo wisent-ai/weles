@@ -17,7 +17,8 @@
 // Env:  GM_QUERY  overrides the Gmail search query
 //       GM_OPEN=0 skips opening thread bodies (list only)
 import { launchRealChrome } from '../../browser/real_chrome.mjs';
-import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { pageSettled } from '../_shared/page/settled.mjs';
 
 const QUERY = process.env.GM_QUERY || 'newer_than:1y in:anywhere';
 const OPEN_BODIES = process.env.GM_OPEN !== '0';
@@ -26,9 +27,9 @@ const SEARCH_URL =
 
 function log(...a) { console.log('[gmail_search]', ...a); }
 
-// Returns 'login' | 'in' | 'unknown'. Errors from locator calls propagate.
+// Returns 'login' or 'in' from observed page state. Browser failures propagate.
 async function detectSession(page) {
-  for (let i = 0; i < 40; i++) {
+  for (;;) {
     if (/accounts\.google\.com|ServiceLogin|signin|challenge/.test(page.url())) {
       return 'login';
     }
@@ -36,9 +37,8 @@ async function detectSession(page) {
     const empty = await page.getByText(/No messages matched|No results found/i)
       .first().isVisible();
     if (rows > 0 || empty) return 'in';
-    await humanIdlePause('short');
+    await pageSettled(page);
   }
-  return 'unknown';
 }
 
 const s = await launchRealChrome({ label: 'gmail_search' });

@@ -3,7 +3,7 @@ import { pageSettled } from '../../../_shared/page/settled.mjs';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { generatePersona } from '../../../../../dist/browser/persona.js';
-import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../../dist/human/mouse.js';
 import { humanFill, humanType } from '../../../../../dist/human/keyboard.js';
 import { CUSTOMER_ID, USER_DATA_DIR } from './settings.mjs';
 
@@ -21,11 +21,10 @@ export function stableProfilePersona() {
 export async function clickAny(s, selectors, label) {
   for (const sel of selectors) {
     const loc = s.page.locator(sel).filter({ visible: true }).first();
-    if (!(await loc.isVisible().catch(() => false))) continue;
-    const clicked = await humanClickLocator(s.page, loc).then(() => true).catch(() => false);
-    if (!clicked) continue;
+    if (!(await loc.isVisible())) continue;
+    await humanClickLocator(s.page, loc);
     console.log(`[google-ads] clicked: ${label}`);
-    await humanIdlePause('short');
+    await pageSettled(s.page);
     return true;
   }
   return false;
@@ -42,26 +41,20 @@ export async function clickText(s, text, label = text) {
   const fallback = s.page.locator('button,[role="button"],[role="radio"],material-radio,material-list-item')
     .filter({ hasText: text, visible: true }).first();
   if (await fallback.count() === 0) return false;
-  const fallbackClicked = await humanClickLocator(s.page, fallback).then(() => true).catch(() => false);
-  if (fallbackClicked) {
-    console.log(`[google-ads] clicked: ${label}`);
-    await humanIdlePause('short');
-  }
-  return fallbackClicked;
+  await humanClickLocator(s.page, fallback);
+  console.log(`[google-ads] clicked: ${label}`);
+  await pageSettled(s.page);
+  return true;
 }
 
 export async function fillAny(s, selectors, value, label) {
   if (!value) return false;
   for (const sel of selectors) {
     const loc = s.page.locator(sel).filter({ visible: true }).first();
-    if (await loc.isVisible().catch(() => false)) {
-      const filled = await humanFill(s.page, loc, String(value)).then(() => true).catch(() => false);
-      if (!filled) {
-        console.log(`[google-ads] WARN: fill failed: ${label} (${sel})`);
-        continue;
-      }
+    if (await loc.isVisible()) {
+      await humanFill(s.page, loc, String(value));
       console.log(`[google-ads] filled: ${label}`);
-      await humanIdlePause('short');
+      await pageSettled(s.page);
       return true;
     }
   }
@@ -87,10 +80,10 @@ export async function fillTextNearLabel(s, labelPattern, value, label) {
       return true;
     }
     return false;
-  }, { pattern: labelPattern.source, value: String(value) }).catch(() => false);
+  }, { pattern: labelPattern.source, value: String(value) });
   if (filled) {
     console.log(`[google-ads] filled: ${label}`);
-    await humanIdlePause('short');
+    await pageSettled(s.page);
   } else {
     console.log(`[google-ads] WARN: field not found: ${label}`);
   }
@@ -103,13 +96,12 @@ export async function typeListIntoFirstVisible(s, selectors, csv, label) {
   if (!values.length) return false;
   for (const sel of selectors) {
     const loc = s.page.locator(sel).filter({ visible: true }).first();
-    if (!(await loc.isVisible().catch(() => false))) continue;
-    const clicked = await humanClickLocator(s.page, loc).then(() => true).catch(() => false);
-    if (!clicked) continue;
+    if (!(await loc.isVisible())) continue;
+    await humanClickLocator(s.page, loc);
     for (const value of values) {
       await humanType(s.page, value);
       await s.page.keyboard.press('Enter');
-      await humanIdlePause('short');
+      await pageSettled(s.page);
     }
     console.log(`[google-ads] entered: ${label} (${values.length})`);
     return true;
@@ -119,7 +111,7 @@ export async function typeListIntoFirstVisible(s, selectors, csv, label) {
 }
 
 export async function pageText(s) {
-  return await s.page.evaluate(() => document.body?.innerText || '').catch(() => '');
+  return await s.page.evaluate(() => document.body?.innerText || '');
 }
 
 // The page shows the text when it has rendered it; polling until it does is
@@ -133,20 +125,12 @@ export async function waitForPageText(s, pattern) {
   }
 }
 
-export async function navigate(s, url, label) {
-  const ok = await s.page
-    .goto(url, { waitUntil: 'domcontentloaded' })
-    .then(() => true)
-    .catch(() => false);
-  if (!ok) {
-    console.log(`[google-ads] WARN: navigation failed: ${label}`);
-    return false;
-  }
-  return true;
+export async function navigate(s, url) {
+  await s.page.goto(url, { waitUntil: 'domcontentloaded' });
 }
 
 export async function bringBrowserToFront(s) {
-  await s.page.bringToFront().catch(() => {});
+  await s.page.bringToFront();
 }
 
 export function isLoginUrl(url) {
@@ -175,7 +159,7 @@ export async function ensureCustomer(s) {
 
   const switchUrl = `https://ads.google.com/aw/campaigns?ocid=${encodeURIComponent(target)}`;
   console.log(`[google-ads] switching customer -> ${target}`);
-  await navigate(s, switchUrl, `customer ${target}`);
+  await navigate(s, switchUrl);
   await pageSettled(s.page);
   const after = currentCustomerId(s.page.url?.() ?? '');
   console.log(`[google-ads] customer after switch=${after || 'unknown'}`);

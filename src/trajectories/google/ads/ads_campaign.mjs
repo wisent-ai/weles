@@ -54,7 +54,7 @@ assertGoogleAdsProfileNotAlreadyOpen(USER_DATA_DIR, 'google_ads_campaign');
 const s = await WSession.start({ label: 'google_ads_campaign', browser: process.env.BROWSER || 'chromium', proxy: process.env.PROXY_URL || session.proxyUrl || 'direct', persona: profilePersona, userDataDir: USER_DATA_DIR });
 try {
   await bringBrowserToFront(s);
-  await navigate(s, baseUrl, 'campaign builder');
+  await navigate(s, baseUrl);
   await pageSettled(s.page);
   let url = s.page.url?.() ?? '';
   if (isLoginUrl(url)) {
@@ -65,7 +65,7 @@ try {
     console.log('[google-ads] waiting for manual login in the open window');
     await bringBrowserToFront(s);
     await s.page.waitForURL((u) => !isLoginUrl(String(u)));
-    await navigate(s, baseUrl, 'campaign builder after login');
+    await navigate(s, baseUrl);
     await pageSettled(s.page);
   }
 
