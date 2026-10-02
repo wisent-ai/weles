@@ -1,40 +1,13 @@
 // The LSI form helpers of repair_strict_criteria_wsession.mjs, bound to the page they act on.
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
-import { humanFill } from '../../../../../../dist/human/keyboard.js';
+import { fillField } from '../../../form-input.mjs';
 
 export function lsiForm({ page, email, password }) {
-async function fillField(locator, value) {
-  await locator.waitFor({ state: 'visible' });
-  const max = Number(await locator.getAttribute('maxlength')) || String(value || '').length;
-  let next = String(value || '');
-  if (next.length > max) next = next.slice(0, max).replace(/\s+\S*$/, '');
-  const before = await locator.inputValue();
-  if (before === next) return { len: next.length, max, changed: false };
-  const state = await locator.evaluate((el) => ({
-    field: el.name || el.id || el.tagName,
-    readOnly: Boolean(el.readOnly),
-    disabled: Boolean(el.disabled || el.matches(':disabled') || el.getAttribute('aria-disabled') === 'true'),
-  })); // allow-raw-playwright: inspect the requested field, never override its mutability
-  if (state.readOnly || state.disabled) {
-    const error = new Error(`LSI_FIELD_LOCKED: ${JSON.stringify(state)}; the requested value differs from the visible field`);
-    error.code = 'LSI_FIELD_LOCKED';
-    throw error;
-  }
-  await humanFill(page, locator, next);
-  await page.keyboard.press('Tab'); // allow-raw-playwright: commit the field through a real blur gesture
-  const actual = await locator.inputValue();
-  if (actual !== next) {
-    const error = new Error(`LSI_FIELD_VALUE_MISMATCH: ${state.field}; expected length=${next.length}, observed length=${actual.length}`);
-    error.code = 'LSI_FIELD_VALUE_MISMATCH';
-    throw error;
-  }
-  return { len: next.length, max, changed: true };
-}
 
 async function login() {
   await page.goto('https://lsi2.ncbr.gov.pl/logowanie', { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: LSI login page
-  await fillField(page.locator('#mail, input[name="mail"]').first(), email);
-  await fillField(page.locator('#password, input[name="password"]').first(), password);
+  await fillField(page, page.locator('#mail, input[name="mail"]').first(), email);
+  await fillField(page, page.locator('#password, input[name="password"]').first(), password);
   const statute = page.locator('#isStatuteAccepted, input[name="isStatuteAccepted"]').first();
   if (!await statute.isChecked()) await humanClickLocator(page, statute.locator('xpath=ancestor-or-self::label[1]').or(statute));
   await page.waitForFunction(() => {
@@ -56,14 +29,14 @@ async function login() {
 async function fillBySuffix(suffix, value) {
   const visible = page.locator(`[name$="${suffix}"]:visible`);
   const loc = (await visible.count() > 0) ? visible.last() : page.locator(`[name$="${suffix}"]`).last();
-  const res = await fillField(loc, value);
+  const res = await fillField(page, loc, value);
   return { suffix, ...res };
 }
 
 async function fillByExactName(name, value) {
   const visible = page.locator(`[name="${name}"]:visible`);
   const loc = (await visible.count() > 0) ? visible.last() : page.locator(`[name="${name}"]`).last();
-  const res = await fillField(loc, value);
+  const res = await fillField(page, loc, value);
   return { name, ...res };
 }
 
@@ -81,5 +54,5 @@ async function closeVisibleForm() {
   await humanIdlePause('long');
 }
 
-  return { fillField, login, fillBySuffix, fillByExactName, saveVisibleForm, closeVisibleForm };
+  return { login, fillBySuffix, fillByExactName, saveVisibleForm, closeVisibleForm };
 }

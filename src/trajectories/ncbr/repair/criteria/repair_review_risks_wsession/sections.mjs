@@ -1,17 +1,15 @@
 // The 6.1, 9.2 and 4.1 repairs of repair_review_risks_wsession.mjs, bound to the page and the form helpers.
-import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../../../dist/human/mouse.js';
 import { indicators92, management41, task5 } from './text.mjs';
 
-export function riskRepairs({ page, URL_41, URL_61, URL_92, setReactInputValue, saveVisibleForm, fillByName, fillBySuffix }) {
+export function riskRepairs({ page, URL_41, URL_61, URL_92, saveVisibleForm, fillByName, fillBySuffix }) {
 async function openTask61(nr) {
   await page.goto(URL_61, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 6.1 navigation
-  await humanIdlePause('long');
   const row = page.locator('table tbody tr').filter({ has: page.locator(`td[title^="${nr}. " ]`) }).first();
-  const btn = row.locator('button[aria-label="overflow-options"]').first();
-  if (!await btn.count()) throw new Error(`task row menu not found: ${nr}`);
+  const btn = row.locator('button[aria-label="overflow-options"]:not(:disabled):not([aria-disabled="true"])').first();
+  await btn.waitFor({ state: 'visible' });
   await humanClickLocator(page, btn);
-  await humanIdlePause('deliberate');
-  await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit existing task row
+  await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).filter({ visible: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit existing task row
   await page.waitForSelector('[name="nazwa_zadania"]');
 }
 
@@ -33,19 +31,17 @@ async function repairTask5() {
     filled.push(await fillByName(`kamienie_milowe_kolekcja[${idx}].kamienie_milowe_opis_weryfikacji`, m.verify));
     filled.push(await fillByName(`kamienie_milowe_kolekcja[${idx}].kamienie_milowe_opis_wplywu`, m.impact));
   }
-  await saveVisibleForm();
+  if (filled.some((field) => field.changed)) await saveVisibleForm();
   return filled;
 }
 
 async function openIndicator92(name) {
   await page.goto(URL_92, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 9.2 navigation
-  await humanIdlePause('long');
   const row = page.locator('table tbody tr').filter({ hasText: name }).first();
-  const btn = row.locator('button[aria-label="overflow-options"]').first();
-  if (!await btn.count()) throw new Error(`indicator row menu not found: ${name}`);
+  const btn = row.locator('button[aria-label="overflow-options"]:not(:disabled):not([aria-disabled="true"])').first();
+  await btn.waitFor({ state: 'visible' });
   await humanClickLocator(page, btn);
-  await humanIdlePause('deliberate');
-  await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit existing indicator row
+  await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).filter({ visible: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit existing indicator row
   await page.waitForSelector('textarea[name$="opis_metodologii"], textarea[name$="opis_sposobu_weryfikacji"]');
 }
 
@@ -57,8 +53,9 @@ async function repairIndicators92() {
     const filled = [];
     filled.push(await fillBySuffix('opis_metodologii', ind.methodology));
     filled.push(await fillBySuffix('opis_sposobu_weryfikacji', ind.verification));
-    await saveVisibleForm();
-    results.push({ name: ind.name, filled });
+    const changed = filled.some((field) => field.changed);
+    if (changed) await saveVisibleForm();
+    results.push({ name: ind.name, filled, save: changed ? 'save_clicked' : 'unchanged' });
   }
   return results;
 }
@@ -66,17 +63,17 @@ async function repairIndicators92() {
 async function repairManagement41() {
   console.log('[4.1] repair management text');
   await page.goto(URL_41, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 4.1 navigation
-  await humanIdlePause('long');
   const filled = await fillBySuffix('sposob_zarzadzania_projektem', management41);
-  await saveVisibleForm();
-  return filled;
+  if (filled.changed) await saveVisibleForm();
+  return { ...filled, save: filled.changed ? 'save_clicked' : 'unchanged' };
 }
 
 async function readManagement41() {
   await page.goto(URL_41, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 4.1 read-only navigation
-  await humanIdlePause('long');
-  return await page.evaluate(() => {
-    const el = Array.from(document.querySelectorAll('textarea, input')).find((field) => (field.name || '').endsWith('sposob_zarzadzania_projektem'));
+  const field = page.locator('textarea[name$="sposob_zarzadzania_projektem"], input[name$="sposob_zarzadzania_projektem"]')
+    .filter({ visible: true }).first();
+  await field.waitFor({ state: 'visible' });
+  return await field.evaluate((el) => {
     const value = el?.value || '';
     return {
       url: location.href,

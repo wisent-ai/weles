@@ -1,8 +1,9 @@
 // The section repairs of repair_strict_criteria_wsession.mjs, bound to the page, the form helpers and the section URLs.
-import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../../../dist/human/mouse.js';
 import { indicatorRepairs, scalarRepairs, taskRepairs } from './repairs.mjs';
+import { fillField } from '../../../form-input.mjs';
 
-export function criteriaRepairs({ page, fillField, fillBySuffix, fillByExactName, saveVisibleForm, closeVisibleForm, URLS }) {
+export function criteriaRepairs({ page, fillBySuffix, fillByExactName, saveVisibleForm, closeVisibleForm, URLS }) {
 const indicatorField = page.locator('[name="rok_osiagniecia_wartosci_docelowej"], [name="opis_metodologii"], [name="opis_sposobu_weryfikacji"]')
   .filter({ visible: true }).first();
 async function repairScalarSections() {
@@ -10,7 +11,6 @@ async function repairScalarSections() {
   for (const item of scalarRepairs) {
     console.log(`[scalar] ${item.section} ${item.suffix}`);
     await page.goto(URLS[item.section], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section navigation
-    await humanIdlePause('long');
     const filled = await fillBySuffix(item.suffix, item.value);
     if (filled.changed) await saveVisibleForm();
     out.push({ section: item.section, ...filled, save: filled.changed ? 'save_clicked' : 'unchanged' });
@@ -34,9 +34,9 @@ async function repairTasks61() {
     console.log(`[6.1] task ${task.nr}`);
     await openTaskRow(task.nr);
     const filled = [];
-    filled.push(await fillField(page.locator('[name="nazwa_zadania"]').first(), task.name));
-    filled.push(await fillField(page.locator('[name="zakres_planowanych_prac_br"]').first(), task.scope));
-    filled.push(await fillField(page.locator('[name="szczegolowy_opis_prac"]').first(), task.detail));
+    filled.push(await fillField(page, page.locator('[name="nazwa_zadania"]').first(), task.name));
+    filled.push(await fillField(page, page.locator('[name="zakres_planowanych_prac_br"]').first(), task.scope));
+    filled.push(await fillField(page, page.locator('[name="szczegolowy_opis_prac"]').first(), task.detail));
     const changed = filled.some((field) => field.changed);
     if (changed) await saveVisibleForm();
     else await closeVisibleForm();
