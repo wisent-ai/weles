@@ -14,7 +14,8 @@
 
 import { WSession } from '../../../../../dist/session/wsession.js';
 import { googleSso } from '../../../_shared/services/google_sso.mjs';
-import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../../dist/human/mouse.js';
+import { pageSettled } from '../../../_shared/page/settled.mjs';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
@@ -81,7 +82,7 @@ async function scrollSeries(tag, xFrac, yFrac) {
     prev = e.sha256;
     await s.page.mouse.move(vs.width * xFrac, vs.height * yFrac);
     await s.page.mouse.wheel(0, Math.floor(vs.height / 2));
-    await humanIdlePause('deliberate');
+    await pageSettled(s.page);
   }
 }
 
@@ -100,20 +101,20 @@ async function isSignedOut() {
 
 async function ensureLoggedIn(url) {
   await s.page.goto(url, { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
   const onLoginPage = /accounts\.google\.com|ServiceLogin|signin/.test(s.page.url());
   if (!onLoginPage && !(await isSignedOut())) return;
   if (!onLoginPage) {
     await s.page.goto('https://accounts.google.com/ServiceLogin?continue=' +
       encodeURIComponent(url), { waitUntil: 'domcontentloaded' });
-    await humanIdlePause('deliberate');
+    await pageSettled(s.page);
   }
   log('signed out — running googleSso for', creds.email);
   const ok = await googleSso(s, creds);
   if (!ok) throw new Error('googleSso did not complete (url=' + s.page.url() + ')');
-  await humanIdlePause('long');
+  await pageSettled(s.page);
   await s.page.goto(url, { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
   if (await isSignedOut()) {
     throw new Error('still signed out after googleSso (url=' + s.page.url() + ')');
   }
@@ -135,7 +136,7 @@ async function captureVersionPanel(meta) {
   await humanClickLocator(s.page, seeItem);
   await s.page.getByText('Version history', { exact: false }).first()
     .waitFor({ state: 'visible' });
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
   const frames = await scrollSeries('versions_' + meta.id, 0.92, 0.5);
   log('  version panel frames:', frames);
 }
@@ -152,7 +153,7 @@ try {
     log('[' + (i + 1) + '/' + metas.length + ']', meta.name);
     try {
       await s.page.goto(meta.webViewLink, { waitUntil: 'domcontentloaded' });
-      await humanIdlePause('long');
+      await pageSettled(s.page);
       if (await isSignedOut()) {
         // Anonymous shots are not evidence — abort the whole run, loudly.
         throw new SignedOutMidRun('signed out at ' + meta.webViewLink);
