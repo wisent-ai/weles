@@ -1,6 +1,6 @@
-import { spawn, execFileSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mediaToolCandidates, resolveMediaTool } from '../../../../dist/runtime/media-tools.js';
+import { mediaToolCandidates } from '../../../../dist/runtime/media-tools.js';
 
 const FPS = 25;
 
@@ -18,38 +18,65 @@ export function captureVideoTools() {
   }
   // The recorder streams JPEGs through image2pipe, not the disk-sequence
   // demuxer required by the separate CDP frame-stitching path.
-  try {
-    return { encoder, probe: resolveMediaTool('ffprobe') };
-  } catch (cause) {
-    throw recordingError('CAPTURE_PROBE_UNAVAILABLE', 'resolve_capture_probe',
-      cause.message, { probe: process.env.WELES_FFPROBE_BIN?.trim() || null }, cause);
-  }
+  return { encoder };
 }
 
-function inspectVideo(path, probe, minimumSeconds) {
+async function inspectVideo(context, path, minimumSeconds) {
+  let inspector;
   let result;
+  let failure;
   try {
-    result = JSON.parse(execFileSync(probe, [
-      '-v', 'error', '-select_streams', 'v:0', '-count_frames',
-      '-show_entries', 'stream=width,height,nb_read_frames:format=duration',
-      '-of', 'json', path,
-    ], { encoding: 'utf8' }));
+    // Inspect the written file with the managed browser's actual WebM decoder.
+    // This isolated page never alters the product page being captured, and
+    // needs no ffprobe binary absent from the managed browser runtime.
+    inspector = await context.newPage();
+    await inspector.setContent('<input id="capture-file" type="file" accept="video/webm">');
+    await inspector.locator('#capture-file').setInputFiles(path);
+    result = await inspector.evaluate(() => new Promise((resolve, reject) => {
+      const file = document.querySelector('#capture-file').files[0];
+      if (!file) { reject(new Error('The recording file was not attached')); return; }
+      const video = document.createElement('video');
+      const source = URL.createObjectURL(file);
+      video.preload = 'auto';
+      video.muted = true;
+      video.addEventListener('error', () => {
+        const error = video.error;
+        URL.revokeObjectURL(source);
+        reject(new Error(`WebM decode failed: code=${error?.code} message=${error?.message}`));
+      }, { once: true });
+      video.addEventListener('loadeddata', () => {
+        const observed = {
+          width: video.videoWidth, height: video.videoHeight,
+          duration_seconds: video.duration, ready_state: video.readyState, bytes: file.size,
+        };
+        URL.revokeObjectURL(source);
+        resolve(observed);
+      }, { once: true });
+      document.body.append(video);
+      video.src = source;
+      video.load();
+    }));
+    if (!Number.isSafeInteger(result.width) || result.width <= 0
+        || !Number.isSafeInteger(result.height) || result.height <= 0
+        || !Number.isFinite(result.duration_seconds) || result.duration_seconds < minimumSeconds) {
+      throw recordingError('CAPTURE_VIDEO_INCOMPLETE', 'inspect_capture_video',
+        'the written file does not contain the requested recording',
+        { path, requestedSeconds: minimumSeconds, observed: result });
+    }
   } catch (cause) {
-    throw recordingError('CAPTURE_VIDEO_PROBE_FAILED', 'inspect_capture_video',
-      cause.message, { path, probe, stderr: String(cause.stderr ?? '') }, cause);
+    failure = cause.code === 'CAPTURE_VIDEO_INCOMPLETE' ? cause
+      : recordingError('CAPTURE_VIDEO_PROBE_FAILED', 'inspect_capture_video',
+        cause.message, { path }, cause);
+  } finally {
+    if (inspector) {
+      try { await inspector.close(); }
+      catch (cause) {
+        failure = failure ? new AggregateError([failure, cause], 'Video inspection and cleanup failed') : cause;
+      }
+    }
   }
-  const stream = result.streams?.[0];
-  const width = stream?.width;
-  const height = stream?.height;
-  const frames = Number(stream?.nb_read_frames);
-  const duration = Number(result.format?.duration);
-  if (!Number.isSafeInteger(width) || width <= 0 || !Number.isSafeInteger(height) || height <= 0
-      || !Number.isSafeInteger(frames) || frames <= 0 || !Number.isFinite(duration) || duration < minimumSeconds) {
-    throw recordingError('CAPTURE_VIDEO_INCOMPLETE', 'inspect_capture_video',
-      'the decoded file does not contain the requested recording',
-      { path, requestedSeconds: minimumSeconds, observed: result });
-  }
-  return { path, width, height, frames, duration_seconds: duration };
+  if (failure) throw failure;
+  return { path, ...result };
 }
 
 /** Record actual viewport captures while perform runs, then complete the media
@@ -136,5 +163,5 @@ export async function recordCaptureVideo({ page, path, seconds, tools, perform, 
   await Promise.all([capture, actions, exited]);
   if (cleanup) await cleanup;
   if (failure) throw failure;
-  return inspectVideo(path, tools.probe, seconds);
+  return { ...await inspectVideo(page.context(), path, seconds), frames_submitted: writtenFrames };
 }

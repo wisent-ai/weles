@@ -179,10 +179,10 @@ try {
       width: recorded.width,
       height: recorded.height,
       duration_seconds: recorded.duration_seconds,
-      frames: recorded.frames,
+      frames_submitted: recorded.frames_submitted,
       bytes: video.bytes,
       sha256: video.sha256,
-      capture_method: `Captured viewport JPEG frames of ${plan.source_url} in ${renderer} on the Stado-selected Weles host while executing ${stepsExecuted.length} scripted step(s), preserving observed capture spacing at 25 encoded frames per second. ${videoTools.encoder} encoded WebM; ${videoTools.probe} read the written file's ${recorded.width}x${recorded.height} dimensions, ${recorded.frames} decoded frames and ${recorded.duration_seconds}s duration.`,
+      capture_method: `Captured viewport JPEG frames of ${plan.source_url} in ${renderer} on the Stado-selected Weles host while executing ${stepsExecuted.length} scripted step(s), preserving observed capture spacing at 25 encoded frames per second. ${videoTools.encoder} encoded WebM. An isolated page in the same managed browser loaded the written file and decoded its first frame, reporting ${recorded.width}x${recorded.height} dimensions and ${recorded.duration_seconds}s duration. frames_submitted counts encoder input, not independently decoded video frames.`,
     };
     artifacts.push({
       key: `${keyPrefix}${base}.webm`,
@@ -223,7 +223,7 @@ try {
     error: message,
     error_details: {
       code: error?.code, operation: error?.operation, export: error?.export,
-      encoder: error?.encoder, probe: error?.probe, path: error?.path,
+      encoder: error?.encoder, path: error?.path,
       status: error?.status, signal: error?.signal, stderr: error?.stderr,
       requested_seconds: error?.requestedSeconds, written_frames: error?.writtenFrames,
       input_ended: error?.inputEnded, observed: error?.observed,
