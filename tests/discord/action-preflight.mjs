@@ -15,7 +15,10 @@ evidence.report.source_sha256 = {};
 const friend = 'src/trajectories/discord/actions/send_friend_request.mjs';
 const forum = 'src/trajectories/discord/actions/post/create_forum_post.mjs';
 const thread = 'src/trajectories/discord/actions/post/create_thread.mjs';
-for (const path of [friend, forum, thread, 'tests/discord/action-preflight.mjs']) {
+const reply = 'src/trajectories/discord/actions/comment/reply_message.mjs';
+const targetReader = 'src/trajectories/_shared/discord/message-target.mjs';
+const replyReader = 'src/trajectories/_shared/discord/response.mjs';
+for (const path of [friend, forum, thread, reply, targetReader, replyReader, 'tests/discord/action-preflight.mjs']) {
   evidence.report.source_sha256[path] = createHash('sha256').update(await readFile(join(root, path))).digest('hex');
 }
 const scenarios = [
@@ -28,6 +31,10 @@ const scenarios = [
   { name: 'invalid_thread_channel', entry: thread,
     settings: { SERVER_CHANNEL_PATH: 'not/a/channel/path', TARGET_MESSAGE_SUBSTRING: 'Input refusal parent', THREAD_NAME: 'Input refusal thread' },
     diagnostics: ['DISCORD_THREAD_CHANNEL_INVALID', 'not/a/channel/path'] },
+  { name: 'missing_reply_input', entry: reply, diagnostics: ['SERVER_CHANNEL_PATH', 'TARGET_MESSAGE_SUBSTRING', 'REPLY_TEXT'] },
+  { name: 'invalid_reply_channel', entry: reply,
+    settings: { SERVER_CHANNEL_PATH: 'not/a/channel/path', TARGET_MESSAGE_SUBSTRING: 'Input refusal parent', REPLY_TEXT: 'Input refusal reply' },
+    diagnostics: ['DISCORD_REPLY_CHANNEL_INVALID', 'not/a/channel/path'] },
 ];
 const failures = [];
 try {
@@ -39,6 +46,7 @@ try {
       WELES_CREDENTIALS_FILE: '', SKARBIEC_WORKLOAD_ID: '', SKARBIEC_WORKLOAD_SIGNING_KEY_FILE: '',
       DISCORD_TARGET_HANDLE: '', FORUM_CHANNEL_PATH: '', POST_TITLE: '', POST_BODY: '',
       POST_TAGS: '', SERVER_CHANNEL_PATH: '', TARGET_MESSAGE_SUBSTRING: '', THREAD_NAME: '', THREAD_FIRST_MESSAGE: '',
+      REPLY_TEXT: '',
       ...scenario.settings,
     };
     const operation = { scenario: scenario.name, command: [process.execPath, entry], cwd: home, environment_overrides: overrides };

@@ -16,13 +16,16 @@
 //   4. Hover the message, click Reply in the action toolbar.
 //   5. Composer now shows "Replying to @user" pill. humanFill the reply
 //      text into the composer, press Enter to submit.
-//   6. Verify the reply appears with the @-mention pill.
+//   6. Observe the provider's message response and verify its parent reference.
 
 import { WSession } from '../../../../../dist/session/wsession.js';
-import { humanClickLocator, humanScroll, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../dist/human/keyboard.js';
 import { getSocialAccount, resolveAccountSession } from '../../../../../dist/utils/credentials.js';
-import { pageSettled } from '../../../_shared/page/settled.mjs';
+import { pageSettled, responseAfterAction } from '../../../_shared/page/settled.mjs';
+import { checkReachable } from '../../../_shared/action-runner.mjs';
+import { findDiscordMessage } from '../../../_shared/discord/message-target.mjs';
+import { readDiscordReply } from '../../../_shared/discord/response.mjs';
 
 const ACCT_USERNAME = process.env.ACCOUNT_USERNAME;
 const CHANNEL = process.env.SERVER_CHANNEL_PATH;
@@ -30,6 +33,11 @@ const TARGET = process.env.TARGET_MESSAGE_SUBSTRING;
 const REPLY = process.env.REPLY_TEXT;
 if (!CHANNEL || !TARGET || !REPLY) {
   console.log('FAIL: SERVER_CHANNEL_PATH + TARGET_MESSAGE_SUBSTRING + REPLY_TEXT all required');
+  process.exit(1);
+}
+const channel = /^(\d+)\/(\d+)$/.exec(CHANNEL);
+if (!channel) {
+  console.error(`DISCORD_REPLY_CHANNEL_INVALID: SERVER_CHANNEL_PATH must be guild_id/channel_id; observed ${JSON.stringify(CHANNEL)}`);
   process.exit(1);
 }
 
@@ -47,48 +55,44 @@ console.log(`[reply] account=${acct.username} channel=${CHANNEL}`);
 try {
   await s.ctx.addInitScript(`(()=>{try{if(location.hostname.indexOf('discord')>=0){localStorage.setItem('token',JSON.stringify(${JSON.stringify(token)}))}}catch(e){}})()`);
   await s.goto(`https://discord.com/channels/${CHANNEL}`);
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
+  checkReachable(s, 'discord');
 
-  // Locate the target message by text substring within an [id^="chat-messages-"] li.
-  const targetMsg = s.page.locator('li[id^="chat-messages-"]').filter({ hasText: TARGET }).first();
-  // Scroll up through history until the message renders; history that stops
-  // changing after a scroll has no older messages left to load.
-  const oldestMessageId = () => s.page.locator('li[id^="chat-messages-"]').first().getAttribute('id');
-  while ((await targetMsg.count()) === 0) {
-    const before = await oldestMessageId();
-    await humanScroll(s.page, -800, 2);
-    await pageSettled(s.page);
-    if (await oldestMessageId() === before) throw new Error(`discord_reply: no message with "${TARGET.slice(0, 30)}" in the channel history`);
-  }
+  const { target: targetMsg, messageId: parentMessageId } = await findDiscordMessage(s.page, CHANNEL, channel[2], TARGET, 'DISCORD_REPLY');
   console.log(`[reply] target message found`);
 
   // Hover to surface the action toolbar.
   await targetMsg.hover();
-  await humanIdlePause('short');
   // Click the Reply button (Discord's action button uses aria-label="Reply").
   const replyBtn = s.page.locator('button[aria-label="Reply"]').first();
-  if ((await replyBtn.count()) === 0) { console.log('FAIL: Reply button not on hovered message toolbar'); process.exit(1); }
+  await replyBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, replyBtn);
-  await humanIdlePause('deliberate');
 
   // Composer now should show the "Replying to" pill. Fill the reply.
   const composer = s.page.locator('[role="textbox"][data-slate-editor], div[role="textbox"]').filter({ visible: true }).first();
-  if ((await composer.count()) === 0) { console.log('FAIL: message composer not visible'); process.exit(1); }
+  await composer.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, composer);
-  await humanIdlePause('short');
   await humanFill(s.page, composer, REPLY);
-  await humanIdlePause('short');
-  await s.page.keyboard.press('Enter'); // allow-raw-playwright: Enter-to-send is the canonical Discord submit gesture
-  await humanIdlePause('deliberate');
-
-  // Verify the reply appears with @-mention pill referencing parent.
-  const replyVisible = s.page.locator('li[id^="chat-messages-"]').filter({ hasText: REPLY }).first();
-  if ((await replyVisible.count()) === 0) { console.log('FAIL: reply message not visible in channel after submit'); process.exit(1); }
-  console.log(`PASS: ${acct.username} replied in ${CHANNEL}`);
+  const messagePath = new RegExp(`^/api/v\\d+/channels/${channel[2]}/messages$`);
+  const response = await responseAfterAction(s.page, (request) => {
+    const url = new URL(request.url());
+    return request.method() === 'POST' && url.origin === 'https://discord.com' && messagePath.test(url.pathname);
+  }, () => s.page.keyboard.press('Enter'));
+  const message = await readDiscordReply(response, 'reply_message', 'DISCORD_REPLY');
+  if (typeof message?.id !== 'string' || !/^\d+$/.test(message.id)
+      || message.channel_id !== channel[2] || message.content !== REPLY || message.type !== 19
+      || message.message_reference?.message_id !== parentMessageId) {
+    throw Object.assign(new Error('DISCORD_REPLY_UNCONFIRMED: reconcile the provider response before another attempt'),
+      { operation: 'reply_message', parentMessageId, responseBody: message, requestUrl: response.url(), httpStatus: response.status() });
+  }
+  console.log(JSON.stringify({
+    ok: true, operation: 'reply_message', acknowledgement: 'provider_response',
+    guild_id: channel[1], channel_id: message.channel_id, message_id: message.id, reply_to: parentMessageId,
+    url: `https://discord.com/channels/${channel[1]}/${message.channel_id}/${message.id}`,
+  }));
 } catch (e) {
-  console.log(`FAIL: ${e.message}`);
-  process.exit(1);
+  console.error('DISCORD_REPLY_FAILED:', e);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }
-process.exit(0);

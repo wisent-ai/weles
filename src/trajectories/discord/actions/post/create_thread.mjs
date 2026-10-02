@@ -18,11 +18,13 @@
 //   7. Click Create. Observe its provider reply and the requested first-message reply.
 
 import { WSession } from '../../../../../dist/session/wsession.js';
-import { humanClickLocator, humanScroll } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../dist/human/keyboard.js';
 import { getSocialAccount, resolveAccountSession } from '../../../../../dist/utils/credentials.js';
 import { pageSettled, responseAfterAction } from '../../../_shared/page/settled.mjs';
 import { checkReachable } from '../../../_shared/action-runner.mjs';
+import { findDiscordMessage } from '../../../_shared/discord/message-target.mjs';
+import { readDiscordReply } from '../../../_shared/discord/response.mjs';
 
 const ACCT_USERNAME = process.env.ACCOUNT_USERNAME;
 const CHANNEL = process.env.SERVER_CHANNEL_PATH;
@@ -39,21 +41,6 @@ if (!channel) {
   process.exit(1);
 }
 
-async function readThreadReply(response, operation) {
-  const details = { operation, requestUrl: response.url(), httpStatus: response.status() };
-  let text;
-  try {
-    text = await response.text();
-  } catch (cause) {
-    throw Object.assign(new Error('DISCORD_THREAD_RESPONSE_READ_FAILED', { cause }), details);
-  }
-  if (!response.ok()) throw Object.assign(new Error(`DISCORD_THREAD_HTTP_REFUSED: HTTP ${response.status()}: ${text}`), details);
-  try {
-    return JSON.parse(text);
-  } catch (cause) {
-    throw Object.assign(new Error('DISCORD_THREAD_RESPONSE_INVALID', { cause }), details, { responseBody: text });
-  }
-}
 
 const acct = ACCT_USERNAME
   ? await getSocialAccount('discord', { username: ACCT_USERNAME })
@@ -73,24 +60,9 @@ try {
   await pageSettled(s.page);
   checkReachable(s, 'discord');
 
-  const targetMsg = s.page.locator('li[id^="chat-messages-"]').filter({ hasText: TARGET }).first();
-  // Scroll through rendered history. An unchanged window does not establish
-  // that no older messages exist; preserve that uncertainty in the refusal.
-  const oldestMessageId = () => s.page.locator('li[id^="chat-messages-"]').first().getAttribute('id');
-  while ((await targetMsg.count()) === 0) {
-    const before = await oldestMessageId();
-    await humanScroll(s.page, -800, 2);
-    await pageSettled(s.page);
-    const after = await oldestMessageId();
-    if (after === before) throw Object.assign(new Error('DISCORD_THREAD_HISTORY_PROGRESS_UNCONFIRMED: the rendered history did not advance; earlier-message availability is unknown'),
-      { channel: CHANNEL, oldestMessageBefore: before, oldestMessageAfter: after, pageUrl: s.page.url() });
-  }
-  const targetElementId = await targetMsg.getAttribute('id');
-  const targetId = /^chat-messages-(\d+)-(\d+)$/.exec(targetElementId || '');
-  if (!targetId || targetId[1] !== channel[2]) throw Object.assign(new Error('DISCORD_THREAD_PARENT_UNCONFIRMED'),
-    { channel: CHANNEL, targetElementId, pageUrl: s.page.url() });
-  const createPath = new RegExp(`^/api/v\\d+/channels/${channel[2]}/messages/${targetId[2]}/threads$`);
-  const messagePath = new RegExp(`^/api/v\\d+/channels/${targetId[2]}/messages$`);
+  const { target: targetMsg, messageId: sourceMessageId } = await findDiscordMessage(s.page, CHANNEL, channel[2], TARGET, 'DISCORD_THREAD');
+  const createPath = new RegExp(`^/api/v\\d+/channels/${channel[2]}/messages/${sourceMessageId}/threads$`);
+  const messagePath = new RegExp(`^/api/v\\d+/channels/${sourceMessageId}/messages$`);
 
   await targetMsg.hover();
   // The Create Thread button uses aria-label="Create Thread"
@@ -120,8 +92,8 @@ try {
       const url = new URL(request.url());
       return request.method() === 'POST' && url.origin === 'https://discord.com' && createPath.test(url.pathname);
     }, () => humanClickLocator(s.page, createBtn));
-    const thread = await readThreadReply(response, 'create_thread');
-    if (thread?.id !== targetId[2] || thread.parent_id !== channel[2] || thread.name !== NAME
+    const thread = await readDiscordReply(response, 'create_thread', 'DISCORD_THREAD');
+    if (thread?.id !== sourceMessageId || thread.parent_id !== channel[2] || thread.name !== NAME
         || (thread.type !== 10 && thread.type !== 11)) {
       throw Object.assign(new Error('DISCORD_THREAD_CREATE_UNCONFIRMED: reconcile the provider response before another attempt'),
         { operation: 'create_thread', responseBody: thread, requestUrl: response.url(), httpStatus: response.status() });
@@ -134,7 +106,7 @@ try {
       const url = new URL(request.url());
       return request.method() === 'POST' && url.origin === 'https://discord.com' && messagePath.test(url.pathname);
     }, create);
-    firstMessage = await readThreadReply(response, 'thread_first_message');
+    firstMessage = await readDiscordReply(response, 'thread_first_message', 'DISCORD_THREAD');
     if (typeof firstMessage?.id !== 'string' || !/^\d+$/.test(firstMessage.id)
         || firstMessage.channel_id !== createdThread.id || firstMessage.content !== FIRST) {
       throw Object.assign(new Error('DISCORD_THREAD_FIRST_MESSAGE_UNCONFIRMED: the thread was acknowledged, but the requested first message was not confirmed'),
