@@ -26,7 +26,7 @@ for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
   code=$?
   case "$code" in
     0)  echo "[rotate] SUCCESS on attempt $attempt"; exit 0 ;;
-    42) echo "[rotate] Attempt $attempt: IP flagged by Arkose, rotating proxy..."; sleep 3 ;;
+    42) echo "[rotate] Attempt $attempt: IP flagged by Arkose, rotating proxy..." ;;
     *)  echo "[rotate] Attempt $attempt: FAIL with exit $code (non-IP error) — aborting"; exit "$code" ;;
   esac
 done
