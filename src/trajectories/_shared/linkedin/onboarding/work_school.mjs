@@ -9,8 +9,9 @@
 // scrapes return the gated stub. Call this from linkedin_register.mjs after
 // post-signup redirect completes and before saveAccount/PASS.
 
-import { humanFill, humanType } from '../../../../../dist/human/keyboard.js';
-import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../../dist/human/keyboard.js';
+import { humanClickLocator } from '../../../../../dist/human/mouse.js';
+import { pageSettled } from '../../page/settled.mjs';
 import { ROLE_TITLES, ROLE_COMPANIES } from './stooge_data.mjs';
 
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
@@ -37,20 +38,20 @@ async function fillIfVisible(page, locator, value) {
  */
 export async function fillPostRegisterOnboarding(page) {
   console.log('[onboarding] post-register profile-build attempt');
-  await humanIdlePause('deliberate');
+  await pageSettled(page);
 
   let roleAdded = false;
   const title = pick(ROLE_TITLES);
   const company = pick(ROLE_COMPANIES);
   try {
     await page.goto('https://www.linkedin.com/in/me/edit/position/new/', { waitUntil: 'domcontentloaded' });
-    await humanIdlePause('long');
+    await pageSettled(page);
     const titleFilled = await fillIfVisible(page, page.locator('input[id*="title-typeahead" i], input[aria-label*="Title" i], input[id*="title" i]').first(), title);
-    await humanIdlePause('short');
+    await pageSettled(page);
     const companyFilled = await fillIfVisible(page, page.locator('input[id*="company-typeahead" i], input[aria-label*="Company" i], input[name="companyName"]').first(), company);
-    await humanIdlePause('short');
+    await pageSettled(page);
     await clickIfVisible(page, page.locator('div[role="listbox"] li, ul[role="listbox"] li').first());
-    await humanIdlePause('short');
+    await pageSettled(page);
     const saved = await clickIfVisible(page, page.locator('button:has-text("Save"), button:has-text("Add to my profile"), button[type="submit"]:has-text("Save")').first());
     if (titleFilled && companyFilled && saved) {
       roleAdded = true;
@@ -60,20 +61,20 @@ export async function fillPostRegisterOnboarding(page) {
     }
   } catch (e) { console.log(`[onboarding] role err: ${e.message}`); }
 
-  await humanIdlePause('deliberate');
+  await pageSettled(page);
 
   let schoolAdded = false;
   try {
     await page.goto('https://www.linkedin.com/in/me/edit/education/new/', { waitUntil: 'domcontentloaded' });
-    await humanIdlePause('long');
+    await pageSettled(page);
     const schoolFilled = await fillIfVisible(page, page.locator('input[id*="school-typeahead" i], input[id*="school" i], input[aria-label*="School" i]').first(), 'Stanford University');
-    await humanIdlePause('short');
+    await pageSettled(page);
     await clickIfVisible(page, page.locator('div[role="listbox"] li, ul[role="listbox"] li').first());
-    await humanIdlePause('short');
+    await pageSettled(page);
     await fillIfVisible(page, page.locator('input[id*="degree" i], input[aria-label*="Degree" i]').first(), 'Bachelor of Science (BS)');
-    await humanIdlePause('short');
+    await pageSettled(page);
     await fillIfVisible(page, page.locator('input[id*="fieldOfStudy" i], input[aria-label*="Field of study" i], input[id*="field" i]').first(), 'Computer Science');
-    await humanIdlePause('short');
+    await pageSettled(page);
     const saved = await clickIfVisible(page, page.locator('button:has-text("Save"), button[type="submit"]:has-text("Save")').first());
     if (schoolFilled && saved) {
       schoolAdded = true;
@@ -86,7 +87,7 @@ export async function fillPostRegisterOnboarding(page) {
   let viewable = false;
   try {
     await page.goto('https://www.linkedin.com/in/williamhgates/', { waitUntil: 'domcontentloaded' });
-    await humanIdlePause('long');
+    await pageSettled(page);
     let body = '';
     try { body = await page.evaluate(() => document.body.innerText); }
     catch (e) { console.log(`[onboarding] body read err: ${e.message}`); }
@@ -97,5 +98,3 @@ export async function fillPostRegisterOnboarding(page) {
 
   return { roleAdded, schoolAdded, viewable };
 }
-
-void humanType;
