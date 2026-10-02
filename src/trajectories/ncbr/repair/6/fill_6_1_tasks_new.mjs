@@ -43,7 +43,6 @@ const added = [];
 for (const t of parsed) {
   console.log(`START TASK ${t.nr}`);
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('long');
   await clickDodaj();
   await fillByName('numer_zadania', t.nr);
   await fillByName('nazwa_zadania', t.nazwa);

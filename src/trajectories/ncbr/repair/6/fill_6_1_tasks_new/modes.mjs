@@ -132,7 +132,6 @@ if (process.env.ADD_TASK0) {
     milestones: [],
   };
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('long');
   await clickDodaj();
   await fillByName('numer_zadania', '0');
   await fillByName('nazwa_zadania', 'Koszty pośrednie');

@@ -4,6 +4,7 @@
 import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../dist/human/keyboard.js';
+import { openNewRow } from '../../forms/row-editor.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('6_5');
@@ -44,8 +45,8 @@ await humanIdlePause('long');
 await page.evaluate(() => { const b = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies')); if (b) b.style.pointerEvents = 'none'; }); // allow-raw-playwright: cookie banner
 
 async function clickDodaj() {
-  await humanClickLocator(page, page.locator('button:visible').filter({ hasText: /^Dodaj$/ }).first()) // allow-raw-playwright: open indirect-cost row
-  await humanIdlePause('long');
+  const button = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true }).first();
+  await openNewRow(page, button, page.locator('[name="wydatki_ogolem"]'));
 }
 
 async function openSelect(name) {
@@ -169,9 +170,7 @@ const added = [];
 for (const r of selectedRows) {
   console.log(`START INDIRECT ${r.help}`);
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('long');
   await clickDodaj();
-  await page.waitForSelector('[name="wydatki_ogolem"]');
   try { await fill('nazwa_zadania', '0. Koszty pośrednie: Koszty pośrednie'); } catch (e) { /* 6.5 may auto-bind task 0 */ }
   try { await pickSelect('nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta', 'Wisent Polska'); } catch (e) { /* sometimes auto */ }
   await setAuto('rodzaj_pomocy', r.help);

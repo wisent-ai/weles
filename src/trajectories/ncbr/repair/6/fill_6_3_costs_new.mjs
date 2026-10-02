@@ -4,6 +4,7 @@
 import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../dist/human/keyboard.js';
+import { openNewRow } from '../../forms/row-editor.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('6_3');
@@ -22,9 +23,7 @@ await page.evaluate(() => { const b = Array.from(document.querySelectorAll('div'
 
 async function clickDodaj() {
   const button = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true }).first();
-  if (await button.count() === 0) throw new Error('Dodaj not found');
-  await humanClickLocator(page, button);
-  await humanIdlePause('long');
+  await openNewRow(page, button, page.locator('[name="nazwa_kosztu"]'));
 }
 
 if (process.env.DIAG) {
@@ -251,9 +250,7 @@ const selectedRows = ROWS.map((r, i) => ({ ...r, rowNo: i + 1 })).filter((r) => 
 for (const r of selectedRows) {
   console.log(`START COST ${r.name}`);
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('long');
   await clickDodaj();
-  await page.waitForSelector('[name="nazwa_kosztu"]');
   await pickSelect('nazwa_zadania', r.task);
   try { await pickSelect('nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta', 'Wisent Polska'); } catch (e) { /* sometimes auto */ }
   await fill('nazwa_kosztu', r.name);

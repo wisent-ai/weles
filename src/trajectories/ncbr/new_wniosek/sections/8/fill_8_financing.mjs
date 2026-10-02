@@ -4,7 +4,7 @@
 import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
-import { openRowEditor } from '../../../forms/row-editor.mjs';
+import { openNewRow, openRowEditor } from '../../../forms/row-editor.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('8');
@@ -39,8 +39,11 @@ await page.evaluate(() => {
 
 async function clickDodaj() {
   const add = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true }).first();
-  await humanClickLocator(page, add);
-  await humanIdlePause('long');
+  const applicant = page.locator('input[name*="nazwa_skrocona"]')
+    .locator('xpath=ancestor::*[contains(@class, "MuiInputBase-root")][1]')
+    .locator('.MuiSelect-select, [role="combobox"]');
+  const amount = page.locator('input[name*="srodki_wspolnotowe_wydatki_ogolem"], textarea[name*="srodki_wspolnotowe_wydatki_ogolem"]');
+  await openNewRow(page, add, applicant.or(amount));
 }
 
 async function setApplicant() {
