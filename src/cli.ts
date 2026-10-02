@@ -102,7 +102,6 @@ function cliOptionsToBrowserOptions(options: Record<string, string | boolean>): 
 async function runOpen(parsed: ParsedCli): Promise<void> {
   const [url] = parsed.positional;
   if (!url) throw new UsageError('open requires <url>');
-
   routeConsoleToStderr();
   const { AsyncNewBrowser } = await import('./async_api.js');
   const context = await AsyncNewBrowser(cliOptionsToBrowserOptions(parsed.options));
@@ -112,7 +111,7 @@ async function runOpen(parsed: ParsedCli): Promise<void> {
     if (typeof parsed.options['wait-for-text'] === 'string') {
       await page.getByText(parsed.options['wait-for-text'], { exact: false }).first().waitFor({ state: 'visible' });
     }
-    const title = await page.title().catch(() => '');
+    const title = await page.title();
     const out: Record<string, unknown> = {
       ok: true,
       url: page.url(),
