@@ -1,6 +1,6 @@
 import { humanFill } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
-import { pageSettled } from '../page/settled.mjs';
+import { pageSettled, responseAfterAction } from '../page/settled.mjs';
 import { UMAMI_BASE, UMAMI_APP_BASE, input, defaultInput } from './action-catalog.mjs';
 import {
   escapeRegExp,
@@ -11,7 +11,6 @@ import {
   fillWithin,
   fillWithinOrNth,
   clickDomElement,
-  clickLocator,
 } from './page-interaction.mjs';
 
 async function umamiRegisterAccount(s) {
@@ -56,31 +55,20 @@ async function umamiCreateWebsite(s) {
     .or(s.page.locator('button').filter({ hasText: /^Add website$/i }))
     .filter({ visible: true })
     .first();
-  if (!await addButton.isVisible().catch(() => false)) throw new Error('Umami Add website button was not visible');
-  try {
-    await addButton.scrollIntoViewIfNeeded();
-    await humanClickLocator(s.page, addButton);
-    await pageSettled(s.page);
-  } catch {
-    if (!await clickLocator(s.page, addButton)) throw new Error('Umami Add website button was not clickable');
-  }
-
+  if (!await addButton.isVisible()) throw new Error('Umami Add website button was not visible');
+  await addButton.scrollIntoViewIfNeeded();
+  await humanClickLocator(s.page, addButton);
   const dialog = s.page.getByRole('dialog').filter({ visible: true }).first();
-  // The click has settled; a dialog that is not open now was not opened by it.
-  if (!await dialog.isVisible().catch(() => false)) {
-    await humanClickLocator(s.page, addButton);
-    await pageSettled(s.page);
-  }
-  if (!await dialog.isVisible().catch(() => false)) throw new Error('Umami Add website dialog did not open');
+  await dialog.waitFor({ state: 'visible' });
 
   const fields = dialog.locator('input:not([type="hidden"]), textarea').filter({ visible: true });
   let filledName = await fillWithin(dialog, s.page, input('DISPLAY_NAME'), [/^name$/i, /website name/i]);
-  if (!filledName && await fields.nth(0).isVisible().catch(() => false)) {
+  if (!filledName && await fields.nth(0).isVisible()) {
     await humanFill(s.page, fields.nth(0), input('DISPLAY_NAME'));
     filledName = true;
   }
   let filledDomain = await fillWithin(dialog, s.page, input('DOMAIN'), [/^domain$/i, /website domain/i]);
-  if (!filledDomain && await fields.nth(1).isVisible().catch(() => false)) {
+  if (!filledDomain && await fields.nth(1).isVisible()) {
     await humanFill(s.page, fields.nth(1), input('DOMAIN'));
     filledDomain = true;
   }
@@ -92,23 +80,25 @@ async function umamiCreateWebsite(s) {
     .or(dialog.locator('button').filter({ hasText: /^(save|create|add|submit)$/i }))
     .filter({ visible: true })
     .last();
-  if (!await saveButton.isVisible().catch(() => false)) throw new Error('Umami Add website save button was not visible');
+  if (!await saveButton.isVisible()) throw new Error('Umami Add website save button was not visible');
+  if (!await saveButton.isEnabled()) throw Object.assign(new Error('Umami Add website save button was disabled'),
+    { code: 'UMAMI_WEBSITE_SAVE_NOT_ENABLED', pageUrl: s.page.url() });
 
-  const saveOutcome = s.page.waitForResponse((response) => (
-    response.request().method() === 'POST'
-      && /gateway-us\.umami\.is\/api\/.*websites|cloud\.umami\.is\/analytics\/us\/api\/.*websites/i.test(response.url())
-  )).then(
-    (response) => ({ observed: true, status: response.status() }),
-    (waitError) => ({ observed: false, reason: `Umami never answered the website-create POST: ${waitError.message}` }),
-  );
-  await humanClickLocator(s.page, saveButton);
-  const save = await saveOutcome;
-  if (save.observed && save.status >= 400) {
-    await pageSettled(s.page);
-    const text = await bodyText(s.page);
-    const serviceMessage = text.match(/Website limit reached\.?/i)?.[0];
-    throw new Error(`Umami Add website save failed: ${serviceMessage ?? `HTTP ${save.status}`}`);
+  const response = await responseAfterAction(s.page,
+    (request) => request.method() === 'POST'
+      && /gateway-us\.umami\.is\/api\/.*websites|cloud\.umami\.is\/analytics\/us\/api\/.*websites/i.test(request.url()),
+    () => humanClickLocator(s.page, saveButton));
+  const status = response.status();
+  const requestUrl = response.url();
+  let body;
+  try {
+    body = await response.text();
+  } catch (cause) {
+    throw Object.assign(new Error(`Umami website-save response could not be read at ${requestUrl}`, { cause }),
+      { code: 'UMAMI_WEBSITE_RESPONSE_FAILED', requestMethod: 'POST', requestUrl, status });
   }
+  if (!response.ok()) throw Object.assign(new Error(`Umami Add website save failed: HTTP ${status} ${body}`),
+    { code: 'UMAMI_WEBSITE_SAVE_HTTP_ERROR', requestMethod: 'POST', requestUrl, status });
   await pageSettled(s.page);
   await safeGoto(s, `${UMAMI_APP_BASE}/websites?search=${encodeURIComponent(input('DOMAIN'))}&page=1`);
 
