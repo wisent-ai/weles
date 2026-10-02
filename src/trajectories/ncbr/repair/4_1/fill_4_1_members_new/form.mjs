@@ -3,6 +3,7 @@
 // opening an existing member row.
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
+import { openRowEditor } from '../../../forms/row-editor.mjs';
 
 export function membersForm({ page, SECTION_URL }) {
 async function clickDodaj() {
@@ -92,12 +93,8 @@ async function fillProjectSubrow(project, addIdx = 0) {
 
 async function editMemberRow(index) {
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('long');
   const row = page.locator('table tbody tr').nth(index + 1);
-  await row.locator('button[aria-label="overflow-options"]').first().dispatchEvent('click'); // allow-raw-playwright: open member row menu
-  await humanIdlePause('deliberate');
-  await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit member row
-  await page.waitForSelector('[name="imie"]');
+  await openRowEditor(page, row, 'imie');
 }
   return { clickDodaj, fillByName, setAuto, setApplicant, setStatus, saveForm, fillProjectSubrow, editMemberRow };
 }

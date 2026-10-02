@@ -1,6 +1,7 @@
 // The 6.1 task row form, bound to the page: adding a row, the named and selector fields,
 // the pre-save check, the radio and applicant choices, saving, and opening a task row.
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
+import { openRowEditor } from '../../../forms/row-editor.mjs';
 
 export function tasksForm({ page, SECTION_URL }) {
 async function clickDodaj() {
@@ -90,13 +91,9 @@ async function saveForm() {
 
 async function editTaskRow(nr) {
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('long');
-  const row = page.locator('table tbody tr').filter({ hasText: new RegExp(`^${String(nr)}\. `) }).first();
-  if (await row.count() === 0) throw new Error(`task row not found: ${nr}`);
-  await humanClickLocator(page, row.locator('button[aria-label="overflow-options"]')) // allow-raw-playwright: open exact task row menu by first-cell prefix
-  await humanIdlePause('deliberate');
-  await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit existing task row
-  await page.waitForSelector('[name="numer_zadania"]');
+  const number = String(nr).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const row = page.locator('table tbody tr').filter({ hasText: new RegExp(`^${number}\\. `) }).first();
+  await openRowEditor(page, row, 'numer_zadania');
 }
   return { clickDodaj, fillByName, fillSelector, assertTaskValuesBeforeSave, radio, setApplicant, saveForm, editTaskRow };
 }

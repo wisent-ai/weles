@@ -4,6 +4,7 @@
 import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
+import { openRowEditor } from '../../../forms/row-editor.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('1_4');
@@ -39,12 +40,8 @@ async function saveForm() {
 
 async function editDataRow(index) {
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('long');
   const row = page.locator('table tbody tr').nth(index + 1);
-  await row.locator('button[aria-label="overflow-options"]').first().dispatchEvent('click'); // allow-raw-playwright: open row action menu
-  await humanIdlePause('deliberate');
-  await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit competitor row
-  await page.waitForSelector("[name='nazwa_podmiotu_konkurencyjnego']");
+  await openRowEditor(page, row, 'nazwa_podmiotu_konkurencyjnego');
 }
 
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
