@@ -11,7 +11,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { WSession } from '../session/wsession.js';
 import { humanFill, humanType } from '../human/keyboard.js';
-import { humanClick, humanClickLocator, humanIdlePause, humanMove, humanScroll, type IdlePause } from '../human/mouse.js';
+import { humanClick, humanClickLocator, humanMove, humanScroll } from '../human/mouse.js';
 import { UsageError } from './usage.js';
 import type { ParsedCli } from '../cli.js';
 
@@ -57,9 +57,6 @@ export async function answerKeeperCommand(session: WSession, sessionName: string
       return { ok: true };
     case 'humanscroll':
       await humanScroll(session.page, coordinate(cmd, 'totalDeltaY'), coordinate(cmd, 'bursts'));
-      return { ok: true };
-    case 'humanidle':
-      await humanIdlePause((cmd.kind ?? 'deliberate') as IdlePause);
       return { ok: true };
     case 'fill':
       await humanFill(session.page, visible(session, cmd), text(cmd, 'text'));
