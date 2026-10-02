@@ -2,7 +2,7 @@
 // the stale rows to remove, and the needles that find a row in the table.
 import { readFileSync } from 'node:fs';
 
-const MD = `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_10.4_zrownowazony_rozwoj.md`;
+const MD = (await import('#ncbr-settings')).applicationFile('wersja_B_10.4_zrownowazony_rozwoj.md');
 
 const md = readFileSync(MD, 'utf8');
 

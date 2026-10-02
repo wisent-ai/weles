@@ -2,12 +2,12 @@
 // section 2.2 features and factors parsed out of the application's markdown source.
 import { readFileSync } from 'node:fs';
 
-export const MD22 = `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_2.2_innowacyjnosc_i_zaleznosci.md`;
+export const MD22 = (await import('#ncbr-settings')).applicationFile('wersja_B_2.2_innowacyjnosc_i_zaleznosci.md');
 const md = readFileSync(MD22, 'utf8');
 // People's names, phones and addresses live with the application text in the
 // private application folder, never in this repository.
 const CONTACTS_FILE = process.env.NCBR_CONTACTS_FILE
-  || `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/contacts/applicant-contacts.json`;
+  || (await import('#ncbr-settings')).applicationFile('contacts/applicant-contacts.json');
 const APPLICANT = JSON.parse(readFileSync(CONTACTS_FILE, 'utf8'));
 export const EDORECZENIA = APPLICANT.applicant.e_doreczenie;
 export const CONTACT = APPLICANT.contacts[1];

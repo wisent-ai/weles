@@ -14,7 +14,7 @@ const URLS = {
   '1.3': (await import('#ncbr-settings')).sectionUrl('1_3'),
   '2.2': (await import('#ncbr-settings')).sectionUrl('2_2'),
 };
-const OUT = process.env.OUT || `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/contacts_2_2_repair_evidence.json`;
+const OUT = process.env.OUT || (await import('#ncbr-settings')).applicationFile('contacts_2_2_repair_evidence.json');
 const email = process.env.NCBR_EMAIL;
 const password = process.env.NCBR_PASSWORD;
 if (!email || !password) {

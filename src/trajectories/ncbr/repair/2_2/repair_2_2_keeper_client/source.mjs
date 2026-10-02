@@ -4,14 +4,12 @@ import { readFileSync } from 'node:fs';
 
 
 export const SESSION = process.env.SESSION || 'ncbr-step-b';
-export const ROOT = `${process.env.HOME}/Documents/CodingProjects/Wisent`;
-export const WELES = `${ROOT}/weles`;
-export const BACKENDS = `${ROOT}/backends`;
+export const WELES = new URL('../../../../../..', import.meta.url).pathname.replace(/\/$/, '');
 export const PROJECT_ID = (await import('#ncbr-settings')).projectId();
 export const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('2_2');
 export const PROJECT_URL = `https://lsi2.ncbr.gov.pl/projekt/${PROJECT_ID}`;
-export const SRC = `${BACKENDS}/STEP_sciezka_A_Wisent/wersja_B_2.2_innowacyjnosc_i_zaleznosci.md`;
-export const OUT = `${BACKENDS}/STEP_sciezka_A_Wisent/repair_2_2_evidence_20260625.json`;
+export const SRC = (await import('#ncbr-settings')).applicationFile('wersja_B_2.2_innowacyjnosc_i_zaleznosci.md');
+export const OUT = (await import('#ncbr-settings')).applicationFile('repair_2_2_evidence_20260625.json');
 
 export const EMAIL = process.env.NCBR_EMAIL || '';
 export const PASSWORD = process.env.NCBR_PASSWORD || '';
