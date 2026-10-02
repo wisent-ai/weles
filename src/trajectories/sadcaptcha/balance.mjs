@@ -3,7 +3,8 @@
 import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { parseBalanceFromText, patchServiceBalance } from '../_shared/services/google_sso.mjs';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { pageSettled } from '../_shared/page/settled.mjs';
+import { submitLoginForm } from '../_shared/services/native_login/submit.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
@@ -32,13 +33,17 @@ try {
   await pwIn.waitFor({ state: 'visible' });
   await pwIn.click();
   await pwIn.pressSequentially(login.password);
-  await pwIn.press('Enter');
+  await submitLoginForm(s.page, pwIn);
 
-  for (let i = 0; i < 20; i++) { await humanIdlePause('short'); if (!/\/login/.test(s.page.url())) break; }
-  if (/\/login/.test(s.page.url())) { console.log('FAIL: still on /login after submit'); process.exit(1); }
-
-  await s.page.goto(DASH_URL, { waitUntil: 'domcontentloaded' }).catch(() => {});
-  await humanIdlePause('long');
+  const response = await s.page.goto(DASH_URL, { waitUntil: 'domcontentloaded' });
+  if (!response) throw new Error(`SADCAPTCHA_DASHBOARD_RESPONSE_MISSING: ${s.page.url()}`);
+  if (!response.ok()) throw new Error(`SADCAPTCHA_DASHBOARD_HTTP_ERROR: HTTP ${response.status()} at ${response.url()}`);
+  const responseError = await response.finished();
+  if (responseError) throw new Error(`SADCAPTCHA_DASHBOARD_RESPONSE_FAILED: ${response.url()}`, { cause: responseError });
+  await pageSettled(s.page);
+  if (new URL(s.page.url()).origin !== new URL(DASH_URL).origin || new URL(s.page.url()).pathname !== new URL(DASH_URL).pathname) {
+    throw new Error(`SADCAPTCHA_DASHBOARD_DESTINATION_MISMATCH: requested ${DASH_URL}; observed ${s.page.url()}`);
+  }
 
   const text = await s.page.evaluate(() => document.body.innerText);
   const balance = parseBalanceFromText(text);
@@ -46,19 +51,20 @@ try {
     const dir = runRecordingsDir('sadcaptcha_balance');
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'dashboard-text.txt'), text);
-    try { writeFileSync(join(dir, 'dashboard.html'), await s.page.content()); } catch {}
-    try { await s.page.screenshot({ path: join(dir, 'dashboard.png'), fullPage: true }); } catch {}
-    console.log(`FAIL: SadCaptcha balance regex did not match — full dashboard text dumped to ${dir}/`);
-    process.exit(1);
+    try { writeFileSync(join(dir, 'dashboard.html'), await s.page.content()); }
+    catch (error) { console.error('SADCAPTCHA_DIAGNOSTIC_HTML_FAILED:', error); }
+    try { await s.page.screenshot({ path: join(dir, 'dashboard.png'), fullPage: true }); }
+    catch (error) { console.error('SADCAPTCHA_DIAGNOSTIC_SCREENSHOT_FAILED:', error); }
+    throw new Error(`SADCAPTCHA_BALANCE_NOT_FOUND: no labelled USD balance at ${s.page.url()}; dashboard text saved to ${dir}`);
   }
   console.log(`[trajectory] balance=$${balance}`);
 
   const patched = await patchServiceBalance(DISPLAY_NAME, balance);
-  if (!patched) { console.log('FAIL: PATCH service_credentials failed'); process.exit(1); }
+  if (!patched) throw new Error(`SADCAPTCHA_BALANCE_NOT_PERSISTED: service record update did not succeed for ${DISPLAY_NAME}`);
   console.log(`PASS: balance=$${balance} (persisted)`);
 } catch (e) {
-  console.log('FAIL:', e.message);
-  process.exit(1);
+  console.error('FAIL:', e);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }
