@@ -1,11 +1,12 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectGitHubBanSignals } from '../../../../dist/platforms/github/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 
 const REPO_URL_RAW = process.env.REPO_URL || '';
 const TARGET_URL = process.env.TARGET_URL || '';
@@ -27,7 +28,7 @@ let ban = null;
 try {
   const cookies = (acct.metadata?.cookies ?? []).filter(c => (c.domain ?? '').includes('github.com'));
   if (cookies.length) {
-    await s.ctx.addCookies(cookies).catch(e => console.log(`[star] cookie add error: ${e.message}`));
+    await s.ctx.addCookies(cookies);
     console.log(`[star] Injected ${cookies.length} github.com cookies`);
   }
   let url;
@@ -36,7 +37,7 @@ try {
   else url = 'https://github.com/trending';
   await s.goto(url);
   checkReachable(s, 'github');
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
 
   const loggedOut = await s.page.evaluate(() => {
     const signInLinks = Array.from(document.querySelectorAll('a[href="/login"], a[href^="/login?"]'));
@@ -50,30 +51,42 @@ try {
     await repoLink.waitFor({ state: 'visible' });
     await humanClickLocator(s.page, repoLink);
     await s.page.waitForLoadState('domcontentloaded');
-    await humanIdlePause('deliberate');
+    await pageSettled(s.page);
   }
 
   // Star form: <form action="/{owner}/{repo}/star"> → <button name="star"> Star</button>.
   // After submit, GitHub re-renders to <form action="/{owner}/{repo}/unstar">.
   const unstarForm = s.page.locator('form[action$="/unstar"]').filter({ visible: true }).first();
   if (await unstarForm.count()) {
-    ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
+    ban = await detectGitHubBanSignals(s.page, s.capturedResponses);
     console.log(`[ban-signal] ${ban?.signal}  PASS: already starred`);
   } else {
     const starBtn = s.page.locator('form[action$="/star"] button[type="submit"]').filter({ visible: true }).first();
     await starBtn.waitFor({ state: 'visible' });
-    await starBtn.scrollIntoViewIfNeeded().catch(() => {});
     await humanClickLocator(s.page, starBtn);
     // Wait for state flip — Unstar form appears, action attribute changes.
     await s.page.locator('form[action$="/unstar"]').first().waitFor({ state: 'visible' });
-    ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
+    ban = await detectGitHubBanSignals(s.page, s.capturedResponses);
     console.log(`[ban-signal] ${ban?.signal}  PASS: starred`);
   }
 } catch (e) {
-  ban = e.banSignal ?? await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message}`);
+  console.error('GITHUB_STAR_FAILED:', e);
+  ban = e?.banSignal ?? null;
+  if (!ban) {
+    try { ban = await detectGitHubBanSignals(s.page, s.capturedResponses); }
+    catch (error) { console.error('GITHUB_BAN_OBSERVATION_FAILED:', error); }
+  }
   process.exitCode = 1;
 } finally {
-  if (ban) { try { const dir = runRecordingsDir('github_star'); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'github_star', repo_url: repoUrl, search_query: SEARCH_QUERY, ...ban, ts: new Date().toISOString() }, null, 2)); } catch {} }
+  if (ban) {
+    try {
+      const dir = runRecordingsDir('github_star');
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'github_star', repo_url: repoUrl, search_query: SEARCH_QUERY, ...ban, ts: new Date().toISOString() }, null, 2));
+    } catch (error) {
+      console.error('GITHUB_BAN_RECORD_FAILED:', error);
+      process.exitCode = 1;
+    }
+  }
   await s.close();
 }
