@@ -14,7 +14,8 @@ evidence.report.node_version = process.version;
 evidence.report.source_sha256 = {};
 const friend = 'src/trajectories/discord/actions/send_friend_request.mjs';
 const forum = 'src/trajectories/discord/actions/post/create_forum_post.mjs';
-for (const path of [friend, forum, 'tests/discord/action-preflight.mjs']) {
+const thread = 'src/trajectories/discord/actions/post/create_thread.mjs';
+for (const path of [friend, forum, thread, 'tests/discord/action-preflight.mjs']) {
   evidence.report.source_sha256[path] = createHash('sha256').update(await readFile(join(root, path))).digest('hex');
 }
 const scenarios = [
@@ -23,6 +24,10 @@ const scenarios = [
   { name: 'invalid_forum_channel', entry: forum,
     settings: { FORUM_CHANNEL_PATH: 'not/a/channel/path', POST_TITLE: 'Input refusal title', POST_BODY: 'Input refusal body' },
     diagnostics: ['DISCORD_FORUM_CHANNEL_INVALID', 'not/a/channel/path'] },
+  { name: 'missing_thread_input', entry: thread, diagnostics: ['SERVER_CHANNEL_PATH', 'TARGET_MESSAGE_SUBSTRING', 'THREAD_NAME'] },
+  { name: 'invalid_thread_channel', entry: thread,
+    settings: { SERVER_CHANNEL_PATH: 'not/a/channel/path', TARGET_MESSAGE_SUBSTRING: 'Input refusal parent', THREAD_NAME: 'Input refusal thread' },
+    diagnostics: ['DISCORD_THREAD_CHANNEL_INVALID', 'not/a/channel/path'] },
 ];
 const failures = [];
 try {
@@ -33,6 +38,7 @@ try {
       HOME: home, WELES_RUN_OUTPUT_DIR: join(home, 'runs'),
       WELES_CREDENTIALS_FILE: '', SKARBIEC_WORKLOAD_ID: '', SKARBIEC_WORKLOAD_SIGNING_KEY_FILE: '',
       DISCORD_TARGET_HANDLE: '', FORUM_CHANNEL_PATH: '', POST_TITLE: '', POST_BODY: '',
+      POST_TAGS: '', SERVER_CHANNEL_PATH: '', TARGET_MESSAGE_SUBSTRING: '', THREAD_NAME: '', THREAD_FIRST_MESSAGE: '',
       ...scenario.settings,
     };
     const operation = { scenario: scenario.name, command: [process.execPath, entry], cwd: home, environment_overrides: overrides };

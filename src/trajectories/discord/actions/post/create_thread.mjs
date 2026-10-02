@@ -15,13 +15,14 @@
 //   4. Click the "# Create Thread" button in the action toolbar.
 //   5. Fill THREAD_NAME in the thread-create modal.
 //   6. If THREAD_FIRST_MESSAGE set, fill it in the modal's composer.
-//   7. Click Create. Verify thread sidebar appears.
+//   7. Click Create. Observe its provider reply and the requested first-message reply.
 
 import { WSession } from '../../../../../dist/session/wsession.js';
-import { humanClickLocator, humanScroll, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanScroll } from '../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../dist/human/keyboard.js';
 import { getSocialAccount, resolveAccountSession } from '../../../../../dist/utils/credentials.js';
-import { pageSettled } from '../../../_shared/page/settled.mjs';
+import { pageSettled, responseAfterAction } from '../../../_shared/page/settled.mjs';
+import { checkReachable } from '../../../_shared/action-runner.mjs';
 
 const ACCT_USERNAME = process.env.ACCOUNT_USERNAME;
 const CHANNEL = process.env.SERVER_CHANNEL_PATH;
@@ -31,6 +32,27 @@ const FIRST = process.env.THREAD_FIRST_MESSAGE;
 if (!CHANNEL || !TARGET || !NAME) {
   console.log('FAIL: SERVER_CHANNEL_PATH + TARGET_MESSAGE_SUBSTRING + THREAD_NAME all required');
   process.exit(1);
+}
+const channel = /^(\d+)\/(\d+)$/.exec(CHANNEL);
+if (!channel) {
+  console.error(`DISCORD_THREAD_CHANNEL_INVALID: SERVER_CHANNEL_PATH must be guild_id/channel_id; observed ${JSON.stringify(CHANNEL)}`);
+  process.exit(1);
+}
+
+async function readThreadReply(response, operation) {
+  const details = { operation, requestUrl: response.url(), httpStatus: response.status() };
+  let text;
+  try {
+    text = await response.text();
+  } catch (cause) {
+    throw Object.assign(new Error('DISCORD_THREAD_RESPONSE_READ_FAILED', { cause }), details);
+  }
+  if (!response.ok()) throw Object.assign(new Error(`DISCORD_THREAD_HTTP_REFUSED: HTTP ${response.status()}: ${text}`), details);
+  try {
+    return JSON.parse(text);
+  } catch (cause) {
+    throw Object.assign(new Error('DISCORD_THREAD_RESPONSE_INVALID', { cause }), details, { responseBody: text });
+  }
 }
 
 const acct = ACCT_USERNAME
@@ -43,61 +65,93 @@ if (!token) { console.log(`FAIL: ${acct.username} metadata.discord_token missing
 const opts = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'discord_create_thread', proxy: opts.proxyUrl, persona: opts.persona, targetHost: 'discord.com' });
 console.log(`[create_thread] account=${acct.username} channel=${CHANNEL} name=${NAME}`);
+let createdThread;
 
 try {
   await s.ctx.addInitScript(`(()=>{try{if(location.hostname.indexOf('discord')>=0){localStorage.setItem('token',JSON.stringify(${JSON.stringify(token)}))}}catch(e){}})()`);
   await s.goto(`https://discord.com/channels/${CHANNEL}`);
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
+  checkReachable(s, 'discord');
 
   const targetMsg = s.page.locator('li[id^="chat-messages-"]').filter({ hasText: TARGET }).first();
-  // Scroll up through history until the message renders; history that stops
-  // changing after a scroll has no older messages left to load.
+  // Scroll through rendered history. An unchanged window does not establish
+  // that no older messages exist; preserve that uncertainty in the refusal.
   const oldestMessageId = () => s.page.locator('li[id^="chat-messages-"]').first().getAttribute('id');
   while ((await targetMsg.count()) === 0) {
     const before = await oldestMessageId();
     await humanScroll(s.page, -800, 2);
     await pageSettled(s.page);
-    if (await oldestMessageId() === before) throw new Error(`discord_create_thread: no message with "${TARGET.slice(0, 30)}" in the channel history`);
+    const after = await oldestMessageId();
+    if (after === before) throw Object.assign(new Error('DISCORD_THREAD_HISTORY_PROGRESS_UNCONFIRMED: the rendered history did not advance; earlier-message availability is unknown'),
+      { channel: CHANNEL, oldestMessageBefore: before, oldestMessageAfter: after, pageUrl: s.page.url() });
   }
+  const targetElementId = await targetMsg.getAttribute('id');
+  const targetId = /^chat-messages-(\d+)-(\d+)$/.exec(targetElementId || '');
+  if (!targetId || targetId[1] !== channel[2]) throw Object.assign(new Error('DISCORD_THREAD_PARENT_UNCONFIRMED'),
+    { channel: CHANNEL, targetElementId, pageUrl: s.page.url() });
+  const createPath = new RegExp(`^/api/v\\d+/channels/${channel[2]}/messages/${targetId[2]}/threads$`);
+  const messagePath = new RegExp(`^/api/v\\d+/channels/${targetId[2]}/messages$`);
 
   await targetMsg.hover();
-  await humanIdlePause('short');
   // The Create Thread button uses aria-label="Create Thread"
-  const threadBtn = s.page.locator('button[aria-label="Create Thread"]').first();
-  if ((await threadBtn.count()) === 0) { console.log('FAIL: Create Thread button not in action toolbar'); process.exit(1); }
+  const threadBtn = s.page.locator('button[aria-label="Create Thread"]').filter({ visible: true }).first();
+  await threadBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, threadBtn);
-  await humanIdlePause('deliberate');
 
   // Modal: name input + optional first message composer + Create button.
-  const nameInput = s.page.locator('input[placeholder*="thread name"], input[placeholder*="Thread Name"], input[maxlength="100"]').first();
-  if ((await nameInput.count()) === 0) { console.log('FAIL: thread-name input not visible'); process.exit(1); }
+  const nameInput = s.page.locator('input[placeholder*="thread name"], input[placeholder*="Thread Name"], input[maxlength="100"]').filter({ visible: true }).first();
+  await nameInput.waitFor({ state: 'visible' });
   await humanFill(s.page, nameInput, NAME);
-  await humanIdlePause('short');
+  await s.page.keyboard.press('Tab');
+  const enteredName = await nameInput.inputValue();
+  if (enteredName !== NAME) throw Object.assign(new Error('DISCORD_THREAD_NAME_MISMATCH'),
+    { expectedLength: NAME.length, observedLength: enteredName.length, pageUrl: s.page.url() });
 
   if (FIRST) {
     const firstMsg = s.page.locator('[role="textbox"][data-slate-editor], div[role="textbox"]').filter({ visible: true }).first();
-    if ((await firstMsg.count()) > 0) {
-      await humanFill(s.page, firstMsg, FIRST);
-      await humanIdlePause('short');
-    }
+    await firstMsg.waitFor({ state: 'visible' });
+    await humanFill(s.page, firstMsg, FIRST);
   }
 
-  const createBtn = s.page.locator('button').filter({ hasText: /^Create$/ }).first();
-  if ((await createBtn.count()) === 0) { console.log('FAIL: Create button not visible on modal'); process.exit(1); }
-  await humanClickLocator(s.page, createBtn);
-  await humanIdlePause('deliberate');
-
-  // After create, URL should change to include /threads/<id>. Some clients
-  // open a sidebar; others navigate. Detect either.
-  const newUrl = s.page.url();
-  const inThreadUrl = /\/channels\/\d+\/\d+\/\d+/.test(newUrl);
-  const sidebarOpen = (await s.page.locator(`text=${NAME.slice(0, 24)}`).count()) > 0;
-  if (!inThreadUrl && !sidebarOpen) { console.log(`FAIL: thread did not appear (url=${newUrl})`); process.exit(1); }
-  console.log(`PASS: ${acct.username} created thread "${NAME}" in ${CHANNEL}`);
+  const createBtn = s.page.locator('button').filter({ hasText: /^Create$/ }).filter({ visible: true }).first();
+  await createBtn.waitFor({ state: 'visible' });
+  const create = async () => {
+    const response = await responseAfterAction(s.page, (request) => {
+      const url = new URL(request.url());
+      return request.method() === 'POST' && url.origin === 'https://discord.com' && createPath.test(url.pathname);
+    }, () => humanClickLocator(s.page, createBtn));
+    const thread = await readThreadReply(response, 'create_thread');
+    if (thread?.id !== targetId[2] || thread.parent_id !== channel[2] || thread.name !== NAME
+        || (thread.type !== 10 && thread.type !== 11)) {
+      throw Object.assign(new Error('DISCORD_THREAD_CREATE_UNCONFIRMED: reconcile the provider response before another attempt'),
+        { operation: 'create_thread', responseBody: thread, requestUrl: response.url(), httpStatus: response.status() });
+    }
+    createdThread = thread;
+  };
+  let firstMessage;
+  if (FIRST) {
+    const response = await responseAfterAction(s.page, (request) => {
+      const url = new URL(request.url());
+      return request.method() === 'POST' && url.origin === 'https://discord.com' && messagePath.test(url.pathname);
+    }, create);
+    firstMessage = await readThreadReply(response, 'thread_first_message');
+    if (typeof firstMessage?.id !== 'string' || !/^\d+$/.test(firstMessage.id)
+        || firstMessage.channel_id !== createdThread.id || firstMessage.content !== FIRST) {
+      throw Object.assign(new Error('DISCORD_THREAD_FIRST_MESSAGE_UNCONFIRMED: the thread was acknowledged, but the requested first message was not confirmed'),
+        { operation: 'thread_first_message', threadId: createdThread.id, responseBody: firstMessage });
+    }
+  } else {
+    await create();
+  }
+  console.log(JSON.stringify({
+    ok: true, operation: 'create_thread', acknowledgement: 'provider_response',
+    guild_id: channel[1], parent_id: createdThread.parent_id, thread_id: createdThread.id,
+    first_message_requested: Boolean(FIRST), first_message_id: firstMessage?.id ?? null,
+    url: `https://discord.com/channels/${channel[1]}/${createdThread.id}`,
+  }));
 } catch (e) {
-  console.log(`FAIL: ${e.message}`);
-  process.exit(1);
+  console.error('DISCORD_THREAD_FAILED:', e, { acknowledgedThreadId: createdThread?.id ?? null });
+  process.exitCode = 1;
 } finally {
   await s.close();
 }
-process.exit(0);
