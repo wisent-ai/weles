@@ -107,19 +107,14 @@ case "$source_revision" in *[!0-9a-f]*|'') printf '%s\n' 'source revision is not
 }
 "$stado" release submit --source "$source_root" --version "$version" --channel stable --json \
   >"$temporary/release-submit.json"
-release_ready=0
-for attempt in $(seq 1 120); do
-  if "$stado" release status weles-worker --json >"$temporary/release-status.json" \
-      && "$node" "$reconciler" release-settled \
-        "$temporary/release-status.json" "$host" "$version" "$source_revision" \
-        >"$temporary/release-identity.json"; then
-    release_ready=1
-    break
-  fi
-  sleep 5
-done
-[ "$release_ready" -eq 1 ] || {
-  printf '%s\n' 'managed release did not converge to the exact healthy version, source, and digest' >&2
+# `stado release submit` returns after delivery and promotion, so the release
+# is settled now or it is not: read its status once and report what it says.
+"$stado" release status weles-worker --json >"$temporary/release-status.json"
+"$node" "$reconciler" release-settled \
+  "$temporary/release-status.json" "$host" "$version" "$source_revision" \
+  >"$temporary/release-identity.json" || {
+  printf 'managed release is not at the exact healthy version, source, and digest after submit; release status:\n' >&2
+  /bin/cat "$temporary/release-status.json" >&2
   exit 1
 }
 # `stado registry push --if-generation` is the registry authority's real
@@ -202,16 +197,15 @@ if "$stado" host publish-placement-policy "$host" --json >"$temporary/placement-
     && "$stado" service directory publish --service weles-admission --target "$host" --json >"$temporary/directory-publication.json" \
     && "$node" "$reconciler" publish-service \
       "$temporary/registry-committed.json" "$service_snapshot" "$host"; then
-  for attempt in $(seq 1 60); do
-    if "$curl" --silent --show-error --fail --max-time 5 \
-        "${endpoint%/api/v1}/api/v1/version" >"$temporary/public-version.json" \
-        && "$node" "$reconciler" version-ready \
-          "$temporary/public-version.json" "$host" "$version" "$source_revision"; then
-      post_registry_ready=1
-      break
-    fi
-    sleep 2
-  done
+  if "$curl" --silent --show-error --fail \
+      "${endpoint%/api/v1}/api/v1/version" >"$temporary/public-version.json" \
+      && "$node" "$reconciler" version-ready \
+        "$temporary/public-version.json" "$host" "$version" "$source_revision"; then
+    post_registry_ready=1
+  else
+    printf 'public endpoint %s/api/v1/version does not serve %s (%s) for %s\n' \
+      "${endpoint%/api/v1}" "$version" "$source_revision" "$host" >&2
+  fi
 fi
 if [ "$post_registry_ready" -ne 1 ]; then
   if [ "$registry_changed" -eq 1 ]; then
