@@ -6,12 +6,56 @@
 
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { humanType } from '../../../../dist/human/keyboard.js';
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../dist/human/keyboard.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/auth/cookie-freshness.mjs';
 import { loadAvatarFile } from '../../_shared/runner/avatar-loader.mjs';
 import { updateAccountMetadata } from '../../_shared/skarbiec/accounts.mjs';
+import { pageSettled, responseAfterAction } from '../../_shared/page/settled.mjs';
+
+const PROFILE_URL = 'https://github.com/settings/profile';
+
+function postAt(request, origin, pathname) {
+  if (request.method() !== 'POST') return false;
+  const url = new URL(request.url());
+  return url.origin === origin && pathname.test(url.pathname);
+}
+
+async function acknowledged(response, operation) {
+  const details = {
+    operation, requestMethod: response.request().method(),
+    requestUrl: response.url(), status: response.status(),
+  };
+  if (details.status < 200 || details.status >= 400) {
+    throw Object.assign(new Error(`GitHub ${operation} returned HTTP ${details.status}`), {
+      code: 'GH_PROFILE_HTTP_ERROR', ...details,
+    });
+  }
+  let failed;
+  try { failed = await response.finished(); } catch (error) { failed = error; }
+  if (failed) {
+    throw Object.assign(new Error(`GitHub ${operation} response did not complete`, { cause: failed }), {
+      code: 'GH_PROFILE_RESPONSE_FAILED', ...details,
+    });
+  }
+  console.log(`[gh-profile] ${operation} acknowledged: HTTP ${details.status}`);
+}
+
+async function openProfile(session) {
+  const response = await session.page.goto(PROFILE_URL, { waitUntil: 'load' });
+  if (!response?.ok()) {
+    throw Object.assign(new Error('GitHub profile page could not be loaded successfully'), {
+      code: 'GH_PROFILE_READ_HTTP_ERROR', status: response?.status() ?? null,
+      requestUrl: PROFILE_URL, pageUrl: session.page.url(),
+    });
+  }
+  await pageSettled(session.page);
+  if (/\/login/.test(new URL(session.page.url()).pathname)) {
+    throw new CookieJarStaleError(`GitHub profile redirected to login: ${session.page.url()}`, { platform: 'github' });
+  }
+  await assertAuthed('github', session, { label: 'github_edit_profile' });
+}
 
 
 const acct = await getSocialAccount('github');
@@ -32,123 +76,134 @@ const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'github_edit_profile', proxy: proxyUrl, persona });
 
 try {
-  let stored;
-  try {
-    const all = loadFreshCookieJarOrFail(acct, { platform: 'github', label: 'github_edit_profile', currentProxyUrl: proxyUrl, currentPersona: persona });
-    stored = all.filter(c => /github\.com/.test(c.domain ?? ''));
-    if (!stored.length) throw new CookieJarStaleError('cookie_jar_no_domain_match: jar fresh but no github.com cookies', { platform: 'github' });
-  } catch (jarErr) {
-    if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); process.exit(1); }
-    throw jarErr;
-  }
+  const all = loadFreshCookieJarOrFail(acct, { platform: 'github', label: 'github_edit_profile', currentProxyUrl: proxyUrl, currentPersona: persona });
+  const stored = all.filter(c => /github\.com/.test(c.domain ?? ''));
+  if (!stored.length) throw new CookieJarStaleError('cookie_jar_no_domain_match: jar fresh but no github.com cookies', { platform: 'github' });
   await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
+  await openProfile(s);
 
-  await s.page.goto('https://github.com/settings/profile', { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('deliberate');
-  if (/\/login/.test(s.page.url())) {
-    console.log(`FAIL: cookies stale, redirected to login (${s.page.url()})`);
-    await markCookiesStale(acct.id);
-    process.exit(1);
-  }
-  try { await assertAuthed('github', s, { label: 'github_edit_profile' }); }
-  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
-
-  // Form fields on /settings/profile (verified 2026-05-06 via
-  // .work/gh-probe/dump_form.mjs):
-  //   Name     → input#user_display_name (name="user[display_name]")
-  //   Bio      → textarea#user_profile_bio
-  //   Location → input#user_profile_location
-  // Earlier trajectory used input#user_profile_name which doesn't exist —
-  // that's why the 22:51Z run wrote bio but skipped name.
   const nameIn = s.page.locator('input#user_display_name, input[name="user\\[display_name\\]"]').filter({ visible: true }).first();
   const bioIn = s.page.locator('textarea#user_profile_bio, textarea[name="user[profile_bio]"]').filter({ visible: true }).first();
   const locIn = s.page.locator('input#user_profile_location, input[name="user[profile_location]"]').filter({ visible: true }).first();
-
+  const fields = [[nameIn, targetName, 'name'], [bioIn, targetBio, 'bio'], [locIn, targetLocation, 'location']];
   const writes = [];
-  for (const [el, target, label] of [[nameIn, targetName, 'name'], [bioIn, targetBio, 'bio'], [locIn, targetLocation, 'location']]) {
-    if (!target || !(await el.count())) continue;
-    const cur = await el.inputValue().catch(() => '');
-    if (cur.trim() === target.trim()) continue;
-    await humanClickLocator(s.page, el);
-    await s.page.keyboard.press('Meta+A').catch(() => {});
-    await s.page.keyboard.press('Control+A').catch(() => {});
-    await s.page.keyboard.press('Backspace').catch(() => {});
-    await humanType(s.page, target);
-    writes.push(`${label} "${cur}" -> "${target}"`);
+
+  // Avatar commits can replace the document. Finish them before typing text.
+  if (avatarUrl) {
+    const avatarFile = await loadAvatarFile(avatarUrl, { size: 512, format: 'jpeg', quality: 88 });
+    if (!avatarFile) {
+      throw Object.assign(new Error('The requested GitHub avatar could not be loaded'), { code: 'GH_PROFILE_AVATAR_UNAVAILABLE' });
+    }
+    const editSummary = s.page.locator('form[aria-label="Profile picture"] summary, details summary:has-text("Edit")').filter({ visible: true }).first();
+    if (await editSummary.isVisible()) await humanClickLocator(s.page, editSummary);
+    const fileIn = s.page.locator('input#avatar_upload').first();
+    await fileIn.waitFor({ state: 'attached' });
+    // The observed alambic flow obtains a policy, uploads, then offers cropping.
+    const uploaded = await responseAfterAction(s.page,
+      request => postAt(request, 'https://uploads.github.com', /^\/avatars\/?$/),
+      async () => {
+        const policy = await responseAfterAction(s.page,
+          request => postAt(request, 'https://github.com', /^\/upload\/policies\/avatars\/?$/),
+          () => fileIn.setInputFiles(avatarFile));
+        await acknowledged(policy, 'avatar upload policy');
+      });
+    await acknowledged(uploaded, 'avatar upload');
+    const setBtn = s.page.locator('button:has-text("Set new profile picture")').first();
+    await setBtn.waitFor({ state: 'visible' });
+    if (!(await setBtn.isEnabled())) {
+      throw Object.assign(new Error('GitHub avatar commit button is disabled'), { code: 'GH_PROFILE_AVATAR_COMMIT_DISABLED' });
+    }
+    const committed = await responseAfterAction(s.page,
+      request => postAt(request, 'https://github.com', /^\/settings\/avatars\/\d+\/?$/),
+      () => humanClickLocator(s.page, setBtn));
+    await acknowledged(committed, 'avatar commit');
+    writes.push('avatar commit acknowledged');
+    await openProfile(s);
   }
 
-  // Avatar upload — github's <file-attachment> custom element posts to
-  // /upload/policies/avatars when the wrapped <input type="file">'s change
-  // event fires. Probe (.work/gh-probe/probe_avatar_upload.mjs, 2026-05-07)
-  // confirms setInputFiles triggers the request. Source must be <1MB
-  // (avatar-loader downscales to ~50-150KB). After upload completes, github
-  // surfaces a crop modal with "Set new profile picture" — click it to
-  // commit.
-  if (avatarUrl) {
-    const tmpAvatar = await loadAvatarFile(avatarUrl, { size: 512, format: 'jpeg', quality: 88 });
-    if (tmpAvatar) {
-      try {
-        const editSummary = s.page.locator('form[aria-label="Profile picture"] summary, details summary:has-text("Edit")').filter({ visible: true }).first();
-        if (await editSummary.count()) {
-          await humanClickLocator(s.page, editSummary);
-          await humanIdlePause('short');
-        }
-        const fileIn = s.page.locator('input#avatar_upload').first();
-        if (await fileIn.count()) {
-          await fileIn.setInputFiles(tmpAvatar);
-          // alambic flow (verified .work/gh-probe/probe_post_upload.mjs 2026-05-07):
-          //   setInputFiles → POST /upload/policies/avatars (201)
-          //                 → POST https://uploads.github.com/avatars (201, auto)
-          //                 → crop modal renders with "Set new profile picture"
-          //   click commit  → POST /settings/avatars/<id> (302) → avatar live
-          // Use locator.waitFor + plain click (not humanClickLocator — the
-          // overlay z-stack confuses humanClickLocator coord routing).
-          const setBtn = s.page.locator('button:has-text("Set new profile picture")').first();
-          try {
-            await setBtn.waitFor({ state: 'visible' });
-            // Wait for the commit POST to /settings/avatars/<id> after click.
-            const commitDone = s.page.waitForResponse(
-              r => /\/settings\/avatars\/\d+/.test(r.url()) && r.request().method() === 'POST',
-            );
-            await humanClickLocator(s.page, setBtn);
-            await commitDone;
-            writes.push('avatar uploaded');
-          } catch (e) {
-            console.log(`[gh-profile] commit btn / response timeout: ${e.message}`);
-          }
-        } else {
-          console.log('[gh-profile] avatar_upload input not found in DOM');
-        }
-      } catch (e) { console.log(`[gh-profile] avatar upload err: ${e.message}`); }
+  let textChanged = false;
+  for (const [field, target, label] of fields) {
+    if (!target) continue;
+    if (!(await field.isVisible())) {
+      throw Object.assign(new Error(`GitHub profile ${label} field is not visible`), { code: 'GH_PROFILE_FIELD_UNAVAILABLE', field: label });
+    }
+    const current = await field.inputValue();
+    if (current.trim() === target.trim()) continue;
+    if (!(await field.isEditable())) {
+      throw Object.assign(new Error(`GitHub profile ${label} field is not editable`), { code: 'GH_PROFILE_FIELD_LOCKED', field: label });
+    }
+    await humanFill(s.page, field, target);
+    await s.page.keyboard.press('Tab');
+    const entered = await field.inputValue();
+    if (entered.trim() !== target.trim()) {
+      throw Object.assign(new Error(`GitHub profile ${label} input does not match the requested value`), {
+        code: 'GH_PROFILE_INPUT_MISMATCH', field: label,
+        expectedLength: target.length, observedLength: entered.length,
+      });
+    }
+    textChanged = true;
+    writes.push(`${label} changed`);
+  }
+
+  if (textChanged) {
+    const saveBtn = s.page.locator('button[type="submit"]:has-text("Update profile"), input[value="Update profile"]').filter({ visible: true }).first();
+    if (!(await saveBtn.isVisible()) || !(await saveBtn.isEnabled())) {
+      throw Object.assign(new Error('GitHub Update profile control is not visible and enabled'), { code: 'GH_PROFILE_SAVE_NOT_ENABLED' });
+    }
+    const submission = await saveBtn.evaluate(button => {
+      const form = button.form;
+      if (!form) return null;
+      return {
+        method: (button.hasAttribute('formmethod') ? button.formMethod : form.method).toUpperCase(),
+        url: button.hasAttribute('formaction') ? button.formAction : form.action,
+      };
+    });
+    if (!submission || submission.method !== 'POST' || new URL(submission.url).origin !== 'https://github.com') {
+      throw Object.assign(new Error('GitHub Update profile does not declare a supported native POST form'), {
+        code: 'GH_PROFILE_FORM_UNSUPPORTED', submission,
+      });
+    }
+    const destination = new URL(submission.url);
+    destination.hash = '';
+    const saved = await responseAfterAction(s.page,
+      request => request.method() === submission.method && request.url() === destination.href,
+      () => humanClickLocator(s.page, saveBtn));
+    await acknowledged(saved, 'profile save');
+    // Read a fresh server response, not the locally edited input values.
+    await openProfile(s);
+  }
+
+  for (const [field, target, label] of fields) {
+    if (!target) continue;
+    if (!(await field.isVisible())) {
+      throw Object.assign(new Error(`GitHub profile ${label} readback field is not visible`), { code: 'GH_PROFILE_FIELD_UNAVAILABLE', field: label });
+    }
+    const observed = await field.inputValue();
+    if (observed.trim() !== target.trim()) {
+      throw Object.assign(new Error(`GitHub profile ${label} readback differs from the requested value`), {
+        code: 'GH_PROFILE_READBACK_MISMATCH', field: label,
+        expectedLength: target.length, observedLength: observed.length,
+      });
     }
   }
-
+  if (!(await nameIn.isVisible())) {
+    throw Object.assign(new Error('GitHub profile name cannot be read for Skarbiec'), { code: 'GH_PROFILE_FIELD_UNAVAILABLE', field: 'name' });
+  }
+  const observedName = await nameIn.inputValue();
   updateAccountMetadata(acct.id, {
-    display_name: targetName || null,
+    display_name: observedName || null,
     profile_url: `https://github.com/${acct.username}`,
     updated_at: new Date().toISOString(),
   });
-
-  if (!writes.length) { console.log('PASS: no-op (form values already match character; Skarbiec synced)'); process.exit(0); }
-  console.log(`[gh-profile] writes: ${writes.join('; ')}`);
-
-  // Submit: button[type="submit"] reading "Update profile".
-  const saveBtn = s.page.locator('button[type="submit"]:has-text("Update profile"), input[value="Update profile"]').filter({ visible: true }).first();
-  await saveBtn.waitFor({ state: 'visible' });
-  await humanClickLocator(s.page, saveBtn);
-  await humanIdlePause('deliberate');
-
-  // Verify by reading the form back (the page reloads on save).
-  const verifiedBio = await bioIn.inputValue().catch(() => '');
-  if (verifiedBio.trim() !== targetBio.trim()) {
-    console.log(`FAIL: bio mismatch after save ("${verifiedBio}..." != "${targetBio}...")`);
-    process.exit(1);
+  if (!writes.length) console.log('PASS: no-op (form values already match character; Skarbiec synced)');
+  else console.log(`PASS: ${acct.username} profile fields verified; ${writes.join('; ')}`);
+} catch (error) {
+  console.error('FAIL:', error);
+  process.exitCode = 1;
+  if (error instanceof CookieJarStaleError || error instanceof AuthProbeError) {
+    try { await markCookiesStale(acct.id); }
+    catch (metadataError) { console.error('[gh-profile] could not mark the cookie jar stale:', metadataError); }
   }
-
-  console.log(`PASS: ${acct.username} profile updated to ${character.name}`);
-} catch (e) {
-  console.log('FAIL:', e.message);
-  process.exit(1);
 } finally {
   await s.close();
 }
