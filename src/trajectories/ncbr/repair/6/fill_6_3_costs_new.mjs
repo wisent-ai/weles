@@ -4,7 +4,7 @@
 import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../dist/human/keyboard.js';
-import { openNewRow } from '../../forms/row-editor.mjs';
+import { openNewRow, openRowEditor } from '../../forms/row-editor.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('6_3');
@@ -123,10 +123,7 @@ if (process.env.EDIT) {
   const grant = process.env.GRANT;
   if (!contains || !grant) throw new Error('EDIT requires CONTAINS and GRANT');
   const row = page.locator('table').first().locator('tbody tr').filter({ hasText: contains }).first();
-  await row.locator('button[aria-label="overflow-options"]').first().dispatchEvent('click'); // allow-raw-playwright: open cost row menu
-  await humanIdlePause('deliberate');
-  await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit existing cost row
-  await humanIdlePause('long');
+  await openRowEditor(page, row, page.locator('[name="dofinansowanie"]'));
   await fill('dofinansowanie', grant);
   await saveForm();
   console.log(JSON.stringify({ edited: contains, grant }, null, 2));
@@ -139,13 +136,8 @@ if (process.env.REWRITE) {
   if (!rewriteRows.length) throw new Error(`no rewrite rows match: ${process.env.REWRITE_MATCH}`);
   for (const r of rewriteRows) {
     await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
-    await humanIdlePause('long');
     const row = page.locator('table').first().locator('tbody tr').filter({ hasText: r.match }).first();
-    if (await row.count() === 0) throw new Error(`existing cost row not found: ${r.match}`);
-    await row.locator('button[aria-label="overflow-options"]').first().dispatchEvent('click'); // allow-raw-playwright: open cost row menu for rewrite
-    await humanIdlePause('deliberate');
-    await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit existing cost row
-    await humanIdlePause('long');
+    await openRowEditor(page, row, page.locator('[name="nazwa_kosztu"]'));
     await fill('nazwa_kosztu', r.name);
     await fill('wydatki_ogolem', r.total);
     await fill('wydatki_kwalifikowalne', r.total);

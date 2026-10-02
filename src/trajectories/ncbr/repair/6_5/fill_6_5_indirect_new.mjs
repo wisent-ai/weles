@@ -4,7 +4,7 @@
 import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../dist/human/keyboard.js';
-import { openNewRow } from '../../forms/row-editor.mjs';
+import { openNewRow, openRowEditor } from '../../forms/row-editor.mjs';
 import { fillField } from '../../form-input.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
@@ -145,10 +145,7 @@ if (process.env.EDIT) {
   const grant = process.env.GRANT;
   if (!contains || !grant) throw new Error('EDIT requires CONTAINS and GRANT');
   const row = page.locator('table').first().locator('tbody tr').filter({ hasText: contains }).first();
-  await row.locator('button[aria-label="overflow-options"]').first().dispatchEvent('click'); // allow-raw-playwright: open row overflow menu
-  await humanIdlePause('deliberate');
-  await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: open edit form
-  await humanIdlePause('long');
+  await openRowEditor(page, row, page.locator('[name="dofinansowanie"]'));
   await fill('dofinansowanie', grant);
   await saveForm();
   console.log(JSON.stringify({ edited: contains, grant }, null, 2));
