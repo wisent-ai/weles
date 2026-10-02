@@ -1,5 +1,6 @@
 // The exact-range campaign reports fetched through the page's own session, and the keep-open tail.
 import { CLOSE_AFTER_HARVEST } from './settings.mjs';
+import { reviewUntilClosed } from '../../../_shared/page/settled.mjs';
 
 export async function fetchExactCampaignReports(page, templatePayload, ranges) {
   if (!templatePayload || !ranges.length) return [];
@@ -98,11 +99,12 @@ export function summarizeExactReports(exactReports) {
 }
 
 export async function keepOpen(session) {
-  if (CLOSE_AFTER_HARVEST) {
-    await session.close().catch(() => {});
-    return;
+  try {
+    if (!CLOSE_AFTER_HARVEST && !session.page.isClosed()) {
+      console.log('[apple-ads-report-harvest] keeping browser open for review; close the window or stop the command to finish; APPLE_ADS_CLOSE_AFTER_HARVEST=1 skips review');
+      await reviewUntilClosed(session);
+    }
+  } finally {
+    await session.close();
   }
-
-  console.log('[apple-ads-report-harvest] keeping browser open; set APPLE_ADS_CLOSE_AFTER_HARVEST=1 to close automatically');
-  await new Promise(() => {});
 }

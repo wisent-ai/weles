@@ -12,7 +12,7 @@ import { assertAuthed, AuthProbeError } from '../../_shared/auth/auth-probe.mjs'
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/auth/cookie-freshness.mjs';
 import { loadAvatarFile } from '../../_shared/runner/avatar-loader.mjs';
 import { updateAccountMetadata } from '../../_shared/skarbiec/accounts.mjs';
-import { responseAfterAction } from '../../_shared/page/settled.mjs';
+import { responseAfterAction, reviewUntilClosed } from '../../_shared/page/settled.mjs';
 
 
 const acct = await getSocialAccount('linkedin');
@@ -279,19 +279,7 @@ try {
     // Explicit review holds only an existing page and releases every observer.
     if (process.env.WELES_KEEP_OPEN === '1' && !s.page.isClosed()) {
       console.log('[li-profile] WELES_KEEP_OPEN=1 — browser left open. Close window or Ctrl+C to exit.');
-      const { promise, resolve } = Promise.withResolvers();
-      s.page.on('close', resolve);
-      s.ctx.on('close', resolve);
-      process.on('SIGINT', resolve);
-      process.on('SIGTERM', resolve);
-      try {
-        await promise;
-      } finally {
-        s.page.off('close', resolve);
-        s.ctx.off('close', resolve);
-        process.off('SIGINT', resolve);
-        process.off('SIGTERM', resolve);
-      }
+      await reviewUntilClosed(s);
     }
   } finally {
     await s.close();

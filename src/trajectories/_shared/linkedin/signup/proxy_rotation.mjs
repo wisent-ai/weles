@@ -1,4 +1,4 @@
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { pageSettled } from '../../page/settled.mjs';
 // Provider rotation + form-rendering probe for linkedin_login.mjs.
 //
 // Cited from 2026-05-04 04:44 run output: 5 consecutive Oxylabs sticky
@@ -11,7 +11,7 @@ import { humanIdlePause } from '../../../../../dist/human/mouse.js';
 // between providers gives us 4x the surface area before giving up.
 
 export async function pageHasLoginForm(page) {
-  await humanIdlePause('deliberate');
+  await pageSettled(page);
   const r = await page.evaluate(() => {
     const inputs = Array.from(document.querySelectorAll('input[type="email"], input[name="session_key"], input#username'));
     const visible = inputs.filter(i => i.offsetParent !== null && i.offsetWidth > 0 && i.offsetHeight > 0);

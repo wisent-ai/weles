@@ -3,7 +3,8 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { generatePersona } from '../../../../../dist/browser/persona.js';
-import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../../dist/human/mouse.js';
+import { pageSettled, reviewUntilClosed } from '../../../_shared/page/settled.mjs';
 import { CLOSE_AFTER_PROBE, DIAG_DIR, USER_DATA_DIR } from './settings.mjs';
 
 export function stableProfilePersona() {
@@ -77,20 +78,21 @@ export async function pageDiag(page, label) {
 // fact this probe reports, and it reads it once.
 export async function clickText(page, pattern, label) {
   const loc = page.getByText(pattern).filter({ visible: true }).first();
-  if (!await loc.isVisible().catch(() => false)) return false;
+  if (!await loc.isVisible()) return false;
   await humanClickLocator(page, loc);
   console.log(`[apple-ads-api-setup] clicked ${label}`);
-  await humanIdlePause('deliberate');
+  await pageSettled(page);
   return true;
 }
 export async function keepOpen(session, loggedIn) {
-  if (!loggedIn || CLOSE_AFTER_PROBE) {
-    await session.close().catch(() => {});
-    return;
+  try {
+    if (loggedIn && !CLOSE_AFTER_PROBE && !session.page.isClosed()) {
+      console.log('[apple-ads-api-setup] keeping browser open for review; close the window or stop the command to finish; APPLE_ADS_CLOSE_AFTER_PROBE=1 skips review');
+      await reviewUntilClosed(session);
+    }
+  } finally {
+    await session.close();
   }
-
-  console.log('[apple-ads-api-setup] logged in; keeping browser open; set APPLE_ADS_CLOSE_AFTER_PROBE=1 to close automatically');
-  await new Promise(() => {});
 }
 
 export async function requireAuthenticatedSession(s) {
