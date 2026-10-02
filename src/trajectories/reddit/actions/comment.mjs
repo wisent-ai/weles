@@ -17,18 +17,15 @@ import { recordCommentForVerify, verifyPreviousComment } from './comment/steps/d
 // shadow root collapsed at 0×0 until the user clicks "Join the conversation",
 // which the agent loop never reliably finds and times out at max-iterations.
 //
-// Default target: r/CasualConversation (newbie-tolerant, no karma gate, light
-// AutoMod). Previous default r/test produced false-positive shadowban verdicts:
-// r/test's auto-mod removes new-account comments quickly, which our verifier
-// reads as shadowban. CasualConversation accepts comments from <24h-old
-// accounts and has steady comment volume.
-const TARGET_URL = process.env.TARGET_URL || 'https://www.reddit.com/r/CasualConversation/new/';
-// Comment body needs to be innocuous and topic-appropriate. The previous
-// default "Hello from weles agent" literally announced automation —
-// Reddit's content classifier flags this and shadowbans the account
-// within minutes of submit. Generic acknowledgement-style text is normal
-// and won't flag.
-const COMMENT_BODY = process.env.COMMENT_BODY || 'thanks for sharing';
+// The target and the comment body are the caller's: a comment is a real
+// publication under the account's name, so neither a subreddit nor words
+// are built in. The body must read as a person's own, topic-appropriate
+// remark; text that announces automation is classified and the account
+// shadowbanned within minutes of submit.
+const TARGET_URL = process.env.TARGET_URL;
+const COMMENT_BODY = process.env.COMMENT_BODY;
+if (!TARGET_URL) { console.log('FAIL: TARGET_URL env var required: the post or listing the comment goes to'); process.exit(1); }
+if (!COMMENT_BODY) { console.log('FAIL: COMMENT_BODY env var required'); process.exit(1); }
 
 const acct = await getSocialAccount('reddit');
 if (!acct) { console.log('FAIL: no active reddit account in Skarbiec'); process.exitCode = 1; }

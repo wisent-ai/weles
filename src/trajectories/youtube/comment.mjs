@@ -5,8 +5,13 @@ import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js'
 import { assertAuthed, AuthProbeError } from '../_shared/auth/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/auth/cookie-freshness.mjs';
 
-const VIDEO = process.env.VIDEO_URL || 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
-const COMMENT = process.env.COMMENT_TEXT || 'Great video!';
+// The video and the words published under the account's name are the
+// caller's; nothing is assumed, because a built-in comment on a built-in
+// video is a real publication nobody asked for.
+const VIDEO = process.env.VIDEO_URL;
+const COMMENT = process.env.COMMENT_TEXT;
+if (!VIDEO) { console.log('FAIL: VIDEO_URL env var required'); process.exit(1); }
+if (!COMMENT) { console.log('FAIL: COMMENT_TEXT env var required'); process.exit(1); }
 
 const acct = await getSocialAccount('youtube');
 if (!acct) { console.log('FAIL: no active youtube account in DB'); process.exit(1); }

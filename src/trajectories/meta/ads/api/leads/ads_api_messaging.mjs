@@ -18,12 +18,16 @@ function promotedObject() {
 
 function creativePayload() {
   const ctaType = destination === 'whatsapp' ? 'WHATSAPP_MESSAGE' : 'MESSAGE_PAGE';
+  // The ad's destination is the advertiser's; a built-in one would publish
+  // a paid ad pointing somewhere nobody chose.
+  const link = process.env.DESTINATION_URL || process.env.FINAL_URL;
+  if (!link) throw new Error('DESTINATION_URL (or FINAL_URL) is required: the page the ad sends people to; none is assumed');
   return compactObject({
     name: process.env.CREATIVE_NAME || `${campaignName} creative`,
     object_story_spec: parseJsonEnv('OBJECT_STORY_SPEC_JSON', {
       page_id: process.env.PAGE_ID || process.env.FACEBOOK_PAGE_ID || process.env.META_FACEBOOK_PAGE_ID,
       link_data: compactObject({
-        link: process.env.DESTINATION_URL || process.env.FINAL_URL || 'https://www.facebook.com',
+        link,
         message: process.env.PRIMARY_TEXT,
         name: process.env.HEADLINE,
         call_to_action: {
