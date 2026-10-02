@@ -5,7 +5,7 @@
 // dashboard says received SMS.
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
 import { popupOrNavigation, urlMatching } from '../_shared/page/settled.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -22,12 +22,11 @@ console.log(`[dash] Using Google SSO: ${login.email}`);
 const s = await WSession.start({ label: 'juicysms_dashboard', browser: 'chromium' });
 try {
   await s.goto(LOGIN_URL);
-  await humanIdlePause('long');
-
-  const surface = popupOrNavigation(s.page, /accounts\.google\.com/);
-  
-  await s.page.locator('a:has-text("LOGIN WITH GOOGLE"), button:has-text("LOGIN WITH GOOGLE"), a:has-text("Login with Google"), button:has-text("Login with Google")').filter({ visible: true }).first().click();
-  const popup = await surface;  // allow-raw-playwright: the popup or navigation the click produced
+  const googleButton = s.page.locator('a:has-text("LOGIN WITH GOOGLE"), button:has-text("LOGIN WITH GOOGLE"), a:has-text("Login with Google"), button:has-text("Login with Google")')
+    .and(s.page.locator(':not(:disabled):not([aria-disabled="true"])')).filter({ visible: true }).first();
+  await googleButton.waitFor({ state: 'visible' });
+  const popup = await popupOrNavigation(s.page, /accounts\.google\.com/,
+    () => humanClickLocator(s.page, googleButton));
 
   const ok = await googleSso(s, login, { originHost: 'juicysms.com', page: popup ?? undefined });
   if (!ok) throw new Error('google_sso_did_not_complete');
@@ -89,7 +88,8 @@ try {
 
   console.log('[dash] PASS');
 } catch (e) {
-  console.log(`[dash] FAIL: ${e.message}`);
+  console.error('[dash] FAIL:', e);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }

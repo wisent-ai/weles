@@ -45,9 +45,7 @@ async function clickGoogleSsoButton(page) {
     if (await loc.count() > 0) {
       console.log(`[login] clicking SSO button: ${sel}`);
       // SSO opens Google in a popup or in this tab; null means this tab.
-      const surface = popupOrNavigation(page, /accounts\.google\.com/);
-      await humanClickLocator(page, loc);
-      return surface;
+      return popupOrNavigation(page, /accounts\.google\.com/, () => humanClickLocator(page, loc));
     }
   }
   console.log('[login] FAIL: no Google SSO button visible');
@@ -99,11 +97,11 @@ async function main() {
     await humanIdlePause('deliberate');
 
     const popup = await clickGoogleSsoButton(s.page);
-    if (popup === undefined) { console.log('FAIL: Google SSO button not found'); process.exit(1); }
+    if (popup === undefined) throw new Error('Google SSO button not found');
     if (popup) await popup.waitForLoadState('domcontentloaded').catch(() => {});
 
     const ok = await googleSso(s, creds, { originHost: ORIGIN_HOST, page: popup ?? undefined });
-    if (!ok) { console.log('FAIL: Google SSO did not land back on tencentcloud.com'); process.exit(1); }
+    if (!ok) throw new Error('Google SSO did not land back on tencentcloud.com');
 
     // SSO returns to /forward — wait for it to redirect to console.
     const onConsole = (u) => {
@@ -244,8 +242,8 @@ async function main() {
     await persistJar(s.page);
     console.log('PASS: Tencent Cloud login + AI3D activation complete');
   } catch (e) {
-    console.log('FAIL:', e.message);
-    process.exit(1);
+    console.error('FAIL:', e);
+    process.exitCode = 1;
   } finally {
     
     await s.close();

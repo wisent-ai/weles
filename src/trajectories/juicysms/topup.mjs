@@ -2,7 +2,7 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { topupOpts } from '../_shared/services/topup_common.mjs';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
 import { popupOrNavigation, urlMatching } from '../_shared/page/settled.mjs';
 import { humanType } from '../../../dist/human/keyboard.js';
 
@@ -13,12 +13,13 @@ if (!login) { console.log('FAIL: no Google SSO creds'); process.exit(1); }
 const s = await WSession.start({ label: 'juicysms_topup', browser: 'chromium' });
 try {
   await s.goto('https://juicysms.com/login');
-  await humanIdlePause('long');
-  const surface = popupOrNavigation(s.page, /accounts\.google\.com/);
-  await s.page.locator('a:has-text("LOGIN WITH GOOGLE"), button:has-text("LOGIN WITH GOOGLE"), a:has-text("Login with Google")').filter({ visible: true }).first().click();
-  const popup = await surface;  // allow-raw-playwright: the popup or navigation the click produced
+  const googleButton = s.page.locator('a:has-text("LOGIN WITH GOOGLE"), button:has-text("LOGIN WITH GOOGLE"), a:has-text("Login with Google"), button:has-text("Login with Google")')
+    .and(s.page.locator(':not(:disabled):not([aria-disabled="true"])')).filter({ visible: true }).first();
+  await googleButton.waitFor({ state: 'visible' });
+  const popup = await popupOrNavigation(s.page, /accounts\.google\.com/,
+    () => humanClickLocator(s.page, googleButton));
   const ok = await googleSso(s, login, { originHost: 'juicysms.com', page: popup ?? undefined });
-  if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }
+  if (!ok) throw new Error('Google SSO did not complete');
 
   // Wait for the SSO redirect chain to settle on juicysms.com (NOT on
   // accounts.google.com/SetSID). The previous "break the moment URL leaves
@@ -135,8 +136,8 @@ try {
 
   console.log(`PASS-CHARGED: final url=${s.page.url()}`);
 } catch (e) {
-  console.log('FAIL:', e.message);
-  process.exit(1);
+  console.error('FAIL:', e);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }

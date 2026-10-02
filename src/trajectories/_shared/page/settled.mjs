@@ -63,6 +63,12 @@ export async function pageCondition(page, predicate, arg) {
   }
 }
 
+function matchesUrl(pattern, url) {
+  if (pattern instanceof RegExp) return pattern.test(url);
+  if (typeof pattern === 'function') return pattern(url);
+  return url.includes(pattern);
+}
+
 // Waits until the main frame's URL matches `pattern` (a RegExp, a predicate
 // over the URL, or text the URL must contain) and returns it. It listens to
 // the page's own navigations, so it ends when the page gets there, not on a
@@ -70,16 +76,15 @@ export async function pageCondition(page, predicate, arg) {
 export async function urlMatching(page, pattern) {
   if (page.isClosed()) throw Object.assign(new Error(`page closed before its URL matched ${pattern}; last URL ${page.url()}`),
     { code: 'PAGE_CLOSED', pageUrl: page.url() });
-  const matches = (url) => {
-    if (pattern instanceof RegExp) return pattern.test(url);
-    if (typeof pattern === 'function') return pattern(url);
-    return url.includes(pattern);
-  };
-  if (matches(page.url())) return page.url();
+  if (matchesUrl(pattern, page.url())) return page.url();
   const { promise, resolve, reject } = Promise.withResolvers();
   const onNavigated = (frame) => {
-    if (frame !== page.mainFrame() || !matches(frame.url())) return;
-    resolve(frame.url());
+    try {
+      if (frame !== page.mainFrame() || !matchesUrl(pattern, frame.url())) return;
+      resolve(frame.url());
+    } catch (error) {
+      reject(error);
+    }
   };
   const onClose = () => reject(Object.assign(new Error(`page closed before its URL matched ${pattern}; last URL ${page.url()}`),
     { code: 'PAGE_CLOSED', pageUrl: page.url() }));
@@ -97,11 +102,44 @@ export async function urlMatching(page, pattern) {
   }
 }
 
-// A click that opens a provider either in a popup or in the same tab: call
-// this BEFORE the click; it resolves the popup page, or null once the page's
-// own URL matches `pattern` (a RegExp, or text the URL must contain).
-export function popupOrNavigation(page, pattern) {
-  return Promise.any([page.waitForEvent('popup'), urlMatching(page, pattern).then(() => null)]);
+// Owns the action and its popup or main-frame navigation observation.
+// Resolves the popup page, or null for a matching URL in the original page.
+export async function popupOrNavigation(page, pattern, action) {
+  const failure = (code, state) => Object.assign(new Error(`page ${state} before provider handoff completed; last URL ${page.url()}`),
+    { code, pageUrl: page.url() });
+  if (page.isClosed()) throw failure('PAGE_CLOSED', 'closed');
+  const alreadyMatched = matchesUrl(pattern, page.url());
+  const { promise, resolve, reject } = Promise.withResolvers();
+  const onPopup = popup => resolve(popup);
+  const onNavigated = frame => {
+    try {
+      if (frame === page.mainFrame() && matchesUrl(pattern, frame.url())) resolve(null);
+    } catch (error) {
+      reject(error);
+    }
+  };
+  const onClose = () => reject(failure('PAGE_CLOSED', 'closed'));
+  const onCrash = () => reject(failure('PAGE_CRASHED', 'crashed'));
+  page.once('popup', onPopup);
+  page.on('framenavigated', onNavigated);
+  page.once('close', onClose);
+  page.once('crash', onCrash);
+  try {
+    if (alreadyMatched) resolve(null);
+    const actionResult = Promise.resolve().then(() => action()).catch(error => {
+      reject(error);
+      throw error;
+    });
+    const [surface, performed] = await Promise.allSettled([promise, actionResult]);
+    if (performed.status === 'rejected') throw performed.reason;
+    if (surface.status === 'rejected') throw surface.reason;
+    return surface.value;
+  } finally {
+    page.off('popup', onPopup);
+    page.off('framenavigated', onNavigated);
+    page.off('close', onClose);
+    page.off('crash', onCrash);
+  }
 }
 
 // A form submit is answered either by the page leaving the form's URL (`stays`
@@ -154,7 +192,7 @@ export async function responseAfterAction(page, matches, action) {
   page.once('close', onClose);
   page.once('crash', onCrash);
   try {
-    const actionResult = Promise.resolve().then(action).catch((error) => {
+    const actionResult = Promise.resolve().then(() => action()).catch((error) => {
       reject(error);
       throw error;
     });

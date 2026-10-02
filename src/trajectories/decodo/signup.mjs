@@ -80,21 +80,26 @@ try {
   await pageSettled(s.page);
   const gsiFrame = s.page.frames().find((f) => /accounts\.google\.com\/gsi|gsi\/button/.test(f.url()));
   // The click opens Google in a popup or redirects this tab to it.
-  const surface = popupOrNavigation(s.page, /accounts\.google\./);
-  if (gsiFrame) {
-    const gi = gsiFrame.locator('div[role="button"]').first();
-    await gi.waitFor({ state: 'visible' });
-    await humanClickLocator(s.page, gi);
-  } else {
-    const gBtn = s.page.locator('button:has-text("Sign in with Google"), a:has-text("Sign in with Google"), button:has-text("with Google")').filter({ visible: true }).first();
-    if (!(await present(gBtn))) { await shot(s, '00b_no_google_btn'); console.log('FAIL: no Google sign-in control on Decodo login'); process.exit(1); }
-    await gBtn.scrollIntoViewIfNeeded();
-    await humanClickLocator(s.page, gBtn);
-  }
-  popup = await surface;
+  popup = await popupOrNavigation(s.page, /accounts\.google\./, async () => {
+    if (gsiFrame) {
+      const gi = gsiFrame.locator('div[role="button"]').first();
+      await gi.waitFor({ state: 'visible' });
+      await humanClickLocator(s.page, gi);
+    } else {
+      const gBtn = s.page.locator('button:has-text("Sign in with Google"), a:has-text("Sign in with Google"), button:has-text("with Google")').filter({ visible: true }).first();
+      if (!(await gBtn.isVisible())) {
+        await shot(s, '00b_no_google_btn');
+        throw Object.assign(new Error('No Google sign-in control on Decodo login'), {
+          code: 'DECODO_GOOGLE_CONTROL_UNAVAILABLE', pageUrl: s.page.url(),
+        });
+      }
+      await gBtn.scrollIntoViewIfNeeded();
+      await humanClickLocator(s.page, gBtn);
+    }
+  });
 
   const ok = await googleSso(s, login, { originHost: 'decodo.com', page: popup || undefined });
-  if (!ok) { await shot(s, '01_sso_fail'); console.log('FAIL: Google SSO did not complete'); process.exit(1); }
+  if (!ok) { await shot(s, '01_sso_fail'); throw new Error('Google SSO did not complete'); }
 
   // googleSso's non-popup success check matches ANY url containing the
   // originHost. Decodo's GSI is redirect-mode, so the OAuth redirect_uri
@@ -244,10 +249,10 @@ try {
   }
   console.log(`PASS: decodo Google-SSO login + US ISP purchase flow complete — audit screenshots in ${OUT_DIR}`);
 } catch (e) {
-  console.log(`FAIL: ${(e.message || String(e))}`);
+  console.error('FAIL:', e);
   try { await s.page.screenshot({ path: `${OUT_DIR}/${stamp()}_error.png`, fullPage: true }); }
   catch (e2) { console.log(`[shot] error-shot skip: ${(e2.message || '')}`); }
-  process.exit(1);
+  process.exitCode = 1;
 } finally {
   try { await s.close(); } catch (e) { console.log(`[decodo] close: ${(e.message || '')}`); }
 }
