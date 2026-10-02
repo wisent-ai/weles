@@ -1,13 +1,13 @@
 // The 6.1 task row form, bound to the page: adding a row, the named and selector fields,
 // the pre-save check, the radio and applicant choices, saving, and opening a task row.
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
-import { openRowEditor } from '../../../forms/row-editor.mjs';
+import { openNewRow, openRowEditor } from '../../../forms/row-editor.mjs';
 import { fillField } from '../../../form-input.mjs';
 
 export function tasksForm({ page, SECTION_URL }) {
 async function clickDodaj() {
-  await humanClickLocator(page, page.locator('button:visible').filter({ hasText: /^Dodaj$/ }).first()) // allow-raw-playwright: open collection row
-  await humanIdlePause('long');
+  const button = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true }).first();
+  await openNewRow(page, button, page.locator('[name="numer_zadania"]'));
 }
 
 

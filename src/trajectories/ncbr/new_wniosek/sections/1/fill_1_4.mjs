@@ -4,7 +4,7 @@
 import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
-import { openRowEditor } from '../../../forms/row-editor.mjs';
+import { openNewRow, openRowEditor } from '../../../forms/row-editor.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('1_4');
@@ -26,9 +26,7 @@ if (!page) {
 
 async function clickDodaj(nth) {
   const button = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true }).nth(nth);
-  if (await button.count() === 0) throw new Error(`Dodaj #${nth} not found`);
-  await humanClickLocator(page, button);
-  await humanIdlePause('long');
+  await openNewRow(page, button, page.locator('[name="nazwa_podmiotu_konkurencyjnego"]'));
 }
 async function saveForm() {
   const save = page.locator('button:not([disabled])').filter({ hasText: /^Zapisz$/ }).filter({ visible: true }).last();
@@ -62,7 +60,6 @@ async function setApplicant() {
 
 if (process.env.DIAG) {
   await clickDodaj(0);
-  await page.waitForSelector("[name='nazwa_podmiotu_konkurencyjnego']");
   await setApplicant();
   await humanFill(page, page.locator("[name='nazwa_podmiotu_konkurencyjnego']").first(), 'TEST');
   await humanFill(page, page.locator("[name='nip']").first(), '0000000000');
@@ -105,7 +102,6 @@ if (process.env.REPAIR) {
   if (!hasGray) {
     const r = ROWS[4];
     await clickDodaj(0);
-    await page.waitForSelector("[name='nazwa_podmiotu_konkurencyjnego']");
     try { await setApplicant(); } catch (e) { /* applicant may auto bind */ }
     await humanFill(page, page.locator("[name='nazwa_podmiotu_konkurencyjnego']").first(), r.nazwa);
     await humanFill(page, page.locator("[name='nip']").first(), r.nip);
@@ -129,7 +125,6 @@ if (process.env.REPAIR) {
 let added = 0;
 for (const r of ROWS) {
   await clickDodaj(0);
-  await page.locator("[name='nazwa_podmiotu_konkurencyjnego']").first().waitFor({ state: 'visible' });
   try { await setApplicant(); } catch (e) { /* applicant is auto-assigned for a single applicant */ }
   await humanFill(page, page.locator("[name='nazwa_podmiotu_konkurencyjnego']").first(), r.nazwa);
   await humanFill(page, page.locator("[name='nip']").first(), r.nip);

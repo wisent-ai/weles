@@ -45,7 +45,6 @@ for (const t of parsed) {
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('long');
   await clickDodaj();
-  await page.waitForSelector('[name="numer_zadania"]');
   await fillByName('numer_zadania', t.nr);
   await fillByName('nazwa_zadania', t.nazwa);
   await radio(t.koszty === 'Tak' ? 'Tak' : 'Nie');

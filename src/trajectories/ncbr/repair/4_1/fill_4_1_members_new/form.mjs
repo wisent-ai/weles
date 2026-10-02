@@ -3,14 +3,12 @@
 // opening an existing member row.
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
-import { openRowEditor } from '../../../forms/row-editor.mjs';
+import { openNewRow, openRowEditor } from '../../../forms/row-editor.mjs';
 
 export function membersForm({ page, SECTION_URL }) {
 async function clickDodaj() {
-  const button = page.getByRole('button', { name: 'Dodaj', exact: true }).first();
-  if (await button.count() === 0) throw new Error('Dodaj not found');
-  await humanClickLocator(page, button);
-  await humanIdlePause('long');
+  const button = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true }).first();
+  await openNewRow(page, button, page.locator('[name="imie"]'));
 }
 
 async function fillByName(name, value) {

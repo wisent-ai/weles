@@ -49,7 +49,6 @@ const added = [];
 for (const m of ms) {
   console.log(`START ${m.imie} ${m.nazwisko}`);
   await clickDodaj();
-  await page.waitForSelector('[name="imie"]');
   const filled = [];
   filled.push(await fillByName('imie', m.imie));
   filled.push(await fillByName('nazwisko', m.nazwisko));
