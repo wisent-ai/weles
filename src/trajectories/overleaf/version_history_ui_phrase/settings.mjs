@@ -5,8 +5,9 @@ import { mkdirSync } from 'node:fs';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 
-export const target = process.argv[2] || process.env.OVERLEAF_PROJECT ||
-  'Classifier Decision Boundaries Yield Stronger Steering Vectors';
+// The project is the caller's; no paper title is built in.
+export const target = process.argv[2] || process.env.OVERLEAF_PROJECT || '';
+if (!target) { console.error('FAIL: need the Overleaf project as argv[2] or OVERLEAF_PROJECT (24-hex id or title substring)'); process.exit(1); }
 export const queryText = process.argv.slice(3).join(' ') || process.env.OVERLEAF_QUERY_TEXT || process.env.OVERLEAF_PHRASE || '';
 export const isId = /^[0-9a-fA-F]{24}$/.test(target);
 
@@ -22,7 +23,8 @@ process.env.WELES_FULL_DIAGNOSTICS = '0';
 process.env.WELES_NO_INSTRUMENT = '1';
 process.env.WELES_PAGE_DIAGNOSTICS = '0';
 
-export const PROFILE_DIR = `${process.env.HOME}/Documents/CodingProjects/Wisent/weles/.work/overleaf_browser_profile`;
+// The persistent Overleaf browser profile lives in this repository's own .work.
+export const PROFILE_DIR = new URL('../../../../.work/overleaf_browser_profile', import.meta.url).pathname;
 if (process.env.WELES_OVERLEAF_PERSISTENT_PROFILE !== '0' && !process.env.WELES_USER_DATA_DIR) {
   mkdirSync(PROFILE_DIR, { recursive: true });
   process.env.WELES_USER_DATA_DIR = PROFILE_DIR;

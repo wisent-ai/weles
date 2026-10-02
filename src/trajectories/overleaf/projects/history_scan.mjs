@@ -19,7 +19,8 @@ import { WSession } from '../../../../dist/session/wsession.js';
 import { getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
 import { overleafGoogleSignIn } from '../../_shared/services/overleaf_google_sign_in.mjs';
 import { humanIdlePause } from '../../../../dist/human/mouse.js';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 const PROJECT = process.argv[2] || process.env.OVERLEAF_PROJECT;
 if (!PROJECT || !/^[0-9a-fA-F]{24}$/.test(PROJECT)) {
@@ -27,8 +28,7 @@ if (!PROJECT || !/^[0-9a-fA-F]{24}$/.test(PROJECT)) {
   process.exit(1);
 }
 
-const SHOT_DIR = `${process.env.HOME}/Documents/CodingProjects/Wisent/weles/.work/history_scan`;
-mkdirSync(SHOT_DIR, { recursive: true });
+const SHOT_DIR = runRecordingsDir('overleaf_history_scan');
 
 const login = await getGoogleSsoCreds();
 if (!login) {

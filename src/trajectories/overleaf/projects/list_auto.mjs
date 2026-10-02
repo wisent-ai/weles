@@ -26,6 +26,7 @@ import { WSession } from '../../../../dist/session/wsession.js';
 import { getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
 import { overleafGoogleSignIn } from '../../_shared/services/overleaf_google_sign_in.mjs';
 import { createWriteStream } from 'node:fs';
+import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 const LIMIT    = Number(process.env.OVERLEAF_LIST_LIMIT || 500);
 const INCLUDES = new Set((process.env.OVERLEAF_LIST_INCLUDE || '').split(',').map(s => s.trim()).filter(Boolean));
@@ -162,8 +163,8 @@ try {
   console.error('[list_auto] error:', err?.message || err);
   try {
     // s.snapshot() doesn't exist on WSession; use the page screenshot API and
-    // write to .work/<label>/ so the artifact-inspection helpers find it.
-    const snapPath = `${process.env.HOME}/Documents/CodingProjects/Wisent/weles/.work/list_auto/overleaf_list_auto_failure.png`;
+    // write beside the run's recordings so the artifact-inspection helpers find it.
+    const snapPath = `${runRecordingsDir('overleaf_list_auto')}/overleaf_list_auto_failure.png`;
     await s.page.screenshot({ path: snapPath, fullPage: true });
     console.error(`[list_auto] failure screenshot: ${snapPath}`);
   } catch (snapErr) {

@@ -4,7 +4,7 @@
 import { spawnSync } from 'node:child_process';
 
 const SESSION = process.env.SESSION || 'ncbr-step-b';
-const WELES = `${process.env.HOME}/Documents/CodingProjects/Wisent/weles`;
+const WELES = new URL('../../../../..', import.meta.url).pathname.replace(/\/$/, '');
 const PROJECT = (await import('#ncbr-settings')).sectionBase();
 const SECTIONS = [
   ['5.1', (await import('#ncbr-settings')).sectionId('5_1')],

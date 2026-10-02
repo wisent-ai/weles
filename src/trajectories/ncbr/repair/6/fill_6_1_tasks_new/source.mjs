@@ -1,7 +1,7 @@
 // The section 6.1 tasks and their milestones, parsed from the application's markdown source.
 import { readFileSync } from 'node:fs';
 
-const MD = `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_6_harmonogram.md`;
+const MD = (await import('#ncbr-settings')).applicationFile('wersja_B_6_harmonogram.md');
 export const md = readFileSync(MD, 'utf8');
 
 function extract(block, label) {

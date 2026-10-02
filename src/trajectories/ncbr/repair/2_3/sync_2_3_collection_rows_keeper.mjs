@@ -3,11 +3,9 @@ import { spawnSync } from 'node:child_process';
 
 const SESSION = process.env.SESSION || 'ncbr-step-b';
 const PART = process.env.PART || 'eu';
-const ROOT = `${process.env.HOME}/Documents/CodingProjects/Wisent`;
-const WELES = `${ROOT}/weles`;
-const BACKENDS = `${ROOT}/backends`;
-const SRC = `${BACKENDS}/STEP_sciezka_A_Wisent/wersja_B_2.3_rynek_i_potencjal.md`;
-const OUT = `${BACKENDS}/STEP_sciezka_A_Wisent/sync_2_3_${PART}_evidence_20260625.json`;
+const WELES = new URL('../../../../..', import.meta.url).pathname.replace(/\/$/, '');
+const SRC = (await import('#ncbr-settings')).applicationFile('wersja_B_2.3_rynek_i_potencjal.md');
+const OUT = (await import('#ncbr-settings')).applicationFile(`sync_2_3_${PART}_evidence_20260625.json`);
 const URL = (await import('#ncbr-settings')).sectionUrl('2_3');
 
 const clean = (s) => String(s || '').replace(/\s*<!--[\s\S]*?-->\s*/g, ' ').replace(/\s+/g, ' ').trim();

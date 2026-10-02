@@ -8,6 +8,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 import { randomBytes } from 'node:crypto';
 
 import { WSession } from '../../../../dist/session/wsession.js';
@@ -34,9 +35,7 @@ function logn(msg) { console.log(`[parp_login] ${msg}`); }
 async function url(s) { return await s.page.url(); }
 
 async function screenshot(s, name) {
-  const dir = join(homedir(), 'Documents/CodingProjects/Wisent/weles/src/trajectories/feng/.work');
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  const path = join(dir, `parp_${name}_${Date.now()}.png`);
+  const path = join(runRecordingsDir('parp_login'), `parp_${name}_${Date.now()}.png`);
   await s.page.screenshot({ path, fullPage: true });
   logn(`screenshot: ${path}`);
   return path;

@@ -15,6 +15,6 @@ await repair8();
 await validate();
 
 evidence.finishedAt = new Date().toISOString();
-const outPath = process.env.OUT || `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/keeper_budget_repair_evidence.json`;
+const outPath = process.env.OUT || (await import('#ncbr-settings')).applicationFile('keeper_budget_repair_evidence.json');
 writeFileSync(outPath, JSON.stringify(evidence, null, 2));
 console.log(JSON.stringify({ ok: true, outPath, lastStep: evidence.steps.at(-1) }, null, 2));

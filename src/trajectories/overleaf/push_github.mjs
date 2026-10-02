@@ -19,7 +19,8 @@ import { overleafGoogleSignIn } from '../_shared/services/overleaf_google_sign_i
 import { pageCondition } from '../_shared/page/settled.mjs';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
 import { humanFill } from '../../../dist/human/keyboard.js';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
 let PROJECT = process.argv[2];
 if (!PROJECT) PROJECT = process.env.OVERLEAF_PROJECT;
@@ -32,8 +33,7 @@ if (!PROJECT || !REPO_SLUG) {
 const IS_ID = /^[0-9a-fA-F]{24}$/.test(PROJECT);
 const REPO_LC = REPO_SLUG.toLowerCase();
 
-const SHOT_DIR = `${process.env.HOME}/Documents/CodingProjects/Wisent/weles/.work/push_github`;
-mkdirSync(SHOT_DIR, { recursive: true });
+const SHOT_DIR = runRecordingsDir('overleaf_push_github');
 let shotN = 0;
 async function shot(s, tag) {
   shotN += 1;

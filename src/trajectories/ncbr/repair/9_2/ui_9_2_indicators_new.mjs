@@ -9,7 +9,7 @@ import { humanFill } from '../../../../../dist/human/keyboard.js';
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const projectId = (await import('#ncbr-settings')).projectId();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('9_2');
-const MD = readFileSync(`${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_9.2_wskazniki.md`, 'utf8');
+const MD = readFileSync((await import('#ncbr-settings')).applicationFile('wersja_B_9.2_wskazniki.md'), 'utf8');
 
 function cell(block, label) {
   const re = new RegExp(`^\\|\\s*(?:\\*\\*)?${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:\\*\\*)?\\s*\\|\\s*([\\s\\S]*?)\\s*\\|\\s*$`, 'm');

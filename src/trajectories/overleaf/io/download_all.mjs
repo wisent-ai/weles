@@ -15,11 +15,13 @@ import { getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
 import { overleafGoogleSignIn } from '../../_shared/services/overleaf_google_sign_in.mjs';
 import { humanIdlePause } from '../../../../dist/human/mouse.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
+import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
-const OUT_DIR = `${process.env.HOME}/Documents/CodingProjects/Wisent/weles/.work/ol_sources`;
-const SHOT_DIR = `${process.env.HOME}/Documents/CodingProjects/Wisent/weles/.work/download_all`;
+// Sources land where the caller says; nothing under one person's home is assumed.
+const OUT_DIR = process.env.OVERLEAF_SOURCES_DIR;
+if (!OUT_DIR) { console.error('FAIL: OVERLEAF_SOURCES_DIR env var required: the directory the project zips are written to'); process.exit(1); }
+const SHOT_DIR = runRecordingsDir('overleaf_download_all');
 mkdirSync(OUT_DIR, { recursive: true });
-mkdirSync(SHOT_DIR, { recursive: true });
 let shotN = 0;
 async function shot(s, tag) {
   shotN += 1;

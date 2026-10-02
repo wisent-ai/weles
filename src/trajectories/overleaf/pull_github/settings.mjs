@@ -17,7 +17,8 @@ export const REPO_LC = REPO_SLUG.toLowerCase();
 
 export const SHOT_DIR = runRecordingsDir('overleaf_pull_github');
 export const OVERLEAF_AUTH_LABEL = process.env.OVERLEAF_AUTH_LABEL || 'overleaf';
-export const OVERLEAF_PROFILE_DIR = `${process.env.HOME}/Documents/CodingProjects/Wisent/weles/.work/overleaf_browser_profile`;
+// The persistent Overleaf browser profile lives in this repository's own .work.
+export const OVERLEAF_PROFILE_DIR = new URL('../../../../.work/overleaf_browser_profile', import.meta.url).pathname;
 if (process.env.WELES_OVERLEAF_PERSISTENT_PROFILE !== '0' && !process.env.WELES_USER_DATA_DIR) {
   mkdirSync(OVERLEAF_PROFILE_DIR, { recursive: true });
   process.env.WELES_USER_DATA_DIR = OVERLEAF_PROFILE_DIR;

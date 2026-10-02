@@ -15,11 +15,13 @@ import { WSession } from '../../../../dist/session/wsession.js';
 import { getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
 import { overleafGoogleSignIn } from '../../_shared/services/overleaf_google_sign_in.mjs';
 import { humanIdlePause } from '../../../../dist/human/mouse.js';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
-const TARGET_TITLE = (process.argv[2] || 'wrapfast-backend').trim();
-const SHOT_DIR = `${process.env.HOME}/Documents/CodingProjects/Wisent/weles/.work/trash_projects`;
-mkdirSync(SHOT_DIR, { recursive: true });
+// Trashing is destructive: the exact title is the caller's, never built in.
+const TARGET_TITLE = (process.argv[2] || process.env.OVERLEAF_PROJECT_TITLE || '').trim();
+if (!TARGET_TITLE) { console.error('FAIL: need the exact project title as argv[2] or OVERLEAF_PROJECT_TITLE; no project is assumed'); process.exit(1); }
+const SHOT_DIR = runRecordingsDir('overleaf_trash_projects');
 let shotN = 0;
 async function shot(s, tag) {
   shotN += 1;

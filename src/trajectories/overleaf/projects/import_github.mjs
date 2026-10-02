@@ -18,7 +18,8 @@ import { getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
 import { overleafGoogleSignIn } from '../../_shared/services/overleaf_google_sign_in.mjs';
 import { pageSettled } from '../../_shared/page/settled.mjs';
 import { humanIdlePause, humanClickLocator } from '../../../../dist/human/mouse.js';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 let REPO_SLUGS = process.argv.slice(2);
 if (REPO_SLUGS.length === 0 && process.env.OVERLEAF_GITHUB_REPO) REPO_SLUGS = [process.env.OVERLEAF_GITHUB_REPO];
@@ -28,8 +29,7 @@ if (REPO_SLUGS.length === 0) {
   process.exit(1);
 }
 
-const SHOT_DIR = `${process.env.HOME}/Documents/CodingProjects/Wisent/weles/.work/import_github`;
-mkdirSync(SHOT_DIR, { recursive: true });
+const SHOT_DIR = runRecordingsDir('overleaf_import_github');
 let shotN = 0;
 async function shot(s, tag) {
   shotN += 1;
