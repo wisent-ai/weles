@@ -21,13 +21,8 @@ async function framesRendered(page: Page): Promise<void> {
 
 /** Scroll the nth match of `sel` into view and humanClick its centre via a
  * raw CDP pointer (move+down+up at coordinates). Resolves zero-size a11y
- * focus-proxies to their nearest sized ancestor: Discord's DOB
- * [role="combobox"] is a 0x0 `focusTarget` div whose visible clickable box
- * is the parent `selectButton` (108x38) — verified 2026-05-18 via keeper.
- * page.locator().boundingBox() returns null for the 0x0 proxy, and
- * humanClickLocator's force locator.click() throws "Element is outside of
- * the viewport"; this measure-then-coordinate-click path has neither
- * problem. Returns true on success. */
+ * focus-proxies to their nearest sized ancestor before measuring coordinates.
+ * Returns true when a visible target was found and clicked. */
 async function scrollAndClick(page: Page, sel: string, nth: number): Promise<boolean> {
   const q = JSON.stringify(sel);
   const pt = await page.evaluate(`(()=>{var els=document.querySelectorAll(${q});var node=els[${nth}];if(!node)return null;var b=node.getBoundingClientRect();var hop=0;while(node&&(b.width<1||b.height<1)&&hop<6){node=node.parentElement;hop++;if(node)b=node.getBoundingClientRect()}if(!node)return null;node.scrollIntoView({block:'center',inline:'center'});b=node.getBoundingClientRect();if(b.width<1||b.height<1)return null;return{x:Math.round(b.x+b.width/2),y:Math.round(b.y+b.height/2)}})()`) as { x: number; y: number } | null;  // allow-raw-playwright: read-only geometry measure + scrollIntoView, no synthetic click
@@ -54,10 +49,7 @@ async function findOptionIndex(page: Page, selector: string, value: string): Pro
 }
 
 /** ARIA combobox. Opens the combobox and selects the option via a
- * coordinate humanClick (scroll-into-view + CDP pointer). The prior raw
- * Playwright synthetic click did not reliably open Discord's custom React
- * combobox; verified 2026-05-18 (the listbox stayed closed so every DOB
- * select returned no-select-found). */
+ * coordinate humanClick after scrolling the visible target into view. */
 async function tryAriaCombobox(page: Page, target: string, value: string): Promise<string | null> {
   const idx = await findIndex(page, '[role="combobox"]', target, 'aria-label');
   if (idx < 0) return null;

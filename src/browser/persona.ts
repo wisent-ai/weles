@@ -22,11 +22,8 @@ export interface Persona {
   gpu: { vendor: string; renderer: string };
   screen: { width: number; height: number; dpr: number };
   hardwareConcurrency: number;
-  // navigator.deviceMemory: production capture (2026-04-25) showed real Chrome
-  // 147 reports the host machine's actual RAM (32 GB on a 32 GB Mac), NOT the
-  // W3C-spec cap of 8. The cap-at-8 patch was wrong — it made weles differ
-  // from real Chrome. Now optional; if undefined async_api lets the C++ build
-  // emit the host's real value, matching real Chrome behavior.
+  // Optional navigator.deviceMemory override. When absent, the browser build
+  // supplies its own value.
   deviceMemory?: number;
   audioSampleRate: 44100 | 48000;
   timezone: string;
@@ -136,7 +133,7 @@ export function firefoxNav(targetOs: string): FirefoxNav {
   const userAgent = FIREFOX_UA_TEMPLATES[os].replace(/VER/g, FIREFOX_VERSION);
   return {
     userAgent,
-    // Real Firefox navigator.appVersion is the UA string minus the "Mozilla/" prefix; emitting the bare "5.0 (Macintosh)" form is engine-impossible (2026-05-29 LinkedIn collector dump showed Firefox returning "5.0 (Macintosh)" — a non-standard truncation that doesn't match any real Firefox build).
+    // Firefox appVersion is the user-agent string without the Mozilla/ prefix.
     appVersion: userAgent.replace(/^Mozilla\//, ''),
     oscpu: FIREFOX_OSCPU[os],
     vendor: '',

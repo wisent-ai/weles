@@ -3,7 +3,7 @@
 // human-vs-trajectory diff harness — WITHOUT leaving a surface a detector
 // (Google GSI's "browser may not be secure", PerimeterX, Arkose, ...) can see.
 //
-// Three stealth measures vs the pre-2026-05-26 build, which Google flagged:
+// The instrumentation preserves the page's observable property behavior:
 //   1) Exfil lives under Symbol.for('weles.inst'), NOT window.__inst* globals,
 //      so it is invisible to `if (window.__inst)` / Object.keys(window) /
 //      for-in / JSON enumeration. Only an explicit getOwnPropertySymbols scan
@@ -13,9 +13,7 @@
 //      Object.getOwnPropertyDescriptor(Navigator.prototype,'userAgent').get
 //      .toString() returns "function get userAgent() { [native code] }", not
 //      our JS — and carries the original .name and .length.
-//   3) We NEVER install a *logging* Function.prototype.toString hook. The old
-//      build did (twice), which is itself the canonical detection tripwire:
-//      Function.prototype.toString.toString() then leaks the wrapper source.
+//   3) Function.prototype.toString is not itself a logging target.
 //
 // Sibling injectors (input_recorder.js, fingerprint_hooks.js) reuse this core
 // via the same symbol, so they inherit identical stealth.

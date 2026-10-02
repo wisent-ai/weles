@@ -40,12 +40,8 @@ function profileDir() {
  * trajectory that launches Playwright itself is what the boundary check
  * refuses.
  *
- * `launchGenuineChrome` is the signup-grade profile: Chrome's yellow
- * "unsupported command-line flag" bar is what LinkedIn's risk engine reads to
- * reject a signup (screenshots, 2026-05-06), so `--no-sandbox` and
- * `--disable-blink-features=AutomationControlled` are removed from Chrome's own
- * defaults instead of added, and `navigator.webdriver` stays false through
- * `--enable-automation` being ignored.
+ * `launchGenuineChrome` retains the genuine browser's command-line policy.
+ * Its launch options below explicitly remove unsupported default flags.
  */
 export async function launchGenuineChrome({
   userDataDir,

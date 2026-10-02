@@ -16,12 +16,8 @@ function nextLoad(page: any): Promise<void> {
   return promise;
 }
 
-// Fast-path DOM check: real Cloudflare challenge pages always contain one of
-// these strings in title/body. If none match, skip the vision call entirely
-// (the authenticated vision route adds latency on every page, even on
-// platforms that never serve Cloudflare). Verified 2026-05-02:
-// LinkedIn /feed/ on stale cookies stalled WSession.goto for 70+ s in this
-// path because LinkedIn doesn't use Cloudflare and the vision call hung.
+// Check the DOM before asking the vision route to inspect a challenge.
+// Pages without a recognized challenge marker do not need that model call.
 async function looksLikeCloudflareDom(page: any): Promise<boolean> {
   try {
     const r = await page.evaluate(() => {

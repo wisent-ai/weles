@@ -131,8 +131,7 @@ export function toConfig(
       availLeft: scr.availLeft ?? 0,
       availTop: scr.availTop ?? (targetOs === 'macos' ? 30 : 0),
       // macOS Retina/HDR displays report colorDepth=30 (10-bit per channel).
-      // Diff'd 2026-04-25 vs real Chrome on M2 Mac: chrome=30, weles=24 (this
-      // file's hardcoded value). PerimeterX li.protechts.net iframe reads it.
+      // Keep the configured macOS depth consistent with that display profile.
       // Windows/Linux still 24 — common LCD output.
       colorDepth: targetOs === 'macos' ? 30 : 24,
       pixelDepth: targetOs === 'macos' ? 30 : 24,

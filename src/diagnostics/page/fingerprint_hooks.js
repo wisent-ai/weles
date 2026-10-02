@@ -105,8 +105,7 @@
   // `domAutomationController` is self-incriminating. So we ONLY hook flags that
   // are ALREADY present (a real automation env set them); on a clean browser
   // none exist, nothing is created, and the surface is identical to real
-  // Chrome. Verified 2026-05-26: unguarded version flipped Google SSO to
-  // "browser may not be secure"; the `k in window` guard clears it.
+  // Chrome. Do not introduce diagnostic globals that the page did not expose.
   try {
     const NATIVE_GET = Object.getOwnPropertyDescriptor(Navigator.prototype, 'userAgent').get;
     const FLAG_BLOB = '__webdriver_script_fn|__webdriver_evaluate|__selenium_evaluate|__fxdriver_evaluate|__driver_unwrapped|__webdriver_unwrapped|__selenium_unwrapped|__fxdriver_unwrapped|__lastWatirAlert|__lastWatirConfirm|__lastWatirPrompt|domAutomation|domAutomationController|_phantom|callPhantom|__nightmare|_Selenium_IDE_Recorder';

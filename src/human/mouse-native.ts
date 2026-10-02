@@ -1,9 +1,5 @@
-// Native macOS event emission (CGEventPost-backed). CDP events have
-// isTrusted=true but differ from OS-queue events in shape (movementX/Y
-// deltas, device timestamps, subpixel coords). LinkedIn's /apfc/collect
-// anti-fraud collector fires on OS-queue events only — verified 2026-05-13
-// diff: human-on-weles produced 8 /apfc/collect hits, bot-on-weles via CDP
-// produced 0.
+// Native macOS event emission through CGEventPost. OS-queue events retain
+// native movement deltas, timestamps, and subpixel coordinates.
 //
 // This module is the ONLY mouse/keyboard path for humanized atoms.
 
