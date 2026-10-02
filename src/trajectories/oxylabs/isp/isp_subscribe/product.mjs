@@ -62,7 +62,7 @@ export async function startCheckout(s) {
   console.log(`[trajectory] step1: 10 IPs preselected = ${tenIpsSelected}`);
 
   // The Oxylabs ISP buy-now page has 10 IPs preselected and surfaces a
-  // "Buy random locations" CTA (verified via visible-buttons dump 2026-05-09)
+  // "Buy random locations" CTA
   // that auto-assigns location distribution + advances to Stripe checkout.
   // We use that path — random US locations is fine since we re-bind each IP
   // to a specific social_accounts row regardless of the IP's lat/lon.

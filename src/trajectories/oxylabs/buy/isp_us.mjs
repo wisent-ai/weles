@@ -81,7 +81,7 @@ try {
   await shot(s, 'step2_locations');
   console.log(`[trajectory] step2 url=${s.page.url()}`);
 
-  // Step 2 layout (keeper-verified 2026-05-12):
+  // Step 2 layout:
   //   - input[name="isReallocation"] (hidden) gates the location editor.
   //   - When ticked: "Available locations" panel lists countries each with
   //     an "Add" button; "Selected locations" panel lists existing

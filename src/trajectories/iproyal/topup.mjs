@@ -39,9 +39,8 @@ try {
 
   
 
-  // CONFIRM: explicitly select Credit/debit card. Verified 2026-05-05 from
-  // probe: the deposit modal renders payment methods as styled buttons
-  // (not radios/labels) — text content is "Credit or debit card". Clicking
+  // Select Credit/debit card through the styled payment-method button rather
+  // than expecting a radio input. Its text is "Credit or debit card". Clicking
   // it surfaces Stripe Elements card-number / expiry / cvc / postal frames.
   const cardOption = s.page.locator('button:has-text("Credit or debit card"), [role="button"]:has-text("Credit or debit card"), div:has-text("Credit or debit card")').filter({ visible: true }).first();
   if (await cardOption.isVisible().catch(() => false)) { await cardOption.click({ force: true }).catch(() => {}); console.log('[trajectory] selected Credit/debit card method'); await humanIdlePause('deliberate'); }

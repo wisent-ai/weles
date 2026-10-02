@@ -45,7 +45,7 @@ export async function topUpPayAsYouGo(s, usd) {
     }
   }
   if (!amountSet) {
-    // Cited screenshot 2026-05-05: PAYG modal renders icon-only "−" / "+"
+    // The PAYG modal renders icon-only "−" / "+"
     // stepper buttons (textContent="") flanking the GB display. Find
     // every empty-text visible button and click each, watching the
     // "Amount of traffic" digit. The one that increments is the +.
@@ -53,7 +53,7 @@ export async function topUpPayAsYouGo(s, usd) {
       const m = (document.body.innerText.match(/Amount of traffic[^\d]*(\d+)\s*GB/) || [])[1];
       return m ? Number(m) : null;
     });
-    // Cited frame 2026-05-05 (recordings/page@2882...webm at 1:44):
+    // The stepper row has this structure:
     // stepper row is "− [N GB] +" — circular icon buttons at the row's
     // left/right edges, with the "<N> GB" big text in the middle. Find
     // the row by structure: <div> with ≥3 children where the middle has
@@ -100,7 +100,7 @@ export async function topUpPayAsYouGo(s, usd) {
     }
   }
   if (!amountSet) { console.log('FAIL: no working increment button found'); process.exit(1); }
-  // Cited frame 2026-05-05: checkbox starts UNCHECKED, Continue is
+  // The confirmation checkbox starts unchecked, and Continue is
   // disabled until ticked. Click the wrapper label (input itself is
   // hidden by Stripe-style styling so direct click is no-op).
   const refundCb = s.page.locator('input[name="nonrefundableCondition"]').first();

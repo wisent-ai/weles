@@ -40,9 +40,7 @@ export async function linkedinSubmitComment(s, text) {
 export async function linkedinSubmitPost(s, text) {
   await s.goto('https://www.linkedin.com/feed/');
   await humanIdlePause('deliberate');
-  // Compose share button — top of feed. aria-label="Start a post" is the
-  // stable marker (verified 2026-05-06 in captured /feed/ DOM at
-  // recordings/linkedin_browse/after_001_goto__dom.html).
+  // Open the feed's post composer through its accessible label.
   const startPost = s.page.locator('[aria-label="Start a post"], button.share-box-feed-entry__trigger, button:has-text("Start a post")').filter({ visible: true }).first();
   await startPost.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, startPost);

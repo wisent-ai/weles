@@ -44,14 +44,12 @@ try {
 
   const text = await s.page.evaluate(() => document.body.innerText);
   console.log(`[trajectory] dashboard text length=${text.length}`);
-  // Oxylabs displays remaining GB on the product page. The 2026-05-04 regex
-  // only handled "remaining/left/available <number> GB" — Oxylabs's redesigned
-  // billing page shows "<number> GB remaining" (label after number), and
-  // "<number> GB / <total> GB" pure-fraction format. Try every common layout
+  // Remaining traffic can appear before or after its label, or as a fraction.
+  // Try each supported layout
   // in priority order, take the first match.
   // retry-allowed: regex-match ladder, not request retry
   const patterns = [
-    // Verified live 2026-06-23: overview shows "Traffic available: 2.8 GB".
+    // The overview labels the remaining allowance as "Traffic available".
     // Most specific — try this before the generic labels so we don't grab a
     // usage fraction from a product tab.
     /traffic\s*(?:available|remaining|left)[^0-9]{0,30}([0-9]+(?:\.[0-9]+)?)\s*(?:GB|GiB|gigabytes?)/i,

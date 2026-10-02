@@ -1,6 +1,5 @@
-// Threads form login. Threads has no native form (the public login page only
-// renders 'Continue with Instagram' — verified 2026-05-02 by the login-modes
-// probe at .work/login-modes/captures/threads_login.json). This trajectory
+// Threads form login. The public login page offers Instagram sign-in rather
+// than a native form. This trajectory
 // pulls the IG account row, injects IG cookies onto threads.net via the
 // extra-mirror-domains path (same trick as meta/threads_register.mjs), then
 // drives the SSO consent and persists the resulting Threads cookies.

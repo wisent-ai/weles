@@ -2,7 +2,7 @@
 // cross_login flow can inject Facebook cookies for `Continue with Facebook`
 // SSO into tiktok / instagram / producthunt.
 //
-// Form fields (verified 2026-05-02 by .work/login-modes/captures/facebook_signup.json):
+// Form fields:
 //   First name + Surname (split across two text inputs)
 //   Day / Month / Year selects (DOB)
 //   Gender select
