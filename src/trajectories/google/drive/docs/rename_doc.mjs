@@ -17,9 +17,9 @@
 
 import { WSession } from '../../../../../dist/session/wsession.js';
 import { googleSso } from '../../../_shared/services/google_sso.mjs';
-import { humanClick, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClick } from '../../../../../dist/human/mouse.js';
 import { humanType } from '../../../../../dist/human/keyboard.js';
-import { nativeKeyPress } from '../../../../../dist/human/mouse-native.js';
+import { pageCondition, pageSettled } from '../../../_shared/page/settled.mjs';
 import { readScopedLogin } from '../../../../_shared/scoped-secrets.mjs';
 
 function arg(name) {
@@ -46,27 +46,24 @@ const s = await WSession.start({ label: LABEL, browser: process.env.BROWSER || '
 try {
   log('engine:', s.personaConfig?.browser ?? 'unknown', '| doc:', DOC_URL, '| new title:', TITLE);
   await s.page.goto(DOC_URL, { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
 
   if (/accounts\.google\.com|ServiceLogin|signin/.test(s.page.url())) {
     log('logged out — running googleSso for', creds.email);
     const ok = await googleSso(s, creds);
-    if (!ok) { log('FAIL: googleSso did not complete (url=' + s.page.url() + ')'); process.exit(2); }
-    await humanIdlePause('long');
+    if (!ok) throw new Error(`DRIVE_DOCUMENT_SIGN_IN_FAILED: ${s.page.url()}`);
+    await pageSettled(s.page);
     if (!/document\/d\/[A-Za-z0-9_-]+\/edit/.test(s.page.url())) {
       await s.page.goto(DOC_URL, { waitUntil: 'domcontentloaded' });
-      await humanIdlePause('deliberate');
+      await pageSettled(s.page);
     }
   }
-
-  // Let the editor finish hydrating before reading the title bbox.
-  await humanIdlePause('long');
 
   // Resolve the title display's CENTER coords via getBoundingClientRect
   // inside page.evaluate. Bypasses Playwright locator.boundingBox which
   // has been timing out. allow-raw-playwright: read-only DOM bbox lookup,
   // no synthetic interaction.
-  const bbox = await s.page.evaluate(() => { // allow-raw-playwright: read-only bbox lookup
+  const bbox = await pageCondition(s.page, () => { // allow-raw-playwright: read-only bbox lookup
     const candidates = [
       '.docs-title-input-label-inner',
       '.docs-title-input-label',
@@ -82,37 +79,29 @@ try {
     return null;
   });
 
-  if (!bbox) {
-    log('FAIL: title label not in DOM (none of docs-title-input-label-inner / -label / aria-label=Rename matched)');
-    process.exit(2);
-  }
   log('title label at (' + Math.round(bbox.x) + ',' + Math.round(bbox.y) + ') size ' + Math.round(bbox.w) + 'x' + Math.round(bbox.h) + ' sel=' + bbox.sel);
 
   // Click the title display via humanClick at the JS-computed coords.
   // Bypasses the locator boundingBox stall observed in create_doc.
   await humanClick(s.page, Math.round(bbox.x), Math.round(bbox.y));
-  await humanIdlePause('deliberate');
 
   // After the click an input.docs-title-input element should be present
   // and focused. Verify before typing — log existing title so we can
   // compare post-commit.
-  const before = await s.page.evaluate(() => { // allow-raw-playwright: read-only DOM probe
+  const before = await pageCondition(s.page, () => { // allow-raw-playwright: read-only DOM probe
     const inp = document.querySelector('input.docs-title-input');
     const label = document.querySelector('.docs-title-input-label-inner');
-    return {
+    const state = {
       inputPresent: !!inp,
       inputVisible: inp ? (inp.offsetWidth > 0 || inp.offsetHeight > 0) : false,
       inputValue: inp ? inp.value : null,
       labelText: label ? (label.textContent || '').trim() : null,
       activeIsTitle: document.activeElement === inp,
     };
+    return state.inputPresent && state.inputVisible && state.activeIsTitle ? state : null;
   });
   log('after-click state: ' + JSON.stringify(before));
 
-  if (!before.inputPresent || !before.inputVisible || !before.activeIsTitle) {
-    log('FAIL: title input did not become editable after click — ' + JSON.stringify(before));
-    process.exit(2);
-  }
 
   // Select the existing text via DOM setSelectionRange on the
   // already-focused input. Both Playwright keyboard Meta+A and OS-event
@@ -125,17 +114,20 @@ try {
   // the humanized-actions hook's banned list.
   await s.page.evaluate(() => { // allow-raw-playwright: read-only setSelectionRange on already-focused input, no click/focus/blur/dispatch
     const inp = document.querySelector('input.docs-title-input');
-    if (inp && document.activeElement === inp) {
-      inp.setSelectionRange(0, inp.value.length);
+    if (!inp || document.activeElement !== inp) {
+      throw new Error('DRIVE_DOCUMENT_TITLE_FOCUS_LOST: the title input is no longer focused');
     }
+    inp.setSelectionRange(0, inp.value.length);
   });
-  await humanIdlePause('short');
   await humanType(s.page, TITLE);
-  await humanIdlePause('short');
+  const typed = await s.page.evaluate(() => document.querySelector('input.docs-title-input')?.value);
+  if (typed !== TITLE) {
+    throw new Error('DRIVE_DOCUMENT_TITLE_VALUE_MISMATCH: title input differs from the requested value');
+  }
   await s.page.keyboard.press('Enter'); // allow-raw-playwright: commit-rename Enter press
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
 
-  // Verify commit by re-reading the title label.
+  // Read the rendered title; this local state is not server-persistence proof.
   const after = await s.page.evaluate(() => { // allow-raw-playwright: read-only DOM probe
     const label = document.querySelector('.docs-title-input-label-inner');
     return label ? (label.textContent || '').trim() : null;
@@ -146,8 +138,7 @@ try {
     log('PASS');
     console.log('RENAMED: ' + after);
   } else {
-    log('FAIL: title did not commit (label=' + JSON.stringify(after) + ' expected=' + JSON.stringify(TITLE) + ')');
-    process.exit(2);
+    throw new Error(`DRIVE_DOCUMENT_TITLE_NOT_COMMITTED: label=${JSON.stringify(after)} expected=${JSON.stringify(TITLE)}`);
   }
 } finally {
   await s.close();
