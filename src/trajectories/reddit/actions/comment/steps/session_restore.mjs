@@ -1,13 +1,7 @@
 /**
- * Restore full storage state (cookies + per-origin localStorage). The
- * localStorage half is critical: Reddit's web app writes anti-bot tokens
- * (loid, _id_secret, redditcmoreId, telemetry session id, eu_cookie_v2)
- * into localStorage on first load, then sends them as XHR headers
- * (x-reddit-loid etc.) on every subsequent action. Restoring ONLY cookies
- * means the comment XHR has session=valid but loid/telemetry=missing,
- * which Reddit's anti-bot tags as "session moved to different device" and
- * shadowbans the account within seconds. Old accounts (registered before
- * 2026-04-29) only have cookies stored — those get the cookie-only restore.
+ * Restore cookies and per-origin localStorage so session headers can refer to
+ * the same stored session. Records without full storage state use their
+ * cookie-only representation.
  */
 export async function restoreRedditSession(s, acct) {
   const ss = acct.metadata?.storage_state;

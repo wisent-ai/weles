@@ -207,10 +207,6 @@ async function signup(s) {
   // The phAuth check above is too permissive — _producthunt_session_production
   // is set for logged-out visitors too and matches `name.includes('session')`,
   // so its presence does NOT prove authentication. Run a real auth probe.
-  // Without this gate, the 2026-05-02 22:00Z run for kurtgrant8303 saved
-  // username='vinitra' (a featured/cached real PH user surfaced by the
-  // GraphQL endpoint to logged-out callers) — creating a row claiming
-  // someone else's identity.
   try {
     await s.goto(URL);
     await pageSettled(s.page);
@@ -223,11 +219,8 @@ async function signup(s) {
   }
 
   // Extract the actual PH handle from the topbar user-image-link.
-  // PH issues its own handle distinct from the Twitter SSO username
-  // (verified 2026-05-02: SSO via @jannieerdman414805 → PH handle
-  // @erdmanjann4145). We must persist PH's handle, not the Twitter one,
-  // otherwise every profile_view trajectory navigates to /@<wrong-handle>
-  // and benign declares account_missing.
+  // Product Hunt's handle can differ from the SSO provider's username.
+  // Persist the handle shown by Product Hunt for subsequent profile URLs.
   //
   // Logic moved to _session.mjs#extractPhHandle: bounces between
   // homepage and /my/notifications because PH's homepage often serves
@@ -269,10 +262,7 @@ async function signup(s) {
 // captcha unsolvable, account purged) attempts 2-5 fail identically and
 // just generate 5x the bot-signal volume against PH's signup endpoint.
 // On failure, the worker queues a fresh row on next routine tick.
-// Force chromium — the 2026-05-02 21:01Z run with a Firefox persona failed
-// before saveAccount with `Page.dispatchMouseEvent: win.synthesizeMouseEvent
-// is not a function`. weles's CDP-based mouse path is Chromium-only, and PH
-// signup needs trusted clicks to land the OAuth modal.
+// The signup interaction uses the browser's configured input path.
 const s = await WSession.start({ label: 'producthunt_register', proxy });
 try {
   const username = await signup(s);

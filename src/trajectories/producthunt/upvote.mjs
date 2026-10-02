@@ -131,8 +131,7 @@ async function vote(s) {
   }
   // PH's homepage SSR cache sometimes serves the logged-out shell to a
   // freshly-SSO'd session, so probing on the homepage is unreliable
-  // immediately post-SSO (verified 2026-05-06: comment.mjs PASSED on the
-  // same SSO source while upvote.mjs FAILed at homepage assertAuthed).
+  // immediately after SSO.
   // Probe on /products/<slug> first — that page always renders the authed
   // topbar avatar — then navigate to the homepage feed with a ?bc=1
   // cache-buster so we land on a freshly-rendered authed homepage where
@@ -203,9 +202,7 @@ async function vote(s) {
   return acct.username;
 }
 
-// Force chromium — Firefox persona produces NS_ERROR_ABORT on goto and
-// fails the CDP mouse path (verified 2026-05-06 on this trajectory and
-// previously in register.mjs commit 8c7c20b).
+// This trajectory uses the Chromium navigation and input path.
 const s = await WSession.start({ label: 'producthunt_upvote', proxy, browser: 'chromium' });
 try {
   const username = await vote(s);

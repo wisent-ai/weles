@@ -1,17 +1,9 @@
 import { contextRead, ownListingHas, publicAboutStatus, readOwnHandle } from './reddit_json.mjs';
 
 /**
- * Documented false-positive history: Reddit's /api/comment XHR has been
- * observed to return RATELIMIT JSON for new-account submissions that ARE
- * accepted server-side and visible in the user's authenticated
- * /comments/.json listing. Verified 2026-04-29 with mayastone2170: XHR said
- * RATELIMIT, comment id oiyy4nx is in the auth listing, account about.json is
- * 200 (not shadowbanned). Treating XHR rate_limited as a definitive verdict
- * caused 30+ false-FAIL trajectory runs.
- *
- * So a blocking XHR signal is checked against the authenticated listing
- * first. Returns false when the listing has the comment (the signal was a
- * false positive); throws when it does not (a real failure).
+ * Check a blocking submission signal against the authenticated comment
+ * listing. The listing can prove the comment was accepted despite that
+ * signal. Return false when it contains the comment; otherwise throw.
  */
 export async function confirmBlockingSignal(s, banSignal, body) {
   if (!banSignal || !/^(rate_limited|shadowbanned|banned_account|banned_subreddit|thread_locked)$/.test(banSignal.signal)) return banSignal;
@@ -48,8 +40,7 @@ export async function pollPublicVisibility(s, { baseUrl, postedCommentId, handle
   if (postedCommentId) {
     // Reddit's comment-permalink JSON format is /r/<sub>/comments/<post>/<post-slug>/<comment-id>/.json
     // (NOT /r/<sub>/comments/<post>/<post-slug>/comment/<comment-id>/.json — the
-    // /comment/ segment causes 404). Verified 2026-04-29 with oj0vwon:
-    // /comment/oj0vwon/.json → 404, /oj0vwon/.json → 200 + full JSON.
+    // /comment/ segment is not part of the comment-permalink JSON route).
     const { status, body: text } = await contextRead(s, `${baseUrl}/${postedCommentId}/.json`);
     let j = false; try { j = JSON.parse(text); } catch { /* not JSON: the permalink answered with a page */ }
     const commentNode = j?.[1]?.data?.children?.[0];

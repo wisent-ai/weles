@@ -2,8 +2,7 @@
 //
 // Expected UI:
 //   kimi.com -> Settings -> Subscription
-//   "Allegro"
-//   "Next auto-renewal date: 2026-07-14"
+//   The account's current plan and next auto-renewal date
 //   tabs: Subscription Info, My Quota, Billing & Invoices
 //
 // This reads UI text from a keeper session that was verified interactively
