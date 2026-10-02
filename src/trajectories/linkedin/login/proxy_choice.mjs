@@ -1,17 +1,12 @@
 import { resolveProxy } from '../../../../dist/proxy/config.js';
 
-// Sticky-IP preservation. Each linkedin_login session MUST reuse the exit-IP
-// cohort the account first registered + last successfully logged in from —
-// otherwise LinkedIn's risk model treats the shift as account-takeover and
-// forces /checkpoint with the captcha grid (cited 2026-05-08T06:25 run,
-// frame_last.png of the login diagnostics).
+// Preserve the account's stored connection identity for subsequent logins.
 //
 // resolveAccountSession returns proxyUrl already with the stored sticky
 // session ID baked in (oxylabs `customer-X-cc-us-sessid-N` etc). Only
 // override when:
 //   (a) no proxyUrl came back (account never registered with a proxy), OR
-//   (b) the stored proxy is NOT a static ISP host (Residential triggers the
-//       PX challenge per 2026-05-06 probe).
+//   (b) the stored proxy is not a static ISP host.
 // The override path generates a fresh sessId by design — ONLY first login or
 // recovery after the registration sticky burned. Steady-state logins must
 // hit the same exit IP as the prior successful login.

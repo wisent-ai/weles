@@ -14,11 +14,7 @@ export async function resolveUrlFormProxy(
   const platformForBlock = platformFromTarget(targetHost);
   const provFromUrl = providerFromHost(u.hostname, decodeURIComponent(u.username));
   const retiredReason = retiredProviderReason(u.hostname, u.port);
-  // Escape hatch for RE-VALIDATION: a retire/toxic verdict is learned from a
-  // point-in-time observation; a provider's underlying pool can rotate (e.g.
-  // Oxylabs disp.* moved from CenturyLink datacenter ASNs to Comcast
-  // residential since the 2026-05-12 block). WELES_ALLOW_RETIRED_PROXY=1
-  // deliberately bypasses the URL-form blocks so such an exit can be re-tested.
+  // The explicit retired-proxy override permits revalidation of a blocked pool.
   const allowRetired = process.env.WELES_ALLOW_RETIRED_PROXY === '1';
   if (allowRetired && (retiredReason || isProviderBlockedForPlatform(provFromUrl, platformForBlock))) {
     console.log(`[proxy] OVERRIDE: WELES_ALLOW_RETIRED_PROXY=1 — bypassing block for ${u.hostname}:${u.port} (would be: ${retiredReason ?? 'toxic_for_' + platformForBlock})`);

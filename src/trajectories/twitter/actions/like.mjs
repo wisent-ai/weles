@@ -48,12 +48,8 @@ try {
     throw probeErr;
   }
 
-  // The /home timeline can be empty for very-new accounts whose For-You
-  // algorithm hasn't been built yet — Twitter shows the compose box and
-  // sidebar but no cellInnerDiv tweets. Detect this and fall through to
-  // a populated profile timeline (elonmusk's). Verified 2026-04-29 with
-  // eddiekeeling2594: /home cellInnerDiv count=0, /elonmusk has 20+
-  // visible tweets within 5s.
+  // A new account can have no home-timeline posts. Check for a visible action
+  // before using this trajectory's alternate profile timeline.
   await pageSettled(s.page);
   let likeBtn = s.page.locator('[data-testid="like"]').filter({ visible: true }).first();
   if (!await likeBtn.isVisible()) {

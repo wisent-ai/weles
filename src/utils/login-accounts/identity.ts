@@ -41,10 +41,7 @@ export const slug = (value: string): string =>
  * back into an address — and a suffix that matches no login, or more than
  * one, yields nothing, so the caller's refusal stands.
  *
- * This is what an account imported before 2026-09-18 lacks: those members
- * carry no `account_ref`, `/readyz` reports each as
- * `subscription_identity_missing`, and the automatic sign-in that exists to
- * replace their burnt grants cannot start at all.
+ * This lookup supports imported members that have no explicit account_ref.
  */
 export function accountFromSubscriptionId(
   subscriptionId: string,

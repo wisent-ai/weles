@@ -51,10 +51,7 @@ if (!ticker) {
 // page here without verifying it appears in the <a href> list that probe
 // emits, otherwise the scrape will hit a 404.
 const PAGE_URLS = {
-  // Options-flow alerts — UW's flagship per-trade signal. The /stock/T/flow-alerts
-  // page redirects to /option-flow-alerts?ticker_symbol=T which renders 50 rows by
-  // default but accepts &limit=N up to 500 (probed 2026-05-09: 50/100/200/500 work,
-  // 1000 collapses back to 50). Use limit=500 for max history per scrape.
+  // The options-flow page accepts a ticker and a bounded history limit.
   option_flow_alerts: (t) => `https://unusualwhales.com/option-flow-alerts?ticker_symbol=${t}&limit=500`,
   overview: (t) => `https://unusualwhales.com/stock/${t}/overview${qs}`,
   chart: (t) => `https://unusualwhales.com/stock/${t}/chart${qs}`,
@@ -165,11 +162,7 @@ async function scrapeOnePage(sess, tk, pg, ssPath) {
   }
   if (!ready) { console.error(`[uw_scrape] [${pg}] never rendered — skipping`); return { skipped: true, reason: 'never_rendered' }; }
   await pageSettled(sess.page);
-  // For pages with a TIME RANGE calendar picker (option_flow_alerts),
-  // drive the picker to the largest preset before extracting. Confirmed
-  // on /dark-pool-flow (2026-05-08): the page disclaimer caps the
-  // free-tier window at 7 calendar days, so "Last 7 Days" is the
-  // maximum-history preset available.
+  // Select the available time-range preset before extracting alerts.
   if (pg === 'option_flow_alerts') {
     try {
       const timeBtn = sess.page.locator('button:has-text("TIME RANGE")').first();
@@ -209,8 +202,6 @@ async function scrapeOnePage(sess, tk, pg, ssPath) {
       rows: Array.from(t.querySelectorAll('tbody tr')).map((r) => Array.from(r.querySelectorAll('td, th')).map((c) => c.innerText.trim())),
     }));
     // Non-table extractors for UW pages that render charts/cards/SVG instead of tables.
-    // Pages confirmed table-empty 2026-05-10: financials, insiders, dividends, volatility,
-    // options_charting, net_premium, risk, greek_exposure, chart.
     out.cards = Array.from(document.querySelectorAll('[class*="card" i], [class*="Card" i], [class*="kpi" i], [class*="metric" i]')).slice(0, 50).map((el) => {
       const label = el.querySelector('[class*="label" i], [class*="title" i], h3, h4, h5')?.innerText?.trim() || '';
       const value = el.querySelector('[class*="value" i], [class*="figure" i], strong, b')?.innerText?.trim() || el.innerText?.trim() || '';
