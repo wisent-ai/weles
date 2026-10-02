@@ -9,17 +9,25 @@
 //   1. Source account, start WSession, addInitScript-inject discord_token.
 //   2. Navigate /channels/@me.
 //   3. Click Pending tab on the Friends panel.
-//   4. For each row up to ACCEPT_LIMIT, find the Accept button, click it.
-//   5. Append entry to metadata.friend_requests_accepted[] per success.
+//   4. For each row up to ACCEPT_LIMIT, observe its acceptance response.
+//   5. Persist each acknowledged target before observing removal of its control.
 
 import { runOutputPath } from '#run-output';
 import { WSession } from '../../../../../dist/session/wsession.js';
-import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../../dist/human/mouse.js';
 import { getSocialAccount, resolveAccountSession } from '../../../../../dist/utils/credentials.js';
 import { updateAccountMetadata } from '../../../_shared/skarbiec/accounts.mjs';
+import { pageSettled, responseAfterAction } from '../../../_shared/page/settled.mjs';
+import { checkReachable } from '../../../_shared/action-runner.mjs';
+import { readDiscordNoContent } from '../../../_shared/discord/response.mjs';
 
 const ACCT_USERNAME = process.env.ACCOUNT_USERNAME;
-const ACCEPT_LIMIT = parseInt(process.env.ACCEPT_LIMIT || '3', 10);
+const rawLimit = process.env.ACCEPT_LIMIT ?? '3';
+const ACCEPT_LIMIT = Number(rawLimit);
+if (!/^\d+$/.test(rawLimit) || !Number.isSafeInteger(ACCEPT_LIMIT) || ACCEPT_LIMIT < 1) {
+  console.error('DISCORD_ACCEPT_LIMIT_INVALID: ACCEPT_LIMIT must be a positive integer; observed', JSON.stringify(rawLimit));
+  process.exit(1);
+}
 
 const acct = ACCT_USERNAME
   ? await getSocialAccount('discord', { username: ACCT_USERNAME })
@@ -27,68 +35,88 @@ const acct = ACCT_USERNAME
 if (!acct) { console.log('FAIL: no discord account'); process.exit(1); }
 const token = acct.metadata?.discord_token;
 if (!token) { console.log(`FAIL: ${acct.username} metadata.discord_token missing`); process.exit(1); }
+if (!acct.id) { console.error('DISCORD_ACCEPT_ACCOUNT_ID_UNAVAILABLE'); process.exit(1); }
 
 const opts = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'discord_accept_friend_request', proxy: opts.proxyUrl, persona: opts.persona, targetHost: 'discord.com' });
 console.log(`[accept_friend] account=${acct.username} limit=${ACCEPT_LIMIT}`);
 
-async function fail(msg) {
-  console.log(`FAIL: ${msg}`);
-  try { await s.page.screenshot({ path: runOutputPath('accept_friend_request', `fail_${Date.now()}.png`) }); } catch (e) { console.log(`[accept_friend] screenshot err: ${e.message}`); }
-  await s.close();
-  process.exit(1);
-}
+const accepted = [];
+let emptyStateObserved = false;
+const relationshipPath = /^\/api\/v\d+\/users\/@me\/relationships\/(\d+)$/;
 
 try {
-  await s.ctx.addInitScript(`(()=>{try{if(location.hostname.indexOf('discord')>=0){localStorage.setItem('token',JSON.stringify(${JSON.stringify(token)}))}}catch(e){}})()`);
+  await s.ctx.addInitScript((value) => {
+    if (location.hostname === 'discord.com') localStorage.setItem('token', JSON.stringify(value));
+  }, token);
   await s.goto('https://discord.com/channels/@me');
+  checkReachable(s, 'discord');
   // Wait for the SPA gateway-hydration splash ("DID YOU KNOW: ...") to
   // clear by waiting for the bottom-left User Settings gear button —
   // it only appears once the user-popout has rendered.
-  try { await s.page.locator('button[aria-label="User Settings"]').first().waitFor({ state: 'visible' }); }
-  catch (e) { await fail(`SPA did not finish hydrating: ${e.message}`); }
-  await humanIdlePause('short');
+  await s.page.locator('button[aria-label="User Settings"]').first().waitFor({ state: 'visible' });
 
   // Tab text may include a count badge like "Pending (2)" — match prefix.
-  const pendingTab = s.page.locator('div, button, [role=tab]').filter({ hasText: /^Pending(\s|\(|$)/ }).first();
-  if ((await pendingTab.count()) === 0) { await fail('Pending tab not found'); }
+  const pendingTab = s.page.getByRole('tab', { name: /^Pending/ }).first();
+  await pendingTab.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, pendingTab);
-  await humanIdlePause('deliberate');
+  await s.page.getByRole('tab', { name: /^Pending/, selected: true }).first().waitFor({ state: 'visible' });
+  await pageSettled(s.page);
 
-  const accepted = [];
-  // retry-allowed: per-row sequential Accept click; bounded by ACCEPT_LIMIT.
   for (let i = 0; i < ACCEPT_LIMIT; i++) {
-    const acceptBtn = s.page.locator('button[aria-label*="Accept"]').first();
-    if ((await acceptBtn.count()) === 0) { console.log(`[accept_friend] no more pending requests (accepted ${accepted.length})`); break; }
-    // Try to capture the username adjacent to the button before clicking.
-    let target = null;
-    try {
-      target = await acceptBtn.evaluate(b => { // allow-raw-playwright: read-only DOM walk to find adjacent username
-        const row = b.closest('li, [class*="peopleListItem"], [class*="friend"]');
-        if (!row) return null;
-        const u = row.querySelector('[class*="username"], [class*="displayName"]');
-        return u ? (u.textContent || '').trim() : null;
-      });
-    } catch (e) { console.log(`[accept_friend] target read err: ${e.message}`); }
-    await humanClickLocator(s.page, acceptBtn);
-    await humanIdlePause('deliberate');
-    accepted.push({ target: target || `<unknown ${i}>`, at: new Date().toISOString() });
-    console.log(`[accept_friend] accepted ${i + 1}: ${target || '?'}`);
+    const candidate = s.page.locator('button[aria-label*="Accept"]').filter({ visible: true }).first();
+    const emptyState = s.page.getByText(/no pending friend requests/i).filter({ visible: true }).first();
+    const outgoing = s.page.locator('button[aria-label*="Cancel"]').filter({ visible: true }).first();
+    await candidate.or(emptyState).or(outgoing).first().waitFor({ state: 'visible' });
+    if ((await candidate.count()) === 0) {
+      emptyStateObserved = await emptyState.count() > 0;
+      if (emptyStateObserved) break;
+      throw Object.assign(new Error('DISCORD_ACCEPT_PENDING_UNCONFIRMED: no acceptance control or explicit empty state was observed'),
+        { pageUrl: s.page.url(), observedText: await s.page.locator('body').innerText() });
+    }
+    const target = await candidate.evaluate(button => { // allow-raw-playwright: read-only row identity
+      const row = button.closest('[data-list-item-id], li, [class*="peopleListItem"], [class*="friend"]');
+      if (!row) return { selector: null, label: null };
+      const listId = row.getAttribute('data-list-item-id');
+      const selector = row.id ? `#${CSS.escape(row.id)}`
+        : listId ? `[data-list-item-id="${CSS.escape(listId)}"]` : null;
+      const label = row.querySelector('[class*="username"], [class*="displayName"]')?.textContent?.trim() || null;
+      return { selector, label, observedText: row.textContent };
+    });
+    if (!target.selector) {
+      throw Object.assign(new Error('DISCORD_ACCEPT_TARGET_UNCONFIRMED: the observed row has no stable selector'),
+        { observed: target, pageUrl: s.page.url() });
+    }
+    const acceptBtn = s.page.locator(target.selector).locator('button[aria-label*="Accept"]').filter({ visible: true }).first();
+    const response = await responseAfterAction(s.page, (request) => {
+      const url = new URL(request.url());
+      return request.method() === 'PUT' && url.origin === 'https://discord.com' && relationshipPath.test(url.pathname);
+    }, () => humanClickLocator(s.page, acceptBtn));
+    await readDiscordNoContent(response, 'accept_friend_request', 'DISCORD_ACCEPT');
+    const targetId = relationshipPath.exec(new URL(response.url()).pathname)?.[1];
+    if (!targetId) {
+      throw Object.assign(new Error('DISCORD_ACCEPT_TARGET_UNCONFIRMED: reconcile the acknowledged response before another attempt'),
+        { requestUrl: response.url(), httpStatus: response.status(), observed: target });
+    }
+    const entry = { target: target.label || targetId, target_id: targetId, at: new Date().toISOString(), acknowledgement: 'provider_response' };
+    accepted.push(entry);
+    updateAccountMetadata(acct.id, current => ({
+      ...current,
+      friend_requests_accepted: [...(Array.isArray(current?.friend_requests_accepted) ? current.friend_requests_accepted : []), entry],
+    }));
+    console.log(`[accept_friend] acknowledged and persisted ${i + 1}: ${targetId}`);
+    await acceptBtn.waitFor({ state: 'hidden' });
+    await pageSettled(s.page);
   }
-  if (accepted.length === 0) { console.log(`PASS: ${acct.username} no pending requests to accept`); process.exit(0); }
-
-  if (!acct.id) throw new Error('Discord account has no stable Skarbiec id');
-  const list = Array.isArray(acct.metadata?.friend_requests_accepted)
-    ? [...acct.metadata.friend_requests_accepted]
-    : [];
-  list.push(...accepted);
-  updateAccountMetadata(acct.id, { friend_requests_accepted: list });
-  console.log('[accept_friend] persisted metadata.friend_requests_accepted[] in Skarbiec');
-  console.log(`PASS: ${acct.username} accepted ${accepted.length} request(s)`);
+  console.log(JSON.stringify({
+    ok: true, operation: 'accept_friend_requests', account_id: acct.id,
+    accepted, limit: ACCEPT_LIMIT, empty_state_observed: emptyStateObserved,
+  }));
 } catch (e) {
-  console.log(`FAIL: ${e.message}`);
-  process.exit(1);
+  console.error('DISCORD_ACCEPT_FAILED:', e, { acknowledged: accepted });
+  try { await s.page.screenshot({ path: runOutputPath('accept_friend_request', `fail_${Date.now()}.png`) }); }
+  catch (cause) { console.error('DISCORD_ACCEPT_SCREENSHOT_FAILED:', cause); }
+  process.exitCode = 1;
 } finally {
   await s.close();
 }
-process.exit(0);
