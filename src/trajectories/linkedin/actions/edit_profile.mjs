@@ -12,6 +12,7 @@ import { assertAuthed, AuthProbeError } from '../../_shared/auth/auth-probe.mjs'
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/auth/cookie-freshness.mjs';
 import { loadAvatarFile } from '../../_shared/runner/avatar-loader.mjs';
 import { updateAccountMetadata } from '../../_shared/skarbiec/accounts.mjs';
+import { responseAfterAction } from '../../_shared/page/settled.mjs';
 
 
 const acct = await getSocialAccount('linkedin');
@@ -39,7 +40,7 @@ try {
     stored = all.filter(c => /linkedin\.com/.test(c.domain ?? ''));
     if (!stored.length) throw new CookieJarStaleError('cookie_jar_no_domain_match: jar fresh but no linkedin.com cookies', { platform: 'linkedin' });
   } catch (jarErr) {
-    if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); process.exit(1); }
+    if (jarErr instanceof CookieJarStaleError) await markCookiesStale(acct.id);
     throw jarErr;
   }
   await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
@@ -51,12 +52,15 @@ try {
   await s.page.goto('https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded' });
   await humanIdlePause('deliberate');
   if (/\/(login|checkpoint|uas)/.test(s.page.url())) {
-    console.log(`FAIL: cookies stale, redirected to ${s.page.url()}`);
+    const error = new Error(`cookies stale, redirected to ${s.page.url()}`);
     await markCookiesStale(acct.id);
-    process.exit(1);
+    throw error;
   }
   try { await assertAuthed('linkedin', s, { label: 'linkedin_edit_profile' }); }
-  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
+  catch (probeErr) {
+    if (probeErr instanceof AuthProbeError) await markCookiesStale(acct.id);
+    throw probeErr;
+  }
   // /in/me/edit-form/intro/ is deprecated — it returns "This page
   // doesn't exist" for fresh accounts. Navigate to /in/me/ profile page
   // and click the pencil edit-intro button to open the modal.
@@ -152,8 +156,7 @@ try {
     // event of the last-touched field. Without a blur, the form-dirty
     // state stays false and the save onClick handler returns early.
     // Press Tab to blur + commit the typed value before clicking Save.
-    await s.page.keyboard.press('Tab').catch(() => {});
-    await humanIdlePause('short');
+    await s.page.keyboard.press('Tab');
     // Diagnostic: dump every visible button so we can identify the real
     // save control (last run with `last()` selector hit a button that
     // dispatched no save mutation — picking the wrong one).
@@ -169,22 +172,28 @@ try {
     if (saveCount > 0) {
       // Watch for the save mutation POST. The form is a React Server
       // Component; saving fires a POST to /flagship-web/rsc-action/.
-      const savePost = s.page.waitForResponse((r) => r.request().method() === 'POST' && /rsc-action.*ProfileEditIntroForm|rsc-action.*editProfile|rsc-action.*action=update/.test(r.url())).catch(() => null);
-      // humanClickLocator on the visible Save button can produce
-      // zero mutation POSTs across multiple runs. RSC forms commonly
-      // submit via form.requestSubmit(button) not button.click(); call
-      // that directly so the right onSubmit/action handler fires.
-      const dispatchResult = await humanClickLocator(s.page, saveBtn)
-        .then(() => 'humanClickLocator')
-        .catch((e) => `err:${e.message}`);
-      console.log(`[li-profile] save dispatch: ${dispatchResult}`);
-      const apiRes = await savePost;
+      const apiRes = await responseAfterAction(s.page,
+        (request) => request.method() === 'POST' && /rsc-action.*ProfileEditIntroForm|rsc-action.*editProfile|rsc-action.*action=update/.test(request.url()),
+        () => humanClickLocator(s.page, saveBtn));
+      console.log('[li-profile] save dispatch: humanClickLocator');
+      const requestUrl = apiRes.url();
+      const status = apiRes.status();
+      if (!apiRes.ok()) throw Object.assign(new Error(`Profile save returned HTTP ${status} ${apiRes.statusText()} at ${requestUrl}`),
+        { code: 'LI_PROFILE_SAVE_HTTP_ERROR', requestMethod: 'POST', requestUrl, status });
+      try {
+        const failure = await apiRes.finished();
+        if (failure) throw failure;
+      } catch (cause) {
+        throw Object.assign(new Error(`Profile save response did not finish at ${requestUrl}`, { cause }),
+          { code: 'LI_PROFILE_SAVE_RESPONSE_FAILED', requestMethod: 'POST', requestUrl, status });
+      }
       const postClickBody = await s.page.evaluate(() => (document.body?.innerText || '').slice(0, 600).replace(/\n/g, ' / ')).catch(() => '');
       console.log(`[li-profile] save: post-click url=${s.page.url()}`);
       console.log(`[li-profile] save: post-click body head: ${postClickBody.slice(0, 400)}`);
-      console.log(`[li-profile] save: mutation POST=${apiRes ? `${apiRes.status()} ${apiRes.url().slice(0, 120)}` : 'NEVER FIRED'}`);
+      console.log(`[li-profile] save: mutation POST=${status} ${requestUrl}`);
     } else {
-      console.log('[li-profile] save button not enabled — humanType may not have triggered React change event');
+      throw Object.assign(new Error('No visible enabled Save button after profile field input and blur'),
+        { code: 'LI_PROFILE_SAVE_NOT_ENABLED', pageUrl: s.page.url() });
     }
   } else {
     console.log('[li-profile] intro fields already match — skipping save');
@@ -260,24 +269,31 @@ try {
     updated_at: new Date().toISOString(),
   });
 
-  if (!writes.length) { console.log('PASS: no-op (form values already match character; Skarbiec synced)'); process.exit(0); }
-  console.log(`PASS: ${acct.username} profile updated to ${character.name}`);
+  if (!writes.length) console.log('PASS: no-op (form values already match character; Skarbiec synced)');
+  else console.log(`PASS: ${acct.username} profile updated to ${character.name}`);
 } catch (e) {
-  console.log('FAIL:', e.message);
-  process.exit(1);
+  console.log('FAIL:', e);
+  process.exitCode = 1;
 } finally {
-  // WELES_KEEP_OPEN=1 holds the browser open
-  // after the trajectory finishes so the human can take over and debug
-  // the form state directly. Default behavior (no env var) closes as
-  // before so cron + worker calls aren't affected.
-  if (process.env.WELES_KEEP_OPEN === '1') {
-    console.log('[li-profile] WELES_KEEP_OPEN=1 — browser left open. Close window or Ctrl+C to exit.');
-    await new Promise((resolve) => {
-      const done = () => { resolve(); };
-      try { s.page.on('close', done); s.ctx.on('close', done); } catch {}
-      process.on('SIGINT', done);
-      process.on('SIGTERM', done);
-    });
+  try {
+    // Explicit review holds only an existing page and releases every observer.
+    if (process.env.WELES_KEEP_OPEN === '1' && !s.page.isClosed()) {
+      console.log('[li-profile] WELES_KEEP_OPEN=1 — browser left open. Close window or Ctrl+C to exit.');
+      const { promise, resolve } = Promise.withResolvers();
+      s.page.on('close', resolve);
+      s.ctx.on('close', resolve);
+      process.on('SIGINT', resolve);
+      process.on('SIGTERM', resolve);
+      try {
+        await promise;
+      } finally {
+        s.page.off('close', resolve);
+        s.ctx.off('close', resolve);
+        process.off('SIGINT', resolve);
+        process.off('SIGTERM', resolve);
+      }
+    }
+  } finally {
+    await s.close();
   }
-  await s.close();
 }
