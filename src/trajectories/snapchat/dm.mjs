@@ -38,13 +38,11 @@ try {
   const composeBtn = s.page.locator('button[aria-label="Compose Chat"], button[aria-label*="New Chat" i], button[aria-label*="Compose" i]').filter({ visible: true }).first();
   await composeBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, composeBtn);
-  await humanIdlePause('short');
 
   const searchIn = s.page.locator('div[role="textbox"][contenteditable="true"], input[type="search"], input[aria-label*="Search" i], input[placeholder*="Search" i]').filter({ visible: true }).first();
   await searchIn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, searchIn);
   await humanType(s.page, RECIPIENT);
-  await humanIdlePause('deliberate');
 
   const userRow = s.page.locator(`[role="option"]:has-text("${RECIPIENT}"), [role="button"]:has-text("${RECIPIENT}"), li:has-text("${RECIPIENT}")`).filter({ visible: true }).first();
   await userRow.waitFor({ state: 'visible' });
@@ -78,8 +76,8 @@ try {
   if (!echoCount) { console.log('FAIL: composer typed but message not echoed in chat'); process.exit(1); }
   console.log(`PASS: DM sent to @${RECIPIENT}`);
 } catch (e) {
-  console.log('FAIL:', e.message);
-  process.exit(1);
+  console.error('FAIL:', e);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }

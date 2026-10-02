@@ -40,13 +40,11 @@ try {
   const newMsgBtn = s.page.locator('[data-e2e="chat-create-new"], button[aria-label*="New message" i], div[role="button"]:has-text("New message"), button:has-text("New message")').filter({ visible: true }).first();
   await newMsgBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, newMsgBtn);
-  await humanIdlePause('short');
 
   const searchIn = s.page.locator('input[data-e2e="chat-create-new-search"], input[placeholder*="Search" i], input[aria-label*="Search" i]').filter({ visible: true }).first();
   await searchIn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, searchIn);
   await humanType(s.page, RECIPIENT);
-  await humanIdlePause('deliberate');
 
   const userRow = s.page.locator(`[data-e2e*="search-user"]:has-text("${RECIPIENT}"), div[role="button"]:has-text("${RECIPIENT}"), li:has-text("${RECIPIENT}")`).filter({ visible: true }).first();
   await userRow.waitFor({ state: 'visible' });
@@ -91,8 +89,8 @@ try {
   if (!echoCount) { console.log('FAIL: composer typed but message not echoed in conversation pane'); process.exit(1); }
   console.log(`PASS: DM sent to @${RECIPIENT}`);
 } catch (e) {
-  console.log('FAIL:', e.message);
-  process.exit(1);
+  console.error('FAIL:', e);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }

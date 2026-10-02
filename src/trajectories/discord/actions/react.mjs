@@ -4,7 +4,6 @@ import { detectDiscordBanSignals } from '../../../../dist/platforms/discord/ban_
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
-import { humanIdlePause } from '../../../../dist/human/mouse.js';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 const channelPath = process.env.SERVER_CHANNEL_PATH || '@me';
@@ -19,7 +18,6 @@ let ban = null;
 try {
   await s.goto(`https://discord.com/channels/${channelPath}`);
   checkReachable(s, 'discord');
-  await humanIdlePause('deliberate');
   // Wait for chat messages to render — each message <li id="chat-messages-{channelId}-{messageId}">.
   await s.page.locator('li[id^="chat-messages-"]').first().waitFor({ state: 'visible' });
   // Pick the most recent message — last in document order with non-empty content.

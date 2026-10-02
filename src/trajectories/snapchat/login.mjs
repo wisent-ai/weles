@@ -1,7 +1,7 @@
 import { getSocialAccount } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
-import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { urlMatching } from '../_shared/page/settled.mjs';
 import { persistFreshCookieJar } from '../_shared/auth/cookie-freshness.mjs';
 
@@ -16,7 +16,6 @@ console.log(`[trajectory] Using account: ${acct.username}`);
 const s = await WSession.start({ label: 'snapchat_login', proxy: process.env.PROXY_URL || undefined });
 try {
   await s.goto(URL);
-  await humanIdlePause('deliberate');
   // Step 1: username/email input → Next.
   const userIn = s.page.locator('input[name="username"], input#username, input[autocomplete="username"], input[type="email"]').filter({ visible: true }).first();
   await userIn.waitFor({ state: 'visible' });
@@ -35,8 +34,8 @@ try {
   catch (e) { console.log('[cookie-capture] err:', e.message); }
   console.log(`PASS: logged in (${s.page.url()})`);
 } catch (e) {
-  console.log('FAIL:', e.message);
-  process.exit(1);
+  console.error('FAIL:', e);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }
