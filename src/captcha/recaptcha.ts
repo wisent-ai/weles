@@ -29,75 +29,68 @@ function findAnchorFrame(page: Page) {
   return null;
 }
 
+type ChallengeEntry = { kind: 'solved' } | { kind: 'loading' } | { kind: 'ready'; frame: Page; instruction: string; gridSize: number };
+
+async function readChallengeEntry(page: Page): Promise<ChallengeEntry | null> {
+  const anchor = findAnchorFrame(page);
+  if (anchor && await anchor.evaluate(`(() => document.querySelector('.recaptcha-checkbox')?.getAttribute('aria-checked') === 'true')()`)) return { kind: 'solved' };
+  const frame = findBframe(page);
+  if (!frame) return null;
+  const visible = await frame.evaluate(`(() => {
+    for (const el of document.querySelectorAll('.rc-imageselect-desc, .rc-imageselect-desc-no-canonical')) {
+      if (el.offsetParent === null || getComputedStyle(el).visibility === 'hidden') continue;
+      const table = document.querySelector('table.rc-imageselect-table, table.rc-imageselect-table-33, table.rc-imageselect-table-44');
+      if (!table || table.offsetParent === null) return { loading: true };
+      const cols = table.querySelector('tr')?.querySelectorAll('td').length;
+      if (!cols) return { loading: true };
+      let loading = false;
+      for (const image of table.querySelectorAll('img')) {
+        if (!image.complete) loading = true;
+        else if (!image.naturalWidth) throw new Error('RECAPTCHA_IMAGE_LOAD_FAILED: ' + (image.currentSrc || image.src));
+      }
+      if (loading) return { loading: true };
+      return { instruction: el.innerText ?? '', cols };
+    }
+    return null;
+  })()`);
+  if (!visible) return null;
+  if (visible.loading) return { kind: 'loading' };
+  if (!visible.instruction.trim()) throw new Error('RECAPTCHA_INSTRUCTION_EMPTY: the visible image challenge has no instruction');
+  if (visible.cols !== 3 && visible.cols !== 4) throw new Error(`RECAPTCHA_GRID_UNSUPPORTED: observed ${visible.cols} columns`);
+  return { kind: 'ready', frame, instruction: visible.instruction, gridSize: visible.cols };
+}
+
 
 export async function solveRecaptchaV2(page: Page): Promise<boolean> {
   console.log('[recaptcha] Starting solver...');
 
-  // Click checkbox if image challenge not already open
-  const existingBframe = findBframe(page);
-  const hasGrid = existingBframe ? await existingBframe.evaluate(`(() => !!document.querySelector('.rc-imageselect-desc'))()`).catch(() => false) : false;
-  if (!hasGrid) {
-    try {
-      const ci = page.frameLocator('iframe[src*="captchaInternal"]');
-      await ci.frameLocator('iframe[src*="anchor"]').first().locator('#recaptcha-anchor').click();
-      console.log('[recaptcha] Clicked checkbox');
-    } catch (e: any) { console.log('[recaptcha] Checkbox failed:', e.message); return false; }
-    const af = findAnchorFrame(page);
-    if (af) {
-      const checked = await af.evaluate(`(() => document.querySelector('.recaptcha-checkbox')?.getAttribute('aria-checked') === 'true')()`).catch(() => false);
-      if (checked) { console.log('[recaptcha] Auto-passed!'); return true; }
-    }
-    await page.waitForEvent('frameattached').catch(() => {});
+  let entry = await readChallengeEntry(page);
+  if (!entry) {
+    const ci = page.frameLocator('iframe[src*="captchaInternal"]');
+    await ci.frameLocator('iframe[src*="anchor"]').first().locator('#recaptcha-anchor').click();
+    console.log('[recaptcha] Clicked checkbox');
   }
+  while (!entry || entry.kind === 'loading') {
+    await pageSettled(page);
+    entry = await readChallengeEntry(page);
+  }
+  if (entry.kind === 'solved') { console.log('[recaptcha] Auto-passed!'); return true; }
 
-  // Use frameLocator chain for clicking (trusted events through nested iframes)
-  const ci = page.frameLocator('iframe[src*="captchaInternal"]');
-  const bf = ci.frameLocator('iframe[src*="bframe"]').first();
 
   // Single-shot solve. No retry on verify-reject — burning budget on the
   // same image + flagged session just trips LinkedIn login-restriction.
   {
     const attempt = 0;
-    let bframe = findBframe(page);
-    // Anchor-state recovery (restored 2026-05-08 from frame_5a0be1ec_last.png
-    // showing "Verification challenge expired" + aria-checked=false).
-    const anchorBeforeRecovery = findAnchorFrame(page);
-    if (anchorBeforeRecovery) {
-      const checked = await anchorBeforeRecovery.evaluate(`(() => document.querySelector('.recaptcha-checkbox')?.getAttribute('aria-checked') === 'true')()`);
-      if (!checked && bframe) {
-        console.log('[recaptcha] Anchor unchecked (token expired) — re-clicking');
-        await anchorBeforeRecovery.locator('#recaptcha-anchor').click({ force: true });
-        await pageSettled(page);
-        bframe = findBframe(page);
-      }
-    }
-    if (!bframe) {
-      // Page may have navigated to new checkpoint — wait for it to load
-      console.log('[recaptcha] No bframe, waiting for page load...');
-      await page.waitForLoadState('domcontentloaded').catch(() => {});
-      // Re-click checkbox on new checkpoint page
-      try {
-        const ci2 = page.frameLocator('iframe[src*="captchaInternal"]');
-        await ci2.frameLocator('iframe[src*="anchor"]').first().locator('#recaptcha-anchor').click();
-        console.log('[recaptcha] Re-clicked checkbox');
-        await page.waitForEvent('frameattached').catch(() => {});
-      } catch {}
-      bframe = findBframe(page);
-      if (!bframe) { console.log('[recaptcha] Still no bframe — failing fast'); return false; }
-    }
+    const bframe = entry.frame;
+    const instruction = entry.instruction;
 
-    await bframe.waitForSelector('.rc-imageselect-desc, .rc-imageselect-desc-no-canonical').catch(() => {});
-    const instruction = await bframe.evaluate(`(() => { const el = document.querySelector('.rc-imageselect-desc, .rc-imageselect-desc-no-canonical'); return el?.innerText ?? ''; })()`).catch(() => '');
-    if (!instruction) { console.log('[recaptcha] Empty instruction — failing fast'); return false; }
-
-    const gridInfo = await bframe.evaluate(`(() => { const t = document.querySelector('table.rc-imageselect-table, table.rc-imageselect-table-33, table.rc-imageselect-table-44'); if (!t) return null; const rows = t.querySelectorAll('tr'); return { cols: rows[0]?.querySelectorAll('td').length || 3 }; })()`).catch(() => null);
-    const gridSize = gridInfo?.cols || 3;
+    const gridSize = entry.gridSize;
     console.log(`[recaptcha] Attempt ${attempt+1}: "${instruction.replace(/\n/g,' ')}" grid=${gridSize}`);
 
     // Save diagnostics: page screenshot + extracted grid image for comparison
     const diagDir = runRecordingsDir('vision'); // G17: recordings/<run_uuid>/vision/
     mkdirSync(diagDir, { recursive: true });
-    const pageScreenshot = await page.screenshot().catch(() => Buffer.from(''));
+    const pageScreenshot = await page.screenshot();
     writeFileSync(join(diagDir, `captcha_attempt${attempt}_page.png`), pageScreenshot);
 
     // Classify tiles via 2captcha/CapSolver (uses extracted grid image from bframe)
@@ -118,7 +111,7 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
         const row = Math.floor((pos - 1) / gridSize) + 1;
         const col = (pos - 1) % gridSize + 1;
         try {
-          await bf.locator(`table tr:nth-child(${row}) td:nth-child(${col})`).click({ force: true });
+          await bframe.locator(`table tr:nth-child(${row}) td:nth-child(${col})`).click({ force: true });
           console.log(`[recaptcha] Tile ${pos}`);
         } catch (e: any) {
           throw new Error(`RECAPTCHA_TILE_CLICK_FAILED: tile ${pos}: ${e.message}`, { cause: e });
