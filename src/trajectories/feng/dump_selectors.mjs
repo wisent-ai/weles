@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { pageSettled } from '../_shared/page/settled.mjs';
+import { pageSettled, urlMatching } from '../_shared/page/settled.mjs';
+import { operatorAction } from './operator/actions.mjs';
 // Discovery selektorów dla generatora PARP. Po keeper-driven loginie i otwarciu
 // wniosku do edycji, walks DOM i ekstrahuje każdy widoczny input/textarea/
 // select/checkbox/radio z najbliższym labelem. Generuje candidate field_map.json
@@ -10,27 +11,30 @@ import { pageSettled } from '../_shared/page/settled.mjs';
 //     node src/trajectories/feng/dump_selectors.mjs
 //
 // Output:
-//   .work/discovered_selectors.json   pełna lista (label, selector, type)
-//   .work/proposed_field_map.json     propozycja mapowania nazw SMART do selektorów
-//   .work/missing_mappings.txt        nazwy SMART bez dopasowania po fuzzy match
+//   build/feng/discovered_selectors.json   pełna lista (label, selector, type)
+//   build/feng/proposed_field_map.json     propozycja mapowania nazw SMART do selektorów
+//   build/feng/missing_mappings.txt        nazwy SMART bez dopasowania po fuzzy match
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { WSession } from '../../../dist/session/wsession.js';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const WORK_DIR = resolve(__dirname, '.work');
-const VALUES_PATH = resolve(WORK_DIR, 'values.json');
+const WORK_DIR = resolve(__dirname, '../../../build/feng');
+const VALUES_PATH = process.env.FENG_VALUES || resolve(__dirname, '../../../build/values.json');
 const FIELD_MAP_PATH = resolve(__dirname, 'field_map.json');
 const GENERATOR_URL = process.env.PARP_GENERATOR_URL || 'https://lsi.parp.gov.pl/';
 
-if (!existsSync(WORK_DIR)) mkdirSync(WORK_DIR, { recursive: true });
 
 function loadJSON(path) {
-  return existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : null;
+  if (!existsSync(path)) return null;
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch (cause) {
+    throw new Error(`FENG_JSON_READ_FAILED: ${path}`, { cause });
+  }
 }
 
 function normalize(s) {
@@ -144,11 +148,7 @@ function fuzzyMatch(values, discovered) {
 
 async function main() {
   const values = loadJSON(VALUES_PATH);
-  if (!values) {
-    console.error(`FAIL: brak ${VALUES_PATH}. Najpierw uruchom: node parse_drafts.mjs > .work/values.json`);
-    process.exitCode = 1;
-    return;
-  }
+  if (!values) throw new Error(`FENG_VALUES_MISSING: ${VALUES_PATH}; FENG_VALUES must name an existing draft-values JSON file`);
 
   const operatorCdp = Boolean(process.env.WELES_OPERATOR_CDP_URL);
   const s = await WSession.start({
@@ -156,60 +156,63 @@ async function main() {
     proxy: process.env.PROXY_URL,
     operatorCdp,
   });
-  if (operatorCdp) console.log('[feng] podłączony przez uwierzytelnioną bramę operatora CDP');
+  let failure;
+  try {
+    if (operatorCdp) console.log('[feng] podłączony przez uwierzytelnioną bramę operatora CDP');
+    console.log(`[feng] otwieram generator: ${GENERATOR_URL}`);
+    await s.goto(GENERATOR_URL);
 
-  console.log(`[feng] otwieram generator: ${GENERATOR_URL}`);
-  await s.goto(GENERATOR_URL);
+    if (await isOnLoginPage(s)) {
+      await operatorAction(s, 'feng-selector-login',
+        'Zaloguj się do generatora PARP w tej sesji Weles i otwórz wniosek do odczytu pól. Automat wznowi odczyt, gdy strona opuści logowanie.',
+        () => urlMatching(s.page, (url) => !/\/login|\/auth|\/signin|logowanie/.test(url)),
+        'The browser left its login route; this does not independently verify the signed-in account or selected application.');
+    }
 
-  console.log('[feng] CZEKAM na keeper-driven login i nawigację do edycji wniosku.');
-  console.log('[feng] Sprawdzam co 5 sekund czy URL nie jest na login.');
-  for (let i = 0; i < 240; i++) {
-    if (!(await isOnLoginPage(s))) break;
+    if (process.env.FENG_WNIOSEK_URL) {
+      console.log(`[feng] nawiguję do wniosku: ${process.env.FENG_WNIOSEK_URL}`);
+      await s.goto(process.env.FENG_WNIOSEK_URL);
+    }
     await pageSettled(s.page);
+    if (await isOnLoginPage(s)) throw new Error(`FENG_SELECTOR_LOGIN_REQUIRED: ${s.page.url()}`);
+
+    console.log('[feng] Odczytuję widoczne pola dokumentu.');
+    const discovered = await dumpFromDom(s);
+    console.log(`[feng] Znaleziono ${discovered.length} pól na aktualnej stronie.`);
+    mkdirSync(WORK_DIR, { recursive: true });
+    writeFileSync(resolve(WORK_DIR, 'discovered_selectors.json'),
+      JSON.stringify(discovered, null, 2));
+
+    const { matched, missing } = fuzzyMatch(values, discovered);
+    console.log(`[feng] Fuzzy match: ${Object.keys(matched).length} dopasowań, ${missing.length} bez dopasowania.`);
+
+    const existing = loadJSON(FIELD_MAP_PATH) || {};
+    const merged = { ...existing };
+    for (const [name, spec] of Object.entries(matched)) {
+      if (existing[name]?.selector && !existing[name].selector.startsWith('TODO')) continue;
+      merged[name] = { ...existing[name], ...spec };
+    }
+    writeFileSync(resolve(WORK_DIR, 'proposed_field_map.json'),
+      JSON.stringify(merged, null, 2));
+    writeFileSync(resolve(WORK_DIR, 'missing_mappings.txt'),
+      'SMART NAME\tBEST SCORE\tBEST LABEL\n' + missing.join('\n') + '\n');
+
+    console.log('[feng] Output:');
+    console.log(`  ${resolve(WORK_DIR, 'discovered_selectors.json')}`);
+    console.log(`  ${resolve(WORK_DIR, 'proposed_field_map.json')}`);
+    console.log(`  ${resolve(WORK_DIR, 'missing_mappings.txt')}`);
+    console.log('[feng] Eksport zakończony; sesja zostanie zamknięta.');
+  } catch (error) {
+    failure = { error };
+    throw error;
+  } finally {
+    try {
+      await s.close();
+    } catch (closeError) {
+      if (failure) throw new AggregateError([failure.error, closeError], 'FENG selector discovery and session closure failed');
+      throw closeError;
+    }
   }
-  if (await isOnLoginPage(s)) {
-    console.error('FAIL: wciąż na login. Przerwałem.');
-    process.exitCode = 1;
-    await s.close();
-    return;
-  }
-
-  if (process.env.FENG_WNIOSEK_URL) {
-    console.log(`[feng] nawiguję do wniosku: ${process.env.FENG_WNIOSEK_URL}`);
-    await s.goto(process.env.FENG_WNIOSEK_URL);
-    await humanIdlePause('deliberate');
-  }
-
-  console.log('[feng] Walks DOM, ekstrahuję wszystkie widoczne inputy.');
-  const discovered = await dumpFromDom(s);
-  console.log(`[feng] Znaleziono ${discovered.length} pól na aktualnej stronie.`);
-
-  writeFileSync(resolve(WORK_DIR, 'discovered_selectors.json'),
-    JSON.stringify(discovered, null, 2));
-
-  const { matched, missing } = fuzzyMatch(values, discovered);
-  console.log(`[feng] Fuzzy match: ${Object.keys(matched).length} dopasowań, ${missing.length} bez dopasowania.`);
-
-  const existing = loadJSON(FIELD_MAP_PATH) || {};
-  const merged = { ...existing };
-  for (const [name, spec] of Object.entries(matched)) {
-    if (existing[name]?.selector && !existing[name].selector.startsWith('TODO')) continue;
-    merged[name] = { ...existing[name], ...spec };
-  }
-  writeFileSync(resolve(WORK_DIR, 'proposed_field_map.json'),
-    JSON.stringify(merged, null, 2));
-
-  writeFileSync(resolve(WORK_DIR, 'missing_mappings.txt'),
-    'SMART NAME\tBEST SCORE\tBEST LABEL\n' + missing.join('\n') + '\n');
-
-  console.log('[feng] Output:');
-  console.log(`  ${resolve(WORK_DIR, 'discovered_selectors.json')}`);
-  console.log(`  ${resolve(WORK_DIR, 'proposed_field_map.json')}`);
-  console.log(`  ${resolve(WORK_DIR, 'missing_mappings.txt')}`);
-  console.log('[feng] Sesja zostaje otwarta na nawigację do innej sekcji wniosku.');
-  console.log('[feng] Re-run trajektorii żeby zebrać kolejne pola.');
-  await pageSettled(s.page);
-  await s.close();
 }
 
 main().catch((e) => {

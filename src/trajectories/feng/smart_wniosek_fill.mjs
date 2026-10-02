@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { urlMatching } from '../_shared/page/settled.mjs';
-import { closeOperatorRequest, openOperatorRequest } from '#operator-request';
+import { operatorAction } from './operator/actions.mjs';
 // Auto-wypełnianie wniosku SMART na generatorze PARP (lsi2.parp.gov.pl)
 // z draftów lokalnych Wisent Polska.
 //
@@ -60,22 +60,6 @@ function isLoginUrl(url) {
   return /\/login|\/auth|\/signin/.test(new URL(url).pathname);
 }
 
-async function operatorAction(s, kind, instruction, observe, detail) {
-  const request = openOperatorRequest({
-    kind,
-    account: `PARP browser session ${s.label} (process ${process.pid}; identity selected in the browser)`,
-    run: s.label,
-    instruction,
-  });
-  console.log(`[feng] prośba operatora: ${request.id}; powiadomienie przyjęte: ${request.pages.some((attempt) => attempt.ok)}`);
-  try {
-    await observe();
-  } catch (error) {
-    closeOperatorRequest(request.id, false, `The browser stage failed: ${String(error?.message || error)}`);
-    throw error;
-  }
-  closeOperatorRequest(request.id, true, detail);
-}
 
 async function reviewPageClosed(page) {
   if (page.isClosed()) throw new Error('FENG_REVIEW_PAGE_CLOSED: the page closed before review began');
