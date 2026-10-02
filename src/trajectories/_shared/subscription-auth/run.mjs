@@ -5,9 +5,13 @@ import { authorizeInBrowser } from './browser.mjs';
 
 let stage = 'identity';
 let browserStarted = false;
-function mark(value) {
+let secondFactor = null;
+function mark(value, observation = null) {
   stage = value;
   if (value === 'browser_started') browserStarted = true;
+  if (observation && (observation.required === true || secondFactor?.required !== true)) {
+    secondFactor = observation;
+  }
   process.stderr.write(`STEP ${value}\n`);
 }
 
@@ -46,6 +50,7 @@ function fail(error, provider) {
     message: error.message,
     provider,
     browser_started: observedBrowser,
+    second_factor: error.second_factor ?? secondFactor,
     retryable: observedBrowser === false || error.code === 'oauth_transport_failed',
     http_status: error.status || null,
     subscription_id: process.env.BRAMA_SUBSCRIPTION_ID || null,
@@ -72,6 +77,6 @@ export async function reauthenticate(provider) {
     persistSubscriptionGrant(account, credential);
     process.stdout.write(`${JSON.stringify({ ok: true, subscription_id: account.subscriptionId,
       subscription_item: account.subscriptionItem, login_item: account.loginItem,
-      account_revision: account.accountRevision, credential_persisted: true })}\n`);
+      account_revision: account.accountRevision, credential_persisted: true, second_factor: secondFactor })}\n`);
   } catch (error) { fail(error, provider); }
 }

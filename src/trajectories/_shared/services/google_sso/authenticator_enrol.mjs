@@ -85,13 +85,20 @@ export async function openAuthenticatorSetup(page, wait) {
  * @returns {{ ok: true, secret: string } | { ok: false, blocked: string, textPreview: string }}
  */
 export async function revealSetupKey(page, wait) {
-  if (/Remove anyway/i.test(await bodyText(page))) {
-    await clickByText(page, /^Cancel$/i, 'cancel remove-authenticator warning');
-    await wait();
+  const textBefore = await bodyText(page);
+  if (/Remove anyway/i.test(textBefore)) {
+    return { ok: false, blocked: 'authenticator_replacement_requires_consent', textPreview: preview(textBefore) };
   }
-  const started = await clickByText(page, /Set up authenticator|Change authenticator app|Add authenticator/i, 'set up authenticator');
+  // Enrolment may add a factor, but must not replace an existing authenticator
+  // just because its seed is unavailable to Weles.
+  const started = await clickByText(page, /Set up authenticator|Add authenticator/i, 'set up authenticator');
   if (!started) {
-    return { ok: false, blocked: 'setup_action_not_found', textPreview: preview(await bodyText(page)) };
+    return {
+      ok: false,
+      blocked: /Change authenticator app/i.test(textBefore)
+        ? 'authenticator_replacement_requires_consent' : 'setup_action_not_found',
+      textPreview: preview(textBefore),
+    };
   }
   await wait();
   if (!await clickByText(page, /Can.?t scan it/i, "Can't scan it?")) {
@@ -153,6 +160,15 @@ export async function confirmSetupCode(page, wait, secret) {
   const text = await bodyText(page);
   if (/Wrong code|Try again|Invalid code|Couldn't verify|Enter the code/i.test(text)) {
     return { ok: false, blocked: 'setup_code_rejected', textPreview: preview(text) };
+  }
+  const completed = page.getByRole('button', { name: /Change authenticator app/i })
+    .or(page.getByRole('link', { name: /Change authenticator app/i }))
+    .filter({ visible: true }).first();
+  const url = new URL(page.url());
+  if (url.hostname !== 'myaccount.google.com'
+      || !/two-step-verification\/authenticator/.test(url.pathname)
+      || await input.isVisible() || !await completed.isVisible()) {
+    return { ok: false, blocked: 'setup_confirmation_unobserved', textPreview: preview(text) };
   }
   return { ok: true, url: page.url() };
 }

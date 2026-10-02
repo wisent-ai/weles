@@ -1,11 +1,10 @@
 // The one-time code that answers Google's 2FA prompt, and the switch to the
 // method that asks for it.
 //
-// Google defaults this fleet's accounts to a push or an SMS, which headless
-// automation cannot complete, so the challenge is moved to the authenticator app
-// and answered from the account's own stored secret.
+// The credential driver handles an offered phone approval when no seed is held.
+// This module selects the authenticator when that account can answer its code.
 import crypto from 'node:crypto';
-import { humanClick } from '../../../../dist/human/mouse.js';
+import { humanClick, humanClickLocator } from '../../../../dist/human/mouse.js';
 import { navEval } from './page_controls.mjs';
 import { pageCondition, pageSettled } from '../../_shared/page/settled.mjs';
 
@@ -77,7 +76,20 @@ function challengeFailure(code, message, observed) {
   const error = new Error(`${message}: ${JSON.stringify(observed)}`);
   error.code = code;
   error.fatal2fa = true;
+  if (observed?.challenge === true) error.second_factor = { required: true, method: null };
   return error;
+}
+
+// A missing seed has one structured outcome whether the code field is already
+// visible or Google first presents a method chooser. Brama consumes the code,
+// not a substring of the diagnostic, to start the account's recovery flow.
+export async function requireAuthenticatorCode(page, code) {
+  if (typeof code === 'string' && code.trim()) return code.trim();
+  throw challengeFailure('google_2fa_material_missing',
+    'The selected login has no authenticator seed or supplied verification code. '
+    + 'Brama sign-in can request Weles authenticator enrolment and resume this account '
+    + 'after the seed is confirmed; any required phone approval appears in Weles operator requests.',
+    await googleChallengeState(page));
 }
 
 // A challenge that is still displayed is pending, not evidence of refusal.
@@ -122,33 +134,16 @@ export async function selectAuthenticatorMethod(page, hasCode) {
   if (observed.challenge === null) {
     throw challengeFailure('google_sign_in_state_unavailable', 'Google sign-in state could not be read', observed);
   }
-  if (!hasCode) {
-    // A refusal that ends at "has no authenticator seed" leaves the reader to
-    // discover on their own which item, which field and which command, while
-    // every automatic sign-in for the pool fails on it and the gateway above
-    // reports only "no working subscription model for signed agent".
-    //
-    // It then named the field but not the capability that fills it, so the
-    // only reading left was "somebody must paste a secret in". There is a
-    // product that makes one: this same worker's `authenticator_enrol`
-    // trajectory signs the account in, adds an authenticator, and writes the
-    // seed back to the login item. It needs one thing no automation can
-    // supply — a single approval of Google's prompt on the account owner's
-    // phone — and it opens an operator request for exactly that, so the
-    // person is paged instead of waited on in silence.
-    throw challengeFailure('google_2fa_material_missing',
-      'Google requires a sign-in code, and the selected Skarbiec login carries no authenticator '
-      + 'seed: this sign-in reads the login item\'s `totp_secret` field, and nothing else can '
-      + 'answer this screen. Create that seed with this worker\'s own enrolment — '
-      + 'stado workload run weles-browser-task --target <weles host> --plan <plan naming action '
-      + 'authenticator_enrol, provider google and this login item> — which signs the account in, '
-      + 'adds an authenticator and writes `totp_secret` back to the login item; it asks the '
-      + 'account owner to approve one Google prompt on the phone and opens an operator request '
-      + '(weles operator-requests list) while it waits. A seed already held elsewhere can be '
-      + 'written directly instead (stado credentials item put --host <vault host> --type login '
-      + '<login-item>). Without either, every automatic sign-in for this account stops here and '
-      + 'the pool reports no working subscription.',
-      observed);
+  if (!hasCode) await requireAuthenticatorCode(page, null);
+  // Google can open the method chooser directly, without another menu step.
+  const offered = page.getByRole('link', { name: /Google Authenticator/i })
+    .or(page.getByRole('button', { name: /Google Authenticator/i }))
+    .or(page.getByRole('option', { name: /Google Authenticator/i }))
+    .filter({ visible: true }).first();
+  if (await offered.isVisible()) {
+    await humanClickLocator(page, offered);
+    await pageSettled(page);
+    return 'switched';
   }
   const opened = await clickBest('^try another way$|^wyprobuj inny sposob$|^more ways to verify$', 'exact', 30);
   if (!opened) return 'stuck';

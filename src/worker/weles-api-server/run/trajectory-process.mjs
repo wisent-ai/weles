@@ -202,7 +202,8 @@ export function runReauth(provider, account) {
     let stdout = ''; let stderr = ''; let settled = false;
     const finish = (result) => {
       if (settled) return;
-      result.failure = result.ok ? null : credentialFailure(result);
+      result.failure = result.ok ? null : (result.failure ?? credentialFailure(result));
+      result.second_factor ??= result.failure?.second_factor ?? null;
       settled = true;
       try {
         persistRunResult(runResultPath, {
@@ -242,6 +243,8 @@ export function runReauth(provider, account) {
       finish({
         ok: exitCode === 0,
         exitCode,
+        failure: exitCode === 0 ? null : credentialFailure({ stderr_tail: stderr }),
+        second_factor: lastJsonLine(stdout)?.second_factor ?? null,
         provider,
         login_item: account ? account.loginItem : null,
         display_name: account ? account.displayName : null,

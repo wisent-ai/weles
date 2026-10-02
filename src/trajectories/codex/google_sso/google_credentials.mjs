@@ -6,7 +6,8 @@
 // enabled, and provider refusals are reported by the corresponding stage.
 import { fillAndVerify, navEval, waitForEnabledThenClick } from './page_controls.mjs';
 import { pageCondition, pageSettled } from '../../_shared/page/settled.mjs';
-import { resolveOtp, selectAuthenticatorMethod, waitForGoogleChallengeExit } from './authenticator_code.mjs';
+import { resolveOtp, requireAuthenticatorCode, selectAuthenticatorMethod, waitForGoogleChallengeExit } from './authenticator_code.mjs';
+import { completeGooglePhoneApproval } from '../../_shared/services/google_sso/sign_in/challenge/phone.mjs';
 
 export async function establishGoogleSession({
   page, login, mark,
@@ -159,6 +160,11 @@ export async function enterGoogleCredentials({
   mark('google_2fa_check');
   const otpSel = 'input[type="tel"][autocomplete="one-time-code"], input[name="totpPin"], input[autocomplete="one-time-code"]';
   const gOtp = () => page.locator(otpSel).filter({ visible: true }).first();
+  if (!resolveOtp(login)
+      && await completeGooglePhoneApproval(page, login.email, `google-sign-in ${login.email}`)) {
+    mark('google_2fa_phone', { required: true, method: 'phone' });
+    return;
+  }
   // A code field may require selecting its method first; absence is not a
   // failed observation and must not hold the method chooser unreachable.
   if (!(await gOtp().isVisible())) {
@@ -185,12 +191,15 @@ export async function enterGoogleCredentials({
     // (no method-chooser present) — then there is nothing to answer.
     const result = await selectAuthenticatorMethod(page, Boolean(login.totpSecret || process.env.CODEX_2FA_CODE));
     if (result === 'no-2fa') {
+      mark('google_2fa_not_requested', { required: false, method: null });
       console.log('[google_sso] no 2fa challenge present — nothing to answer');
       return;
     }
     if (result === 'stuck') {
       const err = new Error('google 2FA present but could not switch to authenticator — aborting to avoid push/sms loop');
       err.fatal2fa = true;
+      err.code = 'google_authenticator_method_unavailable';
+      err.second_factor = { required: true, method: null };
       throw err;
     }
     console.log('[google_sso] selected authenticator (TOTP) method via "Try another way"');
@@ -199,12 +208,8 @@ export async function enterGoogleCredentials({
   // A code field is showing — it MUST be answered now. Aborting here (rather
   // than going on) prevents the authorize->chooser->re-enter loop from
   // re-submitting the password and re-triggering another push/SMS to the user.
-  const otp = resolveOtp(login);
-  if (!otp) {
-    const err = new Error('google 2FA required but no login.totpSecret and no CODEX_2FA_CODE — aborting to avoid re-triggering push/SMS');
-    err.fatal2fa = true;
-    throw err;
-  }
+  mark('google_2fa_authenticator', { required: true, method: 'authenticator' });
+  const otp = await requireAuthenticatorCode(page, resolveOtp(login));
   await humanFill(page, gOtp(), otp);
   await humanClickLocator(page, page.locator('#totpNext button, button:has-text("Next"), button[type="submit"]').filter({ visible: true }).first());
   await waitForGoogleChallengeExit(page);

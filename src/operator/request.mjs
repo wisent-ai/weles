@@ -172,7 +172,7 @@ export function openOperatorRequest(input) {
     throw new Error(`operator request needs the waiting run's process id, got ${input.runPid}`);
   }
   const waiting = openRequestFor(input.kind, input.account);
-  if (waiting && !isAbandoned(waiting)) return waiting;
+  if (waiting && isAbandoned(waiting) === false) return waiting;
   const opened = new Date();
   const request = {
     schema: OPERATOR_REQUEST_SCHEMA,
@@ -226,24 +226,20 @@ export function isOpen(request) {
   return !request.closed_at;
 }
 
-/** Whether the process `pid` on this host still exists. EPERM means it exists
- * under another user. */
-function processAlive(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return error?.code === 'EPERM';
-  }
-}
 
-/** An open request whose run has exited without saying how it ended. Naming
- * it is the whole point — it reads as abandoned, not as still hoping. A
- * request opened on another host cannot be judged from here and is not
- * called abandoned. */
+/** Only the owning host can observe the waiting process. Missing process
+ * identity or an unexpected OS error is unknown, not proof it exited. */
 export function isAbandoned(request) {
-  if (!isOpen(request) || request.host !== hostname()) return false;
-  return !processAlive(Number(request.run_pid));
+  if (!isOpen(request)) return false;
+  if (request.host !== hostname() || !Number.isSafeInteger(request.run_pid) || request.run_pid <= 0) return null;
+  try {
+    process.kill(request.run_pid, 0);
+    return false;
+  } catch (error) {
+    if (error?.code === 'ESRCH') return true;
+    if (error?.code === 'EPERM') return false;
+    return null;
+  }
 }
 
 /** The recent requests, newest first. `openOnly` answers the one question an

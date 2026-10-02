@@ -18,7 +18,7 @@ export type OperatorRequest = {
   account: string;
   instruction: string;
   run: string;
-  run_pid: number;
+  run_pid?: number;
   host: string;
   opened_at: string;
   closed_at: string | null;
@@ -43,5 +43,5 @@ export declare function openOperatorRequest(input: OpenOperatorRequestInput): Op
 export declare function closeOperatorRequest(id: string, approved: boolean, detail: string): OperatorRequest;
 export declare function readOperatorRequest(id: string): OperatorRequest;
 export declare function isOpen(request: OperatorRequest): boolean;
-export declare function isAbandoned(request: OperatorRequest): boolean;
+export declare function isAbandoned(request: OperatorRequest): boolean | null;
 export declare function listOperatorRequests(options?: { limit?: number; openOnly?: boolean }): OperatorRequest[];

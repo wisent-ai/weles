@@ -16,14 +16,14 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runOutputPath } from '#run-output';
-import { closeOperatorRequest, openOperatorRequest } from '#operator-request';
+import { completeGooglePhoneApproval } from '../../_shared/services/google_sso/sign_in/challenge/phone.mjs';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { readDocument, writeDocument } from '../../../../dist/state/skarbiec-records.js';
 import {
-  confirmSetupCode, openAuthenticatorSetup, redactKeys, revealSetupKey,
+  confirmSetupCode, onSignIn, openAuthenticatorSetup, redactKeys, revealSetupKey,
 } from '../../_shared/services/google_sso/authenticator_enrol.mjs';
 import {
-  accountProfileDir, loginMaterial, signIn as signInAccount,
+  accountProfileDir, loginMaterial, pageDescription, signIn as signInAccount,
 } from '../../_shared/services/google_sso/sign_in/account.mjs';
 
 import { pageSettled } from '../../_shared/page/settled.mjs';
@@ -40,30 +40,17 @@ const RESULT_FILE = join(RESULT_DIR, 'result.json');
 function report(result) {
   mkdirSync(RESULT_DIR, { recursive: true });
   writeFileSync(RESULT_FILE, JSON.stringify(result, null, 2));
-  console.log(JSON.stringify(result, null, 2));
+  console.log(JSON.stringify(result));
   return result;
 }
 
 async function signIn(page, wait, login) {
   const signed = await signInAccount(page, wait, login);
   if (signed.ok || signed.blocked !== 'google_push_approval_required') return signed;
-  // Google's push to the operator's phone: one approval, waited for until it
-  // happens or the run is cancelled — and the operator is actually told,
-  // instead of the run waiting in silence.
-  const request = openOperatorRequest({
-    kind: 'google-push-approval',
-    account: login.email,
-    run: `google-authenticator-enrol ${login.loginItem}`,
-    instruction: `Open the Gmail or Google app on your phone, find the "Is it you?" prompt for ${login.email} and tap Yes. Weles is signing that account in on this host to enrol an authenticator, and this is the only step it cannot do itself.`,
-  });
-  console.log(`[google-authenticator-enrol] operator request ${request.id} opened; ${request.pages.some((attempt) => attempt.ok) ? 'the operator was paged' : 'nobody could be paged'}`);
-  try {
-    await page.waitForURL((url) => !/accounts\.google\.com/.test(String(url)));
-  } catch (error) {
-    closeOperatorRequest(request.id, false, `the run failed while waiting: ${String(error?.message || error)}`);
-    throw error;
+  await completeGooglePhoneApproval(page, login.email, `google-authenticator-enrol ${login.loginItem}`);
+  if (onSignIn(page.url())) {
+    return { ok: false, blocked: 'google_sign_in_requires_action', ...(await pageDescription(page)) };
   }
-  closeOperatorRequest(request.id, true, 'the prompt was approved and the session signed in');
   return { ok: true };
 }
 
@@ -71,7 +58,8 @@ async function main() {
   const loginItem = String(process.env.WELES_LOGIN_ITEM || '').trim();
   if (!loginItem) {
     report({ ok: false, blocked: 'login_item_required', detail: 'WELES_LOGIN_ITEM must name the Skarbiec login item to enrol' });
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
   const login = loginMaterial(loginItem);
   // One persistent profile per GOOGLE ACCOUNT, not per login item: a profile
@@ -89,23 +77,27 @@ async function main() {
       const signedIn = await signIn(page, wait, login);
       if (!signedIn.ok) {
         report({ ok: false, login_item: loginItem, email: login.email, ...signedIn });
-        process.exit(3);
+        process.exitCode = 3;
+        return;
       }
       opened = await openAuthenticatorSetup(page, wait);
     }
     if (!opened.ok) {
       report({ ok: false, login_item: loginItem, email: login.email, ...opened });
-      process.exit(4);
+      process.exitCode = 4;
+      return;
     }
     const revealed = await revealSetupKey(page, wait);
     if (!revealed.ok) {
       report({ ok: false, login_item: loginItem, email: login.email, ...revealed });
-      process.exit(5);
+      process.exitCode = 5;
+      return;
     }
     const confirmed = await confirmSetupCode(page, wait, revealed.secret);
     if (!confirmed.ok) {
       report({ ok: false, login_item: loginItem, email: login.email, ...confirmed });
-      process.exit(6);
+      process.exitCode = 6;
+      return;
     }
     // Google accepted the first code: the seed is live. Write it beside the
     // password and read it back, so the vault and the account agree.
@@ -116,7 +108,8 @@ async function main() {
     if (stored !== revealed.secret) {
       report({ ok: false, login_item: loginItem, email: login.email, blocked: 'seed_persist_unconfirmed',
         detail: 'Skarbiec did not return the seed just written' });
-      process.exit(7);
+      process.exitCode = 7;
+      return;
     }
     report({ ok: true, login_item: loginItem, email: login.email, seed_written: true, url: confirmed.url });
   } finally {
@@ -125,6 +118,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  report({ ok: false, blocked: 'google_authenticator_enrol_error', error: redactKeys(String(error?.message || error)) });
-  process.exit(1);
+  report({ ok: false, blocked: error?.code || 'google_authenticator_enrol_error', error: redactKeys(String(error?.message || error)) });
+  process.exitCode = 1;
 });

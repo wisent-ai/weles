@@ -7,9 +7,7 @@
 // account owner's phone, and keyed by the account that approval is asked once
 // for every later trajectory on the same account. This module answers every
 // screen the login item can answer — address, password, authenticator code —
-// and stops with `google_push_approval_required` at the phone prompt, which
-// only the authenticator enrolment waits for, because it is the trajectory
-// that ends the need for it.
+// and reports a phone approval only after Google displays its device prompt.
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -17,15 +15,18 @@ import { humanFill, humanType } from '../../../../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../../../../dist/human/mouse.js';
 import { readDocument } from '../../../../../../dist/state/skarbiec-records.js';
 import { fillAndVerify, waitForEnabledThenClick } from '../../../../codex/google_sso/page_controls.mjs';
-import { waitForGooglePassword } from '../../../../codex/google_sso/google_credentials.mjs';
+import { waitForGooglePassword, waitForGooglePasswordResult } from '../../../../codex/google_sso/google_credentials.mjs';
+import { selectAuthenticatorMethod, waitForGoogleChallengeExit } from '../../../../codex/google_sso/authenticator_code.mjs';
 import { onSignIn, redactKeys } from '../authenticator_enrol.mjs';
 import { generateTotp } from '../totp_secret.mjs';
 import { MAX_HEADING_CHARS } from './constants.mjs';
+import { selectGooglePhonePrompt } from './challenge/phone.mjs';
 
 /** Google's password-only challenge: the account is known, the session is not. */
 export const PASSWORD_CHALLENGE = /\/signin\/challenge\/pwd/;
 const EMAIL_FIELD = 'input[type="text"][autocomplete*="username"], input#identifierId, input[name="identifier"], input[type="email"]';
 const CODE_FIELD = 'input[name="totpPin"], input[autocomplete="one-time-code"]';
+const SECOND_FACTOR_CHALLENGE = /\/signin\/challenge\/(?!pwd(?:\/|$))/;
 
 /** The username, password and authenticator seed of one Skarbiec login item. */
 export function loginMaterial(loginItem) {
@@ -60,6 +61,35 @@ export async function pageDescription(page) {
   };
 }
 
+// Do not label every unfinished sign-in as a phone prompt. In particular,
+// a code field with no seed never sends a notification to the person's phone.
+async function secondFactor(page, login) {
+  if (!onSignIn(page.url())) return { ok: true };
+  if (login.seed) {
+    const code = page.locator(CODE_FIELD).filter({ visible: true }).first();
+    if (!await code.isVisible()) {
+      const selected = await selectAuthenticatorMethod(page, true);
+      if (selected === 'no-2fa') return { ok: true };
+      if (selected !== 'switched') {
+        return { ok: false, blocked: 'google_authenticator_method_unavailable', ...(await pageDescription(page)) };
+      }
+    }
+    await code.waitFor({ state: 'visible' });
+    await humanFill(page, code, generateTotp(login.seed));
+    await waitForEnabledThenClick(page, /next|verify/i);
+    await waitForGoogleChallengeExit(page);
+    return { ok: true };
+  }
+  const phonePrompt = await selectGooglePhonePrompt(page);
+  if (!onSignIn(page.url())) return { ok: true };
+  return {
+    ok: false,
+    blocked: phonePrompt
+      ? 'google_push_approval_required' : 'google_second_factor_unavailable',
+    ...(await pageDescription(page)),
+  };
+}
+
 /**
  * Sign `login` in, answering a password re-challenge where it stands and a
  * code challenge from the login's seed.
@@ -73,6 +103,9 @@ export async function signIn(page, wait, login) {
   // sends the profile straight back to the account, this function reports
   // success, and the settings page demands re-authentication again. So a
   // challenge already on screen is answered where it stands.
+  if (onSignIn(page.url()) && SECOND_FACTOR_CHALLENGE.test(new URL(page.url()).pathname)) {
+    return secondFactor(page, login);
+  }
   if (!PASSWORD_CHALLENGE.test(page.url())) {
     await page.goto('https://accounts.google.com/ServiceLogin?hl=en', { waitUntil: 'domcontentloaded' });
     await wait();
@@ -95,16 +128,6 @@ export async function signIn(page, wait, login) {
   const password = await waitForGooglePassword({ page, mark: () => {}, humanClickLocator });
   await fillAndVerify(page, password, login.password, humanClickLocator, humanType);
   await waitForEnabledThenClick(page, /next|sign in|continue|dalej/i);
-  await wait();
-  if (!onSignIn(page.url())) return { ok: true };
-  if (login.seed) {
-    const code = page.locator(CODE_FIELD).filter({ visible: true }).first();
-    if (await code.isVisible()) {
-      await humanFill(page, code, generateTotp(login.seed));
-      await waitForEnabledThenClick(page, /next|verify/i);
-      await wait();
-      if (!onSignIn(page.url())) return { ok: true };
-    }
-  }
-  return { ok: false, blocked: 'google_push_approval_required', ...(await pageDescription(page)) };
+  await waitForGooglePasswordResult(page);
+  return secondFactor(page, login);
 }

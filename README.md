@@ -189,10 +189,15 @@ methods. Hidden refusal templates do not count as provider refusals. A visible
 refusal or unavailable password challenge reports its observed page and stage;
 the same run never resubmits the selected challenge. Session closure also stops
 its measurement timers, so retained results do not wait for the worker timeout.
-`Get a code to sign in` remains an unfinished Google challenge. Weles reports
-`google_2fa_material_missing` when the selected login has no authenticator seed
-or supplied one-time code, without selecting notification or SMS alternatives.
-A supplied code must leave the challenge before the provider handoff continues.
+An authenticator code must leave Google's challenge before provider handoff.
+Without a stored seed, Weles selects an offered phone approval and records its
+actual outcome in operator requests. CLI list/show and Desktop Approvals read
+the managed worker; `--local` explicitly inspects host-local records.
+`google_2fa_material_missing` remains a structured refusal when no usable
+authenticator material or offered phone method can answer the challenge.
+Enrolment refuses to replace an existing authenticator and writes a seed only
+after observing completed Google setup. Results preserve the observed
+`second_factor` method; a successful grant without that evidence stays unknown.
 
 Both services acquire `brama-weles-reauth/token` from Skarbiec with their own
 workload identities. Weles accepts that bearer only on the reauthentication routes.

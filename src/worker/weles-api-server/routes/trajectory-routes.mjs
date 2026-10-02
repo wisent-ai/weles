@@ -43,6 +43,7 @@ import { RUN_RELEASE_IDENTITY } from '../release-identity.mjs';
 const AUTHENTICATOR_ENROL_ACTION = 'google_authenticator_enrol';
 /// The one login method that has an authenticator to enrol.
 const GOOGLE_LOGIN_METHOD = 'google_sso';
+const authenticatorEnrolments = new Map();
 
 const BUILDER_BOOTSTRAP_URL = process.env.WELES_BUILDER_BOOTSTRAP_URL || 'https://duckduckgo.com/';
 // Prepended to the caller's instructions so the agent self-navigates: the
@@ -179,6 +180,11 @@ export async function respondToAuthenticatorEnrolment(req, res, selectLoginAccou
     account_revision: account.accountRevision,
     source_revision: RUN_RELEASE_IDENTITY.source_revision,
   };
+  if (body.account_revision && body.account_revision !== account.accountRevision) {
+    json(res, 409, { ok: false, error: 'skarbiec_identity_changed', stage: 'identity',
+      message: 'Skarbiec account data changed after authenticator enrolment was resolved', ...identity });
+    return;
+  }
   // The enrolment Weles ships is Google's. A password-only login has no
   // authenticator to enrol, and answering `ok` for it would leave the seed
   // absent under a verdict that says otherwise.
@@ -192,19 +198,31 @@ export async function respondToAuthenticatorEnrolment(req, res, selectLoginAccou
     });
     return;
   }
-  // One enrolment per login at a time: two browsers racing the same Google
-  // account would each enrol a key and the second would overwrite the first,
-  // leaving the vault holding a seed the account no longer accepts.
-  const admission = coalesceRun(
-    runAdmissionKey('authenticator-enrol', {
-      provider,
-      login_item: account.loginItem,
-      account_revision: account.accountRevision,
-    }),
-    () => runTrajectory(AUTHENTICATOR_ENROL_ACTION, { login_item: account.loginItem }, null, false),
-  );
-  const out = await admission.entry.promise;
-  json(res, out.ok ? 200 : 502, { ...out, ...identity, coalesced: admission.joined });
+  // Subscription revisions differ across providers sharing one Google account.
+  // Only a live enrolment is shared; a completed refusal must not hide a repair.
+  const key = account.accountRef.toLowerCase();
+  let entry = authenticatorEnrolments.get(key);
+  if (entry && entry.loginItem !== account.loginItem) {
+    json(res, 409, { ok: false, error: 'authenticator_enrolment_in_progress',
+      message: 'This Google account is already enrolling through another login item', ...identity });
+    return;
+  }
+  const joined = Boolean(entry);
+  if (!entry) {
+    const promise = Promise.resolve()
+      .then(() => runTrajectory(AUTHENTICATOR_ENROL_ACTION, { login_item: account.loginItem }, null, false))
+      .finally(() => { authenticatorEnrolments.delete(key); });
+    entry = { loginItem: account.loginItem, promise };
+    authenticatorEnrolments.set(key, entry);
+  }
+  const out = await entry.promise;
+  const confirmed = out.ok === true && out.result?.ok === true
+    && out.result?.login_item === account.loginItem && out.result?.seed_written === true;
+  json(res, confirmed ? 200 : 502, {
+    ...out, ...identity, ok: confirmed, coalesced: joined,
+    blocked: out.result?.blocked ?? (confirmed ? null : 'authenticator_enrolment_unconfirmed'),
+    message: out.result?.detail ?? out.result?.error ?? null,
+  });
 }
 
 // weles-builder: instructions-only. Body = the goal string (text/plain;
