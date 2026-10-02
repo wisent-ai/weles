@@ -35,7 +35,7 @@ try {
     report.admission_report = resolve(values['admission-report']);
     report.login_role = previous.login_role;
     report.admission = previous.admission;
-    run = JSON.parse(command(binary, ['account-security', '--run', previous.admission.id, '--json']));
+    run = previous.admission;
   } else {
     report.login_role = values['login-role'].trim();
     assert.ok(report.login_role, 'the login role must be nonempty');
