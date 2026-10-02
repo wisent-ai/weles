@@ -9,10 +9,13 @@ import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/auth/c
 const EDIT_URL = 'https://www.producthunt.com/my/details/edit';
 import { pageSettled } from '../_shared/page/settled.mjs';
 
-const HEADLINE = process.env.PH_HEADLINE || 'Indie hacker exploring product-led growth';
-const ABOUT = process.env.PH_BIO || 'Building, breaking, and shipping side projects. Always curious about what makes products spread.';
-const LOCATION = process.env.PH_LOCATION || 'Remote';
+// The profile is the account's public face: headline, about and location are
+// the caller's; no persona text is built in.
+const HEADLINE = process.env.PH_HEADLINE;
+const ABOUT = process.env.PH_BIO;
+const LOCATION = process.env.PH_LOCATION;
 const WEBSITE = process.env.PH_WEBSITE || '';
+if (!HEADLINE || !ABOUT || !LOCATION) { console.log('FAIL: PH_HEADLINE, PH_BIO and PH_LOCATION env vars required'); process.exit(1); }
 
 async function fillProfile(s, acct, sessionMeta) {
   // Cookie-jar freshness gate — see _shared/auth/cookie-freshness.mjs. Skip

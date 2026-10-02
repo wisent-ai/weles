@@ -9,9 +9,12 @@ import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { pageSettled, submitAnswered } from '../../_shared/page/settled.mjs';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
+// An issue is a real publication under the account's name: its title and
+// body are the caller's; nothing is assumed.
 const REPO_URL = process.env.REPO_URL || '';
-const ISSUE_TITLE = (process.env.ISSUE_TITLE || 'question about usage');
-const ISSUE_BODY = (process.env.ISSUE_BODY || 'Hi! Following this project. Curious about the roadmap — is there a recommended way to get started?');
+const ISSUE_TITLE = process.env.ISSUE_TITLE;
+const ISSUE_BODY = process.env.ISSUE_BODY;
+if (!ISSUE_TITLE || !ISSUE_BODY) { console.log('FAIL: ISSUE_TITLE and ISSUE_BODY env vars required'); process.exit(1); }
 
 function normalize(raw) {
   if (!raw) return '';

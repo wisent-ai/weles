@@ -9,13 +9,17 @@ import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClick, humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
 
+// A review is a real publication under the account's name: the app, the
+// rating and the words are the caller's; nothing is assumed.
 const APP_ID = process.env.APP_ID;
-const RATING = parseInt(process.env.RATING || '5', 10);
-const TITLE = process.env.TITLE || 'Great app';
-const REVIEW_TEXT = process.env.REVIEW_TEXT || 'Works as expected. Recommend it.';
+const RATING = parseInt(process.env.RATING ?? '', 10);
+const TITLE = process.env.TITLE;
+const REVIEW_TEXT = process.env.REVIEW_TEXT;
 if (!APP_ID) { console.log('FAIL: APP_ID env var required'); process.exit(1); }
 if (!/^\d+$/.test(APP_ID)) { console.log('FAIL: APP_ID must be numeric'); process.exit(1); }
-if (RATING < 1 || RATING > 5) { console.log('FAIL: RATING must be 1-5'); process.exit(1); }
+if (!Number.isInteger(RATING) || RATING < 1 || RATING > 5) { console.log('FAIL: RATING env var required, 1-5'); process.exit(1); }
+if (!TITLE) { console.log('FAIL: TITLE env var required'); process.exit(1); }
+if (!REVIEW_TEXT) { console.log('FAIL: REVIEW_TEXT env var required'); process.exit(1); }
 
 const acct = await getSocialAccount('apple');
 if (!acct) { console.log('FAIL: no apple account'); process.exit(1); }
