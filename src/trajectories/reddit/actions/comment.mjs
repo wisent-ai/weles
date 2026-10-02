@@ -75,15 +75,7 @@ async function writeComment() {
   await ta.focus();
   await humanType(s.page, COMMENT_BODY);
   await humanIdlePause('short');
-  // CRITICAL: the submit must be a real click. A synthetic JS click produces
-  // ZERO mouse events; Reddit's behavioral classifier tracks the
-  // pointermove/mouseenter/mouseover/pointerdown/mouseup/click sequence, and
-  // an action-submit click with no preceding pointer activity is the
-  // textbook bot signal. Verified 2026-04-29: with an evaluate-click, even
-  // fresh accounts on residential IPs got hard-banned within minutes. So the
-  // submit button is located via Playwright by walking up from the textarea
-  // and clicked through humanClickLocator (full Bezier trajectory, real
-  // mousedown/up via CDP).
+  // Submit through the shared input path after locating the enclosing form.
   const submitBtn = ta.locator('xpath=ancestor::form[1]').locator('button.save, button[type="submit"]').first();
   await submitBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, submitBtn);

@@ -34,16 +34,10 @@ export async function injectPHCookies(s, cookies) {
   return norm.length;
 }
 
-// Pick the first product launch URL from the PH homepage. Both upvote and
-// comment trajectories need a /products/<slug> URL because that's the only
-// page shape that renders both the vote button and the tiptap composer
-// (verified 2026-05-02 via .work/ph-probe). Returns null if nothing
-// suitable is found — callers should treat that as a soft fail and skip.
+// Select a product launch page that exposes voting and comment composition.
+// Return null when no suitable page is available.
 export async function pickFirstProductLaunchUrl(s) {
-  // Prefer /products/<slug> — verified via .work/ph-probe to be the only
-  // page shape with both the upvote button and the tiptap composer.
-  // /posts/new is the "submit launch" form (no composer), /posts/<id> is
-  // the legacy URL that PH 308-redirects to /products/<slug>.
+  // Product pages differ from launch-submission forms and legacy post URLs.
   const href = await s.page.evaluate(`(() => {
     function pick(prefix) {
       var as = Array.from(document.querySelectorAll('a[href*="' + prefix + '"]'));

@@ -10,9 +10,7 @@ import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/auth/c
 // PRODUCTHUNT_URL=https://www.producthunt.com/products/<slug>  -> launch page
 // PH_COMMENT="text"                                            -> overrides default
 // When PRODUCTHUNT_URL is unset, the trajectory navigates to the homepage
-// and picks the first /products/<slug> launch (only page shape with a
-// tiptap composer — homepage and forum index DON'T have one, verified
-// via .work/ph-probe 2026-05-02).
+// and selects a /products/<slug> launch page with a comment composer.
 
 const EXPLICIT_TARGET = process.env.PRODUCTHUNT_URL || '';
 const COMMENT_TEXT = process.env.PH_COMMENT || 'Looks really clean — congrats on the launch!';

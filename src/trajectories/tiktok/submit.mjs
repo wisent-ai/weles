@@ -45,12 +45,8 @@ export async function tiktokSubmitComment(s, text) {
       } catch { /* fall through */ }
       profileHandles = [...authorHandles, 'tiktok', 'spotify', 'nba'];
     }
-    // Listen for /api/repost/item_list/ response. Verified 2026-05-02:
-    // /api/post/item_list/ returns status=200 with empty body for our session
-    // on @tiktok / @nba / @spotify (renders "Something went wrong" in UI),
-    // while /api/repost/item_list/ returns full itemList[] with author.uniqueId
-    // and id for each video. Subscribing to the repost endpoint gives us a
-    // working video-source even when the post grid is empty.
+    // Repost responses can supply video identifiers when the profile's post
+    // grid has no usable entries.
     let repostCandidate = null;
     const onResponse = async (resp) => {
       try {

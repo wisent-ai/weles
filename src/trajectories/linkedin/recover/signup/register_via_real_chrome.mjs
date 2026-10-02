@@ -1,12 +1,7 @@
-// One-shot LinkedIn signup via REAL Chrome (Application/Google Chrome.app),
-// NOT the weles binary. Cited 2026-05-06 .work/seed-real-chrome2.log: real
-// Chrome on a flagged account lands on /checkpoint/challenge — proving the
-// challenge is account-state, not weles-fingerprint. Real Chrome's
-// fingerprint passes PX trust at first byte, so a brand-new signup
-// completes cleanly. Single-shot — no retries.
+// Run the signup interaction through the shared genuine-Chrome boundary.
 //
 // Usage:
-//   AGENT_DOMAIN=wisentmedia.com node src/trajectories/linkedin/recover/register_via_real_chrome.mjs
+//   AGENT_DOMAIN="$DOMAIN" node src/trajectories/linkedin/recover/signup/register_via_real_chrome.mjs
 import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -50,11 +45,7 @@ const proxyOpt = {
   password: oxylabsMobile.password,
 };
 console.log(`[reg-real] using Oxylabs Mobile sticky=${proxySession}`);
-// The launch itself lives in the reviewed browser boundary, with the exact
-// argument set this flow was verified with: Chrome's yellow "unsupported
-// command-line flag" bar is what LinkedIn's risk engine reads to reject a
-// signup (2026-05-06 screenshots), so the flags that raise it are removed
-// from Chrome's defaults rather than added.
+// Launch through the shared browser boundary rather than a trajectory-local engine.
 const browser = await launchGenuineChrome({
   userDataDir,
   executablePath: CHROME_BIN,

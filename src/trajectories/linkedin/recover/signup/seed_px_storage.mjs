@@ -2,14 +2,8 @@
 // complete any checkpoint, then stores PerimeterX localStorage and cookies in
 // the exact LinkedIn account item in Skarbiec.
 //
-// Why: weles automation cannot clear /checkpoint on a cold-start session
-// because PerimeterX challenges every brand-new visitor on a residential
-// proxy. Diff harness 2026-05-03 (.work/inst/linkedin_login_diff_2026-05-03T
-// 21-02-42-556Z.md lines 25-30) confirmed chrome's session reads __pxvid +
-// writes px_hvd while weles reads/writes neither. Once metadata.
-// linkedin_px_storage is seeded once per account (this script), every
-// subsequent linkedin_login restores it before form-fill and PX recognises
-// the returning visitor.
+// The account's subsequent login restores the captured browser storage
+// alongside its cookies.
 //
 // Usage:
 //   ACCOUNT_ITEM=weles-linkedin-<username>-account node src/trajectories/linkedin/recover/seed_px_storage.mjs

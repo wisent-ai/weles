@@ -51,10 +51,7 @@ export async function findAndClickPayButton(page) {
   return false;
 }
 
-// Stripe Elements card-form filler. Cited 2026-05-04: pingproxies/iproyal/
-// oxylabs all bottom out at "no saved card available" — the topup modal
-// has Stripe Elements iframes that need card details filled. Each
-// Elements input lives in its own cross-origin iframe at js.stripe.com,
+// Stripe Elements card-form filler. Each input lives in a cross-origin iframe;
 // frame URL contains the field type (card-number / card-expiry /
 // card-cvc / postal-code).
 const STRIPE_FRAME_PATTERNS = {
