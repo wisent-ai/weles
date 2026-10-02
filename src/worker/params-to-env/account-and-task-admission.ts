@@ -138,7 +138,10 @@ export function applyAccountAndTaskAdmission(
   }
   if (trajPath.endsWith('/gmail/gmail_login_search.mjs')) {
     const query = params.query ?? params.q;
-    if (typeof query === 'string') env.GM_QUERY = query;
+    if (typeof query !== 'string' || !query.trim()) {
+      throw new Error('GMAIL_QUERY_REQUIRED: query or q must be a nonempty Gmail search query');
+    }
+    env.GM_QUERY = query;
     const credentialService = params.credential_service;
     if (credentialService === 'gmail' || credentialService === 'googleSso') {
       env.GM_CREDENTIAL_SERVICE = credentialService;

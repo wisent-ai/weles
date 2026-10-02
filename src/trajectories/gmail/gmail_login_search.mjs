@@ -4,12 +4,8 @@
 // established in the launchRealChrome persistent profile via
 // setup_chrome_profile), this trajectory logs in from scratch with
 // credentials, using a full WSession (patched Chromium 147 OR weles-firefox).
-// Both engines now clear Google's "this browser or app may not be secure"
-// gate: Chromium via the C++ --weles-fingerprint binary, Firefox via the
-// 2026-05-19 fingerprint fix (coherent Gecko UA in persona.ts/fingerprint.ts +
-// native navigator.webdriver — automation.js no longer JS-clobbers it on FF).
-// Codified from a keeper session that drove this exact flow end-to-end on
-// lukasz.bartoszcze@gmail.com (search "rent board"/"brick + timber"/radiator).
+// Chromium uses the --weles-fingerprint binary. Firefox uses a coherent Gecko
+// user agent and native navigator.webdriver rather than a JavaScript override.
 //
 // Flow: WSession.start -> goto Gmail (redirects to accounts if logged out) ->
 // googleSso(identifier+password) -> dismiss post-login speedbump ->
@@ -18,7 +14,7 @@
 //
 // Run:  node src/trajectories/gmail/gmail_login_search.mjs
 // Credentials are resolved from the dedicated Gmail Skarbiec item.
-//       GM_QUERY     Gmail search query (default: the rent/maintenance query)
+//       GM_QUERY     required nonempty Gmail search query; no account-specific default
 //       GM_OPEN=0    list only, skip opening thread bodies
 //       GM_MAX       max threads to open for body capture (default 6)
 //       BROWSER      'firefox' | 'chromium' to pin the engine (default: roll)
@@ -28,9 +24,10 @@ import { DOCUMENT_REPLACED, readAcrossNavigation } from '../_shared/services/goo
 import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 import { readScopedLogin } from '../../_shared/scoped-secrets.mjs';
 
-const DEFAULT_QUERY =
-  '"rent board" OR "brick + timber" OR "brick and timber" OR radiator';
-const QUERY = process.env.GM_QUERY || DEFAULT_QUERY;
+const QUERY = process.env.GM_QUERY;
+if (typeof QUERY !== 'string' || !QUERY.trim()) {
+  throw new Error('GMAIL_QUERY_REQUIRED: GM_QUERY must be a nonempty Gmail search query');
+}
 const OPEN_BODIES = process.env.GM_OPEN !== '0';
 const MAX_OPEN = parseInt(process.env.GM_MAX || '6', 10);
 const CREDENTIAL_SERVICE = process.env.GM_CREDENTIAL_SERVICE === 'googleSso'
