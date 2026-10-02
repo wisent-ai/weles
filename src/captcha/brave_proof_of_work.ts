@@ -2,8 +2,6 @@
 // own solution in the page and enables its button when done. Nothing to
 // solve remotely; the page itself is asked to report when the form changes.
 
-import { humanIdlePause } from '../human/mouse.js';
-
 // Resolves in the page, on an animation frame, once the challenge form shows
 // one of the outcomes the caller is watching for (or has gone away).
 async function braveFormChanged(page: Page, phase: 'validation' | 'calculation'): Promise<void> {
@@ -34,7 +32,7 @@ export interface BraveProofOfWorkState {
 }
 
 export async function braveProofOfWorkState(page: Page): Promise<BraveProofOfWorkState | null> {
-  return await page.evaluate?.(() => {
+  return await page.evaluate(() => {
     const solution = document.querySelector<HTMLInputElement>('input[name="captchaSolution"]');
     const button = document.querySelector<HTMLButtonElement>('#captcha-button');
     if (!solution || !button) return null;
@@ -52,7 +50,7 @@ export async function braveProofOfWorkState(page: Page): Promise<BraveProofOfWor
       errorText,
       url: location.href,
     };
-  }).catch(() => null) ?? null;
+  });
 }
 
 export async function solveBraveProofOfWork(page: Page, initial: BraveProofOfWorkState): Promise<boolean> {
@@ -80,14 +78,9 @@ export async function solveBraveProofOfWork(page: Page, initial: BraveProofOfWor
 
   let started = /verifying/i.test(ready.buttonText);
   if (!started && ready.solutionLength === 0) {
-    try {
-      await page.locator('#captcha-button').click();
-      started = true;
-      console.log('[captcha] Brave proof-of-work calculation started');
-    } catch (error) {
-      console.log(`[captcha] Brave proof-of-work click failed: ${error instanceof Error ? error.message : String(error)}`);
-      return false;
-    }
+    await page.locator('#captcha-button').click();
+    started = true;
+    console.log('[captcha] Brave proof-of-work calculation started');
   }
 
   if (ready.solutionLength > 0 || /verified/i.test(ready.buttonText)) return true;
@@ -97,7 +90,8 @@ export async function solveBraveProofOfWork(page: Page, initial: BraveProofOfWor
       await braveFormChanged(page, 'calculation');
     } catch (error) {
       // The form submitting itself replaces the document under the wait.
-      if (!/Execution context was destroyed|Target page, context or browser has been closed/i.test(String(error))) throw error;
+      if (!/Execution context was destroyed/i.test(String(error))) throw error;
+      await page.waitForLoadState('domcontentloaded');
     }
     const state = await braveProofOfWorkState(page);
     if (!state) {
@@ -111,7 +105,6 @@ export async function solveBraveProofOfWork(page: Page, initial: BraveProofOfWor
     }
     if (state.solutionLength > 0 || /verified/i.test(state.buttonText)) {
       console.log(`[captcha] Brave proof-of-work solved solution_length=${state.solutionLength}`);
-      await humanIdlePause('deliberate');
       return true;
     }
     if (state.url !== initialURL) {
