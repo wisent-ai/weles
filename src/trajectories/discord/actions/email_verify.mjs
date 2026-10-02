@@ -16,12 +16,21 @@
 //      next run finds the mail.
 import { updateAccountMetadata } from '../../_shared/skarbiec/accounts.mjs';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
-import { getReceived, listReceived, receivingConfigured } from '../../../_shared/resend-receiving.mjs';
+import { getReceived, listReceivedFrom, receivingConfigured } from '../../../_shared/resend-receiving.mjs';
+import { pageSettled, responseAfterAction } from '../../_shared/page/settled.mjs';
+import { checkReachable } from '../../_shared/action-runner.mjs';
+import { readDiscordNoContent, readDiscordText } from '../../_shared/discord/response.mjs';
 
 const ACCT_USERNAME = process.env.ACCOUNT_USERNAME;
-if (!receivingConfigured()) { console.log('FAIL: the wisent-integrations inbox route is not configured'); process.exit(1); }
+if (!receivingConfigured()) {
+  console.error('DISCORD_EMAIL_INBOX_UNCONFIGURED:', {
+    STADO_INTEGRATION_API_URL: Boolean(process.env.STADO_INTEGRATION_API_URL?.trim()),
+    WELES_STADO_INTEGRATION_TOKEN: Boolean(process.env.WELES_STADO_INTEGRATION_TOKEN?.trim()),
+  });
+  process.exit(1);
+}
 
 const acct = ACCT_USERNAME
   ? await getSocialAccount('discord', { username: ACCT_USERNAME })
@@ -31,14 +40,16 @@ const email = acct.metadata?.email;
 const token = acct.metadata?.discord_token;
 if (!email) { console.log(`FAIL: ${acct.username} metadata.email missing`); process.exit(1); }
 if (!token) { console.log(`FAIL: ${acct.username} metadata.discord_token missing`); process.exit(1); }
+if (!acct.id) { console.error('DISCORD_EMAIL_ACCOUNT_ID_UNAVAILABLE'); process.exit(1); }
 
 async function getVerifiedText(s) {
-  try { return await s.page.locator('text=Email Verified').first().textContent(); }
-  catch (e) { console.log(`[email_verify] verify-text probe err: ${e.message}`); return null; }
+  const verified = s.page.locator('text=Email Verified').filter({ visible: true }).first();
+  await verified.waitFor({ state: 'visible' });
+  return verified.evaluate(element => ({ text: element.textContent, pageUrl: location.href }));
 }
 
 async function fetchInboxRecent() {
-  return (await listReceived(10)).data;
+  return listReceivedFrom(10, email, 'discord.com');
 }
 
 async function fetchEmailBody(id) {
@@ -49,10 +60,31 @@ async function fetchEmailBody(id) {
 }
 
 async function resolveClickToVerify(link) {
-  const head = await fetch(link, { redirect: 'manual' });
-  const loc = head.headers.get('location');
-  if (loc && loc.includes('discord.com/verify#token=')) return loc;
-  return null;
+  const source = new URL(link);
+  if (source.origin !== 'https://click.discord.com' || source.username || source.password) {
+    throw Object.assign(new Error('DISCORD_EMAIL_LINK_INVALID'), { requestUrl: link });
+  }
+  let response;
+  try { response = await fetch(source, { redirect: 'manual' }); }
+  catch (cause) {
+    throw Object.assign(new Error('DISCORD_EMAIL_REDIRECT_REQUEST_FAILED', { cause }), { requestUrl: source.href });
+  }
+  const location = response.headers.get('location');
+  const details = { requestUrl: source.href, httpStatus: response.status, location };
+  let responseBody;
+  try { responseBody = await response.text(); }
+  catch (cause) { throw Object.assign(new Error('DISCORD_EMAIL_REDIRECT_READ_FAILED', { cause }), details); }
+  const isRedirect = response.status >= 300 && response.status < 400;
+  if (!response.ok && !isRedirect) {
+    throw Object.assign(new Error('DISCORD_EMAIL_REDIRECT_REFUSED'), details, { responseBody });
+  }
+  if (!isRedirect || !location) return { ...details, responseBody, verifyUrl: null };
+  let destination;
+  try { destination = new URL(location, source); }
+  catch (cause) { throw Object.assign(new Error('DISCORD_EMAIL_REDIRECT_INVALID', { cause }), details); }
+  const trusted = destination.origin === 'https://discord.com' && destination.pathname === '/verify'
+    && !destination.username && !destination.password && new URLSearchParams(destination.hash.slice(1)).get('token');
+  return { ...details, verifyUrl: trusted ? destination.href : null };
 }
 
 const opts = await resolveAccountSession(acct);
@@ -65,61 +97,80 @@ async function verifyUrlFromInbox() {
   const requestedAt = Date.parse(acct.metadata?.email_verify_requested_at ?? '');
   if (!requestedAt) return null;
   const candidate = (await fetchInboxRecent()).find((m) => {
-    const toList = Array.isArray(m.to) ? m.to : [];
-    const to = toList.map(t => typeof t === 'string' ? t : t.email).join(',');
     const subj = typeof m.subject === 'string' ? m.subject : '';
     const created = m.created_at ? Date.parse(m.created_at) : 0;
-    return to.includes(email) && subj.includes('Verify') && created >= requestedAt;
+    return subj.includes('Verify') && created >= requestedAt;
   });
   if (!candidate) return null;
   const body = await fetchEmailBody(candidate.id);
   const links = body.match(/https:\/\/click\.discord\.com[^\s"<>]+/g);
   if (!links) throw new Error(`discord_email_verify: mail ${candidate.id} has no click.discord.com links`);
+  const redirects = [];
   for (const link of links) {
-    const u = await resolveClickToVerify(link);
-    if (u) return u;
+    const resolved = await resolveClickToVerify(link);
+    redirects.push(resolved);
+    if (resolved.verifyUrl) return resolved.verifyUrl;
   }
-  throw new Error(`discord_email_verify: no link in mail ${candidate.id} resolves to discord.com/verify`);
+  throw Object.assign(new Error('DISCORD_EMAIL_VERIFY_LINK_UNCONFIRMED'), { emailId: candidate.id, redirects });
 }
 
 try {
-  await s.ctx.addInitScript(`(()=>{try{if(location.hostname.indexOf('discord')>=0){localStorage.setItem('token',JSON.stringify(${JSON.stringify(token)}))}}catch(e){}})()`);
+  await s.ctx.addInitScript((value) => {
+    if (location.hostname === 'discord.com') localStorage.setItem('token', JSON.stringify(value));
+  }, token);
   const verifyUrl = await verifyUrlFromInbox();
   if (!verifyUrl) {
     await s.goto('https://discord.com/channels/@me');
-    await humanIdlePause('deliberate');
+    checkReachable(s, 'discord');
     const gear = s.page.locator('button[aria-label="User Settings"]').first();
+    await gear.waitFor({ state: 'visible' });
     await humanClickLocator(s.page, gear);
-    await humanIdlePause('deliberate');
-    const resend = s.page.locator('button').filter({ hasText: 'Resend Verification Email' }).first();
+    await pageSettled(s.page);
+    const resend = s.page.locator('button').filter({ hasText: 'Resend Verification Email', visible: true }).first();
     if ((await resend.count()) === 0) {
-      console.log('[email_verify] no Resend button on My Account — email may already be verified');
-      process.exit(0);
+      throw Object.assign(new Error('DISCORD_EMAIL_STATUS_UNCONFIRMED: the resend control is absent; this is not proof of verification'),
+        { pageUrl: s.page.url(), observedSettingsText: await s.page.locator('body').innerText() });
     }
-    await humanClickLocator(s.page, resend);
-    await humanIdlePause('deliberate');
-    const okay = s.page.locator('button').filter({ hasText: 'Okay' }).first();
-    if ((await okay.count()) > 0) await humanClickLocator(s.page, okay);
-    if (!acct.id) throw new Error('Discord account has no stable Skarbiec id');
-    updateAccountMetadata(acct.id, { email_verify_requested_at: new Date().toISOString() });
-    throw new Error(`discord_email_verify: verification mail requested for ${email}; it has not arrived yet — run email_verify again once it is in the inbox`);
+    const requestedAt = new Date().toISOString();
+    const response = await responseAfterAction(s.page, (request) => {
+      const url = new URL(request.url());
+      return request.method() === 'POST' && url.origin === 'https://discord.com'
+        && /^\/api\/v\d+\/auth\/verify\/resend$/.test(url.pathname);
+    }, () => humanClickLocator(s.page, resend));
+    await readDiscordNoContent(response, 'resend_verification_email', 'DISCORD_EMAIL_RESEND');
+    updateAccountMetadata(acct.id, { email_verify_requested_at: requestedAt });
+    throw Object.assign(new Error('DISCORD_EMAIL_VERIFICATION_PENDING: the resend was acknowledged; run again to read the inbox and observe verification'),
+      { email, requestedAt, requestUrl: response.url(), httpStatus: response.status() });
   }
   console.log(`[email_verify] verify_url=${verifyUrl.slice(0, 90)}...`);
 
-  await s.goto(verifyUrl);
-  await humanIdlePause('deliberate');
-  const verifiedText = await getVerifiedText(s);
-  if (!verifiedText) { console.log('FAIL: "Email Verified" text not found on verify page'); process.exit(1); }
-  console.log(`[email_verify] page shows: ${verifiedText}`);
+  const response = await responseAfterAction(s.page, (request) => {
+    const url = new URL(request.url());
+    return request.method() === 'POST' && url.origin === 'https://discord.com'
+      && /^\/api\/v\d+\/auth\/verify$/.test(url.pathname);
+  }, async () => {
+    await s.goto(verifyUrl);
+    checkReachable(s, 'discord');
+  });
+  await readDiscordText(response, 'verify_email', 'DISCORD_EMAIL_VERIFY');
+  const verified = await getVerifiedText(s);
+  const verifiedPage = new URL(verified.pageUrl);
+  if (verifiedPage.origin !== 'https://discord.com' || verifiedPage.pathname !== '/verify'
+      || !verified.text?.includes('Email Verified')) {
+    throw Object.assign(new Error('DISCORD_EMAIL_VERIFICATION_UNCONFIRMED'), { observed: verified });
+  }
+  console.log(`[email_verify] page shows: ${verified.text}`);
 
-  if (!acct.id) throw new Error('Discord account has no stable Skarbiec id');
-  updateAccountMetadata(acct.id, { email_verified_at: new Date().toISOString() });
-  console.log('[email_verify] persisted account metadata in Skarbiec');
-  console.log(`PASS: ${acct.username} email verified`);
+  const verifiedAt = new Date().toISOString();
+  updateAccountMetadata(acct.id, { email_verified_at: verifiedAt });
+  console.log(JSON.stringify({
+    ok: true, operation: 'verify_email', acknowledgement: 'provider_response_and_visible_confirmation',
+    account_id: acct.id, email, email_verified_at: verifiedAt,
+    request_url: response.url(), http_status: response.status(),
+  }));
 } catch (e) {
-  console.log(`FAIL: ${e.message}`);
-  process.exit(1);
+  console.error('DISCORD_EMAIL_VERIFY_FAILED:', e);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }
-process.exit(0);

@@ -21,7 +21,9 @@ const replyReader = 'src/trajectories/_shared/discord/response.mjs';
 const profile = 'src/trajectories/discord/actions/passive/view_profile.mjs';
 const invite = 'src/trajectories/discord/actions/join_server.mjs';
 const directMessage = 'src/trajectories/discord/actions/engagement/dm.mjs';
-for (const path of [friend, forum, thread, reply, profile, invite, directMessage, targetReader, replyReader, 'tests/discord/action-preflight.mjs']) {
+const emailVerification = 'src/trajectories/discord/actions/email_verify.mjs';
+for (const path of [friend, forum, thread, reply, profile, invite, directMessage, emailVerification, targetReader, replyReader,
+  'src/_shared/resend-receiving.mjs', 'src/_shared/integrations.mjs', 'tests/discord/action-preflight.mjs']) {
   evidence.report.source_sha256[path] = createHash('sha256').update(await readFile(join(root, path))).digest('hex');
 }
 const scenarios = [
@@ -55,6 +57,8 @@ const scenarios = [
   { name: 'blank_direct_message_recipient', entry: directMessage,
     settings: { RECIPIENT_HANDLE: '   ' },
     diagnostics: ['DISCORD_DM_RECIPIENT_REQUIRED', 'RECIPIENT_HANDLE'] },
+  { name: 'unconfigured_email_inbox', entry: emailVerification,
+    diagnostics: ['DISCORD_EMAIL_INBOX_UNCONFIGURED', 'STADO_INTEGRATION_API_URL', 'WELES_STADO_INTEGRATION_TOKEN'] },
 ];
 const failures = [];
 try {
@@ -70,6 +74,8 @@ try {
       DISCORD_TARGET_USER_ID: '',
       INVITE_URL: '',
       RECIPIENT_HANDLE: '', DM_MESSAGE: '',
+      STADO_INTEGRATION_API_URL: '', WELES_STADO_INTEGRATION_TOKEN: '',
+      SKARBIEC_VAULT_FILE: join(home, 'skarbiec.vault.json'),
       ...scenario.settings,
     };
     const operation = { scenario: scenario.name, command: [process.execPath, entry], cwd: home, environment_overrides: overrides };
