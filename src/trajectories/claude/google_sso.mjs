@@ -90,7 +90,7 @@ export async function doGoogleSso({
   // Session established. Now load claude.ai's OAuth — GIS sees the account.
   mark('goto_authorize');
   await page.goto(authorizeUrl, { waitUntil: 'commit' });
-  await humanIdlePause('deliberate');
+  await pageSettled(page);
 
   mark('gis_continue');
   // How this handoff actually behaves, from the recorded run
@@ -249,7 +249,7 @@ export async function doGoogleSso({
         authorizeRedrives += 1;
         mark('gis_authorize_redrive');
         await active.goto(authorizeUrl, { waitUntil: 'commit' });
-        await humanIdlePause('deliberate');
+        await pageSettled(active);
         continue;
       }
     }

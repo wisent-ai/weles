@@ -34,7 +34,7 @@ export async function doGoogleSso({
 
   mark('goto_authorize');
   await page.goto(authorizeUrl, { waitUntil: 'commit' });
-  await humanIdlePause('deliberate');
+  await pageSettled(page);
 
   mark('gis_continue');
   // GIS handoff is non-deterministic (popup | in-page consent |
@@ -178,7 +178,7 @@ export async function doGoogleSso({
             await completeEmailVerification(page, login, mark);
           }
           await page.goto(authorizeUrl, { waitUntil: 'commit' });
-          await humanIdlePause('deliberate');
+          await pageSettled(page);
           continue;
         }
         // An identifier field, an exact account row and an affirmative control
@@ -205,7 +205,7 @@ export async function doGoogleSso({
       const where = await navEval(page, () => location.href, '?');
       console.log(`[google_sso] no terminal state a${attempt} at ${where}; reloading authorizeUrl`);
       await page.goto(authorizeUrl, { waitUntil: 'commit' });
-      await humanIdlePause('deliberate');
+      await pageSettled(page);
     }
     const d = await navEval(page, () => ({ url: location.href, body: (document.body?.innerText || '').replace(/\s+/g, ' ') }), { url: '?', body: 'context destroyed' });
     d.trail = trail;
