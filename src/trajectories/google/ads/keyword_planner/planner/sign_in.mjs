@@ -3,7 +3,7 @@ import { pageSettled } from '../../../../_shared/page/settled.mjs';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { generatePersona } from '../../../../../../dist/browser/persona.js';
-import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../../../dist/human/mouse.js';
 import { googleSso } from '../../../../_shared/services/google_sso.mjs';
 import { GOOGLE_ADS_LOGIN, USER_DATA_DIR } from './settings.mjs';
 
@@ -42,10 +42,10 @@ export async function clickUseAnotherGoogleAccount(page) {
     .or(page.getByText(/^Add another account$/i))
     .or(page.getByText(/^Use another Google Account$/i))
     .first();
-  if (await useAnother.isVisible().catch(() => false)) {
+  if (await useAnother.isVisible()) {
     console.log('[google-ads-keyword-planner] choosing "Use another account"');
     await humanClickLocator(page, useAnother);
-    await humanIdlePause('deliberate');
+    await pageSettled(page);
     return true;
   }
   return false;
@@ -54,14 +54,14 @@ export async function clickUseAnotherGoogleAccount(page) {
 export async function continueFromAccountChooser(s) {
   const current = s.page.url?.() ?? '';
   if (!/accounts\.google\.com/.test(current)) return false;
-  const cookies = await s.ctx.cookies().catch(() => []);
+  const cookies = await s.ctx.cookies();
   if (!hasGoogleAuthCookie(cookies)) return false;
   const email = preferredGoogleAdsEmail();
   const preferred = s.page.getByText(email, { exact: false }).filter({ visible: true }).first();
-  if (await preferred.isVisible().catch(() => false)) {
+  if (await preferred.isVisible()) {
     console.log(`[google-ads-keyword-planner] selecting persisted account ${email}`);
     await humanClickLocator(s.page, preferred);
-    await humanIdlePause('deliberate');
+    await pageSettled(s.page);
     return true;
   }
   return false;
@@ -74,10 +74,8 @@ export async function navigateGoogleIdentifier(page, email, returnUrl) {
   login.searchParams.set('flowName', 'GlifWebSignIn');
   login.searchParams.set('flowEntry', 'ServiceLogin');
   login.searchParams.set('Email', email);
-  await page.goto(login.toString(), { waitUntil: 'domcontentloaded' }).catch((error) => {
-    console.log(`[google-ads-keyword-planner] WARN: identifier navigation failed ${String(error?.message || error)}`);
-  });
-  await humanIdlePause('deliberate');
+  await page.goto(login.toString(), { waitUntil: 'domcontentloaded' });
+  await pageSettled(page);
 }
 
 export async function runPreferredGoogleSso(s, returnUrl) {
@@ -96,18 +94,15 @@ export async function runPreferredGoogleSso(s, returnUrl) {
   if (/accounts\.google\.com/.test(s.page.url?.() || '')) {
     const emailInputCount = await s.page.locator('input[type="email"], input[name="identifier"], input#identifierId')
       .filter({ visible: true })
-      .count()
-      .catch(() => 0);
+      .count();
     if (!emailInputCount) {
       await clickUseAnotherGoogleAccount(s.page);
-      await humanIdlePause('deliberate');
     }
   }
 
   const emailInputCount = await s.page.locator('input[type="email"], input[name="identifier"], input#identifierId')
     .filter({ visible: true })
-    .count()
-    .catch(() => 0);
+    .count();
   if (!/accounts\.google\.com/.test(s.page.url?.() || '') || !emailInputCount) {
     await navigateGoogleIdentifier(s.page, email, returnUrl);
   }
@@ -124,9 +119,7 @@ export async function runPreferredGoogleSso(s, returnUrl) {
     return false;
   }
   if (!/ads\.google\.com/.test(s.page.url?.() || '')) {
-    await s.page.goto(returnUrl, { waitUntil: 'domcontentloaded' }).catch((error) => {
-      console.log(`[google-ads-keyword-planner] WARN: post-SSO return navigation failed ${String(error?.message || error)}`);
-    });
+    await s.page.goto(returnUrl, { waitUntil: 'domcontentloaded' });
   }
   await pageSettled(s.page);
   return true;
@@ -142,15 +135,13 @@ export async function ensurePreferredGoogleAccount(s, returnUrl) {
     }
     return await runPreferredGoogleSso(s, returnUrl);
   }
-  const text = await s.page.evaluate(() => document.body?.innerText || '').catch(() => '');
+  const text = await s.page.evaluate(() => document.body?.innerText || '');
   if (text.includes(email)) return true;
   const chooser = new URL('https://accounts.google.com/AccountChooser');
   chooser.searchParams.set('Email', email);
   chooser.searchParams.set('continue', returnUrl);
   chooser.searchParams.set('service', 'adwords');
-  await s.page.goto(chooser.toString(), { waitUntil: 'domcontentloaded' }).catch((error) => {
-    console.log(`[google-ads-keyword-planner] WARN: account chooser navigation failed ${String(error?.message || error)}`);
-  });
+  await s.page.goto(chooser.toString(), { waitUntil: 'domcontentloaded' });
   await pageSettled(s.page);
   const selectedPersisted = await continueFromAccountChooser(s);
   if (!selectedPersisted) return await runPreferredGoogleSso(s, returnUrl);

@@ -1,6 +1,6 @@
 import { pageSettled } from '../../../../_shared/page/settled.mjs';
 // Driving the Keyword Planner page: the account selector, the keyword input, and the harvest.
-import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
 import { cid, dashedCustomerId, keywords, norm } from './settings.mjs';
 import { preferredGoogleAdsEmail } from './sign_in.mjs';
@@ -11,10 +11,10 @@ export async function clickByText(page, pattern, label) {
   const control = page.getByRole('button', { name: pattern }).filter({ visible: true }).first()
     .or(page.getByRole('link', { name: pattern }).filter({ visible: true }).first())
     .or(page.getByText(pattern).filter({ visible: true }).first());
-  if (await control.isVisible().catch(() => false)) {
+  if (await control.isVisible()) {
     console.log(`[google-ads-keyword-planner] clicking ${label}`);
     await humanClickLocator(page, control);
-    await humanIdlePause('deliberate');
+    await pageSettled(page);
     return true;
   }
   return false;
@@ -29,10 +29,10 @@ export async function continueFromGoogleAdsAccountSelector(page) {
     page.getByText(/Google Ads account/i).filter({ visible: true }).first(),
   ];
   for (const candidate of candidates) {
-    if (await candidate.isVisible().catch(() => false)) {
+    if (await candidate.isVisible()) {
       console.log(`[google-ads-keyword-planner] selecting Google Ads account ${dashed}`);
       await humanClickLocator(page, candidate);
-      await humanIdlePause('deliberate');
+      await pageSettled(page);
       return true;
     }
   }
@@ -95,16 +95,16 @@ export async function fillKeywordInput(page) {
   }, { text });
   if (result?.ok) {
     console.log(`[google-ads-keyword-planner] filled keyword input ${JSON.stringify(result)}`);
-    await humanIdlePause('deliberate');
+    await pageSettled(page);
     return result;
   }
 
   const fallback = page.locator('textarea, input[type="text"], input:not([type]), [contenteditable="true"], [role="textbox"]')
     .filter({ visible: true })
     .first();
-  if (await fallback.isVisible().catch(() => false)) {
+  if (await fallback.isVisible()) {
     await humanFill(page, fallback, text);
-    await humanIdlePause('deliberate');
+    await pageSettled(page);
     return { ok: true, descriptor: 'playwright_fallback' };
   }
   return result || { ok: false, reason: 'no_keyword_input' };
@@ -120,9 +120,7 @@ export async function openKeywordPlanner(s) {
   const attempts = [];
   for (const path of candidates) {
     const url = buildGoogleAdsPath(s.page.url?.() || campaignsUrl('cid', cid), path);
-    await s.page.goto(url, { waitUntil: 'domcontentloaded' }).catch((error) => {
-      console.log(`[google-ads-keyword-planner] WARN: planner navigation failed ${path} ${String(error?.message || error)}`);
-    });
+    await s.page.goto(url, { waitUntil: 'domcontentloaded' });
     await pageSettled(s.page);
     if (await continueFromGoogleAdsAccountSelector(s.page)) {
       await pageSettled(s.page);

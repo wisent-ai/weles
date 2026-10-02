@@ -9,7 +9,7 @@
 
 import { WSession } from '../../../../dist/session/wsession.js';
 import { googleSso } from '../../_shared/services/google_sso.mjs';
-import { humanIdlePause } from '../../../../dist/human/mouse.js';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 import { readScopedLogin } from '../../../_shared/scoped-secrets.mjs';
 
 function arg(name) {
@@ -38,21 +38,23 @@ try {
   log('engine:', s.personaConfig?.browser ?? 'unknown', '| query:', QUERY);
   const url = 'https://drive.google.com/drive/search?q=' + encodeURIComponent(QUERY);
   await s.page.goto(url, { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
 
   if (/accounts\.google\.com|ServiceLogin|signin/.test(s.page.url())) {
     log('logged out — running googleSso for', creds.email);
     const ok = await googleSso(s, creds);
-    if (!ok) { log('FAIL: googleSso did not complete (url=' + s.page.url() + ')'); process.exit(2); }
-    await humanIdlePause('long');
+    if (!ok) throw new Error(`DRIVE_SEARCH_SIGN_IN_FAILED: ${s.page.url()}`);
+    await pageSettled(s.page);
     await s.page.goto(url, { waitUntil: 'domcontentloaded' });
-    await humanIdlePause('deliberate');
+    await pageSettled(s.page);
   }
 
-  // Wait for the results grid to hydrate. Drive uses [data-id="<fileId>"]
-  // on each row. Poll for either rows OR an "empty results" marker.
+  // Observe rendered results or an explicit empty state without a read budget.
   let results = null;
-  for (let i = 0; i < 30; i++) {
+  for (;;) {
+    if (new URL(s.page.url()).hostname === 'accounts.google.com') {
+      throw new Error(`DRIVE_SEARCH_SIGN_IN_REQUIRED: ${s.page.url()}`);
+    }
     results = await s.page.evaluate(() => { // allow-raw-playwright: read-only DOM scrape of Drive search results, no synthetic interaction
       const empty = !!document.querySelector('[aria-label*="No matching" i], [aria-label*="No files found" i]');
       if (empty) return { empty: true, rows: [] };
@@ -97,12 +99,7 @@ try {
       return { empty: false, rows: out };
     });
     if (results && (results.empty || results.rows.length > 0)) break;
-    await humanIdlePause('short');
-  }
-
-  if (!results) {
-    log('FAIL: results grid not loaded within timeout (url=' + s.page.url() + ')');
-    process.exit(2);
+    await pageSettled(s.page);
   }
 
   if (results.empty) {

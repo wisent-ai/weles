@@ -11,7 +11,7 @@
 
 import { WSession } from '../../../../../dist/session/wsession.js';
 import { googleSso } from '../../../_shared/services/google_sso.mjs';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { pageSettled } from '../../../_shared/page/settled.mjs';
 import { writeFileSync } from 'node:fs';
 import { readScopedLogin } from '../../../../_shared/scoped-secrets.mjs';
 
@@ -48,13 +48,13 @@ const s = await WSession.start({ label: LABEL, browser: process.env.BROWSER || '
 try {
   log('engine:', s.personaConfig?.browser ?? 'unknown', '| doc_id:', DOC_ID);
   await s.page.goto('https://docs.google.com/document/u/0/', { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
 
   if (/accounts\.google\.com|ServiceLogin|signin/.test(s.page.url())) {
     log('logged out — running googleSso for', creds.email);
     const ok = await googleSso(s, creds);
-    if (!ok) { log('FAIL: googleSso did not complete (url=' + s.page.url() + ')'); process.exit(2); }
-    await humanIdlePause('long');
+    if (!ok) throw new Error(`DRIVE_DOCUMENT_SIGN_IN_FAILED: ${s.page.url()}`);
+    await pageSettled(s.page);
   }
 
   const exportUrl = 'https://docs.google.com/document/d/' + DOC_ID + '/export?format=txt';
@@ -63,8 +63,7 @@ try {
   const status = resp.status();
   log('HTTP', status);
   if (status !== 200) {
-    log('FAIL: HTTP ' + status);
-    process.exit(2);
+    throw new Error(`DRIVE_DOCUMENT_EXPORT_HTTP_ERROR: HTTP ${status} for ${exportUrl}`);
   }
   const body = await resp.text();
   log('body chars:', body.length);
