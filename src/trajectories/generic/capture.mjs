@@ -25,7 +25,6 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { parseCaptureParams } from '../../../dist/worker/params/capture-params.js';
-import { humanHoverLocator, humanScroll } from '../../../dist/human/mouse.js';
 import { pageSettled } from '../_shared/page/settled.mjs';
 import { captureVideoTools, recordCaptureVideo } from '../_shared/runner/capture-video.mjs';
 import {
@@ -47,6 +46,12 @@ async function runStep(session, step) {
     return outcome;
   }
   if (step.op === 'hover') {
+    const { humanHoverLocator } = await import('../../../dist/human/mouse.js');
+    if (typeof humanHoverLocator !== 'function') {
+      throw Object.assign(new Error('The installed Weles input runtime does not provide humanHoverLocator'), {
+        code: 'CAPTURE_INPUT_UNAVAILABLE', operation: 'hover', export: 'humanHoverLocator',
+      });
+    }
     await humanHoverLocator(session.page, session.page.locator(step.value).first(), { leave: false });
     return `hovered ${step.value}`;
   }
@@ -57,6 +62,12 @@ async function runStep(session, step) {
   }
   if (step.op === 'press') return session.press(step.value);
   if (step.op === 'scroll') {
+    const { humanScroll } = await import('../../../dist/human/mouse.js');
+    if (typeof humanScroll !== 'function') {
+      throw Object.assign(new Error('The installed Weles input runtime does not provide humanScroll'), {
+        code: 'CAPTURE_INPUT_UNAVAILABLE', operation: 'scroll', export: 'humanScroll',
+      });
+    }
     await humanScroll(session.page, Number(step.value || '1200'));
     return `scrolled ${step.value || '1200'}`;
   }
@@ -68,7 +79,6 @@ async function runStep(session, step) {
   }
   return session.goto(step.value);
 }
-
 
 const plan = planFromEnv('GENERIC_CAPTURE_PLAN', parseCaptureParams);
 const keyPrefix = captureKeyPrefix(plan.artifact_prefix);
@@ -212,7 +222,7 @@ try {
     steps_executed: stepsExecuted,
     error: message,
     error_details: {
-      code: error?.code, operation: error?.operation,
+      code: error?.code, operation: error?.operation, export: error?.export,
       encoder: error?.encoder, probe: error?.probe, path: error?.path,
       status: error?.status, signal: error?.signal, stderr: error?.stderr,
       requested_seconds: error?.requestedSeconds, written_frames: error?.writtenFrames,
