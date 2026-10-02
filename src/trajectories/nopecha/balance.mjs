@@ -5,7 +5,8 @@ import { googleSso, parseBalanceFromText, patchServiceBalance, getGoogleSsoCreds
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { pageSettled } from '../_shared/page/settled.mjs';
 
 const HOME_URL = 'https://nopecha.com/';
 const MANAGE_URL = 'https://nopecha.com/manage';
@@ -18,31 +19,35 @@ console.log(`[trajectory] Using Google SSO: ${login.email}`);
 const s = await WSession.start({ label: 'nopecha_balance', browser: 'chromium' });
 try {
   await s.goto(HOME_URL);
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
 
   // Click homepage Sign in to open modal.
-  await s.page.locator('a:has-text("Sign in")').first().click();
-  await humanIdlePause('deliberate');
+  await humanClickLocator(s.page, s.page.locator('a:has-text("Sign in")').first());
+  const google = s.page.locator('button:has-text("Continue with Google")').filter({ visible: true }).first();
+  await google.waitFor({ state: 'visible' });
+  if (!(await google.isEnabled())) throw new Error(`NOPECHA_GOOGLE_CONTROL_DISABLED: ${s.page.url()}`);
 
   // "Continue with Google" navigates same-tab to accounts.google.com with
   // redirect_uri=https://api.nopecha.com/oauth/google/redirect (standard
   // server-side OAuth callback, no popup).
-  await s.page.locator('button:has-text("Continue with Google")').filter({ visible: true }).first().click();
+  await humanClickLocator(s.page, google);
 
   const ok = await googleSso(s, login, { originHost: 'nopecha.com' });
-  if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }
+  if (!ok) throw new Error(`NOPECHA_SSO_INCOMPLETE: Google sign-in did not complete; observed ${s.page.url()}`);
 
   // After SSO, navigate to /manage to see keys + balance.
-  await humanIdlePause('long');
-  await s.page.goto(MANAGE_URL, { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('long');
+  const response = await s.page.goto(MANAGE_URL, { waitUntil: 'domcontentloaded' });
+  if (!response) throw new Error(`NOPECHA_MANAGE_RESPONSE_MISSING: ${s.page.url()}`);
+  if (!response.ok()) throw new Error(`NOPECHA_MANAGE_HTTP_ERROR: HTTP ${response.status()} at ${response.url()}`);
+  const responseError = await response.finished();
+  if (responseError) throw new Error(`NOPECHA_MANAGE_RESPONSE_FAILED: ${response.url()}`, { cause: responseError });
+  await pageSettled(s.page);
 
   const text = await s.page.evaluate(() => document.body.innerText);
   console.log(`[trajectory] /manage text length=${text.length}`);
 
   if (/No active keys found/i.test(text)) {
-    console.log('FAIL: still showing "No active keys found" after Google SSO. Account is logged in but has no NopeCHA subscription/keys yet — buy a plan or generate a free trial key first.');
-    process.exit(1);
+    throw new Error(`NOPECHA_NO_ACTIVE_KEYS: provider displayed "No active keys found" at ${s.page.url()}`);
   }
 
   // NopeCHA shows credits rather than USD on its manage page:
@@ -66,20 +71,20 @@ try {
     try {
       const html = await s.page.content();
       writeFileSync(join(dir, 'dashboard.html'), html);
-    } catch {}
-    try { await s.page.screenshot({ path: join(dir, 'dashboard.png'), fullPage: true }); } catch {}
-    console.log(`FAIL: NopeCHA balance regex did not match — full dashboard text dumped to ${dir}/`);
-    process.exit(1);
+    } catch (error) { console.error('NOPECHA_DIAGNOSTIC_HTML_FAILED:', error); }
+    try { await s.page.screenshot({ path: join(dir, 'dashboard.png'), fullPage: true }); }
+    catch (error) { console.error('NOPECHA_DIAGNOSTIC_SCREENSHOT_FAILED:', error); }
+    throw new Error(`NOPECHA_BALANCE_NOT_FOUND: no supported balance widget at ${s.page.url()}; dashboard text saved to ${dir}`);
   }
   if (credMatch) console.log(`[trajectory] balance=${balance}/${credMatch[2]} credits`);
   else console.log(`[trajectory] balance=$${balance}`);
 
   const patched = await patchServiceBalance(DISPLAY_NAME, balance);
-  if (!patched) { console.log('FAIL: PATCH service_credentials failed'); process.exit(1); }
+  if (!patched) throw new Error(`NOPECHA_BALANCE_NOT_PERSISTED: service record update did not succeed for ${DISPLAY_NAME}`);
   console.log(`PASS: balance=$${balance} (persisted)`);
 } catch (e) {
-  console.log('FAIL:', e.message);
-  process.exit(1);
+  console.error('FAIL:', e);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }

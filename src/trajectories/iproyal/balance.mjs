@@ -8,7 +8,7 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { patchEffectiveBalance } from '../_shared/services/proxy_probe.mjs';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { pageSettled } from '../_shared/page/settled.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
@@ -35,15 +35,19 @@ try {
   // Start the OAuth code flow directly. This lands on accounts.google.com where
   // the shared googleSso driver can fill the identifier/password.
   await s.page.goto(GOOGLE_OAUTH_URL, { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('short');
+  await pageSettled(s.page);
 
   const ok = await googleSso(s, login, { originHost: 'iproyal.com' });
-  if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }
+  if (!ok) throw new Error(`IPROYAL_SSO_INCOMPLETE: Google sign-in did not complete; observed ${s.page.url()}`);
 
   // After Google redirects back, the dashboard may land on /me/ or similar.
   // Navigate explicitly to the dashboard root and wait for the balance widget.
-  await s.page.goto(DASHBOARD_URL, { waitUntil: 'domcontentloaded' }).catch(() => {});
-  await humanIdlePause('long');
+  const response = await s.page.goto(DASHBOARD_URL, { waitUntil: 'domcontentloaded' });
+  if (!response) throw new Error(`IPROYAL_DASHBOARD_RESPONSE_MISSING: ${s.page.url()}`);
+  if (!response.ok()) throw new Error(`IPROYAL_DASHBOARD_HTTP_ERROR: HTTP ${response.status()} at ${response.url()}`);
+  const responseError = await response.finished();
+  if (responseError) throw new Error(`IPROYAL_DASHBOARD_RESPONSE_FAILED: ${response.url()}`, { cause: responseError });
+  await pageSettled(s.page);
 
   const text = await s.page.evaluate(() => document.body.innerText);
   console.log(`[trajectory] dashboard text length=${text.length}`);
@@ -52,20 +56,21 @@ try {
     const dir = runRecordingsDir('iproyal_balance');
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'dashboard-text.txt'), text);
-    try { writeFileSync(join(dir, 'dashboard.html'), await s.page.content()); } catch {}
-    try { await s.page.screenshot({ path: join(dir, 'dashboard.png'), fullPage: true }); } catch {}
-    console.log(`FAIL: IPRoyal balance regex did not match — full dashboard text dumped to ${dir}/`);
-    process.exit(1);
+    try { writeFileSync(join(dir, 'dashboard.html'), await s.page.content()); }
+    catch (error) { console.error('IPROYAL_DIAGNOSTIC_HTML_FAILED:', error); }
+    try { await s.page.screenshot({ path: join(dir, 'dashboard.png'), fullPage: true }); }
+    catch (error) { console.error('IPROYAL_DIAGNOSTIC_SCREENSHOT_FAILED:', error); }
+    throw new Error(`IPROYAL_BALANCE_NOT_FOUND: no supported balance widget at ${s.page.url()}; dashboard text saved to ${dir}`);
   }
   console.log(`[trajectory] balance=$${balance}`);
 
   const r1 = await patchEffectiveBalance('IPRoyal Residential', balance);
   const r2 = await patchEffectiveBalance('IPRoyal Mobile', balance);
-  if (!r1 || !r2) { console.log(`FAIL: PATCH residential=${r1} mobile=${r2}`); process.exit(1); }
+  if (!r1 || !r2) throw new Error(`IPROYAL_BALANCE_NOT_PERSISTED: residential=${r1} mobile=${r2}`);
   console.log(`PASS: dashboard=$${balance} (effective balance written + probed)`);
 } catch (e) {
-  console.log('FAIL:', e.message);
-  process.exit(1);
+  console.error('FAIL:', e);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }

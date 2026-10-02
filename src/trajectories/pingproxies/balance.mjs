@@ -3,7 +3,8 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, parseBalanceFromText, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { patchEffectiveBalance } from '../_shared/services/proxy_probe.mjs';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { pageSettled } from '../_shared/page/settled.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
@@ -18,14 +19,16 @@ console.log(`[trajectory] Using Google SSO: ${login.email}`);
 const s = await WSession.start({ label: 'pingproxies_balance', browser: 'chromium' });
 try {
   await s.goto(LOGIN_URL);
-  await humanIdlePause('deliberate');
+  await pageSettled(s.page);
 
-  await s.page.locator('button:has-text("Continue with Google"), button:has-text("Sign in with Google")').filter({ visible: true }).first().click();
+  const google = s.page.locator('button:has-text("Continue with Google"), button:has-text("Sign in with Google")').filter({ visible: true }).first();
+  if (!(await google.isEnabled())) throw new Error(`PINGPROXIES_GOOGLE_CONTROL_DISABLED: ${s.page.url()}`);
+  await humanClickLocator(s.page, google);
 
   const ok = await googleSso(s, login, { originHost: 'byteful.com' });
-  if (!ok) { console.log('FAIL: Google SSO did not land back on byteful.com'); process.exit(1); }
+  if (!ok) throw new Error(`PINGPROXIES_SSO_INCOMPLETE: Google sign-in did not return to byteful.com; observed ${s.page.url()}`);
 
-  await humanIdlePause('long');
+  await pageSettled(s.page);
   const text = await s.page.evaluate(() => document.body.innerText);
   console.log(`[trajectory] dashboard text length=${text.length}`);
   const balance = parseBalanceFromText(text);
@@ -33,19 +36,20 @@ try {
     const dir = runRecordingsDir('pingproxies_balance');
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'dashboard-text.txt'), text);
-    try { writeFileSync(join(dir, 'dashboard.html'), await s.page.content()); } catch {}
-    try { await s.page.screenshot({ path: join(dir, 'dashboard.png'), fullPage: true }); } catch {}
-    console.log(`FAIL: Pingproxies balance regex did not match — full dashboard text dumped to ${dir}/`);
-    process.exit(1);
+    try { writeFileSync(join(dir, 'dashboard.html'), await s.page.content()); }
+    catch (error) { console.error('PINGPROXIES_DIAGNOSTIC_HTML_FAILED:', error); }
+    try { await s.page.screenshot({ path: join(dir, 'dashboard.png'), fullPage: true }); }
+    catch (error) { console.error('PINGPROXIES_DIAGNOSTIC_SCREENSHOT_FAILED:', error); }
+    throw new Error(`PINGPROXIES_BALANCE_NOT_FOUND: no labelled USD balance at ${s.page.url()}; dashboard text saved to ${dir}`);
   }
   console.log(`[trajectory] balance=$${balance}`);
 
   const patched = await patchEffectiveBalance(DISPLAY_NAME, balance);
-  if (!patched) { console.log('FAIL: PATCH service_credentials failed'); process.exit(1); }
+  if (!patched) throw new Error(`PINGPROXIES_BALANCE_NOT_PERSISTED: proxy record update did not succeed for ${DISPLAY_NAME}`);
   console.log(`PASS: dashboard=$${balance} (effective balance written + probed)`);
 } catch (e) {
-  console.log('FAIL:', e.message);
-  process.exit(1);
+  console.error('FAIL:', e);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }
