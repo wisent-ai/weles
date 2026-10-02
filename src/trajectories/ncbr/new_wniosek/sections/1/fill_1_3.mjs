@@ -6,6 +6,7 @@ import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
 import { cdpEndpoint, sectionUrl } from '#ncbr-settings';
+import { selectRadio } from '../../../form-input.mjs';
 
 const endpoint = cdpEndpoint();
 // The section id differs per application, so it is declared beside the project id.
@@ -40,8 +41,7 @@ async function saveForm() {
   await humanIdlePause('deliberate');
 }
 async function radio(value) {
-  await page.locator(`input[type="radio"][value="${value}"]`).first().dispatchEvent('click'); // allow-raw-playwright: radio select (Kimi reference)
-  await humanIdlePause('short');
+  await selectRadio(page, page.locator(`input[type="radio"][value="${value}"]`).first());
 }
 async function text(name, value) {
   await humanFill(page, page.locator(`[name="${name}"]`).first(), value);

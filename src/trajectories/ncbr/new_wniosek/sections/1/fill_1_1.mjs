@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
+import { selectRadio } from '../../../form-input.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const PROJECT_ID = (await import('#ncbr-settings')).projectId();
@@ -33,15 +34,12 @@ if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' }, null, 2)); process
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
 await page.waitForSelector(`textarea[name="${NB}tytul_projektu"]`);
 
-await page.locator('input[type="radio"][value="samodzielnie"]').first().dispatchEvent('click'); // allow-raw-playwright: select single applicant mode
-await humanIdlePause('short');
+await selectRadio(page, page.locator('input[type="radio"][value="samodzielnie"]').first());
 await humanFill(page, page.locator(`textarea[name="${NB}tytul_projektu"]`).first(), title);
 await humanFill(page, page.locator(`input[name="${NB}data_rozpoczecia_realizacji_projektu"]`).first(), '01.09.2026');
 await humanFill(page, page.locator(`input[name="${NB}data_zakonczenia_realizacji_projektu"]`).first(), '31.08.2029');
 await humanFill(page, page.locator(`textarea[name="${NB}streszczenie_projektu"]`).first(), summary);
-await humanIdlePause('short');
-await page.locator('input[type="radio"][value="Nie"]').last().dispatchEvent('click'); // allow-raw-playwright: resubmission answer
-await humanIdlePause('deliberate');
+await selectRadio(page, page.locator('input[type="radio"][value="Nie"]').last());
 
 let saveResult = 'saved';
 try {

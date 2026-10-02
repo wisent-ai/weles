@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
+import { selectRadio } from '../../../form-input.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('1_2');
@@ -72,8 +73,7 @@ await page.locator(`textarea[name="${NB}nazwa_technologii"]`).first().waitFor({ 
 const log = { radios: [], autocompletes: {}, slowa: [], texts: [] };
 
 for (const r of radios) {
-  await page.locator(`input[type="radio"][value="${r}"]`).first().dispatchEvent('click'); // allow-raw-playwright: Kimi radio method
-  await humanIdlePause('short');
+  await selectRadio(page, page.locator(`input[type="radio"][value="${r}"]`).first());
   log.radios.push(r);
 }
 

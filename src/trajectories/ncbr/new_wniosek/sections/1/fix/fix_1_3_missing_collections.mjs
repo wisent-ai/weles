@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../../dist/human/keyboard.js';
+import { selectRadio } from '../../../../form-input.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('1_3');
@@ -108,8 +109,7 @@ const kkkRows = await page.evaluate(() => {
 if (kkkRows === 0) {
   await clickDodaj(3);
   try { await setApplicant(); } catch (e) { /* single applicant may be auto-bound */ }
-  await page.locator('input[type="radio"][value="Nie"]').first().dispatchEvent('click'); // allow-raw-playwright: KKK membership = Nie
-  await humanIdlePause('short');
+  await selectRadio(page, page.locator('input[type="radio"][value="Nie"]').first());
   await saveForm();
   done.push({ collection: 'kkk', value: 'Nie' });
 }
