@@ -67,8 +67,8 @@ Options:
                           account-security reads 2FA without signing in; app-password signs in,
                           creates a Google app password and hands it to Skrzynka.
   Worker controls reach the executor at the route 'stado service directory connect weles-admission'
-  gives and with the Skarbiec token echo-weles-api#token; WELES_WORKER_API_BASE and
-  WELES_WORKER_TOKEN override both.
+  gives and with the Skarbiec token at the <item>#<field> WELES_WORKER_TOKEN_ITEM names;
+  WELES_WORKER_API_BASE and WELES_WORKER_TOKEN override both.
   --headless              Launch without a visible browser window.
   --browser <name>        Browser engine passed to AsyncNewBrowser (default: chromium).
   --os <name>             Persona OS passed to AsyncNewBrowser (default: macos).
