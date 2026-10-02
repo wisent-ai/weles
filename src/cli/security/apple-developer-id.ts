@@ -1,5 +1,8 @@
-// weles apple-developer-id: one Apple Developer ID Application certificate,
-// one authorization, one run.
+// weles developer-certificate --provider apple: one Apple Developer ID
+// Application certificate, one authorization, one run. The command is named
+// for what it issues; the provider is an argument, and apple is the one
+// implemented. The certificate's subject is the caller's organization, so it
+// is always named: no organization is built in.
 //
 // Apple issues this certificate only in the developer portal (its API answers
 // 403 "only the Account Holder" for every App Store Connect key), and the
@@ -25,14 +28,14 @@ const STANDARD_ACCOUNT_ROLE = 'apple-account-holder';
 const ROLE = /^[a-z0-9][a-z0-9-]{0,126}$/;
 const HOST = /^[A-Za-z0-9][A-Za-z0-9._-]{0,252}$/;
 const STANDARD_AGENT = 'weles-worker';
-const STANDARD_SUBJECT = '/CN=Wisent-AI Developer ID Application/O=Wisent-AI, Inc/C=US';
+const PROVIDER = 'apple';
 const STANDARD_EXPIRY_MINUTES = 15;
 const MIN_EXPIRY_MINUTES = 1;
 const MAX_EXPIRY_MINUTES = 60;
 const RSA_BITS = '2048';
 const OWNER_ONLY_FILE = 0o600;
 const PUBLIC_FILE = 0o644;
-const START_OPTIONS = ['account-role', 'confirm', 'execution-host', 'execution-agent', 'private-key-out', 'expires-in-minutes', 'subject'];
+const START_OPTIONS = ['provider', 'account-role', 'confirm', 'execution-host', 'execution-agent', 'private-key-out', 'expires-in-minutes', 'subject'];
 const READ_OPTIONS = ['run', 'certificate-out', 'private-key', 'store-host'];
 // The role every darwin release recipe reads its signing identity through
 // (MACOS_CERT_P12, MACOS_CERT_PASSWORD, MACOS_SIGN_IDENTITY): Stado selects
@@ -109,7 +112,7 @@ async function start(parsed: ParsedCli): Promise<Record<string, unknown>> {
   const executionHost = text(parsed, 'execution-host') ?? '';
   const executionAgent = text(parsed, 'execution-agent') ?? STANDARD_AGENT;
   const keyOut = text(parsed, 'private-key-out') ?? '';
-  const subject = text(parsed, 'subject') ?? STANDARD_SUBJECT;
+  const subject = text(parsed, 'subject') ?? '';
   const expiryMinutes = Number(text(parsed, 'expires-in-minutes') ?? STANDARD_EXPIRY_MINUTES);
   if (!ROLE.test(accountRole)) throw new Error('--account-role must be a Skarbiec role (lowercase letters, digits and hyphens)');
   if (text(parsed, 'confirm') !== CONFIRMATION_PHRASE) throw new Error(`--confirm must exactly equal "${CONFIRMATION_PHRASE}"`);
@@ -120,6 +123,7 @@ async function start(parsed: ParsedCli): Promise<Record<string, unknown>> {
   // The key is the half that matters: a certificate without it signs nothing,
   // so its destination is demanded before anything is issued.
   if (!isAbsolute(keyOut)) throw new Error('--private-key-out must be an absolute path on this machine');
+  if (!subject.startsWith('/CN=')) throw new Error('--subject is required: the certificate request\'s distinguished name, for example "/CN=<organization> Developer ID Application/O=<organization>/C=<country>"');
   if (existsSync(keyOut)) throw new Error(`refusing to replace an existing private key at ${keyOut}`);
 
   openssl(['genrsa', '-out', keyOut, RSA_BITS]);
@@ -138,7 +142,7 @@ async function start(parsed: ParsedCli): Promise<Record<string, unknown>> {
     execution_host: executionHost,
     private_key: keyOut,
     capabilities_expire_in_minutes: expiryMinutes,
-    next: `weles apple-developer-id --run ${runId} --certificate-out <absolute path> --private-key ${keyOut} --store-host <vault owner>`,
+    next: `weles developer-certificate --run ${runId} --certificate-out <absolute path> --private-key ${keyOut} --store-host <vault owner>`,
   };
 }
 
@@ -184,7 +188,10 @@ export async function runAppleDeveloperId(parsed: ParsedCli): Promise<void> {
   const allowed = reading ? READ_OPTIONS : START_OPTIONS;
   const unknown = keys.filter((key) => !allowed.includes(key));
   if (parsed.positional.length || unknown.length) {
-    throw new UsageError(`apple-developer-id takes either ${START_OPTIONS.map((key) => `--${key}`).join(' ')} or ${READ_OPTIONS.map((key) => `--${key}`).join(' ')}; got ${[...parsed.positional, ...unknown.map((key) => `--${key}`)].join(' ')}`);
+    throw new UsageError(`developer-certificate takes either ${START_OPTIONS.map((key) => `--${key}`).join(' ')} or ${READ_OPTIONS.map((key) => `--${key}`).join(' ')}; got ${[...parsed.positional, ...unknown.map((key) => `--${key}`)].join(' ')}`);
+  }
+  if (!reading && parsed.options.provider !== PROVIDER) {
+    throw new UsageError(`developer-certificate needs --provider naming the certificate authority; Weles issues through ${PROVIDER}`);
   }
   const row = reading ? await read(parsed) : await start(parsed);
   printAnswer(row, parsed.options.json === true);

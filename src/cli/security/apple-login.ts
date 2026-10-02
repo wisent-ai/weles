@@ -1,4 +1,7 @@
-// weles apple-login: one authorized Apple account sign-in on the execution host.
+// weles login --provider apple: one authorized Apple account sign-in on the
+// execution host. The command is named for what it does; the provider whose
+// account it signs in to is an argument, and apple is the one implemented.
+// Reading a run back needs only its id.
 //
 // apple_login starts only with a guard id, the execution host and agent, and
 // three one-use capabilities Stado mints on that host; this command issues
@@ -19,7 +22,8 @@ const STANDARD_AGENT = 'weles-worker';
 const STANDARD_EXPIRY_MINUTES = '10';
 const MIN_EXPIRY_MINUTES = 1;
 const MAX_EXPIRY_MINUTES = 60;
-const START_OPTIONS = ['account-role', 'confirm', 'execution-host', 'execution-agent', 'expires-in-minutes'];
+const START_OPTIONS = ['provider', 'account-role', 'confirm', 'execution-host', 'execution-agent', 'expires-in-minutes'];
+const PROVIDER = 'apple';
 
 function optional(parsed: ParsedCli, key: string, standard: string): string {
   const value = parsed.options[key];
@@ -54,7 +58,7 @@ async function start(parsed: ParsedCli): Promise<Record<string, unknown>> {
     account_role: accountRole,
     execution_host: executionHost,
     capabilities_expire_in_minutes: expiryMinutes,
-    next: `weles apple-login --run ${runId}`,
+    next: `weles login --run ${runId}`,
   };
 }
 
@@ -64,10 +68,13 @@ export async function runAppleLogin(parsed: ParsedCli): Promise<void> {
   const allowed = reading ? ['run'] : START_OPTIONS;
   const unknown = keys.filter((key) => !allowed.includes(key));
   if (parsed.positional.length || unknown.length) {
-    throw new UsageError(`apple-login takes either ${START_OPTIONS.map((key) => `--${key}`).join(' ')} or --run <run-id>; got ${[...parsed.positional, ...unknown.map((key) => `--${key}`)].join(' ')}`);
+    throw new UsageError(`login takes either ${START_OPTIONS.map((key) => `--${key}`).join(' ')} or --run <run-id>; got ${[...parsed.positional, ...unknown.map((key) => `--${key}`)].join(' ')}`);
   }
   const json = parsed.options.json === true;
   if (!reading) {
+    if (parsed.options.provider !== PROVIDER) {
+      throw new UsageError(`login needs --provider naming the identity provider to sign in to; Weles signs in to ${PROVIDER}`);
+    }
     printAnswer(await start(parsed), json);
     return;
   }

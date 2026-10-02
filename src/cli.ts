@@ -14,7 +14,7 @@ import { runKeeper } from './cli/keeper.js';
 import { adoptRecords } from './state/skarbiec-records.js';
 import { UsageError, exitStatusFor, printAnswer } from './cli/usage.js';
 
-type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import' | 'release' | 'figma' | 'operator-requests' | 'account-security' | 'app-password' | 'apple-developer-id' | 'apple-login' | 'worker' | 'records' | 'keeper';
+type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import' | 'release' | 'figma' | 'operator-requests' | 'account-security' | 'app-password' | 'developer-certificate' | 'login' | 'worker' | 'records' | 'keeper';
 
 export type ParsedCli = {
   command: CliCommand;
@@ -46,9 +46,10 @@ Usage:
   weles account-security --run <run-id> [--json]
   weles app-password --login-role <skarbiec-role> [--json]
   weles app-password --run <run-id> [--json]
-  weles apple-developer-id [--account-role <role>] --confirm "AUTHORIZE ONE APPLE DEVELOPER ID" --execution-host <host> --private-key-out <abs> [--execution-agent <agent>] [--expires-in-minutes <n>] [--subject <dn>] [--json]
-  weles apple-developer-id --run <run-id> --certificate-out <abs> [--json]
-  weles apple-login [--account-role <role>] --confirm "AUTHORIZE ONE APPLE LOGIN" --execution-host <host> [--execution-agent <agent>] [--expires-in-minutes <n>] | --run <run-id> [--json]
+  weles developer-certificate --provider apple --subject <dn> [--account-role <role>] --confirm "AUTHORIZE ONE APPLE DEVELOPER ID" --execution-host <host> --private-key-out <abs> [--execution-agent <agent>] [--expires-in-minutes <n>] [--json]
+  weles developer-certificate --run <run-id> --certificate-out <abs> [--private-key <abs> --store-host <host>] [--json]
+  weles login --provider apple [--account-role <role>] --confirm "AUTHORIZE ONE APPLE LOGIN" --execution-host <host> [--execution-agent <agent>] [--expires-in-minutes <n>] [--json]
+  weles login --run <run-id> [--json]
   weles worker <status|start|stop|restart> [--json]
   weles keeper start --session <id> [--url <url>] [--headless]
                           Hold one browser session that answers JSON commands on
@@ -63,6 +64,8 @@ Options:
   --keys <file>           JSON map of trusted receipt key IDs to PEM public keys.
   --state-dir <dir>       Override the durable onboarding state directory.
   --host <hostname>       Exact managed Weles worker hostname for imported definitions.
+  --provider <name>       The provider a login or developer certificate goes through; apple is the
+                          one Weles implements, and none is assumed.
   --login-role <role>     The Skarbiec role the Google login plays (the item tagged stado:role:<role>).
                           account-security reads 2FA without signing in; app-password signs in,
                           creates a Google app password and hands it to Skrzynka.
@@ -155,14 +158,14 @@ export function parseCliArgs(argv: string[]): ParsedCli {
 function normalizeCommand(command?: string): CliCommand {
   if (!command || command === '--help' || command === '-h' || command === 'help') return 'help';
   if (command === '--version' || command === '-v' || command === 'version') return 'version';
-  if (command === 'account-security' || command === 'app-password' || command === 'apple-developer-id' || command === 'apple-login' || command === 'worker' || command === 'records' || command === 'keeper') return command;
+  if (command === 'account-security' || command === 'app-password' || command === 'developer-certificate' || command === 'login' || command === 'worker' || command === 'records' || command === 'keeper') return command;
   if (command === 'doctor' || command === 'open' || command === 'screenshot' || command === 'mcp' || command === 'onboarding' || command === 'import' || command === 'release' || command === 'figma' || command === 'operator-requests') return command;
   throw new UsageError(`unknown command: ${command}`);
 }
 
 function optionTakesValue(key: string): boolean {
   if (key === 'login-item' || key === 'login-role') return true;
-  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'subject', 'receipt', 'keys', 'state-dir', 'host', 'decision', 'baseline', 'declaration', 'manifest', 'source-revision', 'candidate-tag', 'released', 'published-surface', 'reason', 'correcting', 'root', 'limit', 'kind', 'account', 'run', 'instruction', 'pid', 'detail', 'account-role', 'confirm', 'execution-host', 'execution-agent', 'private-key-out', 'certificate-out', 'expires-in-minutes', 'private-key', 'store-host', 'session', 'url'].includes(key);
+  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'subject', 'receipt', 'keys', 'state-dir', 'host', 'decision', 'baseline', 'declaration', 'manifest', 'source-revision', 'candidate-tag', 'released', 'published-surface', 'reason', 'correcting', 'root', 'limit', 'kind', 'account', 'run', 'instruction', 'pid', 'detail', 'account-role', 'confirm', 'execution-host', 'execution-agent', 'private-key-out', 'certificate-out', 'expires-in-minutes', 'private-key', 'store-host', 'session', 'url', 'provider'].includes(key);
 }
 
 function cliOptionsToBrowserOptions(options: Record<string, string | boolean>): AsyncNewBrowserOptions {
@@ -281,11 +284,11 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
     await runAppPassword(parsed);
     return;
   }
-  if (parsed.command === 'apple-developer-id') {
+  if (parsed.command === 'developer-certificate') {
     await runAppleDeveloperId(parsed);
     return;
   }
-  if (parsed.command === 'apple-login') {
+  if (parsed.command === 'login') {
     await runAppleLogin(parsed);
     return;
   }
