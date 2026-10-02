@@ -8,8 +8,11 @@ import { checkReachable } from '../../_shared/action-runner.mjs';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth/auth-probe.mjs';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
-const SUBREDDIT = (process.env.SUBREDDIT || 'popular').replace(/^r\//, '');
+// Where the upvote lands is the request's: a post or listing as TARGET_URL,
+// or a subreddit as SUBREDDIT. No feed is assumed.
 const TARGET_URL = process.env.TARGET_URL || '';
+const SUBREDDIT = (process.env.SUBREDDIT || '').replace(/^r\//, '');
+if (!TARGET_URL && !SUBREDDIT) { console.log('FAIL: TARGET_URL or SUBREDDIT env var required: where the upvote lands'); process.exit(1); }
 
 const acct = await getSocialAccount('reddit');
 if (!acct) { console.log('FAIL: no active reddit account'); process.exit(1); }

@@ -18,22 +18,17 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../../../dist/session/run-recordings.js';
 
-// Newbie-tolerant subs — high comment volume, light AutoMod, no karma gate.
-// The default 'popular' lands on mega-threads where comments are routinely
-// auto-removed by sub-specific filters even when the account is fine; that
-// produces false-positive shadowban verdicts for our verifier. When SUBREDDIT
-// is unset OR the caller passes 'popular'/'all', pick from this curated list
-// instead. Verified 2026-04-29 across the cohort: comments to r/test took
-// 6/10 hits to AutoMod removal; same accounts had 8/10 successful comments
-// in r/CasualConversation in the same session window.
-const NEWBIE_FRIENDLY_SUBS = [
-  'CasualConversation', 'AskOldPeople', 'AskReddit', 'NoStupidQuestions',
-  'mildlyinteresting', 'todayilearned', 'AskMen', 'AskWomen',
-];
-const RAW_SUBREDDIT = process.env.SUBREDDIT || 'popular';
-const SUBREDDIT = (RAW_SUBREDDIT === 'popular' || RAW_SUBREDDIT === 'all')
-  ? NEWBIE_FRIENDLY_SUBS[Math.floor(Math.random() * NEWBIE_FRIENDLY_SUBS.length)]
-  : RAW_SUBREDDIT;
+// The subreddit the comment goes to is the request's. Nothing is picked here:
+// a built-in list of "newbie-friendly" subs chose where an account spoke
+// without anyone asking, and `popular`/`all` land on mega-threads whose
+// filters remove new comments and read as shadowbans to the verifier — so
+// both are refused rather than silently replaced.
+const SUBREDDIT = (process.env.SUBREDDIT || '').replace(/^r\//, '');
+if (!SUBREDDIT) { console.log('FAIL: SUBREDDIT env var required: the subreddit the comment goes to'); process.exit(1); }
+if (SUBREDDIT === 'popular' || SUBREDDIT === 'all') {
+  console.log(`FAIL: SUBREDDIT ${SUBREDDIT} is a mega-feed whose filters remove new comments; name one subreddit`);
+  process.exit(1);
+}
 
 // Deferred clean-session verify: Reddit's async spam classifier removes
 // comments minutes after submit, so each run records its comment and the next
@@ -56,10 +51,9 @@ try {
   // wall on residential proxies. With session cookies the listing returns directly.
   const cookies = (acct.metadata?.cookies ?? []).filter(c => (c.domain ?? '').includes('reddit.com'));
   if (cookies.length) await s.ctx.addCookies(cookies).catch(() => {});
-  // /r/popular surfaces mega-threads with thousands of comments. Pull /new for
-  // fresher posts. Capture body via page.evaluate fetch (not capturedResponses,
+  // Capture the listing body via page.evaluate fetch (not capturedResponses,
   // which truncates to 8KB and breaks JSON.parse on listing payloads).
-  const sortPath = SUBREDDIT === 'popular' || SUBREDDIT === 'all' ? `/r/${SUBREDDIT}/new` : `/r/${SUBREDDIT}`;
+  const sortPath = `/r/${SUBREDDIT}`;
   await s.goto('https://www.reddit.com/');
   const listingUrl = `https://www.reddit.com${sortPath}/.json?limit=50&raw_json=1`;
   const data = await s.page.evaluate(async (u) => { try { const r = await fetch(u, { credentials: 'include' }); if (!r.ok) return null; return await r.json(); } catch { return null; } }, listingUrl).catch(() => null);
