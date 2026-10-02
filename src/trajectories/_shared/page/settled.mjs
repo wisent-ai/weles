@@ -147,12 +147,23 @@ export async function popupOrNavigation(page, pattern, action) {
 // message (`message`, a locator) becoming visible. Resolves 'navigated' or
 // 'message' once the answer has come and the page has settled.
 export async function submitAnswered(page, stays, message) {
-  const answer = await Promise.any([
-    urlMatching(page, (url) => !stays.test(url)).then(() => 'navigated'),
-    message.waitFor({ state: 'visible' }).then(() => 'message'),
-  ]);
-  await pageSettled(page);
-  return answer;
+  for (;;) {
+    try {
+      if (page.isClosed()) {
+        throw Object.assign(new Error(`page closed before the form answered; last URL ${page.url()}`),
+          { code: 'PAGE_CLOSED', pageUrl: page.url() });
+      }
+      const answer = !stays.test(page.url()) ? 'navigated'
+        : await message.isVisible() ? 'message' : null;
+      if (answer) {
+        await pageSettled(page);
+        return answer;
+      }
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(resolve)));
+    } catch (error) {
+      if (!DOCUMENT_REPLACED.test(String(error?.message))) throw error;
+    }
+  }
 }
 
 // Correlates an action's first matching new request with its own response.
