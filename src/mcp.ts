@@ -57,7 +57,6 @@ function browserOptions(args: Record<string, unknown>): AsyncNewBrowserOptions {
   if (typeof args.browser === 'string') options.browser = args.browser;
   if (typeof args.os === 'string') options.os = args.os;
   if (typeof args.locale === 'string') options.locale = args.locale;
-  if (typeof args.chromiumPath === 'string') options.chromiumPath = args.chromiumPath;
   if (typeof args.userDataDir === 'string') options.userDataDir = args.userDataDir;
   if (typeof args.proxy === 'string') options.proxy = { server: args.proxy };
   return options;

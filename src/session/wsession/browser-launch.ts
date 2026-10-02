@@ -121,7 +121,7 @@ export async function openSessionBrowser(opts: WSessionOptions): Promise<Session
     : (opts.pageDiagnostics ?? (label !== 'linkedin_register'));
   const userDataDir = opts.userDataDir ?? process.env.WELES_USER_DATA_DIR ?? accountProfileDirectory(opts, persona.browser);
   const bOpts: AsyncNewBrowserOptions = { os: persona.os, browser: persona.browser, headless: opts.headless ?? (process.env.WELES_HEADLESS === '1'), recordVideo: secureCredentialTask ? false : (opts.record ?? (process.env.WELES_DISABLE_RECORDING !== '1')), locale: opts.locale, persona, proxy, pageDiagnostics, userAgent: opts.userAgent, userDataDir };
-  if (opts.chromiumPath || process.env.CHROMIUM_PATH) {
+  if (process.env.CHROMIUM_PATH) {
     throw new Error('Explicit browser path overrides are retired; configure the exact Stado browser release version and SHA-256');
   }
   const cp = findCustomBrowser(bOpts.browser);

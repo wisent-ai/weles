@@ -96,7 +96,6 @@ Options:
   --browser <name>        Browser engine passed to AsyncNewBrowser (default: chromium).
   --os <name>             Persona OS passed to AsyncNewBrowser (default: macos).
   --locale <locale>       Locale passed to AsyncNewBrowser.
-  --chromium-path <path>  Custom Chromium binary path.
   --user-data-dir <dir>   Browser profile directory.
   --proxy <url>           Proxy server URL.
   --text                  Print document body text after navigation.

@@ -24,7 +24,6 @@ export type SessionProxy = NonNullable<AsyncNewBrowserOptions['proxy']>;
 export interface WSessionOptions {
   label?: string;
   proxy?: string;
-  chromiumPath?: string;
   userDataDir?: string;
   headless?: boolean;
   record?: boolean;

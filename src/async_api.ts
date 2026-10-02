@@ -26,7 +26,6 @@ export interface AsyncNewBrowserOptions {
   headless?: boolean;
   recordVideo?: boolean;
   excludeScripts?: string[];
-  chromiumPath?: string;
   userDataDir?: string;
   persona?: Persona;
   pageDiagnostics?: boolean;

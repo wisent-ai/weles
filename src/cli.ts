@@ -84,7 +84,7 @@ function normalizeCommand(command?: string): CliCommand {
 
 function optionTakesValue(key: string): boolean {
   if (key === 'login-item' || key === 'login-role') return true;
-  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'subject', 'receipt', 'keys', 'state-dir', 'host', 'decision', 'baseline', 'declaration', 'manifest', 'source-revision', 'candidate-tag', 'released', 'published-surface', 'reason', 'correcting', 'root', 'limit', 'kind', 'account', 'run', 'instruction', 'pid', 'detail', 'account-role', 'confirm', 'execution-host', 'execution-agent', 'private-key-out', 'certificate-out', 'expires-in-minutes', 'private-key', 'store-host', 'session', 'url', 'provider'].includes(key);
+  return ['browser', 'os', 'locale', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'subject', 'receipt', 'keys', 'state-dir', 'host', 'decision', 'baseline', 'declaration', 'manifest', 'source-revision', 'candidate-tag', 'released', 'published-surface', 'reason', 'correcting', 'root', 'limit', 'kind', 'account', 'run', 'instruction', 'pid', 'detail', 'account-role', 'confirm', 'execution-host', 'execution-agent', 'private-key-out', 'certificate-out', 'expires-in-minutes', 'private-key', 'store-host', 'session', 'url', 'provider'].includes(key);
 }
 
 function cliOptionsToBrowserOptions(options: Record<string, string | boolean>): AsyncNewBrowserOptions {
@@ -94,7 +94,6 @@ function cliOptionsToBrowserOptions(options: Record<string, string | boolean>): 
   if (typeof options.browser === 'string') browserOptions.browser = options.browser;
   if (typeof options.os === 'string') browserOptions.os = options.os;
   if (typeof options.locale === 'string') browserOptions.locale = options.locale;
-  if (typeof options['chromium-path'] === 'string') browserOptions.chromiumPath = options['chromium-path'];
   if (typeof options['user-data-dir'] === 'string') browserOptions.userDataDir = options['user-data-dir'];
   if (typeof options.proxy === 'string') browserOptions.proxy = { server: options.proxy };
   return browserOptions;

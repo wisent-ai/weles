@@ -17,7 +17,6 @@ const browserTools: ToolDefinition[] = [
       browser: { type: 'string', enum: ['chromium', 'firefox'], description: 'Browser engine.' },
       os: { type: 'string', description: 'Persona OS, for example macos.' },
       locale: { type: 'string', description: 'Locale, for example en-US.' },
-      chromiumPath: { type: 'string', description: 'Custom Chromium binary path.' },
       userDataDir: { type: 'string', description: 'Persistent browser profile directory.' },
       proxy: { type: 'string', description: 'Proxy server URL.' },
     }),
