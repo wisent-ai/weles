@@ -16,7 +16,7 @@ function parseArgs() {
   const out = {
     session: process.env.SESSION || '',
     account: process.env.SUBSCRIPTION_ACCOUNT || '',
-    serviceCredentialId: 'kimi-lukasz-google-sso',
+    serviceCredentialId: '',
   };
   for (let i = 2; i < process.argv.length; i += 1) {
     const arg = process.argv[i];
@@ -27,6 +27,7 @@ function parseArgs() {
   }
   if (!out.session) throw new Error('missing --session or SESSION');
   if (!out.account) throw new Error('missing --account or SUBSCRIPTION_ACCOUNT: the account the subscription is billed to');
+  if (!out.serviceCredentialId.trim()) throw new Error('missing --service-credential-id: the credential for this subscription account');
   return out;
 }
 

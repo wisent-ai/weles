@@ -118,10 +118,13 @@ export async function upsertCredential(row) {
 }
 
 export async function ensureKimiGoogleSso({
-  id = 'kimi-lukasz-google-sso',
+  id,
   email,
   sourceCredentialId,
 } = {}) {
+  if (typeof id !== 'string' || !id.trim()) {
+    throw new Error('ensure-kimi-google-sso needs an explicit destination credential id');
+  }
   const source = sourceCredentialId ? await getCredential(sourceCredentialId) : null;
   email = email || source?.login_email;
   if (!email) {
@@ -157,12 +160,13 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.log(JSON.stringify(rows.map(redacted), null, 2));
   } else if (cmd === 'ensure-kimi-google-sso') {
     const rows = await ensureKimiGoogleSso({
-      sourceCredentialId: process.argv[3],
-      email: process.argv[4],
+      id: process.argv[3],
+      sourceCredentialId: process.argv[4],
+      email: process.argv[5],
     });
     console.log(JSON.stringify(rows.map(redacted), null, 2));
   } else {
-    console.error('Usage: node src/lib/service_credentials.mjs list [term,term] | patch <id> <json> | ensure-kimi-google-sso [source_credential_id] [email]');
+    console.error('Usage: node src/lib/service_credentials.mjs list [term,term] | patch <id> <json> | ensure-kimi-google-sso <id> [source_credential_id] [email]');
     process.exit(1);
   }
 }

@@ -43,8 +43,8 @@ const MONTHS = new Map([
 function parseArgs() {
   const out = {
     session: process.env.SESSION || '',
-    account: 'controlyourai@gmail.com',
-    serviceCredentialId: 'claude_controlyourai',
+    account: process.env.SUBSCRIPTION_ACCOUNT || '',
+    serviceCredentialId: '',
   };
   for (let i = 2; i < process.argv.length; i += 1) {
     const arg = process.argv[i];
@@ -54,6 +54,8 @@ function parseArgs() {
     else throw new Error(`unknown arg: ${arg}`);
   }
   if (!out.session) throw new Error('missing --session or SESSION');
+  if (!out.account.trim()) throw new Error('missing --account or SUBSCRIPTION_ACCOUNT: the account the subscription is billed to');
+  if (!out.serviceCredentialId.trim()) throw new Error('missing --service-credential-id: the credential for this subscription account');
   return out;
 }
 
