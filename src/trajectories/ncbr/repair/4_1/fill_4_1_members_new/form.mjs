@@ -4,6 +4,7 @@
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
 import { openNewRow, openRowEditor } from '../../../forms/row-editor.mjs';
+import { selectRadio } from '../../../form-input.mjs';
 
 export function membersForm({ page, SECTION_URL }) {
 async function clickDodaj() {
@@ -48,8 +49,7 @@ async function setApplicant() {
 
 async function setStatus() {
   const value = 'pracownik_wnioskodawcy_samodzielnego_lidera_konsorcjum';
-  await page.locator(`input[type="radio"][value="${value}"]`).first().dispatchEvent('click'); // allow-raw-playwright: status radio
-  await humanIdlePause('short');
+  await selectRadio(page, page.locator(`input[type="radio"][value="${value}"]`).first());
 }
 
 async function saveForm() {
@@ -82,8 +82,7 @@ async function fillProjectSubrow(project, addIdx = 0) {
   await fillNested('zrealizowane_projekty_okres_realizacji_od', project.od);
   await fillNested('zrealizowane_projekty_okres_realizacji_do', project.do);
   const consortiumValue = project.konsorcjum === 'Tak' ? 'Tak' : 'Nie';
-  await page.locator(`input[type="radio"][value="${consortiumValue}"]`).first().dispatchEvent('click'); // allow-raw-playwright: project consortium radio
-  await humanIdlePause('short');
+  await selectRadio(page, page.locator(`input[type="radio"][value="${consortiumValue}"]`).first());
   await fillNested('zrealizowane_projekty_rola_w_zrealizowanym_projekcie', project.rola);
   await fillNested('zrealizowane_projekty_glowne_efekty', project.efekty);
   await saveForm();

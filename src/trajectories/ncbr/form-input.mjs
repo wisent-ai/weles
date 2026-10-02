@@ -34,3 +34,20 @@ export async function fillField(page, locator, value, { truncate = true } = {}) 
   }
   return { len: next.length, max, changed: true };
 }
+
+export async function selectRadio(page, locator) {
+  await locator.waitFor({ state: 'attached' });
+  if (await locator.isChecked()) return { changed: false };
+  if (!(await locator.isEnabled()) || await locator.getAttribute('aria-disabled') === 'true') {
+    throw Object.assign(new Error(`LSI_RADIO_DISABLED: ${locator}`), {
+      code: 'LSI_RADIO_DISABLED', pageUrl: page.url(),
+    });
+  }
+  await locator.dispatchEvent('click'); // allow-raw-playwright: preserve the LSI radio input event path
+  if (!(await locator.isChecked())) {
+    throw Object.assign(new Error(`LSI_RADIO_SELECTION_MISMATCH: ${locator} is not checked after its click`), {
+      code: 'LSI_RADIO_SELECTION_MISMATCH', pageUrl: page.url(),
+    });
+  }
+  return { changed: true };
+}

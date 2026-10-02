@@ -2,7 +2,7 @@
 // the pre-save check, the radio and applicant choices, saving, and opening a task row.
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { openNewRow, openRowEditor } from '../../../forms/row-editor.mjs';
-import { fillField } from '../../../form-input.mjs';
+import { fillField, selectRadio } from '../../../form-input.mjs';
 
 export function tasksForm({ page, SECTION_URL }) {
 async function clickDodaj() {
@@ -40,8 +40,7 @@ async function assertTaskValuesBeforeSave(nr) {
 }
 
 async function radio(value) {
-  await page.locator(`input[type="radio"][value="${value}"]`).first().dispatchEvent('click'); // allow-raw-playwright: radio select
-  await humanIdlePause('short');
+  await selectRadio(page, page.locator(`input[type="radio"][value="${value}"]`).first());
 }
 
 async function setApplicant() {
