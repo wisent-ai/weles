@@ -6,7 +6,7 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { askPage, type ScreenshottablePage } from '../vision/analyze.js';
-import { humanIdlePause } from '../human/mouse.js';
+import { pageSettled } from '../browser/settled.js';
 import { runRecordingsDir } from '../session/run-recordings.js';
 import { classifyGrid } from './grid/classify_grid.js';
 
@@ -58,22 +58,19 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
   // same image + flagged session just trips LinkedIn login-restriction.
   {
     const attempt = 0;
-    try {
     let bframe = findBframe(page);
     // Anchor-state recovery (restored 2026-05-08 from frame_5a0be1ec_last.png
     // showing "Verification challenge expired" + aria-checked=false).
-    try {
-      const af = findAnchorFrame(page);
-      if (af) {
-        const checked = await af.evaluate(`(() => document.querySelector('.recaptcha-checkbox')?.getAttribute('aria-checked') === 'true')()`).catch(() => false);
-        if (!checked && bframe) {
-          console.log('[recaptcha] Anchor unchecked (token expired) — re-clicking');
-          try { await af.locator('#recaptcha-anchor').click({ force: true }); } catch {}
-          await humanIdlePause('short');
-          bframe = findBframe(page);
-        }
+    const anchorBeforeRecovery = findAnchorFrame(page);
+    if (anchorBeforeRecovery) {
+      const checked = await anchorBeforeRecovery.evaluate(`(() => document.querySelector('.recaptcha-checkbox')?.getAttribute('aria-checked') === 'true')()`);
+      if (!checked && bframe) {
+        console.log('[recaptcha] Anchor unchecked (token expired) — re-clicking');
+        await anchorBeforeRecovery.locator('#recaptcha-anchor').click({ force: true });
+        await pageSettled(page);
+        bframe = findBframe(page);
       }
-    } catch {}
+    }
     if (!bframe) {
       // Page may have navigated to new checkpoint — wait for it to load
       console.log('[recaptcha] No bframe, waiting for page load...');
@@ -124,49 +121,30 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
           await bf.locator(`table tr:nth-child(${row}) td:nth-child(${col})`).click({ force: true });
           console.log(`[recaptcha] Tile ${pos}`);
         } catch (e: any) {
-          console.log(`[recaptcha] Tile ${pos} stalled (${e.message})`);
-          break;
+          throw new Error(`RECAPTCHA_TILE_CLICK_FAILED: tile ${pos}: ${e.message}`, { cause: e });
         }
-        await humanIdlePause();
-      }
-    }
-    await humanIdlePause('short');
-
-    // Click verify
-    const verifyEl = await bframe.$('#recaptcha-verify-button');
-    if (verifyEl) { await verifyEl.click({ force: true }); console.log('[recaptcha] Verify clicked'); }
-    else { await bframe.evaluate(`(() => document.querySelector('#recaptcha-verify-button')?.click())()`).catch(() => {}); console.log('[recaptcha] Verify JS'); }
-
-    // Wait for result — context destroyed = page navigated = solved
-    try {
-      await bframe.waitForFunction(`() => {
-        const err = document.querySelector('.rc-imageselect-error-select-more, .rc-imageselect-incorrect-response');
-        return (err && err.offsetParent !== null) || document.querySelector('.rc-imageselect-desc');
-      }`);
-    } catch (e: any) {
-      if (e.message?.includes('context') || e.message?.includes('destroy') || e.message?.includes('navig') || e.message?.includes('detach')) {
-        console.log('[recaptcha] Page navigated — SOLVED!'); return true;
+        await pageSettled(bframe);
       }
     }
 
-    // Check checkbox
-    try {
+    const verifyEl = bframe.locator('#recaptcha-verify-button');
+    await verifyEl.waitFor({ state: 'visible' });
+    if (!await verifyEl.isEnabled()) throw new Error('RECAPTCHA_VERIFY_DISABLED: the provider has not enabled verification');
+    await verifyEl.click({ force: true });
+    console.log('[recaptcha] Verify clicked');
+
+    // Read the actual outcome; the unchanged instruction is not a response.
+    for (;;) {
       const af = findAnchorFrame(page);
       if (af) {
-        const solved = await af.evaluate(`(() => document.querySelector('.recaptcha-checkbox')?.getAttribute('aria-checked') === 'true')()`).catch(() => false);
+        const solved = await af.evaluate(`(() => document.querySelector('.recaptcha-checkbox')?.getAttribute('aria-checked') === 'true')()`);
         if (solved) { console.log(`[recaptcha] Solved in ${attempt+1} attempts!`); return true; }
       }
-    } catch { console.log('[recaptcha] Context lost — likely solved'); return true; }
-
-    const err = await bframe.evaluate(`(() => { const e = document.querySelector('.rc-imageselect-error-select-more, .rc-imageselect-incorrect-response'); return e?.offsetParent ? e.textContent : null; })()`).catch(() => null);
-    if (err) console.log(`[recaptcha] Error: ${err}`);
-    } catch (loopErr: any) {
-      if (loopErr.message?.includes('detach') || loopErr.message?.includes('context') || loopErr.message?.includes('destroy')) {
-        console.log('[recaptcha] Frame detached — SOLVED!'); return true;
-      }
-      console.log(`[recaptcha] Single-shot error: ${loopErr.message}`);
+      const observedFrame = findBframe(page);
+      if (!observedFrame) throw new Error('RECAPTCHA_OUTCOME_UNOBSERVED: the challenge frame disappeared before a checked anchor was observed');
+      const err = await observedFrame.evaluate(`(() => { for (const e of document.querySelectorAll('.rc-imageselect-error-select-more, .rc-imageselect-incorrect-response')) { if (e.offsetParent !== null) return { message: e.textContent, state: e.className }; } return null; })()`);
+      if (err) throw new Error(`RECAPTCHA_REJECTED: ${err.message || err.state}`);
+      await pageSettled(observedFrame);
     }
   }
-  console.log('[recaptcha] Single-shot did not solve — failing fast');
-  return false;
 }
