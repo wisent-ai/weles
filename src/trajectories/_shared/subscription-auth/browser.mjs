@@ -37,6 +37,7 @@ async function emailPassword(session, login) {
 async function approveDevice(session, transaction, login, mark) {
   const context = session.page.context();
   let codeSubmitted = false;
+  const googleDispatches = new WeakMap();
   // The provider ends this walk: consent granted, a success page, or a refusal
   // (including an expired device code) that it states on the page.
   for (;;) {
@@ -66,12 +67,18 @@ async function approveDevice(session, transaction, login, mark) {
         await humanFill(page, codeField, transaction.code);
         codeSubmitted = true;
         await page.keyboard.press('Enter');
-        await humanIdlePause('long');
+        await pageSettled(page);
       }
       const google = page.getByRole('button', { name: /continue with google|sign in with google|^google$/i }).filter({ visible: true }).first();
-      if (await google.isVisible()) {
+      if (await google.isVisible() && googleDispatches.get(page) !== page.url()) {
+        if (!(await google.isEnabled())) {
+          throw new AuthenticationFailure('gis_control_unavailable', 'device_google_handoff',
+            `The offered Google sign-in control is disabled on ${page.url()}`);
+        }
+        const dispatchedFrom = page.url();
         await humanClickLocator(page, google);
-        await humanIdlePause('long');
+        googleDispatches.set(page, dispatchedFrom);
+        await pageSettled(page);
         continue;
       }
       const approve = page.getByRole('button', { name: /^(current login|continue|allow|authorize|approve|confirm)$/i }).filter({ visible: true }).first();
