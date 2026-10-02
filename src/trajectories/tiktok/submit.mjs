@@ -126,8 +126,7 @@ export async function tiktokSubmitComment(s, text) {
       }
       // Go back to profile to try next video.
       if (i < candidates.length - 1) {
-        await s.page.goBack({ waitUntil: 'domcontentloaded' }).catch(() => {});
-        await humanIdlePause('deliberate');
+        await s.page.goBack({ waitUntil: 'domcontentloaded' });
         // Wait for profile grid to re-render.
         await s.page.locator('a[href*="/video/"]').first().waitFor({ state: 'visible' });
       }

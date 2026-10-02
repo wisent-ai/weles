@@ -16,7 +16,6 @@ const s = await WSession.start({ label: 'youtube_login', proxy: process.env.PROX
 try {
   // Cookie-first removed — login always means form login. See auth-probe.mjs.
   await s.goto(URL);
-  await humanIdlePause('deliberate');
   // Step 1: email → Next.
   const emailIn = s.page.locator('input[type="email"], input#identifierId, input[name="identifier"]').filter({ visible: true }).first();
   await emailIn.waitFor({ state: 'visible' });

@@ -41,19 +41,16 @@ try {
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
 
   // Scroll to comment section: #comments anchor.
-  await s.page.evaluate(() => { document.querySelector('#comments')?.scrollIntoView({ block: 'center' }); }).catch(() => {});
-  await humanIdlePause('deliberate');
+  await s.page.evaluate(() => { document.querySelector('#comments')?.scrollIntoView({ block: 'center' }); });
   // Placeholder "Add a comment..." — clicking it expands the input box.
   const placeholder = s.page.locator('#placeholder-area, ytd-comment-simplebox-renderer #simplebox-placeholder').filter({ visible: true }).first();
   await placeholder.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, placeholder);
-  await humanIdlePause('short');
   // Expanded input: contenteditable div.
   const input = s.page.locator('div#contenteditable-root[contenteditable="true"], ytd-commentbox div[contenteditable="true"]').filter({ visible: true }).first();
   await input.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, input);
   await humanType(s.page, COMMENT);
-  await humanIdlePause('short');
   // Submit button — id=submit-button or aria-label="Comment".
   const submit = s.page.locator('ytd-commentbox #submit-button button, ytd-button-renderer#submit-button button, button[aria-label="Comment"]').filter({ visible: true }).first();
   await submit.waitFor({ state: 'visible' });
@@ -61,8 +58,8 @@ try {
   await humanIdlePause('deliberate');
   console.log(`PASS: commented`);
 } catch (e) {
-  console.log('FAIL:', e.message);
-  process.exit(1);
+  console.error('FAIL:', e);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }

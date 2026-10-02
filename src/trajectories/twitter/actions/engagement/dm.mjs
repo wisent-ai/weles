@@ -71,7 +71,6 @@ try {
   await msgIn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, msgIn);
   await humanType(s.page, MESSAGE);
-  await humanIdlePause('short');
   // Send.
   const sendBtn = s.page.locator('button[data-testid="dmComposerSendButton"], div[data-testid="dmComposerSendButton"], button[aria-label*="Send" i]').filter({ visible: true }).first();
   await sendBtn.waitFor({ state: 'visible' });

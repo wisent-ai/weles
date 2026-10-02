@@ -24,7 +24,6 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     console.log(`[apple] identity: ${id.username} <${id.email}> dob=${id.birthMonth}/${id.birthDay}/${id.birthYear}`);
 
     await s.goto(URL);
-    await humanIdlePause('deliberate');
 
     // Resolve the signup frame — iframe-hosted on appleid.apple.com.
     const iframeHandle = await s.page.waitForSelector(

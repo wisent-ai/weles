@@ -59,7 +59,6 @@ try {
   if (!await likeBtn.isVisible()) {
     console.log('[trajectory] /home empty — falling to /elonmusk timeline');
     await s.page.goto('https://x.com/elonmusk', { waitUntil: 'domcontentloaded' });
-    await humanIdlePause('deliberate');
     likeBtn = s.page.locator('[data-testid="like"]').filter({ visible: true }).first();
     await likeBtn.waitFor({ state: 'visible' });
   }

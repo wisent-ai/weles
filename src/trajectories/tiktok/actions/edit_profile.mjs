@@ -110,7 +110,6 @@ try {
         const fileIn = s.page.locator('input[type="file"][accept*="image"]').first();
         if (await fileIn.count()) {
           await fileIn.setInputFiles(tmpAvatar);
-          await humanIdlePause('deliberate');
           const applyBtn = s.page.locator('button:has-text("Apply"), button:has-text("Confirm"), button:has-text("Save")').filter({ visible: true }).first();
           try {
             await applyBtn.waitFor({ state: 'visible' });

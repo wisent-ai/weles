@@ -254,7 +254,6 @@ try {
     await save.press('Enter'); // activate only this Save button; the cookie notice covers its click target
     await page.getByRole('button', { name: 'close side drawer', exact: true }).waitFor({ state: 'hidden' });
     record('saved-row');
-    await humanIdlePause('long');
     const parentSave = page.locator('#section-form-save-btn');
     await parentSave.waitFor({ state: 'visible' });
     await page.screenshot({ path: join(reportDir, 'parent-before-save.png'), fullPage: true });

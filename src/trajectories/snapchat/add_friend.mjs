@@ -60,7 +60,6 @@ try {
   await searchBox.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, searchBox);
   await humanType(s.page, TARGET);
-  await humanIdlePause('deliberate');
   // First "Add Friend" button in the result list.
   const addBtn = s.page.locator('button:has-text("Add Friend"), button:has-text("Add"), [role="button"]:has-text("Add Friend")').filter({ visible: true }).first();
   await addBtn.waitFor({ state: 'visible' });

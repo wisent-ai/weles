@@ -35,8 +35,7 @@ if (await checkbox.count()) {
 
 const button = page.locator('#login-btn, button:has-text("Zaloguj")').first();
 await button.waitFor({ state: 'visible' });
-await humanIdlePause('deliberate');
-const beforeClick = await button.evaluate((b) => ({ disabled: b.disabled, text: b.innerText.trim() })).catch((e) => ({ error: String(e?.message || e) }));
+const beforeClick = await button.evaluate((b) => ({ disabled: b.disabled, text: b.innerText.trim() }));
 await humanClickLocator(page, button);
 await page.waitForLoadState('load');
 await humanIdlePause('long');
