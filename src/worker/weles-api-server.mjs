@@ -67,7 +67,7 @@ import http from 'node:http';
 
 import { REPO, RUN_RELEASE_IDENTITY } from './weles-api-server/release-identity.mjs';
 
-const { resolveTrajectory, paramsToEnv, validateAccountSecurityParams } = await import(`${REPO}/dist/worker/dispatch.js`);
+const { resolveTrajectory, paramsToEnv, validateAccountSecurityParams, validateAppPasswordParams } = await import(`${REPO}/dist/worker/dispatch.js`);
 const { buildDeploymentVersionValue } = await import(`${REPO}/dist/worker/release/deployment_version.js`);
 // The subscription and login identities are resolved from Skarbiec per request.
 const { selectLoginAccount } = await import(`${REPO}/dist/utils/login-accounts.js`);
@@ -158,6 +158,7 @@ const server = http.createServer(createApiRequestHandler({
   runTrajectory,
   selectLoginAccount,
   validateAccountSecurityParams,
+  validateAppPasswordParams,
 }));
 
 server.listen(PORT, HOST, () => {

@@ -6,7 +6,7 @@ export type AppPasswordRun = {
   action: 'google_app_password';
   status: string;
   completed_at: string | null;
-  params: { login_role?: string; login_item?: string };
+  params: { login_role?: string; login_item?: string; organization?: string };
   ok: boolean | null;
   stdout: string | null;
   error: string | null;
@@ -24,16 +24,19 @@ function parseRun(value: unknown): AppPasswordRun {
 
 /**
  * Start google_app_password by Skarbiec role or exact login item on the
- * managed executor, or read a started run back. The password itself
- * never crosses this interface: the trajectory hands it to Skrzynka on the
- * executor's host.
+ * managed executor, naming the Skrzynka organization the mailbox is declared
+ * in, or read a started run back. The password itself never crosses this
+ * interface: the trajectory hands it to Skrzynka on the executor's host.
  */
 export async function appPasswordRun(
-  input: { loginRole: string } | { loginItem: string } | { runId: string }, options: WelesApiOptions = {},
+  input: { loginRole: string; organization: string } | { loginItem: string; organization: string } | { runId: string },
+  options: WelesApiOptions = {},
 ): Promise<AppPasswordRun> {
   const creating = !('runId' in input);
   const selector = 'loginRole' in input ? 'login_role' : 'loginItem' in input ? 'login_item' : 'run_id';
   const value = ('loginRole' in input ? input.loginRole : 'loginItem' in input ? input.loginItem : input.runId).trim();
+  const organization = 'organization' in input ? input.organization.trim() : '';
+  if (creating && !organization) throw new Error('organization_required');
   if (!value) throw new Error(`${selector}_required`);
   const path = creating ? '/run' : `/diagnostics/${encodeURIComponent(value)}/file?path=run-result.json`;
   const connection = welesOperatorConnection(path, options);
@@ -42,7 +45,7 @@ export async function appPasswordRun(
     const response = await connection.fetch(connection.endpoint, {
       method: creating ? 'POST' : 'GET', headers: connection.headers, redirect: 'error',
       ...(creating ? { body: JSON.stringify({
-        action: 'google_app_password', params: { [selector]: value }, detached: true,
+        action: 'google_app_password', params: { [selector]: value, organization }, detached: true,
       }) } : {}),
     });
     const body = await operatorJson(response);

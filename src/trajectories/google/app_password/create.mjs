@@ -13,8 +13,9 @@
 // never written to a file, a log or this run's result.
 //
 // Input: WELES_LOGIN_ITEM, the Skarbiec Google login (username, password,
-// totp_secret). Output: one JSON result on stdout and in the run's output
-// directory; every stop is named.
+// totp_secret), and SKRZYNKA_ORGANIZATION, the organization Skrzynka files
+// the mailbox under. Output: one JSON result on stdout and in the run's
+// output directory; every stop is named.
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -67,9 +68,9 @@ async function issue(page, wait, login) {
 }
 
 /** Hand the password to Skrzynka on stdin; its JSON answer is the verdict. */
-function giveToSkrzynka(email, password) {
+function giveToSkrzynka(organization, email, password) {
   const binary = String(process.env[SKRZYNKA_BIN_VARIABLE] || '').trim() || SKRZYNKA_DEFAULT_BIN;
-  const result = spawnSync(binary, ['account', 'app-password', '--provider', 'gmail', '--email', email], {
+  const result = spawnSync(binary, ['--organization', organization, 'account', 'app-password', '--provider', 'gmail', '--email', email], {
     input: password,
     encoding: 'utf8',
   });
@@ -89,6 +90,11 @@ async function main() {
     report({ ok: false, blocked: 'login_item_required', detail: 'WELES_LOGIN_ITEM must name the Skarbiec Google login' });
     process.exit(2);
   }
+  const organization = String(process.env.SKRZYNKA_ORGANIZATION || '').trim();
+  if (!organization) {
+    report({ ok: false, blocked: 'organization_required', detail: 'SKRZYNKA_ORGANIZATION must name the Skrzynka organization the mailbox is declared in' });
+    process.exit(2);
+  }
   const login = loginMaterial(loginItem);
   const session = await WSession.start({
     label: `${RUN}-${loginItem}`, browser: 'chromium', headless: false, userDataDir: accountProfileDir(login),
@@ -102,17 +108,17 @@ async function main() {
   }
   if (!issued.ok) {
     const next = issued.blocked === 'google_push_approval_required'
-      ? { next_action: `POST /run {"action":"google_authenticator_enrol","params":{"login_item":"${loginItem}"},"detached":true} on this executor, then weles app-password --login-role <the role this login plays>` }
+      ? { next_action: `POST /run {"action":"google_authenticator_enrol","params":{"login_item":"${loginItem}"},"detached":true} on this executor, then weles app-password --login-role <the role this login plays> --organization ${organization}` }
       : {};
     report({ ok: false, login_item: loginItem, email: login.email, ...issued, ...next });
     process.exit(3);
   }
-  const handed = giveToSkrzynka(login.email, issued.password);
+  const handed = giveToSkrzynka(organization, login.email, issued.password);
   if (!handed.ok) {
     report({ ok: false, login_item: loginItem, email: login.email, app_password_created: true, ...handed });
     process.exit(4);
   }
-  report({ ok: true, login_item: loginItem, email: login.email, app_name: APP_NAME, skrzynka: handed.skrzynka });
+  report({ ok: true, login_item: loginItem, organization, email: login.email, app_name: APP_NAME, skrzynka: handed.skrzynka });
 }
 
 main().catch((error) => {

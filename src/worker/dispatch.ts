@@ -289,5 +289,5 @@ export function resolveTrajectory(action: string): string | null {
   return router ? router(plat) : null;
 }
 
-export { validateAccountSecurityParams } from './params-to-env/account-and-task-admission.js';
+export { validateAccountSecurityParams, validateAppPasswordParams } from './params-to-env/account-and-task-admission.js';
 

@@ -62,8 +62,8 @@ Usage:
   weles operator-requests close <id> --approved|--unapproved --detail <text>
   weles account-security --login-role <skarbiec-role> [--json]
   weles account-security --run <run-id> [--json]
-  weles app-password --login-role <skarbiec-role> [--json]
-  weles app-password --login-item <skarbiec-item> [--json]
+  weles app-password --login-role <skarbiec-role> --organization <skrzynka-organization> [--json]
+  weles app-password --login-item <skarbiec-item> --organization <skrzynka-organization> [--json]
   weles app-password --run <run-id> [--json]
   weles developer-certificate --provider apple --subject <dn> [--account-role <role>] --confirm "AUTHORIZE ONE APPLE DEVELOPER ID" --execution-host <host> --private-key-out <abs> [--execution-agent <agent>] [--expires-in-minutes <n>] [--json]
   weles developer-certificate --run <run-id> --certificate-out <abs> [--private-key <abs> --store-host <host>] [--json]

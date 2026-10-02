@@ -33,7 +33,7 @@ import {
 } from '../run/credential-outcome.mjs';
 import { claimRunResult, coalesceRun, persistRunResult, runAdmissionKey, SAFE_RUN_ID } from '../run/run-outcome.mjs';
 
-export async function respondToRun(req, res, runTrajectory, validateAccountSecurityParams) {
+export async function respondToRun(req, res, runTrajectory, validateAccountSecurityParams, validateAppPasswordParams) {
   if (!authorized(req)) {
     json(res, TOKEN || ALLOW_UNAUTH ? 401 : 500, {
       ok: false,
@@ -69,14 +69,15 @@ export async function respondToRun(req, res, runTrajectory, validateAccountSecur
   // file carries that login from the moment it is admitted.
   if (action === 'google_app_password') {
     try {
-      const loginItem = validateAccountSecurityParams(params);
+      const { loginItem, organization } = validateAppPasswordParams(params);
       requestBinding = {
         params: {
           login_item: loginItem,
+          organization,
           ...(typeof params.login_role === 'string' ? { login_role: params.login_role.trim() } : {}),
         },
       };
-      params = { login_item: loginItem };
+      params = { login_item: loginItem, organization };
     } catch (error) {
       json(res, 400, { ok: false, error: error.message });
       return;

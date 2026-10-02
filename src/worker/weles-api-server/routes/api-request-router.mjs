@@ -55,6 +55,7 @@ export function createApiRequestHandler({
   runTrajectory,
   selectLoginAccount,
   validateAccountSecurityParams,
+  validateAppPasswordParams,
 }) {
   const { controlWorker, workerStatus } = createWorkerControl(publicTaskService);
   // Recovery changes one durable queue. Concurrent control requests are refused.
@@ -225,7 +226,7 @@ export function createApiRequestHandler({
         json(res, 404, { ok: false, error: 'not_found' });
         return;
       }
-      await respondToRun(req, res, runTrajectory, validateAccountSecurityParams);
+      await respondToRun(req, res, runTrajectory, validateAccountSecurityParams, validateAppPasswordParams);
     } catch (error) {
       json(res, 500, { ok: false, error: String(error && error.message ? error.message : error) });
     }

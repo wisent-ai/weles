@@ -47,6 +47,18 @@ export function validateAccountSecurityParams(params: Record<string, unknown>): 
   return googleLogin(params, ['login_role', 'login_item']);
 }
 
+/**
+ * An app password ends in Skrzynka, which files the mailbox under one
+ * organization; the caller names it, nothing is assumed.
+ */
+export function validateAppPasswordParams(params: Record<string, unknown>): { loginItem: string; organization: string } {
+  const { organization, ...login } = params ?? {};
+  if (typeof organization !== 'string' || !organization.trim()) {
+    throw new Error('organization must name the Skrzynka organization the mailbox is declared in');
+  }
+  return { loginItem: googleLogin(login, ['login_role', 'login_item']), organization: organization.trim() };
+}
+
 export function applyAccountAndTaskAdmission(
   params: Record<string, unknown>,
   trajPath: string,
@@ -68,11 +80,15 @@ export function applyAccountAndTaskAdmission(
     env.WELES_ACCOUNT_REVISION = account.accountRevision;
     env[`${account.provider.toUpperCase()}_DISPLAY_NAME`] = account.displayName;
   }
-  if (trajPath.endsWith('/google/authenticator/enrol.mjs') || trajPath.endsWith('/google/app_password/create.mjs')) {
-    // The enrolment and the app password act on the Skarbiec login itself:
-    // it is what gains the seed or signs in to issue the password, whether or
-    // not a subscription or a mailbox rides on it yet.
+  if (trajPath.endsWith('/google/authenticator/enrol.mjs')) {
+    // The enrolment acts on the Skarbiec login itself: it is what gains the
+    // seed, whether or not a subscription or a mailbox rides on it yet.
     env.WELES_LOGIN_ITEM = googleLogin(params);
+  }
+  if (trajPath.endsWith('/google/app_password/create.mjs')) {
+    const { loginItem, organization } = validateAppPasswordParams(params);
+    env.WELES_LOGIN_ITEM = loginItem;
+    env.SKRZYNKA_ORGANIZATION = organization;
   }
   if (trajPath.endsWith('/google/authenticator/status.mjs')) {
     env.WELES_LOGIN_ITEM = validateAccountSecurityParams(params);
