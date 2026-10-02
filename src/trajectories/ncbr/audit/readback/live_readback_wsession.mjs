@@ -4,6 +4,7 @@
 import { WSession } from '../../../../../dist/index.js';
 import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../dist/human/keyboard.js';
+import { validateProject } from '../../validation.mjs';
 
 const PROJECT_URL = process.env.NCBR_PROJECT_URL || 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1';
 const email = process.env.NCBR_EMAIL;
@@ -63,36 +64,17 @@ const afterLogin = {
   body: await visibleText(1200),
 };
 
-await page.goto(PROJECT_URL, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: read-only project navigation
-await page.waitForLoadState('load');
-await humanIdlePause('long');
-
-const validationResponses = [];
-page.on('response', async (res) => {
-  const url = res.url();
-  if (!url.includes('/validate-project')) return;
-  let text = '';
-  try { text = await res.text(); } catch { text = ''; }
-  validationResponses.push({ status: res.status(), url, text });
-});
-
-let validationClick = null;
+let validation = null;
 if (process.env.VALIDATE === '1') {
-  const validateButton = page.getByRole('button', { name: 'Sprawdź wniosek', exact: true }).filter({ visible: true }).first();
-  if (await validateButton.count() && !await validateButton.isDisabled()) {
-    await humanClickLocator(page, validateButton);
-    validationClick = { clicked: true };
-  } else {
-    validationClick = { clicked: false, reason: 'enabled Sprawdz wniosek button not found' };
-  }
-  if (validationClick.clicked) {
-    await humanIdlePause('long');
-    await humanIdlePause('long');
-    await humanIdlePause('long');
-  }
+  validation = await validateProject(page, PROJECT_URL);
+} else {
+  await page.goto(PROJECT_URL, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: read-only project navigation
+  await page.waitForLoadState('load');
+  await humanIdlePause('long');
 }
+const validationClick = validation?.clicked ?? null;
 
-const state = await page.evaluate((responses) => {
+const state = await page.evaluate(() => {
   const body = document.body?.innerText || '';
   const buttons = Array.from(document.querySelectorAll('button'))
     .map((b) => ({ text: b.innerText.trim(), disabled: b.disabled }))
@@ -104,51 +86,21 @@ const state = await page.evaluate((responses) => {
     valueLength: 'value' in el ? String(el.value || '').length : null,
     ariaInvalid: el.getAttribute('aria-invalid'),
   }));
-  const validation = {};
-  const vr = responses.find((r) => r.url.includes('/validate-project'));
-  if (vr) {
-    validation.status = vr.status;
-    try {
-      const parsed = JSON.parse(vr.text);
-      validation.keys = Object.keys(parsed);
-      validation.jsonSchemaErrors = [];
-      for (const sec of parsed.jsonSchemaValidationErrors || []) {
-        for (const err of sec.validationResult?.errors || []) {
-          validation.jsonSchemaErrors.push({
-            sectionId: sec.sectionId,
-            dataPath: err.dataPath,
-            message: err.message,
-            valueId: err.valueId,
-            rootValueId: err.rootValueId,
-          });
-        }
-      }
-      validation.expressionErrors = [];
-      for (const sec of parsed.expressionValidationErrors || []) {
-        for (const err of sec.validationResult?.errors || []) {
-          validation.expressionErrors.push({
-            sectionId: sec.sectionId,
-            dataPath: err.dataPath,
-            message: err.message,
-            valueId: err.valueId,
-            rootValueId: err.rootValueId,
-          });
-        }
-      }
-    } catch (e) {
-      validation.parseError = String(e?.message || e);
-      validation.rawHead = vr.text;
-    }
-  }
   return {
     url: location.href,
     title: document.title,
     body,
     buttons,
     inputs: inputs,
-    validation,
   };
-}, validationResponses); // allow-raw-playwright: read-only DOM state extraction
+}); // allow-raw-playwright: read-only DOM state extraction
+state.validation = validation ? {
+  status: validation.status,
+  keys: validation.keys,
+  jsonSchemaErrors: validation.jsonSchemaErrors,
+  expressionErrors: validation.expressionErrors,
+  sectionCorrectionValidationErrors: validation.sectionCorrectionValidationErrors,
+} : {};
 
 console.log(JSON.stringify({ afterLogin, validationClick, state }, null, 2));
 await session.ctx.close();

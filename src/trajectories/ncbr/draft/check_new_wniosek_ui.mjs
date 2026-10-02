@@ -2,7 +2,9 @@
 // Never submits and never closes the browser page.
 
 import { chromium } from 'playwright';
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { pageSettled, responseAfterAction } from '../../_shared/page/settled.mjs';
+import { projectValidationErrors } from '../validation.mjs';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const PROJECT_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1';
@@ -15,28 +17,28 @@ const responses = [];
 page.on('response', async (res) => {
   const url = res.url();
   if (!/valid|check|ocen|submit|send|wniosek|project/i.test(url)) return;
-  let text = '';
+  let text = null;
+  let readError = null;
   try {
-    const raw = await res.text();
-    text = url.includes('/validate-project') ? raw : raw;
-  } catch (e) { text = ''; }
-  responses.push({ status: res.status(), url, text });
+    text = await res.text();
+  } catch (error) { readError = String(error?.message || error); }
+  responses.push({ status: res.status(), url, text, readError });
 });
 
 await page.goto(PROJECT_URL, { waitUntil: 'domcontentloaded' });
-await humanIdlePause('long');
 
-const validateButton = page.getByRole('button', { name: 'Sprawdź wniosek', exact: true }).filter({ visible: true }).first();
-if (await validateButton.count() === 0) throw new Error('Sprawdź wniosek button not found');
-const [validationResponse] = await Promise.all([
-  page.waitForResponse((response) => response.url().includes('/validate-project')),
-  validateButton.dispatchEvent('click'), // React button activation without changing page hit-testing or native focus.
-]);
-await validationResponse.finished();
-
-await humanIdlePause('long');
-await humanIdlePause('long');
-await humanIdlePause('long');
+const validateButton = page.getByRole('button', { name: 'Sprawdź wniosek', exact: true })
+  .and(page.locator('button:not(:disabled):not([aria-disabled="true"])')).filter({ visible: true }).first();
+await validateButton.waitFor({ state: 'visible' });
+const validationResponse = await responseAfterAction(page,
+  (request) => new URL(request.url()).pathname.replace(/\/$/, '').endsWith('/validate-project'),
+  () => validateButton.dispatchEvent('click')); // React button activation without changing page hit-testing or native focus.
+const validateResponse = {
+  status: validationResponse.status(),
+  url: validationResponse.url(),
+  text: await validationResponse.text(),
+};
+await pageSettled(page);
 
 if (process.env.ACK) {
   if (process.env.ACK_DEBUG) {
@@ -56,7 +58,7 @@ if (process.env.ACK) {
     .filter({ visible: true });
   const count = await buttons.count();
   if (count > 0) await humanClickLocator(page, buttons.nth(count - 1));
-  await humanIdlePause('long');
+  await pageSettled(page);
 }
 
 const out = await page.evaluate((capturedResponses) => {
@@ -76,44 +78,21 @@ const out = await page.evaluate((capturedResponses) => {
   };
 }, responses);
 
-const validateResponse = responses.find((r) => r.url.includes('/validate-project'));
-if (validateResponse) {
-  try {
-    const parsed = JSON.parse(validateResponse.text);
-    out.validationStatus = validateResponse.status;
-    out.validationTopLevel = Object.fromEntries(Object.entries(parsed).filter(([, v]) => !Array.isArray(v) && typeof v !== 'object').slice(0, 30));
-    out.validationKeys = Object.keys(parsed);
-    out.validationErrors = [];
-    for (const sec of parsed.jsonSchemaValidationErrors || []) {
-      for (const err of sec.validationResult?.errors || []) {
-        out.validationErrors.push({
-          sectionId: sec.sectionId,
-          dataPath: err.dataPath,
-          message: err.message,
-          valueId: err.valueId,
-          rootValueId: err.rootValueId,
-        });
-      }
-    }
-    out.expressionValidationErrors = parsed.expressionValidationErrors || [];
-    out.expressionErrors = [];
-    for (const sec of parsed.expressionValidationErrors || []) {
-      for (const err of sec.validationResult?.errors || []) {
-        out.expressionErrors.push({
-          sectionId: sec.sectionId,
-          dataPath: err.dataPath,
-          message: err.message,
-          valueId: err.valueId,
-          rootValueId: err.rootValueId,
-        });
-      }
-    }
-    out.sectionCorrectionValidationErrors = parsed.sectionCorrectionValidationErrors || [];
-  } catch (e) {
-    out.validationParseError = String(e?.message || e);
-  }
+out.validationStatus = validateResponse.status;
+out.validationMethod = validationResponse.request().method();
+out.validationUrl = validateResponse.url;
+try {
+  const parsed = JSON.parse(validateResponse.text);
+  const parsedErrors = projectValidationErrors(parsed, `${out.validationMethod} ${out.validationUrl}`);
+  out.validationTopLevel = Object.fromEntries(Object.entries(parsed).filter(([, v]) => !Array.isArray(v) && typeof v !== 'object').slice(0, 30));
+  out.validationKeys = parsedErrors.keys;
+  out.validationErrors = parsedErrors.jsonSchemaErrors;
+  out.expressionValidationErrors = parsed.expressionValidationErrors;
+  out.expressionErrors = parsedErrors.expressionErrors;
+  out.sectionCorrectionValidationErrors = parsedErrors.sectionCorrectionValidationErrors;
+} catch (e) {
+  out.validationParseError = String(e?.message || e);
 }
-if (!validateResponse) throw new Error('LSI2 did not return a validation result');
 const validationFailed = out.validationStatus !== 200 || out.validationParseError
   || out.validationErrors?.length || out.expressionErrors?.length
   || out.sectionCorrectionValidationErrors?.length;
@@ -122,6 +101,8 @@ process.exitCode = validationFailed ? 1 : 0;
 if (process.env.ERRORS_ONLY) {
   console.log(JSON.stringify({
     validationStatus: out.validationStatus,
+    validationMethod: out.validationMethod,
+    validationUrl: out.validationUrl,
     validationKeys: out.validationKeys,
     validationTopLevel: out.validationTopLevel,
     validationErrors: out.validationErrors || [],
@@ -134,6 +115,12 @@ if (process.env.ERRORS_ONLY) {
 
 if (process.env.BUTTONS_ONLY) {
   console.log(JSON.stringify({
+    validationStatus: out.validationStatus,
+    validationMethod: out.validationMethod,
+    validationUrl: out.validationUrl,
+    validationParseError: out.validationParseError || null,
+    expressionErrors: out.expressionErrors || [],
+    sectionCorrectionValidationErrors: out.sectionCorrectionValidationErrors || [],
     validationErrors: out.validationErrors || [],
     submitButtons: out.buttons.filter((b) => b.text === 'Złóż wniosek'),
     dialogs: out.dialogs,

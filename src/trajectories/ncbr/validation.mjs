@@ -24,6 +24,15 @@ export async function validateProject(page, projectUrl) {
   } catch (cause) {
     throw new Error(`LSI_VALIDATION_RESPONSE_INVALID: ${operation}; response is not JSON`, { cause });
   }
+  return {
+    clicked: { clicked: true },
+    status: response.status(),
+    ...projectValidationErrors(parsed, operation),
+    rawHead: text,
+  };
+}
+
+export function projectValidationErrors(parsed, operation) {
   const flatten = (name) => {
     const sections = parsed?.[name];
     if (!Array.isArray(sections)) throw new Error(`LSI_VALIDATION_RESPONSE_INVALID: ${operation}; ${name} is not an array`);
@@ -32,15 +41,16 @@ export async function validateProject(page, projectUrl) {
       if (!Array.isArray(errors)) throw new Error(`LSI_VALIDATION_RESPONSE_INVALID: ${operation}; ${name}[${sectionIndex}].validationResult.errors is not an array`);
       return errors.map((error, errorIndex) => {
         if (!error || typeof error !== 'object' || Array.isArray(error)) throw new Error(`LSI_VALIDATION_RESPONSE_INVALID: ${operation}; ${name}[${sectionIndex}].validationResult.errors[${errorIndex}] is not an object`);
-        return { sectionId: section.sectionId, dataPath: error.dataPath, message: error.message, valueId: error.valueId };
+        return { sectionId: section.sectionId, dataPath: error.dataPath, message: error.message, valueId: error.valueId, rootValueId: error.rootValueId };
       });
     });
   };
+  const corrections = parsed?.sectionCorrectionValidationErrors ?? [];
+  if (!Array.isArray(corrections)) throw new Error(`LSI_VALIDATION_RESPONSE_INVALID: ${operation}; sectionCorrectionValidationErrors is not an array`);
   return {
-    clicked: { clicked: true },
-    status: response.status(),
     jsonSchemaErrors: flatten('jsonSchemaValidationErrors'),
     expressionErrors: flatten('expressionValidationErrors'),
-    rawHead: text,
+    sectionCorrectionValidationErrors: corrections,
+    keys: Object.keys(parsed),
   };
 }
