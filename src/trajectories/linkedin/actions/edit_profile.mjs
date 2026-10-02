@@ -72,8 +72,7 @@ try {
     // Wait for first-name field to attach. Click navigates to
     // /<vanity>/edit/intro/ and the form renders in a React portal that
     // mounts after RUM bundles finish (3s post-click yielded 0 fields).
-    await s.page.locator('input[id*="first-name" i], input[id*="firstName" i], input[name*="firstName" i]').filter({ visible: true }).first().waitFor({ state: 'visible' }).catch(() => {});
-    await humanIdlePause('deliberate');
+    await s.page.locator('input[id*="first-name" i], input[id*="firstName" i], input[name*="firstName" i]').filter({ visible: true }).first().waitFor({ state: 'visible' });
   } else {
     console.log('[li-profile] edit-intro button not found on /in/me/ — falling through to field probe');
   }

@@ -91,7 +91,6 @@ try {
         await humanClickLocator(s.page, s.page.locator('tr.zA').nth(idx));
         await s.page.locator('.a3s, div[role="listitem"] .ii').first()
           .waitFor({ state: 'visible' });
-        await humanIdlePause('short');
         const body = await s.page.evaluate(() => { // allow-raw-playwright: read-only DOM text scrape of an opened email body, no synthetic interaction
           const subj = document.querySelector('h2.hP');
           const blocks = Array.from(document.querySelectorAll('.a3s'))
@@ -107,6 +106,7 @@ try {
         await s.page.locator('tr.zA').first().waitFor({ state: 'visible' });
       } catch (e) {
         console.log(`\n>>> THREAD #${idx + 1}: (failed to open: ${e.message})`);
+        throw e;
       }
     }
   }

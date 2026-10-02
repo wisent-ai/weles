@@ -24,6 +24,7 @@
 //       BROWSER      'firefox' | 'chromium' to pin the engine (default: roll)
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso } from '../_shared/services/google_sso.mjs';
+import { DOCUMENT_REPLACED, readAcrossNavigation } from '../_shared/services/google_sso/page_diagnostics.mjs';
 import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 import { readScopedLogin } from '../../_shared/scoped-secrets.mjs';
 
@@ -42,16 +43,12 @@ function gmailUrl(email, fragment) {
 
 function log(...a) { console.log('[gmail_login_search]', ...a); }
 
-// Locator.isVisible() rejects if the frame detached mid-navigation; treat that
-// specific case as "not visible" via explicit try/catch (not a .catch
-// sentinel) so a real evaluation error is still surfaced.
+// Locator.isVisible() rejects when its document is replaced mid-navigation;
+// that case (reported by the page, not read from the error's words) is "not
+// visible", and any other failure is surfaced.
 async function visible(loc) {
-  try {
-    return await loc.isVisible();
-  } catch (e) {
-    if (/detached|navigat|destroyed|closed/i.test(e.message || '')) return false;
-    throw e;
-  }
+  const shown = await readAcrossNavigation(loc.page(), () => loc.isVisible());
+  return shown === DOCUMENT_REPLACED ? false : shown;
 }
 
 async function resolveCreds() {
@@ -184,7 +181,6 @@ try {
         await humanClickLocator(s.page, s.page.locator('tr.zA').nth(idx));
         await s.page.locator('.a3s, div[role="listitem"] .ii').first()
           .waitFor({ state: 'visible' });
-        await humanIdlePause('short');
         const body = await s.page.evaluate(() => { // allow-raw-playwright: read-only DOM text scrape of an opened email body, no synthetic interaction
           const subj = document.querySelector('h2.hP');
           const blocks = Array.from(document.querySelectorAll('.a3s'))
@@ -200,6 +196,7 @@ try {
         await s.page.locator('tr.zA').first().waitFor({ state: 'visible' });
       } catch (e) {
         console.log(`\n>>> THREAD #${idx + 1}: (failed to open: ${e.message})`);
+        throw e;
       }
     }
   }
