@@ -4,8 +4,8 @@ import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
 
-const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
-const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/574f07ed-d631-4536-bfd0-e1f7e469415c';
+const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
+const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('3_1');
 
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];

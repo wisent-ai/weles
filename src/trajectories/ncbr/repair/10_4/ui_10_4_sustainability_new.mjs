@@ -5,8 +5,8 @@ import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../dist/human/keyboard.js';
 
-const endpoint = process.env.NCBR_CDP_ENDPOINT || ['ht', 'tp://127.0.0.1:9223'].join('');
-const projectId = process.env.NCBR_PROJECT_ID || '7ee80d9a-67dd-4d99-becd-8dda407221c1';
+const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
+const projectId = (await import('#ncbr-settings')).projectId();
 const SECTION_URL = [`https://`, `lsi2.ncbr.gov.pl/projekt/${projectId}/projekt_step/4e260fae-c455-41ce-bba3-d0df2a8767fd`].join('');
 const md = readFileSync(`${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_10.4_zrownowazony_rozwoj.md`, 'utf8');
 

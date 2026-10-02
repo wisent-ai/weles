@@ -4,8 +4,8 @@
 import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
 
-const endpoint = process.env.NCBR_CDP_ENDPOINT || ['ht', 'tp://127.0.0.1:9223'].join('');
-const SECTION_URL = ['https://', 'lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/95a9b43d-b789-479a-a60d-159b975af74d'].join('');
+const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
+const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('4_2');
 const NEEDLE = 'Klastry obliczeniowe wynajmowane';
 
 const browser = await chromium.connectOverCDP(endpoint);

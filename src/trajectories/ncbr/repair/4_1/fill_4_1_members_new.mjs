@@ -7,8 +7,8 @@ import { members } from './fill_4_1_members_new/source.mjs';
 import { membersForm } from './fill_4_1_members_new/form.mjs';
 import { runModes } from './fill_4_1_members_new/modes.mjs';
 
-const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
-const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/5af236aa-03b2-4650-b5a2-95c299dfeeaf';
+const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
+const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('4_1');
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
 if (!page) {

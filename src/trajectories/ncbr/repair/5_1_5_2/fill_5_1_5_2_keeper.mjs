@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 
 const SESSION = process.env.SESSION || 'ncbr-step-b';
 const WELES = `${process.env.HOME}/Documents/CodingProjects/Wisent/weles`;
-const PROJECT = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/';
+const PROJECT = (await import('#ncbr-settings')).sectionBase();
 const SECTIONS = [
   ['5.1', '557f18a2-ec63-44bf-a429-88dfde7444e4'],
   ['5.2', '01ba2656-83fd-44d0-8908-bb31034018b0'],

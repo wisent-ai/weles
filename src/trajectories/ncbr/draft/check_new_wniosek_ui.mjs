@@ -6,8 +6,8 @@ import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { pageSettled, responseAfterAction } from '../../_shared/page/settled.mjs';
 import { projectValidationErrors } from '../validation.mjs';
 
-const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
-const PROJECT_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1';
+const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
+const PROJECT_URL = (await import('#ncbr-settings')).projectUrl();
 
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];

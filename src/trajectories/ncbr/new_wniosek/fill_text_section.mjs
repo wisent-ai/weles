@@ -1,4 +1,4 @@
-// Plan-driven text filler and verifier for the NCBR wniosek (project 7ee80d9a).
+// Plan-driven text filler and verifier for the NCBR wniosek NCBR_PROJECT_ID names.
 // SECTION selects a plan section, a plan collection label, or a markdown registry entry.
 // MODE=read compares live values with the plan and never types or saves; plan collections
 // are verify-only here, writing their rows stays in apply_correction.mjs.
@@ -9,8 +9,8 @@ import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
 
-const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
-const BASE = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/';
+const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
+const BASE = (await import('#ncbr-settings')).sectionBase();
 const SRC = `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/`;
 
 // Char-limit constants mirror the live LSI maxlength config per field.

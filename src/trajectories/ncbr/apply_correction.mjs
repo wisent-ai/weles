@@ -12,7 +12,7 @@ import { fillPrepared, nestedFields, oneField, prepareFields, snapshotFields, ve
 import { closeDrawer, gotoSafe, identity, openRow, openScope, save } from './correction/ui.mjs';
 
 const { plan, mode, projectUrl, planSha256 } = loadPlan();
-const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
+const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const runId = process.env.WELES_RUN_ID || `ncbr-correction-${new Date().toISOString().replace(/[:.]/g, '-')}`;
 process.env.WELES_RUN_ID = runId;
 const reportDir = process.env.REPORT_DIR || runRecordingsDir(`ncbr_${mode}_correction`);

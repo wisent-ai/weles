@@ -8,7 +8,7 @@ import { cdpEndpoint, sectionUrl } from '#ncbr-settings';
 
 const endpoint = cdpEndpoint();
 // The section id differs per application, so it is declared beside the project id.
-const SECTION_URL = sectionUrl(process.env.NCBR_SECTION_1_3);
+const SECTION_URL = sectionUrl('1_3');
 
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];

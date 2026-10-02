@@ -5,7 +5,8 @@
   "types": "dist/index.d.ts",
   "imports": {
     "#run-output": "./src/_shared/run-output/index.mjs",
-    "#operator-request": "./src/operator/request.mjs"
+    "#operator-request": "./src/operator/request.mjs",
+    "#ncbr-settings": "./src/trajectories/ncbr/settings/index.mjs"
   },
   "bin": {
     "weles": "dist/cli.js",

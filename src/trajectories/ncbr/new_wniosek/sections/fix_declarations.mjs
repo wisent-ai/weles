@@ -3,8 +3,8 @@
 import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 
-const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
-const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/73fcdecb-c325-4447-9b09-6945f080a5ac';
+const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
+const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('DECLARATIONS');
 const REQUIRED = [
   'oswiadczenie_klauzula_informacyjna',
   'oswiadczenie_odpowiedzialnosci_karnej',

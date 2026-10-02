@@ -4,8 +4,8 @@
 import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 
-const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
-const PROJ = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/';
+const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
+const PROJ = (await import('#ncbr-settings')).sectionBase();
 const IDS = {
   '5.1': '557f18a2-ec63-44bf-a429-88dfde7444e4',
   '5.2': '01ba2656-83fd-44d0-8908-bb31034018b0',

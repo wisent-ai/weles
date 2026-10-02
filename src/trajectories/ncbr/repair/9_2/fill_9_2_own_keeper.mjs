@@ -8,7 +8,7 @@ const SESSION = process.env.SESSION || 'ncbr-step-b';
 const ROOT = `${process.env.HOME}/Documents/CodingProjects/Wisent`;
 const WELES = `${ROOT}/weles`;
 const SRC = `${ROOT}/backends/STEP_sciezka_A_Wisent/wersja_B_9.2_wskazniki.md`;
-const URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/e95d0c23-8a39-4d56-96fa-ace3e4f0d23a';
+const URL = (await import('#ncbr-settings')).sectionUrl('9_2');
 
 const md = readFileSync(SRC, 'utf8');
 const clean = (s) => String(s || '').replace(/\s*<!--[\s\S]*?-->\s*/g, ' ').replace(/\s+/g, ' ').trim();

@@ -3,7 +3,7 @@
 import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 
-const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
+const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const url = process.env.SECTION_URL;
 if (!url) throw new Error('SECTION_URL required');
 

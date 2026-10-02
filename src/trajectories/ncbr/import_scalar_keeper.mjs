@@ -8,7 +8,7 @@ const SESSION = process.env.SESSION || 'ncbr-step-b';
 const ROOT = `${process.env.HOME}/Documents/CodingProjects/Wisent`;
 const SRC = `${ROOT}/backends/STEP_sciezka_A_Wisent`;
 const WELES = `${ROOT}/weles`;
-const PROJECT = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/';
+const PROJECT = (await import('#ncbr-settings')).sectionBase();
 
 const clean = (s) => String(s || '')
   .replace(/\s*<!--[\s\S]*?-->\s*/g, ' ')
@@ -170,12 +170,7 @@ const sections = [
 ];
 
 function action(args, timeout = 120000, optional = false) {
-  const out = spawnSync(process.execPath, ['src/_shared/keeper/action.mjs', ...args], {
-    cwd: WELES,
-    env: { ...process.env, SESSION },
-    encoding: 'utf8',
-    timeout,
-  });
+  const out = spawnSync(process.execPath, ['src/_shared/keeper/action.mjs', ...args], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' });
   if (out.status !== 0) {
     if (optional) return { ok: false, stdout: out.stdout, stderr: out.stderr };
     throw new Error(`${args.join(' ')}\nstdout=${out.stdout}\nstderr=${out.stderr}`);
@@ -184,7 +179,7 @@ function action(args, timeout = 120000, optional = false) {
 }
 
 function read(js, timeout = 60000) {
-  return action(['eval', js], timeout).result;
+  return action(['eval', js]).result;
 }
 
 function idle(kind = 'short') {
@@ -235,7 +230,7 @@ for (const cfg of sections) {
   if (filter && !filter.has(cfg.label)) continue;
   const md = cfg.md ? file(cfg.md) : '';
   const fields = cfg.fields(md);
-  action(['nav', `${PROJECT}${cfg.id}`], 180000);
+  action(['nav', `${PROJECT}${cfg.id}`]);
   idle('long');
   const filled = fields.map(([suffix, value]) => fillSuffix(suffix, value));
   idle('deliberate');

@@ -5,7 +5,7 @@ import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
 
-const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
+const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const CALL = 'FENG.05.01-IP.01-003/26';
 const LIST_URL = 'https://lsi2.ncbr.gov.pl/konkursy/w-trakcie-naboru';
 

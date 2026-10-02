@@ -5,8 +5,8 @@ import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../../dist/human/keyboard.js';
 
-const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
-const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/317a21dd-e798-4115-ab53-6ab5a2912fb0';
+const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
+const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('1_3');
 // People's names, phones and addresses live with the application text in the
 // private application folder, never in this repository.
 const CONTACTS_FILE = process.env.NCBR_CONTACTS_FILE

@@ -1,4 +1,4 @@
-// Criterion-1 attachments for the NCBR wniosek (project 7ee80d9a). Never submits.
+// Criterion-1 attachments for the NCBR wniosek NCBR_PROJECT_ID names. Never submits.
 // MODE=read compares the saved attachment row; MODE=apply saves attachments and verifies downloaded bytes.
 // EDIT_EXISTING=1 selects the current row; REPLACE_FILE names its exact superseded PDF; REPORT_DIR retains evidence.
 // DIAG=1 only inspects. RESUME_STAGED=1 continues an interrupted open drawer without navigating or duplicating uploads.
@@ -9,8 +9,8 @@ import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 
-const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
-const projectId = process.env.NCBR_PROJECT_ID || '7ee80d9a-67dd-4d99-becd-8dda407221c1';
+const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
+const projectId = (await import('#ncbr-settings')).projectId();
 const projectUrl = `https://lsi2.ncbr.gov.pl/projekt/${projectId}`;
 const criterionNeedle = 'Załączniki potwierdzające spełnienie warunku określonego w kryterium nr 1';
 

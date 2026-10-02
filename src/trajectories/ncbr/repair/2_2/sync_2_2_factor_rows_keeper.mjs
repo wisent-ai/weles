@@ -7,7 +7,7 @@ const WELES = `${ROOT}/weles`;
 const BACKENDS = `${ROOT}/backends`;
 const SRC = `${BACKENDS}/STEP_sciezka_A_Wisent/wersja_B_2.2_innowacyjnosc_i_zaleznosci.md`;
 const OUT = `${BACKENDS}/STEP_sciezka_A_Wisent/sync_2_2_factor_rows_evidence_20260625.json`;
-const URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/80ebca16-a9dd-4798-a334-5ac007cecbf7';
+const URL = (await import('#ncbr-settings')).sectionUrl('2_2');
 
 const clean = (s) => String(s || '').replace(/\s*<!--[\s\S]*?-->\s*/g, ' ').replace(/\s+/g, ' ').trim();
 const md = readFileSync(SRC, 'utf8');

@@ -9,7 +9,7 @@ import { cdpEndpoint, sectionUrl } from '#ncbr-settings';
 
 const endpoint = cdpEndpoint();
 // The section id differs per application, so it is declared beside the project id.
-const SECTION_URL = sectionUrl(process.env.NCBR_SECTION_1_3);
+const SECTION_URL = sectionUrl('1_3');
 
 const VAT = 'Nie dotyczy.';
 // The applicant's phone and addresses live with the application text in the

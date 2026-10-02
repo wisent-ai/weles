@@ -8,8 +8,8 @@ import { tasksForm } from './fill_6_1_tasks_new/form.mjs';
 import { milestoneSteps } from './fill_6_1_tasks_new/milestones.mjs';
 import { runModes } from './fill_6_1_tasks_new/modes.mjs';
 
-const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
-const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/566c735c-8ad0-406f-a948-f3ea921c2cc7';
+const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
+const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('6_1');
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
 if (!page) {

@@ -4,7 +4,7 @@ import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
 
-const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
+const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const email = process.env.NCBR_EMAIL;
 const password = process.env.NCBR_PASSWORD;
 

@@ -8,8 +8,8 @@ import { FACTORS, FEATURES } from './fix_2_2_collections/source.mjs';
 import { collectionsForm } from './fix_2_2_collections/form.mjs';
 import { runDiagnostics } from './fix_2_2_collections/diagnostics.mjs';
 
-const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
-const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/80ebca16-a9dd-4798-a334-5ac007cecbf7';
+const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
+const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('2_2');
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
 if (!page) {

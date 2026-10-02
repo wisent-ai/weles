@@ -8,7 +8,7 @@ import { competitors14, euCompetition, nonEuCompetition, parameters23 } from './
 import { lsiForm } from './repair_competition_2_3_wsession/form.mjs';
 import { competitionSteps } from './repair_competition_2_3_wsession/steps.mjs';
 
-const PROJECT_ID = process.env.NCBR_PROJECT_ID || '7ee80d9a-67dd-4d99-becd-8dda407221c1';
+const PROJECT_ID = (await import('#ncbr-settings')).projectId();
 const PROJECT_URL = `https://lsi2.ncbr.gov.pl/projekt/${PROJECT_ID}`;
 const BASE = `${PROJECT_URL}/projekt_step/`;
 const URLS = {

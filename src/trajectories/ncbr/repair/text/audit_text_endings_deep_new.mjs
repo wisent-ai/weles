@@ -5,8 +5,8 @@
 import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 
-const endpoint = process.env.NCBR_CDP_ENDPOINT || ['ht', 'tp://127.0.0.1:9223'].join('');
-const projectId = process.env.NCBR_PROJECT_ID || '7ee80d9a-67dd-4d99-becd-8dda407221c1';
+const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
+const projectId = (await import('#ncbr-settings')).projectId();
 const projectUrl = ['https://', `lsi2.ncbr.gov.pl/projekt/${projectId}`].join('');
 const fast = Boolean(process.env.FAST);
 const maxRowsPerSection = Number(process.env.MAX_ROWS || 80);

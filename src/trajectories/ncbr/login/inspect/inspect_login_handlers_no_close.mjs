@@ -1,6 +1,6 @@
 import { chromium } from 'playwright';
 
-const endpoint = process.env.NCBR_BROWSER_ENDPOINT || 'http://127.0.0.1:9223';
+const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const browser = await chromium.connectOverCDP(endpoint);
 const context = browser.contexts()[0];
 const page = context?.pages()[0];

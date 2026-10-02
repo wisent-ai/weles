@@ -7,7 +7,7 @@ import { FACTORS, FEATURES } from './repair_contacts_2_2_wsession/source.mjs';
 import { lsiForm } from './repair_contacts_2_2_wsession/form.mjs';
 import { contactRepairs } from './repair_contacts_2_2_wsession/sections.mjs';
 
-const PROJECT_ID = process.env.NCBR_PROJECT_ID || '7ee80d9a-67dd-4d99-becd-8dda407221c1';
+const PROJECT_ID = (await import('#ncbr-settings')).projectId();
 const PROJECT_URL = `https://lsi2.ncbr.gov.pl/projekt/${PROJECT_ID}`;
 const BASE = `${PROJECT_URL}/projekt_step/`;
 const URLS = {

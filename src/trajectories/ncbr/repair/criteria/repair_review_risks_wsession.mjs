@@ -8,7 +8,7 @@ import { lsiForm } from './repair_review_risks_wsession/form.mjs';
 import { riskRepairs } from './repair_review_risks_wsession/sections.mjs';
 import { task5 } from './repair_review_risks_wsession/text.mjs';
 
-const PROJECT_ID = process.env.NCBR_PROJECT_ID || '7ee80d9a-67dd-4d99-becd-8dda407221c1';
+const PROJECT_ID = (await import('#ncbr-settings')).projectId();
 const PROJECT_URL = `https://lsi2.ncbr.gov.pl/projekt/${PROJECT_ID}`;
 const BASE = `${PROJECT_URL}/projekt_step/`;
 const URL_41 = `${BASE}5af236aa-03b2-4650-b5a2-95c299dfeeaf`;

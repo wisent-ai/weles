@@ -6,7 +6,7 @@ import { join } from 'node:path';
 
 export const SESSION = process.env.SESSION || 'ncbr-step-b';
 export const SOCK = join(homedir(), '.weles', 'keeper', SESSION, 'socket');
-export const PROJECT_ID = process.env.NCBR_PROJECT_ID || '7ee80d9a-67dd-4d99-becd-8dda407221c1';
+export const PROJECT_ID = (await import('#ncbr-settings')).projectId();
 export const PROJECT_URL = `https://lsi2.ncbr.gov.pl/projekt/${PROJECT_ID}`;
 export const BASE = `${PROJECT_URL}/projekt_step/`;
 export const OUT_DIR = process.env.OUT_DIR || `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/audit_keeper_readonly`;

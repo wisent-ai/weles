@@ -8,7 +8,7 @@ const SESSION = process.env.SESSION || 'ncbr-step-b';
 const ROOT = `${process.env.HOME}/Documents/CodingProjects/Wisent`;
 const WELES = `${ROOT}/weles`;
 const SRC = `${ROOT}/backends/STEP_sciezka_A_Wisent/wersja_B_2.4_efekty_zewnetrzne.md`;
-const URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/94fb1adb-38a5-4949-b4c1-b0a79472bfd3';
+const URL = (await import('#ncbr-settings')).sectionUrl('2_4');
 
 const md = readFileSync(SRC, 'utf8');
 const clean = (s) => String(s || '').replace(/\s*<!--[\s\S]*?-->\s*/g, ' ').replace(/\s+/g, ' ').trim();

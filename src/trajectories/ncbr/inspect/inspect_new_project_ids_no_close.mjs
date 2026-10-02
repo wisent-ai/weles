@@ -4,8 +4,8 @@
 import { chromium } from 'playwright';
 import { pageSettled } from '../../_shared/page/settled.mjs';
 
-const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
-const projectId = '7ee80d9a-67dd-4d99-becd-8dda407221c1';
+const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
+const projectId = (await import('#ncbr-settings')).projectId();
 const base = 'https://lsi2.ncbr.gov.pl';
 
 const browser = await chromium.connectOverCDP(endpoint);

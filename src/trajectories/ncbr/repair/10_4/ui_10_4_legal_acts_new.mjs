@@ -8,8 +8,8 @@ import { legalActsTable } from './ui_10_4_legal_acts_new/table.mjs';
 import { legalActForm } from './ui_10_4_legal_acts_new/form.mjs';
 import { runModes } from './ui_10_4_legal_acts_new/modes.mjs';
 
-const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
-const projectId = process.env.NCBR_PROJECT_ID || '7ee80d9a-67dd-4d99-becd-8dda407221c1';
+const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
+const projectId = (await import('#ncbr-settings')).projectId();
 const SECTION_URL = `https://lsi2.ncbr.gov.pl/projekt/${projectId}/projekt_step/4e260fae-c455-41ce-bba3-d0df2a8767fd`;
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];

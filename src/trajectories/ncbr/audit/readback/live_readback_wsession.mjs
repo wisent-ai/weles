@@ -6,7 +6,7 @@ import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mou
 import { humanFill } from '../../../../../dist/human/keyboard.js';
 import { validateProject } from '../../validation.mjs';
 
-const PROJECT_URL = process.env.NCBR_PROJECT_URL || 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1';
+const PROJECT_URL = (await import('#ncbr-settings')).projectUrl();
 const email = process.env.NCBR_EMAIL;
 const password = process.env.NCBR_PASSWORD;
 

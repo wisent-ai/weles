@@ -3,8 +3,8 @@
 import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 
-const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
-const PROJ = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/';
+const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
+const PROJ = (await import('#ncbr-settings')).sectionBase();
 const REG = {
   '4.3': { id: 'e8020b59-7947-4c3d-9851-0fc499f42427', answer: 'Nie' },
   '5.3': { id: '72d09821-7019-4ac0-ab4f-09fdd4883fc2', answer: 'Tak', locationPremium: true },
