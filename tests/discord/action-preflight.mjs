@@ -18,7 +18,8 @@ const thread = 'src/trajectories/discord/actions/post/create_thread.mjs';
 const reply = 'src/trajectories/discord/actions/comment/reply_message.mjs';
 const targetReader = 'src/trajectories/_shared/discord/message-target.mjs';
 const replyReader = 'src/trajectories/_shared/discord/response.mjs';
-for (const path of [friend, forum, thread, reply, targetReader, replyReader, 'tests/discord/action-preflight.mjs']) {
+const profile = 'src/trajectories/discord/actions/passive/view_profile.mjs';
+for (const path of [friend, forum, thread, reply, profile, targetReader, replyReader, 'tests/discord/action-preflight.mjs']) {
   evidence.report.source_sha256[path] = createHash('sha256').update(await readFile(join(root, path))).digest('hex');
 }
 const scenarios = [
@@ -35,6 +36,10 @@ const scenarios = [
   { name: 'invalid_reply_channel', entry: reply,
     settings: { SERVER_CHANNEL_PATH: 'not/a/channel/path', TARGET_MESSAGE_SUBSTRING: 'Input refusal parent', REPLY_TEXT: 'Input refusal reply' },
     diagnostics: ['DISCORD_REPLY_CHANNEL_INVALID', 'not/a/channel/path'] },
+  { name: 'missing_profile_target', entry: profile, diagnostics: ['DISCORD_TARGET_USER_ID'] },
+  { name: 'invalid_profile_target', entry: profile,
+    settings: { DISCORD_TARGET_USER_ID: '../../profile-escape' },
+    diagnostics: ['DISCORD_PROFILE_TARGET_INVALID', '../../profile-escape'] },
 ];
 const failures = [];
 try {
@@ -47,6 +52,7 @@ try {
       DISCORD_TARGET_HANDLE: '', FORUM_CHANNEL_PATH: '', POST_TITLE: '', POST_BODY: '',
       POST_TAGS: '', SERVER_CHANNEL_PATH: '', TARGET_MESSAGE_SUBSTRING: '', THREAD_NAME: '', THREAD_FIRST_MESSAGE: '',
       REPLY_TEXT: '',
+      DISCORD_TARGET_USER_ID: '',
       ...scenario.settings,
     };
     const operation = { scenario: scenario.name, command: [process.execPath, entry], cwd: home, environment_overrides: overrides };
