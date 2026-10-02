@@ -2,7 +2,7 @@
 // Never writes or submits.
 
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { pageSettled } from '../../../_shared/page/settled.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const projectId = (await import('#ncbr-settings')).projectId();
@@ -17,7 +17,7 @@ if (!page) {
 
 
 await page.goto(projectUrl, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: read-only navigation
-await humanIdlePause('long');
+await pageSettled(page);
 
 const urls = await page.evaluate(() => {
   const out = new Set();
@@ -43,8 +43,8 @@ const nearLimit = [];
 const scanned = [];
 for (const url of directUrls) {
   await page.goto(url, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: read-only section navigation
-  await humanIdlePause('long');
-  await page.waitForSelector('input, textarea').catch(() => {}); // allow-raw-playwright: wait for fields before read
+  await page.locator('input:not([name="table_search"]), textarea').filter({ visible: true }).first().waitFor({ state: 'visible' });
+  await pageSettled(page);
   const fields = await page.evaluate(() => {
     const labelFor = (el) => {
       if (el.id) {
