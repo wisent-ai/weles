@@ -2,6 +2,7 @@
 // the pre-save check, the radio and applicant choices, saving, and opening a task row.
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { openRowEditor } from '../../../forms/row-editor.mjs';
+import { fillField } from '../../../form-input.mjs';
 
 export function tasksForm({ page, SECTION_URL }) {
 async function clickDodaj() {
@@ -12,37 +13,13 @@ async function clickDodaj() {
 
 async function fillByName(name, value) {
   const loc = page.locator(`[name="${name}"]`).first();
-  await loc.waitFor({ state: 'visible' });
-  const max = Number(await loc.getAttribute('maxlength')) || String(value || '').length;
-  let v = String(value || '');
-  if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
-  await loc.evaluate((el, next) => {
-    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value')?.set;
-    if (setter) setter.call(el, next);
-    else el.value = next;
-    el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: next }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-    el.dispatchEvent(new Event('blur', { bubbles: true }));
-  }, v); // allow-raw-playwright: set controlled LSI task field reliably
-  await humanIdlePause('short');
-  return `${name} ${v.length}/${max}`;
+  const observed = await fillField(page, loc, value);
+  return `${name} ${observed.len}/${observed.max}`;
 }
 
 async function fillSelector(selector, value) {
   const loc = page.locator(selector).first();
-  await loc.waitFor({ state: 'visible' });
-  const max = Number(await loc.getAttribute('maxlength')) || String(value || '').length;
-  let v = String(value || '');
-  if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
-  await loc.evaluate((el, next) => {
-    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value')?.set;
-    if (setter) setter.call(el, next);
-    else el.value = next;
-    el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: next }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-    el.dispatchEvent(new Event('blur', { bubbles: true }));
-  }, v); // allow-raw-playwright: set nested controlled LSI milestone textarea reliably
-  await humanIdlePause('short');
+  await fillField(page, loc, value);
 }
 
 async function assertTaskValuesBeforeSave(nr) {
