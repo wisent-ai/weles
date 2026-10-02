@@ -20,7 +20,7 @@ import { pageSettled } from '../../_shared/page/settled.mjs';
 
 import { getSocialAccount } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
 import { uploadIpa } from './altool_upload.mjs';
 import { readScopedSecret } from '../../../_shared/scoped-secrets.mjs';
@@ -58,12 +58,34 @@ async function clickAny(s, selectors, label) {
   for (const sel of selectors) {
     const loc = s.page.locator(sel).first();
     if (await loc.isVisible()) {
+      if (!(await loc.isEnabled())) {
+        throw Object.assign(new Error(`App Store Connect control is disabled: ${label || sel}`), {
+          code: 'ASC_CONTROL_DISABLED', selector: sel, control: label ?? null, pageUrl: s.page.url(),
+        });
+      }
       await humanClickLocator(s.page, loc);
       if (label) console.log(`[asc-submit] clicked: ${label}`);
       return true;
     }
   }
   return false;
+}
+
+async function fillObserved(page, field, value, label) {
+  if (!(await field.isEditable())) {
+    throw Object.assign(new Error(`App Store Connect ${label} field is not editable`), {
+      code: 'ASC_FIELD_NOT_EDITABLE', field: label, pageUrl: page.url(),
+    });
+  }
+  await humanFill(page, field, value);
+  await page.keyboard.press('Tab');
+  const observed = await field.inputValue();
+  if (observed !== value) {
+    throw Object.assign(new Error(`App Store Connect ${label} input differs from the requested value`), {
+      code: 'ASC_INPUT_MISMATCH', field: label, pageUrl: page.url(),
+      expectedLength: value.length, observedLength: observed.length,
+    });
+  }
 }
 
 // Open the build picker and select BUILD_NUMBER (or the newest row). Returns
@@ -89,7 +111,6 @@ async function selectBuild(s) {
   if (!(await row.isVisible().catch(() => false))) return false;
   await humanClickLocator(s.page, row);
   console.log(`[asc-submit] build selected: ${BUILD_NUMBER || 'newest available'}`);
-  await humanIdlePause('short');
   await clickAny(s, ['button:has-text("Done")', 'button:has-text("Add")', 'button:has-text("Select")'], 'confirm build');
   await pageSettled(s.page);
   return true;
@@ -103,7 +124,6 @@ try {
     console.log('FAIL: session expired, rerun apple/login.mjs');
     process.exit(2);
   }
-  await humanIdlePause('short');
 
   // 1) Ensure an editable version exists. If VERSION_STRING is set and the
   //    page shows no "Prepare for Submission" version, create one.
@@ -118,9 +138,8 @@ try {
     if (opened) {
       await pageSettled(s.page);
       const vField = s.page.locator('input[placeholder*="ersion" i], input[name*="version" i], input[type="text"]').first();
-      if (await vField.isVisible().catch(() => false)) {
-        await humanFill(s.page, vField, VERSION_STRING);
-        await humanIdlePause('short');
+      if (await vField.isVisible()) {
+        await fillObserved(s.page, vField, VERSION_STRING, 'version');
         await clickAny(s, ['button:has-text("Create")', 'button:has-text("Add")', 'button:has-text("Done")'], 'create version');
         await pageSettled(s.page);
       } else {
@@ -134,10 +153,9 @@ try {
   // 2) What's New (optional).
   if (WHATS_NEW) {
     const wn = s.page.locator('textarea[name="whatsNew"], textarea[data-test-id*="whatsNew"], textarea[aria-label*="New in This Version" i], textarea[aria-label*="What" i]').first();
-    if (await wn.isVisible().catch(() => false)) {
-      await humanFill(s.page, wn, WHATS_NEW);
-      console.log(`[asc-submit] What's New set (${WHATS_NEW.length} chars)`);
-      await humanIdlePause('short');
+    if (await wn.isVisible()) {
+      await fillObserved(s.page, wn, WHATS_NEW, 'release notes');
+      console.log(`[asc-submit] What's New entered (${WHATS_NEW.length} chars)`);
     } else {
       console.log('[asc-submit] WARN: What\'s New field not found');
     }
@@ -210,9 +228,9 @@ try {
   }
   console.log(`PASS: app ${APP_ID} submit-for-review clicked (status text not confirmed on page)`);
   process.exit(0);
-} catch (e) {
-  console.log('FAIL:', e.message);
-  process.exit(1);
+} catch (error) {
+  console.error('FAIL:', error);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }
