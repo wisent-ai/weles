@@ -2,6 +2,11 @@ name: Figma design assets export
 
 on:
   workflow_dispatch:
+    inputs:
+      runner_label:
+        description: Label of the Stado-selected macOS ARM64 design-export runner
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -12,7 +17,7 @@ concurrency:
 
 jobs:
   export:
-    runs-on: [self-hosted, macOS, charless-mac-mini]
+    runs-on: [self-hosted, macOS, ARM64, "${{ inputs.runner_label }}"]
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
