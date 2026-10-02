@@ -6,6 +6,7 @@ import { fillField } from '../../../form-input.mjs';
 export function criteriaRepairs({ page, fillBySuffix, fillByExactName, saveVisibleForm, closeVisibleForm, URLS }) {
 const indicatorField = page.locator('[name="rok_osiagniecia_wartosci_docelowej"], [name="opis_metodologii"], [name="opis_sposobu_weryfikacji"]')
   .filter({ visible: true }).first();
+const taskField = page.locator('[name="nazwa_zadania"]').filter({ visible: true }).first();
 async function repairScalarSections() {
   const out = [];
   for (const item of scalarRepairs) {
@@ -25,21 +26,22 @@ async function openTaskRow(nr) {
   await menu.waitFor({ state: 'visible' });
   await humanClickLocator(page, menu);
   await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).filter({ visible: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit task row
-  await page.waitForSelector('[name="nazwa_zadania"]');
+  await taskField.waitFor({ state: 'visible' });
+  return taskField;
 }
 
 async function repairTasks61() {
   const out = [];
   for (const task of taskRepairs) {
     console.log(`[6.1] task ${task.nr}`);
-    await openTaskRow(task.nr);
+    const editorField = await openTaskRow(task.nr);
     const filled = [];
-    filled.push(await fillField(page, page.locator('[name="nazwa_zadania"]').first(), task.name));
+    filled.push(await fillField(page, editorField, task.name));
     filled.push(await fillField(page, page.locator('[name="zakres_planowanych_prac_br"]').first(), task.scope));
     filled.push(await fillField(page, page.locator('[name="szczegolowy_opis_prac"]').first(), task.detail));
     const changed = filled.some((field) => field.changed);
     if (changed) await saveVisibleForm();
-    else await closeVisibleForm();
+    else await closeVisibleForm(editorField);
     out.push({ nr: task.nr, filled, save: changed ? 'save_clicked' : 'unchanged' });
   }
   return out;
@@ -53,6 +55,7 @@ async function openIndicatorRowExact(name) {
   await humanClickLocator(page, menu);
   await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).filter({ visible: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit exact indicator row
   await indicatorField.waitFor({ state: 'visible' });
+  return indicatorField;
 }
 
 async function openIndicatorRowByIndex(index) {
@@ -63,6 +66,7 @@ async function openIndicatorRowByIndex(index) {
   await humanClickLocator(page, menu);
   await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).filter({ visible: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit indicator row by index
   await indicatorField.waitFor({ state: 'visible' });
+  return indicatorField;
 }
 
 async function repairIndicators92() {
@@ -86,14 +90,14 @@ async function repairIndicators92() {
     : indicatorRepairs;
   for (const item of items) {
     console.log(`[9.2] ${item.name}`);
-    await openIndicatorRowExact(item.name);
+    const editorField = await openIndicatorRowExact(item.name);
     const filled = [];
     if (item.year && process.env.METH_92 !== '1') filled.push({ field: 'year', ...(await fillByExactName('rok_osiagniecia_wartosci_docelowej', item.year)) });
     if (item.methodology) filled.push({ field: 'methodology', ...(await fillByExactName('opis_metodologii', item.methodology)) });
     if (item.verification && process.env.METH_92 !== '1') filled.push({ field: 'verification', ...(await fillByExactName('opis_sposobu_weryfikacji', item.verification)) });
     const changed = filled.some((field) => field.changed);
     if (changed) await saveVisibleForm();
-    else await closeVisibleForm();
+    else await closeVisibleForm(editorField);
     out.push({ name: item.name, save: changed ? 'save_clicked' : 'unchanged', filled });
   }
   return out;

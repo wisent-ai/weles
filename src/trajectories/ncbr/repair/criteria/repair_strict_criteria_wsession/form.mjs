@@ -48,10 +48,13 @@ async function saveVisibleForm() {
   await humanIdlePause('long');
 }
 
-async function closeVisibleForm() {
-  const cancel = page.getByRole('button', { name: 'Anuluj', exact: true }).filter({ visible: true }).last();
-  if (await cancel.count()) await humanClickLocator(page, cancel);
-  await humanIdlePause('long');
+async function closeVisibleForm(editorField) {
+  if (!await editorField.isVisible()) return;
+  const cancel = page.getByRole('button', { name: 'Anuluj', exact: true })
+    .and(page.locator('button:not(:disabled):not([aria-disabled="true"])')).filter({ visible: true }).last();
+  await cancel.waitFor({ state: 'visible' });
+  await humanClickLocator(page, cancel);
+  await editorField.waitFor({ state: 'hidden' });
 }
 
   return { login, fillBySuffix, fillByExactName, saveVisibleForm, closeVisibleForm };

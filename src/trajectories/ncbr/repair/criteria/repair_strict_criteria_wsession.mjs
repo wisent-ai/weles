@@ -82,7 +82,7 @@ if (process.env.DIAG_92_ALL === '1') {
   const count = await page.evaluate(() => Array.from(document.querySelectorAll('table tbody tr')).filter((row) => row.querySelector('button[aria-label="overflow-options"]')).length); // allow-raw-playwright: count editable indicator rows only
   const rows = [];
   for (let i = 0; i < count; i += 1) {
-    await openIndicatorRowByIndex(i);
+    const editorField = await openIndicatorRowByIndex(i);
     rows.push(await page.evaluate((idx) => {
       const val = (name) => document.querySelector(`[name="${name}"]`)?.value || '';
       return {
@@ -95,7 +95,7 @@ if (process.env.DIAG_92_ALL === '1') {
         methodologyHead: val('opis_metodologii'),
       };
     }, i)); // allow-raw-playwright: read exact open indicator row field values
-    await closeVisibleForm();
+    await closeVisibleForm(editorField);
   }
   console.log(JSON.stringify({ rows }, null, 2));
   await session.ctx.close();
