@@ -4,10 +4,11 @@ import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
-import { cdpEndpoint, sectionUrl } from '../../../../_shared/ncbr/settings.mjs';
+import { cdpEndpoint, sectionUrl } from '#ncbr-settings';
 
 const endpoint = cdpEndpoint();
-const SECTION_URL = sectionUrl('10_4');
+// The section id differs per application, so it is declared beside the project id.
+const SECTION_URL = sectionUrl(process.env.NCBR_SECTION_10_4);
 const md = readFileSync(`${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent/wersja_B_10.4_zrownowazony_rozwoj.md`, 'utf8');
 function bt(start, end) { let s = md.split(start)[1]; if (s === undefined) return ''; if (end) s = s.split(end)[0]; return s.replace(/\s*<!--[\s\S]*?-->\s*/g, ' ').trim(); }
 const OPIS_6R = bt('## Opis sposobu realizacji projektu zgodnie z wybranymi zasadami 6R (limit 4 000 znaków)', '## Stosowanie zasad 6R zostało odzwierciedlone');

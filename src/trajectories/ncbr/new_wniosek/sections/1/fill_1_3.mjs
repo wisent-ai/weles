@@ -5,10 +5,11 @@ import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
-import { cdpEndpoint, sectionUrl } from '../../../../_shared/ncbr/settings.mjs';
+import { cdpEndpoint, sectionUrl } from '#ncbr-settings';
 
 const endpoint = cdpEndpoint();
-const SECTION_URL = sectionUrl('1_3');
+// The section id differs per application, so it is declared beside the project id.
+const SECTION_URL = sectionUrl(process.env.NCBR_SECTION_1_3);
 
 const VAT = 'Nie dotyczy.';
 // The applicant's phone and addresses live with the application text in the

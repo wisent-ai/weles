@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
-import { cdpEndpoint, projectUrl as declaredProjectUrl } from '../../_shared/ncbr/settings.mjs';
+import { cdpEndpoint, projectUrl as declaredProjectUrl } from '#ncbr-settings';
 
 const endpoint = cdpEndpoint();
 const SECTION_GROUP = process.env.SECTION_GROUP || '';
