@@ -31,14 +31,25 @@ async function request(action: WorkerAction) {
       redirect: 'error',
     });
     const body = await operatorJson(response);
-    if (typeof body.ok !== 'boolean') throw new Error(`HTTP ${response.status}: invalid worker response`);
-    if (response.ok && body.ok) {
-      const state = checkedState(mutates ? body.after : body.worker);
-      if (mutates && checkedState(body.before).pid !== state.pid) {
-        throw new Error('worker control replaced the service process');
+    const result = { ...body, ok: body.ok === true, operation: action, endpoint: connection.endpoint.toString(), http_status: response.status };
+    try {
+      if (typeof body.ok !== 'boolean') throw new Error(`HTTP ${response.status}: invalid worker response`);
+      if (response.ok && body.ok) {
+        const state = checkedState(mutates ? body.after : body.worker);
+        if (mutates && checkedState(body.before).pid !== state.pid) {
+          throw new Error('worker control replaced the service process');
+        }
       }
+    } catch (cause) {
+      return {
+        ...result,
+        ok: false,
+        error: 'worker_contract_invalid',
+        message: cause instanceof Error ? cause.message : String(cause),
+        observed_response: body,
+      };
     }
-    return { ...body, ok: body.ok, operation: action, endpoint: connection.endpoint.toString(), http_status: response.status };
+    return result;
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
     throw new Error(`worker ${action} ${connection.endpoint}: ${message}`, { cause });
