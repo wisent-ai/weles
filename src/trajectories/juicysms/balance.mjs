@@ -1,12 +1,10 @@
 // JuicySMS balance check via Google SSO. juicysms.com/login has
 // "LOGIN WITH GOOGLE" button (and Cloudflare Turnstile).
 import { WSession } from '../../../dist/session/wsession.js';
-import { googleSso, parseBalanceFromText, patchServiceBalance, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
-import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
+import { googleSso, patchServiceBalance, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { popupOrNavigation, urlMatching } from '../_shared/page/settled.mjs';
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
+import { openJuicyPage, readJuicyPage } from './page.mjs';
 
 const LOGIN_URL = 'https://juicysms.com/login';
 // The OAuth round trip lands back on a juicysms.com route other than /login.
@@ -19,7 +17,7 @@ console.log(`[trajectory] Using Google SSO: ${login.email}`);
 
 const s = await WSession.start({ label: 'juicysms_balance', browser: 'chromium' });
 try {
-  await s.goto(LOGIN_URL);
+  await openJuicyPage(s, LOGIN_URL);
   const googleButton = s.page.locator('a:has-text("LOGIN WITH GOOGLE"), button:has-text("LOGIN WITH GOOGLE"), a:has-text("Login with Google"), button:has-text("Login with Google")')
     .and(s.page.locator(':not(:disabled):not([aria-disabled="true"])')).filter({ visible: true }).first();
   await googleButton.waitFor({ state: 'visible' });
@@ -30,28 +28,40 @@ try {
   if (!ok) throw new Error('Google SSO did not complete');
 
   await urlMatching(s.page, LANDED);
-  if (/\/login/.test(s.page.url())) {
-    await s.page.goto('https://juicysms.com/dashboard', { waitUntil: 'domcontentloaded' }).catch(() => {});
+  const response = await openJuicyPage(s, 'https://juicysms.com/myaccount');
+  const account = await readJuicyPage(response, 'MyAccount');
+  const observedEmail = account.auth?.user?.email;
+  if (typeof observedEmail !== 'string' || observedEmail.trim().toLowerCase() !== login.email.trim().toLowerCase()) {
+    throw Object.assign(new Error('JuicySMS account does not match the selected sign-in identity'), {
+      code: 'JUICYSMS_ACCOUNT_MISMATCH', expectedAccount: login.email, observedAccount: observedEmail ?? null,
+      pageUrl: s.page.url(),
+    });
   }
-  await humanIdlePause('long');
-
-  const text = await s.page.evaluate(() => document.body.innerText);
-  console.log(`[trajectory] dashboard text length=${text.length}`);
-  const balance = parseBalanceFromText(text);
-  if (balance == null) {
-    const dir = runRecordingsDir('juicysms_balance');
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'dashboard-text.txt'), text);
-    try { writeFileSync(join(dir, 'dashboard.html'), await s.page.content()); } catch {}
-    try { await s.page.screenshot({ path: join(dir, 'dashboard.png'), fullPage: true }); } catch {}
-    console.log(`FAIL: JuicySMS balance regex did not match — full dashboard text dumped to ${dir}/`);
-    process.exit(1);
+  // MyAccount formats auth.user.balance from EUR using currency.rates.
+  // The service record stores USD; never relabel another currency as dollars.
+  const raw = account.auth.user.balance;
+  const eur = (typeof raw === 'number' || (typeof raw === 'string' && raw.trim())) ? Number(raw) : NaN;
+  const usdRate = account.currency?.rates?.USD;
+  if (!Number.isFinite(eur)) {
+    throw Object.assign(new Error('JuicySMS did not provide a numeric account balance'), {
+      code: 'JUICYSMS_BALANCE_UNAVAILABLE', pageUrl: s.page.url(), observedBalance: raw ?? null,
+    });
   }
-  console.log(`[trajectory] balance=$${balance}`);
-
+  if (typeof usdRate !== 'number' || !Number.isFinite(usdRate) || usdRate <= 0) {
+    throw Object.assign(new Error('JuicySMS did not provide a usable USD conversion rate'), {
+      code: 'JUICYSMS_BALANCE_RATE_UNAVAILABLE', pageUrl: s.page.url(), observedRate: usdRate ?? null,
+    });
+  }
+  const balance = Number((eur * usdRate).toFixed(2));
+  if (!Number.isFinite(balance)) throw Object.assign(new Error('JuicySMS USD balance is not finite'), {
+    code: 'JUICYSMS_BALANCE_CONVERSION_INVALID', balanceEur: eur, usdRate,
+  });
+  console.log(`[trajectory] balance EUR=${eur}, provider USD/EUR=${usdRate}, USD=${balance}`);
   const patched = await patchServiceBalance(DISPLAY_NAME, balance);
-  if (!patched) { console.log('FAIL: PATCH service_credentials failed'); process.exit(1); }
-  console.log(`PASS: balance=$${balance} (persisted)`);
+  if (!patched) throw Object.assign(new Error('JuicySMS service balance could not be persisted'), {
+    code: 'JUICYSMS_BALANCE_PERSIST_FAILED', displayName: DISPLAY_NAME,
+  });
+  console.log(`PASS: balance USD=${balance} (persisted)`);
 } catch (e) {
   console.error('FAIL:', e);
   process.exitCode = 1;

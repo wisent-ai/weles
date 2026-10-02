@@ -5,7 +5,8 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
-import { pageSettled, popupOrNavigation, responseAfterAction, urlMatching } from '../_shared/page/settled.mjs';
+import { pageSettled, popupOrNavigation, urlMatching } from '../_shared/page/settled.mjs';
+import { openJuicyPage } from './page.mjs';
 import { runOutputPath } from '#run-output';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -20,35 +21,8 @@ if (!login) { console.log('FAIL: no Google SSO credentials in DB'); process.exit
 console.log(`[dash] Using Google SSO: ${login.email}`);
 
 const s = await WSession.start({ label: 'juicysms_dashboard', browser: 'chromium' });
-async function navigateTo(address) {
-  const expected = new URL(address);
-  const first = await responseAfterAction(s.page,
-    request => request.isNavigationRequest() && request.frame() === s.page.mainFrame() && request.url() === expected.href,
-    () => s.goto(expected.href));
-  let request = first.request();
-  let redirected;
-  while ((redirected = request.redirectedTo())) request = redirected;
-  const response = await request.response();
-  const details = { requestedUrl: expected.href, responseUrl: response?.url() ?? null, pageUrl: s.page.url(), status: response?.status() ?? null };
-  if (!response?.ok()) {
-    throw Object.assign(new Error('JuicySMS dashboard navigation did not return a successful response'), {
-      code: 'JUICYSMS_DASHBOARD_HTTP_ERROR', ...details, errorText: request.failure()?.errorText ?? null,
-    });
-  }
-  const cause = await response.finished();
-  if (cause) throw Object.assign(new Error('JuicySMS dashboard response did not finish', { cause }), {
-    code: 'JUICYSMS_DASHBOARD_RESPONSE_FAILED', ...details,
-  });
-  await pageSettled(s.page);
-  const observed = new URL(s.page.url());
-  if (observed.origin !== expected.origin || observed.pathname.replace(/\/$/, '') !== expected.pathname.replace(/\/$/, '')) {
-    throw Object.assign(new Error('JuicySMS dashboard navigation reached a different route'), {
-      code: 'JUICYSMS_DASHBOARD_DESTINATION_MISMATCH', ...details, pageUrl: observed.href,
-    });
-  }
-}
 try {
-  await navigateTo(LOGIN_URL);
+  await openJuicyPage(s, LOGIN_URL);
   const googleButton = s.page.locator('a:has-text("LOGIN WITH GOOGLE"), button:has-text("LOGIN WITH GOOGLE"), a:has-text("Login with Google"), button:has-text("Login with Google")')
     .and(s.page.locator(':not(:disabled):not([aria-disabled="true"])')).filter({ visible: true }).first();
   await googleButton.waitFor({ state: 'visible' });
@@ -74,7 +48,7 @@ try {
   // hire contracts). The marketing-nav regex on / missed these because
   // they only appear in the logged-in user-menu dropdown.
   async function dumpPath(path) {
-    await navigateTo(`https://juicysms.com${path}`);
+    await openJuicyPage(s, `https://juicysms.com${path}`);
     const slug = path === '/' ? 'home' : path.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
     const html = await s.page.content();
     writeFileSync(join(OUT_DIR, `${slug}.html`), html);
