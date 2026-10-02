@@ -10,9 +10,7 @@
 // first. It does not call provider billing APIs and it does not run a fresh
 // login trajectory.
 
-import net from 'node:net';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { keeperRequest, keeperSocket } from '../_shared/keeper/client.mjs';
 import { upsertSubscription } from '../../lib/service_subscriptions.mjs';
 
 const MONTHS = new Map([
@@ -58,28 +56,10 @@ function parseArgs() {
   return out;
 }
 
-function action(session, cmd) {
-  const sock = join(homedir(), '.weles', 'keeper', session, 'socket');
-  return new Promise((resolve, reject) => {
-    const conn = net.createConnection(sock);
-    let buf = '';
-    conn.on('connect', () => conn.write(`${JSON.stringify(cmd)}\n`));
-    conn.on('data', (chunk) => {
-      buf += chunk.toString();
-      const nl = buf.indexOf('\n');
-      if (nl < 0) return;
-      const line = buf.slice(0, nl);
-      conn.end();
-      try {
-        const parsed = JSON.parse(line);
-        if (!parsed.ok) reject(new Error(parsed.error || 'keeper action failed'));
-        else resolve(parsed);
-      } catch (error) {
-        reject(error);
-      }
-    });
-    conn.on('error', reject);
-  });
+async function action(session, cmd) {
+  const answer = await keeperRequest(keeperSocket(session), cmd);
+  if (!answer.ok) throw new Error(answer.error || `keeper action failed: ${cmd.action}`);
+  return answer;
 }
 
 async function readText(session) {
