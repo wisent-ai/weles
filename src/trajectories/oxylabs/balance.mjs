@@ -3,8 +3,8 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, parseBalanceFromText, getScopedGoogleLogin } from '../_shared/services/google_sso.mjs'
 import { patchEffectiveBalance } from '../_shared/services/proxy_probe.mjs';
-import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
-import { reviewUntilClosed, urlMatching } from '../_shared/page/settled.mjs';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { pageSettled, popupOrNavigation, reviewUntilClosed, urlMatching } from '../_shared/page/settled.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
@@ -19,19 +19,19 @@ console.log(`[trajectory] Using Google SSO: ${login.email}`);
 const s = await WSession.start({ label: 'oxylabs_balance', browser: 'chromium' });
 try {
   await s.goto(LOGIN_URL);
-  await humanIdlePause('long');
+  await pageSettled(s.page);
 
   const gsiFrame = s.page.frames().find(f => /gsi\/button/.test(f.url()));
   if (!gsiFrame) { console.log('FAIL: Oxylabs Google GSI iframe not found'); throw new Error('Oxylabs Google GSI iframe not found'); }
 
-  const popupPromise = s.page.waitForEvent('popup').catch(() => null);
-  await humanClickLocator(s.page, gsiFrame.locator('div[role="button"]').first());
-  const popup = await popupPromise;  // allow-raw-playwright: the popup the click produced
-  if (!popup) { console.log('FAIL: Google login popup did not open'); throw new Error('Google login popup did not open'); }
-  await popup.waitForLoadState('domcontentloaded').catch(() => {});
+  const google = gsiFrame.locator('div[role="button"]').first();
+  if (!(await google.isEnabled())) throw new Error(`OXYLABS_GOOGLE_CONTROL_DISABLED: ${s.page.url()}`);
+  const popup = await popupOrNavigation(s.page, /^https:\/\/accounts\.google\.com\//,
+    () => humanClickLocator(s.page, google));
+  if (popup) await pageSettled(popup);
 
-  const ok = await googleSso(s, login, { originHost: 'oxylabs.io', page: popup });
-  if (!ok) { console.log('FAIL: Google SSO did not complete'); throw new Error('Google SSO did not complete'); }
+  const ok = await googleSso(s, login, { originHost: 'oxylabs.io', page: popup ?? undefined });
+  if (!ok) throw new Error(`OXYLABS_SSO_INCOMPLETE: Google sign-in did not complete; observed ${s.page.url()}`);
 
   await urlMatching(s.page, /^(?!https:\/\/dashboard\.oxylabs\.io\/en\/?(\?.*)?$)/);
   console.log(`[trajectory] post-login url=${s.page.url()}`);
@@ -40,7 +40,7 @@ try {
   // shows "Traffic available: X GB" for the active mobile/residential plan.
   // Avoid clicking into product-specific tabs (they show "used / total"
   // fractions that are easy to misread as remaining).
-  await humanIdlePause('long');
+  await pageSettled(s.page);
 
   const text = await s.page.evaluate(() => document.body.innerText);
   console.log(`[trajectory] dashboard text length=${text.length}`);
@@ -78,8 +78,9 @@ try {
     try {
       const html = await s.page.content();
       writeFileSync(join(dir, 'dashboard.html'), html);
-    } catch {}
-    try { await s.page.screenshot({ path: join(dir, 'dashboard.png'), fullPage: true }); } catch {}
+    } catch (error) { console.error('OXYLABS_DIAGNOSTIC_HTML_FAILED:', error); }
+    try { await s.page.screenshot({ path: join(dir, 'dashboard.png'), fullPage: true }); }
+    catch (error) { console.error('OXYLABS_DIAGNOSTIC_SCREENSHOT_FAILED:', error); }
     const gbIdx = [];
     for (let i = 0; (i = text.toLowerCase().indexOf('gb', i)) >= 0; i++) gbIdx.push(i);
     for (const i of gbIdx.slice(0, 10)) {
