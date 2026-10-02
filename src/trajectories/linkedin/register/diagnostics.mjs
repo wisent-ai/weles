@@ -94,32 +94,35 @@ function summarizePostData(postData = '') {
   return summary;
 }
 
-export async function summarizeRequest(req) {
+export function summarizeRequest(req) {
   if (!req) return null;
-  let postData = '';
-  try { postData = req.postData() ?? ''; } catch {}
+  let post = null;
+  let postDataReadError = null;
+  try {
+    post = summarizePostData(req.postData() ?? '');
+  } catch (error) {
+    postDataReadError = redactDiagnosticText(String(error?.message ?? error));
+  }
   const headers = summarizeHeaders(req.headers?.() ?? {});
-  const post = summarizePostData(postData);
   return {
     method: req.method?.() ?? null,
     url: req.url?.() ?? null,
     resource_type: req.resourceType?.() ?? null,
     header_names: headers.names,
     headers_redacted: headers.values,
-    post_data_present: post.present,
-    post_data_length: post.length,
-    post_data_json_keys: post.json_keys,
-    post_data_json_shape: post.json_shape,
-    post_data_markers: post.markers,
-    post_data_redacted: post.redacted,
-    post_data_redacted_truncated: post.redacted_truncated,
+    post_data_present: post?.present ?? null,
+    post_data_length: post?.length ?? null,
+    post_data_json_keys: post?.json_keys ?? null,
+    post_data_json_shape: post?.json_shape ?? null,
+    post_data_markers: post?.markers ?? null,
+    post_data_redacted: post?.redacted ?? null,
+    post_data_redacted_truncated: post?.redacted_truncated ?? null,
+    post_data_read_error: postDataReadError,
   };
 }
 
-export async function summarizeResponse(res) {
+export function summarizeResponse(res, bodyText, bodyReadError = null) {
   if (!res) return null;
-  let bodyText = '';
-  try { bodyText = await res.text(); } catch (e) { bodyText = `<body-read-error:${e.message}>`; }
   let bodyJsonKeys = null;
   try {
     const parsed = JSON.parse(bodyText);
@@ -133,6 +136,7 @@ export async function summarizeResponse(res) {
     headers_redacted: headers.values,
     body_json_keys: bodyJsonKeys,
     body_text_redacted: redactDiagnosticText(bodyText),
+    body_read_error: bodyReadError === null ? null : redactDiagnosticText(String(bodyReadError?.message ?? bodyReadError)),
   };
 }
 

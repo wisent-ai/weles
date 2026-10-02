@@ -6,28 +6,77 @@
  */
 import { humanFill, humanType } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanScroll } from '../../../../dist/human/mouse.js';
-import { pageSettled } from '../../_shared/page/settled.mjs';
+import { pageSettled, responseAfterAction } from '../../_shared/page/settled.mjs';
 import { assertLinkedinAuthenticatedRegistration, assertLinkedinProxyStable, assertNoLinkedinChallengePage, ensureLinkedinSignupForm } from '../../_shared/linkedin/signup/register_guard.mjs';
 import { fillPostRegisterOnboarding } from '../../_shared/linkedin/onboarding/work_school.mjs';
 import { confirmLinkedinEmail } from '../../_shared/linkedin/checkpoint.mjs';
 import { autoBindCharacter } from '../../lib/character-bind.mjs';
-import { collectSubmitState, summarizeRequest, summarizeResponse, writeSubmitDiagnostics } from './diagnostics.mjs';
+import { collectSubmitState, redactDiagnosticText, summarizeRequest, summarizeResponse, writeSubmitDiagnostics } from './diagnostics.mjs';
 import { hasVisibleCaptchaChallenge, inspectCreateAccountChallenge } from './refusal.mjs';
 
 const SIGNUP_API = /\/signup\/api\//;
 const CREATE_ACCOUNT_API = /\/signup\/api\/cors\/createAccount/;
 
-// A submit is watched for its API traffic, but the traffic is evidence, not a
-// precondition: a submit that produces none is a real outcome of this product
-// and is reported as such instead of being read as an empty request.
-function watchForApiEvent(waiter, label) {
-  return waiter
-    .then((event) => ({ observed: true, event }))
-    .catch((waitError) => ({
-      observed: false,
-      event: undefined,
-      reason: `${label} was never seen: ${String(waitError?.message ?? waitError)}`,
-    }));
+async function recordSubmitFailure(label, diagnostics, error) {
+  diagnostics.operation_error = {
+    code: error?.code ?? null,
+    message: redactDiagnosticText(String(error?.message ?? error)),
+    request_method: error?.requestMethod ?? null,
+    request_url: error?.requestUrl ?? null,
+    page_url: error?.pageUrl ?? null,
+    status: error?.status ?? null,
+    network_error: error?.errorText ?? null,
+    cause: error?.cause == null ? null : redactDiagnosticText(String(error.cause?.message ?? error.cause)),
+  };
+  try {
+    await writeSubmitDiagnostics(label, diagnostics);
+  } catch (diagnosticError) {
+    console.error(`[register] ${label} could not be written:`, diagnosticError);
+  }
+}
+
+async function submitObserved({ session, recordStage }, { button, pattern, stage, afterStage, label, before }) {
+  const diagnostics = { before };
+  try {
+    await button.waitFor({ state: 'visible' });
+    if (!(await button.isEnabled())) {
+      throw Object.assign(new Error('LinkedIn signup submit button is disabled'), {
+        code: 'LINKEDIN_SIGNUP_SUBMIT_DISABLED', pageUrl: session.page.url(),
+      });
+    }
+    const response = await responseAfterAction(session.page,
+      request => request.method() === 'POST' && pattern.test(request.url()),
+      async () => {
+        await humanClickLocator(session.page, button);
+        recordStage(stage, { clicked: true });
+      });
+    diagnostics.request = summarizeRequest(response.request());
+    const responseState = {
+      requestMethod: response.request().method(), requestUrl: response.url(),
+      status: response.status(), pageUrl: session.page.url(),
+    };
+    let text;
+    try {
+      text = await response.text();
+    } catch (cause) {
+      diagnostics.response = summarizeResponse(response, null, cause);
+      throw Object.assign(new Error('LinkedIn signup response body could not be read', { cause }), {
+        code: 'LINKEDIN_SIGNUP_RESPONSE_FAILED', ...responseState,
+      });
+    }
+    diagnostics.response = summarizeResponse(response, text);
+    if (!response.ok()) {
+      throw Object.assign(new Error(`LinkedIn signup returned HTTP ${response.status()}`), {
+        code: 'LINKEDIN_SIGNUP_HTTP_ERROR', ...responseState,
+      });
+    }
+    await pageSettled(session.page);
+    diagnostics.after = await collectSubmitState(session.page, afterStage);
+    return { response, text, diagnostics };
+  } catch (error) {
+    await recordSubmitFailure(label, diagnostics, error);
+    throw error;
+  }
 }
 
 async function saveVerifiedLinkedinAccount(session, account) {
@@ -60,23 +109,11 @@ async function submitEmailAndPassword({ session, identity, recordStage, proxyWat
   recordStage('proxy_stable_before_email_password_submit');
 
   const submit1Before = await collectSubmitState(session.page, 'before_submit_email_password');
-  const submit1ReqWatch = watchForApiEvent(session.page.waitForRequest((r) => SIGNUP_API.test(r.url())), 'the signup API request of the email/password submit');
-  const submit1ResWatch = watchForApiEvent(session.page.waitForResponse((r) => SIGNUP_API.test(r.url())), 'the signup API response of the email/password submit');
-  const submit1 = await humanClickLocator(session.page, session.page.locator('button[type="submit"]:has-text("Agree"), button[type="submit"]:has-text("Continue"), button#join-form-submit, button[data-tracking-control-name*="signup"]').first()).then(() => true).catch(e => { console.log(`[register] submit1 err: ${e.message}`); return false; });
-  console.log(`[register] click Agree & Join: ${submit1}`);
-  if (!submit1) throw new Error('Agree & Join button not clickable');
-  recordStage('email_password_submitted', { clicked: submit1 });
-  await pageSettled(session.page);
-  const [submit1Req, submit1Res] = await Promise.all([submit1ReqWatch, submit1ResWatch]);
-  const submit1After = await collectSubmitState(session.page, 'after_submit_email_password');
-  const submit1Diagnostics = {
-    request: await summarizeRequest(submit1Req.event),
-    response: await summarizeResponse(submit1Res.event),
-    before: submit1Before,
-    after: submit1After,
-    request_unseen_reason: submit1Req.observed ? '' : submit1Req.reason,
-    response_unseen_reason: submit1Res.observed ? '' : submit1Res.reason,
-  };
+  const { diagnostics: submit1Diagnostics } = await submitObserved({ session, recordStage }, {
+    button: session.page.locator('button[type="submit"]:has-text("Agree"), button[type="submit"]:has-text("Continue"), button#join-form-submit, button[data-tracking-control-name*="signup"]').first(),
+    pattern: SIGNUP_API, stage: 'email_password_submitted',
+    afterStage: 'after_submit_email_password', label: 'submit1_diagnostics', before: submit1Before,
+  });
   await writeSubmitDiagnostics('submit1_diagnostics', submit1Diagnostics);
   console.log(`[register] submit1 api=${submit1Diagnostics.request?.method ?? 'none'} status=${submit1Diagnostics.response?.status ?? 'none'} url=${submit1Diagnostics.response?.url ?? submit1Diagnostics.request?.url ?? 'none'}`);
   await assertNoLinkedinChallengePage(session, 'after_submit_email_password');
@@ -113,39 +150,33 @@ async function submitNames({ session, identity, recordStage, proxyWatch }) {
   // at /signup forever and the post-redirect loop times out as "rejected".
   // Diff harness 2026-05-06 .work/inst/linkedin_register_2026-05-06T17-59-19-014Z.json
   // captured this exact response shape on the 17:59 run.
-  const createAccountReq = watchForApiEvent(session.page.waitForRequest((r) => CREATE_ACCOUNT_API.test(r.url())), 'the createAccount request');
-  const createAccountRes = watchForApiEvent(session.page.waitForResponse((r) => CREATE_ACCOUNT_API.test(r.url())), 'the createAccount response');
-  const submit2 = await humanClickLocator(session.page, session.page.locator('button[type="submit"]:has-text("Continue"), button#join-form-submit').first()).then(() => true).catch(e => { console.log(`[register] submit2 err: ${e.message}`); return false; });
-  console.log(`[register] click Continue: ${submit2}`);
-  if (!submit2) throw new Error('Continue button not clickable');
-  recordStage('create_account_submitted', { clicked: submit2 });
-  const [apiReq, apiRes] = await Promise.all([createAccountReq, createAccountRes]);
-  let challengeUrl = '';
-  let createAccountStatus = null;
-  let createAccountBody = null;
-  if (apiRes.observed) {
-    try {
-      createAccountBody = await apiRes.event.json();
-      challengeUrl = createAccountBody?.challengeUrl ?? '';
-      createAccountStatus = apiRes.event.status();
-      console.log(`[register] createAccount status=${createAccountStatus} submissionId=${(createAccountBody?.submissionId ?? '').slice(0, 12)} challengeUrl=${challengeUrl ? challengeUrl + '...' : 'none'}`);
-    } catch (e) { console.log(`[register] createAccount body parse err: ${e.message}`); }
-  }
-  const submit2After = await collectSubmitState(session.page, 'after_create_account');
-  await writeSubmitDiagnostics('submit2_diagnostics', {
-    request: await summarizeRequest(apiReq.event),
-    response: await summarizeResponse(apiRes.event),
-    before: submit2Before,
-    after: submit2After,
-    request_unseen_reason: apiReq.observed ? '' : apiReq.reason,
-    response_unseen_reason: apiRes.observed ? '' : apiRes.reason,
-    create_account: {
-      status: createAccountStatus,
-      has_challenge_url: Boolean(challengeUrl),
-      challenge_url: challengeUrl ? challengeUrl : '',
-      body_keys: createAccountBody && typeof createAccountBody === 'object' ? Object.keys(createAccountBody).slice(0, 40) : null,
-    },
+  const { response, text, diagnostics } = await submitObserved({ session, recordStage }, {
+    button: session.page.locator('button[type="submit"]:has-text("Continue"), button#join-form-submit').first(),
+    pattern: CREATE_ACCOUNT_API, stage: 'create_account_submitted',
+    afterStage: 'after_create_account', label: 'submit2_diagnostics', before: submit2Before,
   });
+  const createAccountStatus = response.status();
+  let createAccountBody;
+  try {
+    createAccountBody = JSON.parse(text);
+  } catch (cause) {
+    const error = Object.assign(new Error('LinkedIn createAccount response is not valid JSON', { cause }), {
+      code: 'LINKEDIN_CREATE_ACCOUNT_RESPONSE_INVALID',
+      requestMethod: response.request().method(), requestUrl: response.url(),
+      status: createAccountStatus, pageUrl: session.page.url(),
+    });
+    await recordSubmitFailure('submit2_diagnostics', diagnostics, error);
+    throw error;
+  }
+  const challengeUrl = createAccountBody?.challengeUrl ?? '';
+  diagnostics.create_account = {
+    status: createAccountStatus,
+    has_challenge_url: Boolean(challengeUrl),
+    challenge_url: challengeUrl,
+    body_keys: createAccountBody && typeof createAccountBody === 'object' ? Object.keys(createAccountBody).slice(0, 40) : null,
+  };
+  await writeSubmitDiagnostics('submit2_diagnostics', diagnostics);
+  console.log(`[register] createAccount status=${createAccountStatus} submissionId=${(createAccountBody?.submissionId ?? '').slice(0, 12)} challengeUrl=${challengeUrl || 'none'}`);
   recordStage('create_account_response', { status: createAccountStatus, has_challenge_url: Boolean(challengeUrl) });
   if (challengeUrl) await refuseCreateAccountChallenge({ session, recordStage }, challengeUrl);
   await pageSettled(session.page);
