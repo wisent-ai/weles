@@ -1,7 +1,8 @@
 // The 1.4 and 2.3 row steps of repair_competition_2_3_wsession.mjs, bound to the page and the form helpers.
-import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
+import { humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { competitors14 } from './source.mjs';
 import { validateProject as validateNcbrProject } from '../../../validation.mjs';
+import { openRowEditor } from '../../../forms/row-editor.mjs';
 
 export function competitionSteps({ page, progress, URLS, PROJECT_URL, setReactInputValue, visibleTableText, hasAnyName, clickDodaj, saveVisibleForm, selectApplicantIfPresent, fillNamedField, fillBySuffix }) {
 async function addCompetitor14(row) {
@@ -57,10 +58,7 @@ async function addParameter23(row) {
 async function editVisibleRowContaining(text) {
   const row = page.locator('table tbody tr').filter({ hasText: text }).first();
   if (await row.count() === 0) throw new Error(`visible row not found: ${text}`);
-  await humanClickLocator(page, row.locator('button[aria-label="overflow-options"]')) // allow-raw-playwright: open visible collection row menu by exact row text
-  await humanIdlePause('deliberate');
-  await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit selected visible row
-  await humanIdlePause('long');
+  await openRowEditor(page, row, page.locator('[name="nip"]'));
 }
 
 async function repairVisibleMissingNips14() {

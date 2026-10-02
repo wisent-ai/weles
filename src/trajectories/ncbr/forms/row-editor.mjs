@@ -13,12 +13,12 @@ async function clickEnabled(page, control, operation) {
 // The caller selects the row and owns the page. This transition opens its
 // offered editor and returns the field whose visibility established entry;
 // it neither writes a value nor treats an open editor as a saved row.
-export async function openRowEditor(page, row, fieldName) {
+export async function openRowEditor(page, row, field) {
   const menu = row.locator('button[aria-label="overflow-options"]').filter({ visible: true }).first();
   await clickEnabled(page, menu, 'open_row_menu');
   const edit = page.getByRole('menuitem', { name: 'Edytuj', exact: true }).filter({ visible: true }).first();
   await clickEnabled(page, edit, 'open_row_editor');
-  const field = page.locator(`[name=${JSON.stringify(fieldName)}]`).filter({ visible: true }).first();
-  await field.waitFor({ state: 'visible' });
-  return field;
+  const visibleField = field.filter({ visible: true }).first();
+  await visibleField.waitFor({ state: 'visible' });
+  return visibleField;
 }

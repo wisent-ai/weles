@@ -3,6 +3,7 @@
 import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
+import { openRowEditor } from '../../../forms/row-editor.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('3_1');
@@ -24,14 +25,10 @@ await page.evaluate(() => {
 
 async function editExistingRow() {
   const row = page.locator('table tbody tr').filter({ hasText: 'Wisent Polska' }).first();
-  await row.locator('button[aria-label="overflow-options"]').first().dispatchEvent('click'); // allow-raw-playwright: open row menu
-  await humanIdlePause('deliberate');
-  await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit row
-  await humanIdlePause('long');
+  await openRowEditor(page, row, page.locator('input[name$="miejsce_wdrozenia_wynikow_projektu"]'));
 }
 
 await editExistingRow();
-await page.waitForSelector('input, textarea');
 
 if (process.env.DIAG) {
   const input = page.locator('input[name$="miejsce_wdrozenia_wynikow_projektu"]').first();

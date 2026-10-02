@@ -93,7 +93,7 @@ async function editTaskRow(nr) {
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
   const number = String(nr).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const row = page.locator('table tbody tr').filter({ hasText: new RegExp(`^${number}\\. `) }).first();
-  await openRowEditor(page, row, 'numer_zadania');
+  await openRowEditor(page, row, page.locator('[name="numer_zadania"]'));
 }
   return { clickDodaj, fillByName, fillSelector, assertTaskValuesBeforeSave, radio, setApplicant, saveForm, editTaskRow };
 }

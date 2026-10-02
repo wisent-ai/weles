@@ -4,6 +4,7 @@
 import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
+import { openRowEditor } from '../../../forms/row-editor.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('8');
@@ -86,10 +87,7 @@ async function fillFinancingFields() {
 async function editExistingWisentRow() {
   const row = page.locator('table').first().locator('tbody tr').filter({ hasText: 'Wisent Polska' }).first();
   if (await row.count() === 0) return false;
-  await row.locator('button[aria-label="overflow-options"]').first().dispatchEvent('click'); // allow-raw-playwright: open section 8 row menu
-  await humanIdlePause('deliberate');
-  await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit existing financing row
-  await humanIdlePause('long');
+  await openRowEditor(page, row, page.locator('input[name*="srodki_wspolnotowe_wydatki_ogolem"], textarea[name*="srodki_wspolnotowe_wydatki_ogolem"]'));
   return true;
 }
 

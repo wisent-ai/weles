@@ -94,7 +94,7 @@ async function fillProjectSubrow(project, addIdx = 0) {
 async function editMemberRow(index) {
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
   const row = page.locator('table tbody tr').nth(index + 1);
-  await openRowEditor(page, row, 'imie');
+  await openRowEditor(page, row, page.locator('[name="imie"]'));
 }
   return { clickDodaj, fillByName, setAuto, setApplicant, setStatus, saveForm, fillProjectSubrow, editMemberRow };
 }

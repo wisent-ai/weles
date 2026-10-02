@@ -41,7 +41,7 @@ async function saveForm() {
 async function editDataRow(index) {
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
   const row = page.locator('table tbody tr').nth(index + 1);
-  await openRowEditor(page, row, 'nazwa_podmiotu_konkurencyjnego');
+  await openRowEditor(page, row, page.locator('[name="nazwa_podmiotu_konkurencyjnego"]'));
 }
 
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
