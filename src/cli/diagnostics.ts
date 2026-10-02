@@ -106,11 +106,8 @@ type ManagedRuntimeReport = {
 /// whose revision the deployment records in `.weles-api-revision`, and
 /// `stado host weles-api-runtime` is what moves it. The declared revision is
 /// the one the deployment left in `WELES_API_DECLARED_REVISION` on the unit;
-/// when the two disagree, the host is serving code nobody declared, which is
-/// how a 2026-08-30 build kept asking Brama for `best` a week after the fix
-/// that renamed the alias — every browser task on the host failed while the
-/// host's own bearer was being served, and `doctor` reported the repository's
-/// `package.json` version, which is not the runtime's.
+/// a mismatch means the running checkout does not match the deployment.
+/// Repository package metadata alone does not establish runtime identity.
 function inspectManagedRuntime(): ManagedRuntimeReport {
   const root = join(homedir(), '.stado', 'build-work', 'weles-api-managed');
   const alias = process.env.WELES_AGENT_MODEL?.trim() || WELES_AGENT_MODEL;

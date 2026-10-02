@@ -50,14 +50,8 @@ export const readGisState = (arg) => {
     return null;
   };
 
-  // A selectable account row is an element carrying data-identifier="<email>"
-  // (proven by the recorded chooser document). Elements that merely mention the
-  // address are NOT rows: on Google's "you will sign in to Claude again" screen
-  // the only such element is the switcher
-  // <div role="link" jsname="af8ijd" aria-label="Wybrane konto: <email>. Przełącz konto">,
-  // and treating it as a row made the step click "switch account" once per
-  // debounce window for the whole deadline (run cbf8fb03, 2026-08-17T20:48Z).
-  // The selector guarantees the attribute is there, so it is read as itself.
+  // Selectable account rows carry data-identifier. Text mentioning the address
+  // can instead be an account-switch action and must not count as a row.
   const rows = Array.from(document.querySelectorAll('[data-identifier]'))
     .filter((el) => el.getAttribute('data-identifier').trim() && shown(el));
   const wanted = (arg.email || '').trim().toLowerCase();

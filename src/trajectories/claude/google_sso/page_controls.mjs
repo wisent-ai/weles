@@ -20,9 +20,8 @@ export async function navEval(page, fn, dflt, arg) {
 
 // Email/password fields: humanType (CDP default = page.keyboard.type
 // per char) emits the full keydown/keyup/input sequence, which
-// Google's WIZ validator needs to enable Next — Input.insertText
-// fired only `input` so the password page's Next stayed DISABLED
-// (frames 2026-05-18 23:25:27). Single-shot: throw on failure.
+// Google's WIZ validator needs to enable Next. Input.insertText emits only
+// input and does not supply that sequence. Throw if the value is not retained.
 export async function fillAndVerify(page, locator, text, humanClickLocator, humanType) {
   const editable = locator.and(page.locator('input:enabled:not([readonly]), textarea:enabled:not([readonly])'));
   await editable.waitFor({ state: 'visible' });

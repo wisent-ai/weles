@@ -93,25 +93,9 @@ export async function doGoogleSso({
   await pageSettled(page);
 
   mark('gis_continue');
-  // How this handoff actually behaves, from the recorded run
-  // e9b443eb-8e50-4836-a5a6-6671af07cbd2 (claude_login, 2026-08-17T01:03:49Z to
-  // 01:07:56Z) under the worker's recordings root: its session.har lists five
-  // pages — the trajectory's page plus four popups titled "Logowanie – Konta
-  // Google" opened at 01:05:13, 01:05:55, 01:06:36 and 01:07:17, one per click
-  // of "Continue with Google". GIS opens them with
-  // prompt=select_account%20consent&display=popup, so Google renders its
-  // account chooser there every time, and the popup's own document
-  // (/v3/signin/accountchooser, embedded in that HAR) carries the row as
-  // <div role="link" jsname="MBVUVe" data-identifier="controlyourai@gmail.com"
-  // data-button-type="multipleChoiceIdentifier"> in Polish, with no continue
-  // button at all — clicking the row IS the action. The step that failed closed
-  // the first popup, then polled only the parent, which claude.ai had bounced to
-  // /login?selectAccount=true&returnTo=%2Foauth%2Fauthorize... — the state
-  // session_dom_20260816_180756.html shows. Popups two to four were never
-  // adopted (the listener kept only the first) and sat unattended on the
-  // chooser. So: never close the popup, read every live page each poll, act on
-  // the state that page is in, and select the account by data-identifier
-  // instead of by localized text.
+  // GIS can place account selection in a popup while the parent still shows
+  // its sign-in gate. Inspect every live page and select the intended account
+  // by data-identifier, not localized text; keep the popup available to finish.
   const seen = new WeakSet();
   const onPopup = (p) => { if (!seen.has(p)) { seen.add(p); mark('gis_popup'); } };
   page.context().on('page', onPopup);

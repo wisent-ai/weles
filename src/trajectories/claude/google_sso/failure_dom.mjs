@@ -1,11 +1,8 @@
 // The evidence a failed GIS handoff leaves behind: the DOM of every live page,
 // written next to the run's other recordings, plus an index naming them.
 //
-// The 2026-08-17 investigation had to reconstruct the popup from session.har
-// because the only DOM snapshot was the parent page's. So every live page is
-// written here — and a page whose DOM could not be read or could not be stored
-// is named in the index with its reason, because an evidence file that silently
-// does not exist is the same dead end that investigation started from.
+// Include popup documents as well as the parent. The index names pages whose
+// DOM could not be read or stored and records the corresponding failure.
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';

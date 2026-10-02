@@ -1,10 +1,7 @@
 // Which page owns the decision right now, and what that page is called.
 //
-// The names here are either proven by the 2026-08-17 recording or are Google
-// sign-in surfaces this trajectory already drives elsewhere; anything else stays
-// 'unknown' and ends up in the failure message rather than being guessed at. The
-// ranking lives beside the naming because a diagnostic that disagreed with the
-// trajectory about these states would be worse than no diagnostic.
+// Recognize only supported Google sign-in surfaces; preserve unknown states
+// in diagnostics rather than guessing. Ranking and naming share one contract.
 
 // Highest priority first. A live Google page always outranks the parent's
 // "Continue with Google" gate, because the parent still shows that gate while
