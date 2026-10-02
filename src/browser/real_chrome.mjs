@@ -11,6 +11,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { pageSettled } from '../trajectories/_shared/page/settled.mjs';
 import { runId, runRecordingsDir } from '../../dist/session/run-recordings.js';
+import { customBrowserSearchHint, findCustomChromium } from '../../dist/session/find_browser.js';
 
 // Use Weles Chromium (147), which Google's signin flow recognizes as a
 // real Chrome browser (per src/trajectories/google/_export_cookies.mjs
@@ -21,8 +22,11 @@ import { runId, runRecordingsDir } from '../../dist/session/run-recordings.js';
 // for cookie persistence, this lets the user log into Google ONCE
 // (interactively if passkey/2FA, or with stored password) and have all 4
 // OAuth-popup providers work non-interactively from there.
-const WELES_CHROMIUM = process.env.WELES_CHROMIUM
-  || join(homedir(), 'Documents/CodingProjects/Wisent/chromium-build/src/out/Weles/Chromium.app/Contents/MacOS/Chromium');
+// The Weles Chromium is the exact release Stado installed for this
+// deployment, found and verified by the same resolver every session uses;
+// no build directory under one person's home is assumed.
+const WELES_CHROMIUM = findCustomChromium();
+if (!WELES_CHROMIUM) throw new Error(`Weles Chromium is not installed as a verified release: ${customBrowserSearchHint('chromium')}`);
 
 function profileDir() {
   const dir = join(homedir(), '.weles', 'chrome_profiles', 'service_balance');

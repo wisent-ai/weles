@@ -8,13 +8,17 @@ import { chromium } from 'playwright';
 import { readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { customBrowserSearchHint, findCustomChromium } from '../../dist/session/find_browser.js';
 
 const PORT = 9223;
 const PORTAL_URL = 'https://3d.hunyuanglobal.com/';
 const JAR_PATH = join(homedir(), '.weles', 'cookie-jars', 'tencent.json');
 const USER_DATA_DIR = join(homedir(), '.weles', 'tencent_persistent_profile');
-const CHROMIUM = process.env.WELES_CHROMIUM
-  || join(homedir(), 'Documents/CodingProjects/Wisent/chromium-build/src/out/Weles/Chromium.app/Contents/MacOS/Chromium');
+// The Weles Chromium is the exact release Stado installed for this
+// deployment, found and verified by the same resolver every session uses;
+// no build directory under one person's home is assumed.
+const CHROMIUM = findCustomChromium();
+if (!CHROMIUM) throw new Error(`Weles Chromium is not installed as a verified release: ${customBrowserSearchHint('chromium')}`);
 
 if (!existsSync(USER_DATA_DIR)) mkdirSync(USER_DATA_DIR, { recursive: true });
 
