@@ -21,6 +21,7 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso } from '../_shared/services/google_sso.mjs';
 import { DOCUMENT_REPLACED, readAcrossNavigation } from '../_shared/services/google_sso/page_diagnostics.mjs';
+import { dismissGooglePostLogin } from '../_shared/services/google_sso/sign_in/redirect_watch.mjs';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { pageSettled } from '../_shared/page/settled.mjs';
 import { readScopedLogin } from '../../_shared/scoped-secrets.mjs';
@@ -51,33 +52,6 @@ async function visible(loc) {
 
 async function resolveCreds() {
   return readScopedLogin(CREDENTIAL_SERVICE);
-}
-
-// Some accounts hit a post-login "speedbump" (passkey enrolment, recovery
-// nudge). It is NOT a challenge — dismiss with the visible secondary button
-// so the flow can continue to Gmail.
-async function dismissSpeedbump(page) {
-  const dismissed = new Set();
-  for (;;) {
-    await pageSettled(page);
-    const url = page.url();
-    if (new URL(url).hostname !== 'accounts.google.com') return;
-    const btn = page
-      .locator('button:has-text("Not now"), button:has-text("Skip"), button:has-text("Cancel")')
-      .filter({ visible: true })
-      .first();
-    if (!(await visible(btn))) {
-      throw new Error(`GMAIL_POST_LOGIN_CONTROL_UNAVAILABLE: no offered dismissal control at ${url}`);
-    }
-    const control = await btn.innerText();
-    const state = JSON.stringify([url, control]);
-    if (dismissed.has(state)) {
-      throw new Error(`GMAIL_POST_LOGIN_STATE_REPEATED: the dismissed control remained at ${url}`);
-    }
-    dismissed.add(state);
-    log('dismissing post-login speedbump');
-    await humanClickLocator(page, btn);
-  }
 }
 
 // Returns 'in' or 'login' from observed page state. Browser failures propagate.
@@ -133,7 +107,7 @@ try {
       await s.close();
       process.exit(2);
     }
-    await dismissSpeedbump(s.page);
+    await dismissGooglePostLogin(s.page);
     log('signed in, at ' + s.page.url());
   } else {
     log('already signed in (existing session)');

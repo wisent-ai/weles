@@ -4,7 +4,7 @@ import { pageSettled } from '../../_shared/page/settled.mjs';
 import { generatePersona } from '../../../../dist/browser/persona.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { googleSso } from '../../_shared/services/google_sso.mjs';
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { dismissGooglePostLogin } from '../../_shared/services/google_sso/sign_in/redirect_watch.mjs';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -47,23 +47,6 @@ function hasGoogleAuthCookie(cookies) {
   return names.has('SID') || names.has('__Secure-1PSID') || names.has('__Secure-3PSID');
 }
 
-async function dismissSpeedbump(page) {
-  for (let i = 0; i < 8; i += 1) {
-    if (!/accounts\.google\.com/.test(page.url())) return;
-    const btn = page
-      .locator('button:has-text("Not now"), button:has-text("Skip"), button:has-text("Cancel")')
-      .filter({ visible: true })
-      .first();
-    if (await btn.isVisible().catch(() => false)) {
-      console.log('[google-ads-login] dismissing post-login speedbump');
-      await humanClickLocator(page, btn).catch((e) => console.log(`[google-ads-login] speedbump click: ${e.message}`));
-      await humanIdlePause('deliberate');
-      continue;
-    }
-    await humanIdlePause('short');
-  }
-}
-
 console.log(`[google-ads-login] profile=${USER_DATA_DIR} viewport=${process.env.WELES_VIEWPORT}`);
 assertGoogleAdsProfileNotAlreadyOpen(USER_DATA_DIR, 'google_ads_login');
 const s = await WSession.start({
@@ -88,7 +71,7 @@ try {
         console.log(`FAIL: automated Google SSO did not complete (url=${s.page.url?.() ?? ''})`);
         process.exit(2);
       }
-      await dismissSpeedbump(s.page);
+      await dismissGooglePostLogin(s.page);
       await s.goto('https://ads.google.com/aw/campaigns');
       await pageSettled(s.page);
     } else if (ALLOW_MANUAL_LOGIN) {

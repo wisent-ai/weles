@@ -9,7 +9,7 @@
 // it shows once, and names the state it cannot leave.
 import { humanClickLocator } from '../../../../../../dist/human/mouse.js';
 import { pageSettled, submitAnswered, urlMatching } from '../../../page/settled.mjs';
-import { collectGoogleAuthMethods, logGooglePageDiag } from '../page_diagnostics.mjs';
+import { collectGoogleAuthMethods, DOCUMENT_REPLACED, logGooglePageDiag, readAcrossNavigation } from '../page_diagnostics.mjs';
 import { resolveTotpSecret } from '../totp_secret.mjs';
 import { clickTryAnotherWay, handleGoogleAuthenticatorTotp } from '../authenticator_challenge.mjs';
 
@@ -141,5 +141,34 @@ export async function watchGoogleRedirect(page, session, creds, opts) {
     await logGooglePageDiag(page, 'still_on_google');
     console.log(`[google_sso] FAIL: google_sign_in_state_unanswered — the settled page is not one this step drives (${u})`);
     return false;
+  }
+}
+
+// Answer an offered post-login dismissal once, then observe the resulting page.
+// A repeated control is an unresolved transition, not permission to click again.
+export async function dismissGooglePostLogin(page) {
+  const dismissed = new Set();
+  for (;;) {
+    await pageSettled(page);
+    const url = page.url();
+    if (new URL(url).hostname !== 'accounts.google.com') return;
+    const button = page
+      .locator('button:has-text("Not now"), button:has-text("Skip"), button:has-text("Cancel")')
+      .filter({ visible: true })
+      .first();
+    const shown = await readAcrossNavigation(page, () => button.isVisible());
+    if (shown === DOCUMENT_REPLACED) continue;
+    if (!shown) {
+      throw new Error(`GOOGLE_POST_LOGIN_CONTROL_UNAVAILABLE: no offered dismissal control at ${url}`);
+    }
+    const control = await readAcrossNavigation(page, () => button.innerText());
+    if (control === DOCUMENT_REPLACED) continue;
+    const state = JSON.stringify([url, control]);
+    if (dismissed.has(state)) {
+      throw new Error(`GOOGLE_POST_LOGIN_STATE_REPEATED: the dismissed control remained at ${url}`);
+    }
+    dismissed.add(state);
+    console.log('[google_sso] dismissing post-login prompt');
+    await humanClickLocator(page, button);
   }
 }
