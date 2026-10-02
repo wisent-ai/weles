@@ -105,9 +105,11 @@ export async function recordCaptureVideo({ page, path, seconds, tools, perform, 
   let actionsDone = false;
   let inputEnded = false;
   let writtenFrames = 0;
+  const firstFrame = Promise.withResolvers();
   const fail = (error) => {
     if (!failure) {
       failure = error;
+      firstFrame.reject(error);
       encoder.stdin.destroy();
       cleanup = Promise.resolve().then(closeSession).catch((closeError) => {
         failure = new AggregateError([error, closeError], 'Capture and session cleanup failed');
@@ -139,8 +141,13 @@ export async function recordCaptureVideo({ page, path, seconds, tools, perform, 
   const capture = (async () => {
     let previous = await page.screenshot({ type: 'jpeg', quality: 80 });
     const firstFrameAt = process.hrtime.bigint();
+    if (failure) throw failure;
+    await writeFrame(previous);
+    writtenFrames = 1;
+    firstFrame.resolve();
     for (;;) {
       if (failure) throw failure;
+      const actionsCompletedBeforeFrame = actionsDone;
       const frame = await page.screenshot({ type: 'jpeg', quality: 80 });
       const elapsed = Number(process.hrtime.bigint() - firstFrameAt) / 1e9;
       const frameCount = Math.floor(elapsed * FPS) + 1;
@@ -150,12 +157,17 @@ export async function recordCaptureVideo({ page, path, seconds, tools, perform, 
         writtenFrames += 1;
       }
       previous = frame;
-      if (actionsDone && writtenFrames >= minimumFrames) break;
+      if (actionsCompletedBeforeFrame && writtenFrames >= minimumFrames) {
+        await writeFrame(frame);
+        writtenFrames += 1;
+        break;
+      }
     }
     inputEnded = true;
     encoder.stdin.end();
   })().catch(fail);
   const actions = (async () => {
+    await firstFrame.promise;
     if (failure) throw failure;
     await perform();
     actionsDone = true;
