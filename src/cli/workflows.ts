@@ -166,11 +166,10 @@ export async function runRelease(parsed: ParsedCli): Promise<void> {
 }
 
 /**
- * `weles design export-assets --provider figma` — export the design files
- * this organization owns in the provider and publish them to the
- * design-assets repository. The exporter reads its provider credential
- * through the fleet's Skarbiec endpoint, which is why `WC_SKARBIEC_URL` is
- * the one coordinate it still takes from the environment.
+ * `weles design export-assets --provider figma --request <file>` exports
+ * the inventory named in that request to its existing checkout. The request
+ * also names the Git remote, branch and scoped credential acquisition inputs.
+ * No organization, account, checkout or SSH key is selected by this command.
  *
  * `weles design parse-document --provider figma <document.json[.gz]>
  * <summary.json> <nodes.json> [<vocabulary.json>]` — the exporter's one parse
@@ -190,7 +189,11 @@ export async function runDesign(parsed: ParsedCli): Promise<void> {
   // The provider modules are ES modules and this CLI compiles to CommonJS,
   // which cannot static-import ESM.
   if (action === 'export-assets') {
-    await import('../figma/export-design-assets.mjs');
+    if (paths.length || typeof parsed.options.request !== 'string' || !parsed.options.request.trim()) {
+      throw new UsageError('design export-assets requires --provider figma --request <export-request.json> and no positional paths');
+    }
+    const exporter = await import('../figma/export-design-assets.mjs');
+    await exporter.exportDesignAssets(parsed.options.request);
     return;
   }
   if (action === 'parse-document') {

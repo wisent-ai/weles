@@ -54,7 +54,7 @@ Usage:
   weles release enforce-version --decision <file> --baseline <file> --declaration <file> --manifest <file> [--json]
   weles release validate-manifest --manifest <file> --source-revision <sha> --candidate-tag <tag> [--json]
   weles release adopt-baseline --released <version> --published-surface <file> --reason <text> [--correcting <version>] [--json]
-  weles design export-assets --provider figma
+  weles design export-assets --provider figma --request <export-request.json>
   weles design parse-document --provider figma <document.json[.gz]> <summary.json> <nodes.json> [<vocabulary.json>]
   weles operator-requests list [--open] [--limit <n>] [--local] [--json]
   weles operator-requests show <id> [--local] [--json]

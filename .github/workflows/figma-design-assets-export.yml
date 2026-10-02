@@ -7,6 +7,10 @@ on:
         description: Label of the Stado-selected macOS ARM64 design-export runner
         required: true
         type: string
+      request_file:
+        description: Absolute path to the export request JSON on the selected runner
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -25,12 +29,9 @@ jobs:
         run: npm ci && npm run build
       - name: Export and publish
         shell: bash
+        env:
+          WELES_DESIGN_EXPORT_REQUEST: ${{ inputs.request_file }}
         run: |
           set -euo pipefail
-          set -a
-          . "$HOME/.config/weles/worker.env"
-          set +a
-          export WC_SKARBIEC_URL="$(/opt/homebrew/bin/node "$GITHUB_WORKSPACE/src/_shared/skarbiec-runtime.mjs" endpoint)"
           export SKARBIEC_WELES_READER_COMMAND="$GITHUB_WORKSPACE/src/worker/deploy/acquire/skarbiec-acquire.mjs"
-          export SKARBIEC_WELES_ACQUISITION_SCOPES_FILE="$GITHUB_WORKSPACE/src/worker/deploy/acquire/skarbiec-acquisition-scopes.conf"
-          /opt/homebrew/bin/node "$GITHUB_WORKSPACE/dist/cli.js" design export-assets --provider figma
+          node "$GITHUB_WORKSPACE/dist/cli.js" design export-assets --provider figma --request "$WELES_DESIGN_EXPORT_REQUEST"
