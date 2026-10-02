@@ -24,6 +24,7 @@ export type DeploymentVersionValue = {
   instance_id: string;
   updated_at: string;
   release?: ImmutableReleaseIdentity;
+  capture_failures: unknown;
   deployment: {
     weles_pkg_version: unknown;
     weles_commit: unknown;
@@ -125,6 +126,7 @@ export function buildDeploymentVersionValue(
     instance_id: instanceId,
     updated_at: now.toISOString(),
     ...(release ? { release } : {}),
+    capture_failures: versions.version_capture_failures ?? [],
     deployment: {
       weles_pkg_version: versions.weles_pkg_version ?? null,
       weles_commit: versions.weles_commit ?? null,

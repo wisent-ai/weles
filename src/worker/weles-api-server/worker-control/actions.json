@@ -2,6 +2,7 @@
   "why": "The existing authenticated /worker HTTP protocol belongs to Weles. The CLI and API read this declaration together; start, stop and restart control the resident dispatcher, not a separate native service. Each action states whether it changes the dispatcher: a change is a POST, a reading a GET.",
   "mutates": {
     "status": false,
+    "version": false,
     "start": true,
     "stop": true,
     "restart": true

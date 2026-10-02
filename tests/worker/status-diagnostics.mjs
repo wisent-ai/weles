@@ -9,7 +9,7 @@ import { evidenceFor } from '../security/evidence.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const evidence = await evidenceFor('worker-status-diagnostics');
-evidence.report.scope = 'read_only_worker_status';
+evidence.report.scope = 'read_only_worker_status_and_identity';
 evidence.report.node_version = process.version;
 evidence.report.browser_flow = 'not_run';
 evidence.report.control_mutations = 'not_run';
@@ -30,12 +30,12 @@ async function executable() {
   throw new Error(`WELES_CLI_UNAVAILABLE: ${name}`);
 }
 
-function observe(cli, name, overrides = {}) {
-  const result = spawnSync(process.execPath, [cli, 'worker', 'status', '--json'], {
+function observe(cli, name, action, overrides = {}) {
+  const result = spawnSync(process.execPath, [cli, 'worker', action, '--json'], {
     cwd: root, env: { ...process.env, ...overrides }, encoding: 'utf8',
   });
   const operation = {
-    name, command: [process.execPath, cli, 'worker', 'status', '--json'], cwd: root,
+    name, action, command: [process.execPath, cli, 'worker', action, '--json'], cwd: root,
     environment_overrides: overrides, exit_status: result.status, signal: result.signal,
     stdout: result.stdout, stderr: result.stderr, error: result.error?.message ?? null,
   };
@@ -49,14 +49,31 @@ function answer(observation) {
   assert.equal(result.signal, null, 'the CLI must return its own result');
   const value = JSON.parse(result.stdout);
   operation.answer = value;
-  assert.equal(value.operation, 'status');
+  assert.equal(value.operation, operation.action);
   assert.ok(Number.isInteger(value.http_status) && value.http_status >= 100 && value.http_status <= 599,
     'the result must identify the observed HTTP status');
-  assert.equal(new URL(value.endpoint).pathname, '/worker/status');
+  assert.equal(new URL(value.endpoint).pathname, `/worker/${operation.action}`);
   assert.equal(typeof value.ok, 'boolean');
   assert.equal(result.status, value.ok && value.http_status < 400 ? 0 : 1);
   return value;
 }
+function checkedVersion(value) {
+  assert.equal(value.ok, true, 'the live identity read was refused');
+  const identity = value.identity;
+  assert.equal(identity?.source, 'weles-worker');
+  assert.ok(Array.isArray(identity.capture_failures), 'WELES_VERSION_DIAGNOSTICS_NOT_DEPLOYED: the live identity has no capture_failures');
+  for (const field of ['weles_pkg_version', 'weles_commit', 'weles_branch', 'weles_dirty',
+    'weles_dist_sha256', 'trajectories_tree_sha256', 'runner_entry_sha256']) {
+    assert.ok(Object.hasOwn(identity.deployment, field), `the identity omitted ${field}`);
+    if (identity.deployment[field] === null) {
+      assert.ok(identity.capture_failures.some(failure => failure.field === field
+        && typeof failure.operation === 'string' && failure.operation.length > 0
+        && typeof failure.message === 'string' && failure.message.length > 0),
+      `${field} was unavailable without its failed operation and cause`);
+    }
+  }
+}
+
 
 try {
   const cli = await executable();
@@ -90,11 +107,19 @@ try {
     version.http_status = response.status;
     version.body = await api.operatorJson(response);
     version.status = response.ok ? 'observed' : 'refusal_observed';
+    try {
+      checkedVersion(version.body);
+      version.contract_status = 'observed';
+    } catch (error) {
+      version.contract_status = 'failed';
+      version.contract_failure = error.message;
+    }
   } catch (error) {
     version.status = 'unavailable';
     version.failure = { message: String(error), stack: error?.stack, cause: String(error?.cause ?? '') };
   }
-  const configured = observe(cli, 'configured_status');
+  const configured = observe(cli, 'configured_status', 'status');
+  const configuredVersion = observe(cli, 'configured_version', 'version');
   if (identity.source_revision !== evidence.report.source_revision) {
     evidence.report.status = 'blocked';
     evidence.report.reason = identity.source_revision
@@ -103,6 +128,9 @@ try {
     evidence.report.qualified_cases = 0;
     process.exitCode = 1;
   } else {
+    assert.equal(version.contract_status, 'observed', version.contract_failure ?? version.failure?.message);
+    checkedVersion(answer(configuredVersion));
+    configuredVersion.operation.status = 'identity_observed';
     const value = answer(configured);
     if (value.error === 'worker_contract_invalid') {
       assert.equal(value.ok, false);
@@ -115,13 +143,15 @@ try {
       assert.ok(Number.isSafeInteger(value.worker.pid) && value.worker.pid > 0);
       configured.operation.status = 'resident_status_observed';
     }
-    const unauthorized = observe(cli, 'unauthorized_status', { WELES_WORKER_TOKEN: `invalid-${randomUUID()}` });
-    const refusal = answer(unauthorized);
-    assert.equal(refusal.http_status, 401, 'the real worker must reject the invalid bearer');
-    assert.equal(refusal.ok, false);
-    unauthorized.operation.status = 'passed';
+    for (const action of ['status', 'version']) {
+      const unauthorized = observe(cli, `unauthorized_${action}`, action, { WELES_WORKER_TOKEN: `invalid-${randomUUID()}` });
+      const refusal = answer(unauthorized);
+      assert.equal(refusal.http_status, 401, 'the real worker must reject the invalid bearer');
+      assert.equal(refusal.ok, false);
+      unauthorized.operation.status = 'passed';
+    }
     evidence.report.status = 'passed';
-    evidence.report.qualified_cases = 2;
+    evidence.report.qualified_cases = 4;
   }
 } catch (error) {
   evidence.report.status = 'failed';

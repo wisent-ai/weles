@@ -70,7 +70,7 @@ Usage:
   weles developer-certificate --run <run-id> --certificate-out <abs> [--private-key <abs> --store-host <host>] [--json]
   weles login --provider apple [--account-role <role>] --confirm "AUTHORIZE ONE APPLE LOGIN" --execution-host <host> [--execution-agent <agent>] [--expires-in-minutes <n>] [--json]
   weles login --run <run-id> [--json]
-  weles worker <status|start|stop|restart> [--json]
+  weles worker <status|version|start|stop|restart> [--json]
   weles keeper start --session <id> [--url <url>] [--headless]
                           Hold one browser session that answers JSON commands on
                           ~/.weles/keeper/<id>/socket until its page closes

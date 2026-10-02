@@ -34,7 +34,14 @@ async function request(action: WorkerAction) {
     const result = { ...body, ok: body.ok === true, operation: action, endpoint: connection.endpoint.toString(), http_status: response.status };
     try {
       if (typeof body.ok !== 'boolean') throw new Error(`HTTP ${response.status}: invalid worker response`);
-      if (response.ok && body.ok) {
+      if (response.ok && body.ok && action === 'version') {
+        const identity = body.identity;
+        if (!object(identity) || identity.source !== 'weles-worker'
+            || typeof identity.instance_id !== 'string' || identity.instance_id.length === 0
+            || !object(identity.runner) || !Number.isSafeInteger(identity.runner.pid) || Number(identity.runner.pid) <= 0) {
+          throw new Error('the endpoint did not report a Weles process identity');
+        }
+      } else if (response.ok && body.ok) {
         const state = checkedState(mutates ? body.after : body.worker);
         if (mutates && checkedState(body.before).pid !== state.pid) {
           throw new Error('worker control replaced the service process');
@@ -64,8 +71,9 @@ export async function runWorker(parsed: ParsedCli): Promise<void> {
   }
   // Check the resident contract before an older endpoint can interpret a
   // control request as permission to recreate the retired native worker.
-  let result = await request('status');
-  if (result.http_status < 400 && result.ok && protocol.mutates[action as WorkerAction]) {
+  const mutates = protocol.mutates[action as WorkerAction];
+  let result = await request(mutates ? 'status' : action as WorkerAction);
+  if (result.http_status < 400 && result.ok && mutates) {
     result = await request(action as WorkerAction);
   }
   printAnswer(result, parsed.options.json === true);
