@@ -1,5 +1,6 @@
 import { normalize } from './plan.mjs';
 import { humanIdlePause } from '../../../../dist/human/mouse.js';
+import { pageSettled, responseAfterAction } from '../../_shared/page/settled.mjs';
 
 const forbidden = /^(prześlij do oceny|złóż|wyślij(?:\s+poprawiony)?\s+wniosek|wyślij\s+korektę|podpisz\s+i\s+wyślij|zatwierdź\s+i\s+wyślij)/i;
 
@@ -30,10 +31,11 @@ export async function openScope(page, scope, projectUrl) {
 
 export async function clickSafe(locator, label) {
   if (forbidden.test(label)) throw new Error(`Refusing submission control: ${label}`);
-  await locator.waitFor({ state: 'visible' });
-  await locator.page().waitForFunction((element) => element.isConnected && !element.disabled, await locator.elementHandle());
-  await locator.dispatchEvent('click');
-  await humanIdlePause('short');
+  const page = locator.page();
+  const ready = locator.and(page.locator(':not(:disabled):not([aria-disabled="true"])'));
+  await ready.waitFor({ state: 'visible' });
+  await ready.dispatchEvent('click');
+  await pageSettled(page);
 }
 
 export async function identity(page, projectUrl, project) {
@@ -58,11 +60,11 @@ export async function openRow(page, collection, row, projectUrl) {
   await clickSafe(rows.locator('button[aria-label="overflow-options"]'), 'row menu');
   await clickSafe(page.getByRole('menuitem', { name: 'Edytuj', exact: true }).filter({ visible: true }), 'Edytuj');
   await page.waitForFunction(({ suffix, expected, equals }) => {
-    const matches = Array.from(document.querySelectorAll('[name]')).filter((element) => element.name.endsWith(suffix));
+    const matches = Array.from(document.querySelectorAll('[name]')).filter((element) =>
+      element.name.endsWith(suffix) && element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden');
     const norm = (value) => String(value || '').replace(/\s+/g, ' ').trim();
     return matches.some((element) => equals ? norm(element.value) === norm(expected) : norm(element.value).includes(norm(expected)));
   }, { suffix: row.matchField, expected: row.matchNeedle, equals: row.matchMode === 'equals' });
-  await humanIdlePause('short');
 }
 
 export async function closeDrawer(page) {
@@ -75,10 +77,9 @@ export async function save(page, collection = false, expected = [], saveButton =
   const button = saveButton
     ? page.getByRole('button', { name: saveButton, exact: true }).filter({ visible: true })
     : page.locator(selector).filter({ visible: true });
-  const [response] = await Promise.all([
-    page.waitForResponse((candidate) => candidate.request().method() !== 'GET' && candidate.url().includes('/api/beneficiary/')),
-    clickSafe(button, saveButton || 'Zapisz'),
-  ]);
+  const response = await responseAfterAction(page,
+    (request) => request.method() !== 'GET' && request.url().includes('/api/beneficiary/'),
+    () => clickSafe(button, saveButton || 'Zapisz'));
   const body = await response.text();
   if (!response.ok()) throw new Error(`Save rejected: ${response.status()} ${body}`);
   const sent = JSON.stringify(JSON.parse(response.request().postData() || 'null'));
@@ -95,8 +96,7 @@ export async function save(page, collection = false, expected = [], saveButton =
     await closeDrawer(page);
     const parent = page.locator('#section-form-save-btn').filter({ visible: true });
     if (await parent.count() && await parent.isEnabled()) {
-      await clickSafe(parent, 'Zapisz');
-      await humanIdlePause('long');
+      await save(page);
     }
   }
 }
