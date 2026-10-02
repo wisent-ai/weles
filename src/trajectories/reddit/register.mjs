@@ -119,9 +119,6 @@ try {
   // "low-effort signups" and auto-shadowbans them within minutes of the
   // first action. Clearing the field first restores the chosen username
   // and lifts the auto-shadowban.
-  // Verified 2026-04-29: BEFORE fix, 2/2 fresh accounts insta-shadowbanned
-  // (Acceptable-Fold58m86, Melodic-Image-84sa77). AFTER fix, sagewest6029
-  // commented publicly-visible on the first attempt.
   const beforeVal = await userIn.inputValue().catch(() => '');
   if (beforeVal) console.log(`[register] clearing auto-suggested username "${beforeVal}" before typing chosen "${id.username}"`);
   await humanClickLocator(s.page, userIn);

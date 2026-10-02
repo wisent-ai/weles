@@ -29,7 +29,7 @@ const headless = process.env.HEADLESS === '1';
 // Pin Chromium: the about:blank round-trip + page.context().request OAuth
 // POST (in steps/create_bot_app.mjs) depend on Chromium-specific behavior.
 // Firefox personas hit "Navigation to about:blank is interrupted" and the
-// CDP-attach path errors out. Verified live, 2026-05-22.
+// CDP-attach path requires Chromium.
 const s = await WSession.start({ label: 'slack-create', headless, browser: 'chromium' });
 console.log('[slack-create] WSession started');
 

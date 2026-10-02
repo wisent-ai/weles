@@ -41,10 +41,7 @@ if (__weles.navigator) {
     if (versionMatch) {
       const majorVersion = versionMatch[1];
       const fullVersion = (nav.userAgent.match(/Chrome\/([\d.]+)/) || [])[1] || majorVersion + '.0.0.0';
-      // Real Chrome 147's deterministic grease produces 'Not.A/Brand' (period+slash).
-      // Diff'd 2026-04-25 vs Chrome 147 on M2 Mac on linkedin.com/login PerimeterX
-      // iframe — chrome=Not.A/Brand, weles=Not/A)Brand. Pre-fix the seeded variants
-      // table (3 grease shapes) didn't include the Not.A/Brand variant at all.
+      // Select a deterministic GREASE brand from the browser's major version.
       const seed = parseInt(majorVersion) % 4;
       const greaseyBrands = [
         {brand: 'Not.A/Brand', version: '8'},
@@ -71,10 +68,8 @@ if (__weles.navigator) {
         {brand: greasey.brand, version: greasey.version + '.0.0.0'},
         {brand: 'Chromium', version: fullVersion},
       ];
-      // userAgentData.platform is the OS name (macOS/Windows/Linux), NOT navigator.platform
-      // (which is MacIntel/Win32/Linux x86_64). Diff'd 2026-04-25: weles emitted
-      // 'MacIntel' as userAgentData.platform — wrong field — vs real Chrome 'macOS'.
-      // Map navigator.platform → OS name so PerimeterX sees consistent values.
+      // Client hints use OS names, while navigator.platform uses platform
+      // identifiers. Keep the two representations consistent.
       const clientHints = __weles.clientHints || {};
       const platformMap = { MacIntel: 'macOS', Win32: 'Windows', 'Linux x86_64': 'Linux' };
       const platform = clientHints.platform || platformMap[nav.platform] || nav.platform || navigator.userAgentData.platform || '';

@@ -99,8 +99,7 @@ if (!acct) { console.log('FAIL: no_producthunt_account_in_db'); process.exit(1);
 console.log(`[ph-comment] using account: ${acct.username}`);
 
 const sessionOpts = await resolveAccountSession(acct);
-// Force chromium — see weles 8c7c20b / 2026-05-06 upvote run for the
-// Firefox NS_ERROR_ABORT failure mode the PH action flow hits.
+// This trajectory uses the Chromium navigation and input path.
 const s = await WSession.start({ label: 'producthunt_comment', ...sessionOpts, browser: 'chromium' });
 try {
   const target = await postComment(s, acct, sessionOpts);

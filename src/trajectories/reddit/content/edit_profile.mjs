@@ -79,7 +79,7 @@ try {
   }
 
   // Avatar upload — reddit's avatar-edit affordance lives on the user
-  // profile page. Probe-verified 2026-05-07 (.work/rd-probe → weswest9029):
+  // profile page:
   //   1. nav /user/<u>/
   //   2. click button[aria-label="Edit profile avatar"] → modal opens with
   //      "Select a new image" + Save button

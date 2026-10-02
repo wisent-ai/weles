@@ -36,7 +36,7 @@ function safeJsonStringify(value: unknown): string {
 // captured by WSession; the screenshots/DOM/webm artifacts in the same dir are
 // the visual companions to it. The capture surface deliberately has NO domain
 // filter, NO body truncation, and runs on every WSession (keepers and
-// trajectories) without exception per the 2026-05-24 standing instruction.
+// trajectories).
 export function startInstrumentation(ws: any, ctx: BrowserContext, label: string | undefined): any[] {
   const fullDiagnostics = process.env.WELES_FULL_DIAGNOSTICS === '1';
   const cdpDiagnostics = fullDiagnostics || process.env.WELES_CDP_DIAGNOSTICS === '1';

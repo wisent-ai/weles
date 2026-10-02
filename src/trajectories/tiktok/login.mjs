@@ -136,7 +136,6 @@ async function passCaptcha(page) {
     throw new Error('captcha_challenge: SadCaptcha solve failed after 4 attempts');
   }
   // After captcha dismiss, TikTok web does NOT auto-submit the login form
-  // (2026-05-02 verified: angle=318 solved captcha but loginResponses=[]).
   // Re-click submit manually to fire /passport/web/login/.
   await humanIdlePause('short');
   const reSubmit = page.locator(SUBMIT).filter({ visible: true }).first();

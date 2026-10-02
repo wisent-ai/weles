@@ -121,7 +121,7 @@ try {
   let stripeChargeFired = false;
   s.ctx.on('request', (req) => { if (/api\.stripe\.com\/v1\/(payment_intents|setup_intents).*confirm/.test(req.url())) stripeChargeFired = true; });
 
-  // Verified 2026-05-04 from modal diag: the confirm button is labeled
+  // The confirmation button is labeled
   // "Add store credit", and the modal also has an "Agree & Continue" step
   // (ToS agreement) that may need to be clicked first. The modal also has
   // top-row tabs (Cryptocurrency / Another payment option / Credit card)

@@ -47,7 +47,7 @@ export async function upgradeTier(s, plan, currentPlanName) {
   
 
   // CONFIRM: Click Continue to checkout -> Cleverbridge/Stripe checkout page.
-  // Verified 2026-05-04: post-Continue lands on a Cleverbridge-hosted page
+  // The checkout can be hosted by Cleverbridge
   // with payment-method radios (Credit Card pre-selected) + a green
   // Continue button that triggers the actual Stripe POST.
   let stripeChargeFired = false;
@@ -66,9 +66,8 @@ export async function upgradeTier(s, plan, currentPlanName) {
     await humanIdlePause('long');
   }
 
-  // Stripe checkout may surface the Stripe Link 2FA prompt (cited 2026-05-04
-  // from oxylabs_v2 frame: "Confirm it's you" with SMS OTP to ***36). Click
-  // "Pay without Link" to fall through to direct card entry.
+  // Stripe checkout can offer Link verification. "Pay without Link" selects
+  // the checkout's direct card-entry path instead.
   const payWithoutLink = s.page.locator('button:has-text("Pay without Link"), a:has-text("Pay without Link")').filter({ visible: true }).first();
   if (await payWithoutLink.isVisible().catch(() => false)) { await payWithoutLink.click({ force: true }).catch(() => {}); console.log('[trajectory] clicked "Pay without Link" to bypass Stripe Link 2FA'); await humanIdlePause('deliberate'); }
 

@@ -38,9 +38,7 @@
 
     // 3. Scrub juggler detection surface. Playwright's Firefox fork can
     //    surface __playwright_* or _playwright_* markers on window; delete
-    //    defensively. Matches the spirit of the chromium-side identifier
-    //    rename (memory 2026-04-20: renamed __playwright_global_listeners_check__
-    //    in injectedScriptSource.js).
+    //    defensively.
     for (const key of Object.keys(window)) {
       if (typeof key === 'string' && (key.indexOf('__playwright') === 0 || key.indexOf('_playwright_') === 0)) {
         try { delete window[key]; } catch (_) {}

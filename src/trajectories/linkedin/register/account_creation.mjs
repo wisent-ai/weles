@@ -148,8 +148,6 @@ async function submitNames({ session, identity, recordStage, proxyWatch }) {
   // challenge lives inside an iframe at challengeUrl, NOT a top-level
   // redirect. Without explicitly navigating to challengeUrl the page stays
   // at /signup forever and the post-redirect loop times out as "rejected".
-  // Diff harness 2026-05-06 .work/inst/linkedin_register_2026-05-06T17-59-19-014Z.json
-  // captured this exact response shape on the 17:59 run.
   const { response, text, diagnostics } = await submitObserved({ session, recordStage }, {
     button: session.page.locator('button[type="submit"]:has-text("Continue"), button#join-form-submit').first(),
     pattern: CREATE_ACCOUNT_API, stage: 'create_account_submitted',

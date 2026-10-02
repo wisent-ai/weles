@@ -38,15 +38,8 @@ if (__weles.browser !== 'firefox') {
   }
 }
 
-// Make toString() of overridden functions look native. Critical: real
-// Chrome emits "function get innerHeight() { [native code] }" for window
-// getters (with "get " prefix and accessor name), but the prior version
-// emitted "function innerHeight() { [native code] }" (no prefix). PX
-// fingerprints walk Object.getOwnPropertyDescriptor(window,'innerHeight')
-// .get.toString() and the missing prefix flags us as tampered (cited
-// .work/inst/linkedin_login_diff_2026-05-04T03-31-04-140Z.md Function
-// .toString inspections section: "get innerHeight" et al only fire on
-// weles after PX flags us → it then runs the deep probes).
+// Preserve native-style function descriptions, including the get prefix and
+// accessor name for overridden getters.
 const _origToString = Function.prototype.toString;
 const _nativeStrings = new Map();
 var _nativeOverrides = new Set();
@@ -152,8 +145,7 @@ if (__weles.browser === 'chromium') {
   // name/description/filename/length on Plugin.prototype (non-enumerable).
   // JSON.stringify on a real plugin gives {"0":{}, "1":{}} — only the indexed
   // MimeType references show, and even those serialize empty because MimeType
-  // properties are also non-enumerable. Diff'd 2026-04-25 vs Chrome 147 on PX
-  // iframe: weles plugins were serializing with full metadata inline.
+  // properties are also non-enumerable.
   function _makePlugin(data) {
     const p = {};
     Object.defineProperties(p, {

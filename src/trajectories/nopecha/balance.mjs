@@ -45,9 +45,7 @@ try {
     process.exit(1);
   }
 
-  // NopeCHA shows credits, not USD. Verified live 2026-05-08 against the
-  // /manage page layout (full innerText dumped to the per-run recordings dir
-  // by the forensic dump branch below):
+  // NopeCHA shows credits rather than USD on its manage page:
   //
   //   Available credits
   //   2000 / 2000          <- first occurrence: remaining / total

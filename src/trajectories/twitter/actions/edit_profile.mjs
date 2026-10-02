@@ -59,7 +59,6 @@ try {
   //   * "Edit profile" → opens an inline modal (existing populated profile)
   //   * "Set up profile" / data-testid="editProfileButton" → routes to
   //     /i/flow/setup_profile (fresh account, never customized).
-  // Probe (2026-05-07): a fresh-cookie sallyzieme04049 lands on the latter.
   // Both flows surface input[data-testid="fileInput"] for the avatar plus
   // text fields for name/bio.
   const editBtn = s.page.locator('a[data-testid="edit_profile"], a[href="/settings/profile"], button[data-testid="editProfileButton"], a[data-testid="editProfileButton"], [data-testid="editProfileButton"], div[role="button"]:has-text("Edit profile")').filter({ visible: true }).first();
@@ -104,7 +103,7 @@ try {
   });
 
   // Avatar upload — both Edit and Set-up flows expose
-  // input[data-testid="fileInput"] (probe-verified 2026-05-07). Twitter's
+  // input[data-testid="fileInput"]. Twitter's
   // crop modal shows "Apply" once the file is loaded.
   if (avatarUrl) {
     const tmpAvatar = await loadAvatarFile(avatarUrl, { size: 512, format: 'jpeg', quality: 88 });
