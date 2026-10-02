@@ -1,8 +1,14 @@
 // The section repairs of repair_budget_wsession.mjs: 6.3, 6.5, 8 and 2.2, bound to the page and the form helpers.
 import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
 import { DIRECT_ROWS, FIELD_REPAIRS_63, FINANCING_8, INDIRECT_ROWS, OBSOLETE_ROWS } from './rows.mjs';
+import { openRowEditor } from '../../../forms/row-editor.mjs';
 
 export function budgetSections({ page, openRowMenu, clickMenu, fill, typeFill, setReactInputValue, saveVisibleForm, tableReadback, clickVisibleButton, selectVisibleOption, URL_63, URL_65, URL_8, URL_22 }) {
+function editCostRow(match, fieldName) {
+  const row = page.locator('table').first().locator('tbody tr').filter({ hasText: match }).first();
+  return openRowEditor(page, row, page.locator(`[name="${fieldName}"]`).filter({ visible: true }).last());
+}
+
 async function deleteRows63() {
   const deleted = [];
   for (const target of OBSOLETE_ROWS) {
@@ -26,9 +32,7 @@ async function rewriteRows63() {
   for (const row of DIRECT_ROWS) {
     console.log(`[6.3 rewrite] ${row.match} -> ${row.name}`);
     await page.goto(URL_63, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: budget section navigation
-    await humanIdlePause('long');
-    await openRowMenu(row.match);
-    await clickMenu(/Edytuj/i);
+    await editCostRow(row.match, 'nazwa_kosztu');
     await fill('nazwa_kosztu', row.name);
     await fill('wydatki_ogolem', row.total);
     await fill('wydatki_kwalifikowalne', row.total);
@@ -48,10 +52,7 @@ async function repairRequiredFields63() {
   for (const row of FIELD_REPAIRS_63) {
     console.log(`[6.3 required fields] ${row.name}`);
     await page.goto(URL_63, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: budget section navigation for required-field repair
-    await humanIdlePause('long');
-    await openRowMenu(row.match);
-    await clickMenu(/Edytuj/i);
-    await page.locator('[name="nazwa_kosztu"]').first().waitFor({ state: 'visible' });
+    await editCostRow(row.match, 'nazwa_kosztu');
     await typeFill('uzasadnienie_kosztu', row.uz);
     await typeFill('metoda_szacowania', row.met);
     await typeFill('nazwa_kosztu', row.name);
@@ -75,9 +76,7 @@ async function rewriteRows65() {
   for (const row of INDIRECT_ROWS) {
     console.log(`[6.5 rewrite] ${row.match}`);
     await page.goto(URL_65, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: indirect-cost section navigation
-    await humanIdlePause('long');
-    await openRowMenu(row.match);
-    await clickMenu(/Edytuj/i);
+    await editCostRow(row.match, 'dofinansowanie');
     for (const amountName of ['wydatki_ogolem', 'wydatki_kwalifikowalne']) {
       const field = page.locator(`[name="${amountName}"]:visible`).last();
       if (await field.count() > 0) await fill(amountName, row.total);
@@ -95,10 +94,7 @@ async function repair63SecondMethod() {
   const row = DIRECT_ROWS[1];
   console.log(`[6.3 method-only] ${row.name}`);
   await page.goto(URL_63, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: budget section navigation for targeted repair
-  await humanIdlePause('long');
-  await openRowMenu(row.match);
-  await clickMenu(/Edytuj/i);
-  await page.locator('[name="metoda_szacowania"]').first().waitFor({ state: 'visible' });
+  await editCostRow(row.match, 'metoda_szacowania');
   await typeFill('metoda_szacowania', row.met);
   const state = await page.evaluate(() => ({
     metLens: Array.from(document.querySelectorAll('[name="metoda_szacowania"]')).map((e) => e.value?.length || 0),
@@ -112,10 +108,7 @@ async function repair63GpuNameOnly() {
   const row = DIRECT_ROWS[2];
   console.log(`[6.3 name-only] ${row.name}`);
   await page.goto(URL_63, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: budget section navigation for targeted name cleanup
-  await humanIdlePause('long');
-  await openRowMenu(row.match);
-  await clickMenu(/Edytuj/i);
-  await page.locator('[name="nazwa_kosztu"]').first().waitFor({ state: 'visible' });
+  await editCostRow(row.match, 'nazwa_kosztu');
   await typeFill('nazwa_kosztu', row.name);
   const state = await page.evaluate(() => ({
     nameValues: Array.from(document.querySelectorAll('[name="nazwa_kosztu"]')).map((e) => e.value || ''),
