@@ -8,7 +8,9 @@ import { checkReachable } from '../../_shared/action-runner.mjs';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth/auth-probe.mjs';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
-const TARGET_URL = process.env.TARGET_URL || '';
+// The page the save lands on is the caller's; no feed is assumed.
+const TARGET_URL = process.env.TARGET_URL;
+if (!TARGET_URL) { console.log('FAIL: TARGET_URL env var required: the Instagram page the save lands on'); process.exit(1); }
 
 const acct = await getSocialAccount('instagram');
 if (!acct) { console.log('FAIL: no active instagram account'); process.exit(1); }
@@ -18,7 +20,7 @@ const _stored = (acct.metadata?.cookies ?? []).filter(c => /instagram\.com/.test
 if (_stored.length) await s.ctx.addCookies(_stored.map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
 let ban = null;
 try {
-  await s.goto(TARGET_URL || 'https://www.instagram.com/explore/');
+  await s.goto(TARGET_URL);
   checkReachable(s, 'instagram');
   await humanIdlePause('deliberate');
   try { await assertAuthed('instagram', s, { label: 'instagram_save' }); }

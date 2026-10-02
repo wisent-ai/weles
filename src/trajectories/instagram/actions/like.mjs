@@ -4,7 +4,9 @@ import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.
 import { assertAuthed, AuthProbeError } from '../../_shared/auth/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/auth/cookie-freshness.mjs';
 
-const TARGET_URL = process.env.TARGET_URL || 'https://www.instagram.com/explore/';
+// The page the like lands on is the caller's; no feed is assumed.
+const TARGET_URL = process.env.TARGET_URL;
+if (!TARGET_URL) { console.log('FAIL: TARGET_URL env var required: the Instagram page the like lands on'); process.exit(1); }
 
 const acct = await getSocialAccount('instagram');
 if (!acct) { console.log('FAIL: no active instagram account in DB'); process.exitCode = 1; }

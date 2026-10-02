@@ -10,7 +10,9 @@ import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/aut
 import { markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
-const TARGET_URL = process.env.TARGET_URL || '';
+// The page the bookmark lands on is the caller's; no feed is assumed.
+const TARGET_URL = process.env.TARGET_URL;
+if (!TARGET_URL) { console.log('FAIL: TARGET_URL env var required: the TikTok page the bookmark lands on'); process.exit(1); }
 
 const acct = await getSocialAccount('tiktok');
 if (!acct) { console.log('FAIL: no active tiktok account'); process.exit(1); }
@@ -29,7 +31,7 @@ try {
 await s.ctx.addCookies(_stored.map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
 let ban = null;
 try {
-  await s.goto(TARGET_URL || 'https://www.tiktok.com/foryou');
+  await s.goto(TARGET_URL);
   checkReachable(s, 'tiktok');
   await humanIdlePause('deliberate');
   try { await assertAuthed('tiktok', s, { label: 'tiktok_bookmark' }); }

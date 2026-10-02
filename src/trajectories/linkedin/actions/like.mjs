@@ -9,7 +9,9 @@ import { assertAuthed, AuthProbeError } from '../../_shared/auth/auth-probe.mjs'
 import { reloginLinkedinInline } from '../../_shared/linkedin/relogin.mjs';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
-const TARGET_URL = process.env.TARGET_URL || '';
+// The page the like lands on is the caller's; no feed is assumed.
+const TARGET_URL = process.env.TARGET_URL;
+if (!TARGET_URL) { console.log('FAIL: TARGET_URL env var required: the LinkedIn page the like lands on'); process.exit(1); }
 
 const acct = await getSocialAccount('linkedin');
 if (!acct) { console.log('FAIL: no active linkedin account'); process.exit(1); }
@@ -33,7 +35,7 @@ try {
   let authed = false;
   for (let attempt = 0; attempt < 2 && !authed; attempt++) {
     try {
-      await s.page.goto(TARGET_URL || 'https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded' });
+      await s.page.goto(TARGET_URL, { waitUntil: 'domcontentloaded' });
       checkReachable(s, 'linkedin');
       await humanIdlePause('deliberate');
       await assertAuthed('linkedin', s, { label: 'linkedin_like' });

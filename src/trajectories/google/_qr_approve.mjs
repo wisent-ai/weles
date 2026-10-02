@@ -6,12 +6,17 @@ const execFileP = promisify(execFile);
 
 const ADB = process.env.ADB_BIN || 'adb';
 const PIXEL_SERIAL = process.env.PIXEL_ADB_SERIAL;
-const VERIFY_BTN_X = Number(process.env.PIXEL_VERIFY_X ?? 898);
-const VERIFY_BTN_Y = Number(process.env.PIXEL_VERIFY_Y ?? 1558);
+// Where the Verify button sits is a fact about one phone's screen, declared
+// with the phone; no coordinates are assumed.
+const VERIFY_BTN_X = Number(process.env.PIXEL_VERIFY_X);
+const VERIFY_BTN_Y = Number(process.env.PIXEL_VERIFY_Y);
 const CONSTELLATION_ACTIVITY = 'com.google.android.gms.constellation.ui.deeplink.web.WebEntryPointActivity';
 
 export async function approveQr(page) {
   if (!PIXEL_SERIAL) throw new Error('PIXEL_ADB_SERIAL env var not set (e.g. 192.168.1.50:5555)');
+  if (!Number.isInteger(VERIFY_BTN_X) || !Number.isInteger(VERIFY_BTN_Y)) {
+    throw new Error('PIXEL_VERIFY_X and PIXEL_VERIFY_Y env vars not set: the screen coordinates of the Verify button on this phone');
+  }
 
   await assertPixelReady();
 
