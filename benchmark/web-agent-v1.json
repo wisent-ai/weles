@@ -3,6 +3,7 @@
   "id": "web-agent-v1",
   "version": "1.0.0",
   "repetitions": 1,
+  "variables": { "FIXTURE_ORIGIN": "WELES_BENCHMARK_FIXTURE_ORIGIN" },
   "cases": [
     {
       "id": "static-extraction",

@@ -1,8 +1,8 @@
 // The Probierz benchmark contract every Weles benchmark contender speaks: one
 // ai.wisent.probierz.benchmark.task.v1 document on stdin, one
-// ai.wisent.probierz.benchmark.result.v1 document on stdout. The fixture
-// origin is substituted from WELES_BENCHMARK_FIXTURE_ORIGIN, so the suite
-// names no host.
+// ai.wisent.probierz.benchmark.result.v1 document on stdout. Probierz fills
+// the suite's placeholders, such as the fixture origin, before the task
+// arrives.
 
 const TASK_SCHEMA = "ai.wisent.probierz.benchmark.task.v1";
 const RESULT_SCHEMA = "ai.wisent.probierz.benchmark.result.v1";
@@ -21,21 +21,11 @@ export function required(name) {
   return value.trim();
 }
 
-function substitute(value, origin) {
-  if (typeof value === "string") return value.replaceAll("${FIXTURE_ORIGIN}", origin);
-  if (Array.isArray(value)) return value.map((item) => substitute(item, origin));
-  if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, substitute(item, origin)]));
-  }
-  return value;
-}
-
-/// The task, with the fixture origin filled in and the prompt an agent reads.
+/// The task, and the prompt an agent reads.
 export async function readTask() {
   const task = JSON.parse(await readStdin());
   if (task.schema !== TASK_SCHEMA) throw new Error(`stdin schema is ${task.schema}, expected ${TASK_SCHEMA}`);
-  const origin = required("WELES_BENCHMARK_FIXTURE_ORIGIN");
-  const input = substitute(task.case.input, origin);
+  const input = task.case.input;
   const prompt = [
     task.case.instruction,
     `Start at ${input.url}.`,
