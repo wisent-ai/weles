@@ -21,6 +21,7 @@
         "payload/weles-worker.tar.gz": "payload/weles-worker.tar.gz",
         "bin/start": "bin/start",
         "weles-api-launcher": "weles-api-launcher",
+        "skarbiec-acquisition-scopes.conf": "skarbiec-acquisition-scopes.conf",
         "evidence/DIGESTS": "evidence/DIGESTS"
       }
     }
