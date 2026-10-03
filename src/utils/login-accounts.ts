@@ -95,7 +95,12 @@ function resolveAccount(subscription: Item, inventory: Item[], requested?: strin
   const subscriptionId = tag(subscription, 'brama:id:');
   const provider = providerName(tag(subscription, 'brama:provider:'));
   const context = subscriptionMetadata(subscription, inventory, provider);
-  let accountRef = text(context.account_ref);
+  // Brama records the provider account a member belongs to as
+  // `brama:account:<address>` on the subscription item (`brama subscription
+  // attribute`, Brama Desktop's Record accounts, the renewal sweep). Read only
+  // the item's context, a fleet whose members carry nothing else stayed
+  // `subscription_identity_missing` however exactly Brama had recorded them.
+  let accountRef = text(context.account_ref) || tag(subscription, 'brama:account:');
   const explicit = text(requested) || text(context.login_item) || tag(subscription, 'brama:login:');
   const sourceItem = text(context.source_item);
   const logins = inventory.filter((item) => item.kind === 'login' || item.type === 'login');
@@ -149,8 +154,11 @@ function resolveAccount(subscription: Item, inventory: Item[], requested?: strin
     // the reader to discover that a subscription item's account is recorded
     // as a tag on that item.
     const recordIt = `record the account on the subscription item itself — `
-      + `stado credentials item retag --host <VAULT HOST> ${subscriptionItem} --tags `
-      + `"<its current tags>,brama:login:<login item>" (omit --tags to read them first)`;
+      + `brama subscription attribute ${provider === 'claude' ? 'claude-code' : provider} `
+      + `--gateway <gateway> reads it from the member's own grant and writes `
+      + `brama:account:<address> into the vault the gateway serves (Brama Desktop: `
+      + `Record accounts), or stado credentials item retag --host <VAULT HOST> `
+      + `${subscriptionItem} --tags "<its current tags>,brama:login:<login item>"`;
     const remedy = ofProvider.length
       ? `name one of this provider's logins with --login-item: ${ofProvider.join(', ')}; `
         + `or ${recordIt}`
