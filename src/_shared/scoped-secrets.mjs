@@ -83,7 +83,8 @@ function acquisitionPaths() {
   const deploy = join(SCRIPT_ROOT, '..', 'worker', 'deploy', 'acquire');
   return {
     helper: join(deploy, 'skarbiec-acquire.mjs'),
-    scopes: join(deploy, 'skarbiec-acquisition-scopes.conf'),
+    scopes: process.env.SKARBIEC_WELES_ACQUISITION_SCOPES_FILE?.trim()
+      || join(deploy, 'skarbiec-acquisition-scopes.conf'),
   };
 }
 

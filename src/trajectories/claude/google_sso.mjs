@@ -109,12 +109,8 @@ export async function doGoogleSso({
       views = [];
       for (const p of page.context().pages()) {
         if (p.isClosed()) continue;
-        // login.email is this account's own login field, resolved by
-        // getServiceLogin from the display name the caller's vault login item id
-        // selected, and it is the value Google puts in the row's data-identifier
-        // (proven: the recorded chooser row for Claude_controlyourai carries
-        // data-identifier="controlyourai@gmail.com"). That is what makes the row
-        // selectable by identity rather than by position or localized label.
+        // The caller supplies the selected account's login. Match Google's
+        // data-identifier to that identity, never a row position or label.
         const st = await observeGisPage(p, login.email);
         views.push({ p, st, variant: classifyGisState(st) });
       }

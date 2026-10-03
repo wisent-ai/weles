@@ -64,6 +64,7 @@ runtime_required=(
   dist/secrets/acquire.js
   dist/secrets/acquire/catalog.js
   dist/secrets/scoped-service/contracts.js
+  dist/secrets/scoped-service/managed-passwords.js
   dist/secrets/scoped-service.js
   dist/secrets/scoped-service/transport.js
   src/worker/weles-api-server/credentials/service.mjs

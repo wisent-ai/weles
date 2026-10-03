@@ -64,15 +64,11 @@ export type SecretDefinition = {
 };
 
 export function normalizeSecret(request: AcquireSecretRequest): string {
-  const credentialId = request.credentialId?.trim().toLowerCase() ?? '';
-  // A declared managed password is addressed by its own item id, so it passes
-  // through unchanged. The declaration table decides that, never the id's spelling.
+  const credentialId = request.credentialId?.trim() ?? '';
+  // Managed item identifiers are exact and case-sensitive. Only the deployment
+  // declaration selects their lifecycle; an item's spelling does not.
   if (isWelesManagedPasswordItem(credentialId)) return credentialId;
   const explicit = request.secret?.trim().toLowerCase().replace(/[\s-]+/g, '_');
-  // Both branches of the conditional this replaced returned the same string: it was
-  // born inert in 5734aff2 as `explicit.includes('.') ? explicit.replace(/_/g, '_')
-  // : explicit`, so no behaviour is lost. Dotted registry keys are already matched
-  // against their underscore spelling at lookup time in definitionFor below.
   if (explicit) return explicit;
   const goal = request.goal?.toLowerCase() ?? '';
   if ((goal.includes('semantic') && goal.includes('scholar')) || goal.includes('semanticscholar') || goal.includes('s2')) {
@@ -93,10 +89,12 @@ export function normalizeSecret(request: AcquireSecretRequest): string {
 export function definitionFor(request: AcquireSecretRequest): SecretDefinition | null {
   const normalized = normalizeSecret(request);
   if (isWelesManagedPasswordItem(normalized)) {
-    return request.provider === ENTRA_PROVIDER
+    return acquiredSecretContract(normalized)?.sourceOrigin === ENTRA_ORIGIN
       ? entraPasswordDefinition(normalized)
       : microsoftPasswordDefinition(normalized);
   }
+  // An undeclared password must not fall through to a generic api_key writer.
+  if (request.provider === 'microsoft' || request.provider === ENTRA_PROVIDER) return null;
   const registered = normalized
     ? SECRET_REGISTRY[normalized] ?? SECRET_REGISTRY[normalized.replace(/\./g, '_')] ?? null
     : Object.values(SECRET_REGISTRY).find((definition) =>

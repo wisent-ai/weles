@@ -41,11 +41,8 @@ export const ENTRA_ORIGIN = 'https://login.microsoftonline.com';
 export const ENTRA_UPN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 export const LOWER_UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
 
-// Entra directory items and consumer Microsoft accounts are both declared managed
-// passwords (isWelesManagedPasswordItem); the requested provider selects which
-// lifecycle owns the item, so a directory identity is never administered through a
-// consumer-account surface. The provider is the caller declaring which lifecycle it
-// wants, not a fact read out of the id.
+// The deployment declaration pins the provider independently of the request.
+// Callers reject a conflicting requested provider before queueing a lifecycle.
 export function entraPasswordDefinition(credentialId: string): SecretDefinition {
   return {
     secret: credentialId,

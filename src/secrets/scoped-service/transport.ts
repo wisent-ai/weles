@@ -133,16 +133,8 @@ export function readScopedField(
     output.fill(0);
   }
 }
-// A deploy-side file of THIS revision. The scope table and the code that checks
-// against it are one declaration split across two files, so they must come from one
-// tree: the previous default resolved them under ~/weles, which is a symlink into
-// whichever release is currently activated, while the trajectory itself ran from a
-// different checkout. Updating the table in the checkout that runs would leave the
-// activated release's older table in force, and the read would fail on the helper's
-// own scope check with "undeclared Skarbiec acquisition scope" while the authority
-// was never even asked. Resolving relative to this module keeps the table and its
-// reader in the same revision by construction; the two environment variables still
-// override for deployments that relocate them.
+// Helpers and the public service catalog come from the executing release.
+// Deployment-owned scope catalogs can be selected explicitly.
 export function deployedFile(name: string): string {
   return join(__dirname, '..', '..', '..', 'src', 'worker', 'deploy', 'acquire', name);
 }
@@ -158,15 +150,8 @@ function acquisitionScopesFile(tenantId?: string | null): string {
     || deployedFile('skarbiec-acquisition-scopes.conf');
 }
 
-// The deployed catalog and the contract table at the head of this file are one
-// declaration split across two files, and nothing re-syncs the copies a host
-// accumulates: this workstation carries four, at four different revisions of the
-// same authored file, and a Skarbiec-side serving-path doctor already had to be
-// corrected for reading the wrong one. So the copy actually in force is parsed in
-// exactly one place, here, and both the reader gate and the read path below speak
-// from it: two spellings of this grammar is how the copies drifted unnoticed.
-// Returns every field the catalog grants this contract's own reader identity on
-// this contract's item.
+// Read the catalog actually selected by this deployment. Each grant must name
+// this contract's exact reader identity, item and field.
 function managedReaderGrantedFields(
   contract: InternalAcquiredSecretContract,
   tenantId?: string | null,
@@ -187,15 +172,8 @@ function managedReaderGrantedFields(
   return granted;
 }
 
-// A catalog that grants this item to its reader on a DIFFERENT field than the
-// contract declares is the drift that costs the most to diagnose. Every symptom
-// downstream is a credential that cannot be read, and both the reader gate and
-// the acquisition helper report it as though nothing were granted at all: the
-// helper names the field the contract asked for, so the row that does exist never
-// appears in the refusal. Name the disagreement instead, and name the copy that is
-// in force, because which catalog was read is the fact that resolves it. Null when
-// there is nothing to say: an absent row and an unreadable file are different
-// failures that already carry their own messages.
+// Distinguish a missing reader grant from a grant for a different field.
+// Report the selected catalog so a deployment can correct the active input.
 export function welesManagedCredentialReaderMismatch(
   secretName: string,
   field: string,
@@ -214,9 +192,8 @@ export function welesManagedCredentialReaderMismatch(
   }
   if (!granted.length || granted.includes(field)) return null;
   return `deployed Skarbiec acquisition catalog ${catalog} grants ${contract.item}`
-    + ` to its reader on ${granted.join(', ')}, but this revision's Weles credential`
-    + ` contract declares field ${field}: the catalog copy in force is not the one`
-    + ` this revision was built against`;
+    + ` to its reader on ${granted.join(', ')}, but the selected Weles credential`
+    + ` contract declares field ${field}`;
 }
 
 export function hasWelesManagedCredentialReader(

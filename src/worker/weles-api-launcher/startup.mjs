@@ -58,7 +58,8 @@ export async function startup() {
     await declaredNames('dist/worker/declared/observations.js', 'loadDeclaredObservations');
 
   const acquireHelper = join(REPO, 'src/worker/deploy/acquire/skarbiec-acquire.mjs');
-  const acquireScopes = join(REPO, 'src/worker/deploy/acquire/skarbiec-acquisition-scopes.conf');
+  const acquireScopes = process.env.SKARBIEC_WELES_ACQUISITION_SCOPES_FILE?.trim()
+    || join(REPO, 'src/worker/deploy/acquire/skarbiec-acquisition-scopes.conf');
   for (const [variable, consumer, item, field, always] of STARTUP_FIELDS) {
     if (!always && process.env[variable]) continue;
     const value = run(nodeBin, [acquireHelper, acquireScopes, consumer, item, field],

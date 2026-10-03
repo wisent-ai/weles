@@ -77,6 +77,10 @@ export function createCredentialOperationService({
     const acquisition = acquisitionRequest(request);
     const definition = definitionFor(acquisition);
     const contract = definition && resolvedAcquiredSecretContract(definition.secret);
+    if (!contract && ['microsoft', 'microsoft_entra'].includes(request.provider)) {
+      throw new CredentialAdmissionError(http.HTTP_STATUS_CONFLICT, 'WELES_CREDENTIAL_CONTRACT_MISMATCH',
+        `No managed password declaration for ${request.credential_id}; WELES_MANAGED_PASSWORD_CONTRACTS_FILE is ${process.env.WELES_MANAGED_PASSWORD_CONTRACTS_FILE?.trim() || 'unset'}`);
+    }
     if (!contract || definition.provider !== request.provider || contract.item !== request.credential_id
         || contract.field !== request.field || contract.writerConsumer !== request.consumer) {
       throw new CredentialAdmissionError(http.HTTP_STATUS_CONFLICT, 'WELES_CREDENTIAL_CONTRACT_MISMATCH',

@@ -41,9 +41,12 @@ export async function acquireSecret(
     // normalizes to nothing, and a refusal reading "unknown" hides the very fact
     // that resolves it: which id has no declared contract.
     const secret = normalizeSecret(request)
-      || request.credentialId?.trim().toLowerCase()
+      || request.credentialId?.trim()
       || 'unknown';
-    return { status: 'unsupported_secret', secret, message: `No secret acquisition registry entry for ${secret}` };
+    const message = request.provider === 'microsoft' || request.provider === ENTRA_PROVIDER
+      ? `No managed password declaration for ${secret}; configure WELES_MANAGED_PASSWORD_CONTRACTS_FILE on the executor`
+      : `No secret acquisition registry entry for ${secret}`;
+    return { status: 'unsupported_secret', secret, message };
   }
   if (request.provider && request.provider !== def.provider) {
     return {
@@ -86,9 +89,12 @@ export function buildSecretAcquisitionPlan(request: AcquireSecretRequest): Acqui
   const def = definitionFor(request);
   if (!def) {
     const secret = normalizeSecret(request)
-      || request.credentialId?.trim().toLowerCase()
+      || request.credentialId?.trim()
       || 'unknown';
-    return { status: 'unsupported_secret', secret, message: `No secret acquisition registry entry for ${secret}` };
+    const message = request.provider === 'microsoft' || request.provider === ENTRA_PROVIDER
+      ? `No managed password declaration for ${secret}; configure WELES_MANAGED_PASSWORD_CONTRACTS_FILE on the executor`
+      : `No secret acquisition registry entry for ${secret}`;
+    return { status: 'unsupported_secret', secret, message };
   }
   if (request.provider && request.provider !== def.provider) {
     return {
