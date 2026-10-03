@@ -271,6 +271,39 @@ DNS/WebRTC behavior, latency and target response. Stado's real-device egress tes
 require a trusted phone and observed mobile IP classification. Disconnected hardware
 or an unclassified exit is not a passing result.
 
+## Benchmark against rivals
+
+Stado's product catalog names Weles's rivals (Browser Use, Skyvern, Stagehand)
+and the suite that measures them, `web-agent-v1`. Probierz runs it:
+`apps/weles/probierz.yaml` in Probierz declares the suite and one contender per
+product, and `probierz benchmark` records each run, its standing and the cases
+Weles lost.
+
+- `benchmark/web-agent-v1.json` holds five cases (static extraction, link
+  navigation, a form submission, client-side rendering, a 100-row table) with
+  their assertions; contenders never see the expected values.
+- `benchmark/fixture.mjs --host <address> --port <port>` serves the
+  deterministic site the cases open. Its origin reaches every contender as
+  `WELES_BENCHMARK_FIXTURE_ORIGIN`.
+- `benchmark/contenders/weles.mjs` sends a case to the authenticated
+  `/weles-builder` endpoint (`WELES_API_BASE`, `WELES_TOKEN`).
+  `benchmark/contenders/stagehand.mjs` runs Stagehand's DOM agent with model
+  calls through Brama (`BRAMA_BASE_URL`, `BRAMA_API_KEY`, `BRAMA_MODEL`) and the
+  packages installed under `STAGEHAND_MODULES`.
+
+Run the fixture and the contenders on the Stado-selected benchmark host, never
+on an operator workstation, then:
+
+```sh
+probierz benchmark rivals weles
+probierz benchmark run weles --suite web-agent-v1
+probierz benchmark standing weles --suite web-agent-v1
+probierz benchmark roadmap weles --suite web-agent-v1
+```
+
+`rivals` refuses while a rival the catalog names has no contender; Browser Use
+and Skyvern have none yet, so it names them.
+
 ## Compatibility and status
 
 - Client source defines the `0.1.0` minimum public contract; an endpoint and immutable

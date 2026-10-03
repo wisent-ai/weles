@@ -1,0 +1,53 @@
+{
+  "schema": "ai.wisent.probierz.benchmark.suite.v1",
+  "id": "web-agent-v1",
+  "version": "1.0.0",
+  "repetitions": 1,
+  "cases": [
+    {
+      "id": "static-extraction",
+      "instruction": "Open the page. Return its main heading as heading, every list item as items, and the main element's data-checksum attribute as checksum. Answer with one JSON object.",
+      "input": { "url": "${FIXTURE_ORIGIN}/static" },
+      "assertions": [
+        { "pointer": "/heading", "equals": "Static content" },
+        { "pointer": "/items", "includes": "gamma" },
+        { "pointer": "/checksum", "equals": "alpha-beta-gamma" }
+      ]
+    },
+    {
+      "id": "navigation",
+      "instruction": "Open the page, follow the canonical record link, then return the destination record identifier as recordId and its output value as value. Answer with one JSON object.",
+      "input": { "url": "${FIXTURE_ORIGIN}/navigation", "recordId": "record-42" },
+      "assertions": [
+        { "pointer": "/recordId", "equals": "record-42" },
+        { "pointer": "/value", "equals": "deterministic-detail" }
+      ]
+    },
+    {
+      "id": "form-submit",
+      "instruction": "Open the page, enter the requested input value in the benchmark field, submit the form, then return submitted as a boolean and the displayed submitted value as value. Answer with one JSON object.",
+      "input": { "url": "${FIXTURE_ORIGIN}/form", "value": "weles-benchmark" },
+      "assertions": [
+        { "pointer": "/submitted", "equals": true },
+        { "pointer": "/value", "equals": "weles-benchmark" }
+      ]
+    },
+    {
+      "id": "dynamic-render",
+      "instruction": "Open the page, wait until the dynamic output stops saying pending, then return its final text as message. Answer with one JSON object.",
+      "input": { "url": "${FIXTURE_ORIGIN}/dynamic" },
+      "assertions": [
+        { "pointer": "/message", "equals": "rendered-after-delay" }
+      ]
+    },
+    {
+      "id": "table-scan",
+      "instruction": "Open the page. Count all body rows as rowCount and sum their numeric index cells as indexChecksum. Return both numbers. Answer with one JSON object.",
+      "input": { "url": "${FIXTURE_ORIGIN}/table" },
+      "assertions": [
+        { "pointer": "/rowCount", "equals": 100 },
+        { "pointer": "/indexChecksum", "equals": 5050 }
+      ]
+    }
+  ]
+}
