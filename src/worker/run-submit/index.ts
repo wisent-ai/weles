@@ -12,11 +12,9 @@
 // run is refused by name, since no port is built in. The bearer is the API
 // token the process was started with. A missing token is refused by name.
 
-const SAFE_ACTION = /^[a-z][a-z0-9_]{0,127}$/;
+const SAFE_ACTION = /^[a-z][a-z0-9_]*$/;
 // An account item's id is random and means nothing; only its shape is checked.
-const ACCOUNT_ITEM = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,190}$/;
-const QUOTED_BODY_CHARS = 300;
-const BODY_START = 0;
+const ACCOUNT_ITEM = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 
 export interface WelesRunRequest {
   action: string;
@@ -66,10 +64,10 @@ export async function submitWelesRun(request: WelesRunRequest): Promise<string> 
   try {
     answer = JSON.parse(text);
   } catch (error) {
-    throw new Error(`${endpoint} answered HTTP ${response.status} with a body that is not JSON (${(error as Error).message}): ${text.slice(BODY_START, QUOTED_BODY_CHARS)}`);
+    throw new Error(`${endpoint} answered HTTP ${response.status} with a body that is not JSON (${(error as Error).message}): ${text}`);
   }
   if (!response.ok || !answer.ok || !answer.detached_run) {
-    throw new Error(`${endpoint} refused ${request.action}: HTTP ${response.status} ${answer.error ?? text.slice(BODY_START, QUOTED_BODY_CHARS)}`);
+    throw new Error(`${endpoint} refused ${request.action}: HTTP ${response.status} ${answer.error ?? text}`);
   }
   return answer.detached_run;
 }
@@ -86,7 +84,7 @@ export async function readWelesRun<T>(runId: string): Promise<T | null> {
   if (response.status === HTTP_NOT_FOUND) return null;
   const text = await response.text();
   if (!response.ok) {
-    throw new Error(`${endpoint} answered HTTP ${response.status}: ${text.slice(BODY_START, QUOTED_BODY_CHARS)}`);
+    throw new Error(`${endpoint} answered HTTP ${response.status}: ${text}`);
   }
   return JSON.parse(text) as T;
 }

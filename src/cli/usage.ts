@@ -103,7 +103,7 @@ Options:
   --screenshot <file>     Save a screenshot after navigation.
   --wait-for-text <text>  Wait for matching visible text before reading or capturing.
   --open                  List only requests still waiting for the operator.
-  --limit <n>             How many operator requests to list (default 20).
+  --limit <n>             List only the newest <n> operator requests (default: every request).
   --json                  Print the answer as one JSON document instead of key: value lines.
                           release surface always prints its JSON document: it is the file a release carries.
   --kind <kind>           What kind of action the run needs from the operator.

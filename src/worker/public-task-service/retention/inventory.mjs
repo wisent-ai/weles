@@ -10,8 +10,6 @@ const EVIDENCE_PATH_COMPONENT_RE = /^[A-Za-z0-9._-]+$/;
 export const MAX_EVIDENCE_FILE_BYTES = 8 * 1024 * 1024;
 export const MAX_EVIDENCE_TOTAL_BYTES = 8 * 1024 * 1024;
 export const MAX_EVIDENCE_MANIFEST_BYTES = 4 * 1024 * 1024;
-const MAX_WITHHELD_EDGE_BYTES = 2 * 1024 * 1024;
-const MAX_WITHHELD_EDGES = 2_048;
 export const RECEIPT_MANIFEST_NAME = 'evidence-manifest.json';
 const WITHHELD_EDGES_NAME = 'browser_evidence_withheld_edges.ndjson';
 
@@ -96,13 +94,9 @@ export async function collectEvidenceFiles(root) {
 
 export async function retainedWithheldEdges(files) {
   const edges = [];
-  let bytes = 0;
   for (const file of files.filter((candidate) => basename(candidate.path) === WITHHELD_EDGES_NAME)) {
-    bytes += file.bytes;
-    if (bytes > MAX_WITHHELD_EDGE_BYTES) throw new EvidenceRetentionError('withheld-edge-bytes-exceeded', 'withheld-edge evidence exceeds the byte limit');
     const lines = (await readFile(file.fullPath, 'utf8')).split(/\r?\n/).filter(Boolean);
     for (const line of lines) {
-      if (edges.length >= MAX_WITHHELD_EDGES) throw new EvidenceRetentionError('withheld-edge-count-exceeded', 'withheld-edge evidence exceeds the edge limit');
       try {
         const edge = JSON.parse(line);
         if (!isObject(edge)) throw new Error('edge is not an object');

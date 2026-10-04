@@ -31,11 +31,7 @@ export const OPERATOR_REQUEST_SCHEMA = 'wisent.weles-operator-request.v1';
 const DIRECTORY_VARIABLE = 'WELES_OPERATOR_REQUEST_DIR';
 const PAGING_VARIABLE = 'WELES_OPERATOR_REQUEST_PAGING';
 const PAGING_DISABLED_VALUE = 'off';
-/** Enough of a refusal to name it, never enough to carry a channel's payload. */
-const MAX_PAGE_DETAIL_CHARS = 400;
 const MILLISECONDS_PER_SECOND = 1000;
-/** `list` answers the recent past, not the whole history of the host. */
-const DEFAULT_LIST_LIMIT = 20;
 const PAGE_CHANNEL = 'stado-alerts';
 /** The word `stado alerts send` prints for a channel the provider accepted. */
 const DELIVERED_WORD = 'delivered';
@@ -62,9 +58,9 @@ function required(value, field) {
   return text;
 }
 
-function truncate(text) {
-  const flat = String(text ?? '').replace(/\s+/g, ' ').trim();
-  return flat.length > MAX_PAGE_DETAIL_CHARS ? `${flat.slice(0, MAX_PAGE_DETAIL_CHARS)}…` : flat;
+/** One line, whole: a refusal is quoted as the channel said it. */
+function flatten(text) {
+  return String(text ?? '').replace(/\s+/g, ' ').trim();
 }
 
 function write(request) {
@@ -116,7 +112,7 @@ function page(request) {
   } catch (error) {
     return {
       at, ok: false, channel: PAGE_CHANNEL,
-      detail: truncate(`Stado pager unavailable: ${error?.message || error}`),
+      detail: flatten(`Stado pager unavailable: ${error?.message || error}`),
     };
   }
   const result = spawnSync(binary, ['alerts', 'send', pageBody(request), '--subject', pageSubject(request)], {
@@ -124,7 +120,7 @@ function page(request) {
   });
   if (result.error || result.status !== 0) {
     const detail = result.error?.message || result.stderr || result.stdout || `exit ${result.status}`;
-    return { at, ok: false, channel: PAGE_CHANNEL, detail: truncate(`stado alerts send refused: ${detail}`) };
+    return { at, ok: false, channel: PAGE_CHANNEL, detail: flatten(`stado alerts send refused: ${detail}`) };
   }
   // Stado names each channel and what it did: `resend\tdelivered\t<address>`.
   // A pager that exits zero saying nothing is not evidence that anyone was
@@ -139,7 +135,7 @@ function page(request) {
       detail: 'stado alerts send exited successfully without naming a channel that took the message',
     };
   }
-  return { at, ok: true, channel: PAGE_CHANNEL, detail: truncate(named.join('; ')) };
+  return { at, ok: true, channel: PAGE_CHANNEL, detail: flatten(named.join('; ')) };
 }
 
 /**
@@ -153,7 +149,7 @@ function page(request) {
 export function openRequestFor(kind, account) {
     const wanted = String(kind).trim();
     const who = String(account).trim();
-    return listOperatorRequests({ openOnly: true, limit: Number.MAX_SAFE_INTEGER })
+    return listOperatorRequests({ openOnly: true })
         .find((request) => request.kind === wanted && request.account === who);
 }
 
@@ -210,7 +206,7 @@ export function closeOperatorRequest(id, approved, detail) {
     0,
     Math.round((closed.getTime() - new Date(request.opened_at).getTime()) / MILLISECONDS_PER_SECOND),
   );
-  request.outcome_detail = truncate(required(detail, 'a sentence saying how the wait ended'));
+  request.outcome_detail = flatten(required(detail, 'a sentence saying how the wait ended'));
   return write(request);
 }
 
@@ -260,8 +256,9 @@ export function isAbandoned(request) {
   }
 }
 
-/** The recent requests, newest first. `openOnly` answers the one question an
- * operator asks in a hurry: is anything waiting for me right now. */
+/** The requests, newest first: every one, or the newest `limit` when the
+ * caller names a count. `openOnly` answers the one question an operator asks
+ * in a hurry: is anything waiting for me right now. */
 export function listOperatorRequests(options) {
   const limit = Number(options?.limit);
   const openOnly = options?.openOnly === true;
@@ -279,5 +276,5 @@ export function listOperatorRequests(options) {
     .filter((request) => request?.schema === OPERATOR_REQUEST_SCHEMA)
     .filter((request) => (openOnly ? isOpen(request) : true))
     .sort((left, right) => String(right.opened_at).localeCompare(String(left.opened_at)));
-  return selected.slice(0, Number.isFinite(limit) && limit > 0 ? Math.round(limit) : DEFAULT_LIST_LIMIT);
+  return Number.isFinite(limit) && limit > 0 ? selected.slice(0, Math.round(limit)) : selected;
 }

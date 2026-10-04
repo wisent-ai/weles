@@ -153,12 +153,11 @@ const RUN_OUTPUT_FILES = Object.freeze({
   'overleaf_version_history_summary.json': 'overleaf_version_history_summary',
   'yahoo_register_result.json': 'yahoo_register',
 });
-const RUN_OUTPUT_DEPTH = 3;
-const RUN_OUTPUT_MAX_BYTES = 1024 * 1024;
 
-// The named documents under recordings/<run>/, read without following a link
-// out of the run's tree. A file that does not parse is reported by name under
-// output_errors rather than dropped, so a reader can tell unreadable from absent.
+// The named documents anywhere under recordings/<run>/, read without following
+// a link out of the run's tree (a symbolic link is never descended). A file that
+// does not parse is reported by name under output_errors rather than dropped,
+// so a reader can tell unreadable from absent.
 export function runOutputs(runId) {
   const outputs = {};
   const errors = {};
@@ -177,7 +176,7 @@ export function runOutputs(runId) {
     errors['.'] = String(error?.message || error);
     return { outputs, errors };
   }
-  const visit = (directory, depth) => {
+  const visit = (directory) => {
     let entries;
     try { entries = readdirSync(directory, { withFileTypes: true }); } catch (error) {
       errors[directory.slice(realRunRoot.length + 1) || '.'] = String(error?.message || error);
@@ -185,19 +184,17 @@ export function runOutputs(runId) {
     }
     for (const entry of entries) {
       const path = join(directory, entry.name);
-      if (entry.isDirectory() && depth < RUN_OUTPUT_DEPTH) { visit(path, depth + 1); continue; }
+      if (entry.isDirectory()) { visit(path); continue; }
       const key = RUN_OUTPUT_FILES[entry.name];
       if (!entry.isFile() || !key || key in outputs) continue;
       try {
-        const size = lstatSync(path).size;
-        if (size > RUN_OUTPUT_MAX_BYTES) throw new Error(`${size} bytes exceeds ${RUN_OUTPUT_MAX_BYTES}`);
         outputs[key] = JSON.parse(readFileSync(path, 'utf8'));
       } catch (error) {
         errors[path.slice(realRunRoot.length + 1)] = String(error?.message || error);
       }
     }
   };
-  visit(realRunRoot, 0);
+  visit(realRunRoot);
   return { outputs, errors };
 }
 

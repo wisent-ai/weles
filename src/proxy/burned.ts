@@ -22,19 +22,14 @@ interface BurnedEntry {
 interface BurnedValue { hosts: Record<string, BurnedEntry> }
 
 
-let cache: { value: BurnedValue; loadedAt: number } | null = null;
-const CACHE_TTL_MS = 60_000;
-
+// Read on every question, never from a copy: a host another process marked
+// burned a moment ago is burned now.
 async function load(): Promise<BurnedValue> {
-  if (cache && Date.now() - cache.loadedAt < CACHE_TTL_MS) return cache.value;
-  const value = readSetting<BurnedValue>('burned_proxies', { hosts: {} });
-  cache = { value, loadedAt: Date.now() };
-  return value;
+  return readSetting<BurnedValue>('burned_proxies', { hosts: {} });
 }
 
 async function save(value: BurnedValue): Promise<void> {
   writeSetting('burned_proxies', value);
-  cache = { value, loadedAt: Date.now() };
 }
 
 export async function isBurned(host: string, platform?: string): Promise<boolean> {

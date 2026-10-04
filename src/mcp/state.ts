@@ -1,7 +1,8 @@
 // The browser contexts and pages one Weles MCP server holds, by the ids it
 // handed out, and what each page has reported since it was opened: console
 // errors, failed requests and finished responses. A caller reads those events
-// through weles_page_events instead of subscribing to the engine itself.
+// through weles_page_events instead of subscribing to the engine itself; every
+// event is kept until that read or until the page closes.
 
 import type { BrowserContext, Page } from 'playwright';
 
@@ -20,14 +21,8 @@ export const browsers = new Map<string, BrowserSlot>();
 export const pages = new Map<string, Page>();
 export const pageEvents = new Map<string, PageEvents>();
 
-const EVENT_LIMIT = 500;
 let nextBrowserId = 1;
 let nextPageId = 1;
-
-function keep<T>(list: T[], item: T): void {
-  list.push(item);
-  if (list.length > EVENT_LIMIT) list.shift();
-}
 
 export function addBrowser(context: BrowserContext): string {
   const browserId = `browser-${nextBrowserId++}`;
@@ -39,13 +34,13 @@ export function addPage(browserId: string, page: Page): string {
   const pageId = `page-${nextPageId++}`;
   const events: PageEvents = { consoleErrors: [], failedRequests: [], responses: [] };
   page.on('console', (message) => {
-    if (message.type() === 'error') keep(events.consoleErrors, message.text());
+    if (message.type() === 'error') events.consoleErrors.push(message.text());
   });
   page.on('requestfailed', (request) => {
-    keep(events.failedRequests, `${request.method()} ${request.url()} — ${request.failure()?.errorText || 'failed'}`);
+    events.failedRequests.push(`${request.method()} ${request.url()} — ${request.failure()?.errorText || 'failed'}`);
   });
   page.on('response', (response) => {
-    keep(events.responses, { url: response.url(), status: response.status(), method: response.request().method() });
+    events.responses.push({ url: response.url(), status: response.status(), method: response.request().method() });
   });
   pages.set(pageId, page);
   pageEvents.set(pageId, events);

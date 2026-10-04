@@ -102,15 +102,16 @@ export function buildSiblingManifest(dir: string, instFn: string): any[] {
   } catch { return []; }
 }
 
-// Process-wide console capture. Tees console method calls into a module-scoped
-// ring buffer (capped so a chatty session can't OOM). Each WSession records
-// the buffer offset at startInstrumentation and slices from there at dump
-// time, so concurrent sessions see only their own lines and sequential
-// sessions don't double-count. Patches console once per process; safe to call
-// from every WSession.start.
+// Process-wide console capture. Each WSession owns its own list of console
+// lines from startInstrumentation on; the patched console appends every line to
+// the list of every session still alive, so concurrent sessions see only their
+// own lines and nothing is dropped. A session's list is held weakly here: when
+// the session is gone, so is its list, which bounds memory by the sessions that
+// exist rather than by a line count. Patches console once per process; safe to
+// call from every WSession.start.
 import { CONSOLE_LEVELS } from './capture/capture_constants.js';
-const STDOUT_RING: Array<{ t: number; level: string; line: string }> = [];
-const STDOUT_RING_CAP = 50_000;
+type ConsoleLine = { t: number; level: string; line: string };
+const SESSION_LINES = new Set<WeakRef<ConsoleLine[]>>();
 let _consolePatched = false;
 function patchConsoleOnce(): void {
   if (_consolePatched) return;
@@ -123,16 +124,25 @@ function patchConsoleOnce(): void {
     const orig = (console as any)[level].bind(console);
     (console as any)[level] = (...args: any[]) => {
       try {
-        STDOUT_RING.push({ t: Date.now(), level, line: formats(args) });
-        if (STDOUT_RING.length > STDOUT_RING_CAP) STDOUT_RING.shift();
+        const entry = { t: Date.now(), level, line: formats(args) };
+        for (const reference of SESSION_LINES) {
+          const lines = reference.deref();
+          if (lines) lines.push(entry);
+          else SESSION_LINES.delete(reference);
+        }
       } catch {}
       orig(...args);
     };
   }
 }
-export function attachStdoutCapture(ws: any): void {
-  try { patchConsoleOnce(); ws._instStdoutOffset = STDOUT_RING.length; } catch {}
+export function attachStdoutCapture(ws: { _instStdout?: ConsoleLine[] }): void {
+  try {
+    patchConsoleOnce();
+    const lines: ConsoleLine[] = [];
+    ws._instStdout = lines;
+    SESSION_LINES.add(new WeakRef(lines));
+  } catch {}
 }
-export function sliceStdout(ws: any): any[] {
-  try { return STDOUT_RING.slice(ws._instStdoutOffset ?? 0); } catch { return []; }
+export function sliceStdout(ws: { _instStdout?: ConsoleLine[] }): ConsoleLine[] {
+  return ws._instStdout ?? [];
 }

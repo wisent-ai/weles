@@ -72,12 +72,8 @@ interface MatrixValue { matrix: Record<string, Record<string, MatrixCell>> }
 interface RatesValue { rates: Record<string, { per_gb: number }> }
 interface PausedValue { [platform: string]: { paused_at: string; reason: string } }
 
-const CACHE_TTL_MS = 60_000;
-let _matrixCache: { v: MatrixValue; at: number } | null = null;
-let _ratesCache: { v: RatesValue; at: number } | null = null;
-let _pausedCache: { v: PausedValue; at: number } | null = null;
-
-
+// Each setting is read on every question, never from a copy: an outcome another
+// worker recorded a moment ago decides this selection.
 async function loadSetting<T>(key: string, fallback: T): Promise<T> {
   return readSetting<T>(key, fallback);
 }
@@ -87,28 +83,18 @@ async function saveSetting<T>(key: string, value: T): Promise<void> {
 }
 
 async function loadMatrix(): Promise<MatrixValue> {
-  if (_matrixCache && Date.now() - _matrixCache.at < CACHE_TTL_MS) return _matrixCache.v;
-  const v = await loadSetting<MatrixValue>('proxy_capability_matrix', { matrix: {} });
-  _matrixCache = { v, at: Date.now() };
-  return v;
+  return loadSetting<MatrixValue>('proxy_capability_matrix', { matrix: {} });
 }
 
 async function loadRates(): Promise<RatesValue> {
-  if (_ratesCache && Date.now() - _ratesCache.at < CACHE_TTL_MS) return _ratesCache.v;
   const v = await loadSetting<RatesValue>('proxy_rate_cards', { rates: {} });
   // Merge Skarbiec overrides on top of defaults so a partial setting still
   // returns a complete rate card.
-  const rates = { ...DEFAULT_RATES, ...(v.rates ?? {}) };
-  const merged = { rates };
-  _ratesCache = { v: merged, at: Date.now() };
-  return merged;
+  return { rates: { ...DEFAULT_RATES, ...(v.rates ?? {}) } };
 }
 
 async function loadPaused(): Promise<PausedValue> {
-  if (_pausedCache && Date.now() - _pausedCache.at < CACHE_TTL_MS) return _pausedCache.v;
-  const v = await loadSetting<PausedValue>('platform_routine_paused', {});
-  _pausedCache = { v, at: Date.now() };
-  return v;
+  return loadSetting<PausedValue>('platform_routine_paused', {});
 }
 
 /**
@@ -192,7 +178,6 @@ export async function recordOutcome(
   v.matrix[provider] ??= {};
   v.matrix[provider][action] = { result, at };
   await saveSetting('proxy_capability_matrix', v);
-  _matrixCache = { v, at: Date.now() };
   console.log(`[capability] +${provider}/${action} = ${result} (signal=${sig || 'none'})`);
 
   // Circuit-breaker: if every provider for this platform is now 'fail' for
@@ -209,12 +194,10 @@ export async function recordOutcome(
   if (!someoneWorks && !paused[platform]) {
     paused[platform] = { paused_at: at, reason: `no proxy passes for any ${platform}_* action` };
     await saveSetting('platform_routine_paused', paused);
-    _pausedCache = { v: paused, at: Date.now() };
     console.log(`[capability] CIRCUIT-BREAKER: paused platform=${platform}`);
   } else if (someoneWorks && paused[platform]) {
     delete paused[platform];
     await saveSetting('platform_routine_paused', paused);
-    _pausedCache = { v: paused, at: Date.now() };
     console.log(`[capability] CIRCUIT-BREAKER: cleared platform=${platform}`);
   }
 }
