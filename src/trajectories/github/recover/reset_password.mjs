@@ -80,9 +80,10 @@ try {
   if (!submit.clicked) throw new Error('no submit control on password_reset page');
 
   await pageSettled(s.page);
+  // The reset email arrives when GitHub sends it; the inbox is read until it does.
   console.log('[reset] Polling Resend for reset email...');
   let resetUrl = null;
-  for (let poll = 0; poll < 30 && !resetUrl; poll++) {
+  while (!resetUrl) {
     await pageSettled(s.page);
     let emails;
     try { emails = (await listReceived(20, email)).data; }
@@ -97,7 +98,6 @@ try {
       if (m) { resetUrl = m[0]; break; }
     }
   }
-  if (!resetUrl) throw new Error('no reset email received');
   console.log(`[reset] Reset URL: ${resetUrl}...`);
 
   await s.goto(resetUrl);

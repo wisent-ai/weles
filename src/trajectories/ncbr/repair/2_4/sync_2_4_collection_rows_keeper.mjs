@@ -80,8 +80,9 @@ function openByNeedle(needles) {
   })()`);
   if (idx < 0) throw new Error(`row not found by text: ${needleList[0]}`);
   const menuSelector = `:nth-match(table tbody tr, ${idx + 1}) button[aria-label="overflow-options"]`;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    action([attempt === 0 ? 'click_fast' : 'dispatch_click', menuSelector], true);
+  // A fast click first, a dispatched click when the menu did not open.
+  for (const method of ['click_fast', 'dispatch_click']) {
+    action([method, menuSelector], true);
     idle('short');
     const hasEdit = read(`(() => Array.from(document.querySelectorAll('[role="menuitem"], li, button')).some((el) => el.offsetParent !== null && el.innerText.trim() === 'Edytuj'))()`);
     if (hasEdit) break;
@@ -97,21 +98,18 @@ function saveSubform() {
   action(['press', 'Tab'], true);
   idle('long');
   action(['dispatch_click', '#collection-obj-form-save-btn']);
-  for (let i = 0; i < 10; i += 1) {
+  // The form is saved when its save button is gone. A disabled button is a
+  // save in flight and is waited for; an enabled one did not take the click
+  // and is pressed again.
+  for (let clicks = 1; ; ) {
     idle('long');
     const status = read(`(() => {
       const b = document.querySelector('#collection-obj-form-save-btn');
       return b ? { disabled: b.disabled, text: b.innerText } : null;
     })()`);
-    if (!status) return { ok: true, waited: i + 1 };
-    if (!status.disabled && i >= 2) action(['dispatch_click', '#collection-obj-form-save-btn'], true);
+    if (!status) return { ok: true, clicks };
+    if (!status.disabled) { action(['dispatch_click', '#collection-obj-form-save-btn'], true); clicks += 1; }
   }
-  const status = read(`(() => {
-    const b = document.querySelector('#collection-obj-form-save-btn');
-    return b ? { disabled: b.disabled, text: b.innerText } : null;
-  })()`);
-  if (status?.disabled) return { ok: true, method: 'save-button-disabled-after-click-reload-to-continue' };
-  throw new Error(`subform did not close after save: ${JSON.stringify(status)}`);
 }
 
 action(['nav', URL]);

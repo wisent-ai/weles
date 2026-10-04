@@ -179,10 +179,9 @@ async function inspectRow(row) {
   let openMenu = { ok: false, error: 'menu not attempted' };
   let menuVisible = false;
   for (const selector of selectors) {
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      openMenu = attempt === 0
-        ? await click(selector, true)
-        : await dispatchClick(selector, true);
+    // A real click first, a dispatched click when the menu did not open.
+    for (const opener of [click, dispatchClick]) {
+      openMenu = await opener(selector, true);
       await idle('short');
       menuVisible = await read(`(() => Array.from(document.querySelectorAll('[role="menuitem"], li, button'))
         .some((el) => Boolean(el.offsetParent) && el.innerText.trim() === 'Edytuj'))()`);
