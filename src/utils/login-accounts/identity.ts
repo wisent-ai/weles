@@ -18,6 +18,15 @@ export const tag = (item: Item, prefix: string): string =>
     typeof value === 'string' && value.startsWith(prefix) ? value.slice(prefix.length) : '',
   ).find(Boolean) ?? '';
 
+/** The owner-channel command that declares how to sign into a login row,
+ * keeping every tag the row already carries. */
+export const loginMethodDeclaration = (item: Item): string => {
+  const kept = (Array.isArray(item.tags) ? item.tags : [])
+    .filter((value: string) => typeof value === 'string' && !value.startsWith('weles:login-method:'));
+  const tags = [...kept, 'weles:login-method:<google_sso|email_password>'].join(',');
+  return `stado credentials item retag --host <vault owner> ${itemId(item)} --tags ${tags}`;
+};
+
 export const providerName = (value: string): string => value === 'claude-code' ? 'claude' : value;
 
 export const sameAccount = (left: string, right: string): boolean =>

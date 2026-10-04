@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { listCredentialItems, readDocument, writeDocument } from '../state/skarbiec-records.js';
 import {
   accountFromSubscriptionId,
-  itemId,
+  itemId, loginMethodDeclaration,
   providerName,
   sameAccount,
   tag,
@@ -50,6 +50,7 @@ function metadata(item: Item, provider = providerName(tag(item, 'brama:provider:
   if (typeof declared === 'string') declared = JSON.parse(declared);
   return {
     ...context,
+    login_method: text(context.login_method) || tag(item, 'weles:login-method:'),
     login_item: text(context.login_item) || text(declared?.login_item)
       || text(declared?.[`${provider.toUpperCase()}_SERVICE_CREDENTIAL_ID`]),
     account_ref: text(context.account_ref) || text(document.fields?.username),
@@ -211,7 +212,7 @@ function resolveAccount(subscription: Item, inventory: Item[], requested?: strin
   const login = eligible[0];
   const method = text(login.context.login_method) || text(context.login_method);
   if (!['google_sso', 'email_password'].includes(method)) fail('login_method_unsupported',
-    `Skarbiec login ${itemId(login.item)} declares unsupported login_method ${method || '(absent)'}`,
+    `Skarbiec login ${itemId(login.item)} declares unsupported login_method ${method || '(absent)'}; declare how to sign in with \`${loginMethodDeclaration(login.item)}\``,
     { subscription_id: subscriptionId, login_item: itemId(login.item), login_method: method });
   if (!['claude', 'codex', 'kimi'].includes(provider)) fail('subscription_provider_unsupported',
     `Skarbiec subscription ${subscriptionItem} declares unsupported provider ${provider}`,
