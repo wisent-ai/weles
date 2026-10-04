@@ -114,10 +114,16 @@ async function fillLoginForm(page) {
 /** Solve the rotate captcha, refreshing the puzzle between attempts, then re-submit. */
 async function passCaptcha(page) {
   console.log('[tiktok_login] captcha modal detected — attempting SadCaptcha solve');
+  // Every solve is a paid SadCaptcha call; how many one login may spend is
+  // the operator's TIKTOK_CAPTCHA_SOLVE_BUDGET, required.
+  const budget = Number(process.env.TIKTOK_CAPTCHA_SOLVE_BUDGET);
+  if (!Number.isInteger(budget) || budget <= 0) {
+    throw new Error('captcha_challenge: TIKTOK_CAPTCHA_SOLVE_BUDGET must say how many paid captcha solves one login may spend (a positive whole number)');
+  }
   let solved = false;
   // retry-allowed: each attempt is a different rotate puzzle after the widget's
   // own refresh control, which is how a person clears one they cannot solve.
-  for (let attempt = 0; attempt < 4 && !solved; attempt++) {
+  for (let attempt = 0; attempt < budget && !solved; attempt++) {
     if (attempt > 0) {
       // Click captcha refresh button to get a new puzzle. The icon is a
       // circular arrow at the bottom-right of the modal footer.
@@ -133,7 +139,7 @@ async function passCaptcha(page) {
   loginDiag.captcha.solved = solved;
   if (!solved) {
     await screenshotIfPossible(s, 'captcha_solve_failed');
-    throw new Error('captcha_challenge: SadCaptcha solve failed after 4 attempts');
+    throw new Error(`captcha_challenge: SadCaptcha solve failed after ${budget} attempts (TIKTOK_CAPTCHA_SOLVE_BUDGET)`);
   }
   // After captcha dismiss, TikTok web does NOT auto-submit the login form
   // Re-click submit manually to fire /passport/web/login/.
@@ -158,7 +164,7 @@ try {
   await humanIdlePause('deliberate');
   await screenshotIfPossible(s, 'post_submit_3s');
   console.log(`[tiktok_login] +3s loginResponses=${JSON.stringify(loginDiag.loginResponses)}`);
-  console.log(`[tiktok_login] +3s failedRequests=${JSON.stringify(loginDiag.failedRequests.slice(0, 10))}`);
+  console.log(`[tiktok_login] +3s failedRequests=${JSON.stringify(loginDiag.failedRequests)}`);
   // Captcha modal check. Excludes the "Verify it's really you" dialog which
   // shares the captcha-* class prefix but is an OTP flow handled below.
   const verifyDialogText = await verifyDialogPresent(s.page);

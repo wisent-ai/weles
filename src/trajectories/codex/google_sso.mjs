@@ -106,13 +106,16 @@ export async function doGoogleSso({
     return true;
   };
   try {
-    for (let attempt = 0; attempt < 4; attempt += 1) {
+    // Two ways in, in order: OpenAI's "Continue with Google" GIS button, then
+    // naming the account in OpenAI's own email field. Each runs until the page
+    // reaches a terminal state or stops offering anything new.
+    for (const strategy of ['gis_button', 'email_first']) {
       // "Continue with Google" is a GIS button: when it has no usable session
       // in this context it silently does nothing, and reloading the authorize
       // URL repeats that. Naming the account in OpenAI's own email field makes
       // the handoff explicit, and the Google session established above then
       // completes it without a chooser.
-      if (attempt > 0) {
+      if (strategy === 'email_first') {
         const emailField = page
           .locator('input[type="email"], input[name="username"], input[name="email"], input[autocomplete="username"]')
           .filter({ visible: true })
@@ -127,11 +130,13 @@ export async function doGoogleSso({
       const gate = await observeGisPage(page, login.email);
       if (gate?.gisButton) {
         await clickTagged(page, 'gis_button');
-        step(`a${attempt}:clicked-continue-with-google`);
+        step(`${strategy}:clicked-continue-with-google`);
       } else {
-        step(`a${attempt}:continue-with-google-not-offered`);
+        step(`${strategy}:continue-with-google-not-offered`);
       }
-      for (let i = 0; i < 200; i += 1) {
+      let lastHref = null;
+      for (;;) {
+        let popupActed = false;
         for (const popupPage of popupPages) {
           if (popupPage.isClosed()) continue;
           try {
@@ -143,7 +148,7 @@ export async function doGoogleSso({
           if (await handleCodexConsentPage(popupPage, mark)) { mark('openai_callback'); return popupPage; }
           const current = new URL(popupPage.url());
           if (isTerminalHost(current.host, current.href)) { mark('openai_callback'); return popupPage; }
-          await advanceGoogleChooser(popupPage);
+          if (await advanceGoogleChooser(popupPage)) popupActed = true;
         }
         const st = await navEval(page, () => {
           const b = Array.from(document.querySelectorAll('button,[role="button"]'));
@@ -196,16 +201,21 @@ export async function doGoogleSso({
                     return page;
           
         }
+        // A round in which no popup is open or moved and the page stayed on
+        // the same address with nothing to act on ends this strategy.
+        const popupOpen = popupPages.some((popupPage) => !popupPage.isClosed());
+        if (!popupActed && !popupOpen && st.href === lastHref) break;
+        lastHref = st.href;
         await pageSettled(page); // allow-raw-playwright: terminal-state poll
       }
       const where = await navEval(page, () => location.href, '?');
-      console.log(`[google_sso] no terminal state a${attempt} at ${where}; reloading authorizeUrl`);
+      console.log(`[google_sso] no terminal state after ${strategy} at ${where}; reloading authorizeUrl`);
       await page.goto(authorizeUrl, { waitUntil: 'commit' });
       await pageSettled(page);
     }
     const d = await navEval(page, () => ({ url: location.href, body: (document.body?.innerText || '').replace(/\s+/g, ' ') }), { url: '?', body: 'context destroyed' });
     d.trail = trail;
-    throw new Error(`gis_continue: no consent/code after 4 attempts diag=${JSON.stringify(d)}`);
+    throw new Error(`gis_continue: no consent/code after the GIS button and email-first ways in diag=${JSON.stringify(d)}`);
   } finally {
     page.off('popup', onPopup);
     for (const popupPage of popupPages) popupPage.off('popup', onPopup);
