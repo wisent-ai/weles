@@ -94,9 +94,10 @@ await clickCall();
 const afterCall = await snapshot();
 await clickApplyLikeButton();
 
-// Some LSI flows show an additional variant/confirmation modal before creating a draft.
+// Some LSI flows show additional variant/confirmation modals before creating a
+// draft; each one shown is confirmed until the draft page opens or none is left.
 let extraClicks = [];
-for (let i = 0; i < 3; i++) {
+for (;;) {
   const target = page.getByRole('button', { name: /Utwórz projekt|Rozpocznij|Aplikuj|Dalej|Potwierdzam/i }).or(page.getByRole('link', { name: /Utwórz projekt|Rozpocznij|Aplikuj|Dalej|Potwierdzam/i })).filter({ visible: true }).first();
   const clicked = await target.textContent().catch(() => '');
   if (clicked) await humanClickLocator(page, target);
@@ -115,7 +116,7 @@ console.log(JSON.stringify({
   extraClicks,
   finalUrl: page.url(),
   projectId: projectMatch?.[1] || null,
-  responses: responses.slice(-40),
+  responses,
   final,
 }, null, 2));
 process.exit(0);

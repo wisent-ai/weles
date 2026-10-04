@@ -31,9 +31,10 @@ try {
   await s.page.goto(`https://brightdata.com/cp/zones/${ZONE}/access_params`, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('long');
 
-  // Aggressively dismiss the "What is your role?" onboarding modal that
-  // re-appears after navigation. The dialog blocks all clicks until skipped.
-  for (let attempt = 0; attempt < 6; attempt++) {
+  // Dismiss the "What is your role?" onboarding modal every time it
+  // re-appears after navigation; the dialog blocks all clicks until skipped.
+  // The loop ends when no dismiss control is left.
+  for (let attempt = 0; ; attempt++) {
     let dismissed = false;
     for (const sel of [
       'button:has-text("Skip")',

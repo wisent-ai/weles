@@ -126,17 +126,22 @@ if (process.env.FIX_10_4) {
 
   if (process.env.LIST_10_4_WSK) {
     await openSelect('zasady_szesc_r_wskazniki');
+    // The virtualized list is scrolled one visible height at a time until
+    // its own scroll height is reached, so every option renders once.
     const options = [];
-    for (let i = 0; i < 20; i++) {
-      const seen = await page.evaluate((step) => {
+    for (;;) {
+      const seen = await page.evaluate(() => {
         const box = document.querySelector("[role='listbox']");
-        if (box) box.scrollTop = step * 300;
-        return Array.from(document.querySelectorAll("[role='listbox'] [role='option'], [role='option']")).map((o) => ({
+        const found = Array.from(document.querySelectorAll("[role='listbox'] [role='option'], [role='option']")).map((o) => ({
           text: o.textContent.trim(),
           selected: o.getAttribute('aria-selected'),
         })).filter((o) => o.text);
-      }, i); // allow-raw-playwright: read/scroll MUI option list for 10.4 diagnosis
-      for (const opt of seen) if (!options.some((o) => o.text === opt.text)) options.push(opt);
+        const atEnd = !box || box.scrollTop + box.clientHeight >= box.scrollHeight;
+        if (box && !atEnd) box.scrollTop += box.clientHeight;
+        return { found, atEnd };
+      }); // allow-raw-playwright: read/scroll MUI option list for 10.4 diagnosis
+      for (const opt of seen.found) if (!options.some((o) => o.text === opt.text)) options.push(opt);
+      if (seen.atEnd) break;
       await humanIdlePause('short');
     }
     console.log(JSON.stringify({ url: page.url(), options }, null, 2));

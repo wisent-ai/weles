@@ -56,27 +56,15 @@ if (process.env.PROXY_URL) {
 }
 console.log(`[login] Account: ${acct.username} (${process.env.SVC_EMAIL})`);
 
-let s;
-for (let retry = 0; retry < 3; retry++) {
-  try {
-    s = await WSession.start({ label: 'github_login', proxy: proxyUrl });
-    // Cookie-first removed — github.com serves a logged-out homepage shell
-    // and the saved cookies might be device-mismatched. Login always means
-    // form login now. Cookies stay around as a fallback in `s.ctx.cookies()`
-    // only if the form login below fully restores the session.
-    await s.goto('https://github.com/');
-    let rendered = false;
-    for (let i = 0; i < 15; i++) {
-      if (await s.page.evaluate('document.readyState === "complete" && document.body?.innerText?.length > 100').catch(() => false)) { rendered = true; break; }
-      await pageSettled(s.page);
-    }
-    if (rendered) { console.log(`[login] Homepage rendered on attempt ${retry + 1}`); break; }
-    console.log(`[login] Homepage failed on attempt ${retry + 1}, retrying...`);
-  } catch (e) { console.log(`[login] Attempt ${retry + 1} crashed: ${e.message}`); }
-  await s?.close().catch(() => {});
-  s = null;
-}
-if (!s) { console.error('FAIL: homepage never rendered'); process.exitCode = 1; }
+// One session, started once: a homepage that does not load is this run's
+// failure with Playwright's own cause, not a cue to try again a set number of
+// times. Cookie-first is removed — github.com serves a logged-out homepage
+// shell and saved cookies might be device-mismatched, so login always means
+// form login.
+const s = await WSession.start({ label: 'github_login', proxy: proxyUrl });
+await s.goto('https://github.com/');
+await s.page.waitForLoadState('load', { timeout: 0 });
+console.log('[login] Homepage loaded');
 
 try {
   // Cookie-first PASS branch removed. Always do form login.
@@ -125,21 +113,23 @@ try {
     process.exitCode = 1;
   }
 
-  // Wait for redirect
-  let url2 = '';
-  for (let i = 0; i < 10; i++) {
-    await pageSettled(s.page);
-    url2 = s.page.url?.() ?? '';
-    if (!url2.includes('/login') && !url2.includes('/session')) break;
-  }
+  // Wait until the page leaves the login form, or GitHub shows its error
+  // banner on it; the banner's text is the failure.
+  const leftLogin = s.page.waitForURL((url) => !url.pathname.startsWith('/login') && !url.pathname.startsWith('/session'), { timeout: 0 }).then(() => null);
+  const banner = s.page.locator('.flash-error, [role="alert"]').filter({ visible: true }).first();
+  const refused = banner.waitFor({ state: 'visible', timeout: 0 }).then(() => banner.innerText());
+  const loginRefusal = await Promise.race([leftLogin, refused]);
+  if (loginRefusal !== null) throw new Error(`login refused: ${loginRefusal.trim()}`);
+  let url2 = s.page.url?.() ?? '';
   console.log(`[login] After submit: ${url2}`);
 
   // Check for device verification (email code)
   if (url2.includes('sessions/verified-device') || url2.includes('launch_code') || url2.includes('two-factor')) {
     console.log('[login] Device verification required, polling Resend for code...');
     const emailAddr = process.env.SVC_EMAIL;
+    // The code arrives when GitHub sends it; the inbox is read until it does.
     let otp = null;
-    for (let poll = 0; poll < 20 && !otp; poll++) {
+    while (!otp) {
       await pageSettled(s.page);
       for (const em of await listReceivedFrom(10, emailAddr, 'github.com')) {
         const full = await getReceived(em.id);
@@ -148,7 +138,7 @@ try {
         if (m) { otp = m[1]; break; }
       }
     }
-    if (otp) {
+    {
       console.log(`[login] Device code: ${otp}`);
       await s.page.evaluate(`(code => {
         const inputs = document.querySelectorAll('input[autocomplete="one-time-code"], input[name*="code"], input[inputmode="numeric"]');
@@ -159,9 +149,6 @@ try {
       await pageSettled(s.page);
       url2 = s.page.url?.() ?? '';
       console.log(`[login] After device verify: ${url2}`);
-    } else {
-      console.error('FAIL: no device verification code received');
-      process.exitCode = 1;
     }
   }
 

@@ -9,23 +9,16 @@ import { getReceived, listReceivedFrom } from '../../_shared/resend-receiving.mj
 
 const URL = 'https://github.com/signup';
 
-let s;
-for (let retry = 0; retry < 3; retry++) {
-  try {
-    // No OS pin — persona OS rolls naturally. en-US locale pins language +
-    // accept-language headers to match US proxy geolocation.
-    s = await WSession.start({ label: 'github_register', proxy: process.env.PROXY_URL || 'residential', locale: 'en-US' });
-    await s.goto('https://github.com/');
-    // The page says when it has rendered; the trajectory waits for that, not
-    // for a counted number of seconds.
-    await s.page.waitForFunction('document.readyState === "complete" && document.body && document.body.innerText.length > 0', null, { timeout: 0 });
-    console.log(`[register] Homepage rendered on attempt ${retry + 1}`);
-    break;
-  } catch (e) { console.log(`[register] Attempt ${retry + 1} crashed: ${e.message}`); }
-  await s?.close().catch(() => {});
-  s = null;
-}
-if (!s) { console.log('FAIL: homepage never rendered'); process.exit(1); }
+// One session, started once: a homepage that does not render is this run's
+// failure with its own cause, not a cue to try a set number of times. No OS
+// pin — persona OS rolls naturally. en-US locale pins language +
+// accept-language headers to match US proxy geolocation.
+const s = await WSession.start({ label: 'github_register', proxy: process.env.PROXY_URL || 'residential', locale: 'en-US' });
+await s.goto('https://github.com/');
+// The page says when it has rendered; the trajectory waits for that, not
+// for a counted number of seconds.
+await s.page.waitForFunction('document.readyState === "complete" && document.body && document.body.innerText.length > 0', null, { timeout: 0 });
+console.log('[register] Homepage rendered');
 
 try {
   const id = await s.generateIdentity('github');
@@ -149,10 +142,9 @@ try {
   console.log(`[register] postMessage ack: ${JSON.stringify(ackRes)}`);
   await captchaReady;
   console.log(`[register] Arkose URLs (${seenArkoseUrls.length}):`);
-  for (const u of seenArkoseUrls.slice(0, 15)) console.log(`  - ${u}`);
+  for (const u of seenArkoseUrls) console.log(`  - ${u}`);
   console.log(`[register] GitHub POSTs during flow (${seenGithubPosts.length}):`);
-  for (const p of seenGithubPosts.slice(0, 15)) console.log(`  - ${p}`);
-  if (seenArkoseUrls.length < 15) { console.log(`IP_FLAGGED: only ${seenArkoseUrls.length} Arkose URLs (<15) — proxy burnt, rotate and retry`); await s.close().catch(()=>{}); process.exit(42); }
+  for (const p of seenGithubPosts) console.log(`  - ${p}`);
 
   // DOM-based extraction of pkey from iframe (data-src becomes src after load)
   if (!captcha.pkey) {
@@ -226,8 +218,9 @@ try {
   // Email OTP
   const emailAddr = s.resolveEnv('$GITHUB_NEW_EMAIL');
   console.log(`[register] Polling for OTP to ${emailAddr}...`);
+  // The code arrives when GitHub sends it; the inbox is read until it does.
   let otp = null;
-  for (let poll = 0; poll < 20 && !otp; poll++) {
+  while (!otp) {
     await s.wait(5);
     for (const em of await listReceivedFrom(10, emailAddr, 'github.com')) {
       const full = await getReceived(em.id);
@@ -235,10 +228,6 @@ try {
       const m = body.match(/\b(\d{6,8})\b/);
       if (m) { otp = m[1]; break; }
     }
-  }
-  if (!otp) {
-    await s.saveAccount('github', { username: id.username, email: id.email, password: id.password, status: 'unverified' });
-    console.log(`FAIL: no OTP — saved unverified: ${id.username}`); process.exit(1);
   }
   console.log(`[register] OTP: ${otp}`);
 

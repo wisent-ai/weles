@@ -78,16 +78,16 @@ async function signup(s) {
   }
 
   // Instagram's own prompts after login (save login, notifications) each
-  // offer "Not now".
-  for (let i = 0; i < 3; i++) {
-    if (!(await clickFirst(page, 'button', ['Not now']))) break;
+  // offer "Not now"; every one shown is dismissed.
+  while (await clickFirst(page, 'button', ['Not now'])) {
     await pageSettled(page);
   }
 
-  // Threads onboarding: each step offers a control to take it forward.
-  for (let i = 0; i < 15; i++) {
+  // Threads onboarding: each step offers a control to take it forward; however
+  // many there are are walked, and a page with none is the failure.
+  for (;;) {
     if (page.isClosed()) throw new Error('page_crashed_during_onboarding');
-    console.log(`[threads] onboarding ${i}: url=${page.url().slice(-40)}`);
+    console.log(`[threads] onboarding: url=${page.url()}`);
     if (await instagramBlocked(page)) throw new Error(`instagram_account_suspended_or_challenged: ${igUsername}`);
     if (onThreadsFeed(page)) {
       console.log('[threads] reached main feed');
@@ -117,7 +117,7 @@ async function signup(s) {
     (c.name === 'sessionid' || c.name === 'ig_did' || c.name === 'csrftoken')
   );
   if (threadsAuth.length < 1) {
-    console.log(`[threads] no threads auth cookies. all cookies: ${cookies.map(c => `${c.name}@${c.domain}`).slice(0, 20).join(', ')}`);
+    console.log(`[threads] no threads auth cookies. all cookies: ${cookies.map(c => `${c.name}@${c.domain}`).join(', ')}`);
     throw new Error('no_threads_auth_cookies');
   }
   console.log(`[threads] auth cookies: ${threadsAuth.map(c => `${c.name}@${c.domain}`).join(', ')}`);

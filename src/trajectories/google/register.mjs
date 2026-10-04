@@ -186,8 +186,9 @@ async function signup(s) {
   await pageSettled(page);
 
   // Steps 7+: recovery email (skip), terms (agree), confirmation — each
-  // offers its control; the flow ends on a Google product.
-  for (let i = 0; i < 6; i++) {
+  // offers its control; the flow ends on a Google product. However many steps
+  // Google shows are walked; a page with no control to continue is the failure.
+  for (;;) {
     const host = hostOf(page);
     if (host === 'myaccount.google.com' || host === 'mail.google.com' || host.endsWith('youtube.com')) break;
     if (await control(page, 'button', 'I agree') || await control(page, 'button', 'Accept')) {

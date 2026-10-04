@@ -147,15 +147,19 @@ async function signup(s, attempt = 1) {
   await pageSettled(page);
   await page.screenshot({ path: `${runRecordingsDir('instagram_register')}/ig_after_submit.png` });
 
-  // Leave the signup form: the next state is whatever the page asks for.
+  // Leave the signup form: the next state is whatever the page asks for. The
+  // page is read until it leaves the form; an error the form shows is the
+  // failure, with its text.
   let current = 'form';
-  for (let w = 0; w < 30 && current === 'form'; w++) {
+  while (current === 'form') {
     if (page.isClosed()) throw new Error('page_closed');
     await pageSettled(page);
     current = await state(page);
-    if (w % 5 === 0) console.log(`[ig] after submit ${w}: path=${pathOf(page)} state=${current}`);
+    if (current !== 'form') break;
+    const alert = page.locator('[role="alert"], #ssfErrorAlert').filter({ visible: true }).first();
+    if (await alert.count()) throw new Error(`signup_form_refused: ${(await alert.innerText()).trim()}`);
   }
-  if (current === 'form') throw new Error('signup_form_stuck');
+  console.log(`[ig] after submit: path=${pathOf(page)} state=${current}`);
 
   let smsCode = '';
   if (current === 'code') {
@@ -164,10 +168,12 @@ async function signup(s, attempt = 1) {
     console.log(`[ig] SMS code: ${smsCode}`);
   }
 
-  for (let i = 0; i < 30; i++) {
+  // However many onboarding steps Instagram shows are walked; a page offering
+  // none of the known controls is the failure, named by its path and state.
+  for (;;) {
     if (page.isClosed()) throw new Error('page_closed');
     current = await state(page);
-    console.log(`[ig] onboarding ${i}: path=${pathOf(page)} state=${current}`);
+    console.log(`[ig] onboarding: path=${pathOf(page)} state=${current}`);
     if (current === 'in') break;
     if (current === 'password_reset') throw new Error('password_reset_redirect');
     if (current === 'code') {
@@ -192,7 +198,10 @@ async function signup(s, attempt = 1) {
       }
       continue;
     }
-    if (await pressAny(s, ['skip', 'not now', 'next'])) await pageSettled(page);
+    if (!(await pressAny(s, ['skip', 'not now', 'next']))) {
+      throw new Error(`instagram_onboarding_unrecognised: path=${pathOf(page)} state=${current}`);
+    }
+    await pageSettled(page);
   }
 
   if (page.isClosed()) throw new Error('page_closed');

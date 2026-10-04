@@ -134,10 +134,8 @@ export async function runUsernameStep(s, id, humanClickLocator) {
     } catch {}
   }
 
-  for (let w = 0; w < 15; w++) {
-    await pageSettled(s.page);
-    const u = s.page.url?.() ?? '';
-    if (!u.includes('/signup/create-username')) { console.log(`[test] left create-username at wait ${w}: ${u}`); break; }
-  }
+  // The step is done when TikTok leaves the create-username page.
+  await s.page.waitForURL((url) => !url.pathname.includes('/signup/create-username'), { timeout: 0 });
+  console.log(`[test] left create-username: ${s.page.url()}`);
   return finalUsername;
 }
