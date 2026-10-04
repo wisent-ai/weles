@@ -19,9 +19,6 @@ const STANDARD_ACCOUNT_ROLE = 'apple-account-holder';
 const ROLE = /^[a-z0-9][a-z0-9-]{0,126}$/;
 const HOST = /^[A-Za-z0-9][A-Za-z0-9._-]{0,252}$/;
 const STANDARD_AGENT = 'weles-worker';
-const STANDARD_EXPIRY_MINUTES = '10';
-const MIN_EXPIRY_MINUTES = 1;
-const MAX_EXPIRY_MINUTES = 60;
 const START_OPTIONS = ['provider', 'account-role', 'confirm', 'execution-host', 'execution-agent', 'expires-in-minutes'];
 const PROVIDER = 'apple';
 
@@ -42,12 +39,14 @@ async function start(parsed: ParsedCli): Promise<Record<string, unknown>> {
   const accountRole = optional(parsed, 'account-role', STANDARD_ACCOUNT_ROLE);
   const executionHost = required(parsed, 'execution-host');
   const executionAgent = optional(parsed, 'execution-agent', STANDARD_AGENT);
-  const expiryMinutes = Number(optional(parsed, 'expires-in-minutes', STANDARD_EXPIRY_MINUTES));
+  // How long the one-use capabilities live is the operator's to say for each
+  // run; no lifetime is chosen here.
+  const expiryMinutes = Number(required(parsed, 'expires-in-minutes'));
   if (!ROLE.test(accountRole)) throw new Error('--account-role must be a Skarbiec role (lowercase letters, digits and hyphens)');
   if (required(parsed, 'confirm') !== CONFIRMATION_PHRASE) throw new Error(`--confirm must exactly equal "${CONFIRMATION_PHRASE}"`);
   if (!HOST.test(executionHost)) throw new Error('--execution-host must name the Stado host that runs the browser');
-  if (!Number.isInteger(expiryMinutes) || expiryMinutes < MIN_EXPIRY_MINUTES || expiryMinutes > MAX_EXPIRY_MINUTES) {
-    throw new Error(`--expires-in-minutes must be a whole number between ${MIN_EXPIRY_MINUTES} and ${MAX_EXPIRY_MINUTES}`);
+  if (!Number.isInteger(expiryMinutes) || expiryMinutes <= 0) {
+    throw new Error('--expires-in-minutes must be a positive whole number of minutes');
   }
   const authorization = await issueAppleAuthorization(accountRole, executionHost, executionAgent, expiryMinutes);
   const runId = await startAppleRun('apple_login', authorization, {});

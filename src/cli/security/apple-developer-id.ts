@@ -29,9 +29,6 @@ const ROLE = /^[a-z0-9][a-z0-9-]{0,126}$/;
 const HOST = /^[A-Za-z0-9][A-Za-z0-9._-]{0,252}$/;
 const STANDARD_AGENT = 'weles-worker';
 const PROVIDER = 'apple';
-const STANDARD_EXPIRY_MINUTES = 15;
-const MIN_EXPIRY_MINUTES = 1;
-const MAX_EXPIRY_MINUTES = 60;
 const RSA_BITS = '2048';
 const OWNER_ONLY_FILE = 0o600;
 const PUBLIC_FILE = 0o644;
@@ -113,12 +110,16 @@ async function start(parsed: ParsedCli): Promise<Record<string, unknown>> {
   const executionAgent = text(parsed, 'execution-agent') ?? STANDARD_AGENT;
   const keyOut = text(parsed, 'private-key-out') ?? '';
   const subject = text(parsed, 'subject') ?? '';
-  const expiryMinutes = Number(text(parsed, 'expires-in-minutes') ?? STANDARD_EXPIRY_MINUTES);
+  // How long the one-use capabilities live is the operator's to say for each
+  // run; no lifetime is chosen here.
+  const expiryText = text(parsed, 'expires-in-minutes');
+  if (expiryText === undefined) throw new Error('--expires-in-minutes is required');
+  const expiryMinutes = Number(expiryText);
   if (!ROLE.test(accountRole)) throw new Error('--account-role must be a Skarbiec role (lowercase letters, digits and hyphens)');
   if (text(parsed, 'confirm') !== CONFIRMATION_PHRASE) throw new Error(`--confirm must exactly equal "${CONFIRMATION_PHRASE}"`);
   if (!HOST.test(executionHost)) throw new Error('--execution-host must name the Stado host that runs the browser');
-  if (!Number.isInteger(expiryMinutes) || expiryMinutes < MIN_EXPIRY_MINUTES || expiryMinutes > MAX_EXPIRY_MINUTES) {
-    throw new Error(`--expires-in-minutes must be a whole number between ${MIN_EXPIRY_MINUTES} and ${MAX_EXPIRY_MINUTES}`);
+  if (!Number.isInteger(expiryMinutes) || expiryMinutes <= 0) {
+    throw new Error('--expires-in-minutes must be a positive whole number of minutes');
   }
   // The key is the half that matters: a certificate without it signs nothing,
   // so its destination is demanded before anything is issued.
