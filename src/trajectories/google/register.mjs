@@ -150,7 +150,9 @@ async function signup(s) {
       console.log(`[google] QR approval failed: ${e.message}`);
       throw new Error('qr_code_blocked');
     }
-    for (let i = 0; i < 20 && !phone; i++) {
+    // Walk the intro screens until the phone field appears; a screen with no
+    // phone field and no control to continue is the failure.
+    while (!phone) {
       phone = await phoneInput(page);
       if (phone) break;
       if (!(await clickNext(page)) && !(await clickFirst(page, 'button', ['Continue', 'Use phone number']))) {
@@ -158,7 +160,6 @@ async function signup(s) {
       }
       await pageSettled(page);
     }
-    if (!phone) throw new Error('qr_code_blocked');
   }
 
   console.log('[google] phone verification');

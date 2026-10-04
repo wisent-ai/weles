@@ -84,8 +84,11 @@ export async function openKeywordPlanner() {
     await nav(url);
     await selectGoogleAdsAccount();
     await dismissChrome();
+    // The planner is ready when it says so; the next candidate is tried only
+    // when this one has sent the browser to a sign-in or an account selection.
     let s = await evalState();
-    for (let i = 0; i < 12 && !PLANNER_READY.test(s.text || ''); i += 1) {
+    while (!PLANNER_READY.test(s.text || '')) {
+      if (/accounts\.google\.com|selectaccount/i.test(s.url || '')) break;
       await idle('short');
       s = await evalState();
     }

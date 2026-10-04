@@ -176,7 +176,10 @@ async function listTextChannels(token, guildId) {
 async function harvestChannelAuthors(token, channelId, want, seen) {
   const authors = [];
   let before = null;
-  for (let page = 0; page < 60 && authors.length < want; page++) {
+  // Pages back through the channel until `want` authors are found or the
+  // channel has no older messages; Discord's own page size of 100 is the API
+  // maximum for this endpoint.
+  while (authors.length < want) {
     const q = before ? `?limit=100&before=${before}` : '?limit=100';
     const r = await discordApi(token, `/channels/${channelId}/messages${q}`);
     if (r.status !== 200) { console.log(`[harvest] msgs ch=${channelId} status=${r.status}`); break; }

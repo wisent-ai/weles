@@ -14,11 +14,11 @@ import { humanType } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 
 const URL = 'https://appleid.apple.com/account';
-const MAX_RETRIES = 3;
 
-for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-  console.log(`\n=== Apple ID signup attempt ${attempt}/${MAX_RETRIES} ===`);
-  const s = await WSession.start({ label: `apple_register_${attempt}`, proxy: process.env.PROXY_URL || 'none' });
+// One signup per run: a failure is reported with its cause, and whether to
+// spend another identity on a second run is the caller's decision.
+{
+  const s = await WSession.start({ label: 'apple_register', proxy: process.env.PROXY_URL || 'none' });
   try {
     const id = await s.generateIdentity('apple');
     console.log(`[apple] identity: ${id.username} <${id.email}> dob=${id.birthMonth}/${id.birthDay}/${id.birthYear}`);
@@ -140,9 +140,8 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     console.log(`PASS: apple ${id.email}`);
     process.exit(0);
   } catch (e) {
-    console.log(`FAIL (attempt ${attempt}): ${e.message}`);
+    console.log(`FAIL: ${e.message}`);
     await s.close().catch(() => {});
-    if (attempt === MAX_RETRIES) { console.log('All attempts exhausted'); process.exit(1); }
-    await humanIdlePause('deliberate');
+    process.exit(1);
   }
 }
