@@ -10,6 +10,24 @@ import { pathToFileURL } from 'node:url';
 import { HOME, REPO, STARTUP_FIELDS, actionAllowlist, declaredNames } from './configuration.mjs';
 import { executable, refuse, run } from './running.mjs';
 
+/**
+ * The address Stado's service directory published for `service` on this host
+ * (`~/.stado/forwards/<service>.local`). No port is written here: the
+ * resolver adapter's bind is the host's declaration, and a guessed one reaches
+ * whatever listens there.
+ */
+function forwardedAddress(service) {
+  const marker = join(HOME, '.stado/forwards', `${service}.local`);
+  let address = '';
+  try {
+    address = readFileSync(marker, 'utf8').trim();
+  } catch (error) {
+    refuse(`no ${service} address: ${marker} cannot be read (${error.message}); let \`stado service directory publish\` write it`);
+  }
+  if (!address) refuse(`no ${service} address: ${marker} is empty`);
+  return address;
+}
+
 export async function startup() {
   // Secret acquisition authenticates the workload itself, so the identity is
   // set before the first acquisition, not only before the broker starts.
@@ -77,8 +95,8 @@ export async function startup() {
   // expression would never win. This is the alias Brama serves for Weles; the
   // model behind it is the route table's decision, not this file's.
   process.env.WELES_AGENT_MODEL = 'weles';
-  process.env.STADO_MODEL_ROUTER_URL = 'http://127.0.0.1:17601';
-  process.env.STADO_API_URL = 'http://127.0.0.1:17603';
+  process.env.STADO_MODEL_ROUTER_URL = forwardedAddress('brama');
+  process.env.STADO_API_URL = forwardedAddress('stado-object-api');
   process.env.STADO_API_TOKEN = process.env.WELES_STADO_OBJECT_API_TOKEN;
   process.env.SKARBIEC_VAULT_FILE = join(HOME, '.stado/skarbiec.vault.json');
   delete process.env.SKARBIEC_CAPABILITY_FILE;
