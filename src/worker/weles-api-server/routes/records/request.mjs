@@ -1,13 +1,8 @@
 // What a caller may ask of a record route, checked before Skarbiec is touched.
-// A request outside these bounds is refused with the field that broke it.
-
-import {
-  MAX_DISPLAY_NAME_CHARS,
-  MAX_PASSWORD_CHARS,
-  MAX_PLATFORM_CHARS,
-  MAX_SETTING_KEYS,
-  MAX_USERNAME_CHARS,
-} from './constants.mjs';
+// A request of the wrong shape is refused with the field that broke it. No
+// length or count is chosen here: the item-id shapes Skarbiec records enforce
+// (src/state/skarbiec-records.ts) and Skarbiec's own refusal decide what a
+// record can hold, and that refusal is returned.
 
 export class RecordRequestRefused extends Error {
   constructor(field, message) {
@@ -24,33 +19,33 @@ function object(value, field) {
   return value;
 }
 
-function text(value, field, maximum, { required }) {
+function text(value, field, { required }) {
   if (value === undefined || value === null || value === '') {
     if (required) throw new RecordRequestRefused(field, 'is required');
     return undefined;
   }
-  if (typeof value !== 'string' || value.length > maximum) {
-    throw new RecordRequestRefused(field, `must be text of at most ${maximum} characters`);
+  if (typeof value !== 'string') {
+    throw new RecordRequestRefused(field, 'must be text');
   }
   return value;
 }
 
 export function platformFilter(body) {
-  return text(object(body, 'body').platform, 'platform', MAX_PLATFORM_CHARS, { required: false });
+  return text(object(body, 'body').platform, 'platform', { required: false });
 }
 
 export function accountId(body) {
-  return text(object(body, 'body').account_id, 'account_id', MAX_USERNAME_CHARS, { required: true });
+  return text(object(body, 'body').account_id, 'account_id', { required: true });
 }
 
 export function accountInput(body) {
   const account = object(object(body, 'body').account, 'account');
   const metadata = Object.hasOwn(account, 'metadata') ? object(account.metadata, 'account.metadata') : {};
   return {
-    platform: text(account.platform, 'account.platform', MAX_PLATFORM_CHARS, { required: true }),
-    username: text(account.username, 'account.username', MAX_USERNAME_CHARS, { required: true }),
-    password: text(account.password, 'account.password', MAX_PASSWORD_CHARS, { required: false }),
-    displayName: text(account.display_name, 'account.display_name', MAX_DISPLAY_NAME_CHARS, { required: false }),
+    platform: text(account.platform, 'account.platform', { required: true }),
+    username: text(account.username, 'account.username', { required: true }),
+    password: text(account.password, 'account.password', { required: false }),
+    displayName: text(account.display_name, 'account.display_name', { required: false }),
     metadata,
   };
 }
@@ -69,8 +64,8 @@ export function accountPatch(body) {
 
 export function settingKeys(body) {
   const keys = object(body, 'body').keys;
-  if (!Array.isArray(keys) || !keys.length || keys.length > MAX_SETTING_KEYS || keys.some((key) => typeof key !== 'string')) {
-    throw new RecordRequestRefused('keys', `must be a list of 1 to ${MAX_SETTING_KEYS} setting names`);
+  if (!Array.isArray(keys) || !keys.length || keys.some((key) => typeof key !== 'string')) {
+    throw new RecordRequestRefused('keys', 'must be a non-empty list of setting names');
   }
   return keys;
 }
@@ -78,5 +73,5 @@ export function settingKeys(body) {
 export function settingInput(body) {
   const input = object(body, 'body');
   if (!Object.hasOwn(input, 'value')) throw new RecordRequestRefused('value', 'is required');
-  return { key: text(input.key, 'key', MAX_PLATFORM_CHARS, { required: true }), value: input.value };
+  return { key: text(input.key, 'key', { required: true }), value: input.value };
 }
