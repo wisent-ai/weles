@@ -11,9 +11,6 @@ import {
 } from '../wire/canonical-json.mjs';
 
 export const PUBLIC_ACTION = 'generic_browser_task';
-export const MAX_TEXT = 4_000;
-const MAX_OBJECT_KEYS = 128;
-const MAX_ARRAY_ITEMS = 1_000;
 const SENSITIVE_KEY_RE = /password|secret|token|cookie|authorization|proxy.?auth/i;
 
 function requiredEnvironment(name, environment) {
@@ -86,11 +83,9 @@ export function loadConfig(environment, policy) {
   });
 }
 
-export function assertBoundedJson(value, path = 'input', depth = 0) {
-  if (depth > 16) throw new PublicTaskError(400, 'invalid-input', `${path} is too deeply nested`);
-  if (typeof value === 'string' && value.length > MAX_TEXT) {
-    throw new PublicTaskError(400, 'invalid-input', `${path} exceeds ${MAX_TEXT} characters`);
-  }
+// The task's JSON shape: safe integers, no lone surrogates, no secret-shaped
+// keys. No length, count or depth is chosen here.
+export function assertBoundedJson(value, path = 'input') {
   if (typeof value === 'string' && containsLoneSurrogate(value)) {
     throw new PublicTaskError(400, 'invalid-input', `${path} rejects lone UTF-16 surrogates`);
   }
@@ -98,13 +93,11 @@ export function assertBoundedJson(value, path = 'input', depth = 0) {
     throw new PublicTaskError(400, 'invalid-input', `${path} permits safe integers only`);
   }
   if (Array.isArray(value)) {
-    if (value.length > MAX_ARRAY_ITEMS) throw new PublicTaskError(400, 'invalid-input', `${path} has too many entries`);
-    value.forEach((entry, index) => assertBoundedJson(entry, `${path}[${index}]`, depth + 1));
+    value.forEach((entry, index) => assertBoundedJson(entry, `${path}[${index}]`));
     return;
   }
   if (!isObject(value)) return;
   const entries = Object.entries(value);
-  if (entries.length > MAX_OBJECT_KEYS) throw new PublicTaskError(400, 'invalid-input', `${path} has too many keys`);
   for (const [key, entry] of entries) {
     if (containsLoneSurrogate(key)) {
       throw new PublicTaskError(400, 'invalid-input', `${path} contains a key with a lone UTF-16 surrogate`);
@@ -112,12 +105,12 @@ export function assertBoundedJson(value, path = 'input', depth = 0) {
     if (SENSITIVE_KEY_RE.test(key)) {
       throw new PublicTaskError(400, 'sensitive-input-denied', `plaintext secret-shaped field denied at ${path}.${key}`);
     }
-    assertBoundedJson(entry, `${path}.${key}`, depth + 1);
+    assertBoundedJson(entry, `${path}.${key}`);
   }
 }
 
 export function exactHttpsOrigin(value) {
-  if (typeof value !== 'string' || value.length > 2_048) {
+  if (typeof value !== 'string') {
     throw new PublicTaskError(400, 'invalid-origin', 'origin must be an exact HTTPS origin');
   }
   let parsed;
@@ -131,12 +124,12 @@ export function exactHttpsOrigin(value) {
 }
 
 export function exactPublicHttpsUrl(value) {
-  if (typeof value !== 'string' || value.length > 4_096) {
-    throw new PublicTaskError(400, 'invalid-input', 'input.product_url must be a bounded public HTTPS URL');
+  if (typeof value !== 'string') {
+    throw new PublicTaskError(400, 'invalid-input', 'input.product_url must be a public HTTPS URL');
   }
   let parsed;
   try { parsed = new URL(value); } catch {
-    throw new PublicTaskError(400, 'invalid-input', 'input.product_url must be a bounded public HTTPS URL');
+    throw new PublicTaskError(400, 'invalid-input', 'input.product_url must be a public HTTPS URL');
   }
   if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.toString() !== value) {
     throw new PublicTaskError(400, 'invalid-input', 'input.product_url must be exact canonical HTTPS without credentials');

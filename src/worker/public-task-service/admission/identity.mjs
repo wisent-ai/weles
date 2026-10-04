@@ -2,15 +2,17 @@ import { PublicTaskError } from '../wire.mjs';
 import { isObject, sha256Text } from '../wire/canonical-json.mjs';
 import { PUBLIC_ACTION } from './deployment.mjs';
 
-function boundedBindingText(value, name, maximum = 1_024) {
-  if (typeof value !== 'string' || !value.trim() || value.length > maximum) {
-    throw new PublicTaskError(400, 'invalid-spis-binding', `${name} must be a bounded non-empty string`);
+// A non-empty string; no length is chosen here. A path component is held to
+// the portable character set and the URI to its exact stado:// shape below.
+function bindingText(value, name) {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new PublicTaskError(400, 'invalid-spis-binding', `${name} must be a non-empty string`);
   }
   return value;
 }
 
 function portableBindingComponent(value, name) {
-  const text = boundedBindingText(value, name, 240);
+  const text = bindingText(value, name);
   if (text === '.' || text === '..' || !/^[A-Za-z0-9._-]+$/.test(text)) {
     throw new PublicTaskError(400, 'invalid-spis-binding', `${name} must be one strict portable non-dot path component`);
   }
@@ -18,7 +20,7 @@ function portableBindingComponent(value, name) {
 }
 
 function exactStadoUri(value, name) {
-  const text = boundedBindingText(value, name, 4_096);
+  const text = bindingText(value, name);
   let parsed;
   try { parsed = new URL(text); } catch {
     throw new PublicTaskError(400, 'invalid-spis-binding', `${name} must be an exact stado:// URI`);

@@ -48,6 +48,4 @@ export const PUBLIC_TASK_CONCURRENCY = boundedIntegerEnvironment(
   1,
   1,
 );
-export const BODY_LIMIT = Number(process.env.WELES_API_BODY_LIMIT_BYTES || 256 * 1024);
 export const RUN_DEDUPLICATION_TTL_MS = Number(process.env.WELES_API_RUN_DEDUPLICATION_TTL_MS || 60_000);
-export const IMPORT_BODY_LIMIT = 2 * 1024 * 1024 + 4 * 1024;

@@ -1,16 +1,16 @@
 // What one HTTP exchange with this server consists of: who is allowed to speak,
-// how much of what they send is read, and what may appear in the answer.
+// what of what they send is read, and what may appear in the answer.
 //
 // The three are one subject because they are the same boundary seen from both
 // directions. A caller is admitted by a bearer token or an api-key header and
-// by nothing else; a body is accepted only up to the configured limit, so a
-// stream that never ends cannot exhaust the process; and every answer leaves
-// through one writer that runs the secret-shape redactor unless the route
-// deliberately turns it off. A route that wrote its own response would be a
-// second answer path with a second redaction policy, which is exactly the way
-// a token gets out.
+// by nothing else; a body is read whole, and what a route accepts is that
+// route's own shape check, not a byte count chosen here; and every answer
+// leaves through one writer that runs the secret-shape redactor unless the
+// route deliberately turns it off. A route that wrote its own response would
+// be a second answer path with a second redaction policy, which is exactly the
+// way a token gets out.
 
-import { BODY_LIMIT, TOKEN, BRAMA_REAUTH_TOKEN, ALLOW_UNAUTH } from './configuration.mjs';
+import { TOKEN, BRAMA_REAUTH_TOKEN, ALLOW_UNAUTH } from './configuration.mjs';
 
 function tokenAuthorized(req) {
   if (!TOKEN) return false;
@@ -56,14 +56,13 @@ export function requireTokenAuthorization(req, res) {
   return false;
 }
 
-export function readBody(req, limit = BODY_LIMIT) {
+// The whole request body as JSON. No size is chosen here: every route behind
+// this reader takes a Weles bearer, and what a route accepts is decided by
+// that route's own shape checks.
+export function readBody(req) {
   return new Promise((resolveBody, reject) => {
-    let size = 0; const chunks = [];
-    req.on('data', (c) => {
-      size += c.length;
-      if (size > limit) { reject(new Error('body_too_large')); req.destroy(); return; }
-      chunks.push(c);
-    });
+    const chunks = [];
+    req.on('data', (c) => chunks.push(c));
     req.on('end', () => {
       const text = Buffer.concat(chunks).toString('utf8');
       if (!text.trim()) { resolveBody({}); return; }
@@ -77,12 +76,8 @@ export function readBody(req, limit = BODY_LIMIT) {
 // (text/plain). No JSON envelope required.
 export function readText(req) {
   return new Promise((resolveBody, reject) => {
-    let size = 0; const chunks = [];
-    req.on('data', (c) => {
-      size += c.length;
-      if (size > BODY_LIMIT) { reject(new Error('body_too_large')); req.destroy(); return; }
-      chunks.push(c);
-    });
+    const chunks = [];
+    req.on('data', (c) => chunks.push(c));
     req.on('end', () => resolveBody(Buffer.concat(chunks).toString('utf8')));
     req.on('error', reject);
   });

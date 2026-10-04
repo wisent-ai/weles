@@ -1,9 +1,10 @@
 // What arrives on the wire and what counts as a request: the JSON envelope this
-// facade writes back, the size-capped body it is willing to read, the token it
-// demands before doing any work, and the two request shapes it accepts — a bare
-// keyword volume check and a keyword report brief that names a product.
+// facade writes back, the whole body it reads (no size is chosen here), the
+// token it demands before doing any work, and the two request shapes it
+// accepts — a bare keyword volume check and a keyword report brief that names
+// a product.
 
-import { ALLOW_UNAUTH, API_TOKEN, BODY_LIMIT_BYTES, SESSION } from './service_settings.mjs';
+import { ALLOW_UNAUTH, API_TOKEN, SESSION } from './service_settings.mjs';
 
 export function json(res, status, body) {
   const text = JSON.stringify(body, null, 2);
@@ -17,17 +18,8 @@ export function json(res, status, body) {
 
 export function readJsonBody(req) {
   return new Promise((resolveBody, rejectBody) => {
-    let size = 0;
     const chunks = [];
-    req.on('data', (chunk) => {
-      size += chunk.length;
-      if (size > BODY_LIMIT_BYTES) {
-        rejectBody(new Error('request body too large'));
-        req.destroy();
-        return;
-      }
-      chunks.push(chunk);
-    });
+    req.on('data', (chunk) => chunks.push(chunk));
     req.on('end', () => {
       try {
         resolveBody(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'));

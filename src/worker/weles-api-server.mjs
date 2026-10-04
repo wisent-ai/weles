@@ -22,7 +22,6 @@
 //   BRAMA_WELES_REAUTH_TOKEN required for Brama's POST /reauth admission
 //   WELES_API_HOST   required; the address the service declaration assigns
 //   WELES_API_PORT   required; the port the service declaration assigns
-//   WELES_API_BODY_LIMIT_BYTES default 262144
 //   WELES_API_ALLOW_RAW_CREDS  default "1"
 //   WELES_API_BASE, WELES_TOKEN, WISENT_ORGANIZATION_ID for destination imports
 //   WELES_KEYWORD_PLANNER_API_TOKEN and the model-router variables for the

@@ -1,7 +1,6 @@
 import { PublicTaskError } from './wire.mjs';
 import { canonicalJson, constantTimeTextEqual, digest, isObject } from './wire/canonical-json.mjs';
 import {
-  MAX_TEXT,
   PUBLIC_ACTION,
   assertBoundedJson,
   exactHttpsOrigin,
@@ -60,8 +59,8 @@ export function parseTaskRequest(body, config) {
   if (new URL(url).origin !== origin) {
     throw new PublicTaskError(403, 'origin-target-mismatch', 'task origin must equal the exact browser target origin');
   }
-  if (typeof body.input.objective !== 'string' || !body.input.objective.trim() || body.input.objective.length > MAX_TEXT) {
-    throw new PublicTaskError(400, 'invalid-input', 'input.objective must be a bounded non-empty string');
+  if (typeof body.input.objective !== 'string' || !body.input.objective.trim()) {
+    throw new PublicTaskError(400, 'invalid-input', 'input.objective must be a non-empty string');
   }
   if (body.input.headless !== undefined && body.input.headless !== true) {
     throw new PublicTaskError(400, 'invalid-input', 'browser-evidence tasks require headless=true');
@@ -83,8 +82,8 @@ export function parseTaskRequest(body, config) {
   if (body.evidencePolicy !== 'full') {
     throw new PublicTaskError(400, 'invalid-evidence-policy', 'browser-evidence tasks require evidencePolicy=full');
   }
-  if (typeof body.justification !== 'string' || !body.justification.trim() || body.justification.length > 2_000) {
-    throw new PublicTaskError(400, 'invalid-justification', 'justification must be a bounded non-empty string');
+  if (typeof body.justification !== 'string' || !body.justification.trim()) {
+    throw new PublicTaskError(400, 'invalid-justification', 'justification must be a non-empty string');
   }
   const request = {
     schema: body.schema,
@@ -124,8 +123,8 @@ export function parseCancellation(body, config) {
   if (body.organizationId !== config.organizationId) {
     throw new PublicTaskError(403, 'organization-denied', 'organizationId is outside the authenticated tenant');
   }
-  if (typeof body.reason !== 'string' || !body.reason.trim() || body.reason.length > 2_000) {
-    throw new PublicTaskError(400, 'invalid-cancellation', 'reason must be a bounded non-empty string');
+  if (typeof body.reason !== 'string' || !body.reason.trim()) {
+    throw new PublicTaskError(400, 'invalid-cancellation', 'reason must be a non-empty string');
   }
   return { organizationId: config.organizationId, reason: body.reason };
 }

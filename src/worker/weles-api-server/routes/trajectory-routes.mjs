@@ -23,7 +23,6 @@ import {
   ALLOW_RAW_CREDS,
   ALLOW_UNAUTH,
   BRAMA_REAUTH_TOKEN,
-  IMPORT_BODY_LIMIT,
   TOKEN,
 } from '../configuration.mjs';
 import {
@@ -61,7 +60,7 @@ const BUILDER_PREAMBLE = [
 export async function respondToDocumentImport(req, res, importWelesTrajectoryDocument) {
   if (!requireTokenAuthorization(req, res)) return;
   let body;
-  try { body = await readBody(req, IMPORT_BODY_LIMIT); }
+  try { body = await readBody(req); }
   catch (e) { json(res, 400, { ok: false, error: e.message }); return; }
   try {
     const report = await importWelesTrajectoryDocument(body.source, body.target_host);
