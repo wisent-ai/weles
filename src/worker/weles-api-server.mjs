@@ -20,8 +20,8 @@
 //
 //   WELES_API_TOKEN  (or WELES_CONSOLE_API_TOKEN) required for the general API
 //   BRAMA_WELES_REAUTH_TOKEN required for Brama's POST /reauth admission
-//   WELES_API_HOST   default 127.0.0.1  (set 0.0.0.0 to expose on the LAN/Tailscale)
-//   WELES_API_PORT   default 8788
+//   WELES_API_HOST   required; the address the service declaration assigns
+//   WELES_API_PORT   required; the port the service declaration assigns
 //   WELES_API_BODY_LIMIT_BYTES default 262144
 //   WELES_API_ALLOW_RAW_CREDS  default "1"
 //   WELES_API_BASE, WELES_TOKEN, WISENT_ORGANIZATION_ID for destination imports

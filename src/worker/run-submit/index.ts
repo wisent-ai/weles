@@ -8,13 +8,13 @@
 // Weles revision ships, so its job ids named nothing that could execute.
 //
 // The endpoint is the API this process belongs to (WELES_API_PORT on loopback),
-// or WELES_WORKER_API_BASE when the caller runs off-host; the bearer is the API
+// or WELES_WORKER_API_BASE when the caller runs off-host; with neither set the
+// run is refused by name, since no port is built in. The bearer is the API
 // token the process was started with. A missing token is refused by name.
 
 const SAFE_ACTION = /^[a-z][a-z0-9_]{0,127}$/;
 // An account item's id is random and means nothing; only its shape is checked.
 const ACCOUNT_ITEM = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,190}$/;
-const STANDARD_API_PORT = '8788';
 const QUOTED_BODY_CHARS = 300;
 const BODY_START = 0;
 
@@ -27,7 +27,11 @@ export interface WelesRunRequest {
 function apiBase(): string {
   const configured = process.env.WELES_WORKER_API_BASE?.trim();
   if (configured) return configured.replace(/\/+$/, '');
-  return `http://127.0.0.1:${process.env.WELES_API_PORT || STANDARD_API_PORT}`;
+  const port = process.env.WELES_API_PORT?.trim();
+  if (!port) {
+    throw new Error('cannot start a Weles run: neither WELES_WORKER_API_BASE nor WELES_API_PORT is set in this process');
+  }
+  return `http://127.0.0.1:${port}`;
 }
 
 function apiToken(): string {

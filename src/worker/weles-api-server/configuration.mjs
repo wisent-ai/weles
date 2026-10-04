@@ -28,8 +28,16 @@ function boundedIntegerEnvironment(name, declaredDefault, minimum, maximum) {
   }
   return value;
 }
-export const HOST = process.env.WELES_API_HOST || '127.0.0.1';
-export const PORT = Number(process.env.WELES_API_PORT || 8788);
+// The address comes from the service declaration (Stado's catalog writes
+// WELES_API_HOST and WELES_API_PORT into the unit's environment); none is
+// built in, so a host is never exposed on an interface or port nobody chose.
+function declaredAddress(name) {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(`${name} is not set: set it to the address the Weles service declaration assigns`);
+  return value;
+}
+export const HOST = declaredAddress('WELES_API_HOST');
+export const PORT = Number(declaredAddress('WELES_API_PORT'));
 export const TOKEN = process.env.WELES_API_TOKEN || process.env.WELES_CONSOLE_API_TOKEN || '';
 export const BRAMA_REAUTH_TOKEN = process.env.BRAMA_WELES_REAUTH_TOKEN || '';
 export const ALLOW_UNAUTH = process.env.WELES_API_ALLOW_UNAUTH === '1';

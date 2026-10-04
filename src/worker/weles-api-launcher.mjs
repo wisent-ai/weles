@@ -30,8 +30,12 @@ if (releaseVersion && releaseSha256) {
   process.env.WELES_WORKER_RELEASE_SHA256 = releaseSha256;
 }
 
-process.env.WELES_API_HOST = process.env.WELES_API_HOST || '0.0.0.0';
-process.env.WELES_API_PORT = process.env.WELES_API_PORT || '8788';
+// The address is the service declaration's (Stado's catalog writes
+// WELES_API_HOST and WELES_API_PORT into this unit's environment). None is
+// built in: a guessed one exposed every interface on a port nobody chose.
+for (const name of ['WELES_API_HOST', 'WELES_API_PORT']) {
+  if (!process.env[name]?.trim()) refuse(`${name} is not set: set it to the address the Weles service declaration assigns`);
+}
 const port = process.env.WELES_API_PORT;
 
 // Started as com.wisent.weles, this is the host's one Weles process.
@@ -45,7 +49,7 @@ retirePredecessors();
 //
 // What it says matters as much as what it does. A gateway sign-in can die
 // with `hyper::Error(IncompleteMessage)` against this port while this
-// unit's whole log is `port 8788 is already served: standing by`, once a
+// unit's whole log is `port <port> is already served: standing by`, once a
 // minute, for hours: no holder, no health, and `stado service status
 // weles-api` reading
 // `active` the entire time. So the holder is named, and it is asked whether
