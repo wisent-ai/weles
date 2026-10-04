@@ -2,21 +2,15 @@
 //
 // Both routes take typed steps, never a script: a caller names a public page,
 // the viewport, which load state the page must reach, and for a form export the
-// fields to fill and the button that exports. A request outside these bounds is
+// fields to fill and the button that exports. A request of the wrong shape is
 // refused with the field that broke it, so the caller learns what to change
-// instead of seeing a browser error from deep inside a run. A field the caller
-// omits takes the documented standard value (constants.mjs); the answer echoes
-// every value used.
+// instead of seeing a browser error from deep inside a run. No length or count
+// is chosen here; the browser refuses what it cannot do and its refusal is
+// returned. A field the caller omits takes the documented standard value
+// (constants.mjs); the answer echoes every value used.
 
 import {
   LOAD_STATES,
-  MAX_CLICK_TEXT_CHARS,
-  MAX_FIELD_VALUE_CHARS,
-  MAX_FIELDS,
-  MAX_SELECTOR_CHARS,
-  MAX_USER_AGENT_CHARS,
-  MAX_VIEWPORT_SIDE,
-  MIN_VIEWPORT_SIDE,
   NO_SCREENSHOT,
   SCREENSHOT_MODES,
   STANDARD_LOAD_STATE,
@@ -31,21 +25,21 @@ export class PageRequestRefused extends Error {
   }
 }
 
-function boundedInteger(body, field, standard, minimum, maximum) {
+function positiveInteger(body, field, standard) {
   const value = Object.hasOwn(body, field) ? body[field] : standard;
-  if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {
-    throw new PageRequestRefused(field, `must be an integer between ${minimum} and ${maximum}`);
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new PageRequestRefused(field, 'must be a positive integer');
   }
   return value;
 }
 
-function boundedText(value, field, maximum, { required }) {
+function text(value, field, { required }) {
   if (value === undefined || value === null || value === '') {
     if (required) throw new PageRequestRefused(field, 'is required');
     return undefined;
   }
-  if (typeof value !== 'string' || value.length > maximum) {
-    throw new PageRequestRefused(field, `must be text of at most ${maximum} characters`);
+  if (typeof value !== 'string') {
+    throw new PageRequestRefused(field, 'must be text');
   }
   return value;
 }
@@ -56,8 +50,8 @@ function viewportOf(body) {
     throw new PageRequestRefused('viewport', 'must be { width, height }');
   }
   return {
-    width: boundedInteger(viewport, 'width', STANDARD_VIEWPORT.width, MIN_VIEWPORT_SIDE, MAX_VIEWPORT_SIDE),
-    height: boundedInteger(viewport, 'height', STANDARD_VIEWPORT.height, MIN_VIEWPORT_SIDE, MAX_VIEWPORT_SIDE),
+    width: positiveInteger(viewport, 'width', STANDARD_VIEWPORT.width),
+    height: positiveInteger(viewport, 'height', STANDARD_VIEWPORT.height),
   };
 }
 
@@ -70,9 +64,9 @@ function common(body) {
     throw new PageRequestRefused('load_state', `must be one of ${LOAD_STATES.join(', ')}`);
   }
   return {
-    url: boundedText(body.url, 'url', Number.MAX_SAFE_INTEGER, { required: true }),
+    url: text(body.url, 'url', { required: true }),
     viewport: viewportOf(body),
-    userAgent: boundedText(body.user_agent, 'user_agent', MAX_USER_AGENT_CHARS, { required: false }),
+    userAgent: text(body.user_agent, 'user_agent', { required: false }),
     loadState,
   };
 }
@@ -91,15 +85,15 @@ export function snapshotRequest(body) {
 export function formExportRequest(body) {
   const request = common(body);
   const fields = Object.hasOwn(body, 'fields') ? body.fields : [];
-  if (!Array.isArray(fields) || fields.length > MAX_FIELDS) {
-    throw new PageRequestRefused('fields', `must be a list of at most ${MAX_FIELDS} { selector, value }`);
+  if (!Array.isArray(fields)) {
+    throw new PageRequestRefused('fields', 'must be a list of { selector, value }');
   }
   return {
     ...request,
     fields: fields.map((field, index) => ({
-      selector: boundedText(field?.selector, `fields[${index}].selector`, MAX_SELECTOR_CHARS, { required: true }),
-      value: boundedText(field?.value, `fields[${index}].value`, MAX_FIELD_VALUE_CHARS, { required: true }),
+      selector: text(field?.selector, `fields[${index}].selector`, { required: true }),
+      value: text(field?.value, `fields[${index}].value`, { required: true }),
     })),
-    clickText: boundedText(body.click_text, 'click_text', MAX_CLICK_TEXT_CHARS, { required: true }),
+    clickText: text(body.click_text, 'click_text', { required: true }),
   };
 }

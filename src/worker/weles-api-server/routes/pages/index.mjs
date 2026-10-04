@@ -12,8 +12,9 @@
 // host, the outcome and how long it took, so a failing caller can be read from
 // the host without reproducing it.
 //
-// At most CONCURRENT_PAGES pages are open at once; a request beyond that is
-// refused with 429 and the count, never queued behind a browser it cannot see.
+// At most CONCURRENT_PAGES pages are open at once, the number of processors
+// the host reports; a request beyond that is refused with 429 and the count,
+// never queued behind a browser it cannot see.
 
 import { json, readBody, requireTokenAuthorization } from '../../http-exchange.mjs';
 import { capturePageExport, capturePageSnapshot, PageLoadFailed } from './capture.mjs';

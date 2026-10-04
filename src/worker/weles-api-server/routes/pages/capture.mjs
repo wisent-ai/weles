@@ -11,19 +11,9 @@
 
 import { readFile } from 'node:fs/promises';
 
-import {
-  FULL_SCREENSHOT,
-  MAX_DOWNLOAD_BYTES,
-  MAX_ITEMS,
-  MAX_PALETTE,
-  MAX_SCREENSHOT_BYTES,
-  MAX_TEXT_BYTES,
-  NO_SCREENSHOT,
-  SCREENSHOT_JPEG_QUALITY,
-} from './constants.mjs';
+import { FULL_SCREENSHOT, NO_SCREENSHOT } from './constants.mjs';
 import { admitPublicTarget, guardContext } from './network.mjs';
 
-const TEXT_START = 0;
 const NONE_FOUND = 0;
 
 export class PageLoadFailed extends Error {
@@ -31,12 +21,6 @@ export class PageLoadFailed extends Error {
     super(message);
     this.name = 'PageLoadFailed';
   }
-}
-
-function truncateUtf8(value, maxBytes) {
-  const buffer = Buffer.from(value, 'utf8');
-  if (buffer.byteLength <= maxBytes) return value;
-  return buffer.subarray(TEXT_START, maxBytes).toString('utf8');
 }
 
 async function withLoadedPage({ openBrowser, publicAddresses }, request, work) {
@@ -63,7 +47,7 @@ async function withLoadedPage({ openBrowser, publicAddresses }, request, work) {
   }
 }
 
-function readStructure({ maxItems, maxPalette }) {
+function readStructure() {
   const start = 0;
   const clean = (value) => (value || '').replace(/\s+/g, ' ').trim();
   const visible = (element) => {
@@ -73,18 +57,17 @@ function readStructure({ maxItems, maxPalette }) {
   };
   const meta = (selector) => document.querySelector(selector)?.content || '';
   const textOf = (selector) => Array.from(document.querySelectorAll(selector))
-    .filter(visible).map((element) => clean(element.textContent)).filter(Boolean).slice(start, maxItems);
+    .filter(visible).map((element) => clean(element.textContent)).filter(Boolean);
   const linkOf = (selector) => Array.from(document.querySelectorAll(selector))
     .filter(visible).map((element) => ({ text: clean(element.textContent), href: element.href }))
-    .filter((entry) => entry.text || entry.href).slice(start, maxItems);
-  const sampled = Array.from(document.querySelectorAll('body *')).filter(visible).slice(start, maxItems);
-  const styles = sampled.map((element) => window.getComputedStyle(element));
-  const unique = (values) => Array.from(new Set(values.filter((value) => value && value !== 'rgba(0, 0, 0, 0)')))
-    .slice(start, maxPalette);
-  const forms = Array.from(document.querySelectorAll('form')).slice(start, maxItems).map((form) => ({
+    .filter((entry) => entry.text || entry.href);
+  const styles = Array.from(document.querySelectorAll('body *')).filter(visible)
+    .map((element) => window.getComputedStyle(element));
+  const unique = (values) => Array.from(new Set(values.filter((value) => value && value !== 'rgba(0, 0, 0, 0)')));
+  const forms = Array.from(document.querySelectorAll('form')).map((form) => ({
     action: form.action,
     method: form.method,
-    fields: Array.from(form.querySelectorAll('input,select,textarea')).slice(start, maxItems).map((field) => ({
+    fields: Array.from(form.querySelectorAll('input,select,textarea')).map((field) => ({
       name: field.name,
       type: field instanceof HTMLInputElement ? field.type : field.tagName.toLowerCase(),
       placeholder: 'placeholder' in field ? field.placeholder : '',
@@ -111,11 +94,11 @@ function readStructure({ maxItems, maxPalette }) {
       headings: textOf('h1,h2,h3'),
       headingOutline: Array.from(document.querySelectorAll('h1,h2,h3')).filter(visible)
         .map((element) => ({ level: element.tagName.toLowerCase(), text: clean(element.textContent) }))
-        .filter((heading) => heading.text).slice(start, maxItems),
+        .filter((heading) => heading.text),
       navigation: linkOf('nav a, header a'),
       callsToAction: textOf('button,[role="button"],a[class*="button"],a[class*="cta"]'),
       forms,
-      landmarks: Array.from(document.querySelectorAll('header,nav,main,aside,footer,section')).slice(start, maxItems)
+      landmarks: Array.from(document.querySelectorAll('header,nav,main,aside,footer,section'))
         .map((element) => ({
           tag: element.tagName.toLowerCase(),
           label: clean(element.getAttribute('aria-label') || element.querySelector('h1,h2,h3')?.textContent),
@@ -133,24 +116,16 @@ function readStructure({ maxItems, maxPalette }) {
 
 async function screenshotOf(page, mode) {
   if (mode === NO_SCREENSHOT) return null;
-  let image = await page.screenshot({ type: 'jpeg', quality: SCREENSHOT_JPEG_QUALITY, fullPage: mode === FULL_SCREENSHOT });
-  let taken = mode;
-  if (image.byteLength > MAX_SCREENSHOT_BYTES && mode === FULL_SCREENSHOT) {
-    image = await page.screenshot({ type: 'jpeg', quality: SCREENSHOT_JPEG_QUALITY, fullPage: false });
-    taken = 'viewport';
-  }
-  if (image.byteLength > MAX_SCREENSHOT_BYTES) {
-    return { requested: mode, content_type: 'image/jpeg', bytes: image.byteLength, embedded: false, omitted_reason: 'image_size_limit' };
-  }
-  return { requested: mode, taken, content_type: 'image/jpeg', bytes: image.byteLength, embedded: true, base64: image.toString('base64') };
+  const image = await page.screenshot({ type: 'png', fullPage: mode === FULL_SCREENSHOT });
+  return { requested: mode, taken: mode, content_type: 'image/png', bytes: image.byteLength, embedded: true, base64: image.toString('base64') };
 }
 
-/** The page as text, structure and, when asked, one JPEG. */
+/** The page as its whole text, its structure and, when asked, one PNG. */
 export function capturePageSnapshot(browser, request) {
   return withLoadedPage(browser, request, async (page) => {
-    const extracted = await page.evaluate(readStructure, { maxItems: MAX_ITEMS, maxPalette: MAX_PALETTE });
+    const extracted = await page.evaluate(readStructure);
     return {
-      text: truncateUtf8(extracted.text, MAX_TEXT_BYTES),
+      text: extracted.text,
       structured: extracted.structured,
       screenshot: await screenshotOf(page, request.screenshot),
     };
@@ -173,9 +148,6 @@ export function capturePageExport(browser, request) {
     const failure = await download.failure();
     if (failure) throw new PageLoadFailed(`the page's download failed: ${failure}`);
     const bytes = await readFile(await download.path());
-    if (bytes.byteLength > MAX_DOWNLOAD_BYTES) {
-      throw new PageLoadFailed(`the page's download is ${bytes.byteLength} bytes, over ${MAX_DOWNLOAD_BYTES}`);
-    }
     const name = download.suggestedFilename();
     const extension = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
     return {
