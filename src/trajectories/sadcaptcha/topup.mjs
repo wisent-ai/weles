@@ -3,6 +3,7 @@ import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { topupOpts } from '../_shared/services/topup_common.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { submitAnswered } from '../_shared/page/settled.mjs';
 
 const { usd } = topupOpts();
 const login = await getServiceLogin('SadCaptcha');
@@ -16,8 +17,9 @@ try {
   await s.page.locator('input[name="password"]').fill(login.password);
   await s.page.locator('input[type="submit"]').click();
 
-  for (let i = 0; i < 20; i++) { await humanIdlePause('short'); if (!/\/login/.test(s.page.url())) break; }
-  if (/\/login/.test(s.page.url())) { console.log('FAIL: still on /login after submit'); process.exit(1); }
+  // The login is answered by leaving /login or by the form's own alert.
+  const loginAlert = s.page.locator('[role="alert"], .alert-danger, .error').filter({ visible: true }).first();
+  if (await submitAnswered(s.page, /\/login/, loginAlert) === 'message') { console.log(`FAIL: login refused: ${(await loginAlert.innerText()).trim()}`); process.exit(1); }
 
   // SadCaptcha pricing/buy section anchored on home.
   await s.page.goto('https://www.sadcaptcha.com/dashboard', { waitUntil: 'domcontentloaded' }).catch(() => {});

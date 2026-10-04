@@ -1,4 +1,4 @@
-import { pageSettled } from '../_shared/page/settled.mjs';
+import { pageCondition, pageSettled } from '../_shared/page/settled.mjs';
 // Scrape the SPRIND "Next Frontier AI" challenge submission page and dump
 // every visible field, label, helper text, section heading, and select
 // option as JSON. Page is fully public — no proxy, no auth.
@@ -27,14 +27,10 @@ const s = await WSession.start({ label: LABEL, proxy: process.env.PROXY_URL || u
 try {
   await s.goto(URL);
 
-  // Webflow / Tally / similar embedded forms hydrate after first paint;
-  // poll for the first input/textarea/select to render before extracting,
-  // then idle a beat so late-mounted sections settle.
-  for (let i = 0; i < 30; i++) {
-    const ready = await s.page.evaluate(() => !!document.querySelector('input, textarea, select'));
-    if (ready) break;
-    await pageSettled(s.page);
-  }
+  // Webflow / Tally / similar embedded forms hydrate after first paint; wait
+  // for the first input/textarea/select to exist before extracting, then let
+  // late-mounted sections settle.
+  await pageCondition(s.page, () => document.querySelector('input, textarea, select') !== null);
   await pageSettled(s.page);
 
   const extract = await s.page.evaluate(() => {

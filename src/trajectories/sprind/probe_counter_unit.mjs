@@ -1,4 +1,4 @@
-import { pageSettled } from '../_shared/page/settled.mjs';
+import { pageCondition, pageSettled } from '../_shared/page/settled.mjs';
 // Probe: are SPRIND textarea limits (0/50, 0/500, ...) characters or words?
 // Types known probes into the first <textarea> via humanFill and reads
 // back the visible counter element. Comparing counter values to known
@@ -16,11 +16,7 @@ const LABEL = 'sprind_counter_probe';
 const s = await WSession.start({ label: LABEL, proxy: process.env.PROXY_URL || undefined });
 try {
   await s.goto(URL);
-  for (let i = 0; i < 30; i++) {
-    const ready = await s.page.evaluate(() => !!document.querySelector('textarea'));
-    if (ready) break;
-    await pageSettled(s.page);
-  }
+  await pageCondition(s.page, () => document.querySelector('textarea') !== null);
   await pageSettled(s.page);
 
   const readState = async () => s.page.evaluate(() => {

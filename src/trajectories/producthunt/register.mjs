@@ -89,12 +89,16 @@ async function signup(s) {
   // OAuth consent screen — ProductHunt asks for Twitter read access
   await handleOAuthConsent(s);
 
-  // ProductHunt onboarding loop (name, email, interests, notifications)
-  for (let i = 0; i < 15; i++) {
+  // ProductHunt onboarding (name, email, interests, notifications): however
+  // many steps it shows are walked until the main feed. A page none of the
+  // known steps matches is pressed forward; when that leaves it unchanged, it
+  // is the failure, named by its URL and text.
+  let unknownSeen = null;
+  for (;;) {
     if (s.page.isClosed?.()) throw new Error('page_crashed_during_onboarding');
     const url = s.page.url?.() ?? '';
     const t = await readPage(s);
-    console.log(`[ph] onboarding ${i}: url=${url.slice(-50)} text=${t.replace(/\n/g, ' ')}`);
+    console.log(`[ph] onboarding: url=${url} text=${t.replace(/\n/g, ' ')}`);
 
     if (url.includes('twitter.com/login') || url.includes('x.com/login')) {
       throw new Error(`twitter_login_required: ${twUsername}`);
@@ -187,6 +191,8 @@ async function signup(s) {
       await pageSettled(s.page);
       continue;
     }
+    if (unknownSeen === `${url}\n${t}`) throw new Error(`producthunt_onboarding_unrecognised: url=${url} text=${t.replace(/\n/g, ' ')}`);
+    unknownSeen = `${url}\n${t}`;
     await s.click('Continue').catch(() => {});
     await s.click('Next').catch(() => {});
     await s.click('Done').catch(() => {});

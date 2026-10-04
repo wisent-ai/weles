@@ -108,9 +108,12 @@ async function main() {
     await mark('password_submitted');
   }
 
-  for (let i = 0; i < 60; i += 1) {
+  // Google's own redirect ends the sign-in; the URL is read until it leaves
+  // accounts.google.com or settles on a consent screen.
+  for (;;) {
     const current = await url(args.session);
     if (!current.includes('accounts.google.com')) break;
+    if (/(Continue|Allow|Dalej|Kontynuuj|Zezwól|Zgadzam)/i.test(await text(args.session))) break;
     await action(args.session, { action: 'humanidle', kind: 'short' });
   }
 

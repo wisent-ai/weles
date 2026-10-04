@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { persistFreshCookieJar } from '../_shared/auth/cookie-freshness.mjs';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { replaceAccountMetadata } from '../_shared/skarbiec/accounts.mjs';
+import { submitAnswered } from '../_shared/page/settled.mjs';
 
 const URL = 'https://www.reddit.com/login';
 
@@ -69,7 +70,10 @@ try {
     // Press Enter on password field — Reddit's submit button may be in Shadow DOM
     // (web component button) which Playwright can't reach. Enter triggers the form.
     await pwIn.press('Enter');
-    for (let i = 0; i < 15; i++) { await humanIdlePause('short'); if (!/\/login/.test(s.page.url())) break; }
+    // The login is answered by leaving /login or by the form's own alert,
+    // whose text is the failure.
+    const loginAlert = s.page.locator('[role="alert"]').filter({ visible: true }).first();
+    if (await submitAnswered(s.page, /\/login/, loginAlert) === 'message') throw new Error(`reddit login refused: ${(await loginAlert.innerText()).trim()}`);
     banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch((e) => ({ healthy: false, signal: 'unknown_error', details: { detector_error: e.message } }));
     console.log(`[ban-signal] ${banSignal.signal} (${JSON.stringify(banSignal.details)})`);
     if (banSignal?.signal === 'ip_blocked') await wipeStoredProxy(acct.id);
