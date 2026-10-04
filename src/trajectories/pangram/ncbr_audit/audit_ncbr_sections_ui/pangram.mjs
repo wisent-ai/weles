@@ -5,10 +5,10 @@ import { join } from 'node:path';
 import { LOGS_DIR, MIN_CHARS, MIN_WORDS, NO_ACCOUNT, OUT_DIR, REUSE_EXISTING, RUN_ID, WEL } from './settings.mjs';
 import { sh, slug } from './text.mjs';
 
-export function walkJson(dir, limit = 20_000) {
+export function walkJson(dir) {
   const out = [];
   const stack = [dir];
-  while (stack.length && out.length < limit) {
+  while (stack.length) {
     const cur = stack.pop();
     let entries = [];
     try { entries = readdirSync(cur, { withFileTypes: true }); } catch { continue; }
