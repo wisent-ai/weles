@@ -58,9 +58,10 @@ try {
 
   // Brama's credential is distinct from the general worker bearer. Its value
   // stays in memory and is never written into the retained command output.
+  // It is read by the role its item plays, the same role the launcher acquires.
   const token = process.env.BRAMA_WELES_REAUTH_TOKEN?.trim() || command(
     process.env.BRAMA_STADO_BIN || 'stado',
-    ['credentials', 'get', 'brama-weles-reauth', '--field', 'token'], true,
+    ['credentials', 'get', '--role', 'brama-weles-reauth', '--field', 'token'], true,
   ).trim();
   assert.ok(token, 'the Brama reauthentication credential must be available');
   const bearer = `Bearer ${token}`;
