@@ -31,8 +31,13 @@ if (!resolved.isListening) {
 const endpointText = resolved.url;
 
 const exactName = /^[A-Za-z\d._-]+$/;
-if (![consumer, item, field].every((value) => exactName.test(value))) {
-  throw new Error('consumer, item, and field must be exact names without wildcards or separators');
+// The item column may name a role instead of an item, `role:<role>`: the grant
+// is `acquire:role:<role>#<field>` and Skarbiec redeems the one live item
+// tagged `stado:role:<role>`, so neither this catalog nor the caller names a
+// vault item.
+const exactCoordinate = (value) => exactName.test(value.startsWith('role:') ? value.slice('role:'.length) : value);
+if (!exactName.test(consumer) || !exactCoordinate(item) || !exactName.test(field)) {
+  throw new Error('consumer and field must be exact names, and item an exact name or role:<exact name>');
 }
 
 const scopeRows = readFileSync(scopeFile, 'utf8')
@@ -41,8 +46,8 @@ const scopeRows = readFileSync(scopeFile, 'utf8')
   .filter((line) => line && !line.startsWith('#'));
 const parsedScopes = scopeRows.map((line) => {
   const columns = line.split('|');
-  if (columns.length !== 3 || !columns.every((value) => exactName.test(value))) {
-    throw new Error('invalid Skarbiec bootstrap scope; expected consumer|item|field exact-name grammar');
+  if (columns.length !== 3 || !exactName.test(columns[0]) || !exactCoordinate(columns[1]) || !exactName.test(columns[2])) {
+    throw new Error('invalid Skarbiec bootstrap scope; expected consumer|item|field, item an exact name or role:<exact name>');
   }
   return columns;
 });

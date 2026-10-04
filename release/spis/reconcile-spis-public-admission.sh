@@ -49,14 +49,14 @@ else
   [ "$result" -eq 3 ] || exit "$result"
 fi
 if [ "$credential_present" -eq 0 ] && [ "$self_target" != "$host" ] && [ "$generate_credential" != yes ]; then
-  printf 'weles-spis-public-admission is absent from this machine'"'"'s credential store, which is not %s'"'"'s vault.\n' "$host" >&2
+  printf 'No item plays the role weles-spis-public-admission in this machine'"'"'s credential store, which is not %s'"'"'s vault.\n' "$host" >&2
   printf 'Generating now would write a new authority over whatever %s already holds. Re-run with --generate-credential\n' "$host" >&2
   printf 'only if that host has none, or run this script on %s where the store it reads is the store it writes.\n' "$host" >&2
   exit 2
 fi
 if [ "$credential_present" -eq 0 ]; then
   "$node" "$generator" \
-    | "$stado" host vault-item-put "$host" weles-spis-public-admission --type internal-authority --json \
+    | "$stado" credentials item put --host "$host" --role weles-spis-public-admission --type internal-authority --json \
       >"$temporary/vault-put.json"
   # Not re-read through the local listing: on a foreign target that listing
   # cannot see the write, and calling a completed provisioning a failure is how
@@ -67,9 +67,9 @@ if [ "$credential_present" -eq 0 ]; then
   fi
 fi
 
-"$stado" credentials get weles-spis-public-admission --field organization_id >"$temporary/organization-id"
-"$stado" credentials get weles-spis-public-admission --field receipt_key_set_version >"$temporary/key-set-version"
-"$stado" credentials get weles-spis-public-admission --field receipt_public_keys_json >"$temporary/public-keys.json"
+"$stado" credentials get --role weles-spis-public-admission --field organization_id >"$temporary/organization-id"
+"$stado" credentials get --role weles-spis-public-admission --field receipt_key_set_version >"$temporary/key-set-version"
+"$stado" credentials get --role weles-spis-public-admission --field receipt_public_keys_json >"$temporary/public-keys.json"
 "$node" "$reconciler" render-trust \
   "$temporary/organization-id" \
   "$temporary/key-set-version" \

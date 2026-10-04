@@ -120,14 +120,18 @@ function publishServiceSnapshot(registryPath, destination, expectedHost) {
   });
 }
 
+/** The vault role the Spis admission authority plays; its item id is the vault's own. */
+const ADMISSION_ROLE = 'weles-spis-public-admission';
+
 function credentialPresent(path) {
   const rows = readJson(path);
   if (!Array.isArray(rows)) throw new Error('credential list must be an array');
-  const matches = rows.filter((item) => item?.id === 'weles-spis-public-admission');
-  if (matches.length > 1) throw new Error('credential metadata contains duplicate weles-spis-public-admission items');
+  const tag = `stado:role:${ADMISSION_ROLE}`;
+  const matches = rows.filter((item) => !item?.deleted && Array.isArray(item?.tags) && item.tags.includes(tag));
+  if (matches.length > 1) throw new Error(`credential metadata holds ${matches.length} live items tagged ${tag}; exactly one may play the role`);
   if (matches.length === 0) process.exit(3);
   const type = matches[0].item_type ?? matches[0].itemType ?? matches[0].kind;
-  if (type !== 'internal-authority') throw new Error('weles-spis-public-admission has the wrong item type');
+  if (type !== 'internal-authority') throw new Error(`the item playing ${ADMISSION_ROLE} has the wrong item type`);
 }
 
 function registrySame(leftPath, rightPath) {

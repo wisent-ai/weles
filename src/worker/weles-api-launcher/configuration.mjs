@@ -23,20 +23,24 @@ export const ENV_FILES = [
   join(HOME, '.stado/weles-model.env'),
 ];
 
-/** Startup fields this service must hold before it answers anything. */
+/**
+ * Startup fields this service must hold before it answers anything. The third
+ * column is the acquisition coordinate: `role:<role>`, so Skarbiec redeems the
+ * one live item playing the role and no vault item is named here.
+ */
 export const STARTUP_FIELDS = [
-  ['WELES_API_TOKEN', 'weles-echo-api-token-bootstrap', 'echo-weles-api', 'token', true],
-  ['BRAMA_WELES_REAUTH_TOKEN', 'weles-brama-reauth-token-bootstrap', 'brama-weles-reauth', 'token', true],
-  ['WELES_STADO_OBJECT_API_TOKEN', 'weles-object-token-bootstrap', 'weles-object-api', 'token', false],
-  ['WELES_STADO_MODEL_ROUTER_TOKEN', 'weles-model-router-token-bootstrap', 'weles-model-router', 'token', false],
-  ['WELES_STADO_MODEL_ROUTER_AGENT_ID', 'weles-model-agent-id-bootstrap', 'weles-model-agent-auth', 'id', false],
-  ['WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET', 'weles-model-agent-secret-bootstrap', 'weles-model-agent-auth', 'agent_auth_secret', false],
-  ['WELES_PUBLIC_API_BEARER', 'weles-spis-public-bearer-bootstrap', 'weles-spis-public-admission', 'token', true],
-  ['WELES_PUBLIC_API_ORGANIZATION_ID', 'weles-spis-public-organization-bootstrap', 'weles-spis-public-admission', 'organization_id', true],
-  ['WELES_RECEIPT_KEY_ID', 'weles-spis-receipt-key-id-bootstrap', 'weles-spis-public-admission', 'receipt_key_id', true],
-  ['WELES_RECEIPT_KEY_SET_VERSION', 'weles-spis-receipt-key-set-version-bootstrap', 'weles-spis-public-admission', 'receipt_key_set_version', true],
-  ['WELES_RECEIPT_PRIVATE_KEY', 'weles-spis-receipt-private-key-bootstrap', 'weles-spis-public-admission', 'receipt_private_key', true],
-  ['WELES_RECEIPT_PUBLIC_KEYS_JSON', 'weles-spis-receipt-public-keys-bootstrap', 'weles-spis-public-admission', 'receipt_public_keys_json', true],
+  ['WELES_API_TOKEN', 'weles-echo-api-token-bootstrap', 'role:echo-weles-api', 'token', true],
+  ['BRAMA_WELES_REAUTH_TOKEN', 'weles-brama-reauth-token-bootstrap', 'role:brama-weles-reauth', 'token', true],
+  ['WELES_STADO_OBJECT_API_TOKEN', 'weles-object-token-bootstrap', 'role:weles-object-api', 'token', false],
+  ['WELES_STADO_MODEL_ROUTER_TOKEN', 'weles-model-router-token-bootstrap', 'role:weles-model-router', 'token', false],
+  ['WELES_STADO_MODEL_ROUTER_AGENT_ID', 'weles-model-agent-id-bootstrap', 'role:weles-model-agent-auth', 'id', false],
+  ['WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET', 'weles-model-agent-secret-bootstrap', 'role:weles-model-agent-auth', 'agent_auth_secret', false],
+  ['WELES_PUBLIC_API_BEARER', 'weles-spis-public-bearer-bootstrap', 'role:weles-spis-public-admission', 'token', true],
+  ['WELES_PUBLIC_API_ORGANIZATION_ID', 'weles-spis-public-organization-bootstrap', 'role:weles-spis-public-admission', 'organization_id', true],
+  ['WELES_RECEIPT_KEY_ID', 'weles-spis-receipt-key-id-bootstrap', 'role:weles-spis-public-admission', 'receipt_key_id', true],
+  ['WELES_RECEIPT_KEY_SET_VERSION', 'weles-spis-receipt-key-set-version-bootstrap', 'role:weles-spis-public-admission', 'receipt_key_set_version', true],
+  ['WELES_RECEIPT_PRIVATE_KEY', 'weles-spis-receipt-private-key-bootstrap', 'role:weles-spis-public-admission', 'receipt_private_key', true],
+  ['WELES_RECEIPT_PUBLIC_KEYS_JSON', 'weles-spis-receipt-public-keys-bootstrap', 'role:weles-spis-public-admission', 'receipt_public_keys_json', true],
 ];
 
 /** `KEY=value` lines the deployment wrote, with the shell quoting it used. */
