@@ -1,10 +1,8 @@
 /**
  * Vision query escalation helpers for find_click_target.
  *
- * Multi-tier pipeline that changes the input image and question format:
- *   tier_0_bare      — bare question on full screenshot
- *   tier_1_crop      — same question on centre crop (50% wide, 60% tall)
- *   tier_2_decompose — enumerate all UI controls as JSON, filter by description
+ *   tier_0_bare      — bare question on the full screenshot
+ *   tier_1_decompose — enumerate all UI controls as JSON, filter by description
  */
 
 // ---------------------------------------------------------------------------
@@ -77,30 +75,19 @@ export function filterElements(
 }
 
 // ---------------------------------------------------------------------------
-// Centre crop (uses sharp if available, otherwise skips)
+// Image size
 // ---------------------------------------------------------------------------
 
-export async function centerCrop(
-  pngBytes: Buffer,
-  fracW = 0.5,
-  fracH = 0.6,
-): Promise<{ cropped: Buffer | null; offsetX: number; offsetY: number }> {
-  try {
-    const sharp = (await import('sharp')).default;
-    const meta = await sharp(pngBytes).metadata();
-    const w = meta.width ?? 0;
-    const h = meta.height ?? 0;
-    if (!w || !h) return { cropped: null, offsetX: 0, offsetY: 0 };
-    const cw = Math.floor(w * fracW);
-    const ch = Math.floor(h * fracH);
-    const ox = Math.floor((w - cw) / 2);
-    const oy = Math.floor((h - ch) / 2);
-    const buf = await sharp(pngBytes)
-      .extract({ left: ox, top: oy, width: cw, height: ch })
-      .png()
-      .toBuffer();
-    return { cropped: buf, offsetX: ox, offsetY: oy };
-  } catch {
-    return { cropped: null, offsetX: 0, offsetY: 0 };
+// The PNG signature, then the IHDR chunk's length and type, then its width and
+// height as big-endian 32-bit integers (PNG specification, section 11.2.2).
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const IHDR_WIDTH_OFFSET = PNG_SIGNATURE.length + 8;
+const IHDR_HEIGHT_OFFSET = IHDR_WIDTH_OFFSET + 4;
+
+/** Width and height of a PNG, read from its IHDR header. */
+export function pngSize(png: Buffer): { width: number; height: number } {
+  if (png.length < IHDR_HEIGHT_OFFSET + 4 || !png.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) {
+    throw new Error(`screenshot is not a PNG (${png.length} bytes)`);
   }
+  return { width: png.readUInt32BE(IHDR_WIDTH_OFFSET), height: png.readUInt32BE(IHDR_HEIGHT_OFFSET) };
 }

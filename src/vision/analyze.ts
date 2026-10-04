@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../session/run-recordings.js';
-import { parseXY, parseElements, filterElements, centerCrop } from './escalation.js';
+import { parseXY, parseElements, filterElements, pngSize } from './escalation.js';
 import { callJeden } from '../agent/jeden.js';
 
 // ---------------------------------------------------------------------------
@@ -179,11 +179,14 @@ export async function identifyPage(page: ScreenshottablePage): Promise<string> {
 }
 
 /**
- * Locate a click target via vision with multi-tier escalation.
+ * Locate a click target via vision with escalation.
  *
  *   tier_0_bare      bare question on the full screenshot
- *   tier_1_crop      same question on a centred crop (removes context)
- *   tier_2_decompose enumerate all visible UI controls, filter by description
+ *   tier_1_decompose enumerate all visible UI controls, filter by description
+ *
+ * The screenshot is sent at the size the page rendered it, and the question
+ * states that size, so the answer is in the page's own pixels; no resize width
+ * or crop fraction is chosen here.
  *
  * Raises VisionRefusedError only if every tier refuses. Returns null
  * if every tier answered but produced no parseable coordinates.
@@ -194,41 +197,21 @@ export async function findClickTarget(
 ): Promise<{ x: number; y: number } | null> {
   const full = await takeScreenshot(page);
   if (!full) return null;
-
-  // Resize to a known width so model-returned coordinates remain predictable
-  // even when the routed vision backend applies its own image scaling.
-  const VISION_WIDTH = 768;
-  let resized = full;
-  let scaleX = 1, scaleY = 1;
-  try {
-    const sharp = (await import('sharp')).default;
-    const meta = await sharp(full).metadata();
-    const origW = meta.width ?? 1920;
-    const origH = meta.height ?? 1080;
-    if (origW > VISION_WIDTH) {
-      const newH = Math.round(origH * VISION_WIDTH / origW);
-      resized = await sharp(full).resize(VISION_WIDTH, newH).png().toBuffer();
-      scaleX = origW / VISION_WIDTH;
-      scaleY = origH / newH;
-    }
-  } catch { /* use original */ }
+  const { width, height } = pngSize(full);
+  const frame = `The image is ${width}x${height} pixels; answer in those pixels. `;
 
   const bareQ = (
-    `I need to click: ${description}. `
+    `I need to click: ${description}. ${frame}`
     + 'Return the x,y pixel coordinates of where to click as JSON: '
     + '{"x": <number>, "y": <number>}. Only the JSON, nothing else.'
   );
   const refusals: Array<[string, string]> = [];
 
-  function scaleResult(r: { x: number; y: number }): { x: number; y: number } {
-    return { x: Math.round(r.x * scaleX), y: Math.round(r.y * scaleY) };
-  }
-
-  // Tier 0 — bare question on resized screenshot
+  // Tier 0 — bare question on the screenshot
   try {
-    const ans = await askPage(page, bareQ, resized, 'tier_0_bare');
+    const ans = await askPage(page, bareQ, full, 'tier_0_bare');
     const result = parseXY(ans);
-    if (result) return scaleResult(result);
+    if (result) return result;
   } catch (e) {
     if (e instanceof VisionRefusedError) {
       console.log('  [vision] tier_0_bare refused, escalating');
@@ -236,45 +219,27 @@ export async function findClickTarget(
     } else throw e;
   }
 
-  // Tier 1 — centre crop of resized image
-  const { cropped, offsetX, offsetY } = await centerCrop(resized);
-  if (cropped) {
-    try {
-      const ans = await askPage(page, bareQ, cropped, 'tier_1_crop');
-      const result = parseXY(ans);
-      if (result) return scaleResult({ x: result.x + offsetX, y: result.y + offsetY });
-    } catch (e) {
-      if (e instanceof VisionRefusedError) {
-        console.log('  [vision] tier_1_crop refused, escalating');
-        refusals.push(['tier_1_crop', String(e)]);
-      } else throw e;
-    }
-  } else {
-    console.log('  [vision] tier_1_crop unavailable (no sharp); skipping');
-  }
-
-  // Tier 2 — decompose all UI controls
+  // Tier 1 — decompose all UI controls
   const decompQ = (
-    'List every interactive UI control visible in this image. '
+    `List every interactive UI control visible in this image. ${frame}`
     + 'Return ONLY a JSON array, no prose, where each element has '
     + '"label" (visible text or description), "x" (centre x in pixels), '
     + '"y" (centre y in pixels). Example: '
     + '[{"label": "Submit button", "x": 400, "y": 300}]'
   );
   try {
-    const ans = await askPage(page, decompQ, resized, 'tier_2_decompose');
+    const ans = await askPage(page, decompQ, full, 'tier_1_decompose');
     const elements = parseElements(ans);
     const match = filterElements(elements, description);
-    if (match) return scaleResult(match);
+    if (match) return match;
   } catch (e) {
     if (e instanceof VisionRefusedError) {
-      console.log('  [vision] tier_2_decompose refused');
-      refusals.push(['tier_2_decompose', String(e)]);
+      console.log('  [vision] tier_1_decompose refused');
+      refusals.push(['tier_1_decompose', String(e)]);
     } else throw e;
   }
-
-  if (refusals.length === 3) {
-    throw new VisionRefusedError(description, `All 3 vision tiers refused: ${JSON.stringify(refusals)}`);
+  if (refusals.length === 2) {
+    throw new VisionRefusedError(description, `Both vision tiers refused: ${JSON.stringify(refusals)}`);
   }
   return null;
 }
