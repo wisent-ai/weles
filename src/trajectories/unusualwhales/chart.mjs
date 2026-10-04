@@ -1,4 +1,5 @@
 import { pageSettled } from '../_shared/page/settled.mjs';
+import { loginUnusualWhales } from './session/login.mjs';
 // Fetch a specific sub-chart from the UW flow-overview page by clicking its
 // tab and screenshotting just that chart element.
 // Usage: node src/trajectories/unusualwhales/chart.mjs \
@@ -23,36 +24,12 @@ if (!email || !password) { console.error('FAIL: UW creds not set'); process.exit
 
 const s = await WSession.start({ label: `uw_chart_${ticker}`, proxy: process.env.PROXY_URL || 'residential' });
 
-async function login() {
-  await s.goto('https://unusualwhales.com/login');
-  for (let i = 0; i < 30; i++) {
-    const c = await s.page.evaluate('document.querySelectorAll("input").length').catch(() => 0);
-    if (c >= 2) break;
-    await pageSettled(s.page);
-  }
-  const inputs = await s.page.evaluate(`(() => Array.from(document.querySelectorAll('input')).map((i, idx) => ({ idx, name: i.name, type: i.type, ph: i.placeholder })))()`);
-  const em = inputs.find(i => i.type === 'email' || i.name === 'email' || /email|address/i.test(i.ph || ''));
-  const pw = inputs.find(i => i.type === 'password' || i.name === 'password');
-  const sel = (i) => i.name ? `input[name="${i.name}"]` : `input[placeholder="${i.ph}"]`;
-  await s.fillSelector(sel(em), email); await pageSettled(s.page);
-  await s.fillSelector(sel(pw), password); await pageSettled(s.page);
-  const submitLoc = s.page.locator('button[type="submit"], input[type="submit"]').first();
-  if (await submitLoc.count()) await submitLoc.click().catch(() => {});
-  else await s.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
-  for (let i = 0; i < 30; i++) { await pageSettled(s.page); if (!s.page.url().includes('/login')) return; }
-  throw new Error('login did not redirect');
-}
-
 try {
-  await login();
+  await loginUnusualWhales(s, email, password);
   const url = `https://unusualwhales.com/stock/${ticker}/flow-overview`;
   console.error(`[chart] navigating to ${url}`);
   await s.goto(url);
-  for (let i = 0; i < 60; i++) {
-    const len = await s.page.evaluate('document.body?.innerText?.length || 0').catch(() => 0);
-    if (len > 500) break;
-    await pageSettled(s.page);
-  }
+  // The page has rendered when it has loaded and its DOM has gone quiet.
   await pageSettled(s.page);
 
   // Click the tab by matching button text — use Playwright locator with

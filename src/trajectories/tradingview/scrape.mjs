@@ -57,19 +57,9 @@ try {
     await s.goto(url);
   }
 
-  let ready = false;
-  let reloaded = false;
-  for (let i = 0; i < 40; i++) {
-    const len = await s.page.evaluate('document.body?.innerText?.length || 0').catch(() => 0);
-    if (len > 500) { ready = true; console.error(`[tv] rendered after ${i + 1}s (bodyLen=${len})`); break; }
-    if (i === 20 && !reloaded) {
-      reloaded = true;
-      console.error('[tv] 20s blank — hard reload');
-      await s.page.reload().catch(() => {});
-    }
-    await pageSettled(s.page);
-  }
-  if (!ready) { console.error('FAIL: page never rendered'); process.exit(1); }
+  // The page has rendered when it has loaded and its DOM has gone quiet; a
+  // count of seconds, a 500-character body and a reload at the twentieth were
+  // guesses at that.
   await pageSettled(s.page);
 
   if (screenshotPath) {
@@ -83,17 +73,16 @@ try {
       title: document.title,
       symbolId: ${JSON.stringify(symbolId)},
     };
-    out.tables = Array.from(document.querySelectorAll('table')).slice(0, 10).map(t => ({
-      headers: Array.from(t.querySelectorAll('thead th, thead td')).map(h => h.innerText.trim()).slice(0, 20),
-      rows: Array.from(t.querySelectorAll('tbody tr')).slice(0, 100).map(r =>
+    out.tables = Array.from(document.querySelectorAll('table')).map(t => ({
+      headers: Array.from(t.querySelectorAll('thead th, thead td')).map(h => h.innerText.trim()),
+      rows: Array.from(t.querySelectorAll('tbody tr')).map(r =>
         Array.from(r.querySelectorAll('td, th')).map(c => c.innerText.trim())
       ),
     }));
     out.statItems = Array.from(document.querySelectorAll('[class*="item-"], [class*="stats-"], dl dt, dl dd'))
-      .slice(0, 80)
       .map(e => (e.innerText || '').trim())
-      .filter(t => t && t.length > 0 && t.length < 120);
-    out.bodyText = (document.body?.innerText || '').slice(0, 10000);
+      .filter(Boolean);
+    out.bodyText = document.body?.innerText || '';
     return out;
   })()`);
 

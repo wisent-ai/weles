@@ -1,4 +1,5 @@
 import { pageSettled } from '../_shared/page/settled.mjs';
+import { loginUnusualWhales } from './session/login.mjs';
 // Two modes:
 //  (default) extract every internal URL from the authenticated UW sidebar/page.
 //  --mode inventory: walk every known per-ticker page and capture interactive
@@ -25,26 +26,6 @@ const password = process.env.UW_PASSWORD;
 if (!email || !password) { console.error('FAIL: creds'); process.exit(1); }
 
 const s = await WSession.start({ label: `uw_probe_${ticker}`, proxy: process.env.PROXY_URL || 'oxylabs' });
-
-async function login() {
-  await s.goto('https://unusualwhales.com/login');
-  for (let i = 0; i < 30; i++) {
-    const c = await s.page.evaluate('document.querySelectorAll("input").length').catch(() => 0);
-    if (c >= 2) break;
-    await pageSettled(s.page);
-  }
-  const inputs = await s.page.evaluate(`(() => Array.from(document.querySelectorAll('input')).map(i => ({ name: i.name, type: i.type, ph: i.placeholder })))()`);
-  const em = inputs.find(i => i.type === 'email' || i.name === 'email' || /email|address/i.test(i.ph || ''));
-  const pw = inputs.find(i => i.type === 'password' || i.name === 'password');
-  const sel = (i) => i.name ? `input[name="${i.name}"]` : `input[placeholder="${i.ph}"]`;
-  await s.fillSelector(sel(em), email); await pageSettled(s.page);
-  await s.fillSelector(sel(pw), password); await pageSettled(s.page);
-  const submitLoc = s.page.locator('button[type="submit"], input[type="submit"]').first();
-  if (await submitLoc.count()) await submitLoc.click().catch(() => {});
-  else await s.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
-  for (let i = 0; i < 30; i++) { await pageSettled(s.page); if (!s.page.url().includes('/login')) return; }
-  throw new Error('login did not redirect');
-}
 
 async function collectLinks() {
   return await s.page.evaluate(`(() => {
@@ -76,13 +57,8 @@ async function inventoryPage(sess, urlPath) {
   const url = `https://unusualwhales.com/stock/${ticker}/${urlPath}`;
   console.error(`[inv] ${urlPath}: navigating`);
   await sess.goto(url);
-  let len = 0;
-  for (let i = 0; i < 30; i++) {
-    len = await sess.page.evaluate('document.body?.innerText?.length || 0').catch(() => 0);
-    if (len > 500) break;
-    await pageSettled(sess.page);
-  }
-  await pageSettled(sess.page); // let charts settle
+  // The page has rendered when it has loaded and its DOM has gone quiet.
+  await pageSettled(sess.page);
   const info = await sess.page.evaluate(`(() => {
     const pick = (el) => ({
       text: (el.innerText || el.getAttribute('aria-label') || '').trim().slice(0, 80),
@@ -139,7 +115,7 @@ async function inventoryPage(sess, urlPath) {
 
 if (mode === 'inventory') {
   try {
-    await login();
+    await loginUnusualWhales(s, email, password);
     await pageSettled(s.page);
     fs.mkdirSync(outDir, { recursive: true });
     const invPath = path.join(outDir, 'inventory.json');
@@ -147,8 +123,7 @@ if (mode === 'inventory') {
       ? JSON.parse(fs.readFileSync(invPath, 'utf8'))
       : { ticker, pages: [] };
     const done = new Set(existing.pages.filter(p => !p.err).map(p => p.page));
-    let sess = s;
-    let processed = 0;
+    const sess = s;
     for (const p of PAGES) {
       if (done.has(p) && fs.existsSync(path.join(outDir, 'pages', `${p}.png`))) {
         console.error(`[inv] ${p}: skip (already done)`);
@@ -161,35 +136,6 @@ if (mode === 'inventory') {
         console.error(`[inv] ${p}: skip (screenshot found, seeding record)`);
         continue;
       }
-      // Restart browser every 4 pages to avoid memory bloat / crashes
-      if (processed > 0 && processed % 4 === 0) {
-        console.error(`[inv] restarting browser after ${processed} pages`);
-        await sess.close().catch(() => {});
-        sess = await WSession.start({ label: `uw_probe_${ticker}_b${processed}`, proxy: process.env.PROXY_URL || 'oxylabs' });
-        // Re-login in new session
-        const orig = s; // eslint-disable-line no-unused-vars
-        globalThis.__s = sess;
-        await (async () => {
-          await sess.goto('https://unusualwhales.com/login');
-          for (let i = 0; i < 30; i++) {
-            const c = await sess.page.evaluate('document.querySelectorAll("input").length').catch(() => 0);
-            if (c >= 2) break;
-            await pageSettled(sess.page);
-          }
-          const inputs = await sess.page.evaluate(`(() => Array.from(document.querySelectorAll('input')).map(i => ({ name: i.name, type: i.type, ph: i.placeholder })))()`);
-          const em = inputs.find(i => i.type === 'email' || i.name === 'email' || /email|address/i.test(i.ph || ''));
-          const pw = inputs.find(i => i.type === 'password' || i.name === 'password');
-          const buildSel = (i) => i.name ? `input[name="${i.name}"]` : `input[placeholder="${i.ph}"]`;
-          await sess.fillSelector(buildSel(em), email); await pageSettled(sess.page);
-          await sess.fillSelector(buildSel(pw), password); await pageSettled(sess.page);
-          const submitLoc = sess.page.locator('button[type="submit"], input[type="submit"]').first();
-          if (await submitLoc.count()) await submitLoc.click().catch(() => {});
-          else await sess.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
-          for (let i = 0; i < 30; i++) { await pageSettled(sess.page); if (!sess.page.url().includes('/login')) return; }
-          throw new Error('relogin failed');
-        })();
-        await pageSettled(sess.page);
-      }
       const r = await inventoryPage(sess, p).catch((e) => ({ page: p, err: e.message }));
       existing.pages.push(r);
       fs.writeFileSync(invPath, JSON.stringify(existing, null, 2));
@@ -197,19 +143,18 @@ if (mode === 'inventory') {
       const tabs = (r.tabs || []).length;
       const tables = (r.tables || []).length;
       console.error(`[inv] ${p}: bodyLen=${r.bodyLen} has404=${r.has404} tabs=${tabs} charts=${charts} tables=${tables}`);
-      processed++;
     }
     process.stdout.write(JSON.stringify(existing, null, 2) + '\n');
   } catch (e) {
     console.error(`FAIL: ${e.message}`);
     process.exit(1);
   } finally {
-    await (globalThis.__s || s).close().catch(() => {});
+    await s.close().catch(() => {});
     process.exit(0);
   }
 } else {
 try {
-  await login();
+  await loginUnusualWhales(s, email, password);
   await pageSettled(s.page);
 
   // 1) Sidebar links from the authenticated home page (flow/overview)
@@ -242,11 +187,6 @@ try {
 
   // 2) Links from the stock-specific page (to catch any ticker-scoped routes)
   await s.goto(`https://unusualwhales.com/stock/${ticker}/overview`);
-  for (let i = 0; i < 20; i++) {
-    const len = await s.page.evaluate('document.body?.innerText?.length || 0').catch(() => 0);
-    if (len > 500) break;
-    await pageSettled(s.page);
-  }
   await pageSettled(s.page);
   await s.page.evaluate(expandCats).catch(() => []);
   await pageSettled(s.page);

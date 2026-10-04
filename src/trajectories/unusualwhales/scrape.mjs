@@ -148,19 +148,9 @@ async function scrapeOnePage(sess, tk, pg, ssPath) {
   const url = PAGE_URLS[pg](tk);
   console.error(`[uw_scrape] [${pg}] -> ${url}`);
   await sess.goto(url);
-  let ready = false; let reloaded = false;
-  for (let i = 0; i < 60; i += 1) {
-    let len = 0;
-    try { len = await sess.page.evaluate(() => document.body?.innerText?.length || 0); } // allow-raw-playwright: read-only render check
-    catch (e) { console.error(`[uw_scrape] [${pg}] render-poll evaluate threw: ${e.message}`); }
-    if (len > 500) { ready = true; console.error(`[uw_scrape] [${pg}] rendered after ${i + 1}s (${len})`); break; }
-    if (i === 15 && !reloaded) {
-      reloaded = true;
-      try { await sess.page.reload(); } catch (e) { console.error(`[uw_scrape] [${pg}] reload threw: ${e.message}`); }
-    }
-    await pageSettled(sess.page);
-  }
-  if (!ready) { console.error(`[uw_scrape] [${pg}] never rendered — skipping`); return { skipped: true, reason: 'never_rendered' }; }
+  // The page has rendered when it has loaded and its DOM has gone quiet; a
+  // count of seconds, a 500-character body and a reload at the fifteenth were
+  // guesses at that.
   await pageSettled(sess.page);
   // Select the available time-range preset before extracting alerts.
   if (pg === 'option_flow_alerts') {
@@ -182,10 +172,11 @@ async function scrapeOnePage(sess, tk, pg, ssPath) {
   // Resize viewport to deepest scrollHeight, snapshot, restore.
   if (ssPath) {
     try {
+      // The deepest scroll container's own height, plus nothing chosen here.
       const maxH = await sess.page.evaluate(() => {
         let h = Math.max(document.documentElement.scrollHeight || 0, document.body?.scrollHeight || 0);
-        for (const el of document.querySelectorAll('*')) { const st = getComputedStyle(el); if ((st.overflowY === 'auto' || st.overflowY === 'scroll') && el.scrollHeight > el.clientHeight + 50) h = Math.max(h, el.scrollHeight + 200); }
-        return Math.min(h, 8000);
+        for (const el of document.querySelectorAll('*')) { const st = getComputedStyle(el); if ((st.overflowY === 'auto' || st.overflowY === 'scroll') && el.scrollHeight > el.clientHeight) h = Math.max(h, el.scrollHeight); }
+        return h;
       });
       const origVp = sess.page.viewportSize();
       if (maxH > origVp.height) await sess.page.setViewportSize({ width: origVp.width, height: maxH }); // allow-raw-playwright: viewport resize for full-content capture
@@ -197,30 +188,30 @@ async function scrapeOnePage(sess, tk, pg, ssPath) {
   }
   const data = await sess.page.evaluate(() => { // allow-raw-playwright: read-only DOM extraction
     const out = { url: location.href, title: document.title };
-    out.tables = Array.from(document.querySelectorAll('table')).slice(0, 10).map((t) => ({
+    out.tables = Array.from(document.querySelectorAll('table')).map((t) => ({
       headers: Array.from(t.querySelectorAll('thead th, thead td')).map((h) => h.innerText.trim()),
       rows: Array.from(t.querySelectorAll('tbody tr')).map((r) => Array.from(r.querySelectorAll('td, th')).map((c) => c.innerText.trim())),
     }));
     // Non-table extractors for UW pages that render charts/cards/SVG instead of tables.
-    out.cards = Array.from(document.querySelectorAll('[class*="card" i], [class*="Card" i], [class*="kpi" i], [class*="metric" i]')).slice(0, 50).map((el) => {
+    out.cards = Array.from(document.querySelectorAll('[class*="card" i], [class*="Card" i], [class*="kpi" i], [class*="metric" i]')).map((el) => {
       const label = el.querySelector('[class*="label" i], [class*="title" i], h3, h4, h5')?.innerText?.trim() || '';
       const value = el.querySelector('[class*="value" i], [class*="figure" i], strong, b')?.innerText?.trim() || el.innerText?.trim() || '';
       return { label, value };
     }).filter((c) => c.label || c.value);
     // ChartIQ / Highcharts / Recharts / D3 series data — every <path d="M...">
     // SVG path that draws a line or bar plus the data-point text labels.
-    out.svgSeries = Array.from(document.querySelectorAll('svg')).slice(0, 5).map((svg) => ({
+    out.svgSeries = Array.from(document.querySelectorAll('svg')).map((svg) => ({
       pathCount: svg.querySelectorAll('path').length,
       circleCount: svg.querySelectorAll('circle').length,
       rectCount: svg.querySelectorAll('rect').length,
       textLabels: Array.from(svg.querySelectorAll('text')).map((t) => t.innerText?.trim() || t.textContent?.trim() || '').filter(Boolean),
-      ariaLabels: Array.from(svg.querySelectorAll('[aria-label]')).slice(0, 50).map((e) => e.getAttribute('aria-label')).filter(Boolean),
+      ariaLabels: Array.from(svg.querySelectorAll('[aria-label]')).map((e) => e.getAttribute('aria-label')).filter(Boolean),
     }));
     // ChartIQ canvas charts expose data via window.CIQ — capture if present.
-    out.ciq = (typeof window.CIQ !== 'undefined') ? Object.keys(window.CIQ).slice(0, 50) : null;
+    out.ciq = (typeof window.CIQ !== 'undefined') ? Object.keys(window.CIQ) : null;
     // Highcharts data accessor
     if (typeof window.Highcharts !== 'undefined' && window.Highcharts.charts) {
-      out.highcharts = window.Highcharts.charts.filter(Boolean).slice(0, 3).map((c) => c.series?.map((s) => ({ name: s.name, dataLen: s.data?.length || 0, sampleData: (s.data || []).slice(0, 5).map((d) => ({ x: d.x, y: d.y })) })));
+      out.highcharts = window.Highcharts.charts.filter(Boolean).map((c) => c.series?.map((s) => ({ name: s.name, dataLen: s.data?.length || 0, data: (s.data || []).map((d) => ({ x: d.x, y: d.y })) })));
     }
     out.bodyText = (document.body?.innerText || '');
     return out;

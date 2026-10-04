@@ -101,41 +101,12 @@ try {
   console.error(`[vl] navigating to ${url}`);
   await s.goto(url);
 
-  // Wait for the page's main table(s) to render.
-  let ready = false;
-  let reloaded = false;
-  for (let i = 0; i < 40; i++) {
-    const len = await s.page.evaluate('document.body?.innerText?.length || 0').catch(() => 0);
-    if (len > 500) { ready = true; console.error(`[vl] rendered after ${i + 1}s (bodyLen=${len})`); break; }
-    if (i === 20 && !reloaded) {
-      reloaded = true;
-      console.error('[vl] 20s blank — hard reload');
-      await s.page.reload().catch(() => {});
-    }
-    await pageSettled(s.page);
-  }
-  if (!ready) {
-    console.error('FAIL: page never rendered');
-    process.exit(1);
-  }
-  // Initial paint isn't enough for VL — the trades / clusters grids hydrate
-  // via AJAX after the page loads. Poll up to 60s for any tbody tr with 6+
-  // real cells and no "Loading" text. Fall through if pattern doesn't apply
-  // so non-grid pages don't fail.
-  for (let i = 0; i < 60; i += 1) {
-    const ok = await s.page.evaluate(`(() => {
-      const rows = document.querySelectorAll('tbody tr');
-      for (const r of rows) {
-        const txt = r.innerText || '';
-        if (/loading/i.test(txt)) continue;
-        const cells = r.querySelectorAll('td');
-        if (cells.length >= 6 && txt.replace(/\\s+/g, '').length > 20) return true;
-      }
-      return false;
-    })()`).catch(() => false);
-    if (ok) { console.error(`[vl] grid hydrated after ${i + 1}s`); break; }
-    await pageSettled(s.page);
-  }
+  // The trades / clusters grids hydrate through requests made after the page
+  // loads, so the page is read once it has no requests left in flight and its
+  // DOM has gone quiet. A count of seconds, a 500-character body, a reload at
+  // the twentieth and a "6 cells, 20 characters" row shape were guesses at that.
+  await s.page.waitForLoadState('networkidle', { timeout: 0 });
+  await pageSettled(s.page);
 
   if (screenshotPath) {
     await s.page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {});
@@ -144,13 +115,13 @@ try {
 
   const data = await s.page.evaluate(`(() => {
     const out = { url: location.href, title: document.title };
-    out.tables = Array.from(document.querySelectorAll('table')).slice(0, 10).map(t => ({
-      headers: Array.from(t.querySelectorAll('thead th, thead td')).map(h => h.innerText.trim()).slice(0, 20),
-      rows: Array.from(t.querySelectorAll('tbody tr')).slice(0, 1000).map(r =>
+    out.tables = Array.from(document.querySelectorAll('table')).map(t => ({
+      headers: Array.from(t.querySelectorAll('thead th, thead td')).map(h => h.innerText.trim()),
+      rows: Array.from(t.querySelectorAll('tbody tr')).map(r =>
         Array.from(r.querySelectorAll('td, th')).map(c => c.innerText.trim())
       ),
     }));
-    out.bodyText = (document.body?.innerText || '').slice(0, 10000);
+    out.bodyText = document.body?.innerText || '';
     return out;
   })()`);
 

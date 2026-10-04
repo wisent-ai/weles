@@ -1,4 +1,4 @@
-import { pageSettled } from '../_shared/page/settled.mjs';
+import { pageCondition, pageSettled, submitAnswered } from '../_shared/page/settled.mjs';
 // Discover volumeleaders.com URL structure after login.
 // Default mode: logs in, dumps every <a href> on the dashboard and /ticker/TICKER pages.
 // Inventory mode: walks a list of candidate per-ticker pages, screenshots + records DOM.
@@ -28,12 +28,8 @@ const s = await WSession.start({ label: `vl_probe_${ticker}`, proxy: process.env
 async function login() {
   console.error('[vl] logging in');
   await s.goto('https://www.volumeleaders.com/Login');
-  // Wait for form fields to appear.
-  for (let i = 0; i < 30; i++) {
-    const ok = await s.page.evaluate('document.querySelector("input[name=Email]") && document.querySelector("input[name=Password]")').catch(() => false);
-    if (ok) break;
-    await pageSettled(s.page);
-  }
+  // Wait for the form fields to exist.
+  await pageCondition(s.page, () => document.querySelector('input[name=Email]') !== null && document.querySelector('input[name=Password]') !== null);
   const fill = (sel, val) => s.page.evaluate(`(({ sel, val }) => { const el = document.querySelector(sel); if (!el) return false; el.focus(); const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(el, val); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); return true; })(${JSON.stringify({ sel, val })})`);
   await fill('input[name="Email"]', email); await pageSettled(s.page);
   await fill('input[name="Password"]', password); await pageSettled(s.page);
@@ -41,16 +37,13 @@ async function login() {
   const submitLoc = s.page.locator('button[type="submit"], input[type="submit"]').first();
   if (await submitLoc.count()) await submitLoc.click().catch(() => {});
   else await s.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
-  // Wait for redirect away from /Login
-  for (let i = 0; i < 30; i++) {
-    await pageSettled(s.page);
-    const u = s.page.url();
-    if (!u.toLowerCase().includes('/login')) { console.error(`[vl] logged in, at ${u}`); return; }
-    // Look for error message
-    const err = await s.page.evaluate(`(() => document.querySelector('.field-validation-error, .alert-danger, [class*="error"]')?.innerText || null)()`).catch(() => null);
-    if (err) console.error(`[vl] error: ${err}`);
+  // The submit is answered by leaving /Login or by the form's own error,
+  // whose text is the failure.
+  const formError = s.page.locator('.field-validation-error, .alert-danger').filter({ visible: true }).first();
+  if (await submitAnswered(s.page, (url) => url.toLowerCase().includes('/login'), formError) === 'message') {
+    throw new Error(`volumeleaders login refused: ${(await formError.innerText()).trim()}`);
   }
-  throw new Error('login did not redirect');
+  console.error(`[vl] logged in, at ${s.page.url()}`);
 }
 
 async function collectLinks() {
@@ -74,12 +67,7 @@ let TICKER_PAGES = [];
 async function probePage(urlPath) {
   const url = urlPath.startsWith('http') ? urlPath : `https://www.volumeleaders.com${urlPath}`;
   await s.goto(url);
-  let len = 0;
-  for (let i = 0; i < 20; i++) {
-    len = await s.page.evaluate('document.body?.innerText?.length || 0').catch(() => 0);
-    if (len > 500) break;
-    await pageSettled(s.page);
-  }
+  // The page has rendered when it has loaded and its DOM has gone quiet.
   await pageSettled(s.page);
   return await s.page.evaluate(`(() => ({
     finalUrl: location.pathname + location.search,
@@ -95,12 +83,6 @@ async function inventoryPage(sess, urlPath) {
   const url = urlPath.startsWith('http') ? urlPath : `https://www.volumeleaders.com${urlPath}`;
   console.error(`[inv] ${urlPath}: navigating`);
   await sess.goto(url);
-  let len = 0;
-  for (let i = 0; i < 30; i++) {
-    len = await sess.page.evaluate('document.body?.innerText?.length || 0').catch(() => 0);
-    if (len > 500) break;
-    await pageSettled(sess.page);
-  }
   await pageSettled(sess.page);
   const info = await sess.page.evaluate(`(() => {
     const visible = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
