@@ -110,11 +110,12 @@ async function signup(s) {
 
   // Each round reads what the page now offers and acts on it: the Arkose
   // frame, the Authenticate button, a prompt page with only Next, the
-  // logged-out home, or the next input of the flow.
-  for (let w = 0; w < 30; w++) {
+  // logged-out home, or the next input of the flow. Rounds continue until the
+  // flow asks for the code or the password, or lands on the logged-out home.
+  for (;;) {
     await pageSettled(page);
     const current = await step(page);
-    if (w % 5 === 0) console.log(`[tw] waiting ${w}: url=${page.url().slice(-40)} step=${current}`);
+    console.log(`[tw] waiting: url=${page.url()} step=${current}`);
 
     const ark = arkose(page);
     if (ark) {
@@ -126,7 +127,7 @@ async function signup(s) {
     if (current === 'code' || current === 'password') break;
     if (await clickFirst(page, 'button', ['Authenticate'])) continue;
     if (current === null && (await press(page, NEXT))) continue;
-    if (w > 5 && page.url() === 'https://x.com/' && (await control(page, 'link', 'Sign in'))) throw new Error('flow_lost');
+    if (page.url() === 'https://x.com/' && (await control(page, 'link', 'Sign in'))) throw new Error('flow_lost');
   }
 
   if ((await step(page)) === 'code') {
@@ -161,16 +162,17 @@ async function signup(s) {
   }
 
   // Skip onboarding steps until the home feed: each step's own Skip control
-  // first, its Next control when it has no Skip.
-  for (let i = 0; i < 15; i++) {
+  // first, its Next control when it has no Skip. A step offering neither
+  // ends the walk, and the home feed is opened directly.
+  for (;;) {
     const url = page.url();
-    console.log(`[tw] onboarding ${i}: url=${url.slice(-30)}`);
+    console.log(`[tw] onboarding: url=${url}`);
     if (url.includes('/home')) break;
-    if (url === 'https://x.com/') { await s.goto(HOME); await pageSettled(page); break; }
-    if ((await press(page, ONBOARDING_SKIP)) || (await press(page, ONBOARDING_NEXT))) await pageSettled(page);
-  }
-  if (!page.url().includes('/home')) {
-    await s.goto(HOME);
+    if (url === 'https://x.com/' || !((await press(page, ONBOARDING_SKIP)) || (await press(page, ONBOARDING_NEXT)))) {
+      await s.goto(HOME);
+      await pageSettled(page);
+      break;
+    }
     await pageSettled(page);
   }
 

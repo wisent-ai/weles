@@ -188,12 +188,16 @@ async function successState(s) {
     await fillSignupForm(s, id);
     await humanIdlePause('long');
 
-    for (let i = 0; i < 24; i++) {
+    // However many steps Yahoo shows are walked. A settled page that offers
+    // none of the known steps and is not the signed-in account is the
+    // failure, named by its URL and text.
+    for (;;) {
+      await pageSettled(s.page);
       const text = await bodyText(s.page);
       if (/captcha|robot|verify you are human|security check/i.test(text)) {
         const solved = await s.solveCaptcha().catch((e) => `captcha err: ${e.message}`);
         console.log(`[yahoo] captcha result=${solved}`);
-        await pageSettled(s.page);
+        continue;
       }
       if (await maybeOpenPasswordSetup(s.page)) continue;
       if (await maybeHandlePhone(s)) continue;
@@ -215,10 +219,8 @@ async function successState(s) {
         await s.close();
         process.exit(0);
       }
-      await pageSettled(s.page);
+      throw new Error(`yahoo_register_unrecognised_page final_url=${state.url} sample=${state.sample}`);
     }
-    const final = await successState(s);
-    throw new Error(`yahoo_register_no_success final_url=${final.url} sample=${final.sample}`);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.log(`FAIL: ${message}`);

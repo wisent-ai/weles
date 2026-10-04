@@ -37,14 +37,15 @@ try {
     console.log('[vast] popup opened:', !!popup);
     if (popup) {
       try { await popup.waitForLoadState('domcontentloaded'); } catch {}
-      for (let i = 0; i < 60; i++) {
-        if (popup.isClosed?.()) break;
+      // Google's OAuth popup closes itself when sign-in completes; each step
+      // it shows is answered until then.
+      while (!popup.isClosed()) {
         let path = '';
         try { path = new URL(popup.url()).pathname; } catch {}
         if (path.includes('/signin/identifier')) {
           try { await popup.fill('input[type="email"]', EMAIL); await popup.click('#identifierNext').catch(() => {}); } catch {}
         } else if (path.includes('/challenge/pwd') || path.includes('/challenge/password')) {
-          if (!PWD) { console.log('FAIL: no password'); break; }
+          if (!PWD) throw new Error('Google asked for the password and no password is configured');
           try { await popup.fill('input[type="password"]', PWD); await popup.click('#passwordNext').catch(() => {}); } catch {}
         } else if (path.includes('/signin/oauth/') || path.includes('/oauthconsent')) {
           await popup.evaluate(`(() => { var b = Array.from(document.querySelectorAll('button,[role="button"],a')).find(e => /^(continue|allow|confirm)$/i.test((e.innerText||'').trim())); if (b) b.click(); })()`).catch(() => {});

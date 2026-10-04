@@ -48,8 +48,9 @@ try {
     const popup = await popupP;
     if (popup) {
       try { await popup.waitForLoadState('domcontentloaded'); } catch {}
-      for (let i = 0; i < 60; i++) {
-        if (popup.isClosed?.()) break;
+      // Google's OAuth popup closes itself when sign-in completes; each step
+      // it shows is answered until then.
+      while (!popup.isClosed()) {
         const pu = popup.url();
         let path = '';
         try { path = new URL(pu).pathname; } catch {}

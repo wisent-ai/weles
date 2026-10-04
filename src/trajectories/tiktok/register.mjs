@@ -68,27 +68,16 @@ const PROBE = `(() => { const t = document.body.innerText || ''; const i = []; i
         } catch {}
       }
 
-      // Click "Use phone or email" — again until URL advances past /signup
-      for (let cs = 0; cs < 4; cs++) {
-        const urlBefore = s.page.url?.() ?? '';
-        if (urlBefore.includes('/phone-or-email')) break;
+      // Click "Use phone or email" until the page is on /phone-or-email, then
+      // "Sign up with email" until it is on the email tab; the page's own URL
+      // ends each, not a count of clicks.
+      while (!(s.page.url?.() ?? '').includes('/phone-or-email')) {
         await s.click('Use phone or email');
         await pageSettled(s.page);
       }
-      const urlAfterChannel = s.page.url?.() ?? '';
-      if (!urlAfterChannel.includes('/phone-or-email')) {
-        console.log(`[test] attempt ${retry + 1}: stuck at ${urlAfterChannel}`); continue;
-      }
-
-      // Click "Sign up with email" if still on /phone page
-      for (let cs = 0; cs < 3; cs++) {
-        const u = s.page.url?.() ?? '';
-        if (u.includes('/email')) break;
+      while (!(s.page.url?.() ?? '').includes('/email')) {
         await s.click('Sign up with email');
         await pageSettled(s.page);
-      }
-      if (!(s.page.url?.() ?? '').includes('/email')) {
-        console.log(`[test] attempt ${retry + 1}: couldn't switch to email tab`); continue;
       }
 
       // Select birthday
@@ -139,14 +128,13 @@ const PROBE = `(() => { const t = document.body.innerText || ''; const i = []; i
         console.log('[test] Send button disabled — skipping');
         continue;
       }
-      // Captcha SDK init + invisible-challenge solve before /send_code/ fires
-      // takes 8-20s. Poll up to 25s for "Resend code" countdown or a
-      // captcha/rate-limit indicator.
+      // Captcha SDK init + invisible-challenge solve run before /send_code/
+      // fires; the page is read until the "Resend code" countdown, the
+      // send_code response, or a captcha/rate-limit indicator appears.
       let probe = { hasResend: false, indicators: [] };
-      for (let pw = 0; pw < 25; pw++) {
+      while (!(probe.hasResend || net.sendCodeSuccess || probe.indicators?.length)) {
         await pageSettled(s.page);
-        probe = await s.page.evaluate(PROBE).catch(() => ({ error: true }));
-        if (probe.hasResend || net.sendCodeSuccess || probe.indicators?.length) break;
+        probe = await s.page.evaluate(PROBE);
       }
       console.log(`[test] After Send code: ${JSON.stringify(probe)}`);
       await screenshotIfPossible(s, `after_send_code_r${retry}`);
@@ -209,17 +197,18 @@ const PROBE = `(() => { const t = document.body.innerText || ''; const i = []; i
 
       console.log(`[test] clicks received: ${await recordedClicks(s.page)}`);
 
-      // Wait for URL change OR post-submit state.
+      // Wait for URL change OR post-submit state; the page is read until one
+      // of them shows.
       let postUrl = s.page.url?.() ?? '';
-      for (let w = 0; w < 30; w++) {
+      for (;;) {
         await pageSettled(s.page);
         postUrl = s.page.url?.() ?? '';
-        const t = await s.page.evaluate('(document.body.innerText || "").slice(0, 600).toLowerCase()');
+        const t = await s.page.evaluate('(document.body.innerText || "").toLowerCase()');
         if (/create-username|foryou|\/@|onboarding|interests|choose.*username|create a username|profile picture|turn on notifications/i.test(postUrl + ' ' + t)) {
-          console.log(`[test] post-next state found at wait ${w}: url=${postUrl}`); break;
+          console.log(`[test] post-next state found: url=${postUrl}`); break;
         }
-        if (/drag|puzzle|captcha|verify/i.test(t)) { console.log(`[test] captcha-like at wait ${w}: ${t}`); break; }
-        if (/incorrect|invalid|attempts reached|try again later|account.*already/i.test(t)) { console.log(`[test] error at wait ${w}: ${t}`); break; }
+        if (/drag|puzzle|captcha|verify/i.test(t)) { console.log(`[test] captcha-like: ${t}`); break; }
+        if (/incorrect|invalid|attempts reached|try again later|account.*already/i.test(t)) { console.log(`[test] error: ${t}`); break; }
       }
       await screenshotIfPossible(s, `after_next_r${retry}`);
 
