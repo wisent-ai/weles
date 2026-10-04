@@ -13,13 +13,18 @@
 
 import { runOutputPath } from '#run-output';
 import { chromium } from 'playwright';
-import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { humanClickLocator } from '../../dist/human/mouse.js';
 import { humanFill } from '../../dist/human/keyboard.js';
 import { pageSettled, urlMatching } from '../trajectories/_shared/page/settled.mjs';
 
-const CDP = 'http://localhost:9223';
+// keeper.mjs runs Chromium on a port the system chose; Chromium records it in
+// the profile's DevToolsActivePort file.
+const ACTIVE_PORT = join(homedir(), '.weles', 'tencent_persistent_profile', 'DevToolsActivePort');
+if (!existsSync(ACTIVE_PORT)) { console.error(`keeper is not running: ${ACTIVE_PORT} does not exist`); process.exit(2); }
+const CDP = `http://127.0.0.1:${readFileSync(ACTIVE_PORT, 'utf8').split('\n')[0].trim()}`;
 const OUT = runOutputPath('keeper');
 if (!existsSync(OUT)) mkdirSync(OUT, { recursive: true });
 

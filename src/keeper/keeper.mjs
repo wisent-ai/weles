@@ -2,7 +2,8 @@
 // Subsequent helper invocations attach via CDP and drive the same page.
 //
 // Run on the Stado-selected dedicated host: node src/keeper/keeper.mjs
-// CDP: http://localhost:9223
+// CDP: the system picks a free port; Chromium writes it to the profile's
+// DevToolsActivePort file, which action.mjs reads.
 
 import { chromium } from 'playwright';
 import { readFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -10,7 +11,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { customBrowserSearchHint, findCustomChromium } from '../../dist/session/find_browser.js';
 
-const PORT = 9223;
+const devToolsPort = () => Number(readFileSync(join(USER_DATA_DIR, 'DevToolsActivePort'), 'utf8').split('\n')[0]);
 const PORTAL_URL = 'https://3d.hunyuanglobal.com/';
 const JAR_PATH = join(homedir(), '.weles', 'cookie-jars', 'tencent.json');
 const USER_DATA_DIR = join(homedir(), '.weles', 'tencent_persistent_profile');
@@ -28,7 +29,7 @@ const ctx = await chromium.launchPersistentContext(USER_DATA_DIR, {
   executablePath: CHROMIUM,
   viewport: { width: 1280, height: 800 },
   args: [
-    `--remote-debugging-port=${PORT}`,
+    '--remote-debugging-port=0',
     '--no-first-run',
     '--no-default-browser-check',
     '--disable-blink-features=AutomationControlled',
@@ -44,7 +45,7 @@ let closing;
 const closeOwnedContext = () => closing ??= ctx.close();
 const { promise: lifetime, resolve, reject } = Promise.withResolvers();
 const failure = (code, message) => Object.assign(new Error(message), {
-  code, pageUrl: page?.url() ?? null, portalUrl: PORTAL_URL, cdpPort: PORT,
+  code, pageUrl: page?.url() ?? null, portalUrl: PORTAL_URL, cdpPort: devToolsPort(),
 });
 const onContextClosed = () => {
   if (stopping) resolve();
@@ -65,7 +66,7 @@ process.on('SIGTERM', onStop);
 try {
   // Register lifetime observation before any browser operation can fail.
   const startup = Promise.resolve().then(async () => {
-    console.log(`[keeper] Chromium launched with CDP on http://localhost:${PORT}`);
+    console.log(`[keeper] Chromium launched with CDP on http://127.0.0.1:${devToolsPort()}`);
     console.log(`[keeper] User data dir: ${USER_DATA_DIR}`);
     let jar;
     try {
