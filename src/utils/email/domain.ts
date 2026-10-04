@@ -1,13 +1,10 @@
 import { resolveMx } from 'node:dns/promises';
 import { readSetting, writeSetting } from '../../state/skarbiec-records.js';
 
-const MX_CACHE_TTL_MS = 5 * 60 * 1000;
-const MAX_SIGNUPS_PER_DOMAIN = 999;
+// A domain is used until a platform is observed blocking it (reportBlocked);
+// no count of signups per domain is chosen here. Picks go to the least-used
+// active domain, so signups spread on their own.
 const DOMAIN_STATE_KEY = 'inbound_email_domains';
-const mxCache = new Map<string, { ok: boolean; at: number }>();
-const PLATFORM_MAX_SIGNUPS: Record<string, number> = {
-  tiktok: Number(process.env.TIKTOK_MAX_SIGNUPS_PER_DOMAIN ?? 500),
-};
 
 export type DomainRow = {
   domain: string;
@@ -33,18 +30,16 @@ export function writeDomainRows(rows: DomainRow[]): void {
   writeSetting(DOMAIN_STATE_KEY, rows);
 }
 
+// Asked on every pick; the resolver's own record TTL decides how long an
+// answer is reused, not a window chosen here.
 async function hasValidMx(domain: string): Promise<boolean> {
-  const cached = mxCache.get(domain);
-  if (cached && Date.now() - cached.at < MX_CACHE_TTL_MS) return cached.ok;
   // One lookup; a resolver failure is a broken MX until the next check.
-  let ok = false;
   try {
-    ok = (await resolveMx(domain)).length > 0;
+    return (await resolveMx(domain)).length > 0;
   } catch (error) {
     console.log(`[email] mx_lookup_failed: ${domain}: ${(error as NodeJS.ErrnoException).code ?? (error as Error).message}`);
+    return false;
   }
-  mxCache.set(domain, { ok, at: Date.now() });
-  return ok;
 }
 
 function envDerived(): string {
@@ -71,9 +66,8 @@ async function pickStoredDomain(platform?: string): Promise<string | null> {
       changed = true;
     }
   }
-  const maximum = platform ? (PLATFORM_MAX_SIGNUPS[platform.toLowerCase()] ?? MAX_SIGNUPS_PER_DOMAIN) : MAX_SIGNUPS_PER_DOMAIN;
   const candidates = rows
-    .filter((row) => row.status === 'active' && row.signup_count < maximum && !platformBlock(row, platform))
+    .filter((row) => row.status === 'active' && !platformBlock(row, platform))
     .sort((left, right) => left.signup_count - right.signup_count || String(left.last_used_at ?? '').localeCompare(String(right.last_used_at ?? '')));
   for (const row of candidates) {
     if (!(await hasValidMx(row.domain))) {
@@ -87,7 +81,7 @@ async function pickStoredDomain(platform?: string): Promise<string | null> {
     return row.domain;
   }
   if (changed) writeDomainRows(rows);
-  if (platform && rows.length) throw new Error(`domain_unavailable: no active inbound domains below ${maximum} signups for ${platform}`);
+  if (platform && rows.length) throw new Error(`domain_unavailable: every inbound domain is broken or blocked for ${platform}`);
   return null;
 }
 
