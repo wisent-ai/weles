@@ -7,7 +7,6 @@ import { EvidenceRetentionError } from '../wire.mjs';
 import { isObject } from '../wire/canonical-json.mjs';
 
 const EVIDENCE_PATH_COMPONENT_RE = /^[A-Za-z0-9._-]+$/;
-const MAX_EVIDENCE_FILES = 10_000;
 export const MAX_EVIDENCE_FILE_BYTES = 8 * 1024 * 1024;
 export const MAX_EVIDENCE_TOTAL_BYTES = 8 * 1024 * 1024;
 export const MAX_EVIDENCE_MANIFEST_BYTES = 4 * 1024 * 1024;
@@ -67,9 +66,6 @@ export async function collectEvidenceFiles(root) {
       }
       if (!entry.isFile()) throw new EvidenceRetentionError('evidence-entry-unsafe', `non-regular evidence entry is forbidden: ${relativePath}`);
       if (entry.name === RECEIPT_MANIFEST_NAME || entry.name === '.uploaded.json') continue;
-      if (files.length >= MAX_EVIDENCE_FILES) {
-        throw new EvidenceRetentionError('evidence-file-count-exceeded', 'evidence file count exceeds the limit');
-      }
       const hashed = await hashStableFile(fullPath);
       if (hashed.bytes < 1) {
         // The Spis bridge requires a positive byte count on every inventory
