@@ -4,15 +4,20 @@
 //     --remote-debugging-port=9222 \
 //     --user-data-dir="$HOME/Library/Application Support/Google/Chrome"
 // Then navigates to their TV chart with drawings already made.
-// Usage: node src/trajectories/tradingview/drawings.mjs --ticker ORCL
+// Usage: node src/trajectories/tradingview/drawings.mjs --ticker ORCL --cdp <devtools origin>
 // Output: /tmp/tv_drawings.json with dump of all drawing-like state.
 
 console.log = (...a) => process.stderr.write(a.map(String).join(' ') + '\n');
 
 const args = {};
 for (let i = 2; i < process.argv.length; i += 2) args[process.argv[i].replace(/^--/, '')] = process.argv[i + 1];
-const ticker = (args.ticker || 'ORCL').toUpperCase();
-const cdpUrl = args.cdp || 'http://localhost:9222';
+// Both are required: no ticker and no browser address are built in.
+if (!args.ticker || !args.cdp) {
+  console.error('usage: node src/trajectories/tradingview/drawings.mjs --ticker <SYMBOL> --cdp <devtools origin>');
+  process.exit(2);
+}
+const ticker = args.ticker.toUpperCase();
+const cdpUrl = args.cdp;
 
 console.error(`[tv_draw] querying tabs at ${cdpUrl}/json/list`);
 const tabsResp = await fetch(`${cdpUrl}/json/list`);
