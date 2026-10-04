@@ -61,7 +61,7 @@ async function gotoLogin() {
   // tears down the WSession, and restarts with a working proxy. Returns
   // the (possibly fresh) session + the proxyUrl actually in use, which
   // we persist in captureCookies via metadata.proxy.
-  const r = await gotoLoginRotating({ session: s, persona, restartFn: async (url, p) => WSession.start({ label: 'linkedin_login', proxy: url, persona: p, headless: HEADLESS, pageDiagnostics: false }), maxRotations: 5 });
+  const r = await gotoLoginRotating({ session: s, persona, restartFn: async (url, p) => WSession.start({ label: 'linkedin_login', proxy: url, persona: p, headless: HEADLESS, pageDiagnostics: false }) });
   s = r.session;
   if (r.proxyUrl) proxyUrl = r.proxyUrl;
 }

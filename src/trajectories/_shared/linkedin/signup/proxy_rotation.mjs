@@ -31,13 +31,20 @@ export async function freshProviderUrl(provider) {
   } catch { return null; }
 }
 
-// The sequence orders provider choices for this trajectory.
-export const PROVIDER_ROTATION = (() => {
-  const seq = [];
-  for (let i = 0; i < 20; i++) seq.push('oxylabs');
-  for (let i = 0; i < 4; i++) for (const p of ['iproyal', 'pingproxies', 'brightdata']) seq.push(p);
-  return seq;
-})();
+// Providers in the order this trajectory prefers them, each once; a
+// rotation cycles through them for as many fresh exits as the budget allows.
+export const PROVIDER_ROTATION = Object.freeze(['oxylabs', 'iproyal', 'pingproxies', 'brightdata']);
+
+// How many fresh proxy exits one login may probe is the operator's decision:
+// LINKEDIN_PROXY_EXIT_BUDGET, required, a positive whole number.
+export function proxyExitBudget() {
+  const raw = process.env.LINKEDIN_PROXY_EXIT_BUDGET;
+  const budget = Number(raw);
+  if (!raw || !Number.isInteger(budget) || budget <= 0) {
+    throw new Error('LINKEDIN_PROXY_EXIT_BUDGET must name how many fresh proxy exits a login may probe (a positive whole number)');
+  }
+  return budget;
+}
 
 // curl-based preflight: hit /login through the proxy and check whether the
 // response body contains the markers a real form has. Cheap (no Chromium
@@ -49,7 +56,7 @@ export async function curlProbeLoginForm(proxyUrl) {
   return await new Promise((resolve) => {
     const ua = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36';
     const args = ['-s', '-x', proxyUrl, '-H', `User-Agent: ${ua}`, 'https://www.linkedin.com/login'];
-    execFile('curl', args, { maxBuffer: 8 * 1024 * 1024 }, (err, stdout) => {
+    execFile('curl', args, { maxBuffer: Infinity }, (err, stdout) => {
       if (err) return resolve({ ok: false, reason: err.message });
       const body = (stdout ?? '').toString();
       const hasSessionKey = /name="session_key"|id="username"|type="email"/.test(body);
@@ -58,17 +65,18 @@ export async function curlProbeLoginForm(proxyUrl) {
   });
 }
 
-// Iterate PROVIDER_ROTATION using curl preflight. Returns the first proxy
-// URL that the curl probe says renders the real form, plus the sessid.
+// Cycle PROVIDER_ROTATION using curl preflight for at most `budget` fresh
+// exits. Returns the first proxy URL that the curl probe says renders the real
+// form and how many exits it took, or null with every exit spent.
 // Caller can write that sessid to metadata.proxy so subsequent logins try
 // the cached working sticky first.
-export async function findUnflaggedSticky(maxAttempts = PROVIDER_ROTATION.length) {
-  for (let i = 0; i < maxAttempts; i++) {
+export async function findUnflaggedSticky(budget) {
+  for (let i = 0; i < budget; i++) {
     const provider = PROVIDER_ROTATION[i % PROVIDER_ROTATION.length];
     const url = await freshProviderUrl(provider);
     if (!url) { console.log(`[preflight] ${provider}: no creds — skipping`); continue; }
     const r = await curlProbeLoginForm(url);
-    console.log(`[preflight] attempt ${i + 1} provider=${provider} ok=${r.ok} body=${r.bodyLen ?? '-'} reason=${r.reason ?? ''}`);
+    console.log(`[preflight] exit ${i + 1}/${budget} provider=${provider} ok=${r.ok} body=${r.bodyLen ?? '-'} reason=${r.reason ?? ''}`);
     if (r.ok) return { url, provider, attempts: i + 1 };
   }
   return null;
@@ -81,24 +89,26 @@ export async function findUnflaggedSticky(maxAttempts = PROVIDER_ROTATION.length
 // session, and restart with the working URL. Caller passes restartFn to
 // rebuild the WSession with the new proxy. Returns the (possibly fresh)
 // session + the proxyUrl actually in use.
-export async function gotoLoginRotating({ session, persona, restartFn, maxRotations = 5 }) {
+export async function gotoLoginRotating({ session, persona, restartFn }) {
   let s = session;
   let activeProxy = null;
-  let attempts = 0;
+  let remaining = proxyExitBudget();
+  let rotations = 0;
   while (true) {
     try {
       await s.page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded' });
       const url = s.page.url?.() ?? '';
       if (url.startsWith('chrome-error://')) throw new Error('goto_chrome_error');
       if (!(await pageHasLoginForm(s.page))) throw new Error('stripped_login_shell');
-      console.log(`[linkedin_login] goto: full login form rendered (rotations=${attempts})`);
+      console.log(`[linkedin_login] goto: full login form rendered (rotations=${rotations})`);
       return { session: s, proxyUrl: activeProxy };
     } catch (e) {
       if (!/stripped_login_shell|goto_chrome_error/.test(e.message)) throw e;
-      if (++attempts > maxRotations) throw new Error(`rotation_exhausted_after_${attempts}: ${e.message}`);
-      console.log(`[linkedin_login] ${e.message} — rotating sticky (rotation ${attempts}/${maxRotations})`);
-      const fresh = await findUnflaggedSticky(8);
-      if (!fresh) throw new Error('no_unflagged_sticky_found');
+      rotations += 1;
+      console.log(`[linkedin_login] ${e.message} — rotating sticky (${remaining} exits left in LINKEDIN_PROXY_EXIT_BUDGET)`);
+      const fresh = await findUnflaggedSticky(remaining);
+      if (!fresh) throw new Error(`no_unflagged_sticky_found: LINKEDIN_PROXY_EXIT_BUDGET spent after ${rotations} rotations: ${e.message}`);
+      remaining -= fresh.attempts;
       await s.close().catch(() => {});
       s = await restartFn(fresh.url, persona);
       activeProxy = fresh.url;

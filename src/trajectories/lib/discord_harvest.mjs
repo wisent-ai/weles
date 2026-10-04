@@ -114,18 +114,24 @@ async function tryDispatch(token, country) {
 // logical operation across countries+numbers; first-call-only would mean
 // giving up on Discord phone-verify after one VOIP number is rejected.
 async function phoneVerify(token) {
-  const COUNTRIES = (process.env.DISCORD_PHONE_COUNTRIES || 'US,UK,CA,NL,DE').split(',');
-  const MAX_NUMBERS = parseInt(process.env.DISCORD_PHONE_MAX_TRIES || '6', 10);
+  // Which countries to search and how many numbers to spend are the
+  // operator's: DISCORD_PHONE_COUNTRIES and DISCORD_PHONE_MAX_TRIES, both
+  // required.
+  const COUNTRIES = (process.env.DISCORD_PHONE_COUNTRIES || '').split(',').map((c) => c.trim()).filter(Boolean);
+  if (!COUNTRIES.length) return { ok: false, reason: 'DISCORD_PHONE_COUNTRIES must list the SMS countries to search, comma-separated' };
+  const MAX_NUMBERS = Number(process.env.DISCORD_PHONE_MAX_TRIES);
+  if (!Number.isInteger(MAX_NUMBERS) || MAX_NUMBERS <= 0) return { ok: false, reason: 'DISCORD_PHONE_MAX_TRIES must say how many numbers to spend (a positive whole number)' };
   let dispatched = null;
   let tries = 0;
   // retry-allowed: pool-exhaustion search across countries+numbers is one
   // logical operation, bounded by MAX_NUMBERS; first-call-only would mean
   // giving up after one VOIP rejection.
   for (const country of COUNTRIES) {
-    // retry-allowed: per-country juicysms pool may issue same number 2-3x
-    // before skipnumber kicks in.
-    for (let attempt = 0; attempt < 3; attempt++) {
-      if (tries++ >= MAX_NUMBERS) break;
+    // retry-allowed: a country's pool may issue the same number again before
+    // skipnumber kicks in; it is asked until it has no number or the
+    // operator's number budget is spent.
+    while (tries < MAX_NUMBERS) {
+      tries += 1;
       const r = await tryDispatch(token, country);
       if (r.ok) { dispatched = r; break; }
       if (r.reason === 'no_number') break; // move on to next country
