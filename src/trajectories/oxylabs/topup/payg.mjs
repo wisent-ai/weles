@@ -13,16 +13,22 @@ export async function topUpPayAsYouGo(s, usd) {
     console.log('FAIL: "Add more traffic" button not visible on /overview/MP — Pay-as-you-go topup path requires this button');
     process.exit(1);
   }
-  // Cited from /MP/plan-change probe: PAYG modal has amount input
-  // 1-50 GB, $9/GB, already-checked nonrefundableCondition checkbox,
-  // Cancel + Continue buttons. Compute GB from USD using floor so we
-  // never exceed the budget ceiling.
-  const GB_PRICE = 9;
-  const targetGb = Math.max(1, Math.floor(usd / GB_PRICE));
-  console.log(`[trajectory] targeting ${targetGb} GB at $${GB_PRICE}/GB (total $${targetGb * GB_PRICE} for budget $${usd})`);
+  // The PAYG modal states its own per-GB price next to the amount input.
+  // The price is read from that modal, never assumed: a price written here
+  // would buy the wrong amount the day Oxylabs changes it. GB is computed
+  // with floor so the charge never exceeds the budget ceiling.
   await addTrafficBtn.click({ force: true }).catch(() => {});
   await humanIdlePause('long');
   await s.page.screenshot({ path: `${runRecordingsDir('oxylabs_topup')}/oxylabs-add-traffic.png`, fullPage: true }).catch(() => {});
+  const modalText = await s.page.evaluate(() => document.body.innerText || '');
+  const priceMatch = modalText.match(/\$\s*(\d+(?:\.\d+)?)\s*(?:\/|per)\s*GB/i);
+  if (!priceMatch) {
+    console.log(`FAIL: the "Add more traffic" modal states no per-GB price; read: ${JSON.stringify(modalText.replace(/\s+/g, ' ').slice(0, 400))}`);
+    process.exit(1);
+  }
+  const gbPrice = Number(priceMatch[1]);
+  const targetGb = Math.max(1, Math.floor(usd / gbPrice));
+  console.log(`[trajectory] targeting ${targetGb} GB at $${gbPrice}/GB read from the modal (total $${targetGb * gbPrice} for budget $${usd})`);
   let amountSet = false;
   const sliderInput = s.page.locator('input[type="range"]').filter({ visible: true }).first();
   if (await sliderInput.isVisible().catch(() => false)) {
@@ -133,7 +139,7 @@ export async function topUpPayAsYouGo(s, usd) {
   const finalBtn = s.page.locator('button:has-text("Pay"), button:has-text("Subscribe"), button[type="submit"]').filter({ visible: true }).last();
   if (await finalBtn.isVisible().catch(() => false)) { await finalBtn.click({ force: true }).catch(() => {}); console.log('[trajectory] clicked final Stripe submit'); }
   await pageSettled(s.page);
-  if (stripeChargeFired) console.log(`PASS-CHARGED: Stripe payment_intents/confirm POST fired — purchased ${targetGb} GB at $${GB_PRICE}/GB ($${targetGb * GB_PRICE})`);
+  if (stripeChargeFired) console.log(`PASS-CHARGED: Stripe payment_intents/confirm POST fired — purchased ${targetGb} GB at $${gbPrice}/GB ($${targetGb * gbPrice})`);
   else console.log(`FAIL: no Stripe charge POST observed by the time the page settled, url=${s.page.url()}`);
   process.exit(stripeChargeFired ? 0 : 1);
 }
