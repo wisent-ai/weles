@@ -30,8 +30,12 @@ export async function submitStoredGoogleCode(creds, offsetMs = 0) {
   return true;
 }
 
+// Resolves true once the browser has left accounts.google.com, false when a
+// code is asked for and no stored secret can answer it. A screen it has no
+// answer for is waited on; the run's cancellation ends a sign-in that never
+// completes.
 export async function handleGoogleLogin(creds) {
-  for (let step = 0; step < 40; step += 1) {
+  for (;;) {
     const s = await state();
     const text = s.text || '';
     const url = s.url || '';
@@ -89,5 +93,4 @@ export async function handleGoogleLogin(creds) {
 
     await idle('short');
   }
-  return false;
 }

@@ -32,7 +32,9 @@ export async function activateSetup(creds) {
   const steps = [];
   if (!await openAuthenticatorSettings(creds)) return { ok: false, blocked: 'google_login_failed_or_manual_code_timeout', steps };
 
-  for (let i = 0; i < 30; i += 1) {
+  // Each screen Google shows is answered until the authenticator is activated
+  // or a screen blocks it; an unrecognised screen is waited on.
+  for (let i = 0; ; i += 1) {
     const s = await state();
     const text = s.text || '';
     steps.push({ i, url: s.url, textPreview: redact(text) });
@@ -99,6 +101,4 @@ export async function activateSetup(creds) {
 
     await idle('short');
   }
-
-  return { ok: false, blocked: 'authenticator_activation_state_not_reached', steps };
 }

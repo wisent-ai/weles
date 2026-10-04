@@ -10,8 +10,11 @@ import { clickControl, evalState, fillSelector, idle, press } from './keeper_bro
 
 const TOTP_INPUT = 'input[type="tel"], input[type="text"], input[inputmode="numeric"], input[name="totpPin"], input[name="Pin"]';
 
+// Resolves true once the browser has left accounts.google.com. A screen it has
+// no answer for (a phone prompt waiting on a person, for one) is waited on;
+// the run's cancellation ends a sign-in that never completes.
 export async function handleGoogleLogin(creds) {
-  for (let step = 0; step < 45; step += 1) {
+  for (;;) {
     const s = await evalState();
     const text = s.text || '';
     const url = s.url || '';
@@ -72,5 +75,4 @@ export async function handleGoogleLogin(creds) {
 
     await idle('short');
   }
-  return false;
 }

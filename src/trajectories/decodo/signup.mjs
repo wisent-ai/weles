@@ -179,8 +179,10 @@ try {
   await shot(s, '06_after_buy');
   console.log(`[decodo] after buy url=${s.page.url()}`);
 
+  // However many checkout steps Decodo shows are walked; it ends on a success
+  // address or a page with no committal control, which the log names.
   const COMMIT = 'Subscribe|Pay|Place order|Complete|Confirm|Continue'.split('|');
-  for (let step = 0; step < 7; step++) {
+  for (let step = 0; ; step++) {
     await pageSettled(s.page);
     const url = s.page.url();
     await shot(s, `07_checkout_${step}`);

@@ -108,23 +108,18 @@ function openByParam(param) {
 
 function saveSubform() {
   action(['dispatch_click', '#collection-obj-form-save-btn']);
-  for (let i = 0; i < 10; i += 1) {
+  // The form is saved when its save button is gone. A disabled button is a
+  // save in flight and is waited for; an enabled one did not take the click
+  // and is pressed again.
+  for (let clicks = 1; ; ) {
     idle('long');
     const status = read(`(() => {
       const b = document.querySelector('#collection-obj-form-save-btn');
       return b ? { disabled: b.disabled, text: b.innerText } : null;
     })()`);
-    if (!status) return { ok: true, waited: i + 1 };
-    if (!status.disabled && i >= 2) {
-      action(['dispatch_click', '#collection-obj-form-save-btn'], true);
-    }
+    if (!status) return { ok: true, clicks };
+    if (!status.disabled) { action(['dispatch_click', '#collection-obj-form-save-btn'], true); clicks += 1; }
   }
-  const status = read(`(() => {
-    const b = document.querySelector('#collection-obj-form-save-btn');
-    return b ? { disabled: b.disabled, text: b.innerText } : null;
-  })()`);
-  if (status?.disabled) return { ok: true, method: 'save-button-disabled-after-click-reload-to-continue' };
-  throw new Error(`subform did not close after save: ${JSON.stringify(status)}`);
 }
 
 function allRowsText() {

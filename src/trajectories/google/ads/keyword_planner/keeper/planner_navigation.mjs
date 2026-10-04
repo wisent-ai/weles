@@ -50,12 +50,12 @@ export async function selectGoogleAdsAccount() {
     preferredEmail().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
   ].join('|');
   if (!await clickControl(accountRow, 'Google Ads account', { maxArea: 500_000 }).catch(() => false)) return false;
-  for (let i = 0; i < 12; i += 1) {
+  // Selection is done when Google Ads leaves the account-selection page.
+  for (;;) {
     await idle('short');
     const after = await evalState();
     if (!/selectaccount/i.test(after.url || '') && !/Select a Google Ads account|Select an active account/i.test(after.text || '')) return true;
   }
-  return false;
 }
 
 export async function ensureAdsReady(creds) {

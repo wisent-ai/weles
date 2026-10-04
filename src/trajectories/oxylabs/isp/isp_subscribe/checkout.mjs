@@ -14,7 +14,9 @@ export async function completeCheckout(s) {
   //     cells → saved card auto-charges → success URL.
   // No manual card entry — Link uses the card already stored under the
   // shared Google SSO account, only the OTP gates it.
-  for (let step = 0; step < 6; step++) {
+  // However many steps the checkout shows are walked; it ends on a success
+  // address or a step with no committal control.
+  for (let step = 0; ; step++) {
     await pageSettled(s.page);
     const url = s.page.url();
     const btns = await s.page.evaluate(() => Array.from(document.querySelectorAll('button')).filter(b => b.offsetParent).map(b => (b.textContent||'').trim()).filter(Boolean));

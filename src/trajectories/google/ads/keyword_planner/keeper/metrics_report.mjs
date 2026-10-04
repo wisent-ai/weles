@@ -40,17 +40,16 @@ export function parseRows(text) {
   return rows.filter((row) => row.avgMonthlySearchesText || row.competition || row.topOfPageBidLow);
 }
 
+// The planner is read until it shows result rows or its own empty/error
+// answer; no count of reads is chosen here.
 export async function waitForResults() {
-  let last = null;
-  for (let i = 0; i < 48; i += 1) {
+  for (;;) {
     await idle('short');
     const s = await evalState();
-    last = s;
     const rows = parseRows(s.text || '');
     if (rows.length) return { state: s, rows };
-    if (/No keywords|No results|No account|Unable|error/i.test(s.text || '') && /Keyword Planner/i.test(s.text || '')) break;
+    if (/No keywords|No results|No account|Unable|error/i.test(s.text || '') && /Keyword Planner/i.test(s.text || '')) return { state: s, rows: [] };
   }
-  return { state: last || await evalState(), rows: [] };
 }
 
 export function writeKeywordReport(result, steps) {

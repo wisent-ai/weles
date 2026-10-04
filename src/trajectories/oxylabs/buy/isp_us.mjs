@@ -1,4 +1,5 @@
-// Buy 10 US ISP proxies from Oxylabs via Google SSO + buy-locations flow.
+// Buy US ISP proxies from Oxylabs via Google SSO + buy-locations flow. How many
+// is ISP_BUY_COUNT, required: a purchase quantity is the operator's decision.
 
 import { runOutputPath } from '#run-output';
 import { WSession } from '../../../../dist/session/wsession.js';
@@ -15,6 +16,8 @@ import { COMMIT_BUTTON_SELECTORS } from './selectors.mjs';
 loadTopupCardEnv();
 
 if (process.env.ISP_BUY_CONFIRM !== '1') { console.log('FAIL: ISP_BUY_CONFIRM=1 required before buying ISP proxies'); process.exit(2); }
+const ISP_BUY_COUNT = Number(process.env.ISP_BUY_COUNT);
+if (!Number.isInteger(ISP_BUY_COUNT) || ISP_BUY_COUNT <= 0) { console.log('FAIL: ISP_BUY_COUNT must say how many US ISP proxies to buy (a positive whole number)'); process.exit(2); }
 const OUT_DIR = runOutputPath('keeper', 'oxylabs_isp_buy_us');
 mkdirSync(OUT_DIR, { recursive: true });
 const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
@@ -97,8 +100,9 @@ try {
   await shot(s, 'step2_change_box_ticked');
 
   // Trash every existing selected-country row. After each click rows reindex,
-  // so the "first visible trash" always points to the next victim.
-  for (let i = 0; i < 10; i++) {
+  // so the "first visible trash" always points to the next victim; the loop
+  // ends when no trash control is left.
+  for (let i = 0; ; i++) {
     const trashLoc = s.page.locator('button.css-b5jfu9.e1twrqfe0').filter({ visible: true }).first();
     if (!(await isVisible(trashLoc))) break;
     await humanClickLocator(s.page, trashLoc);
@@ -115,8 +119,9 @@ try {
   await pageSettled(s.page);
   console.log('[trajectory] clicked Add next to United States');
 
-  // Fill the newly-added selected-country input (the only remaining one) with 10.
-  await humanFill(s.page, s.page.locator('input[name="selectedCountries.0.numberOfIps"]').first(), '10');
+  // Fill the newly-added selected-country input (the only remaining one) with
+  // the operator's ISP_BUY_COUNT.
+  await humanFill(s.page, s.page.locator('input[name="selectedCountries.0.numberOfIps"]').first(), String(ISP_BUY_COUNT));
   await pageSettled(s.page);
   const usVal = await s.page.evaluate(() => document.querySelector('input[name="selectedCountries.0.numberOfIps"]')?.value);
   console.log(`[trajectory] US count set to ${usVal}`);
@@ -133,7 +138,9 @@ try {
   await shot(s, 'step3_review');
   console.log(`[trajectory] step3 url=${s.page.url()}`);
 
-  for (let step = 0; step < 6; step++) {
+  // However many checkout steps Oxylabs shows are walked; it ends on a success
+  // address or a page with no commit control, which the log names.
+  for (let step = 0; ; step++) {
     await pageSettled(s.page);
     const url = s.page.url();
     const btns = await s.page.evaluate(() => Array.from(document.querySelectorAll('button')).filter(b => b.offsetParent).map(b => (b.textContent||'').trim()).filter(Boolean));
