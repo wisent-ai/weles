@@ -96,18 +96,23 @@ export function checkedTokenFile(fileName: string, tenantId?: string | null): st
 /** The `stado` command group that reads credential fields. */
 const CREDENTIALS_GROUP = 'credentials';
 
+/**
+ * One field of the item playing role `role`, read with the consumer's own
+ * grant (`read:role:<role>#<field>`). The local credentials file keys the
+ * fields by the role name.
+ */
 export function readScopedField(
   consumer: string,
-  item: string,
+  role: string,
   tokenFileName: string,
   field: string,
 ): string | undefined {
   const local = localCredentialsFile();
-  if (local) return readLocalField(local, item, field);
+  if (local) return readLocalField(local, role, field);
   const tokenFile = checkedTokenFile(tokenFileName);
   if (!tokenFile) return undefined;
   const binary = process.env.WELES_STADO_BIN?.trim() || join(homedir(), '.stado', 'bin', 'stado');
-  const result = spawnSync(binary, [CREDENTIALS_GROUP, 'get', item, '--field', field], {
+  const result = spawnSync(binary, [CREDENTIALS_GROUP, 'get', '--role', role, '--field', field], {
     encoding: 'buffer',
     maxBuffer: Infinity,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -122,11 +127,11 @@ export function readScopedField(
   const output = Buffer.isBuffer(result.stdout) ? result.stdout : Buffer.alloc(0);
   try {
     if (result.error || result.status !== 0) {
-      throw new Error(`scoped Skarbiec read failed for ${item}/${field}`);
+      throw new Error(`scoped Skarbiec read failed for role ${role}/${field}`);
     }
     const value = output.toString('utf8').replace(/[\r\n]+$/, '');
     if (!value || /[\r\n]/.test(value) || value.includes(String.fromCharCode(0))) {
-      throw new Error(`scoped Skarbiec returned an invalid value for ${item}/${field}`);
+      throw new Error(`scoped Skarbiec returned an invalid value for role ${role}/${field}`);
     }
     return value;
   } finally {
@@ -212,11 +217,18 @@ export function hasWelesManagedCredentialReader(
 }
 
 
+/**
+ * Acquire one field through the workload-bound helper. `item` keys the local
+ * credentials file; `coordinate` is what the acquisition catalog and Skarbiec
+ * are asked for: the item itself, or `role:<role>` for a credential named by
+ * the role its item plays.
+ */
 export function readAcquiredField(
   consumerBase: string,
   item: string,
   field: string,
   tenantId?: string | null,
+  coordinate: string = item,
 ): string | undefined {
   const local = localCredentialsFile();
   if (local) return readLocalField(local, item, field, tenantId);
@@ -234,7 +246,7 @@ export function readAcquiredField(
     helper,
     scopeFile,
     consumer,
-    item,
+    coordinate,
     field,
   ], {
     encoding: 'buffer',
@@ -259,16 +271,16 @@ export function readAcquiredField(
       );
       const diagnosis = lines.join(' | ');
       throw new SkarbiecAcquisitionError(
-        `workload-bound Skarbiec acquisition failed for ${item}/${field} as consumer ${consumer}`
+        `workload-bound Skarbiec acquisition failed for ${coordinate}/${field} as consumer ${consumer}`
         + ` against ${endpoint}`
         + `${diagnosis ? `: ${diagnosis}` : `: helper exited ${result.status ?? 'without status'} with no diagnosis`}`,
-        { item, field, consumer },
+        { item: coordinate, field, consumer },
         reason,
       );
     }
     const value = output.toString('utf8').replace(/[\r\n]+$/, '');
     if (!value || /[\r\n]/.test(value) || value.includes('\0')) {
-      throw new Error(`workload-bound Skarbiec acquisition returned an invalid value for ${item}/${field}`);
+      throw new Error(`workload-bound Skarbiec acquisition returned an invalid value for ${coordinate}/${field}`);
     }
     return value;
   } finally {

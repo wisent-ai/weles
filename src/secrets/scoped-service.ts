@@ -21,7 +21,9 @@ export function readOptionalWelesServiceSecret(serviceName: WelesServiceSecret, 
   if (!Object.prototype.hasOwnProperty.call(service.fields, field)) {
     throw new Error(`field is not in the exact Weles service contract: ${serviceName}/${field}`);
   }
-  return readAcquiredField(service.consumer, service.item, field);
+  // A service credential is the item playing the role the contract names, so
+  // the catalog and Skarbiec are asked for role:<role> and no item is named.
+  return readAcquiredField(service.consumer, service.item, field, null, `role:${service.item}`);
 }
 
 export function readWelesManagedCredential(

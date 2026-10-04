@@ -12,6 +12,10 @@ const BASIC_PROXY_FIELDS = Object.freeze({ username: true, password: true });
 const ENDPOINT_PROXY_FIELDS = Object.freeze({ username: true, password: true, host: true, ports: true });
 const API_KEY_FIELDS = Object.freeze({ api_key: true });
 
+// Each service's `item` is the vault role its credential plays: reads ask the
+// acquisition catalog and Skarbiec for `role:<item>`, writes go to the item
+// playing that role (`credentials put --role`), and the local credentials file
+// keys the fields by that name. No vault item id is written here.
 const SERVICES = Object.freeze({
   googleSso: Object.freeze({ consumer: 'weles-google-sso-client', item: 'weles-google-sso-login', tokenFile: 'weles-google-sso-client-skarbiec-token', fields: LOGIN_FIELDS }),
   googleAds: Object.freeze({ consumer: 'weles-google-ads-client', item: 'weles-google-ads-login', tokenFile: 'weles-google-ads-client-skarbiec-token', writerConsumer: 'weles-google-ads-writer', writerTokenFile: 'weles-google-ads-writer-skarbiec-token', fields: LOGIN_WITH_TOTP_FIELDS }),
@@ -112,7 +116,7 @@ export function readScopedSecret(serviceName, field) {
     helper,
     scopes,
     consumer,
-    service.item,
+    `role:${service.item}`,
     field,
   ], {
     encoding: 'buffer',
@@ -137,7 +141,7 @@ export function readScopedSecret(serviceName, field) {
       const reason = declared ? ` reason=${declared[1]}` : '';
       throw new Error(`scoped Skarbiec read failed for ${serviceName}/${field}`
         + ` (helper exited ${result.status ?? 'without status'})`
-        + ` [skarbiec_acquisition item=${service.item} field=${field} consumer=${consumer}${reason}]`);
+        + ` [skarbiec_acquisition item=role:${service.item} field=${field} consumer=${consumer}${reason}]`);
     }
     const value = output.toString('utf8').replace(/[\r\n]+$/, '');
     if (!value || /[\r\n]/.test(value) || value.includes(String.fromCharCode(0))) {
@@ -183,7 +187,7 @@ export function writeScopedSecretItem(serviceName, fields) {
   }
   const input = Buffer.from(JSON.stringify(normalized));
   try {
-    const result = spawnSync(stadoBinary(), ['secrets', 'put', service.item], {
+    const result = spawnSync(stadoBinary(), ['secrets', 'put', '--role', service.item], {
       input,
       maxBuffer: Infinity,
       stdio: ['pipe', 'ignore', 'ignore'],
