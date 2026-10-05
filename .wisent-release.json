@@ -98,14 +98,14 @@
       "extract": true
     },
     "weles-client-bundle": {
-      "uri": "stado://sources/weles-worker/weles-client/0cb5dffbeb8698729de048c7bbdf2e6d420ba7f39c373dfc93a169998285816d/weles-client.bundle",
-      "sha256": "0cb5dffbeb8698729de048c7bbdf2e6d420ba7f39c373dfc93a169998285816d",
+      "uri": "stado://sources/weles-worker/weles-client/88c193285541653ca64daa4501ffaa4a0b0250dbecaaa1145c029c118eb008dc/weles-client.bundle",
+      "sha256": "88c193285541653ca64daa4501ffaa4a0b0250dbecaaa1145c029c118eb008dc",
       "mount": "weles-client.bundle",
       "extract": false
     },
     "wisent-cost-tracker-bundle": {
-      "uri": "stado://sources/weles-worker/wisent-cost-tracker/a29a3b94cbfb3ad9765664684d9fa8911f25aaeb95d7518f0a5047c1a49f02b6/wisent-cost-tracker.bundle",
-      "sha256": "a29a3b94cbfb3ad9765664684d9fa8911f25aaeb95d7518f0a5047c1a49f02b6",
+      "uri": "stado://sources/weles-worker/wisent-cost-tracker/ed97498172f48923b8b913aed11558f4417121582b3264722724d6a39ce0e9cf/wisent-cost-tracker.bundle",
+      "sha256": "ed97498172f48923b8b913aed11558f4417121582b3264722724d6a39ce0e9cf",
       "mount": "wisent-cost-tracker.bundle",
       "extract": false
     }
