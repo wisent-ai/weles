@@ -9,7 +9,7 @@ import { randomBytes } from 'node:crypto';
 import { CaptchaSolver } from '../../../../../dist/captcha/solver.js';
 import { humanFill, humanType } from '../../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanScroll } from '../../../../../dist/human/mouse.js';
-import { pageSettled } from '../../../../_shared/page/settled.mjs';
+import { pageSettled } from '../../../_shared/page/settled.mjs';
 import { readScopedProxy } from '../../../../_shared/scoped-secrets.mjs';
 import { launchGenuineChrome } from '../../../../browser/real_chrome.mjs';
 import { accountItemFor, writeAccount } from '../../../_shared/skarbiec/accounts.mjs';

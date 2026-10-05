@@ -10,8 +10,8 @@ import { execFileSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { activeSkarbiecBinary } from '../../../_shared/skarbiec-runtime.mjs';
-import { providerFromHost } from '../../../dist/proxy/policy.js';
-import { proxyTypeOf, stickyCredentials } from '../../../dist/proxy/sources/provider_credentials.js';
+import { providerFromHost } from '../../../../dist/proxy/policy.js';
+import { proxyTypeOf, stickyCredentials } from '../../../../dist/proxy/sources/provider_credentials.js';
 
 const HOME = os.homedir();
 let resolvedSkarbiecBinary;

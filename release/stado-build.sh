@@ -57,6 +57,10 @@ cd "$source"
 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci --ignore-scripts
 chmod 0755 node_modules/node-pty/prebuilds/*/spawn-helper
 npm run build
+# Every trajectory is linked against the dist this build just compiled, and a
+# module importing a name its dependency does not export fails the build here
+# instead of failing the first sign-in that loads it on a worker.
+node --experimental-vm-modules --experimental-import-meta-resolve release/checks/module-links.mjs src/trajectories
 PLAYWRIGHT_BROWSERS_PATH="$source/browser-runtime" node node_modules/playwright-core/cli.js install ffmpeg
 node release/native/runtime.mjs stage "$source/native/jeden/bin" "$WISENT_INPUT_JEDEN_RUNTIME_DIR"
 node dist/cli.js release surface > "$source/released-surface.json"
