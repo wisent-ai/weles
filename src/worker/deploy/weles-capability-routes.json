@@ -1,10 +1,10 @@
 {
   "origin:https://accounts.google.com/email": {
-    "tag": "stado:role:google-sso-login",
+    "tag": "stado:role:weles-google-sso-login",
     "field": "username"
   },
   "origin:https://accounts.google.com/password": {
-    "tag": "stado:role:google-sso-login",
+    "tag": "stado:role:weles-google-sso-login",
     "field": "password"
   },
   "origin:https://dash.cloudflare.com/email": {
