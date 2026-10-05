@@ -139,9 +139,37 @@ export function skarbiecDirectoryEndpoint() {
   return endpoint.toString().replace(/\/$/, '');
 }
 
+/**
+ * The capability broker socket of the shared Skarbiec on this host, as Stado
+ * declares the Skarbiec unit's environment here. Never an inherited
+ * variable: the per-Weles broker it used to name was retired, and a socket
+ * left in an env file from that time is one nothing serves.
+ */
+export function sharedCapabilitySocket() {
+  const self = spawnSync(stadoBinary(), ['registry', 'self', '--name-only'], {
+    encoding: 'utf8',
+    env: process.env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const host = self.stdout?.trim();
+  if (self.error || self.status !== 0 || !host) {
+    throw new Error(`Stado could not name this host's registry target (exit ${self.status}): ${[self.error?.message, self.stderr?.trim()].filter(Boolean).join('\n') || 'no diagnostic output'}`);
+  }
+  const units = stadoJson(
+    ['service', 'env', 'skarbiec', '--host', host, '--json'],
+    `Skarbiec unit environment on ${host}`,
+  );
+  const socket = Array.isArray(units) ? units[0]?.environment?.SKARBIEC_CAP_SOCKET : undefined;
+  if (typeof socket !== 'string' || !isAbsolute(socket)) {
+    throw new Error(`Stado declares no absolute SKARBIEC_CAP_SOCKET for the Skarbiec unit on ${host}`);
+  }
+  return socket;
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const action = process.argv[2];
   if (action === 'active-binary') process.stdout.write(activeSkarbiecBinary());
   else if (action === 'endpoint') process.stdout.write(skarbiecDirectoryEndpoint());
-  else throw new Error('usage: skarbiec-runtime.mjs active-binary|endpoint');
+  else if (action === 'capability-socket') process.stdout.write(sharedCapabilitySocket());
+  else throw new Error('usage: skarbiec-runtime.mjs active-binary|endpoint|capability-socket');
 }

@@ -101,7 +101,18 @@ export async function startup() {
   process.env.SKARBIEC_VAULT_FILE = join(HOME, '.stado/skarbiec.vault.json');
   delete process.env.SKARBIEC_CAPABILITY_FILE;
   delete process.env.SKARBIEC_CAPABILITY_ROUTES_FILE;
-  process.env.SKARBIEC_CAP_SOCKET ||= join(HOME, '.stado/skarbiec.vault.sock');
+  // The shared broker is the one Stado declares for the Skarbiec unit on this
+  // host. A value inherited from an env file named the per-Weles broker that
+  // was retired, a socket nothing serves, and every start died on it.
+  const declaredSocket = run(nodeBin, [runtimeResolver, 'capability-socket'],
+    'shared Skarbiec capability socket resolution');
+  if (!declaredSocket) refuse('Stado declares no capability socket for this host\'s Skarbiec unit');
+  const inheritedSocket = process.env.SKARBIEC_CAP_SOCKET;
+  if (inheritedSocket && inheritedSocket !== declaredSocket) {
+    process.stdout.write(`ignoring SKARBIEC_CAP_SOCKET=${inheritedSocket} from the environment; `
+      + `the shared broker Stado declares for this host's Skarbiec is ${declaredSocket}\n`);
+  }
+  process.env.SKARBIEC_CAP_SOCKET = declaredSocket;
   const brokerStatus = run(skarbiecBin,
     ['capability-status', '--socket', process.env.SKARBIEC_CAP_SOCKET],
     'shared Skarbiec capability broker inspection');
