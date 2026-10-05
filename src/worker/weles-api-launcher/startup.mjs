@@ -3,6 +3,7 @@
  * fields it must hold before it answers anything, and the HTTP API hosted in
  * this same process.
  */
+import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -121,13 +122,23 @@ export async function startup() {
   // Declare only Weles's origin routes. Copying its table over the shared
   // authority would erase every route another consumer already declared.
   // Each route names the role tag its credential carries, never an item.
+  // A route Skarbiec refuses is reported and the rest of Weles starts: the
+  // table keeps the row it already holds for that origin, and one sign-in
+  // origin whose role nobody has settled must not take every other origin
+  // and the whole API down with it.
   const routes = JSON.parse(readFileSync(
     join(REPO, 'src/worker/deploy/weles-capability-routes.json'), 'utf8'));
   for (const [resource, { tag, field }] of Object.entries(routes)) {
-    run(skarbiecBin, [
+    const declared = spawnSync(skarbiecBin, [
       'route', 'declare', '--resource', resource, '--tag', tag, '--field', field,
       '--reason', 'Weles declares the credential field used by this sign-in origin.',
-    ], `shared Skarbiec route ${resource}`);
+    ], { encoding: 'utf8', env: process.env });
+    if (declared.error || declared.status !== 0) {
+      const why = (declared.error?.message || declared.stderr || declared.stdout || 'no diagnostic output').trim();
+      process.stdout.write(`route ${resource} not declared as ${tag}#${field}: ${why}; `
+        + 'sign-ins on that origin use the row the shared table already holds, if any, '
+        + `until an item carrying ${tag} answers it\n`);
+    }
   }
 
   // Acquisition configures the environment before the API module reads it.
