@@ -62,10 +62,10 @@ Usage:
   weles operator-requests answer <id> --approved|--not-received|--cancel [--detail <text>] [--local]
   weles operator-requests close <id> --approved|--unapproved --detail <text>
   weles operator-requests reopen <id>
-  weles account-security --login-role <skarbiec-role> [--json]
+  weles account-security --provider google --login-role <skarbiec-role> [--json]
   weles account-security --run <run-id> [--json]
-  weles app-password --login-role <skarbiec-role> --organization <skrzynka-organization> [--json]
-  weles app-password --login-item <skarbiec-item> --organization <skrzynka-organization> [--json]
+  weles app-password --provider google --login-role <skarbiec-role> --organization <skrzynka-organization> [--json]
+  weles app-password --provider google --login-item <skarbiec-item> --organization <skrzynka-organization> [--json]
   weles app-password --run <run-id> [--json]
   weles developer-certificate --provider apple --subject <dn> [--account-role <role>] --confirm "AUTHORIZE ONE APPLE DEVELOPER ID" --execution-host <host> --private-key-out <abs> --expires-in-minutes <n> [--execution-agent <agent>] [--json]
   weles developer-certificate --run <run-id> --certificate-out <abs> [--private-key <abs> --store-host <host>] [--json]
@@ -85,8 +85,9 @@ Options:
   --keys <file>           JSON map of trusted receipt key IDs to PEM public keys.
   --state-dir <dir>       Override the durable onboarding state directory.
   --host <hostname>       Exact managed Weles worker hostname for imported definitions.
-  --provider <name>       The provider a login or developer certificate goes through; apple is the
-                          one Weles implements, and none is assumed.
+  --provider <name>       The provider a login, developer certificate, app password or account-security
+                          read goes through: apple for login and developer-certificate, google for
+                          app-password and account-security; none is assumed.
   --login-role <role>     The Skarbiec role the Google login plays (the item tagged stado:role:<role>).
                           account-security reads 2FA without signing in; app-password signs in,
                           creates a Google app password and hands it to Skrzynka.

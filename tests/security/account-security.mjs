@@ -48,7 +48,7 @@ try {
     });
     assert.equal(mutation.status, 400);
     assert.equal(mutation.value.detached_run, undefined, 'refused mutation must not start a run');
-    run = JSON.parse(command(binary, ['account-security', '--login-role', report.login_role, '--json']));
+    run = JSON.parse(command(binary, ['account-security', '--provider', 'google', '--login-role', report.login_role, '--json']));
     report.admission = run;
   }
 
