@@ -35,6 +35,27 @@ const MILLISECONDS_PER_SECOND = 1000;
 const PAGE_CHANNEL = 'stado-alerts';
 /** The word `stado alerts send` prints for a channel the provider accepted. */
 const DELIVERED_WORD = 'delivered';
+/**
+ * Set by the API server on every run it spawns; the run's stderr is the
+ * progress channel its caller reads (`STEP`, `AUTH_FAILURE`, and this).
+ */
+const RUN_ID_VARIABLE = 'ACTION_LOG_ID';
+const PROGRESS_WORD = 'OPERATOR_REQUEST';
+
+/**
+ * Tell whoever ordered this run that it now waits for a person. Nothing on the
+ * page changes until the person acts, so without this line the caller waits in
+ * silence and cannot say what it waits for. Only a run the API server spawned
+ * has a caller reading its stderr; the CLI opening a request by hand does not.
+ */
+function announce(request) {
+  if (!String(process.env[RUN_ID_VARIABLE] || '').trim()) return;
+  process.stderr.write(`${PROGRESS_WORD} ${JSON.stringify({
+    id: request.id, kind: request.kind, account: request.account,
+    instruction: request.instruction, host: request.host, opened_at: request.opened_at,
+    paged: request.pages.some((attempt) => attempt.ok),
+  })}\n`);
+}
 
 /** Where the requests live. One directory per host, overridable for tests. */
 export function operatorRequestDir() {
@@ -168,7 +189,10 @@ export function openOperatorRequest(input) {
     throw new Error(`operator request needs the waiting run's process id, got ${input.runPid}`);
   }
   const waiting = openRequestFor(input.kind, input.account);
-  if (waiting && isAbandoned(waiting) === false) return waiting;
+  if (waiting && isAbandoned(waiting) === false) {
+    announce(waiting);
+    return waiting;
+  }
   const opened = new Date();
   const request = {
     schema: OPERATOR_REQUEST_SCHEMA,
@@ -188,7 +212,9 @@ export function openOperatorRequest(input) {
   };
   write(request);
   request.pages.push(page(request));
-  return write(request);
+  const written = write(request);
+  announce(written);
+  return written;
 }
 
 /**

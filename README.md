@@ -180,6 +180,18 @@ existing Skarbiec source references, performs OAuth on its Stado-selected browse
 host, and stores the grant on the same subscription. It never imports provider
 CLI sessions. Brama confirms repair only after its own credential refresh succeeds.
 
+An admitted `POST /reauth` answers `application/x-ndjson`, one JSON object per
+line, while the run goes: `admitted` (the resolved identity, and `coalesced`
+when the request joined a run already under way), `started` (run id and host),
+one `stage` per step the trajectory reports, `operator_request` when the run
+waits for a person (for example a Google phone approval: the request's id,
+account and instruction, also paged and listed by `weles operator-requests`),
+and last `result`, the run's verdict with every stage it passed. A browser
+sign-in has no clock that ends it, so this is how a caller says what it is
+waiting for. A refusal before a run is admitted is a plain JSON answer with
+its HTTP status. The run's record (`GET /diagnostics/<run>`, `run-result.json`)
+holds the stages reached so far while it runs.
+
 Results identify the subscription, login item, actual failed operation, HTTP status
 and run id. `account_revision` describes Skarbiec data; `source_revision` identifies
 the Weles software. Missing source references, cycles, conflicting login material

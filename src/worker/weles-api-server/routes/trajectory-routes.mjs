@@ -114,6 +114,13 @@ export async function respondToReauth(req, res, selectLoginAccount, resolveOnly 
       message: 'Skarbiec account data changed after authentication was resolved', ...identity });
     return;
   }
+  // An admitted sign-in answers as it goes, one JSON object per line: what
+  // the run is doing now (`started`, every `stage`, an `operator_request` when
+  // it waits for a person) and, last, `result`. A browser sign-in has no clock
+  // that ends it, so a caller that only got the verdict could only wait in
+  // silence and could not say what it was waiting for. A caller that joins a
+  // run already under way is first sent everything that run has reported.
+  const hub = { events: [], listeners: new Set() };
   const admission = coalesceRun(
     runAdmissionKey('reauth', {
       provider,
@@ -121,12 +128,32 @@ export async function respondToReauth(req, res, selectLoginAccount, resolveOnly 
       subscription_id: account.subscriptionId,
       account_revision: account.accountRevision,
     }),
-    () => runReauth(provider, account),
+    () => runReauth(provider, account, (event) => {
+      hub.events.push(event);
+      for (const listener of hub.listeners) listener(event);
+    }),
+    hub,
   );
-  const out = await admission.entry.promise;
-  if (out.error === 'no_reauth_trajectory') { json(res, 404, out); return; }
-  json(res, out.ok ? 200 : 502, { ...out, ...identity, refreshed: out.ok, coalesced: admission.joined });
+  const progress = admission.entry.metadata;
+  res.writeHead(200, { 'Content-Type': REAUTH_PROGRESS_CONTENT_TYPE, 'Cache-Control': 'no-store' });
+  const send = (event) => { if (!res.writableEnded) res.write(`${JSON.stringify(event)}\n`); };
+  send({ event: 'admitted', coalesced: admission.joined, ...identity });
+  for (const event of progress.events) send(event);
+  progress.listeners.add(send);
+  let out;
+  try {
+    out = await admission.entry.promise;
+  } catch (error) {
+    out = { ok: false, error: 'reauth_run_failed', message: String(error?.message || error) };
+  } finally {
+    progress.listeners.delete(send);
+  }
+  send({ event: 'result', ...out, ...identity, refreshed: out.ok, coalesced: admission.joined });
+  res.end();
 }
+
+/** One JSON object per line; the last line is the `result` event. */
+export const REAUTH_PROGRESS_CONTENT_TYPE = 'application/x-ndjson';
 
 // The repair for the one refusal a sign-in cannot repair itself.
 //

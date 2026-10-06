@@ -22,7 +22,7 @@
 import { spawn, execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { userInfo } from 'node:os';
+import { hostname, userInfo } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import { RECORDINGS_ROOT, RUN_RESULTS_DIR } from '../configuration.mjs';
@@ -152,7 +152,14 @@ export const REAUTH_PROVIDERS = new Set(['codex', 'claude', 'kimi']);
 // login_item. It reaches the trajectory as <PROVIDER>_DISPLAY_NAME, which is the
 // selector every reauth/login trajectory already honours, plus WELES_LOGIN_ITEM
 // so the run and its report agree on which account was asked for.
-export function runReauth(provider, account) {
+//
+// A sign-in drives pages until something on them changes, and some changes
+// wait for a person: no clock ends that wait, so the caller is told what the
+// run is doing while it does it. `onProgress` receives each event as it
+// happens: `started` with the run id, `stage` for every `STEP` line the
+// trajectory writes, and `operator_request` when the run opens one and so
+// waits for the operator. The finished run records every stage it passed.
+export function runReauth(provider, account, onProgress = () => {}) {
   return new Promise((resolveRun) => {
     const trajPath = resolve(REPO, 'src/trajectories', provider, 'reauth.mjs');
     if (!existsSync(trajPath)) { resolveRun({ ok: false, error: 'no_reauth_trajectory', provider }); return; }
@@ -200,10 +207,55 @@ export function runReauth(provider, account) {
       detached: process.platform !== 'win32',
     });
     let stdout = ''; let stderr = ''; let settled = false;
+    const stages = [];
+    let operatorRequest = null;
+    let progressRecordError = null;
+    // The run's own record says where it is while it runs, so the diagnostics
+    // route answers "what is it doing" for a caller that was not listening.
+    const recordProgress = () => {
+      try {
+        persistRunResult(runResultPath, {
+          ...RUN_RELEASE_IDENTITY, action, run_id: runId, status: 'running',
+          started_at: startedAt, completed_at: null, stages, operator_request: operatorRequest,
+        });
+      } catch (error) {
+        progressRecordError = `run progress could not be recorded: ${String(error?.message || error)}`;
+      }
+    };
+    const progress = (event) => {
+      try { onProgress(event); } catch { /* a caller that went away does not end the run */ }
+    };
+    progress({ event: 'started', run_id: runId, host: hostname(), started_at: startedAt });
+    let pendingLine = '';
+    const readProgress = (chunk) => {
+      const lines = `${pendingLine}${chunk}`.split('\n');
+      pendingLine = lines.pop();
+      for (const line of lines) {
+        const at = new Date().toISOString();
+        const step = /^STEP (\S+)\s*$/.exec(line);
+        if (step) {
+          stages.push({ stage: step[1], at });
+          recordProgress();
+          progress({ event: 'stage', run_id: runId, stage: step[1], at });
+          continue;
+        }
+        if (line.startsWith('OPERATOR_REQUEST ')) {
+          try { operatorRequest = JSON.parse(line.slice('OPERATOR_REQUEST '.length)); }
+          catch (error) {
+            operatorRequest = { unreadable: String(error?.message || error), line };
+          }
+          recordProgress();
+          progress({ event: 'operator_request', run_id: runId, at, request: operatorRequest });
+        }
+      }
+    };
     const finish = (result) => {
       if (settled) return;
       result.failure = result.ok ? null : (result.failure ?? credentialFailure(result));
       result.second_factor ??= result.failure?.second_factor ?? null;
+      result.stages = stages;
+      result.operator_request = operatorRequest;
+      if (progressRecordError) result.progress_record_error = progressRecordError;
       settled = true;
       try {
         persistRunResult(runResultPath, {
@@ -224,7 +276,7 @@ export function runReauth(provider, account) {
       resolveRun(result);
     };
     child.stdout.on('data', (c) => { stdout += c.toString(); });
-    child.stderr.on('data', (c) => { stderr += c.toString(); });
+    child.stderr.on('data', (c) => { const text = c.toString(); stderr += text; readProgress(text); });
     child.once('error', (error) => {
       finish({
         ok: false,
