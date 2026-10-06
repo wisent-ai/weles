@@ -11,6 +11,19 @@ export type OperatorPageAttempt = {
   detail: string;
 };
 
+export type OperatorAnswer = 'approved' | 'not_received' | 'cancel';
+
+export type OperatorAnswerRecord = {
+  at: string;
+  answer: OperatorAnswer;
+  detail: string;
+};
+
+export type OperatorNote = {
+  at: string;
+  note: string;
+};
+
 export type OperatorRequest = {
   schema: string;
   id: string;
@@ -26,6 +39,10 @@ export type OperatorRequest = {
   waited_seconds: number | null;
   outcome_detail: string;
   pages: OperatorPageAttempt[];
+  /** What the operator told the waiting run, oldest first. */
+  answers?: OperatorAnswerRecord[];
+  /** What the waiting run did about an answer or saw on the page. */
+  notes?: OperatorNote[];
 };
 
 export type OpenOperatorRequestInput = {
@@ -46,3 +63,7 @@ export declare function readOperatorRequest(id: string): OperatorRequest;
 export declare function isOpen(request: OperatorRequest): boolean;
 export declare function isAbandoned(request: OperatorRequest): boolean | null;
 export declare function listOperatorRequests(options?: { limit?: number; openOnly?: boolean }): OperatorRequest[];
+export declare const OPERATOR_ANSWERS: readonly OperatorAnswer[];
+export declare function answerOperatorRequest(id: string, answer: OperatorAnswer, detail: string): OperatorRequest;
+export declare function noteOperatorRequest(id: string, note: string): OperatorRequest;
+export declare function nextOperatorAnswer(id: string, seen: number, signal?: AbortSignal): Promise<OperatorAnswerRecord | null>;

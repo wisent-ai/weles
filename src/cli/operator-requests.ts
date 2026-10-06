@@ -9,9 +9,9 @@
 
 import type { ParsedCli } from '../cli.js';
 import { UsageError } from './usage.js';
-import type { OperatorRequest } from '../operator/request.mjs' with { 'resolution-mode': 'import' };
+import type { OperatorAnswer, OperatorRequest } from '../operator/request.mjs' with { 'resolution-mode': 'import' };
 import type * as OperatorRequestApi from '../operator/request.mjs' with { 'resolution-mode': 'import' };
-import { readOperatorRequests } from '../runtime/api/approvals/client.js';
+import { answerOperatorRequest, readOperatorRequests } from '../runtime/api/approvals/client.js';
 
 /** The store is plain ESM and this CLI compiles to CommonJS, so every verb
  * reaches it through the same dynamic import. */
@@ -52,12 +52,19 @@ function detail(request: OperatorRequest, abandoned: boolean | null): string {
     lines.push(`page         ${attempt.at} ${attempt.channel} ${attempt.ok ? 'sent' : 'failed'}: ${attempt.detail}`);
   }
   if (request.pages.length === 0) lines.push('page         nobody was told');
+  for (const said of request.answers ?? []) {
+    lines.push(`answered     ${said.at} ${said.answer}${said.detail ? `: ${said.detail}` : ''}`);
+  }
+  for (const note of request.notes ?? []) {
+    lines.push(`run noted    ${note.at} ${note.note}`);
+  }
   if (request.closed_at) {
     lines.push(`closed       ${request.closed_at} after ${request.waited_seconds}s`);
     lines.push(`operator     ${request.approved ? 'did it' : 'did not do it'}`);
     lines.push(`outcome      ${request.outcome_detail}`);
   } else {
     lines.push(`open         ${abandoned === null ? 'process state unknown' : abandoned ? `abandoned: run process ${request.run_pid} ended and nobody closed it` : 'yes, the run is waiting'}`);
+    lines.push(`answer it    weles operator-requests answer ${request.id} --approved | --not-received | --cancel [--detail <text>]`);
   }
   return lines.join('\n');
 }
@@ -146,6 +153,39 @@ async function reopenRequest(parsed: ParsedCli): Promise<void> {
   process.stdout.write(`${detail(request, false)}\n`);
 }
 
+/** The flag each answer is given by on the command line. */
+const ANSWER_FLAGS: Record<string, OperatorAnswer> = {
+  approved: 'approved',
+  'not-received': 'not_received',
+  cancel: 'cancel',
+};
+
+/**
+ * Tell the run waiting on a request what happened: `--approved` (it reads
+ * the page and records what Google shows), `--not-received` (it presses
+ * Google's "Resend it", or ends saying Google offers none) or `--cancel`.
+ * Written on the managed worker, where the run watches the record; `--local`
+ * writes this machine's record for a run on this machine.
+ */
+async function answerRequest(parsed: ParsedCli): Promise<void> {
+  const id = parsed.positional[1];
+  if (!id) throw new UsageError('operator-requests answer requires <id>');
+  const named = Object.keys(ANSWER_FLAGS).filter((flag) => parsed.options[flag] === true);
+  if (named.length !== 1) {
+    throw new UsageError('operator-requests answer requires exactly one of --approved, --not-received or --cancel');
+  }
+  const answer = ANSWER_FLAGS[named[0]];
+  const said = typeof parsed.options.detail === 'string' ? parsed.options.detail.trim() : '';
+  if (parsed.options.local === true) {
+    const api = await requests();
+    const request = api.answerOperatorRequest(id, answer, said);
+    process.stdout.write(`${detail(request, api.isAbandoned(request))}\n`);
+    return;
+  }
+  const request = await answerOperatorRequest(id, answer, said);
+  process.stdout.write(`${detail(request, request.abandoned)}\n`);
+}
+
 export async function runOperatorRequests(parsed: ParsedCli): Promise<void> {
   if (parsed.options.local !== undefined && parsed.options.local !== true) {
     throw new UsageError('--local is a flag; omit it to read the managed Weles worker');
@@ -154,9 +194,10 @@ export async function runOperatorRequests(parsed: ParsedCli): Promise<void> {
   if (action === 'list') return listRequests(parsed);
   if (action === 'show') return showRequest(parsed);
   if (action === 'open') return openRequest(parsed);
+  if (action === 'answer') return answerRequest(parsed);
   if (action === 'close') return closeRequest(parsed);
   if (action === 'reopen') return reopenRequest(parsed);
   throw new Error(
-    `unknown operator-requests action: ${action}; weles operator-requests takes list, show, open, close or reopen`,
+    `unknown operator-requests action: ${action}; weles operator-requests takes list, show, open, answer, close or reopen`,
   );
 }

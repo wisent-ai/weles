@@ -1,4 +1,4 @@
-import type { OperatorRequest } from '../../../operator/request.mjs' with { 'resolution-mode': 'import' };
+import type { OperatorAnswer, OperatorRequest } from '../../../operator/request.mjs' with { 'resolution-mode': 'import' };
 import { operatorJson, welesOperatorConnection, type WelesApiOptions } from '../connection.js';
 
 export type ObservedOperatorRequest = OperatorRequest & { abandoned: boolean | null };
@@ -41,5 +41,39 @@ export async function readOperatorRequests(
     return rows;
   } catch (cause) {
     throw new Error(`GET ${connection.endpoint}: ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
+  }
+}
+
+/**
+ * Tell the run waiting on a request on the managed worker what happened:
+ * `approved`, `not_received` (Weles asks the provider to send it again) or
+ * `cancel`. The answer is written on the worker, beside the record the run
+ * watches; a closed request is refused with how it ended.
+ */
+export async function answerOperatorRequest(
+  id: string,
+  answer: OperatorAnswer,
+  detail: string,
+  options: WelesApiOptions = {},
+): Promise<ObservedOperatorRequest> {
+  const connection = welesOperatorConnection(`/operator-requests/${encodeURIComponent(id)}/answer`, options);
+  try {
+    const response = await connection.fetch(connection.endpoint, {
+      method: 'POST', headers: connection.headers, redirect: 'error',
+      body: JSON.stringify({ answer, detail }),
+    });
+    const body = await operatorJson(response);
+    if (!response.ok || body.ok !== true) {
+      const said = [body.error, body.message].filter((part) => typeof part === 'string' && part).join(': ');
+      throw new Error(`HTTP ${response.status}: ${said || 'Weles refused the answer'}`);
+    }
+    if (!Array.isArray(body.requests) || body.requests.length !== 1) {
+      throw new Error('Weles returned no answered operator request');
+    }
+    const row = parseRequest(body.requests[0]);
+    if (row.id !== id) throw new Error('Weles answered a different operator request');
+    return row;
+  } catch (cause) {
+    throw new Error(`POST ${connection.endpoint}: ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
   }
 }

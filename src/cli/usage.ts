@@ -59,6 +59,7 @@ Usage:
   weles operator-requests list [--open] [--limit <n>] [--local] [--json]
   weles operator-requests show <id> [--local] [--json]
   weles operator-requests open --kind <kind> --account <account> --run <run> --instruction <text> [--pid <waiting-process>]
+  weles operator-requests answer <id> --approved|--not-received|--cancel [--detail <text>] [--local]
   weles operator-requests close <id> --approved|--unapproved --detail <text>
   weles operator-requests reopen <id>
   weles account-security --login-role <skarbiec-role> [--json]

@@ -21,7 +21,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, watch, writeFileSync } from 'node:fs';
 import { homedir, hostname } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { stadoBinary } from '../_shared/skarbiec-runtime.mjs';
@@ -234,6 +234,91 @@ export function closeOperatorRequest(id, approved, detail) {
   );
   request.outcome_detail = flatten(required(detail, 'a sentence saying how the wait ended'));
   return write(request);
+}
+
+/**
+ * What the operator can tell the run that waits on a request:
+ * - `approved`: he approved it, so the run reads the page and records what
+ *   the provider actually shows, instead of nobody learning the two disagree;
+ * - `not_received`: no prompt reached him, so the run asks the provider to
+ *   send it again, or ends saying the provider offers no second send;
+ * - `cancel`: stop waiting; the run ends with that as its failure.
+ * Before this, a request could only be watched: a prompt that never arrived
+ * left the run waiting with no way to say so.
+ */
+export const OPERATOR_ANSWERS = Object.freeze(['approved', 'not_received', 'cancel']);
+
+/**
+ * Record the operator's answer on an open request. The run that waits on it
+ * is watching the record (`nextOperatorAnswer`) and acts on it at once. A
+ * closed request has no run waiting, so an answer to it is refused with how
+ * it ended.
+ */
+export function answerOperatorRequest(id, answer, detail) {
+  if (!OPERATOR_ANSWERS.includes(answer)) {
+    throw new Error(`operator request answer must be one of ${OPERATOR_ANSWERS.join(', ')}; got ${answer}`);
+  }
+  const request = readOperatorRequest(id);
+  if (!isOpen(request)) {
+    throw new Error(`operator request ${id} closed at ${request.closed_at} (${request.outcome_detail}); no run waits for an answer`);
+  }
+  request.answers = [
+    ...(Array.isArray(request.answers) ? request.answers : []),
+    { at: new Date().toISOString(), answer, detail: flatten(detail) },
+  ];
+  return write(request);
+}
+
+/**
+ * Record what the waiting run did about an answer, or saw on the page, so
+ * the record says it and not only the run's log.
+ */
+export function noteOperatorRequest(id, note) {
+  const request = readOperatorRequest(id);
+  request.notes = [
+    ...(Array.isArray(request.notes) ? request.notes : []),
+    { at: new Date().toISOString(), note: flatten(required(note, 'a note')) },
+  ];
+  return write(request);
+}
+
+/**
+ * The first answer recorded after the `seen` answers the caller has already
+ * acted on. It watches the request's own file, so the wait ends when the
+ * answer is written, not on a clock; `signal` stops watching.
+ */
+export function nextOperatorAnswer(id, seen, signal) {
+  const file = requestFile(id);
+  return new Promise((resolve, reject) => {
+    let watcher = null;
+    const finish = (settle, value) => {
+      watcher?.close();
+      signal?.removeEventListener('abort', aborted);
+      settle(value);
+    };
+    const aborted = () => finish(resolve, null);
+    const look = () => {
+      let request;
+      try {
+        request = readOperatorRequest(id);
+      } catch (error) {
+        // A record being rewritten reads short for an instant; the write
+        // that follows fires the watcher again.
+        if (error instanceof SyntaxError) return;
+        finish(reject, error);
+        return;
+      }
+      const answers = Array.isArray(request.answers) ? request.answers : [];
+      if (answers.length > seen) finish(resolve, answers[seen]);
+    };
+    if (signal?.aborted) {
+      resolve(null);
+      return;
+    }
+    signal?.addEventListener('abort', aborted, { once: true });
+    watcher = watch(file, look);
+    look();
+  });
 }
 
 /**

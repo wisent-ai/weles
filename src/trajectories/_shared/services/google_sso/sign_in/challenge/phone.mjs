@@ -3,7 +3,7 @@
 // and observe Google's response without sending page contents to alert channels.
 import { humanClickLocator } from '../../../../../../../dist/human/mouse.js';
 import { pageCondition, pageSettled } from '../../../../page/settled.mjs';
-import { closeOperatorRequest, openOperatorRequest } from '#operator-request';
+import { closeOperatorRequest, nextOperatorAnswer, noteOperatorRequest, openOperatorRequest } from '#operator-request';
 
 const GOOGLE_HOST = 'accounts.google.com';
 const DEVICE_PROMPT = /\/signin\/challenge\/dp(?:\/|$)/;
@@ -38,8 +38,29 @@ export async function selectGooglePhonePrompt(page) {
   return isDevicePrompt(page);
 }
 
+/** Google's own control for sending the device prompt again. */
+function resendControl(page) {
+  return page.getByRole('button', { name: /^Resend it$/i })
+    .or(page.getByRole('link', { name: /^Resend it$/i })).filter({ visible: true }).first();
+}
+
+function failure(message, code) {
+  const error = new Error(message);
+  error.code = code;
+  error.fatal2fa = true;
+  return error;
+}
+
 // Returns false only when Google offers no phone prompt. A rejected or
-// interrupted approval is an explicit failure, never a reason to send another.
+// interrupted approval is an explicit failure. The run sends the prompt again
+// only when the operator says it never reached him.
+//
+// The wait ends on whichever comes first: Google's page leaving the device
+// prompt, or the operator answering the request (`weles operator-requests
+// answer`, Weles Desktop Approvals). `not_received` presses Google's "Resend
+// it", or ends the run saying Google offers no second send; `approved` while
+// Google still shows the prompt is recorded with what the page shows;
+// `cancel` ends the run.
 export async function completeGooglePhoneApproval(page, account, run) {
   if (!await selectGooglePhonePrompt(page)) return false;
   const text = await page.locator('body').innerText();
@@ -50,8 +71,9 @@ export async function completeGooglePhoneApproval(page, account, run) {
     instruction: `Approve the Google sign-in for ${account} on your phone.${matching}`,
   });
   console.log(`[google_sso] operator request ${request.id}; notification delivered=${request.pages.some((attempt) => attempt.ok)}`);
+  let seen = Array.isArray(request.answers) ? request.answers.length : 0;
   try {
-    const answer = await pageCondition(page, () => {
+    const pageAnswer = pageCondition(page, () => {
       const google = location.hostname === 'accounts.google.com';
       const device = /\/signin\/challenge\/dp(?:\/|$)/.test(location.pathname);
       if (!google || !device) {
@@ -67,13 +89,44 @@ export async function completeGooglePhoneApproval(page, account, run) {
         }
       }
       return false;
-    });
+    }).then((answer) => ({ page: answer }));
+    // An operator answer can end the wait while this page read is pending;
+    // its later rejection (the page closing) is then nobody's to handle.
+    pageAnswer.catch(() => {});
+    let answer = null;
+    while (!answer) {
+      const listening = new AbortController();
+      const outcome = await Promise.race([
+        pageAnswer,
+        nextOperatorAnswer(request.id, seen, listening.signal).then((said) => ({ operator: said })),
+      ]);
+      listening.abort();
+      if (outcome.page) {
+        answer = outcome.page;
+        break;
+      }
+      seen += 1;
+      const said = outcome.operator;
+      if (said.answer === 'cancel') {
+        throw failure(`the operator cancelled the Google approval wait${said.detail ? `: ${said.detail}` : ''}`, 'operator_cancelled');
+      }
+      if (said.answer === 'not_received') {
+        const resend = resendControl(page);
+        if (!await resend.isVisible()) {
+          throw failure(`the operator received no Google prompt, and Google offers no "Resend it" on ${page.url()}`, 'google_prompt_not_received');
+        }
+        await humanClickLocator(page, resend);
+        noteOperatorRequest(request.id, 'The operator received no prompt; the run pressed Google\'s "Resend it" and waits again');
+        console.log(`[google_sso] operator request ${request.id}: prompt not received, Google asked to resend it`);
+        continue;
+      }
+      const shown = (await page.locator('body').innerText()).replace(/\s+/g, ' ').trim();
+      noteOperatorRequest(request.id, `The operator approved on the phone, and Google still shows ${page.url()}: ${shown}`);
+      console.log(`[google_sso] operator request ${request.id}: operator approved, Google still on the device prompt`);
+    }
     await pageSettled(page);
     if (answer.refused) {
-      const error = new Error(`Google did not complete the device prompt: ${answer.detail}`);
-      error.code = 'google_push_not_approved';
-      error.fatal2fa = true;
-      throw error;
+      throw failure(`Google did not complete the device prompt: ${answer.detail}`, 'google_push_not_approved');
     }
     closeOperatorRequest(request.id, true, 'Google completed the device prompt; the sign-in flow continues');
     return true;

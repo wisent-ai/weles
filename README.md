@@ -205,6 +205,18 @@ An authenticator code must leave Google's challenge before provider handoff.
 Without a stored seed, Weles selects an offered phone approval and records its
 actual outcome in operator requests. CLI list/show and Desktop Approvals read
 the managed worker; `--local` explicitly inspects host-local records.
+
+A request is paged by e-mail through Stado's alert channels and waits until
+Google's page moves (approving on the phone needs nothing else) or the
+operator answers it, on the worker whose run watches the record:
+`weles operator-requests answer <id> --not-received` makes the run press
+Google's "Resend it", or end with `google_prompt_not_received` when Google
+offers none; `--approved` while Google still shows the prompt records what
+the page shows; `--cancel` ends the run with `operator_cancelled`. Desktop
+Approvals has the same three buttons (`POST /operator-requests/:id/answer`).
+`show` lists every answer and what the run did about it; a closed request
+refuses an answer with how it ended.
+
 `google_2fa_material_missing` remains a structured refusal when no usable
 authenticator material or offered phone method can answer the challenge.
 Enrolment refuses to replace an existing authenticator and writes a seed only

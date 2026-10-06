@@ -36,7 +36,7 @@ import { createWorkerControl, workerActions } from '../worker-control.mjs';
 import { isPageRoute, respondToPage } from './pages/index.mjs';
 import { isRecordRoute, respondToRecord } from './records/index.mjs';
 import { respondToRun } from './run-route.mjs';
-import { respondToOperatorRequests } from './approvals.mjs';
+import { respondToOperatorAnswer, respondToOperatorRequests } from './approvals.mjs';
 import {
   respondToAuthenticatorEnrolment,
   respondToBuilder,
@@ -76,7 +76,7 @@ export function createApiRequestHandler({
           // is the one it built, and `stado workload run weles-api-runtime`
           // used to report a revision from a launchctl restart alone.
           sourceRevision: RUN_RELEASE_IDENTITY.source_revision,
-          routes: ['GET /healthz', 'GET /api/v1/version', 'POST /api/v1/credential-operations', 'POST /api/v1/tasks', 'GET /api/v1/tasks/:task_id', 'GET /api/v1/tasks/:task_id?wait=terminal', 'POST /api/v1/tasks/:task_id/cancel', 'GET /worker/version', 'GET /worker/status', 'POST /worker/start', 'POST /worker/stop', 'POST /worker/restart', 'POST /run', 'GET /diagnostics/:run_id', 'GET /diagnostics/:run_id/file?path=', 'GET /operator-requests', 'GET /operator-requests/:id', 'POST /weles-builder', 'POST /reauth/resolve', 'POST /reauth', 'POST /reauth/enrol-authenticator', 'POST /google-ads/keyword-volume', 'POST /google-ads/keyword-report', 'POST /pages/snapshot', 'POST /pages/form-export', 'POST /records/accounts/list', 'POST /records/accounts/get', 'POST /records/accounts/upsert', 'POST /records/accounts/update', 'POST /records/settings/get', 'POST /records/settings/set'],
+          routes: ['GET /healthz', 'GET /api/v1/version', 'POST /api/v1/credential-operations', 'POST /api/v1/tasks', 'GET /api/v1/tasks/:task_id', 'GET /api/v1/tasks/:task_id?wait=terminal', 'POST /api/v1/tasks/:task_id/cancel', 'GET /worker/version', 'GET /worker/status', 'POST /worker/start', 'POST /worker/stop', 'POST /worker/restart', 'POST /run', 'GET /diagnostics/:run_id', 'GET /diagnostics/:run_id/file?path=', 'GET /operator-requests', 'GET /operator-requests/:id', 'POST /operator-requests/:id/answer', 'POST /weles-builder', 'POST /reauth/resolve', 'POST /reauth', 'POST /reauth/enrol-authenticator', 'POST /google-ads/keyword-volume', 'POST /google-ads/keyword-report', 'POST /pages/snapshot', 'POST /pages/form-export', 'POST /records/accounts/list', 'POST /records/accounts/get', 'POST /records/accounts/upsert', 'POST /records/accounts/update', 'POST /records/settings/get', 'POST /records/settings/set'],
           publicTask: publicTaskService.health,
           features: ['subscription_identity', 'fresh_profile'],
           account_source: 'skarbiec',
@@ -188,6 +188,11 @@ export function createApiRequestHandler({
         const manifest = diagnosticsManifest(runId);
         if (!manifest) { json(res, 404, { ok: false, error: 'diagnostics_not_found' }); return; }
         json(res, 200, manifest);
+        return;
+      }
+      const operatorAnswer = /^\/operator-requests\/([^/]+)\/answer$/.exec(url.pathname);
+      if (req.method === 'POST' && operatorAnswer) {
+        await respondToOperatorAnswer(req, res, operatorAnswer[1]);
         return;
       }
       if (req.method === 'GET' && (url.pathname === '/operator-requests' || url.pathname.startsWith('/operator-requests/'))) {
