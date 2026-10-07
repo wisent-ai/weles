@@ -161,6 +161,6 @@ export function fit(label, text, max, min, clauses = []) {
   if (out.length < min || out.length > max)
     throw new Error(`${label}: ${out.length}/${max}, expected ${min}-${max}`);
   if (!/[.!?]$/.test(out))
-    throw new Error(`${label}: bad ending "${out.slice(-60)}"`);
+    throw new Error(`${label}: bad ending in "${out}"`);
   return out;
 }

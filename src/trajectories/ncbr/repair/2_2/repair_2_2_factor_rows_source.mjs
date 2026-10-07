@@ -154,7 +154,7 @@ console.log(
       file: SRC,
       rows: rows.length,
       lengths: rows.map((r) => ({
-        factor: r.factor.slice(0, 40),
+        factor: r.factor,
         method: r.method.length,
         verify: r.verify.length,
       })),

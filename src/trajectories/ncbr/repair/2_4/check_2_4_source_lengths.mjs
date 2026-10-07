@@ -32,7 +32,7 @@ const rows = md
     const method = rowValue(block, 'Metoda oszacowania');
     const verify = rowValue(block, 'Sposób monitorowania');
     return {
-      nameHead: name.slice(0, 90),
+      nameText: name,
       name: name.length,
       method: method.length,
       verify: verify.length,
