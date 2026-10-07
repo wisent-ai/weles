@@ -7,6 +7,7 @@ import {
   humanIdlePause,
 } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
+import { cellShowsSource } from '../../../../_shared/page/shows.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('7');
@@ -130,19 +131,7 @@ const added = [];
 for (const r of risks) {
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('long');
-  // A risk is present when a table cell shows its whole name, or its start
-  // closed by the ellipsis the table draws when it cuts one; no prefix length
-  // is chosen here.
-  const exists = await page.evaluate((wanted) => {
-    const words = (text) => text.replace(/\s+/g, ' ').trim();
-    const name = words(wanted);
-    return Array.from(document.querySelectorAll('table td')).some((td) => {
-      const shown = words(td.innerText);
-      if (shown === name) return true;
-      const cut = shown.match(/^(?<start>.+?)\s*(…|\.\.\.)$/);
-      return cut !== null && name.startsWith(cut.groups.start);
-    });
-  }, r.nazwa);
+  const exists = await page.evaluate(cellShowsSource, r.nazwa);
   if (exists) continue;
   await clickDodaj();
   const filled = [];

@@ -1,5 +1,6 @@
 // The repair steps: reading the section state, logging in, the main texts, the factor
 // chips, and the feature and factor drawer rows.
+import { shows } from '../../../../_shared/page/shows.mjs';
 import {
   EMAIL,
   OPIS,
@@ -126,18 +127,6 @@ export function selectedFactors() {
   return evalRead(
     `Array.from(document.querySelectorAll('.MuiChip-label')).map((e) => e.textContent.trim()).filter(Boolean)`,
   );
-}
-
-// Whether `shown`, a chip's or option's text, names `label`: the same words,
-// or their start closed by the ellipsis a cut label shows. No prefix length
-// is chosen here; a CSS cut leaves the text whole, and a cut in the text
-// marks itself.
-function shows(shown, label) {
-  const words = (text) => text.replace(/\s+/g, ' ').trim();
-  const [seen, wanted] = [words(shown), words(label)];
-  if (seen === wanted) return true;
-  const cut = seen.match(/^(?<start>.+?)\s*(…|\.\.\.)$/);
-  return cut !== null && wanted.startsWith(cut.groups.start);
 }
 
 export function ensureFactorSelected(label) {

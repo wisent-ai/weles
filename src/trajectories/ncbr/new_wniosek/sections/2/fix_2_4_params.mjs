@@ -9,6 +9,7 @@ import {
   humanIdlePause,
 } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
+import { cellShowsSource } from '../../../../_shared/page/shows.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('2_4');
@@ -69,20 +70,8 @@ async function gotoSection() {
   await humanIdlePause('deliberate');
 }
 
-// Whether a table cell already shows `name`: the whole name, or its start
-// closed by the ellipsis the table draws when it cuts one. How much of a name
-// the table shows is the table's choice, so no prefix length is chosen here.
 async function tableShows(name) {
-  return page.evaluate((wanted) => {
-    const words = (text) => text.replace(/\s+/g, ' ').trim();
-    const param = words(wanted);
-    return Array.from(document.querySelectorAll('table td')).some((td) => {
-      const shown = words(td.innerText);
-      if (shown === param) return true;
-      const cut = shown.match(/^(?<start>.+?)\s*(…|\.\.\.)$/);
-      return cut !== null && param.startsWith(cut.groups.start);
-    });
-  }, name);
+  return page.evaluate(cellShowsSource, name);
 } // allow-raw-playwright: read-only 2.4 table cells
 
 async function fieldDump() {
