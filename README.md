@@ -330,14 +330,21 @@ host's real interface and installed Stado executable:
 
 ```sh
 networksetup -listallhardwareports
-stado egress mobile serve --interface en7 --port 8781
+stado egress mobile serve --interface en7 --port 8781 --max-header-bytes "$HEADER_BYTES"
 weles open https://example.com --proxy http://127.0.0.1:8781
 stado service ensure weles-mobile-egress \
   --host <weles-host> --from /Users/<service-account>/.stado/bin/stado \
   --arg egress --arg mobile --arg serve --arg=--interface --arg en7 \
-  --arg=--port --arg 8781 --reason "Weles mobile egress"
+  --arg=--port --arg 8781 --arg=--max-header-bytes --arg "$HEADER_BYTES" \
+  --reason "Weles mobile egress"
 stado service status weles-mobile-egress
 ```
+`HEADER_BYTES` is the deployment's positive whole-byte request-header budget.
+Stado refuses an undeclared budget before listening. The bound includes the
+terminating blank line but not forwarded bodies or tunnel payloads. See
+[Stado configuration](https://stado.wisent.com/docs/configuration/#mobile-egress-request-boundary)
+for refusals, service logs and the real qualification command.
+
 
 `en7` is an example, not a default. The proxy binds upstream connections to that
 interface and refuses non-loopback listeners or an unusable IPv4 interface. Browser
