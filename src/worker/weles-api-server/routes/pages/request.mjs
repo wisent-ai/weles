@@ -14,7 +14,6 @@ import {
   NO_SCREENSHOT,
   SCREENSHOT_MODES,
   STANDARD_LOAD_STATE,
-  STANDARD_VIEWPORT,
 } from './constants.mjs';
 
 export class PageRequestRefused extends Error {
@@ -25,8 +24,9 @@ export class PageRequestRefused extends Error {
   }
 }
 
-function positiveInteger(body, field, standard) {
-  const value = Object.hasOwn(body, field) ? body[field] : standard;
+function positiveInteger(body, field) {
+  if (!Object.hasOwn(body, field)) throw new PageRequestRefused(field, 'is required');
+  const value = body[field];
   if (!Number.isSafeInteger(value) || value <= 0) {
     throw new PageRequestRefused(field, 'must be a positive integer');
   }
@@ -44,14 +44,19 @@ function text(value, field, { required }) {
   return value;
 }
 
+// The page is rendered at the size the caller reads it at; Weles keeps no
+// size of its own, so a request without one is refused by name.
 function viewportOf(body) {
-  const viewport = Object.hasOwn(body, 'viewport') ? body.viewport : STANDARD_VIEWPORT;
+  if (!Object.hasOwn(body, 'viewport')) {
+    throw new PageRequestRefused('viewport', 'is required: give { width, height } in CSS pixels');
+  }
+  const viewport = body.viewport;
   if (typeof viewport !== 'object' || viewport === null) {
     throw new PageRequestRefused('viewport', 'must be { width, height }');
   }
   return {
-    width: positiveInteger(viewport, 'width', STANDARD_VIEWPORT.width),
-    height: positiveInteger(viewport, 'height', STANDARD_VIEWPORT.height),
+    width: positiveInteger(viewport, 'width'),
+    height: positiveInteger(viewport, 'height'),
   };
 }
 
