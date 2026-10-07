@@ -11,7 +11,7 @@
 
 export const FP_SCRIPT = String.raw`(async () => {
   const r = {};
-  const safe = (fn) => { try { return fn(); } catch (e) { return { _err: String(e).slice(0, 100) }; } };
+  const safe = (fn) => { try { return fn(); } catch (e) { return { _err: String(e) }; } };
   // Every section below that waits on the browser announces itself first, to
   // the binding the closing session exposes, so a probe that never answers is
   // named by the section it stands in (weles runs show prints it).
@@ -44,7 +44,7 @@ export const FP_SCRIPT = String.raw`(async () => {
         ['architecture', 'bitness', 'brands', 'mobile', 'model', 'platform', 'platformVersion', 'uaFullVersion', 'fullVersionList', 'wow64', 'formFactors']
       );
       return { brands: n.userAgentData.brands, mobile: n.userAgentData.mobile, platform: n.userAgentData.platform, ...high };
-    } catch (e) { return { _err: String(e).slice(0, 100) }; }
+    } catch (e) { return { _err: String(e) }; }
   })();
 
   // ---- 3. screen + window ----
@@ -107,7 +107,7 @@ export const FP_SCRIPT = String.raw`(async () => {
         oacHash = sum.toFixed(16);
       }
       return { ...baseInfo, oacHash };
-    } catch (e) { return { _err: String(e).slice(0, 100) }; }
+    } catch (e) { return { _err: String(e) }; }
   })();
 
   // ---- 8. Intl / timezone ----
@@ -131,12 +131,12 @@ export const FP_SCRIPT = String.raw`(async () => {
       const out = {};
       for (const p of names) { try { const s = await n.permissions.query({ name: p }); out[p] = s.state; } catch { out[p] = 'unsupported'; } }
       return out;
-    } catch (e) { return { _err: String(e).slice(0, 100) }; }
+    } catch (e) { return { _err: String(e) }; }
   })();
 
   // ---- 11. storage quota ----
   await section('storage');
-  r.storage = await (async () => { try { return n.storage && n.storage.estimate ? await n.storage.estimate() : null; } catch (e) { return { _err: String(e).slice(0, 100) }; } })();
+  r.storage = await (async () => { try { return n.storage && n.storage.estimate ? await n.storage.estimate() : null; } catch (e) { return { _err: String(e) }; } })();
 
   // ---- 12. mediaDevices ----
   await section('mediaDevices');
@@ -145,7 +145,7 @@ export const FP_SCRIPT = String.raw`(async () => {
       if (!n.mediaDevices?.enumerateDevices) return null;
       const devs = await n.mediaDevices.enumerateDevices();
       return devs.map(d => ({ kind: d.kind, label: d.label ? 'present' : 'blank', deviceIdLen: d.deviceId.length, groupIdLen: d.groupId.length }));
-    } catch (e) { return { _err: String(e).slice(0, 100) }; }
+    } catch (e) { return { _err: String(e) }; }
   })();
 
   // ---- 12b. WebRTC local IP leak (PerimeterX checks this) ----
@@ -167,7 +167,7 @@ export const FP_SCRIPT = String.raw`(async () => {
       await gathered.promise;
       pc.close();
       return { localIPs: Array.from(ips) };
-    } catch (e) { return { _err: String(e).slice(0, 100), localIPs: [] }; }
+    } catch (e) { return { _err: String(e), localIPs: [] }; }
   })();
 
   // ---- 13. speechSynthesis voices ----
@@ -178,11 +178,11 @@ export const FP_SCRIPT = String.raw`(async () => {
 
   // ---- 14. battery ----
   await section('battery');
-  r.battery = await (async () => { try { return n.getBattery ? await n.getBattery().then(b => ({ charging: b.charging, level: b.level, chargingTime: b.chargingTime, dischargingTime: b.dischargingTime })) : null; } catch (e) { return { _err: String(e).slice(0, 100) }; } })();
+  r.battery = await (async () => { try { return n.getBattery ? await n.getBattery().then(b => ({ charging: b.charging, level: b.level, chargingTime: b.chargingTime, dischargingTime: b.dischargingTime })) : null; } catch (e) { return { _err: String(e) }; } })();
 
   // ---- 15. keyboard layout ----
   await section('keyboard');
-  r.keyboard = await (async () => { try { return n.keyboard?.getLayoutMap ? { size: (await n.keyboard.getLayoutMap()).size } : null; } catch (e) { return { _err: String(e).slice(0, 100) }; } })();
+  r.keyboard = await (async () => { try { return n.keyboard?.getLayoutMap ? { size: (await n.keyboard.getLayoutMap()).size } : null; } catch (e) { return { _err: String(e) }; } })();
 
   // ---- 16. fonts ----
   r.fonts = safe(() => {
@@ -256,7 +256,7 @@ export const FP_SCRIPT = String.raw`(async () => {
       }
       const deltas = samples.slice(1).map((v, i) => v - samples[i]);
       return { sampling: 'animation-frame', frameTimestamps, timeOrigin: performance.timeOrigin, nowSamples: samples, nowMinDelta: Math.min(...deltas), nowMaxDelta: Math.max(...deltas) };
-    } catch (e) { return { sampling: 'animation-frame', _err: String(e).slice(0, 100) }; }
+    } catch (e) { return { sampling: 'animation-frame', _err: String(e) }; }
   })();
 
   // ---- 23. document attributes + cookies ----
