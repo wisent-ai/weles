@@ -24,8 +24,7 @@ export function sanitizeResponses(responses) {
           ? body
           : '',
       };
-    })
-    .slice(-300);
+    });
 }
 
 export function summarizeReport(pageState, responses) {
@@ -79,9 +78,7 @@ export function summarizeReport(pageState, responses) {
       ),
     ),
     relevantResponseCount: responses.length,
-    relevantResponseUrls: [
-      ...new Set(responses.map((response) => response.url)),
-    ].slice(-120),
+    relevantResponseUrls: [...new Set(responses.map((response) => response.url))],
   };
 }
 
