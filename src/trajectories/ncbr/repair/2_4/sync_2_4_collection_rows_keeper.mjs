@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { shows } from '../../../_shared/page/shows.mjs';
 
 const SESSION = process.env.SESSION || 'ncbr-step-b';
 const WELES = new URL('../../../../..', import.meta.url).pathname.replace(
@@ -102,10 +103,13 @@ function fill(name, value) {
 
 function openByNeedle(needles) {
   const needleList = Array.isArray(needles) ? needles : [needles];
+  // A row matches when one of its cells shows a needle whole or by its
+  // ellipsis-closed start (shows.mjs); no prefix length is chosen here.
   const idx = read(`(() => {
-    const needles = ${JSON.stringify(needleList.map((n) => n.slice(0, 90)))};
+    const shows = ${shows.toString()};
+    const needles = ${JSON.stringify(needleList)};
     const trs = Array.from(document.querySelectorAll('table tbody tr'));
-    return trs.findIndex((tr) => needles.some((needle) => tr.innerText.replace(/\\s+/g, ' ').includes(needle)));
+    return trs.findIndex((tr) => Array.from(tr.cells).some((td) => needles.some((needle) => shows(td.innerText, needle))));
   })()`);
   if (idx < 0) throw new Error(`row not found by text: ${needleList[0]}`);
   const menuSelector = `:nth-match(table tbody tr, ${idx + 1}) button[aria-label="overflow-options"]`;

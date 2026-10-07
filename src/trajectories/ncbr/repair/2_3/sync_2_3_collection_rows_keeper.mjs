@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { shows } from '../../../_shared/page/shows.mjs';
 
 const SESSION = process.env.SESSION || 'ncbr-step-b';
 const PART = process.env.PART || 'eu';
@@ -78,8 +79,7 @@ function paramRows() {
     .slice(1)
     .map((block, index) => ({
       name: rowValue(block, 'Nazwa parametru'),
-      match:
-        oldMatches[index] || rowValue(block, 'Nazwa parametru').slice(0, 70),
+      match: oldMatches[index] || rowValue(block, 'Nazwa parametru'),
       base: rowValue(block, 'Wartość bazowa'),
       baseYear: rowValue(block, 'Rok bazowy'),
       target: rowValue(block, 'Wartość docelowa'),
@@ -174,18 +174,20 @@ function optionalFill(names, value) {
   return { name: names[0], len: 0, max: null, skipped: true, tried };
 }
 
+// A row matches when one of its cells shows the needle whole or by its
+// ellipsis-closed start (shows.mjs); its menu is then opened by the row's own
+// whole text, so no prefix length is chosen here.
 function openByNeedle(needle) {
-  const shortNeedle = needle.slice(0, 70);
-  const idx = read(`(() => {
-    const needle = ${JSON.stringify(shortNeedle)};
-    const trs = Array.from(document.querySelectorAll('table tbody tr'));
-    return trs.findIndex((tr) => tr.innerText.replace(/\\s+/g, ' ').includes(needle));
+  const rowText = read(`(() => {
+    const shows = ${shows.toString()};
+    const needle = ${JSON.stringify(needle)};
+    const row = Array.from(document.querySelectorAll('table tbody tr')).find((tr) =>
+      Array.from(tr.cells).some((td) => shows(td.innerText, needle)),
+    );
+    return row ? row.innerText.replace(/\\s+/g, ' ').trim() : null;
   })()`);
-  if (idx < 0) throw new Error(`row not found by text: ${needle}`);
-  const selectorNeedle = shortNeedle
-    .replace(/\\/g, '\\\\')
-    .replace(/"/g, '\\"');
-  const menuSelector = `table tbody tr:has-text("${selectorNeedle}") button[aria-label="overflow-options"]`;
+  if (rowText === null) throw new Error(`row not found by text: ${needle}`);
+  const menuSelector = `table tbody tr:has-text(${JSON.stringify(rowText)}) button[aria-label="overflow-options"]`;
   // A fast click first, a dispatched click when the menu did not open.
   for (const method of ['click_fast', 'dispatch_click']) {
     action([method, menuSelector], true);
@@ -201,14 +203,14 @@ function openByNeedle(needle) {
   if (!openedMenu) throw new Error(`edit menu did not open for row: ${needle}`);
   action(['dispatch_click', 'text="Edytuj"']);
   idle('long');
-  return { index: idx + 1 };
+  return { row: rowText };
 }
 
 function openParamByOrdinal(rowOrdinal) {
   const rowText = read(`(() => {
     const table = Array.from(document.querySelectorAll('table'))[2];
     const row = table ? Array.from(table.querySelectorAll('tbody tr'))[${rowOrdinal + 1}] : null;
-    return row ? row.innerText.replace(/\\s+/g, ' ').trim().slice(0, 90) : '';
+    return row ? row.innerText.replace(/\\s+/g, ' ').trim() : '';
   })()`);
   if (!rowText)
     throw new Error(`parameter row not found by ordinal: ${rowOrdinal + 1}`);
