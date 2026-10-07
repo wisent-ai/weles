@@ -42,6 +42,15 @@ async function authenticate(provider) {
   return { account, credential };
 }
 
+// The trajectory frames of the error's stack: which of our calls failed. A
+// browser error says what broke ("Execution context was destroyed") but not
+// which read or click met it, and a recorded sign-in is not run twice alike.
+function callSite(error) {
+  return String(error?.stack || '').split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('at ') && line.includes('/trajectories/'));
+}
+
 function fail(error, provider) {
   const observedBrowser = Object.hasOwn(error, 'browser_started') ? error.browser_started : browserStarted;
   const failure = {
@@ -56,6 +65,7 @@ function fail(error, provider) {
     subscription_id: process.env.BRAMA_SUBSCRIPTION_ID || null,
     ...(typeof error.capability === 'string' ? { capability: error.capability } : {}),
     ...(typeof error.reason === 'string' ? { reason: error.reason } : {}),
+    call_site: callSite(error),
   };
   process.stderr.write(`AUTH_FAILURE ${JSON.stringify(failure)}\n`);
   process.exitCode = 1;
