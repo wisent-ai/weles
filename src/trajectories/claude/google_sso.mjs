@@ -68,6 +68,36 @@ async function stateChange(page, active, url) {
   }
 }
 
+// Resolves once any page of the handoff moves on: one of the pages this round
+// read navigates away from what it showed or closes, the context opens another
+// page, or `also` (the page condition the caller waits for) settles. A wait on
+// the acting page alone missed run a7f41fd6's popup: claude.ai's gate went
+// disabled while Google's popup loaded, and the popup's navigation reached
+// no listener. Every listener is removed when the wait ends.
+async function anyPageChange(page, views, also) {
+  const context = page.context();
+  const { promise, resolve, reject } = Promise.withResolvers();
+  const detach = [];
+  const listen = (target, event, handler) => {
+    target.on(event, handler);
+    detach.push(() => target.off(event, handler));
+  };
+  for (const { p, st } of views) {
+    const url = st?.url ?? p.url();
+    if (p.isClosed() || p.url() !== url) resolve();
+    listen(p, 'framenavigated', (frame) => { if (frame === p.mainFrame() && frame.url() !== url) resolve(); });
+    listen(p, 'close', resolve);
+    listen(p, 'crash', () => reject(new Error(`gis_continue: a handoff page crashed at ${p.url()}`)));
+  }
+  listen(context, 'page', resolve);
+  also.then(resolve, resolve);
+  try {
+    await promise;
+  } finally {
+    for (const off of detach) off();
+  }
+}
+
 async function clickOfferedControl(active, kind) {
   const hit = await clickGisTarget(active, kind);
   if (!hit.clicked) {
@@ -175,10 +205,9 @@ export async function doGoogleSso({
         const enabled = pageCondition(active, () => Array.from(document.querySelectorAll('button,[role="button"]'))
           .some((el) => /continue with google|^google$/i.test((el.innerText || el.textContent || '').trim())
             && !el.disabled && el.getAttribute('aria-disabled') !== 'true'));
-        // A navigation ends the page read with a destroyed context; the
-        // state change below is then the answer.
-        enabled.catch(() => {});
-        await Promise.race([enabled, stateChange(page, active, st.url)]);
+        // A navigation ends the page read with a destroyed context; any page
+        // of the handoff moving on (Google's popup loading) also ends it.
+        await anyPageChange(page, views, enabled);
         continue;
       }
 
@@ -189,8 +218,7 @@ export async function doGoogleSso({
         // `weles runs cancel`.
         mark('claude_app_loading');
         const rendered = pageCondition(active, () => document.querySelector('[data-page-loading]') === null);
-        rendered.catch(() => {});
-        await Promise.race([rendered, stateChange(page, active, st.url)]);
+        await anyPageChange(page, views, rendered);
         continue;
       }
 
