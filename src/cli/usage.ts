@@ -62,13 +62,9 @@ Usage:
   weles operator-requests answer <id> --approved|--not-received|--cancel [--detail <text>] [--local]
   weles operator-requests close <id> --approved|--unapproved --detail <text>
   weles operator-requests reopen <id>
-  weles runs list [--json]      The runs the managed worker has a live child for, with when each last wrote anything
+  weles runs list [--json]
   weles runs show <run-id> [--json]
-                          What a run wrote last while it runs, or its record once it finished
   weles runs cancel <run-id> --detail <text> [--json]
-                          End a run: its process group is killed and the run is recorded
-                          as cancelled with the detail; a cancelled sign-in no longer holds
-                          the account, so the next sign-in starts a new run
   weles account-security --provider google --login-role <skarbiec-role> [--json]
   weles account-security --run <run-id> [--json]
   weles app-password --provider google --login-role <skarbiec-role> --organization <skrzynka-organization> [--json]
@@ -80,9 +76,7 @@ Usage:
   weles login --run <run-id> [--json]
   weles worker <status|version|start|stop|restart> [--json]
   weles keeper start --session <id> [--url <url>] [--headless]
-                          Hold one browser session that answers JSON commands on
-                          ~/.weles/keeper/<id>/socket until its page closes
-  weles records adopt [--json]  Tag every Weles record in this vault with weles:record:<kind> from its own context
+  weles records adopt [--json]
   weles doctor [--json]
   weles version
 
@@ -135,4 +129,12 @@ trajectory API exports, and explains approved host execution. Importing writes
 host-bound drafts but does not launch browser automation or grant a new action.
 Completion still requires cryptographic verification of a real workflow receipt
 and its bound evidence digest.
+
+runs lists the runs the managed worker has a live child for, with when each last
+wrote anything; show prints what a run wrote last while it runs, or its record once
+it finished; cancel kills the run's process group and records it as cancelled with
+--detail, and a cancelled sign-in no longer holds the account, so the next sign-in
+starts a new run. keeper start holds one browser session that answers JSON commands
+on ~/.weles/keeper/<id>/socket until its page closes. records adopt tags every Weles
+record in this vault with weles:record:<kind> from its own context.
 `;
