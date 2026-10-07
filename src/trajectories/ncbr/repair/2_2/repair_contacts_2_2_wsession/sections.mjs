@@ -307,21 +307,17 @@ export function contactRepairs({
     await humanClickLocator(page, inp); // allow-raw-playwright: open visible autocomplete
     await humanFill(page, inp, search); // allow-raw-playwright: filter visible autocomplete
     await humanIdlePause('deliberate');
-    const opt = page
-      .locator('[role="option"]')
-      .filter({ hasText: search.slice(0, 30) })
-      .first();
-    if ((await opt.count()) > 0) {
-      const picked = (await opt.textContent())?.trim();
-      await opt.dispatchEvent('click'); // allow-raw-playwright: pick visible option
-      await humanIdlePause('short');
-      return picked;
+    // The option that shows the whole search is picked; with none, the list
+    // is refused with what it offered rather than its first entry taken.
+    const opt = page.locator('[role="option"]').filter({ hasText: search }).first();
+    if ((await opt.count()) === 0) {
+      const offered = await page.locator('[role="option"]').allTextContents();
+      throw new Error(
+        `no option for ${name} shows "${search}"; offered: ${JSON.stringify(offered.map((o) => o.trim()))}`,
+      );
     }
-    const first = page.locator('[role="option"]').first();
-    if ((await first.count()) === 0)
-      throw new Error(`no option for ${name}: ${search}`);
-    const picked = (await first.textContent())?.trim();
-    await first.dispatchEvent('click'); // allow-raw-playwright: pick first filtered option
+    const picked = (await opt.textContent())?.trim();
+    await opt.dispatchEvent('click'); // allow-raw-playwright: pick visible option
     await humanIdlePause('short');
     return picked;
   }
@@ -337,7 +333,7 @@ export function contactRepairs({
         done.push({ collection: 'cecha', skippedExisting: feature.cecha });
         continue;
       }
-      progress(`2.2:add-feature:${feature.cecha.slice(0, 50)}`);
+      progress(`2.2:add-feature:${feature.cecha}`);
       await clickVisibleButton('Dodaj', 0);
       await fillByName(
         'cecha_funkcjonalnosc_rezultatu_projektu',
