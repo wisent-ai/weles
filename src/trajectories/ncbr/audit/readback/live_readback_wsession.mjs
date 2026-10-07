@@ -35,13 +35,11 @@ const session = await WSession.start({
 });
 const page = session.page;
 
-async function visibleText(limit = 2000) {
-  return (
-    await page
-      .locator('body')
-      .innerText()
-      .catch(() => '')
-  ).slice(0, limit);
+async function visibleText() {
+  return page
+    .locator('body')
+    .innerText()
+    .catch((error) => `body text could not be read: ${error.message}`);
 }
 
 async function setReactInputValue(locator, value) {
@@ -102,7 +100,7 @@ await humanIdlePause('long');
 const afterLogin = {
   url: page.url(),
   title: await page.title().catch(() => ''),
-  body: await visibleText(1200),
+  body: await visibleText(),
 };
 
 let validation = null;
