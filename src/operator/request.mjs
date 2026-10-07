@@ -7,8 +7,10 @@
 // running the flow filled that gap by hand, in chat, which is not a product.
 //
 // This module is the product: a run opens a request naming what has to be
-// done, the request is paged to the operator through Stado's alert channels,
-// it lives as a file the worker reads, and it is closed with whether the
+// done, the request is put to the operator as one Oko ask on the channels he
+// chose (`oko contact`), or paged through Stado's alert channels on a host
+// without Oko; it lives as a file the worker reads, and it is closed with
+// whether the
 // person acted and how long the run waited. A request belongs to the runs
 // that wait on it: `weles runs list|show` show what a run waits for, and
 // `weles runs answer` is how the operator answers it.
@@ -184,10 +186,11 @@ function firstRun(request) {
 /**
  * Put the question on the channels the operator chose in Oko (`oko contact`):
  * one ask in the shared Oko database, delivered and tracked there, shown in
- * Oko Desktop and Oko iOS. Weles runs without Oko too: a host with no `oko`
- * is recorded as a channel not tried, with that reason, beside the Stado page
- * - never as delivered. Oko's own refusal (no channel chosen, nobody signed
- * in) is recorded verbatim.
+ * Oko Desktop and Oko iOS. Oko pages the channels Stado reaches itself, so a
+ * host with Oko asks once. Weles runs without Oko too: a host with no `oko`
+ * is recorded as a channel not tried, with that reason, and the request is
+ * paged through Stado's alert channels instead. Oko's own refusal (no channel
+ * chosen, nobody signed in) is recorded verbatim.
  */
 function askThroughOko(request) {
   const at = new Date().toISOString();
@@ -206,7 +209,7 @@ function askThroughOko(request) {
   ], { encoding: 'utf8', env: { ...process.env, HOME: homedir() } });
   if (result.error?.code === 'ENOENT') {
     return {
-      at, ok: false, channel: OKO_CHANNEL,
+      at, ok: false, channel: OKO_CHANNEL, oko_missing: true,
       detail: `${binary} is not installed on this host (set ${OKO_BINARY_VARIABLE} to its path), so the question was not put on the operator's Oko channels`,
     };
   }
@@ -303,7 +306,9 @@ export function openOperatorRequest(input) {
     pages: [],
   };
   write(request);
-  request.pages.push(page(request), askThroughOko(request));
+  const asked = askThroughOko(request);
+  request.pages.push(asked);
+  if (asked.oko_missing) request.pages.push(page(request));
   const written = write(request);
   announce(written);
   return written;
