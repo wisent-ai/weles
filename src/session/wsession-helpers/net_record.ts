@@ -7,7 +7,7 @@
 // `(ws as any)._instRequests` so finalize.ts can write the final dump shape.
 
 import type { BrowserContext } from 'playwright';
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { platform as osPlatform, release as osRelease, arch as osArch, totalmem, cpus, hostname, version as osVersion } from 'node:os';
 import { attachServiceWorkers, attachCdpLifecycle, buildSiblingManifest, attachStdoutCapture, sliceStdout, captureHostSnapshots, captureFinalCdpSnapshots, attachPagePlaywrightEvents } from './capture_extras.js';
@@ -17,16 +17,10 @@ import { buildCaptureCoverage } from './capture/capture_coverage.js';
 import { attachInstrumentationCheckpoints } from './capture/checkpoints/activity.js';
 
 import { attachCompleteNetRecord } from './capture/network_record.js';
-
-function safeJsonStringify(value: unknown): string {
-  return JSON.stringify(value, (_k, v) => {
-    if (typeof v !== 'string') return v;
-    // Captured page/network payloads can contain lone UTF-16 surrogates.
-    // JSON.stringify will emit them as \uXXXX, but downstream parsers can
-    // still choke when paired incorrectly. Normalize them at the artifact edge.
-    return v.replace(/[\uD800-\uDFFF]/g, '\uFFFD');
-  });
-}
+// Captured page/network payloads can contain lone UTF-16 surrogates; the
+// writer replaces them at the artifact edge and never builds the whole dump
+// as one string, which a long run outgrows.
+import { writeJsonFile } from './capture/artifact/json_file.js';
 
 // One merged fingerprint artifact per run, written under recordings/<label>/ so
 // the worker uploader (src/worker/upload-artifacts.ts) preserves it with webm
@@ -98,7 +92,7 @@ export function startInstrumentation(ws: any, ctx: BrowserContext, label: string
   attachPagePlaywrightEvents(ws);
   ws._instCheckpoints = attachInstrumentationCheckpoints(
     ws, ctx, { cdpDiagnostics, storageDiagnostics },
-    () => writeFileSync(fn, safeJsonStringify(buildDumpPayload(ws))),
+    () => writeJsonFile(fn, buildDumpPayload(ws)),
   );
   return reqs;
 }
@@ -121,7 +115,7 @@ export async function finalDump(ws: any): Promise<void> {
   try { const { stopPcap } = await import('./pcap_sidecar.js'); await stopPcap(ws); } catch {}
   try {
     await ws._instCheckpoints?.captureFinal();
-    writeFileSync(ws._instFile, safeJsonStringify(buildDumpPayload(ws, { closing: true })));
+    writeJsonFile(ws._instFile, buildDumpPayload(ws, { closing: true }));
     console.log(`[wsession] final inst dump -> ${ws._instFile}`);
   } catch (e: any) { console.error(`[wsession] final instrumentation dump ${ws._instFile} failed: ${e?.message ?? e}`); }
 }
