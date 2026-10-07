@@ -24,7 +24,7 @@ to rediscover how the website works. When a run fails, Weles records videos
 showing the points of failure to give you a clear understanding of what happened
 and how it can be fixed.
 
-Read Google 2FA without changing it: configure the Stado-managed operator endpoint with `WELES_WORKER_API_BASE` and `WELES_WORKER_TOKEN`, then use `weles account-security --provider google --login-role <skarbiec-role>` and `weles account-security --run <run-id>`. The provider is named, as for `login` and `developer-certificate`; google is the one Weles reads, and a start without it is refused (`account-security needs --provider naming the identity provider whose account it reads; Weles reads google`, exit 2). This uses detached `/run` execution and retained diagnostics, not the removed database queue. The [account-security reference](https://weles.wisent.com/docs/account-security) distinguishes a provider-confirmed boolean from an unknown state; a saved seed proves neither.
+Read Google 2FA without changing it: the operator CLI and Desktop reach the Stado-managed executor at the route `stado service directory connect weles-admission --consumer operator` gives, with the token of the item playing the worker's API role (`stado credentials get --role echo-weles-api --field token`); `WELES_WORKER_API_BASE` and `WELES_WORKER_TOKEN` override both. Then use `weles account-security --provider google --login-role <skarbiec-role>` and `weles account-security --run <run-id>`. The provider is named, as for `login` and `developer-certificate`; google is the one Weles reads, and a start without it is refused (`account-security needs --provider naming the identity provider whose account it reads; Weles reads google`, exit 2). This uses detached `/run` execution and retained diagnostics, not the removed database queue. The [account-security reference](https://weles.wisent.com/docs/account-security) distinguishes a provider-confirmed boolean from an unknown state; a saved seed proves neither.
 
 Connect Gmail through the managed executor with `weles app-password --provider google --login-role <skarbiec-role> --organization <skrzynka-organization>` or `weles app-password --provider google --login-item <skarbiec-item> --organization <skrzynka-organization>`, then read its result with `weles app-password --run <run-id>`. The organization is the one Skrzynka files the mailbox under; none is assumed, and neither is the provider (`app-password needs --provider naming the identity provider that issues it; Weles issues through google`, exit 2). Admission binds the request to one exact Skarbiec login before the browser starts; an existing login does not need a role tag when its item is named directly. Skrzynka accepts the generated password only after a real IMAP login; accepting a run is not proof that the mailbox connected. See the [documentation](https://weles.wisent.com/docs/reference/security/app-password).
 
@@ -222,14 +222,20 @@ the managed worker; `--local` explicitly inspects host-local records.
 
 A request is paged by e-mail through Stado's alert channels and waits until
 Google's page moves (approving on the phone needs nothing else) or the
-operator answers it, on the worker whose run watches the record:
-`weles operator-requests answer <id> --not-received` makes the run press
+operator answers it, on the worker whose run watches the record. Google's
+device prompt announces itself in live regions ("2-Step Verification … wants
+to make sure it's really you"); what the page already announced when the wait
+began is the prompt, and only an alert it shows afterwards is read as Google's
+refusal. `weles operator-requests answer <id> --not-received` makes the run press
 Google's "Resend it", or end with `google_prompt_not_received` when Google
 offers none; `--approved` while Google still shows the prompt records what
 the page shows; `--cancel` ends the run with `operator_cancelled`. Desktop
 Approvals has the same three buttons (`POST /operator-requests/:id/answer`).
 `show` lists every answer and what the run did about it; a closed request
-refuses an answer with how it ended.
+refuses an answer with how it ended. A sign-in run closes its browser without
+the close-time fingerprint probe (`WELES_FINGERPRINT=0`): its verdict does not
+wait on a detection probe, and the probe would send the signed-in browser to a
+third-party TLS echo after the provider's pages.
 
 `google_2fa_material_missing` remains a structured refusal when no usable
 authenticator material or offered phone method can answer the challenge.

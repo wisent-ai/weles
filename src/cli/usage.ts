@@ -99,8 +99,9 @@ Options:
                           account-security reads 2FA without signing in; app-password signs in,
                           creates a Google app password and hands it to Skrzynka.
   --login-item <item>     Exact Skarbiec Google login for app-password when no role is assigned.
-  Worker controls reach the executor at the route 'stado service directory connect weles-admission'
-  gives and with the Skarbiec token at the <item>#<field> WELES_WORKER_TOKEN_ITEM names;
+  Worker, runs and operator-requests commands reach the executor at the route
+  'stado service directory connect weles-admission' gives, with the token of the item playing
+  the worker's API role (stado credentials get --role echo-weles-api --field token);
   WELES_WORKER_API_BASE and WELES_WORKER_TOKEN override both.
   --headless              Launch without a visible browser window.
   --browser <name>        Browser engine passed to AsyncNewBrowser (default: chromium).
@@ -121,9 +122,13 @@ Options:
   --instruction <text>    What the operator has to do, in his own terms.
   --pid <process>         The process that waits on the request (default: the caller's parent);
                           a request whose process ended is reported abandoned, never timed out.
-  --approved              The operator did the thing this request asked for.
+  --approved              The operator did the thing this request asked for (answer: Weles records what
+                          the provider still shows; close: the request ends done).
   --unapproved            The wait ended without the operator doing it.
-  --detail <text>         One sentence saying how the wait ended.
+  --not-received          The provider's prompt never arrived: the run asks the provider to send it again,
+                          or ends saying the provider offers no resend.
+  --cancel                End the run waiting on the request.
+  --detail <text>         One sentence saying how the wait ended, or who cancels a run and why.
 
 Onboarding explains the authorization boundary, optionally imports existing Weles
 trajectory API exports, and explains approved host execution. Importing writes

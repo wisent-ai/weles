@@ -215,6 +215,12 @@ export function runReauth(provider, account, onProgress = () => {}) {
       env: {
         ...process.env,
         WELES_FULL_DIAGNOSTICS: process.env.WELES_FULL_DIAGNOSTICS ?? '1',
+        // A sign-in's verdict does not wait on a detection probe. The probe a
+        // closing session runs (page script, then a third-party TLS echo) sent
+        // a signed-in browser to another site after the provider's pages, and
+        // a sign-in that had already failed stood in it after its
+        // instrumentation dump and never reported its failure.
+        WELES_FINGERPRINT: '0',
         WELES_RECORDINGS_ROOT: RECORDINGS_ROOT,
         ACTION_LOG_ID: runId,
         ACTION: action,

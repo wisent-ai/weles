@@ -13,6 +13,11 @@ export type WelesApiOptions = {
 /** The executor's route as the service directory places it, for an operator shell. */
 const EXECUTOR_SERVICE = 'weles-admission';
 const EXECUTOR_CONSUMER = 'operator';
+/** The role whose `token` the worker accepts on its general API: the one the
+ * launcher reads into WELES_API_TOKEN (weles-api-launcher/configuration.mjs,
+ * STARTUP_FIELDS). A role, never an item: whichever item plays it is read. */
+const EXECUTOR_BEARER_ROLE = 'echo-weles-api';
+const EXECUTOR_BEARER_FIELD = 'token';
 
 function runStado(args: string[]): string {
   try {
@@ -26,20 +31,11 @@ function runStado(args: string[]): string {
 /**
  * The executor's base URL and bearer when the shell names neither: the route
  * `stado service directory connect` works out from where the executor is
- * placed, and the token Skarbiec holds at the `<item>#<field>` that
- * WELES_WORKER_TOKEN_ITEM names. No item is built in. An explicit
- * WELES_WORKER_API_BASE and WELES_WORKER_TOKEN still win.
+ * placed, and the token of the item playing the worker's API role, read
+ * through `stado credentials get --role`. An explicit WELES_WORKER_API_BASE
+ * and WELES_WORKER_TOKEN still win.
  */
 function executorFromStado(options: WelesApiOptions): { endpoint: string; bearer: string } {
-  const environment = options.environment ?? process.env;
-  const coordinate = environment.WELES_WORKER_TOKEN_ITEM?.trim() ?? '';
-  const separator = coordinate.indexOf('#');
-  if (separator <= 0 || separator === coordinate.length - 1) {
-    throw new Error(
-      'the executor bearer is not named: set WELES_WORKER_TOKEN_ITEM to the Skarbiec <item>#<field> '
-      + 'holding it, or set WELES_WORKER_API_BASE and WELES_WORKER_TOKEN',
-    );
-  }
   const stado = options.stado ?? runStado;
   const route = JSON.parse(stado([
     'service', 'directory', 'connect', EXECUTOR_SERVICE,
@@ -48,9 +44,7 @@ function executorFromStado(options: WelesApiOptions): { endpoint: string; bearer
   if (typeof route.url !== 'string' || !route.url) {
     throw new Error(`stado service directory connect ${EXECUTOR_SERVICE} answered no url`);
   }
-  const item = coordinate.slice(0, separator);
-  const field = coordinate.slice(separator + 1);
-  const bearer = stado(['credentials', 'get', item, '--field', field]).trim();
+  const bearer = stado(['credentials', 'get', '--role', EXECUTOR_BEARER_ROLE, '--field', EXECUTOR_BEARER_FIELD]).trim();
   return { endpoint: route.url, bearer };
 }
 

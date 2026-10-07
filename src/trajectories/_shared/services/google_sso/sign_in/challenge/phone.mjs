@@ -73,7 +73,16 @@ export async function completeGooglePhoneApproval(page, account, run) {
   console.log(`[google_sso] operator request ${request.id}; notification delivered=${request.pages.some((attempt) => attempt.ok)}`);
   let seen = Array.isArray(request.answers) ? request.answers.length : 0;
   try {
-    const pageAnswer = pageCondition(page, () => {
+    // Google's device prompt carries its own live regions: the heading block
+    // ("2-Step Verification … wants to make sure it's really you") is
+    // aria-live, so a read of every live region took the prompt itself for a
+    // refusal two seconds after it was shown and ended every phone approval
+    // before the operator could tap. What the page already announced when the
+    // wait began is the prompt; only an alert it shows afterwards is an answer.
+    const shownBefore = await page.evaluate(() => [...document.querySelectorAll('[role="alert"], [aria-live="assertive"]')]
+      .map((alert) => alert.innerText?.trim())
+      .filter(Boolean));
+    const pageAnswer = pageCondition(page, (announced) => {
       const google = location.hostname === 'accounts.google.com';
       const device = /\/signin\/challenge\/dp(?:\/|$)/.test(location.pathname);
       if (!google || !device) {
@@ -84,12 +93,12 @@ export async function completeGooglePhoneApproval(page, account, run) {
       for (const alert of document.querySelectorAll('[role="alert"], [aria-live="assertive"]')) {
         const box = alert.getBoundingClientRect();
         const text = alert.innerText?.trim();
-        if (box.width > 0 && box.height > 0 && text) {
+        if (box.width > 0 && box.height > 0 && text && !announced.includes(text)) {
           return { refused: true, detail: `Google displayed an alert: ${text}` };
         }
       }
       return false;
-    }).then((answer) => ({ page: answer }));
+    }, shownBefore).then((answer) => ({ page: answer }));
     // An operator answer can end the wait while this page read is pending;
     // its later rejection (the page closing) is then nobody's to handle.
     pageAnswer.catch(() => {});
