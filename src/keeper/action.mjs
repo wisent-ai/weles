@@ -43,11 +43,13 @@ if (action === 'dump') {
   const fp = join(OUT, `dump_${ts}.html`);
   writeFileSync(fp, html);
   const summary = await page.evaluate(() => {
-    const inputs = Array.from(document.querySelectorAll('input, textarea, select')).filter(e => e.offsetParent).map(e => ({ tag: e.tagName, type: e.type, name: e.name, placeholder: e.placeholder || '', value: (e.value || '').slice(0, 40), classes: e.className?.slice(0, 80) }));
-    const buttons = Array.from(document.querySelectorAll('button, a, [role=button]')).filter(e => e.offsetParent).map(e => ({ tag: e.tagName, text: (e.innerText || '').trim(), href: e.href || '', classes: e.className?.slice(0, 80) })).filter(o => o.text || o.classes);
+    // Whole values, every button: the 30-button and 40/80/100-character cuts
+    // once here hid the control a person debugging the page was looking for.
+    const inputs = Array.from(document.querySelectorAll('input, textarea, select')).filter(e => e.offsetParent).map(e => ({ tag: e.tagName, type: e.type, name: e.name, placeholder: e.placeholder, value: e.value, classes: e.className }));
+    const buttons = Array.from(document.querySelectorAll('button, a, [role=button]')).filter(e => e.offsetParent).map(e => ({ tag: e.tagName, text: e.innerText.trim(), href: typeof e.href === 'string' ? e.href : '', classes: e.className })).filter(o => o.text || o.classes);
     const iframes = Array.from(document.querySelectorAll('iframe')).map(f => ({ src: f.src, id: f.id, w: f.offsetWidth, h: f.offsetHeight }));
-    const modals = Array.from(document.querySelectorAll('[class*="modal" i], [class*="dialog" i], [class*="drawer" i], [role="dialog"]')).filter(e => e.offsetParent).map(e => ({ tag: e.tagName, classes: e.className?.slice(0, 100), text: (e.innerText || '') }));
-    return { url: location.href, title: document.title, inputs, buttons: buttons.slice(0, 30), iframes, modals };
+    const modals = Array.from(document.querySelectorAll('[class*="modal" i], [class*="dialog" i], [class*="drawer" i], [role="dialog"]')).filter(e => e.offsetParent).map(e => ({ tag: e.tagName, classes: e.className, text: e.innerText }));
+    return { url: location.href, title: document.title, inputs, buttons, iframes, modals };
   });
   const sp = join(OUT, `summary_${ts}.json`);
   writeFileSync(sp, JSON.stringify(summary, null, 2));
@@ -87,7 +89,7 @@ if (action === 'dump') {
 } else if (action === 'eval') {
   const js = args.join(' ');
   const r = await page.evaluate(js);
-  console.log(`[action] eval result: ${JSON.stringify(r)?.slice(0, 500)}`);
+  console.log(`[action] eval result: ${JSON.stringify(r)}`);
 } else if (action === 'url') {
   console.log(`[action] url: ${page.url()}`);
 } else if (action === 'settle') {
