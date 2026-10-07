@@ -19,7 +19,7 @@ import { createHash } from 'node:crypto';
 import { lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, realpathSync, watch, writeFileSync } from 'node:fs';
 import { basename, join, sep } from 'node:path';
 
-import { RECORDINGS_ROOT, RUN_DEDUPLICATION_TTL_MS, RUN_RESULTS_DIR } from '../configuration.mjs';
+import { RECORDINGS_ROOT, RUN_RESULTS_DIR } from '../configuration.mjs';
 
 export const SAFE_RUN_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 
@@ -204,27 +204,21 @@ export function runAdmissionKey(kind, identity) {
   return `${kind}:${createHash('sha256').update(JSON.stringify(identity)).digest('hex')}`;
 }
 
+// Requests for the same account join the run already acting on it, so two
+// callers never drive one account at once. A run leaves the table the moment
+// it ends, whatever it ended with: the next request starts a run of its own.
+// Keeping finished runs for a window handed a failed sign-in back to the
+// retry that came after it, so a repaired trajectory could not be tried; a
+// caller that lost a detached run's answer reads its result file instead.
 export function coalesceRun(key, start, metadata = {}) {
-  const now = Date.now();
-  // Completed runs leave the window when the next admission looks, so no
-  // timer is kept per run.
-  for (const [other, entry] of coalescedRuns) {
-    if (entry.completedAt !== null && now - entry.completedAt > RUN_DEDUPLICATION_TTL_MS) coalescedRuns.delete(other);
-  }
   const existing = coalescedRuns.get(key);
   if (existing) return { entry: existing, joined: true };
-  const entry = { promise: null, completedAt: null, metadata };
+  const entry = { promise: null, metadata };
   entry.promise = Promise.resolve()
     .then(start)
-    .then((outcome) => {
-      // A cancelled run says nothing about the account: the next request for
-      // it starts a run instead of being handed the cancellation.
-      if (outcome?.cancelled === true || outcome?.failure?.code === 'run_cancelled') {
-        if (coalescedRuns.get(key) === entry) coalescedRuns.delete(key);
-      }
-      return outcome;
-    })
-    .finally(() => { entry.completedAt = Date.now(); });
+    .finally(() => {
+      if (coalescedRuns.get(key) === entry) coalescedRuns.delete(key);
+    });
   coalescedRuns.set(key, entry);
   return { entry, joined: false };
 }
