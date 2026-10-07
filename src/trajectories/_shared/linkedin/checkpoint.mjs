@@ -40,9 +40,11 @@ async function solveEmailPinChallenge({ page }, email) {
   // Live-discover the visible inputs and buttons so we know exactly what
   // selector LinkedIn shipped this variant of the page with. Logged for
   // diagnosis on first failure.
-  const inputInfo = await page.evaluate(`(()=>Array.from(document.querySelectorAll('input')).filter(i=>i.offsetParent!==null).map(i=>({name:i.name,id:i.id,type:i.type,ac:i.getAttribute('autocomplete'),maxLen:i.maxLength,ph:i.placeholder})).slice(0,20))()`).catch(() => []);
+  const inputInfo = await page.evaluate(`(()=>Array.from(document.querySelectorAll('input')).filter(i=>i.offsetParent!==null).map(i=>({name:i.name,id:i.id,type:i.type,ac:i.getAttribute('autocomplete'),maxLen:i.maxLength,ph:i.placeholder})))()`)
+    .catch((error) => ({ unreadable: `the PIN page's inputs could not be read: ${error.message}` }));
   console.log(`[linkedin_login] emailPin inputs: ${JSON.stringify(inputInfo)}`);
-  const buttonInfo = await page.evaluate(`(()=>Array.from(document.querySelectorAll('button')).filter(b=>b.offsetParent!==null).map(b=>({type:b.type,txt:(b.innerText||b.textContent||'').trim().slice(0,40),id:b.id,name:b.name})).slice(0,10))()`).catch(() => []);
+  const buttonInfo = await page.evaluate(`(()=>Array.from(document.querySelectorAll('button')).filter(b=>b.offsetParent!==null).map(b=>({type:b.type,txt:b.innerText.trim(),id:b.id,name:b.name})))()`)
+    .catch((error) => ({ unreadable: `the PIN page's buttons could not be read: ${error.message}` }));
   console.log(`[linkedin_login] emailPin buttons: ${JSON.stringify(buttonInfo)}`);
   try {
     const candidates = [

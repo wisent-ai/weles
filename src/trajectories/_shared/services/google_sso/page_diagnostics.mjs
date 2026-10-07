@@ -47,14 +47,13 @@ export async function readGooglePageText(page) {
 
 export async function logGooglePageDiag(page, label) {
   const diag = await page.evaluate(() => {
-    const text = (document.body?.innerText || '').replace(/\s+/g, ' ').slice(0, 1200);
+    const text = document.body.innerText.replace(/\s+/g, ' ');
     const buttons = Array.from(document.querySelectorAll('button, [role="button"]'))
       .map((el) => ({
-        text: (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80),
+        text: el.innerText.replace(/\s+/g, ' ').trim(),
         disabled: Boolean(el.disabled || el.getAttribute('aria-disabled') === 'true' || el.getAttribute('disabled') !== null),
       }))
-      .filter((button) => button.text)
-      .slice(0, 20);
+      .filter((button) => button.text);
     // An attribute the element does not carry is reported as absent, because a
     // field with no declared type and a field declaring an empty type are two
     // different pages to read this diagnostic against.
@@ -65,11 +64,10 @@ export async function logGooglePageDiag(page, label) {
         autocomplete: el.getAttribute('autocomplete'),
         visible: Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length),
         valueLength: String(el.value || '').length,
-      }))
-      .slice(0, 20);
+      }));
     return { url: location.href, title: document.title, text, buttons, inputs };
   }).catch((e) => ({ error: e.message }));
-  console.log(`[google_sso] ${label} diag=${JSON.stringify(diag).slice(0, 3000)}`);
+  console.log(`[google_sso] ${label} diag=${JSON.stringify(diag)}`);
 
   if (process.env.GOOGLE_SSO_SCREENSHOTS === '1' && process.env.GOOGLE_SSO_NO_SCREENSHOTS !== '1') {
     const dir = process.env.GOOGLE_SSO_DIAG_DIR || runOutputPath('google-sso-diag');
@@ -88,11 +86,10 @@ export async function collectGoogleAuthMethods(page) {
         tag: (el.tagName || '').toLowerCase(),
         role: el.getAttribute('role'),
         challengeType: el.getAttribute('data-challengetype'),
-        text: norm(el.innerText || el.textContent || '').slice(0, 300),
+        text: norm(el.innerText),
         aria: el.getAttribute('aria-label'),
       }))
       .filter((item) => /try another way|passkey|authenticator|backup code|verification code|phone|text|call|security key|gmail|prompt|password/i
-        .test([item.text, item.aria, item.challengeType].filter((part) => part !== null).join(' ')))
-      .slice(0, 80);
+        .test([item.text, item.aria, item.challengeType].filter((part) => part !== null).join(' ')));
   });
 }

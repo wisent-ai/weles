@@ -74,7 +74,7 @@ async function verifyTargetSite(s, cfg) {
       src: script.src,
       websiteId: script.getAttribute('data-website-id'),
     })),
-    bodyText: document.body?.innerText?.slice(0, 3000) ?? '',
+    bodyText: document.body.innerText,
   }));
   const text = JSON.stringify(data);
   if (action === 'umami_verify_tracking_script' && !text.includes(input('WEBSITE_ID'))) {
@@ -97,7 +97,7 @@ async function captureEvidence(s, cfg, extra = {}) {
     name: node.getAttribute('name') || '',
     label: node.getAttribute('aria-label') || node.getAttribute('title') || '',
     value: node.value || '',
-  })).filter((item) => item.value).slice(0, 50));
+  })).filter((item) => item.value));
   const evidence = {
     action: actionName(),
     platform: cfg.platform,
@@ -109,7 +109,7 @@ async function captureEvidence(s, cfg, extra = {}) {
     inputs: Object.fromEntries(cfg.required.map((key) => [key, process.env[key] ?? null])),
     bodyText: text,
     formValues,
-    capturedRequests: s.capturedResponses.slice(-50).map((r) => ({ method: r.method, url: r.url, status: r.status })),
+    capturedRequests: s.capturedResponses.map((r) => ({ method: r.method, url: r.url, status: r.status })),
     ...extra,
   };
   writeFileSync(join(dir, 'service_action_result.json'), JSON.stringify(evidence, null, 2));

@@ -44,19 +44,19 @@ export async function summarizeLinkedinPage(page) {
         type: i.type,
         autocomplete: i.getAttribute('autocomplete') ?? '',
         visible: visible(i),
-      })).slice(0, 20),
+      })),
       buttons: Array.from(document.querySelectorAll('button,a')).filter(visible).map((b) => ({
         tag: b.tagName.toLowerCase(),
         text: (b.innerText || b.textContent || '').trim().replace(/\s+/g, ' '),
         href: b.getAttribute('href') ?? '',
-      })).slice(0, 20),
+      })),
       iframes: Array.from(document.querySelectorAll('iframe')).map((f) => ({
         id: f.id,
         name: f.name,
         title: f.title,
         src: f.src,
         visible: visible(f),
-      })).slice(0, 20),
+      })),
       bodyText: (document.body?.innerText ?? '').trim().replace(/\s+/g, ' '),
     };
   }, url);
