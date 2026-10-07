@@ -126,14 +126,6 @@ try {
     } catch (error) {
       console.error('OXYLABS_DIAGNOSTIC_SCREENSHOT_FAILED:', error);
     }
-    const gbIdx = [];
-    for (let i = 0; (i = text.toLowerCase().indexOf('gb', i)) >= 0; i++)
-      gbIdx.push(i);
-    for (const i of gbIdx.slice(0, 10)) {
-      console.log(
-        `[trajectory] GB context @${i}: ${text.slice(Math.max(0, i - 60), i + 20).replace(/\s+/g, ' ')}`,
-      );
-    }
     throw new Error(`oxylabs_balance_regex_no_match — text dumped to ${dir}/`);
   }
   console.log(`[trajectory] balance=${balance}`);
