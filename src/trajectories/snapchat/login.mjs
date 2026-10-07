@@ -29,7 +29,7 @@ try {
   await humanType(s.page, process.env.SVC_PASSWORD);
   await humanClickLocator(s.page, s.page.locator('button[type="submit"], button:has-text("Log In"), button:has-text("Sign in")').filter({ visible: true }).first());
   await urlMatching(s.page, (u) => /accounts\.snapchat\.com\/(?!.*login)/.test(u) || /accounts\.snapchat\.com\/account\/?$/.test(u));
-  // Persist with cookies_minted_at for freshness window enforcement.
+  // Persist with cookies_minted_at and the minting proxy, so actions inject only a verified login's jar.
   try { const cookies = await s.ctx.cookies(); await persistFreshCookieJar(acct, cookies, { currentProxyUrl: process.env.PROXY_URL }); }
   catch (e) { console.log('[cookie-capture] err:', e.message); }
   console.log(`PASS: logged in (${s.page.url()})`);

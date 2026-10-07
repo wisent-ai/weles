@@ -165,7 +165,8 @@ try {
     const finalCookies = postLoginCookies;
     console.log(`PASS: logged in as ${acct.username} — ${finalUrl}`);
     // Persist fresh cookies back to the account, stamped with cookies_minted_at
-    // so action trajectories can enforce a freshness window before reuse.
+    // and the proxy they were minted under, so action trajectories inject only
+    // a jar a verified login minted under their own egress.
     try { await persistFreshCookieJar(acct, finalCookies, { currentProxyUrl: proxyUrl }); }
     catch (e) { console.log('[cookie-capture] err:', e.message); }
   } else {

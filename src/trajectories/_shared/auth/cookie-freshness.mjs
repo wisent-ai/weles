@@ -8,15 +8,14 @@ import { updateAccountMetadata } from '../skarbiec/accounts.mjs';
  * return a logged-out shell without redirecting.
  *
  *   auth-probe.mjs catches the symptom (no authed DOM marker visible).
- *   This module catches it earlier and cheaper: if the stored jar wasn't
- *   minted by a successful login within the freshness window, we don't
- *   even bother injecting it. We mark cookies stale and exit, which the
- *   routine layer turns into a fresh form-login enqueue on the next tick.
- *
- *   The freshness window is platform-specific because session lifetimes
- *   are platform-specific. Defaults are conservative — better to re-login
- *   slightly more often than to keep replaying a session that's silently
- *   degraded.
+ *   This module catches what can be known before injecting: a jar no
+ *   verified login minted, or one minted under another proxy or persona,
+ *   is not injected; we mark cookies stale and exit, which the routine
+ *   layer turns into a fresh form-login enqueue on the next tick. How long
+ *   a platform honours a session is the platform's: expired cookies are
+ *   dropped by the browser itself and a revoked session is what
+ *   auth-probe.mjs observes. The per-platform age windows (6 h to 7 d)
+ *   once here were nobody's statement.
  *
  * Two functions:
  *   - persistFreshCookieJar(acct, cookies)
@@ -32,36 +31,11 @@ import { updateAccountMetadata } from '../skarbiec/accounts.mjs';
  *       Called by every action trajectory before injecting cookies. Throws
  *       CookieJarStaleError if:
  *         (a) metadata.cookies is empty / missing
- *         (b) metadata.cookies_minted_at is missing (jar predates the
- *             freshness regime — treat as stale)
- *         (c) cookies_minted_at is older than FRESHNESS_WINDOW_MS for the
- *             platform
+ *         (b) metadata.cookies_minted_at is missing or not a timestamp (the
+ *             jar was not stamped by a verified login)
+ *         (c) the jar was minted under a different proxy or persona
  *       Returns the cookie array on success.
- *
- * The single source of truth for the freshness window lives here. Do not
- * inline windows in trajectories.
  */
-
-// Platform → max age of cookies_minted_at before we declare the jar stale.
-// Tuned conservatively: TikTok rotates msToken aggressively + binds
-// sessionid hard to device fingerprint, so we want a tighter window than
-// e.g. GitHub which honors a long-lived user_session cookie.
-const FRESHNESS_WINDOW_MS = {
-  tiktok: 6 * 60 * 60 * 1000,        // 6h
-  twitter: 24 * 60 * 60 * 1000,      // 24h (auth_token is stable but ct0 rotates)
-  instagram: 12 * 60 * 60 * 1000,    // 12h
-  reddit: 24 * 60 * 60 * 1000,       // 24h
-  github: 7 * 24 * 60 * 60 * 1000,   // 7d (user_session is long-lived)
-  youtube: 24 * 60 * 60 * 1000,      // 24h
-  linkedin: 24 * 60 * 60 * 1000,     // 24h
-  discord: 24 * 60 * 60 * 1000,      // 24h
-  producthunt: 24 * 60 * 60 * 1000,  // 24h
-  snapchat: 12 * 60 * 60 * 1000,     // 12h
-  threads: 12 * 60 * 60 * 1000,      // 12h (Meta — same as instagram)
-  google: 24 * 60 * 60 * 1000,       // 24h
-};
-
-const DEFAULT_WINDOW_MS = 12 * 60 * 60 * 1000;
 
 export class CookieJarStaleError extends Error {
   constructor(message, details = {}) {
@@ -139,10 +113,9 @@ export function personaSignature(persona) {
 }
 
 /**
- * Validate that the stored cookie jar was minted by a verified login within
- * the platform's freshness window AND under the same proxy + persona that's
- * about to inject it. Returns the cookie array on success; throws
- * CookieJarStaleError otherwise.
+ * Validate that the stored cookie jar was minted by a verified login AND
+ * under the same proxy + persona that's about to inject it. Returns the
+ * cookie array on success; throws CookieJarStaleError otherwise.
  *
  * Optional context fields:
  *   currentProxyUrl  — pass the resolveAccountSession result so we can
@@ -173,16 +146,6 @@ export function loadFreshCookieJarOrFail(acct, { platform, label, currentProxyUr
       platform, label, reason: 'bad_minted_at', mintedAtRaw, account_id: acct?.id ?? null,
     });
   }
-  const ageMs = Date.now() - mintedMs;
-  const windowMs = FRESHNESS_WINDOW_MS[platform] ?? DEFAULT_WINDOW_MS;
-  if (ageMs > windowMs) {
-    const ageH = Math.round(ageMs / 3_600_000);
-    const winH = Math.round(windowMs / 3_600_000);
-    throw new CookieJarStaleError(`cookie_jar_stale: minted ${ageH}h ago > ${winH}h window for ${platform} — login required`, {
-      platform, label, reason: 'stale', age_ms: ageMs, window_ms: windowMs, account_id: acct?.id ?? null,
-    });
-  }
-
   // --- Proxy + persona binding checks ---
   // If the jar was minted under a different proxy or persona than the one
   // about to inject it, the platform's server-side session binding will
