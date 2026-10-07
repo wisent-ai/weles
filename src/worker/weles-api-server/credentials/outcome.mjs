@@ -42,6 +42,6 @@ export function finishedCredentialReply(record, action, out) {
     executionHost: hostname(),
     providerEffect: reported?.providerEffect ?? (captured ? 'changed' : 'unknown'),
     code: reported?.code ?? (completed ? 'WELES_CREDENTIAL_CAPTURED' : 'WELES_CREDENTIAL_RESULT_UNCONFIRMED'),
-    message: String(message).replace(/\p{Cc}/gu, ' ').slice(0, 512),
+    message: String(message).replace(/\p{Cc}/gu, ' '),
   }, record.request);
 }
