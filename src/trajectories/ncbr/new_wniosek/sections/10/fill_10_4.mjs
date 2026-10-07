@@ -255,5 +255,5 @@ const readback = await page.evaluate(() => {
     body: (document.body.innerText || ''),
   };
 });
-console.log(JSON.stringify({ saveResult, actResult, projekt, opis6r: v6.length, wOpts, readback }, null, 2));
+console.log(JSON.stringify({ saveResult, actResult, projekt, opis6r: OPIS_6R.length, wOpts, readback }, null, 2));
 process.exit(0);
