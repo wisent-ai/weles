@@ -39,8 +39,7 @@ export async function diag(page, label, secret = '') {
             el.offsetWidth || el.offsetHeight || el.getClientRects().length,
           ),
           valueLength: String(el.value || '').length,
-        }))
-        .slice(0, 80);
+        }));
       return {
         url: location.href,
         title: document.title,
@@ -62,11 +61,9 @@ export async function diag(page, label, secret = '') {
       {
         url: redacted.url,
         title: redacted.title,
-        text: redacted.text?.slice?.(0, 1400),
-        controls: redacted.controls?.slice?.(0, 30),
-        inputs: redacted.inputs
-          ?.filter?.((input) => input.visible)
-          .slice(0, 20),
+        text: redacted.text,
+        controls: redacted.controls,
+        inputs: redacted.inputs?.filter?.((input) => input.visible),
       },
       null,
       2,

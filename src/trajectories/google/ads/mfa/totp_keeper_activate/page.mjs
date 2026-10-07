@@ -7,7 +7,7 @@ export async function state() {
     js: `(() => ({
       url: location.href,
       title: document.title,
-      text: (document.body?.innerText || '').replace(/\\s+/g, ' ').slice(0, 7000),
+      text: document.body ? document.body.innerText.replace(/\\s+/g, ' ') : '',
       inputs: Array.from(document.querySelectorAll('input')).map((el) => ({
         type: el.getAttribute('type') || '',
         name: el.getAttribute('name') || '',
@@ -16,14 +16,14 @@ export async function state() {
         aria: el.getAttribute('aria-label') || '',
         visible: Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length),
         valueLength: String(el.value || '').length,
-      })).slice(0, 40),
+      })),
       controls: Array.from(document.querySelectorAll('button, [role="button"], a, [role="link"], li, div[role="option"]')).map((el) => ({
         tag: (el.tagName || '').toLowerCase(),
         role: el.getAttribute('role') || '',
-        text: (el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 240),
+        text: (el.innerText ?? el.textContent).replace(/\\s+/g, ' ').trim(),
         href: el.href || '',
         aria: el.getAttribute('aria-label') || '',
-      })).filter((item) => item.text || item.href || item.aria).slice(0, 120),
+      })).filter((item) => item.text || item.href || item.aria),
     }))()`,
   });
   return res.result || { url: '', text: '', controls: [], inputs: [] };
