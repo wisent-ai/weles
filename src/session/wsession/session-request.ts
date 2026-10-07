@@ -46,8 +46,8 @@ export function redactProxyForLog(proxy: unknown): string {
   if (typeof proxy === 'string') {
     try {
       const u = new URL(proxy);
-      if (u.username)
-        u.username = `${decodeURIComponent(u.username).slice(0, 18)}...`;
+      // The username is logged whole, as the object form below logs it; only
+      // the password is a secret.
       if (u.password) u.password = '***';
       return u.toString();
     } catch {
