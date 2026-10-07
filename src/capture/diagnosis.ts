@@ -171,13 +171,11 @@ export async function diagnoseCapture(
       const routed = await callJeden(prompt, {
         modelOnly: false,
         cwd: framesDir,
-        maxSteps: 4,
-
       });
       const diagnosis = parseDiagnosisOutput(routed.raw);
       if (!diagnosis) return 'Diagnosis unavailable: model output failed schema validation.';
       return JSON.stringify(diagnosis, null, 2);
-    } catch {
-      return 'Diagnosis unavailable: authenticated Stado model routing failed closed.';
+    } catch (error) {
+      return `Diagnosis unavailable: the Jeden run failed: ${error instanceof Error ? error.message : String(error)}`;
     }
   }

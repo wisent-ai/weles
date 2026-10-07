@@ -255,14 +255,15 @@ export async function callJeden(prompt: string, options: JedenCallOptions = {}):
   const sessionRoot = nonEmpty(process.env.WELES_JEDEN_SESSION_ROOT)
     ?? join(runRecordingsDir('jeden'), 'sessions');
   mkdirSync(sessionRoot, { recursive: true });
+  // A step bound reaches Jeden only when the caller states one; otherwise the
+  // run ends when Jeden's own turn ends, not at a count nobody chose.
   const args = [
     'run',
     prompt,
     '--json',
     '--model',
     cfg.model,
-    '--max-steps',
-    String(options.maxSteps ?? 1),
+    ...(options.maxSteps === undefined ? [] : ['--max-steps', String(options.maxSteps)]),
     '--cwd',
     options.cwd,
   ];
