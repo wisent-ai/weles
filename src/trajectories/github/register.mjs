@@ -3,7 +3,7 @@ import { solveFunCaptcha } from './captcha/funcaptcha.mjs';
 import { solveAudioPuzzle } from './captcha/audio_solver.mjs';
 import { solveRotationViaCoords } from './captcha/coords_solver.mjs';
 import { requireStadoModelRouterConfig } from './captcha/stado_model_router.mjs';
-import { humanClick, humanClickLocator, humanScroll } from '../../../dist/human/mouse.js'; import { humanType } from '../../../dist/human/keyboard.js';
+import { humanClick, humanClickLocator } from '../../../dist/human/mouse.js'; import { humanType } from '../../../dist/human/keyboard.js';
 import { autoBindCharacter } from '../lib/character-bind.mjs';
 import { getReceived, listReceivedFrom } from '../../_shared/resend-receiving.mjs';
 
@@ -23,12 +23,6 @@ console.log('[register] Homepage rendered');
 try {
   const id = await s.generateIdentity('github');
   console.log(`[register] Identity: username=${id.username} email=${id.email}`);
-
-  // Complete the pointer and scroll actions before opening signup.
-  for (let i = 0; i < 5; i++) {
-    await s.page.mouse.move(100 + Math.random() * 700, 100 + Math.random() * 500);
-  }
-  await humanScroll(s.page, 300, 1);
 
   // Intercept Arkose/FunCaptcha public_key + blob (context-level catches iframe requests)
   const captcha = { blob: null, pkey: null, apiSub: null };
