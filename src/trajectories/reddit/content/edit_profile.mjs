@@ -23,6 +23,7 @@ import {
 } from '../../_shared/auth/cookie-freshness.mjs';
 import { loadAvatarFile } from '../../_shared/runner/avatar-loader.mjs';
 import { updateAccountMetadata } from '../../_shared/skarbiec/accounts.mjs';
+import { fitsField } from '../../_shared/page/fits.mjs';
 
 const acct = await getSocialAccount('reddit');
 if (!acct) {
@@ -44,8 +45,9 @@ const avatarUrl =
     ? character.training_images[0]
     : null);
 
-const targetName = (character.name || '').slice(0, 30); // reddit display name cap
-const targetBio = (character.bio || '').slice(0, 200); // reddit "about" cap
+// Name and bio go up whole; each field's own maxlength decides whether they fit.
+const targetName = character.name;
+const targetBio = character.bio;
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({
@@ -115,9 +117,10 @@ try {
     .first();
 
   const writes = [];
-  if (await nameIn.count()) {
+  if (targetName && (await nameIn.count())) {
     const cur = await nameIn.inputValue().catch(() => '');
     if (cur.trim() !== targetName.trim()) {
+      await fitsField(nameIn, targetName, 'the Reddit display name');
       await humanClickLocator(s.page, nameIn);
       await s.page.keyboard.press('Meta+A').catch(() => {});
       await s.page.keyboard.press('Control+A').catch(() => {});
@@ -126,9 +129,10 @@ try {
       writes.push(`name "${cur}" -> "${targetName}"`);
     }
   }
-  if (await bioIn.count()) {
+  if (targetBio && (await bioIn.count())) {
     const cur = await bioIn.inputValue().catch(() => '');
     if (cur.trim() !== targetBio.trim()) {
+      await fitsField(bioIn, targetBio, 'the Reddit about text');
       await humanClickLocator(s.page, bioIn);
       await s.page.keyboard.press('Meta+A').catch(() => {});
       await s.page.keyboard.press('Control+A').catch(() => {});

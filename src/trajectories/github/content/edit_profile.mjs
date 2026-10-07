@@ -26,6 +26,7 @@ import {
   pageSettled,
   responseAfterAction,
 } from '../../_shared/page/settled.mjs';
+import { fitsField } from '../../_shared/page/fits.mjs';
 
 const PROFILE_URL = 'https://github.com/settings/profile';
 
@@ -110,7 +111,8 @@ console.log(
 );
 
 const targetName = character.name || '';
-const targetBio = (character.bio || '').slice(0, 160);
+// The bio goes up whole; each field's own maxlength decides whether it fits.
+const targetBio = character.bio;
 const targetLocation = [character.home_city, character.home_country]
   .filter(Boolean)
   .join(', ');
@@ -236,6 +238,7 @@ try {
         { code: 'GH_PROFILE_FIELD_LOCKED', field: label },
       );
     }
+    await fitsField(field, target, `the GitHub profile ${label}`);
     await humanFill(s.page, field, target);
     await s.page.keyboard.press('Tab');
     const entered = await field.inputValue();

@@ -24,6 +24,7 @@ import {
 } from '../../_shared/auth/cookie-freshness.mjs';
 import { loadAvatarFile } from '../../_shared/runner/avatar-loader.mjs';
 import { updateAccountMetadata } from '../../_shared/skarbiec/accounts.mjs';
+import { fitsField } from '../../_shared/page/fits.mjs';
 
 const acct = await getSocialAccount('twitter');
 if (!acct) {
@@ -46,7 +47,8 @@ const avatarUrl =
     : null);
 
 const targetName = character.name || '';
-const targetBio = (character.bio || '').slice(0, 160); // X (Twitter) bio limit
+// The bio goes up whole; the field's own maxlength decides whether it fits.
+const targetBio = character.bio;
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({
@@ -147,9 +149,10 @@ try {
       writes.push(`name "${cur}" -> "${targetName}"`);
     }
   }
-  if (await bioIn.count()) {
+  if (targetBio && (await bioIn.count())) {
     const cur = await bioIn.inputValue().catch(() => '');
     if (cur.trim() !== targetBio.trim()) {
+      await fitsField(bioIn, targetBio, 'the X bio');
       await humanClickLocator(s.page, bioIn);
       await s.page.keyboard.press('Meta+A').catch(() => {});
       await s.page.keyboard.press('Control+A').catch(() => {});

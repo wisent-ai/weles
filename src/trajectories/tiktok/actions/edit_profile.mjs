@@ -27,6 +27,7 @@ import {
 } from '../../_shared/auth/cookie-freshness.mjs';
 import { loadAvatarFile } from '../../_shared/runner/avatar-loader.mjs';
 import { updateAccountMetadata } from '../../_shared/skarbiec/accounts.mjs';
+import { fitsField } from '../../_shared/page/fits.mjs';
 
 const acct = await getSocialAccount('tiktok');
 if (!acct) {
@@ -48,8 +49,8 @@ const avatarUrl =
     ? character.training_images[0]
     : null);
 
-// TikTok bio cap is 80 chars.
-const targetBio = (character.bio || '').slice(0, 80);
+// The bio goes up whole; the field's own maxlength decides whether it fits.
+const targetBio = character.bio;
 const targetName = character.name || '';
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
@@ -147,9 +148,10 @@ try {
       writes.push(`name "${cur}" -> "${targetName}"`);
     }
   }
-  if (await bioIn.count()) {
+  if (targetBio && (await bioIn.count())) {
     const cur = await bioIn.inputValue().catch(() => '');
     if (cur.trim() !== targetBio.trim()) {
+      await fitsField(bioIn, targetBio, 'the TikTok bio');
       await humanClickLocator(s.page, bioIn);
       await s.page.keyboard.press('Meta+A').catch(() => {});
       await s.page.keyboard.press('Control+A').catch(() => {});
@@ -229,7 +231,7 @@ try {
   await humanIdlePause('deliberate');
 
   const verifiedBio = await bioIn.inputValue().catch(() => '');
-  if (verifiedBio.trim() !== targetBio.trim()) {
+  if (targetBio && verifiedBio.trim() !== targetBio.trim()) {
     console.log(
       `FAIL: bio mismatch after save ("${verifiedBio}..." != "${targetBio}...")`,
     );

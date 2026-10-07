@@ -29,6 +29,7 @@ import {
   responseAfterAction,
   reviewUntilClosed,
 } from '../../_shared/page/settled.mjs';
+import { fitsField } from '../../_shared/page/fits.mjs';
 
 const acct = await getSocialAccount('linkedin');
 if (!acct) {
@@ -51,13 +52,10 @@ const avatarUrl =
     : null);
 
 const targetName = character.name || '';
-// Headline = occupation if present, else niche. Caps at 220 chars.
-const targetHeadline = (character.occupation || character.niche || '').slice(
-  0,
-  220,
-);
-// About is the long bio. Caps at 2600 chars.
-const targetAbout = (character.bio || '').slice(0, 2600);
+// Headline = occupation if present, else niche; about = the bio. Each goes up
+// whole, and its field's own maxlength decides whether it fits.
+const targetHeadline = character.occupation ?? character.niche;
+const targetAbout = character.bio;
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({
@@ -218,6 +216,7 @@ try {
     await el.scrollIntoViewIfNeeded().catch(() => {});
     const cur = await el.inputValue().catch(() => '');
     if (cur.trim() === target.trim()) continue;
+    await fitsField(el, target, `the LinkedIn ${label}`);
     await humanClickLocator(s.page, el);
     nativeSelectAllAndDelete();
     await humanType(s.page, target);
@@ -357,6 +356,7 @@ try {
     if (await aboutIn.count()) {
       const cur = await aboutIn.inputValue().catch(() => '');
       if (cur.trim() !== targetAbout.trim()) {
+        await fitsField(aboutIn, targetAbout, 'the LinkedIn about text');
         await humanClickLocator(s.page, aboutIn);
         await s.page.keyboard.press('Meta+A').catch(() => {});
         await s.page.keyboard.press('Control+A').catch(() => {});
