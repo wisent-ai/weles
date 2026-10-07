@@ -68,7 +68,7 @@ function detail(run: RunningRun): string {
   }
   if (run.cancel_requested) lines.push(`cancelled    ${run.cancel_requested.at}: ${run.cancel_requested.detail}`);
   for (const [stream, text] of [['stderr', run.stderr_tail], ['stdout', run.stdout_tail]]) {
-    for (const line of text.split('\n').filter((written) => written.trim()).slice(-12)) {
+    for (const line of text.split('\n').filter((written) => written.trim())) {
       lines.push(`${stream.padEnd(13)}${line}`);
     }
   }
