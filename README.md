@@ -412,6 +412,19 @@ the `author` command that drafts it.
 - Workers ship as immutable releases promoted through the declared deployment rings.
 - Chromium and Firefox launch only with the Stado-selected release coordinate and checksum.
 
+## Formatting
+
+The JavaScript and TypeScript sources (`benchmark`, `docs`, `release`,
+`scripts`, `src`, `tests`) are formatted by Biome in its default style; the
+release is pinned in `release/fmt.sh` and run through `npx`. The release
+manifest declares it as the `fmt` quality gate, which `stado release changes
+submit` runs before a commit is handed to the batch build:
+
+```
+bash release/fmt.sh --check   # lists what Biome would change, exits nonzero
+stado quality format --root .  # writes Biome's formatting
+```
+
 ## Community and support
 
 Use [Discord](https://discord.gg/qRjpkthq54) for discussion and the repository issue
