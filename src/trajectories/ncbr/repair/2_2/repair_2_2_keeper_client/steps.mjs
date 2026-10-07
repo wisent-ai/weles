@@ -128,9 +128,21 @@ export function selectedFactors() {
   );
 }
 
+// Whether `shown`, a chip's or option's text, names `label`: the same words,
+// or their start closed by the ellipsis a cut label shows. No prefix length
+// is chosen here; a CSS cut leaves the text whole, and a cut in the text
+// marks itself.
+function shows(shown, label) {
+  const words = (text) => text.replace(/\s+/g, ' ').trim();
+  const [seen, wanted] = [words(shown), words(label)];
+  if (seen === wanted) return true;
+  const cut = seen.match(/^(?<start>.+?)\s*(…|\.\.\.)$/);
+  return cut !== null && wanted.startsWith(cut.groups.start);
+}
+
 export function ensureFactorSelected(label) {
   const before = selectedFactors();
-  if (before.some((x) => x === label || x.includes(label.slice(0, 45)))) {
+  if (before.some((x) => shows(x, label))) {
     return { label, status: 'already_selected', before };
   }
   const selector = fieldSelector(
@@ -141,9 +153,7 @@ export function ensureFactorSelected(label) {
   const options = evalRead(
     `Array.from(document.querySelectorAll('[role="option"]')).map((o) => o.textContent.trim()).filter(Boolean)`,
   );
-  const match =
-    options.find((o) => o === label) ||
-    options.find((o) => o.includes(label.slice(0, 45)));
+  const match = options.find((o) => shows(o, label));
   if (match) {
     const optionClick = click(`[role="option"]:has-text("${match}")`, true);
     if (!optionClick.ok) press('Enter');
@@ -154,7 +164,7 @@ export function ensureFactorSelected(label) {
   const after = selectedFactors();
   return {
     label,
-    status: after.some((x) => x === label || x.includes(label.slice(0, 45)))
+    status: after.some((x) => shows(x, label))
       ? 'selected'
       : 'attempted',
     before,
