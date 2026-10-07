@@ -203,7 +203,7 @@ export async function doGoogleSso({
         }
         // A round in which no popup is open or moved and the page stayed on
         // the same address with nothing to act on ends this strategy.
-        const popupOpen = popupPages.some((popupPage) => !popupPage.isClosed());
+        const popupOpen = [...popupPages].some((popupPage) => !popupPage.isClosed());
         if (!popupActed && !popupOpen && st.href === lastHref) break;
         lastHref = st.href;
         await pageSettled(page); // allow-raw-playwright: terminal-state poll
