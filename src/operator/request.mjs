@@ -202,10 +202,13 @@ function askThroughOko(request) {
   const answer = run
     ? `Answer it with: weles runs answer ${run} --ready | --approved | --not-received`
     : `No Weles worker started this run (process ${request.run_pid} on ${request.host}); it ends when the page it waits on changes.`;
+  // The answers a waiting run acts on are offered as the ask's choices, so
+  // Oko Desktop and Oko iOS show them as buttons and refuse anything else.
   const result = spawnSync(binary, [
     'asks', 'ask', '--from', 'weles', '--subject', run ? `run-${run}` : `request-${request.id}`,
     '--question', `${request.instruction} (${request.account})`,
     '--detail', `${pageSubject(request)} on ${request.host}. ${answer}`,
+    ...OPERATOR_ANSWERS.flatMap((choice) => ['--choice', choice]),
   ], { encoding: 'utf8', env: { ...process.env, HOME: homedir() } });
   if (result.error?.code === 'ENOENT') {
     return {
