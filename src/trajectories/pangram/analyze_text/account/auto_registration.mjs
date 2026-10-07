@@ -10,6 +10,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { todayKey } from './pool_rotation.mjs';
+import { statedBudget } from '../../../_shared/inputs/stated.mjs';
 
 function autoRegisterLedgerPath() {
   return process.env.PANGRAM_AUTO_REGISTER_LEDGER_FILE || join(process.env.HOME || process.cwd(), '.weles', 'pangram-auto-register.json');
@@ -29,12 +30,7 @@ function writeAutoRegisterLedger(ledger) {
 }
 
 export function maxAutoRegisters() {
-  const raw = process.env.PANGRAM_MAX_AUTO_REGISTERS;
-  const value = Number(raw);
-  if (!raw || !Number.isSafeInteger(value) || value !== Math.abs(value)) {
-    throw new Error(`PANGRAM_MAX_AUTO_REGISTERS is ${raw ? `"${raw}", not a whole number of zero or more` : 'not set'}: how many Pangram accounts auto-registration may create in a day; nothing is assumed`);
-  }
-  return value;
+  return statedBudget('PANGRAM_MAX_AUTO_REGISTERS', 'how many Pangram accounts auto-registration may create in a day');
 }
 
 export function autoRegisterCountToday(ledger) {

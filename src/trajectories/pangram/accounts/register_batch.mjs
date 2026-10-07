@@ -7,17 +7,10 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
+import { statedCount } from '../../_shared/inputs/stated.mjs';
 
-function stated(name, what) {
-  const raw = process.env[name];
-  const value = Number(raw);
-  if (!raw || !Number.isSafeInteger(value) || !(value >= Number.MIN_VALUE)) {
-    throw new Error(`${name} is ${raw ? `"${raw}", not a whole number above zero` : 'not set'}: ${what}; nothing is assumed`);
-  }
-  return value;
-}
-const COUNT = stated('PANGRAM_REGISTRATION_COUNT', 'how many Pangram accounts this batch registers');
-const CONCURRENT = stated('PANGRAM_MAX_CONCURRENT', 'how many registrations run at once');
+const COUNT = statedCount('PANGRAM_REGISTRATION_COUNT', 'how many Pangram accounts this batch registers');
+const CONCURRENT = statedCount('PANGRAM_MAX_CONCURRENT', 'how many registrations run at once');
 const SCRIPT = process.env.PANGRAM_REGISTER_SCRIPT || join(process.cwd(), 'src/trajectories/pangram/register.mjs');
 const LABEL = process.env.ACTION || 'pangram_register_batch';
 

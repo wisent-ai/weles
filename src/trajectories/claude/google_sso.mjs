@@ -30,13 +30,12 @@ export { classifyGisState, gisVariantRank } from './google_sso/gis_state/variant
 // closing). A state this step does not drive, still shown once its page has
 // settled, is reported by name with its DOM.
 //
-// How many times the authorize URL may be re-driven when claude.ai answers it
-// with the app instead of the consent screen. Once the Google half succeeds the
-// session exists, and claude.ai then consumes the CLI's authorize request and
-// lands on /new; re-issuing it in the same session is what produces the consent
-// screen and the callback page. Bounded and named, so an authorize URL that has
-// really been spent fails as itself.
-const GIS_AUTHORIZE_REDRIVES = Number(process.env.CLAUDE_GIS_AUTHORIZE_REDRIVES || 2);
+// When claude.ai answers the authorize URL with the app instead of the consent
+// screen, the URL is re-driven once: once the Google half succeeds the session
+// exists, and claude.ai consumed the CLI's authorize request and landed on
+// /new; re-issuing it in the same session is what produces the consent screen
+// and the callback page. The app answering the re-driven URL as well means the
+// authorize request is spent, and that fails as itself.
 
 // Variants this step drives; any other state that holds still is a failure.
 const DRIVEN_VARIANTS = new Set([
@@ -133,7 +132,7 @@ export async function doGoogleSso({
   let freshEntryTried = false;
   const lastActions = new WeakMap();
   let views = [];
-  let authorizeRedrives = 0;
+  let authorizeRedriven = false;
   let stuck = null;
   try {
     for (;;) {
@@ -321,12 +320,12 @@ export async function doGoogleSso({
         // exact URL in this session: with the session present it renders the grant
         // screen, which the loop then handles as oauth_consent, and the callback
         // page the CLI expects arrives as code_page.
-        if (authorizeRedrives >= GIS_AUTHORIZE_REDRIVES) {
+        if (authorizeRedriven) {
           const dump = await dumpGisFailureDom(views, 'claude_authorize_consumed');
-          throw new Error(`gis_continue: claude_authorize_consumed — claude.ai answered the authorize URL with its app ${authorizeRedrives + 1} times (now ${st.url} title="${st.title}"); the CLI's authorize request is spent, a new one is needed; DOM snapshot: ${dump.written[0]?.path ?? dump.indexPath}`);
+          throw new Error(`gis_continue: claude_authorize_consumed — claude.ai answered the re-driven authorize URL with its app as well (now ${st.url} title="${st.title}"); the CLI's authorize request is spent, a new one is needed; DOM snapshot: ${dump.written[0]?.path ?? dump.indexPath}`);
         }
         claim();
-        authorizeRedrives += 1;
+        authorizeRedriven = true;
         mark('gis_authorize_redrive');
         await active.goto(authorizeUrl, { waitUntil: 'commit' });
         await pageSettled(active);

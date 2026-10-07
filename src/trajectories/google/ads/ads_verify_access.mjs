@@ -16,7 +16,7 @@ const SOURCE_USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_
 const WAIT_FOR_LOGIN = process.env.WAIT_FOR_LOGIN === '1';
 const CUSTOMER_ID = (process.env.GOOGLE_ADS_CUSTOMER_ID || process.env.CUSTOMER_ID || '').replace(/\D/g, '');
 mkdirSync(SOURCE_USER_DATA_DIR, { recursive: true });
-process.env.WELES_VIEWPORT ??= '1280x900';
+
 
 function stableProfilePersona() {
   const p = join(SOURCE_USER_DATA_DIR, 'persona.json');

@@ -150,7 +150,7 @@ async function readResource(resource) {
   const fields = process.env.FIELDS || 'id,name,status,effective_status,created_time,updated_time';
   const readOpts = { execute: SUBMIT || boolEnv('LIVE_READ', false), label: `meta-ads-api-${resource}-read` };
   if (id) return graphRequest('GET', `/${id}`, { fields }, readOpts);
-  return graphRequest('GET', `/${adAccountId()}/${resource === 'adset' ? 'adsets' : resource === 'creative' ? 'adcreatives' : `${resource}s`}`, { fields, limit: process.env.LIMIT || 50 }, { ...readOpts, label: `meta-ads-api-${resource}-list` });
+  return graphRequest('GET', `/${adAccountId()}/${resource === 'adset' ? 'adsets' : resource === 'creative' ? 'adcreatives' : `${resource}s`}`, { fields, limit: process.env.LIMIT }, { ...readOpts, label: `meta-ads-api-${resource}-list` });
 }
 
 async function deleteResource(resource) {

@@ -12,7 +12,7 @@ export const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_
 export const DIAG_DIR = process.env.GOOGLE_TOTP_ACTIVATION_DIAG_DIR || runOutputPath('google-totp-activation');
 export const RESULT_FILE = process.env.GOOGLE_TOTP_ACTIVATION_RESULT_FILE || join(DIAG_DIR, 'result.json');
 
-process.env.WELES_VIEWPORT ??= '1440x1000';
+
 process.env.WELES_DISABLE_RECORDING ??= '1';
 process.env.WELES_NO_INSTRUMENT ??= '1';
 process.env.GOOGLE_SSO_NO_SCREENSHOTS ??= '1';

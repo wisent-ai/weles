@@ -6,13 +6,15 @@ import { join } from 'node:path';
 import { generatePersona } from '../../../../dist/browser/persona.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { pageSettled } from '../../_shared/page/settled.mjs';
+import { statedText } from '../../_shared/inputs/stated.mjs';
 
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
-const BUSINESS_ID = process.env.META_BUSINESS_ID || process.env.BUSINESS_ID || '885982240795843';
-const AD_ACCOUNT_ID = (process.env.AD_ACCOUNT_ID || process.env.META_AD_ACCOUNT_ID || '849988068092449').replace(/^act_/, '');
+const BUSINESS_ID = statedText(['META_BUSINESS_ID', 'BUSINESS_ID'], 'the Meta Business Manager id this run acts in');
+const AD_ACCOUNT_ID = statedText(['AD_ACCOUNT_ID', 'META_AD_ACCOUNT_ID'], 'the Meta ad account id this run acts on').replace(/^act_/, '');
 mkdirSync(USER_DATA_DIR, { recursive: true });
-process.env.WELES_VIEWPORT ??= '1440x1000';
+
 
 function stableProfilePersona() {
   const p = join(USER_DATA_DIR, 'persona.json');
@@ -136,15 +138,17 @@ async function clickFirst(page, label, allow, deny = /delete|remove|usuń|anuluj
   return target;
 }
 
+// The id goes into the open dialog's text field, found on the page, so no
+// screen position is assumed.
 async function fillAdAccountId(page) {
-  const x = Number(process.env.META_AD_ACCOUNT_FIELD_X || 820);
-  const y = Number(process.env.META_AD_ACCOUNT_FIELD_Y || 337);
-  await page.mouse.click(x, y);
+  const field = page.locator('[role="dialog"] input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"])').filter({ visible: true }).first();
+  await field.waitFor({ state: 'visible' });
+  await humanClickLocator(page, field);
   await page.keyboard.press('ControlOrMeta+A').catch(() => {});
   await humanType(page, AD_ACCOUNT_ID).catch(async () => {
     await page.keyboard.insertText(AD_ACCOUNT_ID).catch(() => {});
   });
-  console.log(JSON.stringify({ stage: 'filled_ad_account_id', adAccountId: AD_ACCOUNT_ID, x, y }));
+  console.log(JSON.stringify({ stage: 'filled_ad_account_id', adAccountId: AD_ACCOUNT_ID }));
   await pageSettled(page);
 }
 

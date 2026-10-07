@@ -15,7 +15,7 @@ const PAGE_FILTER = (process.env.META_BUSINESS_SETTINGS_PAGES || '')
   .map((page) => page.trim())
   .filter(Boolean);
 mkdirSync(USER_DATA_DIR, { recursive: true });
-process.env.WELES_VIEWPORT ??= '1440x1000';
+
 
 function stableProfilePersona() {
   const p = join(USER_DATA_DIR, 'persona.json');

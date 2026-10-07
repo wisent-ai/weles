@@ -9,6 +9,7 @@ import { syncReactInputValue, installNetworkLogger, runUsernameStep } from '../l
 import { screenshotIfPossible } from '../_shared/runner/evidence.mjs';
 import { probeButton, recordedClicks } from './register/button_probe.mjs';
 import { dumpStuckState } from './register/stuck_diagnostics.mjs';
+import { statedCount } from '../_shared/inputs/stated.mjs';
 
 const URL = 'https://www.tiktok.com/signup';
 // Indicators of a captcha or a rate limit after "Send code", read from the page.
@@ -18,7 +19,7 @@ const PROBE = `(() => { const t = document.body.innerText || ''; const i = []; i
   // Single deterministic path — phone-or-email → email tab → fill DOB+email+
   // password → send code → poll the inbox → verify code → land on /foryou.
   // MAX_RETRIES attempts, each with a fresh identity, if browser/page dies
-  // during early setup.
+  // during early setup; how many is the caller's and is required.
   let id = null, password = null, s = null, success = false;
 
   /** A key press the page refuses is logged; the step decides what it means. */
@@ -26,7 +27,7 @@ const PROBE = `(() => { const t = document.body.innerText || ''; const i = []; i
     try { await s.page.keyboard.press(key); } catch (e) { console.log(`[test] key ${key} not delivered: ${e.message}`); }
   }
 
-  const maxRetries = Math.max(1, Number(process.env.MAX_RETRIES || 1));
+  const maxRetries = statedCount('MAX_RETRIES', 'how many fresh identities this registration may try');
   // retry-allowed: every attempt registers a different identity through a
   // different sticky proxy exit; a dead page or a TTP2-routed exit is not a
   // verdict on the flow, and MAX_RETRIES is the operator's own bound.

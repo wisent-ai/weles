@@ -32,7 +32,7 @@ export const EXACT_RANGES = (process.env.APPLE_ADS_EXACT_RANGES || [
 process.env.WELES_CAPTURE_RESPONSE_BODIES ??= '1';
 process.env.WELES_DISABLE_RECORDING ??= '1';
 process.env.WELES_NO_INSTRUMENT ??= '1';
-process.env.WELES_VIEWPORT ??= '1440x1000';
+
 
 mkdirSync(USER_DATA_DIR, { recursive: true });
 mkdirSync(DIAG_DIR, { recursive: true });

@@ -12,4 +12,4 @@ if (!VERIFY_PHONE) {
   process.exit(1);
 }
 mkdirSync(USER_DATA_DIR, { recursive: true });
-process.env.WELES_VIEWPORT ??= '1280x900';
+

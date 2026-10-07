@@ -11,5 +11,5 @@ export const CODE_ONLY = process.env.META_VERIFY_CODE_ONLY === '1';
 export const OPEN_UPDATE_PHONE = process.env.META_VERIFY_OPEN_UPDATE_PHONE === '1';
 export const VERIFY_PHONE_FROM_ACCOUNT_COUNTRY = process.env.META_VERIFY_PHONE_FROM_ACCOUNT_COUNTRY || '';
 mkdirSync(USER_DATA_DIR, { recursive: true });
-process.env.WELES_VIEWPORT ??= '1280x900';
+
 export function setVerifyPhone(value) { VERIFY_PHONE = value; }

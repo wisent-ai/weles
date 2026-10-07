@@ -6,13 +6,15 @@ import { join } from 'node:path';
 import { generatePersona } from '../../../../dist/browser/persona.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { pageSettled } from '../../_shared/page/settled.mjs';
+import { statedText } from '../../_shared/inputs/stated.mjs';
 
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
-const BUSINESS_ID = process.env.META_BUSINESS_ID || process.env.BUSINESS_ID || '885982240795843';
-const APP_ID = process.env.META_APP_ID || process.env.NEXT_PUBLIC_META_ADS_APP_ID || '931029642750405';
+const BUSINESS_ID = statedText(['META_BUSINESS_ID', 'BUSINESS_ID'], 'the Meta Business Manager id this run acts in');
+const APP_ID = statedText(['META_APP_ID', 'NEXT_PUBLIC_META_ADS_APP_ID'], 'the Meta app id this run acts on');
 mkdirSync(USER_DATA_DIR, { recursive: true });
-process.env.WELES_VIEWPORT ??= '1440x1000';
+
 
 function stableProfilePersona() {
   const p = join(USER_DATA_DIR, 'persona.json');
@@ -126,13 +128,15 @@ async function clickFirst(page, label, allow, deny = /delete|remove|usuń|anuluj
   return target;
 }
 
+// The id goes into the open dialog's text field, found on the page, so no
+// screen position is assumed.
 async function fillAppId(page) {
-  const x = Number(process.env.META_APP_ID_FIELD_X || 720);
-  const y = Number(process.env.META_APP_ID_FIELD_Y || 430);
-  await page.mouse.click(x, y);
+  const field = page.locator('[role="dialog"] input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"])').filter({ visible: true }).first();
+  await field.waitFor({ state: 'visible' });
+  await humanClickLocator(page, field);
   await page.keyboard.press('ControlOrMeta+A').catch(() => {});
   await humanType(page, APP_ID);
-  console.log(JSON.stringify({ stage: 'filled_app_id', appId: APP_ID, x, y }));
+  console.log(JSON.stringify({ stage: 'filled_app_id', appId: APP_ID }));
   await pageSettled(page);
   return true;
 }

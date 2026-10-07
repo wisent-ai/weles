@@ -9,7 +9,7 @@ import { pageSettled } from '../../_shared/page/settled.mjs';
 
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
 mkdirSync(USER_DATA_DIR, { recursive: true });
-process.env.WELES_VIEWPORT ??= '1440x1000';
+
 
 function stableProfilePersona() {
   const p = join(USER_DATA_DIR, 'persona.json');

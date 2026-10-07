@@ -16,7 +16,7 @@ const AD_ACCOUNT_ID = (process.env.AD_ACCOUNT_ID || process.env.META_ADS_COMPANY
 const BUSINESS_ID = process.env.BUSINESS_ID || process.env.META_BUSINESS_ID || '';
 const AD_ACCOUNT_NAME = process.env.AD_ACCOUNT_NAME || process.env.META_ADS_ACCOUNT_NAME || '';
 mkdirSync(SOURCE_USER_DATA_DIR, { recursive: true });
-process.env.WELES_VIEWPORT ??= '1280x900';
+
 
 function stableProfilePersona() {
   const p = join(SOURCE_USER_DATA_DIR, 'persona.json');

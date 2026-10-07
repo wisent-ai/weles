@@ -9,11 +9,12 @@ import { join } from 'node:path';
 import { generatePersona } from '../../../../dist/browser/persona.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { pageSettled } from '../../_shared/page/settled.mjs';
+import { statedText } from '../../_shared/inputs/stated.mjs';
 
-const APP_ID = process.env.META_APP_ID || process.env.NEXT_PUBLIC_META_ADS_APP_ID || '931029642750405';
+const APP_ID = statedText(['META_APP_ID', 'NEXT_PUBLIC_META_ADS_APP_ID'], 'the Meta app id this run acts on');
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
 mkdirSync(USER_DATA_DIR, { recursive: true });
-process.env.WELES_VIEWPORT ??= '1440x1000';
+
 
 function stableProfilePersona() {
   const p = join(USER_DATA_DIR, 'persona.json');

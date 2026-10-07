@@ -11,5 +11,5 @@ export const DIAG_DIR = process.env.APPLE_ADS_DIAG_DIR || runOutputPath('apple-a
 export const CLOSE_AFTER_PROBE = process.env.APPLE_ADS_CLOSE_AFTER_PROBE === '1';
 mkdirSync(USER_DATA_DIR, { recursive: true });
 mkdirSync(DIAG_DIR, { recursive: true });
-process.env.WELES_VIEWPORT ??= '1440x1000';
+
 

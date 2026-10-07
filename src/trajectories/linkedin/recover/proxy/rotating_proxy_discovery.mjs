@@ -13,13 +13,14 @@ import { runRecordingsDir } from '../../../../../dist/session/run-recordings.js'
 import { generatePersona } from '../../../../../dist/browser/persona.js';
 import { probeLinkedinSignup, verifyExitCountry, verifyExitReputation } from '../../../../../dist/proxy/policy.js';
 import { parseInclude, rotatingRows, stickySession } from '../../../_shared/skarbiec/proxies.mjs';
+import { statedCount } from '../../../_shared/inputs/stated.mjs';
 
 const OUT = runRecordingsDir('linkedin_rotating_proxy_discovery');
-const WORK = join(process.cwd(), '.work', 'linkedin_rotating_proxy_discovery');
+const WORK = join(OUT, 'work');
 mkdirSync(OUT, { recursive: true });
 mkdirSync(WORK, { recursive: true });
 
-const SAMPLES_PER_PROVIDER = Math.max(1, Number(process.env.LINKEDIN_ROTATING_DISCOVERY_SAMPLES || 6));
+const SAMPLES_PER_PROVIDER = statedCount('LINKEDIN_ROTATING_DISCOVERY_SAMPLES', 'how many sticky sessions are sampled from each rotating pool');
 const TARGET_CC = (process.env.LINKEDIN_ROTATING_DISCOVERY_COUNTRY || 'us').toLowerCase();
 // Which rotating pools to sample: `provider[/type]` entries, by the provider
 // the endpoint derives and the pool type the Skarbiec item declares.

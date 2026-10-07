@@ -43,7 +43,7 @@ const WAIT_FOR_LOGIN = process.env.WAIT_FOR_LOGIN === '1';
 const VERIFY_ACCOUNT_ONLY = process.env.VERIFY_ACCOUNT_ONLY === '1';
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
 mkdirSync(USER_DATA_DIR, { recursive: true });
-process.env.WELES_VIEWPORT ??= '1280x900';
+
 
 function stableProfilePersona() {
   const p = join(USER_DATA_DIR, 'persona.json');

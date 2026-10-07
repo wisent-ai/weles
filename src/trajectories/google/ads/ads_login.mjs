@@ -16,7 +16,7 @@ const ALLOW_MANUAL_LOGIN = process.env.ALLOW_MANUAL_LOGIN === '1' || process.env
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'google_ads');
 const GOOGLE_ADS_LOGIN = readScopedLogin('googleAds');
 mkdirSync(USER_DATA_DIR, { recursive: true });
-process.env.WELES_VIEWPORT ??= '1280x900';
+
 
 
 async function resolveSsoCreds() {

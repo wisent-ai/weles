@@ -10,16 +10,16 @@ import { FP_SCRIPT, NETWORK_FP_URL, parseNetworkFingerprint } from '../../../../
 import { analyze, pickBaseline } from '../../../../dist/diagnostics/fingerprint_analyzer.js';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 import { writeSubmitDiagnostics } from './diagnostics.mjs';
+import { statedNumber } from '../../_shared/inputs/stated.mjs';
 
 export const SIGNUP_URL = 'https://www.linkedin.com/signup';
 export const DEFAULT_ENTRY_URL = SIGNUP_URL;
-// Default lowered to 10 so known persistent tells (e.g. screen.availTop,
-// WebRTC local-IP leak) trigger an early quit instead of burning an account
-// on LinkedIn. Operators can raise it once those signals are clean.
-const EARLY_FP_RISK_THRESHOLD = Number(process.env.WELES_EARLY_FP_RISK ?? 10);
-
+// The risk score at which the early fingerprint check quits before LinkedIn
+// sees the account is the caller's to state: it trades a burned account
+// against a skipped run, and only the operator weighs that.
 export async function earlyFingerprintCheck(s) {
   if (process.env.WELES_EARLY_FP === '0') return null;
+  const riskThreshold = statedNumber('WELES_EARLY_FP_RISK', 'the early fingerprint risk score at which the registration quits before LinkedIn');
   const dir = runRecordingsDir('linkedin_register');
   mkdirSync(dir, { recursive: true });
   try {
@@ -42,7 +42,7 @@ export async function earlyFingerprintCheck(s) {
     writeFileSync(report.meta.subjectPath, JSON.stringify(payload, null, 2));
     writeFileSync(join(dir, 'early_detection_report.json'), JSON.stringify(report, null, 2));
     console.log(`[register] early fingerprint risk=${report.summary.riskScore} critical=${report.summary.critical} baselineMatched=${report.meta.baselineMatched}`);
-    if (report.summary.riskScore >= EARLY_FP_RISK_THRESHOLD || report.summary.critical > 0) {
+    if (report.summary.riskScore >= riskThreshold || report.summary.critical > 0) {
       throw new Error(`FINGERPRINT_INCONSISTENT: early risk=${report.summary.riskScore} critical=${report.summary.critical} findings=${report.findings.map(f => f.id).join(',')}`);
     }
     return report;

@@ -132,7 +132,7 @@ async function apiPerformance() {
     date_preset: DATE_PRESET,
     level: process.env.LEVEL || (CAMPAIGN_ID ? 'campaign' : 'campaign'),
     filtering: process.env.FILTERING_JSON ? JSON.parse(process.env.FILTERING_JSON) : undefined,
-    limit: process.env.LIMIT || 500,
+    limit: process.env.LIMIT,
   };
   const path = CAMPAIGN_ID ? `/${CAMPAIGN_ID}/insights` : `/${AD_ACCOUNT_ID.startsWith('act_') ? AD_ACCOUNT_ID : `act_${AD_ACCOUNT_ID}`}/insights`;
   console.log(`[meta-ads-performance] API ${path} fields=${fields}`);
