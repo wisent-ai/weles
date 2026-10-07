@@ -172,12 +172,12 @@ export async function doGoogleSso({
       }
 
       if (variant === 'claude_app_loading') {
-        // The app shell has not rendered: wait for its root to fill or for the
-        // page to move on. The stage is visible in `weles runs show`, and the
-        // operator ends a shell that never renders with `weles runs cancel`.
+        // The app is still loading: wait for its last loading marker to go
+        // or for the page to move on. The stage is visible in `weles runs
+        // show`, and the operator ends a page that never loads with
+        // `weles runs cancel`.
         mark('claude_app_loading');
-        const rendered = pageCondition(active, () => document.querySelector('[data-page-loading]') === null
-          || (document.getElementById('root')?.childElementCount ?? 0) > 0);
+        const rendered = pageCondition(active, () => document.querySelector('[data-page-loading]') === null);
         rendered.catch(() => {});
         await Promise.race([rendered, stateChange(page, active, st.url)]);
         continue;
