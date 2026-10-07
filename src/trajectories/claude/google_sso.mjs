@@ -111,7 +111,18 @@ export async function doGoogleSso({
         if (p.isClosed()) continue;
         // The caller supplies the selected account's login. Match Google's
         // data-identifier to that identity, never a row position or label.
-        const st = await observeGisPage(p, login.email);
+        // Google closes its popup once the account is confirmed, and a read
+        // that started a moment before ends with 'Target page, context or
+        // browser has been closed' (run 4904c60a failed on exactly that right
+        // after gis_confirm_continue). A page that is closed after its read
+        // failed is simply gone; any other failure stands.
+        let st;
+        try {
+          st = await observeGisPage(p, login.email);
+        } catch (error) {
+          if (p.isClosed()) continue;
+          throw error;
+        }
         views.push({ p, st, variant: classifyGisState(st) });
       }
       views.sort((a, b) => gisVariantRank(a.variant) - gisVariantRank(b.variant));
