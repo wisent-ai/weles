@@ -54,7 +54,7 @@ async function collectLinks() {
       if (!href.startsWith('/') && !href.startsWith('https://www.volumeleaders.com') && !href.startsWith('https://volumeleaders.com')) continue;
       const path = href.replace(/^https:\\/\\/(www\\.)?volumeleaders\\.com/, '');
       if (!path || path === '/' || path.startsWith('#')) continue;
-      const text = (a.innerText || a.getAttribute('aria-label') || a.title || '').trim().slice(0, 80);
+      const text = [a.innerText, a.getAttribute('aria-label'), a.title].find(Boolean)?.trim();
       out.push({ path, text });
     }
     return out;
@@ -88,21 +88,21 @@ async function inventoryPage(sess, urlPath) {
     const visible = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
     const tabs = Array.from(document.querySelectorAll('[role="tab"], [class*="tab"], .nav-link, button'))
       .filter(visible)
-      .map(e => (e.innerText || '').trim().slice(0, 40))
+      .map(e => e.innerText.trim())
       .filter(t => t && t.length > 0);
     const selects = Array.from(document.querySelectorAll('select')).map(sel => ({
       name: sel.name || sel.id || null,
-      options: Array.from(sel.options).map(o => o.text.trim()).slice(0, 20),
+      options: Array.from(sel.options).map(o => o.text.trim()),
     }));
     const charts = Array.from(document.querySelectorAll('svg, canvas'))
       .filter(visible)
       .map(c => { const r = c.getBoundingClientRect(); return { tag: c.tagName, w: Math.round(r.width), h: Math.round(r.height) }; })
       .filter(c => c.w > 80 && c.h > 80);
     const tables = Array.from(document.querySelectorAll('table')).map(t => ({
-      headers: Array.from(t.querySelectorAll('thead th, thead td')).map(h => h.innerText.trim()).slice(0, 15),
+      headers: Array.from(t.querySelectorAll('thead th, thead td')).map(h => h.innerText.trim()),
       rowCount: t.querySelectorAll('tbody tr').length,
       firstRow: Array.from((t.querySelector('tbody tr')?.querySelectorAll('td, th') || []))
-        .map(c => c.innerText.trim()).slice(0, 12),
+        .map(c => c.innerText.trim()),
     }));
     return {
       finalUrl: location.pathname + location.search,
@@ -153,16 +153,15 @@ try {
       url: location.href,
       title: document.title,
       bodyLen: (document.body?.innerText || '').length,
-      bodyFirst500: (document.body?.innerText || '').slice(0, 500),
+      bodyText: document.body ? document.body.innerText : '',
       aCount: document.querySelectorAll('a').length,
       aHrefCount: document.querySelectorAll('a[href]').length,
       buttonCount: document.querySelectorAll('button').length,
       iframeCount: document.querySelectorAll('iframe').length,
-      navHtml: (document.querySelector('nav, [class*="sidebar" i], [class*="navbar" i], [class*="menu" i]')?.innerHTML || '').slice(0, 2000),
+      navHtml: document.querySelector('nav, [class*="sidebar" i], [class*="navbar" i], [class*="menu" i]')?.innerHTML,
       topButtonLabels: Array.from(document.querySelectorAll('button, [role="button"], [role="link"], [onclick]'))
         .map(e => (e.innerText || e.getAttribute('aria-label') || '').trim())
-        .filter(t => t && t.length > 0 && t.length < 60)
-        .slice(0, 40),
+        .filter(t => t && t.length > 0),
     }))()`).catch(e => ({ err: e.message }));
     console.error('[vl] dashboard diag: ' + JSON.stringify(diag));
     fs.writeFileSync(path.join(dashDir, 'executive_summary_diag.json'), JSON.stringify(diag, null, 2));

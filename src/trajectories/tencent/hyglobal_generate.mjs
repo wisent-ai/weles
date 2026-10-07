@@ -27,8 +27,8 @@ const PROMPTS = {
 async function dumpDOM(s, label) {
   const d = await s.page.evaluate(() => ({
     bodyText: (document.body?.innerText || ''),
-    buttons: Array.from(document.querySelectorAll('button, a, [role=button]')).filter(e => e.offsetParent).map(e => ({ tag: e.tagName, text: (e.innerText || '').trim(), href: e.href || '' })).filter(o => o.text).slice(0, 30),
-    inputs: Array.from(document.querySelectorAll('input, textarea')).filter(e => e.offsetParent).map(e => ({ tag: e.tagName, type: e.type, name: e.name, placeholder: e.placeholder || '' })).slice(0, 15),
+    buttons: Array.from(document.querySelectorAll('button, a, [role=button]')).filter(e => e.offsetParent).map(e => ({ tag: e.tagName, text: e.innerText.trim(), href: e.href })).filter(o => o.text),
+    inputs: Array.from(document.querySelectorAll('input, textarea')).filter(e => e.offsetParent).map(e => ({ tag: e.tagName, type: e.type, name: e.name, placeholder: e.placeholder })),
   })).catch((e) => ({ err: e.message }));
   console.log(`[hy] ${label} URL=${s.page.url()}`);
   console.log(`[hy] ${label} DOM:`, JSON.stringify(d, null, 2));
@@ -63,7 +63,7 @@ async function fetchCodeFromGmail(s, sentAtMs) {
   // Also dump ALL email row dates from the search-results list
   const allRows = await tab.evaluate(() => {
     const rows = Array.from(document.querySelectorAll('tr.zA, [role="main"] tr'));
-    return rows.slice(0, 15).map(r => {
+    return rows.map(r => {
       const t = (r.innerText || '').replace(/\s+/g, ' ');
       const dateSpan = r.querySelector('span[title]');
       return { title: dateSpan?.title || '', preview: t };
@@ -143,7 +143,7 @@ async function landAndLogin(s) {
   // as a span/div inside the code input's suffix slot, not a <button>.
   const sendInfo = await s.page.evaluate(() => {
     const all = Array.from(document.querySelectorAll('*')).filter(e => e.offsetParent && (e.innerText || e.textContent || '').trim() === 'Send' && (e.children.length === 0 || e.children.length === 1));
-    return all.slice(0, 5).map(e => ({ tag: e.tagName, cls: e.className, parentTag: e.parentElement?.tagName, parentCls: e.parentElement?.className }));
+    return all.map(e => ({ tag: e.tagName, cls: e.className, parentTag: e.parentElement?.tagName, parentCls: e.parentElement?.className }));
   }).catch(() => []);
   console.log(`[hy] Send-text candidates: ${JSON.stringify(sendInfo)}`);
   const sendBtn = s.page.getByText('Send', { exact: true }).filter({ visible: true }).first();
@@ -175,7 +175,7 @@ async function landAndLogin(s) {
   try {
     const postSend = await s.page.evaluate(() => {
       const txt = (document.body?.innerText || '');
-      const toasts = Array.from(document.querySelectorAll('.t-message, [class*="toast" i], [class*="error" i], [class*="alert" i], [role="alert"]')).map(e => (e.innerText || '').trim()).filter(t => t).slice(0, 10);
+      const toasts = Array.from(document.querySelectorAll('.t-message, [class*="toast" i], [class*="error" i], [class*="alert" i], [role="alert"]')).map(e => e.innerText.trim()).filter(t => t);
       const iframes = Array.from(document.querySelectorAll('iframe')).map(f => ({ src: f.src, w: f.offsetWidth, h: f.offsetHeight }));
       return { txt, toasts, iframes };
     });

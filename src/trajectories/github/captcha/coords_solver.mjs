@@ -137,15 +137,16 @@ const SHADOW_BTN_QUERY = `(needle => {
     }
   };
   walk(document);
+  const str = (v) => (typeof v === 'string' ? v : '');
   const sig = (b) => {
     const vis = b.offsetParent !== null || (b.getClientRects && b.getClientRects().length);
     return {
       n: b.nodeName.toLowerCase(),
-      cls: (b.className?.baseVal ?? b.className ?? '').toString().slice(0, 60),
-      txt: (b.innerText || b.textContent || '').trim().slice(0, 40),
-      aria: (b.getAttribute?.('aria-label') ?? '').slice(0, 40),
-      title: (b.getAttribute?.('title') ?? '').slice(0, 40),
-      dt: (b.getAttribute?.('data-test') ?? b.getAttribute?.('data-testid') ?? '').slice(0, 40),
+      cls: str(String(b.className?.baseVal ?? b.className)),
+      txt: str(b.innerText || b.textContent).trim(),
+      aria: str(b.getAttribute?.('aria-label')),
+      title: str(b.getAttribute?.('title')),
+      dt: str(b.getAttribute?.('data-test') ?? b.getAttribute?.('data-testid')),
       vis: !!vis,
     };
   };
@@ -154,7 +155,7 @@ const SHADOW_BTN_QUERY = `(needle => {
     return (s.txt + ' ' + s.aria + ' ' + s.title + ' ' + s.dt + ' ' + s.cls).toLowerCase();
   };
   const match = out.find(b => haystack(b).includes(needle) && (b.offsetParent !== null || (b.getClientRects && b.getClientRects().length)));
-  if (!match) return { ok: false, count: out.length, texts: out.slice(0, 12).map(sig) };
+  if (!match) return { ok: false, count: out.length, texts: out.map(sig) };
   match.scrollIntoView?.({ block: 'center' });
   const r = match.getBoundingClientRect();
   return { ok: true, sig: sig(match), x: r.x + r.width / 2, y: r.y + r.height / 2 };

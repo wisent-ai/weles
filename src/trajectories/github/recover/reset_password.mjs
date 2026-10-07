@@ -116,7 +116,7 @@ try {
   await pageSettled(s.page);
   const finalUrl = s.page.url?.() ?? '';
   const onSuccess = !finalUrl.includes('/password_reset') || /changed|success|signin/i.test(finalUrl);
-  const errText = await s.page.evaluate("(()=>document.querySelector('.flash-error,[role=\"alert\"]')?.innerText?.trim()?.slice(0,200)||null)()").catch(() => null);
+  const errText = await s.page.evaluate("(()=>document.querySelector('.flash-error,[role=\"alert\"]')?.innerText?.trim())()").catch(() => null);
   if (!onSuccess && errText) throw new Error(`password change rejected: ${errText}`);
   console.log(`[reset] After change: ${finalUrl}`);
 

@@ -85,7 +85,7 @@ try {
   // in the log instead of silent no-ops.
   const landingUrl = s.page.url();
   const pageTitle = await s.page.title().catch(() => '');
-  const bodyTextHead = await s.page.evaluate(() => (document.body?.innerText || '').slice(0, 600)).catch(() => '');
+  const bodyTextHead = await s.page.evaluate(() => (document.body ? document.body.innerText : '')).catch(() => '');
   console.log(`[li-profile] landing url=${landingUrl}`);
   console.log(`[li-profile] page title=${pageTitle}`);
   console.log(`[li-profile] body head: ${bodyTextHead.replace(/\n/g, ' / ')}`);
@@ -187,7 +187,7 @@ try {
         throw Object.assign(new Error(`Profile save response did not finish at ${requestUrl}`, { cause }),
           { code: 'LI_PROFILE_SAVE_RESPONSE_FAILED', requestMethod: 'POST', requestUrl, status });
       }
-      const postClickBody = await s.page.evaluate(() => (document.body?.innerText || '').slice(0, 600).replace(/\n/g, ' / ')).catch(() => '');
+      const postClickBody = await s.page.evaluate(() => (document.body ? document.body.innerText : '').replace(/\n/g, ' / ')).catch(() => '');
       console.log(`[li-profile] save: post-click url=${s.page.url()}`);
       console.log(`[li-profile] save: post-click body head: ${postClickBody}`);
       console.log(`[li-profile] save: mutation POST=${status} ${requestUrl}`);

@@ -175,14 +175,14 @@ try {
     // but they all funnel through /login eventually.
     const diag = await s.page.evaluate(`(() => {
       const flash = document.querySelector('.flash-error,[role="alert"]')?.innerText?.trim() || '';
-      const body = (document.body?.innerText || '').slice(0, 2000);
+      const body = document.body ? document.body.innerText : '';
       let reason = 'unknown';
       if (/Incorrect username or password|incorrect email|Incorrect password/i.test(flash + body)) reason = 'invalid_credentials';
       else if (/suspended|flagged|abuse/i.test(flash + body)) reason = 'account_suspended';
       else if (/unusual activity|verify your device|verification code/i.test(flash + body)) reason = 'device_verification_required';
       else if (/too many|try again later|rate limit/i.test(flash + body)) reason = 'rate_limited';
       else if (/captcha|are you human|puzzle/i.test(flash + body)) reason = 'captcha_required';
-      return { reason, flash: flash.slice(0, 200), title: document.title };
+      return { reason, flash, title: document.title };
     })()`).catch(() => ({ reason: 'unknown', flash: '', title: '' }));
     console.error(`FAIL: not logged in at ${finalUrl} — reason=${diag.reason} flash=${JSON.stringify(diag.flash)} title=${JSON.stringify(diag.title)}`);
     process.exitCode = 1;

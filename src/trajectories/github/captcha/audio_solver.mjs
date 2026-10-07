@@ -15,7 +15,7 @@ const AUDIO_HOOK_SCRIPT = `(() => {
   HTMLMediaElement.prototype.play = function() {
     const s = this.currentSrc || this.src || '';
     const idx = window.__playIdx++;
-    window.__playedAudio.push({ i: idx, src: s.slice(0, 200), t: Date.now() });
+    window.__playedAudio.push({ i: idx, src: s, t: Date.now() });
     if (s.startsWith('blob:')) {
       fetch(s).then(r => r.blob()).then(b => {
         const rd = new FileReader();
@@ -99,7 +99,7 @@ export async function solveAudioPuzzle(page, { maxRounds = 10 } = {}) {
   await pageSettled(frame);
   const inventory = await frame.evaluate(`(() => {
     const btns = Array.from(document.querySelectorAll('button, [role="button"], a')).filter(b => b.offsetParent !== null);
-    return btns.map(b => ({ text: b.innerText?.trim().slice(0, 40), aria: b.getAttribute('aria-label')?.slice(0, 40), cls: b.className?.slice(0, 60) }));
+    return btns.map(b => ({ text: b.innerText?.trim(), aria: b.getAttribute('aria-label'), cls: b.className }));
   })()`);
   const audioMatch = inventory.find(b => /audio|sound|accessibility/i.test((b.text || '') + ' ' + (b.aria || '')));
   if (!audioMatch) { console.log(`[audio] No Audio button on the settled puzzle — buttons(${inventory.length}): ${JSON.stringify(inventory)}`); return false; }
@@ -112,9 +112,9 @@ export async function solveAudioPuzzle(page, { maxRounds = 10 } = {}) {
   for (let round = 1; round <= maxRounds; round++) {
     const info = await frame.evaluate(`(() => {
       const text = document.body?.innerText ?? '';
-      const buttons = Array.from(document.querySelectorAll('button')).filter(b => b.offsetParent !== null).map(b => b.innerText.trim().slice(0, 30));
+      const buttons = Array.from(document.querySelectorAll('button')).filter(b => b.offsetParent !== null).map(b => b.innerText.trim());
       const nums = Array.from(document.querySelectorAll('button, [role="button"]')).filter(b => b.offsetParent !== null && /^\\d+$/.test(b.innerText.trim())).map(b => b.innerText.trim());
-      return { text: text.slice(0, 600), buttons, numOptions: nums.length };
+      return { text, buttons, numOptions: nums.length };
     })()`).catch(() => null);
     if (!info) { console.log(`[audio] Round ${round}: frame eval failed`); break; }
     console.log(`[audio] R${round}: ${info.text.replace(/\n/g, ' ')}`);
@@ -164,7 +164,7 @@ export async function solveAudioPuzzle(page, { maxRounds = 10 } = {}) {
       const buttons = Array.from(document.querySelectorAll('button, [role="button"]')).filter(b => b.offsetParent !== null);
       for (const b of buttons) {
         const t = b.innerText.trim();
-        if (t === String(n) || new RegExp('^' + n + '\\\\b').test(t)) { b.click(); return { clicked: true, text: t.slice(0, 30) }; }
+        if (t === String(n) || new RegExp('^' + n + '\\\\b').test(t)) { b.click(); return { clicked: true, text: t }; }
       }
       return { clicked: false };
     })(${pick})`).catch(e => ({ err: e.message }));

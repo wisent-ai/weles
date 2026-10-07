@@ -35,7 +35,7 @@ async function collectLinks() {
       if (!href.startsWith('/') && !href.startsWith('https://unusualwhales.com')) continue;
       const path = href.replace(/^https:\\/\\/unusualwhales\\.com/, '');
       if (!path || path === '/') continue;
-      const text = (a.innerText || a.getAttribute('aria-label') || '').trim().slice(0, 80);
+      const text = [a.innerText, a.getAttribute('aria-label')].find(Boolean)?.trim();
       out.push({ path, text });
     }
     return out;
@@ -61,7 +61,7 @@ async function inventoryPage(sess, urlPath) {
   await pageSettled(sess.page);
   const info = await sess.page.evaluate(`(() => {
     const pick = (el) => ({
-      text: (el.innerText || el.getAttribute('aria-label') || '').trim().slice(0, 80),
+      text: [el.innerText, el.getAttribute('aria-label')].find(Boolean)?.trim(),
       role: el.getAttribute('role'),
       tag: el.tagName,
     });
@@ -75,7 +75,7 @@ async function inventoryPage(sess, urlPath) {
       .filter(x => x.text && x.text.length > 0 && x.text.length < 40);
     const selects = Array.from(document.querySelectorAll('select')).map(sel => ({
       name: sel.name || sel.id || null,
-      options: Array.from(sel.options).map(o => o.text.trim()).slice(0, 20),
+      options: Array.from(sel.options).map(o => o.text.trim()),
     }));
     const charts = Array.from(document.querySelectorAll('svg, canvas'))
       .filter(visible)
@@ -85,10 +85,10 @@ async function inventoryPage(sess, urlPath) {
       })
       .filter(c => c.w > 80 && c.h > 80);
     const tables = Array.from(document.querySelectorAll('table')).map(t => ({
-      headers: Array.from(t.querySelectorAll('thead th, thead td')).map(h => h.innerText.trim()).slice(0, 15),
+      headers: Array.from(t.querySelectorAll('thead th, thead td')).map(h => h.innerText.trim()),
       rowCount: t.querySelectorAll('tbody tr').length,
       firstRow: Array.from((t.querySelector('tbody tr')?.querySelectorAll('td, th') || []))
-        .map(c => c.innerText.trim()).slice(0, 12),
+        .map(c => c.innerText.trim()),
     }));
     const inputs = Array.from(document.querySelectorAll('input'))
       .filter(visible)

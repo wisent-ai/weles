@@ -78,7 +78,7 @@ try {
   await fillField('#login', '$GITHUB_NEW_USERNAME');
 
   // Country: check if auto-selected (usually from proxy IP). Only click dropdown if needed.
-  const countryState = await s.page.evaluate(`(() => { const btn = document.querySelector('#country-dropdown-panel-button, button.country-select-button'); return { text: btn?.innerText?.trim().slice(0, 60) ?? '', found: !!btn }; })()`).catch(() => ({ found: false }));
+  const countryState = await s.page.evaluate(`(() => { const btn = document.querySelector('#country-dropdown-panel-button, button.country-select-button'); return { text: btn ? btn.innerText.trim() : '', found: !!btn }; })()`).catch(() => ({ found: false }));
   console.log(`[register] Country button: ${JSON.stringify(countryState)}`);
   if (countryState.found && !/united states|^us$/i.test(countryState.text)) {
     try {
@@ -144,7 +144,7 @@ try {
   if (!captcha.pkey) {
     const iframeInfo = await s.page.evaluate(`(() => {
       const frames = Array.from(document.querySelectorAll('iframe'));
-      return frames.map(f => ({ src: f.src?.slice(0, 200) ?? '', dataSrc: f.getAttribute('data-src')?.slice(0, 200) ?? '', cls: f.className?.slice(0, 80) ?? '' })).filter(f => f.src || f.dataSrc);
+      return frames.map(f => ({ src: f.src, dataSrc: f.getAttribute('data-src'), cls: f.className })).filter(f => f.src || f.dataSrc);
     })()`).catch(() => []);
     console.log(`[register] All iframes: ${JSON.stringify(iframeInfo)}`);
     for (const f of iframeInfo) {

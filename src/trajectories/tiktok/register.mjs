@@ -113,9 +113,9 @@ const PROBE = `(() => { const t = document.body.innerText || ''; const i = []; i
         const pw = inputs.find(i => (i.placeholder || '').toLowerCase().includes('password'));
         const sendBtn = document.querySelector('[data-e2e="send-code-button"]');
         const errors = Array.from(document.querySelectorAll('[class*="error"], [class*="Error"], [class*="tip"], [class*="Tip"]'))
-          .map(e => (e.textContent || '').trim()).filter(t => t && t.length < 200);
-        const pageText = (document.body.innerText || '').slice(0, 500);
-        return { emailLen: email?.value?.length, pwLen: pw?.value?.length, sendDisabled: sendBtn?.disabled, sendAriaDisabled: sendBtn?.getAttribute('aria-disabled'), errors: errors.slice(0, 8), bodyExcerpt: pageText };
+          .map(e => e.textContent.trim()).filter(t => t);
+        const pageText = document.body.innerText;
+        return { emailLen: email?.value?.length, pwLen: pw?.value?.length, sendDisabled: sendBtn?.disabled, sendAriaDisabled: sendBtn?.getAttribute('aria-disabled'), errors, bodyText: pageText };
       })()`).catch((e) => ({ error: e.message }));
       console.log(`[test] fill verify: ${JSON.stringify(verify)}`);
       await pageSettled(s.page);
