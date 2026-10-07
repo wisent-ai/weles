@@ -273,14 +273,22 @@ function settingRecordId(key: string): string | null {
   return recordIds(SETTING_KIND).find((id) => readDocument(id).context?.setting_key === key) ?? null;
 }
 
-export function readSetting<T>(key: string, fallback: T): T {
+/**
+ * The stored value of one Weles runtime setting, or `absent` when no setting
+ * record carries `key` (the state before anything was written). A vault that
+ * cannot be read, or a value that is not JSON, is an error naming the setting:
+ * read as `absent` it made an unreachable vault look like an empty rate card,
+ * an empty burned-proxy list or a follow-up nobody had queued yet.
+ */
+export function readSetting<T>(key: string, absent: T): T {
+  const id = settingRecordId(key);
+  if (!id) return absent;
+  const raw = readDocument(id).fields?.value_json;
+  if (!raw) return absent;
   try {
-    const id = settingRecordId(key);
-    if (!id) return fallback;
-    const raw = readDocument(id).fields?.value_json;
-    return raw ? JSON.parse(String(raw)) as T : fallback;
-  } catch {
-    return fallback;
+    return JSON.parse(String(raw)) as T;
+  } catch (error) {
+    throw new Error(`Weles setting ${key} holds no JSON value: ${(error as Error).message}`);
   }
 }
 

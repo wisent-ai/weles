@@ -16,7 +16,7 @@ const FIRST_NAME = process.env.PANGRAM_FIRST_NAME || 'Wisent';
 const LAST_NAME = process.env.PANGRAM_LAST_NAME || 'Audit';
 const PASSWORD = registrationPassword();
 
-const regProxy = process.env.PANGRAM_NO_PROXY === '1' ? null : await selectRegistrationProxy();
+const regProxy = selectRegistrationProxy();
 const persona = generatePersona({ country: countryHintFromProxy(regProxy?.proxyUrl), browser: 'chromium' });
 console.log(`[pangram_register] email=${EMAIL} proxy=${regProxy?.proxyUrl ? 'yes' : 'direct'} domain=${EMAIL.split('@')[1]} persona_os=${persona?.userAgentOs || 'default'}`);
 const s = await WSession.start({

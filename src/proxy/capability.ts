@@ -25,23 +25,11 @@ import declaredProviders from './data/providers.json';
  */
 
 
-// Defaults are overridden by the proxy_rate_cards Skarbiec setting.
-// PacketStream is pay-as-you-go residential; Pingproxies and IPRoyal offer
-// residential pools.
-// Update if any provider's published rate changes.
-const DEFAULT_RATES: Record<string, { per_gb: number }> = {
-  oxylabs:      { per_gb: 4.00 },
-  brightdata:   { per_gb: 5.04 },
-  pingproxies:  { per_gb: 1.50 },
-  iproyal:      { per_gb: 1.75 },
-  packetstream: { per_gb: 1.00 },
-};
-
 // Every provider Weles can route through, from `data/providers.json` beside
-// this file. Decodo is among them because `proxy/resolve` offers its ISP rows;
-// it carries no default rate, and `selectByCapability` skips a provider the
-// rate card says nothing about, so it becomes selectable the moment
-// `proxy_rate_cards` prices it.
+// this file. Prices come only from the `proxy_rate_cards` Skarbiec setting: a
+// rate written in code went stale the day a provider changed its price, and it
+// silently priced a provider nobody had chosen. A provider the rate card says
+// nothing about is not ranked, and `rankByCapability` names it as unpriced.
 export const ALL_PROVIDERS = declaredProviders.providers as readonly string[];
 export type ProviderName = string;
 
@@ -86,68 +74,75 @@ async function loadMatrix(): Promise<MatrixValue> {
   return loadSetting<MatrixValue>('proxy_capability_matrix', { matrix: {} });
 }
 
-async function loadRates(): Promise<RatesValue> {
-  const v = await loadSetting<RatesValue>('proxy_rate_cards', { rates: {} });
-  // Merge Skarbiec overrides on top of defaults so a partial setting still
-  // returns a complete rate card.
-  return { rates: { ...DEFAULT_RATES, ...(v.rates ?? {}) } };
-}
-
 async function loadPaused(): Promise<PausedValue> {
   return loadSetting<PausedValue>('platform_routine_paused', {});
 }
 
+/** One provider a route may use, in the order to try it. */
+export interface RankedProvider {
+  provider: ProviderName;
+  cost_per_gb: number;
+  standing: 'pass' | 'platform_pass' | 'unknown';
+}
+
 /**
- * Pick the cheapest provider whose matrix cell for this action is 'pass'.
- * If the action has no direct pass history, prefer providers with any pass
- * for the same platform before trying providers with no platform history.
+ * Every provider that may carry `action`, best first, and why each other one
+ * may not: `failing` names the providers the matrix records as failing this
+ * action (or, untried here, failing every action of its platform), and
+ * `unpriced` the ones `proxy_rate_cards` gives no rate. A caller tries the
+ * candidates in order until one resolves an exit, and when none does says
+ * all three lists, so an empty rate card reads as that rather than as
+ * "nothing passes".
  *
- * Returns null when the matrix is empty for this action (cold start) AND
- * unknown providers should default to eligible ('unknown'-as-pass), OR when
- * literally zero providers are usable. Caller distinguishes via the result:
- * null + already-paused = stay paused, null + not-paused = pause and skip.
- *
- * Cold-start policy: an unknown cell is treated as eligible. A provider with
- * no history will be picked at most once before its first outcome rules it
- * in or out. Combined with the per-action_log circuit breaker (the worker
- * still attempts the action even when null) this self-bootstraps the matrix
- * within a few cycles instead of needing a manual seed run per (provider,
- * action) pair.
+ * Order: exact action passes, then same-platform passes, then providers with
+ * no history (each is tried at most until its first outcome rules it in or
+ * out); cheapest first inside a tier.
  */
-export async function selectByCapability(
-  action: string,
-  excludeProviders: string[] = [],
-): Promise<{ provider: ProviderName; cost_per_gb: number } | null> {
-  const [matrix, rates] = await Promise.all([loadMatrix(), loadRates()]);
-  const exclude = new Set(excludeProviders);
+export async function rankByCapability(action: string): Promise<{
+  candidates: RankedProvider[];
+  failing: ProviderName[];
+  unpriced: ProviderName[];
+}> {
+  const [matrix, rates] = await Promise.all([
+    loadMatrix(),
+    loadSetting<RatesValue>('proxy_rate_cards', { rates: {} }),
+  ]);
   const platformPrefix = action.includes('_') ? `${action.split('_')[0]}_` : '';
-  const candidates: Array<{ p: ProviderName; cost: number; cell: 'pass' | 'platform_pass' | 'unknown' }> = [];
+  const candidates: RankedProvider[] = [];
+  const failing: ProviderName[] = [];
+  const unpriced: ProviderName[] = [];
   for (const p of ALL_PROVIDERS) {
-    if (exclude.has(p)) continue;
     const providerCells = matrix.matrix[p] ?? {};
     const cell = providerCells[action]?.result;
-    if (cell === 'fail') continue;
     const platformCells = platformPrefix
       ? Object.entries(providerCells).filter(([act]) => act.startsWith(platformPrefix))
       : [];
     const hasPlatformPass = platformCells.some(([, platformCell]) => platformCell.result === 'pass');
     const hasPlatformFail = platformCells.some(([, platformCell]) => platformCell.result === 'fail');
-    const cost = rates.rates[p]?.per_gb ?? Number.POSITIVE_INFINITY;
-    if (!Number.isFinite(cost)) continue;
-    if (cell === 'pass') candidates.push({ p, cost, cell: 'pass' });
-    else if (hasPlatformPass) candidates.push({ p, cost, cell: 'platform_pass' });
-    else if (!hasPlatformFail) candidates.push({ p, cost, cell: 'unknown' });
+    const rate = rates.rates?.[p]?.per_gb;
+    if (typeof rate !== 'number' || !Number.isFinite(rate)) {
+      unpriced.push(p);
+      continue;
+    }
+    if (cell === 'fail') failing.push(p);
+    else if (cell === 'pass') candidates.push({ provider: p, cost_per_gb: rate, standing: 'pass' });
+    else if (hasPlatformPass) candidates.push({ provider: p, cost_per_gb: rate, standing: 'platform_pass' });
+    else if (hasPlatformFail) failing.push(p);
+    else candidates.push({ provider: p, cost_per_gb: rate, standing: 'unknown' });
   }
-  if (candidates.length === 0) return null;
-  // Prefer exact action passes, then same-platform passes, then cold-start
-  // unknowns; among same tier, cheapest.
-  const rank: Record<(typeof candidates)[number]['cell'], number> = { pass: 0, platform_pass: 1, unknown: 2 };
-  candidates.sort((a, b) => {
-    if (a.cell !== b.cell) return rank[a.cell] - rank[b.cell];
-    return a.cost - b.cost;
-  });
-  const winner = candidates[0];
-  return { provider: winner.p, cost_per_gb: winner.cost };
+  const tiers: RankedProvider['standing'][] = ['pass', 'platform_pass', 'unknown'];
+  candidates.sort((a, b) =>
+    a.standing === b.standing ? a.cost_per_gb - b.cost_per_gb : tiers.indexOf(a.standing) - tiers.indexOf(b.standing));
+  return { candidates, failing, unpriced };
+}
+
+/**
+ * The sentence a route that found no exit ends with: which providers were
+ * tried and resolved none, which fail this action, and which carry no rate.
+ */
+export function noExitCause(action: string, tried: ProviderName[], failing: ProviderName[], unpriced: ProviderName[]): string {
+  const named = (list: ProviderName[]) => (list.length ? list.join(', ') : 'none');
+  return `no proxy exit for ${action}: tried without an exit: ${named(tried)}; failing this action in proxy_capability_matrix: ${named(failing)}; no rate in the proxy_rate_cards setting: ${named(unpriced)}`;
 }
 
 /**

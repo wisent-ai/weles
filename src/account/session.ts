@@ -12,7 +12,7 @@ import { generatePersona } from '../browser/persona.js';
 import { hydratePinnedProxy, proxyUrl as buildProxyUrl, resolveProxy } from '../proxy/config.js';
 import type { ProxyConfig, ResolvedProxy } from '../proxy/config.js';
 import { isBurned } from '../proxy/burned.js';
-import { selectByCapability, taskNetworkRequirements } from '../proxy/capability.js';
+import { noExitCause, rankByCapability, taskNetworkRequirements } from '../proxy/capability.js';
 import { refreshStickyIfDead } from '../proxy/sticky.js';
 import type { SocialAccount } from '../utils/credentials.js';
 import { backfillPersona, backfillProxy, burnAccount, clearDeadProxy } from './repair.js';
@@ -191,21 +191,19 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
     try {
       const tried: string[] = [];
       let pw: ResolvedProxy | undefined;
-      for (let i = 0; i < 5; i++) {
-        const winner = await selectByCapability(action, tried);
-        if (!winner) {
-          console.log(`[identity] no provider passes capability for action=${action} platform=${acct.platform}`);
-          break;
-        }
+      const { candidates, failing, unpriced } = await rankByCapability(action);
+      for (const winner of candidates) {
         const filter = `${network.proxyType ?? 'isp'} ${winner.provider} ${country}`.trim();
         pw = await resolveProxy(filter, targetHost);
         if (pw) {
-          console.log(`[identity] capability pick ${winner.provider} ($${winner.cost_per_gb}/GB) route=${network.proxyType ?? 'isp'} action=${action}`);
+          console.log(`[identity] capability pick ${winner.provider} ($${winner.cost_per_gb}/GB, ${winner.standing}) route=${network.proxyType ?? 'isp'} action=${action}`);
           break;
         }
         tried.push(winner.provider);
       }
-      if (!pw) throw new Error(`proxy_unavailable:${network.proxyType ?? 'isp'}:${action}:${acct.platform}:${country}`);
+      if (!pw) {
+        throw new Error(`proxy_unavailable:${network.proxyType ?? 'isp'}:${action}:${acct.platform}:${country}: ${noExitCause(action, tried, failing, unpriced)}`);
+      }
       if (pw?.server) {
         const u = new URL(pw.server);
         cfg = {
