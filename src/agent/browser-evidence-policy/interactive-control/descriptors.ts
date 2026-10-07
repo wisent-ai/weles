@@ -39,13 +39,17 @@ export type ControlDescriptor = ControlFacts & {
 
 export async function controlDescriptors(session: WSession): Promise<ControlDescriptor[]> {
   const descriptors: ControlDescriptor[] = [];
-  for (const frame of (session.page.frames?.() ?? [session.page]).slice(0, 16)) {
+  // Every frame and every control in it, whole: the frame, control and
+  // attribute cuts once here (16, 160, 16 to 120 characters) were nobody's
+  // statement and hid what the policy must judge.
+  const frames = typeof session.page.frames === 'function' ? session.page.frames() : [session.page];
+  for (const frame of frames) {
     const locator = frame.locator(
       'button, a, input, select, textarea, summary, [role="button"], [role="link"], [role="tab"], [role="searchbox"]',
     );
     let count: number;
     try {
-      count = Math.min(await locator.count(), 160);
+      count = await locator.count();
     } catch (error) {
       recordEdge(session.label, {
         category: 'unreadable_interactive_frame',
@@ -87,18 +91,18 @@ export async function controlDescriptors(session: WSession): Promise<ControlDesc
               html.getAttribute('placeholder'),
             ].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim(),
             tag: html.tagName.toLowerCase(),
-            type: String(html.type ?? '').toLowerCase().slice(0, 64),
-            role: html.getAttribute('role')?.toLowerCase().slice(0, 64),
+            type: html.type === undefined ? '' : String(html.type).toLowerCase(),
+            role: html.getAttribute('role')?.toLowerCase(),
             active: document.activeElement === html,
             href: String(html.href ?? ''),
             target: String(html.target ?? ''),
             download: html.hasAttribute('download'),
-            ariaControls: html.getAttribute('aria-controls')?.slice(0, 120),
-            ariaExpanded: html.getAttribute('aria-expanded')?.slice(0, 16),
+            ariaControls: html.getAttribute('aria-controls') ?? undefined,
+            ariaExpanded: html.getAttribute('aria-expanded') ?? undefined,
             formPresent: Boolean(form),
             formText: String(form?.innerText ?? '').replace(/\s+/g, ' ').trim(),
             formAction: String(form?.action ?? ''),
-            formMethod: String(form?.method ?? 'get').toLowerCase().slice(0, 16),
+            formMethod: form ? form.method.toLowerCase() : '',
             formHasPassword: Boolean(form?.querySelector('input[type="password"]')),
             formHasOneTimeCode: Boolean(form?.querySelector('input[autocomplete="one-time-code"], input[name*="otp" i], input[name*="code" i]')),
             formHasMessage: Boolean(form?.querySelector('textarea, input[name*="message" i], input[name*="comment" i], input[name*="reply" i]')),
