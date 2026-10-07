@@ -8,7 +8,6 @@ export async function collectPageState(page) {
       String(value || '')
         .replace(/\s+/g, ' ')
         .trim();
-    const short = (value, max = 600) => norm(value).slice(0, max);
     const visible = (el) => {
       const style = window.getComputedStyle(el);
       return (
@@ -79,11 +78,11 @@ export async function collectPageState(page) {
           id: el.id || '',
           name: el.getAttribute('name') || '',
           className: String(el.className || ''),
-          text: short(el.innerText || el.textContent || '', 240),
+          text: norm(el.innerText ?? el.textContent),
           ariaLabel: el.getAttribute('aria-label') || '',
           title: el.getAttribute('title') || '',
           placeholder: el.getAttribute('placeholder') || '',
-          value: 'value' in el ? short(el.value, 240) : '',
+          value: 'value' in el ? norm(el.value) : null,
           href: el.href || '',
           checked: Boolean(el.checked),
           selected: Boolean(el.selected),
@@ -120,7 +119,7 @@ export async function collectPageState(page) {
         root,
         tag: el.tagName,
         role: el.getAttribute('role') || '',
-        text: short(el.innerText || el.textContent || '', 900),
+        text: norm(el.innerText ?? el.textContent),
         visible: visible(el),
         path: cssPath(el),
       }))
@@ -140,7 +139,7 @@ export async function collectPageState(page) {
               /date|report|campaign|org|account|app|time|filter/i.test(
                 key || '',
               )
-                ? short(value, 500)
+                ? norm(value)
                 : undefined,
           };
         });
@@ -161,16 +160,12 @@ export async function collectPageState(page) {
         /app-ads\.apple\.com|searchads|report|campaign|budget|spend|analytics|api/i.test(
           entry.name,
         ),
-      )
-      .slice(-300);
+      );
 
     return {
       url: location.href,
       title: document.title,
-      text: short(
-        document.body?.innerText || document.body?.textContent || '',
-        10000,
-      ),
+      text: norm(document.body?.innerText ?? document.body?.textContent),
       controls,
       rows,
       storage,
