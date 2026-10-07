@@ -163,10 +163,20 @@ export async function doGoogleSso({
       if (variant === 'code_page') { mark('code_page'); return active; }
 
       // A state this step does not drive: give its page the chance to settle
-      // into a driven one, then report it by name.
+      // into a driven one, then report it by name. Google's popup is such a
+      // page for the moment between the confirmed account and its closing,
+      // and run 40f115ef failed in that moment ('Target page, context or
+      // browser has been closed' from pageSettled): a page that closed while
+      // it settled is gone, and the next round reads the pages that remain.
       if (!DRIVEN_VARIANTS.has(variant)) {
-        await pageSettled(active);
-        const again = classifyGisState(await observeGisPage(active, login.email));
+        let again;
+        try {
+          await pageSettled(active);
+          again = classifyGisState(await observeGisPage(active, login.email));
+        } catch (error) {
+          if (active.isClosed()) continue;
+          throw error;
+        }
         if (!DRIVEN_VARIANTS.has(again)) { stuck = view; break; }
         continue;
       }
