@@ -145,7 +145,42 @@ export async function wsClick(s: WSession, target: string): Promise<string> {
     const marker = `weles-click-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
     const c = await s.page
       .evaluate(
-        `(()=>{function F(r,s){var a=Array.from(r.querySelectorAll(s));r.querySelectorAll('*').forEach(function(e){if(e.shadowRoot)a=a.concat(F(e.shadowRoot,s))});return a}function vis(el){var r=el.getBoundingClientRect();return r.width>0&&r.height>0&&el.offsetParent!==null}var t=${JSON.stringify(target.toLowerCase().trim())};var m=${JSON.stringify(marker)};var sr=F(document,'[data-post-click-location] button');if(t.indexOf('upvote')>=0&&sr.length>0){sr[0].setAttribute('data-weles-click',m);return{desc:'upvote (shadow)'}}var bs=F(document,'button,a,[role="button"],[role="link"],[role="tab"],[role="menuitem"],[role="option"],[data-e2e],label,input[type="checkbox"],[role="checkbox"]');var exact=null,partial=null;for(var i=0;i<bs.length;i++){var el=bs[i];var txt=((el.textContent||'').trim()+' '+(el.getAttribute('aria-label')||'').trim()).toLowerCase().trim();var visi=vis(el);if(!visi)continue;if(txt===t||txt.split(' ').join(' ')===t){exact=el;break}if(!partial&&txt.indexOf(t)>=0){partial=el}}var hit=exact||partial;if(!hit)return null;var cb=hit.querySelector('input[type="checkbox"]')||hit;cb.setAttribute('data-weles-click',m);var d=((hit.textContent||'').trim()||(hit.getAttribute('aria-label')||'')).slice(0,40);return{desc:(exact?'exact:':'partial:')+d}})()`,
+        // Finds the control whose text or label is the target (or holds it),
+        // across shadow roots, and marks it for a trusted click. The control
+        // is described by its whole text, never a cut of it.
+        ({ wanted, mark }: { wanted: string; mark: string }) => {
+          const all = (root: any, selector: string): any[] => {
+            let found: any[] = Array.from(root.querySelectorAll(selector));
+            root.querySelectorAll('*').forEach((el: any) => {
+              if (el.shadowRoot) found = found.concat(all(el.shadowRoot, selector));
+            });
+            return found;
+          };
+          const [shadowUpvote] = all(document, '[data-post-click-location] button');
+          if (wanted.includes('upvote') && shadowUpvote) {
+            shadowUpvote.setAttribute('data-weles-click', mark);
+            return { desc: 'upvote (shadow)' };
+          }
+          const words = (el: any) =>
+            [el.textContent.trim(), el.getAttribute('aria-label')?.trim()]
+              .filter(Boolean)
+              .join(' ')
+              .toLowerCase()
+              .trim();
+          const controls = all(
+            document,
+            'button,a,[role="button"],[role="link"],[role="tab"],[role="menuitem"],[role="option"],[data-e2e],label,input[type="checkbox"],[role="checkbox"]',
+          ).filter((el) => {
+            const box = el.getBoundingClientRect();
+            return Boolean(box.width && box.height) && el.offsetParent !== null;
+          });
+          const exact = controls.find((el) => words(el) === wanted);
+          const hit = exact ?? controls.find((el) => words(el).includes(wanted));
+          if (!hit) return null;
+          (hit.querySelector('input[type="checkbox"]') ?? hit).setAttribute('data-weles-click', mark);
+          return { desc: `${exact ? 'exact' : 'partial'}:${words(hit)}` };
+        },
+        { wanted: target.toLowerCase().trim(), mark: marker },
       )
       .catch(() => null);
     if (c) {
