@@ -2,7 +2,6 @@
 set -euo pipefail
 : "${WISENT_SOURCE_DIR:?WISENT_SOURCE_DIR is required}"; : "${WISENT_OUTPUT_DIR:?WISENT_OUTPUT_DIR is required}"
 : "${WISENT_INPUT_WELES_CLIENT_BUNDLE_DIR:?WISENT_INPUT_WELES_CLIENT_BUNDLE_DIR is required}"; : "${WISENT_INPUT_WISENT_COST_TRACKER_BUNDLE_DIR:?WISENT_INPUT_WISENT_COST_TRACKER_BUNDLE_DIR is required}"
-: "${WISENT_INPUT_JEDEN_RUNTIME_DIR:?WISENT_INPUT_JEDEN_RUNTIME_DIR is required}"
 work="$WISENT_OUTPUT_DIR/work"; source="$work/source"; rm -rf "$work"; mkdir -p "$source" "$WISENT_OUTPUT_DIR/payload" "$WISENT_OUTPUT_DIR/bin" "$WISENT_OUTPUT_DIR/evidence" "$WISENT_OUTPUT_DIR/inputs"
 # Throwaway state is removed by the code that made it: the source copy, its node_modules and the git config end with the run.
 trap 'rm -rf "$work"' EXIT
@@ -62,7 +61,10 @@ npm run build
 # instead of failing the first sign-in that loads it on a worker.
 node --experimental-vm-modules --experimental-import-meta-resolve release/checks/module-links.mjs src/trajectories
 PLAYWRIGHT_BROWSERS_PATH="$source/browser-runtime" node node_modules/playwright-core/cli.js install ffmpeg
-node release/native/runtime.mjs stage "$source/native/jeden/bin" "$WISENT_INPUT_JEDEN_RUNTIME_DIR"
+# The native runtime of this builder's platform: runtime.mjs reads the input
+# .wisent-release.json declares for it (jeden-runtime on darwin,
+# jeden-runtime-linux on linux) from the directory Stado hands the build.
+node release/native/runtime.mjs stage "$source/native/jeden/bin"
 node dist/cli.js release surface > "$source/released-surface.json"
 COPYFILE_DISABLE=1 tar --dereference --format=ustar -czf "$WISENT_OUTPUT_DIR/payload/weles-worker.tar.gz" dist node_modules src native browser-runtime package.json package-lock.json release released-surface.json tsconfig.json LICENSE
 install -m 0755 "$WISENT_SOURCE_DIR/release/stado-launcher.sh" "$WISENT_OUTPUT_DIR/bin/start"

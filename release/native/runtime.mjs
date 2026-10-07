@@ -94,12 +94,27 @@ async function install(destination) {
   await stage(destination, archive);
 }
 
+/**
+ * The directory a Stado build receives a declared input in:
+ * `WISENT_INPUT_<MOUNT>_DIR`, the mount upper-cased with `-` as `_`. Each
+ * platform's build reads its own platform's input, so a linux builder stages
+ * the linux runtime and never the darwin one.
+ */
+function stadoInputDirectory(input) {
+  const variable = `WISENT_INPUT_${input.mount.replaceAll('-', '_').toUpperCase()}_DIR`;
+  const directory = process.env[variable];
+  if (!directory) {
+    throw new Error(`${variable} is not set: a Stado build receives this host's declared native input ${input.uri} there`);
+  }
+  return directory;
+}
+
 async function stage(destination, source) {
   const platform = localPlatform();
   const input = declaredInput(platform);
   let unpacked;
   try {
-    let root = resolve(source);
+    let root = resolve(source ?? stadoInputDirectory(input));
     if (statSync(root).isFile()) {
       await verifyArchive(root, input);
       mkdirSync(OUTPUT, { recursive: true });
@@ -131,12 +146,13 @@ async function stage(destination, source) {
 try {
   const [action, destination, input] = process.argv.slice(2);
   if (action === 'fetch' && !destination) await fetchInputs();
-  else if (action === 'stage' && destination && input) await stage(destination, input);
+  else if (action === 'stage' && destination) await stage(destination, input);
   else if (action === 'install' && destination && !input) await install(destination);
   else {
     throw new Error(
       'usage: node release/native/runtime.mjs fetch '
-      + '| stage <destination-bin-directory> <input-directory-or-archive> '
+      + '| stage <destination-bin-directory> [<input-directory-or-archive>] '
+      + '(without one, the input Stado hands the build for this host\'s platform) '
       + '| install <destination-bin-directory>',
     );
   }
