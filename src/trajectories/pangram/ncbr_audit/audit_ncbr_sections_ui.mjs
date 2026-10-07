@@ -5,7 +5,7 @@
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  COLLECT_ONLY, MAX_CHECKS, MAX_SCAN_CHARS, MIN_CHARS, MIN_WORDS, NO_ACCOUNT, ONLY_PATH, OUT_DIR, PATH_A_PDF,
+  COLLECT_ONLY, MAX_SCAN_CHARS, MIN_CHARS, MIN_WORDS, NO_ACCOUNT, ONLY_PATH, OUT_DIR, PATH_A_PDF,
   REUSE_EXISTING, ROOT, RUN_ID, SECTIONS_DIR, SECTION_PATTERN, TS, accountIds, ensureDirs,
 } from './audit_ncbr_sections_ui/settings.mjs';
 import { slug, splitLongText, stats } from './audit_ncbr_sections_ui/text.mjs';
@@ -81,10 +81,6 @@ for (const item of items) {
     }
     if (COLLECT_ONLY) {
       results.push({ ...chunkBase, status: 'collected_only' });
-      continue;
-    }
-    if (checks >= MAX_CHECKS) {
-      results.push({ ...chunkBase, status: 'pending_max_checks' });
       continue;
     }
     checks += 1;

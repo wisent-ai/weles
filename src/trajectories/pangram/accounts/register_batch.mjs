@@ -1,20 +1,29 @@
 // Batch Pangram account registration.
-// Registers N fresh accounts so each gets its own proxy/persona/domain from register.mjs.
-// Does NOT run scans. Safe to run manually; defaults are conservative.
+// Registers the stated number of fresh accounts so each gets its own
+// proxy/persona/domain from register.mjs. Does NOT run scans. How many accounts
+// and how many at once are the caller's: both are required.
 
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
-const COUNT = Math.max(1, Number(process.env.PANGRAM_REGISTRATION_COUNT || 3));
-const CONCURRENT = Math.max(1, Number(process.env.PANGRAM_MAX_CONCURRENT || 1));
+function stated(name, what) {
+  const raw = process.env[name];
+  const value = Number(raw);
+  if (!raw || !Number.isSafeInteger(value) || !(value >= Number.MIN_VALUE)) {
+    throw new Error(`${name} is ${raw ? `"${raw}", not a whole number above zero` : 'not set'}: ${what}; nothing is assumed`);
+  }
+  return value;
+}
+const COUNT = stated('PANGRAM_REGISTRATION_COUNT', 'how many Pangram accounts this batch registers');
+const CONCURRENT = stated('PANGRAM_MAX_CONCURRENT', 'how many registrations run at once');
 const SCRIPT = process.env.PANGRAM_REGISTER_SCRIPT || join(process.cwd(), 'src/trajectories/pangram/register.mjs');
 const LABEL = process.env.ACTION || 'pangram_register_batch';
 
 function redactSecrets(text) {
   return String(text || '')
-    .replace(/[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, (m) => `${m.split('@')[0].slice(0, 4)}***@${m.split('@')[1]}`)
+    .replace(/[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, (m) => `***@${m.split('@').pop()}`)
     .replace(/ya29\.[A-Za-z0-9._-]+/g, '<token>');
 }
 
@@ -41,8 +50,8 @@ function runRegister(index) {
         exitCode: code,
         email: emailMatch?.[1] || null,
         username: accountMatch?.[1] || null,
-        stdoutTail: redactSecrets(stdout.slice(-2500)),
-        stderrTail: redactSecrets(stderr.slice(-1500)),
+        stdoutTail: redactSecrets(stdout),
+        stderrTail: redactSecrets(stderr),
       });
     });
   });

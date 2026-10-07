@@ -9,7 +9,6 @@ const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const projectId = (await import('#ncbr-settings')).projectId();
 const projectUrl = ['https://', `lsi2.ncbr.gov.pl/projekt/${projectId}`].join('');
 const fast = Boolean(process.env.FAST);
-const maxRowsPerSection = Number(process.env.MAX_ROWS || 80);
 const scopeMode = process.env.SCOPE || 'all';
 
 const browser = await chromium.connectOverCDP(endpoint);
@@ -181,7 +180,7 @@ for (const section of sections) {
       sectionStats.push({ section: section.label, visibleFields: visible.length, rows: count, inspectedRows: 0 });
       continue;
     }
-    for (let i = 0; i < Math.min(count, maxRowsPerSection); i += 1) {
+    for (let i = 0; i < count; i += 1) {
       await page.goto(section.url, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: reset section before opening next row
       await waitForSectionShell();
       await pause(sleepKind());

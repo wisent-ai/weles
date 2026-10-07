@@ -12,7 +12,6 @@
 //   HEADLESS                 '1' = headless (default: visible window for
 //                            debug; Google sometimes prefers a visible
 //                            window for non-bot heuristics)
-//   OVERLEAF_LIST_LIMIT      cap rows scraped (default 500)
 //   OVERLEAF_LIST_INCLUDE    comma list: archived,trashed (default: none)
 //   OUT_JSONL                file path to write JSONL stream (default stdout)
 //
@@ -26,9 +25,9 @@ import { WSession } from '../../../../dist/session/wsession.js';
 import { getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
 import { overleafGoogleSignIn } from '../../_shared/services/overleaf_google_sign_in.mjs';
 import { createWriteStream } from 'node:fs';
+import { pageSettled } from '../../_shared/page/settled.mjs';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
-const LIMIT    = Number(process.env.OVERLEAF_LIST_LIMIT || 500);
 const INCLUDES = new Set((process.env.OVERLEAF_LIST_INCLUDE || '').split(',').map(s => s.trim()).filter(Boolean));
 const OUT      = process.env.OUT_JSONL ? createWriteStream(process.env.OUT_JSONL) : process.stdout;
 
@@ -63,27 +62,22 @@ try {
   const anchorSel = 'a[href*="/project/"]';
   await s.page.locator(anchorSel).first().waitFor({ state: 'visible' });
 
-  // Scroll progressively until anchor count stabilizes.
-  let seen = 0;
-  let stable = 0;
+  // Scroll the last row into view until the settled dashboard shows no new
+  // rows: Overleaf's own list length ends the walk, no row cap is chosen.
   const anchorLoc = s.page.locator(anchorSel);
-  while (seen < LIMIT && stable < 5) {
+  let seen = await anchorLoc.count();
+  for (;;) {
+    await anchorLoc.last().scrollIntoViewIfNeeded();
+    await pageSettled(s.page);
     const current = await anchorLoc.count();
-    if (current === 0) {
-      throw new Error('no project anchors visible on dashboard');
-    }
-    const isStable = current === seen;
-    stable = isStable ? stable + 1 : 0;
+    if (current === seen) break;
     seen = current;
-    const last = anchorLoc.nth(current - 1);
-    await last.scrollIntoViewIfNeeded();
   }
-  const total = Math.min(seen, LIMIT);
-  console.log(`[list_auto] project anchors found: ${total}`);
+  console.log(`[list_auto] project anchors found: ${seen}`);
 
   // Page-side scrape. Uses explicit null returns when fields are missing;
   // the calling Node process decides what to do with nulls.
-  const scraped = await s.page.evaluate(({ sel, cap }) => {
+  const scraped = await s.page.evaluate(({ sel }) => {
     function textOrNull(el) {
       if (!el) return null;
       const t = el.textContent;
@@ -110,7 +104,7 @@ try {
       if (attr !== null) return attr;
       return textOrNull(tEl);
     }
-    const links = Array.from(document.querySelectorAll(sel)).slice(0, cap);
+    const links = Array.from(document.querySelectorAll(sel));
     const byId = new Map();
     for (const a of links) {
       const href = a.getAttribute('href');
@@ -137,7 +131,7 @@ try {
       });
     }
     return Array.from(byId.values());
-  }, { sel: anchorSel, cap: total });
+  }, { sel: anchorSel });
 
   for (const r of scraped) {
     if (!r.id) continue;

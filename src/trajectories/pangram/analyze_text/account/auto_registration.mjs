@@ -1,24 +1,15 @@
 // What the run does when the pool has nothing left to scan with: it starts the
 // Pangram register trajectory as a child process, tells from that child's exit
-// code and output whether an account was really created, keeps a daily register
-// ledger with the output tails as evidence, and holds the two retry budgets the
-// whole run obeys. A registration that does not produce an account stays a
-// failed registration carrying its own reason.
+// code and output whether an account was really created, and keeps a daily
+// register ledger with the output tails as evidence. How many accounts may be
+// registered in a day is the caller's budget, stated in
+// PANGRAM_MAX_AUTO_REGISTERS. A registration that does not produce an account
+// stays a failed registration carrying its own reason.
 
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { todayKey } from './pool_rotation.mjs';
-
-export function maxAccountAttempts() {
-  const raw = Number(process.env.PANGRAM_MAX_ACCOUNT_ATTEMPTS || 8);
-  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 8;
-}
-
-export function registerAfterCreditFailures() {
-  const raw = Number(process.env.PANGRAM_REGISTER_AFTER_CREDIT_FAILURES || 1);
-  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 1;
-}
 
 function autoRegisterLedgerPath() {
   return process.env.PANGRAM_AUTO_REGISTER_LEDGER_FILE || join(process.env.HOME || process.cwd(), '.weles', 'pangram-auto-register.json');
@@ -38,8 +29,12 @@ function writeAutoRegisterLedger(ledger) {
 }
 
 export function maxAutoRegisters() {
-  const raw = Number(process.env.PANGRAM_MAX_AUTO_REGISTERS || 3);
-  return Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : 3;
+  const raw = process.env.PANGRAM_MAX_AUTO_REGISTERS;
+  const value = Number(raw);
+  if (!raw || !Number.isSafeInteger(value) || value !== Math.abs(value)) {
+    throw new Error(`PANGRAM_MAX_AUTO_REGISTERS is ${raw ? `"${raw}", not a whole number of zero or more` : 'not set'}: how many Pangram accounts auto-registration may create in a day; nothing is assumed`);
+  }
+  return value;
 }
 
 export function autoRegisterCountToday(ledger) {

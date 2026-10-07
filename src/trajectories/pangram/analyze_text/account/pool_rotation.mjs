@@ -41,9 +41,10 @@ function writeUsageLedger(ledger) {
   writeFileSync(path, JSON.stringify(ledger, null, 2));
 }
 
-function dailyAccountLimit() {
-  const raw = Number(process.env.PANGRAM_ACCOUNT_DAILY_SCAN_LIMIT || 4);
-  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 4;
+// An account is out for the day when Pangram itself said it has no credits
+// left (markAccountExhausted); no per-account scan count is chosen here.
+function exhaustedToday(ledger, acct) {
+  return Boolean(ledger?.[todayKey()]?.[accountKey(acct)]?.exhausted);
 }
 
 function usageCount(ledger, acct) {
@@ -62,7 +63,6 @@ export function recordAccountUse(acct, stats, pool) {
     username: acct.username ?? null,
     domain: accountDomain(acct),
     scan_attempts: Number(prev.scan_attempts || 0) + 1,
-    daily_limit: dailyAccountLimit(),
     last_input_sha256: stats.sha256,
     last_used_at: new Date().toISOString(),
     pool_available_before_run: pool?.available_count ?? null,
@@ -83,8 +83,6 @@ export function markAccountExhausted(acct, stats, pool, reason, creditState = nu
     account_id: acct.id ?? null,
     username: acct.username ?? null,
     domain: accountDomain(acct),
-    scan_attempts: dailyAccountLimit(),
-    daily_limit: dailyAccountLimit(),
     exhausted: true,
     exhausted_reason: reason,
     credit_state: creditState,
@@ -184,10 +182,9 @@ export async function selectPangramAccountForRun() {
 
   const fetched = await fetchActivePangramAccounts();
   const ledger = readUsageLedger();
-  const limit = dailyAccountLimit();
   const accounts = fetched.accounts || [];
-  const underLimit = accounts.filter((acct) => usageCount(ledger, acct) < limit);
-  const ordered = sortCandidatesByUsage(underLimit, ledger);
+  const available = accounts.filter((acct) => !exhaustedToday(ledger, acct));
+  const ordered = sortCandidatesByUsage(available, ledger);
   const rejected = [];
 
   for (const acct of ordered) {
@@ -202,7 +199,6 @@ export async function selectPangramAccountForRun() {
           total_accounts: accounts.length,
           available_count: ordered.length,
           rejected_count: rejected.length,
-          daily_limit_per_account: limit,
           selected_usage_before_run: usageCount(ledger, acct),
           domains: domainSummary(accounts),
         },
@@ -211,17 +207,16 @@ export async function selectPangramAccountForRun() {
     rejected.push({ account_id: acct.id ?? null, username: acct.username ?? null, reason: prepared.reason });
   }
 
-  const exhaustedByUsage = accounts.length > 0 && underLimit.length === 0;
+  const exhaustedByUsage = accounts.length > 0 && available.length === 0;
   return {
     account: null,
     reason: exhaustedByUsage ? 'quota_exhausted' : (fetched.reason || 'no_fresh_account'),
     pool: {
       total_accounts: accounts.length,
       available_count: ordered.length,
-      exhausted_by_daily_limit: accounts.length - underLimit.length,
+      exhausted_by_pangram: accounts.length - available.length,
       rejected_count: rejected.length,
-      rejected_accounts: rejected.slice(0, 10),
-      daily_limit_per_account: limit,
+      rejected_accounts: rejected,
       domains: domainSummary(accounts),
     },
   };

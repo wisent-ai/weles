@@ -45,19 +45,11 @@ export function applyContentActionParams(
   }
   if (params.pangram_auto_register === true || params.pangram_auto_register === '1') env.PANGRAM_AUTO_REGISTER = '1';
   if (params.pangram_require_account === true || params.pangram_require_account === '1') env.PANGRAM_REQUIRE_ACCOUNT = '1';
-  if (typeof params.pangram_max_account_attempts === 'number') env.PANGRAM_MAX_ACCOUNT_ATTEMPTS = String(params.pangram_max_account_attempts);
-  if (typeof params.pangram_max_account_attempts === 'string') env.PANGRAM_MAX_ACCOUNT_ATTEMPTS = params.pangram_max_account_attempts;
   if (typeof params.pangram_max_auto_registers === 'number') env.PANGRAM_MAX_AUTO_REGISTERS = String(params.pangram_max_auto_registers);
   if (typeof params.pangram_max_auto_registers === 'string') env.PANGRAM_MAX_AUTO_REGISTERS = params.pangram_max_auto_registers;
-  if (typeof params.pangram_register_after_credit_failures === 'number') env.PANGRAM_REGISTER_AFTER_CREDIT_FAILURES = String(params.pangram_register_after_credit_failures);
-  if (typeof params.pangram_register_after_credit_failures === 'string') env.PANGRAM_REGISTER_AFTER_CREDIT_FAILURES = params.pangram_register_after_credit_failures;
   if (trajPath.endsWith('/ncbr/pangram_audit_new_wniosek.mjs')) {
     if (typeof params.ncbr_project_id === 'string') env.NCBR_PROJECT_ID = params.ncbr_project_id;
     if (typeof params.section_pattern === 'string') env.SECTION_PATTERN = params.section_pattern;
-    if (typeof params.min_chars === 'number') env.MIN_CHARS = String(params.min_chars);
-    if (typeof params.min_chars === 'string') env.MIN_CHARS = params.min_chars;
-    if (typeof params.max_sections === 'number') env.MAX_SECTIONS = String(params.max_sections);
-    if (typeof params.max_sections === 'string') env.MAX_SECTIONS = params.max_sections;
     if (params.collect_only === true || params.collect_only === '1') env.COLLECT_ONLY = '1';
     if (params.include_rows === true || params.include_rows === '1') env.INCLUDE_ROWS = '1';
   }

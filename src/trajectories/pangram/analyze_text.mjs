@@ -15,20 +15,12 @@ import { authRequiredState, collectResult } from './analyze_text/verdict_reading
 import { clickAnalyze, dismissCookieBanner, fillInput, readVisibleCreditState } from './analyze_text/dashboard/scan_form.mjs';
 import { waitForPublicVerificationIfNeeded } from './analyze_text/dashboard/human_verification.mjs';
 import { injectCookies, markAccountExhausted, recordAccountUse, selectPangramAccountForRun } from './analyze_text/account/pool_rotation.mjs';
-import { autoRegisterCountToday, autoRegisterPangramAccount, maxAccountAttempts, maxAutoRegisters, readAutoRegisterLedger, registerAfterCreditFailures } from './analyze_text/account/auto_registration.mjs';
+import { autoRegisterCountToday, autoRegisterPangramAccount, maxAutoRegisters, readAutoRegisterLedger } from './analyze_text/account/auto_registration.mjs';
 import { CookieJarStaleError } from '../_shared/auth/cookie-freshness.mjs';
 
 const text = inputText();
 if (!text.trim()) {
   console.log('FAIL: text required via PANGRAM_TEXT, SVC_TEXT, TEXT, PANGRAM_TEXT_FILE, TEXT_FILE, or MESSAGE_FILE');
-  process.exit(2);
-}
-
-const MIN_WORDS = Number(process.env.PANGRAM_MIN_WORDS || 30);
-const MIN_CHARS = Number(process.env.PANGRAM_MIN_CHARS || 200);
-const wordCount = text.trim().split(/\s+/).length;
-if (text.length < MIN_CHARS || wordCount < MIN_WORDS) {
-  console.log(`FAIL: text too short for Pangram scanner (${wordCount} words, ${text.length} chars). Minimum ${MIN_WORDS} words / ${MIN_CHARS} chars. Set PANGRAM_MIN_WORDS/PANGRAM_MIN_CHARS to override.`);
   process.exit(2);
 }
 
@@ -43,10 +35,11 @@ let accountSelection = null;
 let accountUsage = null;
 
 const noAccount = process.env.PANGRAM_NO_ACCOUNT === '1';
-const maxRunAttempts = noAccount ? 1 : maxAccountAttempts();
 let completed = false;
 
-for (let runAttempt = 1; runAttempt <= maxRunAttempts; runAttempt += 1) {
+// Each insufficient-credits answer marks its account exhausted for the day, so
+// the attempts end when the pool (and the stated auto-register budget) does.
+for (let runAttempt = 1; ; runAttempt += 1) {
   acct = null;
   s = null;
   banSignal = null;
@@ -218,15 +211,14 @@ try {
   }
   console.log(`[ban-signal] ${banSignal.signal}`);
   console.log(`FAIL: ${e.message}`);
-  if (!noAccount && banSignal.signal === 'insufficient_credits' && runAttempt < maxRunAttempts) {
-    const creditFailureThreshold = registerAfterCreditFailures();
-    if (process.env.PANGRAM_AUTO_REGISTER === '1' && runAttempt % creditFailureThreshold === 0) {
-      console.log(`[pangram:analyze_text] auto_register triggered reason=insufficient_credits attempts=${runAttempt}/${maxRunAttempts}`);
+  if (!noAccount && acct && banSignal.signal === 'insufficient_credits') {
+    if (process.env.PANGRAM_AUTO_REGISTER === '1') {
+      console.log(`[pangram:analyze_text] auto_register triggered reason=insufficient_credits attempt=${runAttempt}`);
       const registerResult = await autoRegisterPangramAccount('insufficient_credits');
       console.log(`[pangram:analyze_text] auto_register success=${registerResult.success} reason=${registerResult.reason}`);
     }
     shouldRetryAccount = true;
-    console.log(`[pangram:analyze_text] retrying with another account after insufficient_credits attempt=${runAttempt}/${maxRunAttempts}`);
+    console.log(`[pangram:analyze_text] retrying with another account after insufficient_credits attempt=${runAttempt}`);
   } else {
     process.exitCode = process.exitCode || 1;
   }

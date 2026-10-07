@@ -11,8 +11,12 @@ const REPORT_ROOT = process.env.REPORT_ROOT || join(ROOT, 'pangram_section_audit
 const TS = new Date().toISOString().replace(/[:.]/g, '-');
 const RUN_PREFIX = process.env.WELES_RUN_ID || `ncbr-pangram-parallel-${TS}`;
 const ONLY_PATH = process.env.ONLY_PATH || '';
-const MAX_PARALLEL = Number(process.env.MAX_PARALLEL || 4);
-const MAX_CHECKS_PER_SHARD = process.env.MAX_CHECKS_PER_SHARD || process.env.MAX_CHECKS || '999';
+// How many shards run at once is the caller's: it is bounded by the Pangram
+// accounts and the machine the caller runs on, which this code cannot see.
+const MAX_PARALLEL = Number(process.env.MAX_PARALLEL);
+if (!Number.isSafeInteger(MAX_PARALLEL) || !(MAX_PARALLEL >= Number.MIN_VALUE)) {
+  throw new Error(`MAX_PARALLEL is ${process.env.MAX_PARALLEL ? `"${process.env.MAX_PARALLEL}", not a whole number above zero` : 'not set'}: how many audit shards run at once; nothing is assumed`);
+}
 const DEFAULT_SHARDS = ONLY_PATH.toUpperCase() === 'A'
   ? ['^A 1\\.', '^A 2\\.', '^A 3\\.', '^A 4\\.', '^A 5\\.', '^A 6\\.', '^A 7', '^A 8', '^A 9\\.', '^A 10\\.']
   : ['^B 1\\.', '^B 2\\.', '^B 3\\.', '^B 4\\.', '^B 5\\.', '^B 6\\.', '^B 7', '^B 8', '^B 9\\.', '^B 10\\.'];
@@ -31,8 +35,7 @@ function slug(s) {
   return String(s)
     .normalize('NFKD')
     .replace(/[^\w.-]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 80);
+    .replace(/^_+|_+$/g, '');
 }
 
 function parseLastJson(stdout) {
@@ -48,7 +51,6 @@ function runShard(shard, index) {
     ...process.env,
     WELES_RUN_ID: runId,
     SECTION_PATTERN: shard,
-    MAX_CHECKS: MAX_CHECKS_PER_SHARD,
   };
   if (ONLY_PATH) env.ONLY_PATH = ONLY_PATH;
   if (accountId) env.ACCOUNT_IDS = accountId;
@@ -115,7 +117,6 @@ const report = {
   generatedAt: new Date().toISOString(),
   onlyPath: ONLY_PATH || null,
   maxParallel: MAX_PARALLEL,
-  maxChecksPerShard: MAX_CHECKS_PER_SHARD,
   shardCount: shards.length,
   failedShardCount: results.filter((r) => r.code !== 0).length,
   checkedCount: results.reduce((sum, r) => sum + Number(r.summary?.checkedCount || 0), 0),

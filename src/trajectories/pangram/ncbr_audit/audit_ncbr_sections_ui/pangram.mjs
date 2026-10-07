@@ -2,7 +2,7 @@
 // same text when there is one, and trusting only a real run.
 import { existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { LOGS_DIR, MIN_CHARS, MIN_WORDS, NO_ACCOUNT, OUT_DIR, REUSE_EXISTING, RUN_ID, WEL } from './settings.mjs';
+import { LOGS_DIR, NO_ACCOUNT, OUT_DIR, REUSE_EXISTING, RUN_ID, WEL } from './settings.mjs';
 import { sh, slug } from './text.mjs';
 
 export function walkJson(dir) {
@@ -57,8 +57,6 @@ export function runPangram(item, textFile, action, accountId = '') {
     PANGRAM_TEXT_FILE: textFile,
     WELES_FORCE_OS: process.env.WELES_FORCE_OS || 'macos',
     WELES_CAPTURE_RESPONSE_BODIES: '0',
-    PANGRAM_MIN_WORDS: String(MIN_WORDS),
-    PANGRAM_MIN_CHARS: String(MIN_CHARS),
     PANGRAM_ACCOUNT_USAGE_FILE: join(OUT_DIR, 'pangram-account-usage.json'),
     PANGRAM_AUTO_REGISTER: process.env.PANGRAM_AUTO_REGISTER || '0',
     PANGRAM_MAX_AUTO_REGISTERS: process.env.PANGRAM_MAX_AUTO_REGISTERS || '0',

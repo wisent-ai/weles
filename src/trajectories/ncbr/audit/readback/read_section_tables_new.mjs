@@ -37,12 +37,10 @@ if (process.env.ROW_NEEDLE) {
   await edit.dispatchEvent('click');
   await humanIdlePause('long');
 }
-const bodyLimit = Number(process.env.BODY_LIMIT || 2500);
-const rowLimit = Number(process.env.ROW_LIMIT || 220);
 const includeHtml = Boolean(process.env.HTML);
-const out = await page.evaluate(({ limit, rowLimit, includeHtml }) => ({
+const out = await page.evaluate(({ includeHtml }) => ({
   url: location.href,
-  body: (document.body.innerText || '').slice(0, limit),
+  body: document.body.innerText,
   fields: Array.from(document.querySelectorAll('textarea[name], input[name]:not([type="password"]):not([type="hidden"]), select[name]'))
     .filter((el) => el.name !== 'table_search')
     .map((el) => ({
@@ -55,10 +53,10 @@ const out = await page.evaluate(({ limit, rowLimit, includeHtml }) => ({
   tables: Array.from(document.querySelectorAll('table')).map((table, i) => ({
     i,
     rows: table.querySelectorAll('tbody tr').length,
-    text: Array.from(table.querySelectorAll('tbody tr')).map((r) => r.innerText.trim().replace(/\s+/g, ' ').slice(0, rowLimit)),
+    text: Array.from(table.querySelectorAll('tbody tr')).map((r) => r.innerText.trim().replace(/\s+/g, ' ')),
     html: includeHtml ? Array.from(table.querySelectorAll('tbody tr')).map((r) => r.outerHTML) : undefined,
   })),
-}), { limit: bodyLimit, rowLimit, includeHtml });
+}), { includeHtml });
 if (process.env.SCREENSHOT_PATH) {
   await page.screenshot({ path: process.env.SCREENSHOT_PATH, fullPage: true });
 }

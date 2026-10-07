@@ -14,8 +14,6 @@ const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const projectId = (await import('#ncbr-settings')).projectId();
 const projectUrl = ['https://', `lsi2.ncbr.gov.pl/projekt/${projectId}`].join('');
 const sectionPattern = process.env.SECTION_PATTERN ? new RegExp(process.env.SECTION_PATTERN) : null;
-const minChars = Number(process.env.MIN_CHARS || 500);
-const maxSections = Number(process.env.MAX_SECTIONS || 999);
 const collectOnly = process.env.COLLECT_ONLY === '1';
 const includeRows = process.env.INCLUDE_ROWS === '1';
 const runId = process.env.WELES_RUN_ID || `ncbr-pangram-${new Date().toISOString().replace(/[:.]/g, '-')}`;
@@ -215,7 +213,6 @@ const extracted = [];
 for (const section of sections) {
   if (sectionPattern && !sectionPattern.test(`${section.id} ${section.title}`)) continue;
   const data = await extractSection(page, section);
-  if (data.text.length < minChars) continue;
   const file = join(textDir, `${slug(section.id)}.txt`);
   writeFileSync(file, data.text);
   extracted.push({
@@ -227,7 +224,6 @@ for (const section of sections) {
     rowFieldCount: data.rowFields.length,
     ...stats(data.text),
   });
-  if (extracted.length >= maxSections) break;
 }
 
 const manifestPath = join(reportDir, 'manifest.json');
@@ -236,8 +232,6 @@ writeFileSync(manifestPath, JSON.stringify({
   runId,
   collectOnly,
   includeRows,
-  minChars,
-  maxSections,
   sectionPattern: process.env.SECTION_PATTERN || null,
   extracted,
 }, null, 2));
