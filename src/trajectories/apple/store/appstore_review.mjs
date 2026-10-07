@@ -42,17 +42,11 @@ try {
     process.exit(2);
   }
 
-  // Ratings & Reviews section lives further down the listing. A few wheel
-  // bursts with short idle dwells bring it into view at human cadence.
-  for (let i = 0; i < 3; i++) {
-    await s.page.mouse.wheel(0, 600);
-    await humanIdlePause('short');
-  }
-  await humanIdlePause('deliberate');
-
-  // humanClickLocator throws if the element is absent; the outer catch
-  // turns that into a generic FAIL. That is the right behaviour for
-  // "Write a Review absent" — usually means not signed in.
+  // Ratings & Reviews sits further down the listing: humanClickLocator
+  // scrolls the button into view before it moves the pointer, so no count of
+  // wheel bursts decides whether it is reached. It throws if the button is
+  // absent; the outer catch turns that into a FAIL, which for "Write a Review
+  // absent" usually means not signed in.
   await humanClickLocator(s.page, s.page.locator('button:has-text("Write a Review"), a:has-text("Write a Review")').first());
   await pageSettled(s.page);
 
