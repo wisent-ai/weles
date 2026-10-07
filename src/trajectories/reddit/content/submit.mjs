@@ -2,6 +2,7 @@ import { runAction } from '../../_shared/action-runner.mjs';
 import { humanType, humanFill } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectRedditBanSignals } from '../../../../dist/platforms/reddit/ban_signals.js';
+import { fitsField } from '../../_shared/page/fits.mjs';
 
 const ACTION = process.env.POST_PROMOTE === '1' ? 'post_promote' : 'post';
 const SUBREDDIT = (process.env.SUBREDDIT || '').replace(/^r\//, '');
@@ -18,17 +19,19 @@ await runAction({
   feedUrl: `https://old.reddit.com/r/${encodeURIComponent(SUBREDDIT)}/submit?selftext=true`,
   banDetector: detectRedditBanSignals,
   surfaceLabel: `r/${SUBREDDIT}`,
+  // The title is the first sentence and the body the rest; a text with no
+  // sentence end is all title. The title field's own maxlength decides
+  // whether it fits; no title length is chosen here.
   submitPost: async (s, text) => {
-    const idx = text.indexOf('.');
-    const title = (
-      idx > 5 && idx < 120 ? text.slice(0, idx) : text.slice(0, 100)
-    ).trim();
-    const body = (idx > 5 ? text.slice(idx + 1) : '').trim();
+    const sentence = text.match(/^(?<title>[^.]*)\.(?<body>[\s\S]*)$/);
+    const title = (sentence ? sentence.groups.title : text).trim();
+    const body = (sentence ? sentence.groups.body : '').trim();
     const titleIn = s.page
       .locator('input[name="title"], textarea[name="title"]')
       .filter({ visible: true })
       .first();
     await titleIn.waitFor({ state: 'visible' });
+    await fitsField(titleIn, title, 'the Reddit post title');
     await humanFill(s.page, titleIn, title);
     const bodyIn = s.page
       .locator('textarea[name="text"]')
