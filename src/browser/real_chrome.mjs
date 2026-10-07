@@ -47,14 +47,16 @@ function profileDir() {
  * refuses.
  *
  * `launchGenuineChrome` retains the genuine browser's command-line policy.
- * Its launch options below explicitly remove unsupported default flags.
+ * Its launch options below explicitly remove unsupported default flags. A
+ * caller that names no viewport gets none (`null`): the genuine window keeps
+ * the size the browser and the screen give it, so no size is invented here.
  */
 export async function launchGenuineChrome({
   userDataDir,
   executablePath,
   proxy = null,
   extensionDir = null,
-  viewport = { width: 1280, height: 800 },
+  viewport = null,
   extraArgs = [],
 } = {}) {
   if (!userDataDir)
@@ -87,12 +89,13 @@ export async function launchGenuineChrome({
 /**
  * The operator-assisted profile: a persistent context on a copy of a real
  * Chrome profile, so a provider that trusts a returning visitor keeps trusting
- * one. The argument set is the one those flows were verified with.
+ * one. The argument set is the one those flows were verified with; with no
+ * viewport named, the window keeps its own size.
  */
 export async function launchProfileChrome({
   userDataDir,
   executablePath,
-  viewport = { width: 1280, height: 800 },
+  viewport = null,
   args = [
     '--no-sandbox',
     '--disable-blink-features=AutomationControlled',
@@ -123,8 +126,8 @@ export async function launchRealChrome({ label = 'real_chrome' } = {}) {
     headless: false,
     args: ['--disable-blink-features=AutomationControlled', '--no-sandbox'],
     ignoreDefaultArgs: ['--enable-automation'],
-    viewport: { width: 1366, height: 768 },
-    recordVideo: { dir: diagnosticsDir, size: { width: 1280, height: 720 } },
+    viewport: null,
+    recordVideo: { dir: diagnosticsDir },
   });
   await context.addInitScript(() => {
     try {

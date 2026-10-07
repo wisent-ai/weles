@@ -39,7 +39,6 @@ if (!CHROMIUM) {
 const ctx = await launchProfileChrome({
   userDataDir: scratch,
   executablePath: CHROMIUM,
-  viewport: { width: 1920, height: 1080 },
   args: [],
   ignoreDefaultArgs: [],
   channel: null,

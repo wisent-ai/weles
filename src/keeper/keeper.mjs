@@ -38,7 +38,7 @@ const ctx = await chromium.launchPersistentContext(USER_DATA_DIR, {
   headless: false,
   timeout: 0,
   executablePath: CHROMIUM,
-  viewport: { width: 1280, height: 800 },
+  viewport: null,
   args: [
     '--remote-debugging-port=0',
     '--no-first-run',
