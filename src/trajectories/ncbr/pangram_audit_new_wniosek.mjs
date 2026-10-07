@@ -170,8 +170,7 @@ function slug(s) {
   return String(s)
     .normalize('NFKD')
     .replace(/[^\w.-]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 80);
+    .replace(/^_+|_+$/g, '');
 }
 
 function stats(text) {
