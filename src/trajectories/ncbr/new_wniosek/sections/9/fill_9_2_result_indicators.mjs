@@ -203,8 +203,12 @@ if (process.env.PARSE) {
 }
 
 if (process.env.DIAG_EDIT !== undefined) {
-  const idx = Number(process.env.DIAG_EDIT);
-  await openExistingRow(idx);
+  const indicator = existingIndicators[Number(process.env.DIAG_EDIT)];
+  if (!indicator)
+    throw new Error(
+      `DIAG_EDIT=${process.env.DIAG_EDIT} names no predefined indicator; there are ${existingIndicators.length}`,
+    );
+  await openExistingRow(indicator);
   const dump = await page.evaluate(() => ({
     fields: Array.from(document.querySelectorAll('input, textarea'))
       .map((i) => ({
@@ -325,7 +329,7 @@ for (
 ) {
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('long');
-  await openExistingRow(i);
+  await openExistingRow(existingIndicators[i]);
   if (process.env.BASE_YEAR_ONLY) {
     await fillField('rok_bazowy', existingIndicators[i].baseYear);
   } else {
