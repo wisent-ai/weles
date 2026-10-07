@@ -135,8 +135,8 @@ try {
     }
     try {
       if (window.TradingView) {
-        out.tv_probe.keys = Object.keys(window.TradingView).slice(0, 50);
-        try { out.tv_probe.activeChart_keys = window.TradingView.activeChart ? Object.keys(window.TradingView.activeChart()).slice(0, 80) : null; } catch (e) {}
+        out.tv_probe.keys = Object.keys(window.TradingView);
+        try { out.tv_probe.activeChart_keys = window.TradingView.activeChart ? Object.keys(window.TradingView.activeChart()) : null; } catch (e) {}
       }
     } catch (e) { out.tv_probe.err = e.message; }
     try {
@@ -159,8 +159,8 @@ try {
                 req2.onsuccess = () => {
                   try {
                     const vals = req2.result || [];
-                    entry.contents[sname] = vals.slice(0, 5).map(v => {
-                      try { return JSON.stringify(v).slice(0, 2000); } catch(_) { return String(v).slice(0, 500); }
+                    entry.contents[sname] = vals.map(v => {
+                      try { return JSON.stringify(v); } catch(_) { return String(v); }
                     });
                     entry.contents[sname + '__count'] = vals.length;
                   } catch (e) {}
@@ -188,7 +188,7 @@ try {
     for (const sc of scripts) {
       const txt = sc.textContent || '';
       if (/linetool|line_tool|shapes|drawings_points|chart_layout/i.test(txt)) {
-        hits.push({ snippet: txt.slice(0, 5000), len: txt.length });
+        hits.push({ snippet: txt, len: txt.length });
       }
     }
     const body = document.body ? document.body.outerHTML.length : 0;

@@ -30,9 +30,9 @@ try {
   // Diag: enumerate what's actually visible on the wallet page.
   try {
     const walletState = await s.page.evaluate(() => {
-      const visBtns = Array.from(document.querySelectorAll('button, [role="button"], a[href]')).filter(b => b.offsetParent && b.getBoundingClientRect().width > 30).map(b => `${b.tagName}:${(b.textContent || '').trim().slice(0, 50)}`);
-      const visInputs = Array.from(document.querySelectorAll('input')).filter(i => i.offsetParent).map(i => `${i.type || 'text'}:${(i.name || i.placeholder || '').slice(0,30)}`);
-      return { url: location.href, visBtns: visBtns.slice(0, 25), visInputs: visInputs.slice(0, 10) };
+      const visBtns = Array.from(document.querySelectorAll('button, [role="button"], a[href]')).filter(b => b.offsetParent && b.getBoundingClientRect().width).map(b => `${b.tagName}:${b.textContent.trim()}`);
+      const visInputs = Array.from(document.querySelectorAll('input')).filter(i => i.offsetParent).map(i => `${i.type}:${i.name || i.placeholder}`);
+      return { url: location.href, visBtns, visInputs };
     });
     console.log('[diag] wallet page state:', JSON.stringify(walletState));
   } catch {}
@@ -59,8 +59,9 @@ try {
       const inDialog = (el) => dialogs.some(d => d.contains(el));
       const allBtns = Array.from(document.querySelectorAll('button, [role="button"], a[href]'));
       const modalBtns = allBtns.filter(b => inDialog(b) && b.offsetParent).map(b => `${b.tagName}[role=${b.getAttribute('role') || '-'}]:${(b.textContent || '').trim()}`);
-      const allInputs = Array.from(document.querySelectorAll('input, textarea, [contenteditable="true"]')).filter(i => i.offsetParent && inDialog(i)).map(i => `${i.tagName}:${i.type || 'text'}:${(i.name || i.placeholder || '').slice(0,30)}`);
-      const ccCandidates = Array.from(document.querySelectorAll('*')).filter(el => inDialog(el) && el.offsetParent && /credit card/i.test(el.textContent || '') && el.children.length <= 4).slice(0, 12).map(el => `${el.tagName}[role=${el.getAttribute('role') || '-'}, class="${(el.className || '').toString().slice(0, 50)}"]:${(el.textContent || '').trim()}`);
+      const allInputs = Array.from(document.querySelectorAll('input, textarea, [contenteditable="true"]')).filter(i => i.offsetParent && inDialog(i)).map(i => `${i.tagName}:${i.type}:${i.name || i.placeholder}`);
+      // The innermost elements naming a credit card: none of their children names it again.
+      const ccCandidates = Array.from(document.querySelectorAll('*')).filter(el => inDialog(el) && el.offsetParent && /credit card/i.test(el.textContent) && !Array.from(el.children).some(c => /credit card/i.test(c.textContent))).map(el => `${el.tagName}[role=${el.getAttribute('role')}, class="${String(el.className)}"]:${el.textContent.trim()}`);
       const iframes = Array.from(document.querySelectorAll('iframe')).filter(f => f.offsetParent).map(f => f.src);
       return { dialogCount: dialogs.length, modalBtns, modalInputs: allInputs, ccCandidates, iframes };
     });
@@ -144,7 +145,8 @@ try {
       const inDialog = (el) => dialogs.some(d => d.contains(el));
       const allBtns = Array.from(document.querySelectorAll('button, [role="button"], a[href]'));
       const modalBtns = allBtns.filter(b => inDialog(b) && b.offsetParent).map(b => `${b.tagName}[${b.getAttribute('disabled') !== null ? 'DISABLED' : 'ena'}]:${(b.textContent || '').trim()}`);
-      const modalInputs = Array.from(document.querySelectorAll('input, textarea, [contenteditable="true"]')).filter(i => i.offsetParent && inDialog(i)).map(i => `${i.tagName}:${i.type || 'text'}:${(i.name || i.placeholder || '').slice(0,30)}=${(i.value || '').slice(0,12)}`);
+      // A payment form's values are never logged, only how much was typed.
+      const modalInputs = Array.from(document.querySelectorAll('input, textarea, [contenteditable="true"]')).filter(i => i.offsetParent && inDialog(i)).map(i => `${i.tagName}:${i.type}:${i.name || i.placeholder}=${'value' in i ? i.value.length : i.textContent.length} chars`);
       const iframes = Array.from(document.querySelectorAll('iframe')).filter(f => f.offsetParent).map(f => `${f.src}`);
       return { dialogs: dialogs.length, modalBtns, modalInputs, iframes };
     });
