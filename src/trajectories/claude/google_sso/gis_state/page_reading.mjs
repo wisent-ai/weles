@@ -91,6 +91,11 @@ export const readGisState = (arg) => {
       /^(use another account|add account|dodaj konto|inne konto|użyj innego konta)$/i),
     // claude.ai's own grant affordance, in either language this fleet sees.
     consent: pick('button,[role="button"]', 'consent', /^(authorize|allow|zezwól|zezwol|autoryzuj)$/i),
+    // The grant screen renders Authorize and Decline disabled while it loads
+    // its authorize data: run 23bf6ab4 read the screen 70 ms after
+    // /v1/oauth/<org>/authorize was requested, both buttons disabled="".
+    consentPending: Array.from(document.querySelectorAll('button,[role="button"]'))
+      .some((el) => shown(el) && !live(el) && /^(authorize|allow|zezwól|zezwol|autoryzuj)$/i.test(label(el))),
     gisButton: pick('button,[role="button"]', 'gis_button', /continue with google|^google$/i),
     // claude.ai renders its "Continue with Google" button disabled until its
     // Google library is ready: run c5f8838e failed on that page as 'unknown'

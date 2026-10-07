@@ -41,7 +41,7 @@ const GIS_AUTHORIZE_REDRIVES = Number(process.env.CLAUDE_GIS_AUTHORIZE_REDRIVES 
 const DRIVEN_VARIANTS = new Set([
   'code_page', 'claude_gis_gate', 'claude_gis_gate_pending', 'google_rejected', 'google_account_chooser',
   'google_chooser_without_account', 'google_identifier', 'google_confirm_continue',
-  'oauth_consent', 'claude_app_authenticated', 'claude_app_loading', 'claude_captcha',
+  'oauth_consent', 'oauth_consent_pending', 'claude_app_authenticated', 'claude_app_loading', 'claude_captcha',
 ]);
 
 // Resolves once something that can change the handoff's state happens: the
@@ -229,6 +229,20 @@ export async function doGoogleSso({
         mark('claude_app_loading');
         const rendered = pageCondition(active, () => document.querySelector('[data-page-loading]') === null);
         await anyPageChange(page, views, rendered);
+        continue;
+      }
+
+      if (variant === 'oauth_consent_pending') {
+        // The grant screen enables Authorize once its authorize data has
+        // loaded; until then nothing can be clicked. The wait ends when the
+        // control enables or any page of the handoff moves on; the operator
+        // sees the stage in `weles runs show` and ends a screen that never
+        // enables with `weles runs cancel`.
+        mark('oauth_consent_pending');
+        const enabled = pageCondition(active, () => Array.from(document.querySelectorAll('button,[role="button"]'))
+          .some((el) => /^(authorize|allow|zezwól|zezwol|autoryzuj)$/i.test((el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim())
+            && !el.disabled && el.getAttribute('aria-disabled') !== 'true'));
+        await anyPageChange(page, views, enabled);
         continue;
       }
 

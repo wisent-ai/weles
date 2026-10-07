@@ -10,6 +10,7 @@
 const GIS_VARIANT_PRIORITY = [
   'code_page',
   'oauth_consent',
+  'oauth_consent_pending',
   'google_rejected',
   'google_account_chooser',
   'google_chooser_without_account',
@@ -66,6 +67,8 @@ export function classifyGisState(st) {
   // gate behind it stays disabled until someone answers it.
   if (/(^|\.)claude\.(ai|com)$/.test(st.host) && st.captchaChallenge) return 'claude_captcha';
   if (st.consent) return 'oauth_consent';
+  // The grant screen is there but still loading: it enables Authorize itself.
+  if (st.consentPending) return 'oauth_consent_pending';
   if (st.gisButton) return 'claude_gis_gate';
   // The gate is there but its button is still disabled: claude.ai enables it
   // once its Google library is ready.
