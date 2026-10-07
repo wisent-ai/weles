@@ -81,13 +81,11 @@ function stableSubject(
   input: WelesOnboardingInput,
   environment: NodeJS.ProcessEnv,
 ): string {
-  const subject =
+  return (
     input.subject?.trim() ||
     environment.WELES_ONBOARDING_SUBJECT?.trim() ||
-    `${userInfo().username}@${hostname()}`;
-  if (!subject || subject.length > 512)
-    throw new Error('onboarding subject must contain 1 to 512 characters');
-  return subject;
+    `${userInfo().username}@${hostname()}`
+  );
 }
 
 function stateDirectory(
