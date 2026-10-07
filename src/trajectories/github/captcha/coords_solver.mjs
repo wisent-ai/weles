@@ -18,12 +18,10 @@ async function waitForCaptchaUI(page) {
     f.style.visibility = 'visible';
     f.style.display = 'block';
     f.style.opacity = '1';
-    // Also unhide parent containers
-    let el = f.parentElement;
-    for (let i = 0; i < 5 && el; i++) {
+    // Also unhide every ancestor container the frame sits in.
+    for (let el = f.parentElement; el; el = el.parentElement) {
       el.classList.remove('v-hidden', 'd-none', 'js-octocaptcha-hide');
       el.removeAttribute('hidden');
-      el = el.parentElement;
     }
     return { ok: true };
   })()`).catch(() => {});

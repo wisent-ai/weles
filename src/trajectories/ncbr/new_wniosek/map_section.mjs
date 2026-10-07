@@ -196,20 +196,19 @@ if (process.env.CHECK_ONLY) {
   process.exit(0);
 }
 
-const tableTextLimit = Number(process.env.TABLE_TEXT_LIMIT || 1200);
-const dump = await page.evaluate((tableTextLimit) => {
+const dump = await page.evaluate(() => {
   function labelFor(el) {
     if (el.getAttribute && el.getAttribute('aria-label')) return el.getAttribute('aria-label').trim();
     if (el.id) {
       const lab = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
       if (lab) return (lab.textContent || '').trim();
     }
-    let node = el;
-    for (let i = 0; i < 6 && node; i++) {
-      node = node.parentElement;
-      if (!node) break;
+    // The nearest label within the field's own group; a label above the first
+    // ancestor holding another field names that field, not this one.
+    for (let node = el.parentElement; node; node = node.parentElement) {
       const lab = node.querySelector('label, .MuiFormLabel-root, legend');
       if (lab && lab.textContent) return lab.textContent.trim();
+      if (Array.from(node.querySelectorAll('input, textarea, select')).some((f) => f !== el)) break;
     }
     return null;
   }
@@ -234,16 +233,16 @@ const dump = await page.evaluate((tableTextLimit) => {
   for (const table of document.querySelectorAll('table')) {
     out.tables.push({
       rows: table.querySelectorAll('tbody tr').length,
-      text: (table.innerText || '').replace(/\s+/g, ' ').trim().slice(0, tableTextLimit),
+      text: table.innerText.replace(/\s+/g, ' ').trim(),
     });
   }
   for (const b of document.querySelectorAll('button')) {
     const t = (b.textContent || '').trim();
-    if (t) out.buttons.push(t.slice(0, 50));
+    if (t) out.buttons.push(t);
   }
-  out.buttons = [...new Set(out.buttons)].slice(0, 40);
+  out.buttons = [...new Set(out.buttons)];
   return out;
-}, tableTextLimit);
+});
 
 console.log(JSON.stringify({ url: page.url(), title: await page.title(), navInfo, dump }, null, 2));
 process.exit(0);

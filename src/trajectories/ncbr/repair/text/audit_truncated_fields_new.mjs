@@ -51,11 +51,12 @@ for (const url of directUrls) {
         const lab = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
         if (lab) return lab.textContent.trim();
       }
-      let node = el;
-      for (let i = 0; i < 6 && node; i += 1) {
-        node = node.parentElement;
-        const lab = node?.querySelector?.('label, .MuiFormLabel-root, legend');
+      // The nearest label within the field's own group; a label above the first
+      // ancestor holding another field names that field, not this one.
+      for (let node = el.parentElement; node; node = node.parentElement) {
+        const lab = node.querySelector('label, .MuiFormLabel-root, legend');
         if (lab?.textContent) return lab.textContent.trim();
+        if (Array.from(node.querySelectorAll('input, textarea, select')).some((f) => f !== el)) break;
       }
       return '';
     };

@@ -49,20 +49,18 @@ try {
   await upArrow.scrollIntoViewIfNeeded();
   // Identify the picked thing so out-of-band score-delta verification is
   // possible (was the vote actually counted server-side, or shadow-counted
-  // locally only). Walks up to the parent div.thing, reads data-fullname.
-  const pickedFullname = await upArrow.evaluate((arrow) => {
-    let n = arrow;
-    for (let i = 0; i < 8 && n; i++) {
-      if (n.classList?.contains('thing') && n.getAttribute('data-fullname')) return n.getAttribute('data-fullname');
-      n = n.parentElement;
-    }
-    return null;
-  }).catch(() => null);
-  // Debug: dump the actually-matched arrow's class + parents so a "wrong
-  // pick" failure surfaces actionable info instead of a generic timeout.
+  // locally only): the enclosing div.thing's data-fullname.
+  const pickedFullname = await upArrow.evaluate((arrow) =>
+    arrow.closest('div.thing[data-fullname]')?.getAttribute('data-fullname') ?? null).catch(() => null);
+  // Debug: dump the actually-matched arrow's class and its parents up to the
+  // thing, so a "wrong pick" failure surfaces actionable info instead of a
+  // generic timeout.
   const pickedDebug = await upArrow.evaluate((arrow) => {
-    let n = arrow.parentElement; let parents = [];
-    for (let i = 0; i < 4 && n; i++) { parents.push(`${n.tagName}.${(n.className||'')}`); n = n.parentElement; }
+    const parents = [];
+    for (let n = arrow.parentElement; n; n = n.parentElement) {
+      parents.push(`${n.tagName}.${n.className}`);
+      if (n.matches('div.thing')) break;
+    }
     return { arrowCls: arrow.className, parents };
   }).catch(() => null);
   console.log(`[upvote] picked thing data-fullname=${pickedFullname} arrow.cls=${pickedDebug?.arrowCls} parents=${JSON.stringify(pickedDebug?.parents)}`);

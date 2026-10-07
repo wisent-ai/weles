@@ -45,48 +45,26 @@ try {
   }
   await pageSettled(s.page); // let chart re-render
 
-  // Find the chart container. The tab may be many levels above the chart
-  // (or in a sibling). Try: closest ancestor that has BOTH the tab text AND
-  // an svg/canvas whose height > 200 (a real chart, not an icon).
+  // Find the chart container: the page's largest svg/canvas by drawn area is
+  // the chart (icons are smaller than it), and its container is the nearest
+  // ancestor it shares with the clicked tab. No size thresholds are chosen.
   const box = await s.page.evaluate(`(tabText => {
     const all = Array.from(document.querySelectorAll('button, a, div[role="tab"], [class*="tab"]'));
     const active = all.find(e => e.innerText.trim() === tabText);
     if (!active) return { err: 'tab not found' };
-    let node = active.parentElement;
-    for (let i = 0; i < 15 && node; i++) {
-      const charts = node.querySelectorAll('svg, canvas');
-      for (const c of charts) {
-        const cr = c.getBoundingClientRect();
-        if (cr.height > 200 && cr.width > 200) {
-          const r = node.getBoundingClientRect();
-          return { x: r.x, y: r.y, width: r.width, height: r.height, depth: i, chartH: cr.height };
-        }
-      }
-      node = node.parentElement;
-    }
-    // No ancestor chart found — try all large SVGs/canvases on the page
-    const big = Array.from(document.querySelectorAll('svg, canvas'))
-      .map(c => ({ c, r: c.getBoundingClientRect() }))
-      .filter(x => x.r.height > 200 && x.r.width > 400)
-      .sort((a,b) => b.r.height * b.r.width - a.r.height * a.r.width);
-    if (big.length) {
-      // Assume the first (largest) is the active chart. Get its container.
-      let n = big[0].c.parentElement;
-      for (let i = 0; i < 5 && n; i++) {
-        const r = n.getBoundingClientRect();
-        if (r.height > big[0].r.height + 40) {
-          return { x: r.x, y: r.y, width: r.width, height: r.height, note: 'used largest svg' };
-        }
-        n = n.parentElement;
-      }
-      const r = big[0].r;
-      return { x: r.x, y: r.y, width: r.width, height: r.height, note: 'svg itself' };
-    }
-    return { err: 'no chart found' };
+    const area = (el) => { const r = el.getBoundingClientRect(); return r.width * r.height; };
+    const chart = Array.from(document.querySelectorAll('svg, canvas'))
+      .reduce((best, c) => (best && area(best) >= area(c) ? best : c), null);
+    if (!chart || !area(chart)) return { err: 'no drawn svg or canvas on the page' };
+    let node = chart.parentElement;
+    while (node && !node.contains(active)) node = node.parentElement;
+    if (!node) return { err: 'the chart shares no container with the tab' };
+    const r = node.getBoundingClientRect();
+    return { x: r.x, y: r.y, width: r.width, height: r.height, chartArea: area(chart) };
   })(${JSON.stringify(tab)})`);
   console.error(`[chart] container search: ${JSON.stringify(box)}`);
 
-  if (box && !box.err && box.width > 100 && box.height > 100) {
+  if (box && !box.err && box.width && box.height) {
     console.error(`[chart] screenshotting clip: ${JSON.stringify(box)}`);
     await s.page.screenshot({ path: outPath, clip: { x: box.x, y: box.y, width: box.width, height: box.height } });
   } else {

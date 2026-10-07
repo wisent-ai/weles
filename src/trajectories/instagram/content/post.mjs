@@ -87,16 +87,16 @@ try {
   // Wait for crop/preview step — image rendered in modal.
   await s.page.locator('div[role="dialog"] img[alt*="image" i], div[role="dialog"] canvas, div[role="dialog"] [style*="background-image"]').first().waitFor({ state: 'visible' });
   await pageSettled(s.page);
-  // 3. Next (crop) → 4. Next (filter)
-  for (let step = 0; step < 2; step++) {
+  // 3. Next through Instagram's own steps (crop, filter) until the caption
+  //    box shows: Instagram decides how many there are.
+  const captionBox = s.page.locator('div[role="dialog"] textarea[aria-label*="caption" i], div[role="dialog"] div[contenteditable="true"][aria-label*="caption" i], div[role="dialog"] textarea').filter({ visible: true }).first();
+  while (!(await captionBox.isVisible())) {
     const next = s.page.locator('div[role="dialog"] button:has-text("Next"), div[role="dialog"] [role="button"]:has-text("Next"), div[role="dialog"] div[role="button"]:has-text("Next")').filter({ visible: true }).first();
     await next.waitFor({ state: 'visible' });
     await humanClickLocator(s.page, next);
     await pageSettled(s.page);
   }
   // 5. Fill caption textarea.
-  const captionBox = s.page.locator('div[role="dialog"] textarea[aria-label*="caption" i], div[role="dialog"] div[contenteditable="true"][aria-label*="caption" i], div[role="dialog"] textarea').filter({ visible: true }).first();
-  await captionBox.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, captionBox);
   await humanType(s.page, caption);
   await pageSettled(s.page);

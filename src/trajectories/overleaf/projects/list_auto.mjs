@@ -119,13 +119,13 @@ try {
       if (!m) continue;
       const id = m[1];
       if (byId.has(id)) continue;
-      // Walk up to find a row container with either a <time> child or a
-      // relative-date phrase. Cap depth at 8.
+      // The row is the largest ancestor that links to no other project: the
+      // list's own markup bounds it, so no depth is chosen. The selector
+      // matches only links that carry an href.
+      const otherProject = (node) => Array.from(node.querySelectorAll('a[href*="/project/"]'))
+        .some((link) => !link.getAttribute('href').includes(`/project/${id}`));
       let row = a;
-      for (let d = 0; d < 8 && row && row.parentElement; d += 1) {
-        if (row.querySelector('time') || /\b(ago|hour|day|month|year)s?\b/i.test(row.innerText || '')) break;
-        row = row.parentElement;
-      }
+      while (row.parentElement && !otherProject(row.parentElement)) row = row.parentElement;
       byId.set(id, {
         id,
         name: pickName(a, row),

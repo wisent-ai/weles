@@ -5,8 +5,7 @@ import { detectLinkedInBanSignals } from '../../../../dist/platforms/linkedin/ba
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
-import { assertAuthed, AuthProbeError } from '../../_shared/auth/auth-probe.mjs';
-import { reloginLinkedinInline } from '../../_shared/linkedin/relogin.mjs';
+import { openLinkedinAuthed } from '../../_shared/linkedin/authed_open.mjs';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 // The page the like lands on is the caller's; no feed is assumed.
@@ -21,33 +20,17 @@ const _stored = (acct.metadata?.cookies ?? []).filter(c => /linkedin\.com/.test(
 if (_stored.length) await s.ctx.addCookies(_stored.map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
 let ban = null;
 try {
-  // s.goto wraps page.goto with waitCloudflare — but WSession's context
-  // sets defaultNavigationTimeout(0) so the underlying goto hangs forever
-  // when the page never reaches domcontentloaded (LinkedIn /feed/ on stale
-  // cookies redirects through auth wall and stalls). Use page.goto with an
-  // explicit 45s timeout; LinkedIn doesn't use Cloudflare so the
-  // waitCloudflare DOM probe is unnecessary on this surface.
   // Auth gate: navigate + checkReachable + assertAuthed. Any of these can
   // throw auth_wall (cookies stale because the residential sticky changed
-  // exit IP since they were minted). On auth_wall, do an inline relogin on
-  // the SAME WSession so the new li_at is bound to the current sticky's
-  // exit IP; retry the whole gate once.
-  let authed = false;
-  for (let attempt = 0; attempt < 2 && !authed; attempt++) {
-    try {
-      await s.page.goto(TARGET_URL, { waitUntil: 'domcontentloaded' });
-      checkReachable(s, 'linkedin');
-      await humanIdlePause('deliberate');
-      await assertAuthed('linkedin', s, { label: 'linkedin_like' });
-      authed = true;
-    } catch (gateErr) {
-      const isAuthWall = gateErr instanceof AuthProbeError || /auth_wall/.test(gateErr.message ?? '');
-      if (!isAuthWall || attempt > 0) throw gateErr;
-      console.log(`[linkedin_like] auth_wall on attempt ${attempt + 1} — running inline relogin on same session`);
-      const r = await reloginLinkedinInline(s, acct);
-      if (!r.ok) { console.log(`FAIL: inline relogin failed: ${r.reason}`); await markCookiesStale(acct.id); process.exit(1); }
-    }
-  }
+  // exit IP since they were minted); openLinkedinAuthed then signs in again
+  // on the SAME WSession so the new li_at is bound to the current sticky's
+  // exit IP, and opens the page once more.
+  const opened = await openLinkedinAuthed(s, acct, 'linkedin_like', async () => {
+    await s.page.goto(TARGET_URL, { waitUntil: 'domcontentloaded' });
+    checkReachable(s, 'linkedin');
+    await humanIdlePause('deliberate');
+  });
+  if (!opened.ok) { console.log(`FAIL: inline relogin failed: ${opened.reason}`); await markCookiesStale(acct.id); process.exit(1); }
   // LinkedIn's like button is a <button aria-label="React Like"> that flips
   // aria-pressed false→true on click. The React-Like label excludes
   // comment-level actions labeled "Like this comment".

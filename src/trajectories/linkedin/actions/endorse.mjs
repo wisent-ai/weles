@@ -6,8 +6,7 @@ import { detectLinkedInBanSignals } from '../../../../dist/platforms/linkedin/ba
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
-import { assertAuthed, AuthProbeError } from '../../_shared/auth/auth-probe.mjs';
-import { reloginLinkedinInline } from '../../_shared/linkedin/relogin.mjs';
+import { openLinkedinAuthed } from '../../_shared/linkedin/authed_open.mjs';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 const acct = await getSocialAccount('linkedin');
@@ -18,22 +17,12 @@ const _stored = (acct.metadata?.cookies ?? []).filter(c => /linkedin\.com/.test(
 if (_stored.length) await s.ctx.addCookies(_stored.map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
 let ban = null;
 try {
-  let authed = false;
-  for (let attempt = 0; attempt < 2 && !authed; attempt++) {
-    try {
-      await s.page.goto('https://www.linkedin.com/mynetwork/invite-connect/connections/', { waitUntil: 'domcontentloaded' });
-      checkReachable(s, 'linkedin');
-      await humanIdlePause('deliberate');
-      await assertAuthed('linkedin', s, { label: 'linkedin_endorse' });
-      authed = true;
-    } catch (gateErr) {
-      const isAuthWall = gateErr instanceof AuthProbeError || /auth_wall/.test(gateErr.message ?? '');
-      if (!isAuthWall || attempt > 0) throw gateErr;
-      console.log(`[linkedin_endorse] auth_wall on attempt ${attempt + 1} — running inline relogin on same session`);
-      const r = await reloginLinkedinInline(s, acct);
-      if (!r.ok) { console.log(`FAIL: inline relogin failed: ${r.reason}`); await markCookiesStale(acct.id); process.exit(1); }
-    }
-  }
+  const opened = await openLinkedinAuthed(s, acct, 'linkedin_endorse', async () => {
+    await s.page.goto('https://www.linkedin.com/mynetwork/invite-connect/connections/', { waitUntil: 'domcontentloaded' });
+    checkReachable(s, 'linkedin');
+    await humanIdlePause('deliberate');
+  });
+  if (!opened.ok) { console.log(`FAIL: inline relogin failed: ${opened.reason}`); await markCookiesStale(acct.id); process.exit(1); }
   // First connection card has an anchor pointing to /in/<vanity>/. Pick it.
   // data-test-app-aware-link is gone in the new design system —
   // use plain a[href*="/in/"] which matches both old and new markup. Detect
