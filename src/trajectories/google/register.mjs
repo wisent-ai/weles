@@ -58,7 +58,7 @@ async function signup(s) {
   const isProxyErr = (m) => /TUNNEL_CONNECTION_FAILED|PROXY_CONNECTION_FAILED|ABORTED|EMPTY_RESPONSE|502|nav_timed_out/.test(m ?? '');
   try {
     const r = await page.goto(SIGNUP_URL, { waitUntil: 'commit' });
-    console.log(`[google] signup nav ok: status=${r?.status()} url=${r?.url()?.slice(0, 80)}`);
+    console.log(`[google] signup nav ok: status=${r?.status()} url=${r?.url()}`);
   } catch (e) {
     console.log(`[google] signup nav err: ${e.message}`);
     if (isProxyErr(e.message)) throw new Error('proxy_dead');

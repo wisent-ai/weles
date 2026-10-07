@@ -136,7 +136,7 @@ export async function summarizeVisible(page, queryText) {
       documentText: documentText?.text ?? null,
       documentTextSource: documentText?.label ?? null,
       documentTextLength: documentText?.text.length ?? 0,
-      editorTextSources: texts.map((entry) => ({ label: entry.label, length: entry.text.length })).slice(0, 20),
+      editorTextSources: texts.map((entry) => ({ label: entry.label, length: entry.text.length })),
       visibleItems: Array.from(new Set(candidates)),
       bodyHead: nbody,
     };

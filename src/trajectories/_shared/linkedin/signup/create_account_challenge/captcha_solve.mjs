@@ -11,10 +11,10 @@ export async function solveLinkedinCaptchaChallenge(page, proxy) {
 
   const sitekey = await getCaptchaSitekey(page);
   if (!sitekey) throw new Error('create_account_challenge: captcha sitekey not found');
-  console.log(`[create_account_challenge] captcha sitekey=${sitekey.slice(0, 16)}...`);
+  console.log(`[create_account_challenge] captcha sitekey=${sitekey}`);
   console.log('[create_account_challenge] reading data-s...');
   const dataS = await getChallengeDataS(page);
-  if (dataS) console.log(`[create_account_challenge] captcha data-s=${dataS.slice(0, 24)}...`);
+  if (dataS) console.log(`[create_account_challenge] captcha data-s_chars=${dataS.length}`);
   else console.log('[create_account_challenge] no data-s found, proceeding without it');
 
   // If a browser extension solver (e.g. NopeCHA) is active, it works on the
@@ -47,7 +47,7 @@ export async function solveLinkedinCaptchaChallenge(page, proxy) {
     if (provider === 'capsolver' || provider === 'anticaptcha' || provider === 'nopecha') {
       const v3Token = await solver.solveRecaptchaV3(sitekey, websiteUrl, 'signup', { proxy, dataS, enterprise: true });
       if (v3Token && typeof v3Token === 'string') {
-        console.log(`[create_account_challenge] ${provider} v3 token=${v3Token.slice(0, 20)}...`);
+        console.log(`[create_account_challenge] ${provider} v3 token_chars=${v3Token.length}`);
         const submitResult = await submitLinkedinCaptchaForm(page, v3Token, sitekey, dataS);
         if (submitResult.ok) {
           await pageSettled(page);
@@ -74,7 +74,7 @@ export async function solveLinkedinCaptchaChallenge(page, proxy) {
         console.log(`[create_account_challenge] ${provider} returned no v2 token (enterprise=${entFlag})`);
         continue;
       }
-      console.log(`[create_account_challenge] ${provider} v2 token=${token.slice(0, 20)}... (enterprise=${entFlag})`);
+      console.log(`[create_account_challenge] ${provider} v2 token_chars=${token.length} (enterprise=${entFlag})`);
 
       const submitResult = await submitLinkedinCaptchaForm(page, token, sitekey, dataS);
       if (!submitResult.ok) {

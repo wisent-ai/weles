@@ -65,7 +65,7 @@ function observeLoginTraffic(page) {
         url: u,
         failure: f?.errorText,
         method: req.method(),
-        origin: headers.origin || headers.referer?.slice(0, 80),
+        origin: headers.origin || headers.referer,
       });
     }
   });

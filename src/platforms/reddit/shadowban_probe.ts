@@ -91,7 +91,7 @@ export async function probeShadowban(
         // Playwright's request client carries its own 30s limit; 0 removes it,
         // so Reddit's answer or the network's error ends the read.
         timeout: 0,
-      }).catch((e: any) => ({ _err: e?.message?.slice(0, 120) ?? 'fetch_error', status: () => 0, text: async () => '' }));
+      }).catch((e: any) => ({ _err: e?.message ?? 'fetch_error', status: () => 0, text: async () => '' }));
 
       const status = typeof (resp as any).status === 'function' ? (resp as any).status() : 0;
       let body = '';
@@ -103,7 +103,7 @@ export async function probeShadowban(
       } catch { /* not JSON */ }
       results.push({ vantage: i + 1, status, has_body: hasBody, exit_ip: pw?.exit_ip, err: (resp as any)._err });
     } catch (e: any) {
-      results.push({ vantage: i + 1, status: 0, has_body: false, err: e?.message?.slice(0, 120) ?? 'launch_error' });
+      results.push({ vantage: i + 1, status: 0, has_body: false, err: e?.message ?? 'launch_error' });
     } finally {
       if (session) await session.close().catch(() => {});
     }
@@ -165,7 +165,7 @@ export async function probeCommentVisibility(opts: {
     } catch { /* not JSON */ }
     return { visible, status, exit_ip: pw?.exit_ip };
   } catch (e: any) {
-    return { visible: false, status: 0, err: e?.message?.slice(0, 120) ?? 'probe_error' };
+    return { visible: false, status: 0, err: e?.message ?? 'probe_error' };
   } finally {
     if (session) await session.close().catch(() => {});
   }

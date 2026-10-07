@@ -177,7 +177,7 @@ export async function execute(
 
     try {
       call.result = await dispatch(session, call.tool, call.args);
-      console.log(`[loop] step ${step} result: ${call.result?.slice(0, 100)}`);
+      console.log(`[loop] step ${step} result: ${call.result}`);
     } catch (e: any) {
       call.error = String(e);
       console.log(`[loop] step ${step} error: ${call.error}`);

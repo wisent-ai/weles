@@ -48,5 +48,5 @@ export function summarizePreflight(r: PreflightResult): string {
   const q = r.classification?.quality ?? ('unknown' as IpQuality);
   const org = r.classification?.org ?? '';
   const verdict = r.ok ? 'ACCEPT' : 'REJECT';
-  return `preflight ${verdict} ip=${r.ip} quality=${q} org="${org.slice(0, 50)}"`;
+  return `preflight ${verdict} ip=${r.ip} quality=${q} org="${org}"`;
 }

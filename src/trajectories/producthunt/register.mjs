@@ -119,7 +119,7 @@ async function signup(s) {
       const solver = new CaptchaSolver();
       const token = await solver.solveRecaptchaV2(s.page, sitekey).catch((e) => { console.log(`[ph] solver threw: ${e.message}`); return null; });
       if (!token || typeof token !== 'string') { console.log(`[ph] solver returned no token (${typeof token}: ${token})`); throw new Error('recaptcha_solver_no_token'); }
-      console.log(`[ph] got token: ${token.slice(0, 20)}...`);
+      console.log(`[ph] got token: ${token.length} chars`);
       const injected = await s.page.evaluate(`(() => {
         var token = ${JSON.stringify(token)};
         // Fill every g-recaptcha-response textarea (there may be several — one per widget)

@@ -70,7 +70,7 @@ try {
         const heading = card.querySelector('h1, h2, h3, h4, [role="heading"]');
         if (heading?.textContent?.trim()) name = heading.textContent.trim();
       }
-      if (!name) name = (a.textContent || '').trim().split('\n')[0]?.slice(0, 80) ?? '';
+      if (!name) name = (a.textContent || '').trim().split('\n')[0] ?? '';
       // Region / status badges typically have data-state, data-status, or
       // a tailwind-style "uppercase" class. Best effort.
       const regionMatch = cardText.match(/\b(us|eu|ap|sa|ca)-(?:east|west|central|north|south|southeast|northeast)-\d\b/i);

@@ -130,7 +130,7 @@ async function solveRecaptchaV2Nopecha(creds: CaptchaCredentials, sitekey: strin
     console.log(`[captcha:api] nopecha recaptcha2 jobId=${jobId}`);
     // One read: the provider has no push or blocking answer.
     const res = await (await fetch(`https://api.nopecha.com/v1/token/recaptcha2?id=${jobId}`, { headers: { 'Authorization': `Basic ${k}` } })).json() as any;
-    if (typeof res?.data === 'string' && res.data.length > 20) { console.log(`[captcha:api] nopecha recaptcha2 solved token=${res.data.slice(0, 20)}...`); return res.data; }
+    if (typeof res?.data === 'string' && res.data) { console.log(`[captcha:api] nopecha recaptcha2 solved token_chars=${res.data.length}`); return res.data; }
     if (res?.error === 14) { console.log(`[captcha:api] captcha_nopecha_processing: job ${jobId} has no result yet`); return null; }
     console.log(`[captcha:api] nopecha recaptcha2 error: ${JSON.stringify(res)}`);
   } catch (e: any) { console.log(`[captcha:api] nopecha recaptcha2 fetch err: ${e.message}`); }
@@ -156,7 +156,7 @@ async function solveRecaptchaV3Nopecha(creds: CaptchaCredentials, sitekey: strin
     console.log(`[captcha:api] nopecha recaptcha3 jobId=${jobId}`);
     // One read: the provider has no push or blocking answer.
     const res = await (await fetch(`https://api.nopecha.com/v1/token/recaptcha3?id=${jobId}`, { headers: { 'Authorization': `Basic ${k}` } })).json() as any;
-    if (typeof res?.data === 'string' && res.data.length > 20) { console.log(`[captcha:api] nopecha recaptcha3 solved token=${res.data.slice(0, 20)}...`); return res.data; }
+    if (typeof res?.data === 'string' && res.data) { console.log(`[captcha:api] nopecha recaptcha3 solved token_chars=${res.data.length}`); return res.data; }
     if (res?.error === 14) { console.log(`[captcha:api] captcha_nopecha_processing: job ${jobId} has no result yet`); return null; }
     console.log(`[captcha:api] nopecha recaptcha3 error: ${JSON.stringify(res)}`);
   } catch (e: any) { console.log(`[captcha:api] nopecha recaptcha3 fetch err: ${e.message}`); }

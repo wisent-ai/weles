@@ -46,7 +46,7 @@ async function solverProxyFields(proxy) {
     const u = new globalThis.URL(proxy.server);
     const dns = await import('node:dns');
     const { address } = await dns.promises.lookup(u.hostname);
-    console.log(`[register] Proxy for captcha: ${address}:${u.port} user=${proxy.username?.slice(0, 20)}`);
+    console.log(`[register] Proxy for captcha: ${address}:${u.port} user=${proxy.username}`);
     return { proxyType: 'http', proxyAddress: address, proxyPort: parseInt(u.port, 10), proxyLogin: proxy.username, proxyPassword: proxy.password };
   }
   if (isLocalProxy) console.log('[register] Local proxy, no CAPTCHA_PROXY_URL — solving proxyless');

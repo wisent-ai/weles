@@ -53,7 +53,7 @@ export function installKeywordPlannerCapture(page) {
         const contentType = String(headers['content-type'] || '');
         let body = '';
         if (/json|text|javascript|html|xml|x-www-form-urlencoded/i.test(contentType)) {
-          body = (await response.text().catch(() => '')).slice(0, 1000000);
+          body = (await response.text().catch(() => ''));
         }
         const parsedUrl = new URL(url);
         responses.push({
@@ -132,6 +132,6 @@ export function summarizeKeywordPlannerResponses(responses) {
     endpointCounts,
     keywordMentions: keywordMentions,
     metricsMentions: metricsMentions,
-    numericMentions: numericMentions.slice(0, 300),
+    numericMentions: numericMentions,
   };
 }

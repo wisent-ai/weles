@@ -105,7 +105,7 @@ async function submitCoords(apiKey, imageBase64, comment) {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ clientKey: apiKey, task }),
   })).json();
-  if (cr.errorId) return { err: `${cr.errorCode} ${cr.errorDescription?.slice(0, 120)}` };
+  if (cr.errorId) return { err: `${cr.errorCode} ${cr.errorDescription}` };
   console.log(`[coords] taskId=${cr.taskId}`);
   // 2Captcha has no push or blocking answer; one read reports where the
   // human worker is.
@@ -113,7 +113,7 @@ async function submitCoords(apiKey, imageBase64, comment) {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ clientKey: apiKey, taskId: cr.taskId }),
   })).json();
-  if (res.errorId) return { err: `${res.errorCode} ${res.errorDescription?.slice(0, 100)}` };
+  if (res.errorId) return { err: `${res.errorCode} ${res.errorDescription}` };
   if (res.status !== 'ready') return { err: `captcha_2captcha_processing: task ${cr.taskId} has no coordinates yet` };
   return { coords: res.solution?.coordinates ?? [] };
 }

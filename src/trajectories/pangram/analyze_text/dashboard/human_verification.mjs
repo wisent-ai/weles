@@ -129,8 +129,8 @@ async function clickPublicTurnstileIfPresent(page) {
 
       tried.push({
         selector,
-        title: title?.slice(0, 120),
-        src: src?.slice(0, 160),
+        title: title,
+        src: src,
         box: {
           x: Math.round(box.x),
           y: Math.round(box.y),

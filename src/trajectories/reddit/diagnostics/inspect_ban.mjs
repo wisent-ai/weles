@@ -92,7 +92,7 @@ try {
   await s.page.goto(profileUrl, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('long');
   const logoutUrl = s.page.url();
-  const logoutText = await s.page.evaluate(() => document.body?.innerText?.slice(0, 3000) ?? '');
+  const logoutText = await s.page.evaluate(() => document.body?.innerText ?? '');
   console.log(`[inspect] logged-out url: ${logoutUrl}`);
   console.log(`[inspect] logged-out text:\n${logoutText}`);
   const logoutBanEls = await s.page.evaluate(() => {

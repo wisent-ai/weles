@@ -118,7 +118,7 @@ async function multiInto(suffix, searches) {
     await humanClickLocator(page, inp); await humanFill(page, inp, s);
     await humanIdlePause('deliberate');
     const opt = page.locator("[role='listbox'] [role='option']").first();
-    if (await opt.count() > 0) { picked.push((await opt.textContent())?.trim()?.slice(0, 40)); await opt.dispatchEvent('click'); } // allow-raw-playwright: pick
+    if (await opt.count() > 0) { picked.push((await opt.textContent())?.trim()); await opt.dispatchEvent('click'); } // allow-raw-playwright: pick
     await humanIdlePause('short');
   }
   return picked;

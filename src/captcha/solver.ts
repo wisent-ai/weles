@@ -117,7 +117,7 @@ export class CaptchaSolver {
     const userAgent = sol.userAgent ?? '';
     const cookies = (sol.cookies && typeof sol.cookies === 'object') ? sol.cookies : {};
     if (!token) { console.log('[captcha:api] capsolver AntiCloudflare returned no token'); markAllProvidersFailed('cloudflare'); return null; }
-    console.log(`[captcha:solver] Cloudflare solved via capsolver token=${token.slice(0, 20)}... ua=${userAgent}`);
+    console.log(`[captcha:solver] Cloudflare solved via capsolver token_chars=${token.length} ua=${userAgent}`);
     costTracker.recordCaptcha('capsolver', 'cloudflare');
     return { token, userAgent, cookies };
   }
@@ -141,7 +141,7 @@ export class CaptchaSolver {
       try { const dns = await import('node:dns'); ip = await new Promise((res, rej) => dns.lookup(u.hostname, (e: any, a: string) => e ? rej(e) : res(a))); } catch {}
       Object.assign(baseTask, { proxyType: u.protocol.replace(':', '') || 'http', proxyAddress: ip, proxyPort: parseInt(u.port, 10), proxyLogin: options!.proxy!.username, proxyPassword: options!.proxy!.password });
     }
-    console.log(`[captcha:solver] solveHcaptcha enterprise=${enterprise} proxy=${useProxy} addr=${baseTask.proxyAddress ?? 'none'} sitekey=${sitekey.slice(0, 12)}`);
+    console.log(`[captcha:solver] solveHcaptcha enterprise=${enterprise} proxy=${useProxy} addr=${baseTask.proxyAddress ?? 'none'} sitekey=${sitekey}`);
     // Try all services: anticaptcha → capmonster → capsolver
     if (this._creds.anticaptcha) {
       const token = await apiSolve('https://api.anti-captcha.com', this._creds.anticaptcha, baseTask);
@@ -241,7 +241,7 @@ export class CaptchaSolver {
   async solveFuncaptcha(publicKey: string, url: string, subdomain?: string, blob?: string): Promise<string | null> {
     await this._ensureInit();
     markCaptchaChallenge();  // G8
-    console.log(`[captcha:solver] solveFuncaptcha pkey=${publicKey.slice(0, 12)} subdomain=${subdomain?.slice(0, 30)} blob=${blob?.slice(0, 40)}...`);
+    console.log(`[captcha:solver] solveFuncaptcha pkey=${publicKey} subdomain=${subdomain} blob=${blob}...`);
     if (this._creds.anticaptcha) {
       const task: Record<string, any> = { type: 'FunCaptchaTaskProxyless', websiteURL: url, websitePublicKey: publicKey };
       if (subdomain) task.funcaptchaApiJSSubdomain = subdomain.replace(/^https?:\/\//, '').replace('iframe.arkoselabs.com', 'client-api.arkoselabs.com');
@@ -255,7 +255,7 @@ export class CaptchaSolver {
       const params = new URLSearchParams({ key: this._creds.twocaptcha, method: 'funcaptcha', publickey: publicKey, pageurl: url, json: '1' });
       if (surl) params.set('surl', surl);
       if (blob) params.set('data[blob]', blob);
-      console.log(`[captcha:api] 2captcha funcaptcha surl=${surl.slice(0, 40)}`);
+      console.log(`[captcha:api] 2captcha funcaptcha surl=${surl}`);
       const cr = await (await fetch('https://2captcha.com/in.php?' + params.toString())).json().catch(() => ({})) as any;
       if (cr.status === 1 && cr.request) {
         const tid = cr.request;

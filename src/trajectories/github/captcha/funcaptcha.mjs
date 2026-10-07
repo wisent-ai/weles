@@ -46,7 +46,7 @@ export async function solveFunCaptcha(params) {
   }));
   const winner = results.find((r) => r.status === 'fulfilled');
   if (winner) {
-    console.log(`[funcaptcha] ${winner.value.service} TOKEN: ${winner.value.token.slice(0, 40)}...`);
+    console.log(`[funcaptcha] ${winner.value.service} token_chars=${winner.value.token.length}`);
     return winner.value;
   }
   throw new Error(`funcaptcha: no solver returned a token — ${results.map((r) => r.reason.message).join('; ')}`);

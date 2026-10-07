@@ -32,7 +32,7 @@ export async function apiSolve(apiUrl: string, clientKey: string, task: Record<s
   if (res.errorId) { console.log(`[captcha:api] ${svc} result error: ${res.errorCode} ${res.errorDescription}`); return null; }
   if (res.status !== 'ready') { console.log(`[captcha:api] captcha_${svc}_processing: task ${taskId} has no result yet (status ${res.status})`); return null; }
   const t = res.solution?.gRecaptchaResponse ?? res.solution?.token ?? null;
-  console.log(`[captcha:api] ${svc} solved, token=${t?.slice(0, 20)}...`);
+  console.log(`[captcha:api] ${svc} solved, token_chars=${t?.length}`);
   return t;
 }
 

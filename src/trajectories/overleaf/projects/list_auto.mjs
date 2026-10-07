@@ -149,7 +149,7 @@ try {
   rows.sort((a, b) => String(a.lastUpdated || '').localeCompare(String(b.lastUpdated || '')));
   for (const r of rows) OUT.write(JSON.stringify(r) + '\n');
 
-  const recent = [...rows].reverse().slice(0, 25);
+  const recent = [...rows].reverse();
   process.stderr.write(`\n==== Overleaf dashboard (${rows.length} projects scraped) ====\n`);
   process.stderr.write(`  id                        lastUpdated              name\n`);
   for (const r of recent) {

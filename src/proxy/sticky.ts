@@ -54,7 +54,7 @@ export async function refreshStickyIfDead(cfg: ProxyConfig, targetHost = 'api.ip
   // One fresh session id: an expired sticky is the case this repairs; a proxy
   // that refuses a new session too is broken, not expired.
   const rotated = rotate(cfg);
-  if (!rotated) { console.log(`[sticky] no rotatable session pattern for user=${cfg.username?.slice(0, 30)} pass=${cfg.password?.slice(0, 30)}`); return null; }
+  if (!rotated) { console.log(`[sticky] no rotatable session pattern for user=${cfg.username}`); return null; }
   if (await preflight(rotated, targetHost)) {
     console.log(`[sticky] rotated dead session on ${cfg.host} -> new sticky working`);
     return rotated;

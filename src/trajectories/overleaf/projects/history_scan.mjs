@@ -131,7 +131,7 @@ try {
   }
   console.log(`[history_scan] Sarthak save-batches: ${data.sRangeCount}; diff calls: ${data.diffCalls}; Sarthak figure deletions: ${data.sarthakFigDeletes.length}`);
   for (const e of data.sarthakFigDeletes) {
-    const flat = e.text.replace(/\s+/g, ' ').slice(0, 170);
+    const flat = e.text.replace(/\s+/g, ' ');
     console.log(`[history_scan] SARTHAK-DEL ${e.file} v${e.fromV}->${e.toV} ts=${e.ts} :: ${flat}`);
   }
   await s.close();

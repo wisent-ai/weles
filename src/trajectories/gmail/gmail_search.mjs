@@ -58,7 +58,7 @@ try {
 
   const rows = await s.page.evaluate(() => { // allow-raw-playwright: read-only DOM text scrape of the inbox result list, no synthetic interaction
     const out = [];
-    const trs = Array.from(document.querySelectorAll('tr.zA')).slice(0, 40);
+    const trs = Array.from(document.querySelectorAll('tr.zA'));
     for (const r of trs) {
       const fEl = r.querySelector('.yW span[email]') ||
                   r.querySelector('.yW span') || r.querySelector('.zF');

@@ -75,7 +75,7 @@ try {
   });
   console.log(JSON.stringify({ stage: 'complete_candidate', url: s.page.url() }, null, 2));
   const finalState = await pageState(s.page);
-  console.log(JSON.stringify({ stage: 'final', ...finalState, text: finalState.text?.slice(0, 800) }, null, 2));
+  console.log(JSON.stringify({ stage: 'final', ...finalState, text: finalState.text }, null, 2));
   if (finalState.registerDialog || /account\/verification|registration\/dialog/i.test(finalState.url || '')) {
     exitCode = 2;
     console.log('FAIL: developer registration/verification not completed in Weles profile');

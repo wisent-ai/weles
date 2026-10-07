@@ -53,7 +53,7 @@ function extractFromObject(obj) {
       return;
     }
     if (Array.isArray(value)) {
-      value.slice(0, 50).forEach((v, i) => visit(v, [...path, String(i)]));
+      value.forEach((v, i) => visit(v, [...path, String(i)]));
       return;
     }
     if (typeof value === 'object') {

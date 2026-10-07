@@ -51,7 +51,7 @@ if (!token) { console.log(`FAIL: ${acct.username} metadata.discord_token missing
 
 const opts = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'discord_create_forum_post', proxy: opts.proxyUrl, persona: opts.persona, targetHost: 'discord.com' });
-console.log(`[forum_post] account=${acct.username} channel=${CHANNEL} title=${TITLE.slice(0, 40)}`);
+console.log(`[forum_post] account=${acct.username} channel=${CHANNEL} title=${TITLE}`);
 
 try {
   await s.ctx.addInitScript(`(()=>{try{if(location.hostname.indexOf('discord')>=0){localStorage.setItem('token',JSON.stringify(${JSON.stringify(token)}))}}catch(e){}})()`);

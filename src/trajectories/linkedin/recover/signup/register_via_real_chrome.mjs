@@ -152,7 +152,7 @@ try {
       }
       await anchorFrame.waitForLoadState('load');
       const v2Sitekey = anchorFrame.url().match(/[?&]k=([0-9A-Za-z_-]+)/)?.[1];
-      console.log(`[reg-real] V2 anchor sitekey=${v2Sitekey?.slice(0, 20)}... url=${anchorFrame.url()}`);
+      console.log(`[reg-real] V2 anchor sitekey=${v2Sitekey}... url=${anchorFrame.url()}`);
       await humanClickLocator(page, anchorFrame.locator('#recaptcha-anchor'));
       console.log('[reg-real] V2 checkbox clicked');
       // Either the checkbox passes on its own (real Chrome often auto-passes

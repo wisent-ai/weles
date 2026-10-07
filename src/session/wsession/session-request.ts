@@ -57,7 +57,7 @@ export function redactProxyForLog(proxy: unknown): string {
     const p = proxy as { server?: string; username?: string; password?: string };
     return JSON.stringify({
       server: p.server,
-      username: p.username ? `${p.username.slice(0, 18)}...` : undefined,
+      username: p.username,
       password: p.password ? '***' : undefined,
     });
   }

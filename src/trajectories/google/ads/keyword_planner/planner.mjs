@@ -48,7 +48,7 @@ async function main() {
         keywords,
         url: current,
         authFailure: lastAuthFailure(),
-        textPreview: norm(text).slice(0, 1200),
+        textPreview: norm(text),
       };
       writeFileSync(RESULT_FILE, JSON.stringify(report, null, 2));
       console.log(JSON.stringify(report, null, 2));
@@ -61,7 +61,7 @@ async function main() {
         customer: cid,
         keywords,
         url: current,
-        textPreview: norm(text).slice(0, 1200),
+        textPreview: norm(text),
       };
       writeFileSync(RESULT_FILE, JSON.stringify(report, null, 2));
       console.log(JSON.stringify(report, null, 2));

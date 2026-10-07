@@ -242,7 +242,7 @@ export async function harvestAfterRegister(s, opts = {}) {
       console.log(`[harvest] joined guild ${j.guild.id} (${j.guild.name || '?'})`);
       const channels = await listTextChannels(token, j.guild.id);
       console.log(`[harvest] ${channels.length} text channels in ${j.guild.name || j.guild.id}`);
-      for (const ch of channels.slice(0, 20)) {
+      for (const ch of channels) {
         if (collected.length >= need) break;
         const authors = await harvestChannelAuthors(token, ch.id, need - collected.length + 20, seen);
         if (authors.length > 0) console.log(`[harvest] #${ch.name}: +${authors.length} (total ${collected.length + authors.length}/${need})`);

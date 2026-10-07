@@ -177,7 +177,7 @@ try {
       }
     }
   } catch (e) {
-    log('WARN: title-set raised: ' + (e.message || String(e)).slice(0, 80));
+    log('WARN: title-set raised: ' + (e.message || String(e)));
   }
 
   // Try to insert body content. Best-effort; non-fatal. Canvas waitFor
@@ -193,7 +193,7 @@ try {
     await humanIdlePause('long');
     log('body typed');
   } catch (e) {
-    log('WARN: body-insert raised: ' + (e.message || String(e)).slice(0, 80));
+    log('WARN: body-insert raised: ' + (e.message || String(e)));
   }
 
   log('PASS: doc available at ' + docUrl);

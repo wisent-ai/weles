@@ -88,7 +88,7 @@ export async function fillKeywordInput(page) {
     }
     return {
       ok: true,
-      descriptor: selected.descriptor.slice(0, 300),
+      descriptor: selected.descriptor,
       tag: (el.tagName || '').toLowerCase(),
       role: el.getAttribute?.('role') || '',
     };
@@ -127,7 +127,7 @@ export async function openKeywordPlanner(s) {
     }
     const dom = await collectDom(s.page);
     const matched = /keyword planner|discover new keywords|get search volume|forecasts?|keyword ideas|avg\.? monthly searches/i.test(dom.text);
-    attempts.push({ path, url: dom.url || url, matched, textPreview: norm(dom.text), controls: dom.controls.slice(0, 20) });
+    attempts.push({ path, url: dom.url || url, matched, textPreview: norm(dom.text), controls: dom.controls });
     if (matched) return { ok: true, path, attempts };
   }
   const clickedTools = await clickByText(s.page, /Tools|Tools and settings|Planning|Keyword Planner/i, 'tools/planning navigation');
@@ -136,7 +136,7 @@ export async function openKeywordPlanner(s) {
     await pageSettled(s.page);
     const dom = await collectDom(s.page);
     const matched = /keyword planner|discover new keywords|get search volume|forecasts?|keyword ideas|avg\.? monthly searches/i.test(dom.text);
-    attempts.push({ path: 'menu_keyword_planner', url: dom.url, matched, textPreview: norm(dom.text), controls: dom.controls.slice(0, 20) });
+    attempts.push({ path: 'menu_keyword_planner', url: dom.url, matched, textPreview: norm(dom.text), controls: dom.controls });
     if (matched) return { ok: true, path: 'menu_keyword_planner', attempts };
   }
   return { ok: false, attempts };
@@ -178,7 +178,7 @@ export async function collectKeywordPlanner(s, captured) {
     rows: after.rows,
     controls: after.controls,
     parsedRows,
-    visibleTextPreview: norm(after.text).slice(0, 3000),
+    visibleTextPreview: norm(after.text),
     rpc: summarizeKeywordPlannerResponses(captured.responses),
     capturedRequestCount: captured.requests.length,
     capturedResponseCount: captured.responses.length,

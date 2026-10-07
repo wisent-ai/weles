@@ -159,7 +159,7 @@ try {
     console.log('[register] Using known GitHub FunCaptcha sitekey');
   }
   if (!captcha.apiSub) captcha.apiSub = 'github-api.arkoselabs.com';
-  console.log(`[register] Captcha: pkey=${captcha.pkey?.slice(0, 20)} blob=${captcha.blob?.slice(0, 30) ?? 'none'} sub=${captcha.apiSub}`);
+  console.log(`[register] Captcha: pkey=${captcha.pkey} blob=${captcha.blob ?? 'none'} sub=${captcha.apiSub}`);
 
   const ua = await s.page.evaluate('navigator.userAgent').catch(() => '');
 

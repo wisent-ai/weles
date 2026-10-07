@@ -142,7 +142,7 @@ try {
     throw Object.assign(new Error('DISCORD_EMAIL_VERIFICATION_PENDING: the resend was acknowledged; run again to read the inbox and observe verification'),
       { email, requestedAt, requestUrl: response.url(), httpStatus: response.status() });
   }
-  console.log(`[email_verify] verify_url=${verifyUrl.slice(0, 90)}...`);
+  console.log(`[email_verify] verify_url=${verifyUrl}...`);
 
   const response = await responseAfterAction(s.page, (request) => {
     const url = new URL(request.url());

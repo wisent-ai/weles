@@ -201,7 +201,7 @@ export async function submitLinkedinCaptchaForm(page, token, sitekey, dataS) {
         url: location.href,
         title: document.title,
         forms: Array.from(document.querySelectorAll('form')).map(f => ({ id: f.id, action: f.action, method: f.method, outerHTML: f.outerHTML })),
-        buttons: Array.from(document.querySelectorAll('button, input[type="submit"]')).map(b => ({ tag: b.tagName, type: b.type, id: b.id, text: b.textContent?.slice(0, 40), outerHTML: b.outerHTML })),
+        buttons: Array.from(document.querySelectorAll('button, input[type="submit"]')).map(b => ({ tag: b.tagName, type: b.type, id: b.id, text: b.textContent, outerHTML: b.outerHTML })),
         recaptcha: Array.from(document.querySelectorAll('iframe[src*="recaptcha"], .g-recaptcha, textarea[name="g-recaptcha-response"], input[name="captchaUserResponseToken"]')).map(el => ({ tag: el.tagName, name: el.name, id: el.id, src: el.src, outerHTML: el.outerHTML })),
       };
       return out;

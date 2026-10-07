@@ -117,7 +117,7 @@ try {
           if ((await save.count()) > 0) {
             await humanClickLocator(s.page, save);
             await humanIdlePause('deliberate');
-            changes.push(`status=${NEW_STATUS.slice(0, 40)}`);
+            changes.push(`status=${NEW_STATUS}`);
             console.log(`[edit_profile] status set`);
           }
         }

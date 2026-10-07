@@ -84,7 +84,7 @@ async function pickSelect(name, contains) {
   await openSelect(name);
   const opt = page.locator("[role='option']").filter({ hasText: contains }).first();
   if (await opt.count() === 0) throw new Error(`no select option ${name} -> ${contains}`);
-  const picked = (await opt.textContent())?.trim()?.slice(0, 100);
+  const picked = (await opt.textContent())?.trim();
   await opt.dispatchEvent('click'); // allow-raw-playwright: select option
   await humanIdlePause('short');
   return picked;
@@ -96,7 +96,7 @@ async function setAuto(name, search) {
   await humanIdlePause('deliberate');
   const opt = page.locator("[role='listbox'] [role='option']").first();
   if (await opt.count() === 0) throw new Error(`no autocomplete option ${name} -> ${search}`);
-  const picked = (await opt.textContent())?.trim()?.slice(0, 100);
+  const picked = (await opt.textContent())?.trim();
   await opt.dispatchEvent('click'); // allow-raw-playwright: select filtered option
   await humanIdlePause('short');
   return picked;

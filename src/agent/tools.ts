@@ -9,6 +9,7 @@ import type { CapabilityRef, WelesCapabilityPurpose } from '../utils/capability.
 import { assertNonCredentialInput } from '../utils/capability.js';
 import { enforceBrowserEvidenceToolPolicy } from './browser-evidence-policy.js';
 import type { FunctionTool } from './jeden.js';
+import { hashDiagnosticValue } from '../session/wsession/run-provenance.js';
 
 export type ToolArgs = Record<string, unknown>;
 type CredentialFieldClass = 'password' | 'email' | 'username' | 'token' | 'api-key';
@@ -178,7 +179,7 @@ export async function dispatch(session: WSession, tool: string, args: ToolArgs):
       if (session.identity) return 'generated identity already available; use fill_identity for its fields';
       const platform = stringArg(args, 'platform', 'reddit');
       const id = await session.generateIdentity(platform);
-      return `generated identity ready for fill_identity platform=${platform} username_hash=${id.username.length}:${id.username.slice(0, 2)}`;
+      return `generated identity ready for fill_identity platform=${platform} username_hash=${hashDiagnosticValue(id.username)}`;
     }
     case 'check_sms': return session.checkSms(stringArg(args, 'service'), stringArg(args, 'country', 'UK'));
     case 'poll_sms_code': return session.pollSmsCode();

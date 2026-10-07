@@ -118,7 +118,7 @@ export async function solvePageCaptcha(page: Page, solver?: CaptchaSolver, sessi
   // Check MutationObserver-captured Arkose data first (Twitter pattern: iframe appears and disappears quickly)
   const arkose = await page.evaluate?.('window.__arkoseData')?.catch(() => null);
   if (arkose?.publicKey) {
-    console.log(`[captcha] MutationObserver captured Arkose: pkey=${arkose.publicKey.slice(0, 12)} blob=${!!arkose.blob}`);
+    console.log(`[captcha] MutationObserver captured Arkose: pkey=${arkose.publicKey} blob=${!!arkose.blob}`);
     const s = solver ?? new CaptchaSolver();
     return solveFuncaptchaOnPage(page, arkose.publicKey, arkose.blob, arkose.subdomain, s);
   }
@@ -179,7 +179,7 @@ async function solveHcaptchaEnterprise(page: Page, sitekey: string, solver: Capt
     return !!(await solver.solveHcaptcha(sitekey, url));
   }
   const ua = await page.evaluate?.('navigator.userAgent')?.catch(() => '') ?? '';
-  console.log(`[captcha] Enterprise hCaptcha: sitekey=${captchaData.captcha_sitekey?.slice(0, 12)} rqdata=${!!captchaData.captcha_rqdata} ua=${ua.slice(0, 30)}`);
+  console.log(`[captcha] Enterprise hCaptcha: sitekey=${captchaData.captcha_sitekey} rqdata=${!!captchaData.captcha_rqdata} ua=${ua}`);
   // One solve and one resubmission: asking again for a captcha means the
   // provider's token was refused, which a second token on the same flagged
   // session does not change.
@@ -206,7 +206,7 @@ async function solveHcaptchaEnterprise(page: Page, sitekey: string, solver: Capt
 async function solveFuncaptchaOnPage(page: Page, publicKey: string, blob?: string, subdomain?: string, solver?: CaptchaSolver): Promise<boolean> {
   const s = solver ?? new CaptchaSolver();
   const url = page.url?.() ?? '';
-  console.log(`[captcha] FunCaptcha: pkey=${publicKey.slice(0, 12)} blob=${!!blob} subdomain=${subdomain?.slice(0, 30)}`);
+  console.log(`[captcha] FunCaptcha: pkey=${publicKey} blob=${!!blob} subdomain=${subdomain}`);
   const token = await s.solveFuncaptcha(publicKey, url, subdomain, blob);
   if (!token) { console.log('[captcha] FunCaptcha solve failed'); return false; }
   console.log(`[captcha] FunCaptcha solved, injecting token`);

@@ -44,7 +44,7 @@ async function browserFetch(page, url, options = {}) {
         status: res.status,
         statusText: res.statusText,
         headers: Object.fromEntries(res.headers.entries()),
-        text: text.slice(0, 4000),
+        text: text,
         data,
       };
     },

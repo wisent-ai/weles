@@ -41,7 +41,7 @@ const fullCookieHeader = [...setCookieMap.entries()].map(([n, v]) => `${n}=${v}`
 const html = await loginPage.text();
 const csrfMatch = html.match(/name="loginCsrfParam"\s+value="([^"]+)"/);
 const csrf = csrfMatch?.[1] ?? '';
-console.log(`[refresh] login_page status=${loginPage.status} csrf=${csrf.slice(0, 16)} cookies=${setCookieMap.size}`);
+console.log(`[refresh] login_page status=${loginPage.status} csrf_chars=${csrf.length} cookies=${setCookieMap.size}`);
 if (!csrf) { writeBan('no_csrf', { status: loginPage.status, body_excerpt: html }); console.log('FAIL: no CSRF token'); process.exit(1); }
 
 const formBody = new URLSearchParams({
@@ -58,7 +58,7 @@ const submit = await fetch('https://www.linkedin.com/checkpoint/lg/login-submit'
 const submitCookies = submit.headers.getSetCookie?.() ?? [];
 const liAt = submitCookies.find(c => c.startsWith('li_at='))?.match(/^li_at=([^;]+)/)?.[1] ?? '';
 const location = submit.headers.get('location') ?? '';
-console.log(`[refresh] submit status=${submit.status} location=${location} li_at=${liAt ? liAt.slice(0, 16) + '...' : 'none'}`);
+console.log(`[refresh] submit status=${submit.status} location=${location} li_at=${liAt ? 'present' : 'none'}`);
 
 if (liAt) {
   for (const sc of submitCookies) { const m = sc.match(/^([^=]+)=([^;]+)/); if (m) setCookieMap.set(m[1], m[2]); }
@@ -66,7 +66,7 @@ if (liAt) {
   const merged = { ...meta, cookies: newCookies };
   delete merged.cookies_stale_at;
   updateAccountMetadata(ACCOUNT_ITEM, merged);
-  writeBan('healthy', { status: submit.status, location, li_at_prefix: liAt.slice(0, 16) });
+  writeBan('healthy', { status: submit.status, location, li_at_chars: liAt.length });
   console.log(`PASS: li_at refreshed for ${acct.username}`);
 } else {
   const body = await submit.text().catch(() => '');

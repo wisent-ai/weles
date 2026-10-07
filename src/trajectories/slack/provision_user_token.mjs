@@ -22,7 +22,8 @@ const SLACK_PASS = process.env.SLACK_PASS || '';
 const RESULT_FILE = process.env.WELES_SECRET_RESULT_FILE || '';
 
 function tokenSummary(token) {
-  return { prefix: token.slice(0, 5), length: token.length };
+  // Slack names a token's type before its first hyphen (xoxb, xoxp, ...).
+  return { prefix: token.split('-').shift(), length: token.length };
 }
 
 function writeSecretResult(result) {

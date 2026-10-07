@@ -140,7 +140,7 @@ function fuzzyMatch(values, discovered) {
         note: `discovered (jaccard=${bestScore.toFixed(2)}, label="${best.label}")`,
       };
     } else {
-      missing.push(`${name}\t${bestScore.toFixed(2)}\t${best?.label?.slice(0, 60) || '(no match)'}`);
+      missing.push(`${name}\t${bestScore.toFixed(2)}\t${best?.label || '(no match)'}`);
     }
   }
   return { matched, missing };

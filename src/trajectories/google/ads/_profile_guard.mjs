@@ -28,7 +28,7 @@ export function assertGoogleAdsProfileNotAlreadyOpen(userDataDir, label) {
   const processes = googleAdsProfileProcesses(userDataDir);
   if (!processes.length) return;
   const preview = processes
-    .map((line) => line.length > 260 ? `${line.slice(0, 260)}...` : line)
+    .map((line) => line.length > 260 ? `${line}...` : line)
     .join('\n');
   throw new Error([
     `[${label}] refusing to launch a new Weles session: Google Ads profile is already open`,
