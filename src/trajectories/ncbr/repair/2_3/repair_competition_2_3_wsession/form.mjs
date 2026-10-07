@@ -4,16 +4,14 @@ import {
   humanIdlePause,
 } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
+import { assertFits } from '../../../form-input.mjs';
 
 export function lsiForm({ page, session, email, password, progress }) {
   async function setReactInputValue(locator, value) {
     await locator.waitFor({ state: 'visible' });
     await humanClickLocator(page, locator); // allow-raw-playwright: focus visible LSI field
-    const max =
-      Number(await locator.getAttribute('maxlength')) ||
-      String(value || '').length;
     let next = String(value || '');
-    if (next.length > max) next = next.slice(0, max).replace(/\s+\S*$/, '');
+    const max = await assertFits(locator, next);
     const locked = await locator.evaluate((el) =>
       Boolean(el.readOnly || el.disabled),
     ); // allow-raw-playwright: inspect visible field mutability

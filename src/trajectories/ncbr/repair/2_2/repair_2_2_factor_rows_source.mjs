@@ -25,13 +25,13 @@ function fit(text, max, target = max - 3) {
     out = clean(
       `${out} Dodatkowo opis obejmuje zakres danych, częstotliwość pomiaru, kryterium zaliczenia oraz sposób rozdzielenia wyniku projektu od działań rutynowych i komercyjnych.`,
     );
-  if (out.length <= max) return out;
-  out = out
-    .slice(0, target)
-    .replace(/\s+\S*$/, '')
-    .replace(/[;,:-]\s*$/, '');
-  if (!/[.!?]$/.test(out)) out += '.';
-  if (out.length > max) throw new Error(`fit failed ${out.length}/${max}`);
+  // A text longer than its field is refused, never cut at a word: a cut filed
+  // shortened texts nobody wrote.
+  if (out.length > max) {
+    throw new Error(
+      `LSI_FIELD_TOO_LONG: section 2.2 text of ${out.length} characters exceeds the field maximum ${max}: ${out}`,
+    );
+  }
   return out;
 }
 

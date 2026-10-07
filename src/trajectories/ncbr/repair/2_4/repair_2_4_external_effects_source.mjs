@@ -31,11 +31,13 @@ function fit(text, max, min, extras) {
     const next = clean(`${out} ${extra}`);
     if (next.length <= max) out = next;
   }
-  if (out.length > max)
-    out = out
-      .slice(0, max)
-      .replace(/\s+\S*$/, '')
-      .replace(/[ ,;:-]+$/, '');
+  // A text longer than its field is refused, never cut at a word: a cut filed
+  // shortened texts nobody wrote.
+  if (out.length > max) {
+    throw new Error(
+      `LSI_FIELD_TOO_LONG: section 2.4 text of ${out.length} characters exceeds the field maximum ${max}: ${out}`,
+    );
+  }
   if (!/[.!?]$/.test(out) && out.length < max) out += '.';
   return out;
 }

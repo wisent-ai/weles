@@ -5,6 +5,7 @@ import {
   humanIdlePause,
 } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
+import { assertFits } from '../../../form-input.mjs';
 import { members } from './source.mjs';
 
 export async function runModes({ page, form }) {
@@ -179,8 +180,7 @@ export async function runModes({ page, form }) {
       .locator('[name="doswiadczenie_naukowe_i_zawodowe"]')
       .first();
     let v = m.doswiadczenie;
-    const max = Number(await loc.getAttribute('maxlength')) || v.length;
-    if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
+    await assertFits(loc, v);
     await humanFill(page, loc, v);
     await loc.dispatchEvent('input'); // allow-raw-playwright: force React dirty/input state after fill
     await loc.dispatchEvent('change'); // allow-raw-playwright: force React dirty/change state after fill

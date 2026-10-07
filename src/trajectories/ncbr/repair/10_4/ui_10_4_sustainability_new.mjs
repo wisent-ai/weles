@@ -7,6 +7,7 @@ import {
   humanIdlePause,
 } from '../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../dist/human/keyboard.js';
+import { assertFits } from '../../form-input.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const projectId = (await import('#ncbr-settings')).projectId();
@@ -174,9 +175,8 @@ async function selectPrinciples(labels) {
 async function fillTextarea(selector, value) {
   const loc = page.locator(selector).first();
   if ((await loc.count()) === 0) return null;
-  const max = Number(await loc.getAttribute('maxlength')) || value.length;
   let v = value;
-  if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
+  await assertFits(loc, v);
   await humanFill(page, loc, v); // allow-raw-playwright: fill LSI textarea
   await humanIdlePause('short');
   return v.length;

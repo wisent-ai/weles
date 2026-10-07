@@ -7,7 +7,7 @@ import {
 } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
 import { openNewRow, openRowEditor } from '../../../forms/row-editor.mjs';
-import { selectRadio } from '../../../form-input.mjs';
+import { assertFits, selectRadio } from '../../../form-input.mjs';
 
 export function membersForm({ page, SECTION_URL }) {
   async function clickDodaj() {
@@ -21,9 +21,8 @@ export function membersForm({ page, SECTION_URL }) {
   async function fillByName(name, value) {
     const loc = page.locator(`[name="${name}"]`).first();
     await loc.waitFor({ state: 'visible' });
-    const max = Number(await loc.getAttribute('maxlength')) || value.length;
     let v = value || '';
-    if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
+    const max = await assertFits(loc, v);
     await humanFill(page, loc, v);
     return `${name} ${v.length}/${max}`;
   }
@@ -92,11 +91,8 @@ export function membersForm({ page, SECTION_URL }) {
     const fillNested = async (suffix, value) => {
       const loc = page.locator(`[name$="${suffix}"]`).first();
       await loc.waitFor({ state: 'visible' });
-      const max =
-        Number(await loc.getAttribute('maxlength')) ||
-        String(value || '').length;
       let v = String(value || '');
-      if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
+      await assertFits(loc, v);
       await humanFill(page, loc, v);
     };
 

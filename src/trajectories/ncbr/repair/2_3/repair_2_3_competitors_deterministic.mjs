@@ -10,14 +10,15 @@ const clean = (s) =>
     .replace(/\s+/g, ' ')
     .trim();
 
+// A text longer than its field is refused, never cut at a word: a cut filed
+// shortened texts nobody wrote.
 function fit(text, max, min, ext) {
   let out = clean(text);
   while (out.length < min) out = clean(`${out} ${ext}`);
   if (out.length > max) {
-    const cut = out.slice(0, max);
-    const sp = cut.lastIndexOf(' ');
-    out = sp >= min ? cut.slice(0, sp) : cut;
-    out = out.replace(/[ ,;:-]+$/, '');
+    throw new Error(
+      `LSI_FIELD_TOO_LONG: section 2.3 text of ${out.length} characters exceeds the field maximum ${max}: ${out}`,
+    );
   }
   if (!/[.!?]$/.test(out) && out.length < max) out += '.';
   return out;
