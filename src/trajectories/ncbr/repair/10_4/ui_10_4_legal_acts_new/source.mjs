@@ -44,8 +44,10 @@ export function rowNeedles(row) {
   if (/2018\/2001/i.test(row.act)) return ['2018/2001'];
   if (/2023\/1791/i.test(row.act)) return ['2023/1791'];
   if (/2024\/1364/i.test(row.act)) return ['2024/1364'];
+  // An "Inne" row carries its act at the start of the saved justification, so
+  // the whole act names it; the row text is read with whitespace collapsed.
   if (row.kind === 'inne')
-    return [row.act.replace(/^Inne:\s*/, '').slice(0, 40)];
+    return [row.act.replace(/^Inne:\s*/, '').replace(/\s+/g, ' ').trim()];
   if (/odpadach/i.test(row.act)) return ['odpadach'];
   if (/Prawo ochrony środowiska/i.test(row.act))
     return ['Prawo ochrony środowiska'];
