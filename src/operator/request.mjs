@@ -113,7 +113,7 @@ export function pageBody(request) {
     ...(runIds.length
       ? [
         `Watch it:    weles runs show ${runIds[0]}`,
-        `Answer it:   weles runs answer ${runIds[0]} --approved | --not-received`,
+        `Answer it:   weles runs answer ${runIds[0]} --ready | --approved | --not-received`,
       ]
       : []),
     'The run waits until you act or it is cancelled; if it ends first, this request is recorded as abandoned.',
@@ -197,7 +197,7 @@ function askThroughOko(request) {
   const binary = okoBinary();
   const run = firstRun(request);
   const answer = run
-    ? `Answer it with: weles runs answer ${run} --approved | --not-received`
+    ? `Answer it with: weles runs answer ${run} --ready | --approved | --not-received`
     : `No Weles worker started this run (process ${request.run_pid} on ${request.host}); it ends when the page it waits on changes.`;
   const result = spawnSync(binary, [
     'asks', 'ask', '--from', 'weles', '--subject', run ? `run-${run}` : `request-${request.id}`,
@@ -337,13 +337,15 @@ export function closeOperatorRequest(id, approved, detail) {
 
 /**
  * What the operator can tell the run that waits on a request:
+ * - `ready`: he has his phone in hand, so the run asks the provider to send
+ *   its prompt now; a run sends none before, so no prompt expires unseen;
  * - `approved`: he approved it, so the run reads the page and records what
  *   the provider actually shows, instead of nobody learning the two disagree;
- * - `not_received`: no prompt reached him, so the run asks the provider to
- *   send it again, or ends saying the provider offers no second send.
+ * - `not_received`: no prompt reached him, or it expired, so the run asks the
+ *   provider to send it again, or ends saying the provider offers no second send.
  * Ending the wait is ending the run: `weles runs cancel`.
  */
-export const OPERATOR_ANSWERS = Object.freeze(['approved', 'not_received']);
+export const OPERATOR_ANSWERS = Object.freeze(['ready', 'approved', 'not_received']);
 
 /**
  * Record the operator's answer on an open request. The run that waits on it

@@ -200,7 +200,7 @@ wrote anything and, when it waits for a person, what it asked for and whether
 the person was paged (`operator_request`); `weles runs show <run>` (`GET
 /runs/:run_id`) prints the last lines it wrote, every page, answer and note of
 the request it waits on, or its record once it finished. `weles runs answer
-<run> --approved | --not-received [--detail <text>]` (`POST
+<run> --ready | --approved | --not-received [--detail <text>]` (`POST
 /runs/:run_id/answer`) tells a waiting run what the person did; a run that
 waits on nobody is refused (409 `run_not_waiting`) with the stage it stands
 at. `weles runs cancel <run> --detail <who and why>` (`POST
@@ -210,7 +210,7 @@ stage it reached, and the next sign-in of that account starts a new run
 instead of joining or replaying it. A run that already finished is refused
 (409) with when; a run recorded as `running` that no live child answers for
 was left by a server that stopped. Desktop Running has the same list, what a
-run waits for, the last output, Approved and No prompt arrived buttons, and a
+run waits for, the last output, Ready, I approved it and No prompt arrived buttons, and a
 Cancel button. A closing
 session prints `[wsession] fingerprint probe: <section>` before each part of
 its close-time fingerprint probe that waits on the browser, so a probe that
@@ -234,8 +234,13 @@ refusal or unavailable password challenge reports its observed page and stage;
 the same run never resubmits the selected challenge. Session closure also stops
 its measurement timers, so retained results do not wait for the worker timeout.
 An authenticator code must leave Google's challenge before provider handoff.
-Without a stored seed, Weles selects an offered phone approval and records its
-actual outcome on the request the run waits on.
+Without a stored seed, Weles uses an offered phone approval, and sends Google's
+prompt only when the operator says he is ready: the run asks him first, and
+chooses Google's phone method on `weles runs answer <run> --ready` (Weles
+Desktop > Running > Ready, send it), then asks him to approve it with the
+number to match. A sign-in nobody is asked about (no run waits on a person)
+sends no prompt and stops with `google_push_approval_required`. The actual
+outcome is recorded on the request the run waits on.
 
 A request is paged through `stado alerts send`, which reaches the operator by
 the channels he chose for the fleet (`stado alerts preferences set --channel

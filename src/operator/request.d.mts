@@ -11,7 +11,7 @@ export type OperatorPageAttempt = {
   detail: string;
 };
 
-export type OperatorAnswer = 'approved' | 'not_received';
+export type OperatorAnswer = 'ready' | 'approved' | 'not_received';
 
 export type OperatorAnswerRecord = {
   at: string;

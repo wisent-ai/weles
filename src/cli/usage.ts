@@ -58,7 +58,7 @@ Usage:
   weles design parse-document --provider figma <document.json[.gz]> <summary.json> <nodes.json> [<vocabulary.json>]
   weles runs list [--json]
   weles runs show <run-id> [--json]
-  weles runs answer <run-id> --approved|--not-received [--detail <text>] [--json]
+  weles runs answer <run-id> --ready|--approved|--not-received [--detail <text>] [--json]
   weles runs cancel <run-id> --detail <text> [--json]
   weles account-security --provider google --login-role <skarbiec-role> [--json]
   weles account-security --run <run-id> [--json]
@@ -103,10 +103,12 @@ Options:
   --wait-for-text <text>  Wait for matching visible text before reading or capturing.
   --json                  Print the answer as one JSON document instead of key: value lines.
                           release surface always prints its JSON document: it is the file a release carries.
+  --ready                 runs answer: the person has the phone in hand; the run asks the provider to
+                          send its prompt now. A run sends no prompt before this answer.
   --approved              runs answer: the person did what the run asked (approved the prompt); the run
                           reads the page and records what the provider still shows.
-  --not-received          runs answer: the provider's prompt never arrived; the run asks the provider to
-                          send it again, or ends saying the provider offers no resend.
+  --not-received          runs answer: the provider's prompt never arrived or expired; the run asks the
+                          provider to send it again, or ends saying the provider offers no resend.
   --detail <text>         One sentence: what the person saw for runs answer, who cancels a run and why
                           for runs cancel.
 

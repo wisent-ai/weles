@@ -16,6 +16,7 @@ import { UsageError } from '../usage.js';
 import {
   answerRun, cancelRun, readRun, readRunningRuns, type RunningRun, type WaitingRequest,
 } from '../../runtime/api/runs/client.js';
+import type { OperatorAnswer } from '../../operator/request.mjs' with { 'resolution-mode': 'import' };
 
 function silence(lastOutputAt: string | null, startedAt: string): string {
   const since = Date.parse(lastOutputAt ?? startedAt);
@@ -63,7 +64,7 @@ function detail(run: RunningRun): string {
     for (const attempt of request.pages) lines.push(`page         ${attempt.at} ${attempt.ok ? 'delivered' : 'not delivered'}: ${attempt.detail}`);
     for (const said of request.answers ?? []) lines.push(`answered     ${said.at} ${said.answer}${said.detail ? `: ${said.detail}` : ''}`);
     for (const note of request.notes ?? []) lines.push(`run noted    ${note.at} ${note.note}`);
-    lines.push(`answer it    weles runs answer ${run.run_id} --approved | --not-received [--detail <text>]`);
+    lines.push(`answer it    weles runs answer ${run.run_id} --ready | --approved | --not-received [--detail <text>]`);
   }
   if (run.cancel_requested) lines.push(`cancelled    ${run.cancel_requested.at}: ${run.cancel_requested.detail}`);
   for (const [stream, text] of [['stderr', run.stderr_tail], ['stdout', run.stdout_tail]]) {
@@ -128,25 +129,33 @@ async function cancel(parsed: ParsedCli): Promise<void> {
   process.stdout.write(`${detail(run)}\n`);
 }
 
+/** Each answer flag and the answer it sends, in the order usage names them. */
+const ANSWER_FLAGS: ReadonlyArray<{ flag: string; answer: OperatorAnswer }> = [
+  { flag: 'ready', answer: 'ready' },
+  { flag: 'approved', answer: 'approved' },
+  { flag: 'not-received', answer: 'not_received' },
+];
+
 /**
- * Tell a run waiting for a person what the person did. `--approved`: the run
- * reads the page and records what the provider shows. `--not-received`: the
- * run asks the provider to send its prompt again, or ends saying it offers no
- * second send. Ending the wait is `cancel`.
+ * Tell a run waiting for a person what the person did. `--ready`: the phone
+ * is in hand, so the run asks the provider to send its prompt now (a run
+ * sends none before). `--approved`: the run reads the page and records what
+ * the provider shows. `--not-received`: the run asks the provider to send its
+ * prompt again, or ends saying it offers no second send. Ending the wait is
+ * `cancel`.
  */
 async function answer(parsed: ParsedCli): Promise<void> {
   const id = parsed.positional[1];
   if (!id) throw new UsageError('runs answer requires <run-id>');
-  const approved = parsed.options.approved === true;
-  const notReceived = parsed.options['not-received'] === true;
-  if (approved === notReceived) {
-    throw new UsageError('runs answer requires exactly one of --approved or --not-received; ending the wait is weles runs cancel <run-id> --detail <who and why>');
+  const [chosen, ...more] = ANSWER_FLAGS.filter(({ flag }) => parsed.options[flag] === true);
+  if (!chosen || more.length) {
+    throw new UsageError('runs answer requires exactly one of --ready, --approved or --not-received; ending the wait is weles runs cancel <run-id> --detail <who and why>');
   }
   if (parsed.options.detail !== undefined && typeof parsed.options.detail !== 'string') {
     throw new UsageError('runs answer --detail requires <text>');
   }
   const said = typeof parsed.options.detail === 'string' ? parsed.options.detail.trim() : '';
-  const run = await answerRun(id, approved ? 'approved' : 'not_received', said);
+  const run = await answerRun(id, chosen.answer, said);
   if (parsed.options.json === true) {
     process.stdout.write(`${JSON.stringify(run, null, 2)}\n`);
     return;

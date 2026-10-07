@@ -20,24 +20,38 @@ function isDevicePrompt(page) {
   return url.hostname === GOOGLE_HOST && DEVICE_PROMPT.test(url.pathname);
 }
 
-export async function selectGooglePhonePrompt(page) {
+/**
+ * Google's phone method on the current challenge, without sending anything:
+ * `{ shown: true }` when Google already shows its device prompt (it sent it on
+ * its own), `{ option }` for the method a click would send, or null when
+ * Google offers no phone prompt. "Try another way" only lists the methods.
+ */
+async function offeredPhonePrompt(page) {
   const url = location(page);
-  if (url.hostname !== GOOGLE_HOST || !CHALLENGE_PATH.test(url.pathname)) return false;
-  if (isDevicePrompt(page)) return true;
+  if (url.hostname !== GOOGLE_HOST || !CHALLENGE_PATH.test(url.pathname)) return null;
+  if (isDevicePrompt(page)) return { shown: true };
   const alternate = page.getByRole('button', { name: /^Try another way$/i })
     .or(page.getByRole('link', { name: /^Try another way$/i })).filter({ visible: true }).first();
   if (await alternate.isVisible()) {
     await humanClickLocator(page, alternate);
     await pageSettled(page);
   }
-  const phone = page.locator('li, div[role="option"], div[role="button"], button, a')
+  const option = page.locator('li, div[role="option"], div[role="button"], button, a')
     .filter({ hasText: /Tap Yes on your phone or tablet|Gmail app|phone or tablet/i })
     .filter({ visible: true }).first();
-  if (await phone.isVisible()) {
-    await humanClickLocator(page, phone);
-    await pageSettled(page);
-  }
-  return isDevicePrompt(page);
+  return await option.isVisible() ? { option } : null;
+}
+
+/** Whether Google offers a phone prompt here; nothing is sent to the phone. */
+export async function googlePhonePromptOffered(page) {
+  return Boolean(await offeredPhonePrompt(page));
+}
+
+/** The number Google asks the phone to match, as a sentence, or ''. */
+async function numberToMatch(page) {
+  const text = await page.locator('body').innerText();
+  const [, number] = text.match(/\b(?:tap|choose|select)\s+(\d+)\b/i) ?? [];
+  return number ? ` Choose ${number} if the phone asks you to match the number.` : '';
 }
 
 /** Google's own control for sending the device prompt again. */
@@ -54,28 +68,43 @@ function failure(message, code) {
 }
 
 // Returns false only when Google offers no phone prompt. A rejected or
-// interrupted approval is an explicit failure. The run sends the prompt again
-// only when the operator says it never reached him.
+// interrupted approval is an explicit failure.
 //
-// The wait ends on whichever comes first: Google's page leaving the device
-// prompt, or the operator answering the run (`weles runs answer`, Weles
-// Desktop's Running screen). `not_received` presses Google's "Resend it", or
-// ends the run saying Google offers no second send; `approved` while Google
-// still shows the prompt is recorded with what the page shows. Ending the
-// wait is `weles runs cancel`, which ends the run.
+// No prompt is sent before the operator is ready: a prompt sent while he is
+// away expires unseen. The run asks him first (`weles runs answer <run>
+// --ready`, Weles Desktop's Running screen, every channel he chose) and
+// chooses Google's phone method only on that answer, then asks him to
+// approve, with the number to match. Only when Google already shows its
+// device prompt on its own is there nothing to hold back.
+//
+// The approval wait ends on whichever comes first: Google's page leaving the
+// device prompt, or the operator answering. `not_received` presses Google's
+// "Resend it", or ends the run saying Google offers no second send;
+// `approved` while Google still shows the prompt is recorded with what the
+// page shows. Ending the wait is `weles runs cancel`, which ends the run.
 export async function completeGooglePhoneApproval(page, account, run) {
-  if (!await selectGooglePhonePrompt(page)) return false;
-  const text = await page.locator('body').innerText();
-  const number = text.match(/\b(?:tap|choose|select)\s+(\d{1,3})\b/i);
-  const matching = number ? ` Choose ${number[1]} if the phone asks you to match the number.` : '';
+  const offered = await offeredPhonePrompt(page);
+  if (!offered) return false;
   const request = openOperatorRequest({
     kind: 'google-push-approval', account, run,
-    instruction: `Approve the Google sign-in for ${account} on your phone.${matching}`,
+    instruction: offered.shown
+      ? `Approve the Google sign-in for ${account} on your phone.${await numberToMatch(page)}`
+      : `Weles will send a Google sign-in prompt for ${account} to your phone when you answer ready; nothing is sent before. Then approve it on the phone.`,
   });
   console.log(`[google_sso] operator request ${request.id}; notification delivered=${request.pages.some((attempt) => attempt.ok)}`);
   let seen = Array.isArray(request.answers) ? request.answers.length : 0;
   const [firstRun] = Array.isArray(request.run_ids) ? request.run_ids : [];
   try {
+    if (offered.option) {
+      seen = await untilReady(page, request, seen);
+      await humanClickLocator(page, offered.option);
+      await pageSettled(page);
+      if (!isDevicePrompt(page)) {
+        throw failure(`the operator was ready, and choosing Google's phone method showed ${page.url()} instead of the device prompt`, 'google_phone_prompt_not_shown');
+      }
+      repageOperatorRequest(request.id,
+        `Google's prompt was sent at ${new Date().toISOString()}: approve it on your phone now.${await numberToMatch(page)}`);
+    }
     // Google's device prompt carries its own live regions: the heading block
     // ("2-Step Verification … wants to make sure it's really you") is
     // aria-live, so a read of every live region took the prompt itself for a
@@ -151,6 +180,10 @@ export async function completeGooglePhoneApproval(page, account, run) {
       }
       seen += 1;
       const said = outcome.operator;
+      if (said.answer === 'ready') {
+        noteOperatorRequest(request.id, 'The operator answered ready while Google already shows its prompt; approve it on the phone, or answer not-received for a new one');
+        continue;
+      }
       if (said.answer === 'not_received') {
         const resend = resendControl(page);
         if (!await resend.isVisible()) {
@@ -182,5 +215,42 @@ export async function completeGooglePhoneApproval(page, account, run) {
     if (error && typeof error === 'object') error.second_factor = { required: true, method: 'phone' };
     closeOperatorRequest(request.id, false, `Google phone approval did not complete: ${String(error?.message || error)}`);
     throw error;
+  }
+}
+
+/**
+ * Wait until the operator answers ready, before anything is sent to his
+ * phone; returns the answers seen. Another answer is recorded and the wait
+ * goes on. Google's page leaving the challenge while it waits ends the
+ * sign-in by name: Google ended it, and no prompt was sent.
+ */
+async function untilReady(page, request, seen) {
+  const left = pageCondition(page, () => {
+    const google = location.hostname === 'accounts.google.com';
+    return google && /\/signin\/challenge(?:\/|$)/.test(location.pathname)
+      ? false : { detail: `${location.origin}${location.pathname}` };
+  }).then((moved) => ({ page: moved }));
+  left.catch(() => {});
+  let answered = seen;
+  for (;;) {
+    const listening = new AbortController();
+    const outcome = await Promise.race([
+      left,
+      nextOperatorAnswer(request.id, answered, listening.signal).then((said) => ({ operator: said })),
+    ]);
+    listening.abort();
+    if (outcome.page) {
+      throw failure(
+        `Google left its challenge for ${outcome.page.detail} while the run waited for the operator to be ready (asked at ${request.opened_at}); no prompt was sent, and a new run of the same action starts the sign-in again`,
+        'google_sign_in_ended_during_approval',
+      );
+    }
+    answered++;
+    if (outcome.operator.answer === 'ready') {
+      noteOperatorRequest(request.id, 'The operator is ready; the run chooses Google\'s phone method, which sends the prompt');
+      return answered;
+    }
+    noteOperatorRequest(request.id,
+      `The operator answered ${outcome.operator.answer} before any prompt was sent; the run sends Google's prompt only after he answers ready`);
   }
 }

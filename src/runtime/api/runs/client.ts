@@ -93,10 +93,11 @@ export async function cancelRun(runId: string, detail: string, options: WelesApi
 }
 
 /**
- * Tell a run that waits for a person what the person did: `approved` (the run
- * reads the page and records what the provider shows) or `not_received` (the
- * run asks the provider to send its prompt again, or ends saying it offers
- * none). A run that waits on nobody is refused with the stage it stands at.
+ * Tell a run that waits for a person what the person did: `ready` (the run
+ * asks the provider to send its prompt now), `approved` (the run reads the
+ * page and records what the provider shows) or `not_received` (the run asks
+ * the provider to send its prompt again, or ends saying it offers none). A
+ * run that waits on nobody is refused with the stage it stands at.
  */
 export async function answerRun(
   runId: string,

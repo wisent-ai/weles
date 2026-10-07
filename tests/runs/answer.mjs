@@ -60,8 +60,8 @@ try {
   const target = waitingRun || finishedRun;
   const noFlag = weles(['runs', 'answer', target]);
   assert.equal(noFlag.status, 2, 'an answer without --approved or --not-received is a usage error');
-  assert.match(noFlag.stderr, /exactly one of --approved or --not-received/);
-  const both = weles(['runs', 'answer', target, '--approved', '--not-received']);
+  assert.match(noFlag.stderr, /exactly one of --ready, --approved or --not-received/);
+  const both = weles(['runs', 'answer', target, '--ready', '--not-received']);
   assert.equal(both.status, 2, 'two answers at once are a usage error');
 
   const unknown = weles(['runs', 'answer', randomUUID(), '--approved']);

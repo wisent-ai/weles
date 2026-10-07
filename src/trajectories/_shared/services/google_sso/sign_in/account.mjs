@@ -20,7 +20,7 @@ import { selectAuthenticatorMethod, waitForGoogleChallengeExit } from '../../../
 import { onSignIn, redactKeys } from '../authenticator_enrol.mjs';
 import { generateTotp } from '../totp_secret.mjs';
 import { MAX_HEADING_CHARS } from './constants.mjs';
-import { selectGooglePhonePrompt } from './challenge/phone.mjs';
+import { googlePhonePromptOffered } from './challenge/phone.mjs';
 
 /** Google's password-only challenge: the account is known, the session is not. */
 export const PASSWORD_CHALLENGE = /\/signin\/challenge\/pwd/;
@@ -80,7 +80,9 @@ async function secondFactor(page, login) {
     await waitForGoogleChallengeExit(page);
     return { ok: true };
   }
-  const phonePrompt = await selectGooglePhonePrompt(page);
+  // Nobody here is asked to approve, so nothing is sent to the phone: a prompt
+  // sent without asking the operator expires unseen.
+  const phonePrompt = await googlePhonePromptOffered(page);
   if (!onSignIn(page.url())) return { ok: true };
   return {
     ok: false,
