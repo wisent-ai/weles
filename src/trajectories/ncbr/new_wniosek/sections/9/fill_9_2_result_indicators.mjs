@@ -9,7 +9,10 @@ import {
   humanIdlePause,
 } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
-import { cellShowsSource } from '../../../../_shared/page/shows.mjs';
+import {
+  cellShowsSource,
+  rowShowingSource,
+} from '../../../../_shared/page/shows.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('9_2');
@@ -83,8 +86,13 @@ for (const indicator of allIndicators) {
   (listed ? existingIndicators : ownIndicators).push(indicator);
 }
 
-async function openExistingRow(index) {
-  const row = page.locator('table tbody tr').nth(index + 1);
+// The row is the one whose cell shows the indicator's name: the form lists its
+// predefined indicators in its own order, not the prepared markdown's.
+async function openExistingRow(indicator) {
+  const index = await page.evaluate(rowShowingSource, indicator.name);
+  if (index < 0)
+    throw new Error(`9.2 lists no row showing "${indicator.name}"`);
+  const row = page.locator('table tbody tr').nth(index);
   await row
     .locator('button[aria-label="overflow-options"]')
     .first()
