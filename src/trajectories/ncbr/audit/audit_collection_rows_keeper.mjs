@@ -240,7 +240,6 @@ try {
         editable: inspected.editable,
         fields: inspected.fields?.length || 0,
         over: inspected.overLimit?.length || 0,
-        short: inspected.shortNearLimit?.length || 0,
         markdown: inspected.markdownHits?.length || 0,
         error: inspected.error || null,
       }));
@@ -252,7 +251,6 @@ try {
     sections: out.sections.length,
     rows: out.sections.reduce((sum, s) => sum + s.rows.length, 0),
     overLimit: out.sections.flatMap((s) => s.rows.flatMap((r) => r.overLimit || [])).length,
-    shortNearLimit: out.sections.flatMap((s) => s.rows.flatMap((r) => r.shortNearLimit || [])).length,
     markdownHits: out.sections.flatMap((s) => s.rows.flatMap((r) => r.markdownHits || [])).length,
   };
   const fp = join(OUT_DIR, `audit_${sections.map(([l]) => l).join('_').replace(/[^0-9A-Za-z_.-]+/g, '_') || 'all'}.json`);

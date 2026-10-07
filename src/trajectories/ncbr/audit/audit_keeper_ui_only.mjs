@@ -156,8 +156,7 @@ async function dumpSection(label, id) {
       fileInputs: Array.from(document.querySelectorAll('input[type="file"]')).map((e) => ({ name: e.name, accept: e.accept, multiple: e.multiple })),
       markdownLikeFields: fields.filter((f) => /(\\*\\*|#{1,6}\\s|<!--|\\|---|\\(limit\\s*\\d)/i.test(f.value) || /(\\*\\*|#{1,6}\\s|<!--|\\|---|\\(limit\\s*\\d)/i.test(f.suffix)),
       overLimitFields: fields.filter((f) => f.max && f.len > Number(f.max)).map((f) => ({ name: f.name, len: f.len, max: f.max, label: f.label })),
-      shortNearLimitFields: fields.filter((f) => f.max && f.len > 100 && Number(f.max) - f.len > 10).map((f) => ({ name: f.name, len: f.len, max: f.max, diff: Number(f.max) - f.len, label: f.label })),
-      suspiciousEndings: fields.filter((f) => f.len > 100 && !/[.!?…:;)"”\\]]$/.test(String(f.suffix).trim())).map((f) => ({ name: f.name, len: f.len, suffix: f.suffix.slice(-180), label: f.label })),
+      suspiciousEndings: fields.filter((f) => f.len && !/[.!?…:;)"”\\]]$/.test(String(f.suffix).trim())).map((f) => ({ name: f.name, len: f.len, suffix: f.suffix, label: f.label })),
     };
   })()`);
   return { label, id, ...state, screenshot: await screenshot(label) };
@@ -215,7 +214,6 @@ try {
       fields: state.fields.length,
       tables: state.tables.map((t) => t.rows),
       overLimit: state.overLimitFields.length,
-      shortNearLimit: state.shortNearLimitFields.length,
       markdownHits: state.markdownLikeFields.length,
       suspiciousEndings: state.suspiciousEndings.length,
       shot: state.screenshot.path,
@@ -234,7 +232,6 @@ try {
       fields: s.fields.length,
       tables: s.tables.map((t) => t.rows),
       overLimit: s.overLimitFields.length,
-      shortNearLimit: s.shortNearLimitFields.length,
       markdownHits: s.markdownLikeFields.length,
       suspiciousEndings: s.suspiciousEndings.length,
       shot: s.screenshot.path,
