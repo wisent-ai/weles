@@ -11,7 +11,6 @@ import { pageSettled } from '../../../_shared/page/settled.mjs';
 import { CAMPAIGN_NAME, objectiveLabels } from './campaign_request.mjs';
 import {
   clickAny,
-  clickPoint,
   clickVisibleTextInArea,
   pageText,
 } from './panel_controls.mjs';
@@ -106,15 +105,6 @@ async function openCampaignCreation(s) {
         ],
         'Create',
       ));
-  if (!createClicked) {
-    createClicked = await clickPoint(
-      s,
-      122,
-      233,
-      'campaign Create by coordinates',
-    );
-    await pageSettled(s.page);
-  }
   return createClicked;
 }
 
@@ -157,43 +147,31 @@ async function chooseObjectiveAndContinue(s) {
       break;
     }
   }
+  // A control that cannot be found is refused with what the page shows; a
+  // click at a guessed position lands on whatever the layout put there.
   if (!objectiveClicked) {
-    const viewport = s.page.viewportSize?.() ?? { width: 1280, height: 900 };
-    await clickPoint(
-      s,
-      Math.round(viewport.width * 0.36),
-      455,
-      'objective Traffic/Ruch by coordinates',
+    throw new Error(
+      `[meta-ads] objective not found (${objectiveLabels.join('/')}); visible controls: ${JSON.stringify(await visibleControlDebug(s))}`,
     );
-    await pageSettled(s.page);
-    objectiveClicked = true;
   }
-  if (!objectiveClicked)
-    console.log(
-      `[meta-ads] WARN: objective not selected: ${objectiveLabels.join('/')}`,
-    );
-  await clickAny(
-    s,
-    ['div[role="button"]:has-text("Continue")', 'button:has-text("Continue")'],
-    'Continue',
-  );
-  const continued = await clickAny(
-    s,
-    [
-      'div[role="button"]:has-text("Kontynuuj")',
-      'button:has-text("Kontynuuj")',
-    ],
-    'Kontynuuj',
-  );
-  if (!continued) {
-    const viewport = s.page.viewportSize?.() ?? { width: 1280, height: 900 };
-    await clickPoint(
+  const continued =
+    (await clickAny(
       s,
-      Math.round(viewport.width * 0.68),
-      785,
-      'Kontynuuj by coordinates',
+      ['div[role="button"]:has-text("Continue")', 'button:has-text("Continue")'],
+      'Continue',
+    )) ||
+    (await clickAny(
+      s,
+      [
+        'div[role="button"]:has-text("Kontynuuj")',
+        'button:has-text("Kontynuuj")',
+      ],
+      'Kontynuuj',
+    ));
+  if (!continued) {
+    throw new Error(
+      `[meta-ads] Continue/Kontynuuj not found after choosing the objective; visible controls: ${JSON.stringify(await visibleControlDebug(s))}`,
     );
-    await pageSettled(s.page);
   }
   await maybeContinueCampaignConfiguration(s);
 }
