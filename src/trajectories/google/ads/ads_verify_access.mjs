@@ -174,8 +174,7 @@ try {
               .replace(/\s+/g, ' ')
               .trim(),
           )
-          .filter(Boolean)
-          .slice(0, 80);
+          .filter(Boolean);
         const headings = Array.from(
           document.querySelectorAll('h1, h2, [role="heading"]'),
         )
@@ -184,8 +183,7 @@ try {
               .replace(/\s+/g, ' ')
               .trim(),
           )
-          .filter(Boolean)
-          .slice(0, 20);
+          .filter(Boolean);
         return {
           title: document.title || null,
           headings,
@@ -200,7 +198,7 @@ try {
                 (m) => m.replace(/\D/g, ''),
               ),
             ),
-          ).slice(0, 20),
+          ),
         };
       })
       .catch(() => ({
@@ -233,7 +231,7 @@ try {
         },
         null,
         2,
-      ).slice(0, 14000),
+      ),
     );
     console.log('PASS: Google Ads browser access verified');
   }
