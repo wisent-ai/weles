@@ -136,7 +136,7 @@ function fill(name, value) {
 function clickRow(rowNumberOneBased) {
   const text = read(`(() => {
     const row = Array.from(document.querySelectorAll('table tbody tr'))[${rowNumberOneBased - 1}];
-    return row ? row.innerText.replace(/\\s+/g, ' ').slice(0, 220) : null;
+    return row ? row.innerText.replace(/\\s+/g, ' ') : null;
   })()`);
   if (!text) throw new Error(`row missing: ${rowNumberOneBased}`);
   action([
@@ -152,7 +152,7 @@ function clickRow(rowNumberOneBased) {
 function deleteRow(rowNumberOneBased) {
   const text = read(`(() => {
     const row = Array.from(document.querySelectorAll('table tbody tr'))[${rowNumberOneBased - 1}];
-    return row ? row.innerText.replace(/\\s+/g, ' ').slice(0, 220) : null;
+    return row ? row.innerText.replace(/\\s+/g, ' ') : null;
   })()`);
   if (!text) throw new Error(`row missing for delete: ${rowNumberOneBased}`);
   action([

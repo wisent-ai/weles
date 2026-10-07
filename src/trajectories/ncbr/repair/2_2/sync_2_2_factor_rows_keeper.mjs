@@ -167,7 +167,7 @@ function allRowsText() {
     table: ti,
     rows: Array.from(t.querySelectorAll('tbody tr')).map((tr, ri) => ({
       row: ri + 1,
-      text: tr.innerText.replace(/\\s+/g, ' ').slice(0, 260)
+      text: tr.innerText.replace(/\\s+/g, ' ')
     }))
   })))()`);
 }
