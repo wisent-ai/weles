@@ -72,11 +72,7 @@ console.log(`[instagram:${ACTION}] caption: ${caption}...`);
 const imagePrompt =
   process.env.IMAGE_PROMPT ||
   `${character.niche ?? 'casual lifestyle'} photo, authentic amateur aesthetic, natural lighting, mobile phone camera, candid composition, no text or logos`;
-const imagePath = await generateImageFile({
-  prompt: imagePrompt,
-  width: 1024,
-  height: 1024,
-});
+const imagePath = await generateImageFile({ prompt: imagePrompt });
 console.log(`[instagram:${ACTION}] image file: ${imagePath}`);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
