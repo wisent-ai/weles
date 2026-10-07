@@ -205,8 +205,11 @@ await pickFirst('zasady_szesc_r', '');
 await humanIdlePause('deliberate');
 const projekt = await selectPrinciples(['ogranicz', 'zastanów']);
 const ta6r = page.locator('textarea[name$="opis_zasady_szesc_r"]').first();
-let v6 = OPIS_6R; if (v6.length > 4000) v6 = v6.slice(0, 4000).replace(/\s+\S*$/, '');
-await humanFill(page, ta6r, v6);
+// The form states the field's limit in its maxlength; a longer text is
+// refused by name instead of cut.
+const ta6rMax = await ta6r.getAttribute('maxlength');
+if (ta6rMax && OPIS_6R.length > Number(ta6rMax)) throw new Error(`opis_zasady_szesc_r is ${OPIS_6R.length} characters; the form's maxlength is ${ta6rMax}`);
+await humanFill(page, ta6r, OPIS_6R);
 await humanIdlePause('short');
 let wOpts = [];
 try {

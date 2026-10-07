@@ -24,8 +24,6 @@ const title = 'Duże modele językowe oparte na reprezentacjach jako nowa europe
 let summary = afterHeader('## Streszczenie projektu', '## Wniosek dotyczący projektu składany jest ponownie');
 summary = summary.replace(/^\s*\([^)]*limit[^)]*\)\s*/i, '');
 summary = summary.replace(/^\*\*Streszczenie projektu.*?\*\*\s*/s, '').trim();
-if (summary.length > 4000) summary = summary.slice(0, 4000).replace(/\s+\S*$/, '');
-if (title.length > 150) throw new Error(`title too long: ${title.length}/150`);
 
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
@@ -33,6 +31,17 @@ if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' }, null, 2)); process
 
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
 await page.waitForSelector(`textarea[name="${NB}tytul_projektu"]`);
+// The form states each field's limit in its maxlength; a text over it is
+// refused by name instead of cut.
+const limits = await page.evaluate((nb) => ({
+  title: document.querySelector(`textarea[name="${nb}tytul_projektu"]`)?.getAttribute('maxlength'),
+  summary: document.querySelector(`textarea[name="${nb}streszczenie_projektu"]`)?.getAttribute('maxlength'),
+}), NB); // allow-raw-playwright: read the form's own field limits
+for (const [field, text] of [['title', title], ['summary', summary]]) {
+  if (limits[field] && text.length > Number(limits[field])) {
+    throw new Error(`${field} is ${text.length} characters; the form's maxlength is ${limits[field]}`);
+  }
+}
 
 await selectRadio(page, page.locator('input[type="radio"][value="samodzielnie"]').first());
 await humanFill(page, page.locator(`textarea[name="${NB}tytul_projektu"]`).first(), title);

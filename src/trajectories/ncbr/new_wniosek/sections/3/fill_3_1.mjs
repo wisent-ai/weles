@@ -18,8 +18,7 @@ function between(start, end) {
   if (end) rest = rest.split(end)[0];
   return clean(rest);
 }
-let UZAS = between('**Uzasadnienie (limit 3 000 znaków)**', '---\n\n## 3.2.');
-if (UZAS.length > 3000) UZAS = UZAS.slice(0, 3000).replace(/\s+\S*$/, '');
+const UZAS = between('**Uzasadnienie (limit 3 000 znaków)**', '---\n\n## 3.2.');
 
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
@@ -99,7 +98,12 @@ if (!(await page.evaluate(() => (document.body.innerText || '').includes('Wprowa
   const sposob = await multiPick('sposob_wdrozenia_wynikow_prac_br', ['Wprowadzenie wyników do własnej', 'Udzielenie licencji']);
   const miejsce = await multiPick('miejsce_wdrozenia_wynikow_projektu', ['na terenie RP', 'na terenie innego']);
   await humanFill(page, page.locator('input[name$="przewidywana_data_wdrozenia"]').first(), '09.2029');
-  await humanFill(page, page.locator('textarea[name$="uzasadnienie"]').first(), UZAS);
+  const uzasField = page.locator('textarea[name$="uzasadnienie"]').first();
+  // The form states the field's limit in its maxlength; a longer text is
+  // refused by name instead of cut.
+  const uzasMax = await uzasField.getAttribute('maxlength');
+  if (uzasMax && UZAS.length > Number(uzasMax)) throw new Error(`uzasadnienie is ${UZAS.length} characters; the form's maxlength is ${uzasMax}`);
+  await humanFill(page, uzasField, UZAS);
   await saveEnabled();
   console.log(JSON.stringify({ saveResult: 'saved', sposob, miejsce, uzasLen: UZAS.length }, null, 2));
 } else {
