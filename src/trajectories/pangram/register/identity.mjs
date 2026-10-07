@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { registrationPassword as generatedPassword } from '../../../../dist/utils/identity/password.js';
 
 function pickEmailDomain() {
   const domains = (process.env.PANGRAM_EMAIL_DOMAINS || 'wisentmedia.com')
@@ -14,20 +15,7 @@ export function generateEmail() {
   return `${local}@${domain}`;
 }
 
-/** PANGRAM_PASSWORD when set, else eighteen characters with one from every group, shuffled. */
+/** PANGRAM_PASSWORD when set, else a password at the vault policy's stated length. */
 export function registrationPassword() {
-  if (process.env.PANGRAM_PASSWORD) return process.env.PANGRAM_PASSWORD;
-  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-  const lower = 'abcdefghijkmnopqrstuvwxyz';
-  const digit = '23456789';
-  const special = '!@#$%&*';
-  const all = upper + lower + digit + special;
-  const pick = (s) => s[randomBytes(1)[0] % s.length];
-  const out = [pick(upper), pick(lower), pick(digit), pick(special)];
-  for (let i = 0; i < 14; i += 1) out.push(pick(all));
-  for (let i = out.length - 1; i > 0; i -= 1) {
-    const j = randomBytes(1)[0] % (i + 1);
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out.join('');
+  return process.env.PANGRAM_PASSWORD || generatedPassword();
 }

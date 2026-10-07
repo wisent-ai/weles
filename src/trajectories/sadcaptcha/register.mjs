@@ -3,20 +3,13 @@
 import { randomBytes } from 'node:crypto';
 import { WSession } from '../../../dist/session/wsession.js';
 import { CaptchaSolver } from '../../../dist/captcha/solver.js';
+import { registrationPassword } from '../../../dist/utils/identity/password.js';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 import { writeServiceCredentials } from '../_shared/skarbiec/accounts.mjs';
 
 // SadCaptcha rejects gmail aliases; use a fresh wisentmedia.com mailbox instead.
 const EMAIL = `svc.sad.${randomBytes(3).toString('hex')}@wisentmedia.com`;
-const password = (() => {
-  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ', lower = 'abcdefghijkmnpqrstuvwxyz', digit = '23456789', special = '!@#$%&*';
-  const pool = upper + lower + digit + special;
-  const pick = (s) => s[randomBytes(1)[0] % s.length];
-  const chars = [pick(upper), pick(lower), pick(digit), pick(special)];
-  for (let i = 0; i < 12; i++) chars.push(pick(pool));
-  for (let i = chars.length - 1; i > 0; i--) { const j = randomBytes(1)[0] % (i + 1); [chars[i], chars[j]] = [chars[j], chars[i]]; }
-  return chars.join('');
-})();
+const password = registrationPassword();
 
 console.log(`[trajectory] registering: ${EMAIL}`);
 

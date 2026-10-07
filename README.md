@@ -348,6 +348,17 @@ DNS/WebRTC behavior, latency and target response. Stado's real-device egress tes
 require a trusted phone and observed mobile IP classification. Disconnected hardware
 or an unclassified exit is not a passing result.
 
+### Passwords of accounts Weles registers
+
+Every registration (the shared identity generator, Pangram, SadCaptcha, 2Captcha)
+takes its password from one generator: one character of each class sign-up forms
+check (upper, lower, digit, special), the rest from all of them, shuffled, at the
+length the vault's policy states. Set it once with
+`skarbiec policy-set min_generated_length <length>`; with none set, a registration
+is refused naming that command, and a length shorter than the four classes is
+refused too. `node tests/identity/password.mjs` checks this against an isolated
+vault made with `skarbiec init`.
+
 ## Benchmark against rivals
 
 Stado's product catalog names Weles's rivals (Browser Use, Skyvern, Stagehand)

@@ -60,6 +60,22 @@ export function listCredentialItems(): Array<Record<string, any>> {
   return rows.filter((row) => !row.deleted && row.state !== 'deleted');
 }
 
+/**
+ * The length the vault's administrative policy requires of a generated
+ * secret (`skarbiec policy-set min_generated_length <N>`), or null when the
+ * operator set none. Every password Weles generates for a new account takes
+ * this length: it is the one place that length is stated.
+ */
+export function minimumGeneratedLength(): number | null {
+  const policy = JSON.parse(skarbiec(['policy-get'])) as Record<string, unknown>;
+  const stated = policy?.min_generated_length;
+  if (stated === undefined || stated === null) return null;
+  if (!Number.isSafeInteger(stated)) {
+    throw new Error(`Skarbiec's policy min_generated_length is not a whole number: ${JSON.stringify(stated)}`);
+  }
+  return stated as number;
+}
+
 function itemIds(kind?: string): string[] {
   return listCredentialItems().filter((row) => !kind || row.kind === kind)
     .map((row) => String(row.name ?? row.id ?? ''))
