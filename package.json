@@ -14,6 +14,8 @@
   },
   "scripts": {
     "prepare": "npm run build",
+    "preversion": "node scripts/release/rollback-compat.mjs",
+    "version": "git add .wisent-release.json",
     "build": "tsc && mkdir -p dist/page-init/page/navigator && cp src/page-init/page/*.js dist/page-init/page/ && cp src/page-init/page/navigator/*.js dist/page-init/page/navigator/ && mkdir -p dist/page-init/firefox && cp src/page-init/firefox/*.js dist/page-init/firefox/ && mkdir -p dist/release && cp src/release/*.mjs dist/release/ && mkdir -p dist/figma/document && cp src/figma/*.mjs dist/figma/ && cp src/figma/document/*.mjs dist/figma/document/ && mkdir -p dist/diagnostics && (mkdir -p dist/diagnostics/page && cp -f src/diagnostics/page/*.js dist/diagnostics/page/ 2>/dev/null || true) && chmod u+x,go+x dist/cli.js dist/mcp.js",
     "dev": "tsc --watch"
   },
