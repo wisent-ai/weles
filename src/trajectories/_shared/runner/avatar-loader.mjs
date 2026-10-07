@@ -51,7 +51,9 @@ export async function loadAvatarFile(rawUrl) {
   }
   const buf = Buffer.from(await r.arrayBuffer());
 
-  const upright = await sharp(buf).rotate().toBuffer({ resolveWithObject: true });
+  const upright = await sharp(buf)
+    .rotate()
+    .toBuffer({ resolveWithObject: true });
   const side = Math.min(upright.info.width, upright.info.height);
   const out = await sharp(upright.data)
     .resize(side, side, { fit: 'cover', position: 'attention' })

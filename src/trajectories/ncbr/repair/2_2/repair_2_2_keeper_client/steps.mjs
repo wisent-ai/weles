@@ -153,9 +153,7 @@ export function ensureFactorSelected(label) {
   const after = selectedFactors();
   return {
     label,
-    status: after.some((x) => shows(x, label))
-      ? 'selected'
-      : 'attempted',
+    status: after.some((x) => shows(x, label)) ? 'selected' : 'attempted',
     before,
     options,
     match,

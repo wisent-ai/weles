@@ -135,8 +135,7 @@ if (process.env.DIAG) {
     );
     const empties = Array.from(
       document.querySelectorAll('[aria-invalid="true"], .Mui-error'),
-    )
-      .map((e) => (e.getAttribute('name') ?? e.textContent).trim());
+    ).map((e) => (e.getAttribute('name') ?? e.textContent).trim());
     return {
       applText,
       zapiszDisabled: zapisz.map((b) => b.disabled),

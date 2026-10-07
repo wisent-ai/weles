@@ -157,7 +157,10 @@ async function chooseObjectiveAndContinue(s) {
   const continued =
     (await clickAny(
       s,
-      ['div[role="button"]:has-text("Continue")', 'button:has-text("Continue")'],
+      [
+        'div[role="button"]:has-text("Continue")',
+        'button:has-text("Continue")',
+      ],
       'Continue',
     )) ||
     (await clickAny(

@@ -209,11 +209,14 @@ export async function AsyncNewBrowser(
   // honest host's available area.
   const viewportOverride = process.env.WELES_VIEWPORT?.match(/^(\d+)x(\d+)$/);
   const stated = viewportOverride
-    ? { width: Number(viewportOverride[1]), height: Number(viewportOverride[2]) }
-    : persona?.screen ??
+    ? {
+        width: Number(viewportOverride[1]),
+        height: Number(viewportOverride[2]),
+      }
+    : (persona?.screen ??
       (_hhScreen
         ? { width: _hhScreen.availWidth, height: _hhScreen.availHeight }
-        : null);
+        : null));
   if (!stated) {
     throw new Error(
       'the browser window has no size: set WELES_VIEWPORT=<width>x<height>, give the session a persona, or let Weles read the host screen (WELES_HONEST_SCREEN on, honest host enabled)',

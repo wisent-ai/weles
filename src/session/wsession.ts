@@ -232,14 +232,11 @@ export class WSession {
   }
 
   async goto(url: string): Promise<string> {
-    return this.runStep(
-      `goto_${url.split('/').pop()}`,
-      async () => {
-        await this.page.goto(url, { waitUntil: 'domcontentloaded' });
-        await waitCloudflare(asV(this.page));
-        return `navigated to ${this.page.url?.() ?? url}`;
-      },
-    );
+    return this.runStep(`goto_${url.split('/').pop()}`, async () => {
+      await this.page.goto(url, { waitUntil: 'domcontentloaded' });
+      await waitCloudflare(asV(this.page));
+      return `navigated to ${this.page.url?.() ?? url}`;
+    });
   }
 
   // Method bodies extracted to ./wsession-helpers/finalize.ts and to

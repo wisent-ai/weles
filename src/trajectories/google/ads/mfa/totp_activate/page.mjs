@@ -28,8 +28,8 @@ export async function diag(page, label, secret = '') {
           ),
         }))
         .filter((item) => item.text || item.aria || item.href);
-      const inputs = Array.from(document.querySelectorAll('input'))
-        .map((el) => ({
+      const inputs = Array.from(document.querySelectorAll('input')).map(
+        (el) => ({
           type: el.getAttribute('type') || '',
           name: el.getAttribute('name') || '',
           autocomplete: el.getAttribute('autocomplete') || '',
@@ -39,7 +39,8 @@ export async function diag(page, label, secret = '') {
             el.offsetWidth || el.offsetHeight || el.getClientRects().length,
           ),
           valueLength: String(el.value || '').length,
-        }));
+        }),
+      );
       return {
         url: location.href,
         title: document.title,

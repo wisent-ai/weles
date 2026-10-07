@@ -309,7 +309,10 @@ export function contactRepairs({
     await humanIdlePause('deliberate');
     // The option that shows the whole search is picked; with none, the list
     // is refused with what it offered rather than its first entry taken.
-    const opt = page.locator('[role="option"]').filter({ hasText: search }).first();
+    const opt = page
+      .locator('[role="option"]')
+      .filter({ hasText: search })
+      .first();
     if ((await opt.count()) === 0) {
       const offered = await page.locator('[role="option"]').allTextContents();
       throw new Error(
