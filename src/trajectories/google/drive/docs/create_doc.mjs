@@ -20,7 +20,9 @@
 //   URL: https://docs.google.com/document/d/<id>/edit on success.
 
 import { WSession } from '../../../../../dist/session/wsession.js';
+import { urlMatching } from '../../../_shared/page/settled.mjs';
 import { googleSso } from '../../../_shared/services/google_sso.mjs';
+import { DOCUMENT_REPLACED, readAcrossNavigation } from '../../../_shared/services/google_sso/page_diagnostics.mjs';
 import { humanClick, humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 import { humanType, humanFill } from '../../../../../dist/human/keyboard.js';
 import { nativeSelectAllAndDelete } from '../../../../../dist/human/mouse-native.js';
@@ -79,18 +81,11 @@ try {
     }
   }
 
-  // Wait for the doc to fully load — the URL flips to /document/d/<id>/edit
-  // and the canvas iframe materialises. The docs editor uses a kix canvas
-  // wrapped in iframes; the most reliable readiness signal is the document
-  // title input rendering at the top.
-  for (let i = 0; i < 60; i++) {
-    if (/document\/d\/[A-Za-z0-9_-]+\/edit/.test(s.page.url())) break;
-    await humanIdlePause('short');
-  }
-  if (!/document\/d\/[A-Za-z0-9_-]+\/edit/.test(s.page.url())) {
-    log('FAIL: never landed on a new doc URL (url=' + s.page.url() + ')');
-    process.exit(2);
-  }
+  // Wait for the doc to exist: the URL flips to /document/d/<id>/edit. The
+  // wait ends when the page navigates there, or fails naming the last URL
+  // when the page closes or crashes first; it used to give up after sixty
+  // short pauses whatever Google was doing.
+  await urlMatching(s.page, /document\/d\/[\w-]+\/edit/);
   const docUrl = s.page.url();
   const docIdMatch = docUrl.match(/document\/d\/([A-Za-z0-9_-]+)/);
   const docId = docIdMatch?.[1];
@@ -105,11 +100,8 @@ try {
   console.log('URL: ' + docUrl);
 
   async function probeVisible(loc) {
-    try { return await loc.isVisible(); }
-    catch (e) {
-      if (/detached|navigat|destroyed|closed/i.test(e.message || '')) return null;
-      throw e;
-    }
+    const shown = await readAcrossNavigation(loc.page(), () => loc.isVisible());
+    return shown === DOCUMENT_REPLACED ? null : shown;
   }
 
   await humanIdlePause('long'); // let the Docs canvas finish hydrating
