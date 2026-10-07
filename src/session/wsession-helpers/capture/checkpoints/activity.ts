@@ -60,10 +60,6 @@ export function attachInstrumentationCheckpoints(
         ws._instMetricsHistory.push({ t: Date.now(), metrics: result.metrics });
       } catch (error) { recordError('Performance.getMetrics', error); }
       try {
-        const result = await ws._cdp.send('SystemInfo.getProcessInfo');
-        ws._instProcessHistory.push({ t: Date.now(), processInfo: result });
-      } catch (error) { recordError('SystemInfo.getProcessInfo', error); }
-      try {
         const result = await ws._cdp.send('Memory.getDOMCounters');
         ws._instDomCounters.push({ t: Date.now(), counters: result });
       } catch (error) { recordError('Memory.getDOMCounters', error); }

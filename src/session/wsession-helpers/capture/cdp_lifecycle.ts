@@ -66,7 +66,6 @@ export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: 
       // driver version, GL renderer, supported video decoders, command-line
       // flags Chrome actually launched with. Captured once at session start.
       try { ws._instSystemInfo = await cdp.send('SystemInfo.getInfo'); } catch (e: any) { ws._instSystemInfo = { error: String(e?.message ?? e) }; }
-      try { ws._instProcessInfo = await cdp.send('SystemInfo.getProcessInfo'); } catch (e: any) { ws._instProcessInfo = { error: String(e?.message ?? e) }; }
       try { ws._instBrowserVersion = await cdp.send('Browser.getVersion'); } catch (e: any) { ws._instBrowserVersion = { error: String(e?.message ?? e) }; }
       try { ws._instHistograms = await cdp.send('Browser.getHistograms', { delta: false }); } catch (e: any) { ws._instHistograms = { error: String(e?.message ?? e) }; }
       try { ws._instNavigationHistory = await cdp.send('Page.getNavigationHistory'); } catch (e: any) { ws._instNavigationHistory = { error: String(e?.message ?? e) }; }

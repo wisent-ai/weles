@@ -59,7 +59,6 @@ export function startInstrumentation(ws: any, ctx: BrowserContext, label: string
   ws._instTargetEvents = targetEvents;
   ws._instFrameEvents = frameEvents;
   ws._instMetricsHistory = metricsHistory;
-  ws._instProcessHistory = [];
   ws._instDomCounters = [];
   ws._instStorageHistory = storageHistory;
   ws._instAccum = accum;
@@ -199,8 +198,6 @@ function buildDumpPayload(ws: any, opts: { closing?: boolean } = {}): any {
     storage_history: ws._instStorageHistory ?? [],
     cdp_network: ws._instCdpNetwork ?? [],
     system_info: ws._instSystemInfo ?? null,
-    process_info: ws._instProcessInfo ?? null,
-    process_history: ws._instProcessHistory ?? [],
     browser_version: ws._instBrowserVersion ?? null,
     histograms: ws._instHistograms ?? null,
     navigation_history: ws._instNavigationHistory ?? null,
