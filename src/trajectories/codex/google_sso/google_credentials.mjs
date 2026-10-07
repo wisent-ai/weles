@@ -127,7 +127,10 @@ export async function enterGoogleCredentials({
     'input[type="text"][autocomplete*="username"], input#identifierId, input[name="identifier"], input[type="email"]'
   ).filter({ visible: true }).first();
   await gEmailIn.waitFor({ state: 'visible' });
+  // Each step that waits on the page is its own stage, so a stall names it.
+  mark('google_email_field_visible');
   await fillAndVerify(page, gEmailIn, login.email, humanClickLocator, humanType);
+  mark('google_email_typed');
   // Trusted typing delivers key/input events. Dispatch focusout/blur for the
   // field's on-blur validator before observing the Next control's enabled state.
   // best-effort blur — if the page has already navigated (Google
@@ -143,6 +146,7 @@ export async function enterGoogleCredentials({
     if (!e.message.includes('Execution context was destroyed')) throw e;
   }
   await waitForEnabledThenClick(page, /next|continue|dalej/i);
+  mark('google_email_submitted');
 
   const gPwIn = await waitForGooglePassword({ page, mark, humanClickLocator });
   await fillAndVerify(page, gPwIn, login.password, humanClickLocator, humanType);
