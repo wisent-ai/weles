@@ -216,6 +216,14 @@ export function coalesceRun(key, start, metadata = {}) {
   const entry = { promise: null, completedAt: null, metadata };
   entry.promise = Promise.resolve()
     .then(start)
+    .then((outcome) => {
+      // A cancelled run says nothing about the account: the next request for
+      // it starts a run instead of being handed the cancellation.
+      if (outcome?.cancelled === true || outcome?.failure?.code === 'run_cancelled') {
+        if (coalescedRuns.get(key) === entry) coalescedRuns.delete(key);
+      }
+      return outcome;
+    })
     .finally(() => { entry.completedAt = Date.now(); });
   coalescedRuns.set(key, entry);
   return { entry, joined: false };

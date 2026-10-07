@@ -5,6 +5,7 @@ import type { AsyncNewBrowserOptions } from './async_api.js';
 import { runDoctor } from './cli/diagnostics.js';
 import { runImport, runOnboarding, runRelease, runDesign } from './cli/workflows.js';
 import { runOperatorRequests } from './cli/operator-requests.js';
+import { runRuns } from './cli/worker/runs.js';
 import { runAccountSecurity } from './cli/security/account-security.js';
 import { runAppPassword } from './cli/security/app-password.js';
 import { runAppleDeveloperId } from './cli/security/apple-developer-id.js';
@@ -14,7 +15,7 @@ import { runKeeper } from './cli/keeper.js';
 import { adoptRecords } from './state/skarbiec-records.js';
 import { HELP, UsageError, exitStatusFor, printAnswer } from './cli/usage.js';
 
-type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import' | 'release' | 'design' | 'operator-requests' | 'account-security' | 'app-password' | 'developer-certificate' | 'login' | 'worker' | 'records' | 'keeper';
+type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import' | 'release' | 'design' | 'operator-requests' | 'runs' | 'account-security' | 'app-password' | 'developer-certificate' | 'login' | 'worker' | 'records' | 'keeper';
 
 export type ParsedCli = {
   command: CliCommand;
@@ -78,7 +79,7 @@ function normalizeCommand(command?: string): CliCommand {
   if (!command || command === '--help' || command === '-h' || command === 'help') return 'help';
   if (command === '--version' || command === '-v' || command === 'version') return 'version';
   if (command === 'account-security' || command === 'app-password' || command === 'developer-certificate' || command === 'login' || command === 'worker' || command === 'records' || command === 'keeper') return command;
-  if (command === 'doctor' || command === 'open' || command === 'screenshot' || command === 'mcp' || command === 'onboarding' || command === 'import' || command === 'release' || command === 'design' || command === 'operator-requests') return command;
+  if (command === 'doctor' || command === 'open' || command === 'screenshot' || command === 'mcp' || command === 'onboarding' || command === 'import' || command === 'release' || command === 'design' || command === 'operator-requests' || command === 'runs') return command;
   throw new UsageError(`unknown command: ${command}`);
 }
 
@@ -209,6 +210,10 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   }
   if (parsed.command === 'operator-requests') {
     await runOperatorRequests(parsed);
+    return;
+  }
+  if (parsed.command === 'runs') {
+    await runRuns(parsed);
     return;
   }
   if (parsed.command === 'account-security') {

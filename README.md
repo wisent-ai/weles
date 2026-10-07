@@ -192,6 +192,20 @@ waiting for. A refusal before a run is admitted is a plain JSON answer with
 its HTTP status. The run's record (`GET /diagnostics/<run>`, `run-result.json`)
 holds the stages reached so far while it runs.
 
+A run's record shows the last stage it reached, not that it has stood on one
+page for an hour, and a sign-in is coalesced per account: every later sign-in
+of that account joins the run already under way. `weles runs list` (`GET
+/runs`) lists every run the worker has a live child for, with when it last
+wrote anything; `weles runs show <run>` (`GET /runs/:run_id`) prints the last
+lines it wrote, or its record once it finished. `weles runs cancel <run>
+--detail <who and why>` (`POST /runs/:run_id/cancel`) kills the run's process
+group and records it as cancelled with that detail; a sign-in ends with
+failure `run_cancelled` at the stage it reached, and the next sign-in of that
+account starts a new run instead of joining or replaying it. A run that
+already finished is refused (409) with when; a run recorded as `running`
+that no live child answers for was left by a server that stopped. Desktop
+Running has the same list, the last output and a Cancel button.
+
 Results identify the subscription, login item, actual failed operation, HTTP status
 and run id. `account_revision` describes Skarbiec data; `source_revision` identifies
 the Weles software. Missing source references, cycles, conflicting login material

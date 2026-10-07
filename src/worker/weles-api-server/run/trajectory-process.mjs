@@ -29,6 +29,7 @@ import { RECORDINGS_ROOT, RUN_RESULTS_DIR } from '../configuration.mjs';
 import { REPO, RUN_RELEASE_IDENTITY } from '../release-identity.mjs';
 import { SAFE_RUN_ID, findResultDoc, lastJsonLine, persistRunResult, runOutputs } from './run-outcome.mjs';
 import { credentialFailure } from './credential-outcome.mjs';
+import { registerRunningRun } from './running-runs.mjs';
 
 function signalRunProcess(child, signal) {
   if (process.platform !== 'win32' && child.pid) {
@@ -64,6 +65,18 @@ function trajectoryProcess(trajPath) {
 function boundedOutputTail(current, chunk, maximumCharacters) {
   const next = `${current}${chunk.toString()}`;
   return next.length <= maximumCharacters ? next : next.slice(-maximumCharacters);
+}
+
+// What a running run has said lately, as `GET /runs` reports it: the tails
+// of both streams the finished record will keep, and when the child last
+// wrote anything. A run whose last output is an hour old is waiting on
+// something its last line names.
+function liveOutput(stdout, stderr, lastOutputAt) {
+  return {
+    last_output_at: lastOutputAt,
+    stdout_tail: stdout.slice(-4000),
+    stderr_tail: stderr.slice(-2000),
+  };
 }
 
 // `outputs` are the named documents the run left in its recording tree;
@@ -109,16 +122,27 @@ export function createTrajectoryRunner({ resolveTrajectory, paramsToEnv }) {
       const child = spawn(processSpec.command, processSpec.args, { cwd: REPO, env, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
       let stdout = '';
       let stderr = '';
+      let lastOutputAt = null;
       let cancelled = false;
+      let cancelDetail = null;
       let settled = false;
       const abortRun = () => {
         cancelled = true;
         signalRunProcess(child, 'SIGKILL');
       };
+      const unregister = registerRunningRun(runId, {
+        action,
+        kind: 'run',
+        startedAt,
+        cancel: (detail) => { cancelDetail = detail; abortRun(); },
+        describe: () => liveOutput(stdout, stderr, lastOutputAt),
+      });
       const finish = (result) => {
         if (settled) return;
         settled = true;
+        unregister();
         runOptions.signal?.removeEventListener('abort', abortRun);
+        if (cancelDetail !== null) result = { ...result, ok: false, cancelled: true, cancel_detail: cancelDetail };
         try {
           persistRunResult(runResultPath, { ...result, ...RUN_RELEASE_IDENTITY, action, run_id: runId, status: 'finished', started_at: startedAt, completed_at: new Date().toISOString() });
         } catch (error) {
@@ -128,8 +152,8 @@ export function createTrajectoryRunner({ resolveTrajectory, paramsToEnv }) {
       };
       if (runOptions.signal?.aborted) abortRun();
       else runOptions.signal?.addEventListener('abort', abortRun, { once: true });
-      child.stdout.on('data', (chunk) => { stdout = boundedOutputTail(stdout, chunk, 2 * 1024 * 1024); });
-      child.stderr.on('data', (chunk) => { stderr = boundedOutputTail(stderr, chunk, 512 * 1024); });
+      child.stdout.on('data', (chunk) => { lastOutputAt = new Date().toISOString(); stdout = boundedOutputTail(stdout, chunk, 2 * 1024 * 1024); });
+      child.stderr.on('data', (chunk) => { lastOutputAt = new Date().toISOString(); stderr = boundedOutputTail(stderr, chunk, 512 * 1024); });
       child.once('error', (error) => {
         finish({ ok: false, exitCode: -1, action, run_id: runId, result: null, ...recordedOutputs(runId), stdout_tail: stdout.slice(-4000), stderr_tail: `${stderr}\n${String(error?.message || error)}`.slice(-2000), cancelled });
       });
@@ -207,6 +231,8 @@ export function runReauth(provider, account, onProgress = () => {}) {
       detached: process.platform !== 'win32',
     });
     let stdout = ''; let stderr = ''; let settled = false;
+    let lastOutputAt = null;
+    let cancelDetail = null;
     const stages = [];
     let operatorRequest = null;
     let progressRecordError = null;
@@ -249,8 +275,36 @@ export function runReauth(provider, account, onProgress = () => {}) {
         }
       }
     };
+    const unregister = registerRunningRun(runId, {
+      action,
+      kind: 'reauth',
+      startedAt,
+      cancel: (detail) => { cancelDetail = detail; signalRunProcess(child, 'SIGKILL'); },
+      describe: () => ({
+        provider,
+        login_item: account ? account.loginItem : null,
+        subscription_id: account ? (account.subscriptionId || null) : null,
+        stage: stages.length ? stages[stages.length - 1] : null,
+        operator_request: operatorRequest,
+        ...liveOutput(stdout, stderr, lastOutputAt),
+      }),
+    });
     const finish = (result) => {
       if (settled) return;
+      unregister();
+      if (cancelDetail !== null) {
+        // The operator ended it: nothing about the account was learned, and
+        // the next sign-in is free to run.
+        const stage = stages.length ? stages[stages.length - 1].stage : 'identity';
+        result.ok = false;
+        result.failure = {
+          code: 'run_cancelled',
+          stage,
+          message: `the run was cancelled at stage ${stage}: ${cancelDetail}`,
+          retryable: true,
+          browser_started: stages.some((reached) => reached.stage === 'browser_started'),
+        };
+      }
       result.failure = result.ok ? null : (result.failure ?? credentialFailure(result));
       result.second_factor ??= result.failure?.second_factor ?? null;
       result.stages = stages;
@@ -275,8 +329,13 @@ export function runReauth(provider, account, onProgress = () => {}) {
       }
       resolveRun(result);
     };
-    child.stdout.on('data', (c) => { stdout += c.toString(); });
-    child.stderr.on('data', (c) => { const text = c.toString(); stderr += text; readProgress(text); });
+    child.stdout.on('data', (c) => { lastOutputAt = new Date().toISOString(); stdout = boundedOutputTail(stdout, c, 2 * 1024 * 1024); });
+    child.stderr.on('data', (c) => {
+      const text = c.toString();
+      lastOutputAt = new Date().toISOString();
+      stderr = boundedOutputTail(stderr, text, 512 * 1024);
+      readProgress(text);
+    });
     child.once('error', (error) => {
       finish({
         ok: false,

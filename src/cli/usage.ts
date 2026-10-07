@@ -62,6 +62,13 @@ Usage:
   weles operator-requests answer <id> --approved|--not-received|--cancel [--detail <text>] [--local]
   weles operator-requests close <id> --approved|--unapproved --detail <text>
   weles operator-requests reopen <id>
+  weles runs list [--json]      The runs the managed worker has a live child for, with when each last wrote anything
+  weles runs show <run-id> [--json]
+                          What a run wrote last while it runs, or its record once it finished
+  weles runs cancel <run-id> --detail <text> [--json]
+                          End a run: its process group is killed and the run is recorded
+                          as cancelled with the detail; a cancelled sign-in no longer holds
+                          the account, so the next sign-in starts a new run
   weles account-security --provider google --login-role <skarbiec-role> [--json]
   weles account-security --run <run-id> [--json]
   weles app-password --provider google --login-role <skarbiec-role> --organization <skrzynka-organization> [--json]
