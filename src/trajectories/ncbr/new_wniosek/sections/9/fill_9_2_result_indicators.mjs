@@ -9,6 +9,7 @@ import {
   humanIdlePause,
 } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
+import { cellShowsSource } from '../../../../_shared/page/shows.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('9_2');
@@ -61,8 +62,6 @@ function indicators() {
 }
 
 const allIndicators = indicators();
-const existingIndicators = allIndicators.slice(0, 15);
-const ownIndicators = allIndicators.slice(15);
 
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
@@ -73,6 +72,16 @@ if (!page) {
 
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
+
+// The predefined indicators are the ones the form already lists; every other
+// prepared indicator is the applicant's own and is added. The split is read
+// from the page, not assumed to be the first indicators of the markdown.
+const existingIndicators = [];
+const ownIndicators = [];
+for (const indicator of allIndicators) {
+  const listed = await page.evaluate(cellShowsSource, indicator.name);
+  (listed ? existingIndicators : ownIndicators).push(indicator);
+}
 
 async function openExistingRow(index) {
   const row = page.locator('table tbody tr').nth(index + 1);
