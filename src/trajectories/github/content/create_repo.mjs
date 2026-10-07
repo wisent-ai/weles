@@ -27,8 +27,8 @@ function slug() {
 }
 
 const REPO_NAME = (process.env.REPO_NAME || slug())
-  .replace(/[^a-zA-Z0-9_.-]/g, '')
-  .slice(0, 90);
+  // GitHub decides how long a name may be and says so; no cut is chosen here.
+  .replace(/[^a-zA-Z0-9_.-]/g, '');
 const REPO_DESC = process.env.REPO_DESC || 'personal workspace';
 
 const acct = await getSocialAccount('github');
