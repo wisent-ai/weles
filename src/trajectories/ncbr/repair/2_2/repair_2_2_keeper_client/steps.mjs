@@ -23,18 +23,17 @@ export function readState() {
         name: el.name || '',
         len: (el.value || '').length,
         max: el.getAttribute('maxlength') || '',
-        value: (el.value || '').slice(0, 200),
-        suffix: (el.value || '').slice(-200),
+        value: el.value,
         invalid: el.getAttribute('aria-invalid') || ''
       })).filter((f) => f.name && f.name !== 'table_search'),
       chips: Array.from(document.querySelectorAll('.MuiChip-label')).map((e) => e.textContent.trim()).filter(Boolean),
       tables: Array.from(document.querySelectorAll('table')).map((t, i) => ({
         i,
         rows: t.querySelectorAll('tbody tr').length,
-        text: t.innerText.replace(/\\s+/g, ' ').slice(0, 3000)
+        text: t.innerText.replace(/\\s+/g, ' ')
       })),
-      buttons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim(), disabled: b.disabled })).filter((b) => b.text).slice(0, 80),
-      bodyTail: body.slice(-3000)
+      buttons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim(), disabled: b.disabled })).filter((b) => b.text),
+      body
     };
   })()`);
 }
@@ -52,7 +51,7 @@ export function loginIfNeeded() {
   click('input[name="isStatuteAccepted"], #isStatuteAccepted', true);
   click('#login-btn, button:has-text("Zaloguj")');
   settle();
-  const after = evalRead(`(() => ({ url: location.href, body: (document.body.innerText || '').slice(0, 1000) }))()`);
+  const after = evalRead(`(() => ({ url: location.href, body: document.body.innerText }))()`);
   if (after.url.includes('/logowanie')) throw new Error(`login stayed on login page: ${after.body}`);
   evidence.steps.push({ step: 'login', status: 'logged_in', url: after.url });
 }

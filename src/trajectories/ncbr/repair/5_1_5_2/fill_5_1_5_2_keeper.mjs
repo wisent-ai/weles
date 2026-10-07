@@ -31,7 +31,7 @@ function idle(kind = 'short') {
 function tableRows() {
   return read(`(() => Array.from(document.querySelectorAll('table')).map((t) => ({
     rows: t.querySelectorAll('tbody tr').length,
-    text: t.innerText.replace(/\\s+/g, ' ').slice(0, 1200)
+    text: t.innerText.replace(/\\s+/g, ' ')
   })))()`);
 }
 

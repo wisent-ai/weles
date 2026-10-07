@@ -116,7 +116,7 @@ async function rowButtons() {
           tableIndex,
           rowIndex,
           globalRowIndex: allRows.indexOf(row) + 1,
-          text: row.innerText.trim().replace(/\\s+/g, ' ').slice(0, 700),
+          text: row.innerText.trim().replace(/\\s+/g, ' '),
         };
       }).filter(Boolean)
     );
@@ -147,16 +147,14 @@ async function readOpenFields() {
           max,
           diff: max ? Number(max) - value.length : null,
           invalid: el.getAttribute('aria-invalid') || '',
-          valueHead: value.slice(0, 220),
-          valueTail: value.slice(-220),
+          value,
         };
       });
     return {
-      title: (scope.innerText || '').trim().replace(/\\s+/g, ' ').slice(0, 500),
+      title: scope.innerText.trim().replace(/\\s+/g, ' '),
       fields,
       overLimit: fields.filter((f) => f.max && f.len > Number(f.max)),
-      markdownHits: fields.filter((f) => /(\\*\\*|#{1,6}\\s|<!--|\\|---|\\(limit\\s*\\d)/i.test(f.valueHead) || /(\\*\\*|#{1,6}\\s|<!--|\\|---|\\(limit\\s*\\d)/i.test(f.valueTail)),
-      shortNearLimit: fields.filter((f) => f.max && f.len > 100 && Number(f.max) - f.len > 10),
+      markdownHits: fields.filter((f) => /(\\*\\*|#+\\s|<!--|\\|---|\\(limit\\s*\\d)/i.test(f.value)),
     };
   })()`);
 }

@@ -212,7 +212,7 @@ for (let i = 0; i < sections.length; i += 1) {
       ...sectionMeta,
       finalUrl: location.href,
       title: document.title,
-      headingLines: body.split('\n').map((l) => l.trim()).filter((l) => /^\d+(?:\.\d+)?\./.test(l)).slice(0, 8),
+      headingLines: body.split('\n').map((l) => l.trim()).filter((l) => /^\d+(?:\.\d+)?\./.test(l)),
       fields,
       muiValues,
       tables,

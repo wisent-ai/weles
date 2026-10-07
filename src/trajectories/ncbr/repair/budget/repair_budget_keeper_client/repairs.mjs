@@ -21,12 +21,12 @@ export async function loginIfNeeded() {
       evidence.steps.push({ step: 'login', status: 'ok', url: u });
       return;
     }
-  const body = await ro(`document.body.innerText.slice(0,800)`);
+  const body = await ro(`document.body.innerText`);
   throw new Error(`login stayed on login page: ${body}`);
 }
 
 export async function tableText() {
-  return await ro(`Array.from(document.querySelectorAll('table')).map((t,i)=>({i,rows:t.querySelectorAll('tbody tr').length,text:t.innerText.replace(/\\s+/g,' ').slice(0,3000)}))`);
+  return await ro(`Array.from(document.querySelectorAll('table')).map((t,i)=>({i,rows:t.querySelectorAll('tbody tr').length,text:t.innerText.replace(/\\s+/g,' ')}))`);
 }
 
 export async function openEditRow(candidates) {
@@ -88,7 +88,7 @@ export async function repair22Factor() {
   let picked = null;
   try {
     await kfill(inputSel, 'wpływa na zwiększenie bezpieczeństwa dostaw');
-    const options = await ro(`Array.from(document.querySelectorAll('[role="option"]')).map(o=>o.textContent.trim()).filter(Boolean).slice(0,20)`);
+    const options = await ro(`Array.from(document.querySelectorAll('[role="option"]')).map(o=>o.textContent.trim()).filter(Boolean)`);
     const exact = options.find((o) => /bezpieczeństwa dostaw/i.test(o));
     if (exact) {
       await kclick(`[role="option"]:has-text(${hasText(exact)})`);
@@ -145,7 +145,7 @@ export async function repair8() {
 
 export async function validate() {
   await nav(PROJECT_URL);
-  const before = await ro(`document.body.innerText.slice(0,2500)`);
+  const before = await ro(`document.body.innerText`);
   let clicked = false;
   try {
     clicked = await clickLastButton('Sprawdź wniosek');
@@ -153,7 +153,7 @@ export async function validate() {
     evidence.steps.push({ step: 'validate_click_error', error: String(e.message) });
   }
   
-  const after = await ro(`document.body.innerText.slice(0,8000)`);
+  const after = await ro(`document.body.innerText`);
   const url = (await send({ action: 'url' })).url;
   evidence.steps.push({ step: 'validate', clicked, url, beforeSnippet: before, afterSnippet: after });
 }
