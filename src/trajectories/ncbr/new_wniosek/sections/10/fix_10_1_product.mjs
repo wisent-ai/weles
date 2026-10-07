@@ -7,6 +7,7 @@ import {
   humanIdlePause,
 } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
+import { assertFits } from '../../../form-input.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('10_1');
@@ -115,9 +116,8 @@ async function saveForm() {
 async function fillText(name, value) {
   const loc = page.locator(`[name="${name}"]`).first();
   await loc.waitFor({ state: 'visible' });
-  const max = Number(await loc.getAttribute('maxlength')) || value.length;
-  let v = value;
-  if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
+  const v = value;
+  const max = await assertFits(loc, v);
   await humanFill(page, loc, v);
   return `${name} ${v.length}/${max}`;
 }

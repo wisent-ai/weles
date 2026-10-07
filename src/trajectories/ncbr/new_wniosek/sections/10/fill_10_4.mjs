@@ -7,6 +7,7 @@ import {
   humanIdlePause,
 } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
+import { assertFits } from '../../../form-input.mjs';
 import { cdpEndpoint, sectionUrl } from '#ncbr-settings';
 
 const endpoint = cdpEndpoint();
@@ -403,9 +404,8 @@ if (saveResult === 'saved') {
     if ((await opt.count()) > 0) await opt.dispatchEvent('click'); // allow-raw-playwright: pick "inne"
     await humanIdlePause('short');
     const uz = page.locator('textarea[name="uzasadnienie"]').first();
-    const max = Number(await uz.getAttribute('maxlength')) || 1000;
-    let u = ACT.justification;
-    if (u.length > max) u = u.slice(0, max).replace(/\s+\S*$/, '');
+    const u = ACT.justification;
+    const max = await assertFits(uz, u);
     await humanFill(page, uz, u);
     await humanIdlePause('short');
     await saveEnabled('act');

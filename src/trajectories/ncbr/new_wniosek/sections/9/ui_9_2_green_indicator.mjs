@@ -7,6 +7,7 @@ import {
   humanIdlePause,
 } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
+import { assertFits } from '../../../form-input.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('9_2');
@@ -63,10 +64,8 @@ async function clickDodaj() {
 async function fillSuffix(suffix, value) {
   const loc = page.locator(`[name$="${suffix}"]`).first();
   await loc.waitFor({ state: 'visible' });
-  const max =
-    Number(await loc.getAttribute('maxlength')) || String(value).length;
   let v = String(value);
-  if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
+  const max = await assertFits(loc, v);
   await humanFill(page, loc, v); // allow-raw-playwright: fill 9.2 own indicator field
   await loc.dispatchEvent('input'); // allow-raw-playwright: mark React field dirty
   await loc.dispatchEvent('change'); // allow-raw-playwright: mark React field changed

@@ -3,24 +3,30 @@ import { humanFill } from '../../../dist/human/keyboard.js';
 // A value goes into an LSI field whole or not at all: a value longer than the
 // field's maxlength is refused with both lengths. Cutting it at a word filed
 // shortened texts nobody wrote (repair/text/fix_truncated_textareas_new.mjs
-// exists to undo them).
-export async function fillField(page, locator, value) {
-  await locator.waitFor({ state: 'visible' });
-  const next = String(value);
+// exists to undo them). `assertFits` answers the field's maximum, or null
+// when the field declares none.
+export async function assertFits(locator, value) {
   const declared = await locator.getAttribute('maxlength');
   const max = declared === null ? null : Number(declared);
-  if (max !== null && next.length > max) {
+  if (max !== null && value.length > max) {
     throw Object.assign(
       new Error(
-        `LSI_FIELD_TOO_LONG: ${locator}; expected length=${next.length}, maximum=${max}`,
+        `LSI_FIELD_TOO_LONG: ${locator}; expected length=${value.length}, maximum=${max}`,
       ),
       {
         code: 'LSI_FIELD_TOO_LONG',
-        expectedLength: next.length,
+        expectedLength: value.length,
         max,
       },
     );
   }
+  return max;
+}
+
+export async function fillField(page, locator, value) {
+  await locator.waitFor({ state: 'visible' });
+  const next = String(value);
+  const max = await assertFits(locator, next);
   const before = await locator.inputValue();
   if (before === next) return { len: next.length, max, changed: false };
   const state = await locator.evaluate((el) => ({

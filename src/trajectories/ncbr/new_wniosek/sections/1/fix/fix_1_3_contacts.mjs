@@ -7,6 +7,7 @@ import {
   humanIdlePause,
 } from '../../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../../dist/human/keyboard.js';
+import { assertFits } from '../../../../form-input.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('1_3');
@@ -84,9 +85,8 @@ async function fillAny(names, value) {
   for (const name of names) {
     const loc = page.locator(`[name="${name}"]`).first();
     if ((await loc.count()) === 0) continue;
-    const max = Number(await loc.getAttribute('maxlength')) || value.length;
-    let v = value;
-    if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
+    const max = await assertFits(loc, value);
+    const v = value;
     await humanFill(page, loc, v);
     return `${name} ${v.length}/${max}`;
   }

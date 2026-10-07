@@ -5,6 +5,7 @@ import {
   humanIdlePause,
 } from '../../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../../dist/human/keyboard.js';
+import { assertFits } from '../../../../form-input.mjs';
 
 export function collectionsForm({ page }) {
   async function clickDodaj(nth = 0) {
@@ -35,10 +36,8 @@ export function collectionsForm({ page }) {
       .locator(`textarea[name$="${suffix}"], input[name$="${suffix}"]`)
       .first();
     await loc.waitFor({ state: 'visible' });
-    const max =
-      Number(await loc.getAttribute('maxlength')) || String(value).length;
     let v = String(value || '');
-    if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
+    const max = await assertFits(loc, v);
     await humanFill(page, loc, v);
     return `${suffix} ${v.length}/${max}`;
   }
@@ -46,10 +45,8 @@ export function collectionsForm({ page }) {
   async function fillByName(name, value) {
     const loc = page.locator(`[name="${name}"]`).first();
     await loc.waitFor({ state: 'visible' });
-    const max =
-      Number(await loc.getAttribute('maxlength')) || String(value).length;
     let v = String(value || '');
-    if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
+    const max = await assertFits(loc, v);
     await humanFill(page, loc, v);
     return `${name} ${v.length}/${max}`;
   }

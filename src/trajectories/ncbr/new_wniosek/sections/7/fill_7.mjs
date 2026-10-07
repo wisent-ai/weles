@@ -8,6 +8,7 @@ import {
 } from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
 import { cellShowsSource } from '../../../../_shared/page/shows.mjs';
+import { assertFits } from '../../../form-input.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('7');
@@ -89,10 +90,8 @@ async function fillName(name, value) {
     )
     .first();
   await loc.waitFor({ state: 'visible' });
-  const max =
-    Number(await loc.getAttribute('maxlength')) || String(value).length;
   let v = String(value || '');
-  if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
+  const max = await assertFits(loc, v);
   await humanFill(page, loc, v); // allow-raw-playwright: risk text field
   await humanIdlePause('short');
   return `${name} ${v.length}/${max}`;

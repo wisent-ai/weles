@@ -8,7 +8,7 @@ import {
   humanIdlePause,
 } from '../../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../../dist/human/keyboard.js';
-import { selectRadio } from '../../../../form-input.mjs';
+import { assertFits, selectRadio } from '../../../../form-input.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('1_3');
@@ -85,9 +85,8 @@ async function fillFirstTextArea(value) {
     .locator('textarea[name="opis_dzialalnosci_i_struktura"]')
     .first();
   await loc.waitFor({ state: 'visible' });
-  const max = Number(await loc.getAttribute('maxlength')) || value.length;
-  let v = value;
-  if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
+  await assertFits(loc, value);
+  const v = value;
   await humanFill(page, loc, v);
   return v.length;
 }

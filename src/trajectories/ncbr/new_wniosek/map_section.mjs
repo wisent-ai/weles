@@ -9,6 +9,7 @@ import {
   humanIdlePause,
 } from '../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
+import { assertFits } from '../form-input.mjs';
 import { cdpEndpoint, projectUrl as declaredProjectUrl } from '#ncbr-settings';
 
 const endpoint = cdpEndpoint();
@@ -270,8 +271,7 @@ if (process.env.FIX_10_4) {
   await page.keyboard.press('Escape'); // allow-raw-playwright: controlled 10.4 UI repair
   await humanIdlePause('short');
   const ta = page.locator('textarea[name$="opis_zasady_szesc_r"]').first();
-  const max = Number(await ta.getAttribute('maxlength')) || opis6r.length;
-  if (opis6r.length > max) opis6r = opis6r.slice(0, max).replace(/\s+\S*$/, '');
+  await assertFits(ta, opis6r);
   await humanFill(page, ta, opis6r); // allow-raw-playwright: controlled 10.4 UI repair
   repair.opis6r = opis6r.length;
 
