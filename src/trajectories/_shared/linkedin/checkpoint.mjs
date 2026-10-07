@@ -154,13 +154,14 @@ export async function solveLinkedinCheckpoint({ ctx, page }, reason, email) {
 // the banner.
 export async function confirmLinkedinEmail(page, email) {
   if (!receivingConfigured()) { console.log('[linkedin_register] the wisent-integrations inbox route is not configured'); return { ok: false, reason: 'no_inbox_route' }; }
-  // One inbox read; a link that has not arrived yet is reported by name.
-  const start = Date.now() - 10 * 60 * 1000;
+  // One inbox read, newest first; a link that has not arrived yet is
+  // reported by name. Any LinkedIn mail to this address carrying the confirm
+  // link is this account's, so no age decides which one counts.
   let confirmUrl = null;
   const matches = await listReceivedFrom(20, email, 'linkedin.com');
   // The confirmation mail is the one from LinkedIn that carries the
   // confirmation link, whatever its subject says.
-  for (const match of matches.filter((m) => new Date(m.created_at).getTime() >= start)) {
+  for (const match of matches) {
     const full = await getReceived(match.id);
     const body = full?.text || full?.html || '';
     const m = body.match(/https:\/\/www\.linkedin\.com\/comm\/psettings\/email\/confirm\?[^\s<>"]+/);
