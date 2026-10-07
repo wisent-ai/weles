@@ -106,7 +106,7 @@ try {
   if (s) {
     let detResult;
     try { detResult = await detector(s.page, s.capturedResponses); }
-    catch (derr) { console.log('[detector] err in catch:', derr?.message?.slice(0, 100)); }
+    catch (derr) { console.log('[detector] err in catch:', derr instanceof Error ? derr.message : String(derr)); }
     banSignal = detResult;
     const eFinalUrl = s.page.url?.() ?? banSignal?.details?.final_url ?? '';
     const eBodySample = banSignal?.details?.body_text_sample ?? '';
@@ -121,7 +121,7 @@ try {
     // s never opened — getSocialAccount, resolveAccountSession, or WSession.start threw.
     // Classify by exception message so the worker writes a real ban_signal instead of
     // bubbling exit-1 with no diagnostic (the 'unknown_error' baseline on z0earw45dw1p).
-    const msg = e?.message?.slice(0, 200) ?? 'unknown';
+    const msg = e instanceof Error ? e.message : String(e);
     const sig = /no_isp_proxy|no isp proxy|no_proxy_resolved/i.test(msg) ? 'no_proxy_resolved' :
                 /no active.*account|no_account/i.test(msg) ? 'no_account' :
                 /ERR_PROXY_AUTH|HTTP 407/i.test(msg) ? 'proxy_auth_failed' :
@@ -140,7 +140,7 @@ try {
     } catch (e) { console.log('[ban-signal] persist err:', e.message); }
     if (banSignal.signal === 'checkpoint' && acct?.id) {
       try { await markCookiesStale(acct.id); }
-      catch (mse) { console.log('[mark-stale] err:', mse?.message?.slice(0, 80)); }
+      catch (mse) { console.log('[mark-stale] err:', mse instanceof Error ? mse.message : String(mse)); }
     }
   }
   if (s) await s.close();

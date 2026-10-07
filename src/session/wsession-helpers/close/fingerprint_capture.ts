@@ -81,8 +81,8 @@ export async function wsCaptureFingerprint(s: WSession): Promise<void> {
             writeFileSync(driftPath, JSON.stringify({ capturedAt: new Date().toISOString(), pskDrift, drift }, null, 2));
             console.log(`[wsession] network drift detected: ${driftFields.join(', ')}${pskDrift ? ' (expected PSK resumption)' : ''} — saved ${driftPath}`);
           }
-        } catch (e: any) {
-          console.log(`[wsession] network drift compare error: ${e?.message?.slice(0, 200)}`);
+        } catch (error) {
+          console.log(`[wsession] network drift compare error: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
 
@@ -109,8 +109,8 @@ export async function wsCaptureFingerprint(s: WSession): Promise<void> {
       writeFileSync(reportPath, JSON.stringify(report, null, 2));
       console.log(`[wsession] detection report saved ${reportPath} risk=${report.summary.riskScore} critical=${report.summary.critical}`);
     }
-  } catch (e: any) {
-    console.log(`[wsession] fingerprint capture error: ${e?.message?.slice(0, 200)}`);
+  } catch (error) {
+    console.log(`[wsession] fingerprint capture error: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 

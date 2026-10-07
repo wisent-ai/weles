@@ -192,7 +192,7 @@ export async function wsClose(s: WSession): Promise<void> {
   try {
     const { finalDump } = await import('./net_record.js');
     await finalDump(s);
-  } catch (e: any) { console.log(`[wsession] finalDump err: ${e?.message?.slice(0, 120)}`); }
+  } catch (error) { console.log(`[wsession] finalDump err: ${error instanceof Error ? error.message : String(error)}`); }
   try { await (s as any)._cdp?.detach?.(); }
   catch (error) { console.error(`[wsession] CDP detach err: ${error instanceof Error ? error.message : String(error)}`); }
   // G18: capture a fingerprint + detection-vector report at close so failed
@@ -217,7 +217,7 @@ export async function wsClose(s: WSession): Promise<void> {
     try {
       const { captchaSnapshot } = await import('../../captcha/events.js');
       writeFileSync(join(recordingsDir(s.label), 'captcha_events.json'), JSON.stringify(captchaSnapshot(), null, 2));
-    } catch (e: any) { console.log(`[wsession] captcha_events write err: ${e?.message?.slice(0, 120)}`); }
+    } catch (error) { console.log(`[wsession] captcha_events write err: ${error instanceof Error ? error.message : String(error)}`); }
   }
   await costTracker.flush().catch(() => {});
   console.log(`[wsession] close() done`);

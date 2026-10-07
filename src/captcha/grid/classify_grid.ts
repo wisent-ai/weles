@@ -40,7 +40,7 @@ export async function classifyGrid(bframe: any, instruction: string, gridSize: n
       const buf = await handle.screenshot({ type: 'jpeg', quality: 90 });
       gridImgB64 = buf.toString('base64');
     }
-  } catch (e: any) { console.log(`[recaptcha] grid screenshot err: ${e?.message?.slice(0, 80)}`); }
+  } catch (error) { console.log(`[recaptcha] grid screenshot err: ${error instanceof Error ? error.message : String(error)}`); }
   if (!gridImgB64) return null;
   const diagDir = runRecordingsDir('vision'); // G17: recordings/<run_uuid>/vision/
   mkdirSync(diagDir, { recursive: true });

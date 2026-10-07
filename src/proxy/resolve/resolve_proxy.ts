@@ -153,7 +153,7 @@ export async function resolveProxy(proxy: string, targetHost?: string, preflight
           const { verifyExitReputation } = await import('../policy.js');
           exitReputation = await verifyExitReputation(exitIp);
           console.log(`[proxy] exit reputation ${exitIp} -> ${exitReputation.result}${exitReputation.asname ? ` ${exitReputation.asname}` : ''}`);
-        } catch (e: any) { console.log(`[proxy] exit reputation err: ${e?.message?.slice(0, 80)}`); }
+        } catch (error) { console.log(`[proxy] exit reputation err: ${error instanceof Error ? error.message : String(error)}`); }
       }
       writeProxyPreflightDiagnostics({
         requested_proxy: proxy.startsWith('http') ? '[url-form]' : proxy,
