@@ -166,6 +166,84 @@ function page(request) {
   return { at, ok: true, channel: PAGE_CHANNEL, detail: flatten(named.join('; ')) };
 }
 
+const OKO_CHANNEL = 'oko-asks';
+/** The program that records an ask in the shared Oko database; a deployment
+ * whose `oko` is not on PATH names it here. */
+const OKO_BINARY_VARIABLE = 'WELES_OKO_BIN';
+
+function okoBinary() {
+  return String(process.env[OKO_BINARY_VARIABLE] || '').trim() || 'oko';
+}
+
+/** The Weles run waiting on a request, when a worker started it. */
+function firstRun(request) {
+  const [first] = Array.isArray(request.run_ids) ? request.run_ids : [];
+  return first || null;
+}
+
+/**
+ * Put the question on the channels the operator chose in Oko (`oko contact`):
+ * one ask in the shared Oko database, delivered and tracked there, shown in
+ * Oko Desktop and Oko iOS. Weles runs without Oko too: a host with no `oko`
+ * is recorded as a channel not tried, with that reason, beside the Stado page
+ * - never as delivered. Oko's own refusal (no channel chosen, nobody signed
+ * in) is recorded verbatim.
+ */
+function askThroughOko(request) {
+  const at = new Date().toISOString();
+  if (!pagingEnabled()) {
+    return { at, ok: false, channel: OKO_CHANNEL, detail: `asking disabled by ${PAGING_VARIABLE}=${PAGING_DISABLED_VALUE}` };
+  }
+  const binary = okoBinary();
+  const run = firstRun(request);
+  const answer = run
+    ? `Answer it with: weles runs answer ${run} --approved | --not-received`
+    : `No Weles worker started this run (process ${request.run_pid} on ${request.host}); it ends when the page it waits on changes.`;
+  const result = spawnSync(binary, [
+    'asks', 'ask', '--from', 'weles', '--subject', run ? `run-${run}` : `request-${request.id}`,
+    '--question', `${request.instruction} (${request.account})`,
+    '--detail', `${pageSubject(request)} on ${request.host}. ${answer}`,
+  ], { encoding: 'utf8', env: { ...process.env, HOME: homedir() } });
+  if (result.error?.code === 'ENOENT') {
+    return {
+      at, ok: false, channel: OKO_CHANNEL,
+      detail: `${binary} is not installed on this host (set ${OKO_BINARY_VARIABLE} to its path), so the question was not put on the operator's Oko channels`,
+    };
+  }
+  if (result.error || result.status) {
+    const detail = result.error?.message || result.stderr || result.stdout || `exit ${result.status}`;
+    return { at, ok: false, channel: OKO_CHANNEL, detail: flatten(`oko asks ask refused: ${detail}`) };
+  }
+  let asked;
+  try {
+    asked = JSON.parse(result.stdout);
+  } catch (error) {
+    return { at, ok: false, channel: OKO_CHANNEL, detail: flatten(`oko asks ask answered unreadable JSON: ${error.message}`) };
+  }
+  const delivered = (asked.deliveries || []).filter((attempt) => attempt.outcome === 'delivered');
+  return {
+    at, ok: true, channel: OKO_CHANNEL, ask_id: asked.ask?.id,
+    detail: flatten(`ask ${asked.ask?.id} recorded in Oko; ${delivered.length
+      ? delivered.map((attempt) => `${attempt.channel}: ${attempt.detail}`).join('; ')
+      : `its deliveries are recorded as they happen: oko asks show ${asked.ask?.id}`}`),
+  };
+}
+
+/** Withdraw the Oko ask of a request that closed, so Oko does not keep
+ * asking for something the run no longer waits on. The outcome is kept as a
+ * note on the request. */
+function withdrawOkoAsk(request) {
+  const asked = (request.pages || []).find((attempt) => attempt.channel === OKO_CHANNEL && attempt.ask_id);
+  if (!asked) return;
+  const result = spawnSync(okoBinary(), ['asks', 'withdraw', asked.ask_id], {
+    encoding: 'utf8', env: { ...process.env, HOME: homedir() },
+  });
+  const note = result.error || result.status
+    ? flatten(`Oko ask ${asked.ask_id} not withdrawn: ${result.error?.message || result.stderr || `exit ${result.status}`}`)
+    : `Oko ask ${asked.ask_id} withdrawn`;
+  request.notes = [...(Array.isArray(request.notes) ? request.notes : []), { at: new Date().toISOString(), note }];
+}
+
 /**
  * The request already waiting on this person for the same thing, if any.
  *
@@ -225,7 +303,7 @@ export function openOperatorRequest(input) {
     pages: [],
   };
   write(request);
-  request.pages.push(page(request));
+  request.pages.push(page(request), askThroughOko(request));
   const written = write(request);
   announce(written);
   return written;
@@ -253,6 +331,7 @@ export function closeOperatorRequest(id, approved, detail) {
     Math.round((closed.getTime() - new Date(request.opened_at).getTime()) / MILLISECONDS_PER_SECOND),
   );
   request.outcome_detail = flatten(required(detail, 'a sentence saying how the wait ended'));
+  withdrawOkoAsk(request);
   return write(request);
 }
 
