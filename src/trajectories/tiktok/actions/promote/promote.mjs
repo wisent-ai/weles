@@ -10,19 +10,14 @@ await runAction({
   resolveUserUrl: (u) => `https://www.tiktok.com/@${u.replace(/^@/, '')}`,
   resolveSearchUrl: (q) =>
     `https://www.tiktok.com/tag/${encodeURIComponent(q.replace(/^#/, ''))}`,
-  pickPost: async (s) => {
-    try {
-      const caption = await s.page.evaluate(() => {
-        const el = document.querySelector(
-          '[data-e2e="video-desc"], [data-e2e="browse-video-desc"]',
-        );
-        return el?.textContent ?? '';
-      });
-      return { postTitle: (caption || '').slice(0, 280), postBody: '' };
-    } catch {
-      return { postTitle: '', postBody: '' };
-    }
-  },
+  // The video's whole caption; a page without one is refused (runAction logs it).
+  pickPost: async (s) => ({
+    postTitle: await s.page
+      .locator('[data-e2e="video-desc"], [data-e2e="browse-video-desc"]')
+      .first()
+      .innerText(),
+    postBody: '',
+  }),
   submitComment: tiktokSubmitComment,
   submitTargetedComment: tiktokSubmitComment,
   banDetector: detectTikTokBanSignals,
