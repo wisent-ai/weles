@@ -128,11 +128,19 @@ function fill(name, value) {
 }
 
 function openByParam(param) {
+  // A row matches when one of its cells shows the parameter: the whole name,
+  // or the start of it closed by the ellipsis the table draws when it cuts a
+  // long name. How long a start the table shows is the table's own choice,
+  // so no prefix length is chosen here.
   const idx = read(`(() => {
-    const needle = ${JSON.stringify(param.slice(0, 70))};
+    const param = ${JSON.stringify(param.replace(/\s+/g, ' ').trim())};
     const trs = Array.from(document.querySelectorAll('table tbody tr'));
-    const hit = trs.findIndex((tr) => tr.innerText.replace(/\\s+/g, ' ').includes(needle));
-    return hit;
+    return trs.findIndex((tr) => Array.from(tr.cells).some((td) => {
+      const shown = td.innerText.replace(/\\s+/g, ' ').trim();
+      if (shown === param) return true;
+      const cut = shown.match(/^(.+?)\\s*(…|\\.\\.\\.)$/);
+      return cut !== null && param.startsWith(cut[1]);
+    }));
   })()`);
   if (idx < 0) throw new Error(`factor row not found by param: ${param}`);
   const menu = `:nth-match(table tbody tr, ${idx + 1}) button[aria-label="overflow-options"]`;
