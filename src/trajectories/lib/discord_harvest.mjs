@@ -441,7 +441,7 @@ export async function harvestAfterRegister(s, opts = {}) {
     for (const a of collected.slice(0, need)) {
       const animated = a.avatar.startsWith('a_');
       const ext = animated ? 'gif' : 'png';
-      const avatarUrl = `https://cdn.discordapp.com/avatars/${a.id}/${a.avatar}.${ext}?size=512`;
+      const avatarUrl = `https://cdn.discordapp.com/avatars/${a.id}/${a.avatar}.${ext}`;
       const profile = {
         platform: 'discord',
         id: a.id,
