@@ -15,7 +15,7 @@ import { enterGoogleCredentials } from './google_sso/google_credentials.mjs';
 import { clickGisTarget, observeGisPage } from './google_sso/gis_state/page_reading.mjs';
 import { classifyGisState, gisVariantRank } from './google_sso/gis_state/variants.mjs';
 import { dumpGisFailureDom } from './google_sso/failure_dom.mjs';
-import { pageSettled } from '../_shared/page/settled.mjs';
+import { pageCondition, pageSettled } from '../_shared/page/settled.mjs';
 
 export { waitForEnabledThenClick } from './google_sso/page_controls.mjs';
 export { readGisState } from './google_sso/gis_state/page_reading.mjs';
@@ -39,7 +39,7 @@ const GIS_AUTHORIZE_REDRIVES = Number(process.env.CLAUDE_GIS_AUTHORIZE_REDRIVES 
 
 // Variants this step drives; any other state that holds still is a failure.
 const DRIVEN_VARIANTS = new Set([
-  'code_page', 'claude_gis_gate', 'google_rejected', 'google_account_chooser',
+  'code_page', 'claude_gis_gate', 'claude_gis_gate_pending', 'google_rejected', 'google_account_chooser',
   'google_chooser_without_account', 'google_identifier', 'google_confirm_continue',
   'oauth_consent', 'claude_app_authenticated',
 ]);
@@ -153,6 +153,21 @@ export async function doGoogleSso({
         claim();
         mark('gis_click_continue');
         await clickOfferedControl(active, 'gis_button');
+        continue;
+      }
+
+      if (variant === 'claude_gis_gate_pending') {
+        // Nothing to click yet: the page enables its Google button itself, or
+        // moves on. Either ends this wait; the operator sees the stage in
+        // `weles runs show` and can end a gate that never opens.
+        mark('gis_gate_pending');
+        const enabled = pageCondition(active, () => Array.from(document.querySelectorAll('button,[role="button"]'))
+          .some((el) => /continue with google|^google$/i.test((el.innerText || el.textContent || '').trim())
+            && !el.disabled && el.getAttribute('aria-disabled') !== 'true'));
+        // A navigation ends the page read with a destroyed context; the
+        // state change below is then the answer.
+        enabled.catch(() => {});
+        await Promise.race([enabled, stateChange(page, active, st.url)]);
         continue;
       }
 

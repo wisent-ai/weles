@@ -92,6 +92,11 @@ export const readGisState = (arg) => {
     // claude.ai's own grant affordance, in either language this fleet sees.
     consent: pick('button,[role="button"]', 'consent', /^(authorize|allow|zezwól|zezwol|autoryzuj)$/i),
     gisButton: pick('button,[role="button"]', 'gis_button', /continue with google|^google$/i),
+    // claude.ai renders its "Continue with Google" button disabled until its
+    // Google library is ready: run c5f8838e failed on that page as 'unknown'
+    // two seconds after the authorize URL loaded.
+    gisButtonPending: Array.from(document.querySelectorAll('button,[role="button"]'))
+      .some((el) => shown(el) && !live(el) && /continue with google|^google$/i.test(label(el))),
     identifierField: Array.from(document.querySelectorAll('input[type="text"][autocomplete*="username"], input#identifierId, input[name="identifier"], input[type="email"]')).some(shown),
     passwordField: Array.from(document.querySelectorAll('input[type="password"]')).some(shown),
     bodyText: (document.body?.innerText || '').replace(/\s+/g, ' ').slice(0, arg.maxBody),

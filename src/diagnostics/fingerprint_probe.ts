@@ -12,6 +12,12 @@
 export const FP_SCRIPT = String.raw`(async () => {
   const r = {};
   const safe = (fn) => { try { return fn(); } catch (e) { return { _err: String(e).slice(0, 100) }; } };
+  // Every section below that waits on the browser announces itself first, to
+  // the binding the closing session exposes, so a probe that never answers is
+  // named by the section it stands in (weles runs show prints it).
+  const section = (name) => typeof globalThis.__welesFingerprintSection === 'function'
+    ? globalThis.__welesFingerprintSection(name)
+    : undefined;
 
   // ---- 1. navigator ----
   const n = navigator;
@@ -30,6 +36,7 @@ export const FP_SCRIPT = String.raw`(async () => {
   };
 
   // ---- 2. userAgentData (Client Hints) ----
+  await section('userAgentData');
   r.userAgentData = await (async () => {
     try {
       if (!n.userAgentData) return null;
@@ -80,6 +87,7 @@ export const FP_SCRIPT = String.raw`(async () => {
   });
 
   // ---- 7. AudioContext fingerprint via OfflineAudioContext ----
+  await section('audio');
   r.audio = await (async () => {
     try {
       const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
@@ -116,6 +124,7 @@ export const FP_SCRIPT = String.raw`(async () => {
   r.notification = safe(() => ({ permission: window.Notification?.permission }));
 
   // ---- 10. permissions (multiple) ----
+  await section('permissions');
   r.permissions = await (async () => {
     try {
       const names = 'notifications geolocation camera microphone clipboard-read clipboard-write persistent-storage midi accelerometer gyroscope'.split(' ');
@@ -126,9 +135,11 @@ export const FP_SCRIPT = String.raw`(async () => {
   })();
 
   // ---- 11. storage quota ----
+  await section('storage');
   r.storage = await (async () => { try { return n.storage && n.storage.estimate ? await n.storage.estimate() : null; } catch (e) { return { _err: String(e).slice(0, 100) }; } })();
 
   // ---- 12. mediaDevices ----
+  await section('mediaDevices');
   r.mediaDevices = await (async () => {
     try {
       if (!n.mediaDevices?.enumerateDevices) return null;
@@ -138,6 +149,7 @@ export const FP_SCRIPT = String.raw`(async () => {
   })();
 
   // ---- 12b. WebRTC local IP leak (PerimeterX checks this) ----
+  await section('webRTC');
   r.webRTC = await (async () => {
     try {
       const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
@@ -165,9 +177,11 @@ export const FP_SCRIPT = String.raw`(async () => {
   });
 
   // ---- 14. battery ----
+  await section('battery');
   r.battery = await (async () => { try { return n.getBattery ? await n.getBattery().then(b => ({ charging: b.charging, level: b.level, chargingTime: b.chargingTime, dischargingTime: b.dischargingTime })) : null; } catch (e) { return { _err: String(e).slice(0, 100) }; } })();
 
   // ---- 15. keyboard layout ----
+  await section('keyboard');
   r.keyboard = await (async () => { try { return n.keyboard?.getLayoutMap ? { size: (await n.keyboard.getLayoutMap()).size } : null; } catch (e) { return { _err: String(e).slice(0, 100) }; } })();
 
   // ---- 16. fonts ----
@@ -210,6 +224,7 @@ export const FP_SCRIPT = String.raw`(async () => {
   }));
 
   // ---- 22. performance — clock readings at observed animation frames ----
+  await section('performance');
   r.performance = await (async () => {
     try {
       const samples = [], frameTimestamps = [];
@@ -250,6 +265,7 @@ export const FP_SCRIPT = String.raw`(async () => {
     cookieEmpty: document.cookie === '', cookieLen: document.cookie.length, characterSet: document.characterSet, readyState: document.readyState,
   }));
 
+  await section('answered');
   return r;
 })()`;
 

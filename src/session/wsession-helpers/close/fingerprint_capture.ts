@@ -16,9 +16,16 @@ export async function wsCaptureFingerprint(s: WSession): Promise<void> {
   if (!s.label) return;
   if (process.env.WELES_FINGERPRINT === '0') return;
   try {
+    // The probe announces each section that waits on the browser; printing
+    // it here names the one a probe that never answers stands in. A page
+    // that already carries the binding (a second capture) keeps the first.
+    await s.page.exposeFunction('__welesFingerprintSection', (section: string) => {
+      console.log(`[wsession] fingerprint probe: ${section}`);
+    }).catch((error: Error) => console.log(`[wsession] fingerprint probe sections unannounced: ${error.message}`));
     const js = await s.page.evaluate(FP_SCRIPT);
     let network: any = null;
     try {
+      console.log(`[wsession] fingerprint probe: network ${NETWORK_FP_URL}`);
       await s.page.goto(NETWORK_FP_URL, { waitUntil: 'domcontentloaded' });
       const raw = await s.page.evaluate(`document.body.innerText || document.body.textContent || ''`);
       network = parseNetworkFingerprint(raw);

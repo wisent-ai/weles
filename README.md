@@ -204,7 +204,13 @@ failure `run_cancelled` at the stage it reached, and the next sign-in of that
 account starts a new run instead of joining or replaying it. A run that
 already finished is refused (409) with when; a run recorded as `running`
 that no live child answers for was left by a server that stopped. Desktop
-Running has the same list, the last output and a Cancel button.
+Running has the same list, the last output and a Cancel button. A closing
+session prints `[wsession] fingerprint probe: <section>` before each part of
+its close-time fingerprint probe that waits on the browser, so a probe that
+never answers is named by the section it stands in. A Claude sign-in whose
+claude.ai page shows "Continue with Google" disabled reports stage
+`gis_gate_pending` and waits for the page to enable it or move on, instead
+of failing as an unknown page.
 
 Results identify the subscription, login item, actual failed operation, HTTP status
 and run id. `account_revision` describes Skarbiec data; `source_revision` identifies

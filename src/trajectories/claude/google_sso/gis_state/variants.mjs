@@ -19,6 +19,7 @@ const GIS_VARIANT_PRIORITY = [
   'google_challenge',
   'google_other',
   'claude_gis_gate',
+  'claude_gis_gate_pending',
   'claude_app_authenticated',
   'unknown',
 ];
@@ -61,6 +62,9 @@ export function classifyGisState(st) {
   }
   if (st.consent) return 'oauth_consent';
   if (st.gisButton) return 'claude_gis_gate';
+  // The gate is there but its button is still disabled: claude.ai enables it
+  // once its Google library is ready.
+  if (st.gisButtonPending) return 'claude_gis_gate_pending';
   // Signed in, but claude.ai answered the CLI's authorize request with the app
   // itself: run 19ac8c0f ended on https://claude.ai/new titled "New chat -
   // Claude" as the only live page, with no grant affordance and no gate. The
