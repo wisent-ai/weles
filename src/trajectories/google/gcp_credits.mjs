@@ -167,7 +167,7 @@ if (TAB === 'issued') {
         var t = (n.innerText || n.textContent || '').trim().toLowerCase();
         return t === 'issued credits' || t === 'issued' || t.startsWith('issued credits');
       });
-      if (hit) { hit.click(); return 'clicked: ' + (hit.innerText||'').slice(0,40); }
+      if (hit) { hit.click(); return 'clicked: ' + hit.innerText; }
       return 'no match';
     })();`.replace(/\s+/g, ' ');
   const r = spawnSync('osascript', [
