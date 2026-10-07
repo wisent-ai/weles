@@ -40,8 +40,8 @@
 //   directory_password      the change and reset surfaces plus the restore
 //   operations/             one file per operation this trajectory offers
 
+import { registrationPassword as generatedPassword } from '../../../dist/utils/identity/password.js';
 import {
-  generatedPassword,
   managedPassword,
   outcome,
 } from './entra_password_lifecycle/answer_and_custody.mjs';

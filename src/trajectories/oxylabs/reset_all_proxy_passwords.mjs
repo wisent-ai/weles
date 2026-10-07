@@ -6,17 +6,11 @@ import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js'
 import { urlMatching } from '../_shared/page/settled.mjs';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { assertScopedSecretWriter, readScopedProxy, readScopedSecret, writeScopedSecretItem } from '../../_shared/scoped-secrets.mjs';
-import { randomBytes } from 'node:crypto';
+import { registrationPassword } from '../../../dist/utils/identity/password.js';
 
-
+// Oxylabs accepts only `_ ~ + =` as special symbols.
 function generatePassword() {
-  // Oxylabs password rules: allowed special symbols are
-  // `_ ~ + =`. Standard base64 can produce `+` and `/`; remove `/` and `=`
-  // but keep `+` since it is allowed. Then force uppercase, lowercase, digit,
-  // and an allowed symbol at the end so the generated password always passes.
-  let base = randomBytes(14).toString('base64').replace(/[/=]/g, '');
-  if (!/[+_~=]/.test(base)) base += '+';
-  return `${base}Aa1_`;
+  return registrationPassword({ symbols: '_~+=' });
 }
 
 const mobileProxy = readScopedProxy('oxylabsMobile');

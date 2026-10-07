@@ -5,7 +5,7 @@
 // Moved out of entra_password_lifecycle.mjs, which keeps the three trajectory
 // entry points.
 
-import { createHash, randomBytes, randomInt } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
@@ -21,23 +21,6 @@ import { PASSWORD_FIELD } from './queued_job.mjs';
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]+/g;
 const PROVIDER_EFFECTS = Object.freeze(['none', 'changed', 'unknown']);
 const RESUME_TOKEN_BYTES = 48;
-
-export function generatedPassword() {
-  const groups = [
-    'ABCDEFGHJKLMNPQRSTUVWXYZ',
-    'abcdefghijkmnopqrstuvwxyz',
-    '23456789',
-    '!#$%&()*+,-.:;<=>?@[]^_{|}~',
-  ];
-  const all = groups.join('');
-  const chars = groups.map((group) => group[randomInt(group.length)]);
-  while (chars.length < 32) chars.push(all[randomInt(all.length)]);
-  for (let index = chars.length - 1; index > 0; index -= 1) {
-    const target = randomInt(index + 1);
-    [chars[index], chars[target]] = [chars[target], chars[index]];
-  }
-  return chars.join('');
-}
 
 function sanitizedMessage(reason) {
   return String(reason).replace(CONTROL_CHARACTERS, ' ').trim();

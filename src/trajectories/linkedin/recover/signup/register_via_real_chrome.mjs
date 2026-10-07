@@ -5,7 +5,7 @@
 import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { randomBytes } from 'node:crypto';
+import { registrationPassword } from '../../../../../dist/utils/identity/password.js';
 import { CaptchaSolver } from '../../../../../dist/captcha/solver.js';
 import { humanFill, humanType } from '../../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanScroll } from '../../../../../dist/human/mouse.js';
@@ -25,7 +25,7 @@ function genIdentity() {
   const first = F[Math.floor(Math.random() * F.length)];
   const last = L[Math.floor(Math.random() * L.length)];
   const handle = `${first.toLowerCase()}${last.toLowerCase()}${Math.floor(Math.random() * 9000 + 1000)}`;
-  const password = randomBytes(9).toString('base64').replace(/[+/=]/g, '') + '!A1';
+  const password = registrationPassword();
   const email = `${handle}@${AGENT_DOMAIN}`;
   return { first, last, handle, email, password };
 }

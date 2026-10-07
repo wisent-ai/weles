@@ -9,7 +9,7 @@ import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
-import { randomBytes } from 'node:crypto';
+import { registrationPassword } from '../../../../dist/utils/identity/password.js';
 
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
@@ -18,7 +18,7 @@ import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.
 const EMAIL = process.env.PARP_EMAIL;
 if (!EMAIL) throw new Error('set PARP_EMAIL to the PARP account address');
 const STORE = join(homedir(), '.weles', 'parp_login.json');
-const NEW_PASSWORD = randomBytes(16).toString('base64url').slice(0, 24) + 'Aa1!';
+const NEW_PASSWORD = registrationPassword();
 const RESET_SENDER = process.env.PARP_RESET_SENDER || 'lsi@parp.gov.pl';
 const LOGIN_URL = 'https://lsi.parp.gov.pl/';
 const SKRZYNKA = process.env.SKRZYNKA_BIN || 'skrzynka';

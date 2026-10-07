@@ -7,10 +7,6 @@ export const LOGIN_URL = 'https://login.live.com/login.srf';
 export const IDENTITY_CHALLENGE = /verify your identity|get a code|approve sign in|enter.{0,20}code|passkey|security key/i;
 export const LOGIN_HOSTS = ['login.live.com', 'login.microsoft.com'];
 
-// A generated Microsoft password: one character from each group, then random
-// characters from all groups up to this length.
-export const GENERATED_PASSWORD_LENGTH = 32;
-
 // The verification-code file the operator drops beside a running lifecycle:
 // owner-only mode, at most this many bytes.
 export const CODE_FILE_MODE = 0o600;

@@ -1,5 +1,4 @@
-import { randomInt } from 'node:crypto';
-import { GENERATED_PASSWORD_LENGTH, MICROSOFT_PASSWORD_ID, PASSWORD_FIELD } from './constants.mjs';
+import { MICROSOFT_PASSWORD_ID, PASSWORD_FIELD } from './constants.mjs';
 
 /** The exact Skarbiec contract this run carries, or a refusal when any field is off. */
 export function constraints(expectedOperation) {
@@ -39,22 +38,4 @@ export function accountMatchesContract(account, contract) {
   return accountEmail(account) === contract.accountEmail
     && metadata.skarbiec_credential_id === contract.credentialId
     && (metadata.skarbiec_tenant_id ?? null) === (contract.tenantId ?? null);
-}
-
-/** A fresh password with at least one character from every group, shuffled. */
-export function generatedPassword() {
-  const groups = [
-    'ABCDEFGHJKLMNPQRSTUVWXYZ',
-    'abcdefghijkmnopqrstuvwxyz',
-    '23456789',
-    '!#$%&()*+,-.:;<=>?@[]^_{|}~',
-  ];
-  const all = groups.join('');
-  const chars = groups.map((group) => group[randomInt(group.length)]);
-  while (chars.length < GENERATED_PASSWORD_LENGTH) chars.push(all[randomInt(all.length)]);
-  for (let index = chars.length - 1; index > 0; index -= 1) {
-    const target = randomInt(index + 1);
-    [chars[index], chars[target]] = [chars[target], chars[index]];
-  }
-  return chars.join('');
 }

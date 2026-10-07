@@ -11,10 +11,10 @@ import { getSocialAccount } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
-import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 import { updateAccountPassword } from '../../_shared/skarbiec/accounts.mjs';
+import { registrationPassword } from '../../../../dist/utils/identity/password.js';
 import { getReceived, listReceived, receivingConfigured } from '../../../_shared/resend-receiving.mjs';
 
 const acct = await getSocialAccount('github');
@@ -43,7 +43,7 @@ else if (process.env.USE_SAVED_PROXY === '1' && acct.metadata?.proxy?.server) {
   proxyUrl = `${u.protocol}//${acct.metadata.proxy.username}:${acct.metadata.proxy.password}@${u.hostname}:${u.port}`;
 }
 
-const newPassword = 'Wp' + randomBytes(9).toString('base64').replace(/[+/=]/g, '') + '!A1';
+const newPassword = registrationPassword();
 console.log(`[reset] Account: ${acct.username} (${email})`);
 console.log(`[reset] Proxy: ${proxyUrl ? 'yes' : 'direct egress'}`);
 
