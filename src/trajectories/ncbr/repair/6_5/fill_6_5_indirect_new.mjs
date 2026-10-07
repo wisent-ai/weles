@@ -123,7 +123,7 @@ async function setAuto(name, search) {
 
 async function fill(name, value) {
   const loc = page.locator(`[name="${name}"]`).first();
-  await fillField(page, loc, String(value), { truncate: false });
+  await fillField(page, loc, String(value));
 }
 
 async function saveForm() {

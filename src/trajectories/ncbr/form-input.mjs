@@ -1,30 +1,25 @@
 import { humanFill } from '../../../dist/human/keyboard.js';
 
-export async function fillField(
-  page,
-  locator,
-  value,
-  { truncate = true } = {},
-) {
+// A value goes into an LSI field whole or not at all: a value longer than the
+// field's maxlength is refused with both lengths. Cutting it at a word filed
+// shortened texts nobody wrote (repair/text/fix_truncated_textareas_new.mjs
+// exists to undo them).
+export async function fillField(page, locator, value) {
   await locator.waitFor({ state: 'visible' });
-  const max =
-    Number(await locator.getAttribute('maxlength')) ||
-    String(value || '').length;
-  let next = String(value || '');
-  if (next.length > max) {
-    if (!truncate) {
-      throw Object.assign(
-        new Error(
-          `LSI_FIELD_TOO_LONG: ${locator}; expected length=${next.length}, maximum=${max}`,
-        ),
-        {
-          code: 'LSI_FIELD_TOO_LONG',
-          expectedLength: next.length,
-          max,
-        },
-      );
-    }
-    next = next.slice(0, max).replace(/\s+\S*$/, '');
+  const next = String(value);
+  const declared = await locator.getAttribute('maxlength');
+  const max = declared === null ? null : Number(declared);
+  if (max !== null && next.length > max) {
+    throw Object.assign(
+      new Error(
+        `LSI_FIELD_TOO_LONG: ${locator}; expected length=${next.length}, maximum=${max}`,
+      ),
+      {
+        code: 'LSI_FIELD_TOO_LONG',
+        expectedLength: next.length,
+        max,
+      },
+    );
   }
   const before = await locator.inputValue();
   if (before === next) return { len: next.length, max, changed: false };

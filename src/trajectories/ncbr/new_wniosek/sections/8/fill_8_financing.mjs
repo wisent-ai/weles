@@ -76,7 +76,7 @@ async function fillBySuffix(fragment, value) {
   const loc = page
     .locator(`input[name*="${fragment}"], textarea[name*="${fragment}"]`)
     .first();
-  await fillField(page, loc, String(value), { truncate: false });
+  await fillField(page, loc, String(value));
   return { fragment, value };
 }
 
