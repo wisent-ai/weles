@@ -13,20 +13,38 @@ async function fetchEmailBody(id) {
   return getReceived(id);
 }
 
+function addressedTo(message, email) {
+  const to = (Array.isArray(message.to) ? message.to : [])
+    .map((t) => (typeof t === 'string' ? t : String(t.email)))
+    .join(',')
+    .toLowerCase();
+  return to.includes(email.toLowerCase());
+}
+
+/**
+ * The ids of the messages the inbox already holds for `email`, read before
+ * signup: the verification mail is the one that is not among them, so no
+ * clock tolerance decides which message is new.
+ */
+export async function inboxIdsFor(email) {
+  const inbox = await fetchInboxRecent();
+  return new Set(inbox.filter((m) => addressedTo(m, email)).map((m) => m.id));
+}
+
 /**
  * One read of the receiving inbox for Pangram's verification mail to `email`
- * sent after `sinceMs`. Returns the code and the Pangram link it carries, or
- * null when it has not arrived — the inbox has no push or blocking read, so
- * the caller decides what a missing mail means instead of this waiting.
+ * that was not there before signup (`seenBefore`). Returns the code and the
+ * Pangram link it carries, or null when it has not arrived — the inbox has
+ * no push or blocking read, so the caller decides what a missing mail means
+ * instead of this waiting.
  */
-export async function readPangramMail(email, sinceMs) {
+export async function readPangramMail(email, seenBefore) {
   const inbox = await fetchInboxRecent();
   const hit = inbox.find((m) => {
-    const to = (Array.isArray(m.to) ? m.to : []).map((t) => typeof t === 'string' ? t : t.email || '').join(',').toLowerCase();
-    const from = String(m.from || '').toLowerCase();
-    const subj = String(m.subject || '').toLowerCase();
-    const created = m.created_at ? Date.parse(m.created_at) : 0;
-    return to.includes(email.toLowerCase()) && created >= sinceMs - 60_000 && (from.includes('pangram') || subj.includes('pangram') || subj.includes('verify'));
+    const from = String(m.from).toLowerCase();
+    const subj = String(m.subject).toLowerCase();
+    return addressedTo(m, email) && !seenBefore.has(m.id)
+      && (from.includes('pangram') || subj.includes('pangram') || subj.includes('verify'));
   });
   if (!hit) return null;
   const body = await fetchEmailBody(hit.id);

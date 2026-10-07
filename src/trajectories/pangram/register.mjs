@@ -7,7 +7,7 @@ import { humanFill, humanType } from '../../../dist/human/keyboard.js';
 import { generatePersona } from '../../../dist/browser/persona.js';
 import { generateEmail, registrationPassword } from './register/identity.mjs';
 import { countryHintFromProxy, selectRegistrationProxy } from './register/proxy.mjs';
-import { inboxConfigured, readPangramMail } from './register/inbox.mjs';
+import { inboxConfigured, inboxIdsFor, readPangramMail } from './register/inbox.mjs';
 import { clickByText, dismissCookies, dumpControls, fillFirst, isAuthenticatedStatus, loginWithPassword, sessionStatus } from './register/page.mjs';
 
 const SIGNUP_URL = process.env.PANGRAM_SIGNUP_URL || 'https://www.pangram.com/signup';
@@ -26,7 +26,10 @@ const s = await WSession.start({
   proxy: regProxy?.proxyUrl,
   persona,
 });
-const sinceMs = Date.now();
+if (!inboxConfigured()) throw new Error('pangram_register: no receiving inbox is configured for the verification mail');
+// What the inbox holds for this address before signup; the verification
+// mail is the message that is not among these.
+const seenBefore = await inboxIdsFor(EMAIL);
 
 /** Fill the signup form: email, password (and its confirmation), names, and the terms box. */
 async function fillSignupForm(page) {
@@ -90,8 +93,7 @@ async function fillSignupForm(page) {
 
 /** Prove the address through the verification mail, then sign in if the page asks. */
 async function verifyThroughMail(page) {
-  if (!inboxConfigured()) throw new Error('pangram_register: no receiving inbox is configured for the verification mail');
-  const mail = await readPangramMail(EMAIL, sinceMs);
+  const mail = await readPangramMail(EMAIL, seenBefore);
   if (!mail) throw new Error(`pangram_register: Pangram's verification mail for ${EMAIL} has not arrived yet; read the inbox again once it is there`);
   console.log(`[pangram_register] mail=${JSON.stringify({ subject: mail.subject, hasCode: Boolean(mail.code), hasLink: Boolean(mail.pangramLink) })}`);
   if (mail?.code) {
