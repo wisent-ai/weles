@@ -88,7 +88,7 @@ try {
   const bodyTextHead = await s.page.evaluate(() => (document.body?.innerText || '').slice(0, 600)).catch(() => '');
   console.log(`[li-profile] landing url=${landingUrl}`);
   console.log(`[li-profile] page title=${pageTitle}`);
-  console.log(`[li-profile] body head: ${bodyTextHead.replace(/\n/g, ' / ').slice(0, 400)}`);
+  console.log(`[li-profile] body head: ${bodyTextHead.replace(/\n/g, ' / ')}`);
   const formFields = await s.page.evaluate(() => {
     const out = [];
     for (const el of Array.from(document.querySelectorAll('input, textarea'))) {
@@ -189,7 +189,7 @@ try {
       }
       const postClickBody = await s.page.evaluate(() => (document.body?.innerText || '').slice(0, 600).replace(/\n/g, ' / ')).catch(() => '');
       console.log(`[li-profile] save: post-click url=${s.page.url()}`);
-      console.log(`[li-profile] save: post-click body head: ${postClickBody.slice(0, 400)}`);
+      console.log(`[li-profile] save: post-click body head: ${postClickBody}`);
       console.log(`[li-profile] save: mutation POST=${status} ${requestUrl}`);
     } else {
       throw Object.assign(new Error('No visible enabled Save button after profile field input and blur'),

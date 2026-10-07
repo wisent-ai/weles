@@ -127,4 +127,4 @@ for (const p of params) {
   added.push({ name: p.name, save });
 }
 
-console.log(JSON.stringify({ ok: true, sourceRows: params.length, added, rowCount: rowCount(), table: tableText().slice(0, 3000) }, null, 2));
+console.log(JSON.stringify({ ok: true, sourceRows: params.length, added, rowCount: rowCount(), table: tableText() }, null, 2));

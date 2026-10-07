@@ -152,7 +152,7 @@ if (process.env.REWRITE) {
     const table = document.querySelector('table');
     return table ? Array.from(table.querySelectorAll('tbody tr')).map((r) => r.innerText.replace(/\s+/g, ' ').trim()) : [];
   }); // allow-raw-playwright: read back cost table after rewrite
-  console.log(JSON.stringify({ rewritten: rewritten.length, rows: rows.length, names: rewritten, firstRows: rows.slice(0, 8) }, null, 2));
+  console.log(JSON.stringify({ rewritten: rewritten.length, rowCount: rows.length, names: rewritten, rows }, null, 2));
   process.exit(0);
 }
 

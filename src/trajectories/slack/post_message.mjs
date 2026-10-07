@@ -137,7 +137,7 @@ if (!channelId) {
   else if (general) channelId = general.id;
   else {
     console.log(`[slack] ${list.channels.length} channels visible, none match "${TARGET_NAME}" or "general"`);
-    console.log(`[slack] sample: ${list.channels.slice(0, 6).map((c) => c.name).join(', ')}`);
+    console.log(`[slack] visible channels: ${list.channels.map((c) => c.name).join(', ')}`);
   }
 }
 // Still no channel: open a DM with the first user the matchers name.

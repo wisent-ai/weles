@@ -102,7 +102,7 @@ export async function solveAudioPuzzle(page, { maxRounds = 10 } = {}) {
     return btns.map(b => ({ text: b.innerText?.trim().slice(0, 40), aria: b.getAttribute('aria-label')?.slice(0, 40), cls: b.className?.slice(0, 60) }));
   })()`);
   const audioMatch = inventory.find(b => /audio|sound|accessibility/i.test((b.text || '') + ' ' + (b.aria || '')));
-  if (!audioMatch) { console.log(`[audio] No Audio button on the settled puzzle — buttons(${inventory.length}): ${JSON.stringify(inventory.slice(0, 8))}`); return false; }
+  if (!audioMatch) { console.log(`[audio] No Audio button on the settled puzzle — buttons(${inventory.length}): ${JSON.stringify(inventory)}`); return false; }
   console.log(`[audio] Found audio-like button: ${JSON.stringify(audioMatch)}`);
   const audioBtn = frame.locator(`button:has-text("${audioMatch.text}"), [aria-label="${audioMatch.aria}"]`).first();
   await audioBtn.click();

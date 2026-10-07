@@ -69,7 +69,7 @@ async function fetchCodeFromGmail(s, sentAtMs) {
       return { title: dateSpan?.title || '', preview: t };
     });
   }).catch(() => []);
-  console.log(`[hy] inbox rows (timestamps): ${JSON.stringify(allRows.slice(0, 10), null, 2)}`);
+  console.log(`[hy] inbox rows (timestamps): ${JSON.stringify(allRows, null, 2)}`);
   const emailMs = meta.headerTitle ? Date.parse(meta.headerTitle) : NaN;
   if (Number.isFinite(emailMs)) {
     console.log(`[hy] email timestamp ${new Date(emailMs).toISOString()} vs sentAt ${new Date(sentAtMs).toISOString()} (delta=${Math.round((emailMs - sentAtMs)/1000)}s)`);

@@ -128,7 +128,7 @@ async function signup(s) {
   await pageSettled(page);
 
   // Step 6: phone verification, or the QR block in front of it.
-  console.log(`[google] step 6: url=${page.url().slice(-40)}`);
+  console.log(`[google] step 6: url=${page.url()}`);
   let phone = await phoneInput(page);
   if (!phone) {
     // Whatever alternative the page offers that leads to a phone field.

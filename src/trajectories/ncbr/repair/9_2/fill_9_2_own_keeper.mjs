@@ -116,4 +116,4 @@ for (const ind of ownIndicators) {
   added.push({ name: ind.name, saved, filled });
 }
 
-console.log(JSON.stringify({ ok: true, ownSource: ownIndicators.map((x) => x.name), added, rowCount: rowCount(), tableTail: tableText().slice(-3000) }, null, 2));
+console.log(JSON.stringify({ ok: true, ownSource: ownIndicators.map((x) => x.name), added, rowCount: rowCount(), table: tableText() }, null, 2));
