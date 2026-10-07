@@ -126,7 +126,7 @@ export function findResultDoc(runId) {
     if (!runMetadata.isDirectory() || runMetadata.isSymbolicLink()
         || !actionMetadata.isDirectory() || actionMetadata.isSymbolicLink()
         || !resultMetadata.isFile() || resultMetadata.isSymbolicLink()
-        || resultMetadata.size < 1 || resultMetadata.size > 1024 * 1024) {
+        || !resultMetadata.size) {
       return null;
     }
     const realRunRoot = realpathSync(runRoot);
