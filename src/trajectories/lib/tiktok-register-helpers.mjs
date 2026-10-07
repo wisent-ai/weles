@@ -131,7 +131,7 @@ export async function runUsernameStep(s, id, humanClickLocator) {
     const btns = Array.from(document.querySelectorAll('button')).filter(b => {
       const r = b.getBoundingClientRect();
       return r.width > 0 && r.height > 0 && b.offsetParent !== null;
-    }).map(b => ({ text: (b.textContent || '').trim().slice(0, 30), disabled: b.disabled }));
+    }).map(b => ({ text: b.textContent.trim(), disabled: b.disabled }));
     return { inputs, btns };
   })()`)
     .catch(() => ({}));

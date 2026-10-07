@@ -183,7 +183,8 @@ try {
   await pageSettled(s.page);
   const formState = await s.page.evaluate(`(() => {
     var inputs = Array.from(document.querySelectorAll('input'));
-    var vals = inputs.map(i => ({ name: i.name || i.type || i.placeholder, value: i.value?.slice(0, 20), type: i.type }));
+    // Field values are logged by length only: a password's first characters are still the password.
+    var vals = inputs.map(i => ({ name: i.name || i.type || i.placeholder, valueLength: i.value.length, type: i.type }));
     var btn = document.querySelector('button[type="submit"]');
     return { inputs: vals, hasButton: !!btn, btnDisabled: btn ? btn.disabled : null, btnText: btn?.textContent?.trim() };
   })()`);
