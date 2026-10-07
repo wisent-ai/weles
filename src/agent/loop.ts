@@ -39,6 +39,25 @@ export class AgentFailure extends Error {
   }
 }
 
+/**
+ * How many model steps one browser task may take before it is stopped, when
+ * its caller names none: `WELES_AGENT_MAX_STEPS`, a whole number above zero
+ * that the deployment declares. The forty once written here were nobody's
+ * statement; without the setting the task is refused before the browser is
+ * driven, naming it.
+ */
+function declaredMaxSteps(history: ToolCall[]): number {
+  const raw = String(process.env.WELES_AGENT_MAX_STEPS ?? '').trim();
+  const steps = Number(raw);
+  if (!raw || !Number.isSafeInteger(steps) || Math.sign(steps) !== Math.sign(Number.MAX_SAFE_INTEGER)) {
+    throw new AgentFailure(
+      `WELES_AGENT_MAX_STEPS is ${raw ? `"${raw}", not a whole number above zero` : 'not set'}: declare how many model steps one browser task may take`,
+      history,
+    );
+  }
+  return steps;
+}
+
 export async function execute(
   session: WSession,
   goal: string,
@@ -51,7 +70,7 @@ export async function execute(
   const page = session.page;
   const capture = new Capture({ newPage: async () => page } as any);
   const flowName = options?.flowName;
-  const maxSteps = options?.maxSteps ?? 40;
+  const maxSteps = options?.maxSteps ?? declaredMaxSteps(history);
 
 
   // Try replaying a saved flow before using the LLM unless this is an explicit
