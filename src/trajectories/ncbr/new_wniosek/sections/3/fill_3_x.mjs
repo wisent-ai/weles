@@ -255,7 +255,7 @@ if (process.env.DIAG_APP) {
     return {
       input: inp ? { name: inp.name, type: inp.type, value: inp.value } : null,
       hasRoot: Boolean(root),
-      html: fc?.outerHTML.slice(0, 3000) || null,
+      html: fc ? fc.outerHTML : null,
       candidates,
     };
   });

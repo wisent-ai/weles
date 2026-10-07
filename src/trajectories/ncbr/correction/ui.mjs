@@ -181,7 +181,7 @@ export async function save(
   );
   if (missing.length)
     throw new Error(
-      `Save request omitted ${missing.map((field) => field.name).join(', ')}: ${sent.slice(0, 4000)}`,
+      `Save request omitted ${missing.map((field) => field.name).join(', ')}: ${sent}`,
     );
   // The accepted response and the post-reload verification prove the save; the toast can vanish before it is observed, so it is not waited for.
   await page.waitForFunction(

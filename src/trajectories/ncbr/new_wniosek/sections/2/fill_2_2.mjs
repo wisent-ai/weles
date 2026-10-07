@@ -109,7 +109,7 @@ for (const label of factorLabels) {
     .filter({ hasText: label })
     .first();
   if ((await opt.count()) > 0) {
-    const t = (await opt.textContent())?.trim()?.slice(0, 70);
+    const t = (await opt.textContent())?.trim();
     await opt.dispatchEvent('click');
     czynniki.push(t);
   } // allow-raw-playwright: pick factor by exact label
@@ -146,7 +146,7 @@ const readback = await page.evaluate((nb) => {
   };
   const iv = (n) => {
     const e = document.querySelector(`input[name="${nb}${n}"]`);
-    return e ? e.value.slice(0, 30) : null;
+    return e ? e.value : null;
   };
   return {
     rodzaj: iv('rodzaj_innowacji'),
