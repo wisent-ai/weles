@@ -60,8 +60,8 @@ export async function respondToKeywordPlanner(req, res, url) {
         finishedAt: new Date().toISOString(),
         exitCode: run.exitCode,
         resultFile: run.resultFile,
-        stdoutTail: redact(run.stdout).slice(-4000),
-        stderrTail: redact(run.stderr).slice(-2000),
+        stdoutTail: redact(run.stdout),
+        stderrTail: redact(run.stderr),
         report: run.report,
         keeper: run.keeper,
       };
@@ -83,8 +83,8 @@ export async function respondToKeywordPlanner(req, res, url) {
       finishedAt: new Date().toISOString(),
       exitCode: run.exitCode,
       resultFile: run.resultFile,
-      stdoutTail: redact(run.stdout).slice(-4000),
-      stderrTail: redact(run.stderr).slice(-2000),
+      stdoutTail: redact(run.stdout),
+      stderrTail: redact(run.stderr),
       report,
       keeper: run.keeper,
     };
