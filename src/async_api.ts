@@ -204,25 +204,27 @@ export async function AsyncNewBrowser(
   // Window (viewport) must not exceed the real panel — a persona screen taller/
   // wider than the honest screen (e.g. 2560x1600 persona on a 2560x1440 panel)
   // is a window-larger-than-screen tell. Cap to the real avail area.
-  let viewW = persona?.screen.width ?? 1920;
-  let viewH = persona?.screen.height ?? 1080;
-  if (_hhScreen) {
-    viewW = Math.min(viewW, _hhScreen.availWidth);
-    viewH = Math.min(viewH, _hhScreen.availHeight);
-  }
-  const viewportOverride = process.env.WELES_VIEWPORT?.match(
-    /^(\d{3,4})x(\d{3,4})$/,
-  );
-  if (viewportOverride) {
-    viewW = Math.min(
-      parseInt(viewportOverride[1], 10),
-      _hhScreen?.availWidth ?? 4096,
-    );
-    viewH = Math.min(
-      parseInt(viewportOverride[2], 10),
-      _hhScreen?.availHeight ?? 2160,
+  // The size itself comes from what was stated or measured, never a default:
+  // WELES_VIEWPORT=<width>x<height>, else the persona's screen, else the
+  // honest host's available area.
+  const viewportOverride = process.env.WELES_VIEWPORT?.match(/^(\d+)x(\d+)$/);
+  const stated = viewportOverride
+    ? { width: Number(viewportOverride[1]), height: Number(viewportOverride[2]) }
+    : persona?.screen ??
+      (_hhScreen
+        ? { width: _hhScreen.availWidth, height: _hhScreen.availHeight }
+        : null);
+  if (!stated) {
+    throw new Error(
+      'the browser window has no size: set WELES_VIEWPORT=<width>x<height>, give the session a persona, or let Weles read the host screen (WELES_HONEST_SCREEN on, honest host enabled)',
     );
   }
+  const viewW = _hhScreen
+    ? Math.min(stated.width, _hhScreen.availWidth)
+    : stated.width;
+  const viewH = _hhScreen
+    ? Math.min(stated.height, _hhScreen.availHeight)
+    : stated.height;
   // DPR must match the real panel (honest-host) so deviceScaleFactor renders at
   // the true scale — a window claiming DPR 1 while screen reports DPR 2 (or the
   // canvas/pixel-hash renders at the wrong scale) is a tell.
