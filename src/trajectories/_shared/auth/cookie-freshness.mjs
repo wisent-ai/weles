@@ -217,10 +217,9 @@ export async function persistFreshCookieJar(acct, cookies, { currentProxyUrl, cu
   const nextMetadata = { ...(acct.metadata ?? {}), cookies, cookies_updated_at: now, cookies_minted_at: now, cookies_minted_proxy: mintedProxy, cookies_minted_persona: mintedPersona };
   if (persistProxy && typeof currentProxyUrl === 'string' && currentProxyUrl) { try { const u = new URL(currentProxyUrl); nextMetadata.proxy = { host: u.hostname, port: Number(u.port), protocol: u.protocol.replace(/:$/, ''), username: decodeURIComponent(u.username || ''), password: decodeURIComponent(u.password || '') }; } catch {} }
   // Clear cookies_stale_at — the whole point of persisting fresh cookies is
-  // they're no longer stale. Without this, getSocialAccount and the routine
-  // selector both skip the account for 24h after the previous staleness mark,
-  // even though the account has successfully re-logged-in. Same pattern as
-  // linkedin/recover/cookie_refresh.mjs:70 which explicitly clears it.
+  // they're no longer stale. getSocialAccount and the routine selector skip
+  // an account whose stale mark is newer than its minted cookies. Same
+  // pattern as linkedin/recover/cookie_refresh.mjs, which clears it too.
   delete nextMetadata.cookies_stale_at;
   try {
     updateAccountMetadata(acct.id, nextMetadata);
