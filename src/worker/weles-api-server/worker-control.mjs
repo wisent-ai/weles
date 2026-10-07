@@ -42,6 +42,7 @@ export function createWorkerControl(publicTaskService) {
       last_exit_status: null,
       dispatcher,
       prerequisites: publicTaskService.health.prerequisites,
+      serviceIdentityFailure: publicTaskService.serviceIdentityFailure,
     };
   }
 

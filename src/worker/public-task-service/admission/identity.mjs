@@ -321,6 +321,7 @@ export function createDeployedIdentity({
   const staticReady = Object.values(staticReadiness).every(Boolean);
   let identityReady = false;
   let lastServiceIdentity = null;
+  let serviceIdentityFailure = null;
   const readinessStatus = () => ({
     ...staticReadiness,
     serviceIdentity: identityReady,
@@ -350,14 +351,20 @@ export function createDeployedIdentity({
   }
 
   async function currentServiceIdentity() {
+    let operation = 'read-deployed-service-identity';
     try {
-      lastServiceIdentity = validatedServiceIdentity(
-        await readServiceIdentity(),
-      );
+      const observed = await readServiceIdentity();
+      operation = 'validate-deployed-service-identity';
+      lastServiceIdentity = validatedServiceIdentity(observed);
       identityReady = true;
+      serviceIdentityFailure = null;
       return lastServiceIdentity;
     } catch (error) {
       forgetServiceIdentity();
+      serviceIdentityFailure = {
+        operation,
+        message: error instanceof Error ? error.message : String(error),
+      };
       throw error;
     }
   }
@@ -383,6 +390,7 @@ export function createDeployedIdentity({
     readinessStatus,
     identityReady: () => identityReady,
     lastServiceIdentity: () => lastServiceIdentity,
+    serviceIdentityFailure: () => serviceIdentityFailure,
     bindingServiceIdentity,
     currentServiceIdentity,
     serviceIdentityReadiness,

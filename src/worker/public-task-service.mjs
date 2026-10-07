@@ -256,6 +256,12 @@ export function createPublicTaskService(options) {
 
   return Object.freeze({
     health,
+    get serviceIdentityFailure() {
+      const failure = deployedIdentity.serviceIdentityFailure();
+      return failure === null
+        ? null
+        : { ...failure, message: options.redact(failure.message) };
+    },
     handle,
     recover: operations.recover,
     shutdown: dispatcher.shutdown,

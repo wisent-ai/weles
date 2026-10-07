@@ -106,6 +106,22 @@ idempotency key. An accepted production action resolves to a reviewed trajectory
 and ends in an explicit action-log state. When receipt issuance is configured,
 the client verifies the signed outcome and evidence digest offline.
 
+## Worker identity diagnostics
+
+`weles worker status --json` retains `serviceIdentityFailure.operation` and
+`serviceIdentityFailure.message` when the deployed identity was refused.
+The same fields appear in text output and Weles Desktop's **System → Worker**.
+They describe the last identity read, not a new probe; a later successful
+identity read clears the failure. A running process alone is not readiness.
+The public version endpoint keeps its generic refusal without private details.
+
+The real read-only qualification is
+`WELES_BIN=/absolute/path/to/weles WELES_TEST_IDENTITY_STATE=refused node tests/worker/identity-diagnostics.mjs`;
+repeat with `ready` against a deployment whose identity Stado has restored.
+It requires a committed checkout and the matching deployed source revision.
+See [resident worker controls](https://weles.wisent.com/docs/concept-scheduler#resident-worker-controls)
+for the failed operations, evidence location and verification limits.
+
 ## Enterprise
 
 Weles Enterprise makes browser work a reviewed production capability. An
