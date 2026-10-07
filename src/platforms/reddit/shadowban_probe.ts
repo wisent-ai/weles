@@ -7,12 +7,12 @@
  * reddit/health.mjs and DETECTION_ANTIPATTERNS.md). A single about.json
  * 404 is therefore unreliable as a shadowban verdict.
  *
- * This probe spreads N independent fetches across N fresh proxy sticky
- * sessions (no cookies), each via a freshly-launched WSession. The
- * verdict is by majority vote:
- *   - 2+ vantages return 404                 -> 'shadowbanned'
- *   - 1+ vantages return 200 with valid body -> 'healthy'
- *   - mix or all 403/429/timeout             -> 'indeterminate'
+ * This probe spreads the caller's number of independent fetches across as
+ * many fresh proxy sticky sessions (no cookies), each via a freshly-launched
+ * WSession. The verdict:
+ *   - any vantage returns 200 with a valid body -> 'healthy'
+ *   - every vantage returns 404                 -> 'shadowbanned'
+ *   - anything else (403/429/errors, a mix)     -> 'indeterminate'
  *
  * Used by:
  *   - src/trajectories/reddit/shadowban_check.mjs (standalone trajectory)
@@ -48,13 +48,12 @@ export interface MultiVantageProbeResult {
  * @param username  the reddit username to probe (case-sensitive — pass the
  *                  real handle from /api/me.json, not our stored email-prefix
  *                  username, which Reddit auto-replaces during signup).
- * @param vantages  number of independent vantages to use (default 3).
- *                  Each vantage spins up a separate Chromium so this is
- *                  expensive — keep small.
+ * @param vantages  number of independent vantages to use, the caller's
+ *                  choice: each vantage spins up a separate Chromium.
  */
 export async function probeShadowban(
   username: string,
-  vantages = 3,
+  vantages: number,
 ): Promise<MultiVantageProbeResult> {
   const results: VantageResult[] = [];
   const url = `https://old.reddit.com/user/${encodeURIComponent(username)}/about.json`;
@@ -109,13 +108,14 @@ export async function probeShadowban(
     }
   }
 
-  // Tally
+  // Tally: one logged-out vantage that sees the profile proves it public;
+  // shadowbanned needs every vantage to answer 404, so no count is chosen.
   const four_oh_four = results.filter(r => r.status === 404).length;
   const ok = results.filter(r => r.status === 200 && r.has_body).length;
 
   let verdict: ShadowbanVerdict;
-  if (ok >= 1) verdict = 'healthy';
-  else if (four_oh_four >= 2) verdict = 'shadowbanned';
+  if (ok) verdict = 'healthy';
+  else if (results.length && four_oh_four === results.length) verdict = 'shadowbanned';
   else verdict = 'indeterminate';
 
   return { verdict, username, vantages: results, ts: new Date().toISOString() };

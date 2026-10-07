@@ -1,5 +1,6 @@
 import { probeCommentVisibility, probeShadowban } from '../../../../../../dist/platforms/reddit/shadowban_probe.js';
 import { findAccount, updateAccountMetadata } from '../../../../_shared/skarbiec/accounts.mjs';
+import { statedCount } from '../../../../_shared/inputs/stated.mjs';
 
 /**
  * Deferred clean-session verify. The in-session permalink read catches
@@ -45,7 +46,7 @@ export async function verifyPreviousComment(acct) {
     console.log(`[deferred-verify] permalink probe of ${commentId} posted ${postedAt}: visible=${probe.visible} status=${probe.status} exit_ip=${probe.exit_ip ?? '?'}`);
   }
   if (stillPublic === 'unprobed' && handle) {
-    const probe = await probeShadowban(handle, 3);
+    const probe = await probeShadowban(handle, statedCount('REDDIT_SHADOWBAN_VANTAGES', 'how many logged-out vantages probe the profile'));
     console.log(`[deferred-verify] account probe: verdict=${probe.verdict}`);
     stillPublic = probe.verdict !== 'shadowbanned';
   }

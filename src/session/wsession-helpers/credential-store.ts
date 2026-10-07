@@ -190,7 +190,7 @@ async function captureCandidate(
     ].filter(Boolean).join(',')));
 
     for (const locator of locators) {
-      const count = Math.min(await locator.count().catch(() => 0), 64);
+      const count = await locator.count().catch(() => 0);
       for (let index = 0; index < count; index += 1) {
         const candidate = await locator.nth(index).evaluate((element: Element) => {
           if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) return element.value;

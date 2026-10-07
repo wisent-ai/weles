@@ -1,10 +1,11 @@
 /**
  * Reddit shadowban ground-truth check trajectory.
  *
- * Runs three independent fetches of /user/<username>/about.json from three
- * fresh proxy sessions (different sticky exit IPs, no cookies). Aggregates
- * the responses into a single verdict ('shadowbanned' | 'healthy' |
- * 'indeterminate') so the verdict is robust to per-IP edge false positives.
+ * Runs REDDIT_SHADOWBAN_VANTAGES independent fetches (required, the
+ * caller's choice) of /user/<username>/about.json from fresh proxy sessions
+ * (different sticky exit IPs, no cookies). Aggregates the responses into a
+ * single verdict ('shadowbanned' | 'healthy' | 'indeterminate') so the
+ * verdict is robust to per-IP edge false positives.
  *
  * On 'shadowbanned': PATCHes social_accounts.status='shadowbanned' (per
  * user request — auto-flag pulls the account out of routine rotation).
@@ -18,6 +19,7 @@
 import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { probeShadowban } from '../../../dist/platforms/reddit/shadowban_probe.js';
+import { statedCount } from '../_shared/inputs/stated.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
@@ -51,7 +53,7 @@ try {
 }
 
 console.log(`[shadowban_check] probing realHandle=${realHandle} (stored=${acct.username})`);
-const result = await probeShadowban(realHandle, 3);
+const result = await probeShadowban(realHandle, statedCount('REDDIT_SHADOWBAN_VANTAGES', 'how many logged-out vantages probe the profile'));
 console.log(`[shadowban_check] verdict=${result.verdict}`);
 for (const v of result.vantages) {
   console.log(`[shadowban_check]   vantage=${v.vantage} status=${v.status} hasBody=${v.has_body} exit_ip=${v.exit_ip ?? '?'} err=${v.err ?? ''}`);
