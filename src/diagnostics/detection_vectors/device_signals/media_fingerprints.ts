@@ -26,15 +26,17 @@ export const mediaFingerprintRules: DetectionRule[] = [
     category: 'canvas',
     severity: 'warning',
     test(s, b) {
-      const sh = s?.js?.canvas?.toDataURLHead;
-      const bh = b?.js?.canvas?.toDataURLHead;
+      // The whole rendering is compared: its first characters are the PNG
+      // header every browser writes alike, so a prefix never differed.
+      const sh = s?.js?.canvas?.toDataURL;
+      const bh = b?.js?.canvas?.toDataURL;
       if (sh && bh && sh !== bh) {
         return {
           id: 'canvas_hash_mismatch',
           category: 'canvas',
           severity: 'warning',
-          message: `Canvas toDataURL header differs. TikTok mssdk and others compare canvas hashes.`,
-          evidence: { subjectHead: sh, baselineHead: bh },
+          message: `Canvas toDataURL differs. TikTok mssdk and others compare canvas hashes.`,
+          evidence: { subjectLength: sh.length, baselineLength: bh.length },
         };
       }
       return null;

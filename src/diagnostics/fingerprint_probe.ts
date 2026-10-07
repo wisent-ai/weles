@@ -83,7 +83,7 @@ export const FP_SCRIPT = String.raw`(async () => {
     cx.fillStyle = 'rgba(102,204,0,0.7)'; cx.fillText('bangs gym waltz', 4, 45);
     const dataUrl = cv.toDataURL();
     const tm = cx.measureText('Hello');
-    return { toDataURLLen: dataUrl.length, toDataURLHead: dataUrl.slice(0, 80), textMetrics: { width: tm.width, actualBoundingBoxAscent: tm.actualBoundingBoxAscent, actualBoundingBoxDescent: tm.actualBoundingBoxDescent, actualBoundingBoxLeft: tm.actualBoundingBoxLeft, actualBoundingBoxRight: tm.actualBoundingBoxRight, fontBoundingBoxAscent: tm.fontBoundingBoxAscent, fontBoundingBoxDescent: tm.fontBoundingBoxDescent } };
+    return { toDataURLLen: dataUrl.length, toDataURL: dataUrl, textMetrics: { width: tm.width, actualBoundingBoxAscent: tm.actualBoundingBoxAscent, actualBoundingBoxDescent: tm.actualBoundingBoxDescent, actualBoundingBoxLeft: tm.actualBoundingBoxLeft, actualBoundingBoxRight: tm.actualBoundingBoxRight, fontBoundingBoxAscent: tm.fontBoundingBoxAscent, fontBoundingBoxDescent: tm.fontBoundingBoxDescent } };
   });
 
   // ---- 7. AudioContext fingerprint via OfflineAudioContext ----
@@ -173,7 +173,7 @@ export const FP_SCRIPT = String.raw`(async () => {
   // ---- 13. speechSynthesis voices ----
   r.speechVoices = safe(() => {
     const v = window.speechSynthesis?.getVoices() || [];
-    return { count: v.length, voices: v.slice(0, 20).map(x => ({ name: x.name, lang: x.lang, localService: x.localService, default: x.default })) };
+    return { count: v.length, voices: v.map(x => ({ name: x.name, lang: x.lang, localService: x.localService, default: x.default })) };
   });
 
   // ---- 14. battery ----
@@ -199,7 +199,7 @@ export const FP_SCRIPT = String.raw`(async () => {
   }));
 
   // ---- 18. Error stack format ----
-  r.errorStack = safe(() => { try { null.foo; } catch (e) { return { name: e.name, messagePrefix: e.message.slice(0, 40), stackLines: e.stack.split('\n').length, stackFirstLine: e.stack.split('\n')[0].slice(0, 80) }; } });
+  r.errorStack = safe(() => { try { null.foo; } catch (e) { const [stackFirstLine] = e.stack.split('\n'); return { name: e.name, message: e.message, stackLines: e.stack.split('\n').length, stackFirstLine }; } });
 
   // ---- 19. JS engine toString lengths ----
   r.jsEngine = safe(() => ({ evalLen: eval.toString().length, fnToStringLen: Function.prototype.toString.toString().length, promiseThenLen: Promise.prototype.then.toString().length }));
