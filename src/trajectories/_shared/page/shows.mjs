@@ -27,18 +27,26 @@ export function cellShowsSource(wanted) {
   });
 }
 
-// The index among `table tbody tr` of the first row with a cell showing the
-// wanted value, or -1 when no row shows it.
+// The index among `table tbody tr` of the unique row showing the wanted
+// value, or -1 when absent. Ambiguous displayed prefixes must never pick a row.
 export function rowShowingSource(wanted) {
   const words = (text) => text.replace(/\s+/g, ' ').trim();
   const name = words(wanted);
-  return Array.from(document.querySelectorAll('table tbody tr')).findIndex(
-    (tr) =>
-      Array.from(tr.querySelectorAll('td')).some((td) => {
-        const seen = words(td.innerText);
-        if (seen === name) return true;
-        const cut = seen.match(/^(?<start>.+?)\s*(…|\.\.\.)$/);
-        return cut !== null && name.startsWith(cut.groups.start);
-      }),
+  const rows = Array.from(document.querySelectorAll('table tbody tr'));
+  const matches = rows.filter((tr) =>
+    Array.from(tr.querySelectorAll('td')).some((td) => {
+      const seen = words(td.innerText);
+      if (seen === name) return true;
+      const cut = seen.match(/^(?<start>.+?)\s*(…|\.\.\.)$/);
+      return cut !== null && name.startsWith(cut.groups.start);
+    }),
   );
+  const [match, ...duplicates] = matches;
+  if (duplicates.length) {
+    throw new Error(`row_source_ambiguous: ${JSON.stringify({
+      wanted: name,
+      rows: matches.map((row) => words(row.innerText)),
+    })}`);
+  }
+  return rows.indexOf(match);
 }
