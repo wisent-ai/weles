@@ -23,7 +23,7 @@ export async function pageDiag(page, { html = false } = {}) {
   }
   const key = html ? 'html' : 'bodyText';
   const con = Array.isArray(globalThis.__claudeConsole)
-    ? globalThis.__claudeConsole.slice(-12)
+    ? globalThis.__claudeConsole
     : [];
   return `url=${u} title=${JSON.stringify(t)} console=${JSON.stringify(con)} ${key}=${JSON.stringify(content)}`;
 }

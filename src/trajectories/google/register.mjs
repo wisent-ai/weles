@@ -301,7 +301,9 @@ function instrumentSession(s) {
     br.on('disconnected', () => console.log('[evt] browser.disconnected'));
 }
 const proxy = freshProxy();
-console.log(`\n=== Google signup proxy=${proxy.slice(-60)} ===`);
+// WSession.start logs the proxy redacted; the raw URL's last characters can
+// still carry its password, so it is not printed here.
+console.log('\n=== Google signup ===');
 const s = await WSession.start({
   label: 'google_register',
   proxy,

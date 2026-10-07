@@ -135,7 +135,7 @@ async function postComment(s, acct, sessionMeta) {
     .catch(() => false);
   if (!found2)
     throw new Error(
-      `comment_not_found_after_post: url=${s.page.url().slice(-60)}`,
+      `comment_not_found_after_post: url=${s.page.url()}`,
     );
   return targetUrl;
 }
