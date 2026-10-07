@@ -26,10 +26,10 @@ export async function summarizeVisible(page, queryText) {
       }
     };
     const seenObjects = new Set();
-    const inspectObject = (obj, label, depth = 0) => {
+    const inspectObject = (obj, label) => {
       if (!obj || (typeof obj !== 'object' && typeof obj !== 'function'))
         return;
-      if (seenObjects.has(obj) || depth > 3) return;
+      if (seenObjects.has(obj)) return;
       seenObjects.add(obj);
       try {
         if (typeof obj.getValue === 'function')
@@ -61,7 +61,7 @@ export async function summarizeVisible(page, queryText) {
         'model',
       ]) {
         try {
-          inspectObject(obj[key], `${label}.${key}`, depth + 1);
+          inspectObject(obj[key], `${label}.${key}`);
         } catch {}
       }
     };

@@ -174,19 +174,22 @@ async function signup(s) {
           ta.dispatchEvent(new Event('change', { bubbles: true }));
           ta.dispatchEvent(new Event('input', { bubbles: true }));
         });
-        // Walk ___grecaptcha_cfg.clients recursively until we find a function-valued "callback"
+        // Walk ___grecaptcha_cfg.clients until every function-valued "callback"
+        // has fired; the seen set ends cycles, so no depth is chosen here.
         var cbCount = 0;
-        function walk(o, depth) {
-          if (!o || typeof o !== 'object' || depth > 8) return;
+        var seen = new Set();
+        function walk(o) {
+          if (!o || typeof o !== 'object' || seen.has(o)) return;
+          seen.add(o);
           for (var k in o) {
             try {
               var v = o[k];
               if (k === 'callback' && typeof v === 'function') { v(token); cbCount++; }
-              else if (v && typeof v === 'object') walk(v, depth + 1);
+              else if (v && typeof v === 'object') walk(v);
             } catch (e) {}
           }
         }
-        if (window.___grecaptcha_cfg && window.___grecaptcha_cfg.clients) walk(window.___grecaptcha_cfg.clients, 0);
+        if (window.___grecaptcha_cfg && window.___grecaptcha_cfg.clients) walk(window.___grecaptcha_cfg.clients);
         return { cbCount: cbCount, textareas: document.querySelectorAll('textarea[name="g-recaptcha-response"]').length };
       })()`)
         .catch(() => null);

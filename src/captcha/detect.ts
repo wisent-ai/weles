@@ -121,8 +121,10 @@ async function invokeCaptchaCallbacks(
         let touched = false;
         const callbackKey =
           /(^|[-_])(callback|promise-callback|expired-callback|error-callback)$/i;
-        const visit = (value: unknown, depth: number, seen: Set<unknown>) => {
-          if (depth > 5 || !value || seen.has(value)) return;
+        // `seen` ends every cycle, so the walk covers the whole client
+        // object however deep the provider nests its callbacks.
+        const visit = (value: unknown, seen: Set<unknown>) => {
+          if (!value || seen.has(value)) return;
           if (typeof value !== 'object') return;
           seen.add(value);
           for (const [key, entry] of Object.entries(
@@ -137,16 +139,12 @@ async function invokeCaptchaCallbacks(
                 /* ignore non-token callbacks */
               }
             } else {
-              visit(entry, depth + 1, seen);
+              visit(entry, seen);
             }
           }
         };
-        visit(
-          (window as any).___grecaptcha_cfg?.clients,
-          0,
-          new Set<unknown>(),
-        );
-        visit((window as any).___turnstile_cfg?.clients, 0, new Set<unknown>());
+        visit((window as any).___grecaptcha_cfg?.clients, new Set<unknown>());
+        visit((window as any).___turnstile_cfg?.clients, new Set<unknown>());
         return touched;
       }, token)
       .catch(() => false);
