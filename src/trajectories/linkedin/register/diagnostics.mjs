@@ -72,7 +72,6 @@ function summarizePostData(postData = '') {
       json_shape: null,
       markers: {},
       redacted: '',
-      redacted_truncated: false,
     };
   }
   const summary = {
@@ -87,7 +86,6 @@ function summarizePostData(postData = '') {
       has_password: /password/i.test(postData),
     },
     redacted: '',
-    redacted_truncated: false,
   };
   try {
     const parsed = JSON.parse(postData);
@@ -105,10 +103,7 @@ function summarizePostData(postData = '') {
       );
     }
   } catch {}
-  const redacted = redactDiagnosticText(postData);
-  const max = 20_000;
-  summary.redacted = redacted.slice(0, max);
-  summary.redacted_truncated = redacted.length > max;
+  summary.redacted = redactDiagnosticText(postData);
   return summary;
 }
 
@@ -134,7 +129,6 @@ export function summarizeRequest(req) {
     post_data_json_shape: post?.json_shape ?? null,
     post_data_markers: post?.markers ?? null,
     post_data_redacted: post?.redacted ?? null,
-    post_data_redacted_truncated: post?.redacted_truncated ?? null,
     post_data_read_error: postDataReadError,
   };
 }
@@ -163,12 +157,12 @@ export function summarizeResponse(res, bodyText, bodyReadError = null) {
 }
 
 export async function collectSubmitState(page, stage) {
-  const safeText = async (loc, max = 500) => {
+  const safeText = async (loc) => {
     if (!(await loc.count())) return '';
     try {
       return redactDiagnosticText(
         (await loc.innerText()).replace(/\s+/g, ' ').trim(),
-      ).slice(0, max);
+      );
     } catch {
       return '';
     }
@@ -202,9 +196,8 @@ export async function collectSubmitState(page, stage) {
         '[role="alert"], .join-form__form-body-error, .alert, .error, [class*="error"]',
       )
       .first(),
-    800,
   );
-  const visibleText = await safeText(page.locator('body').first(), 1200);
+  const visibleText = await safeText(page.locator('body').first());
   return {
     stage,
     url: page.url(),
@@ -213,7 +206,7 @@ export async function collectSubmitState(page, stage) {
       enabled: (await button.count())
         ? await button.isEnabled().catch(() => false)
         : false,
-      text: await safeText(button, 200),
+      text: await safeText(button),
       disabled_attr: await safeAttr(button, 'disabled'),
       aria_disabled: await safeAttr(button, 'aria-disabled'),
     },
