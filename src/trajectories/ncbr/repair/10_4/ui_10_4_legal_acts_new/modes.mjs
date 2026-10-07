@@ -56,6 +56,10 @@ export async function runModes({ page, SECTION_URL, table, form }) {
       return name === 'uzasadnienie' || name.endsWith('.uzasadnienie');
     }, row.formJustification);
     console.log(JSON.stringify({ stage: 'filled', justFill }));
+    if (!justFill.filled)
+      throw new Error(
+        `10.4 justification for ${row.act} not filled: ${JSON.stringify(justFill)}`,
+      );
     const formState = await page.evaluate(() => ({
       visibleFields: Array.from(document.querySelectorAll('input, textarea'))
         .filter((el) => el.offsetParent !== null)

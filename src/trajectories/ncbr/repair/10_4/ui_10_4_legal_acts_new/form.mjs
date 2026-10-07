@@ -75,9 +75,18 @@ export function legalActForm({ page }) {
               role: el.getAttribute('role') || '',
             })),
           };
-        const max = Number(field.getAttribute('maxlength')) || value.length;
-        let next = String(value);
-        if (next.length > max) next = next.slice(0, max).replace(/\s+\S*$/, '');
+        // A value the field cannot hold is refused with both lengths: cutting
+        // it at a word would file a shortened justification nobody wrote.
+        const declared = field.getAttribute('maxlength');
+        const next = String(value);
+        if (declared !== null && next.length > Number(declared))
+          return {
+            filled: false,
+            name: field.name,
+            valueLength: next.length,
+            max: Number(declared),
+            reason: 'the value is longer than the field takes',
+          };
         const setter = Object.getOwnPropertyDescriptor(
           Object.getPrototypeOf(field),
           'value',
@@ -88,7 +97,7 @@ export function legalActForm({ page }) {
           new InputEvent('input', {
             bubbles: true,
             inputType: 'insertText',
-            data: next.slice(0, 20),
+            data: next,
           }),
         );
         field.dispatchEvent(new Event('change', { bubbles: true }));
@@ -97,7 +106,7 @@ export function legalActForm({ page }) {
           filled: true,
           name: field.name || '',
           valueLength: next.length,
-          max,
+          max: declared,
         };
       },
       { predicateSource: predicate.toString(), value },
@@ -164,8 +173,7 @@ export function legalActForm({ page }) {
           ),
         )
           .map((o) => o.textContent.trim())
-          .filter(Boolean)
-          .slice(0, 30),
+          .filter(Boolean),
       ); // allow-raw-playwright: read visible legal-act options only
       option = page
         .getByRole('option', { name: optionText, exact: true })
@@ -217,6 +225,10 @@ export function legalActForm({ page }) {
       const name = el.name || '';
       return name === 'uzasadnienie' || name.endsWith('.uzasadnienie');
     }, row.formJustification);
+    if (!justFill.filled)
+      throw new Error(
+        `10.4 justification for ${row.act} not filled: ${JSON.stringify(justFill)}`,
+      );
     const save = await saveRow();
     return { picked, justFill, save };
   }

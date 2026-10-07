@@ -47,6 +47,10 @@ const justFill = await fillTextLikeField((el) => {
   const name = el.name || '';
   return name === 'uzasadnienie' || name.endsWith('.uzasadnienie');
 }, target.formJustification);
+if (!justFill.filled)
+  throw new Error(
+    `10.4 justification for ${target.act} not filled: ${JSON.stringify(justFill)}`,
+  );
 
 await humanIdlePause('deliberate');
 await humanIdlePause('deliberate');
