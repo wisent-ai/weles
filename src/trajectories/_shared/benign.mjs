@@ -28,7 +28,7 @@ import { detectLinkedInBanSignals }  from '../../../dist/platforms/linkedin/ban_
 import { detectDiscordBanSignals }   from '../../../dist/platforms/discord/ban_signals.js';
 import { detectGitHubBanSignals }    from '../../../dist/platforms/github/ban_signals.js';
 import { detectProductHuntBanSignals } from '../../../dist/platforms/producthunt/ban_signals.js';
-import { humanIdlePause, humanScroll } from '../../../dist/human/mouse.js';
+import { humanIdlePause, humanScrollPage } from '../../../dist/human/mouse.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { declaredObservation } from './observation.mjs';
 
@@ -68,7 +68,7 @@ try {
   // spends one idle read, because a run that navigates and closes at once has
   // not observed anything.
   for (let i = 0; i < observed.scrolls; i++) {
-    await humanScroll(s.page, 1200, 3);
+    await humanScrollPage(s.page, 'down');
     await humanIdlePause(observed.dwellMs);
   }
   if (observed.scrolls === 0) await humanIdlePause(observed.dwellMs);

@@ -11,7 +11,7 @@ import { WSession } from '../../../../../dist/session/wsession.js';
 import { generateOrganicComment } from '../../../_shared/content/llm.mjs';
 import { checkReachable } from '../../../_shared/action-runner.mjs';
 import { detectRedditBanSignals } from '../../../../../dist/platforms/reddit/ban_signals.js';
-import { humanScroll, humanIdlePause, humanClickLocator, humanHoverLocator } from '../../../../../dist/human/mouse.js';
+import { humanScrollPage, humanIdlePause, humanClickLocator, humanHoverLocator } from '../../../../../dist/human/mouse.js';
 import { humanType } from '../../../../../dist/human/keyboard.js';
 import { recordCommentForVerify, verifyPreviousComment } from './steps/deferred_verify.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -83,12 +83,12 @@ try {
   // Scroll and optionally hover an author link before composing. Pointer input
   // is observed; neither time spent reading nor a displayed hovercard is inferred.
   await humanIdlePause('deliberate');
-  await humanScroll(s.page, 1400, 3);
+  await humanScrollPage(s.page, 'down');
   await humanIdlePause('deliberate');
   const authorLink = s.page.locator('a[href*="/user/"], a[href*="/u/"]').filter({ visible: true }).first();
   if (await authorLink.count()) await humanHoverLocator(s.page, authorLink);
   else console.log('[trajectory] no visible author link offered; optional hover omitted');
-  await humanScroll(s.page, 800, 2);
+  await humanScrollPage(s.page, 'down');
 
   // Deterministic submit: same selectors as reddit_comment.mjs. textarea
   // [name="text"] first visible (top-level reply form), submit via

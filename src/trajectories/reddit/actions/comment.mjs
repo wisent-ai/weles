@@ -2,7 +2,7 @@ import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/
 import { WSession } from '../../../../dist/session/wsession.js';
 import { detectRedditBanSignals } from '../../../../dist/platforms/reddit/ban_signals.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
-import { humanIdlePause, humanScroll, humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanIdlePause, humanScrollPage, humanClickLocator } from '../../../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
@@ -60,7 +60,7 @@ async function writeComment() {
   // before opening the composer. Reddit's behavioral classifier scores the
   // user's pre-action telemetry as part of the post-submit shadowban gate.
   await humanIdlePause('deliberate');
-  await humanScroll(s.page, 1200, 3);
+  await humanScrollPage(s.page, 'down');
   await humanIdlePause('short');
   // The comment composer is the FIRST textarea[name="text"] on the page —
   // there's one per existing reply box but the top-level reply form is first.

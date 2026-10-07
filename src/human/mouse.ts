@@ -37,20 +37,23 @@ export async function humanIdlePause(kind: IdlePause = 'deliberate'): Promise<vo
  * followed by observed document/render readiness, not a timed pause. A failed
  * wheel operation ends the action with its actual error.
  *
+ * The distance is the caller's: a pixel count it states (a keeper command, a
+ * capture step), or one viewport through {@link humanScrollPage}. Trajectories
+ * used to type their own pixel counts and a burst count that changed nothing
+ * once the pauses between bursts were gone.
+ *
  * @param page          a page with wheel input and DOM evaluation
- * @param totalDeltaY   approximate cumulative pixels (positive down, negative up)
- * @param burstCount    how many distinct scroll bursts to break the total into
+ * @param totalDeltaY   cumulative pixels (positive down, negative up)
  */
 export async function humanScroll(
   page: EvaluatingPage & { mouse: { wheel(dx: number, dy: number): Promise<void> } },
-  totalDeltaY = 1200,
-  burstCount = 3,
+  totalDeltaY: number,
 ): Promise<void> {
-  const perBurst = Math.max(120, Math.round(Math.abs(totalDeltaY) / burstCount));
-  for (let b = 0; b < burstCount; b++) {
-    const wheelsThisBurst = Math.floor(randomBetween(2, 5));
-    let remaining = perBurst;
-    for (let i = 0; i < wheelsThisBurst; i++) {
+  if (!Number.isFinite(totalDeltaY)) {
+    throw new Error(`humanScroll needs a finite pixel distance, got ${String(totalDeltaY)}`);
+  }
+  let remaining = Math.abs(totalDeltaY);
+  while (remaining > Number.MIN_VALUE) {
       // Each wheel event is 80-260 px (matches macOS magic-mouse / trackpad
       // intermediate scroll deltas; far from the unrealistic 1000+ that
       // page.evaluate(window.scrollBy(0, N)) would produce).
@@ -58,9 +61,22 @@ export async function humanScroll(
       remaining -= dy;
       await page.mouse.wheel(0, Math.sign(totalDeltaY) * dy);
       await pageSettled(page);
-      if (remaining <= 0) break;
-    }
   }
+}
+
+/**
+ * Scroll one viewport down or up: the distance is the page's own observed
+ * window height, so "read the next screen" means the same on every display.
+ */
+export async function humanScrollPage(
+  page: EvaluatingPage & { mouse: { wheel(dx: number, dy: number): Promise<void> } },
+  direction: 'down' | 'up',
+): Promise<void> {
+  const height = await page.evaluate(() => window.innerHeight) as number;
+  if (!(height > Number.MIN_VALUE)) {
+    throw new Error(`humanScrollPage read no viewport height from the page (window.innerHeight = ${String(height)})`);
+  }
+  await humanScroll(page, direction === 'down' ? height : -height);
 }
 
 // The default CDP transport belongs to each page, so independent browser

@@ -13,7 +13,7 @@ import { WSession } from '../../../../../dist/session/wsession.js';
 import { detectRedditBanSignals } from '../../../../../dist/platforms/reddit/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { humanIdlePause, humanScroll } from '../../../../../dist/human/mouse.js';
+import { humanIdlePause, humanScrollPage } from '../../../../../dist/human/mouse.js';
 import { runRecordingsDir } from '../../../../../dist/session/run-recordings.js';
 import { declaredObservation } from '../../../_shared/observation.mjs';
 
@@ -31,7 +31,7 @@ try {
   // Idle scroll: simulate skimming the feed without clicking anything, for
   // exactly as long as the declared dwell budget allows.
   for (let i = 0; i < observed.scrolls; i++) {
-    await humanScroll(s.page, 1200, 3);
+    await humanScrollPage(s.page, 'down');
     await humanIdlePause(observed.dwellMs);
   }
   banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch((e) => ({ healthy: false, signal: 'unknown_error', details: { detector_error: e.message } }));

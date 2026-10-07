@@ -56,7 +56,7 @@ export async function answerKeeperCommand(session: WSession, sessionName: string
       await humanMove(session.page, coordinate(cmd, 'x'), coordinate(cmd, 'y'));
       return { ok: true };
     case 'humanscroll':
-      await humanScroll(session.page, coordinate(cmd, 'totalDeltaY'), coordinate(cmd, 'bursts'));
+      await humanScroll(session.page, coordinate(cmd, 'totalDeltaY'));
       return { ok: true };
     case 'fill':
       await humanFill(session.page, visible(session, cmd), text(cmd, 'text'));

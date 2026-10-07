@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { registrationPassword } from '../../../../../dist/utils/identity/password.js';
 import { CaptchaSolver } from '../../../../../dist/captcha/solver.js';
 import { humanFill, humanType } from '../../../../../dist/human/keyboard.js';
-import { humanClickLocator, humanScroll } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanScrollPage } from '../../../../../dist/human/mouse.js';
 import { pageSettled } from '../../../_shared/page/settled.mjs';
 import { readScopedProxy } from '../../../../_shared/scoped-secrets.mjs';
 import { launchGenuineChrome } from '../../../../browser/real_chrome.mjs';
@@ -68,7 +68,7 @@ if (NOPECHA_KEY) {
 try {
   await page.goto('https://www.linkedin.com/', { waitUntil: 'domcontentloaded' });
   await pageSettled(page);
-  await humanScroll(page, 600);
+  await humanScrollPage(page, 'down');
   await pageSettled(page);
   await page.goto('https://www.linkedin.com/signup', { waitUntil: 'domcontentloaded', referer: 'https://www.linkedin.com/' });
   await pageSettled(page);

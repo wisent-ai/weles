@@ -5,7 +5,7 @@
  * and the character bind. A challenge here ends the run — it is never solved.
  */
 import { humanFill, humanType } from '../../../../dist/human/keyboard.js';
-import { humanClickLocator, humanScroll } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanScrollPage } from '../../../../dist/human/mouse.js';
 import { pageSettled, responseAfterAction } from '../../_shared/page/settled.mjs';
 import { assertLinkedinAuthenticatedRegistration, assertLinkedinProxyStable, assertNoLinkedinChallengePage, ensureLinkedinSignupForm } from '../../_shared/linkedin/signup/register_guard.mjs';
 import { fillPostRegisterOnboarding } from '../../_shared/linkedin/onboarding/work_school.mjs';
@@ -97,7 +97,7 @@ async function submitEmailAndPassword({ session, identity, recordStage, proxyWat
   const { emailLoc, pwdLoc } = await ensureLinkedinSignupForm(session);
   recordStage('signup_form_ready');
   // Simulate a human reading the signup form before interacting.
-  await humanScroll(session.page, 400, 2);
+  await humanScrollPage(session.page, 'down');
   await pageSettled(session.page);
   await humanFill(session.page, emailLoc, identity.email);
   await pageSettled(session.page);

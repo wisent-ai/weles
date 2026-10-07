@@ -68,8 +68,13 @@ async function runStep(session, step) {
         code: 'CAPTURE_INPUT_UNAVAILABLE', operation: 'scroll', export: 'humanScroll',
       });
     }
-    await humanScroll(session.page, Number(step.value || '1200'));
-    return `scrolled ${step.value || '1200'}`;
+    if (!step.value || !Number.isFinite(Number(step.value))) {
+      throw Object.assign(new Error(`step scroll needs a pixel distance (positive down, negative up), got ${JSON.stringify(step.value ?? null)}`), {
+        code: 'CAPTURE_STEP_INVALID', operation: 'scroll',
+      });
+    }
+    await humanScroll(session.page, Number(step.value));
+    return `scrolled ${step.value}`;
   }
   if (step.op === 'settle') {
     // The page has finished what the previous step started: loaded, and the

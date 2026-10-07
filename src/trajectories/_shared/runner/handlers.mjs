@@ -5,7 +5,7 @@
 import { generateOrganicComment, generatePromoteComment, generatePost } from '../content/llm.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { humanIdlePause, humanScroll } from '../../../../dist/human/mouse.js';
+import { humanIdlePause, humanScrollPage } from '../../../../dist/human/mouse.js';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 const REQUIRE_APPROVAL = process.env.REQUIRE_PROMOTE_APPROVAL !== '0';
@@ -17,14 +17,17 @@ async function genComment({ character, product, variant, surfaceLabel, postTitle
   return generateOrganicComment({ persona, post });
 }
 
-// cfg.dwellMs is the declared observation's dwell budget: the idle read time
-// between scroll bursts, in milliseconds. Absent it, the reaction-shaped
-// default applies, which is what every engagement browse loop used before a
-// declaration existed to say otherwise.
+// cfg.scrolls and cfg.dwellMs are the declared observation's: how many
+// viewports are read and the idle read time after each, in milliseconds.
+// Every browse trajectory passes its declaration's values; a caller without
+// one is refused rather than given a count nobody declared.
 export async function handleBrowse(s, cfg) {
-  const scrolls = cfg.scrolls ?? 6;
+  const scrolls = cfg.scrolls;
+  if (!Number.isSafeInteger(scrolls) || Math.sign(scrolls) === -Math.sign(Number.MAX_VALUE)) {
+    throw new Error(`browse needs the declared observation's scroll count, got ${JSON.stringify(scrolls ?? null)}`);
+  }
   for (let i = 0; i < scrolls; i++) {
-    await humanScroll(s.page, 1200, 3);
+    await humanScrollPage(s.page, 'down');
     await humanIdlePause(cfg.dwellMs ?? 'deliberate');
   }
   return `scrolled ${scrolls}x`;

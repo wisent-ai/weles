@@ -7,7 +7,7 @@
  * longer first-touch cold when linkedin_register reuses the same profile.
  */
 import { WSession } from '../../../../../dist/session/wsession.js';
-import { humanIdlePause, humanScroll } from '../../../../../dist/human/mouse.js';
+import { humanIdlePause, humanScrollPage } from '../../../../../dist/human/mouse.js';
 import { runRecordingsDir } from '../../../../../dist/session/run-recordings.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -97,7 +97,7 @@ try {
         await s.page.goto(url, { waitUntil: 'domcontentloaded' });
         return `warmed ${s.page.url()}`;
       });
-      await humanScroll(s.page, 900, 3);
+      await humanScrollPage(s.page, 'down');
       await humanIdlePause('deliberate');
       transitions.push(await s.page.evaluate(visibleSummaryScript, `warm_${transitions.length}`).catch((e) => ({
         stage: `warm_${transitions.length}`,
@@ -114,7 +114,7 @@ try {
     await s.page.goto('https://www.linkedin.com/signup', { waitUntil: 'domcontentloaded' });
     return `signup ${s.page.url()}`;
   });
-  await humanScroll(s.page, 400, 2);
+  await humanScrollPage(s.page, 'down');
   await humanIdlePause('deliberate');
   const signup = await s.page.evaluate(visibleSummaryScript, 'signup_landing').catch((e) => ({
     stage: 'signup_landing',

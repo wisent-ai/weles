@@ -1,4 +1,4 @@
-import { humanScroll } from '../../../../dist/human/mouse.js';
+import { humanScrollPage } from '../../../../dist/human/mouse.js';
 import { pageSettled } from '../page/settled.mjs';
 
 export async function findDiscordMessage(page, channelPath, channelId, text, errorPrefix) {
@@ -6,7 +6,7 @@ export async function findDiscordMessage(page, channelPath, channelId, text, err
   const oldestMessageId = () => page.locator('li[id^="chat-messages-"]').first().getAttribute('id');
   while ((await target.count()) === 0) {
     const before = await oldestMessageId();
-    await humanScroll(page, -800, 2);
+    await humanScrollPage(page, 'up');
     await pageSettled(page);
     if ((await target.count()) > 0) break;
     const after = await oldestMessageId();

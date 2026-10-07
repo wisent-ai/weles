@@ -3,7 +3,7 @@ import { SessionStore } from '../../../dist/session/store.js';
 import { ACTIONS, actionName, missingInputs } from './analytics-service/action-catalog.mjs';
 import { safeGoto } from './analytics-service/page-interaction.mjs';
 import { ensureLoggedIn } from './analytics-service/session-login.mjs';
-import { humanScroll } from '../../../dist/human/mouse.js';
+import { humanScrollPage } from '../../../dist/human/mouse.js';
 import { pageSettled } from './page/settled.mjs';
 import { resolvedUrl, openExpectedDashboardSection } from './analytics-service/google-analytics/reports.mjs';
 import {
@@ -55,7 +55,7 @@ async function run() {
       await pageSettled(s.page);
       if (cfg.platform === 'googleanalytics') await openExpectedDashboardSection(s);
       if (name !== 'googleanalytics_register' && name !== 'googleanalytics_register_needher') {
-        for (let i = 0; i < 2; i++) await humanScroll(s.page, 800, 2);
+        await humanScrollPage(s.page, 'down');
       }
       if (cfg.risk === 'write' || cfg.risk === 'admin') {
         extra = { ...extra, ...await performConfirmedWrite(s, cfg) };
