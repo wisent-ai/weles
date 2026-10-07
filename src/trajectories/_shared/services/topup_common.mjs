@@ -9,10 +9,11 @@ import { fileURLToPath } from 'node:url';
 import { pageSettled } from '../page/settled.mjs';
 import { humanType } from '../../../../dist/human/keyboard.js';
 
+// The amount charged is the caller's: no amount is assumed.
 export function topupOpts() {
-  const usd = Number(process.env.TOPUP_USD ?? '10');
-  if (!Number.isFinite(usd) || usd <= 0) {
-    console.log(`FAIL: invalid TOPUP_USD=${process.env.TOPUP_USD}`);
+  const usd = Number(process.env.TOPUP_USD);
+  if (!process.env.TOPUP_USD || !(usd >= Number.MIN_VALUE) || !Number.isFinite(usd)) {
+    console.log(`FAIL: TOPUP_USD is ${process.env.TOPUP_USD ? `"${process.env.TOPUP_USD}", not an amount above zero` : 'not set'}: the US dollars this top-up charges; nothing is assumed`);
     process.exit(1);
   }
   if (process.env.TOPUP_CONFIRM !== '1') {
@@ -228,9 +229,9 @@ export async function runTopupOrchestrator(provider, usd, currentFileUrl) {
     console.log(`BLOCKER: unknown provider ${provider}. Allowed: ${allowed.join(', ')}`);
     process.exit(1);
   }
-  const usdNum = Number(usd ?? '30');
-  if (!Number.isFinite(usdNum) || usdNum <= 0) {
-    console.log(`BLOCKER: invalid usd=${usd}`);
+  const usdNum = Number(usd);
+  if (usd === undefined || usd === null || !(usdNum >= Number.MIN_VALUE) || !Number.isFinite(usdNum)) {
+    console.log(`BLOCKER: usd is ${usd === undefined || usd === null ? 'not given' : `"${usd}", not an amount above zero`}: the US dollars this top-up charges; nothing is assumed`);
     process.exit(1);
   }
   if (!loadCardEnvFile()) process.exit(1);
@@ -281,6 +282,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     );
     process.exit(1);
   }
-  const code = await runTopupOrchestrator(provider, usd ?? '30', import.meta.url);
+  const code = await runTopupOrchestrator(provider, usd, import.meta.url);
   process.exit(code);
 }

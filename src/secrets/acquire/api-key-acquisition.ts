@@ -64,7 +64,7 @@ export async function queueAcquisition(
     'generic_keeper_task',
     '',
     { ...params, trajectory_build_id: buildId },
-    request.priority ?? 10,
+    request.priority,
   );
 
   return {

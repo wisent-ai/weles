@@ -142,7 +142,6 @@ export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: 
       // available via WELES_CDP_FIREHOSE_MODE=enable-domains, but is isolated
       // because it reproduced Chromium navigation hangs.
       ws._instCdpFirehose = [];
-      ws._instCdpFirehoseOverflow = 0;
       ws._instCdpFirehoseMode = cdpFirehoseMode();
       if (ws._instCdpFirehoseMode !== 'off') {
         if (ws._instCdpFirehoseMode === 'enable-domains') {
@@ -151,14 +150,12 @@ export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: 
             try { await cdp.send(`${d}.enable` as any); } catch {}
           }
         }
-        const firehoseLimit = Math.max(1000, Number(process.env.WELES_CDP_FIREHOSE_LIMIT ?? 20000));
         for (const [domain, event] of CDP_EVENTS) {
           const key = `${domain}.${event}`;
           try {
             cdp.on(key, (payload: any) => {
               try {
-                if (ws._instCdpFirehose.length >= firehoseLimit) { ws._instCdpFirehoseOverflow++; return; }
-                let stored: any = payload; try { const s = JSON.stringify(payload); if (s && s.length > 1048576) stored = { _truncated: true, original_size: s.length, preview: s.slice(0, 16384) }; } catch (err: any) { stored = { _stringify_error: String(err?.message ?? err) }; }
+                let stored: any = payload; try { JSON.stringify(payload); } catch (err: any) { stored = { _stringify_error: String(err?.message ?? err) }; }
                 ws._instCdpFirehose.push({ t: Date.now(), domain, event, payload: stored });
               } catch {}
             });

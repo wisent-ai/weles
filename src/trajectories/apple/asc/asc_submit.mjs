@@ -169,18 +169,15 @@ try {
     console.log('FAIL: no processed build available to attach (set IPA_PATH to auto-upload one)');
     process.exit(3);
   }
-  // retry-allowed: poll App Store Connect until the altool-uploaded build finishes processing and is selectable
-  let polls = 0;
-  while (!buildSelected && polls < 120) {
-    polls += 1;
-    console.log(`[asc-submit] build still processing, reload #${polls}`);
+  // retry-allowed: reload App Store Connect until the altool-uploaded build
+  // finishes processing and is selectable. Apple decides how long processing
+  // takes; the run shows each reload, and the operator cancels a build that
+  // never finishes.
+  for (let reloads = 1; !buildSelected; reloads += 1) {
+    console.log(`[asc-submit] build still processing, reload #${reloads}`);
     await s.goto(DIST_URL);
     await pageSettled(s.page);
     buildSelected = await selectBuild(s);
-  }
-  if (!buildSelected) {
-    console.log('FAIL: uploaded build did not finish processing within the polling window');
-    process.exit(3);
   }
 
   // Save any staged edits before submitting.

@@ -211,9 +211,15 @@ export async function queueSemanticScholarFollowup(sourceActionLogId: string, de
   return { queued: true, action_log_id: jobId, scheduled_at: scheduledAt };
 }
 
-function nextBackoffMs(attempt: number): number {
-  const minutes = Math.min(360, 15 * Math.pow(2, Math.max(0, attempt)));
-  return minutes * 60_000;
+// How often the inbox is read again and for how many reads are the caller's:
+// Semantic Scholar states no delivery time for its key email.
+function statedFollowupCount(name: string, what: string): number {
+  const raw = process.env[name];
+  const value = Number(raw);
+  if (!raw || !Number.isSafeInteger(value) || !(value >= Number.MIN_VALUE)) {
+    throw new Error(`${name} is ${raw ? `"${raw}", not a whole number above zero` : 'not set'}: ${what}; nothing is assumed`);
+  }
+  return value;
 }
 
 export async function runSemanticScholarKeyFollowup(sourceActionLogId?: string, attemptArg?: number, tenantId: string | null = null): Promise<ScannerResult> {
@@ -240,10 +246,11 @@ export async function runSemanticScholarKeyFollowup(sourceActionLogId?: string, 
   }
 
   const attempt = Number.isFinite(attemptArg) ? Number(attemptArg) : 0;
-  const maxAttempts = Math.max(1, Number(process.env.SEMANTIC_SCHOLAR_FOLLOWUP_MAX_ATTEMPTS ?? '96'));
+  const maxAttempts = statedFollowupCount('SEMANTIC_SCHOLAR_FOLLOWUP_MAX_ATTEMPTS', 'how many times the inbox is read for the Semantic Scholar key email');
+  const intervalMs = statedFollowupCount('SEMANTIC_SCHOLAR_FOLLOWUP_INTERVAL_MS', 'how long to wait between reads of the inbox for the Semantic Scholar key email');
   if (attempt + 1 >= maxAttempts) {
     return { status: 'expired', validated: false, reason: 'no Semantic Scholar key email found before follow-up expiry', source_action_log_id: source.id, emails_scanned: scan.emailsScanned, matched_emails: scan.matchedEmails, next_scheduled_at: null };
   }
-  const queued = await queueSemanticScholarFollowup(source.id, nextBackoffMs(attempt), attempt + 1, tenantId);
+  const queued = await queueSemanticScholarFollowup(source.id, intervalMs, attempt + 1, tenantId);
   return { status: 'pending', validated: false, reason: 'no Semantic Scholar key email found yet', source_action_log_id: source.id, next_action_log_id: queued.action_log_id, emails_scanned: scan.emailsScanned, matched_emails: scan.matchedEmails, next_scheduled_at: queued.scheduled_at ?? null };
 }

@@ -94,9 +94,8 @@ export function buildCaptureCoverage(ws: any): any {
     }
   }
   const cdpAny = len(ws?._instCdpFirehose) + cdpTargetCount + len(ws?._instFrameEvents);
-  add('C.cdp.firehose', 'C', 'CDP event firehose', 'subscribed CDP events with overflow accounting', status(cdpAny > 0, !!ws?._cdpDiagnosticsReady), [
+  add('C.cdp.firehose', 'C', 'CDP event firehose', 'every subscribed CDP event, whole', status(cdpAny > 0, !!ws?._cdpDiagnosticsReady), [
     { field: 'cdp_firehose', count: len(ws?._instCdpFirehose) },
-    { field: 'cdp_firehose_overflow', count: Number(ws?._instCdpFirehoseOverflow ?? 0) },
     { field: 'cdp_targets', count: cdpTargetCount, error: errorOf(ws, '_cdpAttachError') },
     { field: 'cdp_frames', count: len(ws?._instFrameEvents) },
   ]);

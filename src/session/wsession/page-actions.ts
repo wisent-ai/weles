@@ -160,10 +160,12 @@ export async function wsSetControl(s: WSession, selector: string, value?: unknow
   });
 }
 
+// Without a stated amount a scroll moves one viewport, measured on the page.
 export async function wsScroll(s: WSession, direction: string, amount?: number): Promise<string> {
   return s.runStep(`scroll_${direction}`, async () => {
-    const delta = (direction === 'up' ? -(amount ?? 400) : (amount ?? 400));
-    await s.page.evaluate(`window.scrollBy(0, ${delta})`);
-    return `scrolled ${direction} ${amount ?? 400}`;
+    const step = amount === undefined ? 'window.innerHeight' : String(amount);
+    const delta = direction === 'up' ? `-(${step})` : step;
+    const moved = await s.page.evaluate(`(() => { const d = ${delta}; window.scrollBy(0, d); return Math.abs(d); })()`);
+    return `scrolled ${direction} ${moved}`;
   });
 }

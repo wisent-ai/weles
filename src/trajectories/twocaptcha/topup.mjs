@@ -17,7 +17,7 @@ try {
 
   await pageCondition(s.page, () => typeof window.grecaptcha?.execute === 'function');
   await s.page.evaluate(() => window.grecaptcha.execute('6Lfo9qojAAAAAPqqMn9QlAY2RBSVuEW63vDJ442M', { action: 'login' }));
-  await pageCondition(s.page, () => (document.querySelector('textarea[name="g-recaptcha-response"]')?.value?.length ?? 0) > 50);
+  await pageCondition(s.page, () => Boolean(document.querySelector('textarea[name="g-recaptcha-response"]')?.value));
   const answered = s.page.waitForResponse((r) => r.request().method() === 'POST' && /2captcha\.com/.test(r.url()));
   await s.page.locator('button:has-text("Continue")').click();
   await answered;

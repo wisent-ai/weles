@@ -88,8 +88,6 @@ export async function probeLinkedinSignup(proxyUrl: string, persona?: LinkedInPr
     encoding: 'utf8';
     text: string;
     bytes: number;
-    truncated: boolean;
-    max_bytes: number;
   };
   error?: string;
 }> {
@@ -124,21 +122,17 @@ export async function probeLinkedinSignup(proxyUrl: string, persona?: LinkedInPr
       ...headerOrder.flatMap((name) => ['-H', `${name}: ${headers[name]}`]),
       '-w', '\n__CURL_META__%{json}',
       targetUrl];
-    const out = execFileSync('curl', args, { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
+    const out = execFileSync('curl', args, { encoding: 'utf8', maxBuffer: Infinity });
     const marker = '\n__CURL_META__';
     const idx = out.lastIndexOf(marker);
     const body = idx >= 0 ? out.slice(0, idx) : out;
     const metaRaw = idx >= 0 ? out.slice(idx + marker.length) : '';
     let meta: any = {};
     try { meta = metaRaw ? JSON.parse(metaRaw) : {}; } catch {}
-    const bytes = body.length;
-    const maxBodyBytes = Number(process.env.WELES_LINKEDIN_PREFLIGHT_BODY_MAX_BYTES ?? 1_000_000);
     const responseBody = {
       encoding: 'utf8' as const,
-      text: body.slice(0, maxBodyBytes),
-      bytes,
-      truncated: body.length > maxBodyBytes,
-      max_bytes: maxBodyBytes,
+      text: body,
+      bytes: body.length,
     };
     const invisibleRecaptchaEnterpriseAnchor =
       /(?:google\.com\/)?recaptcha\/enterprise\/anchor[\s\S]{0,500}(?:[?&]|%26)size(?:=|%3D)invisible/i.test(body);

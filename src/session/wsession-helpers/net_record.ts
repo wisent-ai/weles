@@ -231,7 +231,6 @@ function buildDumpPayload(ws: any, opts: { closing?: boolean } = {}): any {
     playwright_events: ws._instPlaywrightEvents ?? [],
     cdp_firehose: ws._instCdpFirehose ?? [],
     cdp_firehose_mode: ws._instCdpFirehoseMode ?? null,
-    cdp_firehose_overflow: ws._instCdpFirehoseOverflow ?? 0,
     worker_surfaces: ws._instWorkerSurfaces ?? [],
     worker_surfaces_error: ws._instWorkerSurfacesError ?? null,
     worker_events: ws._instWorkerEvents ?? [],
