@@ -126,6 +126,25 @@ export function createTrajectoryRunner({ resolveTrajectory, paramsToEnv }) {
       let cancelled = false;
       let cancelDetail = null;
       let settled = false;
+      // Every `STEP <name>` line the trajectory writes is a stage, as for a
+      // sign-in: an enrolment that stood for minutes on a Google page said
+      // only how long ago it last wrote, so nobody could tell which step held it.
+      const stages = [];
+      let lastStage = null;
+      let pendingLine = '';
+      const readStages = (chunk) => {
+        const lines = `${pendingLine}${chunk}`.split('\n');
+        pendingLine = lines.pop();
+        for (const line of lines) {
+          const step = /^STEP (?<name>\S+)\s*$/.exec(line);
+          if (!step) continue;
+          lastStage = { stage: step.groups.name, at: new Date().toISOString() };
+          stages.push(lastStage);
+          try {
+            persistRunResult(runResultPath, { ok: null, ...RUN_RELEASE_IDENTITY, action, run_id: runId, status: 'running', started_at: startedAt, stages });
+          } catch { /* the stage is still reported live by describe() */ }
+        }
+      };
       const abortRun = () => {
         cancelled = true;
         signalRunProcess(child, 'SIGKILL');
@@ -135,7 +154,7 @@ export function createTrajectoryRunner({ resolveTrajectory, paramsToEnv }) {
         kind: 'run',
         startedAt,
         cancel: (detail) => { cancelDetail = detail; abortRun(); },
-        describe: () => liveOutput(stdout, stderr, lastOutputAt),
+        describe: () => ({ stage: lastStage, ...liveOutput(stdout, stderr, lastOutputAt) }),
       });
       const finish = (result) => {
         if (settled) return;
@@ -143,6 +162,7 @@ export function createTrajectoryRunner({ resolveTrajectory, paramsToEnv }) {
         unregister();
         runOptions.signal?.removeEventListener('abort', abortRun);
         if (cancelDetail !== null) result = { ...result, ok: false, cancelled: true, cancel_detail: cancelDetail };
+        result = { ...result, stages };
         try {
           persistRunResult(runResultPath, { ...result, ...RUN_RELEASE_IDENTITY, action, run_id: runId, status: 'finished', started_at: startedAt, completed_at: new Date().toISOString() });
         } catch (error) {
@@ -154,6 +174,7 @@ export function createTrajectoryRunner({ resolveTrajectory, paramsToEnv }) {
       else runOptions.signal?.addEventListener('abort', abortRun, { once: true });
       child.stdout.on('data', (chunk) => { lastOutputAt = new Date().toISOString(); stdout = boundedOutputTail(stdout, chunk, 2 * 1024 * 1024); });
       child.stderr.on('data', (chunk) => { lastOutputAt = new Date().toISOString(); stderr = boundedOutputTail(stderr, chunk, 512 * 1024); });
+      child.stderr.on('data', (chunk) => readStages(String(chunk)));
       child.once('error', (error) => {
         finish({ ok: false, exitCode: -1, action, run_id: runId, result: null, ...recordedOutputs(runId), stdout_tail: stdout.slice(-4000), stderr_tail: `${stderr}\n${String(error?.message || error)}`.slice(-2000), cancelled });
       });

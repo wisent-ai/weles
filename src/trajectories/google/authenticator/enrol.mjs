@@ -44,10 +44,19 @@ function report(result) {
   return result;
 }
 
+// Each step that waits on Google's pages is a stage the run reports, so a run
+// that stands still names the step it stands in.
+function mark(stage) {
+  process.stderr.write(`STEP ${stage}\n`);
+}
+
 async function signIn(page, wait, login) {
+  mark('google_sign_in');
   const signed = await signInAccount(page, wait, login);
   if (signed.ok || signed.blocked !== 'google_push_approval_required') return signed;
+  mark('google_phone_approval');
   await completeGooglePhoneApproval(page, login.email, `google-authenticator-enrol ${login.loginItem}`);
+  mark('google_phone_approved');
   if (onSignIn(page.url())) {
     return { ok: false, blocked: 'google_sign_in_requires_action', ...(await pageDescription(page)) };
   }
@@ -72,6 +81,7 @@ async function main() {
   const page = session.page;
   const wait = () => pageSettled(page);
   try {
+    mark('authenticator_setup_open');
     let opened = await openAuthenticatorSetup(page, wait);
     if (!opened.ok && opened.blocked === 'google_sign_in_required') {
       const signedIn = await signIn(page, wait, login);
@@ -80,6 +90,7 @@ async function main() {
         process.exitCode = 3;
         return;
       }
+      mark('authenticator_setup_reopen');
       opened = await openAuthenticatorSetup(page, wait);
     }
     if (!opened.ok) {
@@ -87,12 +98,14 @@ async function main() {
       process.exitCode = 4;
       return;
     }
+    mark('authenticator_key_reveal');
     const revealed = await revealSetupKey(page, wait);
     if (!revealed.ok) {
       report({ ok: false, login_item: loginItem, email: login.email, ...revealed });
       process.exitCode = 5;
       return;
     }
+    mark('authenticator_code_confirm');
     const confirmed = await confirmSetupCode(page, wait, revealed.secret);
     if (!confirmed.ok) {
       report({ ok: false, login_item: loginItem, email: login.email, ...confirmed });
@@ -101,6 +114,7 @@ async function main() {
     }
     // Google accepted the first code: the seed is live. Write it beside the
     // password and read it back, so the vault and the account agree.
+    mark('authenticator_seed_write');
     const current = readDocument(loginItem);
     current.fields = { ...current.fields, totp_secret: revealed.secret };
     writeDocument(loginItem, current);
