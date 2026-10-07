@@ -22,7 +22,7 @@
 // run has exited without closing it reads as abandoned. No clock decides
 // either.
 
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, readdirSync, watch, writeFileSync } from 'node:fs';
 import { homedir, hostname } from 'node:os';
@@ -200,7 +200,7 @@ function askThroughOko(request) {
   const binary = okoBinary();
   const run = firstRun(request);
   const answer = run
-    ? `Answer it with: weles runs answer ${run} --ready | --approved | --not-received`
+    ? `Answer it here with one of the choices, which the run receives at once, or with: weles runs answer ${run} --ready | --approved | --not-received`
     : `No Weles worker started this run (process ${request.run_pid} on ${request.host}); it ends when the page it waits on changes.`;
   // The answers a waiting run acts on are offered as the ask's choices, so
   // Oko Desktop and Oko iOS show them as buttons and refuse anything else.
@@ -313,8 +313,68 @@ export function openOperatorRequest(input) {
   request.pages.push(asked);
   if (asked.oko_missing) request.pages.push(page(request));
   const written = write(request);
+  if (asked.ok && asked.ask_id) relayOkoAnswer(written.id, asked.ask_id);
   announce(written);
   return written;
+}
+
+/**
+ * Carry the answer the operator gives in Oko Desktop or Oko iOS onto the
+ * request, where the waiting run watches for it (`nextOperatorAnswer`).
+ * `oko asks wait` returns when the ask stops waiting: answered with one of
+ * the choices the request offered, it becomes the request's answer from Oko;
+ * withdrawn (the request closed first) or expired, nothing is answered. A
+ * wait that fails is kept as a note naming Oko's words, and `weles runs
+ * answer` still answers the run.
+ */
+function relayOkoAnswer(requestId, askId) {
+  const child = spawn(okoBinary(), ['asks', 'wait', askId], {
+    env: { ...process.env, HOME: homedir() }, stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let stdout = '';
+  let stderr = '';
+  child.stdout.on('data', (chunk) => { stdout += chunk; });
+  child.stderr.on('data', (chunk) => { stderr += chunk; });
+  // The wait lasts as long as the ask does, but never holds the run's process
+  // open: its pipes and the child are unreferenced, and a run that ends first
+  // ends the wait with it.
+  child.stdout.unref();
+  child.stderr.unref();
+  child.unref();
+  process.once('exit', () => child.kill());
+  const note = (text) => {
+    try {
+      if (isOpen(readOperatorRequest(requestId))) noteOperatorRequest(requestId, text);
+    } catch (error) {
+      console.error(`[operator-request] ${requestId}: ${text}; the note could not be written: ${error.message}`);
+    }
+  };
+  child.on('error', (error) => note(`Oko ask ${askId} cannot be waited on: ${error.message}`));
+  child.on('close', (code) => {
+    if (code) {
+      note(`oko asks wait ${askId} exited ${code}: ${flatten(stderr || stdout)}`);
+      return;
+    }
+    let waited;
+    try {
+      waited = JSON.parse(stdout);
+    } catch (error) {
+      note(`oko asks wait ${askId} answered unreadable JSON: ${error.message}`);
+      return;
+    }
+    if (waited.standing !== 'answered') return;
+    const answer = String(waited.ask?.answer);
+    try {
+      if (!isOpen(readOperatorRequest(requestId))) return;
+      if (!OPERATOR_ANSWERS.includes(answer)) {
+        note(`Oko ask ${askId} was answered with ${answer}, which is none of ${OPERATOR_ANSWERS.join(', ')}`);
+        return;
+      }
+      answerOperatorRequest(requestId, answer, `answered in Oko on ${waited.ask?.answered_on}`);
+    } catch (error) {
+      note(`the answer ${answer} given in Oko could not be put on the request: ${error.message}`);
+    }
+  });
 }
 
 /** The open request a Weles run waits on, or null when it waits on nobody. */
