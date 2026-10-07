@@ -130,10 +130,19 @@ const added = [];
 for (const r of risks) {
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('long');
-  const exists = await page.evaluate(
-    (needle) => (document.body.innerText || '').includes(needle),
-    r.nazwa.slice(0, 90),
-  );
+  // A risk is present when a table cell shows its whole name, or its start
+  // closed by the ellipsis the table draws when it cuts one; no prefix length
+  // is chosen here.
+  const exists = await page.evaluate((wanted) => {
+    const words = (text) => text.replace(/\s+/g, ' ').trim();
+    const name = words(wanted);
+    return Array.from(document.querySelectorAll('table td')).some((td) => {
+      const shown = words(td.innerText);
+      if (shown === name) return true;
+      const cut = shown.match(/^(?<start>.+?)\s*(…|\.\.\.)$/);
+      return cut !== null && name.startsWith(cut.groups.start);
+    });
+  }, r.nazwa);
   if (exists) continue;
   await clickDodaj();
   const filled = [];
@@ -142,7 +151,7 @@ for (const r of risks) {
   filled.push(await fillName('opis_ryzyka', r.opis));
   filled.push(await fillName('zapobieganie', r.zapobieganie));
   await saveEnabled();
-  added.push({ name: r.nazwa.slice(0, 70), picked, filled });
+  added.push({ name: r.nazwa, picked, filled });
 }
 
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
