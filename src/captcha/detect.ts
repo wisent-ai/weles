@@ -63,8 +63,10 @@ export async function detectCaptcha(page: Page): Promise<CaptchaInfo | null> {
       : page.evaluate(FRAME_DETECT_SCRIPT)
     ).catch(() => null);
     if (info) {
+      // A sitekey is public page data; it is logged whole.
+      const frame = typeof f.url === 'function' ? f.url() : 'main page';
       console.log(
-        `[captcha] Detected: ${info.type} sitekey=${(info.sitekey || '').slice(0, 20)} frame=${f.url?.() ?? 'main'}`,
+        `[captcha] Detected: ${info.type} sitekey=${info.sitekey} frame=${frame}`,
       );
       return info;
     }
