@@ -384,7 +384,9 @@ try {
 }
 process.exit(exitCode);
 
+// A key is named by its length only: its first and last characters are still
+// part of the secret.
 function maskKey(k) {
   if (!k) return '(none)';
-  return `${k.slice(0, 12)}…${k.slice(-4)}`;
+  return `key of ${k.length} characters`;
 }

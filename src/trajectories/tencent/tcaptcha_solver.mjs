@@ -124,7 +124,7 @@ export async function solveTencentCaptcha(page, appId) {
   console.log(`[tcaptcha] taskId=${taskId} submitted`);
   const sol = await readResult(taskId);
   console.log(
-    `[tcaptcha] solution received: ticket=${(sol?.ticket || '').slice(0, 16)}... randstr=${sol?.randstr}`,
+    `[tcaptcha] solution received: ticket of ${sol?.ticket?.length} characters, randstr=${sol?.randstr}`,
   );
   return { ...sol, appid: appId };
 }

@@ -163,7 +163,7 @@ if (!xoxc)
     6,
     `[slack] no xoxc- in boot_data or localStorage; screenshots in ${SHOT_DIR}`,
   );
-console.log(`[slack] xoxc=${xoxc.slice(0, 24)}… len=${xoxc.length}`);
+console.log(`[slack] xoxc token found, length ${xoxc.length}`);
 
 console.log('[slack] step 2b: api.slack.com app creation');
 const { createBotApp } = await import('./steps/create_bot_app.mjs');
@@ -173,7 +173,7 @@ if (!xoxb)
     7,
     '[slack] bot created but no xoxb on OAuth page — failing rather than posting as user',
   );
-console.log(`[slack] ✓ xoxb=${xoxb.slice(0, 18)}… len=${xoxb.length}`);
+console.log(`[slack] ✓ xoxb token found, length ${xoxb.length}`);
 
 // --- Step 3: resolve channel + post via Slack API using browser cookies ----
 const slackApi = workspaceApi(s.page.context().request);

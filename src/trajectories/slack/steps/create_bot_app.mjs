@@ -86,7 +86,7 @@ export async function createBotApp({ page, weles, shot }) {
   });
   if (!xoxc)
     throw new Error('[bot] no xoxc token in window.boot_data or localStorage');
-  console.log(`[bot] xoxc=${xoxc.slice(0, 24)}… len=${xoxc.length}`);
+  console.log(`[bot] xoxc token found, length ${xoxc.length}`);
 
   const manifest = JSON.stringify(SWIATOWID_MANIFEST);
   console.log(
