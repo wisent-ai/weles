@@ -374,10 +374,8 @@ if (process.env.VERIFY_DETAILS) {
         nazwa: v('nazwa_kosztu'),
         uzLen: v('uzasadnienie_kosztu').length,
         uz: v('uzasadnienie_kosztu'),
-        uzSuffix: v('uzasadnienie_kosztu').slice(-220),
         metLen: v('metoda_szacowania').length,
         met: v('metoda_szacowania'),
-        metSuffix: v('metoda_szacowania').slice(-220),
       };
     }); // allow-raw-playwright: read existing cost row fields without saving
     details.push(item);

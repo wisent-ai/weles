@@ -159,7 +159,7 @@ export function riskRepairs({
         len: value.length,
         hasKierownikBR: /Kierownik B\+R/i.test(value),
         hasLimitWord: /\blimit|\blimitem|\blimitu/i.test(value),
-        suffix: value.slice(-320),
+        value,
       };
     }); // allow-raw-playwright: read one section 4.1 textarea only
   }

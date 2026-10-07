@@ -273,9 +273,9 @@ if (process.env.VERIFY_DETAILS) {
       return {
         name: v('nazwa_wskaznika'),
         methodologyLen: v('opis_metodologii').length,
-        methodologySuffix: v('opis_metodologii').slice(-220),
+        methodologySuffix: v('opis_metodologii'),
         verificationLen: v('opis_sposobu_weryfikacji').length,
-        verificationSuffix: v('opis_sposobu_weryfikacji').slice(-220),
+        verificationSuffix: v('opis_sposobu_weryfikacji'),
       };
     }); // allow-raw-playwright: read existing 9.2 row fields without saving
     details.push(item);

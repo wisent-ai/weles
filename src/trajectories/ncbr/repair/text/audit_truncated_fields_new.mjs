@@ -85,7 +85,6 @@ for (const url of directUrls) {
           label: labelFor(el),
           max,
           len: value.length,
-          suffix: value.slice(-260),
           value,
         };
       })
@@ -105,7 +104,7 @@ for (const url of directUrls) {
         max: f.max,
         near,
         incomplete,
-        suffix: f.suffix,
+        value: f.value,
       });
     }
   }

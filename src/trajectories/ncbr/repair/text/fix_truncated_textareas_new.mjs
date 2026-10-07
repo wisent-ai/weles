@@ -90,7 +90,7 @@ for (const r of repairs) {
     changed: before !== after,
     beforeLen: before.length,
     afterLen: after.length,
-    suffixText: read.slice(-260),
+    text: read,
   });
 }
 

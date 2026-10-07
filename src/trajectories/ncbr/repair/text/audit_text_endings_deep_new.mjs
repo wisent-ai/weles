@@ -99,8 +99,7 @@ function classifyField(f) {
   if (!near && !noSentenceEnd && !dangling && !artifact) return null;
   return {
     ...f,
-    value: undefined,
-    suffix: value.slice(-360),
+    value,
     len: value.length,
     max,
     near,
