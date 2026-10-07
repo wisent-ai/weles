@@ -15,6 +15,7 @@ import { enterGoogleCredentials } from './google_sso/google_credentials.mjs';
 import { clickGisTarget, observeGisPage } from './google_sso/gis_state/page_reading.mjs';
 import { classifyGisState, gisVariantRank } from './google_sso/gis_state/variants.mjs';
 import { dumpGisFailureDom } from './google_sso/failure_dom.mjs';
+import { answerClaudeCaptcha } from './google_sso/captcha_answer.mjs';
 import { pageCondition, pageSettled } from '../_shared/page/settled.mjs';
 
 export { waitForEnabledThenClick } from './google_sso/page_controls.mjs';
@@ -248,14 +249,16 @@ export async function doGoogleSso({
 
       if (variant === 'claude_captcha') {
         // claude.ai put a captcha challenge between Google's answer and its
-        // consent screen. Weles answers no captcha for a sign-in: the challenge
-        // says this browser is not trusted, and a second run meets the same.
-        // The account is signed in by its owner in his own browser instead.
-        const dump = await dumpGisFailureDom(views, variant);
-        const subscription = process.env.BRAMA_SUBSCRIPTION_ID || '<subscription id>';
-        const error = new Error(`gis_continue: claude.ai asked for a captcha challenge at ${st.host}${st.pathname} after Google signed the account in; Weles does not answer a captcha for a sign-in. Sign this account in by hand: brama subscription sign-in-manual claude-code --subscription-id ${subscription} --reason <why>; DOM snapshot: ${dump.written[0]?.path ?? dump.indexPath}`);
-        error.code = 'provider_captcha_required';
-        throw error;
+        // consent screen. Weles answers it with its own solver; the loop then
+        // waits for the challenge frame to go or the page to move on, and
+        // reads whatever it shows next. It is not claimed: a challenge shown
+        // again at the same address after the answer is a new one.
+        mark('claude_captcha_answer');
+        await answerClaudeCaptcha(active, views, variant);
+        await anyPageChange(page, views, pageCondition(active, () => !document.querySelector(
+          'iframe[src*="hcaptcha.com"][src*="frame=challenge"], iframe[src*="recaptcha"][src*="bframe"], iframe[src*="arkoselabs"], iframe[src*="challenges.cloudflare.com"]',
+        )));
+        continue;
       }
 
       if (variant === 'google_rejected') {

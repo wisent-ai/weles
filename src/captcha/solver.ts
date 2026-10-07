@@ -39,6 +39,12 @@ export class CaptchaSolver {
     return s;
   }
 
+  /** The solving services whose credentials Weles holds, read from Skarbiec first. */
+  async configuredServices(): Promise<string[]> {
+    await this._ensureInit();
+    return this.availableServices;
+  }
+
   async solveRecaptchaV2(page: Page, sitekey: string, options?: { enterprise?: boolean; invisible?: boolean; url?: string; proxy?: ProxyCredentials; dataS?: string }): Promise<string | boolean | null> {
     await this._ensureInit();
     return solveRecaptchaV2Token(this._creds, page, sitekey, options);

@@ -219,10 +219,14 @@ claude.ai page shows "Continue with Google" disabled reports stage
 `gis_gate_pending` and waits for the page to enable it or move on, instead
 of failing as an unknown page. When claude.ai puts a captcha challenge
 (hCaptcha, reCAPTCHA, Arkose or Turnstile) over its page after Google signed
-the account in, the sign-in ends with `provider_captcha_required` and names
-`brama subscription sign-in-manual claude-code --subscription-id <id>`: Weles
-answers no captcha for a sign-in, and the account's owner signs it in from
-his own browser.
+the account in, Weles answers it with its captcha solver (stage
+`claude_captcha_answer`) through the solving services whose keys Skarbiec
+holds, waits for the challenge to go, and continues the sign-in. It ends the
+sign-in only with a refusal that names the challenge: `provider_captcha_unreadable`
+(a challenge frame Weles' detection does not read, with its DOM snapshot),
+`provider_captcha_no_solver` (Skarbiec holds no solving-service key) or
+`provider_captcha_unsolved` (the challenge kind, its site key, the services
+tried and the DOM snapshot).
 
 Results identify the subscription, login item, actual failed operation, HTTP status
 and run id. `account_revision` describes Skarbiec data; `source_revision` identifies
