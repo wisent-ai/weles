@@ -41,7 +41,7 @@ const GIS_AUTHORIZE_REDRIVES = Number(process.env.CLAUDE_GIS_AUTHORIZE_REDRIVES 
 const DRIVEN_VARIANTS = new Set([
   'code_page', 'claude_gis_gate', 'claude_gis_gate_pending', 'google_rejected', 'google_account_chooser',
   'google_chooser_without_account', 'google_identifier', 'google_confirm_continue',
-  'oauth_consent', 'claude_app_authenticated', 'claude_app_loading',
+  'oauth_consent', 'claude_app_authenticated', 'claude_app_loading', 'claude_captcha',
 ]);
 
 // Resolves once something that can change the handoff's state happens: the
@@ -230,6 +230,18 @@ export async function doGoogleSso({
         const rendered = pageCondition(active, () => document.querySelector('[data-page-loading]') === null);
         await anyPageChange(page, views, rendered);
         continue;
+      }
+
+      if (variant === 'claude_captcha') {
+        // claude.ai put a captcha challenge between Google's answer and its
+        // consent screen. Weles answers no captcha for a sign-in: the challenge
+        // says this browser is not trusted, and a second run meets the same.
+        // The account is signed in by its owner in his own browser instead.
+        const dump = await dumpGisFailureDom(views, variant);
+        const subscription = process.env.BRAMA_SUBSCRIPTION_ID || '<subscription id>';
+        const error = new Error(`gis_continue: claude.ai asked for a captcha challenge at ${st.host}${st.pathname} after Google signed the account in; Weles does not answer a captcha for a sign-in. Sign this account in by hand: brama subscription sign-in-manual claude-code --subscription-id ${subscription} --reason <why>; DOM snapshot: ${dump.written[0]?.path ?? dump.indexPath}`);
+        error.code = 'provider_captcha_required';
+        throw error;
       }
 
       if (variant === 'google_rejected') {

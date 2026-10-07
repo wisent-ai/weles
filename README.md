@@ -210,7 +210,12 @@ its close-time fingerprint probe that waits on the browser, so a probe that
 never answers is named by the section it stands in. A Claude sign-in whose
 claude.ai page shows "Continue with Google" disabled reports stage
 `gis_gate_pending` and waits for the page to enable it or move on, instead
-of failing as an unknown page.
+of failing as an unknown page. When claude.ai puts a captcha challenge
+(hCaptcha, reCAPTCHA, Arkose or Turnstile) over its page after Google signed
+the account in, the sign-in ends with `provider_captcha_required` and names
+`brama subscription sign-in-manual claude-code --subscription-id <id>`: Weles
+answers no captcha for a sign-in, and the account's owner signs it in from
+his own browser.
 
 Results identify the subscription, login item, actual failed operation, HTTP status
 and run id. `account_revision` describes Skarbiec data; `source_revision` identifies

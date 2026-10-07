@@ -18,6 +18,7 @@ const GIS_VARIANT_PRIORITY = [
   'google_confirm_continue',
   'google_challenge',
   'google_other',
+  'claude_captcha',
   'claude_gis_gate',
   'claude_gis_gate_pending',
   'claude_app_authenticated',
@@ -61,6 +62,9 @@ export function classifyGisState(st) {
     if (/\/signin\/(v2\/)?challenge/.test(st.pathname)) return 'google_challenge';
     return 'google_other';
   }
+  // A visible captcha challenge over claude.ai's page owns the decision: the
+  // gate behind it stays disabled until someone answers it.
+  if (/(^|\.)claude\.(ai|com)$/.test(st.host) && st.captchaChallenge) return 'claude_captcha';
   if (st.consent) return 'oauth_consent';
   if (st.gisButton) return 'claude_gis_gate';
   // The gate is there but its button is still disabled: claude.ai enables it
