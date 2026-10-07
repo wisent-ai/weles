@@ -380,6 +380,24 @@ export function noteOperatorRequest(id, note) {
 }
 
 /**
+ * Ask the operator again on an open request, through the channels he chose,
+ * because what he was asked for changed: `why` says what changed (Google's
+ * prompt expired, say) and is kept as a note beside the new page attempt, so
+ * the record shows each time he was asked and why.
+ */
+export function repageOperatorRequest(id, why) {
+  const request = readOperatorRequest(id);
+  if (!isOpen(request)) {
+    throw new Error(`operator request ${id} closed at ${request.closed_at}; it cannot be asked again`);
+  }
+  const reason = flatten(required(why, 'why the operator is asked again'));
+  const asked = { ...request, instruction: `${request.instruction} ${reason}` };
+  request.notes = [...(Array.isArray(request.notes) ? request.notes : []), { at: new Date().toISOString(), note: reason }];
+  request.pages = [...request.pages, page(asked)];
+  return write(request);
+}
+
+/**
  * The first answer recorded after the `seen` answers the caller has already
  * acted on. It watches the request's own file, so the wait ends when the
  * answer is written, not on a clock; `signal` stops watching.

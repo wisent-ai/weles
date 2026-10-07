@@ -67,4 +67,5 @@ export declare function listOperatorRequests(options?: { limit?: number; openOnl
 export declare const OPERATOR_ANSWERS: readonly OperatorAnswer[];
 export declare function answerOperatorRequest(id: string, answer: OperatorAnswer, detail: string): OperatorRequest;
 export declare function noteOperatorRequest(id: string, note: string): OperatorRequest;
+export declare function repageOperatorRequest(id: string, why: string): OperatorRequest;
 export declare function nextOperatorAnswer(id: string, seen: number, signal?: AbortSignal): Promise<OperatorAnswerRecord | null>;

@@ -237,19 +237,29 @@ An authenticator code must leave Google's challenge before provider handoff.
 Without a stored seed, Weles selects an offered phone approval and records its
 actual outcome on the request the run waits on.
 
-A request is paged by e-mail through Stado's alert channels, names the Weles
+A request is paged through `stado alerts send`, which reaches the operator by
+the channels he chose for the fleet (`stado alerts preferences set --channel
+<name> ...`; with no choice the page is refused and the request records that
+nobody was told). It names the Weles
 run that waits on it (`run_ids`; a second run that needs the same person for
 the same account joins the request instead of paging again), and waits until
 Google's page moves (approving on the phone needs nothing else) or the
 operator answers the run. Google's device prompt announces itself in live
 regions ("2-Step Verification … wants to make sure it's really you"); what
-the page already announced when the wait began is the prompt, and only an
-alert it shows afterwards is read as Google's refusal. `weles runs answer
+the page already announced when the wait began is the prompt. A new alert
+shown beside Google's own "Resend it" is the prompt expiring before he
+approved it: the run does not fail, it records the expiry with its time on the
+request, pages him again with `weles runs answer <run> --not-received` as the
+way to get a new prompt, and keeps waiting. Any other new alert is read as
+Google's refusal. `weles runs answer
 <run> --not-received` makes the run press Google's "Resend it", or end with
 `google_prompt_not_received` when Google offers none; `--approved` while
 Google still shows the prompt records what the page shows; ending the wait is
-`weles runs cancel`. `weles runs show` lists every answer and what the run did
-about it. Every worker run, a sign-in or any other
+`weles runs cancel`. `weles runs show` lists every answer, every page and
+what the run did about it. A Google page under `accounts.google.com/info/` (`sessionexpired`
+among them) ends the sign-in itself: the request closes as not approved and
+the run ends with `google_sign_in_ended_during_approval`, naming that page and
+when the approval was asked. Every worker run, a sign-in or any other
 trajectory, closes its browser without the close-time fingerprint probe
 (`WELES_FINGERPRINT=0`): its verdict does not wait on a detection probe, and
 the probe would send the signed-in browser to a third-party TLS echo after the
