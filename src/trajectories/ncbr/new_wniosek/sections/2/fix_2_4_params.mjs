@@ -69,13 +69,21 @@ async function gotoSection() {
   await humanIdlePause('deliberate');
 }
 
-async function tableText() {
-  return page.evaluate(() =>
-    Array.from(document.querySelectorAll('table'))
-      .map((table) => table.innerText || '')
-      .join('\n'),
-  );
-} // allow-raw-playwright: read-only 2.4 table text
+// Whether a table cell already shows `name`: the whole name, or its start
+// closed by the ellipsis the table draws when it cuts one. How much of a name
+// the table shows is the table's choice, so no prefix length is chosen here.
+async function tableShows(name) {
+  return page.evaluate((wanted) => {
+    const words = (text) => text.replace(/\s+/g, ' ').trim();
+    const param = words(wanted);
+    return Array.from(document.querySelectorAll('table td')).some((td) => {
+      const shown = words(td.innerText);
+      if (shown === param) return true;
+      const cut = shown.match(/^(?<start>.+?)\s*(…|\.\.\.)$/);
+      return cut !== null && param.startsWith(cut.groups.start);
+    });
+  }, name);
+} // allow-raw-playwright: read-only 2.4 table cells
 
 async function fieldDump() {
   return page.evaluate(() => {
@@ -129,9 +137,7 @@ async function fillBySuffix(suffix, value) {
 
 async function addParam(p) {
   await gotoSection();
-  const current = await tableText();
-  if (current.includes(p.nazwa.slice(0, 50)))
-    return { skipped: true, filled: [] };
+  if (await tableShows(p.nazwa)) return { skipped: true, filled: [] };
   await clickVisibleButton('Dodaj');
   await humanIdlePause('deliberate');
   const filled = [];
