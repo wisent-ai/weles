@@ -62,20 +62,20 @@ function trajectoryProcess(trajPath) {
   };
 }
 
-function boundedOutputTail(current, chunk, maximumCharacters) {
-  const next = `${current}${chunk.toString()}`;
-  return next.length <= maximumCharacters ? next : next.slice(-maximumCharacters);
-}
+// The exit code a run reports when its child produced none (it failed to
+// spawn or ended without one); the same value the close handlers write.
+const NO_EXIT_CODE = Math.sign(-Infinity);
 
-// What a running run has said lately, as `GET /runs` reports it: the tails
-// of both streams the finished record will keep, and when the child last
-// wrote anything. A run whose last output is an hour old is waiting on
-// something its last line names.
+// What a running run has said so far, as `GET /runs` reports it: both
+// streams whole, as the finished record will keep them, and when the child
+// last wrote anything. A run whose last output is an hour old is waiting on
+// something its last line names. The fields keep their `_tail` names because
+// they are the wire contract; the 4,000/2,000-character cut is gone.
 function liveOutput(stdout, stderr, lastOutputAt) {
   return {
     last_output_at: lastOutputAt,
-    stdout_tail: stdout.slice(-4000),
-    stderr_tail: stderr.slice(-2000),
+    stdout_tail: stdout,
+    stderr_tail: stderr,
   };
 }
 
@@ -186,16 +186,16 @@ export function createTrajectoryRunner({ resolveTrajectory, paramsToEnv }) {
       };
       if (runOptions.signal?.aborted) abortRun();
       else runOptions.signal?.addEventListener('abort', abortRun, { once: true });
-      child.stdout.on('data', (chunk) => { lastOutputAt = new Date().toISOString(); stdout = boundedOutputTail(stdout, chunk, 2 * 1024 * 1024); });
-      child.stderr.on('data', (chunk) => { lastOutputAt = new Date().toISOString(); stderr = boundedOutputTail(stderr, chunk, 512 * 1024); });
+      child.stdout.on('data', (chunk) => { lastOutputAt = new Date().toISOString(); stdout += chunk.toString(); });
+      child.stderr.on('data', (chunk) => { lastOutputAt = new Date().toISOString(); stderr += chunk.toString(); });
       child.stderr.on('data', (chunk) => readStages(String(chunk)));
       child.once('error', (error) => {
-        finish({ ok: false, exitCode: -1, action, run_id: runId, result: null, ...recordedOutputs(runId), stdout_tail: stdout.slice(-4000), stderr_tail: `${stderr}\n${String(error?.message || error)}`.slice(-2000), cancelled });
+        finish({ ok: false, exitCode: NO_EXIT_CODE, action, run_id: runId, result: null, ...recordedOutputs(runId), stdout_tail: stdout, stderr_tail: `${stderr}\n${String(error?.message || error)}`, cancelled });
       });
       child.on('close', (code) => {
         const exitCode = cancelled ? 137 : (code ?? -1);
         const result = lastJsonLine(stdout) ?? findResultDoc(runId);
-        finish({ ok: exitCode === 0, exitCode, action, run_id: runId, result, ...recordedOutputs(runId), stdout_tail: stdout.slice(-4000), stderr_tail: stderr.slice(-2000), cancelled });
+        finish({ ok: !exitCode, exitCode, action, run_id: runId, result, ...recordedOutputs(runId), stdout_tail: stdout, stderr_tail: stderr, cancelled });
       });
     });
   };
@@ -362,11 +362,11 @@ export function runReauth(provider, account, onProgress = () => {}) {
       }
       resolveRun(result);
     };
-    child.stdout.on('data', (c) => { lastOutputAt = new Date().toISOString(); stdout = boundedOutputTail(stdout, c, 2 * 1024 * 1024); });
+    child.stdout.on('data', (c) => { lastOutputAt = new Date().toISOString(); stdout += c.toString(); });
     child.stderr.on('data', (c) => {
       const text = c.toString();
       lastOutputAt = new Date().toISOString();
-      stderr = boundedOutputTail(stderr, text, 512 * 1024);
+      stderr += text;
       readProgress(text);
     });
     child.once('error', (error) => {
@@ -378,8 +378,8 @@ export function runReauth(provider, account, onProgress = () => {}) {
         display_name: account ? account.displayName : null,
         subscription_id: account ? (account.subscriptionId || null) : null,
         run_id: runId,
-        stdout_tail: stdout.slice(-4000),
-        stderr_tail: `${stderr}\n${String(error?.message || error)}`.slice(-2000),
+        stdout_tail: stdout,
+        stderr_tail: `${stderr}\n${String(error?.message || error)}`,
       });
     });
     child.on('close', (code) => {
@@ -394,8 +394,8 @@ export function runReauth(provider, account, onProgress = () => {}) {
         display_name: account ? account.displayName : null,
         subscription_id: account ? (account.subscriptionId || null) : null,
         run_id: runId,
-        stdout_tail: stdout.slice(-4000),
-        stderr_tail: stderr.slice(-2000),
+        stdout_tail: stdout,
+        stderr_tail: stderr,
       });
     });
   });
