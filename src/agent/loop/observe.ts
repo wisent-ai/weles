@@ -94,7 +94,12 @@ async function pageObservation(page: any): Promise<string> {
     const data = await readFrameObservation(page.mainFrame?.() ?? page);
     if (data.error) return `PAGE OBSERVATION ERROR: ${data.error}`;
     const frameSummaries: string[] = [];
-    const frames = (page.frames?.() ?? []).filter((frame: any) => frame !== page.mainFrame?.()).slice(0, 12);
+    // Every child frame: a control the task needs can sit in any of them, and
+    // the twelve-frame cut once here hid the rest from the model. A page type
+    // without frames (the CDP page) has no child frames to read.
+    const frames = typeof page.frames === 'function'
+      ? page.frames().filter((frame: any) => frame !== page.mainFrame?.())
+      : [];
     for (const frame of frames) {
       const frameData = await readFrameObservation(frame);
       if (frameData.error) {
@@ -114,11 +119,12 @@ async function pageObservation(page: any): Promise<string> {
 
 export async function buildState(page: any, history: ToolCall[], envHints: Record<string, string>): Promise<string> {
   const url = (typeof page.url === 'function' ? page.url() : page.url) ?? '';
-  const recent = history.slice(-10);
-  const hLines = recent.map((h, i) => {
-    const offset = history.length - recent.length + i;
-    return `  [${offset}] ${h.tool}(${JSON.stringify(h.args)}) -> ${h.error ?? h.result}`;
-  }).join('\n') || '  (none)';
+  // The whole action history, numbered from the run's first action: the
+  // model decides the next step knowing everything it already tried, not
+  // only its last ten actions.
+  const hLines = history.length
+    ? history.map((h, offset) => `  [${offset}] ${h.tool}(${JSON.stringify(h.args)}) -> ${h.error ?? h.result}`).join('\n')
+    : '  (none)';
   const eLines = Object.keys(envHints).map((key) => `  ${key}=[value unavailable to model]`).join('\n') || '  (none)';
   const observation = await pageObservation(page);
   return `CURRENT URL: ${url}\n\nPAGE OBSERVATION:\n${observation}\n\nACTION HISTORY:\n${hLines}\n\nAVAILABLE ENV VARS:\n${eLines}\n`;
