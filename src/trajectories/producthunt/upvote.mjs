@@ -97,11 +97,11 @@ async function findVoteButton(s) {
     ];
     for (var sel of preferred) {
       var b = document.querySelector(sel);
-      if (b) { var r = rect(b); if (r) return { ...r, sel: sel, label: (b.getAttribute('aria-label') || b.textContent || '').slice(0, 60) }; }
+      if (b) { var r = rect(b); if (r) return { ...r, sel: sel, label: b.getAttribute('aria-label') ?? b.textContent }; }
     }
     // Last resort: action-bar (product hub — won't increment but at least confirms we found something)
     var ab = document.querySelector('button[data-test="action-bar-vote-button"]');
-    if (ab) { var r2 = rect(ab); if (r2) return { ...r2, sel: 'action-bar-vote-button', label: (ab.textContent || '').slice(0, 60) }; }
+    if (ab) { var r2 = rect(ab); if (r2) return { ...r2, sel: 'action-bar-vote-button', label: ab.textContent }; }
     return null;
   })()`)
     .catch(() => null);
@@ -115,7 +115,7 @@ async function readVoteState(s) {
     return {
       pressed: b.getAttribute('aria-pressed'),
       label: b.getAttribute('aria-label') || b.getAttribute('area-label'),
-      text: (b.textContent || '').replace(/\\s+/g, ' ').slice(0, 80),
+      text: b.textContent.replace(/\\s+/g, ' '),
       // Capture the count number from the text so we can compare even if button stays visually identical
       count: ((b.textContent || '').match(/\\d+/) || [null])[0],
     };
