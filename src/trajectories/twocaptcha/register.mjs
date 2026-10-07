@@ -1,6 +1,6 @@
 // 2Captcha registration via native form. Bypasses the wCaptcha-gated Google
 // button by using the native registration flow instead.
-import { randomBytes } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 import { registrationPassword } from '../../../dist/utils/identity/password.js';
@@ -9,7 +9,7 @@ import { writeServiceCredentials } from '../_shared/skarbiec/accounts.mjs';
 
 const REGISTER_URL = 'https://2captcha.com/auth/register';
 const RECAPTCHA_SITEKEY = '6Lfo9qojAAAAAPqqMn9QlAY2RBSVuEW63vDJ442M';
-const EMAIL = `svc.2c.${randomBytes(3).toString('hex')}@wisentmedia.com`;
+const EMAIL = `svc.2c.${randomUUID()}@wisentmedia.com`;
 const password = registrationPassword();
 
 console.log(`[trajectory] registering: ${EMAIL}`);

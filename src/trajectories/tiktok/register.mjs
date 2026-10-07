@@ -4,6 +4,7 @@ import { generatePersona } from '../../../dist/browser/persona.js';
 import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { generateIdentity } from '../../../dist/utils/identity/identity.js';
+import { registrationPassword } from '../../../dist/utils/identity/password.js';
 import { autoBindCharacter } from '../lib/character-bind.mjs';
 import { syncReactInputValue, installNetworkLogger, runUsernameStep } from '../lib/tiktok-register-helpers.mjs';
 import { screenshotIfPossible } from '../_shared/runner/evidence.mjs';
@@ -37,9 +38,9 @@ const PROBE = `(() => { const t = document.body.innerText || ''; const i = []; i
     try {
       // Fresh identity per retry — don't reuse emails across failed runs
       id = await generateIdentity('tiktok');
-      // NO fixed prefix — TikTok decodes body; recurring prefix = counter key.
-      const pfx = String.fromCharCode(65+Math.floor(Math.random()*26)) + Array.from({length:7},()=>String.fromCharCode(97+Math.floor(Math.random()*26))).join('');
-      password = pfx + (100+Math.floor(Math.random()*900)) + '!@#$%&*'[Math.floor(Math.random()*7)];
+      // One character of every class at the vault policy's length, no fixed
+      // prefix (TikTok decodes the body; a recurring prefix is a counter key).
+      password = registrationPassword();
       console.log(`[test] attempt ${retry + 1}: identity=${id.username} <${id.email}> bday=${id.birthMonth}/${id.birthDay}/${id.birthYear}`);
 
       // Pin chromium — humanMove uses CDP-routed Page.dispatchMouseEvent

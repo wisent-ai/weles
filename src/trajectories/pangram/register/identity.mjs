@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { registrationPassword as generatedPassword } from '../../../../dist/utils/identity/password.js';
 
 function pickEmailDomain() {
@@ -11,7 +11,7 @@ function pickEmailDomain() {
 export function generateEmail() {
   if (process.env.PANGRAM_EMAIL) return process.env.PANGRAM_EMAIL;
   const domain = pickEmailDomain();
-  const local = process.env.PANGRAM_EMAIL_LOCAL_PART || `svc.pangram.${randomBytes(4).toString('hex')}`;
+  const local = process.env.PANGRAM_EMAIL_LOCAL_PART || `svc.pangram.${randomUUID()}`;
   return `${local}@${domain}`;
 }
 

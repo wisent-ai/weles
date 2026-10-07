@@ -1,6 +1,6 @@
 // SadCaptcha registration. Creates an account with a generated password and
 // persists it to Skarbiec.
-import { randomBytes } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { WSession } from '../../../dist/session/wsession.js';
 import { CaptchaSolver } from '../../../dist/captcha/solver.js';
 import { registrationPassword } from '../../../dist/utils/identity/password.js';
@@ -8,7 +8,7 @@ import { humanIdlePause } from '../../../dist/human/mouse.js';
 import { writeServiceCredentials } from '../_shared/skarbiec/accounts.mjs';
 
 // SadCaptcha rejects gmail aliases; use a fresh wisentmedia.com mailbox instead.
-const EMAIL = `svc.sad.${randomBytes(3).toString('hex')}@wisentmedia.com`;
+const EMAIL = `svc.sad.${randomUUID()}@wisentmedia.com`;
 const password = registrationPassword();
 
 console.log(`[trajectory] registering: ${EMAIL}`);
