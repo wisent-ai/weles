@@ -34,7 +34,7 @@ try {
       const editState = await dumpCurrent(`${process.env.NAV_LABEL}__edit`);
       await send({ action: 'click', selector: `button:has-text("Anuluj")` }).catch(() => null);
       await send({ action: 'humanidle', kind: 'short' }).catch(() => null);
-      const fp = join(OUT_DIR, `edit_${String(process.env.EDIT_ROW_TEXT).replace(/[^a-zA-Z0-9]+/g, '_').slice(0, 80)}.json`);
+      const fp = join(OUT_DIR, `edit_${String(process.env.EDIT_ROW_TEXT).replace(/[^a-zA-Z0-9]+/g, '_')}.json`);
       writeFileSync(fp, JSON.stringify({ ...out, nav: state, edit: editState }, null, 2));
       console.log(JSON.stringify({
         ok: true,
@@ -46,7 +46,7 @@ try {
       }, null, 2));
       process.exit(0);
     }
-    const fp = join(OUT_DIR, `nav_${String(process.env.NAV_LABEL).replace(/[^a-zA-Z0-9]+/g, '_').slice(0, 80)}.json`);
+    const fp = join(OUT_DIR, `nav_${String(process.env.NAV_LABEL).replace(/[^a-zA-Z0-9]+/g, '_')}.json`);
     writeFileSync(fp, JSON.stringify({ ...out, nav: state }, null, 2));
     console.log(JSON.stringify({
       ok: true,

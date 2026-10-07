@@ -81,7 +81,7 @@ export async function clickVisibleText(page, text, tag, exact = false) {
     .filter({ hasText: text, visible: true }).first();
   if (await fallback.count() === 0) return { tag, text, clicked: false, method: null };
   const detail = await fallback.evaluate((el) => ({
-    text: String(el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 300),
+    text: String(el.textContent || '').replace(/\s+/g, ' ').trim(),
     tagName: el.tagName,
     role: el.getAttribute('role') || '',
   }));

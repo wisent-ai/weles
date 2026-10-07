@@ -26,7 +26,7 @@ const args = await argsForAction();
 console.log(`[apple-ads] ${ASC_BIN} ${withOutput(args).map((a) => /\s/.test(a) ? JSON.stringify(a) : a).join(' ')}`);
 
 const result = await run(args);
-if (result.out) console.log(result.out.trim().slice(0, 30000));
+if (result.out) console.log(result.out.trim());
 if (result.err) console.error(result.err.trim());
 if (result.code !== 0) {
   console.log(`FAIL: asc ads exited ${result.code}`);

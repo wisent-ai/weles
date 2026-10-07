@@ -18,7 +18,7 @@ const result = await page.evaluate(async () => {
   async function tryFetch(url) {
     try {
       const res = await fetch(url, { credentials: 'include', headers: { Accept: 'application/json' } });
-      return { status: res.status, text: (await res.text()).slice(0, 300) };
+      return { status: res.status, text: (await res.text()) };
     } catch (error) {
       return { error: String(error?.message || error) };
     }
@@ -36,7 +36,7 @@ const result = await page.evaluate(async () => {
   return {
     href: location.href,
     title: document.title,
-    bodyText: (document.body?.innerText || '').slice(0, 1200),
+    bodyText: (document.body?.innerText || ''),
     inputs,
     auth: await tryFetch('https://lsi2.ncbr.gov.pl/api/beneficiary/project/433468ab-ff8a-4bd2-9f03-7da65ba73e1f/get-user-permissions'),
   };

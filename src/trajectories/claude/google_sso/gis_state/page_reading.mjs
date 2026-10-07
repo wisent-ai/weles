@@ -139,7 +139,7 @@ export async function clickGisTarget(page, kind) {
     const y = r.y + r.height / 2;
     const hit = document.elementFromPoint(x, y);
     const reachable = Boolean(hit) && (hit === el || el.contains(hit) || hit.contains(el));
-    return { x, y, reachable, hit: hit ? `${hit.tagName}.${(hit.className || '').toString().slice(0, 40)}` : null };
+    return { x, y, reachable, hit: hit ? [hit.tagName, ...hit.classList].join('.') : null };
   }, null, kind);
   if (!spot) return { clicked: false, reason: `no element tagged ${kind}` };
   if (!spot.reachable) return { clicked: false, reason: `${kind} covered by ${spot.hit}` };

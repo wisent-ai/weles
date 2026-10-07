@@ -111,7 +111,7 @@ if (process.env.DIAG_APP) {
       role: e.getAttribute('role'),
       text: (e.textContent || '').trim(),
       name: e.getAttribute('name'),
-    })).slice(0, 20) : [];
+    })) : [];
     return { input: inp ? { name: inp.name, type: inp.type, value: inp.value } : null, hasRoot: Boolean(root), html: fc?.outerHTML.slice(0, 3000) || null, candidates };
   });
   console.log(JSON.stringify(info, null, 2));

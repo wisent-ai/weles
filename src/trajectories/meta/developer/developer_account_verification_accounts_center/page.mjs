@@ -65,7 +65,7 @@ export async function snapshot(page, label) {
       .filter((item) => item.text || item.href || item.placeholder);
     return {
       title: document.title || null,
-      bodyText: bodyText.slice(0, 2200),
+      bodyText: bodyText,
       controls,
       statusHints: {
         initialTerms: /By proceeding, you agree to the Meta's Platform Terms and Developer Policies/i.test(bodyText),

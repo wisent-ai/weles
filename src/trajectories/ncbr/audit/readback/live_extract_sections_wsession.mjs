@@ -108,7 +108,7 @@ const status = await page.evaluate(() => {
   return {
     url: location.href,
     title: document.title,
-    statusLines: lines.filter((l) => /W przygotowaniu|Złożony|Zlozony|Wycofany|Konkurs:|nabór|nabor/i.test(l)).slice(0, 20),
+    statusLines: lines.filter((l) => /W przygotowaniu|Złożony|Zlozony|Wycofany|Konkurs:|nabór|nabor/i.test(l)),
     submitButtons: Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Złóż wniosek').map((b) => ({ disabled: b.disabled })),
   };
 }); // allow-raw-playwright: read project status only

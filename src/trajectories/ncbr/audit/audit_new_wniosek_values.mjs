@@ -73,7 +73,7 @@ for (const url of directUrls) {
       url: location.href,
       summary: summaryEl ? {
         len: summaryEl.value.length,
-        prefix: summaryEl.value.slice(0, 260),
+        prefix: summaryEl.value,
         artifact: re.test(summaryEl.value),
       } : null,
     };

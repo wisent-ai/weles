@@ -21,7 +21,7 @@ async function diagForm(opened) {
         len: (el.value || '').length,
         max: el.getAttribute('maxlength'),
         label,
-        nearby: wrapper ? wrapper.textContent.trim().replace(/\s+/g, ' ').slice(0, 300) : '',
+        nearby: wrapper ? wrapper.textContent.trim().replace(/\s+/g, ' ') : '',
         readOnly: el.readOnly,
         disabled: el.disabled,
       };

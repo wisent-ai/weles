@@ -80,7 +80,7 @@ if (process.env.DIAG_ACT) {
     return { tag: i.tagName, name: i.name || null, role: i.getAttribute('role'), max: i.getAttribute('maxlength'), value: (i.value || ''), label, nearby: wrap ? wrap.textContent.trim() : null };
   }).filter((f) => f.name || f.label || f.nearby));
   const buttons = await page.evaluate(() => Array.from(document.querySelectorAll('button')).map((b) => b.innerText.trim()).filter(Boolean));
-  const options = await page.evaluate(() => Array.from(document.querySelectorAll("[role='listbox'] [role='option']")).map((o) => o.textContent.trim()).slice(0, 30));
+  const options = await page.evaluate(() => Array.from(document.querySelectorAll("[role='listbox'] [role='option']")).map((o) => o.textContent.trim()));
   console.log(JSON.stringify({ fields, options, buttons }, null, 2));
   process.exit(0);
 }
@@ -99,7 +99,7 @@ if (process.env.DIAG_WSK) {
     return {
       inputName: inp.getAttribute('name'),
       inputValue: inp.value || '',
-      formControlHTML: fc ? fc.outerHTML.slice(0, 2200) : null,
+      formControlHTML: fc ? fc.outerHTML : null,
       rootHTML: root ? root.outerHTML : null,
     };
   }); // allow-raw-playwright: read 10.4 wskazniki control structure
@@ -249,7 +249,7 @@ const readback = await page.evaluate(() => {
   return {
     zasady: document.querySelector('input[name$="zasady_szesc_r"]')?.value || '',
     tableRows: table ? table.querySelectorAll('tbody tr').length : 0,
-    body: (document.body.innerText || '').slice(0, 1200),
+    body: (document.body.innerText || ''),
   };
 });
 console.log(JSON.stringify({ saveResult, actResult, projekt, opis6r: v6.length, wOpts, readback }, null, 2));

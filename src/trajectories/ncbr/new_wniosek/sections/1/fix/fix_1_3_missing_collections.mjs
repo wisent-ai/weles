@@ -117,7 +117,7 @@ if (kkkRows === 0) {
 const readback = await page.evaluate(() => ({
   tables: Array.from(document.querySelectorAll('table')).map((t) => ({
     rows: t.querySelectorAll('tbody tr').length,
-    text: t.innerText.replace(/\s+/g, ' ').slice(0, 300),
+    text: t.innerText.replace(/\s+/g, ' '),
   })),
 }));
 console.log(JSON.stringify({ done, readback }, null, 2));

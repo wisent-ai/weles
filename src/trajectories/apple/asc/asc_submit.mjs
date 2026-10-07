@@ -205,7 +205,7 @@ try {
   if (!submitted) {
     let labels = [];
     try {
-      labels = await s.page.evaluate(() => Array.from(document.querySelectorAll('button')).map((b) => (b.textContent || '').trim()).filter((t) => t.length).slice(0, 40));
+      labels = await s.page.evaluate(() => Array.from(document.querySelectorAll('button')).map((b) => (b.textContent || '').trim()).filter((t) => t.length));
     } catch (e) { console.log('[asc-submit] button probe failed:', e.message); }
     console.log('[asc-submit] buttons on page:', JSON.stringify(labels));
     console.log('FAIL: terminal Submit-for-Review button not found');

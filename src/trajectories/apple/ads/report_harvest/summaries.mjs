@@ -38,7 +38,7 @@ export function summarizeReport(pageState, responses) {
     url: pageState.url,
     title: pageState.title,
     totals: totalsMatch ? totalsMatch.slice(1) : [],
-    campaignRows: campaigns.slice(0, 40),
+    campaignRows: campaigns,
     dateControls: (pageState.controls || []).filter((control) => /date|time|calendar|range|UTC|\d{4}|\d{1,2}\/\d{1,2}/i.test([
       control.text,
       control.ariaLabel,

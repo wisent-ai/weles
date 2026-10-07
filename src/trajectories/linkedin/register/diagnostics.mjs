@@ -126,7 +126,7 @@ export function summarizeResponse(res, bodyText, bodyReadError = null) {
   let bodyJsonKeys = null;
   try {
     const parsed = JSON.parse(bodyText);
-    if (parsed && typeof parsed === 'object') bodyJsonKeys = Object.keys(parsed).slice(0, 40);
+    if (parsed && typeof parsed === 'object') bodyJsonKeys = Object.keys(parsed);
   } catch {}
   const headers = summarizeHeaders(res.headers?.() ?? {});
   return {

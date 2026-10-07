@@ -84,7 +84,7 @@ out.validationUrl = validateResponse.url;
 try {
   const parsed = JSON.parse(validateResponse.text);
   const parsedErrors = projectValidationErrors(parsed, `${out.validationMethod} ${out.validationUrl}`);
-  out.validationTopLevel = Object.fromEntries(Object.entries(parsed).filter(([, v]) => !Array.isArray(v) && typeof v !== 'object').slice(0, 30));
+  out.validationTopLevel = Object.fromEntries(Object.entries(parsed).filter(([, v]) => !Array.isArray(v) && typeof v !== 'object'));
   out.validationKeys = parsedErrors.keys;
   out.validationErrors = parsedErrors.jsonSchemaErrors;
   out.expressionValidationErrors = parsed.expressionValidationErrors;

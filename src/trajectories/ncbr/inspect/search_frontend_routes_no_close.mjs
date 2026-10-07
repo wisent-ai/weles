@@ -32,7 +32,7 @@ const result = await page.evaluate(async () => {
         entry.hits.push({
           term,
           pos,
-          snippet: text.slice(start, end).replace(/\s+/g, ' ').slice(0, 2200),
+          snippet: text.slice(start, end).replace(/\s+/g, ' '),
         });
         count += 1;
         pos = low.indexOf(term.toLowerCase(), pos + term.length);

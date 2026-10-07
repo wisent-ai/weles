@@ -79,7 +79,7 @@ try {
   if (!(await createBtn.isVisible().catch(() => false))) {
     console.log('FAIL: "Create proxy user" button not visible — may already exist');
     await shot(s, 'no_create_btn');
-    const txt = await s.page.evaluate(() => (document.body && document.body.innerText || '').slice(0, 4000));
+    const txt = await s.page.evaluate(() => (document.body && document.body.innerText || ''));
     writeFileSync(`${OUT_DIR}/${stamp()}_overview_text.txt`, txt);
     process.exit(2);
   }

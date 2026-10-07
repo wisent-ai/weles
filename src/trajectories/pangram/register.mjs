@@ -141,7 +141,7 @@ try {
   let status = await sessionStatus(s.page);
   if (!isAuthenticatedStatus(status)) status = await verifyThroughMail(s.page);
 
-  console.log(`[pangram_register] session_status=${status.status} body=${status.body.slice(0, 300)}`);
+  console.log(`[pangram_register] session_status=${status.status} body=${status.body}`);
   if (!isAuthenticatedStatus(status)) {
     throw new Error('pangram_not_authenticated_after_signup');
   }

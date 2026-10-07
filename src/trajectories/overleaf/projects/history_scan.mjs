@@ -82,7 +82,7 @@ try {
       const d = await J(`/project/${id}/diff?from=${minV}&to=${maxV}&pathname=${encodeURIComponent(f)}`);
       if (d && d.__err) { fileErrors[f] = d.__err; continue; }
       for (const c of ((d && d.diff) || [])) {
-        if (c && typeof c.d === 'string' && FIGRE.test(c.d)) figEvents.push({ file: f, users: (c.meta && c.meta.users) || [], ts: (c.meta && (c.meta.end_ts || c.meta.start_ts)) || null, text: c.d.slice(0, 300) });
+        if (c && typeof c.d === 'string' && FIGRE.test(c.d)) figEvents.push({ file: f, users: (c.meta && c.meta.users) || [], ts: (c.meta && (c.meta.end_ts || c.meta.start_ts)) || null, text: c.d });
       }
     }
     // Per-Sarthak-save-batch diffs — catches figures he deleted that were later

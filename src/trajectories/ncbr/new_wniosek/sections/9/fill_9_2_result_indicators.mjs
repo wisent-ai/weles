@@ -236,7 +236,7 @@ if (process.env.ADD_OWN !== '0') {
 
 const rows = await page.evaluate(() => {
   const table = document.querySelector('table');
-  return table ? Array.from(table.querySelectorAll('tbody tr')).map((r) => r.innerText.replace(/\s+/g, ' ').trim()).slice(0, 25) : [];
+  return table ? Array.from(table.querySelectorAll('tbody tr')).map((r) => r.innerText.replace(/\s+/g, ' ').trim()) : [];
 });
-console.log(JSON.stringify({ edited, added, rows: rows.length, firstRows: rows.slice(0, 5), lastRows: rows.slice(-5) }, null, 2));
+console.log(JSON.stringify({ edited, added, rows }, null, 2));
 process.exit(0);

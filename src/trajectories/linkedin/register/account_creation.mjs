@@ -171,10 +171,10 @@ async function submitNames({ session, identity, recordStage, proxyWatch }) {
     status: createAccountStatus,
     has_challenge_url: Boolean(challengeUrl),
     challenge_url: challengeUrl,
-    body_keys: createAccountBody && typeof createAccountBody === 'object' ? Object.keys(createAccountBody).slice(0, 40) : null,
+    body_keys: createAccountBody && typeof createAccountBody === 'object' ? Object.keys(createAccountBody) : null,
   };
   await writeSubmitDiagnostics('submit2_diagnostics', diagnostics);
-  console.log(`[register] createAccount status=${createAccountStatus} submissionId=${(createAccountBody?.submissionId ?? '').slice(0, 12)} challengeUrl=${challengeUrl || 'none'}`);
+  console.log(`[register] createAccount status=${createAccountStatus} submissionId=${(createAccountBody?.submissionId ?? '')} challengeUrl=${challengeUrl || 'none'}`);
   recordStage('create_account_response', { status: createAccountStatus, has_challenge_url: Boolean(challengeUrl) });
   if (challengeUrl) await refuseCreateAccountChallenge({ session, recordStage }, challengeUrl);
   await pageSettled(session.page);

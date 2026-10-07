@@ -86,7 +86,7 @@ if (process.env.DIAG) {
         checked: el.checked || false,
         role: el.getAttribute('role'),
         label,
-        nearby: wrap ? wrap.textContent.trim().replace(/\s+/g, ' ').slice(0, 260) : null,
+        nearby: wrap ? wrap.textContent.trim().replace(/\s+/g, ' ') : null,
       };
     }).filter((f) => f.name || f.label || f.nearby),
     buttons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim(), disabled: b.disabled })).filter((b) => b.text),

@@ -188,7 +188,7 @@ if (process.env.CHECK_ONLY) {
     return {
       dialogs: Array.from(document.querySelectorAll('[role="dialog"], .MuiDialog-root, .MuiAlert-root, .MuiSnackbar-root')).map((e) => e.textContent.trim()).filter(Boolean),
       alerts: Array.from(document.querySelectorAll('.MuiAlert-message, .Mui-error, [aria-invalid="true"], [role="alert"]')).map((e) => (e.textContent || e.getAttribute('name') || '').trim()).filter(Boolean),
-      lines: body.split('\n').map((l) => l.trim()).filter((l) => /błąd|blad|wymagan|uzupeł|niepopraw|nie może|walid|popraw/i.test(l)).slice(0, 120),
+      lines: body.split('\n').map((l) => l.trim()).filter((l) => /błąd|blad|wymagan|uzupeł|niepopraw|nie może|walid|popraw/i.test(l)),
       buttons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim(), disabled: b.disabled })).filter((b) => b.text),
     };
   }); // allow-raw-playwright: read validation result DOM only
@@ -225,10 +225,10 @@ const dump = await page.evaluate(() => {
     else out.textInputs.push({ ...base, valueLength: (inp.value || '').length, value: (inp.value || ''), placeholder: inp.placeholder || null, role: inp.getAttribute('role') });
   }
   for (const sel of document.querySelectorAll('select')) {
-    out.selects.push({ native: true, label: labelFor(sel), name: sel.name || null, id: sel.id || null, value: sel.value, options: Array.from(sel.options).map((o) => (o.textContent || '').trim()).slice(0, 50) });
+    out.selects.push({ native: true, label: labelFor(sel), name: sel.name || null, id: sel.id || null, value: sel.value, options: Array.from(sel.options).map((o) => (o.textContent || '').trim()) });
   }
   for (const cb of document.querySelectorAll('[role="combobox"], .MuiSelect-select')) {
-    out.selects.push({ mui: true, label: labelFor(cb), text: (cb.textContent || cb.value || '').trim().slice(0, 90) });
+    out.selects.push({ mui: true, label: labelFor(cb), text: (cb.textContent || cb.value || '').trim() });
   }
   for (const table of document.querySelectorAll('table')) {
     out.tables.push({

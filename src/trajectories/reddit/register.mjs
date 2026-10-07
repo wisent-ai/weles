@@ -54,7 +54,7 @@ s.page.on('response', async (resp) => {
     reason = j?.error?.message || '';
     recaptcha = j?.error?.params?.recaptcha_token || '';
   } catch { /* non-JSON body */ }
-  verifyInit = { status, ok: resp.ok(), reason, recaptcha, body: body.slice(0, 300) };
+  verifyInit = { status, ok: resp.ok(), reason, recaptcha, body: body };
   if (resp.ok()) {
     console.log(`[verify-init] OK status=${status} — reddit dispatched the code`);
   } else {

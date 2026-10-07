@@ -19,12 +19,12 @@ export async function summarizeSignup(page) {
         type: i.type,
         autocomplete: i.getAttribute('autocomplete') || '',
         visible: visible(i),
-      })).slice(0, 30),
+      })),
       buttons: Array.from(document.querySelectorAll('button,a')).filter(visible).map((el) => ({
         tag: el.tagName.toLowerCase(),
         text: (el.textContent || '').replace(/\s+/g, ' ').trim(),
         href: el instanceof HTMLAnchorElement ? el.href : '',
-      })).slice(0, 30),
+      })),
       iframes: Array.from(document.querySelectorAll('iframe')).map((f) => ({
         id: f.id,
         name: f.name,
@@ -33,7 +33,7 @@ export async function summarizeSignup(page) {
         visible: visible(f),
         width: Math.round(f.getBoundingClientRect().width),
         height: Math.round(f.getBoundingClientRect().height),
-      })).slice(0, 30),
+      })),
     };
   });
 }
@@ -68,7 +68,7 @@ export async function summarizeApiResponse(res) {
   return {
     status: res.status(),
     url: res.url(),
-    body_keys: bodyJson && typeof bodyJson === 'object' ? Object.keys(bodyJson).slice(0, 40) : null,
+    body_keys: bodyJson && typeof bodyJson === 'object' ? Object.keys(bodyJson) : null,
     has_challenge_url: Boolean(bodyJson?.challengeUrl),
     challenge_url_prefix: bodyJson?.challengeUrl ? String(bodyJson.challengeUrl) : '',
     body_redacted: redactText(bodyText),

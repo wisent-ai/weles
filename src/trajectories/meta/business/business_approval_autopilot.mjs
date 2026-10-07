@@ -61,7 +61,7 @@ async function snapshot(page, label) {
       .filter((item) => item.text || item.href);
     return {
       title: document.title || null,
-      bodyText: bodyText.slice(0, 4200),
+      bodyText: bodyText,
       controls,
       statusHints: {
         login: /log in|login|password|email|zaloguj|hasło/i.test(bodyText),

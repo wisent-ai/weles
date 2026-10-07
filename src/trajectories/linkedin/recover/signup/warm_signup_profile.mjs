@@ -61,7 +61,7 @@ function visibleSummaryScript(stage) {
       src: f.src,
       width: Math.round(f.getBoundingClientRect().width),
       height: Math.round(f.getBoundingClientRect().height),
-    })).slice(0, 20),
+    })),
     cookie_count: document.cookie ? document.cookie.split(';').filter(Boolean).length : 0,
   };
 }
@@ -168,7 +168,7 @@ try {
       cookie_count: Array.isArray(storage.cookies) ? storage.cookies.length : 0,
       linkedin_cookie_count: Array.isArray(storage.cookies) ? storage.cookies.filter((c) => /linkedin\.com$/.test(c.domain ?? '')).length : 0,
       origin_count: Array.isArray(storage.origins) ? storage.origins.length : 0,
-      origins: Array.isArray(storage.origins) ? storage.origins.map((o) => o.origin).slice(0, 20) : [],
+      origins: Array.isArray(storage.origins) ? storage.origins.map((o) => o.origin) : [],
     },
     next_register_env: {
       LINKEDIN_REGISTER_WARM_PROFILE_DIR: profileDir,

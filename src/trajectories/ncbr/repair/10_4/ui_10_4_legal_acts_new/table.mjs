@@ -10,7 +10,7 @@ async function tableState() {
       index,
       rows: Array.from(table.querySelectorAll('tbody tr')).map((row, rowIndex) => ({
         rowIndex,
-        text: row.innerText.trim().replace(/\s+/g, ' ').slice(0, 1400),
+        text: row.innerText.trim().replace(/\s+/g, ' '),
         buttons: Array.from(row.querySelectorAll('button, [role="button"]')).map((button) => ({
           text: (button.textContent || '').trim(),
           aria: button.getAttribute('aria-label') || '',
@@ -32,7 +32,7 @@ async function openOutdatedRow() {
   }
   if (!targetRow) {
     const rowTexts = await rows.allTextContents();
-    throw new Error(JSON.stringify({ opened: false, reason: 'target row not found', rows: rowTexts.map((text) => text.trim().replace(/\s+/g, ' ').slice(0, 300)) }));
+    throw new Error(JSON.stringify({ opened: false, reason: 'target row not found', rows: rowTexts.map((text) => text.trim().replace(/\s+/g, ' ')) }));
   }
   const button = targetRow.locator('button[aria-label="overflow-options"], button, [role="button"]').first();
   if (await button.count() === 0) throw new Error(JSON.stringify({ opened: false, reason: 'row menu not found', row: (await targetRow.innerText()).trim().replace(/\s+/g, ' ') }));
@@ -41,7 +41,7 @@ async function openOutdatedRow() {
   await humanIdlePause('deliberate');
   const edit = page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first();
   if (await edit.count() === 0) {
-    const menu = await page.evaluate(() => Array.from(document.querySelectorAll('[role="menuitem"], li, button')).map((e) => (e.textContent || '').trim()).filter(Boolean).slice(0, 30)); // allow-raw-playwright: read visible menu labels
+    const menu = await page.evaluate(() => Array.from(document.querySelectorAll('[role="menuitem"], li, button')).map((e) => (e.textContent || '').trim()).filter(Boolean)); // allow-raw-playwright: read visible menu labels
     throw new Error(`edit menu item not found: ${menu.join(' | ')}`);
   }
   await humanClickLocator(page, edit);
@@ -63,7 +63,7 @@ async function openRowByNeedle(needles) {
   }
   if (!targetRow) {
     const rowTexts = await rows.allTextContents();
-    throw new Error(JSON.stringify({ opened: false, reason: 'target row not found', needles: items, rows: rowTexts.map((text) => text.trim().replace(/\s+/g, ' ').slice(0, 300)) }));
+    throw new Error(JSON.stringify({ opened: false, reason: 'target row not found', needles: items, rows: rowTexts.map((text) => text.trim().replace(/\s+/g, ' ')) }));
   }
   const button = targetRow.locator('button[aria-label="overflow-options"], button, [role="button"]').first();
   if (await button.count() === 0) throw new Error(JSON.stringify({ opened: false, reason: 'row menu not found', row: (await targetRow.innerText()).trim().replace(/\s+/g, ' ') }));
@@ -98,8 +98,7 @@ async function deleteRowByNeedle(needles) {
   if (!opened.opened) return { skipped: opened };
   const labels = await page.evaluate(() => Array.from(document.querySelectorAll('[role="menuitem"], li, button'))
     .map((el) => (el.textContent || '').trim())
-    .filter(Boolean)
-    .slice(0, 40)); // allow-raw-playwright: read visible menu labels
+    .filter(Boolean)); // allow-raw-playwright: read visible menu labels
   const del = page.getByRole('menuitem', { name: /usuń|usun/i }).first();
   if (await del.count() === 0) return { opened, error: `delete menu item not found: ${labels.join(' | ')}` };
   await humanClickLocator(page, del);

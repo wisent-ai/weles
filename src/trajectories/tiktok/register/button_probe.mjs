@@ -19,7 +19,7 @@ export function probeButton(page, finder) {
       const r2 = el.getBoundingClientRect ? el.getBoundingClientRect() : {};
       window.__wclick.push({
         tag: el.tagName,
-        text: (el.textContent || '').trim().slice(0, 40),
+        text: (el.textContent || '').trim(),
         id: el.id,
         cls: (el.className || '').toString(),
         dataE2e: el.getAttribute && el.getAttribute('data-e2e'),

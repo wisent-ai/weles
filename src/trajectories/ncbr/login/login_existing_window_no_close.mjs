@@ -28,7 +28,7 @@ async function authStatus() {
         { credentials: 'include', headers: { Accept: 'application/json' } },
       );
       const text = await res.text();
-      return { status: res.status, text: text.slice(0, 300) };
+      return { status: res.status, text: text };
     } catch (error) {
       return { error: String(error?.message || error) };
     }
@@ -60,7 +60,7 @@ console.log(JSON.stringify({
   afterUrl: page.url(),
   title: await page.title().catch(() => ''),
   auth,
-  bodyText: (await page.locator('body').innerText().catch(() => '')).slice(0, 1200),
+  bodyText: (await page.locator('body').innerText().catch(() => '')),
 }, null, 2));
 
 process.exit(0);

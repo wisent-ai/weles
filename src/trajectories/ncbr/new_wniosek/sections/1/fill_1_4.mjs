@@ -115,7 +115,7 @@ if (process.env.REPAIR) {
     const tbl = document.querySelector('table');
     return {
       rows: tbl ? tbl.querySelectorAll('tbody tr').length : -1,
-      text: (tbl?.innerText || '').replace(/\s+/g, ' ').slice(0, 1200),
+      text: (tbl?.innerText || '').replace(/\s+/g, ' '),
     };
   });
   console.log(JSON.stringify({ repaired, readback }, null, 2));

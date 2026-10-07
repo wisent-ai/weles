@@ -38,7 +38,7 @@ export function summarizeAppleArtifacts(pageState, localState) {
     canGenerateApiClient: hasCreateButton || /Public Key/i.test(text),
     extracted: values,
     local: localState,
-    matchedButtons: buttons.filter((button) => /API|Client|Key|Generate|Create|Public Key/i.test(button)).slice(0, 40),
+    matchedButtons: buttons.filter((button) => /API|Client|Key|Generate|Create|Public Key/i.test(button)),
     textMatches: {
       clientId: /Client ID/i.test(text),
       teamId: /Team ID/i.test(text),

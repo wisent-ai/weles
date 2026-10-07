@@ -74,12 +74,12 @@ export async function inspectCreateAccountChallenge(session, challengeUrl) {
           type: input.type,
           autocomplete: attr(input, 'autocomplete'),
           visible: visible(input),
-        })).slice(0, 30),
+        })),
         buttons: Array.from(document.querySelectorAll('button,a')).filter(visible).map((el) => ({
           tag: el.tagName.toLowerCase(),
           text: (el.textContent || '').replace(/\s+/g, ' ').trim(),
           href: el instanceof HTMLAnchorElement ? el.href : '',
-        })).slice(0, 30),
+        })),
         iframes: Array.from(document.querySelectorAll('iframe')).map((frame) => ({
           id: frame.id,
           name: frame.name,
@@ -88,7 +88,7 @@ export async function inspectCreateAccountChallenge(session, challengeUrl) {
           visible: visible(frame),
           width: frame.getBoundingClientRect().width,
           height: frame.getBoundingClientRect().height,
-        })).slice(0, 30),
+        })),
       };
     }));
   } catch (e) {

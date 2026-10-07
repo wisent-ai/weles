@@ -59,9 +59,9 @@ export async function waitForEnabledThenClick(page, namePattern) {
       const txt = (el.innerText || el.textContent || '').trim();
       if (!re.test(txt)) continue;
       const r = el.getBoundingClientRect();
-      if (r.width < 4 || r.height < 4) continue;
+      if (!r.width || !r.height) continue;
       if (el.matches(':disabled') || el.getAttribute('aria-disabled') === 'true' || el.hasAttribute('disabled')) continue;
-      return { x: r.x + r.width / 2, y: r.y + r.height / 2, tag: el.tagName, txt: txt.slice(0, 40) };
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2, tag: el.tagName, txt: txt };
     }
     return null;
   }, patternSrc);
@@ -79,12 +79,14 @@ export async function clickVisibleText(page, pattern) {
     let best = null;
     for (const element of document.querySelectorAll('button,[role="button"],a,[role="link"],li,div,span')) {
       const text = (element.innerText || element.textContent || '').trim();
-      if (!text || text.length > 80 || !matcher.test(text)) continue;
+      // The smallest rendered element whose own text matches is the control;
+      // a container holding it has the same text and a larger box.
+      if (!matcher.test(text)) continue;
       const box = element.getBoundingClientRect();
-      if (box.width < 8 || box.height < 8) continue;
+      if (!box.width || !box.height) continue;
       const area = box.width * box.height;
       if (!best || area < best.area) {
-        best = { x: box.x + box.width / 2, y: box.y + box.height / 2, area, text: text.slice(0, 60) };
+        best = { x: box.x + box.width / 2, y: box.y + box.height / 2, area, text: text };
       }
     }
     return best;

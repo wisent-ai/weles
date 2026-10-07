@@ -135,7 +135,7 @@ async function clickVisibleButton(text) {
 async function selectVisibleOption(match) {
   const option = page.locator("[role='listbox'] [role='option'], [role='option']").filter({ hasText: match }).first();
   if (await option.count() === 0) {
-    const seen = await page.evaluate(() => Array.from(document.querySelectorAll("[role='listbox'] [role='option'], [role='option']")).map((o) => o.textContent.trim()).filter(Boolean).slice(0, 20));
+    const seen = await page.evaluate(() => Array.from(document.querySelectorAll("[role='listbox'] [role='option'], [role='option']")).map((o) => o.textContent.trim()).filter(Boolean));
     throw new Error(`option not found: ${match}; saw ${seen.join(' | ')}`);
   }
   await option.dispatchEvent('click'); // allow-raw-playwright: choose visible MUI option in open listbox

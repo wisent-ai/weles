@@ -59,7 +59,7 @@ if (taskId) {
   status = {
     statusCode: statusResp.status,
     contentType: statusResp.headers.get('content-type'),
-    bodySample: statusText.replace(/\s+/g, ' ').trim().slice(0, 4000),
+    bodySample: statusText.replace(/\s+/g, ' ').trim(),
   };
 }
 

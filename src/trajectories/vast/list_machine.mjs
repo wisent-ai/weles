@@ -130,7 +130,7 @@ try {
     return m ? m[0] : null;
   });
   console.log('toast ->', toast);
-  for (const t of uiTrace.slice(0, 20)) console.log('net:', t);
+  for (const t of uiTrace) console.log('net:', t);
 
   await page.screenshot({ path: '/tmp/vast_list_result.png', fullPage: true }).catch(() => {});
   console.log('screenshot -> /tmp/vast_list_result.png');

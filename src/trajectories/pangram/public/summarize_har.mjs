@@ -21,7 +21,7 @@ const rows = entries
       mimeType: res.content?.mimeType || null,
       requestPostSample: req.postData?.text ? req.postData.text : null,
       responseSample: /api|signup|dashboard|anonymous|session|feature|csrf|turnstile|classify/i.test(req.url)
-        ? body.replace(/\s+/g, ' ').slice(0, 1200)
+        ? body.replace(/\s+/g, ' ')
         : undefined,
     };
   });

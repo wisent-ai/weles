@@ -88,7 +88,7 @@ export function installNetworkCapture(page) {
         const contentType = String(headers['content-type'] || '');
         let body = '';
         if (/json|text|javascript|html|xml/i.test(contentType)) {
-          body = (await response.text().catch(() => '')).slice(0, 1000000);
+          body = (await response.text().catch(() => ''));
         }
         responses.push({
           ts: Date.now(),

@@ -118,7 +118,7 @@ if (process.env.DIAG) {
   for (const name of ['nazwa_zadania', 'nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta']) {
     try {
       await openSelect(name);
-      optionDumps[name] = await page.evaluate(() => Array.from(document.querySelectorAll('[role="option"]')).map((o) => o.textContent.trim()).slice(0, 20));
+      optionDumps[name] = await page.evaluate(() => Array.from(document.querySelectorAll('[role="option"]')).map((o) => o.textContent.trim()));
       await page.keyboard.press('Escape'); // allow-raw-playwright: close options dump
     } catch (e) { optionDumps[name] = String(e?.message || e); }
   }

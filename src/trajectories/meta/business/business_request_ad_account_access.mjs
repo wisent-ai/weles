@@ -69,7 +69,7 @@ async function snapshot(page, label) {
     const bodyText = textOf(document.body);
     return {
       title: document.title || null,
-      bodyText: bodyText.slice(0, 3000),
+      bodyText: bodyText,
       controls,
       statusHints: {
         technicalError: /niespodziewany problem techniczny|unexpected technical problem|try again|spróbuj ponownie/i.test(bodyText),

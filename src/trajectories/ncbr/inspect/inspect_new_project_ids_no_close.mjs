@@ -26,7 +26,7 @@ const result = await page.evaluate(async ({ base, projectId }) => {
     const text = await res.text();
     let data = null;
     try { data = JSON.parse(text); } catch {}
-    return { status: res.status, text: text.slice(0, 1200), data };
+    return { status: res.status, text: text, data };
   }
 
   const project = await fetchText(`/api/beneficiary/project/${projectId}`);

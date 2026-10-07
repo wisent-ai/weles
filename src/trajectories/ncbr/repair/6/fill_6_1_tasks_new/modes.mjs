@@ -8,7 +8,7 @@ export async function runModes({ page, SECTION_URL, form, milestones }) {
   const { fillEmptyMilestones, fillAllMilestones, addMilestone } = milestones;
 if (process.env.HEADINGS) {
   console.log(JSON.stringify({
-    lines: md.split(/\r?\n/).filter((l) => l.startsWith('### Zadanie')).slice(0, 20),
+    lines: md.split(/\r?\n/).filter((l) => l.startsWith('### Zadanie')),
     regexCount: Array.from(md.matchAll(/^### Zadanie\s+(\d+)\.[^\n]*$/gm)).length,
     parsed: tasks().length,
   }, null, 2));
@@ -50,7 +50,7 @@ if (process.env.DIAG_EDIT) {
     if (await select.count() > 0) await humanClickLocator(page, select);
     const app = { inputValue: await inp.inputValue().catch(() => ''), formControl: null }; // allow-raw-playwright: open applicant select for diagnosis
     await humanIdlePause('deliberate');
-    const options = await page.evaluate(() => Array.from(document.querySelectorAll("[role='option'], li")).map((o) => o.textContent.trim()).filter(Boolean).slice(0, 30));
+    const options = await page.evaluate(() => Array.from(document.querySelectorAll("[role='option'], li")).map((o) => o.textContent.trim()).filter(Boolean));
     console.log(JSON.stringify({ task: process.env.DIAG_EDIT, app, options }, null, 2));
     process.exit(0);
   }

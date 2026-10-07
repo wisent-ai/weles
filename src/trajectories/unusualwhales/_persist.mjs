@@ -84,7 +84,7 @@ async function ingestStockContext(body) {
   });
   const responseText = await response.text();
   if (response.status !== 201) {
-    throw new Error(`Trading Tools stock-context ingest failed (${response.status}): ${responseText.slice(0, 500)}`);
+    throw new Error(`Trading Tools stock-context ingest failed (${response.status}): ${responseText}`);
   }
   let stored;
   try {

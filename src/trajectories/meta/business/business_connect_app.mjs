@@ -62,7 +62,7 @@ async function snapshot(page, label) {
     const bodyText = textOf(document.body);
     return {
       title: document.title || null,
-      bodyText: bodyText.slice(0, 2800),
+      bodyText: bodyText,
       controls,
       statusHints: {
         permissionDenied: /brak dostępu|permission|uprawn|not authorized|nie możesz|nie masz/i.test(bodyText),

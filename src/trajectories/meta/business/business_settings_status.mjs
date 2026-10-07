@@ -65,7 +65,7 @@ async function snapshot(page, label) {
       const rect = el.getBoundingClientRect();
       return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
     };
-    const bodyText = textOf(document.body).slice(0, 3500);
+    const bodyText = textOf(document.body);
     const controls = Array.from(document.querySelectorAll('button, [role="button"], a, input[type="button"], input[type="submit"]'))
       .filter(visible)
       .map((el) => ({

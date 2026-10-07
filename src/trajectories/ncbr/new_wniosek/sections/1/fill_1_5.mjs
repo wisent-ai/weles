@@ -59,7 +59,7 @@ await clickDodaj(0);
 await humanIdlePause('deliberate');
 
 if (process.env.DIAG) {
-  const fields = await page.evaluate(() => Array.from(document.querySelectorAll('input,textarea')).map((i) => ({ tag: i.tagName, name: i.name, role: i.getAttribute('role'), label: (document.querySelector(`label[for="${i.id}"]`)?.textContent || '').trim().slice(0, 50) })).filter((f) => f.name));
+  const fields = await page.evaluate(() => Array.from(document.querySelectorAll('input,textarea')).map((i) => ({ tag: i.tagName, name: i.name, role: i.getAttribute('role'), label: (document.querySelector(`label[for="${i.id}"]`)?.textContent || '').trim() })).filter((f) => f.name));
   console.log(JSON.stringify(fields, null, 2));
   process.exit(0);
 }

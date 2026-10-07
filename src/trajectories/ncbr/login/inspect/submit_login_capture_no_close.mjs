@@ -58,7 +58,7 @@ page.on('response', async (res) => {
     method: req.method(),
     url: res.url(),
     status: res.status(),
-    text: text.slice(0, 1200),
+    text: text,
   });
 });
 

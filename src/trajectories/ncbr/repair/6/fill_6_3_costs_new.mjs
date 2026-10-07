@@ -41,7 +41,7 @@ if (process.env.DIAG) {
       .locator('.MuiSelect-select, [role="combobox"]').first();
     if (await taskSelect.count() > 0) await humanClickLocator(page, taskSelect);
     await humanIdlePause('deliberate');
-    taskOptions = await page.evaluate(() => Array.from(document.querySelectorAll('[role="option"]')).map((o) => o.textContent.trim()).slice(0, 30));
+    taskOptions = await page.evaluate(() => Array.from(document.querySelectorAll('[role="option"]')).map((o) => o.textContent.trim()));
   }
   console.log(JSON.stringify({ fields, buttons, taskOptions }, null, 2));
   process.exit(0);
@@ -150,7 +150,7 @@ if (process.env.REWRITE) {
   }
   const rows = await page.evaluate(() => {
     const table = document.querySelector('table');
-    return table ? Array.from(table.querySelectorAll('tbody tr')).map((r) => r.innerText.replace(/\s+/g, ' ').trim()).slice(0, 20) : [];
+    return table ? Array.from(table.querySelectorAll('tbody tr')).map((r) => r.innerText.replace(/\s+/g, ' ').trim()) : [];
   }); // allow-raw-playwright: read back cost table after rewrite
   console.log(JSON.stringify({ rewritten: rewritten.length, rows: rows.length, names: rewritten, firstRows: rows.slice(0, 8) }, null, 2));
   process.exit(0);

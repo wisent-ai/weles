@@ -61,7 +61,7 @@ try {
     followBtn = s.page.getByRole('button', { name: new RegExp(`^Follow @?${TARGET_HANDLE}$`, 'i') }).first();
   }
   if (!(await followBtn.isVisible().catch(() => false))) {
-    const tids = await s.page.evaluate(() => Array.from(document.querySelectorAll('[data-testid]')).map(e => e.getAttribute('data-testid')).filter(t => /follow|user/i.test(t ?? '')).slice(0, 10));
+    const tids = await s.page.evaluate(() => Array.from(document.querySelectorAll('[data-testid]')).map(e => e.getAttribute('data-testid')).filter(t => /follow|user/i.test(t ?? '')));
     console.log(`FAIL: no Follow button visible at ${url}. visible testids: ${JSON.stringify(tids)}`);
     process.exitCode = 1;
   }

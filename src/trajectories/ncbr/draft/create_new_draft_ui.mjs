@@ -35,16 +35,16 @@ async function snapshot() {
     const body = document.body.innerText || '';
     const candidates = [];
     const nodes = Array.from(document.querySelectorAll('a, article, section, div, li')).filter((e) => (e.innerText || '').includes(call));
-    for (const n of nodes.slice(0, 20)) {
+    for (const n of nodes) {
       const box = n.getBoundingClientRect();
       const buttons = Array.from(n.querySelectorAll('button, a')).map((b) => ({
         text: (b.innerText || b.getAttribute('aria-label') || b.title || '').trim(),
         href: b.href || null,
         disabled: Boolean(b.disabled),
-      })).filter((b) => b.text || b.href).slice(0, 20);
+      })).filter((b) => b.text || b.href);
       candidates.push({
         tag: n.tagName,
-        text: (n.innerText || '').trim().slice(0, 1200),
+        text: (n.innerText || '').trim(),
         href: n.href || null,
         visible: box.width > 0 && box.height > 0,
         buttons,

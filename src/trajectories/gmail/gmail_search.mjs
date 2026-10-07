@@ -97,7 +97,7 @@ try {
             .map((b) => b.innerText.trim()).filter(Boolean);
           return {
             subj: subj ? subj.textContent.trim() : '',
-            text: blocks.join('\n---\n').slice(0, 4000),
+            text: blocks.join('\n---\n'),
           };
         });
         console.log(`\n>>> THREAD #${idx + 1}: ${body.subj}`);

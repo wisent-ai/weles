@@ -79,7 +79,7 @@ export async function enterLinkedinSignup(session, entryUrl) {
         url: location.href,
         title: document.title,
         referrer: document.referrer,
-        signup_links: Array.from(document.querySelectorAll('a[href*="/signup"], a[href*="/join"]')).slice(0, 20).map((a) => ({
+        signup_links: Array.from(document.querySelectorAll('a[href*="/signup"], a[href*="/join"]')).map((a) => ({
           text: (a.textContent || '').replace(/\s+/g, ' ').trim(),
           href: a.href,
           trk: attr(a, 'data-tracking-control-name') ?? new URL(a.href, location.href).searchParams.get('trk'),
@@ -91,7 +91,7 @@ export async function enterLinkedinSignup(session, entryUrl) {
           href: el instanceof HTMLAnchorElement ? el.href : '',
           trk: attr(el, 'data-tracking-control-name'),
           visible: !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length),
-        })).filter((el) => /^(sign up|join now)$/i.test(el.text)).slice(0, 20),
+        })).filter((el) => /^(sign up|join now)$/i.test(el.text)),
       };
     }, stage).catch((e) => ({ stage, error: String(e?.message ?? e), url: session.page.url() })));
   };

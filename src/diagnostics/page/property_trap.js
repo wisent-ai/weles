@@ -144,7 +144,7 @@
       try {
         const nm = (alg && (alg.name || alg)) + '';
         const buf = data instanceof ArrayBuffer ? new Uint8Array(data) : (data?.buffer ? new Uint8Array(data.buffer) : new Uint8Array());
-        const text = new TextDecoder('utf-8', { fatal: false }).decode(buf).slice(0, 50000);
+        const text = new TextDecoder('utf-8', { fatal: false }).decode(buf);
         logs.push({ t: performance.now(), o: 'SubtleCrypto', p: 'encrypt:' + nm, vt: 'string', vs: text, s: stack() });
       } catch {}
       return o.call(this, alg, key, data);

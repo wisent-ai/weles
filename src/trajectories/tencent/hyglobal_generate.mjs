@@ -26,7 +26,7 @@ const PROMPTS = {
 
 async function dumpDOM(s, label) {
   const d = await s.page.evaluate(() => ({
-    bodyText: (document.body?.innerText || '').slice(0, 3000),
+    bodyText: (document.body?.innerText || ''),
     buttons: Array.from(document.querySelectorAll('button, a, [role=button]')).filter(e => e.offsetParent).map(e => ({ tag: e.tagName, text: (e.innerText || '').trim(), href: e.href || '' })).filter(o => o.text).slice(0, 30),
     inputs: Array.from(document.querySelectorAll('input, textarea')).filter(e => e.offsetParent).map(e => ({ tag: e.tagName, type: e.type, name: e.name, placeholder: e.placeholder || '' })).slice(0, 15),
   })).catch((e) => ({ err: e.message }));
@@ -55,11 +55,11 @@ async function fetchCodeFromGmail(s, sentAtMs) {
   const meta = await tab.evaluate(() => {
     const timeSpans = Array.from(document.querySelectorAll('[role="main"] span[title]')).filter(s => /\d{1,2}:\d{2}/.test(s.title));
     const headerTitle = timeSpans[0]?.title || '';
-    const text = (document.body?.innerText || '').slice(0, 3500);
+    const text = (document.body?.innerText || '');
     return { headerTitle, text };
   }).catch(() => ({ headerTitle: '', text: '' }));
   console.log(`[hy] gmail email title attr: ${meta.headerTitle}`);
-  console.log(`[hy] gmail dump first 1200: ${meta.text.replace(/\n/g, ' | ').slice(0, 1200)}`);
+  console.log(`[hy] gmail dump first 1200: ${meta.text.replace(/\n/g, ' | ')}`);
   // Also dump ALL email row dates from the search-results list
   const allRows = await tab.evaluate(() => {
     const rows = Array.from(document.querySelectorAll('tr.zA, [role="main"] tr'));

@@ -81,7 +81,7 @@ async function diag13Edit() {
       const rect = el.getBoundingClientRect();
       return { tag: el.tagName, type: el.getAttribute('type'), name: el.getAttribute('name'), id, label, value: (el.value || ''), max: el.getAttribute('maxlength'), visible: rect.width > 0 && rect.height > 0 };
     }).filter((field) => field.visible && (field.name || field.label || field.value)),
-    tables: Array.from(document.querySelectorAll('table')).map((table) => ({ rows: table.querySelectorAll('tbody tr').length, text: table.innerText.replace(/\s+/g, ' ').trim().slice(0, 1200) })),
+    tables: Array.from(document.querySelectorAll('table')).map((table) => ({ rows: table.querySelectorAll('tbody tr').length, text: table.innerText.replace(/\s+/g, ' ').trim() })),
     buttons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim(), disabled: b.disabled })).filter((b) => b.text),
   })); // allow-raw-playwright: read diagnostic state inside 1.3 entity edit form
   const nestedAddCount = before.buttons.filter((b) => b.text === 'Dodaj kolejny' && !b.disabled).length;

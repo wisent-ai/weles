@@ -138,7 +138,7 @@ await gotoSection();
 const readback = await page.evaluate(() => Array.from(document.querySelectorAll('table')).map((table, i) => ({
   i,
   rows: table.querySelectorAll('tbody tr').length,
-  text: Array.from(table.querySelectorAll('tbody tr')).map((r) => r.innerText.trim().replace(/\s+/g, ' ').slice(0, 260)),
+  text: Array.from(table.querySelectorAll('tbody tr')).map((r) => r.innerText.trim().replace(/\s+/g, ' ')),
 }))); // allow-raw-playwright: read-only 2.4 table readback
 
 console.log(JSON.stringify({ addedCount: added.filter((a) => !a.skipped).length, added, readback }, null, 2));

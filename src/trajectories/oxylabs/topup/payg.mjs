@@ -23,7 +23,7 @@ export async function topUpPayAsYouGo(s, usd) {
   const modalText = await s.page.evaluate(() => document.body.innerText || '');
   const priceMatch = modalText.match(/\$\s*(\d+(?:\.\d+)?)\s*(?:\/|per)\s*GB/i);
   if (!priceMatch) {
-    console.log(`FAIL: the "Add more traffic" modal states no per-GB price; read: ${JSON.stringify(modalText.replace(/\s+/g, ' ').slice(0, 400))}`);
+    console.log(`FAIL: the "Add more traffic" modal states no per-GB price; read: ${JSON.stringify(modalText.replace(/\s+/g, ' '))}`);
     process.exit(1);
   }
   const gbPrice = Number(priceMatch[1]);

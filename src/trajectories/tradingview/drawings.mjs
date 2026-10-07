@@ -117,7 +117,7 @@ try {
     try {
       const resp = await fetch(r.url, { headers });
       const txt = await resp.text();
-      bodies.push({ url: r.url, status: resp.status, body: txt.slice(0, 500000) });
+      bodies.push({ url: r.url, status: resp.status, body: txt });
     } catch (e) {
       bodyErrors.push({ url: r.url, err: e.message });
     }

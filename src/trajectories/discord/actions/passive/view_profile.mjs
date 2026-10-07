@@ -61,7 +61,7 @@ try {
     const bioEl = root.querySelector('[class*="bio"], [class*="aboutMe"]');
     const display = get('[class*="displayName"], [class*="nickname"]');
     const username = get('[class*="username"], [class*="discriminator"]');
-    const connected = Array.from(root.querySelectorAll('[class*="connectedAccount"]')).map(e => (e.textContent || '').trim()).slice(0, 10);
+    const connected = Array.from(root.querySelectorAll('[class*="connectedAccount"]')).map(e => (e.textContent || '').trim());
     return { display, username, bio: bioEl ? (bioEl.textContent || '').trim() : null, avatar: avatar ? avatar.src : null, banner: banner ? banner.src : null, connected };
   });
   if (!profile.display && !profile.username) throw Object.assign(new Error('DISCORD_PROFILE_CONTENT_UNCONFIRMED: the observed profile lost its rendered identity text'),

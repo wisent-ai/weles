@@ -82,7 +82,7 @@ const validationBeforeSubmit = await runValidationIfNeeded();
 
 const before = await page.evaluate(() => ({
   url: location.href,
-  bodyHead: (document.body.innerText || '').slice(0, 1200),
+  bodyHead: (document.body.innerText || ''),
   buttons: Array.from(document.querySelectorAll('button')).map((b) => ({
     text: b.innerText.trim() || b.getAttribute('aria-label') || b.title,
     disabled: b.disabled,
@@ -119,7 +119,7 @@ const after = await page.evaluate((capturedResponses) => {
   return {
     url: location.href,
     title: document.title,
-    dialogs: Array.from(document.querySelectorAll('[role="dialog"], .MuiDialog-root, .MuiAlert-root, .MuiSnackbar-root')).map((e) => e.textContent.trim()).filter(Boolean).slice(0, 20),
+    dialogs: Array.from(document.querySelectorAll('[role="dialog"], .MuiDialog-root, .MuiAlert-root, .MuiSnackbar-root')).map((e) => e.textContent.trim()).filter(Boolean),
     buttons: Array.from(document.querySelectorAll('button')).map((b) => ({
       text: b.innerText.trim() || b.getAttribute('aria-label') || b.title,
       disabled: b.disabled,

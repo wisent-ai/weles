@@ -45,7 +45,7 @@ if (process.env.DIAG) {
       value: (el.value || ''),
       max: el.getAttribute('maxlength') || null,
     })).filter((f) => f.name),
-    options: Array.from(document.querySelectorAll("[role='listbox'] [role='option']")).map((o) => o.textContent.trim()).slice(0, 20),
+    options: Array.from(document.querySelectorAll("[role='listbox'] [role='option']")).map((o) => o.textContent.trim()),
     buttons: Array.from(document.querySelectorAll('button')).map((b) => b.innerText.trim()).filter(Boolean),
   }));
   console.log(JSON.stringify(dump, null, 2));
@@ -83,7 +83,7 @@ try {
 
 const readback = await page.evaluate(() => {
   const table = document.querySelector('table');
-  return { text: (table?.innerText || '').replace(/\s+/g, ' ').slice(0, 1200) };
+  return { text: (table?.innerText || '').replace(/\s+/g, ' ') };
 });
 console.log(JSON.stringify({ saveResult, picked, readback }, null, 2));
 process.exit(0);

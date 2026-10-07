@@ -10,7 +10,7 @@ for (const b of d.network_api || []) {
   let dumped = false;
   for (const [id, src] of Object.entries(srcs)) {
     const t = src.state?.type || '';
-    if (!dumped) { process.stderr.write('FULL SRC: ' + JSON.stringify(src, null, 2).slice(0, 3000) + '\n'); dumped = true; }
+    if (!dumped) { process.stderr.write('FULL SRC: ' + JSON.stringify(src, null, 2) + '\n'); dumped = true; }
     process.stderr.write(`  src ${id}: type=${t} keys=${Object.keys(src).join(',')} ptsLen=${(src.points||[]).length}\n`);
     if (!/Trend|Line|Wedge|Tri/i.test(t)) continue;
     // Try multiple point locations

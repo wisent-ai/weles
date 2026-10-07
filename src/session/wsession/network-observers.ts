@@ -98,7 +98,7 @@ export function observeSessionNetwork(ws: WSession, ctx: BrowserContext, page: P
       // A body we could not read is its own answer in the ledger: an empty
       // string there would read as a response that arrived empty.
       const read: Promise<void> = res.text().then(
-        (text: string) => { entry.body = text.slice(0, 8192); },
+        (text: string) => { entry.body = text; },
         (error: unknown) => { entry.body = `[body unavailable: ${(error instanceof Error ? error.message : String(error))}]`; },
       ).finally(() => { ws.pendingResponseBodies.delete(read); });
       ws.pendingResponseBodies.add(read);

@@ -126,7 +126,7 @@ function extractQuota(text) {
     reset_at: resetLine ? parseDate(resetLine) : null,
     gift_usage_percent: giftIdx >= 0 ? lines[giftIdx + 1] || null : null,
     gift_expires_at: giftExpiryLine ? parseDate(giftExpiryLine) : null,
-    recent_usage: history.slice(0, 40),
+    recent_usage: history,
     ui_excerpt: lines.slice(Math.max(0, usageIdx - 3), usageIdx >= 0 ? usageIdx + 70 : 90),
   };
 }

@@ -88,7 +88,7 @@ try {
       // innerText to exclude 'Virgin' / 'Minor' variants (hasText is substring).
       const all = await s.page.locator('[role="option"], li, button, a').filter({ hasText: /united states/i }).all().catch(() => []);
       let optClicked = { clicked: false };
-      for (const el of all) { const t = ((await el.innerText().catch(() => '')) ?? '').trim(); if (/^united states/i.test(t) && !/virgin/i.test(t) && !/minor/i.test(t)) { await humanClickLocator(s.page, el).catch(() => {}); optClicked = { clicked: true, text: t.slice(0, 40) }; break; } }
+      for (const el of all) { const t = ((await el.innerText().catch(() => '')) ?? '').trim(); if (/^united states/i.test(t) && !/virgin/i.test(t) && !/minor/i.test(t)) { await humanClickLocator(s.page, el).catch(() => {}); optClicked = { clicked: true, text: t }; break; } }
       console.log(`[register] Country option click: ${JSON.stringify(optClicked)}`);
     } catch (e) { console.log(`[register] Country click error: ${e.message}`); }
   } else {

@@ -123,12 +123,10 @@ try {
       const visibleAccount = bodyText.match(/([^\n]*\((\d{6,})\))/);
       const rows = Array.from(document.querySelectorAll('[role="row"], tr'))
         .map((row) => (row.innerText || row.textContent || '').replace(/\s+/g, ' ').trim())
-        .filter(Boolean)
-        .slice(0, 80);
+        .filter(Boolean);
       const headings = Array.from(document.querySelectorAll('h1, h2, [role="heading"]'))
         .map((node) => (node.innerText || node.textContent || '').replace(/\s+/g, ' ').trim())
-        .filter(Boolean)
-        .slice(0, 20);
+        .filter(Boolean);
       return {
         title: document.title || null,
         headings,
@@ -167,7 +165,7 @@ try {
         expectedAccountId: AD_ACCOUNT_ID || null,
         url: current,
         ...details,
-      }, null, 2).slice(0, 14000));
+      }, null, 2));
       console.log('PASS: Meta Ads browser access verified');
     }
   }

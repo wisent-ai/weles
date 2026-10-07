@@ -103,8 +103,8 @@ try {
       // Verify success toast. Oxylabs shows "Success!" + "Your user has been
       // updated successfully!" or "Password changed for user <username>".
       const bodyText = await s.page.evaluate(() => document.body.innerText).catch(() => '');
-      const hasSuccess = /success|updated successfully|password changed/i.test(bodyText.slice(0, 3000));
-      const hasError = /error|failed|incorrect|invalid|weak password|must contain/i.test(bodyText.slice(0, 3000));
+      const hasSuccess = /success|updated successfully|password changed/i.test(bodyText);
+      const hasError = /error|failed|incorrect|invalid|weak password|must contain/i.test(bodyText);
       const status = hasSuccess && !hasError ? 'password_set' : hasError ? 'possible_error' : 'unknown';
       if (status === 'password_set') {
         writeScopedSecretItem(serviceName, { ...current, password: newPassword });

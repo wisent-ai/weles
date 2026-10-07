@@ -21,14 +21,14 @@ export async function dumpControls(page) {
       placeholder: el.getAttribute('placeholder'),
       autocomplete: el.getAttribute('autocomplete'),
       valueLen: String(el.value || '').length,
-    })).slice(0, 30),
+    })),
     buttons: Array.from(document.querySelectorAll('button, [role="button"], a')).filter((el) => el.getClientRects().length).map((el) => ({
       tag: el.tagName,
       role: el.getAttribute('role'),
       text: ([el.textContent, el.getAttribute('aria-label')].find(Boolean) ?? '').replace(/\s+/g, ' ').trim(),
       href: el.getAttribute('href'),
       disabled: Boolean(el.disabled) || el.getAttribute('aria-disabled') === 'true',
-    })).filter((x) => x.text || x.href).slice(0, 80),
+    })).filter((x) => x.text || x.href),
   })); // allow-raw-playwright: read-only signup diagnostics
 }
 

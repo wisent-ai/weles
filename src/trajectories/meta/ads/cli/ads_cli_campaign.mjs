@@ -74,7 +74,7 @@ const args = META_ADS_CLI_ARGS ? splitArgs(META_ADS_CLI_ARGS) : [
 
 console.log(`[meta-ads-cli] ${META_CLI_BIN} ${args.map((a) => /\s/.test(a) ? JSON.stringify(a) : a).join(' ')}`);
 const result = await runMeta(args);
-if (result.out) console.log(result.out.trim().slice(0, 4000));
+if (result.out) console.log(result.out.trim());
 if (result.err) console.error(result.err.trim());
 if (result.code !== 0) {
   console.log(`FAIL: meta CLI exited ${result.code}`);

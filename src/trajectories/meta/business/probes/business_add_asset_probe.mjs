@@ -67,7 +67,7 @@ async function snapshot(page, label) {
       .filter((item) => item.text || item.href || item.placeholder);
     return {
       title: document.title || null,
-      bodyText: textOf(document.body).slice(0, 3200),
+      bodyText: textOf(document.body),
       controls,
     };
   });

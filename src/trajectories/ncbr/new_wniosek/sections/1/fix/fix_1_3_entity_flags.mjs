@@ -41,7 +41,7 @@ async function firstTableInfo() {
           text: b.innerText.trim(),
           aria: b.getAttribute('aria-label'),
           title: b.getAttribute('title'),
-          html: b.outerHTML.slice(0, 300),
+          html: b.outerHTML,
         })),
         html: row.outerHTML,
       })),

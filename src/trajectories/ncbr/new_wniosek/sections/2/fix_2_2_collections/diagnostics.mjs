@@ -56,7 +56,7 @@ if (process.env.CLEAR_POW) {
       beforeLen: before?.length ?? null,
       afterLen: el ? el.value.length : null,
       saves: saves.map((b) => ({ disabled: b.disabled, text: b.innerText.trim(), visible: b.getClientRects().length > 0 })),
-      errors: Array.from(document.querySelectorAll('[aria-invalid="true"], .Mui-error')).map((e) => (e.getAttribute('name') || e.textContent || '').trim()).filter(Boolean).slice(0, 20),
+      errors: Array.from(document.querySelectorAll('[aria-invalid="true"], .Mui-error')).map((e) => (e.getAttribute('name') || e.textContent || '').trim()).filter(Boolean),
     };
   }); // allow-raw-playwright: clear forbidden field and inspect save state
   await humanIdlePause('deliberate');

@@ -56,7 +56,7 @@ const out = await page.evaluate(({ limit, rowLimit, includeHtml }) => ({
     i,
     rows: table.querySelectorAll('tbody tr').length,
     text: Array.from(table.querySelectorAll('tbody tr')).map((r) => r.innerText.trim().replace(/\s+/g, ' ').slice(0, rowLimit)),
-    html: includeHtml ? Array.from(table.querySelectorAll('tbody tr')).map((r) => r.outerHTML.slice(0, 1200)) : undefined,
+    html: includeHtml ? Array.from(table.querySelectorAll('tbody tr')).map((r) => r.outerHTML) : undefined,
   })),
 }), { limit: bodyLimit, rowLimit, includeHtml });
 if (process.env.SCREENSHOT_PATH) {

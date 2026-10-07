@@ -71,7 +71,7 @@ export async function snapshot(page, label) {
       .filter((item) => item.text || item.href || item.placeholder);
     return {
       title: document.title || null,
-      bodyText: bodyText.slice(0, 3200),
+      bodyText: bodyText,
       controls,
       statusHints: {
         contactInfo: /Informacje kontaktowe|Contact info/i.test(bodyText),

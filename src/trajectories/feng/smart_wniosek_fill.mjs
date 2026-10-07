@@ -180,7 +180,7 @@ async function main() {
     console.log(`  brak mapowania (do dopisania w field_map.json): ${summary.missing_map.length}`);
     if (summary.missing_map.length > 0) {
       console.log('  pierwsze 20 nazw bez mapowania:');
-      for (const n of summary.missing_map.slice(0, 20)) console.log(`    ${n}`);
+      for (const n of summary.missing_map) console.log(`    ${n}`);
     }
     if (summary.errors.length > 0) {
       process.exitCode = 1;

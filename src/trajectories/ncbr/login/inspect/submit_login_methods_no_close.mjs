@@ -23,7 +23,7 @@ page.on('request', (req) => {
   if (!(url.includes('lsi2.ncbr.gov.pl') && (method !== 'GET' || url.includes('/user/refresh')))) return;
   let postData = req.postData() || '';
   postData = postData.replaceAll(password, '[REDACTED]').replaceAll(email, '[EMAIL]');
-  events.push({ kind: 'request', method, url, postData: postData.slice(0, 1200) });
+  events.push({ kind: 'request', method, url, postData: postData });
 });
 page.on('response', async (res) => {
   const method = res.request().method();
@@ -32,7 +32,7 @@ page.on('response', async (res) => {
   let text = '';
   try { text = await res.text(); } catch {}
   text = text.replaceAll(password, '[REDACTED]').replaceAll(email, '[EMAIL]');
-  events.push({ kind: 'response', method, url, status: res.status(), text: text.slice(0, 1200) });
+  events.push({ kind: 'response', method, url, status: res.status(), text: text });
 });
 
 async function authStatus() {

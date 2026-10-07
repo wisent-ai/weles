@@ -84,7 +84,7 @@ console.log(JSON.stringify({
     params: countRows(params),
   },
   repeatedSentenceCount: repeatedSentences.length,
-  repeatedSentences: repeatedSentences.slice(0, 20),
+  repeatedSentences: repeatedSentences,
   cellEndingFindingCount: cellEndings.length,
   cellEndings: cellEndings,
   banned,

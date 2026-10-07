@@ -29,7 +29,7 @@ async function rows() {
     if (!table) return [];
     return Array.from(table.querySelectorAll('tbody tr'))
       .filter((r) => r.querySelector('button[aria-label="overflow-options"]'))
-      .map((r) => r.innerText.replace(/\s+/g, ' ').trim().slice(0, 1400));
+      .map((r) => r.innerText.replace(/\s+/g, ' ').trim());
   }); // allow-raw-playwright: read table state
 }
 

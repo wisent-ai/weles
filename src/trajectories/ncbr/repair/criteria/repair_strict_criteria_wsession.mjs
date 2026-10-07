@@ -43,7 +43,7 @@ async function readback() {
   out.status = await page.evaluate(() => {
     const body = document.body?.innerText || '';
     return {
-      statusLines: body.split('\n').map((l) => l.trim()).filter((l) => /W przygotowaniu|Złożony|Konkurs:/i.test(l)).slice(0, 10),
+      statusLines: body.split('\n').map((l) => l.trim()).filter((l) => /W przygotowaniu|Złożony|Konkurs:/i.test(l)),
       submitButtons: Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Złóż wniosek').map((b) => ({ disabled: b.disabled })),
     };
   }); // allow-raw-playwright: read application status and submit button state

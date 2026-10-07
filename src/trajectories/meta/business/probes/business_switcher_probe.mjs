@@ -61,18 +61,17 @@ async function snapshot(page, label) {
         text: textOf(el),
         href: el.getAttribute('href') || '',
       }))
-      .filter(({ href }) => /business_id=|business\.facebook\.com/.test(href))
-      .slice(0, 80);
+      .filter(({ href }) => /business_id=|business\.facebook\.com/.test(href));
     const bodyText = textOf(document.body);
     return {
       title: document.title || null,
-      bodyText: bodyText.slice(0, 2600),
+      bodyText: bodyText,
       controls,
       links,
       businessIds: Array.from(new Set([
         ...bodyText.matchAll(/\b\d{12,18}\b/g),
         ...links.flatMap((link) => [...link.href.matchAll(/business_id=(\d+)/g)].map((match) => match[1])),
-      ].map((match) => Array.isArray(match) ? match[0] : match))).slice(0, 30),
+      ].map((match) => Array.isArray(match) ? match[0] : match))),
     };
   });
   console.log(JSON.stringify({

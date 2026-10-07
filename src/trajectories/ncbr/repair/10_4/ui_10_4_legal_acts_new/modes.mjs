@@ -20,8 +20,7 @@ if (process.env.DIAG_ADD) {
     await humanIdlePause('deliberate');
     const options = await page.evaluate(() => Array.from(document.querySelectorAll("[role='listbox'] [role='option'], [role='option']"))
       .map((o) => o.textContent.trim())
-      .filter(Boolean)
-      .slice(0, 30)); // allow-raw-playwright: read visible legal-act options only
+      .filter(Boolean)); // allow-raw-playwright: read visible legal-act options only
     results.push({ search, options });
   }
   console.log(JSON.stringify({ diagAdd: results }, null, 2));
@@ -53,7 +52,7 @@ if (process.env.ADD_OOS_ONLY) {
       disabled: button.disabled,
       visible: !!button.getClientRects().length,
     })),
-    errors: Array.from(document.querySelectorAll('[aria-invalid="true"], .Mui-error')).map((el) => (el.getAttribute('name') || el.textContent || '').trim()).filter(Boolean).slice(0, 20),
+    errors: Array.from(document.querySelectorAll('[aria-invalid="true"], .Mui-error')).map((el) => (el.getAttribute('name') || el.textContent || '').trim()).filter(Boolean),
   })); // allow-raw-playwright: read add-form state before save
   console.log(JSON.stringify({ stage: 'formState', formState }));
   const save = await saveRow();

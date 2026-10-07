@@ -113,8 +113,7 @@ async function browserPerformance() {
     }
     const rows = await s.page.evaluate(() => Array.from(document.querySelectorAll('[role="row"], tr'))
       .map((row) => (row.innerText || row.textContent || '').replace(/\s+/g, ' ').trim())
-      .filter(Boolean)
-      .slice(0, 50)).catch(() => []);
+      .filter(Boolean)).catch(() => []);
     console.log(JSON.stringify({ account: visibleLabel, rows, empty: /Brak wyników|No results|Nie utworzono/i.test(text) }, null, 2));
     console.log('PASS: Meta Ads performance read completed (browser)');
   } finally {

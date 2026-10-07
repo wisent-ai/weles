@@ -35,7 +35,7 @@ export async function handleCodexConsentPage(page, mark) {
     const btn = candidates.find((el) => /continue/i.test((el.innerText || el.textContent || el.value || '').trim()));
     if (!btn) return { found: false };
     const disabled = btn.disabled || btn.getAttribute('aria-disabled') === 'true' || btn.getAttribute('disabled') !== null;
-    return { found: true, disabled, text: (btn.innerText || btn.textContent || btn.value || '').trim().slice(0, 40) };
+    return { found: true, disabled, text: (btn.innerText || btn.textContent || btn.value || '').trim() };
   }, { found: false });
   if (!state.found) return false;
   if (state.disabled) {

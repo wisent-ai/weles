@@ -100,7 +100,7 @@ try {
         ph: el.getAttribute('placeholder') || '',
         type: el.getAttribute('type') || '',
         visible: r.width > 0 && r.height > 0,
-        val: (el.value || '').slice(0, 40),
+        val: (el.value || ''),
       });
     }
     return out;
@@ -128,7 +128,7 @@ try {
   // Headline is a textarea (240px wide, multiline) — first visible textarea.
   const hlIn = s.page.locator('textarea').first();
   const indIn = s.page.getByLabel('Industry', { exact: false }).first();
-  const tgtInd = (character.occupation || character.niche || 'Venture Capital and Private Equity').slice(0, 100);
+  const tgtInd = (character.occupation || character.niche || 'Venture Capital and Private Equity');
 
   const writes = [];
   for (const [el, target, label] of [[fnIn, firstName, 'first_name'], [lnIn, lastName, 'last_name'], [hlIn, targetHeadline, 'headline'], [indIn, tgtInd, 'industry']]) {
@@ -160,9 +160,9 @@ try {
     // Diagnostic: dump every visible button so we can identify the real
     // save control (last run with `last()` selector hit a button that
     // dispatched no save mutation — picking the wrong one).
-    const btnDump = await s.page.evaluate(() => Array.from(document.querySelectorAll('button')).filter(b => b.getBoundingClientRect().width > 0).map(b => { const r = b.getBoundingClientRect(); return `${b.textContent?.trim().slice(0, 30) || ''}|aria=${b.getAttribute('aria-label') || ''}|disabled=${b.disabled || b.getAttribute('aria-disabled') === 'true'}|y=${Math.round(r.y)}|w=${Math.round(r.width)}`; })).catch(() => []);
+    const btnDump = await s.page.evaluate(() => Array.from(document.querySelectorAll('button')).filter(b => b.getBoundingClientRect().width > 0).map(b => { const r = b.getBoundingClientRect(); return `${b.textContent?.trim() || ''}|aria=${b.getAttribute('aria-label') || ''}|disabled=${b.disabled || b.getAttribute('aria-disabled') === 'true'}|y=${Math.round(r.y)}|w=${Math.round(r.width)}`; })).catch(() => []);
     console.log(`[li-profile] visible buttons (${btnDump.length}):`);
-    for (const b of btnDump.filter((s) => /save|cancel|discard/i.test(s)).slice(0, 10)) console.log(`  ${b}`);
+    for (const b of btnDump.filter((s) => /save|cancel|discard/i.test(s))) console.log(`  ${b}`);
     // 2026 modal: multiple "Save" buttons may be in the DOM (cancel-state,
     // save-state). Target the visible enabled one. LinkedIn disables Save
     // until the form sees a real change event from a typed input.
