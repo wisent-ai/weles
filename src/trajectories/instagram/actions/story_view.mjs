@@ -23,17 +23,17 @@ try {
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   // Story tray entries are <li role="menuitem" tabindex="0"> with anchored
   // story-ring image. Click the first one to enter the stories viewer.
-  // Once inside, /stories/{user}/{id} is the URL — auto-advance handles the
-  // rest. Wait ~15s then close via Esc (no need to find X).
+  // Once inside, /stories/{user}/{id} is the URL and auto-advance plays every
+  // story in the tray; Instagram closes the viewer itself after the last one.
   const story = s.page.locator('li[role="menuitem"], button[aria-label^="Story by"], div[role="menuitem"]:has(canvas), a[href^="/stories/"]').filter({ visible: true }).first();
   if (!(await story.count())) throw new Error('no stories in tray');
   await story.scrollIntoViewIfNeeded().catch(() => {});
   await humanClickLocator(s.page, story);
   await s.page.waitForURL(/\/stories\//);
-  // Dwell ~15s so 3+ stories auto-advance and register as views.
-  for (let i = 0; i < 15; i++) await humanIdlePause('short');
-  await s.page.keyboard.press('Escape').catch(() => {});
-  await humanIdlePause('short');
+  // Watched to the end: the viewer leaving /stories/ is Instagram's own
+  // statement that every story of the tray was shown, so no count of pauses
+  // decides how many register as views.
+  await s.page.waitForURL((url) => !/\/stories\//.test(url.pathname), { timeout: 0 });
   ban = await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  PASS: viewed`);
 } catch (e) {
