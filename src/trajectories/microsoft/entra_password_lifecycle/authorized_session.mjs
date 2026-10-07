@@ -193,7 +193,7 @@ async function clearTokenCache(page) {
   }
 }
 
-// 'authenticated' | 'rejected' | 'identity_challenge' | 'unavailable'
+// 'authenticated' | 'rejected' | 'identity_challenge' | 'account_unknown' | 'unavailable'
 export async function signIn(session, contract, password) {
   const page = session.page;
   if (AUTHORIZED_CONTEXT_HOST.test(new URL(page.url()).hostname)) {
@@ -205,17 +205,15 @@ export async function signIn(session, contract, password) {
   await humanIdlePause('deliberate');
   const emailInput = page.locator('input[name="loginfmt"], input#i0116, input[type="email"]').first();
   if (!await appears(emailInput) || !await visible(emailInput)) return 'unavailable';
-  // A truncated username submit lands on the "isn't in our system" surface,
-  // which still renders a (hidden) password input; detect it and resubmit the
-  // full UPN instead of letting the password stage type into that page.
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    await fillVerified(page, emailInput, contract.accountUpn);
-    await humanClickLocator(page, page.locator('input[type="submit"]#idSIButton9, button[type="submit"]').first());
-    await humanIdlePause('deliberate');
-    const named = await pageText(page);
-    if (!named.ok) return 'unavailable';
-    if (!USERNAME_UNKNOWN.test(named.text)) break;
-  }
+  // fillVerified proves the field holds the whole UPN before it is sent, so
+  // Microsoft's "isn't in our system" answer is about the account, not a
+  // truncated submit, and resubmitting the same value cannot change it.
+  await fillVerified(page, emailInput, contract.accountUpn);
+  await humanClickLocator(page, page.locator('input[type="submit"]#idSIButton9, button[type="submit"]').first());
+  await humanIdlePause('deliberate');
+  const named = await pageText(page);
+  if (!named.ok) return 'unavailable';
+  if (USERNAME_UNKNOWN.test(named.text)) return 'account_unknown';
   await choosePasswordSignIn(page);
   const passwordInput = page.locator('input[name="passwd"], input#i0118, input[type="password"]').first();
   if (!await appears(passwordInput) || !await visible(passwordInput)) {
