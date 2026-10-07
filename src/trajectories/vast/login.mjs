@@ -162,7 +162,7 @@ try {
 
   const afterState = await ws.page.evaluate(`(() => {
     var t = ((document.body?.innerText || '').match(/[^\\n]*(listed|success|error|fail|invalid|unauth)[^\\n]*/i) || [null])[0];
-    return { toast: t ? t.slice(0, 200) : null, url: location.href };
+    return { toast: t, url: location.href };
   })()`);
   console.log('[vast] after state ->', JSON.stringify(afterState));
 

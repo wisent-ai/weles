@@ -33,7 +33,7 @@ async function action(session, cmd) {
 async function text(session) {
   const res = await action(session, {
     action: 'eval',
-    js: 'document.body.innerText.slice(0,5000)',
+    js: 'document.body.innerText',
   });
   return String(res.result || '');
 }
