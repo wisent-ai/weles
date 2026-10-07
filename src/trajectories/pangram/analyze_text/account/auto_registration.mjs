@@ -97,8 +97,6 @@ async function runPangramRegisterChild(reason, mode) {
         success,
         exitCode: code,
         ts: new Date().toISOString(),
-        stdoutTail: stdout.slice(-2000),
-        stderrTail: stderr.slice(-1000),
       });
       writeAutoRegisterLedger(ledger);
       resolve({

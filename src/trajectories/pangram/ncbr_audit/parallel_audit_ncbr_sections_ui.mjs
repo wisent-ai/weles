@@ -125,8 +125,8 @@ function runShard(shard, index) {
         code,
         signal,
         summary: parseLastJson(stdout),
-        stdoutTail: stdout.slice(-4000),
-        stderrTail: stderr.slice(-4000),
+        stdout,
+        stderr,
       });
     });
   });

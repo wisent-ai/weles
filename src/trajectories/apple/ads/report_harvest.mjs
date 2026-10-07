@@ -156,8 +156,8 @@ async function main() {
         click: snapshot.click,
         summary: snapshot.summary,
       })),
-      graphqlRequests: summarizeGraphqlRequests(observedRequests).slice(-40),
-      graphqlResponses: summarizeGraphqlResponses(observedResponses).slice(-40),
+      graphqlRequests: summarizeGraphqlRequests(observedRequests),
+      graphqlResponses: summarizeGraphqlResponses(observedResponses),
       exactReports: exactSummary,
     };
     const output = {

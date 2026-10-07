@@ -158,9 +158,8 @@ const after = await page.evaluate((capturedResponses) => {
         disabled: b.disabled,
       }))
       .filter((b) => b.text),
-    bodyHead: body,
-    bodyTail: body.slice(-2500),
-    responses: capturedResponses.slice(-40),
+    body,
+    responses: capturedResponses,
   };
 }, responses);
 
