@@ -36,9 +36,6 @@ const rows = md
       name: name.length,
       method: method.length,
       verify: verify.length,
-      nameShortBy: 500 - name.length,
-      methodShortBy: 1000 - method.length,
-      verifyShortBy: 1000 - verify.length,
     };
   });
 
