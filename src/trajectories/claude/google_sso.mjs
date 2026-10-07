@@ -41,7 +41,7 @@ const GIS_AUTHORIZE_REDRIVES = Number(process.env.CLAUDE_GIS_AUTHORIZE_REDRIVES 
 const DRIVEN_VARIANTS = new Set([
   'code_page', 'claude_gis_gate', 'claude_gis_gate_pending', 'google_rejected', 'google_account_chooser',
   'google_chooser_without_account', 'google_identifier', 'google_confirm_continue',
-  'oauth_consent', 'claude_app_authenticated',
+  'oauth_consent', 'claude_app_authenticated', 'claude_app_loading',
 ]);
 
 // Resolves once something that can change the handoff's state happens: the
@@ -168,6 +168,18 @@ export async function doGoogleSso({
         // state change below is then the answer.
         enabled.catch(() => {});
         await Promise.race([enabled, stateChange(page, active, st.url)]);
+        continue;
+      }
+
+      if (variant === 'claude_app_loading') {
+        // The app shell has not rendered: wait for its root to fill or for the
+        // page to move on. The stage is visible in `weles runs show`, and the
+        // operator ends a shell that never renders with `weles runs cancel`.
+        mark('claude_app_loading');
+        const rendered = pageCondition(active, () => document.querySelector('[data-page-loading]') === null
+          || (document.getElementById('root')?.childElementCount ?? 0) > 0);
+        rendered.catch(() => {});
+        await Promise.race([rendered, stateChange(page, active, st.url)]);
         continue;
       }
 

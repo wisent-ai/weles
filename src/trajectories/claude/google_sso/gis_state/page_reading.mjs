@@ -97,6 +97,12 @@ export const readGisState = (arg) => {
     // two seconds after the authorize URL loaded.
     gisButtonPending: Array.from(document.querySelectorAll('button,[role="button"]'))
       .some((el) => shown(el) && !live(el) && /continue with google|^google$/i.test(label(el))),
+    // claude.ai serves its authorize page as an app shell that renders later:
+    // run 5661801e recorded claude.ai/oauth/authorize titled "Claude" with an
+    // empty #root under [data-page-loading] and no control at all, and named it
+    // 'unknown'. The shell is a state of its own, waited out, not a failure.
+    appLoading: document.querySelector('[data-page-loading]') !== null
+      && !(document.getElementById('root')?.childElementCount),
     identifierField: Array.from(document.querySelectorAll('input[type="text"][autocomplete*="username"], input#identifierId, input[name="identifier"], input[type="email"]')).some(shown),
     passwordField: Array.from(document.querySelectorAll('input[type="password"]')).some(shown),
     bodyText: (document.body?.innerText || '').replace(/\s+/g, ' ').slice(0, arg.maxBody),
