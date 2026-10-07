@@ -86,6 +86,25 @@ function recordedOutputs(runId) {
   return Object.keys(errors).length ? { outputs, output_errors: errors } : { outputs };
 }
 
+// What every trajectory child is told about its run, whichever path started
+// it. The child writes recordings where this server reads them back
+// (findResultDoc, runOutputs, diagnostics); without it a trajectory falls to
+// <cwd>/recordings and every recorded output reads as absent. And a run's
+// verdict does not wait on a detection probe: the probe a closing session
+// runs (page script, then a third-party TLS echo) sent a signed-in browser to
+// another site after the provider's pages, and a run that had already
+// reported stood in it -- a sign-in after its instrumentation dump, and a
+// Google authenticator enrolment for twenty minutes in the probe's WebRTC
+// section after it wrote its result -- while GET /runs still read `running`.
+function runChildIdentity(runId, action) {
+  return {
+    WELES_FINGERPRINT: '0',
+    WELES_RECORDINGS_ROOT: RECORDINGS_ROOT,
+    ACTION_LOG_ID: runId,
+    ACTION: action,
+  };
+}
+
 // `resolveTrajectory` and `paramsToEnv` are the deployed runtime's own dispatch
 // table, resolved by the entry point: this module is never the one that names a
 // path inside the release tree.
@@ -111,12 +130,7 @@ export function createTrajectoryRunner({ resolveTrajectory, paramsToEnv }) {
         ...(accountId ? { ACCOUNT_ID: String(accountId) } : {}),
         ...(freshProfile ? { WELES_FRESH_PROFILE: '1' } : {}),
         ...(runOptions.extraEnv || {}),
-        // The child writes recordings where this server reads them back
-        // (findResultDoc, runOutputs, diagnostics); without it a trajectory
-        // falls to <cwd>/recordings and every recorded output reads as absent.
-        WELES_RECORDINGS_ROOT: RECORDINGS_ROOT,
-        ACTION_LOG_ID: runId,
-        ACTION: action,
+        ...runChildIdentity(runId, action),
       };
       const processSpec = trajectoryProcess(trajPath);
       const child = spawn(processSpec.command, processSpec.args, { cwd: REPO, env, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
@@ -236,15 +250,7 @@ export function runReauth(provider, account, onProgress = () => {}) {
       env: {
         ...process.env,
         WELES_FULL_DIAGNOSTICS: process.env.WELES_FULL_DIAGNOSTICS ?? '1',
-        // A sign-in's verdict does not wait on a detection probe. The probe a
-        // closing session runs (page script, then a third-party TLS echo) sent
-        // a signed-in browser to another site after the provider's pages, and
-        // a sign-in that had already failed stood in it after its
-        // instrumentation dump and never reported its failure.
-        WELES_FINGERPRINT: '0',
-        WELES_RECORDINGS_ROOT: RECORDINGS_ROOT,
-        ACTION_LOG_ID: runId,
-        ACTION: action,
+        ...runChildIdentity(runId, action),
         ...(account
           ? {
             WELES_LOGIN_ITEM: account.loginItem,

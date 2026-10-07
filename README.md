@@ -249,10 +249,11 @@ alert it shows afterwards is read as Google's refusal. `weles runs answer
 `google_prompt_not_received` when Google offers none; `--approved` while
 Google still shows the prompt records what the page shows; ending the wait is
 `weles runs cancel`. `weles runs show` lists every answer and what the run did
-about it. A sign-in run closes its browser without
-the close-time fingerprint probe (`WELES_FINGERPRINT=0`): its verdict does not
-wait on a detection probe, and the probe would send the signed-in browser to a
-third-party TLS echo after the provider's pages.
+about it. Every worker run, a sign-in or any other
+trajectory, closes its browser without the close-time fingerprint probe
+(`WELES_FINGERPRINT=0`): its verdict does not wait on a detection probe, and
+the probe would send the signed-in browser to a third-party TLS echo after the
+provider's pages.
 
 `google_2fa_material_missing` remains a structured refusal when no usable
 authenticator material or offered phone method can answer the challenge.
