@@ -175,8 +175,11 @@ export class WSession {
   }
 
   async runStep<T>(name: string, fn: () => Promise<T>): Promise<T> {
+    // Files of a step are named by its number, which is short and unique;
+    // the log line pairs that number with the whole step name, so no name is
+    // cut to fit a file name.
     const n = String(this._step++).padStart(3, '0');
-    const label = `${n}_${name.replace(/[^a-z0-9]/gi, '_').slice(0, 30)}`;
+    const label = `${n}_${name.replace(/[^a-z0-9]/gi, '_')}`;
     const url =
       (typeof this.page.url === 'function' ? this.page.url() : '') ?? '';
     const closed = this.page.isClosed?.() ?? false;
@@ -188,7 +191,7 @@ export class WSession {
     console.log(
       `[wsession] ${label} START url=${url} closed=${closed} viewport=${vs.width}x${vs.height}`,
     );
-    if (retainStepArtifacts) await captureStepArtifacts(this, 'before', label);
+    if (retainStepArtifacts) await captureStepArtifacts(this, 'before', n);
     try {
       const result = await fn();
       if (this._secureCredentialTask) {
@@ -196,13 +199,13 @@ export class WSession {
         if (stored) this._storedCredentialReceipt = stored;
       }
       console.log(`[wsession] ${label} OK result=${String(result)}`);
-      if (retainStepArtifacts) await captureStepArtifacts(this, 'after', label);
+      if (retainStepArtifacts) await captureStepArtifacts(this, 'after', n);
       return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.log(`[wsession] ${label} ERROR ${message}`);
       if (retainStepArtifacts)
-        await captureStepArtifacts(this, 'error', label, error);
+        await captureStepArtifacts(this, 'error', n, error);
       throw error;
     } finally {
       await (this as any)._instCheckpoints?.checkpoint(`step:${label}`);
@@ -230,7 +233,7 @@ export class WSession {
 
   async goto(url: string): Promise<string> {
     return this.runStep(
-      `goto_${url.split('/').pop()?.slice(0, 20)}`,
+      `goto_${url.split('/').pop()}`,
       async () => {
         await this.page.goto(url, { waitUntil: 'domcontentloaded' });
         await waitCloudflare(asV(this.page));

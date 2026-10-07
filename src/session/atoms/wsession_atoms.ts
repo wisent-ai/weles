@@ -49,7 +49,7 @@ export function installAtoms(
 ): void {
   W.prototype.waitFor = function (selector, opts) {
     const state = opts?.state ?? 'visible';
-    return this.runStep(`waitFor_${selector.slice(0, 30)}`, async () => {
+    return this.runStep(`waitFor_${selector}`, async () => {
       try {
         await (this as WSession).page
           .locator(selector)
@@ -65,7 +65,7 @@ export function installAtoms(
   };
 
   W.prototype.fillSelector = function (css, value) {
-    return this.runStep(`fillSel_${css.slice(0, 30)}`, async () => {
+    return this.runStep(`fillSel_${css}`, async () => {
       const v = (this as WSession).resolveEnv(value);
       const loc = (this as WSession).page.locator(css).first();
       if (!(await loc.count())) return 'no-element-found';

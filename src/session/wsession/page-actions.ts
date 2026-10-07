@@ -81,7 +81,7 @@ export async function wsClickSelector(
   s: WSession,
   selector: string,
 ): Promise<string> {
-  return s.runStep(`clickSel_${selector.slice(0, 30)}`, async () => {
+  return s.runStep(`clickSel_${selector}`, async () => {
     const loc = s.page.locator(selector).first();
     if (!(await loc.count())) return 'no-element-found';
     await humanClickLocator(s.page, loc);
