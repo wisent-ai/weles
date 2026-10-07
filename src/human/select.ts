@@ -59,17 +59,23 @@ async function tryAriaCombobox(page: Page, target: string, value: string): Promi
   if (oi >= 0) {
     if (await scrollAndClick(page, '[role="option"]', oi)) return value.toLowerCase();
   }
+  // Walk the list with ArrowDown until the option is focused, or until the
+  // focus stops moving or comes back to an option already passed: the list's
+  // own end, wherever it is, instead of a fixed number of presses.
   const getFocused = `(()=>{var el=document.querySelector('[role="option"][data-focus-visible="true"],[role="option"][aria-selected="true"]');return el?el.textContent.trim().toLowerCase():null})()`;
-  for (let i = 0; i < 150; i++) {
+  const wanted = value.toLowerCase();
+  const passed = new Set<string>();
+  for (;;) {
     await page.keyboard.press('ArrowDown');
     await framesRendered(page);
     const focused = await page.evaluate(getFocused) as string | null;  // allow-raw-playwright: read-only focused-option text read, no interaction
-    if (focused === value.toLowerCase() || (focused && focused.indexOf(value.toLowerCase()) >= 0)) {
+    if (focused !== null && focused.includes(wanted)) {
       await page.keyboard.press('Enter');
       return focused;
     }
+    if (focused === null || passed.has(focused)) return null;
+    passed.add(focused);
   }
-  return null;
 }
 
 /** CSS-class dropdowns — coordinate humanClick, same rationale. */
