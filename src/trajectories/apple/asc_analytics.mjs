@@ -28,10 +28,13 @@ try {
   const apps = await s.page
     .evaluate(`(() => {
     const rows = Array.from(document.querySelectorAll('tr[data-app-id], a[href*="/apps/"]'));
-    return rows.map(r => ({
-      id: r.getAttribute('data-app-id') ?? r.href?.match(/apps\\/(\\d+)/)?.[1],
-      name: r.querySelector('[class*=name], [class*=title]')?.textContent?.trim() ?? r.textContent?.trim(),
-    })).filter(a => a.id);
+    return rows.map(r => {
+      const title = r.querySelector('[class*=name], [class*=title]')?.textContent?.trim();
+      return {
+        id: r.getAttribute('data-app-id') ?? r.href?.match(/apps\\/(\\d+)/)?.[1],
+        name: title ? title : r.textContent?.trim(),
+      };
+    }).filter(a => a.id);
   })()`)
     .catch(() => []);
   console.log(`[asc-analytics] found ${apps.length} apps`);
