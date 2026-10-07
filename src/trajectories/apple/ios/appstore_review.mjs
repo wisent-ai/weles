@@ -48,7 +48,7 @@ async function wda(method, path, body) {
   let json = null;
   try { json = JSON.parse(text); } catch { /* non-JSON 5xx body */ }
   if (!res.ok) {
-    const reason = json?.value?.message?.slice(0, 200) ?? text;
+    const reason = json?.value?.message ?? text;
     throw new Error(`WDA ${method} ${path} → ${res.status}: ${reason}`);
   }
   return json;
@@ -98,25 +98,42 @@ async function setElementValue(sid, eid, text) {
   await wda('POST', `/session/${sid}/element/${eid}/value`, { value: text.split(''), text });
 }
 
+async function uiSource(sid) {
+  const r = await wda('GET', `/session/${sid}/source`);
+  return r?.value ?? '';
+}
+
+async function writeReviewButton(sid) {
+  return await findFirst(sid, `name == "Write a Review"`)
+    ?? await findFirst(sid, `name == "Write Review"`)
+    ?? await findFirst(sid, `label LIKE '*Write*Review*'`);
+}
+
+// Scroll the listing one WDA page at a time until Write a Review is in the
+// tree, observed rather than counted: a scroll that leaves the UI source
+// unchanged means the listing ended without one. The drag count and screen
+// coordinates once here assumed one phone size.
 async function scrollToWriteReview(sid) {
-  // Four drags from bottom-mid to top-mid usually reveal the Ratings &
-  // Reviews section on a notch-iPhone in portrait. Coords are screen
-  // pixels in iOS points (390x844 for iPhone 13/14/15 base sizes; WDA
-  // scales for Pro Max automatically).
-  for (let i = 0; i < 4; i++) {
-    await wda('POST', `/session/${sid}/wda/dragfromtoforduration`, {
-      fromX: 200, fromY: 700, toX: 200, toY: 200, duration: 0.5,
-    });
-    await humanIdlePause('short');
+  const listing = await findFirst(sid, `type == "XCUIElementTypeCollectionView" OR type == "XCUIElementTypeScrollView"`);
+  if (!listing) {
+    await dumpUiSource(sid, 'listing-missing');
+    throw new Error('the App Store listing shows no scrollable view to look for Write a Review in');
   }
-  await humanIdlePause('deliberate');
+  let before = await uiSource(sid);
+  for (;;) {
+    const button = await writeReviewButton(sid);
+    if (button) return button;
+    await wda('POST', `/session/${sid}/wda/element/${listing}/scroll`, { direction: 'down' });
+    const after = await uiSource(sid);
+    if (after === before) return null;
+    before = after;
+  }
 }
 
 async function dumpUiSource(sid, label) {
   try {
-    const r = await wda('GET', `/session/${sid}/source`);
-    const src = r?.value ?? '';
-    console.log(`[ios-review] UI source dump (${label}, ${src.length} chars, first 4000):`);
+    const src = await uiSource(sid);
+    console.log(`[ios-review] UI source dump (${label}, ${src.length} chars):`);
     console.log(src);
   } catch (e) {
     console.log(`[ios-review] UI source dump failed: ${e.message}`);
@@ -136,13 +153,10 @@ try {
   // 3. Find Write a Review. Predicate matches the button by its visible
   // label. On some iOS versions the label is "Write a Review", on others
   // "Write Review"; the LIKE wildcard catches both.
-  await scrollToWriteReview(sid);
-  let writeBtn = await findFirst(sid, `name == "Write a Review"`);
-  if (!writeBtn) writeBtn = await findFirst(sid, `name == "Write Review"`);
-  if (!writeBtn) writeBtn = await findFirst(sid, `label LIKE '*Write*Review*'`);
+  const writeBtn = await scrollToWriteReview(sid);
   if (!writeBtn) {
     await dumpUiSource(sid, 'write-review-missing');
-    console.log('FAIL: Write a Review button not found in App Store UI tree');
+    console.log('FAIL: Write a Review button not found: the listing scrolled to its end (a further scroll left the UI tree unchanged) without one');
     process.exit(1);
   }
   await tapElement(sid, writeBtn);
