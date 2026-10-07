@@ -10,7 +10,10 @@
 // Moved out of entra_password_lifecycle.mjs, which keeps the three trajectory
 // entry points.
 
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../dist/human/mouse.js';
 
 import {
   appears,
@@ -26,13 +29,21 @@ import {
 import { assertEntraIdentity } from './proven_identity.mjs';
 import { CHANGE_PASSWORD_URL, SELF_SERVICE_RESET_URL } from './queued_job.mjs';
 
-const CHANGE_CONFIRMED = /password (?:has been |was )?(?:changed|updated)|password change (?:was )?successful|you (?:have )?(?:successfully )?changed your password/i;
-const CHANGE_REJECTED = /(?:current|old) password (?:is )?(?:incorrect|wrong)|(?:doesn.t|does not) meet|couldn.t (?:be )?chang|password (?:is )?(?:incorrect|invalid)|try again/i;
-const RESET_VERIFICATION = /verification step|email my alternate email|text my mobile phone|call my (?:mobile|office) phone|approve a notification|enter a code from my authenticator|enter the characters (?:in|you see)|security check/i;
-const RESET_NOT_ELIGIBLE = /we couldn.t verify (?:the |your )?account|account (?:was )?not found|contact your administrator|self-service password reset (?:is )?(?:not|isn.t) (?:enabled|available)/i;
+const CHANGE_CONFIRMED =
+  /password (?:has been |was )?(?:changed|updated)|password change (?:was )?successful|you (?:have )?(?:successfully )?changed your password/i;
+const CHANGE_REJECTED =
+  /(?:current|old) password (?:is )?(?:incorrect|wrong)|(?:doesn.t|does not) meet|couldn.t (?:be )?chang|password (?:is )?(?:incorrect|invalid)|try again/i;
+const RESET_VERIFICATION =
+  /verification step|email my alternate email|text my mobile phone|call my (?:mobile|office) phone|approve a notification|enter a code from my authenticator|enter the characters (?:in|you see)|security check/i;
+const RESET_NOT_ELIGIBLE =
+  /we couldn.t verify (?:the |your )?account|account (?:was )?not found|contact your administrator|self-service password reset (?:is )?(?:not|isn.t) (?:enabled|available)/i;
 
 // 'changed' | 'rejected' | 'ambiguous' | 'challenged' | 'unavailable'
-export async function changeEntraPassword(session, currentPassword, nextPassword) {
+export async function changeEntraPassword(
+  session,
+  currentPassword,
+  nextPassword,
+) {
   const page = session.page;
   await page.goto(CHANGE_PASSWORD_URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('long');
@@ -46,13 +57,18 @@ export async function changeEntraPassword(session, currentPassword, nextPassword
   await fill(page, passwordInputs.nth(0), currentPassword);
   await fill(page, passwordInputs.nth(count - 2), nextPassword);
   await fill(page, passwordInputs.nth(count - 1), nextPassword);
-  await humanClickLocator(page, page.locator('input[type="submit"], button[type="submit"]').first());
+  await humanClickLocator(
+    page,
+    page.locator('input[type="submit"], button[type="submit"]').first(),
+  );
   await humanIdlePause('long');
   const answered = await pageText(page);
   if (!answered.ok) return 'ambiguous';
   if (CHANGE_CONFIRMED.test(answered.text)) return 'changed';
   if (CHANGE_REJECTED.test(answered.text)) return 'rejected';
-  return await visible(page.locator('input[type="password"]')) ? 'rejected' : 'ambiguous';
+  return (await visible(page.locator('input[type="password"]')))
+    ? 'rejected'
+    : 'ambiguous';
 }
 
 // 'none' | 'completed' | 'failed' | 'unknown'
@@ -60,12 +76,22 @@ export async function changeEntraPassword(session, currentPassword, nextPassword
 // 'failed' is the known-state refusal: the restore never reached the directory,
 // so it still holds the value this run wrote. Everything the restore leaves
 // unproven is 'unknown'.
-export async function rollbackEntraPassword(session, contract, changedPassword, previousPassword, sink) {
+export async function rollbackEntraPassword(
+  session,
+  contract,
+  changedPassword,
+  previousPassword,
+  sink,
+) {
   const signedIn = await signIn(session, contract, changedPassword);
   if (signedIn !== 'authenticated') return 'unknown';
   const identity = await assertEntraIdentity(session, contract, sink);
   if (!identity.ok) return 'unknown';
-  const restored = await changeEntraPassword(session, changedPassword, previousPassword);
+  const restored = await changeEntraPassword(
+    session,
+    changedPassword,
+    previousPassword,
+  );
   if (restored === 'rejected' || restored === 'unavailable') return 'failed';
   if (restored !== 'changed') return 'unknown';
   const reauthenticated = await signIn(session, contract, previousPassword);
@@ -89,26 +115,40 @@ export async function openSelfServiceReset(session, contract) {
   await session.ctx.clearCookies();
   await page.goto(SELF_SERVICE_RESET_URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('long');
-  const userInput = page.locator(
-    'input#userNameInput, input[name="UserName"], input[type="email"], input[type="text"]',
-  ).first();
-  if (await appears(userInput) && await visible(userInput)) {
+  const userInput = page
+    .locator(
+      'input#userNameInput, input[name="UserName"], input[type="email"], input[type="text"]',
+    )
+    .first();
+  if ((await appears(userInput)) && (await visible(userInput))) {
     await fill(page, userInput, contract.accountUpn);
-    const proceed = page.getByRole('button', { name: /Next|Continue|Submit/i }).first();
+    const proceed = page
+      .getByRole('button', { name: /Next|Continue|Submit/i })
+      .first();
     if (await visible(proceed)) {
       await humanClickLocator(page, proceed);
     } else {
-      await humanClickLocator(page, page.locator('input[type="submit"], button[type="submit"]').first());
+      await humanClickLocator(
+        page,
+        page.locator('input[type="submit"], button[type="submit"]').first(),
+      );
     }
     await humanIdlePause('long');
   }
   const answered = await pageText(page);
   if (!answered.ok) return 'unavailable';
   if (RESET_NOT_ELIGIBLE.test(answered.text)) return 'not_eligible';
-  if (RESET_VERIFICATION.test(answered.text) || IDENTITY_CHALLENGE.test(answered.text)) {
+  if (
+    RESET_VERIFICATION.test(answered.text) ||
+    IDENTITY_CHALLENGE.test(answered.text)
+  ) {
     return 'identity_verification_required';
   }
-  const captcha = page.locator('iframe[src*="recaptcha"], iframe[title*="captcha" i], #wCaptchaDiv').first();
+  const captcha = page
+    .locator(
+      'iframe[src*="recaptcha"], iframe[title*="captcha" i], #wCaptchaDiv',
+    )
+    .first();
   if (await visible(captcha)) return 'identity_verification_required';
   const newPasswords = page.locator('input[type="password"]');
   const count = await newPasswords.count().catch(() => 0);
@@ -122,11 +162,20 @@ export async function submitResetPasswordForm(session, nextPassword) {
   if (count < 2) return 'unavailable';
   await fill(page, passwordInputs.nth(count - 2), nextPassword);
   await fill(page, passwordInputs.nth(count - 1), nextPassword);
-  await humanClickLocator(page, page.locator('input[type="submit"], button[type="submit"]').first());
+  await humanClickLocator(
+    page,
+    page.locator('input[type="submit"], button[type="submit"]').first(),
+  );
   await humanIdlePause('long');
   const answered = await pageText(page);
   if (!answered.ok) return 'ambiguous';
-  if (CHANGE_CONFIRMED.test(answered.text) || /your password has been reset/i.test(answered.text)) return 'changed';
+  if (
+    CHANGE_CONFIRMED.test(answered.text) ||
+    /your password has been reset/i.test(answered.text)
+  )
+    return 'changed';
   if (CHANGE_REJECTED.test(answered.text)) return 'rejected';
-  return await visible(page.locator('input[type="password"]')) ? 'rejected' : 'ambiguous';
+  return (await visible(page.locator('input[type="password"]')))
+    ? 'rejected'
+    : 'ambiguous';
 }

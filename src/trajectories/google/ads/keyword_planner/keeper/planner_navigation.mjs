@@ -5,11 +5,26 @@
 
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { DIAG_DIR, RESULT_FILE, cid, dashedCustomerId, norm, preferredEmail } from './run_brief.mjs';
-import { clickControl, dismissChrome, evalState, fillKeywordInput, idle, nav } from './keeper_browser.mjs';
+import {
+  DIAG_DIR,
+  RESULT_FILE,
+  cid,
+  dashedCustomerId,
+  norm,
+  preferredEmail,
+} from './run_brief.mjs';
+import {
+  clickControl,
+  dismissChrome,
+  evalState,
+  fillKeywordInput,
+  idle,
+  nav,
+} from './keeper_browser.mjs';
 import { handleGoogleLogin } from './google_login.mjs';
 
-const PLANNER_READY = /Discover new keywords|Get search volume|forecasts?|Avg\.? monthly searches|Saved keywords|Enter or paste your keywords/i;
+const PLANNER_READY =
+  /Discover new keywords|Get search volume|forecasts?|Avg\.? monthly searches|Saved keywords|Enter or paste your keywords/i;
 
 function adsUrl(pathname) {
   const url = new URL(pathname, 'https://ads.google.com');
@@ -22,15 +37,26 @@ function savedPlannerUrls() {
   const files = [
     RESULT_FILE,
     join(DIAG_DIR, `keywords-${cid}.json`),
-    ...readdirSync(DIAG_DIR).filter((name) => name.endsWith('.json')).map((name) => join(DIAG_DIR, name)),
+    ...readdirSync(DIAG_DIR)
+      .filter((name) => name.endsWith('.json'))
+      .map((name) => join(DIAG_DIR, name)),
   ];
 
   const urls = [];
   for (const file of [...new Set(files)]) {
     if (!existsSync(file)) continue;
     const record = JSON.parse(readFileSync(file, 'utf8'));
-    for (const candidate of [record?.url, record?.report?.url, record?.browser?.report?.url]) {
-      if (/^https:\/\/ads\.google\.com\/aw\/keywordplanner\//i.test(candidate || '')) urls.push(candidate);
+    for (const candidate of [
+      record?.url,
+      record?.report?.url,
+      record?.browser?.report?.url,
+    ]) {
+      if (
+        /^https:\/\/ads\.google\.com\/aw\/keywordplanner\//i.test(
+          candidate || '',
+        )
+      )
+        urls.push(candidate);
     }
   }
   return [...new Set(urls)];
@@ -43,36 +69,70 @@ function plannerCandidates(paths) {
 export async function selectGoogleAdsAccount() {
   const s = await evalState();
   const text = s.text || '';
-  if (!/Select a Google Ads account|Select an active account|No account|Google Ads account/i.test(text)) return true;
+  if (
+    !/Select a Google Ads account|Select an active account|No account|Google Ads account/i.test(
+      text,
+    )
+  )
+    return true;
   const accountRow = [
     dashedCustomerId(cid).replace(/-/g, '[- ]?'),
     cid,
     preferredEmail().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
   ].join('|');
-  if (!await clickControl(accountRow, 'Google Ads account', { maxArea: 500_000 }).catch(() => false)) return false;
+  if (
+    !(await clickControl(accountRow, 'Google Ads account', {
+      maxArea: 500_000,
+    }).catch(() => false))
+  )
+    return false;
   // Selection is done when Google Ads leaves the account-selection page.
   for (;;) {
     await idle('short');
     const after = await evalState();
-    if (!/selectaccount/i.test(after.url || '') && !/Select a Google Ads account|Select an active account/i.test(after.text || '')) return true;
+    if (
+      !/selectaccount/i.test(after.url || '') &&
+      !/Select a Google Ads account|Select an active account/i.test(
+        after.text || '',
+      )
+    )
+      return true;
   }
 }
 
 export async function ensureAdsReady(creds) {
-  for (const url of plannerCandidates(['/aw/keywordplanner/ideas/new', '/aw/keywordplanner/ideas', '/aw/keywordplanner', '/aw/campaigns'])) {
+  for (const url of plannerCandidates([
+    '/aw/keywordplanner/ideas/new',
+    '/aw/keywordplanner/ideas',
+    '/aw/keywordplanner',
+    '/aw/campaigns',
+  ])) {
     await nav(url);
     const current = await evalState();
     if (/accounts\.google\.com/i.test(current.url || '')) {
-      if (!await handleGoogleLogin(creds)) return false;
+      if (!(await handleGoogleLogin(creds))) return false;
       await nav(url);
     }
     const after = await evalState();
-    if (/Google Ads 2-step verification required/i.test(after.text || '') && !/\/aw\/campaigns/i.test(url)) continue;
-    if (/selectaccount/i.test(after.url || '') || /Select a Google Ads account|Select an active account|Google Ads account/i.test(after.text || '')) {
+    if (
+      /Google Ads 2-step verification required/i.test(after.text || '') &&
+      !/\/aw\/campaigns/i.test(url)
+    )
+      continue;
+    if (
+      /selectaccount/i.test(after.url || '') ||
+      /Select a Google Ads account|Select an active account|Google Ads account/i.test(
+        after.text || '',
+      )
+    ) {
       if (await selectGoogleAdsAccount()) return true;
       continue;
     }
-    if (/Keyword Planner|Discover new keywords|Get search volume|Campaigns|Create campaign/i.test(after.text || '')) {
+    if (
+      /Keyword Planner|Discover new keywords|Get search volume|Campaigns|Create campaign/i.test(
+        after.text || '',
+      )
+    ) {
       return await selectGoogleAdsAccount();
     }
   }
@@ -80,7 +140,12 @@ export async function ensureAdsReady(creds) {
 }
 
 export async function openKeywordPlanner() {
-  for (const url of plannerCandidates(['/aw/keywordplanner/ideas/new', '/aw/keywordplanner/ideas', '/aw/keywordplanner', '/aw/keywordplanner/home'])) {
+  for (const url of plannerCandidates([
+    '/aw/keywordplanner/ideas/new',
+    '/aw/keywordplanner/ideas',
+    '/aw/keywordplanner',
+    '/aw/keywordplanner/home',
+  ])) {
     await nav(url);
     await selectGoogleAdsAccount();
     await dismissChrome();
@@ -102,7 +167,14 @@ export async function openKeywordPlanner() {
 
 async function keywordInputVisible() {
   const s = await evalState();
-  return s.inputs.some((input) => input.visible && /keyword|phrase|service|paste/i.test(`${input.aria} ${input.placeholder} ${input.tag}`) && !/website|domain|url/i.test(`${input.aria} ${input.placeholder}`));
+  return s.inputs.some(
+    (input) =>
+      input.visible &&
+      /keyword|phrase|service|paste/i.test(
+        `${input.aria} ${input.placeholder} ${input.tag}`,
+      ) &&
+      !/website|domain|url/i.test(`${input.aria} ${input.placeholder}`),
+  );
 }
 
 // One control opens the keyword box, and the planner labels it differently on
@@ -112,7 +184,13 @@ async function keywordInputVisible() {
 export async function chooseVolumeMode() {
   if (await keywordInputVisible()) return true;
   await dismissChrome();
-  if (await clickControl('Add keywords|Get search volume and forecasts|Get search volume|forecasts', 'keyword entry control', { minY: 100, maxY: 650, maxArea: 800_000 })) {
+  if (
+    await clickControl(
+      'Add keywords|Get search volume and forecasts|Get search volume|forecasts',
+      'keyword entry control',
+      { minY: 100, maxY: 650, maxArea: 800_000 },
+    )
+  ) {
     await idle('deliberate');
   }
   return await keywordInputVisible();
@@ -121,5 +199,9 @@ export async function chooseVolumeMode() {
 export async function submitKeywords() {
   await fillKeywordInput();
   await dismissChrome();
-  return await clickControl('^Save$|Get started|Get results|See results|View results|^Search$', 'planner submit', { minY: 180, maxY: 760, maxArea: 80_000 }).catch(() => false);
+  return await clickControl(
+    '^Save$|Get started|Get results|See results|View results|^Search$',
+    'planner submit',
+    { minY: 180, maxY: 760, maxArea: 80_000 },
+  ).catch(() => false);
 }

@@ -5,20 +5,29 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 const SESSION = process.env.SESSION || 'ncbr-step-b';
-const WELES = new URL('../../../../..', import.meta.url).pathname.replace(/\/$/, '');
-const SRC = (await import('#ncbr-settings')).applicationFile('wersja_B_2.2_innowacyjnosc_i_zaleznosci.md');
-const OUT = (await import('#ncbr-settings')).applicationFile('sync_2_2_feature_rows_evidence_20260625.json');
+const WELES = new URL('../../../../..', import.meta.url).pathname.replace(
+  /\/$/,
+  '',
+);
+const SRC = (await import('#ncbr-settings')).applicationFile(
+  'wersja_B_2.2_innowacyjnosc_i_zaleznosci.md',
+);
+const OUT = (await import('#ncbr-settings')).applicationFile(
+  'sync_2_2_feature_rows_evidence_20260625.json',
+);
 const URL = (await import('#ncbr-settings')).sectionUrl('2_2');
 
-const clean = (s) => String(s || '')
-  .replace(/\s*<!--[\s\S]*?-->\s*/g, ' ')
-  .replace(/\*\*([^*]+)\*\*/g, '$1')
-  .replace(/\s+/g, ' ')
-  .trim();
+const clean = (s) =>
+  String(s || '')
+    .replace(/\s*<!--[\s\S]*?-->\s*/g, ' ')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
 const md = readFileSync(SRC, 'utf8');
 
 function tableRows(block) {
-  return block.split(/\r?\n/)
+  return block
+    .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line.startsWith('|') && !/^\|\s*-/.test(line))
     .map((line) => line.split('|').slice(1, -1).map(clean))
@@ -26,16 +35,25 @@ function tableRows(block) {
 }
 
 function rowValue(block, label) {
-  const row = tableRows(block).find((cells) => clean(cells[0]).toLowerCase() === label.toLowerCase());
+  const row = tableRows(block).find(
+    (cells) => clean(cells[0]).toLowerCase() === label.toLowerCase(),
+  );
   if (!row) throw new Error(`missing feature cell: ${label}`);
   return row[1];
 }
 
 function parseFeatures() {
-  const start = md.indexOf('## Podsumowanie cech i funkcjonalności rezultatu projektu');
-  const end = md.indexOf('## Rezultat prac B+R spełnia następujące czynniki', start);
-  if (start < 0 || end < 0) throw new Error('feature section markers not found');
-  return md.slice(start, end)
+  const start = md.indexOf(
+    '## Podsumowanie cech i funkcjonalności rezultatu projektu',
+  );
+  const end = md.indexOf(
+    '## Rezultat prac B+R spełnia następujące czynniki',
+    start,
+  );
+  if (start < 0 || end < 0)
+    throw new Error('feature section markers not found');
+  return md
+    .slice(start, end)
     .split(/^### Cecha\/funkcjonalność \d+:/m)
     .slice(1)
     .map((block) => ({
@@ -44,18 +62,36 @@ function parseFeatures() {
       docelowa: rowValue(block, 'Wartość docelowa (z jednostką miary)'),
       referencyjny: rowValue(block, 'Produkt/proces referencyjny'),
       korzysc: rowValue(block, 'Korzyść/przewaga'),
-      weryfikacja: rowValue(block, 'Sposób weryfikacji osiągnięcia wartości docelowej'),
+      weryfikacja: rowValue(
+        block,
+        'Sposób weryfikacji osiągnięcia wartości docelowej',
+      ),
     }));
 }
 
 const sourceFeatures = parseFeatures();
-if (sourceFeatures.length < 8) throw new Error(`expected at least 8 source features, got ${sourceFeatures.length}`);
+if (sourceFeatures.length < 8)
+  throw new Error(
+    `expected at least 8 source features, got ${sourceFeatures.length}`,
+  );
 
 function action(args, optional = false) {
-  const result = spawnSync(process.execPath, ['src/_shared/keeper/action.mjs', ...args], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' });
+  const result = spawnSync(
+    process.execPath,
+    ['src/_shared/keeper/action.mjs', ...args],
+    { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' },
+  );
   if (result.status !== 0) {
-    if (optional) return { ok: false, stdout: result.stdout, stderr: result.stderr, status: result.status };
-    throw new Error(`${args.join(' ')}\nstdout=${result.stdout}\nstderr=${result.stderr}`);
+    if (optional)
+      return {
+        ok: false,
+        stdout: result.stdout,
+        stderr: result.stderr,
+        status: result.status,
+      };
+    throw new Error(
+      `${args.join(' ')}\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+    );
   }
   const out = String(result.stdout || '').trim();
   if (!out) throw new Error(`empty keeper output for ${args.join(' ')}`);
@@ -80,8 +116,13 @@ function fill(name, value) {
     if (value.length > max) return { ok: false, error: 'over-limit', name, len: value.length, max };
     return { ok: true, name, len: value.length, max };
   })()`);
-  if (!check?.ok) throw new Error(`fill precheck failed ${name}: ${JSON.stringify(check)}`);
-  action(['fill_fast', `textarea[name="${name}"], input[name="${name}"]`, value]);
+  if (!check?.ok)
+    throw new Error(`fill precheck failed ${name}: ${JSON.stringify(check)}`);
+  action([
+    'fill_fast',
+    `textarea[name="${name}"], input[name="${name}"]`,
+    value,
+  ]);
   idle('short');
   const out = read(`(() => {
     const name = ${JSON.stringify(name)};
@@ -98,7 +139,10 @@ function clickRow(rowNumberOneBased) {
     return row ? row.innerText.replace(/\\s+/g, ' ').slice(0, 220) : null;
   })()`);
   if (!text) throw new Error(`row missing: ${rowNumberOneBased}`);
-  action(['click', `:nth-match(table tbody tr, ${rowNumberOneBased}) button[aria-label="overflow-options"]`]);
+  action([
+    'click',
+    `:nth-match(table tbody tr, ${rowNumberOneBased}) button[aria-label="overflow-options"]`,
+  ]);
   idle('short');
   action(['click', 'text="Edytuj"']);
   idle('long');
@@ -111,11 +155,20 @@ function deleteRow(rowNumberOneBased) {
     return row ? row.innerText.replace(/\\s+/g, ' ').slice(0, 220) : null;
   })()`);
   if (!text) throw new Error(`row missing for delete: ${rowNumberOneBased}`);
-  action(['click', `:nth-match(table tbody tr, ${rowNumberOneBased}) button[aria-label="overflow-options"]`]);
+  action([
+    'click',
+    `:nth-match(table tbody tr, ${rowNumberOneBased}) button[aria-label="overflow-options"]`,
+  ]);
   idle('short');
   action(['click', 'text="Usuń"']);
   idle('deliberate');
-  const confirm = action(['click', 'button:has-text("Usuń"), button:has-text("Tak"), button:has-text("Potwierdź")'], true);
+  const confirm = action(
+    [
+      'click',
+      'button:has-text("Usuń"), button:has-text("Tak"), button:has-text("Potwierdź")',
+    ],
+    true,
+  );
   idle('long');
   return { open: { ok: true, rowNumber: rowNumberOneBased, text }, confirm };
 }
@@ -132,7 +185,9 @@ function saveSubform() {
     if (status.disabled) {
       action(['click', '#collection-obj-form-cancel-btn'], true);
       idle('long');
-      const closed = read(`(() => !document.querySelector('#collection-obj-form-save-btn'))()`);
+      const closed = read(
+        `(() => !document.querySelector('#collection-obj-form-save-btn'))()`,
+      );
       if (closed) return { ok: true, method: 'keeper-click-id-disabled-close' };
     }
   }
@@ -141,7 +196,9 @@ function saveSubform() {
 }
 
 function rowCounts() {
-  return read(`(() => Array.from(document.querySelectorAll('table')).map((t) => t.querySelectorAll('tbody tr').length))()`);
+  return read(
+    `(() => Array.from(document.querySelectorAll('table')).map((t) => t.querySelectorAll('tbody tr').length))()`,
+  );
 }
 
 function rowFieldLengths() {
@@ -162,7 +219,13 @@ function rowFieldLengths() {
 }
 
 function syncRow(rowNumberOneBased, feature) {
-  console.log(JSON.stringify({ stage: 'open-row', row: rowNumberOneBased, cecha: feature.cecha }));
+  console.log(
+    JSON.stringify({
+      stage: 'open-row',
+      row: rowNumberOneBased,
+      cecha: feature.cecha,
+    }),
+  );
   const opened = clickRow(rowNumberOneBased);
   console.log(JSON.stringify({ stage: 'fill-row', row: rowNumberOneBased }));
   const fills = [
@@ -171,12 +234,23 @@ function syncRow(rowNumberOneBased, feature) {
     fill('wartosc_docelowa', feature.docelowa),
     fill('produkt_proces_referencyjny', feature.referencyjny),
     fill('korzysc_przewaga', feature.korzysc),
-    fill('sposob_weryfikacji_osiagniecia_wartosci_docelowej', feature.weryfikacja),
+    fill(
+      'sposob_weryfikacji_osiagniecia_wartosci_docelowej',
+      feature.weryfikacja,
+    ),
   ];
   const lengthsBeforeSave = rowFieldLengths();
-  console.log(JSON.stringify({ stage: 'save-row', row: rowNumberOneBased, lengths: lengthsBeforeSave.map((f) => `${f.len}/${f.max}`) }));
+  console.log(
+    JSON.stringify({
+      stage: 'save-row',
+      row: rowNumberOneBased,
+      lengths: lengthsBeforeSave.map((f) => `${f.len}/${f.max}`),
+    }),
+  );
   const save = saveSubform();
-  console.log(JSON.stringify({ stage: 'saved-row', row: rowNumberOneBased, save }));
+  console.log(
+    JSON.stringify({ stage: 'saved-row', row: rowNumberOneBased, save }),
+  );
   return { rowNumberOneBased, opened, fills, lengthsBeforeSave, save };
 }
 
@@ -185,7 +259,8 @@ idle('long');
 const beforeCounts = rowCounts();
 
 const dataRows = beforeCounts[0] ? beforeCounts[0] - 1 : 0;
-if (dataRows < 1) throw new Error(`no feature rows visible: ${JSON.stringify(beforeCounts)}`);
+if (dataRows < 1)
+  throw new Error(`no feature rows visible: ${JSON.stringify(beforeCounts)}`);
 
 const synced = [];
 const rowsToSync = Math.min(dataRows, sourceFeatures.length);
@@ -205,21 +280,40 @@ while ((countsAfterSync[0] || 0) > sourceFeatures.length + 1) {
   countsAfterSync = rowCounts();
 }
 
-const after = read(`(() => Array.from(document.querySelectorAll('table')).map((t, i) => ({
+const after =
+  read(`(() => Array.from(document.querySelectorAll('table')).map((t, i) => ({
   i,
   rows: t.querySelectorAll('tbody tr').length,
   text: Array.from(t.querySelectorAll('tbody tr')).map((r) => r.innerText.trim().replace(/\\s+/g, ' ').slice(0, 400))
 })))()`);
 
-const evidence = { ok: true, sourceFeatures: sourceFeatures.length, beforeCounts, dataRows, synced, deleted, after, finishedAt: new Date().toISOString() };
+const evidence = {
+  ok: true,
+  sourceFeatures: sourceFeatures.length,
+  beforeCounts,
+  dataRows,
+  synced,
+  deleted,
+  after,
+  finishedAt: new Date().toISOString(),
+};
 writeFileSync(OUT, JSON.stringify(evidence, null, 2));
 
-console.log(JSON.stringify({
-  ok: true,
-  out: OUT,
-  sourceFeatures: sourceFeatures.length,
-  dataRows,
-  deleted,
-  afterRows: after.map((t) => t.rows),
-  synced: synced.map((r) => ({ row: r.rowNumberOneBased, lengths: r.lengthsBeforeSave })),
-}, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      ok: true,
+      out: OUT,
+      sourceFeatures: sourceFeatures.length,
+      dataRows,
+      deleted,
+      afterRows: after.map((t) => t.rows),
+      synced: synced.map((r) => ({
+        row: r.rowNumberOneBased,
+        lengths: r.lengthsBeforeSave,
+      })),
+    },
+    null,
+    2,
+  ),
+);

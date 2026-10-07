@@ -12,21 +12,32 @@ const TOKEN_SIBLINGS = [
 ] as const;
 
 function isLoopback(hostname: string): boolean {
-  return hostname === 'localhost' || hostname === '127.0.0.1'
-    || hostname === '::1' || hostname === '[::1]';
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1' ||
+    hostname === '[::1]'
+  );
 }
 
-export function loadOperatorCdpConfig(env: NodeJS.ProcessEnv = process.env): OperatorCdpConfig {
+export function loadOperatorCdpConfig(
+  env: NodeJS.ProcessEnv = process.env,
+): OperatorCdpConfig {
   const rawEndpoint = String(env.WELES_OPERATOR_CDP_URL ?? '').trim();
   const token = String(env.WELES_OPERATOR_CDP_TOKEN ?? '').trim();
-  if (!rawEndpoint) throw new Error('operator CDP mode requires WELES_OPERATOR_CDP_URL');
+  if (!rawEndpoint)
+    throw new Error('operator CDP mode requires WELES_OPERATOR_CDP_URL');
   if (Buffer.byteLength(token) < 32) {
-    throw new Error('operator CDP mode requires WELES_OPERATOR_CDP_TOKEN with at least 32 bytes');
+    throw new Error(
+      'operator CDP mode requires WELES_OPERATOR_CDP_TOKEN with at least 32 bytes',
+    );
   }
   for (const siblingName of TOKEN_SIBLINGS) {
     const sibling = String(env[siblingName] ?? '').trim();
     if (sibling && sibling === token) {
-      throw new Error(`WELES_OPERATOR_CDP_TOKEN must be distinct from ${siblingName}`);
+      throw new Error(
+        `WELES_OPERATOR_CDP_TOKEN must be distinct from ${siblingName}`,
+      );
     }
   }
 
@@ -37,13 +48,23 @@ export function loadOperatorCdpConfig(env: NodeJS.ProcessEnv = process.env): Ope
     throw new Error('WELES_OPERATOR_CDP_URL must be a valid URL');
   }
   const tls = endpoint.protocol === 'https:' || endpoint.protocol === 'wss:';
-  const authenticatedLoopback = isLoopback(endpoint.hostname)
-    && (endpoint.protocol === 'http:' || endpoint.protocol === 'ws:');
+  const authenticatedLoopback =
+    isLoopback(endpoint.hostname) &&
+    (endpoint.protocol === 'http:' || endpoint.protocol === 'ws:');
   if (!tls && !authenticatedLoopback) {
-    throw new Error('WELES_OPERATOR_CDP_URL must use TLS, except for authenticated loopback');
+    throw new Error(
+      'WELES_OPERATOR_CDP_URL must use TLS, except for authenticated loopback',
+    );
   }
-  if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
-    throw new Error('WELES_OPERATOR_CDP_URL must not contain credentials, query, or fragment');
+  if (
+    endpoint.username ||
+    endpoint.password ||
+    endpoint.search ||
+    endpoint.hash
+  ) {
+    throw new Error(
+      'WELES_OPERATOR_CDP_URL must not contain credentials, query, or fragment',
+    );
   }
   return { endpoint: endpoint.toString(), token };
 }

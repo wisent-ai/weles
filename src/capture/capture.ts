@@ -39,7 +39,6 @@ function timestamp(): string {
   );
 }
 
-
 // ---------------------------------------------------------------------------
 // Capture class
 // ---------------------------------------------------------------------------
@@ -49,8 +48,15 @@ export class Capture {
   private _outDir?: string;
   consoleLogs: string[] = [];
   responseBodies: ResponseRecord[] = [];
-  constructor(context: CDPBrowserContext, outputDir?: string) { this._context = context; this._outDir = outputDir; }
-  private _dir(...segs: string[]): string { const d = join(this._outDir ?? runRecordingsRoot(), ...segs); mkdirSync(d, { recursive: true }); return d; }
+  constructor(context: CDPBrowserContext, outputDir?: string) {
+    this._context = context;
+    this._outDir = outputDir;
+  }
+  private _dir(...segs: string[]): string {
+    const d = join(this._outDir ?? runRecordingsRoot(), ...segs);
+    mkdirSync(d, { recursive: true });
+    return d;
+  }
 
   // -----------------------------------------------------------------------
   // Page creation with automatic logging
@@ -61,7 +67,9 @@ export class Capture {
 
     // Console logging
     page.on('Runtime.consoleAPICalled', (params: any) => {
-      const args = (params.args ?? []).map((a: any) => a.value ?? a.description ?? '').join(' ');
+      const args = (params.args ?? [])
+        .map((a: any) => a.value ?? a.description ?? '')
+        .join(' ');
       const level = params.type ?? 'log';
       this.consoleLogs.push(`[${level}] ${args}`);
     });
@@ -114,7 +122,9 @@ export class Capture {
     if (typeof page.screenshot === 'function') {
       buf = await page.screenshot({ type: 'png' });
     } else {
-      const result = await page.send('Page.captureScreenshot', { format: 'png' });
+      const result = await page.send('Page.captureScreenshot', {
+        format: 'png',
+      });
       buf = Buffer.from(result.data, 'base64');
     }
 
@@ -134,10 +144,19 @@ export class Capture {
       if (root) {
         const h = await page.send('DOM.getOuterHTML', { nodeId: root.nodeId });
         const fp = join(dir, `${label}_dom_${timestamp()}.json`);
-        writeFileSync(fp, JSON.stringify({ tree: root, outerHTML: h?.outerHTML ?? '' }, null, 2));
+        writeFileSync(
+          fp,
+          JSON.stringify(
+            { tree: root, outerHTML: h?.outerHTML ?? '' },
+            null,
+            2,
+          ),
+        );
         return fp;
       }
-    } catch { /* CDP unavailable on Firefox; use Playwright content() below */ }
+    } catch {
+      /* CDP unavailable on Firefox; use Playwright content() below */
+    }
     try {
       const html = await (page as any).content?.();
       if (typeof html === 'string') {
@@ -145,7 +164,9 @@ export class Capture {
         writeFileSync(fp, html);
         return fp;
       }
-    } catch { /* page closed */ }
+    } catch {
+      /* page closed */
+    }
     return null;
   }
 
@@ -222,7 +243,13 @@ export class Capture {
     responsesPath?: string,
     domPath?: string,
   ): Promise<string> {
-    return diagnoseCapture(this._dir('diagnosis_frames'), videoPath, consolePath, responsesPath, domPath);
+    return diagnoseCapture(
+      this._dir('diagnosis_frames'),
+      videoPath,
+      consolePath,
+      responsesPath,
+      domPath,
+    );
   }
 
   // -----------------------------------------------------------------------
@@ -232,16 +259,27 @@ export class Capture {
   async finish(
     label: string,
     options?: { page?: CDPPage; videoPath?: string },
-  ): Promise<{ paths: Record<string, string>; diagnosis: string; trafficDiff: ResponseRecord[] }> {
+  ): Promise<{
+    paths: Record<string, string>;
+    diagnosis: string;
+    trafficDiff: ResponseRecord[];
+  }> {
     const page = options?.page;
     const paths = await this.save(label, page);
 
     let diagnosis = '';
     if (options?.videoPath) {
-      diagnosis = await this.diagnose(options.videoPath, paths.console, paths.responses, paths.dom);
+      diagnosis = await this.diagnose(
+        options.videoPath,
+        paths.console,
+        paths.responses,
+        paths.dom,
+      );
     }
 
-    const trafficDiff = this.responseBodies.filter((r) => r.status < 200 || r.status >= 300);
+    const trafficDiff = this.responseBodies.filter(
+      (r) => r.status < 200 || r.status >= 300,
+    );
     return { paths, diagnosis, trafficDiff };
   }
 }

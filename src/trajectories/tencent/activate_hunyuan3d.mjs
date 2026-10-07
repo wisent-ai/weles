@@ -16,14 +16,15 @@ const PRODUCT_URL = 'https://www.tencentcloud.com/products/ai3d';
 // session is valid.
 const CONSOLE_URL = 'https://console.tencentcloud.com/hy3d';
 // A console page that is not a login/sign-in page.
-const ON_CONSOLE = /^https:\/\/console\.(intl\.)?(cloud\.tencent|tencentcloud)\.com\/(?!.*(\/login(\?|\/|$)|signin|signup))/i;
+const ON_CONSOLE =
+  /^https:\/\/console\.(intl\.)?(cloud\.tencent|tencentcloud)\.com\/(?!.*(\/login(\?|\/|$)|signin|signup))/i;
 
 // Clicks the first visible match on the settled page; null when none shows.
 async function clickFirstMatch(page, selectors) {
   await pageSettled(page);
   for (const sel of selectors) {
     const loc = page.locator(sel).first();
-    if (await loc.count() > 0 && await loc.isVisible()) {
+    if ((await loc.count()) > 0 && (await loc.isVisible())) {
       console.log(`[activate] clicking selector: ${sel}`);
       await humanClickLocator(page, loc);
       return sel;
@@ -33,15 +34,22 @@ async function clickFirstMatch(page, selectors) {
 }
 
 async function main() {
-  const s = await WSession.start({ label: 'tencent_activate_hunyuan3d', proxy: undefined });
+  const s = await WSession.start({
+    label: 'tencent_activate_hunyuan3d',
+    proxy: undefined,
+  });
   const page = s.page;
 
   try {
     const cookies = loadTencentCookies();
     await page.context().addCookies(cookies);
-    console.log(`[activate] injected ${cookies.length} cookies from ~/.weles/cookie-jars/tencent.json`);
+    console.log(
+      `[activate] injected ${cookies.length} cookies from ~/.weles/cookie-jars/tencent.json`,
+    );
   } catch (e) {
-    console.log(`[activate] no jar — waiting for interactive login. (${e.message})`);
+    console.log(
+      `[activate] no jar — waiting for interactive login. (${e.message})`,
+    );
   }
 
   console.log(`[activate] navigating to ${PRODUCT_URL}`);
@@ -56,12 +64,16 @@ async function main() {
   console.log(`[activate] product-page CTA: ${productClicked || 'none found'}`);
 
   await pageSettled(page);
-  if (!/console\.(intl\.)?(cloud\.tencent|tencentcloud)\.com/.test(page.url())) {
+  if (
+    !/console\.(intl\.)?(cloud\.tencent|tencentcloud)\.com/.test(page.url())
+  ) {
     console.log(`[activate] navigating to ${CONSOLE_URL}`);
     await page.goto(CONSOLE_URL, { waitUntil: 'domcontentloaded' });
   }
 
-  console.log('[activate] waiting for login (URL leaves /login* and lands on console)...');
+  console.log(
+    '[activate] waiting for login (URL leaves /login* and lands on console)...',
+  );
   const consoleUrl = await urlMatching(page, ON_CONSOLE);
   console.log(`[activate] post-login URL: ${consoleUrl}`);
 
@@ -94,4 +106,7 @@ async function main() {
   await s.close();
 }
 
-main().catch((e) => { console.error('[activate] fatal:', e); process.exit(1); });
+main().catch((e) => {
+  console.error('[activate] fatal:', e);
+  process.exit(1);
+});

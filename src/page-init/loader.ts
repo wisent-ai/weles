@@ -7,7 +7,13 @@ const SCRIPT_DIR = __dirname;
 // Shared across browsers. automation.js = navigator.webdriver scrub;
 // navigator/core.js = Navigator.prototype overrides (has its own Chrome-branching
 // guards); webgl.js = vendor/renderer overrides.
-const SHARED_SCRIPTS = ['automation.js', 'navigator/core.js', 'navigator/environment.js', 'navigator/surface.js', 'webgl.js'];
+const SHARED_SCRIPTS = [
+  'automation.js',
+  'navigator/core.js',
+  'navigator/environment.js',
+  'navigator/surface.js',
+  'webgl.js',
+];
 // Chromium-only. Injects window.Sanitizer + AnimationTrigger + TimelineTrigger*
 // to fill the Chromium-145-vs-real-Chrome-147 API gap. MUST NOT load on
 // Firefox — real Firefox does not expose these globals and the presence
@@ -53,13 +59,28 @@ export function readPageInitScript(name: string): string {
 }
 
 /** C++ Chromium needs these supplements, not the stock automation overrides. */
-export function buildChromiumSupplementScripts(fpConfig: FingerprintConfig): string[] {
+export function buildChromiumSupplementScripts(
+  fpConfig: FingerprintConfig,
+): string[] {
   const screenPreamble = `const __weles = { screen: ${JSON.stringify(fpConfig.screen ?? {})} };`;
-  const screenPatch = screenPreamble + '\n' + readPageInitScript('screen_webrtc_patch.js');
-  const navPreamble = `const __weles = ${JSON.stringify(fpConfig)};` +
+  const screenPatch =
+    screenPreamble + '\n' + readPageInitScript('screen_webrtc_patch.js');
+  const navPreamble =
+    `const __weles = ${JSON.stringify(fpConfig)};` +
     `if (typeof _nativeOverrides === 'undefined') { var _nativeOverrides = new Set(); }` +
     `if (!window.__welesDefine) { window.__welesDefine = function(obj, prop, getter) { try { Object.defineProperty(obj, prop, { get: getter, configurable: true, enumerable: true }); } catch {} }; };` +
     `if (!window.__welesNativeString) { const _ns=new Set(); window.__welesNativeString=function(fn,name){_ns.add(fn);}; const _ots=Function.prototype.toString; Function.prototype.toString=function(){ if(_ns.has(this)) return 'function '+(this.name||'')+'() { [native code] }'; return _ots.call(this); }; }`;
-  const navScript = navPreamble + '\n' + readPageInitScript('navigator/core.js') + '\n' + readPageInitScript('navigator/environment.js') + '\n' + readPageInitScript('navigator/surface.js');
-  return [...CHROMIUM_ONLY_SCRIPTS.map(readPageInitScript), screenPatch, navScript];
+  const navScript =
+    navPreamble +
+    '\n' +
+    readPageInitScript('navigator/core.js') +
+    '\n' +
+    readPageInitScript('navigator/environment.js') +
+    '\n' +
+    readPageInitScript('navigator/surface.js');
+  return [
+    ...CHROMIUM_ONLY_SCRIPTS.map(readPageInitScript),
+    screenPatch,
+    navScript,
+  ];
 }

@@ -18,14 +18,28 @@ export type ReceivedPage = { data: ReceivedSummary[]; has_more?: boolean };
 export const receivingConfigured = integrationsConfigured;
 
 /** One page of received messages: `limit` of them (1-100), after the cursor `after` when given. */
-export async function listReceived(limit: number, email?: string, after?: string): Promise<ReceivedPage> {
+export async function listReceived(
+  limit: number,
+  email?: string,
+  after?: string,
+): Promise<ReceivedPage> {
   const request: Record<string, unknown> = { limit };
   if (email) request.email = email;
   if (after) request.after = after;
-  return integrationAction<ReceivedPage>('content', 'resend.receiving.list', request);
+  return integrationAction<ReceivedPage>(
+    'content',
+    'resend.receiving.list',
+    request,
+  );
 }
 
 /** One received message with its subject, text, html and headers. */
-export async function getReceived(id: string): Promise<Record<string, unknown>> {
-  return integrationAction<Record<string, unknown>>('content', 'resend.receiving.get', { id });
+export async function getReceived(
+  id: string,
+): Promise<Record<string, unknown>> {
+  return integrationAction<Record<string, unknown>>(
+    'content',
+    'resend.receiving.get',
+    { id },
+  );
 }

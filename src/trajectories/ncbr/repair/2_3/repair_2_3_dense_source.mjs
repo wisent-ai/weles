@@ -4,13 +4,18 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { EU, NON_EU } from './repair_2_3_dense_source/competitors.mjs';
 import { PARAMS } from './repair_2_3_dense_source/params.mjs';
 
-const SRC = (await import('#ncbr-settings')).applicationFile('wersja_B_2.3_rynek_i_potencjal.md');
+const SRC = (await import('#ncbr-settings')).applicationFile(
+  'wersja_B_2.3_rynek_i_potencjal.md',
+);
 
 function table(rows) {
   return [
     '| Podmiot konkurencyjny | Kraj siedziby | Produkt / rozwiązanie | Funkcjonalności | Korzyść / przewaga RNM |',
     '|---|---|---|---|---|',
-    ...rows.map((r) => `| ${r.podmiot} | ${r.kraj} | ${r.produkt} | ${r.funkcjonalnosci} | ${r.korzysc} |`),
+    ...rows.map(
+      (r) =>
+        `| ${r.podmiot} | ${r.kraj} | ${r.produkt} | ${r.funkcjonalnosci} | ${r.korzysc} |`,
+    ),
   ].join('\n');
 }
 
@@ -36,13 +41,36 @@ function paramBlock(p, index) {
 }
 
 let md = readFileSync(SRC, 'utf8');
-md = replaceBetween(md, '## Oferta konkurencji wewnątrz UE', '## Oferta konkurencji spoza UE', table(EU));
-md = replaceBetween(md, '## Oferta konkurencji spoza UE', '## Rynek docelowy dla innowacji produktowej', table(NON_EU));
+md = replaceBetween(
+  md,
+  '## Oferta konkurencji wewnątrz UE',
+  '## Oferta konkurencji spoza UE',
+  table(EU),
+);
+md = replaceBetween(
+  md,
+  '## Oferta konkurencji spoza UE',
+  '## Rynek docelowy dla innowacji produktowej',
+  table(NON_EU),
+);
 
-const paramTitle = '## Parametry opisujące znaczący potencjał gospodarczy innowacji w wymiarze rynku wewnętrznego UE';
+const paramTitle =
+  '## Parametry opisujące znaczący potencjał gospodarczy innowacji w wymiarze rynku wewnętrznego UE';
 const paramStart = md.indexOf(paramTitle);
 if (paramStart < 0) throw new Error('parameter section missing');
 md = `${md.slice(0, paramStart + paramTitle.length)}\n\n${PARAMS.map((p, i) => paramBlock(p, i + 1)).join('\n\n')}\n`;
 
 writeFileSync(SRC, md);
-console.log(JSON.stringify({ ok: true, file: SRC, eu: EU.length, nonEu: NON_EU.length, params: PARAMS.length }, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      ok: true,
+      file: SRC,
+      eu: EU.length,
+      nonEu: NON_EU.length,
+      params: PARAMS.length,
+    },
+    null,
+    2,
+  ),
+);

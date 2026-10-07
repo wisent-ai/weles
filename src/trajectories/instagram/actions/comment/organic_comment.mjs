@@ -3,17 +3,22 @@ import { instagramSubmitComment } from '../../submit.mjs';
 import { detectInstagramBanSignals } from '../../../../../dist/platforms/instagram/ban_signals.js';
 
 await runAction({
-  platform: 'instagram', action: 'organic_comment',
+  platform: 'instagram',
+  action: 'organic_comment',
   feedUrl: 'https://www.instagram.com/explore/',
   surfaceLabel: 'instagram explore',
   pickPost: async (s) => {
     try {
       const caption = await s.page.evaluate(() => {
-        const el = document.querySelector('article img[alt]') || document.querySelector('img[alt]');
+        const el =
+          document.querySelector('article img[alt]') ||
+          document.querySelector('img[alt]');
         return el?.getAttribute?.('alt') ?? '';
       });
-      return { postTitle: (caption || ''), postBody: '' };
-    } catch { return { postTitle: '', postBody: '' }; }
+      return { postTitle: caption || '', postBody: '' };
+    } catch {
+      return { postTitle: '', postBody: '' };
+    }
   },
   submitComment: instagramSubmitComment,
   banDetector: detectInstagramBanSignals,

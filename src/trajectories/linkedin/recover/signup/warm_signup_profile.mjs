@@ -7,23 +7,42 @@
  * longer first-touch cold when linkedin_register reuses the same profile.
  */
 import { WSession } from '../../../../../dist/session/wsession.js';
-import { humanIdlePause, humanScrollPage } from '../../../../../dist/human/mouse.js';
+import {
+  humanIdlePause,
+  humanScrollPage,
+} from '../../../../../dist/human/mouse.js';
 import { runRecordingsDir } from '../../../../../dist/session/run-recordings.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const requestedProxy = process.env.LINKEDIN_REGISTER_PROXY ?? process.env.LINKEDIN_PROXY ?? process.env.PROXY_URL ?? 'isp decodo us';
-const HEADLESS = process.env.HEADLESS === '1' || process.env.WELES_HEADLESS === '1' || process.env.LINKEDIN_WARM_HEADLESS === '1';
+const requestedProxy =
+  process.env.LINKEDIN_REGISTER_PROXY ??
+  process.env.LINKEDIN_PROXY ??
+  process.env.PROXY_URL ??
+  'isp decodo us';
+const HEADLESS =
+  process.env.HEADLESS === '1' ||
+  process.env.WELES_HEADLESS === '1' ||
+  process.env.LINKEDIN_WARM_HEADLESS === '1';
 const WARM_BROWSER = process.env.LINKEDIN_WARM_BROWSER || 'chromium';
 const WARM_OS = process.env.LINKEDIN_WARM_OS || 'windows';
-const profileDir = process.env.LINKEDIN_REGISTER_WARM_PROFILE_DIR ||
-  join(process.cwd(), '.work', 'linkedin_register_warm', new Date().toISOString().replace(/[:.]/g, '-'));
-const urls = String(process.env.LINKEDIN_WARM_URLS || [
-  'https://www.linkedin.com/',
-  'https://www.linkedin.com/jobs/search/?keywords=software%20engineer&location=United%20States',
-  'https://www.linkedin.com/company/linkedin/',
-  'https://www.linkedin.com/pulse/',
-].join(','))
+const profileDir =
+  process.env.LINKEDIN_REGISTER_WARM_PROFILE_DIR ||
+  join(
+    process.cwd(),
+    '.work',
+    'linkedin_register_warm',
+    new Date().toISOString().replace(/[:.]/g, '-'),
+  );
+const urls = String(
+  process.env.LINKEDIN_WARM_URLS ||
+    [
+      'https://www.linkedin.com/',
+      'https://www.linkedin.com/jobs/search/?keywords=software%20engineer&location=United%20States',
+      'https://www.linkedin.com/company/linkedin/',
+      'https://www.linkedin.com/pulse/',
+    ].join(','),
+)
   .split(',')
   .map((u) => u.trim())
   .filter(Boolean)
@@ -52,24 +71,41 @@ function visibleSummaryScript(stage) {
     stage,
     url: location.href,
     title: document.title,
-    page_key: document.querySelector('meta[name="pageKey"]')?.getAttribute('content') || '',
-    body_text_sample: (document.body?.innerText || '').replace(/\s+/g, ' ').trim(),
-    signup_ready: Boolean(document.querySelector('input[name="email-address"], input#email-address, input[type="email"]')) &&
-      Boolean(document.querySelector('input[name="password"], input#password, input[type="password"]')),
+    page_key:
+      document.querySelector('meta[name="pageKey"]')?.getAttribute('content') ||
+      '',
+    body_text_sample: (document.body?.innerText || '')
+      .replace(/\s+/g, ' ')
+      .trim(),
+    signup_ready:
+      Boolean(
+        document.querySelector(
+          'input[name="email-address"], input#email-address, input[type="email"]',
+        ),
+      ) &&
+      Boolean(
+        document.querySelector(
+          'input[name="password"], input#password, input[type="password"]',
+        ),
+      ),
     iframes: Array.from(document.querySelectorAll('iframe')).map((f) => ({
       title: f.title,
       src: f.src,
       width: Math.round(f.getBoundingClientRect().width),
       height: Math.round(f.getBoundingClientRect().height),
     })),
-    cookie_count: document.cookie ? document.cookie.split(';').filter(Boolean).length : 0,
+    cookie_count: document.cookie
+      ? document.cookie.split(';').filter(Boolean).length
+      : 0,
   };
 }
 
 const outDir = runRecordingsDir('linkedin_register_warm');
 mkdirSync(outDir, { recursive: true });
 mkdirSync(profileDir, { recursive: true });
-mkdirSync(join(process.cwd(), '.work', 'linkedin_register_warm'), { recursive: true });
+mkdirSync(join(process.cwd(), '.work', 'linkedin_register_warm'), {
+  recursive: true,
+});
 
 console.log(`[warm-signup] proxy request: ${safeProxy(requestedProxy)}`);
 console.log(`[warm-signup] profile dir: ${profileDir}`);
@@ -99,30 +135,44 @@ try {
       });
       await humanScrollPage(s.page, 'down');
       await humanIdlePause('deliberate');
-      transitions.push(await s.page.evaluate(visibleSummaryScript, `warm_${transitions.length}`).catch((e) => ({
-        stage: `warm_${transitions.length}`,
-        url: s.page.url(),
-        error: String(e?.message ?? e),
-      })));
+      transitions.push(
+        await s.page
+          .evaluate(visibleSummaryScript, `warm_${transitions.length}`)
+          .catch((e) => ({
+            stage: `warm_${transitions.length}`,
+            url: s.page.url(),
+            error: String(e?.message ?? e),
+          })),
+      );
     } catch (e) {
-      transitions.push({ stage: `warm_${transitions.length}`, url, error: String(e?.message ?? e) });
+      transitions.push({
+        stage: `warm_${transitions.length}`,
+        url,
+        error: String(e?.message ?? e),
+      });
       console.log(`[warm-signup] skip ${url}: ${String(e?.message ?? e)}`);
     }
   }
 
   await s.runStep('warm_signup_landing', async () => {
-    await s.page.goto('https://www.linkedin.com/signup', { waitUntil: 'domcontentloaded' });
+    await s.page.goto('https://www.linkedin.com/signup', {
+      waitUntil: 'domcontentloaded',
+    });
     return `signup ${s.page.url()}`;
   });
   await humanScrollPage(s.page, 'down');
   await humanIdlePause('deliberate');
-  const signup = await s.page.evaluate(visibleSummaryScript, 'signup_landing').catch((e) => ({
-    stage: 'signup_landing',
-    url: s.page.url(),
-    error: String(e?.message ?? e),
-  }));
+  const signup = await s.page
+    .evaluate(visibleSummaryScript, 'signup_landing')
+    .catch((e) => ({
+      stage: 'signup_landing',
+      url: s.page.url(),
+      error: String(e?.message ?? e),
+    }));
 
-  const storage = await s.ctx.storageState().catch(() => ({ cookies: [], origins: [] }));
+  const storage = await s.ctx
+    .storageState()
+    .catch(() => ({ cookies: [], origins: [] }));
   const proxyReplayUrl = buildProxyReplayUrl(s.proxyConfig);
   const warmManifest = {
     schema: 'linkedin_register_warm_profile.v1',
@@ -146,7 +196,10 @@ try {
       exit_reputation: s.proxyConfig?.exit_reputation ?? null,
     },
   };
-  writeFileSync(join(profileDir, 'warm_manifest.json'), JSON.stringify(warmManifest, null, 2));
+  writeFileSync(
+    join(profileDir, 'warm_manifest.json'),
+    JSON.stringify(warmManifest, null, 2),
+  );
   const summary = {
     created_at: new Date().toISOString(),
     profile_dir: profileDir,
@@ -166,9 +219,14 @@ try {
     signup,
     storage: {
       cookie_count: Array.isArray(storage.cookies) ? storage.cookies.length : 0,
-      linkedin_cookie_count: Array.isArray(storage.cookies) ? storage.cookies.filter((c) => /linkedin\.com$/.test(c.domain ?? '')).length : 0,
+      linkedin_cookie_count: Array.isArray(storage.cookies)
+        ? storage.cookies.filter((c) => /linkedin\.com$/.test(c.domain ?? ''))
+            .length
+        : 0,
       origin_count: Array.isArray(storage.origins) ? storage.origins.length : 0,
-      origins: Array.isArray(storage.origins) ? storage.origins.map((o) => o.origin) : [],
+      origins: Array.isArray(storage.origins)
+        ? storage.origins.map((o) => o.origin)
+        : [],
     },
     next_register_env: {
       LINKEDIN_REGISTER_WARM_PROFILE_DIR: profileDir,
@@ -178,10 +236,18 @@ try {
       WELES_INPUT: 'cdp',
     },
   };
-  writeFileSync(join(outDir, 'warm_signup_profile.json'), JSON.stringify(summary, null, 2));
-  writeFileSync(join(process.cwd(), '.work', 'linkedin_register_warm', 'latest.json'), JSON.stringify(summary, null, 2));
+  writeFileSync(
+    join(outDir, 'warm_signup_profile.json'),
+    JSON.stringify(summary, null, 2),
+  );
+  writeFileSync(
+    join(process.cwd(), '.work', 'linkedin_register_warm', 'latest.json'),
+    JSON.stringify(summary, null, 2),
+  );
   console.log(`PASS: warm signup profile ready -> ${profileDir}`);
-  console.log(`[warm-signup] summary -> ${join(outDir, 'warm_signup_profile.json')}`);
+  console.log(
+    `[warm-signup] summary -> ${join(outDir, 'warm_signup_profile.json')}`,
+  );
 } catch (e) {
   console.log(`FAIL: ${String(e?.message ?? e)}`);
   process.exitCode = 1;

@@ -24,13 +24,19 @@ if (observation) {
   // reviewed trajectory did not arrive with the observation, the run refuses
   // rather than guessing a path from the observation name.
   if (!observationTrajectory) {
-    throw new Error(`declared observation ${observation} reached execution without its reviewed trajectory`);
+    throw new Error(
+      `declared observation ${observation} reached execution without its reviewed trajectory`,
+    );
   }
-  const repositoryRoot = process.env.WELES_REPO || resolve(import.meta.dirname, '..', '..', '..');
-  console.log(`[keeper-task] observation ${observation} -> ${observationTrajectory}`);
+  const repositoryRoot =
+    process.env.WELES_REPO || resolve(import.meta.dirname, '..', '..', '..');
+  console.log(
+    `[keeper-task] observation ${observation} -> ${observationTrajectory}`,
+  );
   await import(pathToFileURL(join(repositoryRoot, observationTrajectory)).href);
 } else {
-  process.env.GENERIC_TASK_LABEL = process.env.GENERIC_TASK_LABEL || 'generic_keeper_task';
+  process.env.GENERIC_TASK_LABEL =
+    process.env.GENERIC_TASK_LABEL || 'generic_keeper_task';
   process.env.GENERIC_TASK_KEEPER_FIRST = '1';
   await import('./browser_task.mjs');
 }

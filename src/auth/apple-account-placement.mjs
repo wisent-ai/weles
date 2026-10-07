@@ -14,7 +14,9 @@ function readStadoJson(argv) {
     throw new Error(`Stado could not be asked: ${argv.join(' ')}`);
   }
   if (result.status !== 0) {
-    const detail = String(result.stderr || result.stdout || `exit ${result.status}`)
+    const detail = String(
+      result.stderr || result.stdout || `exit ${result.status}`,
+    )
       .trim()
       .split(/\r?\n/)
       .at(-1);
@@ -29,10 +31,16 @@ function readStadoJson(argv) {
 
 function runChallengeCommand(argv, expectedStatus) {
   const report = readStadoJson(argv);
-  if (!report || report.status !== expectedStatus
-      || typeof report.holder !== 'string' || !report.holder
-      || typeof report.user !== 'string' || !report.user
-      || typeof report.destination !== 'string' || !report.destination) {
+  if (
+    !report ||
+    report.status !== expectedStatus ||
+    typeof report.holder !== 'string' ||
+    !report.holder ||
+    typeof report.user !== 'string' ||
+    !report.user ||
+    typeof report.destination !== 'string' ||
+    !report.destination
+  ) {
     throw new Error(`Stado did not confirm Apple challenge ${expectedStatus}`);
   }
   return report;
@@ -40,7 +48,8 @@ function runChallengeCommand(argv, expectedStatus) {
 
 function relayArguments(identity, authorizationId) {
   if (!identity) throw new Error('an Apple account identity is required');
-  if (!authorizationId) throw new Error('an Apple authorization id is required');
+  if (!authorizationId)
+    throw new Error('an Apple authorization id is required');
   return [
     'identity',
     'relay-challenge',
@@ -62,7 +71,10 @@ export function preflightAppleChallengeRelay(identity, authorizationId) {
 }
 
 export function relayAppleChallenge(identity, authorizationId) {
-  return runChallengeCommand(relayArguments(identity, authorizationId), 'stored');
+  return runChallengeCommand(
+    relayArguments(identity, authorizationId),
+    'stored',
+  );
 }
 
 export function issueAppleLoginCapabilities({
@@ -86,9 +98,16 @@ export function issueAppleLoginCapabilities({
     String(ttlSeconds),
     '--json',
   ]);
-  if (!report || report.status !== 'issued' || report.target !== executionHost
-      || !report.capabilities || typeof report.capabilities !== 'object') {
-    throw new Error('Stado did not issue Apple capabilities on the execution host');
+  if (
+    !report ||
+    report.status !== 'issued' ||
+    report.target !== executionHost ||
+    !report.capabilities ||
+    typeof report.capabilities !== 'object'
+  ) {
+    throw new Error(
+      'Stado did not issue Apple capabilities on the execution host',
+    );
   }
   return report.capabilities;
 }

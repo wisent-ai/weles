@@ -8,8 +8,23 @@
 // the contract. Both call sites share this one implementation — the refusal
 // sentences below are part of the action's contract and callers match on them.
 
-export const CAPTURE_AXES = ['composition', 'interaction', 'reactivity', 'state-change', 'subpage'] as const;
-export const CAPTURE_STEP_OPS = ['wait_selector', 'settle', 'click', 'hover', 'focus', 'press', 'scroll', 'goto'] as const;
+export const CAPTURE_AXES = [
+  'composition',
+  'interaction',
+  'reactivity',
+  'state-change',
+  'subpage',
+] as const;
+export const CAPTURE_STEP_OPS = [
+  'wait_selector',
+  'settle',
+  'click',
+  'hover',
+  'focus',
+  'press',
+  'scroll',
+  'goto',
+] as const;
 export const CAPTURE_ARTIFACT_ROOT = 'stado://weles-captures/';
 
 export type CaptureAxis = (typeof CAPTURE_AXES)[number];
@@ -46,7 +61,11 @@ export interface AccessibilityAuditPlan {
   artifact_prefix: string;
 }
 
-function record(value: unknown, action: string, name: string): Record<string, unknown> {
+function record(
+  value: unknown,
+  action: string,
+  name: string,
+): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error(`${action} requires ${name} as an object.`);
   }
@@ -55,7 +74,9 @@ function record(value: unknown, action: string, name: string): Record<string, un
 
 function slug(value: unknown, action: string, name: string): string {
   if (typeof value !== 'string' || !/^[a-z\d][a-z\d._-]{0,80}$/.test(value)) {
-    throw new Error(`${action} requires ${name} as a lowercase slug of letters, digits, dot, dash or underscore.`);
+    throw new Error(
+      `${action} requires ${name} as a lowercase slug of letters, digits, dot, dash or underscore.`,
+    );
   }
   return value;
 }
@@ -65,17 +86,35 @@ function sourceUrl(value: unknown, action: string): string {
     throw new Error(`${action} requires source_url as an http(s) URL.`);
   }
   let parsed: URL;
-  try { parsed = new URL(value); } catch { throw new Error(`${action} requires source_url as an http(s) URL.`); }
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`${action} requires source_url as an http(s) URL.`);
+  }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     throw new Error(`${action} requires source_url as an http(s) URL.`);
   }
   return parsed.toString();
 }
 
-function integer(value: unknown, action: string, name: string, min: number, max: number): number {
+function integer(
+  value: unknown,
+  action: string,
+  name: string,
+  min: number,
+  max: number,
+): number {
   const parsed = typeof value === 'string' ? Number(value) : value;
-  if (typeof parsed !== 'number' || !Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < min || parsed > max) {
-    throw new Error(`${action} rejects ${name} ${JSON.stringify(value ?? null)}: ${name} must be an integer between ${min} and ${max}.`);
+  if (
+    typeof parsed !== 'number' ||
+    !Number.isFinite(parsed) ||
+    !Number.isInteger(parsed) ||
+    parsed < min ||
+    parsed > max
+  ) {
+    throw new Error(
+      `${action} rejects ${name} ${JSON.stringify(value ?? null)}: ${name} must be an integer between ${min} and ${max}.`,
+    );
   }
   return parsed;
 }
@@ -85,64 +124,136 @@ function viewport(value: unknown, action: string): CaptureViewport {
   const scaleRaw = raw.device_scale_factor ?? 1;
   const scale = typeof scaleRaw === 'string' ? Number(scaleRaw) : scaleRaw;
   if (typeof scale !== 'number' || !Number.isFinite(scale) || scale <= 0) {
-    throw new Error(`${action} rejects viewport.device_scale_factor ${JSON.stringify(scaleRaw ?? null)}: device_scale_factor must be a positive number.`);
+    throw new Error(
+      `${action} rejects viewport.device_scale_factor ${JSON.stringify(scaleRaw ?? null)}: device_scale_factor must be a positive number.`,
+    );
   }
   return {
-    width: integer(raw.width, action, 'viewport.width', 1, Number.MAX_SAFE_INTEGER),
-    height: integer(raw.height, action, 'viewport.height', 1, Number.MAX_SAFE_INTEGER),
+    width: integer(
+      raw.width,
+      action,
+      'viewport.width',
+      1,
+      Number.MAX_SAFE_INTEGER,
+    ),
+    height: integer(
+      raw.height,
+      action,
+      'viewport.height',
+      1,
+      Number.MAX_SAFE_INTEGER,
+    ),
     device_scale_factor: scale,
   };
 }
 
 function artifactPrefix(value: unknown, action: string): string {
-  if (typeof value !== 'string' || !value.startsWith(CAPTURE_ARTIFACT_ROOT) || value.length === CAPTURE_ARTIFACT_ROOT.length) {
-    throw new Error(`${action} rejects artifact_prefix ${JSON.stringify(value ?? null)}: artifact_prefix must start with ${CAPTURE_ARTIFACT_ROOT} and name a path under it.`);
+  if (
+    typeof value !== 'string' ||
+    !value.startsWith(CAPTURE_ARTIFACT_ROOT) ||
+    value.length === CAPTURE_ARTIFACT_ROOT.length
+  ) {
+    throw new Error(
+      `${action} rejects artifact_prefix ${JSON.stringify(value ?? null)}: artifact_prefix must start with ${CAPTURE_ARTIFACT_ROOT} and name a path under it.`,
+    );
   }
   if (!value.endsWith('/')) {
-    throw new Error(`${action} rejects artifact_prefix ${JSON.stringify(value)}: artifact_prefix must end with a slash.`);
+    throw new Error(
+      `${action} rejects artifact_prefix ${JSON.stringify(value)}: artifact_prefix must end with a slash.`,
+    );
   }
   const key = value.slice(CAPTURE_ARTIFACT_ROOT.length);
   const segments = key.slice(0, key.length - 1).split('/');
-  if (segments.some((segment) => !/^[A-Za-z\d._-]+$/.test(segment) || segment === '.' || segment === '..')) {
-    throw new Error(`${action} rejects artifact_prefix ${JSON.stringify(value)}: every path segment must be letters, digits, dot, dash or underscore.`);
+  if (
+    segments.some(
+      (segment) =>
+        !/^[A-Za-z\d._-]+$/.test(segment) ||
+        segment === '.' ||
+        segment === '..',
+    )
+  ) {
+    throw new Error(
+      `${action} rejects artifact_prefix ${JSON.stringify(value)}: every path segment must be letters, digits, dot, dash or underscore.`,
+    );
   }
   return value;
 }
 
 function steps(value: unknown, action: string): CaptureStep[] {
   if (value === undefined || value === null) return [];
-  if (!Array.isArray(value)) throw new Error(`${action} requires steps as an array.`);
+  if (!Array.isArray(value))
+    throw new Error(`${action} requires steps as an array.`);
   return value.map((entry) => {
     const raw = record(entry, action, 'each steps entry');
     const op = raw.op;
-    if (typeof op !== 'string' || !(CAPTURE_STEP_OPS as readonly string[]).includes(op)) {
-      throw new Error(`${action} rejects step op ${JSON.stringify(op ?? null)}: op must be one of ${CAPTURE_STEP_OPS.join(', ')}.`);
+    if (
+      typeof op !== 'string' ||
+      !(CAPTURE_STEP_OPS as readonly string[]).includes(op)
+    ) {
+      throw new Error(
+        `${action} rejects step op ${JSON.stringify(op ?? null)}: op must be one of ${CAPTURE_STEP_OPS.join(', ')}.`,
+      );
     }
-    const stepValue = raw.value === undefined || raw.value === null ? '' : String(raw.value);
-    if ((op === 'wait_selector' || op === 'click' || op === 'hover' || op === 'focus' || op === 'press' || op === 'goto') && !stepValue.trim()) {
-      throw new Error(`${action} rejects step op ${JSON.stringify(op)} without a value: ${op} requires a value.`);
+    const stepValue =
+      raw.value === undefined || raw.value === null ? '' : String(raw.value);
+    if (
+      (op === 'wait_selector' ||
+        op === 'click' ||
+        op === 'hover' ||
+        op === 'focus' ||
+        op === 'press' ||
+        op === 'goto') &&
+      !stepValue.trim()
+    ) {
+      throw new Error(
+        `${action} rejects step op ${JSON.stringify(op)} without a value: ${op} requires a value.`,
+      );
     }
     if (op === 'goto') sourceUrl(stepValue, action);
     if (op === 'scroll' && stepValue.trim()) {
-      integer(stepValue, action, `step ${op} value`, Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER);
+      integer(
+        stepValue,
+        action,
+        `step ${op} value`,
+        Number.MIN_SAFE_INTEGER,
+        Number.MAX_SAFE_INTEGER,
+      );
     }
     return { op: op as CaptureStepOp, value: stepValue };
   });
 }
 
-export function parseCaptureParams(params: Record<string, unknown>): CapturePlan {
+export function parseCaptureParams(
+  params: Record<string, unknown>,
+): CapturePlan {
   const action = 'generic_capture';
   const axis = params.axis;
-  if (typeof axis !== 'string' || !(CAPTURE_AXES as readonly string[]).includes(axis)) {
-    throw new Error(`${action} rejects axis ${JSON.stringify(axis ?? null)}: axis must be one of ${CAPTURE_AXES.join(', ')}.`);
+  if (
+    typeof axis !== 'string' ||
+    !(CAPTURE_AXES as readonly string[]).includes(axis)
+  ) {
+    throw new Error(
+      `${action} rejects axis ${JSON.stringify(axis ?? null)}: axis must be one of ${CAPTURE_AXES.join(', ')}.`,
+    );
   }
   const recordSecondsRaw = params.record_seconds ?? 0;
-  const recordSeconds = typeof recordSecondsRaw === 'string' ? Number(recordSecondsRaw) : recordSecondsRaw;
-  if (typeof recordSeconds !== 'number' || !Number.isFinite(recordSeconds) || recordSeconds < 0) {
-    throw new Error(`${action} rejects record_seconds ${JSON.stringify(recordSecondsRaw ?? null)}: record_seconds must be a number of seconds, zero or more.`);
+  const recordSeconds =
+    typeof recordSecondsRaw === 'string'
+      ? Number(recordSecondsRaw)
+      : recordSecondsRaw;
+  if (
+    typeof recordSeconds !== 'number' ||
+    !Number.isFinite(recordSeconds) ||
+    recordSeconds < 0
+  ) {
+    throw new Error(
+      `${action} rejects record_seconds ${JSON.stringify(recordSecondsRaw ?? null)}: record_seconds must be a number of seconds, zero or more.`,
+    );
   }
   if (params.full_page !== undefined && typeof params.full_page !== 'boolean') {
-    throw new Error(`${action} rejects full_page ${JSON.stringify(params.full_page)}: full_page must be true or false.`);
+    throw new Error(
+      `${action} rejects full_page ${JSON.stringify(params.full_page)}: full_page must be true or false.`,
+    );
   }
   return {
     batch: slug(params.batch, action, 'batch'),
@@ -157,7 +268,9 @@ export function parseCaptureParams(params: Record<string, unknown>): CapturePlan
   };
 }
 
-export function parseAccessibilityAuditParams(params: Record<string, unknown>): AccessibilityAuditPlan {
+export function parseAccessibilityAuditParams(
+  params: Record<string, unknown>,
+): AccessibilityAuditPlan {
   const action = 'generic_accessibility_audit';
   return {
     batch: slug(params.batch, action, 'batch'),

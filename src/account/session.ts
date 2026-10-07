@@ -9,15 +9,31 @@
 
 import type { Persona } from '../browser/persona.js';
 import { generatePersona } from '../browser/persona.js';
-import { hydratePinnedProxy, proxyUrl as buildProxyUrl, resolveProxy } from '../proxy/config.js';
+import {
+  hydratePinnedProxy,
+  proxyUrl as buildProxyUrl,
+  resolveProxy,
+} from '../proxy/config.js';
 import type { ProxyConfig, ResolvedProxy } from '../proxy/config.js';
 import { isBurned } from '../proxy/burned.js';
-import { noExitCause, rankByCapability, taskNetworkRequirements } from '../proxy/capability.js';
+import {
+  noExitCause,
+  rankByCapability,
+  taskNetworkRequirements,
+} from '../proxy/capability.js';
 import { refreshStickyIfDead } from '../proxy/sticky.js';
 import type { SocialAccount } from '../utils/credentials.js';
-import { backfillPersona, backfillProxy, burnAccount, clearDeadProxy } from './repair.js';
+import {
+  backfillPersona,
+  backfillProxy,
+  burnAccount,
+  clearDeadProxy,
+} from './repair.js';
 
-export interface AccountSession { proxyUrl?: string; persona?: Persona; }
+export interface AccountSession {
+  proxyUrl?: string;
+  persona?: Persona;
+}
 
 const PLATFORM_HOSTS: Record<string, string> = {
   twitter: 'x.com',
@@ -36,19 +52,27 @@ function inferTrajectoryAction(platform: string): string {
   if (explicit) return explicit;
 
   const script = process.argv[1] ?? '';
-  const parts = script.replace(/\.(?:mjs|cjs|js|ts)$/, '').split(/[\\/]+/).filter(Boolean);
+  const parts = script
+    .replace(/\.(?:mjs|cjs|js|ts)$/, '')
+    .split(/[\\/]+/)
+    .filter(Boolean);
   const file = parts[parts.length - 1] ?? '';
   const parent = parts[parts.length - 2] ?? '';
   const grandparent = parts[parts.length - 3] ?? '';
 
   if (file.startsWith(`${platform}_`)) return file;
-  if (parent === platform && file && file !== 'index') return `${platform}_${file}`;
-  if (grandparent === platform && file && !['index', 'run'].includes(file)) return `${platform}_${file}`;
-  if (grandparent === platform && parent && file === 'run') return `${platform}_${parent}`;
+  if (parent === platform && file && file !== 'index')
+    return `${platform}_${file}`;
+  if (grandparent === platform && file && !['index', 'run'].includes(file))
+    return `${platform}_${file}`;
+  if (grandparent === platform && parent && file === 'run')
+    return `${platform}_${parent}`;
   return `${platform}_unknown`;
 }
 
-export async function resolveAccountSession(acct: SocialAccount): Promise<AccountSession> {
+export async function resolveAccountSession(
+  acct: SocialAccount,
+): Promise<AccountSession> {
   const meta = acct.metadata as any;
   const out: AccountSession = {};
   let cfg: ProxyConfig | null = null;
@@ -56,10 +80,14 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
   const targetHost = PLATFORM_HOSTS[acct.platform];
 
   const network = taskNetworkRequirements(action, acct.platform);
-  const savedProxy = meta?.proxy as (Partial<ProxyConfig> & { server?: string; exit_ip_url?: string }) | undefined;
-  const hasSavedProxy = Boolean(savedProxy?.exit_ip_url
-    || (savedProxy?.host && savedProxy?.port)
-    || savedProxy?.server);
+  const savedProxy = meta?.proxy as
+    | (Partial<ProxyConfig> & { server?: string; exit_ip_url?: string })
+    | undefined;
+  const hasSavedProxy = Boolean(
+    savedProxy?.exit_ip_url ||
+      (savedProxy?.host && savedProxy?.port) ||
+      savedProxy?.server,
+  );
 
   // First-party direct egress (NO proxy). taskNetworkRequirements already routes
   // the platforms with no datacenter blacklist — GitHub, Producthunt, Pangram —
@@ -83,7 +111,11 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
     return out;
   }
 
-  if (network.route === 'direct' && !hasSavedProxy && process.env.WELES_FORCE_PROXY !== '1') {
+  if (
+    network.route === 'direct' &&
+    !hasSavedProxy &&
+    process.env.WELES_FORCE_PROXY !== '1'
+  ) {
     if (meta?.persona) out.persona = meta.persona as Persona;
     return out;
   }
@@ -92,39 +124,63 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
   if (savedProxy?.exit_ip_url) {
     try {
       const parsed = new URL(savedProxy.exit_ip_url);
-      const provider = savedProxy.provider ?? policy.providerFromHost(parsed.hostname, parsed.username);
+      const provider =
+        savedProxy.provider ??
+        policy.providerFromHost(parsed.hostname, parsed.username);
       if (!provider) throw new Error('unknown_provider');
-      cfg = hydratePinnedProxy({
-        host: parsed.hostname,
-        port: Number(parsed.port),
-        protocol: parsed.protocol.replace(/:$/, ''),
-        username: parsed.username ? decodeURIComponent(parsed.username) : undefined,
-        password: parsed.password ? decodeURIComponent(parsed.password) : undefined,
-        country: savedProxy.country,
-        provider,
-        proxy_type: savedProxy.proxy_type ?? 'isp',
-        sticky_session_id: savedProxy.sticky_session_id,
-        sticky_hash: savedProxy.sticky_hash,
-        city: savedProxy.city,
-      }) ?? null;
+      cfg =
+        hydratePinnedProxy({
+          host: parsed.hostname,
+          port: Number(parsed.port),
+          protocol: parsed.protocol.replace(/:$/, ''),
+          username: parsed.username
+            ? decodeURIComponent(parsed.username)
+            : undefined,
+          password: parsed.password
+            ? decodeURIComponent(parsed.password)
+            : undefined,
+          country: savedProxy.country,
+          provider,
+          proxy_type: savedProxy.proxy_type ?? 'isp',
+          sticky_session_id: savedProxy.sticky_session_id,
+          sticky_hash: savedProxy.sticky_hash,
+          city: savedProxy.city,
+        }) ?? null;
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       throw new Error(`pinned_proxy_invalid:${action}:${reason}`);
     }
   } else if (savedProxy?.host && savedProxy?.port) {
     const host = savedProxy.host;
-    if (await isBurned(host, acct.platform)) throw new Error(`pinned_proxy_burned:${action}:${host}:${savedProxy.port}`);
+    if (await isBurned(host, acct.platform))
+      throw new Error(
+        `pinned_proxy_burned:${action}:${host}:${savedProxy.port}`,
+      );
     const retiredReason = policy.retiredProviderReason(host, savedProxy.port);
     if (retiredReason) {
-      console.log(`[identity] retiring account ${acct.username}: stored proxy ${host}:${savedProxy.port} is from a retired pool (${retiredReason})`);
+      console.log(
+        `[identity] retiring account ${acct.username}: stored proxy ${host}:${savedProxy.port} is from a retired pool (${retiredReason})`,
+      );
       await burnAccount(acct, `retired_proxy:${retiredReason}`);
-      throw new Error(`retired_proxy:${retiredReason}:${host}:${savedProxy.port}`);
+      throw new Error(
+        `retired_proxy:${retiredReason}:${host}:${savedProxy.port}`,
+      );
     }
-    const provider = savedProxy.provider ?? policy.providerFromHost(host, savedProxy.username);
-    const isLegacyRelay = !provider && (savedProxy.username === 'lbartoszcze' || host.startsWith('209.38.'));
+    const provider =
+      savedProxy.provider ?? policy.providerFromHost(host, savedProxy.username);
+    const isLegacyRelay =
+      !provider &&
+      (savedProxy.username === 'lbartoszcze' || host.startsWith('209.38.'));
     if (isLegacyRelay || !provider) {
-      await burnAccount(acct, isLegacyRelay ? 'retired_proxy:legacy_relay' : 'retired_proxy:unknown_provider');
-      throw new Error(`pinned_proxy_unavailable:${action}:${host}:${savedProxy.port}`);
+      await burnAccount(
+        acct,
+        isLegacyRelay
+          ? 'retired_proxy:legacy_relay'
+          : 'retired_proxy:unknown_provider',
+      );
+      throw new Error(
+        `pinned_proxy_unavailable:${action}:${host}:${savedProxy.port}`,
+      );
     }
     try {
       const { isCellFail } = await import('../proxy/capability.js');
@@ -138,32 +194,36 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
     // A saved proxy carries its pool type; hydratePinnedProxy defaults the
     // rest by provider (decodo is a static ISP pool).
     const proxyType = savedProxy.proxy_type;
-    cfg = hydratePinnedProxy({
-      ...savedProxy,
-      host,
-      port: savedProxy.port,
-      protocol: savedProxy.protocol ?? 'http',
-      provider,
-      proxy_type: proxyType,
-    }) ?? null;
+    cfg =
+      hydratePinnedProxy({
+        ...savedProxy,
+        host,
+        port: savedProxy.port,
+        protocol: savedProxy.protocol ?? 'http',
+        provider,
+        proxy_type: proxyType,
+      }) ?? null;
   } else if (savedProxy?.server) {
     try {
       const parsed = new URL(savedProxy.server);
-      const provider = savedProxy.provider ?? policy.providerFromHost(parsed.hostname, savedProxy.username);
+      const provider =
+        savedProxy.provider ??
+        policy.providerFromHost(parsed.hostname, savedProxy.username);
       if (!provider) throw new Error('unknown_provider');
-      cfg = hydratePinnedProxy({
-        host: parsed.hostname,
-        port: Number(parsed.port),
-        protocol: parsed.protocol.replace(/:$/, ''),
-        username: savedProxy.username,
-        password: savedProxy.password,
-        country: savedProxy.country,
-        provider,
-        proxy_type: savedProxy.proxy_type,
-        sticky_session_id: savedProxy.sticky_session_id,
-        sticky_hash: savedProxy.sticky_hash,
-        city: savedProxy.city,
-      }) ?? null;
+      cfg =
+        hydratePinnedProxy({
+          host: parsed.hostname,
+          port: Number(parsed.port),
+          protocol: parsed.protocol.replace(/:$/, ''),
+          username: savedProxy.username,
+          password: savedProxy.password,
+          country: savedProxy.country,
+          provider,
+          proxy_type: savedProxy.proxy_type,
+          sticky_session_id: savedProxy.sticky_session_id,
+          sticky_hash: savedProxy.sticky_hash,
+          city: savedProxy.city,
+        }) ?? null;
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       throw new Error(`pinned_proxy_invalid:${action}:${reason}`);
@@ -176,7 +236,9 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
       await backfillProxy(acct, cfg);
     } else {
       const reason = `dead_pinned_proxy:${action}:${cfg.provider ?? 'unknown'}`;
-      console.log(`[identity] failing over account ${acct.username}: ${reason}`);
+      console.log(
+        `[identity] failing over account ${acct.username}: ${reason}`,
+      );
       await clearDeadProxy(acct, reason);
       cfg = null;
     }
@@ -185,7 +247,9 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
   if (!cfg && process.env.PROXY_URL) {
     out.proxyUrl = process.env.PROXY_URL;
   } else if (!cfg && process.env.WELES_ALLOW_DIRECT_ACCOUNT_SESSION === '1') {
-    console.log(`[identity] explicit direct account session action=${action} platform=${acct.platform}`);
+    console.log(
+      `[identity] explicit direct account session action=${action} platform=${acct.platform}`,
+    );
   } else if (!cfg) {
     const country = network.country ?? '';
     try {
@@ -193,16 +257,21 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
       let pw: ResolvedProxy | undefined;
       const { candidates, failing, unpriced } = await rankByCapability(action);
       for (const winner of candidates) {
-        const filter = `${network.proxyType ?? 'isp'} ${winner.provider} ${country}`.trim();
+        const filter =
+          `${network.proxyType ?? 'isp'} ${winner.provider} ${country}`.trim();
         pw = await resolveProxy(filter, targetHost);
         if (pw) {
-          console.log(`[identity] capability pick ${winner.provider} ($${winner.cost_per_gb}/GB, ${winner.standing}) route=${network.proxyType ?? 'isp'} action=${action}`);
+          console.log(
+            `[identity] capability pick ${winner.provider} ($${winner.cost_per_gb}/GB, ${winner.standing}) route=${network.proxyType ?? 'isp'} action=${action}`,
+          );
           break;
         }
         tried.push(winner.provider);
       }
       if (!pw) {
-        throw new Error(`proxy_unavailable:${network.proxyType ?? 'isp'}:${action}:${acct.platform}:${country}: ${noExitCause(action, tried, failing, unpriced)}`);
+        throw new Error(
+          `proxy_unavailable:${network.proxyType ?? 'isp'}:${action}:${acct.platform}:${country}: ${noExitCause(action, tried, failing, unpriced)}`,
+        );
       }
       if (pw?.server) {
         const u = new URL(pw.server);
@@ -232,7 +301,9 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
   if (meta?.persona) {
     out.persona = meta.persona as Persona;
   } else {
-    out.persona = generatePersona({ country: cfg?.country ?? meta?.proxy?.country });
+    out.persona = generatePersona({
+      country: cfg?.country ?? meta?.proxy?.country,
+    });
     await backfillPersona(acct, out.persona);
   }
   return out;

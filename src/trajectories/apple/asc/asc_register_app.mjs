@@ -14,25 +14,56 @@ if (!KEY_ID || !ISSUER || !PEM) {
 }
 
 const b64url = (b) =>
-  Buffer.from(b).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+  Buffer.from(b)
+    .toString('base64')
+    .replace(/=+$/, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
 const now = Math.floor(Date.now() / 1000);
 const head = b64url(JSON.stringify({ alg: 'ES256', kid: KEY_ID, typ: 'JWT' }));
-const pay = b64url(JSON.stringify({ iss: ISSUER, iat: now, exp: now + 1100, aud: 'appstoreconnect-v1' }));
-const sig = crypto.createSign('SHA256').update(`${head}.${pay}`).sign({ key: PEM, dsaEncoding: 'ieee-p1363' });
+const pay = b64url(
+  JSON.stringify({
+    iss: ISSUER,
+    iat: now,
+    exp: now + 1100,
+    aud: 'appstoreconnect-v1',
+  }),
+);
+const sig = crypto
+  .createSign('SHA256')
+  .update(`${head}.${pay}`)
+  .sign({ key: PEM, dsaEncoding: 'ieee-p1363' });
 const JWT = `${head}.${pay}.${b64url(sig)}`;
-const H = { Authorization: `Bearer ${JWT}`, 'Content-Type': 'application/json' };
+const H = {
+  Authorization: `Bearer ${JWT}`,
+  'Content-Type': 'application/json',
+};
 const API = 'https://api.appstoreconnect.apple.com';
 
 async function jget(url) {
   const r = await fetch(url, { headers: H });
   const t = await r.text();
-  let j; try { j = JSON.parse(t); } catch { j = { raw: t }; }
+  let j;
+  try {
+    j = JSON.parse(t);
+  } catch {
+    j = { raw: t };
+  }
   return { ok: r.ok, status: r.status, j };
 }
 async function jpost(url, body) {
-  const r = await fetch(url, { method: 'POST', headers: H, body: JSON.stringify(body) });
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: H,
+    body: JSON.stringify(body),
+  });
   const t = await r.text();
-  let j; try { j = JSON.parse(t); } catch { j = { raw: t }; }
+  let j;
+  try {
+    j = JSON.parse(t);
+  } catch {
+    j = { raw: t };
+  }
   return { ok: r.ok, status: r.status, j };
 }
 
@@ -45,24 +76,40 @@ if (!me.ok) {
 console.log('auth ok; existing apps visible:', (me.j.data || []).length);
 
 // 1) does the app already exist?
-let exist = await jget(`${API}/v1/apps?filter[bundleId]=${encodeURIComponent(BUNDLE)}&limit=10`);
+let exist = await jget(
+  `${API}/v1/apps?filter[bundleId]=${encodeURIComponent(BUNDLE)}&limit=10`,
+);
 if (exist.ok && (exist.j.data || []).length) {
-  console.log('APP_EXISTS', exist.j.data[0].id, exist.j.data[0].attributes?.name);
+  console.log(
+    'APP_EXISTS',
+    exist.j.data[0].id,
+    exist.j.data[0].attributes?.name,
+  );
   process.exit(0);
 }
 
 // 2) find or register the bundle id
 let bid;
-let bl = await jget(`${API}/v1/bundleIds?filter[identifier]=${encodeURIComponent(BUNDLE)}&limit=200`);
-const found = bl.ok ? (bl.j.data || []).find((b) => b.attributes?.identifier === BUNDLE) : null;
+let bl = await jget(
+  `${API}/v1/bundleIds?filter[identifier]=${encodeURIComponent(BUNDLE)}&limit=200`,
+);
+const found = bl.ok
+  ? (bl.j.data || []).find((b) => b.attributes?.identifier === BUNDLE)
+  : null;
 if (found) {
   bid = found.id;
   console.log('bundleId exists:', bid);
 } else {
   const reg = await jpost(`${API}/v1/bundleIds`, {
-    data: { type: 'bundleIds', attributes: { identifier: BUNDLE, name: 'Swiatowid', platform: 'IOS' } },
+    data: {
+      type: 'bundleIds',
+      attributes: { identifier: BUNDLE, name: 'Swiatowid', platform: 'IOS' },
+    },
   });
-  if (!reg.ok) { console.error('bundleId create FAILED', reg.status, JSON.stringify(reg.j)); process.exit(1); }
+  if (!reg.ok) {
+    console.error('bundleId create FAILED', reg.status, JSON.stringify(reg.j));
+    process.exit(1);
+  }
   bid = reg.j.data.id;
   console.log('bundleId registered:', bid);
 }
@@ -71,7 +118,12 @@ if (found) {
 const create = await jpost(`${API}/v1/apps`, {
   data: {
     type: 'apps',
-    attributes: { name: NAME, primaryLocale: 'en-US', sku: SKU, bundleId: BUNDLE },
+    attributes: {
+      name: NAME,
+      primaryLocale: 'en-US',
+      sku: SKU,
+      bundleId: BUNDLE,
+    },
     relationships: { bundleId: { data: { type: 'bundleIds', id: bid } } },
   },
 });

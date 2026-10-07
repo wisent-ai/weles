@@ -27,13 +27,21 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const REQUIREMENTS_FILE = process.env.WELES_TRAJECTORY_REQUIREMENTS_FILE
-  ?? path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'requirements.json');
+const REQUIREMENTS_FILE =
+  process.env.WELES_TRAJECTORY_REQUIREMENTS_FILE ??
+  path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '..',
+    '..',
+    'requirements.json',
+  );
 const REQUIREMENTS_SCHEMA = 'wisent.trajectory-requirements.v1';
 
 export function launchdSession() {
   try {
-    return execFileSync('/bin/launchctl', ['managername'], { encoding: 'utf8' }).trim();
+    return execFileSync('/bin/launchctl', ['managername'], {
+      encoding: 'utf8',
+    }).trim();
   } catch {
     return 'unknown';
   }
@@ -49,13 +57,15 @@ export function trajectoryRequirements(trajectory) {
   }
   const document = JSON.parse(readFileSync(REQUIREMENTS_FILE, 'utf8'));
   if (document?.schema !== REQUIREMENTS_SCHEMA) {
-    throw new Error(`${REQUIREMENTS_FILE} declares schema '${document?.schema}', expected '${REQUIREMENTS_SCHEMA}'`);
+    throw new Error(
+      `${REQUIREMENTS_FILE} declares schema '${document?.schema}', expected '${REQUIREMENTS_SCHEMA}'`,
+    );
   }
   const declared = document?.trajectories?.[trajectory];
   if (!Array.isArray(declared)) {
     throw new Error(
-      `${trajectory} is not declared in ${REQUIREMENTS_FILE}, so nothing can place it. `
-      + 'Add it there with the capability ids it needs, or an empty list if it needs none.',
+      `${trajectory} is not declared in ${REQUIREMENTS_FILE}, so nothing can place it. ` +
+        'Add it there with the capability ids it needs, or an empty list if it needs none.',
     );
   }
   return declared;
@@ -73,7 +83,9 @@ function measureDisplay() {
     const uid = process.getuid?.() ?? -1;
     let guiDomain = false;
     try {
-      execFileSync('/bin/launchctl', ['print', `gui/${uid}`], { stdio: 'ignore' });
+      execFileSync('/bin/launchctl', ['print', `gui/${uid}`], {
+        stdio: 'ignore',
+      });
       guiDomain = true;
     } catch {
       guiDomain = false;
@@ -82,46 +94,73 @@ function measureDisplay() {
     return {
       value,
       detail: `launchd session ${session}; gui/${uid} ${guiDomain ? 'present' : 'absent'}`,
-      remedy: 'Run it from a logged-in graphical session: a LaunchAgent in '
-        + `gui/${uid === -1 ? '<uid>' : uid}, not a LaunchDaemon and not a bare SSH command.`,
+      remedy:
+        'Run it from a logged-in graphical session: a LaunchAgent in ' +
+        `gui/${uid === -1 ? '<uid>' : uid}, not a LaunchDaemon and not a bare SSH command.`,
     };
   }
   if (platform === 'linux') {
     const display = process.env.DISPLAY ?? '';
-    const remedy = 'Start it under the deployment\'s own display: src/worker/deploy/launch.sh '
-      + 'execs the worker under xvfb-run, and src/worker/deploy/install-virtual-display-linux.sh '
-      + 'installs that mechanism on a host that lacks it.';
+    const remedy =
+      "Start it under the deployment's own display: src/worker/deploy/launch.sh " +
+      'execs the worker under xvfb-run, and src/worker/deploy/install-virtual-display-linux.sh ' +
+      'installs that mechanism on a host that lacks it.';
     if (display) {
       // xdpyinfo proves a server answered; a bare socket only proves something
       // bound the path, which is what a half-dead Xvfb leaves behind, so the
       // socket is read only when xdpyinfo has no answer.
       try {
         execFileSync('xdpyinfo', ['-display', display], { stdio: 'ignore' });
-        return { value: true, detail: `X display ${display} answered xdpyinfo`, remedy };
+        return {
+          value: true,
+          detail: `X display ${display} answered xdpyinfo`,
+          remedy,
+        };
       } catch (error) {
-        console.error(`xdpyinfo did not answer for ${display}: ${error.message.split('\n')[0]}`);
+        console.error(
+          `xdpyinfo did not answer for ${display}: ${error.message.split('\n')[0]}`,
+        );
       }
       const screen = display.match(/:(\d+)/);
       const socket = screen ? `/tmp/.X11-unix/X${screen[1]}` : null;
       if (socket && existsSync(socket)) {
-        return { value: true, detail: `X socket ${socket} present for DISPLAY=${display}`, remedy };
+        return {
+          value: true,
+          detail: `X socket ${socket} present for DISPLAY=${display}`,
+          remedy,
+        };
       }
-      return { value: false, detail: `DISPLAY=${display} but no X server answered it`, remedy };
+      return {
+        value: false,
+        detail: `DISPLAY=${display} but no X server answered it`,
+        remedy,
+      };
     }
     const wayland = process.env.WAYLAND_DISPLAY ?? '';
     const runtimeDir = process.env.XDG_RUNTIME_DIR ?? '';
     const waylandSocket = wayland.startsWith('/')
       ? wayland
-      : (wayland && runtimeDir ? path.join(runtimeDir, wayland) : '');
+      : wayland && runtimeDir
+        ? path.join(runtimeDir, wayland)
+        : '';
     if (waylandSocket && existsSync(waylandSocket)) {
-      return { value: true, detail: `Wayland socket ${waylandSocket} present`, remedy };
+      return {
+        value: true,
+        detail: `Wayland socket ${waylandSocket} present`,
+        remedy,
+      };
     }
-    return { value: false, detail: 'no DISPLAY and no reachable Wayland socket in this environment', remedy };
+    return {
+      value: false,
+      detail: 'no DISPLAY and no reachable Wayland socket in this environment',
+      remedy,
+    };
   }
   return {
     value: false,
     detail: `platform ${platform} has no display check here`,
-    remedy: 'Teach measureDisplay() how this platform exposes a display before running headed work on it.',
+    remedy:
+      'Teach measureDisplay() how this platform exposes a display before running headed work on it.',
   };
 }
 
@@ -133,8 +172,10 @@ const CAPABILITY_MEASUREMENTS = {
   display: measureDisplay,
   'browser-render': () => ({
     value: true,
-    detail: 'the browser launch that follows is the measurement; no second launch is made here',
-    remedy: 'If the browser fails to render, that failure is the measurement and belongs in the host capability object.',
+    detail:
+      'the browser launch that follows is the measurement; no second launch is made here',
+    remedy:
+      'If the browser fails to render, that failure is the measurement and belongs in the host capability object.',
   }),
   os: () => ({
     value: true,
@@ -152,8 +193,8 @@ export function requireCapabilities(trajectory) {
     const measure = CAPABILITY_MEASUREMENTS[capability];
     if (!measure) {
       throw new Error(
-        `${trajectory} declares capability '${capability}' in ${REQUIREMENTS_FILE} and nothing here can verify it. `
-        + `Verifiable ids: ${Object.keys(CAPABILITY_MEASUREMENTS).join(', ')}.`,
+        `${trajectory} declares capability '${capability}' in ${REQUIREMENTS_FILE} and nothing here can verify it. ` +
+          `Verifiable ids: ${Object.keys(CAPABILITY_MEASUREMENTS).join(', ')}.`,
       );
     }
     const result = measure();
@@ -161,10 +202,13 @@ export function requireCapabilities(trajectory) {
     if (!result.value) {
       // code, stage and capability are what the AUTH_FAILURE line reports
       // (subscription-auth/run.mjs fail()); the sentence is for the reader.
-      throw Object.assign(new Error(
-        `${trajectory} needs capability '${capability}', declared in ${REQUIREMENTS_FILE}, `
-        + `and this host measures ${capability}=false: ${result.detail}. ${result.remedy}`,
-      ), { code: 'capability_unavailable', stage: 'capability', capability });
+      throw Object.assign(
+        new Error(
+          `${trajectory} needs capability '${capability}', declared in ${REQUIREMENTS_FILE}, ` +
+            `and this host measures ${capability}=false: ${result.detail}. ${result.remedy}`,
+        ),
+        { code: 'capability_unavailable', stage: 'capability', capability },
+      );
     }
   }
   return measured;

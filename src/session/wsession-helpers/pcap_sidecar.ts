@@ -36,11 +36,20 @@ export interface PcapStatus {
 
 export function startPcap(ws: any, label: string | undefined): void {
   const status: PcapStatus = {
-    enabled: false, iface: null, path: null, pid: null,
-    exit_code: null, exit_signal: null, stderr: '', spawn_error: null,
+    enabled: false,
+    iface: null,
+    path: null,
+    pid: null,
+    exit_code: null,
+    exit_signal: null,
+    stderr: '',
+    spawn_error: null,
   };
   ws._instPcap = status;
-  if (!label) { status.spawn_error = 'no label'; return; }
+  if (!label) {
+    status.spawn_error = 'no label';
+    return;
+  }
   const iface = defaultInterface();
   const outPath = join(runRecordingsDir(label), 'traffic.pcap'); // G17: recordings/<run_uuid>/<label>/
   status.iface = iface;
@@ -50,15 +59,29 @@ export function startPcap(ws: any, label: string | undefined): void {
     // -i <iface> capture interface; -w <path> raw pcap output; -U pack each
     // packet immediately (don't buffer); -B 16384 bigger BPF buffer to reduce
     // drops. NO filter — capture everything on the iface for the session.
-    child = spawn(TCPDUMP_PATH, ['-i', iface, '-w', outPath, '-U', '-B', '16384'], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-  } catch (e: any) { status.spawn_error = String(e?.message ?? e); return; }
+    child = spawn(
+      TCPDUMP_PATH,
+      ['-i', iface, '-w', outPath, '-U', '-B', '16384'],
+      {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    );
+  } catch (e: any) {
+    status.spawn_error = String(e?.message ?? e);
+    return;
+  }
   status.enabled = true;
   status.pid = child.pid ?? null;
-  child.stderr?.on('data', (d) => { status.stderr = (status.stderr + d.toString()); });
-  child.on('exit', (code, signal) => { status.exit_code = code; status.exit_signal = signal; });
-  child.on('error', (err) => { status.spawn_error = String(err?.message ?? err); });
+  child.stderr?.on('data', (d) => {
+    status.stderr = status.stderr + d.toString();
+  });
+  child.on('exit', (code, signal) => {
+    status.exit_code = code;
+    status.exit_signal = signal;
+  });
+  child.on('error', (err) => {
+    status.spawn_error = String(err?.message ?? err);
+  });
   ws._instPcapChild = child;
 }
 
@@ -74,40 +97,126 @@ export function attachWorkerInventory(ws: any): void {
   if (!cdp) return;
   ws._instWorkerSurfaces = [];
   void (async () => {
-    try { await cdp.send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }); }
-    catch (e: any) { ws._instWorkerSurfacesError = String(e?.message ?? e); }
+    try {
+      await cdp.send('Target.setAutoAttach', {
+        autoAttach: true,
+        waitForDebuggerOnStart: false,
+        flatten: true,
+      });
+    } catch (e: any) {
+      ws._instWorkerSurfacesError = String(e?.message ?? e);
+    }
   })();
   cdp.on('Target.attachedToTarget', async (e: any) => {
     try {
-      const sessId = e?.sessionId; const ti = e?.targetInfo;
+      const sessId = e?.sessionId;
+      const ti = e?.targetInfo;
       if (!sessId || !ti) return;
-      const childCdp = (cdp as any)._connection?.session?.(sessId) ?? (cdp as any).session?.(sessId) ?? null;
-      let inv: any = null; let err: string | null = null;
+      const childCdp =
+        (cdp as any)._connection?.session?.(sessId) ??
+        (cdp as any).session?.(sessId) ??
+        null;
+      let inv: any = null;
+      let err: string | null = null;
       if (childCdp) {
-        try { inv = await childCdp.send('Runtime.evaluate', { expression: 'JSON.stringify({selfNames:Object.getOwnPropertyNames(self),navNames:Object.getOwnPropertyNames(self.navigator||{}),ua:(self.navigator&&self.navigator.userAgent)||null,scope:String(self.constructor&&self.constructor.name)})', returnByValue: true }); }
-        catch (e2: any) { err = String(e2?.message ?? e2); }
+        try {
+          inv = await childCdp.send('Runtime.evaluate', {
+            expression:
+              'JSON.stringify({selfNames:Object.getOwnPropertyNames(self),navNames:Object.getOwnPropertyNames(self.navigator||{}),ua:(self.navigator&&self.navigator.userAgent)||null,scope:String(self.constructor&&self.constructor.name)})',
+            returnByValue: true,
+          });
+        } catch (e2: any) {
+          err = String(e2?.message ?? e2);
+        }
         // Subscribe Runtime + Network on the worker session so events beyond
         // the initial snapshot land in ws._instWorkerEvents.
         if (!ws._instWorkerEvents) ws._instWorkerEvents = [];
         const we = ws._instWorkerEvents;
-        try { await childCdp.send('Runtime.enable'); } catch {}
-        try { await childCdp.send('Network.enable'); } catch {}
-        childCdp.on('Runtime.consoleAPICalled', (ev: any) => { try { we.push({ t: Date.now(), targetId: ti.targetId, phase: 'console', payload: ev }); } catch {} });
-        childCdp.on('Runtime.exceptionThrown', (ev: any) => { try { we.push({ t: Date.now(), targetId: ti.targetId, phase: 'exception', payload: ev }); } catch {} });
-        childCdp.on('Network.requestWillBeSent', (ev: any) => { try { we.push({ t: Date.now(), targetId: ti.targetId, phase: 'request', payload: ev }); } catch {} });
-        childCdp.on('Network.responseReceived', (ev: any) => { try { we.push({ t: Date.now(), targetId: ti.targetId, phase: 'response', payload: ev }); } catch {} });
-        childCdp.on('Network.loadingFailed', (ev: any) => { try { we.push({ t: Date.now(), targetId: ti.targetId, phase: 'loadingFailed', payload: ev }); } catch {} });
-      } else { err = 'no child cdp session handle'; }
-      ws._instWorkerSurfaces.push({ t: Date.now(), targetType: ti.type, targetUrl: ti.url, targetId: ti.targetId, sessionId: sessId, inventory: inv, inventory_error: err });
-    } catch (err: any) { ws._instWorkerSurfaces.push({ t: Date.now(), phase: 'attach-handler-error', err: String(err?.message ?? err) }); }
+        try {
+          await childCdp.send('Runtime.enable');
+        } catch {}
+        try {
+          await childCdp.send('Network.enable');
+        } catch {}
+        childCdp.on('Runtime.consoleAPICalled', (ev: any) => {
+          try {
+            we.push({
+              t: Date.now(),
+              targetId: ti.targetId,
+              phase: 'console',
+              payload: ev,
+            });
+          } catch {}
+        });
+        childCdp.on('Runtime.exceptionThrown', (ev: any) => {
+          try {
+            we.push({
+              t: Date.now(),
+              targetId: ti.targetId,
+              phase: 'exception',
+              payload: ev,
+            });
+          } catch {}
+        });
+        childCdp.on('Network.requestWillBeSent', (ev: any) => {
+          try {
+            we.push({
+              t: Date.now(),
+              targetId: ti.targetId,
+              phase: 'request',
+              payload: ev,
+            });
+          } catch {}
+        });
+        childCdp.on('Network.responseReceived', (ev: any) => {
+          try {
+            we.push({
+              t: Date.now(),
+              targetId: ti.targetId,
+              phase: 'response',
+              payload: ev,
+            });
+          } catch {}
+        });
+        childCdp.on('Network.loadingFailed', (ev: any) => {
+          try {
+            we.push({
+              t: Date.now(),
+              targetId: ti.targetId,
+              phase: 'loadingFailed',
+              payload: ev,
+            });
+          } catch {}
+        });
+      } else {
+        err = 'no child cdp session handle';
+      }
+      ws._instWorkerSurfaces.push({
+        t: Date.now(),
+        targetType: ti.type,
+        targetUrl: ti.url,
+        targetId: ti.targetId,
+        sessionId: sessId,
+        inventory: inv,
+        inventory_error: err,
+      });
+    } catch (err: any) {
+      ws._instWorkerSurfaces.push({
+        t: Date.now(),
+        phase: 'attach-handler-error',
+        err: String(err?.message ?? err),
+      });
+    }
   });
 }
 
 export async function stopPcap(ws: any): Promise<void> {
   const child: ChildProcess | undefined = ws?._instPcapChild;
   if (!child || child.exitCode !== null || child.signalCode !== null) return;
-  try { child.kill('SIGINT'); } catch {}
+  try {
+    child.kill('SIGINT');
+  } catch {}
   // Give tcpdump a tick to flush the pcap header + last packets to disk.
-  await new Promise(r => setImmediate(r));
-  await new Promise(r => setImmediate(r));
+  await new Promise((r) => setImmediate(r));
+  await new Promise((r) => setImmediate(r));
 }

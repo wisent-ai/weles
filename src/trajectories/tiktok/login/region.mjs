@@ -16,9 +16,18 @@ const REGION_COOKIES = [
 /** Pre-seed the region cookies so the page skips the region detector. */
 export async function seedRegionCookies(ctx) {
   const cookies = REGION_COOKIES.map((cookie) => ({
-    ...cookie, domain: '.tiktok.com', path: '/', httpOnly: false, secure: true, sameSite: 'Lax',
+    ...cookie,
+    domain: '.tiktok.com',
+    path: '/',
+    httpOnly: false,
+    secure: true,
+    sameSite: 'Lax',
   }));
-  await ctx.addCookies(cookies).catch((e) => console.log(`[trajectory] region cookie seed failed: ${e.message}`));
+  await ctx
+    .addCookies(cookies)
+    .catch((e) =>
+      console.log(`[trajectory] region cookie seed failed: ${e.message}`),
+    );
 }
 
 /**

@@ -27,7 +27,8 @@ async function firstWritableLocator(page) {
     const count = await loc.count();
     for (let i = 0; i < Math.min(count, 6); i++) {
       const one = loc.nth(i);
-      if (await one.isVisible() && !await one.isDisabled()) return { locator: one, selector };
+      if ((await one.isVisible()) && !(await one.isDisabled()))
+        return { locator: one, selector };
     }
   }
   return null;
@@ -36,13 +37,27 @@ async function firstWritableLocator(page) {
 /** Wait until the page shows a visible, enabled field of one of the known
  * shapes, for as long as the dashboard takes to render it. */
 async function waitForWritableLocator(page) {
-  await pageCondition(page, (selectors) => selectors.some((selector) => Array.from(document.querySelectorAll(selector)).some((el) => {
-    const rect = el.getBoundingClientRect();
-    const style = window.getComputedStyle(el);
-    return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0 && !el.disabled;
-  })), WRITABLE_SELECTORS);
+  await pageCondition(
+    page,
+    (selectors) =>
+      selectors.some((selector) =>
+        Array.from(document.querySelectorAll(selector)).some((el) => {
+          const rect = el.getBoundingClientRect();
+          const style = window.getComputedStyle(el);
+          return (
+            style.visibility !== 'hidden' &&
+            style.display !== 'none' &&
+            rect.width > 0 &&
+            rect.height > 0 &&
+            !el.disabled
+          );
+        }),
+      ),
+    WRITABLE_SELECTORS,
+  );
   const hit = await firstWritableLocator(page);
-  if (!hit) throw new Error(`pangram_input_not_found url=${page.url?.() ?? ''}`);
+  if (!hit)
+    throw new Error(`pangram_input_not_found url=${page.url?.() ?? ''}`);
   return hit;
 }
 
@@ -51,7 +66,10 @@ export async function fillInput(page, text) {
   await hit.locator.scrollIntoViewIfNeeded();
   await humanClickLocator(page, hit.locator).catch(() => hit.locator.focus());
   if (process.env.PANGRAM_NO_ACCOUNT === '1') {
-    const warmupChars = Math.max(0, Number(process.env.PANGRAM_PUBLIC_HUMAN_WARMUP_CHARS || 0));
+    const warmupChars = Math.max(
+      0,
+      Number(process.env.PANGRAM_PUBLIC_HUMAN_WARMUP_CHARS || 0),
+    );
     const warmup = text.slice(0, warmupChars);
     if (warmup) await humanType(page, warmup);
   }
@@ -60,12 +78,17 @@ export async function fillInput(page, text) {
     if ('value' in el) return String(el.value || '').length;
     return String(el.innerText || el.textContent || '').length;
   });
-  if (valueLength < Math.min(text.length, 20)) throw new Error(`pangram_input_fill_failed selector=${hit.selector} length=${valueLength}`);
+  if (valueLength < Math.min(text.length, 20))
+    throw new Error(
+      `pangram_input_fill_failed selector=${hit.selector} length=${valueLength}`,
+    );
   return hit.selector;
 }
 
 export async function dismissCookieBanner(page) {
-  const cookieButtons = page.getByRole('button', { name: /allow all|accept all|zgadzam|akceptuj/i });
+  const cookieButtons = page.getByRole('button', {
+    name: /allow all|accept all|zgadzam|akceptuj/i,
+  });
   const count = await cookieButtons.count();
   for (let i = 0; i < Math.min(count, 4); i++) {
     const btn = cookieButtons.nth(i);
@@ -78,11 +101,20 @@ export async function dismissCookieBanner(page) {
     }
   }
   return page.evaluate(() => {
-    const nodes = Array.from(document.querySelectorAll('[id*="Cookie"], [class*="cookie"], [class*="Cookie"], [aria-label*="cookie" i], div'));
+    const nodes = Array.from(
+      document.querySelectorAll(
+        '[id*="Cookie"], [class*="cookie"], [class*="Cookie"], [aria-label*="cookie" i], div',
+      ),
+    );
     let hidden = 0;
     for (const el of nodes) {
-      const text = (el.textContent || '');
-      if (/This website uses cookies|Allow all|Allow selection|cookie/i.test(text) && el.getClientRects().length) {
+      const text = el.textContent || '';
+      if (
+        /This website uses cookies|Allow all|Allow selection|cookie/i.test(
+          text,
+        ) &&
+        el.getClientRects().length
+      ) {
         el.style.pointerEvents = 'none';
         if (/This website uses cookies|Allow all|Allow selection/i.test(text)) {
           el.style.display = 'none';
@@ -97,7 +129,8 @@ export async function dismissCookieBanner(page) {
 export async function clickAnalyze(page) {
   const labels = /scan|check|analy[sz]e|submit|run/i;
   const primaryLabels = /^(scan|check)\s+for\s+ai$/i;
-  const skip = /scan for ai content|input your text|view results|access past records|detect ai assistance|accuracy|verified|free checks|upload|try it|partner|contact|login|allow/i;
+  const skip =
+    /scan for ai content|input your text|view results|access past records|detect ai assistance|accuracy|verified|free checks|upload|try it|partner|contact|login|allow/i;
   const byRole = page.getByRole('button', { name: labels });
   const roleCount = await byRole.count();
   const candidates = [];
@@ -105,14 +138,32 @@ export async function clickAnalyze(page) {
     const btn = byRole.nth(i);
     const visible = await btn.isVisible().catch(() => false);
     const disabled = await btn.isDisabled().catch(() => true);
-    const name = ((await btn.innerText()) || (await btn.getAttribute('aria-label')) || '').trim();
-    if (visible && !disabled && labels.test(name) && !skip.test(name)) candidates.push({ btn, name });
+    const name = (
+      (await btn.innerText()) ||
+      (await btn.getAttribute('aria-label')) ||
+      ''
+    ).trim();
+    if (visible && !disabled && labels.test(name) && !skip.test(name))
+      candidates.push({ btn, name });
   }
   const primary = candidates.filter((c) => primaryLabels.test(c.name));
-  const visiblePrimaryCount = await page.getByRole('button', { name: primaryLabels }).count();
-  const usableCandidates = primary.length ? primary : (visiblePrimaryCount ? [] : candidates);
+  const visiblePrimaryCount = await page
+    .getByRole('button', { name: primaryLabels })
+    .count();
+  const usableCandidates = primary.length
+    ? primary
+    : visiblePrimaryCount
+      ? []
+      : candidates;
   usableCandidates.sort((a, b) => {
-    const score = (s) => /scan\s*for\s*ai/i.test(s) ? 0 : /scan/i.test(s) ? 1 : /check/i.test(s) ? 2 : 3;
+    const score = (s) =>
+      /scan\s*for\s*ai/i.test(s)
+        ? 0
+        : /scan/i.test(s)
+          ? 1
+          : /check/i.test(s)
+            ? 2
+            : 3;
     return score(a.name) - score(b.name);
   });
   if (usableCandidates.length) {
@@ -120,12 +171,19 @@ export async function clickAnalyze(page) {
     await humanClickLocator(page, usableCandidates[0].btn);
     return `role:button:${usableCandidates[0].name}`;
   }
-  const domScanButtons = page.locator('button,[role="button"],input[type="submit"]').filter({ visible: true });
+  const domScanButtons = page
+    .locator('button,[role="button"],input[type="submit"]')
+    .filter({ visible: true });
   let clicked = null;
-  for (let i = 0; i < await domScanButtons.count(); i += 1) {
+  for (let i = 0; i < (await domScanButtons.count()); i += 1) {
     const button = domScanButtons.nth(i);
-    const text = `${await button.textContent()} ${await button.getAttribute('aria-label')} ${await button.getAttribute('value')}`.trim();
-    if (labels.test(text) && !skip.test(text) && !await button.isDisabled().catch(() => true)) {
+    const text =
+      `${await button.textContent()} ${await button.getAttribute('aria-label')} ${await button.getAttribute('value')}`.trim();
+    if (
+      labels.test(text) &&
+      !skip.test(text) &&
+      !(await button.isDisabled().catch(() => true))
+    ) {
       await humanClickLocator(page, button);
       clicked = text;
       break;
@@ -143,7 +201,10 @@ export async function readVisibleCreditState(page) {
     return {
       available: Number(match[1]),
       total: Number(match[2]),
-      sample: text.slice(Math.max(0, match.index - 80), Math.min(text.length, match.index + 120)),
+      sample: text.slice(
+        Math.max(0, match.index - 80),
+        Math.min(text.length, match.index + 120),
+      ),
     };
   }); // allow-raw-playwright: read-only visible Pangram credit state
 }

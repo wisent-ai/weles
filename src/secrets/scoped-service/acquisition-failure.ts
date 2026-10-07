@@ -32,7 +32,10 @@ export interface AcquisitionTarget {
  * credential-outcome.mjs reads from a trajectory's stderr about it:
  * `[skarbiec_acquisition item=<i> field=<f> consumer=<c>[ reason=<r>]]`.
  */
-export function acquisitionRecord(target: AcquisitionTarget, reason: AcquisitionReason | null): string {
+export function acquisitionRecord(
+  target: AcquisitionTarget,
+  reason: AcquisitionReason | null,
+): string {
   const declared = reason ? ` reason=${reason}` : '';
   return `[skarbiec_acquisition item=${target.item} field=${target.field} consumer=${target.consumer}${declared}]`;
 }
@@ -41,7 +44,11 @@ export class SkarbiecAcquisitionError extends Error {
   readonly code = 'skarbiec_acquisition_failed';
   readonly reason: AcquisitionReason | null;
 
-  constructor(message: string, target: AcquisitionTarget, reason: AcquisitionReason | null) {
+  constructor(
+    message: string,
+    target: AcquisitionTarget,
+    reason: AcquisitionReason | null,
+  ) {
     super(`${message} ${acquisitionRecord(target, reason)}`);
     this.name = 'SkarbiecAcquisitionError';
     this.reason = reason;
@@ -49,7 +56,10 @@ export class SkarbiecAcquisitionError extends Error {
 }
 
 /** The helper's stderr split into its declared reason and the lines a person reads. */
-export function acquisitionStderr(stderr: string): { reason: AcquisitionReason | null; lines: string[] } {
+export function acquisitionStderr(stderr: string): {
+  reason: AcquisitionReason | null;
+  lines: string[];
+} {
   let reason: AcquisitionReason | null = null;
   const lines: string[] = [];
   for (const raw of stderr.split('\n')) {

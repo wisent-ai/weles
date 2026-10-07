@@ -5,41 +5,84 @@ import { USER_DATA_DIR, VERIFY_CODE, VERIFY_PHONE } from './settings.mjs';
 import { pageSettled } from '../../../_shared/page/settled.mjs';
 import { sanitize } from './page.mjs';
 
-export async function clickFirst(page, label, allow, deny = /delete|remove|usuń|anuluj|cancel/i) {
-  const target = await page.evaluate(({ allowSource, allowFlags, denySource, denyFlags }) => {
-    const allowRe = new RegExp(allowSource, allowFlags);
-    const denyRe = new RegExp(denySource, denyFlags);
-    const textOf = (el) => (el.innerText || el.textContent || el.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
-    const visible = (el) => {
-      const style = window.getComputedStyle(el);
-      const rect = el.getBoundingClientRect();
-      return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
-    };
-    const nodes = Array.from(document.querySelectorAll('button, [role="button"], a, [role="menuitem"]'))
-      .filter(visible)
-      .map((el) => {
-        const rect = el.getBoundingClientRect();
-        return {
-          text: textOf(el),
-          disabled: el.disabled === true || el.getAttribute('aria-disabled') === 'true',
-          x: Math.round(rect.left + rect.width / 2),
-          y: Math.round(rect.top + rect.height / 2),
-          area: rect.width * rect.height,
+export async function clickFirst(
+  page,
+  label,
+  allow,
+  deny = /delete|remove|usuń|anuluj|cancel/i,
+) {
+  const target = await page
+    .evaluate(
+      ({ allowSource, allowFlags, denySource, denyFlags }) => {
+        const allowRe = new RegExp(allowSource, allowFlags);
+        const denyRe = new RegExp(denySource, denyFlags);
+        const textOf = (el) =>
+          (
+            el.innerText ||
+            el.textContent ||
+            el.getAttribute('aria-label') ||
+            ''
+          )
+            .replace(/\s+/g, ' ')
+            .trim();
+        const visible = (el) => {
+          const style = window.getComputedStyle(el);
+          const rect = el.getBoundingClientRect();
+          return (
+            style.visibility !== 'hidden' &&
+            style.display !== 'none' &&
+            rect.width > 0 &&
+            rect.height > 0
+          );
         };
-      })
-      .filter((item) => item.text && !item.disabled && allowRe.test(item.text) && !denyRe.test(item.text))
-      .sort((a, b) => a.area - b.area);
-    return nodes[0] || null;
-  }, {
-    allowSource: allow.source,
-    allowFlags: allow.flags,
-    denySource: deny.source,
-    denyFlags: deny.flags,
-  }).catch(() => null);
+        const nodes = Array.from(
+          document.querySelectorAll(
+            'button, [role="button"], a, [role="menuitem"]',
+          ),
+        )
+          .filter(visible)
+          .map((el) => {
+            const rect = el.getBoundingClientRect();
+            return {
+              text: textOf(el),
+              disabled:
+                el.disabled === true ||
+                el.getAttribute('aria-disabled') === 'true',
+              x: Math.round(rect.left + rect.width / 2),
+              y: Math.round(rect.top + rect.height / 2),
+              area: rect.width * rect.height,
+            };
+          })
+          .filter(
+            (item) =>
+              item.text &&
+              !item.disabled &&
+              allowRe.test(item.text) &&
+              !denyRe.test(item.text),
+          )
+          .sort((a, b) => a.area - b.area);
+        return nodes[0] || null;
+      },
+      {
+        allowSource: allow.source,
+        allowFlags: allow.flags,
+        denySource: deny.source,
+        denyFlags: deny.flags,
+      },
+    )
+    .catch(() => null);
   if (!target) return null;
   await page.mouse.click(target.x, target.y);
   await pageSettled(page);
-  console.log(JSON.stringify({ stage: 'clicked', label, text: sanitize(target.text), x: target.x, y: target.y }));
+  console.log(
+    JSON.stringify({
+      stage: 'clicked',
+      label,
+      text: sanitize(target.text),
+      x: target.x,
+      y: target.y,
+    }),
+  );
   return target;
 }
 
@@ -50,8 +93,13 @@ export async function waitAndClickFirst(page, label, allow, deny) {
 }
 
 export async function fillPhone(page) {
-  const input = await page.locator('input[type="tel"], input[placeholder*="phone" i], input[aria-label*="phone" i], input[placeholder*="telefon" i], input[aria-label*="telefon" i], input[type="text"]').filter({ visible: true }).last();
-  if (!await input.isVisible().catch(() => false)) return false;
+  const input = await page
+    .locator(
+      'input[type="tel"], input[placeholder*="phone" i], input[aria-label*="phone" i], input[placeholder*="telefon" i], input[aria-label*="telefon" i], input[type="text"]',
+    )
+    .filter({ visible: true })
+    .last();
+  if (!(await input.isVisible().catch(() => false))) return false;
   await humanClickLocator(page, input).catch(() => {});
   await page.keyboard.press('ControlOrMeta+A').catch(() => {});
   await humanType(page, VERIFY_PHONE).catch(async () => {
@@ -65,7 +113,7 @@ export async function fillPhone(page) {
 export async function fillCode(page) {
   if (!VERIFY_CODE) return false;
   const input = page.locator('input').filter({ visible: true }).last();
-  if (!await input.isVisible().catch(() => false)) return false;
+  if (!(await input.isVisible().catch(() => false))) return false;
   await humanClickLocator(page, input).catch(() => {});
   await page.keyboard.press('ControlOrMeta+A').catch(() => {});
   await humanType(page, VERIFY_CODE).catch(async () => {
@@ -77,43 +125,79 @@ export async function fillCode(page) {
 }
 
 export async function selectPhoneAssociationAccount(page) {
-  const target = await page.evaluate(() => {
-    const textOf = (el) => (el.innerText || el.textContent || el.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
-    const visible = (el) => {
-      const style = window.getComputedStyle(el);
-      const rect = el.getBoundingClientRect();
-      return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
-    };
-    const candidates = Array.from(document.querySelectorAll('button, [role="button"], [role="group"], label, div'))
-      .filter(visible)
-      .map((el) => {
+  const target = await page
+    .evaluate(() => {
+      const textOf = (el) =>
+        (el.innerText || el.textContent || el.getAttribute('aria-label') || '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      const visible = (el) => {
+        const style = window.getComputedStyle(el);
         const rect = el.getBoundingClientRect();
-        return {
-          text: textOf(el),
-          role: el.getAttribute('role') || el.tagName.toLowerCase(),
-          disabled: el.disabled === true || el.getAttribute('aria-disabled') === 'true',
-          x: Math.round(rect.left + rect.width / 2),
-          y: Math.round(rect.top + rect.height / 2),
-          area: rect.width * rect.height,
-        };
-      })
-      .filter((item) => /Wisent Wisent Facebook/i.test(item.text) && item.y > 500 && !item.disabled)
-      .sort((a, b) => {
-        if (a.role === 'group' && b.role !== 'group') return -1;
-        if (b.role === 'group' && a.role !== 'group') return 1;
-        return a.area - b.area;
-      });
-    return candidates[0] || null;
-  }).catch(() => null);
+        return (
+          style.visibility !== 'hidden' &&
+          style.display !== 'none' &&
+          rect.width > 0 &&
+          rect.height > 0
+        );
+      };
+      const candidates = Array.from(
+        document.querySelectorAll(
+          'button, [role="button"], [role="group"], label, div',
+        ),
+      )
+        .filter(visible)
+        .map((el) => {
+          const rect = el.getBoundingClientRect();
+          return {
+            text: textOf(el),
+            role: el.getAttribute('role') || el.tagName.toLowerCase(),
+            disabled:
+              el.disabled === true ||
+              el.getAttribute('aria-disabled') === 'true',
+            x: Math.round(rect.left + rect.width / 2),
+            y: Math.round(rect.top + rect.height / 2),
+            area: rect.width * rect.height,
+          };
+        })
+        .filter(
+          (item) =>
+            /Wisent Wisent Facebook/i.test(item.text) &&
+            item.y > 500 &&
+            !item.disabled,
+        )
+        .sort((a, b) => {
+          if (a.role === 'group' && b.role !== 'group') return -1;
+          if (b.role === 'group' && a.role !== 'group') return 1;
+          return a.area - b.area;
+        });
+      return candidates[0] || null;
+    })
+    .catch(() => null);
   if (!target) return null;
   await page.mouse.click(target.x, target.y);
   await pageSettled(page);
-  console.log(JSON.stringify({ stage: 'clicked', label: 'select_phone_association_account', text: sanitize(target.text), role: target.role, x: target.x, y: target.y }));
+  console.log(
+    JSON.stringify({
+      stage: 'clicked',
+      label: 'select_phone_association_account',
+      text: sanitize(target.text),
+      role: target.role,
+      x: target.x,
+      y: target.y,
+    }),
+  );
   return target;
 }
 
-console.log(JSON.stringify({
-  stage: 'start',
-  userDataDir: USER_DATA_DIR,
-  headless: process.env.META_VERIFY_HEADLESS === '1',
-}, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      stage: 'start',
+      userDataDir: USER_DATA_DIR,
+      headless: process.env.META_VERIFY_HEADLESS === '1',
+    },
+    null,
+    2,
+  ),
+);

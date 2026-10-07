@@ -12,17 +12,26 @@ if (!page) {
 }
 
 const result = await page.evaluate(() => {
-  const fields = Array.from(document.querySelectorAll('input, textarea, select')).map((el) => ({
+  const fields = Array.from(
+    document.querySelectorAll('input, textarea, select'),
+  ).map((el) => ({
     tag: el.tagName.toLowerCase(),
     type: el.getAttribute('type'),
     name: el.getAttribute('name'),
     id: el.id || null,
-    checked: el instanceof HTMLInputElement && ['checkbox', 'radio'].includes(el.type) ? el.checked : undefined,
+    checked:
+      el instanceof HTMLInputElement && ['checkbox', 'radio'].includes(el.type)
+        ? el.checked
+        : undefined,
     valueLength: 'value' in el ? String(el.value || '').length : null,
     disabled: el.disabled === true,
     ariaInvalid: el.getAttribute('aria-invalid'),
   }));
-  const buttons = Array.from(document.querySelectorAll('button, input[type="submit"], input[type="button"]')).map((el) => ({
+  const buttons = Array.from(
+    document.querySelectorAll(
+      'button, input[type="submit"], input[type="button"]',
+    ),
+  ).map((el) => ({
     tag: el.tagName.toLowerCase(),
     type: el.getAttribute('type'),
     text: (el.innerText || el.value || '').trim(),
@@ -36,7 +45,7 @@ const result = await page.evaluate(() => {
     title: document.title,
     fields,
     buttons,
-    bodyText: (document.body?.innerText || ''),
+    bodyText: document.body?.innerText || '',
   };
 });
 

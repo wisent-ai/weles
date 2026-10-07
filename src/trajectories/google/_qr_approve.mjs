@@ -10,12 +10,18 @@ const PIXEL_SERIAL = process.env.PIXEL_ADB_SERIAL;
 // with the phone; no coordinates are assumed.
 const VERIFY_BTN_X = Number(process.env.PIXEL_VERIFY_X);
 const VERIFY_BTN_Y = Number(process.env.PIXEL_VERIFY_Y);
-const CONSTELLATION_ACTIVITY = 'com.google.android.gms.constellation.ui.deeplink.web.WebEntryPointActivity';
+const CONSTELLATION_ACTIVITY =
+  'com.google.android.gms.constellation.ui.deeplink.web.WebEntryPointActivity';
 
 export async function approveQr(page) {
-  if (!PIXEL_SERIAL) throw new Error('PIXEL_ADB_SERIAL env var not set (e.g. 192.168.1.50:5555)');
+  if (!PIXEL_SERIAL)
+    throw new Error(
+      'PIXEL_ADB_SERIAL env var not set (e.g. 192.168.1.50:5555)',
+    );
   if (!Number.isInteger(VERIFY_BTN_X) || !Number.isInteger(VERIFY_BTN_Y)) {
-    throw new Error('PIXEL_VERIFY_X and PIXEL_VERIFY_Y env vars not set: the screen coordinates of the Verify button on this phone');
+    throw new Error(
+      'PIXEL_VERIFY_X and PIXEL_VERIFY_Y env vars not set: the screen coordinates of the Verify button on this phone',
+    );
   }
 
   await assertPixelReady();
@@ -26,12 +32,29 @@ export async function approveQr(page) {
   await adb('shell', 'svc', 'power', 'stayon', 'true');
   await adb('shell', 'input', 'keyevent', '224');
   // `am start -W` returns once the launched activity is displayed.
-  await adb('shell', 'am', 'start', '-W', '-a', 'android.intent.action.VIEW', '-d', qrUrl);
+  await adb(
+    'shell',
+    'am',
+    'start',
+    '-W',
+    '-a',
+    'android.intent.action.VIEW',
+    '-d',
+    qrUrl,
+  );
   console.log('[qr_approve] dispatched to Pixel');
   try {
     await assertConstellationActivity();
-    console.log(`[qr_approve] tapping Verify at (${VERIFY_BTN_X}, ${VERIFY_BTN_Y})`);
-    await adb('shell', 'input', 'tap', String(VERIFY_BTN_X), String(VERIFY_BTN_Y));
+    console.log(
+      `[qr_approve] tapping Verify at (${VERIFY_BTN_X}, ${VERIFY_BTN_Y})`,
+    );
+    await adb(
+      'shell',
+      'input',
+      'tap',
+      String(VERIFY_BTN_X),
+      String(VERIFY_BTN_Y),
+    );
     await waitForApprovalAdvance(page);
     console.log('[qr_approve] Chromium advanced past QR screen');
   } finally {
@@ -40,15 +63,29 @@ export async function approveQr(page) {
 }
 
 async function assertConstellationActivity() {
-  const { stdout } = await execFileP(ADB, ['-s', PIXEL_SERIAL, 'shell', 'dumpsys', 'window']);
-  if (!stdout.includes(CONSTELLATION_ACTIVITY)) throw new Error('constellation_activity_did_not_render: the Pixel shows another activity after the QR link opened');
+  const { stdout } = await execFileP(ADB, [
+    '-s',
+    PIXEL_SERIAL,
+    'shell',
+    'dumpsys',
+    'window',
+  ]);
+  if (!stdout.includes(CONSTELLATION_ACTIVITY))
+    throw new Error(
+      'constellation_activity_did_not_render: the Pixel shows another activity after the QR link opened',
+    );
 }
 
 async function assertPixelReady() {
-  const { stdout } = await execFileP(ADB, ['-s', PIXEL_SERIAL, 'get-state']).catch((e) => {
+  const { stdout } = await execFileP(ADB, [
+    '-s',
+    PIXEL_SERIAL,
+    'get-state',
+  ]).catch((e) => {
     throw new Error(`adb unreachable at ${PIXEL_SERIAL}: ${e.message}`);
   });
-  if (!/device/.test(stdout)) throw new Error(`pixel not in "device" state: ${stdout.trim()}`);
+  if (!/device/.test(stdout))
+    throw new Error(`pixel not in "device" state: ${stdout.trim()}`);
 }
 
 async function adb(...args) {
@@ -57,16 +94,20 @@ async function adb(...args) {
 }
 
 async function extractQrTargetUrl(page) {
-  const fromLink = await page.evaluate(`(() => {
+  const fromLink = await page
+    .evaluate(`(() => {
     var links = Array.from(document.querySelectorAll('a[href]'));
     var hit = links.find(function (a) {
       return /qrcode|signin\\/qr|v3\\/signin\\/.*approval/.test(a.href);
     });
     return hit ? hit.href : null;
-  })()`).catch(() => null);
+  })()`)
+    .catch(() => null);
   if (fromLink) return fromLink;
 
-  const qr = await page.$('img[alt*="QR" i], img[aria-label*="QR" i], canvas[aria-label*="QR" i], img[src^="data:image/png"]');
+  const qr = await page.$(
+    'img[alt*="QR" i], img[aria-label*="QR" i], canvas[aria-label*="QR" i], img[src^="data:image/png"]',
+  );
   if (!qr) {
     const shot = await page.screenshot({ type: 'png', fullPage: false });
     const decoded = await decodeQr(shot);
@@ -93,7 +134,16 @@ async function decodeQr(pngBuf) {
 async function waitForApprovalAdvance(page) {
   const initialUrl = page.url?.() ?? '';
   await Promise.any([
-    urlMatching(page, (u) => u !== initialUrl && !/qrcode|qrsignin|qr_code/i.test(u)),
-    pageCondition(page, () => !/qr code|scan/.test((document.body && document.body.innerText || '').toLowerCase())),
+    urlMatching(
+      page,
+      (u) => u !== initialUrl && !/qrcode|qrsignin|qr_code/i.test(u),
+    ),
+    pageCondition(
+      page,
+      () =>
+        !/qr code|scan/.test(
+          ((document.body && document.body.innerText) || '').toLowerCase(),
+        ),
+    ),
   ]);
 }

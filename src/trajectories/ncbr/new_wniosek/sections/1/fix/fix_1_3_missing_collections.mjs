@@ -3,13 +3,18 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanClickLocator, humanIdlePause } from '../../../../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../../dist/human/keyboard.js';
 import { selectRadio } from '../../../../form-input.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('1_3');
-const MD = (await import('#ncbr-settings')).applicationFile('wersja_B_1_3_podmioty.md');
+const MD = (await import('#ncbr-settings')).applicationFile(
+  'wersja_B_1_3_podmioty.md',
+);
 const md = readFileSync(MD, 'utf8');
 
 function after(marker, endMarker) {
@@ -17,10 +22,16 @@ function after(marker, endMarker) {
   if (start < 0) throw new Error(`marker not found: ${marker}`);
   const from = start + marker.length;
   const end = endMarker ? md.indexOf(endMarker, from) : -1;
-  return md.slice(from, end >= 0 ? end : undefined).replace(/\s*<!--[\s\S]*?-->\s*/g, ' ').trim();
+  return md
+    .slice(from, end >= 0 ? end : undefined)
+    .replace(/\s*<!--[\s\S]*?-->\s*/g, ' ')
+    .trim();
 }
 
-const OPIS = after('**Opis działalności podmiotu**', '## Uczestnictwo w Krajowym Klastrze Kluczowym');
+const OPIS = after(
+  '**Opis działalności podmiotu**',
+  '## Uczestnictwo w Krajowym Klastrze Kluczowym',
+);
 
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
@@ -29,16 +40,19 @@ if (!page) {
   process.exit(1);
 }
 
-
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
 await page.evaluate(() => {
-  const b = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies'));
+  const b = Array.from(document.querySelectorAll('div')).find((d) =>
+    (d.innerText || '').includes('pliki cookies'),
+  );
   if (b) b.style.pointerEvents = 'none';
 }); // allow-raw-playwright: neutralise cookie banner
 
 async function clickDodaj(nth) {
-  const buttons = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true });
+  const buttons = page
+    .getByRole('button', { name: 'Dodaj', exact: true })
+    .filter({ visible: true });
   const count = await buttons.count();
   if (nth >= count) throw new Error(`Dodaj #${nth} not found; count=${count}`);
   await humanClickLocator(page, buttons.nth(nth));
@@ -46,17 +60,30 @@ async function clickDodaj(nth) {
 }
 
 async function setApplicant() {
-  const inp = page.locator("input[name='nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta']").first();
-  const select = page.locator('.MuiInputBase-root:has(input[name="nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta"])').locator('.MuiSelect-select, [role="combobox"]').first();
-  await humanClickLocator(page, await select.count() ? select : inp);
+  const inp = page
+    .locator(
+      "input[name='nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta']",
+    )
+    .first();
+  const select = page
+    .locator(
+      '.MuiInputBase-root:has(input[name="nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta"])',
+    )
+    .locator('.MuiSelect-select, [role="combobox"]')
+    .first();
+  await humanClickLocator(page, (await select.count()) ? select : inp);
   await humanIdlePause('deliberate');
-  const opt = page.getByRole('option', { name: 'Wisent Polska', exact: true }).first();
-  if (await opt.count() > 0) await opt.dispatchEvent('click'); // allow-raw-playwright: select applicant
+  const opt = page
+    .getByRole('option', { name: 'Wisent Polska', exact: true })
+    .first();
+  if ((await opt.count()) > 0) await opt.dispatchEvent('click'); // allow-raw-playwright: select applicant
   await humanIdlePause('short');
 }
 
 async function fillFirstTextArea(value) {
-  const loc = page.locator('textarea[name="opis_dzialalnosci_i_struktura"]').first();
+  const loc = page
+    .locator('textarea[name="opis_dzialalnosci_i_struktura"]')
+    .first();
   await loc.waitFor({ state: 'visible' });
   const max = Number(await loc.getAttribute('maxlength')) || value.length;
   let v = value;
@@ -68,7 +95,9 @@ async function fillFirstTextArea(value) {
 async function saveForm() {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  const saves = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
+  const saves = page
+    .getByRole('button', { name: 'Zapisz', exact: true })
+    .filter({ visible: true });
   const count = await saves.count();
   if (!count) throw new Error('no enabled Zapisz');
   await humanClickLocator(page, saves.nth(count - 1));
@@ -78,23 +107,54 @@ async function saveForm() {
 if (process.env.DIAG) {
   await clickDodaj(Number(process.env.DIAG));
   const out = await page.evaluate(() => ({
-    fields: Array.from(document.querySelectorAll('input, textarea')).map((el) => {
-      const label = el.id ? document.querySelector(`label[for="${CSS.escape(el.id)}"]`)?.textContent?.trim() : null;
-      return { tag: el.tagName, type: el.type || null, name: el.name || null, role: el.getAttribute('role'), max: el.getAttribute('maxlength'), value: (el.value || ''), label };
-    }).filter((f) => f.name || f.label),
-    buttons: Array.from(document.querySelectorAll('button')).map((b) => b.innerText.trim()).filter(Boolean),
+    fields: Array.from(document.querySelectorAll('input, textarea'))
+      .map((el) => {
+        const label = el.id
+          ? document
+              .querySelector(`label[for="${CSS.escape(el.id)}"]`)
+              ?.textContent?.trim()
+          : null;
+        return {
+          tag: el.tagName,
+          type: el.type || null,
+          name: el.name || null,
+          role: el.getAttribute('role'),
+          max: el.getAttribute('maxlength'),
+          value: el.value || '',
+          label,
+        };
+      })
+      .filter((f) => f.name || f.label),
+    buttons: Array.from(document.querySelectorAll('button'))
+      .map((b) => b.innerText.trim())
+      .filter(Boolean),
   }));
   console.log(JSON.stringify(out, null, 2));
   process.exit(0);
 }
 
 const done = [];
-if (!await page.evaluate(() => (document.body.innerText || '').includes('Spółka rozwija oprogramowanie i modele sztucznej inteligencji'))) {
+if (
+  !(await page.evaluate(() =>
+    (document.body.innerText || '').includes(
+      'Spółka rozwija oprogramowanie i modele sztucznej inteligencji',
+    ),
+  ))
+) {
   await clickDodaj(2);
-  try { await setApplicant(); } catch (e) { /* single applicant may be auto-bound */ }
+  try {
+    await setApplicant();
+  } catch (e) {
+    /* single applicant may be auto-bound */
+  }
   const len = await fillFirstTextArea(OPIS);
-  const ue = page.locator('input[name="podmiot_jest_kontrolowany_przez_panstwo_lub_podmiot_z_panstwa_nalezacego_do_ue"]').first();
-  if (await ue.count() > 0 && !await ue.isChecked()) await ue.dispatchEvent('click'); // allow-raw-playwright: confirm EU control checkbox
+  const ue = page
+    .locator(
+      'input[name="podmiot_jest_kontrolowany_przez_panstwo_lub_podmiot_z_panstwa_nalezacego_do_ue"]',
+    )
+    .first();
+  if ((await ue.count()) > 0 && !(await ue.isChecked()))
+    await ue.dispatchEvent('click'); // allow-raw-playwright: confirm EU control checkbox
   await saveForm();
   done.push({ collection: 'opis_dzialalnosci', len });
 }
@@ -108,8 +168,15 @@ const kkkRows = await page.evaluate(() => {
 });
 if (kkkRows === 0) {
   await clickDodaj(3);
-  try { await setApplicant(); } catch (e) { /* single applicant may be auto-bound */ }
-  await selectRadio(page, page.locator('input[type="radio"][value="Nie"]').first());
+  try {
+    await setApplicant();
+  } catch (e) {
+    /* single applicant may be auto-bound */
+  }
+  await selectRadio(
+    page,
+    page.locator('input[type="radio"][value="Nie"]').first(),
+  );
   await saveForm();
   done.push({ collection: 'kkk', value: 'Nie' });
 }

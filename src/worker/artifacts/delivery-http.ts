@@ -27,7 +27,10 @@ export function constantTimeTextEqual(left: string, right: string): boolean {
   return timingSafeEqual(leftDigest, rightDigest);
 }
 
-export function bearerAuthorized(request: IncomingMessage, expectedToken: string): boolean {
+export function bearerAuthorized(
+  request: IncomingMessage,
+  expectedToken: string,
+): boolean {
   const header = request.headers.authorization;
   if (typeof header !== 'string' || !header.startsWith('Bearer ')) return false;
   const token = header.slice('Bearer '.length);
@@ -53,7 +56,11 @@ export function secureResponseHeaders(response: ServerResponse): void {
   response.setHeader('Content-Security-Policy', "sandbox; default-src 'none'");
 }
 
-export function jsonResponse(response: ServerResponse, status: number, body: unknown): void {
+export function jsonResponse(
+  response: ServerResponse,
+  status: number,
+  body: unknown,
+): void {
   secureResponseHeaders(response);
   const encoded = Buffer.from(JSON.stringify(body));
   response.statusCode = status;
@@ -62,8 +69,13 @@ export function jsonResponse(response: ServerResponse, status: number, body: unk
   response.end(encoded);
 }
 
-export function applyAllowedOrigin(request: IncomingMessage, response: ServerResponse, config: ArtifactDeliveryConfig): void {
-  if (!config.allowedOrigin || request.headers.origin !== config.allowedOrigin) return;
+export function applyAllowedOrigin(
+  request: IncomingMessage,
+  response: ServerResponse,
+  config: ArtifactDeliveryConfig,
+): void {
+  if (!config.allowedOrigin || request.headers.origin !== config.allowedOrigin)
+    return;
   response.setHeader('Access-Control-Allow-Origin', config.allowedOrigin);
   response.setHeader('Vary', 'Origin');
 }
@@ -74,13 +86,19 @@ export async function deliverObject(
   uri: string,
   config: ArtifactDeliveryConfig,
 ): Promise<void> {
-  const headers: Record<string, string> = { Authorization: `Bearer ${config.stadoApiToken}` };
-  if (typeof request.headers.range === 'string') headers.Range = request.headers.range;
-  const upstream = await fetch(`${config.stadoApiUrl}/api/object?uri=${encodeURIComponent(uri)}`, {
-    method: 'GET',
-    headers,
-    redirect: 'error',
-  });
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${config.stadoApiToken}`,
+  };
+  if (typeof request.headers.range === 'string')
+    headers.Range = request.headers.range;
+  const upstream = await fetch(
+    `${config.stadoApiUrl}/api/object?uri=${encodeURIComponent(uri)}`,
+    {
+      method: 'GET',
+      headers,
+      redirect: 'error',
+    },
+  );
   if (upstream.status === 404) {
     jsonResponse(response, 404, { error: 'artifact not found' });
     return;
@@ -95,21 +113,36 @@ export async function deliverObject(
     return;
   }
   if (upstream.status !== 200 && upstream.status !== 206) {
-    jsonResponse(response, 502, { error: 'private artifact backend unavailable' });
+    jsonResponse(response, 502, {
+      error: 'private artifact backend unavailable',
+    });
     return;
   }
 
   secureResponseHeaders(response);
   applyAllowedOrigin(request, response, config);
   response.statusCode = upstream.status;
-  for (const header of ['content-type', 'content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified']) {
+  for (const header of [
+    'content-type',
+    'content-length',
+    'content-range',
+    'accept-ranges',
+    'etag',
+    'last-modified',
+  ]) {
     const value = upstream.headers.get(header);
     if (value) response.setHeader(header, value);
   }
-  const contentType = upstream.headers.get('content-type') ?? 'application/octet-stream';
+  const contentType =
+    upstream.headers.get('content-type') ?? 'application/octet-stream';
   const fileName = uri.split('/').at(-1) ?? 'artifact';
-  const disposition = contentType.toLowerCase().startsWith('text/html') ? 'attachment' : 'inline';
-  response.setHeader('Content-Disposition', `${disposition}; filename*=UTF-8''${encodeURIComponent(fileName)}`);
+  const disposition = contentType.toLowerCase().startsWith('text/html')
+    ? 'attachment'
+    : 'inline';
+  response.setHeader(
+    'Content-Disposition',
+    `${disposition}; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+  );
   if (!upstream.body) {
     response.end();
     return;
@@ -123,18 +156,25 @@ function subscriptionText(value: unknown): string | null {
 
 function publicSubscriptionRow(value: unknown): Record<string, unknown> {
   if (!isRecord(value)) {
-    throw new RequestFailure(502, 'Weles subscription store returned an invalid row');
+    throw new RequestFailure(
+      502,
+      'Weles subscription store returned an invalid row',
+    );
   }
   const serviceName = subscriptionText(value.service_name);
   const provider = subscriptionText(value.provider);
   if (!serviceName || !provider) {
-    throw new RequestFailure(502, 'Weles subscription store returned an incomplete row');
+    throw new RequestFailure(
+      502,
+      'Weles subscription store returned an incomplete row',
+    );
   }
   const metadata = isRecord(value.metadata) ? value.metadata : {};
-  const monthlyCost = typeof value.monthly_cost_usd === 'number'
-    && Number.isFinite(value.monthly_cost_usd)
-    ? value.monthly_cost_usd
-    : null;
+  const monthlyCost =
+    typeof value.monthly_cost_usd === 'number' &&
+    Number.isFinite(value.monthly_cost_usd)
+      ? value.monthly_cost_usd
+      : null;
   return {
     id: subscriptionText(value.id),
     service_name: serviceName,
@@ -149,10 +189,18 @@ function publicSubscriptionRow(value: unknown): Record<string, unknown> {
   };
 }
 
-export async function listServiceSubscriptions(_config: ArtifactDeliveryConfig): Promise<Record<string, unknown>[]> {
+export async function listServiceSubscriptions(
+  _config: ArtifactDeliveryConfig,
+): Promise<Record<string, unknown>[]> {
   const rows = readSetting<unknown[]>('service_subscriptions', []);
-  if (!Array.isArray(rows)) throw new RequestFailure(502, 'Weles subscription store returned an invalid response');
+  if (!Array.isArray(rows))
+    throw new RequestFailure(
+      502,
+      'Weles subscription store returned an invalid response',
+    );
   return rows
     .map(publicSubscriptionRow)
-    .sort((left, right) => String(left.service_name).localeCompare(String(right.service_name)));
+    .sort((left, right) =>
+      String(left.service_name).localeCompare(String(right.service_name)),
+    );
 }

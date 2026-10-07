@@ -96,7 +96,10 @@ export const transportFingerprintRules: DetectionRule[] = [
           category: 'network',
           severity: 'warning',
           message: `Browser-sent header order differs from baseline. PerimeterX/DataDome/Akamai compare header order.`,
-          evidence: { subjectHeaderKeys: Object.keys(sh), baselineHeaderKeys: Object.keys(bh) },
+          evidence: {
+            subjectHeaderKeys: Object.keys(sh),
+            baselineHeaderKeys: Object.keys(bh),
+          },
         };
       }
       return null;

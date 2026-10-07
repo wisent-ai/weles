@@ -1,7 +1,10 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { markCookiesStale } from '../../../dist/utils/credentials.js';
 import { assertAuthed, AuthProbeError } from '../_shared/auth/auth-probe.mjs';
-import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/auth/cookie-freshness.mjs';
+import {
+  loadFreshCookieJarOrFail,
+  CookieJarStaleError,
+} from '../_shared/auth/cookie-freshness.mjs';
 import { loginViaTwitter } from './_session.mjs';
 import { listAccounts } from '../_shared/skarbiec/accounts.mjs';
 
@@ -9,24 +12,33 @@ import { listAccounts } from '../_shared/skarbiec/accounts.mjs';
 // to vote on a specific product; otherwise the trajectory upvotes the first product
 // card on the homepage.
 
-const TARGET_URL = process.env.PRODUCTHUNT_URL || 'https://www.producthunt.com/';
+const TARGET_URL =
+  process.env.PRODUCTHUNT_URL || 'https://www.producthunt.com/';
 const proxy = process.env.PROXY_URL || 'none';
 import { pageSettled } from '../_shared/page/settled.mjs';
 
 async function findProductHuntAccount() {
   const rows = listAccounts('producthunt');
-  return rows.find((account) => Array.isArray(account.metadata?.cookies) && account.metadata.cookies.length >= 1)
-    ?? rows[0]
-    ?? null;
+  return (
+    rows.find(
+      (account) =>
+        Array.isArray(account.metadata?.cookies) &&
+        account.metadata.cookies.length >= 1,
+    ) ??
+    rows[0] ??
+    null
+  );
 }
 
 async function injectPHCookies(s, cookies) {
   const normalized = cookies
-    .filter(c => c.name && c.value)
-    .map(c => ({
+    .filter((c) => c.name && c.value)
+    .map((c) => ({
       name: c.name,
       value: c.value,
-      domain: c.domain?.includes('producthunt.com') ? c.domain : '.producthunt.com',
+      domain: c.domain?.includes('producthunt.com')
+        ? c.domain
+        : '.producthunt.com',
       path: c.path || '/',
       secure: c.secure ?? true,
       httpOnly: c.httpOnly ?? false,
@@ -38,14 +50,19 @@ async function injectPHCookies(s, cookies) {
 }
 
 async function readPage(s) {
-  return (await s.page.evaluate(`(() => (document.body?.innerText ?? '').substring(0, 2000))()`).catch(() => '')).toLowerCase();
+  return (
+    await s.page
+      .evaluate(`(() => (document.body?.innerText ?? '').substring(0, 2000))()`)
+      .catch(() => '')
+  ).toLowerCase();
 }
 
 async function navigateToFirstProduct(s) {
   // From the homepage, find the first product card link and follow it.
   // PH uses /products/<slug> for current launches; older URLs are /posts/<slug>.
   // Filter out footer reference links (?ref=footer) since those go to product hubs not the launch page.
-  const href = await s.page.evaluate(`(() => {
+  const href = await s.page
+    .evaluate(`(() => {
     var as = Array.from(document.querySelectorAll('a[href*="/products/"], a[href*="/posts/"]'));
     for (var a of as) {
       var h = a.getAttribute('href') || '';
@@ -55,9 +72,12 @@ async function navigateToFirstProduct(s) {
       if (slug) return h;
     }
     return null;
-  })()`).catch(() => null);
+  })()`)
+    .catch(() => null);
   if (!href) return false;
-  const url = href.startsWith('http') ? href : new URL(href, 'https://www.producthunt.com').toString();
+  const url = href.startsWith('http')
+    ? href
+    : new URL(href, 'https://www.producthunt.com').toString();
   console.log(`[ph-vote] following first product: ${url}`);
   await s.goto(url);
   await pageSettled(s.page);
@@ -69,7 +89,8 @@ async function findVoteButton(s) {
   //   * data-test="vote-button"            — inline launch leaderboard (clickable, increments)
   //   * data-test="action-bar-vote-button" — product hub (one per historical launch, navigates)
   // Prefer the launch leaderboard button. Skip product-hub buttons (text "Upvote (N)").
-  return await s.page.evaluate(`(() => {
+  return await s.page
+    .evaluate(`(() => {
     function rect(el) { var r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 ? { x: r.x + r.width/2, y: r.y + r.height/2, w: r.width, h: r.height } : null; }
     var preferred = [
       'button[data-test="vote-button"]',
@@ -85,11 +106,13 @@ async function findVoteButton(s) {
     var ab = document.querySelector('button[data-test="action-bar-vote-button"]');
     if (ab) { var r2 = rect(ab); if (r2) return { ...r2, sel: 'action-bar-vote-button', label: (ab.textContent || '').slice(0, 60) }; }
     return null;
-  })()`).catch(() => null);
+  })()`)
+    .catch(() => null);
 }
 
 async function readVoteState(s) {
-  return await s.page.evaluate(`(() => {
+  return await s.page
+    .evaluate(`(() => {
     var b = document.querySelector('button[data-test="vote-button"], button[aria-label*="Upvote" i], button[aria-label*="Vote" i], button[data-test="action-bar-vote-button"]');
     if (!b) return null;
     return {
@@ -99,7 +122,8 @@ async function readVoteState(s) {
       // Capture the count number from the text so we can compare even if button stays visually identical
       count: ((b.textContent || '').match(/\\d+/) || [null])[0],
     };
-  })()`).catch(() => null);
+  })()`)
+    .catch(() => null);
 }
 
 async function vote(s) {
@@ -111,13 +135,20 @@ async function vote(s) {
   // the same recovery shape profile.mjs and comment.mjs already use.
   let cookies = [];
   try {
-    cookies = loadFreshCookieJarOrFail(acct, { platform: 'producthunt', label: 'producthunt_upvote', currentProxyUrl: proxy === 'none' ? null : proxy, currentPersona: acct.metadata?.persona });
+    cookies = loadFreshCookieJarOrFail(acct, {
+      platform: 'producthunt',
+      label: 'producthunt_upvote',
+      currentProxyUrl: proxy === 'none' ? null : proxy,
+      currentPersona: acct.metadata?.persona,
+    });
   } catch (jarErr) {
     if (!(jarErr instanceof CookieJarStaleError)) throw jarErr;
     console.log(`[ph-vote] ${jarErr.message} — invoking SSO recovery`);
     cookies = [];
   }
-  console.log(`[ph-vote] using account: ${acct.username} (${cookies.length} cookies)`);
+  console.log(
+    `[ph-vote] using account: ${acct.username} (${cookies.length} cookies)`,
+  );
   if (cookies.length) {
     await injectPHCookies(s, cookies);
   } else {
@@ -125,7 +156,9 @@ async function vote(s) {
     try {
       await loginViaTwitter(s);
     } catch (e) {
-      try { await markCookiesStale(acct.id); } catch {}
+      try {
+        await markCookiesStale(acct.id);
+      } catch {}
       throw new Error(`sso_recovery_failed: ${e.message}`);
     }
   }
@@ -138,9 +171,17 @@ async function vote(s) {
   // the inline vote button is.
   await s.goto('https://www.producthunt.com/products/feather-18');
   await pageSettled(s.page);
-  try { await assertAuthed('producthunt', s, { label: 'producthunt_upvote' }); }
-  catch (probeErr) { if (probeErr instanceof AuthProbeError) { throw new Error(`auth_probe_failed: ${probeErr.message}`); } throw probeErr; }
-  const cacheBustedHome = TARGET_URL.includes('?') ? `${TARGET_URL}&bc=1` : `${TARGET_URL}?bc=1`;
+  try {
+    await assertAuthed('producthunt', s, { label: 'producthunt_upvote' });
+  } catch (probeErr) {
+    if (probeErr instanceof AuthProbeError) {
+      throw new Error(`auth_probe_failed: ${probeErr.message}`);
+    }
+    throw probeErr;
+  }
+  const cacheBustedHome = TARGET_URL.includes('?')
+    ? `${TARGET_URL}&bc=1`
+    : `${TARGET_URL}?bc=1`;
   await s.goto(cacheBustedHome);
   await pageSettled(s.page);
 
@@ -168,17 +209,23 @@ async function vote(s) {
 
   let btn = await findVoteButton(s);
   if (!btn) throw new Error('vote_button_not_found');
-  console.log(`[ph-vote] vote button found: ${btn.sel} label="${btn.label}" at (${Math.round(btn.x)},${Math.round(btn.y)})`);
+  console.log(
+    `[ph-vote] vote button found: ${btn.sel} label="${btn.label}" at (${Math.round(btn.x)},${Math.round(btn.y)})`,
+  );
 
   // Scroll button into view, then re-measure (post-scroll viewport coords differ)
-  await s.page.evaluate(`(() => {
+  await s.page
+    .evaluate(`(() => {
     var b = document.querySelector('button[data-test*="vote"], button[aria-label*="Upvote" i], button[aria-label*="Vote" i], button[data-sentry-component*="VoteButton" i]');
     if (b) b.scrollIntoView({ block: 'center', behavior: 'instant' });
-  })()`).catch(() => {});
+  })()`)
+    .catch(() => {});
   await pageSettled(s.page);
   btn = await findVoteButton(s);
   if (!btn) throw new Error('vote_button_lost_after_scroll');
-  console.log(`[ph-vote] post-scroll coords: (${Math.round(btn.x)},${Math.round(btn.y)})`);
+  console.log(
+    `[ph-vote] post-scroll coords: (${Math.round(btn.x)},${Math.round(btn.y)})`,
+  );
 
   // mouse.click routes through CDP → SetTrusted(true) — required for PH's vote handler
   await s.page.mouse.click(btn.x, btn.y).catch(() => {});
@@ -187,14 +234,17 @@ async function vote(s) {
   const afterState = await readVoteState(s);
   console.log(`[ph-vote] after: ${JSON.stringify(afterState)}`);
 
-  const flipped = beforeState && afterState &&
+  const flipped =
+    beforeState &&
+    afterState &&
     (beforeState.pressed !== afterState.pressed ||
-     beforeState.label !== afterState.label ||
-     (beforeState.count || '') !== (afterState.count || '') ||
-     (beforeState.text || '') !== (afterState.text || ''));
+      beforeState.label !== afterState.label ||
+      (beforeState.count || '') !== (afterState.count || '') ||
+      (beforeState.text || '') !== (afterState.text || ''));
   if (!flipped) {
     const url = s.page.url();
-    if (url.includes('/login') || url.includes('/sign-in')) throw new Error('redirected_to_login');
+    if (url.includes('/login') || url.includes('/sign-in'))
+      throw new Error('redirected_to_login');
     throw new Error(`vote_state_unchanged: ${JSON.stringify(afterState)}`);
   }
 
@@ -203,7 +253,11 @@ async function vote(s) {
 }
 
 // This trajectory uses the Chromium navigation and input path.
-const s = await WSession.start({ label: 'producthunt_upvote', proxy, browser: 'chromium' });
+const s = await WSession.start({
+  label: 'producthunt_upvote',
+  proxy,
+  browser: 'chromium',
+});
 try {
   const username = await vote(s);
   console.log(`PASS: ${username} upvoted ${TARGET_URL}`);

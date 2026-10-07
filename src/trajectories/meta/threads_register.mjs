@@ -6,8 +6,13 @@ import { clickFirst, control, field } from '../_shared/page/offers.mjs';
 
 // An active Instagram account whose record carries a session (its cookies).
 function findUsableInstagramAccount() {
-  return listAccounts('instagram')
-    .find((account) => Array.isArray(account.metadata?.cookies) && account.metadata.cookies.length >= 2) ?? null;
+  return (
+    listAccounts('instagram').find(
+      (account) =>
+        Array.isArray(account.metadata?.cookies) &&
+        account.metadata.cookies.length >= 2,
+    ) ?? null
+  );
 }
 
 const URL = 'https://www.threads.net/login';
@@ -23,8 +28,11 @@ function onInstagram(page) {
 
 function onThreadsFeed(page) {
   const url = new globalThis.URL(page.url());
-  return /(^|\.)threads\.(net|com)$/.test(url.hostname) && !url.pathname.startsWith('/login')
-    && (url.pathname === '/' || url.pathname.startsWith('/@'));
+  return (
+    /(^|\.)threads\.(net|com)$/.test(url.hostname) &&
+    !url.pathname.startsWith('/login') &&
+    (url.pathname === '/' || url.pathname.startsWith('/@'))
+  );
 }
 
 // The Instagram account cannot go on: its session landed on a block or a
@@ -32,7 +40,11 @@ function onThreadsFeed(page) {
 async function instagramBlocked(page) {
   if (!onInstagram(page)) return false;
   const path = pathOf(page);
-  return path.startsWith('/accounts/suspended') || path.startsWith('/challenge') || (await field(page, 'phone_number')) !== null;
+  return (
+    path.startsWith('/accounts/suspended') ||
+    path.startsWith('/challenge') ||
+    (await field(page, 'phone_number')) !== null
+  );
 }
 
 async function signup(s) {
@@ -43,23 +55,42 @@ async function signup(s) {
   const igUsername = igAccount.username;
   const igPassword = igAccount.metadata?.password;
   const igEmail = igAccount.metadata?.email;
-  console.log(`[threads] using instagram account: ${igUsername} (${igCookies.length} cookies)`);
+  console.log(
+    `[threads] using instagram account: ${igUsername} (${igCookies.length} cookies)`,
+  );
 
-  const injected = await injectProviderCookies(s.ctx, 'instagram', igCookies, { extraMirrorDomains: ['.threads.net'] });
+  const injected = await injectProviderCookies(s.ctx, 'instagram', igCookies, {
+    extraMirrorDomains: ['.threads.net'],
+  });
   console.log(`[threads] injected ${injected} instagram+threads cookies`);
 
   await s.goto(URL);
   await pageSettled(page);
 
   // Cookie consent: one click on whichever consent control the page offers.
-  if (await clickFirst(page, 'button', ['Allow all cookies', 'Allow essential and optional cookies'])) {
+  if (
+    await clickFirst(page, 'button', [
+      'Allow all cookies',
+      'Allow essential and optional cookies',
+    ])
+  ) {
     await pageSettled(page);
     if (page.isClosed()) throw new Error('page_crashed_on_cookie_dismiss');
   }
 
   // Sign in through the Instagram session.
-  if (await clickFirst(page, 'button', ['Continue with Instagram', 'Log in with Instagram', 'Use Instagram'])
-    || await clickFirst(page, 'link', ['Continue with Instagram', 'Log in with Instagram', 'Use Instagram'])) {
+  if (
+    (await clickFirst(page, 'button', [
+      'Continue with Instagram',
+      'Log in with Instagram',
+      'Use Instagram',
+    ])) ||
+    (await clickFirst(page, 'link', [
+      'Continue with Instagram',
+      'Log in with Instagram',
+      'Use Instagram',
+    ]))
+  ) {
     await pageSettled(page);
   }
 
@@ -72,7 +103,8 @@ async function signup(s) {
     await s.fill('password', igPassword);
     await pageSettled(page);
     const submit = page.locator('button[type="submit"]').first();
-    if (!(await submit.isVisible())) throw new Error('instagram login form offers no submit');
+    if (!(await submit.isVisible()))
+      throw new Error('instagram login form offers no submit');
     await submit.click();
     await pageSettled(page);
   }
@@ -88,12 +120,23 @@ async function signup(s) {
   for (;;) {
     if (page.isClosed()) throw new Error('page_crashed_during_onboarding');
     console.log(`[threads] onboarding: url=${page.url()}`);
-    if (await instagramBlocked(page)) throw new Error(`instagram_account_suspended_or_challenged: ${igUsername}`);
+    if (await instagramBlocked(page))
+      throw new Error(
+        `instagram_account_suspended_or_challenged: ${igUsername}`,
+      );
     if (onThreadsFeed(page)) {
       console.log('[threads] reached main feed');
       break;
     }
-    if (await clickFirst(page, 'button', ['Import from Instagram', 'Use Instagram'])) { await pageSettled(page); continue; }
+    if (
+      await clickFirst(page, 'button', [
+        'Import from Instagram',
+        'Use Instagram',
+      ])
+    ) {
+      await pageSettled(page);
+      continue;
+    }
     if (await control(page, 'radio', 'Public profile')) {
       await (await control(page, 'radio', 'Public profile')).click();
       await clickFirst(page, 'button', ['Continue', 'Next']);
@@ -105,22 +148,50 @@ async function signup(s) {
       await pageSettled(page);
       continue;
     }
-    if (await clickFirst(page, 'button', ['Join Threads', 'Sign up', 'Get started'])) { await pageSettled(page); continue; }
-    if (await clickFirst(page, 'button', ['Not now', 'Skip', 'Continue', 'Next', 'Done'])) { await pageSettled(page); continue; }
-    throw new Error(`threads onboarding offers no control to continue at ${page.url()}`);
+    if (
+      await clickFirst(page, 'button', [
+        'Join Threads',
+        'Sign up',
+        'Get started',
+      ])
+    ) {
+      await pageSettled(page);
+      continue;
+    }
+    if (
+      await clickFirst(page, 'button', [
+        'Not now',
+        'Skip',
+        'Continue',
+        'Next',
+        'Done',
+      ])
+    ) {
+      await pageSettled(page);
+      continue;
+    }
+    throw new Error(
+      `threads onboarding offers no control to continue at ${page.url()}`,
+    );
   }
 
   // Success is the Threads session cookie, not what the page says.
   const cookies = await s.ctx.cookies();
-  const threadsAuth = cookies.filter(c =>
-    (c.domain?.includes('threads.net') || c.domain?.includes('threads.com')) &&
-    (c.name === 'sessionid' || c.name === 'ig_did' || c.name === 'csrftoken')
+  const threadsAuth = cookies.filter(
+    (c) =>
+      (c.domain?.includes('threads.net') ||
+        c.domain?.includes('threads.com')) &&
+      (c.name === 'sessionid' || c.name === 'ig_did' || c.name === 'csrftoken'),
   );
   if (threadsAuth.length < 1) {
-    console.log(`[threads] no threads auth cookies. all cookies: ${cookies.map(c => `${c.name}@${c.domain}`).join(', ')}`);
+    console.log(
+      `[threads] no threads auth cookies. all cookies: ${cookies.map((c) => `${c.name}@${c.domain}`).join(', ')}`,
+    );
     throw new Error('no_threads_auth_cookies');
   }
-  console.log(`[threads] auth cookies: ${threadsAuth.map(c => `${c.name}@${c.domain}`).join(', ')}`);
+  console.log(
+    `[threads] auth cookies: ${threadsAuth.map((c) => `${c.name}@${c.domain}`).join(', ')}`,
+  );
 
   const result = await s.saveAccount('threads', {
     username: igUsername,

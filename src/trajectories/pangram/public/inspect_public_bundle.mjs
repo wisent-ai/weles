@@ -41,8 +41,12 @@ for (const needle of needles) {
     if (!seen.has(key)) {
       seen.add(key);
       const prefix = src.slice(Math.max(0, idx - 30_000), idx);
-      const moduleHits = [...prefix.matchAll(/(?:^|[,{])(\d+):\(([^)]*)\)=>\{/g)];
-      const moduleId = moduleHits.length ? moduleHits[moduleHits.length - 1][1] : 'unknown';
+      const moduleHits = [
+        ...prefix.matchAll(/(?:^|[,{])(\d+):\(([^)]*)\)=>\{/g),
+      ];
+      const moduleId = moduleHits.length
+        ? moduleHits[moduleHits.length - 1][1]
+        : 'unknown';
       console.log(`\n===== ${needle} @ ${idx} =====`);
       console.log(`module=${moduleId}`);
       console.log(src.slice(start, end));

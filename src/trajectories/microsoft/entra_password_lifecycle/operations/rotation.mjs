@@ -22,25 +22,40 @@ import {
 import { assertEntraIdentity } from '../proven_identity.mjs';
 import { updateAccountReference } from '../queued_job.mjs';
 
-export async function rotateDirectoryPassword(session, account, contract, plan) {
+export async function rotateDirectoryPassword(
+  session,
+  account,
+  contract,
+  plan,
+) {
   const { currentPassword, nextPassword, sink, proxyUrl, evidence } = plan;
   const signedIn = await signIn(session, contract, currentPassword);
   evidence.push(`entra_sign_in:${signedIn}`);
   if (signedIn !== 'authenticated') {
     return outcome(contract, {
-      status: signedIn === 'identity_challenge' ? 'needs_human_approval' : 'operation_failed',
-      code: signedIn === 'identity_challenge'
-        ? 'ENTRA_SIGN_IN_REQUIRES_HUMAN_APPROVAL'
-        : signedIn === 'rejected' ? 'ENTRA_CURRENT_PASSWORD_REJECTED' : 'ENTRA_SIGN_IN_SURFACE_UNAVAILABLE',
-      phase: signedIn === 'identity_challenge' ? 'identity_verification' : 'entra_sign_in',
+      status:
+        signedIn === 'identity_challenge'
+          ? 'needs_human_approval'
+          : 'operation_failed',
+      code:
+        signedIn === 'identity_challenge'
+          ? 'ENTRA_SIGN_IN_REQUIRES_HUMAN_APPROVAL'
+          : signedIn === 'rejected'
+            ? 'ENTRA_CURRENT_PASSWORD_REJECTED'
+            : 'ENTRA_SIGN_IN_SURFACE_UNAVAILABLE',
+      phase:
+        signedIn === 'identity_challenge'
+          ? 'identity_verification'
+          : 'entra_sign_in',
       retryable: signedIn !== 'rejected',
       providerEffect: 'none',
       rollbackStatus: 'none',
-      reason: signedIn === 'identity_challenge'
-        ? 'Entra requires interactive identity approval before the password rotation'
-        : signedIn === 'rejected'
-          ? 'the managed Entra password was rejected at sign-in'
-          : 'the Entra password sign-in surface was unavailable',
+      reason:
+        signedIn === 'identity_challenge'
+          ? 'Entra requires interactive identity approval before the password rotation'
+          : signedIn === 'rejected'
+            ? 'the managed Entra password was rejected at sign-in'
+            : 'the Entra password sign-in surface was unavailable',
     });
   }
   const identity = await assertEntraIdentity(session, contract, sink);
@@ -56,21 +71,28 @@ export async function rotateDirectoryPassword(session, account, contract, plan) 
     });
   }
   evidence.push('identity_verification:confirmed');
-  const changed = await changeEntraPassword(session, currentPassword, nextPassword);
+  const changed = await changeEntraPassword(
+    session,
+    currentPassword,
+    nextPassword,
+  );
   evidence.push(`password_change:${changed}`);
   if (changed === 'challenged' || changed === 'unavailable') {
     return outcome(contract, {
       status: 'needs_human_approval',
-      code: changed === 'challenged'
-        ? 'ENTRA_PASSWORD_CHANGE_REQUIRES_HUMAN_VERIFICATION'
-        : 'ENTRA_PASSWORD_CHANGE_SURFACE_UNAVAILABLE',
-      phase: changed === 'challenged' ? 'identity_verification' : 'password_change',
+      code:
+        changed === 'challenged'
+          ? 'ENTRA_PASSWORD_CHANGE_REQUIRES_HUMAN_VERIFICATION'
+          : 'ENTRA_PASSWORD_CHANGE_SURFACE_UNAVAILABLE',
+      phase:
+        changed === 'challenged' ? 'identity_verification' : 'password_change',
       retryable: changed === 'unavailable',
       providerEffect: 'none',
       rollbackStatus: 'none',
-      reason: changed === 'challenged'
-        ? 'the Entra password change surface asked for interactive identity verification'
-        : 'the Entra password change surface did not present the current and new password fields',
+      reason:
+        changed === 'challenged'
+          ? 'the Entra password change surface asked for interactive identity verification'
+          : 'the Entra password change surface did not present the current and new password fields',
     });
   }
   if (changed === 'rejected') {
@@ -104,19 +126,14 @@ export async function rotateDirectoryPassword(session, account, contract, plan) 
     });
   }
   const changedAt = new Date().toISOString();
-  const rotation = await commitAfterFreshLogin(
-    session,
-    account,
-    contract,
-    {
-      password: nextPassword,
-      writeOperation: 'rotate',
-      sink,
-      proxyUrl,
-      providerEffect: 'changed',
-      evidence,
-    },
-  );
+  const rotation = await commitAfterFreshLogin(session, account, contract, {
+    password: nextPassword,
+    writeOperation: 'rotate',
+    sink,
+    proxyUrl,
+    providerEffect: 'changed',
+    evidence,
+  });
   if (rotation.answer) {
     const rollbackStatus = await rollbackEntraPassword(
       session,
@@ -172,7 +189,8 @@ export async function rotateDirectoryPassword(session, account, contract, plan) 
         retryable: false,
         providerEffect: 'unknown',
         rollbackStatus,
-        reason: 'the Skarbiec commit failed and the compensating Entra rollback left the directory password unproven',
+        reason:
+          'the Skarbiec commit failed and the compensating Entra rollback left the directory password unproven',
       });
     }
     // The directory refused the rollback and still holds the value this run
@@ -189,7 +207,8 @@ export async function rotateDirectoryPassword(session, account, contract, plan) 
         retryable: false,
         providerEffect: 'changed',
         rollbackStatus,
-        reason: 'the Skarbiec commit and the compensating Entra rollback both failed',
+        reason:
+          'the Skarbiec commit and the compensating Entra rollback both failed',
       });
     }
     evidence.push('skarbiec_commit:rotate');
@@ -199,7 +218,8 @@ export async function rotateDirectoryPassword(session, account, contract, plan) 
       rollbackStatus,
       changedAt,
       evidence,
-      reason: 'the Entra password was rotated and committed to Skarbiec on the second commit attempt',
+      reason:
+        'the Entra password was rotated and committed to Skarbiec on the second commit attempt',
     });
   }
   return outcome(contract, {
@@ -208,6 +228,7 @@ export async function rotateDirectoryPassword(session, account, contract, plan) 
     rollbackStatus: 'none',
     changedAt,
     evidence,
-    reason: 'the Entra password was rotated, re-authenticated, and committed to Skarbiec',
+    reason:
+      'the Entra password was rotated, re-authenticated, and committed to Skarbiec',
   });
 }

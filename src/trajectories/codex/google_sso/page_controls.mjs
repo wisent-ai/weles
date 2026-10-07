@@ -7,7 +7,10 @@
 // humanized pointer move — a raw dispatch with no movement is the signal that
 // tripped Google's "browser may not be secure" block.
 import { humanClick } from '../../../../dist/human/mouse.js';
-import { DOCUMENT_REPLACED, readAcrossNavigation } from '../../_shared/services/google_sso/page_diagnostics.mjs';
+import {
+  DOCUMENT_REPLACED,
+  readAcrossNavigation,
+} from '../../_shared/services/google_sso/page_diagnostics.mjs';
 import { pageCondition, pageSettled } from '../../_shared/page/settled.mjs';
 
 // In an OAuth redirect chain a navigation mid-call is the EXPECTED
@@ -27,21 +30,38 @@ export async function navEval(page, fn, dflt, arg) {
 // floating label there) leaves focus elsewhere and every keystroke is lost.
 // The field is then focused directly, and a field that still does not hold
 // focus is named in the failure. Throw if the value is not retained.
-export async function fillAndVerify(page, locator, text, humanClickLocator, humanType) {
-  const editable = locator.and(page.locator('input:enabled:not([readonly]), textarea:enabled:not([readonly])'));
+export async function fillAndVerify(
+  page,
+  locator,
+  text,
+  humanClickLocator,
+  humanType,
+) {
+  const editable = locator.and(
+    page.locator(
+      'input:enabled:not([readonly]), textarea:enabled:not([readonly])',
+    ),
+  );
   await editable.waitFor({ state: 'visible' });
   await humanClickLocator(page, editable);
-  const focused = () => editable.evaluate((element) => element === element.ownerDocument.activeElement);
+  const focused = () =>
+    editable.evaluate(
+      (element) => element === element.ownerDocument.activeElement,
+    );
   if (!(await focused())) {
     await editable.focus();
   }
   if (!(await focused())) {
-    throw new Error('fillAndVerify: the field did not take focus after a pointer click and a focus call; keystrokes would be lost');
+    throw new Error(
+      'fillAndVerify: the field did not take focus after a pointer click and a focus call; keystrokes would be lost',
+    );
   }
   await humanType(page, text);
   const actual = await locator.inputValue();
   if (actual !== text) {
-    throw new Error(`fillAndVerify: value mismatch after input dispatch; observed length=${actual.length}, expected length=${text.length}`);
+    throw new Error(
+      `fillAndVerify: value mismatch after input dispatch; observed length=${actual.length}, expected length=${text.length}`,
+    );
   }
 }
 
@@ -53,19 +73,35 @@ export async function fillAndVerify(page, locator, text, humanClickLocator, huma
 // gate on this engine. Browser observation and input failures propagate.
 export async function waitForEnabledThenClick(page, namePattern) {
   const patternSrc = namePattern.source;
-  const state = await pageCondition(page, (src) => {
-    const re = new RegExp(src, 'i');
-    for (const el of document.querySelectorAll('button, [role="button"]')) {
-      const txt = (el.innerText || el.textContent || '').trim();
-      if (!re.test(txt)) continue;
-      const r = el.getBoundingClientRect();
-      if (!r.width || !r.height) continue;
-      if (el.matches(':disabled') || el.getAttribute('aria-disabled') === 'true' || el.hasAttribute('disabled')) continue;
-      return { x: r.x + r.width / 2, y: r.y + r.height / 2, tag: el.tagName, txt: txt };
-    }
-    return null;
-  }, patternSrc);
-  console.log(`[google_sso] clicking /${patternSrc}/i at (${Math.round(state.x)},${Math.round(state.y)}) tag=${state.tag} txt=${state.txt}`);
+  const state = await pageCondition(
+    page,
+    (src) => {
+      const re = new RegExp(src, 'i');
+      for (const el of document.querySelectorAll('button, [role="button"]')) {
+        const txt = (el.innerText || el.textContent || '').trim();
+        if (!re.test(txt)) continue;
+        const r = el.getBoundingClientRect();
+        if (!r.width || !r.height) continue;
+        if (
+          el.matches(':disabled') ||
+          el.getAttribute('aria-disabled') === 'true' ||
+          el.hasAttribute('disabled')
+        )
+          continue;
+        return {
+          x: r.x + r.width / 2,
+          y: r.y + r.height / 2,
+          tag: el.tagName,
+          txt: txt,
+        };
+      }
+      return null;
+    },
+    patternSrc,
+  );
+  console.log(
+    `[google_sso] clicking /${patternSrc}/i at (${Math.round(state.x)},${Math.round(state.y)}) tag=${state.tag} txt=${state.txt}`,
+  );
   await humanClick(page, Math.round(state.x), Math.round(state.y));
 }
 
@@ -74,26 +110,35 @@ export async function waitForEnabledThenClick(page, namePattern) {
 export async function clickVisibleText(page, pattern) {
   await pageSettled(page);
   const source = pattern.source;
-  const hit = await readAcrossNavigation(page, () => page.evaluate((patternSource) => {
-    const matcher = new RegExp(patternSource, 'i');
-    let best = null;
-    for (const element of document.querySelectorAll('button,[role="button"],a,[role="link"],li,div,span')) {
-      const text = (element.innerText || element.textContent || '').trim();
-      // The smallest rendered element whose own text matches is the control;
-      // a container holding it has the same text and a larger box.
-      if (!matcher.test(text)) continue;
-      const box = element.getBoundingClientRect();
-      if (!box.width || !box.height) continue;
-      const area = box.width * box.height;
-      if (!best || area < best.area) {
-        best = { x: box.x + box.width / 2, y: box.y + box.height / 2, area, text: text };
+  const hit = await readAcrossNavigation(page, () =>
+    page.evaluate((patternSource) => {
+      const matcher = new RegExp(patternSource, 'i');
+      let best = null;
+      for (const element of document.querySelectorAll(
+        'button,[role="button"],a,[role="link"],li,div,span',
+      )) {
+        const text = (element.innerText || element.textContent || '').trim();
+        // The smallest rendered element whose own text matches is the control;
+        // a container holding it has the same text and a larger box.
+        if (!matcher.test(text)) continue;
+        const box = element.getBoundingClientRect();
+        if (!box.width || !box.height) continue;
+        const area = box.width * box.height;
+        if (!best || area < best.area) {
+          best = {
+            x: box.x + box.width / 2,
+            y: box.y + box.height / 2,
+            area,
+            text: text,
+          };
+        }
       }
-    }
-    return best;
-  }, source));
-  if (hit === DOCUMENT_REPLACED) return { clicked: false, reason: 'document_replaced' };
+      return best;
+    }, source),
+  );
+  if (hit === DOCUMENT_REPLACED)
+    return { clicked: false, reason: 'document_replaced' };
   if (!hit) return { clicked: false, reason: 'not_offered' };
   await humanClick(page, Math.round(hit.x), Math.round(hit.y));
   return { clicked: true, text: hit.text };
 }
-

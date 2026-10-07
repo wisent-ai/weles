@@ -51,7 +51,9 @@ function executionHost() {
 // operation. It holds until a person answers it.
 function approvalResource(contract, phase, providerEffect, instruction) {
   return {
-    approval_id: createHash('sha256').update(`${contract.actionLogId}|${phase}`, 'utf8').digest('hex'),
+    approval_id: createHash('sha256')
+      .update(`${contract.actionLogId}|${phase}`, 'utf8')
+      .digest('hex'),
     phase,
     provider_effect: providerEffect,
     resume_token: randomBytes(RESUME_TOKEN_BYTES).toString('base64url'),
@@ -64,7 +66,9 @@ function approvalResource(contract, phase, providerEffect, instruction) {
 // evidence instead of carrying anything derived from the password.
 function receiptResource(contract, fields) {
   if (!Array.isArray(fields.evidence) || !fields.evidence.length) {
-    throw new Error('a credential receipt requires the session evidence of this run');
+    throw new Error(
+      'a credential receipt requires the session evidence of this run',
+    );
   }
   return {
     tenant_id: contract.tenantId,
@@ -88,11 +92,15 @@ function receiptResource(contract, fields) {
 export function outcome(contract, fields) {
   const message = sanitizedMessage(fields.reason);
   if (!PROVIDER_EFFECTS.includes(fields.providerEffect)) {
-    throw new Error('an Entra credential outcome requires one exact provider effect');
+    throw new Error(
+      'an Entra credential outcome requires one exact provider effect',
+    );
   }
   const phase = fields.phase ?? '';
   if (fields.status === 'needs_human_approval' && (!phase || !message)) {
-    throw new Error('an approval resource requires the exact phase and instruction that asked for it');
+    throw new Error(
+      'an approval resource requires the exact phase and instruction that asked for it',
+    );
   }
   const answer = {
     status: fields.status,
@@ -108,7 +116,14 @@ export function outcome(contract, fields) {
     tenantId: contract.tenantId,
     principalObjectId: contract.principalObjectId,
     ...(fields.status === 'needs_human_approval'
-      ? { approval: approvalResource(contract, phase, fields.providerEffect, message) }
+      ? {
+          approval: approvalResource(
+            contract,
+            phase,
+            fields.providerEffect,
+            message,
+          ),
+        }
       : {}),
     ...(fields.status === 'operation_completed'
       ? { receipt: receiptResource(contract, fields) }
@@ -153,7 +168,11 @@ export function commitPassword(contract, password, writeOperation) {
 
 export function managedPassword(contract) {
   try {
-    return readWelesManagedCredential(contract.credentialId, PASSWORD_FIELD, contract.skarbiecTenantId);
+    return readWelesManagedCredential(
+      contract.credentialId,
+      PASSWORD_FIELD,
+      contract.skarbiecTenantId,
+    );
   } catch {
     return undefined;
   }

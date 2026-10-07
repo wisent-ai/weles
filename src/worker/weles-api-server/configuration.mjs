@@ -17,11 +17,14 @@ import { join } from 'node:path';
 // Where a detached run records what happened, outside the repository so a
 // rebuild cannot delete the answer.
 export const RUN_RESULTS_DIR = join(homedir(), '.stado', 'weles-detached-runs');
-export const RECORDINGS_ROOT = process.env.WELES_RECORDINGS_ROOT || join(homedir(), '.stado', 'var', 'weles', 'recordings');
+export const RECORDINGS_ROOT =
+  process.env.WELES_RECORDINGS_ROOT ||
+  join(homedir(), '.stado', 'var', 'weles', 'recordings');
 
 function boundedIntegerEnvironment(name, declaredDefault, minimum, maximum) {
   const raw = String(process.env[name] ?? declaredDefault);
-  if (!/^[1-9][0-9]*$/.test(raw)) throw new Error(`${name} must be a positive base-10 integer`);
+  if (!/^[1-9][0-9]*$/.test(raw))
+    throw new Error(`${name} must be a positive base-10 integer`);
   const value = Number(raw);
   if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {
     throw new Error(`${name} must be between ${minimum} and ${maximum}`);
@@ -33,15 +36,20 @@ function boundedIntegerEnvironment(name, declaredDefault, minimum, maximum) {
 // built in, so a host is never exposed on an interface or port nobody chose.
 function declaredAddress(name) {
   const value = process.env[name]?.trim();
-  if (!value) throw new Error(`${name} is not set: set it to the address the Weles service declaration assigns`);
+  if (!value)
+    throw new Error(
+      `${name} is not set: set it to the address the Weles service declaration assigns`,
+    );
   return value;
 }
 export const HOST = declaredAddress('WELES_API_HOST');
 export const PORT = Number(declaredAddress('WELES_API_PORT'));
-export const TOKEN = process.env.WELES_API_TOKEN || process.env.WELES_CONSOLE_API_TOKEN || '';
+export const TOKEN =
+  process.env.WELES_API_TOKEN || process.env.WELES_CONSOLE_API_TOKEN || '';
 export const BRAMA_REAUTH_TOKEN = process.env.BRAMA_WELES_REAUTH_TOKEN || '';
 export const ALLOW_UNAUTH = process.env.WELES_API_ALLOW_UNAUTH === '1';
-export const ALLOW_RAW_CREDS = (process.env.WELES_API_ALLOW_RAW_CREDS ?? '1') === '1';
+export const ALLOW_RAW_CREDS =
+  (process.env.WELES_API_ALLOW_RAW_CREDS ?? '1') === '1';
 export const PUBLIC_TASK_CONCURRENCY = boundedIntegerEnvironment(
   'WELES_PUBLIC_TASK_CONCURRENCY',
   1,

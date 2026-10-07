@@ -1,5 +1,8 @@
 // Opening the GitHub sync panel of the currently open project.
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../dist/human/mouse.js';
 import { shot } from './evidence.mjs';
 
 // Open the editor menu and the GitHub sync panel for the currently-open
@@ -26,23 +29,33 @@ export async function openGithubPanel(s) {
   // decision and a DOM dump is on record either way.
   const ghEntry = s.page
     .getByText('Sync with a GitHub repository.', { exact: true })
-    .locator('xpath=ancestor::button[contains(@class, "integrations-panel-card-button")][1]')
+    .locator(
+      'xpath=ancestor::button[contains(@class, "integrations-panel-card-button")][1]',
+    )
     .or(
-      s.page.locator('#ide-rail-tabs-tabpane-integrations button.integrations-panel-card-button', {
-        hasText: 'Sync with a GitHub repository.',
-      })
+      s.page.locator(
+        '#ide-rail-tabs-tabpane-integrations button.integrations-panel-card-button',
+        {
+          hasText: 'Sync with a GitHub repository.',
+        },
+      ),
     )
     .filter({ visible: true })
     .first();
   let clickedGithubEntry = false;
-  if (await ghEntry.count() > 0) {
+  if ((await ghEntry.count()) > 0) {
     await humanClickLocator(s.page, ghEntry);
     clickedGithubEntry = true;
   } else {
-    const fallback = s.page.locator('#ide-rail-tabs-tabpane-integrations button')
-      .filter({ hasText: /GitHub[\s\S]*Sync with a GitHub repository|Sync with a GitHub repository[\s\S]*GitHub/ })
-      .filter({ visible: true }).first();
-    clickedGithubEntry = await fallback.count() > 0;
+    const fallback = s.page
+      .locator('#ide-rail-tabs-tabpane-integrations button')
+      .filter({
+        hasText:
+          /GitHub[\s\S]*Sync with a GitHub repository|Sync with a GitHub repository[\s\S]*GitHub/,
+      })
+      .filter({ visible: true })
+      .first();
+    clickedGithubEntry = (await fallback.count()) > 0;
     if (clickedGithubEntry) await humanClickLocator(s.page, fallback);
   }
   if (clickedGithubEntry) {
@@ -54,9 +67,14 @@ export async function openGithubPanel(s) {
     // Reading innerText during the checking state yields a false "not
     // linked" (proven by the captured 04_github_6755b68d.html). Wait for
     // the modal, then for the checking-status text to go.
-    const modalTitle = s.page.locator('.modal-title:has-text("Sync with GitHub")').first();
+    const modalTitle = s.page
+      .locator('.modal-title:has-text("Sync with GitHub")')
+      .first();
     await modalTitle.waitFor({ state: 'visible' });
-    await s.page.getByText('Checking project status in GitHub').first().waitFor({ state: 'hidden' });
+    await s.page
+      .getByText('Checking project status in GitHub')
+      .first()
+      .waitFor({ state: 'hidden' });
     await humanIdlePause('short');
     await shot(s, 'github_modal_loaded');
   }

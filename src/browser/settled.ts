@@ -13,8 +13,15 @@ function settleInPage(): Promise<void> {
   const quiet = () => {
     let changed = true;
     let quietFrames = 0;
-    const observer = new MutationObserver(() => { changed = true; });
-    observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
+    const observer = new MutationObserver(() => {
+      changed = true;
+    });
+    observer.observe(document, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      characterData: true,
+    });
     const frame = () => {
       quietFrames = changed ? 0 : quietFrames + 1;
       changed = false;
@@ -42,7 +49,8 @@ export async function pageSettled(page: EvaluatingPage): Promise<void> {
       await page.evaluate(settleInPage);
       return;
     } catch (error) {
-      if (!DOCUMENT_REPLACED.test(String((error as Error)?.message))) throw error;
+      if (!DOCUMENT_REPLACED.test(String((error as Error)?.message)))
+        throw error;
     }
   }
 }

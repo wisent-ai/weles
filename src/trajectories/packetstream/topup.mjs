@@ -8,35 +8,55 @@ import { pageSettled } from '../_shared/page/settled.mjs';
 
 const PRESETS = [50, 100, 250, 500, 1000];
 const { usd } = topupOpts();
-const target = PRESETS.find(p => p >= usd) ?? PRESETS[0];
+const target = PRESETS.find((p) => p >= usd) ?? PRESETS[0];
 
 const login = await getServiceLogin('PacketStream');
-if (!login) { console.log('FAIL: no PacketStream creds'); process.exit(1); }
+if (!login) {
+  console.log('FAIL: no PacketStream creds');
+  process.exit(1);
+}
 
-const s = await WSession.start({ label: 'packetstream_topup', browser: 'chromium' });
+const s = await WSession.start({
+  label: 'packetstream_topup',
+  browser: 'chromium',
+});
 try {
   await s.goto('https://app.packetstream.io/login');
   await pageSettled(s.page);
-  const u = s.page.locator('input[name="username"]').filter({ visible: true }).first();
-  await u.click(); await u.pressSequentially(login.email);
-  const p = s.page.locator('input[name="password"]').filter({ visible: true }).first();
-  await p.click(); await p.pressSequentially(login.password);
+  const u = s.page
+    .locator('input[name="username"]')
+    .filter({ visible: true })
+    .first();
+  await u.click();
+  await u.pressSequentially(login.email);
+  const p = s.page
+    .locator('input[name="password"]')
+    .filter({ visible: true })
+    .first();
+  await p.click();
+  await p.pressSequentially(login.password);
   await p.press('Enter');
   await pageSettled(s.page);
-  if (/\/login/.test(s.page.url())) { console.log(`FAIL: packetstream_login_refused (still on ${s.page.url()})`); process.exit(1); }
+  if (/\/login/.test(s.page.url())) {
+    console.log(`FAIL: packetstream_login_refused (still on ${s.page.url()})`);
+    process.exit(1);
+  }
 
-  await s.page.goto('https://app.packetstream.io/dashboard/deposit', { waitUntil: 'domcontentloaded' });
+  await s.page.goto('https://app.packetstream.io/dashboard/deposit', {
+    waitUntil: 'domcontentloaded',
+  });
   await pageSettled(s.page);
   await s.page.selectOption('#paypal-amount', String(target)).catch(() => {});
   console.log(`[trajectory] selected preset $${target} (requested $${usd})`);
-
-  
 
   // PacketStream's deposit dropdown auto-fires onChange which redirects to PayPal.
   // Trigger the change event explicitly so the redirect fires deterministically.
   await s.page.evaluate((amt) => {
     const sel = document.querySelector('#paypal-amount');
-    if (sel) { sel.value = String(amt); sel.dispatchEvent(new Event('change', { bubbles: true })); }
+    if (sel) {
+      sel.value = String(amt);
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    }
   }, target);
   // The change handler navigates to the payment provider; the page that
   // navigation lands on settles before it is read.
@@ -44,10 +64,14 @@ try {
   const finalUrl = s.page.url();
   console.log(`[trajectory] post-submit url=${finalUrl}`);
   if (/paypal\.com|stripe\.com|checkout/i.test(finalUrl)) {
-    console.log(`PASS-CHARGED-PENDING: redirected to checkout (${finalUrl}). PayPal/Stripe will complete the $${target} charge against the saved payment method. Verify via PacketStream's "Recent Payments" or by re-running src/trajectories/packetstream/balance.mjs in 1-2 minutes.`);
+    console.log(
+      `PASS-CHARGED-PENDING: redirected to checkout (${finalUrl}). PayPal/Stripe will complete the $${target} charge against the saved payment method. Verify via PacketStream's "Recent Payments" or by re-running src/trajectories/packetstream/balance.mjs in 1-2 minutes.`,
+    );
     process.exit(0);
   }
-  console.log(`FAIL: dropdown change did not redirect to a checkout URL (${finalUrl}). PacketStream may have changed its flow; revisit selectors.`);
+  console.log(
+    `FAIL: dropdown change did not redirect to a checkout URL (${finalUrl}). PacketStream may have changed its flow; revisit selectors.`,
+  );
   process.exit(1);
 } catch (e) {
   console.log('FAIL:', e.message);

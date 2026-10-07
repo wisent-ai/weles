@@ -7,11 +7,29 @@
 // Usage:
 //   node src/trajectories/overleaf/version_history_ui_phrase.mjs <project-id-or-title> <phrase-or-query-text>
 
-import { MAIN_TEX, MAX_HISTORY_CLICKS, OUTPUT_PATH, queryText, target } from './version_history_ui_phrase/settings.mjs';
-import { dump, ensureDashboard, norm, writeSummary } from './version_history_ui_phrase/page.mjs';
-import { loginWithGoogleUi, openHistoryUi, resolveAndOpenProject } from './version_history_ui_phrase/navigate.mjs';
+import {
+  MAIN_TEX,
+  MAX_HISTORY_CLICKS,
+  OUTPUT_PATH,
+  queryText,
+  target,
+} from './version_history_ui_phrase/settings.mjs';
+import {
+  dump,
+  ensureDashboard,
+  norm,
+  writeSummary,
+} from './version_history_ui_phrase/page.mjs';
+import {
+  loginWithGoogleUi,
+  openHistoryUi,
+  resolveAndOpenProject,
+} from './version_history_ui_phrase/navigate.mjs';
 import { summarizeVisible } from './version_history_ui_phrase/summarize.mjs';
-import { clickVisibleText, probeHistoryState } from './version_history_ui_phrase/probe.mjs';
+import {
+  clickVisibleText,
+  probeHistoryState,
+} from './version_history_ui_phrase/probe.mjs';
 import { pageSettled } from '../_shared/page/settled.mjs';
 
 // The session modules read the recording switches at import time; the settings module
@@ -29,14 +47,21 @@ const s = await WSession.start({
 
 try {
   const store = new SessionStore();
-  const injected = await store.injectPlaywright(s.ctx, process.env.OVERLEAF_AUTH_LABEL || 'overleaf').catch(() => false);
+  const injected = await store
+    .injectPlaywright(s.ctx, process.env.OVERLEAF_AUTH_LABEL || 'overleaf')
+    .catch(() => false);
   console.log(`[version_history_ui] injectedCookies=${injected}`);
 
   if (!(await ensureDashboard(s))) {
-    console.log('[version_history_ui] not authenticated; using Google SSO UI fallback');
+    console.log(
+      '[version_history_ui] not authenticated; using Google SSO UI fallback',
+    );
     await loginWithGoogleUi(s);
-    await store.capturePlaywright(s.ctx, process.env.OVERLEAF_AUTH_LABEL || 'overleaf').catch(() => {});
-    if (!(await ensureDashboard(s))) throw new Error('still not authenticated after Google SSO UI flow');
+    await store
+      .capturePlaywright(s.ctx, process.env.OVERLEAF_AUTH_LABEL || 'overleaf')
+      .catch(() => {});
+    if (!(await ensureDashboard(s)))
+      throw new Error('still not authenticated after Google SSO UI flow');
   }
   await dump(s, 'dashboard');
   const projectId = await resolveAndOpenProject(s);
@@ -54,22 +79,41 @@ try {
   const clicks = [];
   probes.push(await probeHistoryState(s, 'probe_initial_history', queryText));
   if (MAIN_TEX) {
-    clicks.push(await clickVisibleText(s.page, MAIN_TEX, 'click_current_main_tex', true));
-    probes.push(await probeHistoryState(s, 'probe_current_main_tex', queryText, true));
+    clicks.push(
+      await clickVisibleText(s.page, MAIN_TEX, 'click_current_main_tex', true),
+    );
+    probes.push(
+      await probeHistoryState(s, 'probe_current_main_tex', queryText, true),
+    );
   }
 
   const historyTargets = Array.from(new Set(summary.visibleItems || []))
     .map(norm)
     .filter((candidate) => candidate.length >= 3 && candidate.length <= 160)
-    .filter((candidate) => MAIN_TEX ? candidate !== MAIN_TEX : true)
+    .filter((candidate) => (MAIN_TEX ? candidate !== MAIN_TEX : true))
     .slice(0, MAX_HISTORY_CLICKS);
   for (let i = 0; i < historyTargets.length; i += 1) {
     const label = `click_history_${String(i + 1).padStart(2, '0')}`;
     clicks.push(await clickVisibleText(s.page, historyTargets[i], label));
-    probes.push(await probeHistoryState(s, `probe_history_${String(i + 1).padStart(2, '0')}`, queryText));
+    probes.push(
+      await probeHistoryState(
+        s,
+        `probe_history_${String(i + 1).padStart(2, '0')}`,
+        queryText,
+      ),
+    );
     if (MAIN_TEX) {
-      clicks.push(await clickVisibleText(s.page, MAIN_TEX, `${label}_main_tex`, true));
-      probes.push(await probeHistoryState(s, `probe_history_${String(i + 1).padStart(2, '0')}_main_tex`, queryText, true));
+      clicks.push(
+        await clickVisibleText(s.page, MAIN_TEX, `${label}_main_tex`, true),
+      );
+      probes.push(
+        await probeHistoryState(
+          s,
+          `probe_history_${String(i + 1).padStart(2, '0')}_main_tex`,
+          queryText,
+          true,
+        ),
+      );
     }
   }
 
@@ -85,7 +129,13 @@ try {
     summary,
   };
   writeSummary(output);
-  console.log(JSON.stringify({ projectId, method, summaryPath: OUTPUT_PATH, summary }, null, 2));
+  console.log(
+    JSON.stringify(
+      { projectId, method, summaryPath: OUTPUT_PATH, summary },
+      null,
+      2,
+    ),
+  );
 
   await s.close();
   process.exit(0);

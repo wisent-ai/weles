@@ -22,13 +22,18 @@ export function placeRequestFiles(guardId) {
   if (!encoded) {
     return {
       csrPath: absoluteWorkerPath(process.env.APPLE_CSR_PATH, 'APPLE_CSR_PATH'),
-      certificatePath: absoluteWorkerPath(process.env.APPLE_CERTIFICATE_PATH, 'APPLE_CERTIFICATE_PATH'),
+      certificatePath: absoluteWorkerPath(
+        process.env.APPLE_CERTIFICATE_PATH,
+        'APPLE_CERTIFICATE_PATH',
+      ),
       cleanup: () => undefined,
     };
   }
   const request = Buffer.from(encoded, 'base64').toString('utf8');
   if (!request.startsWith(CSR_HEADER)) {
-    throw new Error('[apple-create-developer-id] APPLE_CSR_BASE64 is not a PEM certificate request');
+    throw new Error(
+      '[apple-create-developer-id] APPLE_CSR_BASE64 is not a PEM certificate request',
+    );
   }
   const directory = runOutputPath('apple-developer-id', guardId);
   mkdirSync(directory, { recursive: true, mode: OWNER_ONLY_DIRECTORY });

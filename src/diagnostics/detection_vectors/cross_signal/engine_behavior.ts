@@ -53,20 +53,31 @@ export const engineBehaviorRules: DetectionRule[] = [
           id: 'performance_timing_regular',
           category: 'behavior',
           severity: 'info',
-          message: 'Clock observations use different collection methods. Collect a baseline with the same probe revision before comparing them.',
-          evidence: { subjectSampling: s?.js?.performance?.sampling, baselineSampling: b?.js?.performance?.sampling },
+          message:
+            'Clock observations use different collection methods. Collect a baseline with the same probe revision before comparing them.',
+          evidence: {
+            subjectSampling: s?.js?.performance?.sampling,
+            baselineSampling: b?.js?.performance?.sampling,
+          },
         };
       }
       // Compare observed frame boundaries only against the same collection method.
       // A zero delta in both captures is not evidence against the subject.
       if (smin < 0.001 && (typeof bmin !== 'number' || bmin > 0.001)) {
-        const baselineHint = typeof bmin === 'number' ? ` (baseline minDelta=${bmin.toFixed(3)})` : '';
+        const baselineHint =
+          typeof bmin === 'number'
+            ? ` (baseline minDelta=${bmin.toFixed(3)})`
+            : '';
         return {
           id: 'performance_timing_regular',
           category: 'behavior',
           severity: 'warning',
           message: `performance.now() minDelta is ${smin.toFixed(4)}${baselineHint}. Suggests clamped/intercepted timing.`,
-          evidence: { subjectMinDelta: smin, baselineMinDelta: bmin, subjectSamples: s?.js?.performance?.nowSamples },
+          evidence: {
+            subjectMinDelta: smin,
+            baselineMinDelta: bmin,
+            subjectSamples: s?.js?.performance?.nowSamples,
+          },
         };
       }
       return null;

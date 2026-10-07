@@ -4,21 +4,32 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('9_2');
-const MD = readFileSync((await import('#ncbr-settings')).applicationFile('wersja_B_9.2_wskazniki.md'), 'utf8');
+const MD = readFileSync(
+  (await import('#ncbr-settings')).applicationFile('wersja_B_9.2_wskazniki.md'),
+  'utf8',
+);
 
 function cell(block, label) {
-  const re = new RegExp(`^\\|\\s*(?:\\*\\*)?${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:\\*\\*)?\\s*\\|\\s*([\\s\\S]*?)\\s*\\|\\s*$`, 'm');
+  const re = new RegExp(
+    `^\\|\\s*(?:\\*\\*)?${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:\\*\\*)?\\s*\\|\\s*([\\s\\S]*?)\\s*\\|\\s*$`,
+    'm',
+  );
   const m = block.match(re);
   return m ? m[1].trim() : '';
 }
 
 function numeric(v) {
-  return String(v || '').replace(/\s/g, '').replace(',', '.');
+  return String(v || '')
+    .replace(/\s/g, '')
+    .replace(',', '.');
 }
 
 function lsiYearInput(year) {
@@ -27,20 +38,26 @@ function lsiYearInput(year) {
 }
 
 function indicators() {
-  return MD.split(/^### /m).slice(1).map((raw) => {
-    const block = `### ${raw}`;
-    return {
-      heading: raw.split('\n', 1)[0].trim(),
-      name: cell(block, 'Nazwa wskaźnika'),
-      unit: cell(block, 'Jednostka miary'),
-      baseYear: cell(block, 'Rok bazowy'),
-      baseValue: numeric(cell(block, 'Wartość bazowa')),
-      targetYear: cell(block, 'Rok osiągnięcia wartości docelowej'),
-      targetValue: numeric(cell(block, 'Wartość docelowa')),
-      methodology: cell(block, 'Opis metodologii wyliczenia wskaźnika'),
-      verification: cell(block, 'Opis sposobu weryfikacji osiągnięcia zaplanowanych wartości wskaźnika'),
-    };
-  }).filter((x) => x.name && !/HarmBench|attack success rate/i.test(x.name));
+  return MD.split(/^### /m)
+    .slice(1)
+    .map((raw) => {
+      const block = `### ${raw}`;
+      return {
+        heading: raw.split('\n', 1)[0].trim(),
+        name: cell(block, 'Nazwa wskaźnika'),
+        unit: cell(block, 'Jednostka miary'),
+        baseYear: cell(block, 'Rok bazowy'),
+        baseValue: numeric(cell(block, 'Wartość bazowa')),
+        targetYear: cell(block, 'Rok osiągnięcia wartości docelowej'),
+        targetValue: numeric(cell(block, 'Wartość docelowa')),
+        methodology: cell(block, 'Opis metodologii wyliczenia wskaźnika'),
+        verification: cell(
+          block,
+          'Opis sposobu weryfikacji osiągnięcia zaplanowanych wartości wskaźnika',
+        ),
+      };
+    })
+    .filter((x) => x.name && !/HarmBench|attack success rate/i.test(x.name));
 }
 
 const allIndicators = indicators();
@@ -54,21 +71,30 @@ if (!page) {
   process.exit(1);
 }
 
-
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
 
 async function openExistingRow(index) {
   const row = page.locator('table tbody tr').nth(index + 1);
-  await row.locator('button[aria-label="overflow-options"]').first().dispatchEvent('click'); // allow-raw-playwright: open row menu
+  await row
+    .locator('button[aria-label="overflow-options"]')
+    .first()
+    .dispatchEvent('click'); // allow-raw-playwright: open row menu
   await humanIdlePause('deliberate');
-  await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit row
+  await page
+    .getByRole('menuitem', { name: 'Edytuj', exact: true })
+    .first()
+    .dispatchEvent('click'); // allow-raw-playwright: edit row
   await humanIdlePause('long');
 }
 
 async function clickDodaj() {
-  const button = page.locator('button:not([disabled])').filter({ hasText: /^Dodaj$/ }).filter({ visible: true }).first();
-  if (await button.count() === 0) throw new Error('enabled Dodaj not found');
+  const button = page
+    .locator('button:not([disabled])')
+    .filter({ hasText: /^Dodaj$/ })
+    .filter({ visible: true })
+    .first();
+  if ((await button.count()) === 0) throw new Error('enabled Dodaj not found');
   await humanClickLocator(page, button);
   await humanIdlePause('long');
 }
@@ -76,19 +102,25 @@ async function clickDodaj() {
 async function saveForm() {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  const save = page.locator('button:not([disabled])').filter({ hasText: /^Zapisz$/ }).filter({ visible: true }).last();
-  if (await save.count() === 0) throw new Error('no enabled Zapisz');
+  const save = page
+    .locator('button:not([disabled])')
+    .filter({ hasText: /^Zapisz$/ })
+    .filter({ visible: true })
+    .last();
+  if ((await save.count()) === 0) throw new Error('no enabled Zapisz');
   await humanClickLocator(page, save);
   await humanIdlePause('long');
 }
 
 async function fillField(suffix, value) {
   const loc = page.locator(`[name$="${suffix}"]`).first();
-  if (await loc.count() === 0) return null;
+  if ((await loc.count()) === 0) return null;
   if (await loc.evaluate((el) => el.readOnly || el.disabled)) return null; // allow-raw-playwright: read field flags
-  const max = Number(await loc.getAttribute('maxlength')) || String(value || '').length;
+  const max =
+    Number(await loc.getAttribute('maxlength')) || String(value || '').length;
   const v = String(value || '');
-  if (v.length > max) throw new Error(`${suffix} over limit: ${v.length}/${max}`);
+  if (v.length > max)
+    throw new Error(`${suffix} over limit: ${v.length}/${max}`);
   await humanFill(page, loc, v);
   await loc.dispatchEvent('input'); // allow-raw-playwright: force React dirty/input state
   await loc.dispatchEvent('change'); // allow-raw-playwright: force React dirty/change state
@@ -98,12 +130,12 @@ async function fillField(suffix, value) {
 
 async function pickAutoByName(suffix, value) {
   const inp = page.locator(`input[name$="${suffix}"]`).first();
-  if (await inp.count() === 0) return null;
+  if ((await inp.count()) === 0) return null;
   await humanClickLocator(page, inp);
   await humanFill(page, inp, value);
   await humanIdlePause('deliberate');
   const opt = page.getByRole('option', { name: value, exact: true }).first();
-  if (await opt.count() > 0) {
+  if ((await opt.count()) > 0) {
     await opt.dispatchEvent('click'); // allow-raw-playwright: pick option
     await humanIdlePause('short');
     return value;
@@ -117,8 +149,12 @@ async function fillIndicator(ind, { preserveExistingTarget = false } = {}) {
   await fillField('jednostka_miary', ind.unit);
   await fillField('rok_bazowy', lsiYearInput(ind.baseYear));
   await fillField('wartosc_bazowa', ind.baseValue);
-  await fillField('rok_osiagniecia_wartosci_docelowej', lsiYearInput(ind.targetYear));
-  if (!preserveExistingTarget) await fillField('wartosc_docelowa', ind.targetValue);
+  await fillField(
+    'rok_osiagniecia_wartosci_docelowej',
+    lsiYearInput(ind.targetYear),
+  );
+  if (!preserveExistingTarget)
+    await fillField('wartosc_docelowa', ind.targetValue);
   else {
     const target = page.locator('[name$="wartosc_docelowa"]').first();
     const cur = await target.inputValue().catch(() => '');
@@ -129,7 +165,17 @@ async function fillIndicator(ind, { preserveExistingTarget = false } = {}) {
 }
 
 if (process.env.PARSE) {
-  console.log(JSON.stringify({ count: allIndicators.length, existing: existingIndicators.map((x) => x.name), own: ownIndicators.map((x) => x.name) }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        count: allIndicators.length,
+        existing: existingIndicators.map((x) => x.name),
+        own: ownIndicators.map((x) => x.name),
+      },
+      null,
+      2,
+    ),
+  );
   process.exit(0);
 }
 
@@ -137,54 +183,91 @@ if (process.env.DIAG_EDIT !== undefined) {
   const idx = Number(process.env.DIAG_EDIT);
   await openExistingRow(idx);
   const dump = await page.evaluate(() => ({
-    fields: Array.from(document.querySelectorAll('input, textarea')).map((i) => ({
-      tag: i.tagName,
-      type: i.type || null,
-      name: i.name || null,
-      value: (i.value || ''),
-      max: i.getAttribute('maxlength'),
-      readOnly: i.readOnly,
-      label: i.id ? document.querySelector(`label[for="${CSS.escape(i.id)}"]`)?.textContent?.trim() : null,
-    })).filter((x) => x.name || x.label),
-    saves: Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz').map((b) => ({ disabled: b.disabled })),
+    fields: Array.from(document.querySelectorAll('input, textarea'))
+      .map((i) => ({
+        tag: i.tagName,
+        type: i.type || null,
+        name: i.name || null,
+        value: i.value || '',
+        max: i.getAttribute('maxlength'),
+        readOnly: i.readOnly,
+        label: i.id
+          ? document
+              .querySelector(`label[for="${CSS.escape(i.id)}"]`)
+              ?.textContent?.trim()
+          : null,
+      }))
+      .filter((x) => x.name || x.label),
+    saves: Array.from(document.querySelectorAll('button'))
+      .filter((b) => b.innerText.trim() === 'Zapisz')
+      .map((b) => ({ disabled: b.disabled })),
   }));
-  console.log(JSON.stringify({ idx, expected: existingIndicators[idx]?.name, dump }, null, 2));
+  console.log(
+    JSON.stringify(
+      { idx, expected: existingIndicators[idx]?.name, dump },
+      null,
+      2,
+    ),
+  );
   process.exit(0);
 }
 
 if (process.env.DIAG_ADD) {
   await clickDodaj();
   const dump = await page.evaluate(() => ({
-    fields: Array.from(document.querySelectorAll('input, textarea')).map((i) => ({
-      tag: i.tagName,
-      type: i.type || null,
-      name: i.name || null,
-      role: i.getAttribute('role'),
-      value: (i.value || ''),
-      max: i.getAttribute('maxlength'),
-      readOnly: i.readOnly,
-      label: i.id ? document.querySelector(`label[for="${CSS.escape(i.id)}"]`)?.textContent?.trim() : null,
-    })).filter((x) => x.name || x.label),
+    fields: Array.from(document.querySelectorAll('input, textarea'))
+      .map((i) => ({
+        tag: i.tagName,
+        type: i.type || null,
+        name: i.name || null,
+        role: i.getAttribute('role'),
+        value: i.value || '',
+        max: i.getAttribute('maxlength'),
+        readOnly: i.readOnly,
+        label: i.id
+          ? document
+              .querySelector(`label[for="${CSS.escape(i.id)}"]`)
+              ?.textContent?.trim()
+          : null,
+      }))
+      .filter((x) => x.name || x.label),
   }));
-  console.log(JSON.stringify({ ownCount: ownIndicators.length, firstOwn: ownIndicators[0]?.name, dump }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        ownCount: ownIndicators.length,
+        firstOwn: ownIndicators[0]?.name,
+        dump,
+      },
+      null,
+      2,
+    ),
+  );
   process.exit(0);
 }
 
 if (process.env.VERIFY_DETAILS) {
   const details = [];
-  const count = await page.locator('button[aria-label="overflow-options"]').count();
+  const count = await page
+    .locator('button[aria-label="overflow-options"]')
+    .count();
   for (let i = 0; i < count; i++) {
     await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
     await humanIdlePause('long');
     const buttons = page.locator('button[aria-label="overflow-options"]');
-    if (await buttons.count() <= i) break;
+    if ((await buttons.count()) <= i) break;
     await buttons.nth(i).dispatchEvent('click'); // allow-raw-playwright: open indicator row menu for read-only verification
     await humanIdlePause('deliberate');
-    await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: open existing indicator row read-only verification
+    await page
+      .getByRole('menuitem', { name: 'Edytuj', exact: true })
+      .first()
+      .dispatchEvent('click'); // allow-raw-playwright: open existing indicator row read-only verification
     await humanIdlePause('long');
     const item = await page.evaluate(() => {
       const v = (suffix) => {
-        const el = Array.from(document.querySelectorAll('input, textarea')).find((e) => (e.name || '').endsWith(suffix));
+        const el = Array.from(
+          document.querySelectorAll('input, textarea'),
+        ).find((e) => (e.name || '').endsWith(suffix));
         return el ? String(el.value || '') : '';
       };
       return {
@@ -196,8 +279,11 @@ if (process.env.VERIFY_DETAILS) {
       };
     }); // allow-raw-playwright: read existing 9.2 row fields without saving
     details.push(item);
-    const cancel = page.getByRole('button', { name: 'Anuluj', exact: true }).filter({ visible: true }).last();
-    if (await cancel.count() > 0) await humanClickLocator(page, cancel);
+    const cancel = page
+      .getByRole('button', { name: 'Anuluj', exact: true })
+      .filter({ visible: true })
+      .last();
+    if ((await cancel.count()) > 0) await humanClickLocator(page, cancel);
     await humanIdlePause('long');
   }
   console.log(JSON.stringify({ count, details }, null, 2));
@@ -206,15 +292,23 @@ if (process.env.VERIFY_DETAILS) {
 
 const edited = [];
 const start = process.env.START ? Number(process.env.START) : 0;
-const limit = process.env.LIMIT ? Number(process.env.LIMIT) : existingIndicators.length;
-for (let i = start; i < Math.min(existingIndicators.length, start + limit); i++) {
+const limit = process.env.LIMIT
+  ? Number(process.env.LIMIT)
+  : existingIndicators.length;
+for (
+  let i = start;
+  i < Math.min(existingIndicators.length, start + limit);
+  i++
+) {
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('long');
   await openExistingRow(i);
   if (process.env.BASE_YEAR_ONLY) {
     await fillField('rok_bazowy', existingIndicators[i].baseYear);
   } else {
-    await fillIndicator(existingIndicators[i], { preserveExistingTarget: i === 12 });
+    await fillIndicator(existingIndicators[i], {
+      preserveExistingTarget: i === 12,
+    });
   }
   await saveForm();
   edited.push(existingIndicators[i].name);
@@ -236,7 +330,11 @@ if (process.env.ADD_OWN !== '0') {
 
 const rows = await page.evaluate(() => {
   const table = document.querySelector('table');
-  return table ? Array.from(table.querySelectorAll('tbody tr')).map((r) => r.innerText.replace(/\s+/g, ' ').trim()) : [];
+  return table
+    ? Array.from(table.querySelectorAll('tbody tr')).map((r) =>
+        r.innerText.replace(/\s+/g, ' ').trim(),
+      )
+    : [];
 });
 console.log(JSON.stringify({ edited, added, rows }, null, 2));
 process.exit(0);

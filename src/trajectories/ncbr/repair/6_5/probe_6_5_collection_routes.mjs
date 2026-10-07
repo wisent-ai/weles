@@ -32,31 +32,34 @@ const urls = [
 ];
 
 async function request(page, method, url) {
-  return await page.evaluate(async ({ method, url }) => {
-    try {
-      const res = await fetch(url, {
-        method,
-        credentials: 'include',
-        headers: { Accept: 'application/json' },
-      });
-      const text = method === 'HEAD' ? '' : await res.text();
-      return {
-        method,
-        url,
-        status: res.status,
-        statusText: res.statusText,
-        allow: res.headers.get('allow'),
-        contentType: res.headers.get('content-type'),
-        text: text,
-      };
-    } catch (error) {
-      return {
-        method,
-        url,
-        error: String(error?.message || error),
-      };
-    }
-  }, { method, url });
+  return await page.evaluate(
+    async ({ method, url }) => {
+      try {
+        const res = await fetch(url, {
+          method,
+          credentials: 'include',
+          headers: { Accept: 'application/json' },
+        });
+        const text = method === 'HEAD' ? '' : await res.text();
+        return {
+          method,
+          url,
+          status: res.status,
+          statusText: res.statusText,
+          allow: res.headers.get('allow'),
+          contentType: res.headers.get('content-type'),
+          text: text,
+        };
+      } catch (error) {
+        return {
+          method,
+          url,
+          error: String(error?.message || error),
+        };
+      }
+    },
+    { method, url },
+  );
 }
 
 const s = await WSession.start({

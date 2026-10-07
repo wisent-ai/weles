@@ -23,20 +23,31 @@ import { SAFE_RUN_ID, runResultFile } from './run-outcome.mjs';
 
 export function diagnosticsContentType(path) {
   switch (extname(path).toLowerCase()) {
-    case '.png': return 'image/png';
+    case '.png':
+      return 'image/png';
     case '.jpg':
-    case '.jpeg': return 'image/jpeg';
-    case '.webm': return 'video/webm';
-    case '.mp4': return 'video/mp4';
-    case '.html': return 'text/html; charset=utf-8';
-    case '.json': return 'application/json; charset=utf-8';
-    case '.ndjson': return 'application/x-ndjson; charset=utf-8';
-    case '.har': return 'application/json; charset=utf-8';
+    case '.jpeg':
+      return 'image/jpeg';
+    case '.webm':
+      return 'video/webm';
+    case '.mp4':
+      return 'video/mp4';
+    case '.html':
+      return 'text/html; charset=utf-8';
+    case '.json':
+      return 'application/json; charset=utf-8';
+    case '.ndjson':
+      return 'application/x-ndjson; charset=utf-8';
+    case '.har':
+      return 'application/json; charset=utf-8';
     case '.log':
     case '.txt':
-    case '.patch': return 'text/plain; charset=utf-8';
-    case '.pcap': return 'application/vnd.tcpdump.pcap';
-    default: return 'application/octet-stream';
+    case '.patch':
+      return 'text/plain; charset=utf-8';
+    case '.pcap':
+      return 'application/vnd.tcpdump.pcap';
+    default:
+      return 'application/octet-stream';
   }
 }
 
@@ -71,7 +82,9 @@ function diagnosticsCandidates() {
     for (const release of readdirSync(managed, { withFileTypes: true })) {
       if (!release.isDirectory()) continue;
       const releaseRoot = join(managed, release.name);
-      for (const platform of readdirSync(releaseRoot, { withFileTypes: true })) {
+      for (const platform of readdirSync(releaseRoot, {
+        withFileTypes: true,
+      })) {
         if (!platform.isDirectory()) continue;
         add(join(releaseRoot, platform.name, 'runtime', 'recordings'));
       }
@@ -86,7 +99,9 @@ function diagnosticsCandidates() {
     for (const release of readdirSync(legacy, { withFileTypes: true })) {
       if (!release.isDirectory()) continue;
       const releaseRoot = join(legacy, release.name);
-      for (const platform of readdirSync(releaseRoot, { withFileTypes: true })) {
+      for (const platform of readdirSync(releaseRoot, {
+        withFileTypes: true,
+      })) {
         if (!platform.isDirectory()) continue;
         add(join(releaseRoot, platform.name, 'recordings'));
       }
@@ -128,7 +143,11 @@ export function diagnosticsManifest(runId) {
   while (stack.length) {
     const current = stack.pop();
     let entries;
-    try { entries = readdirSync(current.dir, { withFileTypes: true }); } catch { continue; }
+    try {
+      entries = readdirSync(current.dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
     for (const entry of entries) {
       if (entry.isSymbolicLink()) continue;
       const full = join(current.dir, entry.name);
@@ -139,7 +158,11 @@ export function diagnosticsManifest(runId) {
       }
       if (!entry.isFile()) continue;
       let stat;
-      try { stat = statSync(full); } catch { continue; }
+      try {
+        stat = statSync(full);
+      } catch {
+        continue;
+      }
       files.push({
         path: rel,
         bytes: stat.size,
@@ -161,7 +184,12 @@ export function diagnosticsManifest(runId) {
 }
 
 export function diagnosticFile(runId, requestedPath) {
-  if (typeof requestedPath !== 'string' || requestedPath.length === 0 || requestedPath.includes('\0')) return null;
+  if (
+    typeof requestedPath !== 'string' ||
+    requestedPath.length === 0 ||
+    requestedPath.includes('\0')
+  )
+    return null;
   if (requestedPath === 'run-result.json') return runResultFile(runId);
   const root = diagnosticsRoot(runId);
   if (!root) return null;

@@ -1,4 +1,8 @@
-import { getReceived, listReceived, receivingConfigured } from '../../../_shared/resend-receiving.mjs';
+import {
+  getReceived,
+  listReceived,
+  receivingConfigured,
+} from '../../../_shared/resend-receiving.mjs';
 
 /** Whether an inbox is configured for the verification mail at all. */
 export function inboxConfigured() {
@@ -43,14 +47,26 @@ export async function readPangramMail(email, seenBefore) {
   const hit = inbox.find((m) => {
     const from = String(m.from).toLowerCase();
     const subj = String(m.subject).toLowerCase();
-    return addressedTo(m, email) && !seenBefore.has(m.id)
-      && (from.includes('pangram') || subj.includes('pangram') || subj.includes('verify'));
+    return (
+      addressedTo(m, email) &&
+      !seenBefore.has(m.id) &&
+      (from.includes('pangram') ||
+        subj.includes('pangram') ||
+        subj.includes('verify'))
+    );
   });
   if (!hit) return null;
   const body = await fetchEmailBody(hit.id);
   const text = `${body.subject || ''}\n${body.text || ''}\n${body.html || ''}`;
   const code = text.match(/\b\d{5,6}\b/)?.[0] || null;
-  const links = [...text.matchAll(/https?:\/\/[^\s"'<>]+/g)].map((m) => m[0].replace(/&amp;/g, '&'));
+  const links = [...text.matchAll(/https?:\/\/[^\s"'<>]+/g)].map((m) =>
+    m[0].replace(/&amp;/g, '&'),
+  );
   const pangramLink = links.find((u) => /pangram\.com/i.test(u)) || null;
-  return { id: hit.id, subject: body.subject || hit.subject || '', code, pangramLink };
+  return {
+    id: hit.id,
+    subject: body.subject || hit.subject || '',
+    code,
+    pangramLink,
+  };
 }

@@ -8,7 +8,11 @@ if (!harPath) throw new Error('usage: node summarize_har.mjs <session.har>');
 const har = JSON.parse(readFileSync(harPath, 'utf8'));
 const entries = har?.log?.entries || [];
 const rows = entries
-  .filter((e) => /pangram\.com|web\.pangram\.com|challenges\.cloudflare\.com/i.test(e.request?.url || ''))
+  .filter((e) =>
+    /pangram\.com|web\.pangram\.com|challenges\.cloudflare\.com/i.test(
+      e.request?.url || '',
+    ),
+  )
   .map((e) => {
     const req = e.request || {};
     const res = e.response || {};
@@ -20,9 +24,12 @@ const rows = entries
       status: res.status,
       mimeType: res.content?.mimeType || null,
       requestPostSample: req.postData?.text ? req.postData.text : null,
-      responseSample: /api|signup|dashboard|anonymous|session|feature|csrf|turnstile|classify/i.test(req.url)
-        ? body.replace(/\s+/g, ' ')
-        : undefined,
+      responseSample:
+        /api|signup|dashboard|anonymous|session|feature|csrf|turnstile|classify/i.test(
+          req.url,
+        )
+          ? body.replace(/\s+/g, ' ')
+          : undefined,
     };
   });
 

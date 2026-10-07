@@ -24,7 +24,13 @@
 
 import { spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync, readdirSync, watch, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  watch,
+  writeFileSync,
+} from 'node:fs';
 import { homedir, hostname } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { stadoBinary } from '../_shared/skarbiec-runtime.mjs';
@@ -53,26 +59,38 @@ const PROGRESS_WORD = 'OPERATOR_REQUEST';
  */
 function announce(request) {
   if (!currentRunId()) return;
-  process.stderr.write(`${PROGRESS_WORD} ${JSON.stringify({
-    id: request.id, kind: request.kind, account: request.account,
-    instruction: request.instruction, host: request.host, opened_at: request.opened_at,
-    paged: request.pages.some((attempt) => attempt.ok),
-  })}\n`);
+  process.stderr.write(
+    `${PROGRESS_WORD} ${JSON.stringify({
+      id: request.id,
+      kind: request.kind,
+      account: request.account,
+      instruction: request.instruction,
+      host: request.host,
+      opened_at: request.opened_at,
+      paged: request.pages.some((attempt) => attempt.ok),
+    })}\n`,
+  );
 }
 
 /** Where the requests live. One directory per host, overridable for tests. */
 export function operatorRequestDir() {
   const configured = String(process.env[DIRECTORY_VARIABLE] || '').trim();
-  const root = configured.length > 0 ? configured : join(homedir(), '.weles', 'operator-requests');
+  const root =
+    configured.length > 0
+      ? configured
+      : join(homedir(), '.weles', 'operator-requests');
   if (!isAbsolute(root)) {
-    throw new Error(`${DIRECTORY_VARIABLE} must be an absolute path, got ${root}`);
+    throw new Error(
+      `${DIRECTORY_VARIABLE} must be an absolute path, got ${root}`,
+    );
   }
   mkdirSync(root, { recursive: true });
   return root;
 }
 
 function requestFile(id) {
-  if (!/^[0-9a-f-]{8,64}$/.test(String(id))) throw new Error(`invalid operator request id: ${id}`);
+  if (!/^[0-9a-f-]{8,64}$/.test(String(id)))
+    throw new Error(`invalid operator request id: ${id}`);
   return join(operatorRequestDir(), `${id}.json`);
 }
 
@@ -84,18 +102,27 @@ function required(value, field) {
 
 /** One line, whole: a refusal is quoted as the channel said it. */
 function flatten(text) {
-  return String(text ?? '').replace(/\s+/g, ' ').trim();
+  return String(text ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function write(request) {
-  writeFileSync(requestFile(request.id), `${JSON.stringify(request, null, 2)}\n`);
+  writeFileSync(
+    requestFile(request.id),
+    `${JSON.stringify(request, null, 2)}\n`,
+  );
   return request;
 }
 
 /** Whether this deployment may page. Off is a choice a test or a rerun makes;
  * it is recorded, so a request nobody was told about never looks delivered. */
 function pagingEnabled() {
-  return String(process.env[PAGING_VARIABLE] || '').trim().toLowerCase() !== PAGING_DISABLED_VALUE;
+  return (
+    String(process.env[PAGING_VARIABLE] || '')
+      .trim()
+      .toLowerCase() !== PAGING_DISABLED_VALUE
+  );
 }
 
 /** What the operator actually reads. Every line answers one question he would
@@ -114,9 +141,9 @@ export function pageBody(request) {
     '',
     ...(runIds.length
       ? [
-        `Watch it:    weles runs show ${runIds[0]}`,
-        `Answer it:   weles runs answer ${runIds[0]} --ready | --approved | --not-received`,
-      ]
+          `Watch it:    weles runs show ${runIds[0]}`,
+          `Answer it:   weles runs answer ${runIds[0]} --ready | --approved | --not-received`,
+        ]
       : []),
     'The run waits until you act or it is cancelled; if it ends first, this request is recorded as abandoned.',
   ].join('\n');
@@ -134,23 +161,44 @@ export function pageSubject(request) {
 function page(request) {
   const at = new Date().toISOString();
   if (!pagingEnabled()) {
-    return { at, ok: false, channel: PAGE_CHANNEL, detail: `paging disabled by ${PAGING_VARIABLE}=${PAGING_DISABLED_VALUE}` };
+    return {
+      at,
+      ok: false,
+      channel: PAGE_CHANNEL,
+      detail: `paging disabled by ${PAGING_VARIABLE}=${PAGING_DISABLED_VALUE}`,
+    };
   }
   let binary;
   try {
     binary = stadoBinary();
   } catch (error) {
     return {
-      at, ok: false, channel: PAGE_CHANNEL,
+      at,
+      ok: false,
+      channel: PAGE_CHANNEL,
       detail: flatten(`Stado pager unavailable: ${error?.message || error}`),
     };
   }
-  const result = spawnSync(binary, ['alerts', 'send', pageBody(request), '--subject', pageSubject(request)], {
-    encoding: 'utf8', env: { ...process.env, HOME: homedir() },
-  });
+  const result = spawnSync(
+    binary,
+    ['alerts', 'send', pageBody(request), '--subject', pageSubject(request)],
+    {
+      encoding: 'utf8',
+      env: { ...process.env, HOME: homedir() },
+    },
+  );
   if (result.error || result.status !== 0) {
-    const detail = result.error?.message || result.stderr || result.stdout || `exit ${result.status}`;
-    return { at, ok: false, channel: PAGE_CHANNEL, detail: flatten(`stado alerts send refused: ${detail}`) };
+    const detail =
+      result.error?.message ||
+      result.stderr ||
+      result.stdout ||
+      `exit ${result.status}`;
+    return {
+      at,
+      ok: false,
+      channel: PAGE_CHANNEL,
+      detail: flatten(`stado alerts send refused: ${detail}`),
+    };
   }
   // Stado names each channel and what it did: `resend\tdelivered\t<address>`.
   // A pager that exits zero saying nothing is not evidence that anyone was
@@ -161,11 +209,19 @@ function page(request) {
     .filter((line) => line.includes(`\t${DELIVERED_WORD}\t`));
   if (named.length === 0) {
     return {
-      at, ok: false, channel: PAGE_CHANNEL,
-      detail: 'stado alerts send exited successfully without naming a channel that took the message',
+      at,
+      ok: false,
+      channel: PAGE_CHANNEL,
+      detail:
+        'stado alerts send exited successfully without naming a channel that took the message',
     };
   }
-  return { at, ok: true, channel: PAGE_CHANNEL, detail: flatten(named.join('; ')) };
+  return {
+    at,
+    ok: true,
+    channel: PAGE_CHANNEL,
+    detail: flatten(named.join('; ')),
+  };
 }
 
 const OKO_CHANNEL = 'oko-asks';
@@ -195,7 +251,12 @@ function firstRun(request) {
 function askThroughOko(request) {
   const at = new Date().toISOString();
   if (!pagingEnabled()) {
-    return { at, ok: false, channel: OKO_CHANNEL, detail: `asking disabled by ${PAGING_VARIABLE}=${PAGING_DISABLED_VALUE}` };
+    return {
+      at,
+      ok: false,
+      channel: OKO_CHANNEL,
+      detail: `asking disabled by ${PAGING_VARIABLE}=${PAGING_DISABLED_VALUE}`,
+    };
   }
   const binary = okoBinary();
   const run = firstRun(request);
@@ -204,34 +265,75 @@ function askThroughOko(request) {
     : `No Weles worker started this run (process ${request.run_pid} on ${request.host}); it ends when the page it waits on changes.`;
   // The answers a waiting run acts on are offered as the ask's choices, so
   // Oko Desktop and Oko iOS show them as buttons and refuse anything else.
-  const result = spawnSync(binary, [
-    'asks', 'ask', '--from', 'weles', '--subject', run ? `run-${run}` : `request-${request.id}`,
-    '--question', `${request.instruction} (${request.account})`,
-    '--detail', `${pageSubject(request)} on ${request.host}. ${answer}`,
-    ...OPERATOR_ANSWERS.flatMap((choice) => ['--choice', choice]),
-  ], { encoding: 'utf8', env: { ...process.env, HOME: homedir() } });
+  const result = spawnSync(
+    binary,
+    [
+      'asks',
+      'ask',
+      '--from',
+      'weles',
+      '--subject',
+      run ? `run-${run}` : `request-${request.id}`,
+      '--question',
+      `${request.instruction} (${request.account})`,
+      '--detail',
+      `${pageSubject(request)} on ${request.host}. ${answer}`,
+      ...OPERATOR_ANSWERS.flatMap((choice) => ['--choice', choice]),
+    ],
+    { encoding: 'utf8', env: { ...process.env, HOME: homedir() } },
+  );
   if (result.error?.code === 'ENOENT') {
     return {
-      at, ok: false, channel: OKO_CHANNEL, oko_missing: true,
+      at,
+      ok: false,
+      channel: OKO_CHANNEL,
+      oko_missing: true,
       detail: `${binary} is not installed on this host (set ${OKO_BINARY_VARIABLE} to its path), so the question was not put on the operator's Oko channels`,
     };
   }
   if (result.error || result.status) {
-    const detail = result.error?.message || result.stderr || result.stdout || `exit ${result.status}`;
-    return { at, ok: false, channel: OKO_CHANNEL, detail: flatten(`oko asks ask refused: ${detail}`) };
+    const detail =
+      result.error?.message ||
+      result.stderr ||
+      result.stdout ||
+      `exit ${result.status}`;
+    return {
+      at,
+      ok: false,
+      channel: OKO_CHANNEL,
+      detail: flatten(`oko asks ask refused: ${detail}`),
+    };
   }
   let asked;
   try {
     asked = JSON.parse(result.stdout);
   } catch (error) {
-    return { at, ok: false, channel: OKO_CHANNEL, detail: flatten(`oko asks ask answered unreadable JSON: ${error.message}`) };
+    return {
+      at,
+      ok: false,
+      channel: OKO_CHANNEL,
+      detail: flatten(
+        `oko asks ask answered unreadable JSON: ${error.message}`,
+      ),
+    };
   }
-  const delivered = (asked.deliveries || []).filter((attempt) => attempt.outcome === 'delivered');
+  const delivered = (asked.deliveries || []).filter(
+    (attempt) => attempt.outcome === 'delivered',
+  );
   return {
-    at, ok: true, channel: OKO_CHANNEL, ask_id: asked.ask?.id,
-    detail: flatten(`ask ${asked.ask?.id} recorded in Oko; ${delivered.length
-      ? delivered.map((attempt) => `${attempt.channel}: ${attempt.detail}`).join('; ')
-      : `its deliveries are recorded as they happen: oko asks show ${asked.ask?.id}`}`),
+    at,
+    ok: true,
+    channel: OKO_CHANNEL,
+    ask_id: asked.ask?.id,
+    detail: flatten(
+      `ask ${asked.ask?.id} recorded in Oko; ${
+        delivered.length
+          ? delivered
+              .map((attempt) => `${attempt.channel}: ${attempt.detail}`)
+              .join('; ')
+          : `its deliveries are recorded as they happen: oko asks show ${asked.ask?.id}`
+      }`,
+    ),
   };
 }
 
@@ -239,15 +341,24 @@ function askThroughOko(request) {
  * asking for something the run no longer waits on. The outcome is kept as a
  * note on the request. */
 function withdrawOkoAsk(request) {
-  const asked = (request.pages || []).find((attempt) => attempt.channel === OKO_CHANNEL && attempt.ask_id);
+  const asked = (request.pages || []).find(
+    (attempt) => attempt.channel === OKO_CHANNEL && attempt.ask_id,
+  );
   if (!asked) return;
   const result = spawnSync(okoBinary(), ['asks', 'withdraw', asked.ask_id], {
-    encoding: 'utf8', env: { ...process.env, HOME: homedir() },
+    encoding: 'utf8',
+    env: { ...process.env, HOME: homedir() },
   });
-  const note = result.error || result.status
-    ? flatten(`Oko ask ${asked.ask_id} not withdrawn: ${result.error?.message || result.stderr || `exit ${result.status}`}`)
-    : `Oko ask ${asked.ask_id} withdrawn`;
-  request.notes = [...(Array.isArray(request.notes) ? request.notes : []), { at: new Date().toISOString(), note }];
+  const note =
+    result.error || result.status
+      ? flatten(
+          `Oko ask ${asked.ask_id} not withdrawn: ${result.error?.message || result.stderr || `exit ${result.status}`}`,
+        )
+      : `Oko ask ${asked.ask_id} withdrawn`;
+  request.notes = [
+    ...(Array.isArray(request.notes) ? request.notes : []),
+    { at: new Date().toISOString(), note },
+  ];
 }
 
 /**
@@ -259,10 +370,11 @@ function withdrawOkoAsk(request) {
  * account and nobody has closed it.
  */
 export function openRequestFor(kind, account) {
-    const wanted = String(kind).trim();
-    const who = String(account).trim();
-    return listOperatorRequests({ openOnly: true })
-        .find((request) => request.kind === wanted && request.account === who);
+  const wanted = String(kind).trim();
+  const who = String(account).trim();
+  return listOperatorRequests({ openOnly: true }).find(
+    (request) => request.kind === wanted && request.account === who,
+  );
 }
 
 /** The Weles run this process is, when a worker started it. */
@@ -286,7 +398,10 @@ export function openOperatorRequest(input) {
   const waiting = openRequestFor(input.kind, input.account);
   if (waiting && isAbandoned(waiting) === false) {
     const runIds = Array.isArray(waiting.run_ids) ? waiting.run_ids : [];
-    const joined = runId && !runIds.includes(runId) ? write({ ...waiting, run_ids: [...runIds, runId] }) : waiting;
+    const joined =
+      runId && !runIds.includes(runId)
+        ? write({ ...waiting, run_ids: [...runIds, runId] })
+        : waiting;
     announce(joined);
     return joined;
   }
@@ -329,12 +444,17 @@ export function openOperatorRequest(input) {
  */
 function relayOkoAnswer(requestId, askId) {
   const child = spawn(okoBinary(), ['asks', 'wait', askId], {
-    env: { ...process.env, HOME: homedir() }, stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, HOME: homedir() },
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
   let stdout = '';
   let stderr = '';
-  child.stdout.on('data', (chunk) => { stdout += chunk; });
-  child.stderr.on('data', (chunk) => { stderr += chunk; });
+  child.stdout.on('data', (chunk) => {
+    stdout += chunk;
+  });
+  child.stderr.on('data', (chunk) => {
+    stderr += chunk;
+  });
   // The wait lasts as long as the ask does, but never holds the run's process
   // open: its pipes and the child are unreferenced, and a run that ends first
   // ends the wait with it.
@@ -344,15 +464,22 @@ function relayOkoAnswer(requestId, askId) {
   process.once('exit', () => child.kill());
   const note = (text) => {
     try {
-      if (isOpen(readOperatorRequest(requestId))) noteOperatorRequest(requestId, text);
+      if (isOpen(readOperatorRequest(requestId)))
+        noteOperatorRequest(requestId, text);
     } catch (error) {
-      console.error(`[operator-request] ${requestId}: ${text}; the note could not be written: ${error.message}`);
+      console.error(
+        `[operator-request] ${requestId}: ${text}; the note could not be written: ${error.message}`,
+      );
     }
   };
-  child.on('error', (error) => note(`Oko ask ${askId} cannot be waited on: ${error.message}`));
+  child.on('error', (error) =>
+    note(`Oko ask ${askId} cannot be waited on: ${error.message}`),
+  );
   child.on('close', (code) => {
     if (code) {
-      note(`oko asks wait ${askId} exited ${code}: ${flatten(stderr || stdout)}`);
+      note(
+        `oko asks wait ${askId} exited ${code}: ${flatten(stderr || stdout)}`,
+      );
       return;
     }
     let waited;
@@ -367,20 +494,32 @@ function relayOkoAnswer(requestId, askId) {
     try {
       if (!isOpen(readOperatorRequest(requestId))) return;
       if (!OPERATOR_ANSWERS.includes(answer)) {
-        note(`Oko ask ${askId} was answered with ${answer}, which is none of ${OPERATOR_ANSWERS.join(', ')}`);
+        note(
+          `Oko ask ${askId} was answered with ${answer}, which is none of ${OPERATOR_ANSWERS.join(', ')}`,
+        );
         return;
       }
-      answerOperatorRequest(requestId, answer, `answered in Oko on ${waited.ask?.answered_on}`);
+      answerOperatorRequest(
+        requestId,
+        answer,
+        `answered in Oko on ${waited.ask?.answered_on}`,
+      );
     } catch (error) {
-      note(`the answer ${answer} given in Oko could not be put on the request: ${error.message}`);
+      note(
+        `the answer ${answer} given in Oko could not be put on the request: ${error.message}`,
+      );
     }
   });
 }
 
 /** The open request a Weles run waits on, or null when it waits on nobody. */
 export function openRequestOfRun(runId) {
-  return listOperatorRequests({ openOnly: true })
-    .find((request) => Array.isArray(request.run_ids) && request.run_ids.includes(runId)) ?? null;
+  return (
+    listOperatorRequests({ openOnly: true }).find(
+      (request) =>
+        Array.isArray(request.run_ids) && request.run_ids.includes(runId),
+    ) ?? null
+  );
 }
 
 /**
@@ -388,7 +527,9 @@ export function openRequestOfRun(runId) {
  */
 export function closeOperatorRequest(id, approved, detail) {
   if (typeof approved !== 'boolean') {
-    throw new Error(`operator request closes with approved true or false; got ${approved}`);
+    throw new Error(
+      `operator request closes with approved true or false; got ${approved}`,
+    );
   }
   const request = readOperatorRequest(id);
   const closed = new Date();
@@ -396,9 +537,14 @@ export function closeOperatorRequest(id, approved, detail) {
   request.closed_at = closed.toISOString();
   request.waited_seconds = Math.max(
     0,
-    Math.round((closed.getTime() - new Date(request.opened_at).getTime()) / MILLISECONDS_PER_SECOND),
+    Math.round(
+      (closed.getTime() - new Date(request.opened_at).getTime()) /
+        MILLISECONDS_PER_SECOND,
+    ),
   );
-  request.outcome_detail = flatten(required(detail, 'a sentence saying how the wait ended'));
+  request.outcome_detail = flatten(
+    required(detail, 'a sentence saying how the wait ended'),
+  );
   withdrawOkoAsk(request);
   return write(request);
 }
@@ -413,7 +559,11 @@ export function closeOperatorRequest(id, approved, detail) {
  *   provider to send it again, or ends saying the provider offers no second send.
  * Ending the wait is ending the run: `weles runs cancel`.
  */
-export const OPERATOR_ANSWERS = Object.freeze(['ready', 'approved', 'not_received']);
+export const OPERATOR_ANSWERS = Object.freeze([
+  'ready',
+  'approved',
+  'not_received',
+]);
 
 /**
  * Record the operator's answer on an open request. The run that waits on it
@@ -423,11 +573,15 @@ export const OPERATOR_ANSWERS = Object.freeze(['ready', 'approved', 'not_receive
  */
 export function answerOperatorRequest(id, answer, detail) {
   if (!OPERATOR_ANSWERS.includes(answer)) {
-    throw new Error(`operator request answer must be one of ${OPERATOR_ANSWERS.join(', ')}; got ${answer}`);
+    throw new Error(
+      `operator request answer must be one of ${OPERATOR_ANSWERS.join(', ')}; got ${answer}`,
+    );
   }
   const request = readOperatorRequest(id);
   if (!isOpen(request)) {
-    throw new Error(`operator request ${id} closed at ${request.closed_at} (${request.outcome_detail}); no run waits for an answer`);
+    throw new Error(
+      `operator request ${id} closed at ${request.closed_at} (${request.outcome_detail}); no run waits for an answer`,
+    );
   }
   request.answers = [
     ...(Array.isArray(request.answers) ? request.answers : []),
@@ -458,11 +612,16 @@ export function noteOperatorRequest(id, note) {
 export function repageOperatorRequest(id, why) {
   const request = readOperatorRequest(id);
   if (!isOpen(request)) {
-    throw new Error(`operator request ${id} closed at ${request.closed_at}; it cannot be asked again`);
+    throw new Error(
+      `operator request ${id} closed at ${request.closed_at}; it cannot be asked again`,
+    );
   }
   const reason = flatten(required(why, 'why the operator is asked again'));
   const asked = { ...request, instruction: `${request.instruction} ${reason}` };
-  request.notes = [...(Array.isArray(request.notes) ? request.notes : []), { at: new Date().toISOString(), note: reason }];
+  request.notes = [
+    ...(Array.isArray(request.notes) ? request.notes : []),
+    { at: new Date().toISOString(), note: reason },
+  ];
   request.pages = [...request.pages, page(asked)];
   return write(request);
 }
@@ -509,7 +668,9 @@ export function nextOperatorAnswer(id, seen, signal) {
 export function readOperatorRequest(id) {
   const parsed = JSON.parse(readFileSync(requestFile(id), 'utf8'));
   if (parsed?.schema !== OPERATOR_REQUEST_SCHEMA) {
-    throw new Error(`${requestFile(id)} is not a ${OPERATOR_REQUEST_SCHEMA} record`);
+    throw new Error(
+      `${requestFile(id)} is not a ${OPERATOR_REQUEST_SCHEMA} record`,
+    );
   }
   return parsed;
 }
@@ -518,12 +679,16 @@ export function isOpen(request) {
   return !request.closed_at;
 }
 
-
 /** Only the owning host can observe the waiting process. Missing process
  * identity or an unexpected OS error is unknown, not proof it exited. */
 export function isAbandoned(request) {
   if (!isOpen(request)) return false;
-  if (request.host !== hostname() || !Number.isSafeInteger(request.run_pid) || request.run_pid <= 0) return null;
+  if (
+    request.host !== hostname() ||
+    !Number.isSafeInteger(request.run_pid) ||
+    request.run_pid <= 0
+  )
+    return null;
   try {
     process.kill(request.run_pid, 0);
     return false;
@@ -553,6 +718,10 @@ export function listOperatorRequests(options) {
   const selected = requests
     .filter((request) => request?.schema === OPERATOR_REQUEST_SCHEMA)
     .filter((request) => (openOnly ? isOpen(request) : true))
-    .sort((left, right) => String(right.opened_at).localeCompare(String(left.opened_at)));
-  return Number.isFinite(limit) && limit > 0 ? selected.slice(0, Math.round(limit)) : selected;
+    .sort((left, right) =>
+      String(right.opened_at).localeCompare(String(left.opened_at)),
+    );
+  return Number.isFinite(limit) && limit > 0
+    ? selected.slice(0, Math.round(limit))
+    : selected;
 }

@@ -46,14 +46,16 @@ export const chromeGlobalsRules: DetectionRule[] = [
     test(s) {
       const hits = s?.js?.distinctivePropsHits;
       if (!hits || typeof hits !== 'object') return null;
-      const keys = Object.keys(hits).filter(k => hits[k] && (hits[k].window?.length || hits[k].document?.length));
+      const keys = Object.keys(hits).filter(
+        (k) => hits[k] && (hits[k].window?.length || hits[k].document?.length),
+      );
       if (keys.length) {
         return {
           id: 'automation_window_props',
           category: 'navigator',
           severity: 'critical',
           message: `Automation markers detected in window/document properties: ${keys.join(', ')}.`,
-          evidence: { hits: keys.map(k => ({ name: k, ...hits[k] })) },
+          evidence: { hits: keys.map((k) => ({ name: k, ...hits[k] })) },
         };
       }
       return null;

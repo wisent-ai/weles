@@ -5,13 +5,21 @@
  * checkbox. The click is dispatched through CDPMouse with Bezier curves.
  */
 
-import { askPage, checkPage, findClickTarget, type ScreenshottablePage } from '../vision/analyze.js';
+import {
+  askPage,
+  checkPage,
+  findClickTarget,
+  type ScreenshottablePage,
+} from '../vision/analyze.js';
 
 // Resolves on the page's next document load. Cloudflare clears a challenge by
 // loading the protected page in place, so each load is the moment to look again.
 function nextLoad(page: any): Promise<void> {
   const { promise, resolve } = Promise.withResolvers<void>();
-  const onLoad = () => { page.off('load', onLoad); resolve(); };
+  const onLoad = () => {
+    page.off('load', onLoad);
+    resolve();
+  };
   page.on('load', onLoad);
   return promise;
 }
@@ -23,12 +31,19 @@ async function looksLikeCloudflareDom(page: any): Promise<boolean> {
     const r = await page.evaluate(() => {
       const t = (document.title || '').toLowerCase();
       const b = (document.body?.innerText || '').toLowerCase();
-      const hasCfMarker = /cloudflare|just a moment|attention required|checking your browser|verifying you are human|enable javascript and cookies/.test(t + ' ' + b);
-      const hasCfFrame = !!document.querySelector('iframe[src*="challenges.cloudflare.com"], iframe[src*="cdn-cgi/challenge-platform"]');
+      const hasCfMarker =
+        /cloudflare|just a moment|attention required|checking your browser|verifying you are human|enable javascript and cookies/.test(
+          t + ' ' + b,
+        );
+      const hasCfFrame = !!document.querySelector(
+        'iframe[src*="challenges.cloudflare.com"], iframe[src*="cdn-cgi/challenge-platform"]',
+      );
       return hasCfMarker || hasCfFrame;
     });
     return !!r;
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 export async function waitCloudflare(page: any): Promise<boolean> {
@@ -56,7 +71,9 @@ export async function waitCloudflare(page: any): Promise<boolean> {
   );
   console.log(`  [cloudflare] click target: ${JSON.stringify(target)}`);
   if (!target) {
-    console.log('  [cloudflare] no click target found - challenge in auto-pass mode');
+    console.log(
+      '  [cloudflare] no click target found - challenge in auto-pass mode',
+    );
   } else {
     await page.mouse.click(target.x, target.y);
     console.log(`  [cloudflare] clicked at (${target.x}, ${target.y})`);

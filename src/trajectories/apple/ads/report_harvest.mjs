@@ -5,14 +5,43 @@
 
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
+import {
+  getSocialAccount,
+  resolveAccountSession,
+} from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { DATE_PRESETS, DIAG_DIR, EXACT_RANGES, REPORT_URL, SESSION_LABEL, USER_DATA_DIR } from './report_harvest/settings.mjs';
+import {
+  DATE_PRESETS,
+  DIAG_DIR,
+  EXACT_RANGES,
+  REPORT_URL,
+  SESSION_LABEL,
+  USER_DATA_DIR,
+} from './report_harvest/settings.mjs';
 import { pageSettled } from '../../_shared/page/settled.mjs';
-import { ensureReportPage, gotoAndWait, installNetworkCapture, requireAuthenticatedSession, stableProfilePersona } from './report_harvest/session.mjs';
-import { clickDatePreset, collectPageState } from './report_harvest/page_state.mjs';
-import { getCampaignReportPayload, sanitizeResponses, summarizeGraphqlRequests, summarizeGraphqlResponses, summarizeReport } from './report_harvest/summaries.mjs';
-import { fetchExactCampaignReports, keepOpen, summarizeExactReports } from './report_harvest/exact_reports.mjs';
+import {
+  ensureReportPage,
+  gotoAndWait,
+  installNetworkCapture,
+  requireAuthenticatedSession,
+  stableProfilePersona,
+} from './report_harvest/session.mjs';
+import {
+  clickDatePreset,
+  collectPageState,
+} from './report_harvest/page_state.mjs';
+import {
+  getCampaignReportPayload,
+  sanitizeResponses,
+  summarizeGraphqlRequests,
+  summarizeGraphqlResponses,
+  summarizeReport,
+} from './report_harvest/summaries.mjs';
+import {
+  fetchExactCampaignReports,
+  keepOpen,
+  summarizeExactReports,
+} from './report_harvest/exact_reports.mjs';
 
 async function main() {
   const acct = await getSocialAccount('apple');
@@ -36,12 +65,16 @@ async function main() {
   let exitCode = 0;
   try {
     const network = installNetworkCapture(s.page);
-    if (!await gotoAndWait(s.page, REPORT_URL)) {
+    if (!(await gotoAndWait(s.page, REPORT_URL))) {
       throw new Error(`navigation to ${REPORT_URL} left the page blank`);
     }
-    console.log(`[apple-ads-report-harvest] before login check url=${s.page.url?.() || ''}`);
+    console.log(
+      `[apple-ads-report-harvest] before login check url=${s.page.url?.() || ''}`,
+    );
     const loggedIn = await requireAuthenticatedSession(s);
-    console.log(`[apple-ads-report-harvest] login check loggedIn=${loggedIn} url=${s.page.url?.() || ''}`);
+    console.log(
+      `[apple-ads-report-harvest] login check loggedIn=${loggedIn} url=${s.page.url?.() || ''}`,
+    );
     if (!loggedIn) {
       exitCode = 2;
       return;
@@ -52,21 +85,28 @@ async function main() {
     } else {
       await pageSettled(s.page);
     }
-    if (!await ensureReportPage(s.page)) {
+    if (!(await ensureReportPage(s.page))) {
       const currentUrl = s.page.url?.() || '';
       console.log(`FAIL: Apple Ads report page not loaded (${currentUrl})`);
       exitCode = 4;
       return;
     }
     const protectedUrl = new URL(s.page.url?.() || 'about:blank');
-    const protectedText = await s.page.evaluate(() => document.body?.innerText || '').catch(() => '');
-    const protectedMarker = protectedText.match(/Manage Your Campaigns|Reporting is not in real time|Create Campaign|Campaign end date reached/i)?.[0];
-    const authenticatedProtectedPage = protectedUrl.hostname === 'app-ads.apple.com'
-      && !/signin|login/i.test(protectedUrl.pathname)
-      && /\/report(?:\/|$)/i.test(protectedUrl.pathname)
-      && Boolean(protectedMarker);
+    const protectedText = await s.page
+      .evaluate(() => document.body?.innerText || '')
+      .catch(() => '');
+    const protectedMarker = protectedText.match(
+      /Manage Your Campaigns|Reporting is not in real time|Create Campaign|Campaign end date reached/i,
+    )?.[0];
+    const authenticatedProtectedPage =
+      protectedUrl.hostname === 'app-ads.apple.com' &&
+      !/signin|login/i.test(protectedUrl.pathname) &&
+      /\/report(?:\/|$)/i.test(protectedUrl.pathname) &&
+      Boolean(protectedMarker);
     if (!authenticatedProtectedPage) {
-      console.log('FAIL_CLOSED: authenticated Apple Ads report page was not confirmed; run an explicitly authorized apple_login before retrying.');
+      console.log(
+        'FAIL_CLOSED: authenticated Apple Ads report page was not confirmed; run an explicitly authorized apple_login before retrying.',
+      );
       exitCode = 4;
       return;
     }
@@ -77,7 +117,10 @@ async function main() {
       label: 'initial',
       click: null,
       page: current,
-      summary: summarizeReport(current, sanitizeResponses(s.capturedResponses || [])),
+      summary: summarizeReport(
+        current,
+        sanitizeResponses(s.capturedResponses || []),
+      ),
     });
 
     for (const preset of DATE_PRESETS) {
@@ -88,13 +131,20 @@ async function main() {
         label: preset,
         click,
         page,
-        summary: summarizeReport(page, sanitizeResponses(s.capturedResponses || [])),
+        summary: summarizeReport(
+          page,
+          sanitizeResponses(s.capturedResponses || []),
+        ),
       });
     }
 
     await pageSettled(s.page);
     const templatePayload = getCampaignReportPayload(network.requests);
-    const exactReports = await fetchExactCampaignReports(s.page, templatePayload, EXACT_RANGES);
+    const exactReports = await fetchExactCampaignReports(
+      s.page,
+      templatePayload,
+      EXACT_RANGES,
+    );
     const exactSummary = summarizeExactReports(exactReports);
     const responses = sanitizeResponses(s.capturedResponses || []);
     const observedRequests = network.requests.slice();

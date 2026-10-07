@@ -2,13 +2,22 @@
 // digests, the retrying fetch, gzip, download and the node walk. The token
 // and the Figma API calls stay in export-design-assets.mjs.
 import { createHash } from 'node:crypto';
-import { createReadStream, createWriteStream, mkdirSync, writeFileSync } from 'node:fs';
+import {
+  createReadStream,
+  createWriteStream,
+  mkdirSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, extname } from 'node:path';
 import { createGzip } from 'node:zlib';
 
 export function slugify(value) {
-  const slug = String(value).normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const slug = String(value)
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
   return slug || 'untitled';
 }
 
@@ -17,7 +26,9 @@ export function sha256(buffer) {
 }
 
 export function extensionFor(contentType, url) {
-  const mime = String(contentType || '').split(';')[0].toLowerCase();
+  const mime = String(contentType || '')
+    .split(';')[0]
+    .toLowerCase();
   const byMime = {
     'image/png': '.png',
     'image/jpeg': '.jpg',
@@ -27,7 +38,10 @@ export function extensionFor(contentType, url) {
     'application/pdf': '.pdf',
   };
   const fromUrl = extname(new URL(url).pathname).toLowerCase();
-  return byMime[mime] || (/^\.(?:png|jpe?g|gif|svg|webp|pdf)$/.test(fromUrl) ? fromUrl : '.bin');
+  return (
+    byMime[mime] ||
+    (/^\.(?:png|jpe?g|gif|svg|webp|pdf)$/.test(fromUrl) ? fromUrl : '.bin')
+  );
 }
 /** One request. A network failure or a non-2xx answer is the error, with the
  * status, the server's Retry-After when it sent one, and the redacted body. */
@@ -45,7 +59,9 @@ export async function request(url, options = {}) {
   const retryAfter = response.headers.get('retry-after');
   const reason = body.replace(/[A-Za-z0-9_-]{32,}/g, '[redacted]');
   const after = retryAfter ? ` (Retry-After: ${retryAfter})` : '';
-  throw new Error(`Figma HTTP ${response.status} for ${path}${after}: ${reason}`);
+  throw new Error(
+    `Figma HTTP ${response.status} for ${path}${after}: ${reason}`,
+  );
 }
 
 export async function gzipFile(source, destination) {
@@ -69,7 +85,8 @@ export async function download(url, destination) {
   return {
     bytes: buffer.length,
     sha256: sha256(buffer),
-    contentType: response.headers.get('content-type') || 'application/octet-stream',
+    contentType:
+      response.headers.get('content-type') || 'application/octet-stream',
   };
 }
 
@@ -84,13 +101,23 @@ export function collectNodes(document) {
     if (!node || typeof node !== 'object') continue;
     nodes.push({ id: node.id, name: node.name || '', type: node.type || '' });
     for (const fill of [...(node.fills || []), ...(node.strokes || [])]) {
-      if (fill?.type === 'IMAGE' && typeof fill.imageRef === 'string') imageRefs.add(fill.imageRef);
+      if (fill?.type === 'IMAGE' && typeof fill.imageRef === 'string')
+        imageRefs.add(fill.imageRef);
     }
     if (Array.isArray(node.exportSettings) && node.exportSettings.length > 0) {
-      exportNodes.push({ id: node.id, name: node.name || '', settings: node.exportSettings });
+      exportNodes.push({
+        id: node.id,
+        name: node.name || '',
+        settings: node.exportSettings,
+      });
     }
     if (node.type === 'CANVAS') {
-      for (const child of node.children || []) topLevelNodes.push({ id: child.id, name: child.name || '', page: node.name || '' });
+      for (const child of node.children || [])
+        topLevelNodes.push({
+          id: child.id,
+          name: child.name || '',
+          page: node.name || '',
+        });
     }
     for (const child of node.children || []) stack.push(child);
   }

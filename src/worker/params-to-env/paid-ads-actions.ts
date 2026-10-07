@@ -234,11 +234,23 @@ export function applyPaidAdsActionParams(
     if (typeof params[k] === 'string') env[ek] = params[k] as string;
     else if (typeof params[k] === 'number') env[ek] = String(params[k]);
     else if (typeof params[k] === 'boolean') env[ek] = params[k] ? '1' : '0';
-    else if (params[k] && typeof params[k] === 'object') env[ek] = JSON.stringify(params[k]);
+    else if (params[k] && typeof params[k] === 'object')
+      env[ek] = JSON.stringify(params[k]);
   }
-  if (params.submit === true || params.submit === '1' || params.submit === 1) env.SUBMIT = '1';
-  else if (params.submit === false || params.submit === '0' || params.submit === 0) env.SUBMIT = '0';
-  if (params.apple_ads_confirm === true || params.apple_ads_confirm === '1' || params.apple_ads_confirm === 1) env.APPLE_ADS_CONFIRM = '1';
+  if (params.submit === true || params.submit === '1' || params.submit === 1)
+    env.SUBMIT = '1';
+  else if (
+    params.submit === false ||
+    params.submit === '0' ||
+    params.submit === 0
+  )
+    env.SUBMIT = '0';
+  if (
+    params.apple_ads_confirm === true ||
+    params.apple_ads_confirm === '1' ||
+    params.apple_ads_confirm === 1
+  )
+    env.APPLE_ADS_CONFIRM = '1';
   // Capability-bootstrap override: forces a specific proxy URL into the
   // trajectory so we can test (provider, action) cells deterministically.
   // credentials.ts respects PROXY_URL_FORCE=1 to ignore stored proxy.
@@ -259,10 +271,24 @@ export function applyPaidAdsActionParams(
   }
   // Service-credential topup parameters (proxy auto-topup cron). Read by
   // src/trajectories/_shared/services/topup_common.mjs#topupOpts.
-  if (typeof params.topup_usd === 'number') env.TOPUP_USD = String(params.topup_usd);
-  if (params.topup_confirm === true || params.topup_confirm === '1' || params.topup_confirm === 1) env.TOPUP_CONFIRM = '1';
+  if (typeof params.topup_usd === 'number')
+    env.TOPUP_USD = String(params.topup_usd);
+  if (
+    params.topup_confirm === true ||
+    params.topup_confirm === '1' ||
+    params.topup_confirm === 1
+  )
+    env.TOPUP_CONFIRM = '1';
   if (action.endsWith('_submit_promote')) env.POST_PROMOTE = '1';
-  for (const [k, ek] of [['repo_name', 'REPO_NAME'], ['repo_desc', 'REPO_DESC'], ['file_path', 'FILE_PATH'], ['file_append', 'FILE_APPEND'], ['commit_message', 'COMMIT_MESSAGE'], ['issue_title', 'ISSUE_TITLE'], ['issue_body', 'ISSUE_BODY']]) {
+  for (const [k, ek] of [
+    ['repo_name', 'REPO_NAME'],
+    ['repo_desc', 'REPO_DESC'],
+    ['file_path', 'FILE_PATH'],
+    ['file_append', 'FILE_APPEND'],
+    ['commit_message', 'COMMIT_MESSAGE'],
+    ['issue_title', 'ISSUE_TITLE'],
+    ['issue_body', 'ISSUE_BODY'],
+  ]) {
     if (typeof params[k] === 'string') env[ek] = params[k] as string;
   }
   if (params.require_approval === true) env.REQUIRE_APPROVAL = '1';

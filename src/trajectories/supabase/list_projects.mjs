@@ -18,33 +18,77 @@ const DISPLAY_NAME = 'Supabase';
 const PROJECT_REF_RE = /^[a-z]{20}$/;
 
 const login = await getServiceLogin(DISPLAY_NAME);
-if (!login) { console.log(`FAIL: no '${DISPLAY_NAME}' row in service_credentials`); process.exit(1); }
+if (!login) {
+  console.log(`FAIL: no '${DISPLAY_NAME}' row in service_credentials`);
+  process.exit(1);
+}
 console.log(`[trajectory] Using service login: ${login.email}`);
 
-const s = await WSession.start({ label: 'supabase_list_projects', browser: 'chromium' });
+const s = await WSession.start({
+  label: 'supabase_list_projects',
+  browser: 'chromium',
+});
 try {
   await s.goto(SIGNIN_URL);
   await pageSettled(s.page);
 
   // If we already have a session cookie, sign-in redirects away on its own.
   if (!/\/dashboard\/sign-in/.test(s.page.url())) {
-    console.log(`[trajectory] already authenticated, skipping login (url=${s.page.url()})`);
+    console.log(
+      `[trajectory] already authenticated, skipping login (url=${s.page.url()})`,
+    );
   } else {
-    const emailInput = s.page.locator('input[name="email"], input[type="email"], input#email').filter({ visible: true }).first();
-    const pwInput = s.page.locator('input[name="password"], input[type="password"], input#password').filter({ visible: true }).first();
-    if (!(await emailInput.isVisible().catch(() => false)) || !(await pwInput.isVisible().catch(() => false))) {
-      console.log('FAIL: email/password inputs not visible (account may be GitHub-SSO-only)');
+    const emailInput = s.page
+      .locator('input[name="email"], input[type="email"], input#email')
+      .filter({ visible: true })
+      .first();
+    const pwInput = s.page
+      .locator('input[name="password"], input[type="password"], input#password')
+      .filter({ visible: true })
+      .first();
+    if (
+      !(await emailInput.isVisible().catch(() => false)) ||
+      !(await pwInput.isVisible().catch(() => false))
+    ) {
+      console.log(
+        'FAIL: email/password inputs not visible (account may be GitHub-SSO-only)',
+      );
       process.exit(1);
     }
     await humanFill(s.page, emailInput, login.email);
     await pageSettled(s.page);
     await humanFill(s.page, pwInput, login.password);
     await pageSettled(s.page);
-    const submitBtn = s.page.locator('button[type="submit"]:has-text("Sign In"), button[type="submit"]:has-text("Sign in"), button:has-text("Sign in"), button:has-text("Sign In")').filter({ visible: true }).first();
-    if (await submitBtn.isVisible().catch(() => false)) { try { await humanClickLocator(s.page, submitBtn); } catch { /* form may have submitted */ } }
-    else { console.log('FAIL: submit button not visible'); process.exit(1); }
-    const answer = await submitAnswered(s.page, /\/dashboard\/sign-in/, s.page.locator('[role="alert"], p[class*="error" i]').filter({ hasText: /\S/ }).first());
-    if (answer !== 'navigated') { console.log(`FAIL: supabase_login_refused, still on /sign-in url=${s.page.url()}`); process.exit(1); }
+    const submitBtn = s.page
+      .locator(
+        'button[type="submit"]:has-text("Sign In"), button[type="submit"]:has-text("Sign in"), button:has-text("Sign in"), button:has-text("Sign In")',
+      )
+      .filter({ visible: true })
+      .first();
+    if (await submitBtn.isVisible().catch(() => false)) {
+      try {
+        await humanClickLocator(s.page, submitBtn);
+      } catch {
+        /* form may have submitted */
+      }
+    } else {
+      console.log('FAIL: submit button not visible');
+      process.exit(1);
+    }
+    const answer = await submitAnswered(
+      s.page,
+      /\/dashboard\/sign-in/,
+      s.page
+        .locator('[role="alert"], p[class*="error" i]')
+        .filter({ hasText: /\S/ })
+        .first(),
+    );
+    if (answer !== 'navigated') {
+      console.log(
+        `FAIL: supabase_login_refused, still on /sign-in url=${s.page.url()}`,
+      );
+      process.exit(1);
+    }
   }
 
   await s.page.goto(PROJECTS_URL, { waitUntil: 'domcontentloaded' });
@@ -60,8 +104,14 @@ try {
       if (!m) continue;
       const ref = m[1];
       if (!refRe.test(ref)) continue;
-      const card = a.closest('[role="row"]') || a.closest('li') || a.closest('article') || a.closest('div');
-      const cardText = (card?.textContent || a.textContent || '').replace(/\s+/g, ' ').trim();
+      const card =
+        a.closest('[role="row"]') ||
+        a.closest('li') ||
+        a.closest('article') ||
+        a.closest('div');
+      const cardText = (card?.textContent || a.textContent || '')
+        .replace(/\s+/g, ' ')
+        .trim();
       // Project name is usually the largest text inside the card. Heuristic:
       // pick the first <h1>/<h2>/<h3>/[role=heading] text we find inside the
       // card, falling back to the anchor text itself.
@@ -73,8 +123,12 @@ try {
       if (!name) name = (a.textContent || '').trim().split('\n')[0] ?? '';
       // Region / status badges typically have data-state, data-status, or
       // a tailwind-style "uppercase" class. Best effort.
-      const regionMatch = cardText.match(/\b(us|eu|ap|sa|ca)-(?:east|west|central|north|south|southeast|northeast)-\d\b/i);
-      const statusMatch = cardText.match(/\b(ACTIVE_HEALTHY|ACTIVE|INACTIVE|PAUSED|COMING_UP|GOING_DOWN|REMOVED|RESTORING|UNKNOWN)\b/);
+      const regionMatch = cardText.match(
+        /\b(us|eu|ap|sa|ca)-(?:east|west|central|north|south|southeast|northeast)-\d\b/i,
+      );
+      const statusMatch = cardText.match(
+        /\b(ACTIVE_HEALTHY|ACTIVE|INACTIVE|PAUSED|COMING_UP|GOING_DOWN|REMOVED|RESTORING|UNKNOWN)\b/,
+      );
       if (!out.has(ref)) {
         out.set(ref, {
           ref,
@@ -90,17 +144,24 @@ try {
 
   if (!projects.length) {
     const snippet = await s.page.evaluate(() => document.body.innerText);
-    console.log(`FAIL: no projects found at ${s.page.url()}. First 800 chars: ${snippet.replace(/\n/g, ' | ')}`);
+    console.log(
+      `FAIL: no projects found at ${s.page.url()}. First 800 chars: ${snippet.replace(/\n/g, ' | ')}`,
+    );
     process.exit(1);
   }
 
   console.log(`[trajectory] found ${projects.length} project(s)`);
   for (const p of projects) {
-    console.log(`  - ${p.ref}  ${p.name.padEnd(28)}  region=${p.region ?? '?'}  status=${p.status ?? '?'}`);
+    console.log(
+      `  - ${p.ref}  ${p.name.padEnd(28)}  region=${p.region ?? '?'}  status=${p.status ?? '?'}`,
+    );
   }
   console.log('---');
   // JSON line so callers can pipe to jq.
-  console.log('PROJECTS_JSON ' + JSON.stringify(projects.map(({ cardText, ...rest }) => rest)));
+  console.log(
+    'PROJECTS_JSON ' +
+      JSON.stringify(projects.map(({ cardText, ...rest }) => rest)),
+  );
   console.log(`PASS: listed ${projects.length} Supabase project(s)`);
 } catch (e) {
   console.log('FAIL:', e.message);

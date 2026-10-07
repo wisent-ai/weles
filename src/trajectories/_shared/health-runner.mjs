@@ -10,52 +10,92 @@
  *
  * Writes recordings/<platform>_health/<username>_<ts>.json.
  */
-import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
+import {
+  getSocialAccount,
+  resolveAccountSession,
+} from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { submitWelesRun } from '../../../dist/worker/run-submit/index.js';
 
-const HEADLESS = process.env.HEADLESS === '1' || process.env.WELES_HEADLESS === '1';
+const HEADLESS =
+  process.env.HEADLESS === '1' || process.env.WELES_HEADLESS === '1';
 
 export async function runHealthProbe(cfg) {
   const acct = await getSocialAccount(cfg.platform);
-  if (!acct) { console.log(`FAIL: no active ${cfg.platform} account`); process.exit(1); }
+  if (!acct) {
+    console.log(`FAIL: no active ${cfg.platform} account`);
+    process.exit(1);
+  }
   console.log(`[health:${cfg.platform}] acct=${acct.username}`);
   const { proxyUrl, persona } = await resolveAccountSession(acct);
 
   const loggedIn = { url: null, status: null, body: null, signal: null };
-  const sIn = await WSession.start({ label: `${cfg.platform}_health_in`, proxy: proxyUrl, persona, headless: HEADLESS });
+  const sIn = await WSession.start({
+    label: `${cfg.platform}_health_in`,
+    proxy: proxyUrl,
+    persona,
+    headless: HEADLESS,
+  });
   try {
     // Inject stored auth cookies so the "logged in" probe actually is authed.
     // Without these the authed API endpoints 401 / redirect to authwall and
     // every health probe reports 'unknown' even on a healthy account.
-    const stored = Array.isArray(acct.metadata?.cookies) ? acct.metadata.cookies : [];
-    const prepared = stored.filter((c) => c && c.name && c.value && (c.domain || c.url)).map((c) => ({ ...c, path: c.path || '/' }));
+    const stored = Array.isArray(acct.metadata?.cookies)
+      ? acct.metadata.cookies
+      : [];
+    const prepared = stored
+      .filter((c) => c && c.name && c.value && (c.domain || c.url))
+      .map((c) => ({ ...c, path: c.path || '/' }));
     if (prepared.length > 0) await sIn.ctx.addCookies(prepared).catch(() => {});
     // Optional per-platform hook — e.g. Discord injects its localStorage
     // token via addInitScript since its auth doesn't live in cookies.
     if (cfg.beforeGoto) await cfg.beforeGoto(sIn, acct).catch(() => {});
-    const inUrl = typeof cfg.loggedInUrl === 'function' ? cfg.loggedInUrl(acct.username) : cfg.loggedInUrl;
+    const inUrl =
+      typeof cfg.loggedInUrl === 'function'
+        ? cfg.loggedInUrl(acct.username)
+        : cfg.loggedInUrl;
     await sIn.goto(inUrl);
-    const resp = sIn.capturedResponses.find(r => cfg.loggedInRegex.test(r.url));
+    const resp = sIn.capturedResponses.find((r) =>
+      cfg.loggedInRegex.test(r.url),
+    );
     if (resp) {
-      loggedIn.url = resp.url; loggedIn.status = resp.status;
-      try { loggedIn.body = JSON.parse(resp.body); } catch { loggedIn.body = resp.body ?? null; }
+      loggedIn.url = resp.url;
+      loggedIn.status = resp.status;
+      try {
+        loggedIn.body = JSON.parse(resp.body);
+      } catch {
+        loggedIn.body = resp.body ?? null;
+      }
     } else {
       // No matching captured response — fall back to the page's current URL.
       // Discord SPA does client-side redirects (no HTTP response captured for /login).
       // Without this, loggedIn.url stays null and the cookies-stale heuristic
       // can't fire even when the page is clearly on a login wall.
-      try { loggedIn.url = sIn.page.url?.() ?? null; } catch { loggedIn.url = null; }
+      try {
+        loggedIn.url = sIn.page.url?.() ?? null;
+      } catch {
+        loggedIn.url = null;
+      }
     }
-    loggedIn.signal = await cfg.banDetector(sIn.page, sIn.capturedResponses).catch(() => null);
+    loggedIn.signal = await cfg
+      .banDetector(sIn.page, sIn.capturedResponses)
+      .catch(() => null);
   } catch (e) {
     loggedIn.error = e.message;
     // Surface proxy CONNECT failures distinctly so signal isn't 'unknown'.
-    if (/ERR_TUNNEL_CONNECTION_FAILED|chrome-error|net::ERR_PROXY_CONNECTION_FAILED/.test(e.message || '')) {
-      loggedIn.signal = { signal: 'proxy_failed', healthy: false, details: { reason: 'goto threw tunnel/chrome-error' } };
+    if (
+      /ERR_TUNNEL_CONNECTION_FAILED|chrome-error|net::ERR_PROXY_CONNECTION_FAILED/.test(
+        e.message || '',
+      )
+    ) {
+      loggedIn.signal = {
+        signal: 'proxy_failed',
+        healthy: false,
+        details: { reason: 'goto threw tunnel/chrome-error' },
+      };
     }
   } finally {
     await sIn.close();
@@ -67,13 +107,25 @@ export async function runHealthProbe(cfg) {
     // WSession.start picks a random persona and may land on Firefox, which
     // breaks any platform that needs CDP (TikTok's network-bytes counter,
     // mssdk-info synthesis, etc.) and silently degrades the probe.
-    const sOut = await WSession.start({ label: `${cfg.platform}_health_out`, proxy: proxyUrl, persona, headless: HEADLESS });
+    const sOut = await WSession.start({
+      label: `${cfg.platform}_health_out`,
+      proxy: proxyUrl,
+      persona,
+      headless: HEADLESS,
+    });
     try {
       await sOut.goto(cfg.loggedOutUrl(acct.username));
-      const resp = sOut.capturedResponses.find(r => cfg.loggedOutRegex.test(r.url));
+      const resp = sOut.capturedResponses.find((r) =>
+        cfg.loggedOutRegex.test(r.url),
+      );
       if (resp) {
-        loggedOut.url = resp.url; loggedOut.status = resp.status;
-        try { loggedOut.body = JSON.parse(resp.body); } catch { loggedOut.body = resp.body ?? null; }
+        loggedOut.url = resp.url;
+        loggedOut.status = resp.status;
+        try {
+          loggedOut.body = JSON.parse(resp.body);
+        } catch {
+          loggedOut.body = resp.body ?? null;
+        }
       }
     } catch (e) {
       loggedOut.error = e.message;
@@ -82,7 +134,11 @@ export async function runHealthProbe(cfg) {
     }
   }
 
-  const extracted = cfg.extractLoggedIn?.(loggedIn.body, loggedIn) ?? { ok: !!loggedIn.body, karma: null, is_suspended: false };
+  const extracted = cfg.extractLoggedIn?.(loggedIn.body, loggedIn) ?? {
+    ok: !!loggedIn.body,
+    karma: null,
+    is_suspended: false,
+  };
   // No loggedOutUrl configured (e.g. discord — no public profile pages) means
   // we can't distinguish healthy from shadowbanned. Skip both checks: if the
   // logged-in probe is ok, treat as healthy; the shadowban check requires the
@@ -93,20 +149,32 @@ export async function runHealthProbe(cfg) {
   // an infra failure, not a shadowban. Only mark shadowbanned when we actually
   // got a non-200 (e.g. 404 / blocked-page) response back.
   const loggedOutErrored = !!loggedOut.error;
-  const outOk = skipLoggedOut || loggedOutErrored
-    ? true
-    : cfg.extractLoggedOut
-      ? cfg.extractLoggedOut(loggedOut)
-      : (loggedOut.status === 200);
-  const shadowbanned = !skipLoggedOut && !loggedOutErrored && extracted.ok && !outOk && (loggedOut.status === 404 || loggedOut.status == null);
+  const outOk =
+    skipLoggedOut || loggedOutErrored
+      ? true
+      : cfg.extractLoggedOut
+        ? cfg.extractLoggedOut(loggedOut)
+        : loggedOut.status === 200;
+  const shadowbanned =
+    !skipLoggedOut &&
+    !loggedOutErrored &&
+    extracted.ok &&
+    !outOk &&
+    (loggedOut.status === 404 || loggedOut.status == null);
 
   // Detect cookies-stale: logged-in probe failed, page ended up on a login
   // wall. Check both the captured-response URL (initial 200 page load) AND
   // signal.details.final_url (page.url() after JS redirects). Discord SPA
   // loads /channels/@me with 200 then JS-redirects to /login — captured URL
   // stays /channels/@me, only signal.details.final_url has the login wall.
-  const candidateUrls = [loggedIn.url, loggedIn.signal?.details?.final_url].filter(Boolean).join(' ');
-  const cookiesStale = !extracted.ok && candidateUrls.match(/\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login|authwall)\b/);
+  const candidateUrls = [loggedIn.url, loggedIn.signal?.details?.final_url]
+    .filter(Boolean)
+    .join(' ');
+  const cookiesStale =
+    !extracted.ok &&
+    candidateUrls.match(
+      /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login|authwall)\b/,
+    );
 
   let signal;
   if (extracted.is_suspended) signal = 'suspended';
@@ -115,8 +183,14 @@ export async function runHealthProbe(cfg) {
   // will be captcha_challenge whenever LinkedIn's session is dead — that's
   // a fingerprint-gated login wall (cookies stale), not a real challenge.
   // Same on Discord (/login + Cloudflare hcaptcha widget).
-  else if (cookiesStale && loggedIn.signal?.signal === 'captcha_challenge') signal = 'checkpoint';
-  else if (!extracted.ok && loggedIn.signal?.signal && loggedIn.signal.signal !== 'healthy') signal = loggedIn.signal.signal;
+  else if (cookiesStale && loggedIn.signal?.signal === 'captcha_challenge')
+    signal = 'checkpoint';
+  else if (
+    !extracted.ok &&
+    loggedIn.signal?.signal &&
+    loggedIn.signal.signal !== 'healthy'
+  )
+    signal = loggedIn.signal.signal;
   else if (shadowbanned) signal = 'shadowbanned';
   else if (extracted.ok && outOk) signal = 'healthy';
   // Trust the platform's banDetector when it returns healthy: extractLoggedIn
@@ -128,22 +202,39 @@ export async function runHealthProbe(cfg) {
   // Total network failure: no response captured AND no detector signal.
   // Classify as proxy_failed instead of opaque unknown so the dashboard
   // gets an actionable signal.
-  else if (loggedIn.url == null && loggedIn.status == null && !loggedIn.signal) signal = 'proxy_failed';
+  else if (loggedIn.url == null && loggedIn.status == null && !loggedIn.signal)
+    signal = 'proxy_failed';
   else if (loggedIn.status === 429) signal = 'ratelimited';
-  else if (typeof loggedIn.status === 'number' && loggedIn.status >= 400 && loggedIn.status < 500) signal = 'edge_blocked';
+  else if (
+    typeof loggedIn.status === 'number' &&
+    loggedIn.status >= 400 &&
+    loggedIn.status < 500
+  )
+    signal = 'edge_blocked';
   else signal = 'unknown';
 
   const snapshot = {
-    account_id: acct.id, username: acct.username, platform: cfg.platform,
+    account_id: acct.id,
+    username: acct.username,
+    platform: cfg.platform,
     checked_at: new Date().toISOString(),
-    signal, shadowbanned, is_suspended: extracted.is_suspended, karma: extracted.karma,
-    logged_in: loggedIn, logged_out: loggedOut,
+    signal,
+    shadowbanned,
+    is_suspended: extracted.is_suspended,
+    karma: extracted.karma,
+    logged_in: loggedIn,
+    logged_out: loggedOut,
   };
   const outDir = runRecordingsDir(`${cfg.platform}_health`);
   mkdirSync(outDir, { recursive: true });
-  const filePath = join(outDir, `${acct.username}_${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
+  const filePath = join(
+    outDir,
+    `${acct.username}_${new Date().toISOString().replace(/[:.]/g, '-')}.json`,
+  );
   writeFileSync(filePath, JSON.stringify(snapshot, null, 2));
-  console.log(`[health:${cfg.platform}] signal=${signal} karma=${extracted.karma} shadowbanned=${shadowbanned}`);
+  console.log(
+    `[health:${cfg.platform}] signal=${signal} karma=${extracted.karma} shadowbanned=${shadowbanned}`,
+  );
   console.log(`[health:${cfg.platform}] snapshot -> ${filePath}`);
   // Self-heal: when the probe detects checkpoint (cookies stale), submit the
   // exact login trajectory to Stado for this account. Apple authentication
@@ -157,22 +248,40 @@ export async function runHealthProbe(cfg) {
   // every 6h via health-probe. See ../github/register.mjs:245 for where the
   // stub gets written.
   const acctStatus = acct.metadata?.status;
-  const brokenRegistration = ['captcha_blocked', 'unverified', 'needs_verification', 'captcha_signup_failed'].includes(acctStatus);
+  const brokenRegistration = [
+    'captcha_blocked',
+    'unverified',
+    'needs_verification',
+    'captcha_signup_failed',
+  ].includes(acctStatus);
   if (signal === 'checkpoint' && cfg.platform.toLowerCase() === 'apple') {
-    console.log(`[health:${cfg.platform}] OWNER_ACTION_REQUIRED: Apple cookies are stale; apple_login was not auto-enqueued for ${acct.username}`);
+    console.log(
+      `[health:${cfg.platform}] OWNER_ACTION_REQUIRED: Apple cookies are stale; apple_login was not auto-enqueued for ${acct.username}`,
+    );
   } else if (signal === 'checkpoint' && acct.id && !brokenRegistration) {
     try {
-      const accountItem = String(acct.metadata?.login_item || acct.metadata?.vault_login_item || '');
-      if (!accountItem) throw new Error('account has no exact Skarbiec login item');
+      const accountItem = String(
+        acct.metadata?.login_item || acct.metadata?.vault_login_item || '',
+      );
+      if (!accountItem)
+        throw new Error('account has no exact Skarbiec login item');
       const runId = await submitWelesRun({
         action: `${cfg.platform}_login`,
         accountItem,
         params: { reason: 'auto-recovery from checkpoint health signal' },
       });
-      console.log(`[health:${cfg.platform}] started ${cfg.platform}_login as Weles run ${runId}`);
-    } catch (e) { console.log(`[health:${cfg.platform}] auto-recovery enqueue err: ${e.message}`); }
+      console.log(
+        `[health:${cfg.platform}] started ${cfg.platform}_login as Weles run ${runId}`,
+      );
+    } catch (e) {
+      console.log(
+        `[health:${cfg.platform}] auto-recovery enqueue err: ${e.message}`,
+      );
+    }
   } else if (signal === 'checkpoint' && brokenRegistration) {
-    console.log(`[health:${cfg.platform}] skip auto-recovery: ${acct.username} metadata.status=${acctStatus} (registration never completed; login can't recover)`);
+    console.log(
+      `[health:${cfg.platform}] skip auto-recovery: ${acct.username} metadata.status=${acctStatus} (registration never completed; login can't recover)`,
+    );
   }
   if (signal === 'unknown') process.exitCode = 2;
   return snapshot;

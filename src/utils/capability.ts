@@ -1,4 +1,9 @@
-import { CAPABILITY_RE, CapabilityPendingError, UUID_RE, requestCapability } from './capability/broker.js';
+import {
+  CAPABILITY_RE,
+  CapabilityPendingError,
+  UUID_RE,
+  requestCapability,
+} from './capability/broker.js';
 
 export { CapabilityPendingError } from './capability/broker.js';
 
@@ -24,7 +29,9 @@ export interface CapabilityExpectation {
   authorization_id?: string;
 }
 
-const RESOURCE_PREFIXES: Readonly<Record<WelesCapabilityPurpose, readonly string[]>> = {
+const RESOURCE_PREFIXES: Readonly<
+  Record<WelesCapabilityPurpose, readonly string[]>
+> = {
   'weles.browser.fill': ['origin:', 'challenge:apple/'],
   'weles.captcha.solve': ['provider:'],
   'weles.sms.verify': ['provider:'],
@@ -33,40 +40,86 @@ const RESOURCE_PREFIXES: Readonly<Record<WelesCapabilityPurpose, readonly string
   'weles.brama.sign': ['brama:', 'agent:'],
 };
 
-function validResource(purpose: WelesCapabilityPurpose, resource: string): boolean {
-  if (typeof resource !== 'string' || resource.trim() !== resource || /[*\u0000\r\n]/.test(resource)) return false;
-  return RESOURCE_PREFIXES[purpose]?.some((prefix) => resource.startsWith(prefix) && resource.length > prefix.length) ?? false;
+function validResource(
+  purpose: WelesCapabilityPurpose,
+  resource: string,
+): boolean {
+  if (
+    typeof resource !== 'string' ||
+    resource.trim() !== resource ||
+    /[*\u0000\r\n]/.test(resource)
+  )
+    return false;
+  return (
+    RESOURCE_PREFIXES[purpose]?.some(
+      (prefix) =>
+        resource.startsWith(prefix) && resource.length > prefix.length,
+    ) ?? false
+  );
 }
-const CREDENTIAL_TARGET_RE = /\b(password|passcode|secret|token|api[\s_-]*key|access[\s_-]*key|credential|verification[\s_-]*code|one[\s_-]*time[\s_-]*code|otp|username|user[\s_-]*name|e-?mail|login)\b/i;
-const SECRET_PREFIX_RE = /^(?:sk|pk|ghp|gho|github_pat|xox[baprs]|eyJ)[-_A-Za-z0-9.]+$/;
+const CREDENTIAL_TARGET_RE =
+  /\b(password|passcode|secret|token|api[\s_-]*key|access[\s_-]*key|credential|verification[\s_-]*code|one[\s_-]*time[\s_-]*code|otp|username|user[\s_-]*name|e-?mail|login)\b/i;
+const SECRET_PREFIX_RE =
+  /^(?:sk|pk|ghp|gho|github_pat|xox[baprs]|eyJ)[-_A-Za-z0-9.]+$/;
 
-export function assertNonCredentialInput(value: string, target?: string): string {
+export function assertNonCredentialInput(
+  value: string,
+  target?: string,
+): string {
   if (/\$\{?[A-Za-z_][A-Za-z0-9_]*\}?/.test(value)) {
-    throw new Error('environment references are forbidden in model input; use a capability reference');
+    throw new Error(
+      'environment references are forbidden in model input; use a capability reference',
+    );
   }
   if (target && CREDENTIAL_TARGET_RE.test(target)) {
-    throw new Error('credential fields require fill_credential with a capability reference');
+    throw new Error(
+      'credential fields require fill_credential with a capability reference',
+    );
   }
-  const compactSecret = value.length >= 20 && !/\s/.test(value) && /[A-Za-z]/.test(value) && /[0-9]/.test(value);
+  const compactSecret =
+    value.length >= 20 &&
+    !/\s/.test(value) &&
+    /[A-Za-z]/.test(value) &&
+    /[0-9]/.test(value);
   if (compactSecret || SECRET_PREFIX_RE.test(value)) {
-    throw new Error('secret-shaped values require fill_credential with a capability reference');
+    throw new Error(
+      'secret-shaped values require fill_credential with a capability reference',
+    );
   }
   return value;
 }
 
-export function assertCapability(ref: CapabilityRef, expected: CapabilityExpectation): string {
-  if (!ref || typeof ref !== 'object' || Array.isArray(ref)
-    || Object.keys(ref).some((key) => !['capability_id', 'purpose', 'resource', 'target', 'authorization_id'].includes(key))
-    || !CAPABILITY_RE.test(ref.capability_id)
-    || ref.target !== 'weles'
-    || !validResource(ref.purpose, ref.resource)
-    || (ref.authorization_id !== undefined && !UUID_RE.test(ref.authorization_id))) {
+export function assertCapability(
+  ref: CapabilityRef,
+  expected: CapabilityExpectation,
+): string {
+  if (
+    !ref ||
+    typeof ref !== 'object' ||
+    Array.isArray(ref) ||
+    Object.keys(ref).some(
+      (key) =>
+        ![
+          'capability_id',
+          'purpose',
+          'resource',
+          'target',
+          'authorization_id',
+        ].includes(key),
+    ) ||
+    !CAPABILITY_RE.test(ref.capability_id) ||
+    ref.target !== 'weles' ||
+    !validResource(ref.purpose, ref.resource) ||
+    (ref.authorization_id !== undefined && !UUID_RE.test(ref.authorization_id))
+  ) {
     throw new Error('invalid capability reference');
   }
-  if (!validResource(expected.purpose, expected.resource)
-    || ref.purpose !== expected.purpose
-    || ref.resource !== expected.resource
-    || ref.authorization_id !== expected.authorization_id) {
+  if (
+    !validResource(expected.purpose, expected.resource) ||
+    ref.purpose !== expected.purpose ||
+    ref.resource !== expected.resource ||
+    ref.authorization_id !== expected.authorization_id
+  ) {
     throw new Error('capability operation mismatch');
   }
   return ref.capability_id;
@@ -76,25 +129,43 @@ export function assertProviderCapability(
   ref: CapabilityRef,
   purpose: 'weles.captcha.solve' | 'weles.sms.verify',
 ): { id: string; provider: string } {
-  if (!ref?.resource?.startsWith('provider:') || ref.resource.length <= 'provider:'.length) throw new Error('invalid provider capability resource');
+  if (
+    !ref?.resource?.startsWith('provider:') ||
+    ref.resource.length <= 'provider:'.length
+  )
+    throw new Error('invalid provider capability resource');
   const provider = ref.resource.slice('provider:'.length);
-  return { id: assertCapability(ref, { purpose, resource: ref.resource }), provider };
+  return {
+    id: assertCapability(ref, { purpose, resource: ref.resource }),
+    provider,
+  };
 }
 
-export async function redeemCapability(capabilityId: string, authorizationId?: string): Promise<Buffer> {
+export async function redeemCapability(
+  capabilityId: string,
+  authorizationId?: string,
+): Promise<Buffer> {
   return requestCapability(capabilityId, 'redeem', authorizationId);
 }
 
-export async function cancelCapability(capabilityId: string, authorizationId?: string): Promise<void> {
+export async function cancelCapability(
+  capabilityId: string,
+  authorizationId?: string,
+): Promise<void> {
   const body = await requestCapability(capabilityId, 'cancel', authorizationId);
   try {
-    if (body.length !== 0) throw new Error('capability cancellation returned secret material');
+    if (body.length !== 0)
+      throw new Error('capability cancellation returned secret material');
   } finally {
     body.fill(0);
   }
 }
 
-export async function withCapability<T>(ref: CapabilityRef, expected: CapabilityExpectation, consume: (secret: string) => Promise<T>): Promise<T> {
+export async function withCapability<T>(
+  ref: CapabilityRef,
+  expected: CapabilityExpectation,
+  consume: (secret: string) => Promise<T>,
+): Promise<T> {
   const capabilityId = assertCapability(ref, expected);
   const bytes = await redeemCapability(capabilityId, ref.authorization_id);
   let text = '';
@@ -106,4 +177,3 @@ export async function withCapability<T>(ref: CapabilityRef, expected: Capability
     bytes.fill(0);
   }
 }
-

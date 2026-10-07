@@ -6,9 +6,16 @@
 
 import { generateTotp } from '../../../../_shared/services/google_sso.mjs';
 import { preferredEmail } from './run_brief.mjs';
-import { clickControl, evalState, fillSelector, idle, press } from './keeper_browser.mjs';
+import {
+  clickControl,
+  evalState,
+  fillSelector,
+  idle,
+  press,
+} from './keeper_browser.mjs';
 
-const TOTP_INPUT = 'input[type="tel"], input[type="text"], input[inputmode="numeric"], input[name="totpPin"], input[name="Pin"]';
+const TOTP_INPUT =
+  'input[type="tel"], input[type="text"], input[inputmode="numeric"], input[name="totpPin"], input[name="Pin"]';
 
 // Resolves true once the browser has left accounts.google.com. A screen it has
 // no answer for (a phone prompt waiting on a person, for one) is waited on;
@@ -19,38 +26,86 @@ export async function handleGoogleLogin(creds) {
     const text = s.text || '';
     const url = s.url || '';
     if (!/accounts\.google\.com/i.test(url)) return true;
-    if (/session ended|not signed in|Try signing in again|Try again/i.test(text)) {
-      await clickControl('Try again', 'session expired retry').catch(() => false);
+    if (
+      /session ended|not signed in|Try signing in again|Try again/i.test(text)
+    ) {
+      await clickControl('Try again', 'session expired retry').catch(
+        () => false,
+      );
       await idle('deliberate');
       continue;
     }
 
-    if (s.inputs.some((input) => input.visible && /email|identifier/i.test(`${input.type} ${input.name} ${input.aria}`))) {
-      await fillSelector('input[type="email"], input[name="identifier"], input#identifierId', creds.email || preferredEmail(), 'Google email');
+    if (
+      s.inputs.some(
+        (input) =>
+          input.visible &&
+          /email|identifier/i.test(`${input.type} ${input.name} ${input.aria}`),
+      )
+    ) {
+      await fillSelector(
+        'input[type="email"], input[name="identifier"], input#identifierId',
+        creds.email || preferredEmail(),
+        'Google email',
+      );
       await clickControl('^Next$', 'email next');
       continue;
     }
 
-    if (s.inputs.some((input) => input.visible && /password|Passwd/i.test(`${input.type} ${input.name}`))) {
-      await fillSelector('input[type="password"], input[name="Passwd"]', creds.password, 'Google password');
+    if (
+      s.inputs.some(
+        (input) =>
+          input.visible &&
+          /password|Passwd/i.test(`${input.type} ${input.name}`),
+      )
+    ) {
+      await fillSelector(
+        'input[type="password"], input[name="Passwd"]',
+        creds.password,
+        'Google password',
+      );
       await press('Enter');
       continue;
     }
 
-    if (/Try another way|More ways to verify|Choose how you want to sign in|Tap Yes|Gmail app|phone or tablet/i.test(text) && !/Enter code|verification code from the Google Authenticator app/i.test(text)) {
+    if (
+      /Try another way|More ways to verify|Choose how you want to sign in|Tap Yes|Gmail app|phone or tablet/i.test(
+        text,
+      ) &&
+      !/Enter code|verification code from the Google Authenticator app/i.test(
+        text,
+      )
+    ) {
       let after = s;
       if (/Try another way|More ways to verify/i.test(text)) {
-        await clickControl('Try another way|More ways to verify', 'Try another way').catch(() => false);
+        await clickControl(
+          'Try another way|More ways to verify',
+          'Try another way',
+        ).catch(() => false);
         await idle('deliberate');
         after = await evalState();
       }
-      if (/Tap Yes on your phone|Gmail app|phone or tablet/i.test(after.text || '') && !/Try another way|More ways to verify/i.test(after.text || '')) {
-        await clickControl('Tap Yes on your phone|Gmail app|phone or tablet', 'phone prompt option').catch(() => false);
+      if (
+        /Tap Yes on your phone|Gmail app|phone or tablet/i.test(
+          after.text || '',
+        ) &&
+        !/Try another way|More ways to verify/i.test(after.text || '')
+      ) {
+        await clickControl(
+          'Tap Yes on your phone|Gmail app|phone or tablet',
+          'phone prompt option',
+        ).catch(() => false);
         await idle('deliberate');
         continue;
       }
-      if (creds?.totpSecret && /Authenticator|verification code/i.test(after.text || '')) {
-        await clickControl('Google Authenticator|Authenticator|verification code', 'Authenticator option').catch(() => false);
+      if (
+        creds?.totpSecret &&
+        /Authenticator|verification code/i.test(after.text || '')
+      ) {
+        await clickControl(
+          'Google Authenticator|Authenticator|verification code',
+          'Authenticator option',
+        ).catch(() => false);
         const code = generateTotp(creds.totpSecret);
         await fillSelector(TOTP_INPUT, code, 'Google TOTP');
         await clickControl('^Next$|^Verify$', 'TOTP submit');
@@ -59,7 +114,10 @@ export async function handleGoogleLogin(creds) {
       continue;
     }
 
-    if (/Enter code|verification code|Authenticator app/i.test(text) && creds?.totpSecret) {
+    if (
+      /Enter code|verification code|Authenticator app/i.test(text) &&
+      creds?.totpSecret
+    ) {
       const code = generateTotp(creds.totpSecret);
       await fillSelector(TOTP_INPUT, code, 'Google TOTP');
       await clickControl('^Next$|^Verify$', 'TOTP submit');

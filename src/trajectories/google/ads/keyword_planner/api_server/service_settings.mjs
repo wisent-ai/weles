@@ -11,13 +11,25 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 export const REPO = resolve(here, '../../../../..');
 export const RUNNER = join(here, '../ads_keyword_planner_keeper.mjs');
-export let SESSION = process.env.SESSION || process.env.GOOGLE_ADS_KEEPER_SESSION || 'google_ads';
-export let API_TOKEN = process.env.WELES_KEYWORD_PLANNER_API_TOKEN || process.env.WELES_CONSOLE_API_TOKEN || '';
-export let ALLOW_UNAUTH = process.env.WELES_KEYWORD_PLANNER_API_ALLOW_UNAUTH === '1';
-export let DIAG_DIR = process.env.GOOGLE_ADS_DIAG_DIR || runOutputPath('google-ads-keyword-planner', 'api');
-SESSION = process.env.SESSION || process.env.GOOGLE_ADS_KEEPER_SESSION || SESSION;
-API_TOKEN = process.env.WELES_KEYWORD_PLANNER_API_TOKEN || process.env.WELES_CONSOLE_API_TOKEN || API_TOKEN;
-ALLOW_UNAUTH = process.env.WELES_KEYWORD_PLANNER_API_ALLOW_UNAUTH === '1' || ALLOW_UNAUTH;
+export let SESSION =
+  process.env.SESSION || process.env.GOOGLE_ADS_KEEPER_SESSION || 'google_ads';
+export let API_TOKEN =
+  process.env.WELES_KEYWORD_PLANNER_API_TOKEN ||
+  process.env.WELES_CONSOLE_API_TOKEN ||
+  '';
+export let ALLOW_UNAUTH =
+  process.env.WELES_KEYWORD_PLANNER_API_ALLOW_UNAUTH === '1';
+export let DIAG_DIR =
+  process.env.GOOGLE_ADS_DIAG_DIR ||
+  runOutputPath('google-ads-keyword-planner', 'api');
+SESSION =
+  process.env.SESSION || process.env.GOOGLE_ADS_KEEPER_SESSION || SESSION;
+API_TOKEN =
+  process.env.WELES_KEYWORD_PLANNER_API_TOKEN ||
+  process.env.WELES_CONSOLE_API_TOKEN ||
+  API_TOKEN;
+ALLOW_UNAUTH =
+  process.env.WELES_KEYWORD_PLANNER_API_ALLOW_UNAUTH === '1' || ALLOW_UNAUTH;
 DIAG_DIR = process.env.GOOGLE_ADS_DIAG_DIR || DIAG_DIR;
 
 export function redact(text) {
@@ -25,8 +37,14 @@ export function redact(text) {
     .replace(/ya29\.[A-Za-z0-9._-]+/g, '<redacted-google-access-token>')
     .replace(/GOCSPX-[A-Za-z0-9_-]+/g, '<redacted-google-client-secret>')
     .replace(/[A-Z2-7](?:\s?[A-Z2-7]){15,}/g, '<redacted-base32-secret>')
-    .replace(/"refresh_token"\s*:\s*"[^"]+"/g, '"refresh_token":"<redacted-google-refresh-token>"')
-    .replace(/"google_totp_secret"\s*:\s*"[^"]+"/g, '"google_totp_secret":"<redacted>"');
+    .replace(
+      /"refresh_token"\s*:\s*"[^"]+"/g,
+      '"refresh_token":"<redacted-google-refresh-token>"',
+    )
+    .replace(
+      /"google_totp_secret"\s*:\s*"[^"]+"/g,
+      '"google_totp_secret":"<redacted>"',
+    );
 }
 
 export function stripAmbientCredentialEnv(env) {
@@ -58,7 +76,10 @@ export function stripAmbientCredentialEnv(env) {
   ];
   for (const key of exactAmbientKeys) delete next[key];
   for (const key of Object.keys(next)) {
-    if (/^(?:OXYLABS|BRIGHTDATA)_(?:.*(?:USERNAME|PASSWORD|USER|PASS))$/.test(key)) delete next[key];
+    if (
+      /^(?:OXYLABS|BRIGHTDATA)_(?:.*(?:USERNAME|PASSWORD|USER|PASS))$/.test(key)
+    )
+      delete next[key];
   }
   return next;
 }

@@ -12,21 +12,39 @@ type BrowserCtx = any;
 type PageLike = any;
 type SessionLike = any;
 
-interface ProviderConfig { primaryDomain: string; mirrorDomains?: string[]; }
+interface ProviderConfig {
+  primaryDomain: string;
+  mirrorDomains?: string[];
+}
 
 const PROVIDER_DOMAINS: Record<string, ProviderConfig> = {
   twitter: { primaryDomain: '.x.com', mirrorDomains: ['.twitter.com'] },
   instagram: { primaryDomain: '.instagram.com' },
-  google: { primaryDomain: '.google.com', mirrorDomains: ['.youtube.com', '.accounts.google.com'] },
-  facebook: { primaryDomain: '.facebook.com', mirrorDomains: ['.messenger.com'] },
+  google: {
+    primaryDomain: '.google.com',
+    mirrorDomains: ['.youtube.com', '.accounts.google.com'],
+  },
+  facebook: {
+    primaryDomain: '.facebook.com',
+    mirrorDomains: ['.messenger.com'],
+  },
   github: { primaryDomain: '.github.com' },
   apple: { primaryDomain: '.apple.com', mirrorDomains: ['.icloud.com'] },
-  microsoft: { primaryDomain: '.microsoftonline.com', mirrorDomains: ['.live.com', '.microsoft.com', '.login.microsoft.com'] },
+  microsoft: {
+    primaryDomain: '.microsoftonline.com',
+    mirrorDomains: ['.live.com', '.microsoft.com', '.login.microsoft.com'],
+  },
 };
 
 export interface RawCookie {
-  name?: string; value?: string; domain?: string; path?: string;
-  secure?: boolean; httpOnly?: boolean; sameSite?: string; expires?: number;
+  name?: string;
+  value?: string;
+  domain?: string;
+  path?: string;
+  secure?: boolean;
+  httpOnly?: boolean;
+  sameSite?: string;
+  expires?: number;
 }
 
 /**
@@ -46,21 +64,32 @@ export async function injectProviderCookies(
   const cfg = PROVIDER_DOMAINS[provider];
   if (!cfg) throw new Error(`unknown_oauth_provider:${provider}`);
   const primary = cfg.primaryDomain;
-  const normalized = cookies.filter(c => c.name && c.value).map(c => ({
-    name: c.name!, value: c.value!,
-    domain: c.domain?.startsWith('.') ? c.domain : (c.domain || primary),
-    path: c.path || '/',
-    secure: c.secure ?? true,
-    httpOnly: c.httpOnly ?? false,
-    sameSite: (c.sameSite || 'Lax') as any,
-    ...(c.expires && c.expires > 0 ? { expires: c.expires } : {}),
-  }));
+  const normalized = cookies
+    .filter((c) => c.name && c.value)
+    .map((c) => ({
+      name: c.name!,
+      value: c.value!,
+      domain: c.domain?.startsWith('.') ? c.domain : c.domain || primary,
+      path: c.path || '/',
+      secure: c.secure ?? true,
+      httpOnly: c.httpOnly ?? false,
+      sameSite: (c.sameSite || 'Lax') as any,
+      ...(c.expires && c.expires > 0 ? { expires: c.expires } : {}),
+    }));
   const all = [...normalized];
-  const mirrors = [...(cfg.mirrorDomains ?? []), ...(opts.extraMirrorDomains ?? [])];
+  const mirrors = [
+    ...(cfg.mirrorDomains ?? []),
+    ...(opts.extraMirrorDomains ?? []),
+  ];
   for (const mirror of mirrors) {
     const primaryBare = primary.startsWith('.') ? primary.slice(1) : primary;
     const mirrorBare = mirror.startsWith('.') ? mirror.slice(1) : mirror;
-    all.push(...normalized.map(c => ({ ...c, domain: c.domain.replace(primaryBare, mirrorBare) })));
+    all.push(
+      ...normalized.map((c) => ({
+        ...c,
+        domain: c.domain.replace(primaryBare, mirrorBare),
+      })),
+    );
   }
   await ctx.addCookies(all);
   return all.length;
@@ -73,12 +102,18 @@ export async function injectProviderCookies(
  * "Sign in with Google" when asked for "Sign in with X"). Returns true on
  * a confirmed click, false if no matching button/link was visible.
  */
-export async function clickOAuthProviderButton(s: SessionLike, accessibleName: RegExp): Promise<boolean> {
+export async function clickOAuthProviderButton(
+  s: SessionLike,
+  accessibleName: RegExp,
+): Promise<boolean> {
   const page = s.page;
   for (const role of ['button', 'link']) {
     const el = page.getByRole(role, { name: accessibleName }).first();
     const visible = await el.isVisible();
-    if (visible) { await el.click(); return true; }
+    if (visible) {
+      await el.click();
+      return true;
+    }
   }
   return false;
 }
@@ -88,21 +123,32 @@ export async function handleOAuthConsent(s: SessionLike): Promise<void> {
   for (;;) {
     const u: string = s.page.url?.() ?? '';
     if (u && !/\/auth\/|\/oauth\/|\/authorize/i.test(u)) return;
-    const clicked = await clickOAuthProviderButton(s, /^(authorize app|authorize|allow)$/i);
+    const clicked = await clickOAuthProviderButton(
+      s,
+      /^(authorize app|authorize|allow)$/i,
+    );
     if (!clicked) return;
     await pageSettled(s.page);
     if ((s.page.url?.() ?? '') === u) {
-      console.log(`[oauth] oauth_consent_not_accepted: the consent click left the page on ${u}`);
+      console.log(
+        `[oauth] oauth_consent_not_accepted: the consent click left the page on ${u}`,
+      );
       return;
     }
   }
 }
 
 /** Wait until the page URL includes mustInclude and excludes every mustExcludeAny substring. */
-export async function waitForNavBackTo(page: PageLike, mustInclude: string, mustExcludeAny: string[]): Promise<void> {
+export async function waitForNavBackTo(
+  page: PageLike,
+  mustInclude: string,
+  mustExcludeAny: string[],
+): Promise<void> {
   await page.waitForURL((url: URL) => {
     const u = String(url);
-    return u.includes(mustInclude) && !mustExcludeAny.some((x) => u.includes(x));
+    return (
+      u.includes(mustInclude) && !mustExcludeAny.some((x) => u.includes(x))
+    );
   });
 }
 
@@ -112,7 +158,11 @@ export async function waitForNavBackTo(page: PageLike, mustInclude: string, must
  * form.requestSubmit() — which is what producthunt's captcha_verification
  * page (and similar SPA captcha gates) needs to run its Apollo mutation.
  */
-export async function clearReCaptchaGate(s: SessionLike, solver: any, gateUrlSubstring: string): Promise<boolean> {
+export async function clearReCaptchaGate(
+  s: SessionLike,
+  solver: any,
+  gateUrlSubstring: string,
+): Promise<boolean> {
   const { solvePageCaptcha } = await import('../../captcha/detect.js');
   // One solve: a second token on the same gate is the same answer to a page
   // that already refused it.
@@ -124,14 +174,24 @@ export async function clearReCaptchaGate(s: SessionLike, solver: any, gateUrlSub
   // Try button click first (more reliable than requestSubmit on PH's React
   // form), then form.requestSubmit, then a synthetic submit event.
   await s.page.evaluate(() => {
-    const ta = document.getElementById('g-recaptcha-response') as HTMLTextAreaElement | null;
+    const ta = document.getElementById(
+      'g-recaptcha-response',
+    ) as HTMLTextAreaElement | null;
     if (!ta || !ta.value) return;
-    const btn = document.querySelector('button[type="submit"], input[type="submit"]') as HTMLElement | null;
-    if (btn) { btn.click(); return; }
+    const btn = document.querySelector(
+      'button[type="submit"], input[type="submit"]',
+    ) as HTMLElement | null;
+    if (btn) {
+      btn.click();
+      return;
+    }
     const form = document.querySelector('form') as HTMLFormElement | null;
     if (!form) return;
     if (typeof form.requestSubmit === 'function') form.requestSubmit();
-    else form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    else
+      form.dispatchEvent(
+        new Event('submit', { cancelable: true, bubbles: true }),
+      );
   });
   await pageSettled(s.page);
   if (!(s.page.url?.() ?? '').includes(gateUrlSubstring)) return true;
@@ -141,6 +201,8 @@ export async function clearReCaptchaGate(s: SessionLike, solver: any, gateUrlSub
   await s.page.goto('https://www.producthunt.com/');
   await pageSettled(s.page);
   if (!(s.page.url?.() ?? '').includes(gateUrlSubstring)) return true;
-  console.log(`[oauth] recaptcha_gate_not_cleared: still on ${s.page.url?.() ?? ''}`);
+  console.log(
+    `[oauth] recaptcha_gate_not_cleared: still on ${s.page.url?.() ?? ''}`,
+  );
   return false;
 }

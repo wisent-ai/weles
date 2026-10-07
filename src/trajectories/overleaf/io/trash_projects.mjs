@@ -19,8 +19,17 @@ import { writeFileSync } from 'node:fs';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 // Trashing is destructive: the exact title is the caller's, never built in.
-const TARGET_TITLE = (process.argv[2] || process.env.OVERLEAF_PROJECT_TITLE || '').trim();
-if (!TARGET_TITLE) { console.error('FAIL: need the exact project title as argv[2] or OVERLEAF_PROJECT_TITLE; no project is assumed'); process.exit(1); }
+const TARGET_TITLE = (
+  process.argv[2] ||
+  process.env.OVERLEAF_PROJECT_TITLE ||
+  ''
+).trim();
+if (!TARGET_TITLE) {
+  console.error(
+    'FAIL: need the exact project title as argv[2] or OVERLEAF_PROJECT_TITLE; no project is assumed',
+  );
+  process.exit(1);
+}
 const SHOT_DIR = runRecordingsDir('overleaf_trash_projects');
 let shotN = 0;
 async function shot(s, tag) {
@@ -32,14 +41,24 @@ async function shot(s, tag) {
 }
 
 const login = await getGoogleSsoCreds();
-if (!login) { console.error('FAIL: getGoogleSsoCreds() returned null.'); process.exit(1); }
-console.log(`[trash_projects] Google creds loaded for ${login.email}; target title = "${TARGET_TITLE}"`);
+if (!login) {
+  console.error('FAIL: getGoogleSsoCreds() returned null.');
+  process.exit(1);
+}
+console.log(
+  `[trash_projects] Google creds loaded for ${login.email}; target title = "${TARGET_TITLE}"`,
+);
 
-const s = await WSession.start({ label: 'trash_projects', browser: 'chromium', headful: process.env.HEADLESS !== '1' });
+const s = await WSession.start({
+  label: 'trash_projects',
+  browser: 'chromium',
+  headful: process.env.HEADLESS !== '1',
+});
 
 try {
   await overleafGoogleSignIn(s, login, { label: 'trash_projects' });
-  if (!/\/project(\?|$|\/)/.test(s.page.url())) await s.goto('https://www.overleaf.com/project');
+  if (!/\/project(\?|$|\/)/.test(s.page.url()))
+    await s.goto('https://www.overleaf.com/project');
   await humanIdlePause('short');
   await shot(s, 'dashboard');
 
@@ -49,46 +68,77 @@ try {
     const m = document.querySelector('meta[name="ol-csrfToken"]');
     return m ? m.getAttribute('content') : null;
   });
-  if (!csrf) { console.error('[trash_projects] STEP FAILED: no CSRF token on dashboard'); await shot(s, 'fail_csrf'); await s.close(); process.exit(2); }
+  if (!csrf) {
+    console.error('[trash_projects] STEP FAILED: no CSRF token on dashboard');
+    await shot(s, 'fail_csrf');
+    await s.close();
+    process.exit(2);
+  }
   console.log(`[trash_projects] CSRF token acquired (${csrf.length} chars)`);
 
   // Scrape all dashboard projects {id,title}.
-  await s.page.locator('a[href*="/project/"]').first().waitFor({ state: 'visible' });
+  await s.page
+    .locator('a[href*="/project/"]')
+    .first()
+    .waitFor({ state: 'visible' });
   const projects = await s.page.evaluate(() => {
     const seen = new Map();
-    for (const a of Array.from(document.querySelectorAll('a[href*="/project/"]'))) {
-      const href = a.getAttribute('href'); if (!href) continue;
-      const m = href.match(/\/project\/([0-9a-fA-F]{24})(?:[/?#]|$)/); if (!m) continue;
-      const id = m[1]; const title = a.textContent.trim();
+    for (const a of Array.from(
+      document.querySelectorAll('a[href*="/project/"]'),
+    )) {
+      const href = a.getAttribute('href');
+      if (!href) continue;
+      const m = href.match(/\/project\/([0-9a-fA-F]{24})(?:[/?#]|$)/);
+      if (!m) continue;
+      const id = m[1];
+      const title = a.textContent.trim();
       if (!seen.has(id) && title) seen.set(id, title);
     }
     return Array.from(seen.entries()).map(([id, title]) => ({ id, title }));
   });
   const targets = projects.filter((p) => p.title === TARGET_TITLE);
-  console.log(`[trash_projects] ${projects.length} projects on dashboard; ${targets.length} match title "${TARGET_TITLE}"`);
+  console.log(
+    `[trash_projects] ${projects.length} projects on dashboard; ${targets.length} match title "${TARGET_TITLE}"`,
+  );
 
   const results = [];
   for (const t of targets) {
-    let ok = false; let status = 0;
+    let ok = false;
+    let status = 0;
     try {
-      const resp = await s.ctx.request.post(`https://www.overleaf.com/project/${t.id}/trash`, {
-        headers: { 'x-csrf-token': csrf, accept: 'application/json' },
-      });
+      const resp = await s.ctx.request.post(
+        `https://www.overleaf.com/project/${t.id}/trash`,
+        {
+          headers: { 'x-csrf-token': csrf, accept: 'application/json' },
+        },
+      );
       status = resp.status();
       ok = resp.ok();
     } catch (e) {
-      console.error(`[trash_projects] ${t.id} error: ${e && e.message ? e.message : e}`);
+      console.error(
+        `[trash_projects] ${t.id} error: ${e && e.message ? e.message : e}`,
+      );
     }
     results.push({ id: t.id, ok, status });
-    console.log(`[trash_projects] TRASH ${t.id} -> ${ok ? 'OK' : 'HTTP ' + status}`);
+    console.log(
+      `[trash_projects] TRASH ${t.id} -> ${ok ? 'OK' : 'HTTP ' + status}`,
+    );
   }
-  writeFileSync(`${SHOT_DIR}/_trash_results.json`, JSON.stringify(results, null, 2));
+  writeFileSync(
+    `${SHOT_DIR}/_trash_results.json`,
+    JSON.stringify(results, null, 2),
+  );
   const good = results.filter((r) => r.ok).length;
-  console.log(`\n[trash_projects] OK — trashed ${good}/${results.length} "${TARGET_TITLE}" project(s)`);
+  console.log(
+    `\n[trash_projects] OK — trashed ${good}/${results.length} "${TARGET_TITLE}" project(s)`,
+  );
   await s.close();
   process.exit(0);
 } catch (err) {
-  console.error('[trash_projects] unhandled error:', err && err.message ? err.message : err);
+  console.error(
+    '[trash_projects] unhandled error:',
+    err && err.message ? err.message : err,
+  );
   await shot(s, 'exception');
   await s.close();
   process.exit(2);

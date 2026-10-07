@@ -23,45 +23,64 @@ import { pageSettled } from '../../_shared/page/settled.mjs';
 // gain. Returns the URL the flow ended at, or null when there is no invitation.
 export async function acceptPendingWorkspaceInvite(page, login, mark) {
   mark('workspace_invite_lookup');
-  const query = encodeURIComponent('from:openai.com (invite OR invitation OR workspace)');
-  await page.goto(`https://mail.google.com/mail/u/0/#search/${query}`, { waitUntil: 'commit' });
+  const query = encodeURIComponent(
+    'from:openai.com (invite OR invitation OR workspace)',
+  );
+  await page.goto(`https://mail.google.com/mail/u/0/#search/${query}`, {
+    waitUntil: 'commit',
+  });
   let opened = false;
   await pageSettled(page);
   {
-    const row = await navEval(page, () => {
-      for (const element of Array.from(document.querySelectorAll('tr.zA, div[role="listitem"]'))) {
-        const text = (element.innerText || '').replace(/\s+/g, ' ').trim();
-        if (!/invit/i.test(text)) continue;
-        const box = element.getBoundingClientRect();
-        if (box.width < 20 || box.height < 8) continue;
-        return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-      }
-      return null;
-    }, null);
+    const row = await navEval(
+      page,
+      () => {
+        for (const element of Array.from(
+          document.querySelectorAll('tr.zA, div[role="listitem"]'),
+        )) {
+          const text = (element.innerText || '').replace(/\s+/g, ' ').trim();
+          if (!/invit/i.test(text)) continue;
+          const box = element.getBoundingClientRect();
+          if (box.width < 20 || box.height < 8) continue;
+          return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+        }
+        return null;
+      },
+      null,
+    );
     if (row) {
       await humanClick(page, Math.round(row.x), Math.round(row.y));
       opened = true;
     }
   }
   if (!opened) {
-    console.log(`[google_sso] no ChatGPT invitation in the mailbox of ${login.email}`);
+    console.log(
+      `[google_sso] no ChatGPT invitation in the mailbox of ${login.email}`,
+    );
     return null;
   }
   mark('workspace_invite_opened');
   let target = null;
   await pageSettled(page);
   {
-    target = await navEval(page, () => {
-      const wanted = /(chatgpt\.com|chat\.openai\.com|auth\.openai\.com)\/[^"']*(invit|join|accept)/i;
-      for (const anchor of Array.from(document.querySelectorAll('a[href]'))) {
-        const href = anchor.getAttribute('href');
-        if (wanted.test(href)) return href;
-      }
-      return null;
-    }, null);
+    target = await navEval(
+      page,
+      () => {
+        const wanted =
+          /(chatgpt\.com|chat\.openai\.com|auth\.openai\.com)\/[^"']*(invit|join|accept)/i;
+        for (const anchor of Array.from(document.querySelectorAll('a[href]'))) {
+          const href = anchor.getAttribute('href');
+          if (wanted.test(href)) return href;
+        }
+        return null;
+      },
+      null,
+    );
   }
   if (!target) {
-    console.log('[google_sso] the invitation mail carries no workspace acceptance link');
+    console.log(
+      '[google_sso] the invitation mail carries no workspace acceptance link',
+    );
     return null;
   }
   await page.goto(target, { waitUntil: 'commit' });
@@ -72,10 +91,14 @@ export async function acceptPendingWorkspaceInvite(page, login, mark) {
   );
   if (!control.clicked) {
     mark(`workspace_invite_control_${control.reason}`);
-    console.log(`[google_sso] invitation control not clicked: ${control.reason}`);
+    console.log(
+      `[google_sso] invitation control not clicked: ${control.reason}`,
+    );
   } else {
     mark('workspace_invite_control_clicked');
-    console.log(`[google_sso] clicked the workspace acceptance control "${control.text}"`);
+    console.log(
+      `[google_sso] clicked the workspace acceptance control "${control.text}"`,
+    );
   }
   await pageSettled(page);
   const landed = await navEval(page, () => location.href, '?');
@@ -92,44 +115,63 @@ export async function acceptPendingWorkspaceInvite(page, login, mark) {
 // credential and no operator. Bounded and once per run.
 export async function completeEmailVerification(page, login, mark) {
   mark('email_verification_lookup');
-  const query = encodeURIComponent('from:openai.com (verify OR verification OR code)');
-  await page.goto(`https://mail.google.com/mail/u/0/#search/${query}`, { waitUntil: 'commit' });
+  const query = encodeURIComponent(
+    'from:openai.com (verify OR verification OR code)',
+  );
+  await page.goto(`https://mail.google.com/mail/u/0/#search/${query}`, {
+    waitUntil: 'commit',
+  });
   let opened = false;
   await pageSettled(page);
   {
-    const row = await navEval(page, () => {
-      for (const element of Array.from(document.querySelectorAll('tr.zA, div[role="listitem"]'))) {
-        const text = (element.innerText || '').replace(/\s+/g, ' ').trim();
-        if (!/verif|code/i.test(text)) continue;
-        const box = element.getBoundingClientRect();
-        if (box.width < 20 || box.height < 8) continue;
-        return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-      }
-      return null;
-    }, null);
+    const row = await navEval(
+      page,
+      () => {
+        for (const element of Array.from(
+          document.querySelectorAll('tr.zA, div[role="listitem"]'),
+        )) {
+          const text = (element.innerText || '').replace(/\s+/g, ' ').trim();
+          if (!/verif|code/i.test(text)) continue;
+          const box = element.getBoundingClientRect();
+          if (box.width < 20 || box.height < 8) continue;
+          return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+        }
+        return null;
+      },
+      null,
+    );
     if (row) {
       await humanClick(page, Math.round(row.x), Math.round(row.y));
       opened = true;
     }
   }
   if (!opened) {
-    console.log(`[google_sso] no OpenAI verification mail in the mailbox of ${login.email} yet`);
+    console.log(
+      `[google_sso] no OpenAI verification mail in the mailbox of ${login.email} yet`,
+    );
     return null;
   }
   await pageSettled(page);
   mark('email_verification_opened');
-  const found = await navEval(page, () => {
-    const wanted = /(auth\.openai\.com|chatgpt\.com)\/[^"']*(verify|verification|confirm)/i;
-    for (const anchor of Array.from(document.querySelectorAll('a[href]'))) {
-      const href = anchor.getAttribute('href');
-      if (wanted.test(href)) return { link: href };
-    }
-    const body = (document.body?.innerText || '').replace(/\s+/g, ' ');
-    const code = body.match(/\b(\d{6})\b/);
-    return code ? { code: code[1] } : null;
-  }, null);
+  const found = await navEval(
+    page,
+    () => {
+      const wanted =
+        /(auth\.openai\.com|chatgpt\.com)\/[^"']*(verify|verification|confirm)/i;
+      for (const anchor of Array.from(document.querySelectorAll('a[href]'))) {
+        const href = anchor.getAttribute('href');
+        if (wanted.test(href)) return { link: href };
+      }
+      const body = (document.body?.innerText || '').replace(/\s+/g, ' ');
+      const code = body.match(/\b(\d{6})\b/);
+      return code ? { code: code[1] } : null;
+    },
+    null,
+  );
   if (!found) {
-    console.log('[google_sso] verification mail carries neither a link nor a code');
+    console.log(
+      '[google_sso] verification mail carries neither a link nor a code',
+    );
     return null;
   }
   if (found.link) {
@@ -139,15 +181,24 @@ export async function completeEmailVerification(page, login, mark) {
   } else {
     await page.goBack({ waitUntil: 'commit' });
     const field = page
-      .locator('input[autocomplete="one-time-code"], input[name="code"], input[type="tel"], input[type="text"]')
+      .locator(
+        'input[autocomplete="one-time-code"], input[name="code"], input[type="tel"], input[type="text"]',
+      )
       .filter({ visible: true })
       .first();
     await field.waitFor({ state: 'visible' });
     await humanClickLocator(page, field);
     await humanFill(page, field, found.code);
     mark('email_verification_code_entered');
-    const submitted = await clickVisibleText(page, /^(continue|verify|submit|next)$/i);
-    mark(submitted.clicked ? 'email_verification_submit_clicked' : `email_verification_submit_${submitted.reason}`);
+    const submitted = await clickVisibleText(
+      page,
+      /^(continue|verify|submit|next)$/i,
+    );
+    mark(
+      submitted.clicked
+        ? 'email_verification_submit_clicked'
+        : `email_verification_submit_${submitted.reason}`,
+    );
     await pageSettled(page);
   }
   const landed = await navEval(page, () => location.href, '?');

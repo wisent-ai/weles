@@ -13,10 +13,16 @@ const IMAGE_ALIAS = 'image-model';
 function routerConfig() {
   const rawUrl = String(process.env.STADO_MODEL_ROUTER_URL || '').trim();
   const token = String(process.env.WELES_STADO_MODEL_ROUTER_TOKEN || '').trim();
-  if (!rawUrl || !token) throw new Error('missing exact Weles model-router configuration');
+  if (!rawUrl || !token)
+    throw new Error('missing exact Weles model-router configuration');
   const endpoint = new URL(rawUrl);
-  if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash
-      || (endpoint.pathname !== '/' && endpoint.pathname !== '')) {
+  if (
+    endpoint.username ||
+    endpoint.password ||
+    endpoint.search ||
+    endpoint.hash ||
+    (endpoint.pathname !== '/' && endpoint.pathname !== '')
+  ) {
     throw new Error('invalid Weles model-router origin');
   }
   return { endpoint: endpoint.origin, token };
@@ -28,19 +34,30 @@ function routerConfig() {
  */
 export async function generateImageFile({ prompt, width, height }) {
   const { endpoint, token } = routerConfig();
-  const body = { model: IMAGE_ALIAS, prompt, n: 1, response_format: 'b64_json' };
+  const body = {
+    model: IMAGE_ALIAS,
+    prompt,
+    n: 1,
+    response_format: 'b64_json',
+  };
   if (width && height) body.size = `${width}x${height}`;
   const res = await fetch(`${endpoint}/v1/images/generations`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(`Brama image generation ${res.status}: ${String(data.error?.message ?? '')}`);
+    throw new Error(
+      `Brama image generation ${res.status}: ${String(data.error?.message ?? '')}`,
+    );
   }
   const encoded = data.data?.[0]?.b64_json;
-  if (typeof encoded !== 'string' || !encoded) throw new Error('Brama image generation returned no data[0].b64_json');
+  if (typeof encoded !== 'string' || !encoded)
+    throw new Error('Brama image generation returned no data[0].b64_json');
   const dir = join(tmpdir(), 'weles-media');
   mkdirSync(dir, { recursive: true });
   const path = join(dir, `${randomUUID()}.png`);

@@ -5,10 +5,23 @@ import { pageSettled } from '../../_shared/page/settled.mjs';
 // Authentication is delegated exclusively to an explicitly authorized apple_login run.
 
 import { existsSync } from 'node:fs';
-import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
+import {
+  getSocialAccount,
+  resolveAccountSession,
+} from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { PRIVATE_KEY_PATH, PUBLIC_KEY_PATH, USER_DATA_DIR } from './api_client_setup_probe/settings.mjs';
-import { clickText, keepOpen, pageDiag, requireAuthenticatedSession, stableProfilePersona } from './api_client_setup_probe/page.mjs';
+import {
+  PRIVATE_KEY_PATH,
+  PUBLIC_KEY_PATH,
+  USER_DATA_DIR,
+} from './api_client_setup_probe/settings.mjs';
+import {
+  clickText,
+  keepOpen,
+  pageDiag,
+  requireAuthenticatedSession,
+  stableProfilePersona,
+} from './api_client_setup_probe/page.mjs';
 import { inspectExistingAppleAdsApi } from './api_client_setup_probe/artifacts.mjs';
 
 async function main() {
@@ -29,12 +42,18 @@ async function main() {
   let loggedIn = false;
   let exitCode = 0;
   try {
-    console.log(JSON.stringify({
-      publicKeyPath: PUBLIC_KEY_PATH,
-      hasPublicKey: existsSync(PUBLIC_KEY_PATH),
-      privateKeyPath: PRIVATE_KEY_PATH,
-      hasPrivateKey: existsSync(PRIVATE_KEY_PATH),
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          publicKeyPath: PUBLIC_KEY_PATH,
+          hasPublicKey: existsSync(PUBLIC_KEY_PATH),
+          privateKeyPath: PRIVATE_KEY_PATH,
+          hasPrivateKey: existsSync(PRIVATE_KEY_PATH),
+        },
+        null,
+        2,
+      ),
+    );
 
     await s.goto('https://app-ads.apple.com/cm/app/');
     await pageSettled(s.page);
@@ -54,19 +73,38 @@ async function main() {
     ]) {
       await s.goto(url);
       await pageSettled(s.page);
-      await pageDiag(s.page, `url_${Buffer.from(url).toString('hex').slice(0, 16)}`);
-      const text = await s.page.evaluate(() => document.body?.innerText || '').catch(() => '');
-      if (/API|Public Key|Generate API client|Client ID|Team ID|Key ID/i.test(text)) break;
+      await pageDiag(
+        s.page,
+        `url_${Buffer.from(url).toString('hex').slice(0, 16)}`,
+      );
+      const text = await s.page
+        .evaluate(() => document.body?.innerText || '')
+        .catch(() => '');
+      if (
+        /API|Public Key|Generate API client|Client ID|Team ID|Key ID/i.test(
+          text,
+        )
+      )
+        break;
     }
 
-    await clickText(s.page, /Account Settings|Settings/i, 'settings').catch(() => false);
-    await clickText(s.page, /^API$|API Access|Campaign Management API|Public Key/i, 'api').catch(() => false);
+    await clickText(s.page, /Account Settings|Settings/i, 'settings').catch(
+      () => false,
+    );
+    await clickText(
+      s.page,
+      /^API$|API Access|Campaign Management API|Public Key/i,
+      'api',
+    ).catch(() => false);
     const finalState = await pageDiag(s.page, 'final');
     const existing = await inspectExistingAppleAdsApi(s.page, finalState);
 
     if (existing.hasExistingAppleAdsApiClient) {
       console.log('PASS: Apple Ads API credential page reached');
-    } else if (existing.canGenerateApiClient || existing.hasAppleAdsApiSurface) {
+    } else if (
+      existing.canGenerateApiClient ||
+      existing.hasAppleAdsApiSurface
+    ) {
       console.log('PASS: Apple Ads API setup form reached');
     } else {
       console.log('FAIL: Apple Ads API setup page not reached');
@@ -75,11 +113,16 @@ async function main() {
     }
 
     const protectedUrl = new URL(s.page.url?.() ?? 'about:blank');
-    const authenticatedProtectedPage = protectedUrl.hostname === 'app-ads.apple.com'
-      && !/signin|login/i.test(protectedUrl.pathname)
-      && (existing.hasExistingAppleAdsApiClient || existing.canGenerateApiClient || existing.hasAppleAdsApiSurface);
+    const authenticatedProtectedPage =
+      protectedUrl.hostname === 'app-ads.apple.com' &&
+      !/signin|login/i.test(protectedUrl.pathname) &&
+      (existing.hasExistingAppleAdsApiClient ||
+        existing.canGenerateApiClient ||
+        existing.hasAppleAdsApiSurface);
     if (!authenticatedProtectedPage) {
-      console.log('FAIL_CLOSED: authenticated Apple Ads API page was not confirmed; run an explicitly authorized apple_login before retrying.');
+      console.log(
+        'FAIL_CLOSED: authenticated Apple Ads API page was not confirmed; run an explicitly authorized apple_login before retrying.',
+      );
       exitCode = 3;
     }
   } finally {

@@ -23,9 +23,10 @@ const LAYOUTS: Record<string, BrowserLayout> = {
     installDirName: 'weles-chromium',
     product: 'weles-chromium',
     asset: 'weles-chromium.tar.gz',
-    appSubpath: process.platform === 'darwin'
-      ? 'Chromium.app/Contents/MacOS/Chromium'
-      : 'chromium/chrome',
+    appSubpath:
+      process.platform === 'darwin'
+        ? 'Chromium.app/Contents/MacOS/Chromium'
+        : 'chromium/chrome',
   },
   firefox: {
     envDir: 'WELES_FIREFOX_DIR',
@@ -34,9 +35,10 @@ const LAYOUTS: Record<string, BrowserLayout> = {
     installDirName: 'weles-firefox',
     product: 'weles-firefox',
     asset: 'weles-firefox.tar.gz',
-    appSubpath: process.platform === 'darwin'
-      ? 'Firefox.app/Contents/MacOS/firefox'
-      : 'firefox/firefox',
+    appSubpath:
+      process.platform === 'darwin'
+        ? 'Firefox.app/Contents/MacOS/firefox'
+        : 'firefox/firefox',
   },
 };
 
@@ -47,14 +49,18 @@ const HEX_BLOCK_PATTERN = `${HEX_OCTET_PATTERN}${HEX_OCTET_PATTERN}${HEX_OCTET_P
 const SHA256_PATTERN = new RegExp(`^${HEX_BLOCK_PATTERN}${HEX_BLOCK_PATTERN}$`);
 
 function releasePlatform(): string | undefined {
-  if (process.platform === 'darwin' && process.arch === 'arm64') return 'darwin-arm64';
-  if (process.platform === 'darwin' && process.arch === 'x64') return 'darwin-amd64';
-  if (process.platform === 'linux' && process.arch === 'x64') return 'linux-amd64';
+  if (process.platform === 'darwin' && process.arch === 'arm64')
+    return 'darwin-arm64';
+  if (process.platform === 'darwin' && process.arch === 'x64')
+    return 'darwin-amd64';
+  if (process.platform === 'linux' && process.arch === 'x64')
+    return 'linux-amd64';
   return undefined;
 }
 
-
-function exactReleaseCandidate(browser: string): { binary: string; receipt: string; expectedReceipt: string } | undefined {
+function exactReleaseCandidate(
+  browser: string,
+): { binary: string; receipt: string; expectedReceipt: string } | undefined {
   const layout = LAYOUTS[browser];
   const platform = releasePlatform();
   if (!layout || !platform) return undefined;
@@ -63,8 +69,9 @@ function exactReleaseCandidate(browser: string): { binary: string; receipt: stri
   const digest = process.env[layout.envSha256]?.trim().toLowerCase();
   if (!version || !digest || !SHA256_PATTERN.test(digest)) return undefined;
   const home = process.env.HOME ?? '';
-  const installRoot = process.env[layout.envDir]?.trim()
-    || join(home, '.local/share', layout.installDirName);
+  const installRoot =
+    process.env[layout.envDir]?.trim() ||
+    join(home, '.local/share', layout.installDirName);
   const installDir = join(installRoot, version);
   const releaseUri = `stado://releases/${layout.product}/${version}/${platform}/${layout.asset}`;
   return {
@@ -78,7 +85,9 @@ function exactReleaseCandidate(browser: string): { binary: string; receipt: stri
  * Find the exact deployment-selected browser only when its verified release
  * receipt matches the requested immutable Stado coordinate and checksum.
  */
-export function findCustomBrowser(browser: string = 'chromium'): string | undefined {
+export function findCustomBrowser(
+  browser: string = 'chromium',
+): string | undefined {
   const candidate = exactReleaseCandidate(browser);
   if (!candidate) return undefined;
   try {

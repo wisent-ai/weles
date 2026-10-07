@@ -6,25 +6,39 @@ import { join } from 'node:path';
 import { readScopedLogin } from '../../../../../_shared/scoped-secrets.mjs';
 
 export const GOOGLE_ADS_LOGIN = readScopedLogin('googleAds');
-export const SESSION = process.env.SESSION || process.env.GOOGLE_ADS_KEEPER_SESSION || 'google_ads';
+export const SESSION =
+  process.env.SESSION || process.env.GOOGLE_ADS_KEEPER_SESSION || 'google_ads';
 export const EMAIL = GOOGLE_ADS_LOGIN.email;
-export const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'google_ads');
+export const USER_DATA_DIR =
+  process.env.WELES_USER_DATA_DIR ||
+  process.env.ADS_PROFILE_DIR ||
+  join(homedir(), '.weles', 'browser_profiles', 'google_ads');
 export const SOCK = join(homedir(), '.weles', 'keeper', SESSION, 'socket');
-export const DIAG_DIR = process.env.GOOGLE_TOTP_KEEPER_DIAG_DIR || runOutputPath('google-totp-keeper');
-export const RESULT_FILE = process.env.GOOGLE_TOTP_KEEPER_RESULT_FILE || join(DIAG_DIR, 'result.json');
-export const AUTHENTICATOR_URL = 'https://myaccount.google.com/u/1/two-step-verification/authenticator';
+export const DIAG_DIR =
+  process.env.GOOGLE_TOTP_KEEPER_DIAG_DIR ||
+  runOutputPath('google-totp-keeper');
+export const RESULT_FILE =
+  process.env.GOOGLE_TOTP_KEEPER_RESULT_FILE || join(DIAG_DIR, 'result.json');
+export const AUTHENTICATOR_URL =
+  'https://myaccount.google.com/u/1/two-step-verification/authenticator';
 export const SECURITY_URL = 'https://myaccount.google.com/u/1/security';
 
 mkdirSync(DIAG_DIR, { recursive: true });
 
 export function redact(text, secret = '') {
-  const escaped = secret ? String(secret).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '';
+  const escaped = secret
+    ? String(secret).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    : '';
   let out = String(text || '');
-  if (escaped) out = out.replace(new RegExp(escaped, 'gi'), '<redacted-totp-secret>');
+  if (escaped)
+    out = out.replace(new RegExp(escaped, 'gi'), '<redacted-totp-secret>');
   return out
     .replace(/[A-Z2-7](?:\s?[A-Z2-7]){15,}/g, '<redacted-base32-secret>')
     .replace(/"login_password"\s*:\s*"[^"]+"/g, '"login_password":"<redacted>"')
-    .replace(/"google_totp_secret"\s*:\s*"[^"]+"/g, '"google_totp_secret":"<redacted>"');
+    .replace(
+      /"google_totp_secret"\s*:\s*"[^"]+"/g,
+      '"google_totp_secret":"<redacted>"',
+    );
 }
 
 export function writeResult(report, code = 0, secret = '') {

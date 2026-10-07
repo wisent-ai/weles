@@ -12,14 +12,18 @@ import { writeSubmitDiagnostics } from './diagnostics.mjs';
 
 export function loadProxyPreflightSummary() {
   try {
-    const p = join(runRecordingsDir('linkedin_register'), 'proxy_preflight.json');
+    const p = join(
+      runRecordingsDir('linkedin_register'),
+      'proxy_preflight.json',
+    );
     const raw = JSON.parse(readFileSync(p, 'utf8'));
     const attempts = Array.isArray(raw?.attempts) ? raw.attempts : [];
-    const countBy = (key) => attempts.reduce((acc, a) => {
-      const value = a?.[key] ?? 'missing';
-      acc[value] = (acc[value] ?? 0) + 1;
-      return acc;
-    }, {});
+    const countBy = (key) =>
+      attempts.reduce((acc, a) => {
+        const value = a?.[key] ?? 'missing';
+        acc[value] = (acc[value] ?? 0) + 1;
+        return acc;
+      }, {});
     return {
       selected: raw?.selected === true,
       selected_provider: raw?.selected_provider ?? null,
@@ -27,7 +31,9 @@ export function loadProxyPreflightSummary() {
       attempt_count: raw?.attempt_count ?? attempts.length,
       linkedin_probe_results: countBy('linkedin_probe_result'),
       rejected_reasons: countBy('rejected_reason'),
-      exit_ip_hashes: [...new Set(attempts.map(a => a?.exit_ip_hash).filter(Boolean))],
+      exit_ip_hashes: [
+        ...new Set(attempts.map((a) => a?.exit_ip_hash).filter(Boolean)),
+      ],
       redacted: true,
     };
   } catch {
@@ -36,7 +42,10 @@ export function loadProxyPreflightSummary() {
 }
 
 export async function inspectCreateAccountChallenge(session, challengeUrl) {
-  const absoluteUrl = new URL(challengeUrl, 'https://www.linkedin.com/').toString();
+  const absoluteUrl = new URL(
+    challengeUrl,
+    'https://www.linkedin.com/',
+  ).toString();
   const out = {
     challenge_url: absoluteUrl,
     navigated: false,
@@ -52,45 +61,64 @@ export async function inspectCreateAccountChallenge(session, challengeUrl) {
   try {
     await session.page.goto(absoluteUrl, { waitUntil: 'domcontentloaded' });
     await pageSettled(session.page);
-    Object.assign(out, await session.page.evaluate(() => {
-      const visible = (el) => {
-        const r = el.getBoundingClientRect();
-        const s = getComputedStyle(el);
-        return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none';
-      };
-      const attr = (el, name) => {
-        const raw = el?.getAttribute(name);
-        return typeof raw === 'string' ? raw : null;
-      };
-      return {
-        navigated: true,
-        url: location.href,
-        title: document.title,
-        page_key: attr(document.querySelector('meta[name="pageKey"]'), 'content'),
-        body_text_sample: (document.body?.innerText || '').replace(/\s+/g, ' ').trim(),
-        inputs: Array.from(document.querySelectorAll('input')).map((input) => ({
-          id: input.id,
-          name: input.name,
-          type: input.type,
-          autocomplete: attr(input, 'autocomplete'),
-          visible: visible(input),
-        })),
-        buttons: Array.from(document.querySelectorAll('button,a')).filter(visible).map((el) => ({
-          tag: el.tagName.toLowerCase(),
-          text: (el.textContent || '').replace(/\s+/g, ' ').trim(),
-          href: el instanceof HTMLAnchorElement ? el.href : '',
-        })),
-        iframes: Array.from(document.querySelectorAll('iframe')).map((frame) => ({
-          id: frame.id,
-          name: frame.name,
-          title: frame.title,
-          src: frame.src,
-          visible: visible(frame),
-          width: frame.getBoundingClientRect().width,
-          height: frame.getBoundingClientRect().height,
-        })),
-      };
-    }));
+    Object.assign(
+      out,
+      await session.page.evaluate(() => {
+        const visible = (el) => {
+          const r = el.getBoundingClientRect();
+          const s = getComputedStyle(el);
+          return (
+            r.width > 0 &&
+            r.height > 0 &&
+            s.visibility !== 'hidden' &&
+            s.display !== 'none'
+          );
+        };
+        const attr = (el, name) => {
+          const raw = el?.getAttribute(name);
+          return typeof raw === 'string' ? raw : null;
+        };
+        return {
+          navigated: true,
+          url: location.href,
+          title: document.title,
+          page_key: attr(
+            document.querySelector('meta[name="pageKey"]'),
+            'content',
+          ),
+          body_text_sample: (document.body?.innerText || '')
+            .replace(/\s+/g, ' ')
+            .trim(),
+          inputs: Array.from(document.querySelectorAll('input')).map(
+            (input) => ({
+              id: input.id,
+              name: input.name,
+              type: input.type,
+              autocomplete: attr(input, 'autocomplete'),
+              visible: visible(input),
+            }),
+          ),
+          buttons: Array.from(document.querySelectorAll('button,a'))
+            .filter(visible)
+            .map((el) => ({
+              tag: el.tagName.toLowerCase(),
+              text: (el.textContent || '').replace(/\s+/g, ' ').trim(),
+              href: el instanceof HTMLAnchorElement ? el.href : '',
+            })),
+          iframes: Array.from(document.querySelectorAll('iframe')).map(
+            (frame) => ({
+              id: frame.id,
+              name: frame.name,
+              title: frame.title,
+              src: frame.src,
+              visible: visible(frame),
+              width: frame.getBoundingClientRect().width,
+              height: frame.getBoundingClientRect().height,
+            }),
+          ),
+        };
+      }),
+    );
   } catch (e) {
     out.error = String(e?.message ?? e);
     out.url = session.page.url?.() ?? '';
@@ -101,13 +129,26 @@ export async function inspectCreateAccountChallenge(session, challengeUrl) {
     out.title,
     out.page_key,
     out.body_text_sample,
-    ...(out.inputs || []).flatMap((i) => [i.id, i.name, i.type, i.autocomplete]),
+    ...(out.inputs || []).flatMap((i) => [
+      i.id,
+      i.name,
+      i.type,
+      i.autocomplete,
+    ]),
     ...(out.buttons || []).flatMap((b) => [b.text, b.href]),
     ...(out.iframes || []).flatMap((f) => [f.id, f.name, f.title, f.src]),
   ].join(' ');
-  if (/Phone Verification|phone verification|verify (your )?phone|phone number|verification code|one-time code/i.test(haystack)) {
+  if (
+    /Phone Verification|phone verification|verify (your )?phone|phone number|verification code|one-time code/i.test(
+      haystack,
+    )
+  ) {
     out.kind = 'phone_verification';
-  } else if (/Security verification|quick security check|captcha|recaptcha|arkose|funcaptcha|verify you are human|unusual activity/i.test(haystack)) {
+  } else if (
+    /Security verification|quick security check|captcha|recaptcha|arkose|funcaptcha|verify you are human|unusual activity/i.test(
+      haystack,
+    )
+  ) {
     out.kind = 'captcha_gauntlet';
   } else if (/checkpoint|challengeIframe|challenge/i.test(haystack)) {
     out.kind = 'checkpoint_challenge';
@@ -117,37 +158,58 @@ export async function inspectCreateAccountChallenge(session, challengeUrl) {
 }
 
 export async function hasVisibleCaptchaChallenge(page) {
-  return await page.evaluate(() => {
-    const visible = (el) => {
-      if (!el) return false;
-      const s = getComputedStyle(el);
-      const r = el.getBoundingClientRect();
-      return s.display !== 'none' &&
-        s.visibility !== 'hidden' &&
-        Number(s.opacity || 1) > 0 &&
-        r.width > 0 &&
-        r.height > 0;
-    };
-    const activeCaptchaIframe = Array.from(document.querySelectorAll('iframe')).some((f) => {
-      const src = f.src || '';
-      const title = f.title || '';
-      if (/\/checkpoint\/challengeIframe|challengeIframe/i.test(src)) return visible(f);
-      if (/recaptcha/i.test(src) || /recaptcha/i.test(title)) {
-        try {
-          const u = new URL(src);
-          if (/\/recaptcha\/enterprise\/anchor/.test(u.pathname) && u.searchParams.get('size') === 'invisible') return false;
-        } catch {}
-        return visible(f) && f.getBoundingClientRect().height > 120;
-      }
-      return false;
-    });
-    const activeCaptchaDiv = Array.from(document.querySelectorAll('div.g-recaptcha[data-sitekey], .challenge-dialog, #challenge-dialog')).some((el) => {
-      if (!visible(el)) return false;
-      if (el.classList?.contains('grecaptcha-badge')) return false;
-      return true;
-    });
-    return activeCaptchaIframe || activeCaptchaDiv || /complete (the )?(captcha|security verification)/i.test(document.body?.innerText ?? '');
-  }).catch(() => false);
+  return await page
+    .evaluate(() => {
+      const visible = (el) => {
+        if (!el) return false;
+        const s = getComputedStyle(el);
+        const r = el.getBoundingClientRect();
+        return (
+          s.display !== 'none' &&
+          s.visibility !== 'hidden' &&
+          Number(s.opacity || 1) > 0 &&
+          r.width > 0 &&
+          r.height > 0
+        );
+      };
+      const activeCaptchaIframe = Array.from(
+        document.querySelectorAll('iframe'),
+      ).some((f) => {
+        const src = f.src || '';
+        const title = f.title || '';
+        if (/\/checkpoint\/challengeIframe|challengeIframe/i.test(src))
+          return visible(f);
+        if (/recaptcha/i.test(src) || /recaptcha/i.test(title)) {
+          try {
+            const u = new URL(src);
+            if (
+              /\/recaptcha\/enterprise\/anchor/.test(u.pathname) &&
+              u.searchParams.get('size') === 'invisible'
+            )
+              return false;
+          } catch {}
+          return visible(f) && f.getBoundingClientRect().height > 120;
+        }
+        return false;
+      });
+      const activeCaptchaDiv = Array.from(
+        document.querySelectorAll(
+          'div.g-recaptcha[data-sitekey], .challenge-dialog, #challenge-dialog',
+        ),
+      ).some((el) => {
+        if (!visible(el)) return false;
+        if (el.classList?.contains('grecaptcha-badge')) return false;
+        return true;
+      });
+      return (
+        activeCaptchaIframe ||
+        activeCaptchaDiv ||
+        /complete (the )?(captcha|security verification)/i.test(
+          document.body?.innerText ?? '',
+        )
+      );
+    })
+    .catch(() => false);
 }
 
 function addReason(reasons, code, message, data = {}) {
@@ -155,7 +217,12 @@ function addReason(reasons, code, message, data = {}) {
   reasons.push({ code, message: String(message ?? ''), ...data });
 }
 
-export function linkedinFailureReasons(signal, errorMessage = '', finalUrl = '', diagnostics = null) {
+export function linkedinFailureReasons(
+  signal,
+  errorMessage = '',
+  finalUrl = '',
+  diagnostics = null,
+) {
   const reasons = [];
   if (/PROXY_NOT_DEDICATED_ISP/.test(errorMessage)) {
     addReason(reasons, 'proxy_not_dedicated_isp', errorMessage);
@@ -166,10 +233,20 @@ export function linkedinFailureReasons(signal, errorMessage = '', finalUrl = '',
   if (/PROXY_DRIFT:/.test(errorMessage)) {
     addReason(reasons, 'proxy_exit_ip_drift', errorMessage);
   }
-  if (/DETECTION_TRIGGERED/.test(errorMessage) || signal === 'captcha_challenge') {
-    addReason(reasons, 'linkedin_challenge_or_checkpoint', errorMessage || finalUrl);
+  if (
+    /DETECTION_TRIGGERED/.test(errorMessage) ||
+    signal === 'captcha_challenge'
+  ) {
+    addReason(
+      reasons,
+      'linkedin_challenge_or_checkpoint',
+      errorMessage || finalUrl,
+    );
   }
-  if (/PHONE_VERIFICATION_REQUIRED/.test(errorMessage) || signal === 'phone_verification_required') {
+  if (
+    /PHONE_VERIFICATION_REQUIRED/.test(errorMessage) ||
+    signal === 'phone_verification_required'
+  ) {
     addReason(reasons, 'phone_verification_required', errorMessage || finalUrl);
   }
   if (/signup_form_unavailable/.test(errorMessage)) {
@@ -181,7 +258,10 @@ export function linkedinFailureReasons(signal, errorMessage = '', finalUrl = '',
   if (/entry_path_no_signup_transition/.test(errorMessage)) {
     addReason(reasons, 'entry_path_no_signup_transition', errorMessage);
   }
-  if (/signup_did_not_complete/.test(errorMessage) || /^https?:\/\/www\.linkedin\.com\/signup\/?$/.test(finalUrl)) {
+  if (
+    /signup_did_not_complete/.test(errorMessage) ||
+    /^https?:\/\/www\.linkedin\.com\/signup\/?$/.test(finalUrl)
+  ) {
     addReason(reasons, 'signup_did_not_complete', errorMessage || finalUrl);
   }
   if (/signup_verification_incomplete/.test(errorMessage)) {
@@ -194,11 +274,28 @@ export function linkedinFailureReasons(signal, errorMessage = '', finalUrl = '',
     addReason(reasons, 'account_persist_failed', errorMessage);
   }
   if (diagnostics?.challenge_signal) {
-    addReason(reasons, 'linkedin_page_challenge_signal', diagnostics.challenge_signal);
+    addReason(
+      reasons,
+      'linkedin_page_challenge_signal',
+      diagnostics.challenge_signal,
+    );
   }
-  if (diagnostics?.auth && diagnostics.auth.has_li_at === false && signal !== 'proxy_failed') {
-    addReason(reasons, 'missing_li_at_cookie', `linkedin_cookie_count=${diagnostics.auth.linkedin_cookie_count ?? 'unknown'}`);
+  if (
+    diagnostics?.auth &&
+    diagnostics.auth.has_li_at === false &&
+    signal !== 'proxy_failed'
+  ) {
+    addReason(
+      reasons,
+      'missing_li_at_cookie',
+      `linkedin_cookie_count=${diagnostics.auth.linkedin_cookie_count ?? 'unknown'}`,
+    );
   }
-  if (!reasons.length) addReason(reasons, signal || 'action_failed', errorMessage || finalUrl || 'unclassified failure');
+  if (!reasons.length)
+    addReason(
+      reasons,
+      signal || 'action_failed',
+      errorMessage || finalUrl || 'unclassified failure',
+    );
   return reasons;
 }

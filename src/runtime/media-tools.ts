@@ -27,7 +27,12 @@ import { dirname, join } from 'node:path';
 export type MediaTool = 'ffmpeg' | 'ffprobe';
 
 /** Directories a Unix install puts these binaries in, most specific first. */
-const TOOL_DIRECTORIES = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin'] as const;
+const TOOL_DIRECTORIES = [
+  '/opt/homebrew/bin',
+  '/usr/local/bin',
+  '/usr/bin',
+  '/bin',
+] as const;
 
 /** The `browsers.json` beside the resolved `playwright-core`. */
 export function findPlaywrightManifest(): string {
@@ -47,8 +52,10 @@ export function playwrightCacheRoot(): string {
   const override = process.env.PLAYWRIGHT_BROWSERS_PATH?.trim();
   if (override) return override;
   const home = homedir();
-  if (process.platform === 'darwin') return join(home, 'Library', 'Caches', 'ms-playwright');
-  if (process.platform === 'win32') return join(home, 'AppData', 'Local', 'ms-playwright');
+  if (process.platform === 'darwin')
+    return join(home, 'Library', 'Caches', 'ms-playwright');
+  if (process.platform === 'win32')
+    return join(home, 'AppData', 'Local', 'ms-playwright');
   return join(home, '.cache', 'ms-playwright');
 }
 
@@ -64,11 +71,16 @@ export function bundledFfmpegPath(): string | null {
   const parsed = JSON.parse(readFileSync(findPlaywrightManifest(), 'utf8')) as {
     browsers?: Array<{ name?: string; revision?: string }>;
   };
-  const revision = (parsed.browsers ?? []).find((entry) => entry.name === 'ffmpeg')?.revision ?? '';
+  const revision =
+    (parsed.browsers ?? []).find((entry) => entry.name === 'ffmpeg')
+      ?.revision ?? '';
   if (!revision) return null;
-  const name = process.platform === 'darwin'
-    ? 'ffmpeg-mac'
-    : process.platform === 'win32' ? 'ffmpeg-win64.exe' : 'ffmpeg-linux';
+  const name =
+    process.platform === 'darwin'
+      ? 'ffmpeg-mac'
+      : process.platform === 'win32'
+        ? 'ffmpeg-win64.exe'
+        : 'ffmpeg-linux';
   return join(playwrightCacheRoot(), `ffmpeg-${revision}`, name);
 }
 
@@ -91,7 +103,8 @@ export function mediaToolCandidates(tool: MediaTool): string[] {
     const bundled = bundledFfmpegPath();
     if (bundled) candidates.push(bundled);
   }
-  for (const directory of TOOL_DIRECTORIES) candidates.push(join(directory, tool));
+  for (const directory of TOOL_DIRECTORIES)
+    candidates.push(join(directory, tool));
   return candidates;
 }
 
@@ -132,32 +145,39 @@ export function resolveMediaTool(tool: MediaTool): string {
   const variable = `WELES_${tool.toUpperCase()}_BIN`;
   const candidates = mediaToolCandidates(tool);
   const pinned = process.env[variable]?.trim();
-  const installed = pinned || candidates.find((candidate) => existsSync(candidate));
+  const installed =
+    pinned || candidates.find((candidate) => existsSync(candidate));
   if (!installed || !existsSync(installed)) {
     throw new Error(
-      `no ${tool} on this host: looked at ${candidates.join(', ')}. `
-      + `Install it, or name it in ${variable}.`,
+      `no ${tool} on this host: looked at ${candidates.join(', ')}. ` +
+        `Install it, or name it in ${variable}.`,
     );
   }
   if (tool === 'ffprobe') {
     ffmpegAnswer(installed, tool, variable, ['-version']);
     return installed;
   }
-  const encoders = ffmpegAnswer(installed, tool, variable, ['-hide_banner', '-encoders']);
+  const encoders = ffmpegAnswer(installed, tool, variable, [
+    '-hide_banner',
+    '-encoders',
+  ]);
   if (!encoders.includes(REQUIRED_FFMPEG_ENCODER)) {
     throw new Error(
-      `${installed} is an ffmpeg without the ${REQUIRED_FFMPEG_ENCODER} encoder, so it `
-      + `cannot write the WebM a recording is stitched into. Install a full ffmpeg, or `
-      + `name one in ${variable}.`,
+      `${installed} is an ffmpeg without the ${REQUIRED_FFMPEG_ENCODER} encoder, so it ` +
+        `cannot write the WebM a recording is stitched into. Install a full ffmpeg, or ` +
+        `name one in ${variable}.`,
     );
   }
-  const demuxers = ffmpegAnswer(installed, tool, variable, ['-hide_banner', '-demuxers']);
+  const demuxers = ffmpegAnswer(installed, tool, variable, [
+    '-hide_banner',
+    '-demuxers',
+  ]);
   if (!demuxers.includes(REQUIRED_FFMPEG_DEMUXER)) {
     throw new Error(
-      `${installed} is an ffmpeg without the ${REQUIRED_FFMPEG_DEMUXER} demuxer, so it `
-      + `cannot read the captured frame sequence back and answers "No such file or `
-      + `directory" about a directory that holds every frame. Install a full ffmpeg, `
-      + `or name one in ${variable}.`,
+      `${installed} is an ffmpeg without the ${REQUIRED_FFMPEG_DEMUXER} demuxer, so it ` +
+        `cannot read the captured frame sequence back and answers "No such file or ` +
+        `directory" about a directory that holds every frame. Install a full ffmpeg, ` +
+        `or name one in ${variable}.`,
     );
   }
   return installed;
@@ -174,9 +194,9 @@ function ffmpegAnswer(
     return execFileSync(binary, probe, { encoding: 'utf8' });
   } catch (error) {
     throw new Error(
-      `${binary} is the ${tool} this host holds (${variable} pins another) and it did `
-      + `not answer ${probe.join(' ')}: `
-      + `${error instanceof Error ? error.message : String(error)}`,
+      `${binary} is the ${tool} this host holds (${variable} pins another) and it did ` +
+        `not answer ${probe.join(' ')}: ` +
+        `${error instanceof Error ? error.message : String(error)}`,
       { cause: error },
     );
   }

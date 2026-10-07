@@ -1,14 +1,23 @@
 // Submitting one signup candidate through the probe's session, when the operator asked for it.
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
-import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../../../dist/human/mouse.js';
 import { pageSettled } from '../../../../_shared/page/settled.mjs';
 import { getLinkedinChallengeSignal } from '../../../../_shared/linkedin/signup/register_guard.mjs';
 import { hash } from './proxies.mjs';
-import { classifySummary, linkedinAuthState, summarizeApiResponse, summarizeSignup } from './page.mjs';
+import {
+  classifySummary,
+  linkedinAuthState,
+  summarizeApiResponse,
+  summarizeSignup,
+} from './page.mjs';
 
 export async function submitSignupCandidate(session) {
   const id = session.identity;
-  if (!id?.email || !id?.password) throw new Error('missing generated identity');
+  if (!id?.email || !id?.password)
+    throw new Error('missing generated identity');
   const out = {
     attempted: true,
     identity_hashes: {
@@ -23,17 +32,36 @@ export async function submitSignupCandidate(session) {
     result: 'unknown',
   };
 
-  const emailLoc = session.page.locator('input[name="email-address"], input#email-address, input[type="email"]').filter({ visible: true }).first();
-  const pwdLoc = session.page.locator('input[name="password"], input#password, input[type="password"]').filter({ visible: true }).first();
+  const emailLoc = session.page
+    .locator(
+      'input[name="email-address"], input#email-address, input[type="email"]',
+    )
+    .filter({ visible: true })
+    .first();
+  const pwdLoc = session.page
+    .locator('input[name="password"], input#password, input[type="password"]')
+    .filter({ visible: true })
+    .first();
   await emailLoc.waitFor({ state: 'visible' });
   await pwdLoc.waitFor({ state: 'visible' });
   await humanFill(session.page, emailLoc, id.email);
   await humanFill(session.page, pwdLoc, id.password);
   await humanIdlePause('deliberate');
 
-  const submit1Req = session.page.waitForRequest((r) => /\/signup\/api\//.test(r.url()));
-  const submit1Res = session.page.waitForResponse((r) => /\/signup\/api\//.test(r.url()));
-  await humanClickLocator(session.page, session.page.locator('button[type="submit"]:has-text("Agree"), button[type="submit"]:has-text("Continue"), button#join-form-submit').first());
+  const submit1Req = session.page.waitForRequest((r) =>
+    /\/signup\/api\//.test(r.url()),
+  );
+  const submit1Res = session.page.waitForResponse((r) =>
+    /\/signup\/api\//.test(r.url()),
+  );
+  await humanClickLocator(
+    session.page,
+    session.page
+      .locator(
+        'button[type="submit"]:has-text("Agree"), button[type="submit"]:has-text("Continue"), button#join-form-submit',
+      )
+      .first(),
+  );
   await humanIdlePause('deliberate');
   const [s1Req, s1Res] = await Promise.all([submit1Req, submit1Res]);
   out.submit1 = {
@@ -41,14 +69,22 @@ export async function submitSignupCandidate(session) {
     response: await summarizeApiResponse(s1Res),
     summary: await summarizeSignup(session.page).catch(() => null),
   };
-  const afterSubmit1 = out.submit1.summary ? classifySummary(out.submit1.summary) : { result: 'unknown', signal: '' };
+  const afterSubmit1 = out.submit1.summary
+    ? classifySummary(out.submit1.summary)
+    : { result: 'unknown', signal: '' };
   if (afterSubmit1.signal) {
     out.result = 'challenge_after_email_password';
     return out;
   }
 
-  const firstLoc = session.page.locator('input[name="first-name"], input#first-name').filter({ visible: true }).first();
-  const lastLoc = session.page.locator('input[name="last-name"], input#last-name').filter({ visible: true }).first();
+  const firstLoc = session.page
+    .locator('input[name="first-name"], input#first-name')
+    .filter({ visible: true })
+    .first();
+  const lastLoc = session.page
+    .locator('input[name="last-name"], input#last-name')
+    .filter({ visible: true })
+    .first();
   await pageSettled(session.page);
   const firstVisible = await firstLoc.isVisible();
   const lastVisible = await lastLoc.isVisible();
@@ -62,9 +98,20 @@ export async function submitSignupCandidate(session) {
   await humanFill(session.page, lastLoc, id.lastName);
   await humanIdlePause('deliberate');
 
-  const createReq = session.page.waitForRequest((r) => /\/signup\/api\/cors\/createAccount/.test(r.url()));
-  const createRes = session.page.waitForResponse((r) => /\/signup\/api\/cors\/createAccount/.test(r.url()));
-  await humanClickLocator(session.page, session.page.locator('button[type="submit"]:has-text("Continue"), button#join-form-submit').first());
+  const createReq = session.page.waitForRequest((r) =>
+    /\/signup\/api\/cors\/createAccount/.test(r.url()),
+  );
+  const createRes = session.page.waitForResponse((r) =>
+    /\/signup\/api\/cors\/createAccount/.test(r.url()),
+  );
+  await humanClickLocator(
+    session.page,
+    session.page
+      .locator(
+        'button[type="submit"]:has-text("Continue"), button#join-form-submit',
+      )
+      .first(),
+  );
   const [cReq, cRes] = await Promise.all([createReq, createRes]);
   const createSummary = await summarizeApiResponse(cRes);
   out.create_account = {
@@ -73,14 +120,21 @@ export async function submitSignupCandidate(session) {
   };
 
   if (createSummary?.has_challenge_url) {
-    const challengeUrl = new URL(createSummary.challenge_url_prefix, 'https://www.linkedin.com/').toString();
+    const challengeUrl = new URL(
+      createSummary.challenge_url_prefix,
+      'https://www.linkedin.com/',
+    ).toString();
     await session.page.goto(challengeUrl, { waitUntil: 'domcontentloaded' });
     await humanIdlePause('deliberate');
-    const challengeSummary = await summarizeSignup(session.page).catch(() => null);
+    const challengeSummary = await summarizeSignup(session.page).catch(
+      () => null,
+    );
     out.challenge = {
       url: session.page.url(),
       summary: challengeSummary,
-      signal: challengeSummary ? getLinkedinChallengeSignal(challengeSummary) : '',
+      signal: challengeSummary
+        ? getLinkedinChallengeSignal(challengeSummary)
+        : '',
     };
     out.result = out.challenge.signal || 'create_account_challenge';
     out.auth = await linkedinAuthState(session);
@@ -91,15 +145,17 @@ export async function submitSignupCandidate(session) {
   out.auth = await linkedinAuthState(session);
   if (out.auth.has_li_at) {
     out.result = 'accepted_authenticated';
-    await session.saveAccount('linkedin', {
-      username: id.username,
-      email: id.email,
-      password: id.password,
-      name: `${id.firstName} ${id.lastName}`,
-      status: 'created_by_rotating_weles_probe',
-    }).catch((e) => {
-      out.save_error = String(e?.message ?? e);
-    });
+    await session
+      .saveAccount('linkedin', {
+        username: id.username,
+        email: id.email,
+        password: id.password,
+        name: `${id.firstName} ${id.lastName}`,
+        status: 'created_by_rotating_weles_probe',
+      })
+      .catch((e) => {
+        out.save_error = String(e?.message ?? e);
+      });
   } else if (/verify|email-verification|checkpoint/.test(out.auth.final_url)) {
     out.result = 'verification_or_checkpoint';
   } else {

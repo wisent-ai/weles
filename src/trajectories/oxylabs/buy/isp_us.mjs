@@ -3,8 +3,15 @@
 
 import { runOutputPath } from '#run-output';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { googleSso, getScopedGoogleLogin } from '../../_shared/services/google_sso.mjs'
-import { fillStripeElements, loadTopupCardEnv, TOPUP_ENV_FILES } from '../../_shared/services/topup_common.mjs';
+import {
+  googleSso,
+  getScopedGoogleLogin,
+} from '../../_shared/services/google_sso.mjs';
+import {
+  fillStripeElements,
+  loadTopupCardEnv,
+  TOPUP_ENV_FILES,
+} from '../../_shared/services/topup_common.mjs';
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
@@ -15,59 +22,121 @@ import { COMMIT_BUTTON_SELECTORS } from './selectors.mjs';
 
 loadTopupCardEnv();
 
-if (process.env.ISP_BUY_CONFIRM !== '1') { console.log('FAIL: ISP_BUY_CONFIRM=1 required before buying ISP proxies'); process.exit(2); }
+if (process.env.ISP_BUY_CONFIRM !== '1') {
+  console.log('FAIL: ISP_BUY_CONFIRM=1 required before buying ISP proxies');
+  process.exit(2);
+}
 const ISP_BUY_COUNT = Number(process.env.ISP_BUY_COUNT);
-if (!Number.isInteger(ISP_BUY_COUNT) || ISP_BUY_COUNT <= 0) { console.log('FAIL: ISP_BUY_COUNT must say how many US ISP proxies to buy (a positive whole number)'); process.exit(2); }
+if (!Number.isInteger(ISP_BUY_COUNT) || ISP_BUY_COUNT <= 0) {
+  console.log(
+    'FAIL: ISP_BUY_COUNT must say how many US ISP proxies to buy (a positive whole number)',
+  );
+  process.exit(2);
+}
 const OUT_DIR = runOutputPath('keeper', 'oxylabs_isp_buy_us');
 mkdirSync(OUT_DIR, { recursive: true });
 const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
 
 async function shot(s, label) {
   const fp = `${OUT_DIR}/${stamp()}_${label}.png`;
-  try { await s.page.screenshot({ path: fp, fullPage: true }); } catch {}
+  try {
+    await s.page.screenshot({ path: fp, fullPage: true });
+  } catch {}
   console.log(`[shot] ${fp}`);
   return fp;
 }
 
 async function isVisible(loc) {
-  try { return await loc.isVisible(); } catch { return false; }
+  try {
+    return await loc.isVisible();
+  } catch {
+    return false;
+  }
 }
 
 const login = await getScopedGoogleLogin('oxylabsDashboard');
-if (!login) { console.log('FAIL: no Google SSO creds'); process.exit(1); }
+if (!login) {
+  console.log('FAIL: no Google SSO creds');
+  process.exit(1);
+}
 
 const s = await WSession.start({ label: 'isp_us', browser: 'chromium' });
 try {
-  await s.page.goto('https://dashboard.oxylabs.io/', { waitUntil: 'domcontentloaded' });
+  await s.page.goto('https://dashboard.oxylabs.io/', {
+    waitUntil: 'domcontentloaded',
+  });
   await pageSettled(s.page);
 
-  const gsiFrame = s.page.frames().find(f => /gsi\/button/.test(f.url()));
-  if (!gsiFrame) { console.log('FAIL: GSI iframe not found'); await shot(s, 'no_gsi'); process.exit(1); }
+  const gsiFrame = s.page.frames().find((f) => /gsi\/button/.test(f.url()));
+  if (!gsiFrame) {
+    console.log('FAIL: GSI iframe not found');
+    await shot(s, 'no_gsi');
+    process.exit(1);
+  }
 
   let popupErr;
-  const popupPromise = s.page.waitForEvent('popup').then(p => p, e => { popupErr = e; return null; });
+  const popupPromise = s.page.waitForEvent('popup').then(
+    (p) => p,
+    (e) => {
+      popupErr = e;
+      return null;
+    },
+  );
   // Pass s.page (Page), not gsiFrame (Frame): humanMove needs page.mouse.move.
-  await humanClickLocator(s.page, gsiFrame.locator('div[role="button"]').first());
-  const popup = await popupPromise;  // allow-raw-playwright: the popup the click produced
-  if (!popup) { console.log(`FAIL: popup did not open ${popupErr ? '('+popupErr.message+')' : ''}`); await shot(s, 'no_popup'); process.exit(1); }
-  try { await popup.waitForLoadState('domcontentloaded'); } catch {}
+  await humanClickLocator(
+    s.page,
+    gsiFrame.locator('div[role="button"]').first(),
+  );
+  const popup = await popupPromise; // allow-raw-playwright: the popup the click produced
+  if (!popup) {
+    console.log(
+      `FAIL: popup did not open ${popupErr ? '(' + popupErr.message + ')' : ''}`,
+    );
+    await shot(s, 'no_popup');
+    process.exit(1);
+  }
+  try {
+    await popup.waitForLoadState('domcontentloaded');
+  } catch {}
 
-  const ok = await googleSso(s, login, { originHost: 'oxylabs.io', page: popup });
-  if (!ok) { console.log('FAIL: Google SSO did not complete'); await shot(s, 'sso_fail'); process.exit(1); }
+  const ok = await googleSso(s, login, {
+    originHost: 'oxylabs.io',
+    page: popup,
+  });
+  if (!ok) {
+    console.log('FAIL: Google SSO did not complete');
+    await shot(s, 'sso_fail');
+    process.exit(1);
+  }
 
-  await urlMatching(s.page, /^(?!https:\/\/dashboard\.oxylabs\.io\/en\/?(\?.*)?$)/);
+  await urlMatching(
+    s.page,
+    /^(?!https:\/\/dashboard\.oxylabs\.io\/en\/?(\?.*)?$)/,
+  );
   console.log(`[trajectory] post-login url=${s.page.url()}`);
   await shot(s, 'dashboard_home');
 
-  try { await s.page.goto('https://dashboard.oxylabs.io/en/overview/ISP', { waitUntil: 'domcontentloaded' }); } catch {}
+  try {
+    await s.page.goto('https://dashboard.oxylabs.io/en/overview/ISP', {
+      waitUntil: 'domcontentloaded',
+    });
+  } catch {}
   await pageSettled(s.page);
   await shot(s, 'overview_isp');
 
-
   // "Buy now" is gone from /overview/ISP. The entry to
   // expand the plan is "Change IP setup" next to "Current plan 10 IPs".
-  const buyBtn = s.page.locator('a:has-text("Change IP setup"), button:has-text("Change IP setup"), button:has-text("Buy now"), a:has-text("Buy now"), button:has-text("Buy")').filter({ visible: true }).first();
-  if (!(await isVisible(buyBtn))) { console.log('FAIL: no Buy/Change-IP-setup button on /overview/ISP'); await shot(s, 'no_buy'); process.exit(1); }
+  const buyBtn = s.page
+    .locator(
+      'a:has-text("Change IP setup"), button:has-text("Change IP setup"), button:has-text("Buy now"), a:has-text("Buy now"), button:has-text("Buy")',
+    )
+    .filter({ visible: true })
+    .first();
+  if (!(await isVisible(buyBtn))) {
+    console.log('FAIL: no Buy/Change-IP-setup button on /overview/ISP');
+    await shot(s, 'no_buy');
+    process.exit(1);
+  }
   await humanClickLocator(s.page, buyBtn);
   await pageSettled(s.page);
   await shot(s, 'step1_choose_plan');
@@ -77,8 +146,17 @@ try {
   // 10 IPs preselected as "Current plan". Click Continue to advance to
   // step 2 "Choose locations". (No "Buy random" / "Choose locations" button
   // on this page anymore — only Continue.)
-  const step1Continue = s.page.locator('button:has-text("Continue"), button:has-text("Next"), button:has-text("Choose locations")').filter({ visible: true }).first();
-  if (!(await isVisible(step1Continue))) { console.log('FAIL: no Continue on step 1'); await shot(s, 'no_step1_continue'); process.exit(1); }
+  const step1Continue = s.page
+    .locator(
+      'button:has-text("Continue"), button:has-text("Next"), button:has-text("Choose locations")',
+    )
+    .filter({ visible: true })
+    .first();
+  if (!(await isVisible(step1Continue))) {
+    console.log('FAIL: no Continue on step 1');
+    await shot(s, 'no_step1_continue');
+    process.exit(1);
+  }
   await humanClickLocator(s.page, step1Continue);
   await pageSettled(s.page);
   await shot(s, 'step2_locations');
@@ -92,9 +170,15 @@ try {
   //   - Numeric inputs: input[name="selectedCountries.<idx>.numberOfIps"].
   //   - Plan: tick isReallocation → trash all selected rows → click Add
   //     beside "United States of America" → fill its input with 10.
-  const realChecked = await s.page.evaluate(() => document.querySelector('input[name="isReallocation"]')?.checked ?? false);
+  const realChecked = await s.page.evaluate(
+    () =>
+      document.querySelector('input[name="isReallocation"]')?.checked ?? false,
+  );
   if (!realChecked) {
-    await humanClickLocator(s.page, s.page.locator('input[name="isReallocation"]').first());
+    await humanClickLocator(
+      s.page,
+      s.page.locator('input[name="isReallocation"]').first(),
+    );
     await pageSettled(s.page);
   }
   await shot(s, 'step2_change_box_ticked');
@@ -103,7 +187,10 @@ try {
   // so the "first visible trash" always points to the next victim; the loop
   // ends when no trash control is left.
   for (let i = 0; ; i++) {
-    const trashLoc = s.page.locator('button.css-b5jfu9.e1twrqfe0').filter({ visible: true }).first();
+    const trashLoc = s.page
+      .locator('button.css-b5jfu9.e1twrqfe0')
+      .filter({ visible: true })
+      .first();
     if (!(await isVisible(trashLoc))) break;
     await humanClickLocator(s.page, trashLoc);
     await pageSettled(s.page);
@@ -113,17 +200,33 @@ try {
   // Click "Add" next to United States of America in the Available locations.
   // Use Playwright's locator filtering on parent-row text rather than
   // coord-driven evaluate so the click goes through humanClickLocator.
-  const usAddLoc = s.page.locator('div, li').filter({ hasText: /^United States of America/ }).locator('button', { hasText: /^Add$/ }).first();
-  if (!(await isVisible(usAddLoc))) { console.log('FAIL: no Add button next to United States'); await shot(s, 'no_us_add'); process.exit(1); }
+  const usAddLoc = s.page
+    .locator('div, li')
+    .filter({ hasText: /^United States of America/ })
+    .locator('button', { hasText: /^Add$/ })
+    .first();
+  if (!(await isVisible(usAddLoc))) {
+    console.log('FAIL: no Add button next to United States');
+    await shot(s, 'no_us_add');
+    process.exit(1);
+  }
   await humanClickLocator(s.page, usAddLoc);
   await pageSettled(s.page);
   console.log('[trajectory] clicked Add next to United States');
 
   // Fill the newly-added selected-country input (the only remaining one) with
   // the operator's ISP_BUY_COUNT.
-  await humanFill(s.page, s.page.locator('input[name="selectedCountries.0.numberOfIps"]').first(), String(ISP_BUY_COUNT));
+  await humanFill(
+    s.page,
+    s.page.locator('input[name="selectedCountries.0.numberOfIps"]').first(),
+    String(ISP_BUY_COUNT),
+  );
   await pageSettled(s.page);
-  const usVal = await s.page.evaluate(() => document.querySelector('input[name="selectedCountries.0.numberOfIps"]')?.value);
+  const usVal = await s.page.evaluate(
+    () =>
+      document.querySelector('input[name="selectedCountries.0.numberOfIps"]')
+        ?.value,
+  );
   console.log(`[trajectory] US count set to ${usVal}`);
   await shot(s, 'step2_us_set');
 
@@ -131,8 +234,17 @@ try {
   // exist on the page (Order-summary CTA + sidebar). Prefer the .first() —
   // it's the one inside the visible Order-summary block. humanClickLocator
   // auto-scrolls via scrollIntoViewIfNeeded.
-  const changePlanBtn = s.page.locator('button:has-text("Change plan"), button:has-text("Confirm change"), button:has-text("Review")').filter({ visible: true }).first();
-  if (!(await isVisible(changePlanBtn))) { console.log('FAIL: no Change-plan/Continue on step 2'); await shot(s, 'no_continue_step2'); process.exit(1); }
+  const changePlanBtn = s.page
+    .locator(
+      'button:has-text("Change plan"), button:has-text("Confirm change"), button:has-text("Review")',
+    )
+    .filter({ visible: true })
+    .first();
+  if (!(await isVisible(changePlanBtn))) {
+    console.log('FAIL: no Change-plan/Continue on step 2');
+    await shot(s, 'no_continue_step2');
+    process.exit(1);
+  }
   await humanClickLocator(s.page, changePlanBtn);
   await pageSettled(s.page);
   await shot(s, 'step3_review');
@@ -143,17 +255,33 @@ try {
   for (let step = 0; ; step++) {
     await pageSettled(s.page);
     const url = s.page.url();
-    const btns = await s.page.evaluate(() => Array.from(document.querySelectorAll('button')).filter(b => b.offsetParent).map(b => (b.textContent||'').trim()).filter(Boolean));
-    console.log(`[trajectory] checkout step ${step}: url=${url} btns=${JSON.stringify(btns)}`);
+    const btns = await s.page.evaluate(() =>
+      Array.from(document.querySelectorAll('button'))
+        .filter((b) => b.offsetParent)
+        .map((b) => (b.textContent || '').trim())
+        .filter(Boolean),
+    );
+    console.log(
+      `[trajectory] checkout step ${step}: url=${url} btns=${JSON.stringify(btns)}`,
+    );
     await shot(s, `checkout_step${step}`);
 
-    if (/success|thank-you|order-confirmation|subscribe-success/i.test(url)) { console.log(`[trajectory] success: ${url}`); await shot(s, 'success'); break; }
+    if (/success|thank-you|order-confirmation|subscribe-success/i.test(url)) {
+      console.log(`[trajectory] success: ${url}`);
+      await shot(s, 'success');
+      break;
+    }
 
     // HARD RULE: never engage Stripe Link. If a "Pay without Link" button is
     // visible, click it FIRST to drop to the manual card form. Never click
     // "Send code to email instead" / "Send code to phone" — those trigger
     // Link OTPs sent to the user's Gmail which is a hard violation.
-    const payWithoutLink = s.page.locator('button:has-text("Pay without Link"), a:has-text("Pay without Link")').filter({ visible: true }).first();
+    const payWithoutLink = s.page
+      .locator(
+        'button:has-text("Pay without Link"), a:has-text("Pay without Link")',
+      )
+      .filter({ visible: true })
+      .first();
     if (await isVisible(payWithoutLink)) {
       console.log('[trajectory] clicking "Pay without Link" to bypass Link');
       await shot(s, `before_pay_without_link_step${step}`);
@@ -163,29 +291,74 @@ try {
       // Stripe Checkout (this product) renders card fields as INLINE inputs
       // on the page (not in elements-inner-* iframes). Fill named inputs.
       const cardName = process.env.TOPUP_CARD_NAME;
-      if (!cardName) { console.log('FAIL: TOPUP_CARD_NAME missing'); process.exit(2); }
-      if (!process.env.TOPUP_CARD_NUMBER || !process.env.TOPUP_CARD_EXP || !process.env.TOPUP_CARD_CVC || !process.env.TOPUP_CARD_ZIP) {
-        console.log(`FAIL: TOPUP_CARD_NUMBER/EXP/CVC/ZIP missing; the loader looked in ${TOPUP_ENV_FILES.join(', ')} and at TOPUP_CARD_JSON`);
+      if (!cardName) {
+        console.log('FAIL: TOPUP_CARD_NAME missing');
         process.exit(2);
       }
-      await humanFill(s.page, s.page.locator('input[name="cardNumber"]'), process.env.TOPUP_CARD_NUMBER);
-      await humanFill(s.page, s.page.locator('input[name="cardExpiry"]'), process.env.TOPUP_CARD_EXP);
-      await humanFill(s.page, s.page.locator('input[name="cardCvc"]'), process.env.TOPUP_CARD_CVC);
-      await humanFill(s.page, s.page.locator('input[name="billingName"]'), cardName);
+      if (
+        !process.env.TOPUP_CARD_NUMBER ||
+        !process.env.TOPUP_CARD_EXP ||
+        !process.env.TOPUP_CARD_CVC ||
+        !process.env.TOPUP_CARD_ZIP
+      ) {
+        console.log(
+          `FAIL: TOPUP_CARD_NUMBER/EXP/CVC/ZIP missing; the loader looked in ${TOPUP_ENV_FILES.join(', ')} and at TOPUP_CARD_JSON`,
+        );
+        process.exit(2);
+      }
+      await humanFill(
+        s.page,
+        s.page.locator('input[name="cardNumber"]'),
+        process.env.TOPUP_CARD_NUMBER,
+      );
+      await humanFill(
+        s.page,
+        s.page.locator('input[name="cardExpiry"]'),
+        process.env.TOPUP_CARD_EXP,
+      );
+      await humanFill(
+        s.page,
+        s.page.locator('input[name="cardCvc"]'),
+        process.env.TOPUP_CARD_CVC,
+      );
+      await humanFill(
+        s.page,
+        s.page.locator('input[name="billingName"]'),
+        cardName,
+      );
       // "Enter address manually" expands the autocomplete row into Address /
       // City / ZIP fields. The address autocomplete itself doesn't accept
       // typed input until that link is clicked.
-      const enterManual = s.page.locator('button:has-text("Enter address manually"), a:has-text("Enter address manually")').filter({ visible: true }).first();
+      const enterManual = s.page
+        .locator(
+          'button:has-text("Enter address manually"), a:has-text("Enter address manually")',
+        )
+        .filter({ visible: true })
+        .first();
       if (await isVisible(enterManual)) {
         await humanClickLocator(s.page, enterManual);
         await pageSettled(s.page);
       }
-      if (process.env.TOPUP_CARD_ADDRESS) await humanFill(s.page, s.page.locator('input[name="billingAddressLine1"]'), process.env.TOPUP_CARD_ADDRESS);
-      if (process.env.TOPUP_CARD_CITY) await humanFill(s.page, s.page.locator('input[name="billingLocality"]'), process.env.TOPUP_CARD_CITY);
-      await humanFill(s.page, s.page.locator('input[name="billingPostalCode"]'), process.env.TOPUP_CARD_ZIP);
+      if (process.env.TOPUP_CARD_ADDRESS)
+        await humanFill(
+          s.page,
+          s.page.locator('input[name="billingAddressLine1"]'),
+          process.env.TOPUP_CARD_ADDRESS,
+        );
+      if (process.env.TOPUP_CARD_CITY)
+        await humanFill(
+          s.page,
+          s.page.locator('input[name="billingLocality"]'),
+          process.env.TOPUP_CARD_CITY,
+        );
+      await humanFill(
+        s.page,
+        s.page.locator('input[name="billingPostalCode"]'),
+        process.env.TOPUP_CARD_ZIP,
+      );
       await pageSettled(s.page);
       await shot(s, `after_card_fill_step${step}`);
-      void fillStripeElements;  // kept imported for iframe-variant Stripe checkouts used by other Oxylabs flows
+      void fillStripeElements; // kept imported for iframe-variant Stripe checkouts used by other Oxylabs flows
       continue;
     }
 
@@ -194,33 +367,59 @@ try {
       const btn = s.page.locator(sel).filter({ visible: true }).last();
       if (await isVisible(btn)) {
         let txt = '';
-        try { txt = await btn.textContent(); } catch {}
+        try {
+          txt = await btn.textContent();
+        } catch {}
         // Skip any Link-related commit. Hard rule: never use Link.
-        if (/Send code|email instead|phone instead|Use saved/i.test(txt || '')) { console.log(`[trajectory] skip Link path "${(txt||'').trim()}"`); continue; }
-        await shot(s, `before_click_${(txt||'').trim().slice(0,16).replace(/\W+/g,'_')}_step${step}`);
-        console.log(`[trajectory] click "${(txt||'').trim()}"...`);
+        if (
+          /Send code|email instead|phone instead|Use saved/i.test(txt || '')
+        ) {
+          console.log(`[trajectory] skip Link path "${(txt || '').trim()}"`);
+          continue;
+        }
+        await shot(
+          s,
+          `before_click_${(txt || '').trim().slice(0, 16).replace(/\W+/g, '_')}_step${step}`,
+        );
+        console.log(`[trajectory] click "${(txt || '').trim()}"...`);
         await humanClickLocator(s.page, btn);
         clicked = true;
         break;
       }
     }
-    if (!clicked) { console.log(`[trajectory] no commit button at step ${step}`); break; }
+    if (!clicked) {
+      console.log(`[trajectory] no commit button at step ${step}`);
+      break;
+    }
     await pageSettled(s.page);
   }
 
-  await s.page.goto('https://dashboard.oxylabs.io/en/overview/ISP', { waitUntil: 'domcontentloaded' });
+  await s.page.goto('https://dashboard.oxylabs.io/en/overview/ISP', {
+    waitUntil: 'domcontentloaded',
+  });
   await pageSettled(s.page);
   await shot(s, 'isp_ip_list');
   const ipsText = await s.page.evaluate(() => document.body.innerText);
   writeFileSync(`${OUT_DIR}/${stamp()}_post_purchase_isp_text.txt`, ipsText);
-  const ipMatches = (ipsText.match(/\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b/g) ?? []);
+  const ipMatches =
+    ipsText.match(/\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b/g) ?? [];
   console.log(`[trajectory] IP-shaped strings: ${ipMatches.length}`);
-  if (ipMatches.length) writeFileSync(runOutputPath('keeper', 'oxylabs_isp_ips.json'), JSON.stringify({ captured_at: new Date().toISOString(), ips: ipMatches }, null, 2));
+  if (ipMatches.length)
+    writeFileSync(
+      runOutputPath('keeper', 'oxylabs_isp_ips.json'),
+      JSON.stringify(
+        { captured_at: new Date().toISOString(), ips: ipMatches },
+        null,
+        2,
+      ),
+    );
   console.log('[trajectory] done');
 } catch (e) {
   console.log(`FAIL: ${e.message}`);
   await shot(s, 'fail');
   process.exit(1);
 } finally {
-  try { await s.close(); } catch {}
+  try {
+    await s.close();
+  } catch {}
 }

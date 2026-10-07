@@ -23,9 +23,21 @@
 // sentinel). Real Playwright errors propagate to the outer handler.
 import { runOutputPath } from '#run-output';
 import { WSession } from '../../../dist/session/wsession.js';
-import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
-import { fillStripeElements, loadTopupCardEnv } from '../_shared/services/topup_common.mjs';
-import { mkdirSync, writeFileSync, readFileSync, existsSync, appendFileSync } from 'node:fs';
+import {
+  googleSso,
+  getGoogleSsoCreds,
+} from '../_shared/services/google_sso.mjs';
+import {
+  fillStripeElements,
+  loadTopupCardEnv,
+} from '../_shared/services/topup_common.mjs';
+import {
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  existsSync,
+  appendFileSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
@@ -42,18 +54,25 @@ const present = async (loc) => (await loc.count()) > 0;
 
 async function shot(s, label) {
   const fp = `${OUT_DIR}/${stamp()}_${label}.png`;
-  try { await s.page.screenshot({ path: fp, fullPage: true }); console.log(`[shot] ${fp}`); }
-  catch (e) { console.log(`[shot] skip ${label}: ${(e.message || '')}`); }
+  try {
+    await s.page.screenshot({ path: fp, fullPage: true });
+    console.log(`[shot] ${fp}`);
+  } catch (e) {
+    console.log(`[shot] skip ${label}: ${e.message || ''}`);
+  }
   return fp;
 }
 async function dump(s, label) {
-  const t = await s.page.evaluate(() => document.body.innerText);  // allow-raw-playwright: read-only innerText
+  const t = await s.page.evaluate(() => document.body.innerText); // allow-raw-playwright: read-only innerText
   writeFileSync(`${OUT_DIR}/${stamp()}_${label}.txt`, t);
   return t;
 }
 
 const login = await getGoogleSsoCreds();
-if (!login) { console.log('FAIL: no Google SSO creds in service_credentials'); process.exit(1); }
+if (!login) {
+  console.log('FAIL: no Google SSO creds in service_credentials');
+  process.exit(1);
+}
 console.log(`[decodo] Using shared Google SSO: ${login.email}`);
 
 // Label matches the filename ('signup') so the inspection tooling
@@ -64,7 +83,9 @@ const s = await WSession.start({ label: 'signup', browser: 'chromium' });
 try {
   let popup = null;
 
-  await s.page.goto('https://dashboard.decodo.com/login', { waitUntil: 'domcontentloaded' });
+  await s.page.goto('https://dashboard.decodo.com/login', {
+    waitUntil: 'domcontentloaded',
+  });
   await pageSettled(s.page);
   await shot(s, '00_login');
 
@@ -78,7 +99,9 @@ try {
   // humanClickLocator needs a Page (.mouse) as first arg, so pass s.page with
   // the frame-scoped locator.
   await pageSettled(s.page);
-  const gsiFrame = s.page.frames().find((f) => /accounts\.google\.com\/gsi|gsi\/button/.test(f.url()));
+  const gsiFrame = s.page
+    .frames()
+    .find((f) => /accounts\.google\.com\/gsi|gsi\/button/.test(f.url()));
   // The click opens Google in a popup or redirects this tab to it.
   popup = await popupOrNavigation(s.page, /accounts\.google\./, async () => {
     if (gsiFrame) {
@@ -86,20 +109,35 @@ try {
       await gi.waitFor({ state: 'visible' });
       await humanClickLocator(s.page, gi);
     } else {
-      const gBtn = s.page.locator('button:has-text("Sign in with Google"), a:has-text("Sign in with Google"), button:has-text("with Google")').filter({ visible: true }).first();
+      const gBtn = s.page
+        .locator(
+          'button:has-text("Sign in with Google"), a:has-text("Sign in with Google"), button:has-text("with Google")',
+        )
+        .filter({ visible: true })
+        .first();
       if (!(await gBtn.isVisible())) {
         await shot(s, '00b_no_google_btn');
-        throw Object.assign(new Error('No Google sign-in control on Decodo login'), {
-          code: 'DECODO_GOOGLE_CONTROL_UNAVAILABLE', pageUrl: s.page.url(),
-        });
+        throw Object.assign(
+          new Error('No Google sign-in control on Decodo login'),
+          {
+            code: 'DECODO_GOOGLE_CONTROL_UNAVAILABLE',
+            pageUrl: s.page.url(),
+          },
+        );
       }
       await gBtn.scrollIntoViewIfNeeded();
       await humanClickLocator(s.page, gBtn);
     }
   });
 
-  const ok = await googleSso(s, login, { originHost: 'decodo.com', page: popup || undefined });
-  if (!ok) { await shot(s, '01_sso_fail'); throw new Error('Google SSO did not complete'); }
+  const ok = await googleSso(s, login, {
+    originHost: 'decodo.com',
+    page: popup || undefined,
+  });
+  if (!ok) {
+    await shot(s, '01_sso_fail');
+    throw new Error('Google SSO did not complete');
+  }
 
   // googleSso's non-popup success check matches ANY url containing the
   // originHost. Decodo's GSI is redirect-mode, so the OAuth redirect_uri
@@ -113,36 +151,75 @@ try {
   // page content and the absence of a visible password input.
   const authed = async () => {
     if (!/dashboard\.decodo\.com/.test(s.page.url())) return false;
-    if ((await s.page.locator('input[type="password"]').filter({ visible: true }).count()) > 0) return false;
-    const t = await s.page.evaluate(() => document.body.innerText);  // allow-raw-playwright: read-only innerText
-    return /Residential|Datacenter|Web Scraping|Dashboard|Proxies/i.test(t) && !/Welcome back/i.test(t);
+    if (
+      (await s.page
+        .locator('input[type="password"]')
+        .filter({ visible: true })
+        .count()) > 0
+    )
+      return false;
+    const t = await s.page.evaluate(() => document.body.innerText); // allow-raw-playwright: read-only innerText
+    return (
+      /Residential|Datacenter|Web Scraping|Dashboard|Proxies/i.test(t) &&
+      !/Welcome back/i.test(t)
+    );
   };
-  const CONSENT = 'div[data-identifier]|div[role="link"][data-email]|div[data-authuser]|button:has-text("Continue")|button:has-text("Allow")'.split('|');
+  const CONSENT =
+    'div[data-identifier]|div[role="link"][data-email]|div[data-authuser]|button:has-text("Continue")|button:has-text("Allow")'.split(
+      '|',
+    );
   // Each consent control and the GSI re-trigger is used at most once; a settled
   // page that offers none of them and is not the authenticated dashboard ends
   // the walk with the named failure below.
   let loggedIn = false;
   const used = new Set();
   for (;;) {
-    const dpg = (popup && !popup.isClosed()) ? popup : s.page;
+    const dpg = popup && !popup.isClosed() ? popup : s.page;
     await pageSettled(dpg);
     if (dpg !== s.page) await pageSettled(s.page);
-    if (await authed()) { loggedIn = true; break; }
+    if (await authed()) {
+      loggedIn = true;
+      break;
+    }
     let acted = false;
     for (const sel of CONSENT) {
       if (used.has(sel)) continue;
       const b = dpg.locator(sel).filter({ visible: true }).first();
-      if (await present(b)) { used.add(sel); await humanClickLocator(dpg, b); acted = true; break; }
+      if (await present(b)) {
+        used.add(sel);
+        await humanClickLocator(dpg, b);
+        acted = true;
+        break;
+      }
     }
     // If OAuth bounced back to Decodo's own login form, re-trigger the
     // Google button (the GSI iframe re-renders in place).
-    if (!acted && !used.has('gsi') && /dashboard\.decodo\.com/.test(s.page.url())) {
+    if (
+      !acted &&
+      !used.has('gsi') &&
+      /dashboard\.decodo\.com/.test(s.page.url())
+    ) {
       used.add('gsi');
-      const reGsi = s.page.frames().find((f) => /accounts\.google\.com\/gsi|gsi\/button/.test(f.url()));
-      if (reGsi) { await humanClickLocator(s.page, reGsi.locator('div[role="button"]').first()); acted = true; }
-      else {
-        const reBtn = s.page.locator('button:has-text("Sign in with Google"), a:has-text("Sign in with Google")').filter({ visible: true }).first();
-        if (await present(reBtn)) { await humanClickLocator(s.page, reBtn); acted = true; }
+      const reGsi = s.page
+        .frames()
+        .find((f) => /accounts\.google\.com\/gsi|gsi\/button/.test(f.url()));
+      if (reGsi) {
+        await humanClickLocator(
+          s.page,
+          reGsi.locator('div[role="button"]').first(),
+        );
+        acted = true;
+      } else {
+        const reBtn = s.page
+          .locator(
+            'button:has-text("Sign in with Google"), a:has-text("Sign in with Google")',
+          )
+          .filter({ visible: true })
+          .first();
+        if (await present(reBtn)) {
+          await humanClickLocator(s.page, reBtn);
+          acted = true;
+        }
       }
     }
     if (!acted) break;
@@ -150,29 +227,58 @@ try {
   console.log(`[decodo] post-login url=${s.page.url()} loggedIn=${loggedIn}`);
   await shot(s, '02_dashboard');
   await dump(s, '02_dashboard');
-  if (!loggedIn) { console.log(`FAIL: Decodo session not established (url=${s.page.url()}, login form still rendered) — Google OAuth did not bind to Decodo. See 02_dashboard.png`); process.exit(1); }
+  if (!loggedIn) {
+    console.log(
+      `FAIL: Decodo session not established (url=${s.page.url()}, login form still rendered) — Google OAuth did not bind to Decodo. See 02_dashboard.png`,
+    );
+    process.exit(1);
+  }
 
   // Static Residential (ISP) product. Left-nav label is "Static Residential
   // (ISP)"; route observed this session is /isp/pricing.
-  await s.page.goto('https://dashboard.decodo.com/isp/pricing', { waitUntil: 'domcontentloaded' });
+  await s.page.goto('https://dashboard.decodo.com/isp/pricing', {
+    waitUntil: 'domcontentloaded',
+  });
   await pageSettled(s.page);
   console.log(`[decodo] isp pricing url=${s.page.url()}`);
   await shot(s, '03_isp_pricing');
   const ispText = await dump(s, '03_isp_pricing');
-  console.log(`[decodo] page static/ISP=${/static|ISP/i.test(ispText)} dedicated=${/dedicated/i.test(ispText)}`);
+  console.log(
+    `[decodo] page static/ISP=${/static|ISP/i.test(ispText)} dedicated=${/dedicated/i.test(ispText)}`,
+  );
 
   if (!CONFIRM) {
-    console.log('[decodo] purchase confirmation missing after SSO login and ISP pricing reached. Set DECODO_BUY_CONFIRM=1 to purchase US Dedicated Static Residential.');
+    console.log(
+      '[decodo] purchase confirmation missing after SSO login and ISP pricing reached. Set DECODO_BUY_CONFIRM=1 to purchase US Dedicated Static Residential.',
+    );
     console.log(`[decodo] artifacts in ${OUT_DIR}/ (03_isp_pricing.png/.txt)`);
     process.exit(2);
   }
 
   // Pick USA where a country control exists, then walk buy -> checkout.
-  const usOpt = s.page.locator('button:has-text("United States"), label:has-text("United States"), [role="option"]:has-text("United States")').filter({ visible: true }).first();
-  if (await present(usOpt)) { await humanClickLocator(s.page, usOpt); await pageSettled(s.page); await shot(s, '04_us_selected'); }
+  const usOpt = s.page
+    .locator(
+      'button:has-text("United States"), label:has-text("United States"), [role="option"]:has-text("United States")',
+    )
+    .filter({ visible: true })
+    .first();
+  if (await present(usOpt)) {
+    await humanClickLocator(s.page, usOpt);
+    await pageSettled(s.page);
+    await shot(s, '04_us_selected');
+  }
 
-  const buyBtn = s.page.locator('button:has-text("Buy"), a:has-text("Buy"), button:has-text("Get"), button:has-text("Subscribe"), button:has-text("Checkout")').filter({ visible: true }).first();
-  if (!(await present(buyBtn))) { await shot(s, '04b_no_buy'); console.log('FAIL: no buy/checkout control on ISP page'); process.exit(1); }
+  const buyBtn = s.page
+    .locator(
+      'button:has-text("Buy"), a:has-text("Buy"), button:has-text("Get"), button:has-text("Subscribe"), button:has-text("Checkout")',
+    )
+    .filter({ visible: true })
+    .first();
+  if (!(await present(buyBtn))) {
+    await shot(s, '04b_no_buy');
+    console.log('FAIL: no buy/checkout control on ISP page');
+    process.exit(1);
+  }
   await shot(s, '05_before_buy');
   await humanClickLocator(s.page, buyBtn);
   await pageSettled(s.page);
@@ -181,39 +287,75 @@ try {
 
   // However many checkout steps Decodo shows are walked; it ends on a success
   // address or a page with no committal control, which the log names.
-  const COMMIT = 'Subscribe|Pay|Place order|Complete|Confirm|Continue'.split('|');
+  const COMMIT = 'Subscribe|Pay|Place order|Complete|Confirm|Continue'.split(
+    '|',
+  );
   for (let step = 0; ; step++) {
     await pageSettled(s.page);
     const url = s.page.url();
     await shot(s, `07_checkout_${step}`);
     console.log(`[decodo] checkout step ${step}: ${url}`);
-    if (/success|thank|confirmation|complete|active/i.test(url)) { await shot(s, '08_success'); console.log(`[decodo] success: ${url}`); break; }
+    if (/success|thank|confirmation|complete|active/i.test(url)) {
+      await shot(s, '08_success');
+      console.log(`[decodo] success: ${url}`);
+      break;
+    }
 
-    const otpCells = s.page.locator('input[maxlength="1"], input[inputmode="numeric"]');
+    const otpCells = s.page.locator(
+      'input[maxlength="1"], input[inputmode="numeric"]',
+    );
     if ((await otpCells.count()) >= 6) {
-      const noLink = s.page.locator('button:has-text("Pay without Link"), a:has-text("Pay without Link")').filter({ visible: true }).first();
-      if (!(await present(noLink))) { await shot(s, 'no_pay_without_link'); console.log('FAIL: Stripe Link OTP, no "Pay without Link"'); process.exit(2); }
+      const noLink = s.page
+        .locator(
+          'button:has-text("Pay without Link"), a:has-text("Pay without Link")',
+        )
+        .filter({ visible: true })
+        .first();
+      if (!(await present(noLink))) {
+        await shot(s, 'no_pay_without_link');
+        console.log('FAIL: Stripe Link OTP, no "Pay without Link"');
+        process.exit(2);
+      }
       await humanClickLocator(s.page, noLink);
       await pageSettled(s.page);
       await shot(s, 'after_pay_without_link');
     }
 
-    const cardNum = s.page.locator('input[autocomplete="cc-number"], input[name="cardnumber"]').first();
-    const stripeFrame = s.page.frames().some((f) => /stripe|checkout/i.test(f.url()));
+    const cardNum = s.page
+      .locator('input[autocomplete="cc-number"], input[name="cardnumber"]')
+      .first();
+    const stripeFrame = s.page
+      .frames()
+      .some((f) => /stripe|checkout/i.test(f.url()));
     if (stripeFrame || (await cardNum.count()) > 0) {
       const filled = await fillStripeElements(s.page);
       console.log(`[decodo] fillStripeElements: ${JSON.stringify(filled)}`);
-      if (!filled || !filled.ok) { await shot(s, 'card_fill_failed'); console.log(`FAIL: card fill ${JSON.stringify(filled)}`); process.exit(2); }
+      if (!filled || !filled.ok) {
+        await shot(s, 'card_fill_failed');
+        console.log(`FAIL: card fill ${JSON.stringify(filled)}`);
+        process.exit(2);
+      }
       const nm = process.env.TOPUP_CARD_NAME || '';
-      const nameLoc = s.page.locator('input[autocomplete="cc-name"], input[name="billingName"], input[placeholder*="Cardholder" i], input[placeholder*="name on card" i]').filter({ visible: true }).first();
-      if (nm && (await present(nameLoc))) { await humanClickLocator(s.page, nameLoc); await humanType(s.page, nm); }
+      const nameLoc = s.page
+        .locator(
+          'input[autocomplete="cc-name"], input[name="billingName"], input[placeholder*="Cardholder" i], input[placeholder*="name on card" i]',
+        )
+        .filter({ visible: true })
+        .first();
+      if (nm && (await present(nameLoc))) {
+        await humanClickLocator(s.page, nameLoc);
+        await humanType(s.page, nm);
+      }
       await pageSettled(s.page);
       await shot(s, 'after_card_fill');
     }
 
     let clicked = false;
     for (const label of COMMIT) {
-      const b = s.page.locator(`button:has-text("${label}")`).filter({ visible: true }).last();
+      const b = s.page
+        .locator(`button:has-text("${label}")`)
+        .filter({ visible: true })
+        .last();
       if (!(await present(b))) continue;
       const txt = (await b.textContent()) || '';
       if (/without\s+link/i.test(txt)) continue;
@@ -223,34 +365,75 @@ try {
       clicked = true;
       break;
     }
-    if (!clicked) { console.log(`[decodo] no committal button at step ${step}`); break; }
+    if (!clicked) {
+      console.log(`[decodo] no committal button at step ${step}`);
+      break;
+    }
     await pageSettled(s.page);
   }
 
   // Scrape issued proxy creds from the ISP overview / setup view.
-  await s.page.goto('https://dashboard.decodo.com/isp', { waitUntil: 'domcontentloaded' });
+  await s.page.goto('https://dashboard.decodo.com/isp', {
+    waitUntil: 'domcontentloaded',
+  });
   await pageSettled(s.page);
   await shot(s, '09_isp_overview');
   let ispOut = await dump(s, '09_isp_overview');
-  const setupTab = s.page.locator('a:has-text("Authentication"), a:has-text("Setup"), a:has-text("Endpoint")').first();
-  if (await present(setupTab)) { await humanClickLocator(s.page, setupTab); await pageSettled(s.page); await shot(s, '10_isp_auth'); ispOut += '\n' + await dump(s, '10_isp_auth'); }
+  const setupTab = s.page
+    .locator(
+      'a:has-text("Authentication"), a:has-text("Setup"), a:has-text("Endpoint")',
+    )
+    .first();
+  if (await present(setupTab)) {
+    await humanClickLocator(s.page, setupTab);
+    await pageSettled(s.page);
+    await shot(s, '10_isp_auth');
+    ispOut += '\n' + (await dump(s, '10_isp_auth'));
+  }
   writeFileSync(`${OUT_DIR}/${stamp()}_isp_auth.html`, await s.page.content());
 
   const ips = ispOut.match(/\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b/g) || [];
-  const hostPort = ispOut.match(/([a-z0-9.-]+\.(?:decodo|smartproxy)\.com):(\d{2,5})/i);
-  const rec = { captured_at: new Date().toISOString(), sso: login.email, ips: [...new Set(ips)], endpoint: hostPort ? hostPort[0] : null };
-  writeFileSync(runOutputPath('keeper', 'decodo_isp.json'), JSON.stringify(rec, null, 2));
-  console.log(`[decodo] wrote ${runOutputPath('keeper', 'decodo_isp.json')} ips=${rec.ips.length} endpoint=${rec.endpoint || 'none'}`);
+  const hostPort = ispOut.match(
+    /([a-z0-9.-]+\.(?:decodo|smartproxy)\.com):(\d{2,5})/i,
+  );
+  const rec = {
+    captured_at: new Date().toISOString(),
+    sso: login.email,
+    ips: [...new Set(ips)],
+    endpoint: hostPort ? hostPort[0] : null,
+  };
+  writeFileSync(
+    runOutputPath('keeper', 'decodo_isp.json'),
+    JSON.stringify(rec, null, 2),
+  );
+  console.log(
+    `[decodo] wrote ${runOutputPath('keeper', 'decodo_isp.json')} ips=${rec.ips.length} endpoint=${rec.endpoint || 'none'}`,
+  );
   if (rec.endpoint) {
-    appendFileSync(join(process.cwd(), '.env'), `\n# Decodo ISP (added ${rec.captured_at})\nDECODO_ISP_ENDPOINT=${rec.endpoint}\n`);
+    appendFileSync(
+      join(process.cwd(), '.env'),
+      `\n# Decodo ISP (added ${rec.captured_at})\nDECODO_ISP_ENDPOINT=${rec.endpoint}\n`,
+    );
     console.log('[decodo] appended DECODO_ISP_ENDPOINT to weles/.env');
   }
-  console.log(`PASS: decodo Google-SSO login + US ISP purchase flow complete — audit screenshots in ${OUT_DIR}`);
+  console.log(
+    `PASS: decodo Google-SSO login + US ISP purchase flow complete — audit screenshots in ${OUT_DIR}`,
+  );
 } catch (e) {
   console.error('FAIL:', e);
-  try { await s.page.screenshot({ path: `${OUT_DIR}/${stamp()}_error.png`, fullPage: true }); }
-  catch (e2) { console.log(`[shot] error-shot skip: ${(e2.message || '')}`); }
+  try {
+    await s.page.screenshot({
+      path: `${OUT_DIR}/${stamp()}_error.png`,
+      fullPage: true,
+    });
+  } catch (e2) {
+    console.log(`[shot] error-shot skip: ${e2.message || ''}`);
+  }
   process.exitCode = 1;
 } finally {
-  try { await s.close(); } catch (e) { console.log(`[decodo] close: ${(e.message || '')}`); }
+  try {
+    await s.close();
+  } catch (e) {
+    console.log(`[decodo] close: ${e.message || ''}`);
+  }
 }

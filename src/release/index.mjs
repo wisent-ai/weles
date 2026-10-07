@@ -20,7 +20,14 @@ import { join, resolve } from 'node:path';
 import { loadManifest } from './manifest.mjs';
 
 const CHANGE_KINDS = ['internal', 'additive', 'breaking'];
-const TASK_STATUSES = ['queued', 'leased', 'running', 'succeeded', 'failed', 'cancelled'];
+const TASK_STATUSES = [
+  'queued',
+  'leased',
+  'running',
+  'succeeded',
+  'failed',
+  'cancelled',
+];
 
 /** The repository root, from this module's own location. */
 export function repositoryRoot() {
@@ -41,11 +48,13 @@ async function apiServerModules(root) {
   const entry = join(root, 'src/worker/weles-api-server.mjs');
   const directory = join(root, 'src/worker/weles-api-server');
   const modules = [entry];
-  const entries = await readdir(directory, { withFileTypes: true, recursive: true })
-    .catch((error) => {
-      if (error.code === 'ENOENT') return [];
-      throw error;
-    });
+  const entries = await readdir(directory, {
+    withFileTypes: true,
+    recursive: true,
+  }).catch((error) => {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  });
   for (const found of entries) {
     if (!found.isFile() || !found.name.endsWith('.mjs')) continue;
     modules.push(join(found.parentPath ?? found.path, found.name));
@@ -62,11 +71,13 @@ async function apiServerModules(root) {
  */
 async function mcpModules(root) {
   const modules = [join(root, 'src/mcp.ts')];
-  const entries = await readdir(join(root, 'src/mcp'), { withFileTypes: true, recursive: true })
-    .catch((error) => {
-      if (error.code === 'ENOENT') return [];
-      throw error;
-    });
+  const entries = await readdir(join(root, 'src/mcp'), {
+    withFileTypes: true,
+    recursive: true,
+  }).catch((error) => {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  });
   for (const found of entries) {
     if (!found.isFile() || !found.name.endsWith('.ts')) continue;
     modules.push(join(found.parentPath ?? found.path, found.name));
@@ -80,13 +91,24 @@ async function mcpModules(root) {
  * that changed without a version change cannot pass unnoticed.
  */
 export async function surface(root = repositoryRoot()) {
-  const configPath = ts.findConfigFile(root, ts.sys.fileExists, 'tsconfig.json');
+  const configPath = ts.findConfigFile(
+    root,
+    ts.sys.fileExists,
+    'tsconfig.json',
+  );
   if (!configPath) throw new Error('tsconfig.json not found');
   const configFile = ts.readConfigFile(configPath, ts.sys.readFile);
   if (configFile.error) {
-    throw new Error(ts.flattenDiagnosticMessageText(configFile.error.messageText, '\n'));
+    throw new Error(
+      ts.flattenDiagnosticMessageText(configFile.error.messageText, '\n'),
+    );
   }
-  const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, root, { allowJs: true });
+  const parsed = ts.parseJsonConfigFileContent(
+    configFile.config,
+    ts.sys,
+    root,
+    { allowJs: true },
+  );
   const apiServerPaths = await apiServerModules(root);
   const program = ts.createProgram({
     rootNames: [...parsed.fileNames, ...apiServerPaths],
@@ -103,20 +125,30 @@ export async function surface(root = repositoryRoot()) {
     published.add(`export:${symbol.getName()}`);
   }
 
-  const packageManifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+  const packageManifest = JSON.parse(
+    await readFile(join(root, 'package.json'), 'utf8'),
+  );
   if (!packageManifest.bin || typeof packageManifest.bin !== 'object') {
     throw new Error('package.json bin map is missing');
   }
-  for (const command of Object.keys(packageManifest.bin)) published.add(`cmd:${command}`);
+  for (const command of Object.keys(packageManifest.bin))
+    published.add(`cmd:${command}`);
 
   const cliSource = program.getSourceFile(join(root, 'src/cli.ts'));
   if (!cliSource) throw new Error('src/cli.ts was not parsed');
   let cliCommands = 0;
   for (const node of cliSource.statements) {
-    if (!ts.isTypeAliasDeclaration(node) || node.name.text !== 'CliCommand'
-      || !ts.isUnionTypeNode(node.type)) continue;
+    if (
+      !ts.isTypeAliasDeclaration(node) ||
+      node.name.text !== 'CliCommand' ||
+      !ts.isUnionTypeNode(node.type)
+    )
+      continue;
     for (const member of node.type.types) {
-      if (!ts.isLiteralTypeNode(member) || !ts.isStringLiteral(member.literal)) {
+      if (
+        !ts.isLiteralTypeNode(member) ||
+        !ts.isStringLiteral(member.literal)
+      ) {
         throw new Error('CliCommand contains a non-string member');
       }
       published.add(`cmd:weles ${member.literal.text}`);
@@ -134,17 +166,28 @@ export async function surface(root = repositoryRoot()) {
     // exported welesMcpTools joins them by spreading, so a spread member is a
     // reference to a list this scan reads where it is declared.
     const collectMcpTools = (node) => {
-      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)
-        && node.type?.getText(mcpSource) === 'ToolDefinition[]' && node.initializer
-        && ts.isArrayLiteralExpression(node.initializer)) {
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        node.type?.getText(mcpSource) === 'ToolDefinition[]' &&
+        node.initializer &&
+        ts.isArrayLiteralExpression(node.initializer)
+      ) {
         for (const element of node.initializer.elements) {
           if (ts.isSpreadElement(element)) continue;
           if (!ts.isObjectLiteralExpression(element)) {
             throw new Error(`${node.name.text} contains a non-object member`);
           }
-          const name = element.properties.find((property) => ts.isPropertyAssignment(property)
-            && property.name?.getText(mcpSource) === 'name');
-          if (!name || !ts.isPropertyAssignment(name) || !ts.isStringLiteral(name.initializer)) {
+          const name = element.properties.find(
+            (property) =>
+              ts.isPropertyAssignment(property) &&
+              property.name?.getText(mcpSource) === 'name',
+          );
+          if (
+            !name ||
+            !ts.isPropertyAssignment(name) ||
+            !ts.isStringLiteral(name.initializer)
+          ) {
             throw new Error('MCP tool has no static string name');
           }
           published.add(`mcp:${name.initializer.text}`);
@@ -155,11 +198,17 @@ export async function surface(root = repositoryRoot()) {
     };
     collectMcpTools(mcpSource);
   }
-  if (!mcpTools) throw new Error(`no Weles MCP tools resolved in ${mcpPaths.length} module(s)`);
+  if (!mcpTools)
+    throw new Error(
+      `no Weles MCP tools resolved in ${mcpPaths.length} module(s)`,
+    );
 
   let routes = 0;
   const collectRoutes = (node) => {
-    if (ts.isStringLiteral(node) && /^(GET|POST|PATCH|DELETE) \/[A-Za-z]/.test(node.text)) {
+    if (
+      ts.isStringLiteral(node) &&
+      /^(GET|POST|PATCH|DELETE) \/[A-Za-z]/.test(node.text)
+    ) {
       published.add(`http:${node.text}`);
       routes += 1;
     }
@@ -167,21 +216,32 @@ export async function surface(root = repositoryRoot()) {
   };
   for (const path of apiServerPaths) {
     const apiSource = program.getSourceFile(path);
-    if (!apiSource) throw new Error(`worker API server module was not parsed: ${path}`);
+    if (!apiSource)
+      throw new Error(`worker API server module was not parsed: ${path}`);
     collectRoutes(apiSource);
   }
   if (!routes) throw new Error('no worker HTTP routes resolved');
 
-  const compatibility = JSON.parse(await readFile(join(root, 'release/compatibility-policy.json'), 'utf8'));
-  if (!Array.isArray(compatibility.api?.supportedSchemas) || !compatibility.api.supportedSchemas.length) {
+  const compatibility = JSON.parse(
+    await readFile(join(root, 'release/compatibility-policy.json'), 'utf8'),
+  );
+  if (
+    !Array.isArray(compatibility.api?.supportedSchemas) ||
+    !compatibility.api.supportedSchemas.length
+  ) {
     throw new Error('release compatibility policy has no API schemas');
   }
-  for (const schema of compatibility.api.supportedSchemas) published.add(`schema:${schema}`);
+  for (const schema of compatibility.api.supportedSchemas)
+    published.add(`schema:${schema}`);
   for (const status of TASK_STATUSES) published.add(`task-status:${status}`);
 
-  const versionChange = JSON.parse(await readFile(join(root, 'release/version-change.json'), 'utf8'));
+  const versionChange = JSON.parse(
+    await readFile(join(root, 'release/version-change.json'), 'utf8'),
+  );
   if (typeof versionChange.current !== 'string' || !versionChange.current) {
-    throw new Error('release version-change declaration has no current version');
+    throw new Error(
+      'release version-change declaration has no current version',
+    );
   }
   return { surface: [...published].sort(), version: versionChange.current };
 }
@@ -202,13 +262,19 @@ export function enforceVersion({ decision, baseline, declaration, manifest }) {
     throw new Error('version declaration reason is required');
   }
   if (baseline.version !== declaration.current) {
-    throw new Error(`baseline version ${baseline.version} does not match declaration current ${declaration.current}`);
+    throw new Error(
+      `baseline version ${baseline.version} does not match declaration current ${declaration.current}`,
+    );
   }
   if (decision.current !== declaration.current) {
-    throw new Error(`AutoVersion current ${decision.current} does not match declaration current ${declaration.current}`);
+    throw new Error(
+      `AutoVersion current ${decision.current} does not match declaration current ${declaration.current}`,
+    );
   }
   if (manifest.version !== declaration.candidate) {
-    throw new Error(`package version ${manifest.version} does not match declaration candidate ${declaration.candidate}`);
+    throw new Error(
+      `package version ${manifest.version} does not match declaration candidate ${declaration.candidate}`,
+    );
   }
   if (!CHANGE_KINDS.includes(decision.change)) {
     throw new Error(`unsupported AutoVersion change ${decision.change}`);
@@ -217,14 +283,20 @@ export function enforceVersion({ decision, baseline, declaration, manifest }) {
     throw new Error('AutoVersion decision has no surface difference');
   }
   if (declaration.breaking && decision.change !== 'breaking') {
-    throw new Error('declared breaking change was not escalated by AutoVersion');
+    throw new Error(
+      'declared breaking change was not escalated by AutoVersion',
+    );
   }
   if (declaration.candidate === declaration.current) {
     if (decision.change !== 'internal') {
-      throw new Error(`surface changed but package remains ${declaration.current}; AutoVersion requires ${decision.next}`);
+      throw new Error(
+        `surface changed but package remains ${declaration.current}; AutoVersion requires ${decision.next}`,
+      );
     }
   } else if (decision.next !== declaration.candidate) {
-    throw new Error(`package declares ${declaration.candidate}, but AutoVersion requires ${decision.next}`);
+    throw new Error(
+      `package declares ${declaration.candidate}, but AutoVersion requires ${decision.next}`,
+    );
   }
   return {
     schema: 'weles.version-verdict.v1',
@@ -242,14 +314,22 @@ export function enforceVersion({ decision, baseline, declaration, manifest }) {
  * A candidate deployment manifest, judged against the revision the release is
  * for and the tag that was cut for it.
  */
-export async function validateCandidateManifest({ manifestPath, sourceRevision, candidateTag }) {
+export async function validateCandidateManifest({
+  manifestPath,
+  sourceRevision,
+  candidateTag,
+}) {
   const loaded = await loadManifest(resolve(manifestPath));
   if (loaded.manifest.sourceRevision !== sourceRevision) {
-    throw new Error(`manifest sourceRevision ${loaded.manifest.sourceRevision} does not match release target ${sourceRevision}`);
+    throw new Error(
+      `manifest sourceRevision ${loaded.manifest.sourceRevision} does not match release target ${sourceRevision}`,
+    );
   }
   const expected = `candidate-deployment-${loaded.manifest.deploymentId}-${sourceRevision.slice(0, 8)}`;
   if (expected !== candidateTag) {
-    throw new Error(`candidate tag ${candidateTag} does not match manifest ${expected}`);
+    throw new Error(
+      `candidate tag ${candidateTag} does not match manifest ${expected}`,
+    );
   }
   return {
     schema: loaded.manifest.schema,
@@ -260,10 +340,22 @@ export async function validateCandidateManifest({ manifestPath, sourceRevision, 
 }
 
 /** The documents `enforceVersion` judges, read from disk. */
-export async function readVersionInputs({ decision, baseline, declaration, manifest }) {
-  const [decisionDoc, baselineDoc, declarationDoc, manifestDoc] = await Promise.all(
-    [decision, baseline, declaration, manifest].map(async (path) =>
-      JSON.parse(await readFile(resolve(path), 'utf8'))),
-  );
-  return { decision: decisionDoc, baseline: baselineDoc, declaration: declarationDoc, manifest: manifestDoc };
+export async function readVersionInputs({
+  decision,
+  baseline,
+  declaration,
+  manifest,
+}) {
+  const [decisionDoc, baselineDoc, declarationDoc, manifestDoc] =
+    await Promise.all(
+      [decision, baseline, declaration, manifest].map(async (path) =>
+        JSON.parse(await readFile(resolve(path), 'utf8')),
+      ),
+    );
+  return {
+    decision: decisionDoc,
+    baseline: baselineDoc,
+    declaration: declarationDoc,
+    manifest: manifestDoc,
+  };
 }

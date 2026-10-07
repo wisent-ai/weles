@@ -45,7 +45,9 @@ function firstXoxcFromObject(value) {
   }
   for (const [key, item] of Object.entries(value)) {
     if (typeof item === 'string') {
-      const token = /xoxc|slack.*web.*token|web.*slack.*token/i.test(key) ? firstXoxc(item) : '';
+      const token = /xoxc|slack.*web.*token|web.*slack.*token/i.test(key)
+        ? firstXoxc(item)
+        : '';
       if (token) return token;
     } else {
       const token = firstXoxcFromObject(item);
@@ -69,10 +71,13 @@ function readSlackWebAuthFromFile(path) {
 }
 
 function readConfiguredSlackWebAuth() {
-  const envToken = firstXoxc(process.env.SLACK_WEB_USER_TOKEN)
-    || firstXoxc(process.env.SLACK_XOXC)
-    || firstXoxc(process.env.SLACK_XOXC_TOKEN);
-  const envCookieD = String(process.env.SLACK_WEB_COOKIE_D || process.env.SLACK_COOKIE_D || '');
+  const envToken =
+    firstXoxc(process.env.SLACK_WEB_USER_TOKEN) ||
+    firstXoxc(process.env.SLACK_XOXC) ||
+    firstXoxc(process.env.SLACK_XOXC_TOKEN);
+  const envCookieD = String(
+    process.env.SLACK_WEB_COOKIE_D || process.env.SLACK_COOKIE_D || '',
+  );
   if (envToken) return { token: envToken, cookieD: envCookieD };
 
   const paths = [
@@ -89,15 +94,17 @@ function readConfiguredSlackWebAuth() {
 
 async function installConfiguredSlackCookie(page, cookieD) {
   if (!cookieD) return;
-  await page.context().addCookies([{
-    name: 'd',
-    value: cookieD,
-    domain: '.slack.com',
-    path: '/',
-    secure: true,
-    httpOnly: true,
-    sameSite: 'None',
-  }]);
+  await page.context().addCookies([
+    {
+      name: 'd',
+      value: cookieD,
+      domain: '.slack.com',
+      path: '/',
+      secure: true,
+      httpOnly: true,
+      sameSite: 'None',
+    },
+  ]);
 }
 
 function slackWebApiHeaders(xoxc) {
@@ -129,15 +136,22 @@ async function extractXoxc(page) {
   const configured = readConfiguredSlackWebAuth();
   if (configured.token) {
     await installConfiguredSlackCookie(page, configured.cookieD);
-    console.log(`[user-token] using configured Slack web token cookie=${configured.cookieD ? 'yes' : 'no'}`);
+    console.log(
+      `[user-token] using configured Slack web token cookie=${configured.cookieD ? 'yes' : 'no'}`,
+    );
     return configured.token;
   }
 
-  await page.goto('https://wisent-workspace.slack.com/messages', { waitUntil: 'domcontentloaded' });
-  const { humanIdlePause } = await import(`${process.env.WELES_ROOT}/dist/human/mouse.js`);
+  await page.goto('https://wisent-workspace.slack.com/messages', {
+    waitUntil: 'domcontentloaded',
+  });
+  const { humanIdlePause } = await import(
+    `${process.env.WELES_ROOT}/dist/human/mouse.js`
+  );
   await humanIdlePause('long');
   return await page.evaluate(() => {
-    if (window.boot_data && window.boot_data.api_token) return window.boot_data.api_token;
+    if (window.boot_data && window.boot_data.api_token)
+      return window.boot_data.api_token;
     for (let i = 0; i < localStorage.length; i++) {
       const v = localStorage.getItem(localStorage.key(i)) || '';
       const m = v.match(/xoxc-[A-Za-z0-9-]+/);
@@ -148,85 +162,148 @@ async function extractXoxc(page) {
 }
 
 async function submitInstallForm(page, shot) {
-  const { humanIdlePause } = await import(`${process.env.WELES_ROOT}/dist/human/mouse.js`);
+  const { humanIdlePause } = await import(
+    `${process.env.WELES_ROOT}/dist/human/mouse.js`
+  );
   await humanIdlePause('long');
   await shot?.('10-user-oauth-consent');
-  const formAction = await page.evaluate(() => document.querySelector('#oauth_install_form')?.action || '');
+  const formAction = await page.evaluate(
+    () => document.querySelector('#oauth_install_form')?.action || '',
+  );
   const formBody = await page.evaluate(() => {
     const f = document.querySelector('#oauth_install_form');
     if (!f) return '';
     const p = new URLSearchParams();
-    f.querySelectorAll('input[type=hidden]').forEach((i) => p.append(i.name, i.value));
+    f.querySelectorAll('input[type=hidden]').forEach((i) =>
+      p.append(i.name, i.value),
+    );
     return p.toString();
   });
-  if (!formAction || !formBody) throw new Error('[user-token] OAuth consent form not found');
+  if (!formAction || !formBody)
+    throw new Error('[user-token] OAuth consent form not found');
   const allowResp = await page.context().request.post(formAction, {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     data: formBody,
     maxRedirects: 5,
   });
   if (allowResp.status() !== 200 || !allowResp.url().includes('success=1')) {
-    throw new Error(`[user-token] OAuth POST rejected: ${allowResp.status()} ${allowResp.url()}`);
+    throw new Error(
+      `[user-token] OAuth POST rejected: ${allowResp.status()} ${allowResp.url()}`,
+    );
   }
 }
 
 async function extractXoxpFromOAuthPage(page, appId) {
-  const { humanIdlePause } = await import(`${process.env.WELES_ROOT}/dist/human/mouse.js`);
-  await page.goto(`https://api.slack.com/apps/${appId}/oauth`, { waitUntil: 'domcontentloaded' });
+  const { humanIdlePause } = await import(
+    `${process.env.WELES_ROOT}/dist/human/mouse.js`
+  );
+  await page.goto(`https://api.slack.com/apps/${appId}/oauth`, {
+    waitUntil: 'domcontentloaded',
+  });
   await humanIdlePause('deliberate');
-  console.log('[user-token] OAuth token page loaded; screenshot intentionally skipped');
+  console.log(
+    '[user-token] OAuth token page loaded; screenshot intentionally skipped',
+  );
   return await page.evaluate(() => {
-    const values = Array.from(document.querySelectorAll('input,textarea')).map((i) => i.value || '');
+    const values = Array.from(document.querySelectorAll('input,textarea')).map(
+      (i) => i.value || '',
+    );
     const fromInputs = values.find((value) => /^xoxp-/.test(value));
     if (fromInputs) return fromInputs;
     const m = (document.body.innerText || '').match(/xoxp-[0-9A-Za-z-]+/);
     return m ? m[0] : '';
   });
 }
-export async function createUserTokenApp({ page, shot, appId: requestedAppId = '' }) {
+export async function createUserTokenApp({
+  page,
+  shot,
+  appId: requestedAppId = '',
+}) {
   const configuredScopes = parseScopes(process.env.SLACK_USER_TOKEN_SCOPES);
-  const scopes = configuredScopes.length ? configuredScopes : DEFAULT_USER_SCOPES;
+  const scopes = configuredScopes.length
+    ? configuredScopes
+    : DEFAULT_USER_SCOPES;
 
   if (requestedAppId) {
-    const existingToken = await extractXoxpFromOAuthPage(page, requestedAppId, shot);
-    if (!existingToken) throw new Error(`[user-token] no xoxp token found on OAuth page for app ${requestedAppId}`);
-    return { appId: requestedAppId, scopes, token: existingToken, created: false };
+    const existingToken = await extractXoxpFromOAuthPage(
+      page,
+      requestedAppId,
+      shot,
+    );
+    if (!existingToken)
+      throw new Error(
+        `[user-token] no xoxp token found on OAuth page for app ${requestedAppId}`,
+      );
+    return {
+      appId: requestedAppId,
+      scopes,
+      token: existingToken,
+      created: false,
+    };
   }
 
   const xoxc = await extractXoxc(page);
-  if (!xoxc) throw new Error('[user-token] no xoxc token in window.boot_data or localStorage');
+  if (!xoxc)
+    throw new Error(
+      '[user-token] no xoxc token in window.boot_data or localStorage',
+    );
   console.log(`[user-token] xoxc present len=${xoxc.length}`);
 
   const manifest = JSON.stringify(userTokenManifest(scopes));
-  const validateResp = await page.context().request.post('https://slack.com/api/apps.manifest.validate', {
-    headers: slackWebApiHeaders(xoxc),
-    multipart: { manifest, token: xoxc },
-  });
+  const validateResp = await page
+    .context()
+    .request.post('https://slack.com/api/apps.manifest.validate', {
+      headers: slackWebApiHeaders(xoxc),
+      multipart: { manifest, token: xoxc },
+    });
   const validate = await validateResp.json();
   console.log(`[user-token][validate] ${JSON.stringify(validate)}`);
-  if (!validate.ok) throw new Error(`[user-token] apps.manifest.validate failed: ${JSON.stringify(validate)}`);
+  if (!validate.ok)
+    throw new Error(
+      `[user-token] apps.manifest.validate failed: ${JSON.stringify(validate)}`,
+    );
 
-  const createResp = await page.context().request.post('https://slack.com/api/apps.manifest.create', {
-    headers: slackWebApiHeaders(xoxc),
-    multipart: { manifest, token: xoxc },
-  });
+  const createResp = await page
+    .context()
+    .request.post('https://slack.com/api/apps.manifest.create', {
+      headers: slackWebApiHeaders(xoxc),
+      multipart: { manifest, token: xoxc },
+    });
   const create = await createResp.json();
   console.log(`[user-token][create] ${JSON.stringify(create)}`);
-  if (!create.ok) throw new Error(`[user-token] apps.manifest.create failed: ${JSON.stringify(create)}`);
+  if (!create.ok)
+    throw new Error(
+      `[user-token] apps.manifest.create failed: ${JSON.stringify(create)}`,
+    );
   const appId = create.app_id;
-  if (!appId) throw new Error(`[user-token] apps.manifest.create returned no app_id: ${JSON.stringify(create)}`);
+  if (!appId)
+    throw new Error(
+      `[user-token] apps.manifest.create returned no app_id: ${JSON.stringify(create)}`,
+    );
   console.log(`[user-token] app created via API: id=${appId}`);
   await shot?.('08-user-app-created');
 
-  await page.goto(`https://api.slack.com/apps/${appId}/install-on-team`, { waitUntil: 'domcontentloaded' });
-  const { humanIdlePause } = await import(`${process.env.WELES_ROOT}/dist/human/mouse.js`);
-  await humanIdlePause('long');
-  const oauthHref = await page.evaluate(() =>
-    (Array.from(document.querySelectorAll('a')).find(
-      (a) => /install to/i.test(a.textContent || '') && /oauth\/v2\/authorize/.test(a.href),
-    ) || {}).href || '',
+  await page.goto(`https://api.slack.com/apps/${appId}/install-on-team`, {
+    waitUntil: 'domcontentloaded',
+  });
+  const { humanIdlePause } = await import(
+    `${process.env.WELES_ROOT}/dist/human/mouse.js`
   );
-  if (!oauthHref) throw new Error('[user-token] no Install→OAuth href found on install-on-team page');
+  await humanIdlePause('long');
+  const oauthHref = await page.evaluate(
+    () =>
+      (
+        Array.from(document.querySelectorAll('a')).find(
+          (a) =>
+            /install to/i.test(a.textContent || '') &&
+            /oauth\/v2\/authorize/.test(a.href),
+        ) || {}
+      ).href || '',
+  );
+  if (!oauthHref)
+    throw new Error(
+      '[user-token] no Install→OAuth href found on install-on-team page',
+    );
   await page.goto(oauthHref, { waitUntil: 'domcontentloaded' });
   await submitInstallForm(page, shot);
   console.log('[user-token] OAuth Allow accepted');

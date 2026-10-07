@@ -8,7 +8,10 @@
 // Run: node src/trajectories/linear/login.mjs
 import { readScopedLogin } from '../../_shared/scoped-secrets.mjs';
 import { WSession } from '../../../dist/session/wsession.js';
-import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
+import {
+  humanIdlePause,
+  humanClickLocator,
+} from '../../../dist/human/mouse.js';
 import { humanFill } from '../../../dist/human/keyboard.js';
 
 const LOGIN_URL = 'https://linear.app/login';
@@ -36,9 +39,15 @@ try {
     process.exit(0);
   }
 
-  const googleBtn = s.page.getByRole('button', { name: /continue with google/i })
+  const googleBtn = s.page
+    .getByRole('button', { name: /continue with google/i })
     .or(s.page.getByRole('link', { name: /continue with google/i }));
-  if (!(await googleBtn.first().isVisible().catch(() => false))) {
+  if (
+    !(await googleBtn
+      .first()
+      .isVisible()
+      .catch(() => false))
+  ) {
     console.log('FAIL: Continue with Google button not visible');
     process.exit(1);
   }
@@ -57,20 +66,21 @@ try {
   // Password step (Workspace SSO; passkey path mirrors slack/create_app.mjs).
   async function fillPasswordWhenAvailable() {
     const pwd = s.page.locator('input[type="password"]');
-    if (await pwd.count() === 0) return false;
+    if ((await pwd.count()) === 0) return false;
     await humanFill(s.page, pwd, creds.password);
     await s.page.keyboard.press('Enter');
     await humanIdlePause('long');
     return true;
   }
   if (!(await fillPasswordWhenAvailable())) {
-    const tryOther = s.page.getByRole('button', { name: /try another way/i })
+    const tryOther = s.page
+      .getByRole('button', { name: /try another way/i })
       .or(s.page.getByRole('link', { name: /try another way/i }));
-    if (await tryOther.count() > 0) {
+    if ((await tryOther.count()) > 0) {
       await humanClickLocator(s.page, tryOther.first());
       await humanIdlePause('long');
       const enterPwd = s.page.getByText(/enter your password/i).first();
-      if (await enterPwd.count() > 0) {
+      if ((await enterPwd.count()) > 0) {
         await humanClickLocator(s.page, enterPwd);
         await humanIdlePause('long');
         await fillPasswordWhenAvailable();
@@ -79,7 +89,7 @@ try {
   }
 
   const continueBtn = s.page.getByRole('button', { name: /^\s*continue\s*$/i });
-  if (await continueBtn.count() > 0) {
+  if ((await continueBtn.count()) > 0) {
     await humanClickLocator(s.page, continueBtn.first());
     await humanIdlePause('long');
   }

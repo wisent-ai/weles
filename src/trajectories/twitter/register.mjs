@@ -2,7 +2,13 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { autoBindCharacter } from '../lib/character-bind.mjs';
 import { pageSettled } from '../_shared/page/settled.mjs';
-import { autocompleteField, clickFirst, control, field, frameFrom } from '../_shared/page/offers.mjs';
+import {
+  autocompleteField,
+  clickFirst,
+  control,
+  field,
+  frameFrom,
+} from '../_shared/page/offers.mjs';
 
 const URL = 'https://x.com/i/flow/signup?lang=en';
 const HOME = 'https://x.com/home';
@@ -11,9 +17,12 @@ const proxy = process.env.PROXY_URL || 'none';
 // Twitter's flow marks its own controls with test ids: the signup form's Next,
 // the submit, and on every onboarding step a Skip control and a Next control.
 const NEXT = '[data-testid="ocfSignupNextLink"]';
-const SUBMIT = '[data-testid="SignupButton"], [data-testid="LoginForm_Login_Button"]';
-const ONBOARDING_SKIP = '[data-testid$="SkipButton"], [data-testid$="SkipForNowButton"]';
-const ONBOARDING_NEXT = '[data-testid$="NextButton"], [data-testid$="NextLink"]';
+const SUBMIT =
+  '[data-testid="SignupButton"], [data-testid="LoginForm_Login_Button"]';
+const ONBOARDING_SKIP =
+  '[data-testid$="SkipButton"], [data-testid$="SkipForNowButton"]';
+const ONBOARDING_NEXT =
+  '[data-testid$="NextButton"], [data-testid$="NextLink"]';
 
 // The Arkose challenge, read from its iframe: public key and blob from the
 // frame's URL. Null when no such frame is attached.
@@ -30,14 +39,23 @@ function arkose(page) {
 
 async function solveArkose(s, ark) {
   const { CaptchaSolver } = await import('../../../dist/captcha/solver.js');
-  const token = await new CaptchaSolver().solveFuncaptcha(ark.publicKey, 'https://x.com/i/flow/signup', ark.subdomain, ark.blob);
+  const token = await new CaptchaSolver().solveFuncaptcha(
+    ark.publicKey,
+    'https://x.com/i/flow/signup',
+    ark.subdomain,
+    ark.blob,
+  );
   // Twitter's Arkose iframe posts the token to the page; the same message
   // shape injected from the page completes the challenge.
   await s.page.evaluate((tk) => {
-    const message = JSON.stringify({ eventId: 'challenge-complete', payload: { sessionToken: tk } });
+    const message = JSON.stringify({
+      eventId: 'challenge-complete',
+      payload: { sessionToken: tk },
+    });
     window.postMessage(message, '*');
     for (const iframe of document.querySelectorAll('iframe')) {
-      if (iframe.src.includes('arkoselabs')) iframe.contentWindow?.postMessage(message, '*');
+      if (iframe.src.includes('arkoselabs'))
+        iframe.contentWindow?.postMessage(message, '*');
     }
   }, token);
   await pageSettled(s.page);
@@ -47,7 +65,11 @@ async function solveArkose(s, ark) {
 // fields the signup flow has, or null on a step with none (a prompt page).
 async function step(page) {
   if (await field(page, 'password')) return 'password';
-  if (await autocompleteField(page, 'one-time-code') || await field(page, 'verfication_code')) return 'code';
+  if (
+    (await autocompleteField(page, 'one-time-code')) ||
+    (await field(page, 'verfication_code'))
+  )
+    return 'code';
   if (await field(page, 'email')) return 'email';
   if (await field(page, 'phone_number')) return 'phone';
   if (await field(page, 'name')) return 'name';
@@ -69,14 +91,20 @@ async function signup(s) {
   console.log(`[tw] identity: ${id.username} / ${id.email}`);
   const page = s.page;
 
-  await s.ctx.addCookies([{ name: 'lang', value: 'en', domain: '.x.com', path: '/' }]);
+  await s.ctx.addCookies([
+    { name: 'lang', value: 'en', domain: '.x.com', path: '/' },
+  ]);
   await s.goto(URL);
   await pageSettled(page);
 
-  if (await clickFirst(page, 'button', ['Refuse non-essential cookies'])) await pageSettled(page);
+  if (await clickFirst(page, 'button', ['Refuse non-essential cookies']))
+    await pageSettled(page);
 
   // A page that offers only a retry is Twitter's own error page.
-  if (!(await control(page, 'button', 'Create account')) && (await control(page, 'button', 'Retry'))) {
+  if (
+    !(await control(page, 'button', 'Create account')) &&
+    (await control(page, 'button', 'Retry'))
+  ) {
     console.log('[tw] got error page, retrying...');
     throw new Error('page_error');
   }
@@ -86,7 +114,8 @@ async function signup(s) {
   await s.fill('Name', name);
   await pageSettled(page);
 
-  if (await clickFirst(page, 'button', ['Use email instead'])) await pageSettled(page);
+  if (await clickFirst(page, 'button', ['Use email instead']))
+    await pageSettled(page);
 
   const contact = await step(page);
   if (contact === 'email') {
@@ -96,7 +125,9 @@ async function signup(s) {
     console.log(`[tw] SMS: ${phone}`);
     await s.fill('Phone', s.resolveEnv('$TWITTER_NEW_PHONE'));
   } else {
-    throw new Error(`signup form offers neither an email nor a phone field; step ${contact}`);
+    throw new Error(
+      `signup form offers neither an email nor a phone field; step ${contact}`,
+    );
   }
   await pageSettled(page);
 
@@ -105,7 +136,8 @@ async function signup(s) {
   await s.select('Year', id.birthYear);
   await pageSettled(page);
 
-  if (!(await press(page, NEXT))) throw new Error('signup form offers no Next after the date of birth');
+  if (!(await press(page, NEXT)))
+    throw new Error('signup form offers no Next after the date of birth');
   console.log('[tw] clicked Next, waiting for page change...');
 
   // Each round reads what the page now offers and acts on it: the Arkose
@@ -119,15 +151,24 @@ async function signup(s) {
 
     const ark = arkose(page);
     if (ark) {
-      if (!ark.publicKey) { console.log('[tw] Arkose frame without a public key; waiting'); continue; }
-      console.log(`[tw] Arkose detected, solving via FunCaptcha API: pk=${ark.publicKey}`);
+      if (!ark.publicKey) {
+        console.log('[tw] Arkose frame without a public key; waiting');
+        continue;
+      }
+      console.log(
+        `[tw] Arkose detected, solving via FunCaptcha API: pk=${ark.publicKey}`,
+      );
       await solveArkose(s, ark);
       continue;
     }
     if (current === 'code' || current === 'password') break;
     if (await clickFirst(page, 'button', ['Authenticate'])) continue;
     if (current === null && (await press(page, NEXT))) continue;
-    if (page.url() === 'https://x.com/' && (await control(page, 'link', 'Sign in'))) throw new Error('flow_lost');
+    if (
+      page.url() === 'https://x.com/' &&
+      (await control(page, 'link', 'Sign in'))
+    )
+      throw new Error('flow_lost');
   }
 
   if ((await step(page)) === 'code') {
@@ -168,7 +209,13 @@ async function signup(s) {
     const url = page.url();
     console.log(`[tw] onboarding: url=${url}`);
     if (url.includes('/home')) break;
-    if (url === 'https://x.com/' || !((await press(page, ONBOARDING_SKIP)) || (await press(page, ONBOARDING_NEXT)))) {
+    if (
+      url === 'https://x.com/' ||
+      !(
+        (await press(page, ONBOARDING_SKIP)) ||
+        (await press(page, ONBOARDING_NEXT))
+      )
+    ) {
       await s.goto(HOME);
       await pageSettled(page);
       break;
@@ -178,15 +225,26 @@ async function signup(s) {
 
   // Success is the session's auth cookies, not what the page says.
   const cookies = await s.ctx.cookies();
-  const authCookies = cookies.filter(c => (c.domain?.includes('.x.com') || c.domain?.includes('.twitter.com')) && (c.name === 'auth_token' || c.name === 'ct0'));
+  const authCookies = cookies.filter(
+    (c) =>
+      (c.domain?.includes('.x.com') || c.domain?.includes('.twitter.com')) &&
+      (c.name === 'auth_token' || c.name === 'ct0'),
+  );
   if (authCookies.length < 2) {
-    console.log(`[tw] no auth cookies found (url=${page.url()}, cookies=${authCookies.map(c => c.name)})`);
+    console.log(
+      `[tw] no auth cookies found (url=${page.url()}, cookies=${authCookies.map((c) => c.name)})`,
+    );
     throw new Error('no_auth_cookies');
   }
-  console.log(`[tw] auth cookies verified: ${authCookies.map(c => c.name).join(', ')}`);
+  console.log(
+    `[tw] auth cookies verified: ${authCookies.map((c) => c.name).join(', ')}`,
+  );
 
   const result = await s.saveAccount('twitter', {
-    username: id.username, email: id.email, password: id.password, name,
+    username: id.username,
+    email: id.email,
+    password: id.password,
+    name,
   });
   console.log(`[tw] ${result}`);
   const bound = await autoBindCharacter(id.username, 'twitter');

@@ -2,16 +2,31 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 const SESSION = process.env.SESSION || 'ncbr-step-b';
-const WELES = new URL('../../../../..', import.meta.url).pathname.replace(/\/$/, '');
-const SRC = (await import('#ncbr-settings')).applicationFile('wersja_B_2.4_efekty_zewnetrzne.md');
-const OUT = (await import('#ncbr-settings')).applicationFile('sync_2_4_params_evidence_20260625.json');
+const WELES = new URL('../../../../..', import.meta.url).pathname.replace(
+  /\/$/,
+  '',
+);
+const SRC = (await import('#ncbr-settings')).applicationFile(
+  'wersja_B_2.4_efekty_zewnetrzne.md',
+);
+const OUT = (await import('#ncbr-settings')).applicationFile(
+  'sync_2_4_params_evidence_20260625.json',
+);
 const URL = (await import('#ncbr-settings')).sectionUrl('2_4');
 
-const clean = (s) => String(s || '').replace(/\s*<!--[\s\S]*?-->\s*/g, ' ').replace(/\s+/g, ' ').trim();
+const clean = (s) =>
+  String(s || '')
+    .replace(/\s*<!--[\s\S]*?-->\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 const md = readFileSync(SRC, 'utf8');
 
 function rowValue(block, label) {
-  const line = block.split(/\r?\n/).find((l) => l.startsWith('|') && l.toLowerCase().includes(label.toLowerCase()));
+  const line = block
+    .split(/\r?\n/)
+    .find(
+      (l) => l.startsWith('|') && l.toLowerCase().includes(label.toLowerCase()),
+    );
   if (!line) throw new Error(`row missing: ${label}`);
   return clean(line.split('|').slice(1, -1)[1]);
 }
@@ -27,7 +42,8 @@ function rows() {
     'Liczba wdrożeń RNM w sektorach regulowanych UE korzystających z raportu audytowego aktywnych konceptów',
     'Udział głównych cykli treningowych RNM objętych pomiarem energii, CO2eq i kryteriami zielonych zamówień',
   ];
-  return md.slice(start + title.length)
+  return md
+    .slice(start + title.length)
     .split(/^### Parametr \d+\s*$/m)
     .slice(1)
     .map((block, index) => ({
@@ -39,10 +55,22 @@ function rows() {
 }
 
 function action(args, optional = false) {
-  const result = spawnSync(process.execPath, ['src/_shared/keeper/action.mjs', ...args], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' });
+  const result = spawnSync(
+    process.execPath,
+    ['src/_shared/keeper/action.mjs', ...args],
+    { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' },
+  );
   if (result.status !== 0) {
-    if (optional) return { ok: false, stdout: result.stdout, stderr: result.stderr, status: result.status };
-    throw new Error(`${args.join(' ')}\nstdout=${result.stdout}\nstderr=${result.stderr}`);
+    if (optional)
+      return {
+        ok: false,
+        stdout: result.stdout,
+        stderr: result.stderr,
+        status: result.status,
+      };
+    throw new Error(
+      `${args.join(' ')}\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+    );
   }
   const out = String(result.stdout || '').trim();
   if (!out) throw new Error(`empty keeper output for ${args.join(' ')}`);
@@ -61,7 +89,8 @@ function fill(name, value) {
     const max = Number(el.getAttribute('maxlength')) || value.length;
     return { ok: value.length <= max, tag: el.tagName.toLowerCase(), name, len: value.length, max, currentLen: (el.value || '').length };
   })()`);
-  if (!check?.ok) throw new Error(`fill precheck failed ${name}: ${JSON.stringify(check)}`);
+  if (!check?.ok)
+    throw new Error(`fill precheck failed ${name}: ${JSON.stringify(check)}`);
   action(['set_value', `${check.tag}[name="${name}"]`, value]);
   idle('short');
   return read(`(() => {
@@ -84,11 +113,16 @@ function openByNeedle(needles) {
   for (const method of ['click_fast', 'dispatch_click']) {
     action([method, menuSelector], true);
     idle('short');
-    const hasEdit = read(`(() => Array.from(document.querySelectorAll('[role="menuitem"], li, button')).some((el) => el.offsetParent !== null && el.innerText.trim() === 'Edytuj'))()`);
+    const hasEdit = read(
+      `(() => Array.from(document.querySelectorAll('[role="menuitem"], li, button')).some((el) => el.offsetParent !== null && el.innerText.trim() === 'Edytuj'))()`,
+    );
     if (hasEdit) break;
   }
-  const openedMenu = read(`(() => Array.from(document.querySelectorAll('[role="menuitem"], li, button')).some((el) => el.offsetParent !== null && el.innerText.trim() === 'Edytuj'))()`);
-  if (!openedMenu) throw new Error(`edit menu did not open for row: ${needleList[0]}`);
+  const openedMenu = read(
+    `(() => Array.from(document.querySelectorAll('[role="menuitem"], li, button')).some((el) => el.offsetParent !== null && el.innerText.trim() === 'Edytuj'))()`,
+  );
+  if (!openedMenu)
+    throw new Error(`edit menu did not open for row: ${needleList[0]}`);
   action(['dispatch_click', 'text="Edytuj"']);
   idle('long');
   return { index: idx + 1 };
@@ -108,7 +142,10 @@ function saveSubform() {
       return b ? { disabled: b.disabled, text: b.innerText } : null;
     })()`);
     if (!status) return { ok: true, clicks };
-    if (!status.disabled) { action(['dispatch_click', '#collection-obj-form-save-btn'], true); clicks += 1; }
+    if (!status.disabled) {
+      action(['dispatch_click', '#collection-obj-form-save-btn'], true);
+      clicks += 1;
+    }
   }
 }
 
@@ -122,9 +159,18 @@ for (const row of rows()) {
   const fills = [
     fill('nazwa_parametru', row.name),
     fill('metoda_szacowania_wartosci_docelowej', row.method),
-    fill('sposob_monitorowania_weryfikacji_osiagniecia_zaplanowanych_wartosci_docelowych', row.verify),
+    fill(
+      'sposob_monitorowania_weryfikacji_osiagniecia_zaplanowanych_wartosci_docelowych',
+      row.verify,
+    ),
   ];
-  console.log(JSON.stringify({ stage: 'filled', needle: row.match, lengths: fills.map((f) => `${f.name}:${f.len}/${f.max}`) }));
+  console.log(
+    JSON.stringify({
+      stage: 'filled',
+      needle: row.match,
+      lengths: fills.map((f) => `${f.name}:${f.len}/${f.max}`),
+    }),
+  );
   const save = saveSubform();
   console.log(JSON.stringify({ stage: 'saved', needle: row.match, save }));
   synced.push({ needle: row.match, opened, fills, save });
@@ -132,6 +178,25 @@ for (const row of rows()) {
   idle('long');
 }
 
-const evidence = { ok: true, rows: synced.length, synced, finishedAt: new Date().toISOString() };
+const evidence = {
+  ok: true,
+  rows: synced.length,
+  synced,
+  finishedAt: new Date().toISOString(),
+};
 writeFileSync(OUT, JSON.stringify(evidence, null, 2));
-console.log(JSON.stringify({ ok: true, out: OUT, rows: synced.length, lengths: synced.map((r) => ({ needle: r.needle, fields: r.fills.map((f) => `${f.name}:${f.len}/${f.max}`) })) }, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      ok: true,
+      out: OUT,
+      rows: synced.length,
+      lengths: synced.map((r) => ({
+        needle: r.needle,
+        fields: r.fills.map((f) => `${f.name}:${f.len}/${f.max}`),
+      })),
+    },
+    null,
+    2,
+  ),
+);

@@ -46,8 +46,10 @@ import { join } from 'node:path';
 import { welesRepositoryRoot } from './engagements.js';
 
 /** The declaration, relative to the checkout it belongs to. */
-export const OBSERVATION_DECLARATION_PATH = 'src/worker/deploy/weles-observation-declaration.json';
-export const OBSERVATION_DECLARATION_SCHEMA = 'wisent.weles-observation-declaration.v1';
+export const OBSERVATION_DECLARATION_PATH =
+  'src/worker/deploy/weles-observation-declaration.json';
+export const OBSERVATION_DECLARATION_SCHEMA =
+  'wisent.weles-observation-declaration.v1';
 
 /** Reviewed trajectories live here, and a declaration may name nothing else. */
 const TRAJECTORY_ROOT = 'src/trajectories/';
@@ -69,15 +71,29 @@ const READS: Record<string, string> = {
 };
 
 /** Placeholders an origin may carry; a submission names each one by this key. */
-const PLACEHOLDERS: Record<string, true> = { query: true, handle: true, subreddit: true };
+const PLACEHOLDERS: Record<string, true> = {
+  query: true,
+  handle: true,
+  subreddit: true,
+};
 
 const PLACEHOLDER = /\{([a-z_]+)\}/g;
 
 /** Submission keys the declaration owns: naming one beside an observation is
  * a second answer to what the run reads and how long it stays. */
-const OWNED_BY_DECLARATION = ['url', 'objective', 'target_url', 'target_user', 'search_query', 'posts_to_browse'];
+const OWNED_BY_DECLARATION = [
+  'url',
+  'objective',
+  'target_url',
+  'target_user',
+  'search_query',
+  'posts_to_browse',
+];
 
-export type ObservationDwell = { readonly scrolls: number; readonly ms: readonly [number, number] };
+export type ObservationDwell = {
+  readonly scrolls: number;
+  readonly ms: readonly [number, number];
+};
 
 export type DeclaredObservation = {
   readonly observation: string;
@@ -97,11 +113,18 @@ function field(entry: Record<string, unknown>, name: string): string {
 function dwellOf(raw: unknown): ObservationDwell | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const { scrolls, ms } = raw as Record<string, unknown>;
-  if (typeof scrolls !== 'number' || !Number.isInteger(scrolls) || scrolls < 0) return null;
+  if (typeof scrolls !== 'number' || !Number.isInteger(scrolls) || scrolls < 0)
+    return null;
   if (!Array.isArray(ms) || ms.length !== 2) return null;
   const [low, high] = ms as unknown[];
   if (typeof low !== 'number' || typeof high !== 'number') return null;
-  if (!Number.isInteger(low) || !Number.isInteger(high) || low <= 0 || high < low) return null;
+  if (
+    !Number.isInteger(low) ||
+    !Number.isInteger(high) ||
+    low <= 0 ||
+    high < low
+  )
+    return null;
   return { scrolls, ms: [low, high] };
 }
 
@@ -122,23 +145,31 @@ export function loadDeclaredObservations(
     document = JSON.parse(readFileSync(path, 'utf8')) as unknown;
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    throw new Error(`${OBSERVATION_DECLARATION_PATH} could not be read: ${reason}`);
+    throw new Error(
+      `${OBSERVATION_DECLARATION_PATH} could not be read: ${reason}`,
+    );
   }
   if (!document || typeof document !== 'object' || Array.isArray(document)) {
     throw new Error(`${OBSERVATION_DECLARATION_PATH} must be one JSON object`);
   }
   const declaration = document as Record<string, unknown>;
   if (declaration.schema !== OBSERVATION_DECLARATION_SCHEMA) {
-    throw new Error(`${OBSERVATION_DECLARATION_PATH} must declare schema ${OBSERVATION_DECLARATION_SCHEMA}`);
+    throw new Error(
+      `${OBSERVATION_DECLARATION_PATH} must declare schema ${OBSERVATION_DECLARATION_SCHEMA}`,
+    );
   }
   const entries = declaration.observations;
   if (!Array.isArray(entries) || !entries.length) {
-    throw new Error(`${OBSERVATION_DECLARATION_PATH} must declare at least one observation`);
+    throw new Error(
+      `${OBSERVATION_DECLARATION_PATH} must declare at least one observation`,
+    );
   }
   const declared = new Map<string, DeclaredObservation>();
   for (const [index, raw] of entries.entries()) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-      throw new Error(`${OBSERVATION_DECLARATION_PATH} entry ${index} is not an object`);
+      throw new Error(
+        `${OBSERVATION_DECLARATION_PATH} entry ${index} is not an object`,
+      );
     }
     const entry = raw as Record<string, unknown>;
     const observation = field(entry, 'observation');
@@ -147,13 +178,22 @@ export function loadDeclaredObservations(
     const origin = field(entry, 'origin');
     const reads = field(entry, 'reads');
     const trajectory = field(entry, 'trajectory');
-    if (!observation || !platform || !verb || !origin || !reads || !trajectory) {
+    if (
+      !observation ||
+      !platform ||
+      !verb ||
+      !origin ||
+      !reads ||
+      !trajectory
+    ) {
       throw new Error(
         `${OBSERVATION_DECLARATION_PATH} entry ${index} must name observation, platform, verb, origin, reads and trajectory`,
       );
     }
     if (!OBSERVATION_NAME.test(observation)) {
-      throw new Error(`${OBSERVATION_DECLARATION_PATH} declares the malformed observation name ${observation}`);
+      throw new Error(
+        `${OBSERVATION_DECLARATION_PATH} declares the malformed observation name ${observation}`,
+      );
     }
     if (observation !== `${platform}.${verb}`) {
       throw new Error(
@@ -161,7 +201,9 @@ export function loadDeclaredObservations(
       );
     }
     if (declared.has(observation)) {
-      throw new Error(`${OBSERVATION_DECLARATION_PATH} declares observation ${observation} twice`);
+      throw new Error(
+        `${OBSERVATION_DECLARATION_PATH} declares observation ${observation} twice`,
+      );
     }
     if (!(reads in READS)) {
       throw new Error(
@@ -169,17 +211,23 @@ export function loadDeclaredObservations(
       );
     }
     if (!origin.startsWith('https://')) {
-      throw new Error(`declared observation ${observation} must name an https origin, not ${origin}`);
+      throw new Error(
+        `declared observation ${observation} must name an https origin, not ${origin}`,
+      );
     }
     const carried = [...origin.matchAll(PLACEHOLDER)].map((match) => match[1]);
     for (const name of carried) {
       if (!PLACEHOLDERS[name]) {
-        throw new Error(`declared observation ${observation} names the unknown origin placeholder {${name}}`);
+        throw new Error(
+          `declared observation ${observation} names the unknown origin placeholder {${name}}`,
+        );
       }
     }
     const required = READS[reads];
     if (required && !carried.includes(required)) {
-      throw new Error(`declared observation ${observation} reads ${reads}, so its origin must carry {${required}}`);
+      throw new Error(
+        `declared observation ${observation} reads ${reads}, so its origin must carry {${required}}`,
+      );
     }
     const dwell = dwellOf(entry.dwell);
     if (!dwell) {
@@ -193,9 +241,19 @@ export function loadDeclaredObservations(
       );
     }
     if (!existsSync(join(repositoryRoot, trajectory))) {
-      throw new Error(`declared observation ${observation} names a missing reviewed trajectory: ${trajectory}`);
+      throw new Error(
+        `declared observation ${observation} names a missing reviewed trajectory: ${trajectory}`,
+      );
     }
-    declared.set(observation, { observation, platform, verb, origin, reads, dwell, trajectory });
+    declared.set(observation, {
+      observation,
+      platform,
+      verb,
+      origin,
+      reads,
+      dwell,
+      trajectory,
+    });
   }
   return declared;
 }
@@ -224,12 +282,16 @@ export function admitObservation(
   repositoryRoot: string = welesRepositoryRoot(),
 ): DeclaredObservation {
   if (typeof named !== 'string' || !named.trim()) {
-    throw new Error('observation must name a declared observation as <platform>.<verb>');
+    throw new Error(
+      'observation must name a declared observation as <platform>.<verb>',
+    );
   }
   const observation = named.trim();
   const declared = declaredObservations(repositoryRoot).get(observation);
   if (!declared) {
-    throw new Error(`observation ${observation} is not declared in ${OBSERVATION_DECLARATION_PATH}`);
+    throw new Error(
+      `observation ${observation} is not declared in ${OBSERVATION_DECLARATION_PATH}`,
+    );
   }
   return declared;
 }
@@ -246,7 +308,9 @@ export function resolveObservationOrigin(
   return declared.origin.replace(PLACEHOLDER, (_match, name: string) => {
     const value = params[name];
     if (typeof value !== 'string' || !value.trim()) {
-      throw new Error(`observation ${declared.observation} reads ${declared.reads} and needs ${name}`);
+      throw new Error(
+        `observation ${declared.observation} reads ${declared.reads} and needs ${name}`,
+      );
     }
     // A name a caller types carries the site's own prefix — @handle, r/sub,
     // u/name — and each per-site trajectory used to strip its own. One origin
@@ -254,9 +318,13 @@ export function resolveObservationOrigin(
     // only for a name: a search query is whatever the caller meant, prefix
     // and all.
     const trimmed = value.trim();
-    const bare = name === 'query'
-      ? trimmed
-      : trimmed.replace(/^@+/, '').replace(/^\/?[ru]\//, '').replace(/\/+$/, '');
+    const bare =
+      name === 'query'
+        ? trimmed
+        : trimmed
+            .replace(/^@+/, '')
+            .replace(/^\/?[ru]\//, '')
+            .replace(/\/+$/, '');
     return encodeURIComponent(bare);
   });
 }
@@ -280,7 +348,9 @@ export function applyKeeperTaskEnv(
   if (named === undefined) return;
   for (const key of OWNED_BY_DECLARATION) {
     if (params[key] !== undefined) {
-      throw new Error(`generic_keeper_task takes a declared observation or ${key}, not both`);
+      throw new Error(
+        `generic_keeper_task takes a declared observation or ${key}, not both`,
+      );
     }
   }
   const declared = admitObservation(named);

@@ -4,7 +4,9 @@ import { readScopedProxy } from '../../_shared/scoped-secrets.mjs';
 // Prefer the configured dedicated ISP endpoint; use the existing residential
 // fallback only when that endpoint is not configured.
 export function pickInstagramProxy() {
-  const dPorts = (process.env.DECODO_ISP_PORTS || '').split(',').filter(Boolean);
+  const dPorts = (process.env.DECODO_ISP_PORTS || '')
+    .split(',')
+    .filter(Boolean);
   const dHost = process.env.DECODO_ISP_HOST;
   const dUser = process.env.DECODO_ISP_USER;
   const dPass = process.env.DECODO_ISP_PASS;

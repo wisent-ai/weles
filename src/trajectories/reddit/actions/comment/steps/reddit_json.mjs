@@ -12,22 +12,37 @@ export function readOwnHandle(page) {
 
 /** Whether the account's own newest comments, read while signed in, contain `body`. */
 export function ownListingHas(page, handle, body, limit) {
-  return page.evaluate(async (args) => {
-    const r = await fetch(`/user/${encodeURIComponent(args.handle)}/comments/.json?limit=${args.limit}&sort=new`, { credentials: 'include' });
-    const j = await r.json();
-    return (j?.data?.children ?? []).some((c) => typeof c?.data?.body === 'string' && c.data.body.includes(args.body));
-  }, { handle, body, limit });
+  return page.evaluate(
+    async (args) => {
+      const r = await fetch(
+        `/user/${encodeURIComponent(args.handle)}/comments/.json?limit=${args.limit}&sort=new`,
+        { credentials: 'include' },
+      );
+      const j = await r.json();
+      return (j?.data?.children ?? []).some(
+        (c) =>
+          typeof c?.data?.body === 'string' && c.data.body.includes(args.body),
+      );
+    },
+    { handle, body, limit },
+  );
 }
 
 /** One JSON read through the session's request context: status plus body text. */
 export async function contextRead(s, url) {
-  const resp = await s.page.context().request.get(url, { headers: { 'Accept': 'application/json' }, ignoreHTTPSErrors: true });
+  const resp = await s.page.context().request.get(url, {
+    headers: { Accept: 'application/json' },
+    ignoreHTTPSErrors: true,
+  });
   return { status: resp.status(), body: await resp.text() };
 }
 
 /** The HTTP status of the account's public about.json, read without cookies. */
 export async function publicAboutStatus(s, handle) {
-  const { status } = await contextRead(s, `https://old.reddit.com/user/${encodeURIComponent(handle)}/about.json`);
+  const { status } = await contextRead(
+    s,
+    `https://old.reddit.com/user/${encodeURIComponent(handle)}/about.json`,
+  );
   return status;
 }
 
@@ -49,10 +64,12 @@ export async function resolveTargetPost(page, oldUrl) {
       return await r.json();
     }, listingJson);
     const candidates = (data?.data?.children ?? [])
-      .map(c => c.data)
-      .filter(p => p && !p.locked && !p.archived);
+      .map((c) => c.data)
+      .filter((p) => p && !p.locked && !p.archived);
     const pick = candidates[Math.floor(Math.random() * candidates.length)];
-    const resolved = pick?.permalink ? `https://old.reddit.com${pick.permalink}` : oldUrl;
+    const resolved = pick?.permalink
+      ? `https://old.reddit.com${pick.permalink}`
+      : oldUrl;
     console.log(`[trajectory] resolved sub listing -> post ${resolved}`);
     return resolved;
   } catch (e) {

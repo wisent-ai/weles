@@ -6,7 +6,11 @@
 // read is distinguishable from a refusal caused by a control that was not there.
 import type { ElementHandle } from 'playwright';
 import type { WSession } from '../../../session/wsession.js';
-import { describeEdgeFailure, recordEdge, safeText } from '../withheld-ledger.js';
+import {
+  describeEdgeFailure,
+  recordEdge,
+  safeText,
+} from '../withheld-ledger.js';
 
 // Everything except the handle arrives from a single in-page evaluation, so the
 // facts are named apart from the handle they belong to. An attribute the node
@@ -37,12 +41,17 @@ export type ControlDescriptor = ControlFacts & {
   element: ElementHandle<HTMLElement | SVGElement>;
 };
 
-export async function controlDescriptors(session: WSession): Promise<ControlDescriptor[]> {
+export async function controlDescriptors(
+  session: WSession,
+): Promise<ControlDescriptor[]> {
   const descriptors: ControlDescriptor[] = [];
   // Every frame and every control in it, whole: the frame, control and
   // attribute cuts once here (16, 160, 16 to 120 characters) were nobody's
   // statement and hid what the policy must judge.
-  const frames = typeof session.page.frames === 'function' ? session.page.frames() : [session.page];
+  const frames =
+    typeof session.page.frames === 'function'
+      ? session.page.frames()
+      : [session.page];
   for (const frame of frames) {
     const locator = frame.locator(
       'button, a, input, select, textarea, summary, [role="button"], [role="link"], [role="tab"], [role="searchbox"]',
@@ -76,7 +85,11 @@ export async function controlDescriptors(session: WSession): Promise<ControlDesc
       let facts: ControlFacts | null;
       try {
         facts = await element.evaluate((node: Element) => {
-          const html = node as HTMLElement & { type?: string; href?: string; target?: string };
+          const html = node as HTMLElement & {
+            type?: string;
+            href?: string;
+            target?: string;
+          };
           const bounds = html.getBoundingClientRect();
           if (bounds.width <= 0 || bounds.height <= 0) return null;
           const form = html.closest('form');
@@ -89,9 +102,14 @@ export async function controlDescriptors(session: WSession): Promise<ControlDesc
               html.getAttribute('id'),
               html.getAttribute('value'),
               html.getAttribute('placeholder'),
-            ].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim(),
+            ]
+              .filter(Boolean)
+              .join(' ')
+              .replace(/\s+/g, ' ')
+              .trim(),
             tag: html.tagName.toLowerCase(),
-            type: html.type === undefined ? '' : String(html.type).toLowerCase(),
+            type:
+              html.type === undefined ? '' : String(html.type).toLowerCase(),
             role: html.getAttribute('role')?.toLowerCase(),
             active: document.activeElement === html,
             href: String(html.href ?? ''),
@@ -100,12 +118,24 @@ export async function controlDescriptors(session: WSession): Promise<ControlDesc
             ariaControls: html.getAttribute('aria-controls') ?? undefined,
             ariaExpanded: html.getAttribute('aria-expanded') ?? undefined,
             formPresent: Boolean(form),
-            formText: String(form?.innerText ?? '').replace(/\s+/g, ' ').trim(),
+            formText: String(form?.innerText ?? '')
+              .replace(/\s+/g, ' ')
+              .trim(),
             formAction: String(form?.action ?? ''),
             formMethod: form ? form.method.toLowerCase() : '',
-            formHasPassword: Boolean(form?.querySelector('input[type="password"]')),
-            formHasOneTimeCode: Boolean(form?.querySelector('input[autocomplete="one-time-code"], input[name*="otp" i], input[name*="code" i]')),
-            formHasMessage: Boolean(form?.querySelector('textarea, input[name*="message" i], input[name*="comment" i], input[name*="reply" i]')),
+            formHasPassword: Boolean(
+              form?.querySelector('input[type="password"]'),
+            ),
+            formHasOneTimeCode: Boolean(
+              form?.querySelector(
+                'input[autocomplete="one-time-code"], input[name*="otp" i], input[name*="code" i]',
+              ),
+            ),
+            formHasMessage: Boolean(
+              form?.querySelector(
+                'textarea, input[name*="message" i], input[name*="comment" i], input[name*="reply" i]',
+              ),
+            ),
           };
         });
       } catch (error) {

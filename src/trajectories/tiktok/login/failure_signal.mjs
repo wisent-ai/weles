@@ -8,11 +8,22 @@ import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
  * (SadCaptcha-gated), or with the rate-limit error code on register_verify_login.
  */
 export function classifyLoginFailure(message, finalUrl) {
-  if (/ERR_HTTP_RESPONSE_CODE_FAILURE|ERR_BLOCKED_BY_RESPONSE|ERR_BLOCKED_BY_CLIENT|ERR_BLOCKED_BY_ADMINISTRATOR/.test(message)) return 'ip_blocked';
-  if (/ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED/.test(message)) return 'proxy_failed';
+  if (
+    /ERR_HTTP_RESPONSE_CODE_FAILURE|ERR_BLOCKED_BY_RESPONSE|ERR_BLOCKED_BY_CLIENT|ERR_BLOCKED_BY_ADMINISTRATOR/.test(
+      message,
+    )
+  )
+    return 'ip_blocked';
+  if (/ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED/.test(message))
+    return 'proxy_failed';
   if (finalUrl.startsWith('chrome-error://')) return 'proxy_failed';
-  if (/login_rate_limited|Maximum number of attempts reached/i.test(message)) return 'rate_limited';
-  if (/captcha|verify-app|app-download/i.test(message) || /\/login\/download-app|\/captcha/.test(finalUrl)) return 'captcha_challenge';
+  if (/login_rate_limited|Maximum number of attempts reached/i.test(message))
+    return 'rate_limited';
+  if (
+    /captcha|verify-app|app-download/i.test(message) ||
+    /\/login\/download-app|\/captcha/.test(finalUrl)
+  )
+    return 'captcha_challenge';
   if (/\/login/.test(finalUrl)) return 'checkpoint';
   return 'action_failed';
 }
@@ -27,15 +38,29 @@ export function recordLoginFailure(error, s, acct, loginDiag) {
   const finalUrl = s?.page?.url?.() ?? '';
   const message = error.message ?? '';
   const ts = new Date().toISOString();
-  writeFileSync(join(dir, 'login_diag.json'), JSON.stringify({ ...loginDiag, error: message, final_url: finalUrl, ts }, null, 2));
+  writeFileSync(
+    join(dir, 'login_diag.json'),
+    JSON.stringify(
+      { ...loginDiag, error: message, final_url: finalUrl, ts },
+      null,
+      2,
+    ),
+  );
   const signal = classifyLoginFailure(message, finalUrl);
-  writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({
-    account_id: acct.id,
-    username: acct.username,
-    action: 'tiktok_login',
-    signal,
-    healthy: false,
-    details: { final_url: finalUrl, reason: error.message ?? 'no message' },
-    ts,
-  }, null, 2));
+  writeFileSync(
+    join(dir, 'ban_signal.json'),
+    JSON.stringify(
+      {
+        account_id: acct.id,
+        username: acct.username,
+        action: 'tiktok_login',
+        signal,
+        healthy: false,
+        details: { final_url: finalUrl, reason: error.message ?? 'no message' },
+        ts,
+      },
+      null,
+      2,
+    ),
+  );
 }

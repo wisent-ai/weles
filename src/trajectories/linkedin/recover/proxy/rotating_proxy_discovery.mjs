@@ -11,8 +11,16 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../../../dist/session/run-recordings.js';
 import { generatePersona } from '../../../../../dist/browser/persona.js';
-import { probeLinkedinSignup, verifyExitCountry, verifyExitReputation } from '../../../../../dist/proxy/policy.js';
-import { parseInclude, rotatingRows, stickySession } from '../../../_shared/skarbiec/proxies.mjs';
+import {
+  probeLinkedinSignup,
+  verifyExitCountry,
+  verifyExitReputation,
+} from '../../../../../dist/proxy/policy.js';
+import {
+  parseInclude,
+  rotatingRows,
+  stickySession,
+} from '../../../_shared/skarbiec/proxies.mjs';
 import { statedCount } from '../../../_shared/inputs/stated.mjs';
 
 const OUT = runRecordingsDir('linkedin_rotating_proxy_discovery');
@@ -20,15 +28,25 @@ const WORK = join(OUT, 'work');
 mkdirSync(OUT, { recursive: true });
 mkdirSync(WORK, { recursive: true });
 
-const SAMPLES_PER_PROVIDER = statedCount('LINKEDIN_ROTATING_DISCOVERY_SAMPLES', 'how many sticky sessions are sampled from each rotating pool');
-const TARGET_CC = (process.env.LINKEDIN_ROTATING_DISCOVERY_COUNTRY || 'us').toLowerCase();
+const SAMPLES_PER_PROVIDER = statedCount(
+  'LINKEDIN_ROTATING_DISCOVERY_SAMPLES',
+  'how many sticky sessions are sampled from each rotating pool',
+);
+const TARGET_CC = (
+  process.env.LINKEDIN_ROTATING_DISCOVERY_COUNTRY || 'us'
+).toLowerCase();
 // Which rotating pools to sample: `provider[/type]` entries, by the provider
 // the endpoint derives and the pool type the Skarbiec item declares.
-const INCLUDE = parseInclude(process.env.LINKEDIN_ROTATING_DISCOVERY_INCLUDE || 'brightdata,pingproxies,packetstream,iproyal,oxylabs');
+const INCLUDE = parseInclude(
+  process.env.LINKEDIN_ROTATING_DISCOVERY_INCLUDE ||
+    'brightdata,pingproxies,packetstream,iproyal,oxylabs',
+);
 
 function hash(value) {
   const text = String(value ?? '');
-  return text ? createHash('sha256').update(text).digest('hex').slice(0, 16) : '';
+  return text
+    ? createHash('sha256').update(text).digest('hex').slice(0, 16)
+    : '';
 }
 
 function proxyUrlFor(row, username, password) {
@@ -39,18 +57,28 @@ function proxyUrlFor(row, username, password) {
 // the answer when the pool does not deliver, reported with the exit IP blank.
 function sampleExitIp(proxyUrl) {
   try {
-    return execFileSync('curl', ['-sS', '-x', proxyUrl, 'https://api.ipify.org'], {
-      encoding: 'utf8',
-      maxBuffer: 128 * 1024,
-    }).trim();
+    return execFileSync(
+      'curl',
+      ['-sS', '-x', proxyUrl, 'https://api.ipify.org'],
+      {
+        encoding: 'utf8',
+        maxBuffer: 128 * 1024,
+      },
+    ).trim();
   } catch (error) {
-    console.log(`[rotating-discovery] proxy_sample_failed: ${String(error.stderr || error.message).trim()}`);
+    console.log(
+      `[rotating-discovery] proxy_sample_failed: ${String(error.stderr || error.message).trim()}`,
+    );
     return '';
   }
 }
 
 const startedAt = new Date().toISOString();
-const persona = generatePersona({ country: TARGET_CC.toUpperCase(), os: 'windows', browser: 'chromium' });
+const persona = generatePersona({
+  country: TARGET_CC.toUpperCase(),
+  os: 'windows',
+  browser: 'chromium',
+});
 const { candidates: rows, undeclared } = rotatingRows(INCLUDE);
 const results = undeclared.map((row) => ({
   provider: row.provider,
@@ -60,8 +88,13 @@ const results = undeclared.map((row) => ({
   skipped: true,
 }));
 
-console.log(`[rotating-discovery] providers=${rows.length} undeclared=${undeclared.length} samples=${SAMPLES_PER_PROVIDER} cc=${TARGET_CC}`);
-for (const row of undeclared) console.log(`[rotating-discovery] ${row.displayName} (${row.id}) declares no proxy_type in its Skarbiec context; set it to isp, mobile or residential`);
+console.log(
+  `[rotating-discovery] providers=${rows.length} undeclared=${undeclared.length} samples=${SAMPLES_PER_PROVIDER} cc=${TARGET_CC}`,
+);
+for (const row of undeclared)
+  console.log(
+    `[rotating-discovery] ${row.displayName} (${row.id}) declares no proxy_type in its Skarbiec context; set it to isp, mobile or residential`,
+  );
 
 for (const row of rows) {
   const provider = row.provider;
@@ -71,9 +104,15 @@ for (const row of rows) {
     const auth = stickySession(row, sessId, TARGET_CC, 'linkedin');
     const proxyUrl = proxyUrlFor(row, auth.username, auth.password);
     const exitIp = sampleExitIp(proxyUrl);
-    const geo = exitIp ? await verifyExitCountry(exitIp, TARGET_CC) : { result: 'unknown' };
-    const reputation = exitIp ? await verifyExitReputation(exitIp).catch(() => ({ result: 'unknown' })) : { result: 'unknown' };
-    const probe = exitIp ? await probeLinkedinSignup(proxyUrl, persona) : { result: 'unknown', error: 'exit_ip_missing' };
+    const geo = exitIp
+      ? await verifyExitCountry(exitIp, TARGET_CC)
+      : { result: 'unknown' };
+    const reputation = exitIp
+      ? await verifyExitReputation(exitIp).catch(() => ({ result: 'unknown' }))
+      : { result: 'unknown' };
+    const probe = exitIp
+      ? await probeLinkedinSignup(proxyUrl, persona)
+      : { result: 'unknown', error: 'exit_ip_missing' };
     const item = {
       provider,
       display_name: row.displayName,
@@ -93,11 +132,15 @@ for (const row of rows) {
       },
     };
     results.push(item);
-    console.log(`[rotating-discovery] ${row.displayName} sample=${i + 1}/${SAMPLES_PER_PROVIDER} exit=${exitIp || '?'} geo=${geo.result} rep=${reputation.result} linkedin=${probe.result}`);
+    console.log(
+      `[rotating-discovery] ${row.displayName} sample=${i + 1}/${SAMPLES_PER_PROVIDER} exit=${exitIp || '?'} geo=${geo.result} rep=${reputation.result} linkedin=${probe.result}`,
+    );
   }
 }
 
-const formCandidates = results.filter((r) => r.linkedin_probe?.result === 'form');
+const formCandidates = results.filter(
+  (r) => r.linkedin_probe?.result === 'form',
+);
 const summary = {
   started_at: startedAt,
   completed_at: new Date().toISOString(),
@@ -128,7 +171,10 @@ const summary = {
   results,
 };
 
-writeFileSync(join(OUT, 'rotating_proxy_discovery.json'), JSON.stringify(summary, null, 2));
+writeFileSync(
+  join(OUT, 'rotating_proxy_discovery.json'),
+  JSON.stringify(summary, null, 2),
+);
 writeFileSync(join(WORK, 'latest.json'), JSON.stringify(summary, null, 2));
 
 if (formCandidates.length) {

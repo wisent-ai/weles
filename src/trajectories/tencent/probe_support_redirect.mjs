@@ -24,12 +24,23 @@ const CANDIDATES = [
   'https://console.intl.cloud.tencent.com/hunyuan',
 ];
 const URL = CANDIDATES[0];
-const PERSONA_PATH = join(homedir(), '.weles', 'cookie-jars', 'tencent_persona.json');
+const PERSONA_PATH = join(
+  homedir(),
+  '.weles',
+  'cookie-jars',
+  'tencent_persona.json',
+);
 
 async function main() {
   let pinned = null;
-  try { pinned = JSON.parse(readFileSync(PERSONA_PATH, 'utf8')); } catch {}
-  const s = await WSession.start({ label: 'tencent_probe_support', browser: 'chromium', persona: pinned ?? undefined });
+  try {
+    pinned = JSON.parse(readFileSync(PERSONA_PATH, 'utf8'));
+  } catch {}
+  const s = await WSession.start({
+    label: 'tencent_probe_support',
+    browser: 'chromium',
+    persona: pinned ?? undefined,
+  });
   try {
     const cookies = loadTencentCookies();
     await s.page.context().addCookies(cookies);
@@ -37,12 +48,25 @@ async function main() {
 
     for (const target of CANDIDATES) {
       console.log(`\n[probe] === ${target} ===`);
-      await s.page.goto(target, { waitUntil: 'domcontentloaded' }).catch((e) => console.log(`[probe] goto warn: ${e.message}`));
+      await s.page
+        .goto(target, { waitUntil: 'domcontentloaded' })
+        .catch((e) => console.log(`[probe] goto warn: ${e.message}`));
       await humanIdlePause('long');
       console.log(`[probe] final URL: ${s.page.url()}`);
-      const dump = await s.page.evaluate(() => ({ title: document.title, body: (document.body?.innerText || ''), btns: Array.from(document.querySelectorAll('button, a')).filter(e => e.offsetParent).map(e => (e.innerText || '').trim()).filter(t => t) })).catch(() => ({}));
+      const dump = await s.page
+        .evaluate(() => ({
+          title: document.title,
+          body: document.body?.innerText || '',
+          btns: Array.from(document.querySelectorAll('button, a'))
+            .filter((e) => e.offsetParent)
+            .map((e) => (e.innerText || '').trim())
+            .filter((t) => t),
+        }))
+        .catch(() => ({}));
       console.log(`[probe] title: ${dump.title}`);
-      console.log(`[probe] body excerpt: ${(dump.body || '').replace(/\n/g, ' | ')}`);
+      console.log(
+        `[probe] body excerpt: ${(dump.body || '').replace(/\n/g, ' | ')}`,
+      );
       console.log(`[probe] visible buttons: ${JSON.stringify(dump.btns)}`);
     }
     await humanIdlePause('deliberate');
@@ -51,4 +75,7 @@ async function main() {
   }
 }
 
-main().catch((e) => { console.error('[probe] fatal:', e); process.exit(1); });
+main().catch((e) => {
+  console.error('[probe] fatal:', e);
+  process.exit(1);
+});

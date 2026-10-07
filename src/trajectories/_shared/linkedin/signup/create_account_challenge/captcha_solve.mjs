@@ -3,64 +3,120 @@ import { CaptchaSolver } from '../../../../../../dist/captcha/solver.js';
 import { pageSettled } from '../../../page/settled.mjs';
 import { getCaptchaCredentials } from '../../../../../../dist/utils/credentials.js';
 import { isChallengeCleared } from './detect.mjs';
-import { getCaptchaSitekey, getChallengeDataS, submitLinkedinCaptchaForm } from './captcha_form.mjs';
+import {
+  getCaptchaSitekey,
+  getChallengeDataS,
+  submitLinkedinCaptchaForm,
+} from './captcha_form.mjs';
 
 export async function solveLinkedinCaptchaChallenge(page, proxy) {
-  console.log('[create_account_challenge] waiting for captcha challenge iframe...');
-  await page.locator('iframe#captcha-internal').first().waitFor({ state: 'visible' });
+  console.log(
+    '[create_account_challenge] waiting for captcha challenge iframe...',
+  );
+  await page
+    .locator('iframe#captcha-internal')
+    .first()
+    .waitFor({ state: 'visible' });
 
   const sitekey = await getCaptchaSitekey(page);
-  if (!sitekey) throw new Error('create_account_challenge: captcha sitekey not found');
+  if (!sitekey)
+    throw new Error('create_account_challenge: captcha sitekey not found');
   console.log(`[create_account_challenge] captcha sitekey=${sitekey}`);
   console.log('[create_account_challenge] reading data-s...');
   const dataS = await getChallengeDataS(page);
-  if (dataS) console.log(`[create_account_challenge] captcha data-s_chars=${dataS.length}`);
-  else console.log('[create_account_challenge] no data-s found, proceeding without it');
+  if (dataS)
+    console.log(
+      `[create_account_challenge] captcha data-s_chars=${dataS.length}`,
+    );
+  else
+    console.log(
+      '[create_account_challenge] no data-s found, proceeding without it',
+    );
 
   // If a browser extension solver (e.g. NopeCHA) is active, it works on the
   // page by itself; read whether it cleared the challenge once the page settles.
   if (process.env.WELES_NOPECHA_EXT === '1') {
-    console.log('[create_account_challenge] NopeCHA extension detected; reading the settled page');
+    console.log(
+      '[create_account_challenge] NopeCHA extension detected; reading the settled page',
+    );
     await pageSettled(page);
     if (await isChallengeCleared(page)) {
-      console.log('[create_account_challenge] challenge cleared by extension solver');
+      console.log(
+        '[create_account_challenge] challenge cleared by extension solver',
+      );
       return;
     }
-    console.log('[create_account_challenge] extension did not clear the challenge; using API solvers');
+    console.log(
+      '[create_account_challenge] extension did not clear the challenge; using API solvers',
+    );
   }
 
   // LinkedIn's invisible enterprise reCAPTCHA is picky. Try each captcha
   // provider in isolation and verify whether the challenge actually clears.
   // Some providers classify this key as V3/score-based, so try V3 first.
   const allCreds = await getCaptchaCredentials();
-  const providerOrder = ['nopecha', 'capsolver', 'anticaptcha', 'capmonster', 'twocaptcha'];
-  const challengeUrl = (typeof page.url === 'function' ? page.url() : page?.url) ?? 'https://www.linkedin.com/signup';
+  const providerOrder = [
+    'nopecha',
+    'capsolver',
+    'anticaptcha',
+    'capmonster',
+    'twocaptcha',
+  ];
+  const challengeUrl =
+    (typeof page.url === 'function' ? page.url() : page?.url) ??
+    'https://www.linkedin.com/signup';
   const websiteUrl = challengeUrl;
 
   for (const provider of providerOrder) {
     const key = allCreds[provider];
     if (!key) continue;
-    console.log(`[create_account_challenge] trying captcha provider: ${provider}`);
+    console.log(
+      `[create_account_challenge] trying captcha provider: ${provider}`,
+    );
     const solver = new CaptchaSolver({ [provider]: key });
 
     // Attempt 1: reCAPTCHA v3 / score-based token.
-    if (provider === 'capsolver' || provider === 'anticaptcha' || provider === 'nopecha') {
-      const v3Token = await solver.solveRecaptchaV3(sitekey, websiteUrl, 'signup', { proxy, dataS, enterprise: true });
+    if (
+      provider === 'capsolver' ||
+      provider === 'anticaptcha' ||
+      provider === 'nopecha'
+    ) {
+      const v3Token = await solver.solveRecaptchaV3(
+        sitekey,
+        websiteUrl,
+        'signup',
+        { proxy, dataS, enterprise: true },
+      );
       if (v3Token && typeof v3Token === 'string') {
-        console.log(`[create_account_challenge] ${provider} v3 token_chars=${v3Token.length}`);
-        const submitResult = await submitLinkedinCaptchaForm(page, v3Token, sitekey, dataS);
+        console.log(
+          `[create_account_challenge] ${provider} v3 token_chars=${v3Token.length}`,
+        );
+        const submitResult = await submitLinkedinCaptchaForm(
+          page,
+          v3Token,
+          sitekey,
+          dataS,
+        );
         if (submitResult.ok) {
           await pageSettled(page);
           if (await isChallengeCleared(page)) {
-            console.log(`[create_account_challenge] captcha cleared with ${provider} v3`);
+            console.log(
+              `[create_account_challenge] captcha cleared with ${provider} v3`,
+            );
             return;
           }
-          console.log(`[create_account_challenge] challenge remained visible after ${provider} v3 submission`);
+          console.log(
+            `[create_account_challenge] challenge remained visible after ${provider} v3 submission`,
+          );
         } else {
-          console.log(`[create_account_challenge] ${provider} v3 submit failed: ${submitResult.reason}`);
+          console.log(
+            `[create_account_challenge] ${provider} v3 submit failed: ${submitResult.reason}`,
+          );
         }
       } else {
-        console.log(`[create_account_challenge] ${provider} returned no v3 token`);
+        console.log(
+          `[create_account_challenge] ${provider} returned no v3 token`,
+        );
       }
     }
 
@@ -69,26 +125,49 @@ export async function solveLinkedinCaptchaChallenge(page, proxy) {
     // inside the form may look like a plain v2 key, but the endpoint validates
     // it as enterprise, so request an enterprise token first.
     for (const entFlag of [true, false]) {
-      const token = await solver.solveRecaptchaV2(page, sitekey, { enterprise: entFlag, invisible: true, url: websiteUrl, proxy, dataS });
+      const token = await solver.solveRecaptchaV2(page, sitekey, {
+        enterprise: entFlag,
+        invisible: true,
+        url: websiteUrl,
+        proxy,
+        dataS,
+      });
       if (!token || typeof token !== 'string') {
-        console.log(`[create_account_challenge] ${provider} returned no v2 token (enterprise=${entFlag})`);
+        console.log(
+          `[create_account_challenge] ${provider} returned no v2 token (enterprise=${entFlag})`,
+        );
         continue;
       }
-      console.log(`[create_account_challenge] ${provider} v2 token_chars=${token.length} (enterprise=${entFlag})`);
+      console.log(
+        `[create_account_challenge] ${provider} v2 token_chars=${token.length} (enterprise=${entFlag})`,
+      );
 
-      const submitResult = await submitLinkedinCaptchaForm(page, token, sitekey, dataS);
+      const submitResult = await submitLinkedinCaptchaForm(
+        page,
+        token,
+        sitekey,
+        dataS,
+      );
       if (!submitResult.ok) {
-        console.log(`[create_account_challenge] ${provider} v2 submit failed (enterprise=${entFlag}): ${submitResult.reason}`);
+        console.log(
+          `[create_account_challenge] ${provider} v2 submit failed (enterprise=${entFlag}): ${submitResult.reason}`,
+        );
         continue;
       }
 
       await pageSettled(page);
       if (await isChallengeCleared(page)) {
-        console.log(`[create_account_challenge] captcha cleared with ${provider} v2 (enterprise=${entFlag})`);
+        console.log(
+          `[create_account_challenge] captcha cleared with ${provider} v2 (enterprise=${entFlag})`,
+        );
         return;
       }
-      console.log(`[create_account_challenge] challenge remained visible after ${provider} v2 submission (enterprise=${entFlag})`);
+      console.log(
+        `[create_account_challenge] challenge remained visible after ${provider} v2 submission (enterprise=${entFlag})`,
+      );
     }
   }
-  throw new Error('create_account_challenge: all captcha providers failed to clear the challenge');
+  throw new Error(
+    'create_account_challenge: all captcha providers failed to clear the challenge',
+  );
 }

@@ -40,7 +40,13 @@ const SHADOW_KINDS = new Map([
 ]);
 
 function newPage() {
-  return { radii: new Set(), pills: NOTHING_COUNTED, paints: new Map(), effects: new Map(), unboundFills: new Map() };
+  return {
+    radii: new Set(),
+    pills: NOTHING_COUNTED,
+    paints: new Map(),
+    effects: new Map(),
+    unboundFills: new Map(),
+  };
 }
 
 function newVariable() {
@@ -53,7 +59,12 @@ function entry(map, key, create) {
 }
 
 function imageRef(paint, found) {
-  if (isRecord(paint) && paint.type === 'IMAGE' && typeof paint.imageRef === 'string') found.add(paint.imageRef);
+  if (
+    isRecord(paint) &&
+    paint.type === 'IMAGE' &&
+    typeof paint.imageRef === 'string'
+  )
+    found.add(paint.imageRef);
 }
 
 /** A field as text in a key or a name, and nothing when the node leaves it out. */
@@ -90,22 +101,36 @@ export function walkDocument(payload) {
   while (stack.length) {
     let [node, page, shown] = stack.pop();
     if (!isRecord(node)) continue;
-    walk.nodes.push({ id: node.id, name: keyPart(node.name), type: keyPart(node.type) });
+    walk.nodes.push({
+      id: node.id,
+      name: keyPart(node.name),
+      type: keyPart(node.type),
+    });
     if (node.type === 'CANVAS') {
       page = keyPart(node.name);
       walk.pages.push(page);
       for (const child of items(node.children)) {
-        walk.topLevelNodes.push({ id: child.id, name: keyPart(child.name), page });
+        walk.topLevelNodes.push({
+          id: child.id,
+          name: keyPart(child.name),
+          page,
+        });
       }
     }
     shown = shown && node.visible !== false;
     if (Array.isArray(node.exportSettings) && node.exportSettings.length) {
-      walk.exportNodes.push({ id: node.id, name: keyPart(node.name), settings: node.exportSettings });
+      walk.exportNodes.push({
+        id: node.id,
+        name: keyPart(node.name),
+        settings: node.exportSettings,
+      });
     }
     // Children go on the stack last-first, so they come off in document order.
-    for (const child of [...items(node.children)].reverse()) stack.push([child, page, shown]);
+    for (const child of [...items(node.children)].reverse())
+      stack.push([child, page, shown]);
     if (!shown) {
-      for (const kind of PAINT_LISTS) for (const paint of items(node[kind])) imageRef(paint, walk.imageRefs);
+      for (const kind of PAINT_LISTS)
+        for (const paint of items(node[kind])) imageRef(paint, walk.imageRefs);
       continue;
     }
     readShownNode(node, page, walk);
@@ -115,8 +140,22 @@ export function walkDocument(payload) {
 
 /** The auto-layout lengths a stylesheet's padding and gap may take. */
 function spacingsOf(node) {
-  const { paddingTop, paddingRight, paddingBottom, paddingLeft, itemSpacing, counterAxisSpacing } = node;
-  return [paddingTop, paddingRight, paddingBottom, paddingLeft, itemSpacing, counterAxisSpacing];
+  const {
+    paddingTop,
+    paddingRight,
+    paddingBottom,
+    paddingLeft,
+    itemSpacing,
+    counterAxisSpacing,
+  } = node;
+  return [
+    paddingTop,
+    paddingRight,
+    paddingBottom,
+    paddingLeft,
+    itemSpacing,
+    counterAxisSpacing,
+  ];
 }
 
 function readShownNode(node, page, walk) {
@@ -129,7 +168,10 @@ function readShownNode(node, page, walk) {
       if (length !== null) count(walk.spacings, plainNumber(length));
     }
   }
-  for (const value of [node.cornerRadius, ...items(node.rectangleCornerRadii)]) {
+  for (const value of [
+    node.cornerRadius,
+    ...items(node.rectangleCornerRadii),
+  ]) {
     const radius = radiusOf(value);
     if (radius === null) continue;
     if (radius >= PILL) stats.pills += 1;
@@ -141,7 +183,8 @@ function readShownNode(node, page, walk) {
 
 /** The variable a solid paint is bound to: on the paint, or at its index on the node. */
 function aliasOf(paint, aliases, index) {
-  if (isRecord(paint.boundVariables) && isRecord(paint.boundVariables.color)) return paint.boundVariables.color;
+  if (isRecord(paint.boundVariables) && isRecord(paint.boundVariables.color))
+    return paint.boundVariables.color;
   if (index < aliases.length && isRecord(aliases[index])) return aliases[index];
   return null;
 }
@@ -161,13 +204,18 @@ function readPaints(node, page, stats, walk) {
         // solid fill: the glass buttons' strokes are #f2f2f2 to #818181 to
         // white, and no variable names them.
         for (const stop of items(paint.gradientStops)) {
-          if (isRecord(stop) && isRecord(stop.color)) count(walk.gradientStops, hexOf(stop.color));
+          if (isRecord(stop) && isRecord(stop.color))
+            count(walk.gradientStops, hexOf(stop.color));
         }
       }
       if (paintType !== 'SOLID' || !isRecord(paint.color)) return;
       const colour = hexOf(paint.color);
       const alias = aliasOf(paint, aliases, index);
-      if (isRecord(alias) && alias.type === 'VARIABLE_ALIAS' && typeof alias.id === 'string') {
+      if (
+        isRecord(alias) &&
+        alias.type === 'VARIABLE_ALIAS' &&
+        typeof alias.id === 'string'
+      ) {
         const variable = entry(walk.variables, alias.id, newVariable);
         count(variable.hexes, colour);
         variable.uses += 1;
@@ -218,21 +266,39 @@ function readText(node, walk) {
   if (size === null) return;
   count(walk.textSizes, plainNumber(size));
   const height = lengthPart(radiusOf(style.lineHeightPx));
-  count(walk.textSettings, [style.fontFamily, plainNumber(size), height, keyPart(style.fontWeight)].join('|'));
+  count(
+    walk.textSettings,
+    [
+      style.fontFamily,
+      plainNumber(size),
+      height,
+      keyPart(style.fontWeight),
+    ].join('|'),
+  );
 }
 
 function readStyles(node, walk) {
   if (!isRecord(node.styles)) return;
   for (const [kind, styleId] of Object.entries(node.styles)) {
-    if (typeof styleId !== 'string' || walk.styleExamples.has(styleId)) continue;
+    if (typeof styleId !== 'string' || walk.styleExamples.has(styleId))
+      continue;
     if (kind.startsWith('fill') || kind.startsWith('stroke')) {
-      const paints = items(kind.startsWith('fill') ? node.fills : node.strokes).filter(visible);
+      const paints = items(
+        kind.startsWith('fill') ? node.fills : node.strokes,
+      ).filter(visible);
       const values = paints.map(paintValue).filter((value) => value !== null);
-      if (values.length) walk.styleExamples.set(styleId, values.length === 1 ? values[0] : values);
+      if (values.length)
+        walk.styleExamples.set(
+          styleId,
+          values.length === 1 ? values[0] : values,
+        );
     } else if (kind === 'text' && isRecord(node.style)) {
       walk.styleExamples.set(styleId, textValue(node.style));
     } else if (kind === 'effect') {
-      walk.styleExamples.set(styleId, items(node.effects).filter(visible).map(effectValue));
+      walk.styleExamples.set(
+        styleId,
+        items(node.effects).filter(visible).map(effectValue),
+      );
     }
   }
 }

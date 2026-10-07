@@ -13,13 +13,17 @@ export function identityPlatformFromConstraints(value) {
 /** The session platform: an explicit account-bound one, else the identity platform. */
 export function sessionPlatformFromConstraints(value) {
   const identityPlatform = identityPlatformFromConstraints(value);
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return identityPlatform;
-  const explicit = typeof value.session_platform === 'string'
-    ? value.session_platform.trim().toLowerCase()
-    : '';
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    return identityPlatform;
+  const explicit =
+    typeof value.session_platform === 'string'
+      ? value.session_platform.trim().toLowerCase()
+      : '';
   if (!explicit) return identityPlatform;
   if (!process.env.ACCOUNT_ID?.trim()) {
-    throw new Error('constraints.session_platform requires an account-bound task');
+    throw new Error(
+      'constraints.session_platform requires an account-bound task',
+    );
   }
   if (!/^[a-z0-9][a-z0-9_-]{0,39}$/.test(explicit)) {
     throw new Error('constraints.session_platform is invalid');
@@ -39,7 +43,7 @@ export function identityInstructions(platform) {
   ];
   if (platform === 'semantic_scholar') {
     instructions.push(
-      'On Semantic Scholar\'s API page, fill and submit the HubSpot form embedded in the Request an API Key / api-key-form iframe; do not use the footer newsletter form.',
+      "On Semantic Scholar's API page, fill and submit the HubSpot form embedded in the Request an API Key / api-key-form iframe; do not use the footer newsletter form.",
       'Semantic Scholar API-key iframe exact field plan: fill firstname, lastname, email, company, 0-2/website, country_choice, message, api_endpoints, and api_requests_per_second; choose the Public application radio (input[name="application"]); tick every API acknowledgement/terms checkbox, especially input[name="api_successful_unauth_requests"]; if CAPTCHA/Turnstile/reCAPTCHA appears, call solve_captcha before giving up; then click Submit inside that same iframe. If validation errors remain, repair those exact fields before retrying submit. Post-submit key-delivery email is handled by the server-side Semantic Scholar follow-up scanner.',
     );
   }

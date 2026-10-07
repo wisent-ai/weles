@@ -5,7 +5,10 @@
 // unlock. Separate from the form because this describes somebody else's
 // anti-bot gate and changes when Cloudflare changes the widget.
 
-import { humanClickLocator, humanMove } from '../../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanMove,
+} from '../../../../../dist/human/mouse.js';
 import { pageCondition, pageSettled } from '../../../_shared/page/settled.mjs';
 
 async function publicVerificationState(page) {
@@ -13,59 +16,83 @@ async function publicVerificationState(page) {
     const visible = (el) => {
       const style = window.getComputedStyle(el);
       const rect = el.getBoundingClientRect();
-      return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+      return (
+        style.visibility !== 'hidden' &&
+        style.display !== 'none' &&
+        rect.width > 0 &&
+        rect.height > 0
+      );
     };
     // Attributes a node does not carry are simply left out of the marker.
     const buttonLabel = (el) => {
-      const sources = [el.textContent, el.getAttribute('aria-label'), el.getAttribute('value')];
+      const sources = [
+        el.textContent,
+        el.getAttribute('aria-label'),
+        el.getAttribute('value'),
+      ];
       const raw = sources.find((value) => value);
       if (!raw) return '';
       return raw.replace(/\s+/g, ' ').trim();
     };
     const body = document.body?.innerText || '';
-    const visibleFrames = Array.from(document.querySelectorAll('iframe')).filter(visible).map((el) => {
-      const rect = el.getBoundingClientRect();
-      const marker = [
-        el.getAttribute('src'),
-        el.getAttribute('title'),
-        el.getAttribute('name'),
-        el.getAttribute('id'),
-        el.getAttribute('class'),
-        el.outerHTML,
-      ].filter((part) => part).join(' ');
-      return {
-        marker,
-        width: Math.round(rect.width),
-        height: Math.round(rect.height),
-        x: Math.round(rect.x),
-        y: Math.round(rect.y),
-      };
-    });
-    const turnstileFrames = visibleFrames.filter((frame) => (
-      /cloudflare|turnstile|challenge|cf-|verify|human/i.test(frame.marker) ||
-      (frame.width >= 180 && frame.height >= 45 && frame.height <= 120)
-    )).length;
-    const turnstileContainers = Array.from(document.querySelectorAll('div')).filter((el) => {
-      const text = (el.textContent || '').trim();
-      const html = el.outerHTML || '';
-      return !text && /turnstile|cf-turnstile|challenges\.cloudflare\.com/i.test(html);
-    }).map((el) => {
-      const rect = el.getBoundingClientRect();
-      return {
-        marker: (el.outerHTML || ''),
-        width: Math.round(rect.width),
-        height: Math.round(rect.height),
-        x: Math.round(rect.x),
-        y: Math.round(rect.y),
-        visible: visible(el),
-      };
-    });
-    const buttons = Array.from(document.querySelectorAll('button,[role="button"],input[type="submit"]')).map((el) => ({
+    const visibleFrames = Array.from(document.querySelectorAll('iframe'))
+      .filter(visible)
+      .map((el) => {
+        const rect = el.getBoundingClientRect();
+        const marker = [
+          el.getAttribute('src'),
+          el.getAttribute('title'),
+          el.getAttribute('name'),
+          el.getAttribute('id'),
+          el.getAttribute('class'),
+          el.outerHTML,
+        ]
+          .filter((part) => part)
+          .join(' ');
+        return {
+          marker,
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+          x: Math.round(rect.x),
+          y: Math.round(rect.y),
+        };
+      });
+    const turnstileFrames = visibleFrames.filter(
+      (frame) =>
+        /cloudflare|turnstile|challenge|cf-|verify|human/i.test(frame.marker) ||
+        (frame.width >= 180 && frame.height >= 45 && frame.height <= 120),
+    ).length;
+    const turnstileContainers = Array.from(document.querySelectorAll('div'))
+      .filter((el) => {
+        const text = (el.textContent || '').trim();
+        const html = el.outerHTML || '';
+        return (
+          !text &&
+          /turnstile|cf-turnstile|challenges\.cloudflare\.com/i.test(html)
+        );
+      })
+      .map((el) => {
+        const rect = el.getBoundingClientRect();
+        return {
+          marker: el.outerHTML || '',
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+          x: Math.round(rect.x),
+          y: Math.round(rect.y),
+          visible: visible(el),
+        };
+      });
+    const buttons = Array.from(
+      document.querySelectorAll('button,[role="button"],input[type="submit"]'),
+    ).map((el) => ({
       text: buttonLabel(el),
-      disabled: Boolean(el.disabled) || el.getAttribute('aria-disabled') === 'true',
+      disabled:
+        Boolean(el.disabled) || el.getAttribute('aria-disabled') === 'true',
       visible: visible(el),
     }));
-    const scanButtons = buttons.filter((b) => /^(scan|check)\s+for\s+ai$/i.test(b.text) && b.visible);
+    const scanButtons = buttons.filter(
+      (b) => /^(scan|check)\s+for\s+ai$/i.test(b.text) && b.visible,
+    );
     return {
       turnstileFrames,
       turnstileContainers: turnstileContainers.length,
@@ -119,12 +146,20 @@ async function clickPublicTurnstileIfPresent(page) {
         if (!outer) return '';
         return outer;
       });
-      const marker = [selector, title, src, html].filter((part) => part).join(' ');
-      const markerLooksRelevant = /cloudflare|turnstile|challenge|verify|human/i.test(marker);
-      const sizeLooksLikeWidget = box.width >= 120 && box.width <= 520 && box.height >= 30 && box.height <= 180;
+      const marker = [selector, title, src, html]
+        .filter((part) => part)
+        .join(' ');
+      const markerLooksRelevant =
+        /cloudflare|turnstile|challenge|verify|human/i.test(marker);
+      const sizeLooksLikeWidget =
+        box.width >= 120 &&
+        box.width <= 520 &&
+        box.height >= 30 &&
+        box.height <= 180;
       const looksRelevant = selector.startsWith('iframe')
-        ? (markerLooksRelevant || (box.width >= 180 && box.height >= 45 && box.height <= 120))
-        : (markerLooksRelevant && sizeLooksLikeWidget);
+        ? markerLooksRelevant ||
+          (box.width >= 180 && box.height >= 45 && box.height <= 120)
+        : markerLooksRelevant && sizeLooksLikeWidget;
       if (!looksRelevant) continue;
 
       tried.push({
@@ -140,9 +175,10 @@ async function clickPublicTurnstileIfPresent(page) {
       });
 
       const handle = await elementLocator.elementHandle();
-      const frame = handle && selector.startsWith('iframe')
-        ? await handle.contentFrame?.()
-        : null;
+      const frame =
+        handle && selector.startsWith('iframe')
+          ? await handle.contentFrame?.()
+          : null;
       if (frame) {
         const insideWidget = [
           frame.getByRole('checkbox', { name: /verify|human/i }).first(),
@@ -160,12 +196,30 @@ async function clickPublicTurnstileIfPresent(page) {
         }
       }
 
-      const targetX = box.x + Math.min(Math.max(26, Math.round(box.width * 0.12)), Math.max(8, box.width - 10));
-      const targetY = box.y + Math.min(Math.max(22, Math.round(box.height * 0.5)), Math.max(8, box.height - 8));
-      await humanMove(page, targetX, targetY).catch(() => page.mouse.move(targetX, targetY)); // allow-raw-playwright: bounded coordinate path into the cross-origin Turnstile iframe
+      const targetX =
+        box.x +
+        Math.min(
+          Math.max(26, Math.round(box.width * 0.12)),
+          Math.max(8, box.width - 10),
+        );
+      const targetY =
+        box.y +
+        Math.min(
+          Math.max(22, Math.round(box.height * 0.5)),
+          Math.max(8, box.height - 8),
+        );
+      await humanMove(page, targetX, targetY).catch(() =>
+        page.mouse.move(targetX, targetY),
+      ); // allow-raw-playwright: bounded coordinate path into the cross-origin Turnstile iframe
       await page.mouse.click(targetX, targetY); // allow-raw-playwright: click exact checkbox region inside visible Turnstile widget
       await pageSettled(page);
-      return { clicked: true, method: selector.startsWith('iframe') ? 'iframe_coordinate' : 'container_coordinate', tried };
+      return {
+        clicked: true,
+        method: selector.startsWith('iframe')
+          ? 'iframe_coordinate'
+          : 'container_coordinate',
+        tried,
+      };
     }
   }
 
@@ -177,18 +231,45 @@ async function clickPublicTurnstileIfPresent(page) {
  * the person solving it) takes. */
 export async function waitForPublicVerificationIfNeeded(page) {
   const state = await publicVerificationState(page);
-  if (!state.turnstileFrames && !state.turnstileContainers && !state.verifyText && (!state.scanButtons?.length || state.enabledScan)) return state;
+  if (
+    !state.turnstileFrames &&
+    !state.turnstileContainers &&
+    !state.verifyText &&
+    (!state.scanButtons?.length || state.enabledScan)
+  )
+    return state;
   if (state.enabledScan) return state;
-  const turnstileClick = process.env.PANGRAM_CLICK_PUBLIC_TURNSTILE !== '0'
-    ? await clickPublicTurnstileIfPresent(page)
-    : null;
-  await pageCondition(page, () => Array.from(document.querySelectorAll('button,[role="button"],input[type="submit"]')).some((el) => {
-    const label = (el.textContent || el.getAttribute('aria-label') || el.getAttribute('value') || '').replace(/\s+/g, ' ').trim();
-    const rect = el.getBoundingClientRect();
-    const style = window.getComputedStyle(el);
-    const shown = style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
-    return shown && /^(scan|check)\s+for\s+ai$/i.test(label) && !el.disabled && el.getAttribute('aria-disabled') !== 'true';
-  }));
+  const turnstileClick =
+    process.env.PANGRAM_CLICK_PUBLIC_TURNSTILE !== '0'
+      ? await clickPublicTurnstileIfPresent(page)
+      : null;
+  await pageCondition(page, () =>
+    Array.from(
+      document.querySelectorAll('button,[role="button"],input[type="submit"]'),
+    ).some((el) => {
+      const label = (
+        el.textContent ||
+        el.getAttribute('aria-label') ||
+        el.getAttribute('value') ||
+        ''
+      )
+        .replace(/\s+/g, ' ')
+        .trim();
+      const rect = el.getBoundingClientRect();
+      const style = window.getComputedStyle(el);
+      const shown =
+        style.visibility !== 'hidden' &&
+        style.display !== 'none' &&
+        rect.width > 0 &&
+        rect.height > 0;
+      return (
+        shown &&
+        /^(scan|check)\s+for\s+ai$/i.test(label) &&
+        !el.disabled &&
+        el.getAttribute('aria-disabled') !== 'true'
+      );
+    }),
+  );
   const unlocked = await publicVerificationState(page);
   if (turnstileClick) unlocked.turnstileClick = turnstileClick;
   return unlocked;

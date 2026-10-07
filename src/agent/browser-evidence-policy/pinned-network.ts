@@ -48,21 +48,40 @@ for (const [address, prefix, family] of [
   NETWORK_BLOCK_LIST.addSubnet(address, prefix, family);
 }
 
-export function configuredTarget(): { origin: string; hostname: string; addresses: string[] } {
+export function configuredTarget(): {
+  origin: string;
+  hostname: string;
+  addresses: string[];
+} {
   const origin = String(process.env.WELES_BROWSER_EVIDENCE_TARGET_ORIGIN ?? '');
-  const hostname = String(process.env.WELES_BROWSER_EVIDENCE_TARGET_HOST ?? '').toLowerCase();
+  const hostname = String(
+    process.env.WELES_BROWSER_EVIDENCE_TARGET_HOST ?? '',
+  ).toLowerCase();
   let parsedOrigin: URL;
   let addresses: unknown;
   try {
     parsedOrigin = new URL(origin);
-    addresses = JSON.parse(process.env.WELES_BROWSER_EVIDENCE_TARGET_ADDRESSES_JSON ?? 'null');
+    addresses = JSON.parse(
+      process.env.WELES_BROWSER_EVIDENCE_TARGET_ADDRESSES_JSON ?? 'null',
+    );
   } catch {
-    throw new Error('browser-evidence target network binding is missing or invalid');
+    throw new Error(
+      'browser-evidence target network binding is missing or invalid',
+    );
   }
-  if (!origin || parsedOrigin.origin !== origin || parsedOrigin.protocol !== 'https:'
-      || parsedOrigin.hostname.toLowerCase() !== hostname || !hostname || !Array.isArray(addresses)
-      || addresses.length === 0 || addresses.some((address) => typeof address !== 'string')) {
-    throw new Error('browser-evidence target network binding is missing or invalid');
+  if (
+    !origin ||
+    parsedOrigin.origin !== origin ||
+    parsedOrigin.protocol !== 'https:' ||
+    parsedOrigin.hostname.toLowerCase() !== hostname ||
+    !hostname ||
+    !Array.isArray(addresses) ||
+    addresses.length === 0 ||
+    addresses.some((address) => typeof address !== 'string')
+  ) {
+    throw new Error(
+      'browser-evidence target network binding is missing or invalid',
+    );
   }
   const normalizedAddresses = [...new Set(addresses)].sort();
   normalizedAddresses.forEach(assertPublicAddress);
@@ -78,16 +97,24 @@ const IPV4_MAPPED_PREFIX = '::ffff:';
 
 export function assertPublicAddress(address: string): void {
   const family = isIP(address);
-  if (!family || (family === 6 && address.toLowerCase().startsWith(IPV4_MAPPED_PREFIX))
-      || NETWORK_BLOCK_LIST.check(address, family === 4 ? 'ipv4' : 'ipv6')) {
+  if (
+    !family ||
+    (family === 6 && address.toLowerCase().startsWith(IPV4_MAPPED_PREFIX)) ||
+    NETWORK_BLOCK_LIST.check(address, family === 4 ? 'ipv4' : 'ipv6')
+  ) {
     throw new Error(`non-public network address denied: ${address}`);
   }
 }
 
 export async function publicAddresses(hostname: string): Promise<string[]> {
   const normalized = hostname.toLowerCase().replace(/\.$/, '');
-  if (!normalized || Object.hasOwn(DENIED_HOSTNAMES, normalized)
-      || normalized.endsWith('.localhost') || normalized.endsWith('.local') || normalized.endsWith('.internal')) {
+  if (
+    !normalized ||
+    Object.hasOwn(DENIED_HOSTNAMES, normalized) ||
+    normalized.endsWith('.localhost') ||
+    normalized.endsWith('.local') ||
+    normalized.endsWith('.internal')
+  ) {
     throw new Error(`non-public network hostname denied: ${hostname}`);
   }
   if (isIP(normalized)) {
@@ -98,14 +125,20 @@ export async function publicAddresses(hostname: string): Promise<string[]> {
   // deadline of ours here could only turn a slow answer into a refusal that
   // reads like a denied hostname, which is a different fact about the target.
   const answers = await lookup(normalized, { all: true, verbatim: true });
-  const addresses = [...new Set(answers.map((answer) => answer.address))].sort();
-  if (addresses.length === 0) throw new Error(`network hostname has no addresses: ${hostname}`);
+  const addresses = [
+    ...new Set(answers.map((answer) => answer.address)),
+  ].sort();
+  if (addresses.length === 0)
+    throw new Error(`network hostname has no addresses: ${hostname}`);
   addresses.forEach(assertPublicAddress);
   return addresses;
 }
 
 export function sameAddresses(left: string[], right: string[]): boolean {
-  return left.length === right.length && left.every((address, index) => address === right[index]);
+  return (
+    left.length === right.length &&
+    left.every((address, index) => address === right[index])
+  );
 }
 
 export async function resolveBrowserEvidenceTarget(value: string): Promise<{
@@ -115,10 +148,16 @@ export async function resolveBrowserEvidenceTarget(value: string): Promise<{
 }> {
   const url = new URL(value);
   if (url.protocol !== 'https:' || url.username || url.password) {
-    throw new Error('browser-evidence target must be public HTTPS without credentials');
+    throw new Error(
+      'browser-evidence target must be public HTTPS without credentials',
+    );
   }
   const addresses = await publicAddresses(url.hostname);
-  return { origin: url.origin, hostname: url.hostname.toLowerCase(), addresses };
+  return {
+    origin: url.origin,
+    hostname: url.hostname.toLowerCase(),
+    addresses,
+  };
 }
 
 export function networkEvidenceUrl(value: URL): string {

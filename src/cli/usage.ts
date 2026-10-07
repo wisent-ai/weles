@@ -34,7 +34,9 @@ export function printAnswer(value: unknown, json: boolean): void {
   }
   if (value !== null && typeof value === 'object') {
     const fields = Object.entries(value as Record<string, unknown>);
-    process.stdout.write(fields.map(([key, field]) => `${key}: ${line(field)}\n`).join(''));
+    process.stdout.write(
+      fields.map(([key, field]) => `${key}: ${line(field)}\n`).join(''),
+    );
     return;
   }
   process.stdout.write(`${line(value)}\n`);

@@ -5,39 +5,64 @@ import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 const SESSION = process.env.SESSION || 'ncbr-step-b';
-const WELES = new URL('../../../../../..', import.meta.url).pathname.replace(/\/$/, '');
-const SRC = (await import('#ncbr-settings')).applicationFile('wersja_B_2.3_rynek_i_potencjal.md');
+const WELES = new URL('../../../../../..', import.meta.url).pathname.replace(
+  /\/$/,
+  '',
+);
+const SRC = (await import('#ncbr-settings')).applicationFile(
+  'wersja_B_2.3_rynek_i_potencjal.md',
+);
 
-const clean = (s) => String(s || '').replace(/\s*<!--[\s\S]*?-->\s*/g, ' ').replace(/\s+/g, ' ').trim();
+const clean = (s) =>
+  String(s || '')
+    .replace(/\s*<!--[\s\S]*?-->\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 const md = readFileSync(SRC, 'utf8');
-const block = md.split('## Parametry opisujące znaczący potencjał gospodarczy innowacji w wymiarze rynku wewnętrznego UE')[1]
+const block = md
+  .split(
+    '## Parametry opisujące znaczący potencjał gospodarczy innowacji w wymiarze rynku wewnętrznego UE',
+  )[1]
   .split('## Podsumowanie zmian')[0];
 
 function tableRows(part) {
-  return part.split(/\r?\n/)
+  return part
+    .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line.startsWith('|') && !/^\|\s*-/.test(line))
     .map((line) => line.split('|').slice(1, -1).map(clean))
     .filter((cells) => cells.length >= 2 && cells[0] !== 'Pole');
 }
 
-const rows = block.split(/^### Parametr \d+\s*$/m).slice(1).map((part) => {
-  const map = new Map(tableRows(part).map((cells) => [cells[0], cells[1]]));
-  return {
-    name: map.get('Nazwa parametru'),
-    base: map.get('Wartość bazowa (z jednostką miary)'),
-    baseYear: map.get('Rok bazowy'),
-    target: map.get('Wartość docelowa (z jednostką miary)'),
-    targetYear: map.get('Rok docelowy'),
-    estimate: map.get('Metoda oszacowania wartości docelowej'),
-    verify: map.get('Sposób monitorowania / weryfikacji osiągnięcia zaplanowanych wartości docelowych'),
-  };
-}).filter((row) => row.name);
+const rows = block
+  .split(/^### Parametr \d+\s*$/m)
+  .slice(1)
+  .map((part) => {
+    const map = new Map(tableRows(part).map((cells) => [cells[0], cells[1]]));
+    return {
+      name: map.get('Nazwa parametru'),
+      base: map.get('Wartość bazowa (z jednostką miary)'),
+      baseYear: map.get('Rok bazowy'),
+      target: map.get('Wartość docelowa (z jednostką miary)'),
+      targetYear: map.get('Rok docelowy'),
+      estimate: map.get('Metoda oszacowania wartości docelowej'),
+      verify: map.get(
+        'Sposób monitorowania / weryfikacji osiągnięcia zaplanowanych wartości docelowych',
+      ),
+    };
+  })
+  .filter((row) => row.name);
 
 function action(args) {
-  const result = spawnSync(process.execPath, ['src/_shared/keeper/action.mjs', ...args], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' });
+  const result = spawnSync(
+    process.execPath,
+    ['src/_shared/keeper/action.mjs', ...args],
+    { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' },
+  );
   if (result.status !== 0) {
-    throw new Error(`${args.join(' ')}\nstdout=${result.stdout}\nstderr=${result.stderr}`);
+    throw new Error(
+      `${args.join(' ')}\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+    );
   }
   return result.stdout.trim();
 }
@@ -72,15 +97,23 @@ function clickVisibleParameterAdd() {
 }
 
 function isFormOpen() {
-  return JSON.parse(action(['eval', `(() => {
+  return (
+    JSON.parse(
+      action([
+        'eval',
+        `(() => {
     const el = document.querySelector('textarea[name="nazwa_parametru"]');
     return Boolean(el && el.offsetParent !== null);
-  })()`])).result === true;
+  })()`,
+      ]),
+    ).result === true
+  );
 }
 
 function waitForFormOpen() {
   settle();
-  if (!isFormOpen()) throw new Error('parameter form did not open on the settled page');
+  if (!isFormOpen())
+    throw new Error('parameter form did not open on the settled page');
 }
 
 function waitForFormClosed() {
@@ -89,16 +122,25 @@ function waitForFormClosed() {
 }
 
 function currentParamTableText() {
-  const out = action(['eval', `(() => {
+  const out = action([
+    'eval',
+    `(() => {
     const table = Array.from(document.querySelectorAll('table')).at(-1);
     return table ? table.innerText.replace(/\\s+/g, ' ') : '';
-  })()`]);
+  })()`,
+  ]);
   return JSON.parse(out).result || '';
 }
 
 const existing = currentParamTableText();
 const missing = rows.filter((row) => !existing.includes(row.name));
-console.log(JSON.stringify({ sourceRows: rows.length, missing: missing.map((row) => row.name) }, null, 2));
+console.log(
+  JSON.stringify(
+    { sourceRows: rows.length, missing: missing.map((row) => row.name) },
+    null,
+    2,
+  ),
+);
 
 let formOpen = isFormOpen();
 
@@ -117,21 +159,39 @@ for (const row of missing) {
   fill('input[name="wartosc_docelowa"]', row.target);
   fill('input[name="rok_docelowy"]', row.targetYear);
   fill('textarea[name="metoda_szacowania_wartosci_docelowej"]', row.estimate);
-  fill('textarea[name="sposob_monitorowania_weryfikacji_osiagniecia_zaplanowanych_wartosci_docelowych"]', row.verify);
+  fill(
+    'textarea[name="sposob_monitorowania_weryfikacji_osiagniecia_zaplanowanych_wartosci_docelowych"]',
+    row.verify,
+  );
   settle();
   console.log(`saving: ${row.name}`);
   click(':nth-match(button:has-text("Zapisz"), 2)');
   if (!waitForFormClosed()) {
-    const state = JSON.parse(action(['eval', `(() => ({
+    const state = JSON.parse(
+      action([
+        'eval',
+        `(() => ({
       savedInTable: document.body.innerText.includes(${JSON.stringify(row.name)}),
       anyEnabledSave: Array.from(document.querySelectorAll('button')).some((b) => b.innerText.trim() === 'Zapisz' && !b.disabled && b.getClientRects().length)
-    }))()`])).result;
-    if (!state?.savedInTable || state?.anyEnabledSave) throw new Error(`form did not close after saving: ${row.name}`);
+    }))()`,
+      ]),
+    ).result;
+    if (!state?.savedInTable || state?.anyEnabledSave)
+      throw new Error(`form did not close after saving: ${row.name}`);
     click('button:has-text("Anuluj")');
-    if (!waitForFormClosed()) throw new Error(`form stayed open after canceling saved row: ${row.name}`);
+    if (!waitForFormClosed())
+      throw new Error(
+        `form stayed open after canceling saved row: ${row.name}`,
+      );
   }
   settle();
   console.log(`added: ${row.name}`);
 }
 
-console.log(JSON.stringify({ done: true, remainingVisibleText: currentParamTableText() }, null, 2));
+console.log(
+  JSON.stringify(
+    { done: true, remainingVisibleText: currentParamTableText() },
+    null,
+    2,
+  ),
+);

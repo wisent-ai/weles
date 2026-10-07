@@ -31,9 +31,21 @@ import {
   isCredentialTrajectory,
   storeCredential,
 } from '../run/credential-outcome.mjs';
-import { claimRunResult, coalesceRun, persistRunResult, runAdmissionKey, SAFE_RUN_ID } from '../run/run-outcome.mjs';
+import {
+  claimRunResult,
+  coalesceRun,
+  persistRunResult,
+  runAdmissionKey,
+  SAFE_RUN_ID,
+} from '../run/run-outcome.mjs';
 
-export async function respondToRun(req, res, runTrajectory, validateAccountSecurityParams, validateAppPasswordParams) {
+export async function respondToRun(
+  req,
+  res,
+  runTrajectory,
+  validateAccountSecurityParams,
+  validateAppPasswordParams,
+) {
   if (!authorized(req)) {
     json(res, TOKEN || ALLOW_UNAUTH ? 401 : 500, {
       ok: false,
@@ -42,11 +54,19 @@ export async function respondToRun(req, res, runTrajectory, validateAccountSecur
     return;
   }
   let body;
-  try { body = await readBody(req); }
-  catch (e) { json(res, 400, { ok: false, error: e.message }); return; }
+  try {
+    body = await readBody(req);
+  } catch (e) {
+    json(res, 400, { ok: false, error: e.message });
+    return;
+  }
   const action = typeof body.action === 'string' ? body.action.trim() : '';
-  if (!action) { json(res, 400, { ok: false, error: 'missing_action' }); return; }
-  const credsMode = typeof body.creds === 'string' ? body.creds.trim() : 'redact';
+  if (!action) {
+    json(res, 400, { ok: false, error: 'missing_action' });
+    return;
+  }
+  const credsMode =
+    typeof body.creds === 'string' ? body.creds.trim() : 'redact';
   if (!['redact', 'raw', 'store'].includes(credsMode)) {
     json(res, 400, { ok: false, error: 'creds must be redact|raw|store' });
     return;
@@ -55,7 +75,8 @@ export async function respondToRun(req, res, runTrajectory, validateAccountSecur
     json(res, 403, { ok: false, error: 'raw_creds_forbidden' });
     return;
   }
-  let params = body.params && typeof body.params === 'object' ? body.params : {};
+  let params =
+    body.params && typeof body.params === 'object' ? body.params : {};
   let requestBinding = {};
   if (action === 'google_mfa_status') {
     try {
@@ -63,7 +84,9 @@ export async function respondToRun(req, res, runTrajectory, validateAccountSecur
       requestBinding = {
         params: {
           login_item: loginItem,
-          ...(typeof params.login_role === 'string' ? { login_role: params.login_role.trim() } : {}),
+          ...(typeof params.login_role === 'string'
+            ? { login_role: params.login_role.trim() }
+            : {}),
         },
       };
       params = { login_item: loginItem };
@@ -81,7 +104,9 @@ export async function respondToRun(req, res, runTrajectory, validateAccountSecur
         params: {
           login_item: loginItem,
           organization,
-          ...(typeof params.login_role === 'string' ? { login_role: params.login_role.trim() } : {}),
+          ...(typeof params.login_role === 'string'
+            ? { login_role: params.login_role.trim() }
+            : {}),
         },
       };
       params = { login_item: loginItem, organization };
@@ -90,7 +115,8 @@ export async function respondToRun(req, res, runTrajectory, validateAccountSecur
       return;
     }
   }
-  const accountId = typeof body.account_id === 'string' ? body.account_id : null;
+  const accountId =
+    typeof body.account_id === 'string' ? body.account_id : null;
   const freshProfile = body.fresh_profile === true;
   if (freshProfile && !accountId) {
     json(res, 400, { ok: false, error: 'fresh_profile_requires_account_id' });
@@ -113,59 +139,84 @@ export async function respondToRun(req, res, runTrajectory, validateAccountSecur
     }
     const detachedId = namedId || randomUUID();
     const resultPath = join(RUN_RESULTS_DIR, `${detachedId}.json`);
-    const running = { ok: null, action, account_id: accountId, ...requestBinding, status: 'running', started_at: new Date().toISOString() };
+    const running = {
+      ok: null,
+      action,
+      account_id: accountId,
+      ...requestBinding,
+      status: 'running',
+      started_at: new Date().toISOString(),
+    };
     if (namedId && !claimRunResult(resultPath, running)) {
       const named = JSON.parse(readFileSync(resultPath, 'utf8'));
-      const existingId = named.status === 'joined' ? named.detached_run : detachedId;
-      json(res, 200, { ok: true, action, ...requestBinding, detached_run: existingId, result_path: join(RUN_RESULTS_DIR, `${existingId}.json`), existing: true });
+      const existingId =
+        named.status === 'joined' ? named.detached_run : detachedId;
+      json(res, 200, {
+        ok: true,
+        action,
+        ...requestBinding,
+        detached_run: existingId,
+        result_path: join(RUN_RESULTS_DIR, `${existingId}.json`),
+        existing: true,
+      });
       return;
     }
     const coalesced = isCredentialTrajectory(action);
     const admissionKey = coalesced
-      ? runAdmissionKey('trajectory', { action, account_id: accountId, fresh_profile: freshProfile, params })
+      ? runAdmissionKey('trajectory', {
+          action,
+          account_id: accountId,
+          fresh_profile: freshProfile,
+          params,
+        })
       : null;
     const admission = admissionKey
       ? coalesceRun(
-        admissionKey,
-        () => runTrajectory(action, params, accountId, freshProfile),
-        { detachedId, resultPath },
-      )
+          admissionKey,
+          () => runTrajectory(action, params, accountId, freshProfile),
+          { detachedId, resultPath },
+        )
       : {
-        entry: {
-          promise: runTrajectory(action, params, accountId, freshProfile),
-          metadata: { detachedId, resultPath },
-        },
-        joined: false,
-      };
+          entry: {
+            promise: runTrajectory(action, params, accountId, freshProfile),
+            metadata: { detachedId, resultPath },
+          },
+          joined: false,
+        };
     const admittedId = admission.entry.metadata.detachedId;
     const admittedPath = admission.entry.metadata.resultPath;
     if (admission.joined && namedId) {
       // The named run joined one already running: its file says which, so
       // the same run id sent again answers with the run doing the work.
-      persistRunResult(resultPath, { ...running, status: 'joined', detached_run: admittedId });
+      persistRunResult(resultPath, {
+        ...running,
+        status: 'joined',
+        detached_run: admittedId,
+      });
     }
     if (!admission.joined) {
       persistRunResult(admittedPath, running);
       admission.entry.promise
         .then((result) => {
-          persistRunResult(
-            admittedPath,
-            { ...result, action, account_id: accountId, ...requestBinding, status: 'finished', completed_at: new Date().toISOString() },
-          );
+          persistRunResult(admittedPath, {
+            ...result,
+            action,
+            account_id: accountId,
+            ...requestBinding,
+            status: 'finished',
+            completed_at: new Date().toISOString(),
+          });
         })
         .catch((error) => {
-          persistRunResult(
-            admittedPath,
-            {
-              ok: false,
-              action,
-              account_id: accountId,
-              ...requestBinding,
-              status: 'failed',
-              error: String(error && error.message ? error.message : error),
-              completed_at: new Date().toISOString(),
-            },
-          );
+          persistRunResult(admittedPath, {
+            ok: false,
+            action,
+            account_id: accountId,
+            ...requestBinding,
+            status: 'failed',
+            error: String(error && error.message ? error.message : error),
+            completed_at: new Date().toISOString(),
+          });
         });
     }
     json(res, 202, {
@@ -180,23 +231,69 @@ export async function respondToRun(req, res, runTrajectory, validateAccountSecur
   }
   const admission = isCredentialTrajectory(action)
     ? coalesceRun(
-      runAdmissionKey('trajectory', { action, account_id: accountId, fresh_profile: freshProfile, params }),
-      () => runTrajectory(action, params, accountId, freshProfile),
-    )
-    : { entry: { promise: runTrajectory(action, params, accountId, freshProfile) }, joined: false };
+        runAdmissionKey('trajectory', {
+          action,
+          account_id: accountId,
+          fresh_profile: freshProfile,
+          params,
+        }),
+        () => runTrajectory(action, params, accountId, freshProfile),
+      )
+    : {
+        entry: {
+          promise: runTrajectory(action, params, accountId, freshProfile),
+        },
+        joined: false,
+      };
   const out = await admission.entry.promise;
 
-  if (out.error === 'no_trajectory') { json(res, 404, out); return; }
+  if (out.error === 'no_trajectory') {
+    json(res, 404, out);
+    return;
+  }
 
   // store mode: persist extracted creds, return only a reference (no raw run).
   if (credsMode === 'store') {
-    if (!out.ok) { json(res, 502, { ok: false, exitCode: out.exitCode, action, run_id: out.run_id, error: 'run_failed', stderr_tail: out.stderr_tail }); return; }
+    if (!out.ok) {
+      json(res, 502, {
+        ok: false,
+        exitCode: out.exitCode,
+        action,
+        run_id: out.run_id,
+        error: 'run_failed',
+        stderr_tail: out.stderr_tail,
+      });
+      return;
+    }
     const creds = extractCreds(out.result);
-    if (!creds) { json(res, 422, { ok: false, action, run_id: out.run_id, error: 'no_credentials_in_result' }); return; }
+    if (!creds) {
+      json(res, 422, {
+        ok: false,
+        action,
+        run_id: out.run_id,
+        error: 'no_credentials_in_result',
+      });
+      return;
+    }
     let ref;
-    try { ref = await storeCredential(action, params, creds, out.run_id); }
-    catch (e) { json(res, 502, { ok: false, action, run_id: out.run_id, error: `store_failed: ${String(e && e.message ? e.message : e)}` }); return; }
-    json(res, 200, { ok: true, action, run_id: out.run_id, credential: ref, coalesced: admission.joined });
+    try {
+      ref = await storeCredential(action, params, creds, out.run_id);
+    } catch (e) {
+      json(res, 502, {
+        ok: false,
+        action,
+        run_id: out.run_id,
+        error: `store_failed: ${String(e && e.message ? e.message : e)}`,
+      });
+      return;
+    }
+    json(res, 200, {
+      ok: true,
+      action,
+      run_id: out.run_id,
+      credential: ref,
+      coalesced: admission.joined,
+    });
     return;
   }
   // Credential trajectories print the minted credential to stdout so their
@@ -217,7 +314,11 @@ export async function respondToRun(req, res, runTrajectory, validateAccountSecur
     return;
   }
 
-
   // raw mode: return unredacted (creds in the response); redact mode: default.
-  json(res, out.ok ? 200 : 502, { ...out, coalesced: admission.joined }, { redact: credsMode !== 'raw' });
+  json(
+    res,
+    out.ok ? 200 : 502,
+    { ...out, coalesced: admission.joined },
+    { redact: credsMode !== 'raw' },
+  );
 }

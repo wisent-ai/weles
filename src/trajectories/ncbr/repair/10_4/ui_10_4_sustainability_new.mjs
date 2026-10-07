@@ -2,13 +2,21 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../dist/human/keyboard.js';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const projectId = (await import('#ncbr-settings')).projectId();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('10_4');
-const md = readFileSync((await import('#ncbr-settings')).applicationFile('wersja_B_10.4_zrownowazony_rozwoj.md'), 'utf8');
+const md = readFileSync(
+  (await import('#ncbr-settings')).applicationFile(
+    'wersja_B_10.4_zrownowazony_rozwoj.md',
+  ),
+  'utf8',
+);
 
 function between(start, end) {
   const rest = md.split(start)[1] || '';
@@ -18,8 +26,14 @@ function between(start, end) {
     .trim();
 }
 
-const OPIS_6R = between('## Opis sposobu realizacji projektu zgodnie z wybranymi zasadami 6R (limit 4 000 znaków)', '## Stosowanie zasad 6R zostało odzwierciedlone');
-const OPIS_INNE = between('## Opis pozytywnego wpływu na inne aspekty środowiskowe w ramach projektu (nie objęte zasadami 6R)', '## Pozytywny wpływ na inne aspekty środowiskowe');
+const OPIS_6R = between(
+  '## Opis sposobu realizacji projektu zgodnie z wybranymi zasadami 6R (limit 4 000 znaków)',
+  '## Stosowanie zasad 6R zostało odzwierciedlone',
+);
+const OPIS_INNE = between(
+  '## Opis pozytywnego wpływu na inne aspekty środowiskowe w ramach projektu (nie objęte zasadami 6R)',
+  '## Pozytywny wpływ na inne aspekty środowiskowe',
+);
 const WSK_LABELS = [
   'Redukcja ilości tokenów treningowych',
   'Udział cykli treningowych RNM z pomiarem energii',
@@ -27,13 +41,17 @@ const WSK_LABELS = [
 
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
-if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' }, null, 2)); process.exit(1); }
-
+if (!page) {
+  console.log(JSON.stringify({ error: 'NO_PAGE' }, null, 2));
+  process.exit(1);
+}
 
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: UI navigation to authenticated LSI draft section
 await humanIdlePause('long');
 await page.evaluate(() => {
-  const banner = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies'));
+  const banner = Array.from(document.querySelectorAll('div')).find((d) =>
+    (d.innerText || '').includes('pliki cookies'),
+  );
   if (banner) banner.style.pointerEvents = 'none';
 }); // allow-raw-playwright: neutralise cookie banner only
 
@@ -43,8 +61,11 @@ async function clickFirstOption(inputSuffix, search = '') {
   await humanClickLocator(page, input);
   if (search) await humanFill(page, input, search); // allow-raw-playwright: open/filter LSI autocomplete despite body pointer interception
   await humanIdlePause('deliberate');
-  const option = page.locator("[role='listbox'] [role='option'], [role='option']").first();
-  if (await option.count() === 0) throw new Error(`no option for ${inputSuffix}`);
+  const option = page
+    .locator("[role='listbox'] [role='option'], [role='option']")
+    .first();
+  if ((await option.count()) === 0)
+    throw new Error(`no option for ${inputSuffix}`);
   const text = (await option.textContent())?.trim() || '';
   await option.dispatchEvent('click'); // allow-raw-playwright: select visible option
   await humanIdlePause('short');
@@ -60,8 +81,14 @@ async function multiPick(inputSuffix, searches) {
 }
 
 async function openMuiSelect(inputSuffix) {
-  const target = page.locator(`input[name$="${inputSuffix}"]`).first().locator('xpath=ancestor::*[contains(@class,"MuiInputBase-root")][1]').locator('.MuiSelect-select, [role="combobox"]').first();
-  if (await target.count() === 0) throw new Error(`select not found: ${inputSuffix}`);
+  const target = page
+    .locator(`input[name$="${inputSuffix}"]`)
+    .first()
+    .locator('xpath=ancestor::*[contains(@class,"MuiInputBase-root")][1]')
+    .locator('.MuiSelect-select, [role="combobox"]')
+    .first();
+  if ((await target.count()) === 0)
+    throw new Error(`select not found: ${inputSuffix}`);
   await humanClickLocator(page, target); // allow-raw-playwright: open visible MUI select control
   await humanIdlePause('deliberate');
 }
@@ -69,19 +96,41 @@ async function openMuiSelect(inputSuffix) {
 async function selectIndicators(labels) {
   const picked = [];
   await openMuiSelect('zasady_szesc_r_wskazniki');
-  for (const label of ['Kompletność strukturalnego raportu audytowego', 'Redukcja attack success']) {
-    const old = page.locator("[role='listbox'] [role='option'], [role='option']").filter({ hasText: label }).first();
-    if (await old.count() > 0 && (await old.getAttribute('aria-selected')) === 'true') {
+  for (const label of [
+    'Kompletność strukturalnego raportu audytowego',
+    'Redukcja attack success',
+  ]) {
+    const old = page
+      .locator("[role='listbox'] [role='option'], [role='option']")
+      .filter({ hasText: label })
+      .first();
+    if (
+      (await old.count()) > 0 &&
+      (await old.getAttribute('aria-selected')) === 'true'
+    ) {
       await old.dispatchEvent('click'); // allow-raw-playwright: remove non-environmental 10.4 indicator
       await humanIdlePause('short');
     }
   }
   for (const label of labels) {
     await openMuiSelect('zasady_szesc_r_wskazniki');
-    const option = page.locator("[role='listbox'] [role='option'], [role='option']").filter({ hasText: label }).first();
-    if (await option.count() === 0) {
-      const seen = await page.evaluate(() => Array.from(document.querySelectorAll("[role='listbox'] [role='option'], [role='option']")).map((o) => o.textContent.trim()).filter(Boolean));
-      throw new Error(`indicator not found: ${label}; seen=${seen.join(' | ')}`);
+    const option = page
+      .locator("[role='listbox'] [role='option'], [role='option']")
+      .filter({ hasText: label })
+      .first();
+    if ((await option.count()) === 0) {
+      const seen = await page.evaluate(() =>
+        Array.from(
+          document.querySelectorAll(
+            "[role='listbox'] [role='option'], [role='option']",
+          ),
+        )
+          .map((o) => o.textContent.trim())
+          .filter(Boolean),
+      );
+      throw new Error(
+        `indicator not found: ${label}; seen=${seen.join(' | ')}`,
+      );
     }
     picked.push((await option.textContent())?.trim() || label);
     if ((await option.getAttribute('aria-selected')) !== 'true') {
@@ -98,12 +147,19 @@ async function selectPrinciples(labels) {
   const picked = [];
   await openMuiSelect('zasady_szesc_r_projekt');
   for (const label of labels) {
-    let option = page.locator("[role='listbox'] [role='option'], [role='option']").filter({ hasText: label }).first();
-    if (await option.count() === 0) {
+    let option = page
+      .locator("[role='listbox'] [role='option'], [role='option']")
+      .filter({ hasText: label })
+      .first();
+    if ((await option.count()) === 0) {
       await openMuiSelect('zasady_szesc_r_projekt');
-      option = page.locator("[role='listbox'] [role='option'], [role='option']").filter({ hasText: label }).first();
+      option = page
+        .locator("[role='listbox'] [role='option'], [role='option']")
+        .filter({ hasText: label })
+        .first();
     }
-    if (await option.count() === 0) throw new Error(`6R principle not found: ${label}`);
+    if ((await option.count()) === 0)
+      throw new Error(`6R principle not found: ${label}`);
     picked.push((await option.textContent())?.trim() || label);
     if ((await option.getAttribute('aria-selected')) !== 'true') {
       await option.dispatchEvent('click'); // allow-raw-playwright: select required 6R principle
@@ -117,7 +173,7 @@ async function selectPrinciples(labels) {
 
 async function fillTextarea(selector, value) {
   const loc = page.locator(selector).first();
-  if (await loc.count() === 0) return null;
+  if ((await loc.count()) === 0) return null;
   const max = Number(await loc.getAttribute('maxlength')) || value.length;
   let v = value;
   if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
@@ -129,15 +185,27 @@ async function fillTextarea(selector, value) {
 const variant = await clickFirstOption('zasady_szesc_r', '');
 await humanIdlePause('long');
 const principles = await selectPrinciples(['ogranicz', 'zastanów']);
-const opis6r = await fillTextarea('textarea[name$="opis_zasady_szesc_r"]', OPIS_6R);
-const opisInne = await fillTextarea('textarea[name*="inne"], textarea[name*="pozytyw"]', OPIS_INNE);
+const opis6r = await fillTextarea(
+  'textarea[name$="opis_zasady_szesc_r"]',
+  OPIS_6R,
+);
+const opisInne = await fillTextarea(
+  'textarea[name*="inne"], textarea[name*="pozytyw"]',
+  OPIS_INNE,
+);
 const indicators = await selectIndicators(WSK_LABELS);
 
 await humanIdlePause('deliberate');
 await humanIdlePause('deliberate');
 let saveResult = 'saved';
 try {
-  await humanClickLocator(page, page.locator('button:visible:not([disabled])').filter({ hasText: /^Zapisz$/ }).last()); // allow-raw-playwright: save section through visible UI
+  await humanClickLocator(
+    page,
+    page
+      .locator('button:visible:not([disabled])')
+      .filter({ hasText: /^Zapisz$/ })
+      .last(),
+  ); // allow-raw-playwright: save section through visible UI
   await humanIdlePause('long');
 } catch (e) {
   saveResult = `NOT SAVED: ${String(e?.message || e)}`;
@@ -146,14 +214,27 @@ try {
 const readback = await page.evaluate(() => ({
   url: location.href,
   zasady: document.querySelector('input[name$="zasady_szesc_r"]')?.value || '',
-  chips: Array.from(document.querySelectorAll('.MuiChip-label')).map((c) => c.textContent.trim()),
+  chips: Array.from(document.querySelectorAll('.MuiChip-label')).map((c) =>
+    c.textContent.trim(),
+  ),
   textareas: Array.from(document.querySelectorAll('textarea')).map((t) => ({
     name: (t.name || '').split('.').pop(),
     length: (t.value || '').length,
   })),
-  tables: Array.from(document.querySelectorAll('table')).map((t) => ({ rows: t.querySelectorAll('tbody tr').length, text: (t.innerText || '').replace(/\s+/g, ' ') })),
-  buttons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim(), disabled: b.disabled })).filter((b) => b.text === 'Zapisz'),
+  tables: Array.from(document.querySelectorAll('table')).map((t) => ({
+    rows: t.querySelectorAll('tbody tr').length,
+    text: (t.innerText || '').replace(/\s+/g, ' '),
+  })),
+  buttons: Array.from(document.querySelectorAll('button'))
+    .map((b) => ({ text: b.innerText.trim(), disabled: b.disabled }))
+    .filter((b) => b.text === 'Zapisz'),
 })); // allow-raw-playwright: read 10.4 state after save attempt
 
-console.log(JSON.stringify({ saveResult, variant, principles, opis6r, opisInne, indicators, readback }, null, 2));
+console.log(
+  JSON.stringify(
+    { saveResult, variant, principles, opis6r, opisInne, indicators, readback },
+    null,
+    2,
+  ),
+);
 process.exit(saveResult === 'saved' ? 0 : 2);

@@ -5,7 +5,10 @@
 // the strongest overlap; when no overlap meets minTiles, use the model result.
 import { askJedenAboutImage } from '../../vision/analyze.js';
 
-export interface SolverAnswer { name: string; positions: number[] }
+export interface SolverAnswer {
+  name: string;
+  positions: number[];
+}
 
 export async function disagreementTiebreaker(
   answers: SolverAnswer[],
@@ -15,7 +18,8 @@ export async function disagreementTiebreaker(
   minTiles: number,
 ): Promise<number[] | null> {
   try {
-    const grid = gridSize === 3 ? '1 2 3 / 4 5 6 / 7 8 9' : '1-4/5-8/9-12/13-16';
+    const grid =
+      gridSize === 3 ? '1 2 3 / 4 5 6 / 7 8 9' : '1-4/5-8/9-12/13-16';
     const answer = await askJedenAboutImage(
       Buffer.from(gridImgB64, 'base64'),
       `reCAPTCHA grid (${grid}). Instruction: "${instr}". Return ONLY a JSON array of positions, e.g. [1,4,7].`,
@@ -32,11 +36,15 @@ export async function disagreementTiebreaker(
     }
     if (!modelPositions || modelPositions.length === 0) return null;
     const modelSet = new Set<number>(modelPositions);
-    console.log(`[recaptcha] Model disagreement-tiebreaker: ${JSON.stringify(modelPositions)}`);
+    console.log(
+      `[recaptcha] Model disagreement-tiebreaker: ${JSON.stringify(modelPositions)}`,
+    );
     let best: number[] | null = null;
     let bestOverlap = 0;
     for (const solverAnswer of answers) {
-      const overlap = solverAnswer.positions.filter(position => modelSet.has(position));
+      const overlap = solverAnswer.positions.filter((position) =>
+        modelSet.has(position),
+      );
       if (overlap.length > bestOverlap) {
         bestOverlap = overlap.length;
         best = overlap;

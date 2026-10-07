@@ -14,18 +14,27 @@ export const RECEIPT_MANIFEST_NAME = 'evidence-manifest.json';
 const WITHHELD_EDGES_NAME = 'browser_evidence_withheld_edges.ndjson';
 
 function stableMetadata(left, right) {
-  return left.dev === right.dev
-    && left.ino === right.ino
-    && left.size === right.size
-    && left.mtimeMs === right.mtimeMs
-    && left.ctimeMs === right.ctimeMs;
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.size === right.size &&
+    left.mtimeMs === right.mtimeMs &&
+    left.ctimeMs === right.ctimeMs
+  );
 }
 
 async function hashStableFile(path) {
   const before = await lstat(path);
-  if (!before.isFile() || before.isSymbolicLink()) throw new EvidenceRetentionError('evidence-file-unsafe', `evidence path is not a regular file: ${path}`);
+  if (!before.isFile() || before.isSymbolicLink())
+    throw new EvidenceRetentionError(
+      'evidence-file-unsafe',
+      `evidence path is not a regular file: ${path}`,
+    );
   if (before.size > MAX_EVIDENCE_FILE_BYTES) {
-    throw new EvidenceRetentionError('evidence-file-too-large', `evidence file exceeds the per-file limit: ${path}`);
+    throw new EvidenceRetentionError(
+      'evidence-file-too-large',
+      `evidence file exceeds the per-file limit: ${path}`,
+    );
   }
   const hasher = createHash('sha256');
   await new Promise((resolveHash, rejectHash) => {
@@ -35,13 +44,21 @@ async function hashStableFile(path) {
     stream.once('end', resolveHash);
   });
   const after = await lstat(path);
-  if (!stableMetadata(before, after)) throw new EvidenceRetentionError('evidence-file-unstable', `evidence file changed while hashing: ${path}`);
+  if (!stableMetadata(before, after))
+    throw new EvidenceRetentionError(
+      'evidence-file-unstable',
+      `evidence file changed while hashing: ${path}`,
+    );
   return { bytes: after.size, sha256: hasher.digest('hex'), metadata: after };
 }
 
 export async function collectEvidenceFiles(root) {
   const rootMetadata = await lstat(root);
-  if (!rootMetadata.isDirectory() || rootMetadata.isSymbolicLink()) throw new EvidenceRetentionError('evidence-root-unsafe', 'evidence root is not a regular directory');
+  if (!rootMetadata.isDirectory() || rootMetadata.isSymbolicLink())
+    throw new EvidenceRetentionError(
+      'evidence-root-unsafe',
+      'evidence root is not a regular directory',
+    );
   const files = [];
   const stack = [{ directory: root, relative: '' }];
   let totalBytes = 0;
@@ -55,15 +72,29 @@ export async function collectEvidenceFiles(root) {
           `evidence path component is not portable: ${entry.name}`,
         );
       }
-      if (entry.isSymbolicLink()) throw new EvidenceRetentionError('evidence-symlink', `symlink is forbidden in evidence: ${entry.name}`);
+      if (entry.isSymbolicLink())
+        throw new EvidenceRetentionError(
+          'evidence-symlink',
+          `symlink is forbidden in evidence: ${entry.name}`,
+        );
       const fullPath = join(current.directory, entry.name);
-      const relativePath = current.relative ? `${current.relative}/${entry.name}` : entry.name;
+      const relativePath = current.relative
+        ? `${current.relative}/${entry.name}`
+        : entry.name;
       if (entry.isDirectory()) {
         stack.push({ directory: fullPath, relative: relativePath });
         continue;
       }
-      if (!entry.isFile()) throw new EvidenceRetentionError('evidence-entry-unsafe', `non-regular evidence entry is forbidden: ${relativePath}`);
-      if (entry.name === RECEIPT_MANIFEST_NAME || entry.name === '.uploaded.json') continue;
+      if (!entry.isFile())
+        throw new EvidenceRetentionError(
+          'evidence-entry-unsafe',
+          `non-regular evidence entry is forbidden: ${relativePath}`,
+        );
+      if (
+        entry.name === RECEIPT_MANIFEST_NAME ||
+        entry.name === '.uploaded.json'
+      )
+        continue;
       const hashed = await hashStableFile(fullPath);
       if (hashed.bytes < 1) {
         // The Spis bridge requires a positive byte count on every inventory
@@ -76,7 +107,10 @@ export async function collectEvidenceFiles(root) {
       }
       totalBytes += hashed.bytes;
       if (totalBytes > MAX_EVIDENCE_TOTAL_BYTES) {
-        throw new EvidenceRetentionError('evidence-total-too-large', 'evidence bytes exceed the total limit');
+        throw new EvidenceRetentionError(
+          'evidence-total-too-large',
+          'evidence bytes exceed the total limit',
+        );
       }
       files.push({
         path: relativePath,
@@ -91,18 +125,24 @@ export async function collectEvidenceFiles(root) {
   return files;
 }
 
-
 export async function retainedWithheldEdges(files) {
   const edges = [];
-  for (const file of files.filter((candidate) => basename(candidate.path) === WITHHELD_EDGES_NAME)) {
-    const lines = (await readFile(file.fullPath, 'utf8')).split(/\r?\n/).filter(Boolean);
+  for (const file of files.filter(
+    (candidate) => basename(candidate.path) === WITHHELD_EDGES_NAME,
+  )) {
+    const lines = (await readFile(file.fullPath, 'utf8'))
+      .split(/\r?\n/)
+      .filter(Boolean);
     for (const line of lines) {
       try {
         const edge = JSON.parse(line);
         if (!isObject(edge)) throw new Error('edge is not an object');
         edges.push(edge);
       } catch {
-        throw new EvidenceRetentionError('withheld-edge-malformed', `withheld-edge evidence is not valid NDJSON: ${file.path}`);
+        throw new EvidenceRetentionError(
+          'withheld-edge-malformed',
+          `withheld-edge evidence is not valid NDJSON: ${file.path}`,
+        );
       }
     }
   }

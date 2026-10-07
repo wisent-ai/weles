@@ -4,89 +4,140 @@ import { competitors14 } from './source.mjs';
 import { validateProject as validateNcbrProject } from '../../../validation.mjs';
 import { openRowEditor } from '../../../forms/row-editor.mjs';
 
-export function competitionSteps({ page, progress, URLS, PROJECT_URL, setReactInputValue, visibleTableText, hasAnyName, clickDodaj, saveVisibleForm, selectApplicantIfPresent, fillNamedField, fillBySuffix }) {
-async function addCompetitor14(row) {
-  progress(`1.4:add:${row.name}`);
-  await clickDodaj(0);
-  await page.waitForSelector('[name="nazwa_podmiotu_konkurencyjnego"]');
-  const applicant = await selectApplicantIfPresent();
-  const fields = [];
-  fields.push(await fillNamedField('nazwa_podmiotu_konkurencyjnego', row.name));
-  fields.push(await fillNamedField('nip', row.nip));
-  fields.push(await fillNamedField('opis', row.desc));
-  await saveVisibleForm();
-  return { added: row.name, applicant, fields };
-}
-
-async function addCompetition23(tableIndex, row) {
-  progress(`2.3:add-competition:${row.producer}`);
-  await clickDodaj(tableIndex);
-  const fields = [];
-  fields.push(await fillNamedField('produkt_proces', `${row.product}\n\nFunkcjonalności: ${row.functions}`));
-  fields.push(await fillNamedField('nazwa_producenta', row.producer));
-  fields.push(await fillNamedField('korzysc_przewaga', row.advantage));
-  await saveVisibleForm();
-  return { added: row.producer, fields };
-}
-
-async function dumpOpenFields() {
-  return page.evaluate(() => Array.from(document.querySelectorAll('input, textarea')).map((el) => ({
-    tag: el.tagName,
-    name: el.name || null,
-    type: el.type || null,
-    max: el.getAttribute('maxlength'),
-    value: (el.value || ''),
-    visible: Boolean(el.getClientRects().length),
-  })).filter((field) => field.name || field.value)); // allow-raw-playwright: diagnostic read of open row fields
-}
-
-async function addParameter23(row) {
-  progress(`2.3:add-parameter:${row.name}`);
-  await clickDodaj(2);
-  const fields = [];
-  fields.push(await fillBySuffix('nazwa_parametru', row.name));
-  fields.push(await fillBySuffix('wartosc_bazowa', row.baseValue));
-  fields.push(await fillBySuffix('rok_bazowy', row.baseYear));
-  fields.push(await fillBySuffix('wartosc_docelowa', row.targetValue));
-  fields.push(await fillBySuffix('rok_docelowy', row.targetYear));
-  fields.push(await fillBySuffix('metoda_szacowania_wartosci_docelowej', row.estimate));
-  fields.push(await fillBySuffix('sposob_monitorowania_weryfikacji_osiagniecia_zaplanowanych_wartosci_docelowych', row.verify));
-  await saveVisibleForm();
-  return { added: row.name, fields };
-}
-
-async function editVisibleRowContaining(text) {
-  const row = page.locator('table tbody tr').filter({ hasText: text }).first();
-  if (await row.count() === 0) throw new Error(`visible row not found: ${text}`);
-  await openRowEditor(page, row, page.locator('[name="nip"]'));
-}
-
-async function repairVisibleMissingNips14() {
-  await page.goto(URLS['1.4'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 1.4 navigation for row repair
-  await humanIdlePause('long');
-  const repaired = [];
-  for (const row of competitors14) {
-    const rowText = await page.evaluate((names) => {
-      const rows = Array.from(document.querySelectorAll('table tbody tr'));
-      const hit = rows.find((candidate) => names.some((name) => (candidate.innerText || '').includes(name)));
-      return hit ? (hit.innerText || '').replace(/\s+/g, ' ').trim() : null;
-    }, [row.name, ...(row.aliases || [])]); // allow-raw-playwright: read matching visible row text
-    if (!rowText || rowText.includes(row.nip)) continue;
-    progress(`1.4:repair-nip:${row.name}`);
-    await editVisibleRowContaining((row.aliases || [row.name]).find((name) => rowText.includes(name)) || row.name);
-    await fillNamedField('nip', row.nip);
+export function competitionSteps({
+  page,
+  progress,
+  URLS,
+  PROJECT_URL,
+  setReactInputValue,
+  visibleTableText,
+  hasAnyName,
+  clickDodaj,
+  saveVisibleForm,
+  selectApplicantIfPresent,
+  fillNamedField,
+  fillBySuffix,
+}) {
+  async function addCompetitor14(row) {
+    progress(`1.4:add:${row.name}`);
+    await clickDodaj(0);
+    await page.waitForSelector('[name="nazwa_podmiotu_konkurencyjnego"]');
+    const applicant = await selectApplicantIfPresent();
+    const fields = [];
+    fields.push(
+      await fillNamedField('nazwa_podmiotu_konkurencyjnego', row.name),
+    );
+    fields.push(await fillNamedField('nip', row.nip));
+    fields.push(await fillNamedField('opis', row.desc));
     await saveVisibleForm();
-    repaired.push(row.name);
-    await page.goto(URLS['1.4'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: reload table after row repair
-    await humanIdlePause('long');
+    return { added: row.name, applicant, fields };
   }
-  return repaired;
-}
 
-async function validateProject() {
-  progress('validate:start');
-  return validateNcbrProject(page, PROJECT_URL);
-}
+  async function addCompetition23(tableIndex, row) {
+    progress(`2.3:add-competition:${row.producer}`);
+    await clickDodaj(tableIndex);
+    const fields = [];
+    fields.push(
+      await fillNamedField(
+        'produkt_proces',
+        `${row.product}\n\nFunkcjonalności: ${row.functions}`,
+      ),
+    );
+    fields.push(await fillNamedField('nazwa_producenta', row.producer));
+    fields.push(await fillNamedField('korzysc_przewaga', row.advantage));
+    await saveVisibleForm();
+    return { added: row.producer, fields };
+  }
 
-  return { addCompetitor14, addCompetition23, dumpOpenFields, addParameter23, editVisibleRowContaining, repairVisibleMissingNips14, validateProject };
+  async function dumpOpenFields() {
+    return page.evaluate(() =>
+      Array.from(document.querySelectorAll('input, textarea'))
+        .map((el) => ({
+          tag: el.tagName,
+          name: el.name || null,
+          type: el.type || null,
+          max: el.getAttribute('maxlength'),
+          value: el.value || '',
+          visible: Boolean(el.getClientRects().length),
+        }))
+        .filter((field) => field.name || field.value),
+    ); // allow-raw-playwright: diagnostic read of open row fields
+  }
+
+  async function addParameter23(row) {
+    progress(`2.3:add-parameter:${row.name}`);
+    await clickDodaj(2);
+    const fields = [];
+    fields.push(await fillBySuffix('nazwa_parametru', row.name));
+    fields.push(await fillBySuffix('wartosc_bazowa', row.baseValue));
+    fields.push(await fillBySuffix('rok_bazowy', row.baseYear));
+    fields.push(await fillBySuffix('wartosc_docelowa', row.targetValue));
+    fields.push(await fillBySuffix('rok_docelowy', row.targetYear));
+    fields.push(
+      await fillBySuffix('metoda_szacowania_wartosci_docelowej', row.estimate),
+    );
+    fields.push(
+      await fillBySuffix(
+        'sposob_monitorowania_weryfikacji_osiagniecia_zaplanowanych_wartosci_docelowych',
+        row.verify,
+      ),
+    );
+    await saveVisibleForm();
+    return { added: row.name, fields };
+  }
+
+  async function editVisibleRowContaining(text) {
+    const row = page
+      .locator('table tbody tr')
+      .filter({ hasText: text })
+      .first();
+    if ((await row.count()) === 0)
+      throw new Error(`visible row not found: ${text}`);
+    await openRowEditor(page, row, page.locator('[name="nip"]'));
+  }
+
+  async function repairVisibleMissingNips14() {
+    await page.goto(URLS['1.4'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 1.4 navigation for row repair
+    await humanIdlePause('long');
+    const repaired = [];
+    for (const row of competitors14) {
+      const rowText = await page.evaluate(
+        (names) => {
+          const rows = Array.from(document.querySelectorAll('table tbody tr'));
+          const hit = rows.find((candidate) =>
+            names.some((name) => (candidate.innerText || '').includes(name)),
+          );
+          return hit ? (hit.innerText || '').replace(/\s+/g, ' ').trim() : null;
+        },
+        [row.name, ...(row.aliases || [])],
+      ); // allow-raw-playwright: read matching visible row text
+      if (!rowText || rowText.includes(row.nip)) continue;
+      progress(`1.4:repair-nip:${row.name}`);
+      await editVisibleRowContaining(
+        (row.aliases || [row.name]).find((name) => rowText.includes(name)) ||
+          row.name,
+      );
+      await fillNamedField('nip', row.nip);
+      await saveVisibleForm();
+      repaired.push(row.name);
+      await page.goto(URLS['1.4'], { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: reload table after row repair
+      await humanIdlePause('long');
+    }
+    return repaired;
+  }
+
+  async function validateProject() {
+    progress('validate:start');
+    return validateNcbrProject(page, PROJECT_URL);
+  }
+
+  return {
+    addCompetitor14,
+    addCompetition23,
+    dumpOpenFields,
+    addParameter23,
+    editVisibleRowContaining,
+    repairVisibleMissingNips14,
+    validateProject,
+  };
 }

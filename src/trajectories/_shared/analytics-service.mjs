@@ -1,11 +1,18 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { SessionStore } from '../../../dist/session/store.js';
-import { ACTIONS, actionName, missingInputs } from './analytics-service/action-catalog.mjs';
+import {
+  ACTIONS,
+  actionName,
+  missingInputs,
+} from './analytics-service/action-catalog.mjs';
 import { safeGoto } from './analytics-service/page-interaction.mjs';
 import { ensureLoggedIn } from './analytics-service/session-login.mjs';
 import { humanScrollPage } from '../../../dist/human/mouse.js';
 import { pageSettled } from './page/settled.mjs';
-import { resolvedUrl, openExpectedDashboardSection } from './analytics-service/google-analytics/reports.mjs';
+import {
+  resolvedUrl,
+  openExpectedDashboardSection,
+} from './analytics-service/google-analytics/reports.mjs';
 import {
   prepareWrite,
   performConfirmedWrite,
@@ -21,23 +28,39 @@ async function run() {
   if (!cfg) throw new Error(`unsupported analytics service action: ${name}`);
 
   const missing = missingInputs(cfg);
-  if (missing.length) throw new Error(`missing required input(s): ${missing.join(', ')}`);
+  if (missing.length)
+    throw new Error(`missing required input(s): ${missing.join(', ')}`);
 
-  const s = await WSession.start({ label: name, browser: 'chromium', proxy: process.env.PROXY_URL || 'direct', os: 'macos' });
+  const s = await WSession.start({
+    label: name,
+    browser: 'chromium',
+    proxy: process.env.PROXY_URL || 'direct',
+    os: 'macos',
+  });
   const store = new SessionStore();
   let actionError = null;
   try {
     await store.injectPlaywright?.(s.ctx, cfg.platform);
-    if (name !== 'umami_register' && !name.includes('verify_tracking_script') && !name.includes('track_custom_event') && !name.includes('install_gtag')) {
+    if (
+      name !== 'umami_register' &&
+      !name.includes('verify_tracking_script') &&
+      !name.includes('track_custom_event') &&
+      !name.includes('install_gtag')
+    ) {
       await ensureLoggedIn(s, cfg);
       await store.capturePlaywright?.(s.ctx, cfg.platform);
     }
 
-    const pending = (cfg.risk === 'write' || cfg.risk === 'admin') && await prepareWrite(s, cfg);
+    const pending =
+      (cfg.risk === 'write' || cfg.risk === 'admin') &&
+      (await prepareWrite(s, cfg));
     if (pending) {
       await safeGoto(s, resolvedUrl(cfg));
       await captureEvidence(s, cfg, { pending_review: true });
-      writeBanSignal('pending_review', true, { risk: cfg.risk, reason: 'write/admin action staged for approval' });
+      writeBanSignal('pending_review', true, {
+        risk: cfg.risk,
+        reason: 'write/admin action staged for approval',
+      });
       console.log(`PASS: ${name} pending_review`);
       return;
     }
@@ -48,23 +71,34 @@ async function run() {
       await safeGoto(s, resolvedUrl(cfg));
       await pageSettled(s.page);
       await openExpectedDashboardSection(s);
-    } else if (name.includes('verify_tracking_script') || name === 'umami_track_custom_event' || name === 'googleanalytics_install_gtag') {
+    } else if (
+      name.includes('verify_tracking_script') ||
+      name === 'umami_track_custom_event' ||
+      name === 'googleanalytics_install_gtag'
+    ) {
       extra.targetSite = await verifyTargetSite(s, cfg);
     } else {
       await safeGoto(s, resolvedUrl(cfg));
       await pageSettled(s.page);
-      if (cfg.platform === 'googleanalytics') await openExpectedDashboardSection(s);
-      if (name !== 'googleanalytics_register' && name !== 'googleanalytics_register_needher') {
+      if (cfg.platform === 'googleanalytics')
+        await openExpectedDashboardSection(s);
+      if (
+        name !== 'googleanalytics_register' &&
+        name !== 'googleanalytics_register_needher'
+      ) {
         await humanScrollPage(s.page, 'down');
       }
       if (cfg.risk === 'write' || cfg.risk === 'admin') {
-        extra = { ...extra, ...await performConfirmedWrite(s, cfg) };
+        extra = { ...extra, ...(await performConfirmedWrite(s, cfg)) };
       }
     }
 
     const evidence = await captureEvidence(s, cfg, extra);
     assertExpectedEvidence(evidence);
-    writeBanSignal('healthy', true, { final_url: evidence.url, evidence_file: 'service_action_result.json' });
+    writeBanSignal('healthy', true, {
+      final_url: evidence.url,
+      evidence_file: 'service_action_result.json',
+    });
     console.log(`PASS: ${name} ${cfg.objective}`);
   } catch (error) {
     actionError = error;
@@ -74,7 +108,10 @@ async function run() {
       await s.close();
     } catch (closeError) {
       if (!actionError) throw closeError;
-      throw new Error(`${name} failed: ${actionError.message}; and the browser session was left open: ${closeError.message}`, { cause: actionError });
+      throw new Error(
+        `${name} failed: ${actionError.message}; and the browser session was left open: ${closeError.message}`,
+        { cause: actionError },
+      );
     }
   }
 }
@@ -82,7 +119,9 @@ async function run() {
 run()
   .then(() => process.exit(process.exitCode ?? 0))
   .catch((e) => {
-    writeBanSignal('service_action_failed', false, { reason: e.message ?? String(e) });
+    writeBanSignal('service_action_failed', false, {
+      reason: e.message ?? String(e),
+    });
     console.log('FAIL:', e.message);
     process.exit(1);
   });

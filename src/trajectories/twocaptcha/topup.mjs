@@ -6,34 +6,64 @@ import { pageCondition, pageSettled } from '../_shared/page/settled.mjs';
 
 const { usd } = topupOpts();
 const login = await getServiceLogin('2Captcha');
-if (!login) { console.log('FAIL: no 2Captcha creds'); process.exit(1); }
+if (!login) {
+  console.log('FAIL: no 2Captcha creds');
+  process.exit(1);
+}
 
-const s = await WSession.start({ label: 'twocaptcha_topup', browser: 'chromium' });
+const s = await WSession.start({
+  label: 'twocaptcha_topup',
+  browser: 'chromium',
+});
 try {
   await s.goto('https://2captcha.com/auth/login');
   await pageSettled(s.page);
   await s.page.locator('input[name="email"]').fill(login.email);
   await s.page.locator('input[name="password"]').fill(login.password);
 
-  await pageCondition(s.page, () => typeof window.grecaptcha?.execute === 'function');
-  await s.page.evaluate(() => window.grecaptcha.execute('6Lfo9qojAAAAAPqqMn9QlAY2RBSVuEW63vDJ442M', { action: 'login' }));
-  await pageCondition(s.page, () => Boolean(document.querySelector('textarea[name="g-recaptcha-response"]')?.value));
-  const answered = s.page.waitForResponse((r) => r.request().method() === 'POST' && /2captcha\.com/.test(r.url()));
+  await pageCondition(
+    s.page,
+    () => typeof window.grecaptcha?.execute === 'function',
+  );
+  await s.page.evaluate(() =>
+    window.grecaptcha.execute('6Lfo9qojAAAAAPqqMn9QlAY2RBSVuEW63vDJ442M', {
+      action: 'login',
+    }),
+  );
+  await pageCondition(s.page, () =>
+    Boolean(
+      document.querySelector('textarea[name="g-recaptcha-response"]')?.value,
+    ),
+  );
+  const answered = s.page.waitForResponse(
+    (r) => r.request().method() === 'POST' && /2captcha\.com/.test(r.url()),
+  );
   await s.page.locator('button:has-text("Continue")').click();
   await answered;
   await pageSettled(s.page);
 
   // 2Captcha funds-add page.
-  await s.page.goto('https://2captcha.com/pay', { waitUntil: 'domcontentloaded' }).catch(() => {});
+  await s.page
+    .goto('https://2captcha.com/pay', { waitUntil: 'domcontentloaded' })
+    .catch(() => {});
   await pageSettled(s.page);
 
-  const amtIn = s.page.locator('input[type="number"], input[name*="amount" i], input[inputmode="numeric"]').filter({ visible: true }).first();
-  if (await amtIn.isVisible().catch(() => false)) { await amtIn.click(); await amtIn.fill(String(usd)); console.log(`[trajectory] amount filled: $${usd}`); }
-
-  
+  const amtIn = s.page
+    .locator(
+      'input[type="number"], input[name*="amount" i], input[inputmode="numeric"]',
+    )
+    .filter({ visible: true })
+    .first();
+  if (await amtIn.isVisible().catch(() => false)) {
+    await amtIn.click();
+    await amtIn.fill(String(usd));
+    console.log(`[trajectory] amount filled: $${usd}`);
+  }
 
   // CONFIRM: Find and click pay button
-  const { findAndClickPayButton } = await import('../_shared/services/topup_common.mjs');
+  const { findAndClickPayButton } = await import(
+    '../_shared/services/topup_common.mjs'
+  );
   const clicked = await findAndClickPayButton(s.page);
   if (!clicked) {
     console.log('FAIL: could not find pay/checkout button');
@@ -44,4 +74,6 @@ try {
 } catch (e) {
   console.log('FAIL:', e.message);
   process.exit(1);
-} finally { await s.close(); }
+} finally {
+  await s.close();
+}

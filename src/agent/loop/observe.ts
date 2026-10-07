@@ -12,7 +12,6 @@ import type { ToolCall } from '../loop.js';
 import { readFrameObservation } from '../../session/observation/controls.js';
 import { BROWSER_TOOLS } from '../tools.js';
 
-
 const SYSTEM_PROMPT = `You are a browser automation agent. Choose the single next action that makes progress toward the goal.
 
 Use exactly one of the provided browser functions. Put its named parameters directly in the function arguments; do not wrap them in another tool or args object.
@@ -28,7 +27,11 @@ function visionDir(label?: string): string {
 }
 
 export function parseJsonFrom(raw: string): Record<string, any> {
-  try { return JSON.parse(raw); } catch { /* continue */ }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    /* continue */
+  }
   const matches = raw.matchAll(/\{/g);
   for (const m of matches) {
     try {
@@ -37,16 +40,31 @@ export function parseJsonFrom(raw: string): Record<string, any> {
       if (end === -1) continue;
       const parsed = JSON.parse(candidate.slice(0, end + 1));
       if ('tool' in parsed) return parsed;
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
   }
-  return { tool: 'give_up', args: { reason: `unparseable LLM output: ${raw}` } };
+  return {
+    tool: 'give_up',
+    args: { reason: `unparseable LLM output: ${raw}` },
+  };
 }
 
 export type ModelDecisionProvider = typeof callJeden;
 
-export async function askLlm(goal: string, state: string, screenshotPath: string | null, step: number, label?: string, modelDecision: ModelDecisionProvider = callJeden, disableArtifacts = false): Promise<Record<string, any>> {
+export async function askLlm(
+  goal: string,
+  state: string,
+  screenshotPath: string | null,
+  step: number,
+  label?: string,
+  modelDecision: ModelDecisionProvider = callJeden,
+  disableArtifacts = false,
+): Promise<Record<string, any>> {
   const dir = disableArtifacts ? null : visionDir(label);
-  const imgBlock = screenshotPath ? `The worker retained the current screenshot at ${screenshotPath}. To inspect its pixels, call read with a question.\n\n` : '';
+  const imgBlock = screenshotPath
+    ? `The worker retained the current screenshot at ${screenshotPath}. To inspect its pixels, call read with a question.\n\n`
+    : '';
   const prompt = `${SYSTEM_PROMPT}\n\nGOAL: ${goal}\n\n${state}\n${imgBlock}Call the single next browser function.`;
 
   let raw = '';
@@ -59,37 +77,69 @@ export async function askLlm(goal: string, state: string, screenshotPath: string
     const routed = await modelDecision(prompt, { tools: BROWSER_TOOLS });
     raw = routed.raw;
     functionName = routed.functionName;
-    routerMeta = { model: routed.model, router_url: routed.routerUrl, finish_reason: routed.finishReason, usage: routed.usage, function_name: routed.functionName };
+    routerMeta = {
+      model: routed.model,
+      router_url: routed.routerUrl,
+      finish_reason: routed.finishReason,
+      usage: routed.usage,
+      function_name: routed.functionName,
+    };
   } catch (e: unknown) {
-    lastRouterError = (e instanceof Error ? e.message : String(e));
+    lastRouterError = e instanceof Error ? e.message : String(e);
     routerMeta = { error: lastRouterError };
   }
   let decision: Record<string, any>;
   try {
     if (!raw) throw new Error(`Jeden/Brama error: ${lastRouterError}`);
-    const definition = BROWSER_TOOLS.find(tool => tool.function.name === functionName)?.function;
-    if (!definition) throw new Error(`undeclared browser function: ${functionName}`);
+    const definition = BROWSER_TOOLS.find(
+      (tool) => tool.function.name === functionName,
+    )?.function;
+    if (!definition)
+      throw new Error(`undeclared browser function: ${functionName}`);
     const args = JSON.parse(raw);
-    if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error(`${functionName} arguments must be an object`);
-    const properties = definition.parameters.properties as Record<string, unknown>;
-    const unknown = Object.keys(args).filter(key => !Object.hasOwn(properties, key));
-    const missing = (definition.parameters.required as string[]).filter(key => !Object.hasOwn(args, key));
-    if (unknown.length || missing.length) throw new Error(`${functionName} argument names: unknown=[${unknown.join(', ')}], missing=[${missing.join(', ')}]`);
+    if (!args || typeof args !== 'object' || Array.isArray(args))
+      throw new Error(`${functionName} arguments must be an object`);
+    const properties = definition.parameters.properties as Record<
+      string,
+      unknown
+    >;
+    const unknown = Object.keys(args).filter(
+      (key) => !Object.hasOwn(properties, key),
+    );
+    const missing = (definition.parameters.required as string[]).filter(
+      (key) => !Object.hasOwn(args, key),
+    );
+    if (unknown.length || missing.length)
+      throw new Error(
+        `${functionName} argument names: unknown=[${unknown.join(', ')}], missing=[${missing.join(', ')}]`,
+      );
     decision = { tool: functionName, args };
   } catch (error) {
     decision = { tool: 'give_up', args: { reason: String(error) } };
   }
   if (dir) {
     const logPath = join(dir, `loop_step${step}.json`);
-    try { writeFileSync(logPath, JSON.stringify({ step, raw, parsed: decision, router: routerMeta }, null, 2)); } catch { /* skip */ }
+    try {
+      writeFileSync(
+        logPath,
+        JSON.stringify(
+          { step, raw, parsed: decision, router: routerMeta },
+          null,
+          2,
+        ),
+      );
+    } catch {
+      /* skip */
+    }
   }
   return decision;
 }
 
 async function pageObservation(page: any): Promise<string> {
-  const summarizeControls = (controls: string[]): string => controls.length
-    ? controls.map(control => `  ${control}`).join('\n')
-    : '  (none)';
+  const summarizeControls = (controls: string[]): string =>
+    controls.length
+      ? controls.map((control) => `  ${control}`).join('\n')
+      : '  (none)';
   try {
     const data = await readFrameObservation(page.mainFrame?.() ?? page);
     if (data.error) return `PAGE OBSERVATION ERROR: ${data.error}`;
@@ -97,18 +147,23 @@ async function pageObservation(page: any): Promise<string> {
     // Every child frame: a control the task needs can sit in any of them, and
     // the twelve-frame cut once here hid the rest from the model. A page type
     // without frames (the CDP page) has no child frames to read.
-    const frames = typeof page.frames === 'function'
-      ? page.frames().filter((frame: any) => frame !== page.mainFrame?.())
-      : [];
+    const frames =
+      typeof page.frames === 'function'
+        ? page.frames().filter((frame: any) => frame !== page.mainFrame?.())
+        : [];
     for (const frame of frames) {
       const frameData = await readFrameObservation(frame);
       if (frameData.error) {
-        frameSummaries.push(`FRAME url=${frame.url()}\nERROR: ${frameData.error}`);
+        frameSummaries.push(
+          `FRAME url=${frame.url()}\nERROR: ${frameData.error}`,
+        );
         continue;
       }
       const controls = summarizeControls(frameData.controls ?? []);
       if (frameData.text || controls !== '  (none)') {
-        frameSummaries.push(`FRAME name=${frame.name?.() ?? ''} url=${frame.url?.() ?? ''}\nTEXT: ${frameData.text ?? ''}\nCONTROLS:\n${controls}`);
+        frameSummaries.push(
+          `FRAME name=${frame.name?.() ?? ''} url=${frame.url?.() ?? ''}\nTEXT: ${frameData.text ?? ''}\nCONTROLS:\n${controls}`,
+        );
       }
     }
     return `TITLE: ${data.title ?? ''}\nVISIBLE TEXT: ${data.text ?? ''}\nCONTROLS:\n${summarizeControls(data.controls ?? [])}${frameSummaries.length ? `\n\nFRAMES:\n${frameSummaries.join('\n\n')}` : ''}`;
@@ -117,15 +172,27 @@ async function pageObservation(page: any): Promise<string> {
   }
 }
 
-export async function buildState(page: any, history: ToolCall[], envHints: Record<string, string>): Promise<string> {
+export async function buildState(
+  page: any,
+  history: ToolCall[],
+  envHints: Record<string, string>,
+): Promise<string> {
   const url = (typeof page.url === 'function' ? page.url() : page.url) ?? '';
   // The whole action history, numbered from the run's first action: the
   // model decides the next step knowing everything it already tried, not
   // only its last ten actions.
   const hLines = history.length
-    ? history.map((h, offset) => `  [${offset}] ${h.tool}(${JSON.stringify(h.args)}) -> ${h.error ?? h.result}`).join('\n')
+    ? history
+        .map(
+          (h, offset) =>
+            `  [${offset}] ${h.tool}(${JSON.stringify(h.args)}) -> ${h.error ?? h.result}`,
+        )
+        .join('\n')
     : '  (none)';
-  const eLines = Object.keys(envHints).map((key) => `  ${key}=[value unavailable to model]`).join('\n') || '  (none)';
+  const eLines =
+    Object.keys(envHints)
+      .map((key) => `  ${key}=[value unavailable to model]`)
+      .join('\n') || '  (none)';
   const observation = await pageObservation(page);
   return `CURRENT URL: ${url}\n\nPAGE OBSERVATION:\n${observation}\n\nACTION HISTORY:\n${hLines}\n\nAVAILABLE ENV VARS:\n${eLines}\n`;
 }

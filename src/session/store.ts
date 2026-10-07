@@ -30,7 +30,8 @@ export class SessionStore {
   private _persistPath: string;
 
   constructor(persistPath?: string) {
-    this._persistPath = persistPath ?? join(homedir(), '.weles', 'sessions.json');
+    this._persistPath =
+      persistPath ?? join(homedir(), '.weles', 'sessions.json');
   }
 
   // -----------------------------------------------------------------------
@@ -99,16 +100,22 @@ export class SessionStore {
   }
 
   /** Inject cookies into a Playwright BrowserContext (uses addCookies API). */
-  async injectPlaywright(context: { addCookies(cookies: any[]): Promise<void> }, label: string): Promise<boolean> {
+  async injectPlaywright(
+    context: { addCookies(cookies: any[]): Promise<void> },
+    label: string,
+  ): Promise<boolean> {
     const cookies = this.loadCookies(label);
     if (!cookies || cookies.length === 0) return false;
-    const valid = cookies.filter(c => c.name && c.value && c.domain);
+    const valid = cookies.filter((c) => c.name && c.value && c.domain);
     await context.addCookies(valid);
     return valid.length > 0;
   }
 
   /** Capture cookies from a Playwright BrowserContext and persist them. */
-  async capturePlaywright(context: { cookies(): Promise<any[]> }, label: string): Promise<CookieParam[]> {
+  async capturePlaywright(
+    context: { cookies(): Promise<any[]> },
+    label: string,
+  ): Promise<CookieParam[]> {
     const cookies = await context.cookies();
     this.saveCookies(label, cookies);
     return cookies;

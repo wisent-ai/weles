@@ -4,7 +4,10 @@
 import { spawnSync } from 'node:child_process';
 
 const SESSION = process.env.SESSION || 'ncbr-step-b';
-const WELES = new URL('../../../../..', import.meta.url).pathname.replace(/\/$/, '');
+const WELES = new URL('../../../../..', import.meta.url).pathname.replace(
+  /\/$/,
+  '',
+);
 const PROJECT = (await import('#ncbr-settings')).sectionBase();
 const SECTIONS = [
   ['5.1', (await import('#ncbr-settings')).sectionId('5_1')],
@@ -12,10 +15,17 @@ const SECTIONS = [
 ];
 
 function action(args, optional = false) {
-  const result = spawnSync(process.execPath, ['src/_shared/keeper/action.mjs', ...args], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' });
+  const result = spawnSync(
+    process.execPath,
+    ['src/_shared/keeper/action.mjs', ...args],
+    { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' },
+  );
   if (result.status !== 0) {
-    if (optional) return { ok: false, stdout: result.stdout, stderr: result.stderr };
-    throw new Error(`${args.join(' ')}\nstdout=${result.stdout}\nstderr=${result.stderr}`);
+    if (optional)
+      return { ok: false, stdout: result.stdout, stderr: result.stderr };
+    throw new Error(
+      `${args.join(' ')}\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+    );
   }
   return JSON.parse(result.stdout.trim());
 }
@@ -80,7 +90,15 @@ for (const [label, id] of SECTIONS) {
     idle('deliberate');
     const save = action(['click', 'button:has-text("Zapisz")'], true);
     idle('long');
-    out.push({ label, before, applicant, appClick, radio, save, after: tableRows() });
+    out.push({
+      label,
+      before,
+      applicant,
+      appClick,
+      radio,
+      save,
+      after: tableRows(),
+    });
   } else {
     out.push({ label, skipped: true, before });
   }

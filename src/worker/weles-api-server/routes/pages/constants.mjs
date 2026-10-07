@@ -10,7 +10,11 @@
 
 import { availableParallelism } from 'node:os';
 
-export const LOAD_STATES = Object.freeze(['domcontentloaded', 'load', 'networkidle']);
+export const LOAD_STATES = Object.freeze([
+  'domcontentloaded',
+  'load',
+  'networkidle',
+]);
 export const STANDARD_LOAD_STATE = 'load';
 export const SCREENSHOT_MODES = Object.freeze(['none', 'viewport', 'full']);
 export const NO_SCREENSHOT = 'none';

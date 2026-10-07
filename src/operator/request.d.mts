@@ -57,15 +57,38 @@ export type OpenOperatorRequestInput = {
 export declare function operatorRequestDir(): string;
 export declare function pageBody(request: OperatorRequest): string;
 export declare function pageSubject(request: OperatorRequest): string;
-export declare function openOperatorRequest(input: OpenOperatorRequestInput): OperatorRequest;
-export declare function closeOperatorRequest(id: string, approved: boolean, detail: string): OperatorRequest;
+export declare function openOperatorRequest(
+  input: OpenOperatorRequestInput,
+): OperatorRequest;
+export declare function closeOperatorRequest(
+  id: string,
+  approved: boolean,
+  detail: string,
+): OperatorRequest;
 export declare function openRequestOfRun(runId: string): OperatorRequest | null;
 export declare function readOperatorRequest(id: string): OperatorRequest;
 export declare function isOpen(request: OperatorRequest): boolean;
 export declare function isAbandoned(request: OperatorRequest): boolean | null;
-export declare function listOperatorRequests(options?: { limit?: number; openOnly?: boolean }): OperatorRequest[];
+export declare function listOperatorRequests(options?: {
+  limit?: number;
+  openOnly?: boolean;
+}): OperatorRequest[];
 export declare const OPERATOR_ANSWERS: readonly OperatorAnswer[];
-export declare function answerOperatorRequest(id: string, answer: OperatorAnswer, detail: string): OperatorRequest;
-export declare function noteOperatorRequest(id: string, note: string): OperatorRequest;
-export declare function repageOperatorRequest(id: string, why: string): OperatorRequest;
-export declare function nextOperatorAnswer(id: string, seen: number, signal?: AbortSignal): Promise<OperatorAnswerRecord | null>;
+export declare function answerOperatorRequest(
+  id: string,
+  answer: OperatorAnswer,
+  detail: string,
+): OperatorRequest;
+export declare function noteOperatorRequest(
+  id: string,
+  note: string,
+): OperatorRequest;
+export declare function repageOperatorRequest(
+  id: string,
+  why: string,
+): OperatorRequest;
+export declare function nextOperatorAnswer(
+  id: string,
+  seen: number,
+  signal?: AbortSignal,
+): Promise<OperatorAnswerRecord | null>;

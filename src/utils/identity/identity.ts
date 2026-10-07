@@ -9,7 +9,9 @@ import { registrationPassword } from './password.js';
 // faker is ESM-only, use dynamic import
 let _faker: any = null;
 async function getFaker() {
-  if (!_faker) { _faker = (await import('@faker-js/faker')).faker; }
+  if (!_faker) {
+    _faker = (await import('@faker-js/faker')).faker;
+  }
   return _faker;
 }
 
@@ -28,7 +30,11 @@ export async function generateIdentity(platform: string): Promise<Identity> {
   const faker = await getFaker();
   const firstName = faker.person.firstName();
   const lastName = faker.person.lastName();
-  const username = faker.internet.username({ firstName, lastName }).toLowerCase().replace(/[^a-z0-9]/g, '') + faker.number.int({ min: 100, max: 9999 });
+  const username =
+    faker.internet
+      .username({ firstName, lastName })
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '') + faker.number.int({ min: 100, max: 9999 });
   const domain = await pickDomain(platform);
   const email = `${username}@${domain}`;
   const password = registrationPassword();

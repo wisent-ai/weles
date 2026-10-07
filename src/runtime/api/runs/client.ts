@@ -1,5 +1,12 @@
-import type { OperatorAnswer, OperatorRequest } from '../../../operator/request.mjs' with { 'resolution-mode': 'import' };
-import { operatorJson, welesOperatorConnection, type WelesApiOptions } from '../connection.js';
+import type {
+  OperatorAnswer,
+  OperatorRequest,
+} from '../../../operator/request.mjs' with { 'resolution-mode': 'import' };
+import {
+  operatorJson,
+  welesOperatorConnection,
+  type WelesApiOptions,
+} from '../connection.js';
 
 /** The request a run waits on, as the worker observes its waiting process. */
 export type WaitingRequest = OperatorRequest & { abandoned: boolean | null };
@@ -31,9 +38,14 @@ export type ObservedRun = {
 
 function parseRunning(value: unknown): RunningRun {
   const row = value as Partial<RunningRun> | null;
-  if (!row || typeof row.run_id !== 'string' || typeof row.action !== 'string'
-      || typeof row.started_at !== 'string' || typeof row.stdout_tail !== 'string'
-      || typeof row.stderr_tail !== 'string') {
+  if (
+    !row ||
+    typeof row.run_id !== 'string' ||
+    typeof row.action !== 'string' ||
+    typeof row.started_at !== 'string' ||
+    typeof row.stdout_tail !== 'string' ||
+    typeof row.stderr_tail !== 'string'
+  ) {
     throw new Error('Weles returned an invalid running run');
   }
   return row as RunningRun;
@@ -55,25 +67,42 @@ async function exchange(
     });
     const answer = await operatorJson(response);
     if (!response.ok || answer.ok !== true) {
-      const said = [answer.error, answer.message].filter((part) => typeof part === 'string' && part).join(': ');
-      throw new Error(`HTTP ${response.status}: ${said || 'Weles refused the request'}`);
+      const said = [answer.error, answer.message]
+        .filter((part) => typeof part === 'string' && part)
+        .join(': ');
+      throw new Error(
+        `HTTP ${response.status}: ${said || 'Weles refused the request'}`,
+      );
     }
     return { status: response.status, body: answer };
   } catch (cause) {
-    throw new Error(`${method} ${connection.endpoint}: ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
+    throw new Error(
+      `${method} ${connection.endpoint}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      { cause },
+    );
   }
 }
 
 /** Every run with a live child on the managed worker, oldest first. */
-export async function readRunningRuns(options: WelesApiOptions = {}): Promise<RunningRun[]> {
+export async function readRunningRuns(
+  options: WelesApiOptions = {},
+): Promise<RunningRun[]> {
   const { body } = await exchange('/runs', 'GET', undefined, options);
   if (!Array.isArray(body.runs)) throw new Error('Weles returned no run list');
   return body.runs.map(parseRunning);
 }
 
 /** One run's record, and what it is doing when the worker still runs it. */
-export async function readRun(runId: string, options: WelesApiOptions = {}): Promise<ObservedRun> {
-  const { body } = await exchange(`/runs/${encodeURIComponent(runId)}`, 'GET', undefined, options);
+export async function readRun(
+  runId: string,
+  options: WelesApiOptions = {},
+): Promise<ObservedRun> {
+  const { body } = await exchange(
+    `/runs/${encodeURIComponent(runId)}`,
+    'GET',
+    undefined,
+    options,
+  );
   if (body.run_id !== runId) throw new Error('Weles returned a different run');
   return {
     run_id: runId,
@@ -86,9 +115,19 @@ export async function readRun(runId: string, options: WelesApiOptions = {}): Pro
  * End a run the managed worker is running. `detail` says who ends it and why;
  * the run's record keeps it. A run that already finished is refused with when.
  */
-export async function cancelRun(runId: string, detail: string, options: WelesApiOptions = {}): Promise<RunningRun> {
-  const { body } = await exchange(`/runs/${encodeURIComponent(runId)}/cancel`, 'POST', { detail }, options);
-  if (body.run_id !== runId || !body.running) throw new Error('Weles cancelled a different run');
+export async function cancelRun(
+  runId: string,
+  detail: string,
+  options: WelesApiOptions = {},
+): Promise<RunningRun> {
+  const { body } = await exchange(
+    `/runs/${encodeURIComponent(runId)}/cancel`,
+    'POST',
+    { detail },
+    options,
+  );
+  if (body.run_id !== runId || !body.running)
+    throw new Error('Weles cancelled a different run');
   return parseRunning(body.running);
 }
 
@@ -105,7 +144,13 @@ export async function answerRun(
   detail: string,
   options: WelesApiOptions = {},
 ): Promise<RunningRun> {
-  const { body } = await exchange(`/runs/${encodeURIComponent(runId)}/answer`, 'POST', { answer, detail }, options);
-  if (body.run_id !== runId || !body.running) throw new Error('Weles answered a different run');
+  const { body } = await exchange(
+    `/runs/${encodeURIComponent(runId)}/answer`,
+    'POST',
+    { answer, detail },
+    options,
+  );
+  if (body.run_id !== runId || !body.running)
+    throw new Error('Weles answered a different run');
   return parseRunning(body.running);
 }

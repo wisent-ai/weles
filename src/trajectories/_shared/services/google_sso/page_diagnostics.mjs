@@ -20,15 +20,20 @@ export const DOCUMENT_REPLACED = Symbol('weles:google-document-replaced');
 // check is made again on the next turn of the event loop before throwing.
 export async function readAcrossNavigation(page, read) {
   let replaced = false;
-  const onNavigated = (frame) => { if (frame === page.mainFrame()) replaced = true; };
-  const onGone = () => { replaced = true; };
+  const onNavigated = (frame) => {
+    if (frame === page.mainFrame()) replaced = true;
+  };
+  const onGone = () => {
+    replaced = true;
+  };
   page.on('framenavigated', onNavigated);
   page.on('close', onGone);
   page.on('crash', onGone);
   try {
     return await read();
   } catch (error) {
-    if (!replaced && !page.isClosed()) await new Promise((resolve) => setImmediate(resolve));
+    if (!replaced && !page.isClosed())
+      await new Promise((resolve) => setImmediate(resolve));
     if (replaced || page.isClosed()) return DOCUMENT_REPLACED;
     throw error;
   } finally {
@@ -41,36 +46,59 @@ export async function readAcrossNavigation(page, read) {
 // The document that was there a moment ago is gone mid-read during a redirect,
 // which in a poll loop means "look again", never "the page was blank".
 export async function readGooglePageText(page) {
-  const text = await readAcrossNavigation(page, () => page.evaluate(() => document.body?.innerText || ''));
+  const text = await readAcrossNavigation(page, () =>
+    page.evaluate(() => document.body?.innerText || ''),
+  );
   return text === DOCUMENT_REPLACED ? PAGE_TEXT_UNREADABLE : text;
 }
 
 export async function logGooglePageDiag(page, label) {
-  const diag = await page.evaluate(() => {
-    const text = document.body.innerText.replace(/\s+/g, ' ');
-    const buttons = Array.from(document.querySelectorAll('button, [role="button"]'))
-      .map((el) => ({
-        text: el.innerText.replace(/\s+/g, ' ').trim(),
-        disabled: Boolean(el.disabled || el.getAttribute('aria-disabled') === 'true' || el.getAttribute('disabled') !== null),
-      }))
-      .filter((button) => button.text);
-    // An attribute the element does not carry is reported as absent, because a
-    // field with no declared type and a field declaring an empty type are two
-    // different pages to read this diagnostic against.
-    const inputs = Array.from(document.querySelectorAll('input'))
-      .map((el) => ({
-        type: el.getAttribute('type'),
-        name: el.getAttribute('name'),
-        autocomplete: el.getAttribute('autocomplete'),
-        visible: Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length),
-        valueLength: String(el.value || '').length,
-      }));
-    return { url: location.href, title: document.title, text, buttons, inputs };
-  }).catch((e) => ({ error: e.message }));
+  const diag = await page
+    .evaluate(() => {
+      const text = document.body.innerText.replace(/\s+/g, ' ');
+      const buttons = Array.from(
+        document.querySelectorAll('button, [role="button"]'),
+      )
+        .map((el) => ({
+          text: el.innerText.replace(/\s+/g, ' ').trim(),
+          disabled: Boolean(
+            el.disabled ||
+              el.getAttribute('aria-disabled') === 'true' ||
+              el.getAttribute('disabled') !== null,
+          ),
+        }))
+        .filter((button) => button.text);
+      // An attribute the element does not carry is reported as absent, because a
+      // field with no declared type and a field declaring an empty type are two
+      // different pages to read this diagnostic against.
+      const inputs = Array.from(document.querySelectorAll('input')).map(
+        (el) => ({
+          type: el.getAttribute('type'),
+          name: el.getAttribute('name'),
+          autocomplete: el.getAttribute('autocomplete'),
+          visible: Boolean(
+            el.offsetWidth || el.offsetHeight || el.getClientRects().length,
+          ),
+          valueLength: String(el.value || '').length,
+        }),
+      );
+      return {
+        url: location.href,
+        title: document.title,
+        text,
+        buttons,
+        inputs,
+      };
+    })
+    .catch((e) => ({ error: e.message }));
   console.log(`[google_sso] ${label} diag=${JSON.stringify(diag)}`);
 
-  if (process.env.GOOGLE_SSO_SCREENSHOTS === '1' && process.env.GOOGLE_SSO_NO_SCREENSHOTS !== '1') {
-    const dir = process.env.GOOGLE_SSO_DIAG_DIR || runOutputPath('google-sso-diag');
+  if (
+    process.env.GOOGLE_SSO_SCREENSHOTS === '1' &&
+    process.env.GOOGLE_SSO_NO_SCREENSHOTS !== '1'
+  ) {
+    const dir =
+      process.env.GOOGLE_SSO_DIAG_DIR || runOutputPath('google-sso-diag');
     mkdirSync(dir, { recursive: true });
     const file = join(dir, `${label.replace(/[^a-z0-9_-]/gi, '_')}.png`);
     await page.screenshot({ path: file, fullPage: true });
@@ -80,8 +108,15 @@ export async function logGooglePageDiag(page, label) {
 
 export async function collectGoogleAuthMethods(page) {
   return await page.evaluate(() => {
-    const norm = (value) => String(value || '').replace(/\s+/g, ' ').trim();
-    return Array.from(document.querySelectorAll('li, div[role="button"], div[role="option"], button, a, [data-challengetype]'))
+    const norm = (value) =>
+      String(value || '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    return Array.from(
+      document.querySelectorAll(
+        'li, div[role="button"], div[role="option"], button, a, [data-challengetype]',
+      ),
+    )
       .map((el) => ({
         tag: (el.tagName || '').toLowerCase(),
         role: el.getAttribute('role'),
@@ -89,7 +124,12 @@ export async function collectGoogleAuthMethods(page) {
         text: norm(el.innerText),
         aria: el.getAttribute('aria-label'),
       }))
-      .filter((item) => /try another way|passkey|authenticator|backup code|verification code|phone|text|call|security key|gmail|prompt|password/i
-        .test([item.text, item.aria, item.challengeType].filter((part) => part !== null).join(' ')));
+      .filter((item) =>
+        /try another way|passkey|authenticator|backup code|verification code|phone|text|call|security key|gmail|prompt|password/i.test(
+          [item.text, item.aria, item.challengeType]
+            .filter((part) => part !== null)
+            .join(' '),
+        ),
+      );
   });
 }

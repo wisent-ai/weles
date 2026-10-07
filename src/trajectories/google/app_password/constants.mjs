@@ -1,6 +1,7 @@
 // The addresses and names google/app_password/create.mjs uses.
 
-export const APP_PASSWORDS_URL = 'https://myaccount.google.com/apppasswords?hl=en';
+export const APP_PASSWORDS_URL =
+  'https://myaccount.google.com/apppasswords?hl=en';
 
 // The name Google lists the password under on the account's App passwords
 // page, so the owner can see which product holds it and revoke it there.

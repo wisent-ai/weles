@@ -6,14 +6,25 @@
  * social_accounts → character_social_accounts → characters. Ban-detector at
  * session close writes ban_signal.json into recordings/reddit_organic_comment/.
  */
-import { getSocialAccount, resolveAccountSession } from '../../../../../dist/utils/credentials.js';
+import {
+  getSocialAccount,
+  resolveAccountSession,
+} from '../../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../../dist/session/wsession.js';
 import { generateOrganicComment } from '../../../_shared/content/llm.mjs';
 import { checkReachable } from '../../../_shared/action-runner.mjs';
 import { detectRedditBanSignals } from '../../../../../dist/platforms/reddit/ban_signals.js';
-import { humanScrollPage, humanIdlePause, humanClickLocator, humanHoverLocator } from '../../../../../dist/human/mouse.js';
+import {
+  humanScrollPage,
+  humanIdlePause,
+  humanClickLocator,
+  humanHoverLocator,
+} from '../../../../../dist/human/mouse.js';
 import { humanType } from '../../../../../dist/human/keyboard.js';
-import { recordCommentForVerify, verifyPreviousComment } from './steps/deferred_verify.mjs';
+import {
+  recordCommentForVerify,
+  verifyPreviousComment,
+} from './steps/deferred_verify.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../../../dist/session/run-recordings.js';
@@ -24,9 +35,16 @@ import { runRecordingsDir } from '../../../../../dist/session/run-recordings.js'
 // filters remove new comments and read as shadowbans to the verifier — so
 // both are refused rather than silently replaced.
 const SUBREDDIT = (process.env.SUBREDDIT || '').replace(/^r\//, '');
-if (!SUBREDDIT) { console.log('FAIL: SUBREDDIT env var required: the subreddit the comment goes to'); process.exit(1); }
+if (!SUBREDDIT) {
+  console.log(
+    'FAIL: SUBREDDIT env var required: the subreddit the comment goes to',
+  );
+  process.exit(1);
+}
 if (SUBREDDIT === 'popular' || SUBREDDIT === 'all') {
-  console.log(`FAIL: SUBREDDIT ${SUBREDDIT} is a mega-feed whose filters remove new comments; name one subreddit`);
+  console.log(
+    `FAIL: SUBREDDIT ${SUBREDDIT} is a mega-feed whose filters remove new comments; name one subreddit`,
+  );
   process.exit(1);
 }
 
@@ -36,39 +54,77 @@ if (SUBREDDIT === 'popular' || SUBREDDIT === 'all') {
 // (steps/deferred_verify.mjs).
 
 const acct = await getSocialAccount('reddit');
-if (!acct) { console.log('FAIL: no active reddit account'); process.exit(1); }
+if (!acct) {
+  console.log('FAIL: no active reddit account');
+  process.exit(1);
+}
 
 const character = acct.metadata?.character;
-if (!character || typeof character !== 'object') { console.log('FAIL: no character stored for account'); process.exit(1); }
-console.log(`[comment] acct=${acct.username} character=${character.name} sub=${SUBREDDIT}`);
+if (!character || typeof character !== 'object') {
+  console.log('FAIL: no character stored for account');
+  process.exit(1);
+}
+console.log(
+  `[comment] acct=${acct.username} character=${character.name} sub=${SUBREDDIT}`,
+);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
-const s = await WSession.start({ label: 'reddit_organic_comment', proxy: proxyUrl, persona });
+const s = await WSession.start({
+  label: 'reddit_organic_comment',
+  proxy: proxyUrl,
+  persona,
+});
 let banSignal = null;
 try {
   await verifyPreviousComment(acct);
   // Inject saved reddit cookies — anonymous .json fetches hit the JS-challenge
   // wall on residential proxies. With session cookies the listing returns directly.
-  const cookies = (acct.metadata?.cookies ?? []).filter(c => (c.domain ?? '').includes('reddit.com'));
+  const cookies = (acct.metadata?.cookies ?? []).filter((c) =>
+    (c.domain ?? '').includes('reddit.com'),
+  );
   if (cookies.length) await s.ctx.addCookies(cookies).catch(() => {});
   // Capture the listing body via page.evaluate fetch (not capturedResponses,
   // which truncates to 8KB and breaks JSON.parse on listing payloads).
   const sortPath = `/r/${SUBREDDIT}`;
   await s.goto('https://www.reddit.com/');
   const listingUrl = `https://www.reddit.com${sortPath}/.json?limit=50&raw_json=1`;
-  const data = await s.page.evaluate(async (u) => { try { const r = await fetch(u, { credentials: 'include' }); if (!r.ok) return null; return await r.json(); } catch { return null; } }, listingUrl).catch(() => null);
-  let postUrl = null, postTitle = '', postBody = '';
+  const data = await s.page
+    .evaluate(async (u) => {
+      try {
+        const r = await fetch(u, { credentials: 'include' });
+        if (!r.ok) return null;
+        return await r.json();
+      } catch {
+        return null;
+      }
+    }, listingUrl)
+    .catch(() => null);
+  let postUrl = null,
+    postTitle = '',
+    postBody = '';
   try {
     const candidates = (data?.data?.children ?? [])
-      .map(c => c.data)
-      .filter(p => p && !p.locked && !p.archived && p.num_comments < 2000);
-    const pick = candidates[Math.floor(Math.random() * Math.min(candidates.length, 12))];
-    if (pick) { postUrl = `https://www.reddit.com${pick.permalink}`; postTitle = pick.title || ''; postBody = pick.selftext || ''; }
-  } catch (e) { console.log('[listing-parse]', e.message); }
+      .map((c) => c.data)
+      .filter((p) => p && !p.locked && !p.archived && p.num_comments < 2000);
+    const pick =
+      candidates[Math.floor(Math.random() * Math.min(candidates.length, 12))];
+    if (pick) {
+      postUrl = `https://www.reddit.com${pick.permalink}`;
+      postTitle = pick.title || '';
+      postBody = pick.selftext || '';
+    }
+  } catch (e) {
+    console.log('[listing-parse]', e.message);
+  }
   if (!postUrl) throw new Error('no eligible post found');
 
   const commentText = await generateOrganicComment({
-    persona: { name: character.name, bio: character.bio, personality: character.personality, niche: character.niche },
+    persona: {
+      name: character.name,
+      bio: character.bio,
+      personality: character.personality,
+      niche: character.niche,
+    },
     post: { surface: `r/${SUBREDDIT}`, title: postTitle, body: postBody },
   });
   console.log(`[comment-text] ${commentText}...`);
@@ -76,7 +132,10 @@ try {
   // Translate www.reddit.com permalink → old.reddit.com so the comment
   // composer is a plain visible <textarea name="text"> rather than the
   // <shreddit-composer> shadow-DOM widget.
-  const oldPostUrl = postUrl.replace(/^https?:\/\/(www\.)?reddit\.com/, 'https://old.reddit.com');
+  const oldPostUrl = postUrl.replace(
+    /^https?:\/\/(www\.)?reddit\.com/,
+    'https://old.reddit.com',
+  );
   await s.goto(oldPostUrl);
   checkReachable(s, 'reddit');
 
@@ -85,22 +144,36 @@ try {
   await humanIdlePause('deliberate');
   await humanScrollPage(s.page, 'down');
   await humanIdlePause('deliberate');
-  const authorLink = s.page.locator('a[href*="/user/"], a[href*="/u/"]').filter({ visible: true }).first();
+  const authorLink = s.page
+    .locator('a[href*="/user/"], a[href*="/u/"]')
+    .filter({ visible: true })
+    .first();
   if (await authorLink.count()) await humanHoverLocator(s.page, authorLink);
-  else console.log('[trajectory] no visible author link offered; optional hover omitted');
+  else
+    console.log(
+      '[trajectory] no visible author link offered; optional hover omitted',
+    );
   await humanScrollPage(s.page, 'down');
 
   // Deterministic submit: same selectors as reddit_comment.mjs. textarea
   // [name="text"] first visible (top-level reply form), submit via
   // form-scoped button.save / button[type="submit"], verify by waiting
   // for the comment body to appear in the page.
-  const ta = s.page.locator('textarea[name="text"]').filter({ visible: true }).first();
+  const ta = s.page
+    .locator('textarea[name="text"]')
+    .filter({ visible: true })
+    .first();
   await ta.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, ta);
   await humanIdlePause('short');
   await ta.focus();
   await humanType(s.page, commentText);
-  const submitBtn = ta.locator('xpath=ancestor::form[1]').locator('button.save:enabled:not([aria-disabled="true"]), button[type="submit"]:enabled:not([aria-disabled="true"])').first();
+  const submitBtn = ta
+    .locator('xpath=ancestor::form[1]')
+    .locator(
+      'button.save:enabled:not([aria-disabled="true"]), button[type="submit"]:enabled:not([aria-disabled="true"])',
+    )
+    .first();
   await submitBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, submitBtn);
   // Confirm the body appears in page text — local visibility post-submit.
@@ -108,7 +181,9 @@ try {
     (body) => (document.body?.innerText ?? '').includes(body),
     commentText,
   );
-  banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
+  banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(
+    () => null,
+  );
   console.log(`[ban-signal] ${banSignal?.signal}`);
   console.log('PASS: commented');
 
@@ -122,11 +197,20 @@ try {
       const j = await r.json();
       return j?.data?.name ?? null;
     });
-    if (!realHandle) throw new Error('reddit organic comment: /api/me.json returned no handle, so the comment cannot be recorded for the deferred verify');
-    recordCommentForVerify(acct, { resolvedOldUrl: '', postedCommentId: '', handle: realHandle });
+    if (!realHandle)
+      throw new Error(
+        'reddit organic comment: /api/me.json returned no handle, so the comment cannot be recorded for the deferred verify',
+      );
+    recordCommentForVerify(acct, {
+      resolvedOldUrl: '',
+      postedCommentId: '',
+      handle: realHandle,
+    });
   }
 } catch (e) {
-  banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
+  banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(
+    () => null,
+  );
   if (banSignal) console.log(`[ban-signal] ${banSignal.signal}`);
   console.log('FAIL:', e.message);
   process.exitCode = 1;
@@ -135,8 +219,24 @@ try {
     try {
       const dir = runRecordingsDir('reddit_organic_comment');
       mkdirSync(dir, { recursive: true });
-      writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'reddit_organic_comment', subreddit: SUBREDDIT, ...banSignal, ts: new Date().toISOString() }, null, 2));
-    } catch (e) { console.log('[ban-signal] persist err:', e.message); }
+      writeFileSync(
+        join(dir, 'ban_signal.json'),
+        JSON.stringify(
+          {
+            account_id: acct.id,
+            username: acct.username,
+            action: 'reddit_organic_comment',
+            subreddit: SUBREDDIT,
+            ...banSignal,
+            ts: new Date().toISOString(),
+          },
+          null,
+          2,
+        ),
+      );
+    } catch (e) {
+      console.log('[ban-signal] persist err:', e.message);
+    }
   }
   await s.close();
 }

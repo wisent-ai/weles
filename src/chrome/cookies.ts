@@ -14,13 +14,28 @@
 import { execFileSync } from 'node:child_process';
 import { homedir, tmpdir } from 'node:os';
 import {
-  readFileSync, copyFileSync, readdirSync, statSync, existsSync, unlinkSync,
+  readFileSync,
+  copyFileSync,
+  readdirSync,
+  statSync,
+  existsSync,
+  unlinkSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { pbkdf2Sync, createDecipheriv, createHash } from 'node:crypto';
 
-const CHROME_ROOT = join(homedir(), 'Library', 'Application Support', 'Google', 'Chrome');
-const GOOGLE_HOST_PATTERNS = ['%google.com%', '%youtube.com%', '%googleusercontent.com%'];
+const CHROME_ROOT = join(
+  homedir(),
+  'Library',
+  'Application Support',
+  'Google',
+  'Chrome',
+);
+const GOOGLE_HOST_PATTERNS = [
+  '%google.com%',
+  '%youtube.com%',
+  '%googleusercontent.com%',
+];
 const SQL_SEP = '\x1f';
 
 export interface ChromeProfile {
@@ -47,10 +62,14 @@ export interface ExportResult {
 }
 
 function safeStorageKey(): Buffer {
-  const pw = execFileSync(
-    '/usr/bin/security',
-    ['find-generic-password', '-s', 'Chrome Safe Storage', '-w'],
-  ).toString().trim();
+  const pw = execFileSync('/usr/bin/security', [
+    'find-generic-password',
+    '-s',
+    'Chrome Safe Storage',
+    '-w',
+  ])
+    .toString()
+    .trim();
   return pbkdf2Sync(pw, 'saltysalt', 1003, 16, 'sha1');
 }
 
@@ -60,7 +79,9 @@ function getProfileEmails(profileDir: string): string[] {
   try {
     const raw = readFileSync(prefs, 'utf8');
     const matches = [...raw.matchAll(/"email"\s*:\s*"([^"]+)"/g)];
-    return [...new Set(matches.map(m => m[1]).filter(e => e.includes('@')))];
+    return [
+      ...new Set(matches.map((m) => m[1]).filter((e) => e.includes('@'))),
+    ];
   } catch {
     return [];
   }
@@ -86,7 +107,7 @@ export function listProfiles(): ChromeProfile[] {
 export function findProfileByEmail(email: string): ChromeProfile | null {
   const target = email.toLowerCase();
   for (const p of listProfiles()) {
-    if (p.emails.some(e => e.toLowerCase() === target)) return p;
+    if (p.emails.some((e) => e.toLowerCase() === target)) return p;
   }
   return null;
 }
@@ -97,7 +118,10 @@ function unpadPkcs7(buf: Buffer): Buffer {
   if (n > 0 && n <= 16) {
     let valid = true;
     for (let i = buf.length - n; i < buf.length; i++) {
-      if (buf[i] !== n) { valid = false; break; }
+      if (buf[i] !== n) {
+        valid = false;
+        break;
+      }
     }
     if (valid) return buf.subarray(0, buf.length - n);
   }
@@ -112,8 +136,10 @@ function decryptV10(blob: Buffer, key: Buffer, host: string): string {
   const plaintext = unpadPkcs7(Buffer.concat([d.update(ct), d.final()]));
   const hostDigest = createHash('sha256').update(host).digest();
   if (
-    plaintext.length >= hostDigest.length
-    && plaintext.subarray(plaintext.length - plaintext.length, hostDigest.length).equals(hostDigest)
+    plaintext.length >= hostDigest.length &&
+    plaintext
+      .subarray(plaintext.length - plaintext.length, hostDigest.length)
+      .equals(hostDigest)
   ) {
     return plaintext.subarray(hostDigest.length).toString('utf8');
   }
@@ -125,10 +151,12 @@ function sameSiteMap(n: number): 'Lax' | 'Strict' | 'None' {
 }
 
 function querySqlite(db: string, sql: string): string {
-  return execFileSync(
-    '/usr/bin/sqlite3',
-    ['-separator', SQL_SEP, db, sql],
-  ).toString();
+  return execFileSync('/usr/bin/sqlite3', [
+    '-separator',
+    SQL_SEP,
+    db,
+    sql,
+  ]).toString();
 }
 
 export function exportCookies(
@@ -140,11 +168,16 @@ export function exportCookies(
   if (!existsSync(src)) src = join(profile.path, 'Network', 'Cookies');
   if (!existsSync(src)) return { cookies: [], v20Skipped: 0 };
 
-  const tmp = join(tmpdir(), `weles_chrome_cookies_${profile.name.replace(/[^A-Za-z0-9]/g, '_')}.db`);
+  const tmp = join(
+    tmpdir(),
+    `weles_chrome_cookies_${profile.name.replace(/[^A-Za-z0-9]/g, '_')}.db`,
+  );
   copyFileSync(src, tmp);
 
   const esc = (p: string) => p.replace(/'/g, "''");
-  const where = hostPatterns.map(p => `host_key LIKE '${esc(p)}'`).join(' OR ');
+  const where = hostPatterns
+    .map((p) => `host_key LIKE '${esc(p)}'`)
+    .join(' OR ');
   const sql =
     `SELECT host_key, name, value, quote(encrypted_value), path, ` +
     `expires_utc, is_secure, is_httponly, samesite FROM cookies WHERE ${where};`;
@@ -158,7 +191,17 @@ export function exportCookies(
       if (!line) continue;
       const parts = line.split(SQL_SEP);
       if (parts.length < 9) continue;
-      const [host, name, plainValue, encQuoted, p, expUtc, isSecure, isHttpOnly, ss] = parts;
+      const [
+        host,
+        name,
+        plainValue,
+        encQuoted,
+        p,
+        expUtc,
+        isSecure,
+        isHttpOnly,
+        ss,
+      ] = parts;
 
       let value = plainValue;
       if (!value || value.length === 0) {
@@ -168,7 +211,11 @@ export function exportCookies(
         if (enc.length === 0) continue;
         const prefix = enc.subarray(0, 3).toString('ascii');
         if (prefix === 'v10' || prefix === 'v11') {
-          try { value = decryptV10(enc, key, host); } catch { continue; }
+          try {
+            value = decryptV10(enc, key, host);
+          } catch {
+            continue;
+          }
         } else if (prefix === 'v20') {
           v20Skipped++;
           continue;
@@ -179,7 +226,8 @@ export function exportCookies(
       if (!value) continue;
 
       const expUtcNum = Number(expUtc);
-      const expires = expUtcNum > 0 ? (expUtcNum - 11644473600000000) / 1_000_000 : -1;
+      const expires =
+        expUtcNum > 0 ? (expUtcNum - 11644473600000000) / 1_000_000 : -1;
 
       cookies.push({
         name,
@@ -194,7 +242,11 @@ export function exportCookies(
     }
     return { cookies, v20Skipped };
   } finally {
-    try { unlinkSync(tmp); } catch { /* ignore */ }
+    try {
+      unlinkSync(tmp);
+    } catch {
+      /* ignore */
+    }
   }
 }
 
@@ -203,7 +255,7 @@ export function exportGoogleCookiesForEmail(email: string): ExportResult {
   if (!profile) {
     throw new Error(
       `No Chrome profile signed into ${email}. ` +
-      `Run listProfiles() to see which profiles have which emails.`,
+        `Run listProfiles() to see which profiles have which emails.`,
     );
   }
   return exportCookies(profile, GOOGLE_HOST_PATTERNS);

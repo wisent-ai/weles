@@ -16,16 +16,25 @@ const { loadEnv } = await import('./_envload.mjs');
 loadEnv();
 
 const args = {};
-for (let i = 2; i < process.argv.length; i += 2) args[process.argv[i].replace(/^--/, '')] = process.argv[i + 1];
+for (let i = 2; i < process.argv.length; i += 2)
+  args[process.argv[i].replace(/^--/, '')] = process.argv[i + 1];
 const ticker = (args.ticker || 'ORCL').toUpperCase();
 const mode = args.mode || 'links';
-const outDir = args['out-dir'] || `${process.env.HOME}/Documents/CodingProjects/Wisent/trading-tools/screenshots/${ticker}`;
+const outDir =
+  args['out-dir'] ||
+  `${process.env.HOME}/Documents/CodingProjects/Wisent/trading-tools/screenshots/${ticker}`;
 
 const email = process.env.UW_EMAIL;
 const password = process.env.UW_PASSWORD;
-if (!email || !password) { console.error('FAIL: creds'); process.exit(1); }
+if (!email || !password) {
+  console.error('FAIL: creds');
+  process.exit(1);
+}
 
-const s = await WSession.start({ label: `uw_probe_${ticker}`, proxy: process.env.PROXY_URL || 'oxylabs' });
+const s = await WSession.start({
+  label: `uw_probe_${ticker}`,
+  proxy: process.env.PROXY_URL || 'oxylabs',
+});
 
 async function collectLinks() {
   return await s.page.evaluate(`(() => {
@@ -43,14 +52,30 @@ async function collectLinks() {
 }
 
 const PAGES = [
-  'overview', 'chart', 'options-charting',
-  'flow-overview', 'flow-alerts', 'options-flow-history', 'net-premium', 'nope',
-  'greeks', 'greek-exposure',
-  'option-chains', 'open-interest-changes', 'volatility',
+  'overview',
+  'chart',
+  'options-charting',
+  'flow-overview',
+  'flow-alerts',
+  'options-flow-history',
+  'net-premium',
+  'nope',
+  'greeks',
+  'greek-exposure',
+  'option-chains',
+  'open-interest-changes',
+  'volatility',
   'darkpool',
-  'insiders', 'institutions', 'shorts',
-  'analysts', 'earnings', 'dividends', 'financials',
-  'risk', 'seasonality', 'stock-talk',
+  'insiders',
+  'institutions',
+  'shorts',
+  'analysts',
+  'earnings',
+  'dividends',
+  'financials',
+  'risk',
+  'seasonality',
+  'stock-talk',
 ];
 
 async function inventoryPage(sess, urlPath) {
@@ -59,7 +84,8 @@ async function inventoryPage(sess, urlPath) {
   await sess.goto(url);
   // The page has rendered when it has loaded and its DOM has gone quiet.
   await pageSettled(sess.page);
-  const info = await sess.page.evaluate(`(() => {
+  const info = await sess.page
+    .evaluate(`(() => {
     const pick = (el) => ({
       text: [el.innerText, el.getAttribute('aria-label')].find(Boolean)?.trim(),
       role: el.getAttribute('role'),
@@ -103,7 +129,8 @@ async function inventoryPage(sess, urlPath) {
       tabs: Array.from(new Map(tabs.map(t => [t.text, t])).values()),
       selects, charts, tables, inputs,
     };
-  })()`).catch((e) => ({ err: e.message }));
+  })()`)
+    .catch((e) => ({ err: e.message }));
   const pngDir = path.join(outDir, 'pages');
   fs.mkdirSync(pngDir, { recursive: true });
   const pngPath = path.join(pngDir, `${urlPath}.png`);
@@ -122,27 +149,40 @@ if (mode === 'inventory') {
     const existing = fs.existsSync(invPath)
       ? JSON.parse(fs.readFileSync(invPath, 'utf8'))
       : { ticker, pages: [] };
-    const done = new Set(existing.pages.filter(p => !p.err).map(p => p.page));
+    const done = new Set(
+      existing.pages.filter((p) => !p.err).map((p) => p.page),
+    );
     const sess = s;
     for (const p of PAGES) {
-      if (done.has(p) && fs.existsSync(path.join(outDir, 'pages', `${p}.png`))) {
+      if (
+        done.has(p) &&
+        fs.existsSync(path.join(outDir, 'pages', `${p}.png`))
+      ) {
         console.error(`[inv] ${p}: skip (already done)`);
         continue;
       }
-      if (fs.existsSync(path.join(outDir, 'pages', `${p}.png`)) && !done.has(p)) {
+      if (
+        fs.existsSync(path.join(outDir, 'pages', `${p}.png`)) &&
+        !done.has(p)
+      ) {
         // PNG exists but no inventory record — seed a minimal record
         existing.pages.push({ page: p, seeded: true });
         done.add(p);
         console.error(`[inv] ${p}: skip (screenshot found, seeding record)`);
         continue;
       }
-      const r = await inventoryPage(sess, p).catch((e) => ({ page: p, err: e.message }));
+      const r = await inventoryPage(sess, p).catch((e) => ({
+        page: p,
+        err: e.message,
+      }));
       existing.pages.push(r);
       fs.writeFileSync(invPath, JSON.stringify(existing, null, 2));
       const charts = (r.charts || []).length;
       const tabs = (r.tabs || []).length;
       const tables = (r.tables || []).length;
-      console.error(`[inv] ${p}: bodyLen=${r.bodyLen} has404=${r.has404} tabs=${tabs} charts=${charts} tables=${tables}`);
+      console.error(
+        `[inv] ${p}: bodyLen=${r.bodyLen} has404=${r.has404} tabs=${tabs} charts=${charts} tables=${tables}`,
+      );
     }
     process.stdout.write(JSON.stringify(existing, null, 2) + '\n');
   } catch (e) {
@@ -153,13 +193,13 @@ if (mode === 'inventory') {
     process.exit(0);
   }
 } else {
-try {
-  await loginUnusualWhales(s, email, password);
-  await pageSettled(s.page);
+  try {
+    await loginUnusualWhales(s, email, password);
+    await pageSettled(s.page);
 
-  // 1) Sidebar links from the authenticated home page (flow/overview)
-  // Expand every collapsed sidebar category so their children become visible.
-  const expandCats = `(() => {
+    // 1) Sidebar links from the authenticated home page (flow/overview)
+    // Expand every collapsed sidebar category so their children become visible.
+    const expandCats = `(() => {
     const items = Array.from(document.querySelectorAll('[class*="sidebar"] [role="button"], [class*="sidebar"] button, [class*="Sidebar"] [role="button"], [class*="Sidebar"] button, nav [role="button"], nav button'));
     const clicked = [];
     for (const el of items) {
@@ -169,49 +209,62 @@ try {
     }
     return clicked;
   })()`;
-  const expandedHome = await s.page.evaluate(expandCats).catch(() => []);
-  console.error(`[probe] expanded ${expandedHome.length} sidebar items on home`);
-  await pageSettled(s.page);
-  const homeLinks = await collectLinks();
+    const expandedHome = await s.page.evaluate(expandCats).catch(() => []);
+    console.error(
+      `[probe] expanded ${expandedHome.length} sidebar items on home`,
+    );
+    await pageSettled(s.page);
+    const homeLinks = await collectLinks();
 
-  // Also capture every visible nav/sidebar element text so we know which
-  // labels exist even if they're buttons, not anchors.
-  const navLabels = await s.page.evaluate(`(() => {
+    // Also capture every visible nav/sidebar element text so we know which
+    // labels exist even if they're buttons, not anchors.
+    const navLabels = await s.page
+      .evaluate(`(() => {
     const seen = new Set();
     for (const el of document.querySelectorAll('a, button, [role="button"], [role="link"], [role="tab"], [role="menuitem"]')) {
       const t = (el.innerText || '').trim();
       if (t && t.length > 0 && t.length < 50) seen.add(t);
     }
     return Array.from(seen);
-  })()`).catch(() => []);
+  })()`)
+      .catch(() => []);
 
-  // 2) Links from the stock-specific page (to catch any ticker-scoped routes)
-  await s.goto(`https://unusualwhales.com/stock/${ticker}/overview`);
-  await pageSettled(s.page);
-  await s.page.evaluate(expandCats).catch(() => []);
-  await pageSettled(s.page);
-  const stockLinks = await collectLinks();
+    // 2) Links from the stock-specific page (to catch any ticker-scoped routes)
+    await s.goto(`https://unusualwhales.com/stock/${ticker}/overview`);
+    await pageSettled(s.page);
+    await s.page.evaluate(expandCats).catch(() => []);
+    await pageSettled(s.page);
+    const stockLinks = await collectLinks();
 
-  // Deduplicate, keep text
-  const seen = new Map();
-  for (const l of [...homeLinks, ...stockLinks]) {
-    if (!seen.has(l.path)) seen.set(l.path, l.text);
+    // Deduplicate, keep text
+    const seen = new Map();
+    for (const l of [...homeLinks, ...stockLinks]) {
+      if (!seen.has(l.path)) seen.set(l.path, l.text);
+    }
+    const all = Array.from(seen.entries()).map(([path, text]) => ({
+      path,
+      text,
+    }));
+
+    // Bucket by top-level segment
+    const buckets = {};
+    for (const l of all) {
+      const top = l.path.split('?')[0].split('/').filter(Boolean)[0] || '';
+      if (!buckets[top]) buckets[top] = [];
+      buckets[top].push(l);
+    }
+
+    process.stdout.write(
+      JSON.stringify(
+        { ticker, total: all.length, buckets, all, navLabels },
+        null,
+        2,
+      ) + '\n',
+    );
+  } catch (e) {
+    console.error(`FAIL: ${e.message}`);
+    process.exit(1);
+  } finally {
+    await s.close().catch(() => {});
   }
-  const all = Array.from(seen.entries()).map(([path, text]) => ({ path, text }));
-
-  // Bucket by top-level segment
-  const buckets = {};
-  for (const l of all) {
-    const top = l.path.split('?')[0].split('/').filter(Boolean)[0] || '';
-    if (!buckets[top]) buckets[top] = [];
-    buckets[top].push(l);
-  }
-
-  process.stdout.write(JSON.stringify({ ticker, total: all.length, buckets, all, navLabels }, null, 2) + '\n');
-} catch (e) {
-  console.error(`FAIL: ${e.message}`);
-  process.exit(1);
-} finally {
-  await s.close().catch(() => {});
-}
 }

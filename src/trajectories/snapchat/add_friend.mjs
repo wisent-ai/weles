@@ -1,34 +1,63 @@
-import { getSocialAccount, markCookiesStale } from '../../../dist/utils/credentials.js';
+import {
+  getSocialAccount,
+  markCookiesStale,
+} from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
-import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../dist/human/mouse.js';
 import { urlMatching } from '../_shared/page/settled.mjs';
 import { assertAuthed, AuthProbeError } from '../_shared/auth/auth-probe.mjs';
-import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/auth/cookie-freshness.mjs';
+import {
+  loadFreshCookieJarOrFail,
+  CookieJarStaleError,
+} from '../_shared/auth/cookie-freshness.mjs';
 
 const TARGET = process.env.TARGET_USERNAME || 'team.snapchat';
 const LOGIN_URL = 'https://accounts.snapchat.com/accounts/login';
 
 const acct = await getSocialAccount('snapchat');
-if (!acct) { console.log('FAIL: no active snapchat account in DB'); process.exit(1); }
+if (!acct) {
+  console.log('FAIL: no active snapchat account in DB');
+  process.exit(1);
+}
 process.env.SVC_USER = acct.metadata.email ?? acct.username;
 process.env.SVC_PASSWORD = acct.metadata.password ?? '';
 console.log(`[trajectory] Using account: ${acct.username} target=${TARGET}`);
 
-const s = await WSession.start({ label: 'snapchat_add_friend', proxy: process.env.PROXY_URL || undefined });
+const s = await WSession.start({
+  label: 'snapchat_add_friend',
+  proxy: process.env.PROXY_URL || undefined,
+});
 try {
   // Cookie freshness gate — see _shared/auth/cookie-freshness.mjs. On stale,
   // skip injection so the form-login fallback below kicks in (snapchat
   // login is part of this trajectory's recovery path).
   let stored = [];
   try {
-    stored = loadFreshCookieJarOrFail(acct, { platform: 'snapchat', label: 'snapchat_add_friend', currentProxyUrl: proxyUrl, currentPersona: persona });
+    stored = loadFreshCookieJarOrFail(acct, {
+      platform: 'snapchat',
+      label: 'snapchat_add_friend',
+      currentProxyUrl: proxyUrl,
+      currentPersona: persona,
+    });
   } catch (jarErr) {
     if (!(jarErr instanceof CookieJarStaleError)) throw jarErr;
-    console.log(`[snapchat_add_friend] ${jarErr.message} — falling through to form login`);
+    console.log(
+      `[snapchat_add_friend] ${jarErr.message} — falling through to form login`,
+    );
     stored = [];
   }
-  if (stored.length) await s.ctx.addCookies(stored.filter(c => c?.name && c?.value && (c.domain || c.url)).map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
+  if (stored.length)
+    await s.ctx
+      .addCookies(
+        stored
+          .filter((c) => c?.name && c?.value && (c.domain || c.url))
+          .map((c) => ({ ...c, path: c.path || '/' })),
+      )
+      .catch(() => {});
 
   await s.goto('https://web.snapchat.com/');
   await humanIdlePause('deliberate');
@@ -36,35 +65,81 @@ try {
     // Re-login via accounts.snapchat.com.
     await s.goto(LOGIN_URL);
     await humanIdlePause('deliberate');
-    const userIn = s.page.locator('input[name="username"], input#username, input[autocomplete="username"], input[type="email"]').filter({ visible: true }).first();
+    const userIn = s.page
+      .locator(
+        'input[name="username"], input#username, input[autocomplete="username"], input[type="email"]',
+      )
+      .filter({ visible: true })
+      .first();
     await humanClickLocator(s.page, userIn);
     await humanType(s.page, process.env.SVC_USER);
-    await humanClickLocator(s.page, s.page.locator('button[type="submit"], button:has-text("Next")').filter({ visible: true }).first());
-    const pwIn = s.page.locator('input[name="password"], input[type="password"]').filter({ visible: true }).first();
+    await humanClickLocator(
+      s.page,
+      s.page
+        .locator('button[type="submit"], button:has-text("Next")')
+        .filter({ visible: true })
+        .first(),
+    );
+    const pwIn = s.page
+      .locator('input[name="password"], input[type="password"]')
+      .filter({ visible: true })
+      .first();
     await pwIn.waitFor({ state: 'visible' });
     await humanClickLocator(s.page, pwIn);
     await humanType(s.page, process.env.SVC_PASSWORD);
-    await humanClickLocator(s.page, s.page.locator('button[type="submit"], button:has-text("Log In")').filter({ visible: true }).first());
-    await urlMatching(s.page, /accounts\.snapchat\.com\/(?!.*login)|web\.snapchat\.com/);
+    await humanClickLocator(
+      s.page,
+      s.page
+        .locator('button[type="submit"], button:has-text("Log In")')
+        .filter({ visible: true })
+        .first(),
+    );
+    await urlMatching(
+      s.page,
+      /accounts\.snapchat\.com\/(?!.*login)|web\.snapchat\.com/,
+    );
     await s.goto('https://web.snapchat.com/');
     await humanIdlePause('deliberate');
   }
 
   // Positive auth probe — see _shared/auth/auth-probe.mjs.
-  try { await assertAuthed('snapchat', s, { label: 'snapchat_add_friend' }); }
-  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
+  try {
+    await assertAuthed('snapchat', s, { label: 'snapchat_add_friend' });
+  } catch (probeErr) {
+    if (probeErr instanceof AuthProbeError) {
+      console.log(`FAIL: ${probeErr.message}`);
+      await markCookiesStale(acct.id);
+      process.exit(1);
+    }
+    throw probeErr;
+  }
 
   // web.snapchat.com — use the search/add input. Search box is contenteditable
   // div with role="textbox" / aria-label="Search".
-  const searchBox = s.page.locator('div[role="textbox"][contenteditable="true"], input[type="search"], input[aria-label*="Search" i]').filter({ visible: true }).first();
+  const searchBox = s.page
+    .locator(
+      'div[role="textbox"][contenteditable="true"], input[type="search"], input[aria-label*="Search" i]',
+    )
+    .filter({ visible: true })
+    .first();
   await searchBox.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, searchBox);
   await humanType(s.page, TARGET);
   // First "Add Friend" button in the result list.
-  const addBtn = s.page.locator('button:has-text("Add Friend"), button:has-text("Add"), [role="button"]:has-text("Add Friend")').filter({ visible: true }).first();
+  const addBtn = s.page
+    .locator(
+      'button:has-text("Add Friend"), button:has-text("Add"), [role="button"]:has-text("Add Friend")',
+    )
+    .filter({ visible: true })
+    .first();
   await addBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, addBtn);
-  await s.page.locator('button:has-text("Added"), button:has-text("Pending"), [role="button"]:has-text("Added")').first().waitFor({ state: 'visible' });
+  await s.page
+    .locator(
+      'button:has-text("Added"), button:has-text("Pending"), [role="button"]:has-text("Added")',
+    )
+    .first()
+    .waitFor({ state: 'visible' });
   console.log(`PASS: added ${TARGET}`);
 } catch (e) {
   console.log('FAIL:', e.message);

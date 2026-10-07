@@ -4,9 +4,15 @@
 // extra-mirror-domains path (same trick as meta/threads_register.mjs), then
 // drives the SSO consent and persists the resulting Threads cookies.
 
-import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
+import {
+  getSocialAccount,
+  resolveAccountSession,
+} from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
-import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../dist/human/mouse.js';
 import {
   injectProviderCookies,
   handleOAuthConsent,
@@ -17,21 +23,40 @@ import { persistFreshCookieJar } from '../_shared/auth/cookie-freshness.mjs';
 const URL = 'https://www.threads.net/login';
 
 const acct = await getSocialAccount('threads');
-if (!acct) { console.log('FAIL: no active threads account in DB'); process.exit(1); }
+if (!acct) {
+  console.log('FAIL: no active threads account in DB');
+  process.exit(1);
+}
 
 const igAcct = await getSocialAccount('instagram');
-if (!igAcct) { console.log('FAIL: no instagram account to drive Threads SSO'); process.exit(1); }
+if (!igAcct) {
+  console.log('FAIL: no instagram account to drive Threads SSO');
+  process.exit(1);
+}
 const igCookies = igAcct.metadata?.cookies ?? [];
-if (igCookies.length < 2) { console.log(`FAIL: instagram ${igAcct.username} has ${igCookies.length} cookies — login IG first`); process.exit(1); }
+if (igCookies.length < 2) {
+  console.log(
+    `FAIL: instagram ${igAcct.username} has ${igCookies.length} cookies — login IG first`,
+  );
+  process.exit(1);
+}
 
-console.log(`[threads-login] target=${acct.username} via instagram=${igAcct.username}`);
+console.log(
+  `[threads-login] target=${acct.username} via instagram=${igAcct.username}`,
+);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
-const s = await WSession.start({ label: 'threads_login', proxy: proxyUrl, persona });
+const s = await WSession.start({
+  label: 'threads_login',
+  proxy: proxyUrl,
+  persona,
+});
 
 try {
   // Inject IG cookies onto both .instagram.com and .threads.net (mirror).
-  const injected = await injectProviderCookies(s.ctx, 'instagram', igCookies, { extraMirrorDomains: ['.threads.net'] });
+  const injected = await injectProviderCookies(s.ctx, 'instagram', igCookies, {
+    extraMirrorDomains: ['.threads.net'],
+  });
   console.log(`[threads-login] injected ${injected} instagram+threads cookies`);
 
   await s.goto(URL);
@@ -42,14 +67,23 @@ try {
   // SSO button and walk consent.
   const url1 = s.page.url?.() ?? '';
   if (/threads\.(net|com)\/(login|accounts\/login)/.test(url1)) {
-    const ssoBtn = s.page.getByRole('button', { name: /^\s*Continue with Instagram\s*$/i }).first();
-    const ssoLink = s.page.getByRole('link', { name: /^\s*Continue with Instagram\s*$/i }).first();
-    const target = (await ssoBtn.isVisible().catch(() => false)) ? ssoBtn : ssoLink;
+    const ssoBtn = s.page
+      .getByRole('button', { name: /^\s*Continue with Instagram\s*$/i })
+      .first();
+    const ssoLink = s.page
+      .getByRole('link', { name: /^\s*Continue with Instagram\s*$/i })
+      .first();
+    const target = (await ssoBtn.isVisible().catch(() => false))
+      ? ssoBtn
+      : ssoLink;
     if (await target.isVisible().catch(() => false)) {
       await humanClickLocator(s.page, target);
       await humanIdlePause('deliberate');
       await handleOAuthConsent(s);
-      await waitForNavBackTo(s.page, 'threads', ['accounts.google.com', 'instagram.com/oauth']);
+      await waitForNavBackTo(s.page, 'threads', [
+        'accounts.google.com',
+        'instagram.com/oauth',
+      ]);
     }
   }
 
@@ -61,9 +95,15 @@ try {
   }
 
   const cookies = await s.ctx.cookies();
-  const persisted = await persistFreshCookieJar(acct, cookies, { currentProxyUrl: proxyUrl, currentPersona: persona });
-  if (!persisted?.ok) throw new Error(`threads_persist_failed: ${persisted?.reason}`);
-  console.log(`PASS: threads logged in (${cookies.length} cookies persisted, final=${finalUrl})`);
+  const persisted = await persistFreshCookieJar(acct, cookies, {
+    currentProxyUrl: proxyUrl,
+    currentPersona: persona,
+  });
+  if (!persisted?.ok)
+    throw new Error(`threads_persist_failed: ${persisted?.reason}`);
+  console.log(
+    `PASS: threads logged in (${cookies.length} cookies persisted, final=${finalUrl})`,
+  );
 } catch (e) {
   console.log('FAIL:', e.message);
   process.exit(1);

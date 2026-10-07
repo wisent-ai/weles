@@ -9,7 +9,9 @@ import { GOOGLE_ADS_LOGIN, USER_DATA_DIR } from './settings.mjs';
 
 let authFailure = null;
 /** Why the last sign-in did not end signed in, or null. */
-export function lastAuthFailure() { return authFailure; }
+export function lastAuthFailure() {
+  return authFailure;
+}
 
 export function preferredGoogleAdsEmail() {
   return GOOGLE_ADS_LOGIN.email;
@@ -23,14 +25,21 @@ export function stableProfilePersona() {
   return persona;
 }
 
-
 export async function resolveSsoCreds() {
   return { ...GOOGLE_ADS_LOGIN, source: 'skarbiec' };
 }
 
 export function hasGoogleAuthCookie(cookies) {
-  const names = new Set(cookies.filter((c) => /google\.com$|\.google\.com$/.test(c.domain || '')).map((c) => c.name));
-  return names.has('SID') || names.has('__Secure-1PSID') || names.has('__Secure-3PSID');
+  const names = new Set(
+    cookies
+      .filter((c) => /google\.com$|\.google\.com$/.test(c.domain || ''))
+      .map((c) => c.name),
+  );
+  return (
+    names.has('SID') ||
+    names.has('__Secure-1PSID') ||
+    names.has('__Secure-3PSID')
+  );
 }
 
 export function isLoginUrl(url) {
@@ -38,7 +47,8 @@ export function isLoginUrl(url) {
 }
 
 export async function clickUseAnotherGoogleAccount(page) {
-  const useAnother = page.getByText(/^Use another account$/i)
+  const useAnother = page
+    .getByText(/^Use another account$/i)
     .or(page.getByText(/^Add another account$/i))
     .or(page.getByText(/^Use another Google Account$/i))
     .first();
@@ -57,9 +67,14 @@ export async function continueFromAccountChooser(s) {
   const cookies = await s.ctx.cookies();
   if (!hasGoogleAuthCookie(cookies)) return false;
   const email = preferredGoogleAdsEmail();
-  const preferred = s.page.getByText(email, { exact: false }).filter({ visible: true }).first();
+  const preferred = s.page
+    .getByText(email, { exact: false })
+    .filter({ visible: true })
+    .first();
   if (await preferred.isVisible()) {
-    console.log(`[google-ads-keyword-planner] selecting persisted account ${email}`);
+    console.log(
+      `[google-ads-keyword-planner] selecting persisted account ${email}`,
+    );
     await humanClickLocator(s.page, preferred);
     await pageSettled(s.page);
     return true;
@@ -82,17 +97,23 @@ export async function runPreferredGoogleSso(s, returnUrl) {
   const email = preferredGoogleAdsEmail();
   const creds = await resolveSsoCreds();
   if (!creds?.password) {
-    console.log(`[google-ads-keyword-planner] FAIL: no SSO credentials available for ${email}`);
+    console.log(
+      `[google-ads-keyword-planner] FAIL: no SSO credentials available for ${email}`,
+    );
     authFailure = {
       blocked: 'missing_google_ads_credentials',
       email,
-      detail: 'The dedicated Google Ads Skarbiec item is unavailable or incomplete.',
+      detail:
+        'The dedicated Google Ads Skarbiec item is unavailable or incomplete.',
     };
     return false;
   }
 
   if (/accounts\.google\.com/.test(s.page.url?.() || '')) {
-    const emailInputCount = await s.page.locator('input[type="email"], input[name="identifier"], input#identifierId')
+    const emailInputCount = await s.page
+      .locator(
+        'input[type="email"], input[name="identifier"], input#identifierId',
+      )
       .filter({ visible: true })
       .count();
     if (!emailInputCount) {
@@ -100,14 +121,19 @@ export async function runPreferredGoogleSso(s, returnUrl) {
     }
   }
 
-  const emailInputCount = await s.page.locator('input[type="email"], input[name="identifier"], input#identifierId')
+  const emailInputCount = await s.page
+    .locator(
+      'input[type="email"], input[name="identifier"], input#identifierId',
+    )
     .filter({ visible: true })
     .count();
   if (!/accounts\.google\.com/.test(s.page.url?.() || '') || !emailInputCount) {
     await navigateGoogleIdentifier(s.page, email, returnUrl);
   }
 
-  console.log(`[google-ads-keyword-planner] running automated Google SSO for ${creds.email} source=${creds.source || 'unknown'}`);
+  console.log(
+    `[google-ads-keyword-planner] running automated Google SSO for ${creds.email} source=${creds.source || 'unknown'}`,
+  );
   const ok = await googleSso(s, creds, { originHost: 'ads.google.com' });
   if (!ok) {
     authFailure = {

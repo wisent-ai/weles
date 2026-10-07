@@ -14,7 +14,13 @@
 // is unsupported, and a plan carries the payload that would have been queued.
 // Widening any of them widens what a credential path is allowed to promise.
 
-export type CredentialOperation = 'acquire' | 'adopt' | 'rotate' | 'verify' | 'remove' | 'reset';
+export type CredentialOperation =
+  | 'acquire'
+  | 'adopt'
+  | 'rotate'
+  | 'verify'
+  | 'remove'
+  | 'reset';
 
 export type AcquireSecretRequest = {
   operation?: CredentialOperation;
@@ -79,7 +85,10 @@ export type AcquireSecretResult =
       secret: string;
       provider: 'microsoft';
       actionLogId: string;
-      action: 'microsoft_adopt_password' | 'microsoft_reset_password' | 'microsoft_verify_password';
+      action:
+        | 'microsoft_adopt_password'
+        | 'microsoft_reset_password'
+        | 'microsoft_verify_password';
       flowName: 'microsoft-password-lifecycle';
       vaultItemId: string;
       message: string;
@@ -90,7 +99,10 @@ export type AcquireSecretResult =
       secret: string;
       provider: 'microsoft_entra';
       actionLogId: string;
-      action: 'microsoft_entra_adopt_password' | 'microsoft_entra_reset_password' | 'microsoft_entra_verify_password';
+      action:
+        | 'microsoft_entra_adopt_password'
+        | 'microsoft_entra_reset_password'
+        | 'microsoft_entra_verify_password';
       flowName: 'microsoft-entra-password-lifecycle';
       vaultItemId: string;
       message: string;

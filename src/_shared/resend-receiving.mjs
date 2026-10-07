@@ -37,7 +37,10 @@ export async function getReceived(id) {
  * or `a@b.c`), lower-cased; '' when there is none.
  */
 export function senderDomain(message) {
-  const from = typeof message?.from === 'string' ? message.from : message?.from?.email ?? '';
+  const from =
+    typeof message?.from === 'string'
+      ? message.from
+      : (message?.from?.email ?? '');
   return (from.match(/@([^>\s]+)/)?.[1] ?? '').toLowerCase();
 }
 
@@ -51,6 +54,14 @@ export function sentFrom(message, domain) {
 export async function listReceivedFrom(limit, email, domain) {
   const list = await listReceived(limit, email);
   return (list.data ?? [])
-    .filter((m) => (m.to ?? []).map((t) => (typeof t === 'string' ? t : t.email)).includes(email) && sentFrom(m, domain))
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    .filter(
+      (m) =>
+        (m.to ?? [])
+          .map((t) => (typeof t === 'string' ? t : t.email))
+          .includes(email) && sentFrom(m, domain),
+    )
+    .sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
 }

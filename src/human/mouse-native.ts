@@ -6,17 +6,32 @@
 import { execFileSync, execSync, spawnSync } from 'node:child_process';
 import { randomBetween } from '../utils/motion/timing.js';
 
-export interface NativeOffset { winX: number; winY: number; chromeY: number; }
+export interface NativeOffset {
+  winX: number;
+  winY: number;
+  chromeY: number;
+}
 
 let nativeAvailable = false;
 
-function runCliclick(operation: string, args: string[], sensitiveText = ''): void {
-  const result = spawnSync('cliclick', args, { encoding: 'utf8', stdio: 'pipe' });
+function runCliclick(
+  operation: string,
+  args: string[],
+  sensitiveText = '',
+): void {
+  const result = spawnSync('cliclick', args, {
+    encoding: 'utf8',
+    stdio: 'pipe',
+  });
   if (!result.error && result.status === 0) return;
-  let detail = result.error?.message ?? (result.stderr?.trim() || 'no error output');
+  let detail =
+    result.error?.message ?? (result.stderr?.trim() || 'no error output');
   if (sensitiveText) detail = detail.replaceAll(sensitiveText, '[redacted]');
-  const code = (result.error as NodeJS.ErrnoException | undefined)?.code ?? 'none';
-  throw new Error(`native input ${operation} failed: code=${code}, status=${result.status ?? 'none'}, signal=${result.signal ?? 'none'}; ${detail}`);
+  const code =
+    (result.error as NodeJS.ErrnoException | undefined)?.code ?? 'none';
+  throw new Error(
+    `native input ${operation} failed: code=${code}, status=${result.status ?? 'none'}, signal=${result.signal ?? 'none'}; ${detail}`,
+  );
 }
 
 export function assertCliclickAvailable(): void {
@@ -34,17 +49,27 @@ function assertNativeInputTargetIsFrontmost(): void {
 
   let frontmost = '';
   try {
-    frontmost = execFileSync('osascript', [
-      '-e',
-      'tell application "System Events" to get name of first application process whose frontmost is true',
-    ], { encoding: 'utf8', stdio: 'pipe' }).trim();
+    frontmost = execFileSync(
+      'osascript',
+      [
+        '-e',
+        'tell application "System Events" to get name of first application process whose frontmost is true',
+      ],
+      { encoding: 'utf8', stdio: 'pipe' },
+    ).trim();
   } catch (error) {
-    throw new Error(`native input blocked: cannot verify frontmost application: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(
+      `native input blocked: cannot verify frontmost application: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 
-  const allowed = process.env.WELES_NATIVE_INPUT_FRONTMOST_RE ?? '^(Chromium|Google Chrome|Weles)$';
+  const allowed =
+    process.env.WELES_NATIVE_INPUT_FRONTMOST_RE ??
+    '^(Chromium|Google Chrome|Weles)$';
   if (!new RegExp(allowed).test(frontmost)) {
-    throw new Error(`native input blocked: frontmost application is "${frontmost}", expected ${allowed}`);
+    throw new Error(
+      `native input blocked: frontmost application is "${frontmost}", expected ${allowed}`,
+    );
   }
 }
 
@@ -52,27 +77,47 @@ function assertNativeInputTargetIsFrontmost(): void {
 // by evaluating window.screenX/Y/outerHeight/innerHeight in the page. Hard
 // fails when the page can't return screenX/Y.
 export async function getOffsetFromPage(page: any): Promise<NativeOffset> {
-  const r = await page.evaluate(`(() => ({ sX: window.screenX, sY: window.screenY, iH: window.innerHeight, oH: window.outerHeight, visibility: document.visibilityState, focused: document.hasFocus(), href: location.href }))()`);  // allow-raw-playwright: implementation file — defines the humanized atom
+  const r = await page.evaluate(
+    `(() => ({ sX: window.screenX, sY: window.screenY, iH: window.innerHeight, oH: window.outerHeight, visibility: document.visibilityState, focused: document.hasFocus(), href: location.href }))()`,
+  ); // allow-raw-playwright: implementation file — defines the humanized atom
   if (!r || typeof r.sX !== 'number') {
-    throw new Error('cannot resolve window offset — humanized atoms require OS-coord translation');
+    throw new Error(
+      'cannot resolve window offset — humanized atoms require OS-coord translation',
+    );
   }
-  if (process.env.WELES_NATIVE_INPUT_ALLOW_UNFOCUSED !== '1' && (r.visibility !== 'visible' || r.focused !== true)) {
-    throw new Error(`native input blocked: target page is not focused and visible (visibility=${r.visibility}, focused=${r.focused}, href=${r.href})`);
+  if (
+    process.env.WELES_NATIVE_INPUT_ALLOW_UNFOCUSED !== '1' &&
+    (r.visibility !== 'visible' || r.focused !== true)
+  ) {
+    throw new Error(
+      `native input blocked: target page is not focused and visible (visibility=${r.visibility}, focused=${r.focused}, href=${r.href})`,
+    );
   }
   // Empirical 89px on macOS Chromium — outerHeight-innerHeight returns 80
   // but captured clientY is 9px off, consistent with chrome=89.
   return { winX: r.sX, winY: r.sY, chromeY: 89 };
 }
 
-function toScreen(off: NativeOffset, cssX: number, cssY: number, jitter = 1): { sx: number; sy: number } {
+function toScreen(
+  off: NativeOffset,
+  cssX: number,
+  cssY: number,
+  jitter = 1,
+): { sx: number; sy: number } {
   return {
     sx: Math.round(off.winX + cssX + randomBetween(-jitter, jitter)),
-    sy: Math.round(off.winY + off.chromeY + cssY + randomBetween(-jitter, jitter)),
+    sy: Math.round(
+      off.winY + off.chromeY + cssY + randomBetween(-jitter, jitter),
+    ),
   };
 }
 
 /** Single OS-event mouse move. */
-export function nativeMove(offset: NativeOffset, cssX: number, cssY: number): void {
+export function nativeMove(
+  offset: NativeOffset,
+  cssX: number,
+  cssY: number,
+): void {
   assertCliclickAvailable();
   assertNativeInputTargetIsFrontmost();
   const { sx, sy } = toScreen(offset, cssX, cssY);
@@ -83,7 +128,10 @@ export function nativeMove(offset: NativeOffset, cssX: number, cssY: number): vo
  * OS-event mouse path. Each waypoint is dispatched in order, without a Weles
  * inter-step pause. The external cliclick tool still owns its event delivery.
  */
-export async function nativeBatchMove(offset: NativeOffset, points: Array<{ x: number; y: number }>): Promise<void> {
+export async function nativeBatchMove(
+  offset: NativeOffset,
+  points: Array<{ x: number; y: number }>,
+): Promise<void> {
   assertCliclickAvailable();
   assertNativeInputTargetIsFrontmost();
   if (!points.length) return;
@@ -94,7 +142,11 @@ export async function nativeBatchMove(offset: NativeOffset, points: Array<{ x: n
 }
 
 /** OS-event click. Moves to (x,y) first then clicks at the same coord. */
-export async function nativeClick(offset: NativeOffset, cssX: number, cssY: number): Promise<void> {
+export async function nativeClick(
+  offset: NativeOffset,
+  cssX: number,
+  cssY: number,
+): Promise<void> {
   assertCliclickAvailable();
   assertNativeInputTargetIsFrontmost();
   const { sx, sy } = toScreen(offset, cssX, cssY);
@@ -121,15 +173,22 @@ export function nativeKeyPress(key: string): void {
   assertNativeInputTargetIsFrontmost();
   const k = key.toLowerCase();
   const map: Record<string, string> = {
-    'enter': 'return', 'return': 'return',
-    'tab': 'tab',
-    'esc': 'esc', 'escape': 'esc',
-    'delete': 'delete', 'backspace': 'delete',
-    'space': 'space',
-    'arrow-down': 'arrow-down', 'down': 'arrow-down',
-    'arrow-up': 'arrow-up', 'up': 'arrow-up',
-    'arrow-left': 'arrow-left', 'left': 'arrow-left',
-    'arrow-right': 'arrow-right', 'right': 'arrow-right',
+    enter: 'return',
+    return: 'return',
+    tab: 'tab',
+    esc: 'esc',
+    escape: 'esc',
+    delete: 'delete',
+    backspace: 'delete',
+    space: 'space',
+    'arrow-down': 'arrow-down',
+    down: 'arrow-down',
+    'arrow-up': 'arrow-up',
+    up: 'arrow-up',
+    'arrow-left': 'arrow-left',
+    left: 'arrow-left',
+    'arrow-right': 'arrow-right',
+    right: 'arrow-right',
   };
   const kc = map[k];
   if (!kc) throw new Error(`nativeKeyPress: unsupported key ${key}`);
@@ -140,7 +199,12 @@ export function nativeKeyPress(key: string): void {
 export function nativeSelectAllAndDelete(): void {
   assertCliclickAvailable();
   assertNativeInputTargetIsFrontmost();
-  runCliclick('select all and delete', ['kd:cmd', 't:a', 'ku:cmd', 'kp:delete']);
+  runCliclick('select all and delete', [
+    'kd:cmd',
+    't:a',
+    'ku:cmd',
+    'kp:delete',
+  ]);
 }
 
 export function getWindowOffset(processName = 'Chromium'): NativeOffset {

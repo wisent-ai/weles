@@ -6,7 +6,7 @@
 /** Type the password when Google shows its field; false when it did not. */
 async function fillPasswordWhenAvailable(page, password, atoms) {
   const pwd = page.locator('input[type="password"]');
-  if (await pwd.count() === 0) return false;
+  if ((await pwd.count()) === 0) return false;
   await atoms.humanFill(page, pwd, password);
   await page.keyboard.press('Enter');
   await atoms.humanIdlePause('long');
@@ -17,11 +17,14 @@ async function fillPasswordWhenAvailable(page, password, atoms) {
 export async function signInThroughGoogle(s, { email, password, shot, atoms }) {
   const { humanFill, humanClickLocator, humanIdlePause } = atoms;
   console.log(`[slack] step 1: Google SSO as ${email}`);
-  await s.page.goto('https://wisent-workspace.slack.com', { waitUntil: 'domcontentloaded' });
+  await s.page.goto('https://wisent-workspace.slack.com', {
+    waitUntil: 'domcontentloaded',
+  });
   await humanIdlePause('deliberate');
   await shot('01-slack-landing');
 
-  const googleBtn = s.page.getByRole('button', { name: /^\s*google\s*$/i })
+  const googleBtn = s.page
+    .getByRole('button', { name: /^\s*google\s*$/i })
     .or(s.page.getByRole('link', { name: /^\s*google\s*$/i }));
   await humanClickLocator(s.page, googleBtn.first());
   await humanIdlePause('long');
@@ -31,15 +34,18 @@ export async function signInThroughGoogle(s, { email, password, shot, atoms }) {
   await s.page.keyboard.press('Enter');
   await humanIdlePause('long');
 
-  if (!await fillPasswordWhenAvailable(s.page, password, atoms)) {
-    console.log('[slack] passkey challenge — Try another way → Enter your password');
-    const tryOther = s.page.getByRole('button', { name: /try another way/i })
+  if (!(await fillPasswordWhenAvailable(s.page, password, atoms))) {
+    console.log(
+      '[slack] passkey challenge — Try another way → Enter your password',
+    );
+    const tryOther = s.page
+      .getByRole('button', { name: /try another way/i })
       .or(s.page.getByRole('link', { name: /try another way/i }));
-    if (await tryOther.count() > 0) {
+    if ((await tryOther.count()) > 0) {
       await humanClickLocator(s.page, tryOther.first());
       await humanIdlePause('long');
       const enterPwd = s.page.getByText(/enter your password/i).first();
-      if (await enterPwd.count() > 0) {
+      if ((await enterPwd.count()) > 0) {
         await humanClickLocator(s.page, enterPwd);
         await humanIdlePause('long');
         await fillPasswordWhenAvailable(s.page, password, atoms);
@@ -49,7 +55,7 @@ export async function signInThroughGoogle(s, { email, password, shot, atoms }) {
 
   // Google's OAuth consent screen "Continue" button completes the handshake.
   const continueBtn = s.page.getByRole('button', { name: /^\s*continue\s*$/i });
-  if (await continueBtn.count() > 0) {
+  if ((await continueBtn.count()) > 0) {
     console.log('[slack] consent — clicking Continue');
     await humanClickLocator(s.page, continueBtn.first());
     await humanIdlePause('long');
@@ -61,7 +67,9 @@ export async function signInThroughGoogle(s, { email, password, shot, atoms }) {
 /** The web client's xoxc- token from boot_data or localStorage, or false. */
 export async function readClientToken(s, atoms) {
   console.log('[slack] step 2: load Slack web client + extract xoxc-');
-  await s.page.goto('https://wisent-workspace.slack.com/messages', { waitUntil: 'domcontentloaded' });
+  await s.page.goto('https://wisent-workspace.slack.com/messages', {
+    waitUntil: 'domcontentloaded',
+  });
   await atoms.humanIdlePause('long');
   return s.page.evaluate(() => {
     function findInLS() {
@@ -74,7 +82,7 @@ export async function readClientToken(s, atoms) {
       }
       return false;
     }
-    const bd = (typeof window !== 'undefined') ? window.boot_data : false;
+    const bd = typeof window !== 'undefined' ? window.boot_data : false;
     if (bd && bd.api_token) return bd.api_token;
     return findInLS();
   });

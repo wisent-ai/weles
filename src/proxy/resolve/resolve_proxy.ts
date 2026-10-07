@@ -4,24 +4,47 @@
 import type { ExitReputation, LinkedInProbePersona } from '../policy.js';
 import type { ResolvedProxy } from '../config.js';
 import { readOptionalWelesServiceSecret } from '../../secrets/scoped-service.js';
-import { secretServiceFor, stickyCredentials } from '../sources/provider_credentials.js';
+import {
+  secretServiceFor,
+  stickyCredentials,
+} from '../sources/provider_credentials.js';
 import { providerCandidates } from './candidates.js';
-import { diagHash, platformFromTarget, writeProxyPreflightDiagnostics, type ProxyPreflightAttempt } from './diagnostics.js';
+import {
+  diagHash,
+  platformFromTarget,
+  writeProxyPreflightDiagnostics,
+  type ProxyPreflightAttempt,
+} from './diagnostics.js';
 import { preflightExit } from './exit_preflight.js';
 import { resolveUrlFormProxy } from './url_form.js';
 
-export async function resolveProxy(proxy: string, targetHost?: string, preflightPersona?: LinkedInProbePersona): Promise<ResolvedProxy | undefined> {
+export async function resolveProxy(
+  proxy: string,
+  targetHost?: string,
+  preflightPersona?: LinkedInProbePersona,
+): Promise<ResolvedProxy | undefined> {
   if (!proxy || proxy === 'none' || proxy === 'direct') return undefined;
   const attempts: ProxyPreflightAttempt[] = [];
   const startedAt = new Date().toISOString();
 
-  if (proxy.startsWith('http://') || proxy.startsWith('https://') || proxy.startsWith('socks')) {
+  if (
+    proxy.startsWith('http://') ||
+    proxy.startsWith('https://') ||
+    proxy.startsWith('socks')
+  ) {
     return resolveUrlFormProxy(proxy, targetHost, startedAt);
   }
 
-  const { candidates: filtered, undeclared, proxyType, ccOverride } = await providerCandidates(proxy);
+  const {
+    candidates: filtered,
+    undeclared,
+    proxyType,
+    ccOverride,
+  } = await providerCandidates(proxy);
   for (const p of undeclared) {
-    console.log(`[proxy] Skipping ${p.display_name}: its Skarbiec context declares no proxy_type (isp, mobile or residential), so it cannot answer a "${proxy}" request`);
+    console.log(
+      `[proxy] Skipping ${p.display_name}: its Skarbiec context declares no proxy_type (isp, mobile or residential), so it cannot answer a "${proxy}" request`,
+    );
     attempts.push({
       provider: p.provider,
       display_name: p.display_name,
@@ -33,11 +56,15 @@ export async function resolveProxy(proxy: string, targetHost?: string, preflight
     });
   }
 
-  const { retiredProviderReason, isProviderBlockedForPlatform } = await import('../policy.js');
+  const { retiredProviderReason, isProviderBlockedForPlatform } = await import(
+    '../policy.js'
+  );
   for (const p of filtered) {
     const retiredReason = retiredProviderReason(p.proxy_host, p.proxy_port);
     if (retiredReason) {
-      console.log(`[proxy] BLOCKED: ${p.display_name} host=${p.proxy_host}:${p.proxy_port} retired=${retiredReason} - skipping`);
+      console.log(
+        `[proxy] BLOCKED: ${p.display_name} host=${p.proxy_host}:${p.proxy_port} retired=${retiredReason} - skipping`,
+      );
       attempts.push({
         display_name: p.display_name,
         proxy_type: proxyType,
@@ -49,34 +76,53 @@ export async function resolveProxy(proxy: string, targetHost?: string, preflight
       continue;
     }
 
-    const secretService = p.secret_service ?? secretServiceFor(p.provider, p.proxy_type);
-    const username = secretService ? readOptionalWelesServiceSecret(secretService, 'username') ?? '' : '';
-    const password = secretService ? readOptionalWelesServiceSecret(secretService, 'password') ?? '' : '';
+    const secretService =
+      p.secret_service ?? secretServiceFor(p.provider, p.proxy_type);
+    const username = secretService
+      ? (readOptionalWelesServiceSecret(secretService, 'username') ?? '')
+      : '';
+    const password = secretService
+      ? (readOptionalWelesServiceSecret(secretService, 'password') ?? '')
+      : '';
     if (!secretService || !username || !password) {
-      console.log(`[proxy] Skipping ${p.display_name}: exact provider grant unavailable`);
+      console.log(
+        `[proxy] Skipping ${p.display_name}: exact provider grant unavailable`,
+      );
       attempts.push({
         display_name: p.display_name,
         proxy_type: proxyType,
         country: '',
         endpoint: { host: p.proxy_host, port: String(p.proxy_port) },
         sticky_hash: '',
-        rejected_reason: secretService ? 'missing_exact_provider_grant' : 'unscoped_provider',
+        rejected_reason: secretService
+          ? 'missing_exact_provider_grant'
+          : 'unscoped_provider',
       });
       continue;
     }
     const { isBurned } = await import('../burned.js');
     const provKey = p.provider;
-    const _ov = (p.metadata as any)?.country_overrides?.[platformFromTarget(targetHost) ?? ''];
+    const _ov = (p.metadata as any)?.country_overrides?.[
+      platformFromTarget(targetHost) ?? ''
+    ];
     const cc = (ccOverride ?? _ov ?? p.metadata?.country ?? 'us').toLowerCase();
     // City pin: same shape as country_overrides. When set, pin the exit
     // city so persona timezone aligns with proxy geo (LinkedIn flags
     // tz/IP mismatches as suspicious-device signals).
-    const _cityOv = (p.metadata as any)?.city_overrides?.[platformFromTarget(targetHost) ?? ''];
-    const city = (_cityOv ?? (p.metadata as any)?.city ?? '').toString().toLowerCase().replace(/\s+/g, '_') || undefined;
+    const _cityOv = (p.metadata as any)?.city_overrides?.[
+      platformFromTarget(targetHost) ?? ''
+    ];
+    const city =
+      (_cityOv ?? (p.metadata as any)?.city ?? '')
+        .toString()
+        .toLowerCase()
+        .replace(/\s+/g, '_') || undefined;
     // Row policy: skip providers blocked for the target platform regardless
     // of how the resolver got here.
     if (isProviderBlockedForPlatform(provKey, platformFromTarget(targetHost))) {
-      console.log(`[proxy] BLOCKED: ${p.display_name} is on toxic list for ${platformFromTarget(targetHost)} — skipping`);
+      console.log(
+        `[proxy] BLOCKED: ${p.display_name} is on toxic list for ${platformFromTarget(targetHost)} — skipping`,
+      );
       attempts.push({
         provider: provKey,
         display_name: p.display_name,
@@ -95,7 +141,10 @@ export async function resolveProxy(proxy: string, targetHost?: string, preflight
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const sessId = Math.floor(Math.random() * 9000000 + 1000000);
       const { username: stickyUser, password: stickyPass } = stickyCredentials(
-        p.provider, p.proxy_type, { username, password }, { country: cc, city, sessionId: sessId },
+        p.provider,
+        p.proxy_type,
+        { username, password },
+        { country: cc, city, sessionId: sessId },
       );
       let host = p.proxy_host;
       const attemptDiag: ProxyPreflightAttempt = {
@@ -111,7 +160,10 @@ export async function resolveProxy(proxy: string, targetHost?: string, preflight
       try {
         const dns = await import('node:dns');
         const allIps: string[] = await new Promise<string[]>((res, rej) =>
-          dns.resolve4(p.proxy_host, (e: any, a: string[]) => e ? rej(e) : res(a)));
+          dns.resolve4(p.proxy_host, (e: any, a: string[]) =>
+            e ? rej(e) : res(a),
+          ),
+        );
         const live = [];
         // Per-platform isBurned: legacy burns (registry entries written
         // before 218e2dd) match LB IPs unconditionally with no platform tag,
@@ -119,7 +171,9 @@ export async function resolveProxy(proxy: string, targetHost?: string, preflight
         // Pass the target platform so a burn is only respected for the same
         // platform — pre-218e2dd entries with platforms=[] become inert.
         const platformForBurn = platformFromTarget(targetHost);
-        for (const ip of allIps) { if (!(await isBurned(ip, platformForBurn))) live.push(ip); }
+        for (const ip of allIps) {
+          if (!(await isBurned(ip, platformForBurn))) live.push(ip);
+        }
         if (live.length === 0) {
           attemptDiag.rejected_reason = 'all_dns_answers_burned';
           continue;
@@ -127,7 +181,14 @@ export async function resolveProxy(proxy: string, targetHost?: string, preflight
         host = live[Math.floor(Math.random() * live.length)];
         attemptDiag.endpoint = { host, port: String(p.proxy_port) };
       } catch {
-        try { const dns = await import('node:dns'); host = await new Promise<string>((res, rej) => dns.lookup(p.proxy_host, (e: any, a: string) => e ? rej(e) : res(a))); } catch {}
+        try {
+          const dns = await import('node:dns');
+          host = await new Promise<string>((res, rej) =>
+            dns.lookup(p.proxy_host, (e: any, a: string) =>
+              e ? rej(e) : res(a),
+            ),
+          );
+        } catch {}
         attemptDiag.endpoint = { host, port: String(p.proxy_port) };
         if (await isBurned(host, platformFromTarget(targetHost))) {
           attemptDiag.rejected_reason = 'dns_answer_burned';
@@ -136,13 +197,25 @@ export async function resolveProxy(proxy: string, targetHost?: string, preflight
       }
       const platform = platformFromTarget(targetHost);
       const verdict = await preflightExit({
-        host, port: String(p.proxy_port), stickyUser, stickyPass, cc, platform, targetHost,
-        displayName: p.display_name, sessId, preflightPersona, attemptDiag, isBurned,
+        host,
+        port: String(p.proxy_port),
+        stickyUser,
+        stickyPass,
+        cc,
+        platform,
+        targetHost,
+        displayName: p.display_name,
+        sessId,
+        preflightPersona,
+        attemptDiag,
+        isBurned,
       });
       if (verdict.abandonProvider) break;
       if (verdict.rejected) continue;
       const exitIp = verdict.exitIp;
-      console.log(`[proxy] Using: ${p.display_name} (${host}:${p.proxy_port}, $${p.balance_usd}, sticky=${sessId}, exit=${exitIp || '?'})`);
+      console.log(
+        `[proxy] Using: ${p.display_name} (${host}:${p.proxy_port}, $${p.balance_usd}, sticky=${sessId}, exit=${exitIp || '?'})`,
+      );
       // G11: enrich the winning exit IP once via ip-api (ASN/ISP/org/reverse/
       // geo + proxy/hosting/mobile flags). One call per successful resolve;
       // attached to the returned proxy config so it lands in
@@ -152,8 +225,14 @@ export async function resolveProxy(proxy: string, targetHost?: string, preflight
         try {
           const { verifyExitReputation } = await import('../policy.js');
           exitReputation = await verifyExitReputation(exitIp);
-          console.log(`[proxy] exit reputation ${exitIp} -> ${exitReputation.result}${exitReputation.asname ? ` ${exitReputation.asname}` : ''}`);
-        } catch (error) { console.log(`[proxy] exit reputation err: ${error instanceof Error ? error.message : String(error)}`); }
+          console.log(
+            `[proxy] exit reputation ${exitIp} -> ${exitReputation.result}${exitReputation.asname ? ` ${exitReputation.asname}` : ''}`,
+          );
+        } catch (error) {
+          console.log(
+            `[proxy] exit reputation err: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
       }
       writeProxyPreflightDiagnostics({
         requested_proxy: proxy.startsWith('http') ? '[url-form]' : proxy,
@@ -172,7 +251,20 @@ export async function resolveProxy(proxy: string, targetHost?: string, preflight
       // so the run row records which sticky exit the session pinned to. Only
       // sticky-capable providers reach this success path with a sessId; the
       // field is legitimately undefined for non-sticky/url-form proxies.
-      return { server: `http://${host}:${p.proxy_port}`, username: stickyUser, password: stickyPass, country: cc, city, exit_ip: exitIp || undefined, platform, provider: provKey, proxy_type: proxyType, sticky_session_id: String(sessId), sticky_hash: diagHash(sessId), exit_reputation: exitReputation };
+      return {
+        server: `http://${host}:${p.proxy_port}`,
+        username: stickyUser,
+        password: stickyPass,
+        country: cc,
+        city,
+        exit_ip: exitIp || undefined,
+        platform,
+        provider: provKey,
+        proxy_type: proxyType,
+        sticky_session_id: String(sessId),
+        sticky_hash: diagHash(sessId),
+        exit_reputation: exitReputation,
+      };
     }
   }
 

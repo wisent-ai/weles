@@ -38,7 +38,8 @@ export async function revealQueryInEditor(page, queryText) {
         targetScore: after.targetScore,
         targetIndex: after.targetIndex,
       });
-      if (after.targetIndex >= 0) return { attempted: true, method: shortcut, attempts };
+      if (after.targetIndex >= 0)
+        return { attempted: true, method: shortcut, attempts };
     } catch (err) {
       attempts.push({ shortcut, error: err?.message || String(err) });
     }
@@ -58,9 +59,13 @@ export async function revealQueryInEditor(page, queryText) {
       targetScore: after.targetScore,
       targetIndex: after.targetIndex,
     });
-    if (after.targetIndex >= 0) return { attempted: true, method: 'window.find', attempts };
+    if (after.targetIndex >= 0)
+      return { attempted: true, method: 'window.find', attempts };
   } catch (err) {
-    attempts.push({ method: 'window.find', error: err?.message || String(err) });
+    attempts.push({
+      method: 'window.find',
+      error: err?.message || String(err),
+    });
   }
 
   return { attempted: true, method: null, attempts };
@@ -70,28 +75,41 @@ export async function clickVisibleText(page, text, tag, exact = false) {
   const loc = exact
     ? page.getByText(text, { exact: true }).filter({ visible: true }).first()
     : page.getByText(text).filter({ visible: true }).first();
-  if (await loc.count() > 0) {
+  if ((await loc.count()) > 0) {
     await loc.scrollIntoViewIfNeeded().catch(() => {});
     await humanClickLocator(page, loc);
     await pageSettled(page);
     return { tag, text, clicked: true, method: 'locator' };
   }
 
-  const fallback = page.locator('button,a,[role="button"],[role="treeitem"],li')
-    .filter({ hasText: text, visible: true }).first();
-  if (await fallback.count() === 0) return { tag, text, clicked: false, method: null };
+  const fallback = page
+    .locator('button,a,[role="button"],[role="treeitem"],li')
+    .filter({ hasText: text, visible: true })
+    .first();
+  if ((await fallback.count()) === 0)
+    return { tag, text, clicked: false, method: null };
   const detail = await fallback.evaluate((el) => ({
-    text: String(el.textContent || '').replace(/\s+/g, ' ').trim(),
+    text: String(el.textContent || '')
+      .replace(/\s+/g, ' ')
+      .trim(),
     tagName: el.tagName,
     role: el.getAttribute('role') || '',
   }));
   await humanClickLocator(page, fallback);
   await pageSettled(page);
-  return { tag, text, clicked: true, method: 'locator-fallback', clicked: detail };
+  return {
+    tag,
+    text,
+    clicked: true,
+    method: 'locator-fallback',
+    clicked: detail,
+  };
 }
 
 export async function probeHistoryState(s, tag, queryText, reveal = false) {
-  const revealResult = reveal ? await revealQueryInEditor(s.page, queryText) : null;
+  const revealResult = reveal
+    ? await revealQueryInEditor(s.page, queryText)
+    : null;
   const d = await dump(s, tag);
   const summary = await summarizeVisible(s.page, queryText);
   return {

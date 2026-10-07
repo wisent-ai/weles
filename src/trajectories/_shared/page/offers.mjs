@@ -13,7 +13,9 @@ export async function control(page, role, name) {
 
 // A visible form field with this `name` attribute, or null.
 export async function field(page, name) {
-  const found = page.locator(`input[name="${name}"], textarea[name="${name}"]`).first();
+  const found = page
+    .locator(`input[name="${name}"], textarea[name="${name}"]`)
+    .first();
   return (await found.isVisible()) ? found : null;
 }
 
@@ -26,9 +28,15 @@ export async function autocompleteField(page, kind) {
 
 // The attached frame whose URL has this origin's host, or null.
 export function frameFrom(page, host) {
-  return page.frames().find((frame) => {
-    try { return new URL(frame.url()).hostname.endsWith(host); } catch { return false; }
-  }) ?? null;
+  return (
+    page.frames().find((frame) => {
+      try {
+        return new URL(frame.url()).hostname.endsWith(host);
+      } catch {
+        return false;
+      }
+    }) ?? null
+  );
 }
 
 // Clicks the first of these controls that is visible and says which one, or

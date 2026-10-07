@@ -2,7 +2,10 @@
 // Data from the working Kimi reference save_1_4_collection.py. Never closes page.
 
 import { chromium } from 'playwright';
-import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
 import { openNewRow, openRowEditor } from '../../../forms/row-editor.mjs';
 
@@ -10,11 +13,31 @@ const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('1_4');
 
 const ROWS = [
-  { nazwa: 'Synerise S.A.', nip: '6793093292', opis: 'Synerise S.A. jest polskim konkurentem w obszarze zastosowań sztucznej inteligencji dla przedsiębiorstw, w szczególności analizy danych behawioralnych, personalizacji, predykcji zachowań użytkowników i automatyzacji decyzji biznesowych. Firma rozwija platformę AI przetwarzającą sygnały behawioralne w czasie rzeczywistym oraz rozwiązania oparte na modelach predykcyjnych i rekomendacyjnych. Konkurencja wobec Wisent dotyczy rynku europejskich odbiorców technologii AI dla biznesu oraz pozycji krajowego dostawcy zaawansowanego oprogramowania AI. Różnica polega na tym, że Synerise koncentruje się na warstwie zastosowań biznesowych i danych behawioralnych, natomiast projekt Wisent dotyczy bazowej architektury modeli generatywnych RNM, w której sterowalność i audytowalność wynikają z konstrukcji reprezentacji wewnętrznych modelu.' },
-  { nazwa: 'Mistral AI', nip: '0000000000', opis: 'Mistral AI jest europejskim konkurentem w obszarze dużych modeli językowych, modeli otwartych wag i rozwiązań AI dla przedsiębiorstw. Firma rozwija klasyczne modele transformerowe oraz narzędzia wdrażania modeli i agentów AI, konkurując o tych samych europejskich odbiorców technologii generatywnej. Przewagą Mistral jest skala finansowania, rozpoznawalność i istniejąca dystrybucja rynkowa. Przewaga Wisent polega na innym poziomie innowacji: RNM nie są kolejnym transformerem, lecz architekturą projektowaną tak, aby kompetencje, zachowania i polityki bezpieczeństwa były zapisane jako stabilne reprezentacje możliwe do diagnozy i sterowania. Wisent oferuje możliwość modyfikacji zachowania modelu bez ponownego trenowania całej architektury, większą audytowalność i lepsze dopasowanie do wymogów regulowanych sektorów UE.' },
-  { nazwa: 'Goodfire AI', nip: '0000000000', opis: 'Goodfire AI jest jednym z najbliższych konkurentów technologicznych Wisent. Działa w obszarze interpretowalności i inżynierii reprezentacji modeli AI, rozwijając narzędzia pozwalające rozumieć i projektować zachowanie zaawansowanych modeli przez analizę ich reprezentacji wewnętrznych. Konkurencja dotyczy warstwy kontroli, diagnostyki i bezpieczeństwa modeli. Przewagą Goodfire jest silne pozycjonowanie w interpretowalności i koncentracja na narzędziach dla zaawansowanych systemów AI. Przewaga Wisent polega na tym, że projekt RNM nie ogranicza się do analizy lub sterowania istniejącymi modelami po treningu, lecz rozwija architekturę, w której reprezentacje są stabilizowane i separowane już w czasie treningu. Audytowalność i możliwość modyfikacji zachowania modelu stają się cechą modelu, nie wyłącznie zewnętrznym narzędziem diagnostycznym.' },
-  { nazwa: 'Anthropic', nip: '0000000000', opis: 'Anthropic jest jednym z głównych konkurentów Wisent w segmencie bezpiecznych modeli generatywnych dla przedsiębiorstw. Firma rozwija rodzinę modeli Claude i pozycjonuje się jako podmiot budujący niezawodne oraz sterowalne systemy AI. Podejście Constitutional AI kształtuje zachowanie modelu przez zestaw zasad używanych w procesie treningu i dostrajania, co stanowi konkurencyjne rozwiązanie wobec potrzeby kontroli zachowania modeli. Przewagą Anthropic jest marka, jakość modeli i zaufanie klientów enterprise. Przewaga Wisent polega na kontroli na poziomie geometrii reprezentacji wewnętrznych, nie wyłącznie przez reguły, polityki lub zamknięty proces dostawcy.' },
-  { nazwa: 'Gray Swan AI', nip: '0000000000', opis: 'Gray Swan AI jest konkurentem Wisent w obszarze bezpieczeństwa, red-teamingu oraz ewaluacji modeli sztucznej inteligencji. Firma rozwija platformę do adversarial evaluation, testowania podatności modeli i agentów AI oraz ochrony wdrożeń produkcyjnych przed atakami takimi jak jailbreaki, prompt injection czy niepożądane wyjścia modelu. Rozwiązania kieruje do laboratoriów frontier AI i przedsiębiorstw wdrażających systemy AI w środowiskach o wysokich wymaganiach bezpieczeństwa. Przewagą Gray Swan jest pozycja w testowaniu bezpieczeństwa i ochronie runtime. Przewaga Wisent polega na przesunięciu kontroli głębiej, z warstwy zewnętrznego testowania i filtrowania na poziom samej architektury modelu.' },
+  {
+    nazwa: 'Synerise S.A.',
+    nip: '6793093292',
+    opis: 'Synerise S.A. jest polskim konkurentem w obszarze zastosowań sztucznej inteligencji dla przedsiębiorstw, w szczególności analizy danych behawioralnych, personalizacji, predykcji zachowań użytkowników i automatyzacji decyzji biznesowych. Firma rozwija platformę AI przetwarzającą sygnały behawioralne w czasie rzeczywistym oraz rozwiązania oparte na modelach predykcyjnych i rekomendacyjnych. Konkurencja wobec Wisent dotyczy rynku europejskich odbiorców technologii AI dla biznesu oraz pozycji krajowego dostawcy zaawansowanego oprogramowania AI. Różnica polega na tym, że Synerise koncentruje się na warstwie zastosowań biznesowych i danych behawioralnych, natomiast projekt Wisent dotyczy bazowej architektury modeli generatywnych RNM, w której sterowalność i audytowalność wynikają z konstrukcji reprezentacji wewnętrznych modelu.',
+  },
+  {
+    nazwa: 'Mistral AI',
+    nip: '0000000000',
+    opis: 'Mistral AI jest europejskim konkurentem w obszarze dużych modeli językowych, modeli otwartych wag i rozwiązań AI dla przedsiębiorstw. Firma rozwija klasyczne modele transformerowe oraz narzędzia wdrażania modeli i agentów AI, konkurując o tych samych europejskich odbiorców technologii generatywnej. Przewagą Mistral jest skala finansowania, rozpoznawalność i istniejąca dystrybucja rynkowa. Przewaga Wisent polega na innym poziomie innowacji: RNM nie są kolejnym transformerem, lecz architekturą projektowaną tak, aby kompetencje, zachowania i polityki bezpieczeństwa były zapisane jako stabilne reprezentacje możliwe do diagnozy i sterowania. Wisent oferuje możliwość modyfikacji zachowania modelu bez ponownego trenowania całej architektury, większą audytowalność i lepsze dopasowanie do wymogów regulowanych sektorów UE.',
+  },
+  {
+    nazwa: 'Goodfire AI',
+    nip: '0000000000',
+    opis: 'Goodfire AI jest jednym z najbliższych konkurentów technologicznych Wisent. Działa w obszarze interpretowalności i inżynierii reprezentacji modeli AI, rozwijając narzędzia pozwalające rozumieć i projektować zachowanie zaawansowanych modeli przez analizę ich reprezentacji wewnętrznych. Konkurencja dotyczy warstwy kontroli, diagnostyki i bezpieczeństwa modeli. Przewagą Goodfire jest silne pozycjonowanie w interpretowalności i koncentracja na narzędziach dla zaawansowanych systemów AI. Przewaga Wisent polega na tym, że projekt RNM nie ogranicza się do analizy lub sterowania istniejącymi modelami po treningu, lecz rozwija architekturę, w której reprezentacje są stabilizowane i separowane już w czasie treningu. Audytowalność i możliwość modyfikacji zachowania modelu stają się cechą modelu, nie wyłącznie zewnętrznym narzędziem diagnostycznym.',
+  },
+  {
+    nazwa: 'Anthropic',
+    nip: '0000000000',
+    opis: 'Anthropic jest jednym z głównych konkurentów Wisent w segmencie bezpiecznych modeli generatywnych dla przedsiębiorstw. Firma rozwija rodzinę modeli Claude i pozycjonuje się jako podmiot budujący niezawodne oraz sterowalne systemy AI. Podejście Constitutional AI kształtuje zachowanie modelu przez zestaw zasad używanych w procesie treningu i dostrajania, co stanowi konkurencyjne rozwiązanie wobec potrzeby kontroli zachowania modeli. Przewagą Anthropic jest marka, jakość modeli i zaufanie klientów enterprise. Przewaga Wisent polega na kontroli na poziomie geometrii reprezentacji wewnętrznych, nie wyłącznie przez reguły, polityki lub zamknięty proces dostawcy.',
+  },
+  {
+    nazwa: 'Gray Swan AI',
+    nip: '0000000000',
+    opis: 'Gray Swan AI jest konkurentem Wisent w obszarze bezpieczeństwa, red-teamingu oraz ewaluacji modeli sztucznej inteligencji. Firma rozwija platformę do adversarial evaluation, testowania podatności modeli i agentów AI oraz ochrony wdrożeń produkcyjnych przed atakami takimi jak jailbreaki, prompt injection czy niepożądane wyjścia modelu. Rozwiązania kieruje do laboratoriów frontier AI i przedsiębiorstw wdrażających systemy AI w środowiskach o wysokich wymaganiach bezpieczeństwa. Przewagą Gray Swan jest pozycja w testowaniu bezpieczeństwa i ochronie runtime. Przewaga Wisent polega na przesunięciu kontroli głębiej, z warstwy zewnętrznego testowania i filtrowania na poziom samej architektury modelu.',
+  },
 ];
 
 const browser = await chromium.connectOverCDP(endpoint);
@@ -25,12 +48,23 @@ if (!page) {
 }
 
 async function clickDodaj(nth) {
-  const button = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true }).nth(nth);
-  await openNewRow(page, button, page.locator('[name="nazwa_podmiotu_konkurencyjnego"]'));
+  const button = page
+    .getByRole('button', { name: 'Dodaj', exact: true })
+    .filter({ visible: true })
+    .nth(nth);
+  await openNewRow(
+    page,
+    button,
+    page.locator('[name="nazwa_podmiotu_konkurencyjnego"]'),
+  );
 }
 async function saveForm() {
-  const save = page.locator('button:not([disabled])').filter({ hasText: /^Zapisz$/ }).filter({ visible: true }).last();
-  if (await save.count() === 0) throw new Error('no enabled Zapisz');
+  const save = page
+    .locator('button:not([disabled])')
+    .filter({ hasText: /^Zapisz$/ })
+    .filter({ visible: true })
+    .last();
+  if ((await save.count()) === 0) throw new Error('no enabled Zapisz');
   await humanClickLocator(page, save);
   await humanIdlePause('long');
   await humanIdlePause('deliberate');
@@ -39,20 +73,35 @@ async function saveForm() {
 async function editDataRow(index) {
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
   const row = page.locator('table tbody tr').nth(index + 1);
-  await openRowEditor(page, row, page.locator('[name="nazwa_podmiotu_konkurencyjnego"]'));
+  await openRowEditor(
+    page,
+    row,
+    page.locator('[name="nazwa_podmiotu_konkurencyjnego"]'),
+  );
 }
 
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
-await page.evaluate(() => { const b = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies')); if (b) b.style.pointerEvents = 'none'; }); // allow-raw-playwright: neutralise cookie banner (Kimi reference)
+await page.evaluate(() => {
+  const b = Array.from(document.querySelectorAll('div')).find((d) =>
+    (d.innerText || '').includes('pliki cookies'),
+  );
+  if (b) b.style.pointerEvents = 'none';
+}); // allow-raw-playwright: neutralise cookie banner (Kimi reference)
 
 async function setApplicant() {
-  const name = 'nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta';
+  const name =
+    'nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta';
   const input = page.locator(`input[name="${name}"]`).first();
-  const select = page.locator('.MuiInputBase-root').filter({ has: input })
-    .locator('.MuiSelect-select, [role="combobox"]').first();
+  const select = page
+    .locator('.MuiInputBase-root')
+    .filter({ has: input })
+    .locator('.MuiSelect-select, [role="combobox"]')
+    .first();
   await humanClickLocator(page, select);
-  const opt = page.getByRole('option', { name: 'Wisent Polska', exact: true }).first();
+  const opt = page
+    .getByRole('option', { name: 'Wisent Polska', exact: true })
+    .first();
   await opt.waitFor({ state: 'visible' });
   await humanClickLocator(page, opt);
   await humanIdlePause('short');
@@ -61,17 +110,41 @@ async function setApplicant() {
 if (process.env.DIAG) {
   await clickDodaj(0);
   await setApplicant();
-  await humanFill(page, page.locator("[name='nazwa_podmiotu_konkurencyjnego']").first(), 'TEST');
+  await humanFill(
+    page,
+    page.locator("[name='nazwa_podmiotu_konkurencyjnego']").first(),
+    'TEST',
+  );
   await humanFill(page, page.locator("[name='nip']").first(), '0000000000');
-  await humanFill(page, page.locator("[name='opis']").first(), 'opis testowy diag');
+  await humanFill(
+    page,
+    page.locator("[name='opis']").first(),
+    'opis testowy diag',
+  );
   await humanIdlePause('deliberate');
   const state = await page.evaluate(() => {
-    const inp = document.querySelector("input[name='nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta']");
-    const sel = inp && inp.closest('.MuiInputBase-root')?.querySelector('.MuiSelect-select');
+    const inp = document.querySelector(
+      "input[name='nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta']",
+    );
+    const sel =
+      inp &&
+      inp.closest('.MuiInputBase-root')?.querySelector('.MuiSelect-select');
     const applText = sel ? sel.textContent.trim() : null;
-    const zapisz = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz');
-    const empties = Array.from(document.querySelectorAll('[aria-invalid="true"], .Mui-error')).map((e) => (e.getAttribute('name') || e.textContent || '').trim().slice(0, 50)).slice(0, 15);
-    return { applText, zapiszDisabled: zapisz.map((b) => b.disabled), errors: empties };
+    const zapisz = Array.from(document.querySelectorAll('button')).filter(
+      (b) => b.innerText.trim() === 'Zapisz',
+    );
+    const empties = Array.from(
+      document.querySelectorAll('[aria-invalid="true"], .Mui-error'),
+    )
+      .map((e) =>
+        (e.getAttribute('name') || e.textContent || '').trim().slice(0, 50),
+      )
+      .slice(0, 15);
+    return {
+      applText,
+      zapiszDisabled: zapisz.map((b) => b.disabled),
+      errors: empties,
+    };
   });
   console.log(JSON.stringify(state, null, 2));
   process.exit(0);
@@ -87,8 +160,16 @@ if (process.env.REPAIR) {
     if (i >= rowCount) break;
     const r = ROWS[i];
     await editDataRow(i);
-    try { await setApplicant(); } catch (e) { /* applicant may already be bound */ }
-    await humanFill(page, page.locator("[name='nazwa_podmiotu_konkurencyjnego']").first(), r.nazwa);
+    try {
+      await setApplicant();
+    } catch (e) {
+      /* applicant may already be bound */
+    }
+    await humanFill(
+      page,
+      page.locator("[name='nazwa_podmiotu_konkurencyjnego']").first(),
+      r.nazwa,
+    );
     await humanFill(page, page.locator("[name='nip']").first(), r.nip);
     await humanFill(page, page.locator("[name='opis']").first(), r.opis);
     await humanIdlePause('deliberate');
@@ -98,12 +179,22 @@ if (process.env.REPAIR) {
   }
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('long');
-  const hasGray = await page.evaluate(() => (document.body.innerText || '').includes('Gray Swan AI'));
+  const hasGray = await page.evaluate(() =>
+    (document.body.innerText || '').includes('Gray Swan AI'),
+  );
   if (!hasGray) {
     const r = ROWS[4];
     await clickDodaj(0);
-    try { await setApplicant(); } catch (e) { /* applicant may auto bind */ }
-    await humanFill(page, page.locator("[name='nazwa_podmiotu_konkurencyjnego']").first(), r.nazwa);
+    try {
+      await setApplicant();
+    } catch (e) {
+      /* applicant may auto bind */
+    }
+    await humanFill(
+      page,
+      page.locator("[name='nazwa_podmiotu_konkurencyjnego']").first(),
+      r.nazwa,
+    );
     await humanFill(page, page.locator("[name='nip']").first(), r.nip);
     await humanFill(page, page.locator("[name='opis']").first(), r.opis);
     await humanIdlePause('deliberate');
@@ -125,8 +216,16 @@ if (process.env.REPAIR) {
 let added = 0;
 for (const r of ROWS) {
   await clickDodaj(0);
-  try { await setApplicant(); } catch (e) { /* applicant is auto-assigned for a single applicant */ }
-  await humanFill(page, page.locator("[name='nazwa_podmiotu_konkurencyjnego']").first(), r.nazwa);
+  try {
+    await setApplicant();
+  } catch (e) {
+    /* applicant is auto-assigned for a single applicant */
+  }
+  await humanFill(
+    page,
+    page.locator("[name='nazwa_podmiotu_konkurencyjnego']").first(),
+    r.nazwa,
+  );
   await humanFill(page, page.locator("[name='nip']").first(), r.nip);
   await humanFill(page, page.locator("[name='opis']").first(), r.opis);
   await humanIdlePause('deliberate');

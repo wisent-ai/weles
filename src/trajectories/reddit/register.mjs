@@ -22,8 +22,20 @@ const URL = 'https://www.reddit.com/register';
 // matching that name will be tried.
 const PROXY_FILTER = process.env.PROXY_URL || 'residential oxylabs us';
 // Persona + identity rotation centralized in WSession.start (opts.platform).
-const s = await WSession.start({ label: 'reddit_register', proxy: PROXY_FILTER, targetHost: 'www.reddit.com', platform: 'reddit' });
-const id = { first: s.identity.firstName, last: s.identity.lastName, username: s.identity.username, email: s.identity.email, password: s.identity.password, name: `${s.identity.firstName} ${s.identity.lastName}` };
+const s = await WSession.start({
+  label: 'reddit_register',
+  proxy: PROXY_FILTER,
+  targetHost: 'www.reddit.com',
+  platform: 'reddit',
+});
+const id = {
+  first: s.identity.firstName,
+  last: s.identity.lastName,
+  username: s.identity.username,
+  email: s.identity.email,
+  password: s.identity.password,
+  name: `${s.identity.firstName} ${s.identity.lastName}`,
+};
 console.log(`[register] identity: ${id.username} ${id.email}`);
 // Use shared atomic helpers from src/human/. Empirical-distribution timing
 // (p50=105ms keystroke dwell, p50=169ms inter-key, Bezier mouse paths) derived
@@ -32,8 +44,13 @@ console.log(`[register] identity: ${id.username} ${id.email}`);
 // 4/16 Feb signups surviving — and reads the behavior trace, not just
 // fingerprint surface.
 async function vpJitter() {
-  const vp = s.page.viewportSize(); if (!vp) return;
-  await humanMove(s.page, 100 + Math.floor(Math.random() * (vp.width - 200)), 100 + Math.floor(Math.random() * (vp.height - 200)));
+  const vp = s.page.viewportSize();
+  if (!vp) return;
+  await humanMove(
+    s.page,
+    100 + Math.floor(Math.random() * (vp.width - 200)),
+    100 + Math.floor(Math.random() * (vp.height - 200)),
+  );
 }
 
 // Capture reddit's email-verify-initialize response. A 403 here with
@@ -47,18 +64,29 @@ s.page.on('response', async (resp) => {
   if (!/register_email_verify_initialize/i.test(resp.url())) return;
   const status = resp.status();
   let body = '';
-  try { body = await resp.text(); } catch { /* body may be unavailable */ }
-  let reason = '', recaptcha = '';
+  try {
+    body = await resp.text();
+  } catch {
+    /* body may be unavailable */
+  }
+  let reason = '',
+    recaptcha = '';
   try {
     const j = JSON.parse(body);
     reason = j?.error?.message || '';
     recaptcha = j?.error?.params?.recaptcha_token || '';
-  } catch { /* non-JSON body */ }
+  } catch {
+    /* non-JSON body */
+  }
   verifyInit = { status, ok: resp.ok(), reason, recaptcha, body: body };
   if (resp.ok()) {
-    console.log(`[verify-init] OK status=${status} — reddit dispatched the code`);
+    console.log(
+      `[verify-init] OK status=${status} — reddit dispatched the code`,
+    );
   } else {
-    console.log(`FAIL: verify_init_rejected status=${status} recaptcha_token=${recaptcha || 'n/a'} reason="${reason}" body=${verifyInit.body}`);
+    console.log(
+      `FAIL: verify_init_rejected status=${status} recaptcha_token=${recaptcha || 'n/a'} reason="${reason}" body=${verifyInit.body}`,
+    );
   }
 });
 
@@ -68,14 +96,22 @@ try {
   await vpJitter();
 
   // Step 1: email
-  const emailIn = s.page.locator('input[type="email"], input[name="email"], input[autocomplete="email"]').filter({ visible: true }).first();
+  const emailIn = s.page
+    .locator(
+      'input[type="email"], input[name="email"], input[autocomplete="email"]',
+    )
+    .filter({ visible: true })
+    .first();
   await emailIn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, emailIn);
   await pageSettled(s.page);
   await humanType(s.page, id.email);
   await pageSettled(s.page);
   await vpJitter();
-  const continueBtn = s.page.getByRole('button', { name: /continue/i }).filter({ visible: true }).first();
+  const continueBtn = s.page
+    .getByRole('button', { name: /continue/i })
+    .filter({ visible: true })
+    .first();
   await humanClickLocator(s.page, continueBtn);
   console.log('[register] submitted email');
 
@@ -84,31 +120,48 @@ try {
   // If verify-init already came back rejected, fail fast with the real reason
   // (no code will ever arrive) rather than burning the full email-poll timeout.
   if (verifyInit && !verifyInit.ok) {
-    throw new Error(`verify_init_rejected: status=${verifyInit.status} recaptcha_token=${verifyInit.recaptcha || 'n/a'} reason="${verifyInit.reason}"`);
+    throw new Error(
+      `verify_init_rejected: status=${verifyInit.status} recaptcha_token=${verifyInit.recaptcha || 'n/a'} reason="${verifyInit.reason}"`,
+    );
   }
   const code = await s.checkEmail(id.email, 'reddit');
   if (/^error|^no (code|email)/.test(code)) {
-    const detail = verifyInit && !verifyInit.ok
-      ? ` (verify_init status=${verifyInit.status} recaptcha_token=${verifyInit.recaptcha})`
-      : '';
+    const detail =
+      verifyInit && !verifyInit.ok
+        ? ` (verify_init status=${verifyInit.status} recaptcha_token=${verifyInit.recaptcha})`
+        : '';
     throw new Error(`email_code_failed: ${code}${detail}`);
   }
   console.log(`[register] got verification code: ${code}`);
   await pageSettled(s.page);
   await vpJitter();
-  const codeIn = s.page.locator('input[autocomplete="one-time-code"], input[name="code"], input[type="text"][maxlength="6"]').filter({ visible: true }).first();
+  const codeIn = s.page
+    .locator(
+      'input[autocomplete="one-time-code"], input[name="code"], input[type="text"][maxlength="6"]',
+    )
+    .filter({ visible: true })
+    .first();
   await codeIn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, codeIn);
   await pageSettled(s.page);
   await humanType(s.page, code);
   await pageSettled(s.page);
-  await humanClickLocator(s.page, s.page.getByRole('button', { name: /continue|verify|submit/i }).filter({ visible: true }).first());
+  await humanClickLocator(
+    s.page,
+    s.page
+      .getByRole('button', { name: /continue|verify|submit/i })
+      .filter({ visible: true })
+      .first(),
+  );
   console.log('[register] submitted code');
 
   // Step 3: username + password
   await pageSettled(s.page);
   await vpJitter();
-  const userIn = s.page.locator('input[name="username"], input[autocomplete="username"]').filter({ visible: true }).first();
+  const userIn = s.page
+    .locator('input[name="username"], input[autocomplete="username"]')
+    .filter({ visible: true })
+    .first();
   await userIn.waitFor({ state: 'visible' });
   // CRITICAL: Reddit's current /register flow auto-fills a suggested
   // username (e.g. "Glad_Grape_9029" or "Melodic-Image-84sa77") into the
@@ -120,7 +173,10 @@ try {
   // first action. Clearing the field first restores the chosen username
   // and lifts the auto-shadowban.
   const beforeVal = await userIn.inputValue().catch(() => '');
-  if (beforeVal) console.log(`[register] clearing auto-suggested username "${beforeVal}" before typing chosen "${id.username}"`);
+  if (beforeVal)
+    console.log(
+      `[register] clearing auto-suggested username "${beforeVal}" before typing chosen "${id.username}"`,
+    );
   await humanClickLocator(s.page, userIn);
   // Reddit's React-controlled username field auto-fills a suggestion. The
   // only reliable way to clear React-controlled inputs is Playwright's
@@ -135,16 +191,28 @@ try {
   await humanType(s.page, id.username);
   const afterVal = await userIn.inputValue();
   console.log(`[register] after typing "${id.username}": "${afterVal}"`);
-  if (afterVal !== id.username) throw new Error(`reddit_username_not_set: field holds "${afterVal}" instead of "${id.username}"`);
+  if (afterVal !== id.username)
+    throw new Error(
+      `reddit_username_not_set: field holds "${afterVal}" instead of "${id.username}"`,
+    );
   await pageSettled(s.page);
   await vpJitter();
-  const pwIn = s.page.locator('input[type="password"], input[autocomplete="new-password"]').filter({ visible: true }).first();
+  const pwIn = s.page
+    .locator('input[type="password"], input[autocomplete="new-password"]')
+    .filter({ visible: true })
+    .first();
   await humanClickLocator(s.page, pwIn);
   await pageSettled(s.page);
   await humanType(s.page, id.password);
   await pageSettled(s.page);
   await vpJitter();
-  await humanClickLocator(s.page, s.page.getByRole('button', { name: /sign up|continue|create/i }).filter({ visible: true }).first());
+  await humanClickLocator(
+    s.page,
+    s.page
+      .getByRole('button', { name: /sign up|continue|create/i })
+      .filter({ visible: true })
+      .first(),
+  );
   console.log('[register] submitted username + password');
 
   // Step 4: the post-signup redirect (/onboarding, /, etc) has happened once
@@ -153,17 +221,37 @@ try {
   console.log(`[register] post-signup url=${s.page.url()}`);
 
   // Step 5: persist + verify
-  const result = await s.saveAccount('reddit', { username: id.username, email: id.email, password: id.password, name: id.name });
+  const result = await s.saveAccount('reddit', {
+    username: id.username,
+    email: id.email,
+    password: id.password,
+    name: id.name,
+  });
   console.log(`[register] saveAccount: ${result}`);
-  await autoBindCharacter(id.username, 'reddit').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message}`));
+  await autoBindCharacter(id.username, 'reddit')
+    .then((r) => console.log(`[bind] ${JSON.stringify(r)}`))
+    .catch((e) => console.log(`[bind] err: ${e.message}`));
 
   const saved = findAccount('reddit', id.username);
-  if (!saved) { console.log(`FAIL: saveAccount returned ok but no Skarbiec item for ${id.username}`); process.exitCode = 1; }
-  else {
+  if (!saved) {
+    console.log(
+      `FAIL: saveAccount returned ok but no Skarbiec item for ${id.username}`,
+    );
+    process.exitCode = 1;
+  } else {
     const cookies = saved.metadata?.cookies ?? [];
-    const hasSession = cookies.some?.(c => /reddit_session|token_v2/.test(c?.name ?? ''));
-    if (!hasSession) { console.log(`FAIL: item ${saved.id} saved but no reddit_session cookie — signup didn't authenticate`); process.exitCode = 1; }
-    else console.log(`PASS: ${id.username} (skarbiec_item=${saved.id} cookies=${cookies.length} reddit_session=yes)`);
+    const hasSession = cookies.some?.((c) =>
+      /reddit_session|token_v2/.test(c?.name ?? ''),
+    );
+    if (!hasSession) {
+      console.log(
+        `FAIL: item ${saved.id} saved but no reddit_session cookie — signup didn't authenticate`,
+      );
+      process.exitCode = 1;
+    } else
+      console.log(
+        `PASS: ${id.username} (skarbiec_item=${saved.id} cookies=${cookies.length} reddit_session=yes)`,
+      );
   }
 } catch (e) {
   console.log('FAIL:', e.message);

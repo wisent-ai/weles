@@ -17,9 +17,22 @@ const running = new Map();
  * must make the runner finish the run; `describe()` returns what the run is
  * doing now. Returns the function that removes the registration.
  */
-export function registerRunningRun(runId, { action, kind, startedAt, cancel, describe }) {
-  running.set(runId, { runId, action, kind, startedAt, cancel, describe, cancelRequested: null });
-  return () => { running.delete(runId); };
+export function registerRunningRun(
+  runId,
+  { action, kind, startedAt, cancel, describe },
+) {
+  running.set(runId, {
+    runId,
+    action,
+    kind,
+    startedAt,
+    cancel,
+    describe,
+    cancelRequested: null,
+  });
+  return () => {
+    running.delete(runId);
+  };
 }
 
 // `operator_request` is the open request the run waits on, read from the
@@ -34,7 +47,9 @@ function summary(entry) {
     started_at: entry.startedAt,
     cancel_requested: entry.cancelRequested,
     ...entry.describe(),
-    operator_request: request ? { ...request, abandoned: isAbandoned(request) } : null,
+    operator_request: request
+      ? { ...request, abandoned: isAbandoned(request) }
+      : null,
   };
 }
 

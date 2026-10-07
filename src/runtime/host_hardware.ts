@@ -26,7 +26,9 @@ export interface HostHardware {
 let cached: HostHardware | null = null;
 
 export function honestHostEnabled(): boolean {
-  const value = String(process.env.WELES_HONEST_HOST ?? '1').trim().toLowerCase();
+  const value = String(process.env.WELES_HONEST_HOST ?? '1')
+    .trim()
+    .toLowerCase();
   return !['0', 'false', 'off', 'no'].includes(value);
 }
 
@@ -40,7 +42,8 @@ export function hostHardware(): HostHardware {
     cores: Math.max(1, cpus().length || 1),
     deviceMemory: detectDeviceMemoryGb(),
     osVersion,
-    platformVersion: osFamily === 'macos' ? macPlatformVersion(osVersion) : osVersion,
+    platformVersion:
+      osFamily === 'macos' ? macPlatformVersion(osVersion) : osVersion,
     chip,
     glRenderer: detectGlRenderer(osFamily, chip),
     glUnmaskedVendor: detectGlVendor(osFamily, chip),
@@ -78,7 +81,8 @@ function run(cmd: string, args: string[]): string | null {
 }
 
 function detectOsVersion(osFamily: HostHardware['osFamily']): string | null {
-  if (osFamily === 'macos') return run('sw_vers', ['-productVersion']) || release();
+  if (osFamily === 'macos')
+    return run('sw_vers', ['-productVersion']) || release();
   return release() || null;
 }
 
@@ -91,27 +95,39 @@ function macPlatformVersion(osVersion: string | null): string | null {
 
 function detectChip(osFamily: HostHardware['osFamily']): string | null {
   if (osFamily === 'macos') {
-    return run('sysctl', ['-n', 'machdep.cpu.brand_string'])
-      || run('sysctl', ['-n', 'hw.model'])
-      || null;
+    return (
+      run('sysctl', ['-n', 'machdep.cpu.brand_string']) ||
+      run('sysctl', ['-n', 'hw.model']) ||
+      null
+    );
   }
   return cpus()[0]?.model || null;
 }
 
-function detectGlRenderer(osFamily: HostHardware['osFamily'], chip: string | null): string | null {
+function detectGlRenderer(
+  osFamily: HostHardware['osFamily'],
+  chip: string | null,
+): string | null {
   if (osFamily === 'macos') {
     const renderer = chip || 'Apple GPU';
-    if (/apple/i.test(renderer)) return `ANGLE (Apple, ANGLE Metal Renderer: ${renderer}, Unspecified Version)`;
-    if (/intel/i.test(renderer)) return `ANGLE (Intel, ${renderer}, OpenGL 4.1)`;
-    if (/amd|radeon/i.test(renderer)) return `ANGLE (AMD, ${renderer}, OpenGL 4.1)`;
+    if (/apple/i.test(renderer))
+      return `ANGLE (Apple, ANGLE Metal Renderer: ${renderer}, Unspecified Version)`;
+    if (/intel/i.test(renderer))
+      return `ANGLE (Intel, ${renderer}, OpenGL 4.1)`;
+    if (/amd|radeon/i.test(renderer))
+      return `ANGLE (AMD, ${renderer}, OpenGL 4.1)`;
     return `ANGLE (Apple, ANGLE Metal Renderer: ${renderer}, Unspecified Version)`;
   }
-  if (osFamily === 'windows' && chip) return `ANGLE (Intel, ${chip} Direct3D11 vs_5_0 ps_5_0, D3D11)`;
+  if (osFamily === 'windows' && chip)
+    return `ANGLE (Intel, ${chip} Direct3D11 vs_5_0 ps_5_0, D3D11)`;
   if (osFamily === 'linux' && chip) return `Mesa ${chip}`;
   return null;
 }
 
-function detectGlVendor(osFamily: HostHardware['osFamily'], chip: string | null): string | null {
+function detectGlVendor(
+  osFamily: HostHardware['osFamily'],
+  chip: string | null,
+): string | null {
   if (osFamily === 'macos') {
     if (chip && /intel/i.test(chip)) return 'Google Inc. (Intel)';
     if (chip && /amd|radeon/i.test(chip)) return 'Google Inc. (AMD)';

@@ -13,7 +13,10 @@
 // auto-topup decisions on EFFECTIVE balance, not aspirational balance.
 
 import net from 'node:net';
-import { findProxyByDisplayName, persistProxyContext } from '../skarbiec/proxies.mjs';
+import {
+  findProxyByDisplayName,
+  persistProxyContext,
+} from '../skarbiec/proxies.mjs';
 
 // CONNECT a known endpoint (api.ipify.org:443) through the proxy and report
 // the proxy's response code. 200 = auth accepted; 407 = auth rejected (no
@@ -25,8 +28,17 @@ export async function probeProxyAuth({ host, port, username, password }) {
     // route as dead.
     const sock = net.connect({ host, port });
     let done = false;
-    const finish = (result) => { if (done) return; done = true; try { sock.destroy(); } catch {} resolve(result); };
-    sock.on('error', (e) => finish({ ok: false, code: 0, error: `connect: ${e.code ?? e.message}` }));
+    const finish = (result) => {
+      if (done) return;
+      done = true;
+      try {
+        sock.destroy();
+      } catch {}
+      resolve(result);
+    };
+    sock.on('error', (e) =>
+      finish({ ok: false, code: 0, error: `connect: ${e.code ?? e.message}` }),
+    );
     sock.on('connect', () => {
       const auth = Buffer.from(`${username}:${password}`).toString('base64');
       const req = `CONNECT api.ipify.org:443 HTTP/1.1\r\nHost: api.ipify.org:443\r\nProxy-Authorization: Basic ${auth}\r\n\r\n`;
@@ -50,7 +62,8 @@ export async function probeProxyAuth({ host, port, username, password }) {
 // Resolve upstream proxy credentials and endpoint from its exact Skarbiec item.
 export async function probeCredsFor(displayName) {
   const proxy = findProxyByDisplayName(displayName);
-  if (!proxy?.host || !proxy?.port || !proxy?.username || !proxy?.password) return null;
+  if (!proxy?.host || !proxy?.port || !proxy?.username || !proxy?.password)
+    return null;
   let username = proxy.username;
   if (proxy.provider === 'brightdata') {
     const zone = proxy.context.zone ?? proxy.metadata.zone;
@@ -72,7 +85,6 @@ export async function probeCredsFor(displayName) {
 // the operator can see the discrepancy. The cron's topup decision is then
 // driven by EFFECTIVE balance (= 0 when unusable), not dashboard claim.
 export async function patchEffectiveBalance(displayName, dashboardBalance) {
-
   const creds = await probeCredsFor(displayName);
   let probe = null;
   if (creds) probe = await probeProxyAuth(creds);
@@ -88,9 +100,14 @@ export async function patchEffectiveBalance(displayName, dashboardBalance) {
   let note = null;
   if (probe && !probe.ok) {
     effective = 0;
-    if (probe.code === 407) note = `Effective balance $0: upstream returned 407 ${probe.reason ?? ''}`.trim();
-    else if (probe.code === 0) note = `Effective balance $0: probe ${probe.error}`;
-    else note = `Effective balance $0: upstream returned ${probe.code} ${probe.reason ?? ''}`.trim();
+    if (probe.code === 407)
+      note =
+        `Effective balance $0: upstream returned 407 ${probe.reason ?? ''}`.trim();
+    else if (probe.code === 0)
+      note = `Effective balance $0: probe ${probe.error}`;
+    else
+      note =
+        `Effective balance $0: upstream returned ${probe.code} ${probe.reason ?? ''}`.trim();
   }
 
   const now = new Date().toISOString();
@@ -111,6 +128,8 @@ export async function patchEffectiveBalance(displayName, dashboardBalance) {
   if (note) patch.notes = note;
   if (!creds?.id) return false;
   const persisted = persistProxyContext(creds.id, patch);
-  console.log(`[probe] ${displayName} dashboard=$${dashboardBalance} probe=${probe ? `${probe.code} ${probe.ok ? 'OK' : (probe.error ?? probe.reason)}` : 'no-creds'} effective=$${effective}`);
+  console.log(
+    `[probe] ${displayName} dashboard=$${dashboardBalance} probe=${probe ? `${probe.code} ${probe.ok ? 'OK' : (probe.error ?? probe.reason)}` : 'no-creds'} effective=$${effective}`,
+  );
   return persisted;
 }

@@ -24,19 +24,31 @@ interface ServiceCredential {
   notes: string | null;
 }
 
-export async function getByCategory(category: string): Promise<ServiceCredential[]> {
+export async function getByCategory(
+  category: string,
+): Promise<ServiceCredential[]> {
   return listServiceMetadata(category).map((record) => ({
     display_name: String(record.display_name ?? record.id),
     category: String(record.category ?? ''),
     proxy_host: record.host ? String(record.host) : null,
     proxy_port: record.port ? String(record.port) : null,
-    api_key_env_var: record.api_key_env_var ? String(record.api_key_env_var) : null,
-    balance_usd: typeof record.balance_usd === 'number' ? record.balance_usd : null,
+    api_key_env_var: record.api_key_env_var
+      ? String(record.api_key_env_var)
+      : null,
+    balance_usd:
+      typeof record.balance_usd === 'number' ? record.balance_usd : null,
     notes: record.notes ? String(record.notes) : null,
   }));
 }
 
-export async function getCaptchaCredentials(): Promise<{ anticaptcha?: string; twocaptcha?: string; capsolver?: string; capmonster?: string; nocaptcha?: string; nopecha?: string }> {
+export async function getCaptchaCredentials(): Promise<{
+  anticaptcha?: string;
+  twocaptcha?: string;
+  capsolver?: string;
+  capmonster?: string;
+  nocaptcha?: string;
+  nopecha?: string;
+}> {
   const credentials = {
     anticaptcha: readOptionalWelesServiceSecret('antiCaptcha', 'api_key'),
     twocaptcha: readOptionalWelesServiceSecret('twoCaptcha', 'api_key'),
@@ -45,7 +57,14 @@ export async function getCaptchaCredentials(): Promise<{ anticaptcha?: string; t
     nocaptcha: readOptionalWelesServiceSecret('noCaptcha', 'api_key'),
     nopecha: readOptionalWelesServiceSecret('nopecha', 'api_key'),
   };
-  console.log(`[credentials] Captcha services: ${Object.entries(credentials).filter(([, value]) => value).map(([name]) => name).join(', ') || 'none'}`);
+  console.log(
+    `[credentials] Captcha services: ${
+      Object.entries(credentials)
+        .filter(([, value]) => value)
+        .map(([name]) => name)
+        .join(', ') || 'none'
+    }`,
+  );
   return credentials;
 }
 
@@ -64,22 +83,34 @@ export interface SocialAccount {
   };
 }
 
-export async function getSocialAccount(platform: string): Promise<SocialAccount | null> {
-  const requested = process.env.WELES_LOGIN_ITEM || process.env.ACCOUNT_ITEM || '';
+export async function getSocialAccount(
+  platform: string,
+): Promise<SocialAccount | null> {
+  const requested =
+    process.env.WELES_LOGIN_ITEM || process.env.ACCOUNT_ITEM || '';
   const candidates = requested
     ? [getAccount(requested)].filter(Boolean)
     : listAccounts(platform);
-  const accounts = candidates.filter((account) => account?.platform === platform);
+  const accounts = candidates.filter(
+    (account) => account?.platform === platform,
+  );
   if (!accounts.length) return null;
   // An account is fresh when nothing marked its cookies stale, or a verified
   // login minted cookies after the mark. A stale mark is lifted by that login,
   // not by a day passing.
-  const fresh = accounts.find((account) => {
-    const staleMs = Date.parse(String(account?.metadata.cookies_stale_at ?? ''));
-    const mintMs = Date.parse(String(account?.metadata.cookies_minted_at ?? ''));
-    return !Number.isFinite(staleMs)
-      || (Number.isFinite(mintMs) && mintMs >= staleMs);
-  }) ?? accounts[0];
+  const fresh =
+    accounts.find((account) => {
+      const staleMs = Date.parse(
+        String(account?.metadata.cookies_stale_at ?? ''),
+      );
+      const mintMs = Date.parse(
+        String(account?.metadata.cookies_minted_at ?? ''),
+      );
+      return (
+        !Number.isFinite(staleMs) ||
+        (Number.isFinite(mintMs) && mintMs >= staleMs)
+      );
+    }) ?? accounts[0];
   if (!fresh) return null;
   return {
     id: fresh.id,
@@ -93,9 +124,13 @@ export async function getSocialAccount(platform: string): Promise<SocialAccount 
 export async function markCookiesStale(accountId: string): Promise<void> {
   const account = getAccount(accountId);
   if (!account) return;
-  updateAccount(accountId, { metadata: { cookies_stale_at: new Date().toISOString() } });
+  updateAccount(accountId, {
+    metadata: { cookies_stale_at: new Date().toISOString() },
+  });
   if (account.platform.toLowerCase() === 'apple') {
-    console.warn('[credentials] OWNER_ACTION_REQUIRED: Apple cookies are stale; apple_login was not submitted');
+    console.warn(
+      '[credentials] OWNER_ACTION_REQUIRED: Apple cookies are stale; apple_login was not submitted',
+    );
     return;
   }
   const runId = await submitWelesRun({
@@ -103,7 +138,9 @@ export async function markCookiesStale(accountId: string): Promise<void> {
     accountItem: account.id,
     params: { reason: 'auto-recovery from cookies-stale' },
   });
-  console.log(`[credentials] cookies stale on ${account.id}: ${account.platform}_login started as run ${runId}`);
+  console.log(
+    `[credentials] cookies stale on ${account.id}: ${account.platform}_login started as run ${runId}`,
+  );
 }
 
 type ServiceLoginContract = {
@@ -111,22 +148,31 @@ type ServiceLoginContract = {
   loginMethod: 'email_password' | 'google_sso';
 };
 
-const SERVICE_LOGIN_CONTRACTS: Readonly<Record<string, ServiceLoginContract>> = Object.freeze({
-  'bright data': { service: 'brightdataDashboard', loginMethod: 'google_sso' },
-  umami: { service: 'umamiDashboard', loginMethod: 'email_password' },
-  'google analytics': { service: 'googleSso', loginMethod: 'google_sso' },
-  linear: { service: 'linearDashboard', loginMethod: 'email_password' },
-  oxylabs: { service: 'oxylabsDashboard', loginMethod: 'google_sso' },
-  vast: { service: 'vastDashboard', loginMethod: 'email_password' },
-  'vast.ai': { service: 'vastDashboard', loginMethod: 'email_password' },
-});
+const SERVICE_LOGIN_CONTRACTS: Readonly<Record<string, ServiceLoginContract>> =
+  Object.freeze({
+    'bright data': {
+      service: 'brightdataDashboard',
+      loginMethod: 'google_sso',
+    },
+    umami: { service: 'umamiDashboard', loginMethod: 'email_password' },
+    'google analytics': { service: 'googleSso', loginMethod: 'google_sso' },
+    linear: { service: 'linearDashboard', loginMethod: 'email_password' },
+    oxylabs: { service: 'oxylabsDashboard', loginMethod: 'google_sso' },
+    vast: { service: 'vastDashboard', loginMethod: 'email_password' },
+    'vast.ai': { service: 'vastDashboard', loginMethod: 'email_password' },
+  });
 
 /**
  * Get service login material for balance checks. Email, password and the
  * Google TOTP seed come from the exact scoped Skarbiec grant for the service,
  * never from plaintext Weles DB columns.
  */
-export async function getServiceLogin(displayName: string): Promise<{ email: string; password: string; loginMethod: string; totpSecret?: string } | null> {
+export async function getServiceLogin(displayName: string): Promise<{
+  email: string;
+  password: string;
+  loginMethod: string;
+  totpSecret?: string;
+} | null> {
   const contract = SERVICE_LOGIN_CONTRACTS[displayName.trim().toLowerCase()];
   if (!contract) return null;
   const login = readOptionalWelesServiceLogin(contract.service);
@@ -139,7 +185,9 @@ export async function getServiceLogin(displayName: string): Promise<{ email: str
   };
 }
 
-const PLATFORM_ADMIN_LOGIN_CONTRACTS: Readonly<Record<string, WelesServiceSecret>> = Object.freeze({
+const PLATFORM_ADMIN_LOGIN_CONTRACTS: Readonly<
+  Record<string, WelesServiceSecret>
+> = Object.freeze({
   'platform-admin-google': 'googleWorkspaceAdmin',
   'platform-admin-linear': 'linearDashboard',
   'platform-admin-sso': 'googleWorkspaceAdmin',
@@ -147,7 +195,9 @@ const PLATFORM_ADMIN_LOGIN_CONTRACTS: Readonly<Record<string, WelesServiceSecret
 
 // Readiness is based only on an exact item+consumer+field grant. Unknown
 // platform IDs fail closed instead of probing plaintext Weles DB columns.
-export async function platformAdminSessionReady(credentialId: string): Promise<{ ready: boolean; source: string }> {
+export async function platformAdminSessionReady(
+  credentialId: string,
+): Promise<{ ready: boolean; source: string }> {
   const service = PLATFORM_ADMIN_LOGIN_CONTRACTS[credentialId];
   if (!service) return { ready: false, source: 'no_exact_skarbiec_contract' };
   try {

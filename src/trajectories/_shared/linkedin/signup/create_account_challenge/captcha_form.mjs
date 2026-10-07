@@ -9,18 +9,22 @@ export async function getCaptchaSitekey(page) {
   // widget key, so prefer the iframe src key and fall back to the form key.
   const frames = page.frames();
   for (const frame of frames) {
-    const src = await frame.evaluate(() => {
-      const f = document.querySelector('iframe[src*="recaptcha"]');
-      return f ? f.src : '';
-    }).catch(() => '');
+    const src = await frame
+      .evaluate(() => {
+        const f = document.querySelector('iframe[src*="recaptcha"]');
+        return f ? f.src : '';
+      })
+      .catch(() => '');
     const m = src.match(/[?&]k=([^&]+)/);
     if (m) return m[1];
   }
   for (const frame of frames) {
-    const formKey = await frame.evaluate(() => {
-      const el = document.querySelector('input[name="captchaSiteKey"]');
-      return el ? el.value : '';
-    }).catch(() => '');
+    const formKey = await frame
+      .evaluate(() => {
+        const el = document.querySelector('input[name="captchaSiteKey"]');
+        return el ? el.value : '';
+      })
+      .catch(() => '');
     if (formKey) return formKey;
   }
   return null;
@@ -28,7 +32,9 @@ export async function getCaptchaSitekey(page) {
 
 export async function findCaptchaTokenContext(page) {
   // Main frame first.
-  let tokenInput = page.locator('input[name="captchaUserResponseToken"]').first();
+  let tokenInput = page
+    .locator('input[name="captchaUserResponseToken"]')
+    .first();
   if (await tokenInput.count()) return { frame: page.mainFrame(), tokenInput };
   // LinkedIn wraps the challenge in iframe#captcha-internal.
   const captchaIframe = page.locator('iframe#captcha-internal').first();
@@ -36,13 +42,17 @@ export async function findCaptchaTokenContext(page) {
     const handle = await captchaIframe.elementHandle().catch(() => null);
     const frame = handle ? await handle.contentFrame().catch(() => null) : null;
     if (frame) {
-      tokenInput = frame.locator('input[name="captchaUserResponseToken"]').first();
+      tokenInput = frame
+        .locator('input[name="captchaUserResponseToken"]')
+        .first();
       if (await tokenInput.count()) return { frame, tokenInput };
     }
   }
   // Generic frame search.
   for (const frame of page.frames()) {
-    tokenInput = frame.locator('input[name="captchaUserResponseToken"]').first();
+    tokenInput = frame
+      .locator('input[name="captchaUserResponseToken"]')
+      .first();
     if (await tokenInput.count()) return { frame, tokenInput };
   }
   return null;
@@ -52,14 +62,19 @@ export async function getChallengeDataS(page) {
   // LinkedIn's challenge form carries a hidden _s input (reCAPTCHA Enterprise payload).
   // Read each frame directly; a failed frame read preserves its browser error.
   const frames = page.frames();
-  console.log(`[create_account_challenge] data-s scanning ${frames.length} frames`);
+  console.log(
+    `[create_account_challenge] data-s scanning ${frames.length} frames`,
+  );
   for (let i = 0; i < frames.length; i++) {
     const frame = frames[i];
     const v = await frame.evaluate(() => {
       const el = document.querySelector('input[name="_s"]');
       return el && el.value ? el.value : '';
     });
-    if (v) { console.log(`[create_account_challenge] data-s found in frame ${i}`); return v; }
+    if (v) {
+      console.log(`[create_account_challenge] data-s found in frame ${i}`);
+      return v;
+    }
   }
   console.log('[create_account_challenge] data-s not found in any frame');
   return null;
@@ -69,7 +84,9 @@ export async function submitLinkedinCaptchaForm(page, token, sitekey, dataS) {
   const ctx = await findCaptchaTokenContext(page);
   if (!ctx) return { ok: false, reason: 'token_input_not_found' };
   const { frame, tokenInput } = ctx;
-  console.log(`[create_account_challenge] captcha token input found in frame=${frame.url?.() ?? 'main'}`);
+  console.log(
+    `[create_account_challenge] captcha token input found in frame=${frame.url?.() ?? 'main'}`,
+  );
 
   await tokenInput.waitFor({ state: 'attached' });
 
@@ -84,7 +101,9 @@ export async function submitLinkedinCaptchaForm(page, token, sitekey, dataS) {
     try {
       const sInput = frame.locator('input[name="_s"]').first();
       if (await sInput.count()) {
-        await sInput.evaluate((el, v) => { el.value = v; }, dataS);
+        await sInput.evaluate((el, v) => {
+          el.value = v;
+        }, dataS);
         console.log('[create_account_challenge] _s value aligned');
       } else {
         await frame.evaluate((v) => {
@@ -96,7 +115,9 @@ export async function submitLinkedinCaptchaForm(page, token, sitekey, dataS) {
           input.value = v;
           form.appendChild(input);
         }, dataS);
-        console.log('[create_account_challenge] _s input injected into challenge form');
+        console.log(
+          '[create_account_challenge] _s input injected into challenge form',
+        );
       }
     } catch (e) {
       console.log(`[create_account_challenge] _s inject skipped: ${e.message}`);
@@ -105,29 +126,43 @@ export async function submitLinkedinCaptchaForm(page, token, sitekey, dataS) {
   // Ensure the form sitekey matches the key the token was generated for.
   if (sitekey) {
     try {
-      const sitekeyInput = frame.locator('input[name="captchaSiteKey"]').first();
+      const sitekeyInput = frame
+        .locator('input[name="captchaSiteKey"]')
+        .first();
       if (await sitekeyInput.count()) {
-        await sitekeyInput.evaluate((el, k) => { el.value = k; }, sitekey);
-        console.log('[create_account_challenge] captchaSiteKey aligned to token sitekey');
+        await sitekeyInput.evaluate((el, k) => {
+          el.value = k;
+        }, sitekey);
+        console.log(
+          '[create_account_challenge] captchaSiteKey aligned to token sitekey',
+        );
       }
     } catch (e) {
-      console.log(`[create_account_challenge] captchaSiteKey align skipped: ${e.message}`);
+      console.log(
+        `[create_account_challenge] captchaSiteKey align skipped: ${e.message}`,
+      );
     }
   }
   // LinkedIn's backend may validate the standard g-recaptcha-response textarea
   // rather than (or in addition to) its own wrapper input.
   try {
-    const gResp = frame.locator('textarea[name="g-recaptcha-response"]').first();
+    const gResp = frame
+      .locator('textarea[name="g-recaptcha-response"]')
+      .first();
     if (await gResp.count()) {
       await gResp.evaluate((el, t) => {
         el.value = t;
         el.dispatchEvent(new Event('input', { bubbles: true }));
         el.dispatchEvent(new Event('change', { bubbles: true }));
       }, token);
-      console.log('[create_account_challenge] captcha token also injected into g-recaptcha-response');
+      console.log(
+        '[create_account_challenge] captcha token also injected into g-recaptcha-response',
+      );
     }
   } catch (e) {
-    console.log(`[create_account_challenge] g-recaptcha-response inject skipped: ${e.message}`);
+    console.log(
+      `[create_account_challenge] g-recaptcha-response inject skipped: ${e.message}`,
+    );
   }
   console.log('[create_account_challenge] captcha token injected');
 
@@ -135,49 +170,70 @@ export async function submitLinkedinCaptchaForm(page, token, sitekey, dataS) {
   // reCAPTCHA Enterprise widget is registered on the top-level window; calling
   // the callback from the challenge iframe often misses the handler. Pass the
   // token so LinkedIn's own handler continues the createAccount flow.
-  const callbackInvoked = await page.evaluate(async ({ t, sk }) => {
-    const tryInvoke = (win) => {
-      const cfg = win.___grecaptcha_cfg;
-      if (!cfg?.clients) return false;
-      for (const id of Object.keys(cfg.clients)) {
-        const client = cfg.clients[id];
-        // Modern reCAPTCHA Enterprise stores the callback under multiple shapes.
-        const cb = client?.l || client?.callback || client?.B || client?.L || client?.K || client?.M || client?.N || client?.C || null;
-        if (typeof cb === 'function') {
-          try { cb(t); return true; } catch (e) { console.log('callback err', e?.message); }
+  const callbackInvoked = await page.evaluate(
+    async ({ t, sk }) => {
+      const tryInvoke = (win) => {
+        const cfg = win.___grecaptcha_cfg;
+        if (!cfg?.clients) return false;
+        for (const id of Object.keys(cfg.clients)) {
+          const client = cfg.clients[id];
+          // Modern reCAPTCHA Enterprise stores the callback under multiple shapes.
+          const cb =
+            client?.l ||
+            client?.callback ||
+            client?.B ||
+            client?.L ||
+            client?.K ||
+            client?.M ||
+            client?.N ||
+            client?.C ||
+            null;
+          if (typeof cb === 'function') {
+            try {
+              cb(t);
+              return true;
+            } catch (e) {
+              console.log('callback err', e?.message);
+            }
+          }
+        }
+        return false;
+      };
+      if (tryInvoke(window)) return true;
+
+      // If no standalone callback found, try to derive it from the rendered widget.
+      if (typeof grecaptcha !== 'undefined' && grecaptcha.enterprise) {
+        try {
+          await new Promise((resolve) => grecaptcha.enterprise.ready(resolve));
+          // Reset then execute with our token pre-seeded in the response getter.
+          // This lets LinkedIn's existing submit handler read our solver token
+          // as if reCAPTCHA produced it itself.
+          const originalGetResponse = grecaptcha.enterprise.getResponse;
+          grecaptcha.enterprise.getResponse = (optWidgetId) => {
+            const real = originalGetResponse(optWidgetId);
+            return real && typeof real === 'string' && real.length > 10
+              ? real
+              : t;
+          };
+          try {
+            grecaptcha.enterprise.reset?.(sk);
+            await grecaptcha.enterprise.execute(sk, { action: 'signup' });
+          } finally {
+            grecaptcha.enterprise.getResponse = originalGetResponse;
+          }
+          return true;
+        } catch (e) {
+          console.log('enterprise execute err', e?.message);
         }
       }
       return false;
-    };
-    if (tryInvoke(window)) return true;
-
-    // If no standalone callback found, try to derive it from the rendered widget.
-    if (typeof grecaptcha !== 'undefined' && grecaptcha.enterprise) {
-      try {
-        await new Promise((resolve) => grecaptcha.enterprise.ready(resolve));
-        // Reset then execute with our token pre-seeded in the response getter.
-        // This lets LinkedIn's existing submit handler read our solver token
-        // as if reCAPTCHA produced it itself.
-        const originalGetResponse = grecaptcha.enterprise.getResponse;
-        grecaptcha.enterprise.getResponse = (optWidgetId) => {
-          const real = originalGetResponse(optWidgetId);
-          return real && typeof real === 'string' && real.length > 10 ? real : t;
-        };
-        try {
-          grecaptcha.enterprise.reset?.(sk);
-          await grecaptcha.enterprise.execute(sk, { action: 'signup' });
-        } finally {
-          grecaptcha.enterprise.getResponse = originalGetResponse;
-        }
-        return true;
-      } catch (e) {
-        console.log('enterprise execute err', e?.message);
-      }
-    }
-    return false;
-  }, { t: token, sk: sitekey });
+    },
+    { t: token, sk: sitekey },
+  );
   if (callbackInvoked) {
-    console.log('[create_account_challenge] reCAPTCHA main-frame callback/execute invoked');
+    console.log(
+      '[create_account_challenge] reCAPTCHA main-frame callback/execute invoked',
+    );
     return { ok: true };
   }
 
@@ -200,21 +256,49 @@ export async function submitLinkedinCaptchaForm(page, token, sitekey, dataS) {
       const out = {
         url: location.href,
         title: document.title,
-        forms: Array.from(document.querySelectorAll('form')).map(f => ({ id: f.id, action: f.action, method: f.method, outerHTML: f.outerHTML })),
-        buttons: Array.from(document.querySelectorAll('button, input[type="submit"]')).map(b => ({ tag: b.tagName, type: b.type, id: b.id, text: b.textContent, outerHTML: b.outerHTML })),
-        recaptcha: Array.from(document.querySelectorAll('iframe[src*="recaptcha"], .g-recaptcha, textarea[name="g-recaptcha-response"], input[name="captchaUserResponseToken"]')).map(el => ({ tag: el.tagName, name: el.name, id: el.id, src: el.src, outerHTML: el.outerHTML })),
+        forms: Array.from(document.querySelectorAll('form')).map((f) => ({
+          id: f.id,
+          action: f.action,
+          method: f.method,
+          outerHTML: f.outerHTML,
+        })),
+        buttons: Array.from(
+          document.querySelectorAll('button, input[type="submit"]'),
+        ).map((b) => ({
+          tag: b.tagName,
+          type: b.type,
+          id: b.id,
+          text: b.textContent,
+          outerHTML: b.outerHTML,
+        })),
+        recaptcha: Array.from(
+          document.querySelectorAll(
+            'iframe[src*="recaptcha"], .g-recaptcha, textarea[name="g-recaptcha-response"], input[name="captchaUserResponseToken"]',
+          ),
+        ).map((el) => ({
+          tag: el.tagName,
+          name: el.name,
+          id: el.id,
+          src: el.src,
+          outerHTML: el.outerHTML,
+        })),
       };
       return out;
     });
-    console.log('[create_account_challenge] challenge iframe DOM dump:', JSON.stringify(domInfo, null, 2));
+    console.log(
+      '[create_account_challenge] challenge iframe DOM dump:',
+      JSON.stringify(domInfo, null, 2),
+    );
   } catch (e) {
     console.log(`[create_account_challenge] DOM dump failed: ${e.message}`);
   }
 
   for (const sel of buttonSelectors) {
     const btn = frame.locator(sel).filter({ visible: true }).first();
-    if (await btn.count() && await btn.isEnabled().catch(() => false)) {
-      console.log(`[create_account_challenge] clicking captcha submit button: ${sel}`);
+    if ((await btn.count()) && (await btn.isEnabled().catch(() => false))) {
+      console.log(
+        `[create_account_challenge] clicking captcha submit button: ${sel}`,
+      );
       await humanClickLocator(page, btn);
       return { ok: true };
     }
@@ -226,7 +310,9 @@ export async function submitLinkedinCaptchaForm(page, token, sitekey, dataS) {
   // real user clicking "Verify".
   const form = frame.locator('form#captcha-challenge').first();
   if (await form.count()) {
-    console.log('[create_account_challenge] submitting captcha form via form.submit()');
+    console.log(
+      '[create_account_challenge] submitting captcha form via form.submit()',
+    );
     await form.evaluate((f) => f.submit());
     await frame.waitForLoadState('load');
     return { ok: true };

@@ -5,9 +5,16 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { getSocialAccount, markCookiesStale, resolveAccountSession } from '../../../../../dist/utils/credentials.js';
+import {
+  getSocialAccount,
+  markCookiesStale,
+  resolveAccountSession,
+} from '../../../../../dist/utils/credentials.js';
 import { LABEL } from '../scan_brief.mjs';
-import { CookieJarStaleError, loadFreshCookieJarOrFail } from '../../../_shared/auth/cookie-freshness.mjs';
+import {
+  CookieJarStaleError,
+  loadFreshCookieJarOrFail,
+} from '../../../_shared/auth/cookie-freshness.mjs';
 import { listAccounts } from '../../../_shared/skarbiec/accounts.mjs';
 
 export function todayKey() {
@@ -25,7 +32,14 @@ function accountDomain(acct) {
 }
 
 function usageLedgerPath() {
-  return process.env.PANGRAM_ACCOUNT_USAGE_FILE || join(process.env.HOME || process.cwd(), '.weles', 'pangram-account-usage.json');
+  return (
+    process.env.PANGRAM_ACCOUNT_USAGE_FILE ||
+    join(
+      process.env.HOME || process.cwd(),
+      '.weles',
+      'pangram-account-usage.json',
+    )
+  );
 }
 
 function readUsageLedger() {
@@ -71,7 +85,13 @@ export function recordAccountUse(acct, stats, pool) {
   return ledger[day][key];
 }
 
-export function markAccountExhausted(acct, stats, pool, reason, creditState = null) {
+export function markAccountExhausted(
+  acct,
+  stats,
+  pool,
+  reason,
+  creditState = null,
+) {
   if (!acct) return null;
   const ledger = readUsageLedger();
   const day = todayKey();
@@ -106,8 +126,13 @@ function domainSummary(accounts) {
 async function fetchActivePangramAccounts() {
   const accounts = listAccounts('pangram');
   const accountId = process.env.ACCOUNT_ID?.trim();
-  const selected = accountId ? accounts.filter((account) => account.id === accountId) : accounts;
-  const limit = Math.max(1, Number(process.env.PANGRAM_ACCOUNT_POOL_LIMIT || '100'));
+  const selected = accountId
+    ? accounts.filter((account) => account.id === accountId)
+    : accounts;
+  const limit = Math.max(
+    1,
+    Number(process.env.PANGRAM_ACCOUNT_POOL_LIMIT || '100'),
+  );
   return {
     accounts: selected.slice(0, limit).map((account) => ({
       ...account,
@@ -121,7 +146,10 @@ function createdAtMillis(acct) {
   const raw = acct.created_at;
   if (!raw) return null;
   const parsed = Date.parse(raw);
-  if (Number.isNaN(parsed)) throw new Error(`pangram_account_created_at_unreadable account=${accountKey(acct)} value=${String(raw)}`);
+  if (Number.isNaN(parsed))
+    throw new Error(
+      `pangram_account_created_at_unreadable account=${accountKey(acct)} value=${String(raw)}`,
+    );
   return parsed;
 }
 
@@ -140,7 +168,12 @@ function sortCandidatesByUsage(accounts, ledger) {
 
 async function selectSingleConfiguredAccount() {
   const acct = await getSocialAccount('pangram');
-  if (!acct) return { account: null, reason: 'no_account', pool: { available_count: 0, total_accounts: 0 } };
+  if (!acct)
+    return {
+      account: null,
+      reason: 'no_account',
+      pool: { available_count: 0, total_accounts: 0 },
+    };
   const sessionOpts = await resolveAccountSession(acct);
   const cookies = loadFreshCookieJarOrFail(acct, {
     platform: 'pangram',
@@ -148,7 +181,13 @@ async function selectSingleConfiguredAccount() {
     currentProxyUrl: sessionOpts.proxyUrl,
     currentPersona: sessionOpts.persona,
   });
-  return { account: acct, sessionOpts, cookies, reason: null, pool: { available_count: 1, total_accounts: 1 } };
+  return {
+    account: acct,
+    sessionOpts,
+    cookies,
+    reason: null,
+    pool: { available_count: 1, total_accounts: 1 },
+  };
 }
 
 // An account of the pool either can scan now or it cannot, and "cannot" is a
@@ -165,12 +204,18 @@ async function prepareCandidateAccount(acct) {
     });
     return { usable: true, sessionOpts, cookies };
   } catch (err) {
-    const reason = err instanceof CookieJarStaleError ? (err.details?.reason || 'stale_cookies') : (err.message || 'account_unusable');
+    const reason =
+      err instanceof CookieJarStaleError
+        ? err.details?.reason || 'stale_cookies'
+        : err.message || 'account_unusable';
     if (err instanceof CookieJarStaleError && acct.id) {
       try {
         await markCookiesStale(acct.id);
       } catch (markError) {
-        throw new Error(`pangram account ${accountKey(acct)} cannot scan: ${err.message}; and its cookie jar stayed unmarked: ${markError.message}`, { cause: err });
+        throw new Error(
+          `pangram account ${accountKey(acct)} cannot scan: ${err.message}; and its cookie jar stayed unmarked: ${markError.message}`,
+          { cause: err },
+        );
       }
     }
     return { usable: false, reason: String(reason) };
@@ -178,7 +223,8 @@ async function prepareCandidateAccount(acct) {
 }
 
 export async function selectPangramAccountForRun() {
-  if (process.env.PANGRAM_ACCOUNT_ROTATION === '0') return selectSingleConfiguredAccount();
+  if (process.env.PANGRAM_ACCOUNT_ROTATION === '0')
+    return selectSingleConfiguredAccount();
 
   const fetched = await fetchActivePangramAccounts();
   const ledger = readUsageLedger();
@@ -204,13 +250,19 @@ export async function selectPangramAccountForRun() {
         },
       };
     }
-    rejected.push({ account_id: acct.id ?? null, username: acct.username ?? null, reason: prepared.reason });
+    rejected.push({
+      account_id: acct.id ?? null,
+      username: acct.username ?? null,
+      reason: prepared.reason,
+    });
   }
 
   const exhaustedByUsage = accounts.length > 0 && available.length === 0;
   return {
     account: null,
-    reason: exhaustedByUsage ? 'quota_exhausted' : (fetched.reason || 'no_fresh_account'),
+    reason: exhaustedByUsage
+      ? 'quota_exhausted'
+      : fetched.reason || 'no_fresh_account',
     pool: {
       total_accounts: accounts.length,
       available_count: ordered.length,
@@ -222,15 +274,33 @@ export async function selectPangramAccountForRun() {
   };
 }
 
-export async function injectCookies(s, acct, sessionOpts, preloadedCookies = null) {
-  const cookies = preloadedCookies || loadFreshCookieJarOrFail(acct, {
-    platform: 'pangram',
-    label: LABEL,
-    currentProxyUrl: sessionOpts.proxyUrl,
-    currentPersona: sessionOpts.persona,
-  });
-  const wanted = cookies.filter((c) => String(c.domain || '').includes('pangram.com'));
-  if (!wanted.length) throw new CookieJarStaleError('cookie_jar_no_domain_match: no pangram.com cookies', { platform: 'pangram', label: LABEL, reason: 'no_domain_match', account_id: acct?.id ?? null });
+export async function injectCookies(
+  s,
+  acct,
+  sessionOpts,
+  preloadedCookies = null,
+) {
+  const cookies =
+    preloadedCookies ||
+    loadFreshCookieJarOrFail(acct, {
+      platform: 'pangram',
+      label: LABEL,
+      currentProxyUrl: sessionOpts.proxyUrl,
+      currentPersona: sessionOpts.persona,
+    });
+  const wanted = cookies.filter((c) =>
+    String(c.domain || '').includes('pangram.com'),
+  );
+  if (!wanted.length)
+    throw new CookieJarStaleError(
+      'cookie_jar_no_domain_match: no pangram.com cookies',
+      {
+        platform: 'pangram',
+        label: LABEL,
+        reason: 'no_domain_match',
+        account_id: acct?.id ?? null,
+      },
+    );
   await s.ctx.addCookies(wanted);
   return wanted.length;
 }

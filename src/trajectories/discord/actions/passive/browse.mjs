@@ -7,7 +7,10 @@ import { detectDiscordBanSignals } from '../../../../../dist/platforms/discord/b
 const observed = declaredObservation();
 
 await runAction({
-  platform: 'discord', action: 'browse',
-  feedUrl: observed.origin, scrolls: observed.scrolls, dwellMs: observed.dwellMs,
+  platform: 'discord',
+  action: 'browse',
+  feedUrl: observed.origin,
+  scrolls: observed.scrolls,
+  dwellMs: observed.dwellMs,
   banDetector: detectDiscordBanSignals,
 });

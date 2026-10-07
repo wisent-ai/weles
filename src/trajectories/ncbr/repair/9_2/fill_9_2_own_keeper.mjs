@@ -5,41 +5,67 @@ import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 const SESSION = process.env.SESSION || 'ncbr-step-b';
-const WELES = new URL('../../../../..', import.meta.url).pathname.replace(/\/$/, '');
-const SRC = (await import('#ncbr-settings')).applicationFile('wersja_B_9.2_wskazniki.md');
+const WELES = new URL('../../../../..', import.meta.url).pathname.replace(
+  /\/$/,
+  '',
+);
+const SRC = (await import('#ncbr-settings')).applicationFile(
+  'wersja_B_9.2_wskazniki.md',
+);
 const URL = (await import('#ncbr-settings')).sectionUrl('9_2');
 
 const md = readFileSync(SRC, 'utf8');
-const clean = (s) => String(s || '').replace(/\s*<!--[\s\S]*?-->\s*/g, ' ').replace(/\s+/g, ' ').trim();
+const clean = (s) =>
+  String(s || '')
+    .replace(/\s*<!--[\s\S]*?-->\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 const numeric = (s) => clean(s).replace(/\s/g, '').replace(',', '.');
 
 function cell(block, label) {
   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const re = new RegExp(`^\\|\\s*(?:\\*\\*)?${escaped}(?:\\*\\*)?\\s*\\|\\s*([\\s\\S]*?)\\s*\\|\\s*$`, 'm');
+  const re = new RegExp(
+    `^\\|\\s*(?:\\*\\*)?${escaped}(?:\\*\\*)?\\s*\\|\\s*([\\s\\S]*?)\\s*\\|\\s*$`,
+    'm',
+  );
   const m = block.match(re);
   return m ? clean(m[1]) : '';
 }
 
 const ownBlock = md.split('## Wskaźniki własne rezultatu')[1] || '';
-const ownIndicators = ownBlock.split(/^### /m).slice(1).map((raw) => {
-  const block = `### ${raw}`;
-  return {
-    name: cell(block, 'Nazwa wskaźnika'),
-    unit: cell(block, 'Jednostka miary'),
-    baseYear: cell(block, 'Rok bazowy'),
-    baseValue: numeric(cell(block, 'Wartość bazowa')),
-    targetYear: cell(block, 'Rok osiągnięcia wartości docelowej'),
-    targetValue: numeric(cell(block, 'Wartość docelowa')),
-    methodology: cell(block, 'Opis metodologii wyliczenia wskaźnika'),
-    verification: cell(block, 'Opis sposobu weryfikacji osiągnięcia zaplanowanych wartości wskaźnika'),
-  };
-}).filter((x) => x.name && !/HarmBench|attack success rate/i.test(x.name));
+const ownIndicators = ownBlock
+  .split(/^### /m)
+  .slice(1)
+  .map((raw) => {
+    const block = `### ${raw}`;
+    return {
+      name: cell(block, 'Nazwa wskaźnika'),
+      unit: cell(block, 'Jednostka miary'),
+      baseYear: cell(block, 'Rok bazowy'),
+      baseValue: numeric(cell(block, 'Wartość bazowa')),
+      targetYear: cell(block, 'Rok osiągnięcia wartości docelowej'),
+      targetValue: numeric(cell(block, 'Wartość docelowa')),
+      methodology: cell(block, 'Opis metodologii wyliczenia wskaźnika'),
+      verification: cell(
+        block,
+        'Opis sposobu weryfikacji osiągnięcia zaplanowanych wartości wskaźnika',
+      ),
+    };
+  })
+  .filter((x) => x.name && !/HarmBench|attack success rate/i.test(x.name));
 
 function action(args, optional = false) {
-  const result = spawnSync(process.execPath, ['src/_shared/keeper/action.mjs', ...args], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' });
+  const result = spawnSync(
+    process.execPath,
+    ['src/_shared/keeper/action.mjs', ...args],
+    { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' },
+  );
   if (result.status !== 0) {
-    if (optional) return { ok: false, stdout: result.stdout, stderr: result.stderr };
-    throw new Error(`${args.join(' ')}\nstdout=${result.stdout}\nstderr=${result.stderr}`);
+    if (optional)
+      return { ok: false, stdout: result.stdout, stderr: result.stderr };
+    throw new Error(
+      `${args.join(' ')}\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+    );
   }
   return JSON.parse(result.stdout.trim());
 }
@@ -53,11 +79,15 @@ function idle(kind = 'short') {
 }
 
 function tableText() {
-  return read(`(() => Array.from(document.querySelectorAll('table')).map((t) => t.innerText.replace(/\\s+/g, ' ')).join('\\n'))()`);
+  return read(
+    `(() => Array.from(document.querySelectorAll('table')).map((t) => t.innerText.replace(/\\s+/g, ' ')).join('\\n'))()`,
+  );
 }
 
 function rowCount() {
-  return read(`(() => Array.from(document.querySelectorAll('table')).map((t) => t.querySelectorAll('tbody tr').length))()`);
+  return read(
+    `(() => Array.from(document.querySelectorAll('table')).map((t) => t.querySelectorAll('tbody tr').length))()`,
+  );
 }
 
 function fieldFill(name, value) {
@@ -79,7 +109,8 @@ function fieldFill(name, value) {
     return { ok: true, len: el.value.length, max };
   })()`;
   const out = read(js);
-  if (!out?.ok) throw new Error(`fill failed ${name}: ${out?.error || 'unknown'}`);
+  if (!out?.ok)
+    throw new Error(`fill failed ${name}: ${out?.error || 'unknown'}`);
   return out;
 }
 
@@ -116,4 +147,16 @@ for (const ind of ownIndicators) {
   added.push({ name: ind.name, saved, filled });
 }
 
-console.log(JSON.stringify({ ok: true, ownSource: ownIndicators.map((x) => x.name), added, rowCount: rowCount(), table: tableText() }, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      ok: true,
+      ownSource: ownIndicators.map((x) => x.name),
+      added,
+      rowCount: rowCount(),
+      table: tableText(),
+    },
+    null,
+    2,
+  ),
+);

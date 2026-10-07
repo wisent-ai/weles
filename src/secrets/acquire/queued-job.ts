@@ -22,13 +22,22 @@ import type { AcquireSecretRequest } from './request.js';
 import { ENTRA_PROVIDER, type SecretDefinition } from './catalog.js';
 import { objectiveFor, purposeFor } from './queued-job/objective.js';
 
-export function paramsFor(def: SecretDefinition, request: AcquireSecretRequest): Record<string, unknown> {
+export function paramsFor(
+  def: SecretDefinition,
+  request: AcquireSecretRequest,
+): Record<string, unknown> {
   const autoPromote = request.autoPromoteTrajectory !== false;
-  const accountEmail = request.accountEmail?.trim().toLowerCase()
-    ?? request.goal?.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]?.toLowerCase()
-    ?? '';
+  const accountEmail =
+    request.accountEmail?.trim().toLowerCase() ??
+    request.goal
+      ?.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]
+      ?.toLowerCase() ??
+    '';
   const contract = acquiredSecretContract(def.secret);
-  if (!contract) throw new Error(`missing exact Skarbiec acquisition contract for ${def.secret}`);
+  if (!contract)
+    throw new Error(
+      `missing exact Skarbiec acquisition contract for ${def.secret}`,
+    );
   return {
     url: def.formUrl,
     objective: objectiveFor(def, request, accountEmail),
@@ -52,7 +61,10 @@ export function paramsFor(def: SecretDefinition, request: AcquireSecretRequest):
       secret_source_origin: contract.sourceOrigin ?? def.sourceOrigin ?? '',
       // For microsoft_entra the directory block below is the only source of the
       // identity, so the flat binding tenant stays empty for that provider.
-      tenant_id: def.provider === ENTRA_PROVIDER ? undefined : (request.tenantId ?? undefined),
+      tenant_id:
+        def.provider === ENTRA_PROVIDER
+          ? undefined
+          : (request.tenantId ?? undefined),
       ...(def.provider === ENTRA_PROVIDER
         ? {
             // The directory identity is the item's own write-once contract, not a
@@ -65,7 +77,8 @@ export function paramsFor(def: SecretDefinition, request: AcquireSecretRequest):
             directory: {
               provider: ENTRA_PROVIDER,
               tenant_id: request.tenantId?.trim().toLowerCase() ?? '',
-              principal_object_id: request.principalObjectId?.trim().toLowerCase() ?? '',
+              principal_object_id:
+                request.principalObjectId?.trim().toLowerCase() ?? '',
               account_upn: request.accountUpn?.trim().toLowerCase() ?? '',
             },
             weles_tenant_id: null,
@@ -86,6 +99,15 @@ export function paramsFor(def: SecretDefinition, request: AcquireSecretRequest):
 }
 
 /** Start an acquisition action as a detached Weles run and return its run id. */
-export function queueAction(action: string, accountItem: string, params: Record<string, unknown>, priority = 0): Promise<string> {
-  return submitWelesRun({ action, accountItem, params: { ...params, priority } });
+export function queueAction(
+  action: string,
+  accountItem: string,
+  params: Record<string, unknown>,
+  priority = 0,
+): Promise<string> {
+  return submitWelesRun({
+    action,
+    accountItem,
+    params: { ...params, priority },
+  });
 }

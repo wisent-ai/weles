@@ -12,9 +12,21 @@
     // 1. Defensively remove Chrome-only globals that real Firefox does not
     //    expose. A UA-says-Firefox session carrying these would flag any
     //    bot classifier that cross-checks UA against visible API surfaces.
-    for (const name of ['Sanitizer', 'AnimationTrigger', 'TimelineTrigger', 'TimelineTriggerRange']) {
-      try { if (name in window) delete window[name]; } catch (_) {}
-      try { Object.defineProperty(window, name, { value: undefined, configurable: true }); } catch (_) {}
+    for (const name of [
+      'Sanitizer',
+      'AnimationTrigger',
+      'TimelineTrigger',
+      'TimelineTriggerRange',
+    ]) {
+      try {
+        if (name in window) delete window[name];
+      } catch (_) {}
+      try {
+        Object.defineProperty(window, name, {
+          value: undefined,
+          configurable: true,
+        });
+      } catch (_) {}
     }
 
     // 2. If the config supplied Firefox-expected navigator surfaces (oscpu,
@@ -26,12 +38,22 @@
       const nav = __weles.navigator;
       if (nav.oscpu && typeof navigator.oscpu === 'undefined') {
         try {
-          Object.defineProperty(Navigator.prototype, 'oscpu', { get() { return nav.oscpu; }, configurable: true });
+          Object.defineProperty(Navigator.prototype, 'oscpu', {
+            get() {
+              return nav.oscpu;
+            },
+            configurable: true,
+          });
         } catch (_) {}
       }
       if (nav.buildID && typeof navigator.buildID === 'undefined') {
         try {
-          Object.defineProperty(Navigator.prototype, 'buildID', { get() { return nav.buildID; }, configurable: true });
+          Object.defineProperty(Navigator.prototype, 'buildID', {
+            get() {
+              return nav.buildID;
+            },
+            configurable: true,
+          });
         } catch (_) {}
       }
     }
@@ -40,8 +62,13 @@
     //    surface __playwright_* or _playwright_* markers on window; delete
     //    defensively.
     for (const key of Object.keys(window)) {
-      if (typeof key === 'string' && (key.indexOf('__playwright') === 0 || key.indexOf('_playwright_') === 0)) {
-        try { delete window[key]; } catch (_) {}
+      if (
+        typeof key === 'string' &&
+        (key.indexOf('__playwright') === 0 || key.indexOf('_playwright_') === 0)
+      ) {
+        try {
+          delete window[key];
+        } catch (_) {}
       }
     }
   } catch (_) {

@@ -6,7 +6,11 @@ export const STATUS_SCHEMA = 'weles.task-status.v1';
 // `pending_review` or `rejected` status here: a submission this service
 // refuses is an HTTP PublicTaskError with no task and no receipt, never a
 // rejected outcome.
-export const TERMINAL_STATUSES = Object.freeze({ succeeded: true, failed: true, cancelled: true });
+export const TERMINAL_STATUSES = Object.freeze({
+  succeeded: true,
+  failed: true,
+  cancelled: true,
+});
 const NONTERMINAL_STATUSES = Object.freeze({ queued: true, running: true });
 
 export class PublicTaskError extends Error {
@@ -30,7 +34,9 @@ export function publicStatus(task, dispatcher) {
   // introduced here without teaching those maps would reach Spis as an
   // unsupported status mid-crawl, so it fails at this boundary instead.
   if (!terminal && !Object.hasOwn(NONTERMINAL_STATUSES, task.status)) {
-    throw new Error(`public task status is outside the declared wire vocabulary: ${task.status}`);
+    throw new Error(
+      `public task status is outside the declared wire vocabulary: ${task.status}`,
+    );
   }
   if (terminal && !task.receipt) {
     throw new Error('terminal public task has no retained-evidence receipt');
@@ -60,7 +66,10 @@ export function publicStatus(task, dispatcher) {
 
 export function publicTaskErrorResponse(error) {
   if (error instanceof PublicTaskError) {
-    return { status: error.status, payload: { error: error.code, message: error.message } };
+    return {
+      status: error.status,
+      payload: { error: error.code, message: error.message },
+    };
   }
   return null;
 }

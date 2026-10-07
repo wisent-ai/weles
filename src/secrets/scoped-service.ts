@@ -2,28 +2,61 @@ import { isUtf8 } from 'node:buffer';
 import { spawnSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { SERVICE_CONTRACTS, resolvedAcquiredSecretContract, isWelesAcquiredSourceOrigin } from './scoped-service/contracts.js';
+import {
+  SERVICE_CONTRACTS,
+  resolvedAcquiredSecretContract,
+  isWelesAcquiredSourceOrigin,
+} from './scoped-service/contracts.js';
 import type { WelesAcquiredSecret } from './scoped-service/contracts.js';
-import { checkedTokenFile, skarbiecEndpoint, readScopedField, readAcquiredField, deployedFile,
-  welesManagedCredentialReaderMismatch } from './scoped-service/transport.js';
-import { localCredentialsFile, writeLocalFields } from './scoped-service/local-file.js';
+import {
+  checkedTokenFile,
+  skarbiecEndpoint,
+  readScopedField,
+  readAcquiredField,
+  deployedFile,
+  welesManagedCredentialReaderMismatch,
+} from './scoped-service/transport.js';
+import {
+  localCredentialsFile,
+  writeLocalFields,
+} from './scoped-service/local-file.js';
 import { SkarbiecAcquisitionError } from './scoped-service/acquisition-failure.js';
 import type { WelesServiceSecret } from './scoped-service/transport.js';
-export { acquiredSecretContract, isWelesAcquiredSourceOrigin, isWelesManagedPasswordItem } from './scoped-service/contracts.js';
-export type { WelesAcquiredSecret, WelesAcquiredSecretContract } from './scoped-service/contracts.js';
-export { hasWelesAcquiredSecretWriter, hasWelesManagedCredentialReader, welesManagedCredentialReaderMismatch } from './scoped-service/transport.js';
+export {
+  acquiredSecretContract,
+  isWelesAcquiredSourceOrigin,
+  isWelesManagedPasswordItem,
+} from './scoped-service/contracts.js';
+export type {
+  WelesAcquiredSecret,
+  WelesAcquiredSecretContract,
+} from './scoped-service/contracts.js';
+export {
+  hasWelesAcquiredSecretWriter,
+  hasWelesManagedCredentialReader,
+  welesManagedCredentialReaderMismatch,
+} from './scoped-service/transport.js';
 export type { WelesServiceSecret } from './scoped-service/transport.js';
 
-
-
-export function readOptionalWelesServiceSecret(serviceName: WelesServiceSecret, field: string): string | undefined {
+export function readOptionalWelesServiceSecret(
+  serviceName: WelesServiceSecret,
+  field: string,
+): string | undefined {
   const service = SERVICE_CONTRACTS[serviceName];
   if (!Object.prototype.hasOwnProperty.call(service.fields, field)) {
-    throw new Error(`field is not in the exact Weles service contract: ${serviceName}/${field}`);
+    throw new Error(
+      `field is not in the exact Weles service contract: ${serviceName}/${field}`,
+    );
   }
   // A service credential is the item playing the role the contract names, so
   // the catalog and Skarbiec are asked for role:<role> and no item is named.
-  return readAcquiredField(service.consumer, service.item, field, null, `role:${service.item}`);
+  return readAcquiredField(
+    service.consumer,
+    service.item,
+    field,
+    null,
+    `role:${service.item}`,
+  );
 }
 
 export function readWelesManagedCredential(
@@ -33,14 +66,25 @@ export function readWelesManagedCredential(
 ): string | undefined {
   const contract = resolvedAcquiredSecretContract(secretName);
   if (!contract || contract.field !== field || !contract.readerConsumer) {
-    throw new Error(`field is not in an exact readable Weles credential contract: ${secretName}/${field}`);
+    throw new Error(
+      `field is not in an exact readable Weles credential contract: ${secretName}/${field}`,
+    );
   }
   // Before the helper is spawned, because its refusal names only the field this
   // contract asked for and so reads as "nothing is granted" when the catalog in
   // force grants the same item on another field.
-  const mismatch = welesManagedCredentialReaderMismatch(secretName, field, tenantId);
+  const mismatch = welesManagedCredentialReaderMismatch(
+    secretName,
+    field,
+    tenantId,
+  );
   if (mismatch) throw new Error(mismatch);
-  return readAcquiredField(contract.readerConsumer, contract.item, field, tenantId);
+  return readAcquiredField(
+    contract.readerConsumer,
+    contract.item,
+    field,
+    tenantId,
+  );
 }
 
 export interface PinnedProxyCredential {
@@ -48,7 +92,9 @@ export interface PinnedProxyCredential {
   password: string;
 }
 
-export function readOptionalPinnedProxyCredential(reference: string): PinnedProxyCredential | undefined {
+export function readOptionalPinnedProxyCredential(
+  reference: string,
+): PinnedProxyCredential | undefined {
   const normalized = reference.toLowerCase();
   if (normalized.length !== 16 || /[^a-f\d]/.test(normalized)) {
     throw new Error('invalid pinned proxy credential reference');
@@ -69,14 +115,23 @@ export function readOptionalPinnedProxyCredential(reference: string): PinnedProx
 }
 
 function isMissingOptionalAcquisitionField(error: unknown): boolean {
-  return error instanceof SkarbiecAcquisitionError && error.reason === 'field_not_present';
+  return (
+    error instanceof SkarbiecAcquisitionError &&
+    error.reason === 'field_not_present'
+  );
 }
 
-export function readOptionalWelesServiceLogin(serviceName: WelesServiceSecret): { email: string; password: string; totpSecret?: string } | null {
+export function readOptionalWelesServiceLogin(
+  serviceName: WelesServiceSecret,
+): { email: string; password: string; totpSecret?: string } | null {
   const service = SERVICE_CONTRACTS[serviceName];
-  if (!Object.prototype.hasOwnProperty.call(service.fields, 'username')
-      || !Object.prototype.hasOwnProperty.call(service.fields, 'password')) {
-    throw new Error(`service is not an exact Weles login contract: ${serviceName}`);
+  if (
+    !Object.prototype.hasOwnProperty.call(service.fields, 'username') ||
+    !Object.prototype.hasOwnProperty.call(service.fields, 'password')
+  ) {
+    throw new Error(
+      `service is not an exact Weles login contract: ${serviceName}`,
+    );
   }
   const email = readOptionalWelesServiceSecret(serviceName, 'username');
   const password = readOptionalWelesServiceSecret(serviceName, 'password');
@@ -100,7 +155,11 @@ const isDigit = (byte: number) => byte >= 48 && byte <= 57;
 const isUpper = (byte: number) => byte >= 65 && byte <= 90;
 const isLower = (byte: number) => byte >= 97 && byte <= 122;
 
-function isAllowedCredentialByte(byte: number): { allowed: boolean; letter: boolean; digit: boolean } {
+function isAllowedCredentialByte(byte: number): {
+  allowed: boolean;
+  letter: boolean;
+  digit: boolean;
+} {
   const digit = isDigit(byte);
   const letter = isUpper(byte) || isLower(byte);
   const punctuation = byte === 0x2e || byte === 0x2d || byte === 0x5f; // . - _
@@ -108,7 +167,9 @@ function isAllowedCredentialByte(byte: number): { allowed: boolean; letter: bool
 }
 
 function hasPrefix(secret: Buffer, prefix: string): boolean {
-  return secret.subarray(0, Buffer.byteLength(prefix)).equals(Buffer.from(prefix, 'ascii'));
+  return secret
+    .subarray(0, Buffer.byteLength(prefix))
+    .equals(Buffer.from(prefix, 'ascii'));
 }
 
 // The lower bounds are minimum strengths; nothing caps how long a credential
@@ -147,13 +208,15 @@ function matchesAcquiredSecretShape(shape: string, secret: Buffer): boolean {
     return secret.length >= 20 && hasLetter && hasDigit;
   }
   if (shape === 'github') {
-    return secret.length >= 24
-      && (hasPrefix(secret, 'github_pat_')
-        || hasPrefix(secret, 'ghp_')
-        || hasPrefix(secret, 'gho_')
-        || hasPrefix(secret, 'ghu_')
-        || hasPrefix(secret, 'ghs_')
-        || hasPrefix(secret, 'ghr_'));
+    return (
+      secret.length >= 24 &&
+      (hasPrefix(secret, 'github_pat_') ||
+        hasPrefix(secret, 'ghp_') ||
+        hasPrefix(secret, 'gho_') ||
+        hasPrefix(secret, 'ghu_') ||
+        hasPrefix(secret, 'ghs_') ||
+        hasPrefix(secret, 'ghr_'))
+    );
   }
   if (shape === 'opaque-token') {
     return secret.length >= 20 && hasLetter && hasDigit;
@@ -161,9 +224,14 @@ function matchesAcquiredSecretShape(shape: string, secret: Buffer): boolean {
   return shape === 'supabase' && hasPrefix(secret, 'sbp_');
 }
 
-export function isWelesAcquiredSecretValue(secretName: WelesAcquiredSecret, secret: Buffer): boolean {
+export function isWelesAcquiredSecretValue(
+  secretName: WelesAcquiredSecret,
+  secret: Buffer,
+): boolean {
   const contract = resolvedAcquiredSecretContract(secretName);
-  return Boolean(contract && matchesAcquiredSecretShape(contract.shape, secret));
+  return Boolean(
+    contract && matchesAcquiredSecretShape(contract.shape, secret),
+  );
 }
 
 export function writeWelesAcquiredSecret(
@@ -181,26 +249,47 @@ export function writeWelesAcquiredSecret(
 ): void {
   const contract = resolvedAcquiredSecretContract(secretName);
   if (!contract || field !== contract.field) {
-    throw new Error(`secret target is not in the exact Weles acquisition contract: ${secretName}/${field}`);
+    throw new Error(
+      `secret target is not in the exact Weles acquisition contract: ${secretName}/${field}`,
+    );
   }
   if (!isWelesAcquiredSecretValue(secretName, secret)) {
-    throw new Error(`acquired value does not match the exact Weles acquisition contract: ${secretName}/${field}`);
+    throw new Error(
+      `acquired value does not match the exact Weles acquisition contract: ${secretName}/${field}`,
+    );
   }
   const local = localCredentialsFile();
-  const tokenFile = local ? '' : checkedTokenFile(contract.writerTokenFile, tenantId);
-  if (tokenFile === null) throw new Error(`required scoped Skarbiec writer token is unavailable for ${secretName}`);
+  const tokenFile = local
+    ? ''
+    : checkedTokenFile(contract.writerTokenFile, tenantId);
+  if (tokenFile === null)
+    throw new Error(
+      `required scoped Skarbiec writer token is unavailable for ${secretName}`,
+    );
   const requestId = context.requestId ?? '';
   const operation = context.operation ?? '';
-  if (!/^[a-f0-9]{64}$/i.test(requestId)
-      || !['acquire', 'adopt', 'rotate', 'reset', 'verify', 'rollback'].includes(operation)) {
-    throw new Error(`credential write requires an exact request id and operation for ${secretName}`);
+  if (
+    !/^[a-f0-9]{64}$/i.test(requestId) ||
+    !['acquire', 'adopt', 'rotate', 'reset', 'verify', 'rollback'].includes(
+      operation,
+    )
+  ) {
+    throw new Error(
+      `credential write requires an exact request id and operation for ${secretName}`,
+    );
   }
   // A reset commits a value whose predecessor was never known to us, an adopt
   // commits one the operator already knew, and a rollback restores one: all
   // three only make sense for a password contract.
-  if ((operation === 'rollback' || operation === 'reset' || operation === 'adopt')
-      && contract.shape !== 'password') {
-    throw new Error(`${operation} writes are only allowed for password contracts: ${secretName}`);
+  if (
+    (operation === 'rollback' ||
+      operation === 'reset' ||
+      operation === 'adopt') &&
+    contract.shape !== 'password'
+  ) {
+    throw new Error(
+      `${operation} writes are only allowed for password contracts: ${secretName}`,
+    );
   }
   if (!isUtf8(secret)) {
     throw new Error(`credential value must be valid UTF-8 text: ${secretName}`);
@@ -211,7 +300,9 @@ export function writeWelesAcquiredSecret(
   // Skarbiec matches it against the signup origin recorded for the operation.
   const capturedOrigin = contract.sourceOrigin ?? context.sourceOrigin ?? '';
   if (!isWelesAcquiredSourceOrigin(capturedOrigin)) {
-    throw new Error(`credential write requires one exact captured https origin for ${secretName}`);
+    throw new Error(
+      `credential write requires one exact captured https origin for ${secretName}`,
+    );
   }
   // Skarbiec records the signup origin a generic acquire declared and refuses the
   // managed write unless the body echoes exactly that string; it equally refuses a
@@ -219,7 +310,9 @@ export function writeWelesAcquiredSecret(
   // travels only when one was declared and only as the exact recorded value.
   const declaredOrigin = context.declaredOrigin ?? '';
   if (declaredOrigin && declaredOrigin !== capturedOrigin) {
-    throw new Error(`captured origin does not match the declared signup origin for ${secretName}`);
+    throw new Error(
+      `captured origin does not match the declared signup origin for ${secretName}`,
+    );
   }
   const contextValue = {
     provider: capturedOrigin,
@@ -232,7 +325,9 @@ export function writeWelesAcquiredSecret(
   if (contract.shape === 'password') {
     const accountEmail = context.accountEmail?.trim().toLowerCase() ?? '';
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(accountEmail)) {
-      throw new Error(`Microsoft password write requires one valid account email for ${secretName}`);
+      throw new Error(
+        `Microsoft password write requires one valid account email for ${secretName}`,
+      );
     }
     kind = 'login';
     fields = {
@@ -249,34 +344,42 @@ export function writeWelesAcquiredSecret(
     writeLocalFields(local, contract.item, fields, tenantId);
     return;
   }
-  const input = Buffer.from(JSON.stringify({
-    schema: 'skarbiec.item.v2',
-    kind,
-    fields,
-    context: contextValue,
-    ...(declaredOrigin ? { capture_origin: declaredOrigin } : {}),
-  }), 'utf8');
+  const input = Buffer.from(
+    JSON.stringify({
+      schema: 'skarbiec.item.v2',
+      kind,
+      fields,
+      context: contextValue,
+      ...(declaredOrigin ? { capture_origin: declaredOrigin } : {}),
+    }),
+    'utf8',
+  );
   try {
-    const helper = process.env.SKARBIEC_WELES_WRITER_COMMAND?.trim()
-      || deployedFile('skarbiec-write.mjs');
-    const result = spawnSync(process.execPath, [
-      helper,
-      contract.writerConsumer,
-      contract.item,
-      contract.field,
-      tokenFile,
-      operation,
-      requestId,
-    ], {
-      input,
-      maxBuffer: Infinity,
-      stdio: ['pipe', 'ignore', 'pipe'],
-      env: {
-        HOME: homedir(),
-        PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
-        WC_SKARBIEC_URL: skarbiecEndpoint(tenantId),
+    const helper =
+      process.env.SKARBIEC_WELES_WRITER_COMMAND?.trim() ||
+      deployedFile('skarbiec-write.mjs');
+    const result = spawnSync(
+      process.execPath,
+      [
+        helper,
+        contract.writerConsumer,
+        contract.item,
+        contract.field,
+        tokenFile,
+        operation,
+        requestId,
+      ],
+      {
+        input,
+        maxBuffer: Infinity,
+        stdio: ['pipe', 'ignore', 'pipe'],
+        env: {
+          HOME: homedir(),
+          PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
+          WC_SKARBIEC_URL: skarbiecEndpoint(tenantId),
+        },
       },
-    });
+    );
     if (result.error || result.status !== 0) {
       const stderr = Buffer.isBuffer(result.stderr)
         ? result.stderr.toString('utf8')
@@ -285,9 +388,11 @@ export function writeWelesAcquiredSecret(
       const transport = stderr.match(
         /(?:ECONNREFUSED|ECONNRESET|UND_ERR_[A-Z_]+)[^\r\n]*/,
       )?.[0];
-      const safeReason = stderr.match(/Error: ([^\r\n]+)/)?.[1]
+      const safeReason = stderr
+        .match(/Error: ([^\r\n]+)/)?.[1]
         ?.replace(/[A-Za-z0-9_-]{32,}/g, '[redacted]');
-      const detail = httpStatus ?? transport ?? safeReason ?? 'without diagnostic detail';
+      const detail =
+        httpStatus ?? transport ?? safeReason ?? 'without diagnostic detail';
       throw new Error(
         `scoped Skarbiec write failed for ${secretName}/${field} via ${skarbiecEndpoint(tenantId)}: ${detail}`,
       );

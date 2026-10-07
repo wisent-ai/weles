@@ -3,19 +3,25 @@ import { approveQr } from './_qr_approve.mjs';
 import { humanFill } from '../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { pageSettled } from '../_shared/page/settled.mjs';
-import { autocompleteField, clickFirst, control, field } from '../_shared/page/offers.mjs';
+import {
+  autocompleteField,
+  clickFirst,
+  control,
+  field,
+} from '../_shared/page/offers.mjs';
 
-const SIGNUP_URL = 'https://accounts.google.com/signup/v2/createaccount?biz=false&cc=US&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue&dsh=S0&flowEntry=SignUp&flowName=GlifWebSignIn&hl=en&service=youtube';
+const SIGNUP_URL =
+  'https://accounts.google.com/signup/v2/createaccount?biz=false&cc=US&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue&dsh=S0&flowEntry=SignUp&flowName=GlifWebSignIn&hl=en&service=youtube';
 
 const BASE_PROXY = process.env.PROXY_URL || 'residential';
 
 // Rotate the sticky-session id per attempt; the URL forms of PacketStream,
 // IPRoyal, Pingproxies and Oxylabs embed it as session-NNNN / sessid-NNNN / _s_NNNN.
 function freshProxy() {
-  if (!BASE_PROXY || BASE_PROXY === 'none' || !BASE_PROXY.startsWith('http')) return BASE_PROXY;
+  if (!BASE_PROXY || BASE_PROXY === 'none' || !BASE_PROXY.startsWith('http'))
+    return BASE_PROXY;
   const sid = Math.floor(Math.random() * 9_000_000 + 1_000_000);
-  return BASE_PROXY
-    .replace(/session-\d+/g, `session-${sid}`)
+  return BASE_PROXY.replace(/session-\d+/g, `session-${sid}`)
     .replace(/sessid-\d+/g, `sessid-${sid}`)
     .replace(/_s_\d+/g, `_s_${sid}`);
 }
@@ -24,7 +30,9 @@ function freshProxy() {
 // role="button" with the localized caption; the accessible name is the one
 // stable handle. False when the page offers none.
 async function clickNext(page) {
-  const next = page.getByRole('button', { name: /^(next|weiter|suivant|siguiente)$/i }).first();
+  const next = page
+    .getByRole('button', { name: /^(next|weiter|suivant|siguiente)$/i })
+    .first();
   if (!(await next.isVisible())) return false;
   // Direct locator click: the session-idle timer expires during a longer wait.
   await humanClickLocator(page, next);
@@ -40,7 +48,9 @@ function hostOf(page) {
 async function phoneInput(page) {
   const tel = await autocompleteField(page, 'tel');
   if (tel) return tel;
-  const candidates = page.locator('input[type="tel"]:not([name="day"]):not([name="month"]):not([name="year"]):not(#day):not(#month):not(#year)');
+  const candidates = page.locator(
+    'input[type="tel"]:not([name="day"]):not([name="month"]):not([name="year"]):not(#day):not(#month):not(#year)',
+  );
   const first = candidates.first();
   return (await first.isVisible()) ? first : null;
 }
@@ -51,14 +61,21 @@ async function signup(s) {
   const gmailUser = id.username.toLowerCase().replace(/[^a-z0-9]/g, '');
   const firstName = id.firstName;
   const lastName = id.lastName;
-  console.log(`[google] identity: ${firstName} ${lastName} / ${gmailUser}@gmail.com`);
+  console.log(
+    `[google] identity: ${firstName} ${lastName} / ${gmailUser}@gmail.com`,
+  );
 
   // A tunnel or proxy failure on the first request means this sticky exit is
   // dead; the outer loop rotates to a fresh one on `proxy_dead`.
-  const isProxyErr = (m) => /TUNNEL_CONNECTION_FAILED|PROXY_CONNECTION_FAILED|ABORTED|EMPTY_RESPONSE|502|nav_timed_out/.test(m ?? '');
+  const isProxyErr = (m) =>
+    /TUNNEL_CONNECTION_FAILED|PROXY_CONNECTION_FAILED|ABORTED|EMPTY_RESPONSE|502|nav_timed_out/.test(
+      m ?? '',
+    );
   try {
     const r = await page.goto(SIGNUP_URL, { waitUntil: 'commit' });
-    console.log(`[google] signup nav ok: status=${r?.status()} url=${r?.url()}`);
+    console.log(
+      `[google] signup nav ok: status=${r?.status()} url=${r?.url()}`,
+    );
   } catch (e) {
     console.log(`[google] signup nav err: ${e.message}`);
     if (isProxyErr(e.message)) throw new Error('proxy_dead');
@@ -80,17 +97,27 @@ async function signup(s) {
   const birthMonth = Number(id.birthMonth) || 6;
   await humanClickLocator(page, page.locator('#month').first());
   await pageSettled(page);
-  await page.locator(`li[data-value="${birthMonth}"]`).first().click({ force: true });
+  await page
+    .locator(`li[data-value="${birthMonth}"]`)
+    .first()
+    .click({ force: true });
   await pageSettled(page);
   const dayLoc = page.locator('input[name="day"], input#day').first();
   if (await dayLoc.count()) await humanFill(page, dayLoc, String(id.birthDay));
   await pageSettled(page);
   const yearLoc = page.locator('input[name="year"], input#year').first();
-  if (await yearLoc.count()) await humanFill(page, yearLoc, String(id.birthYear));
+  if (await yearLoc.count())
+    await humanFill(page, yearLoc, String(id.birthYear));
   await pageSettled(page);
-  await humanClickLocator(page, page.getByRole('combobox', { name: /^gender$/i }));
+  await humanClickLocator(
+    page,
+    page.getByRole('combobox', { name: /^gender$/i }),
+  );
   await pageSettled(page);
-  await humanClickLocator(page, page.getByRole('option', { name: /rather not say/i }));
+  await humanClickLocator(
+    page,
+    page.getByRole('option', { name: /rather not say/i }),
+  );
   await pageSettled(page);
 
   const urlBefore = page.url();
@@ -102,15 +129,21 @@ async function signup(s) {
   }
 
   console.log(`[google] step 4: username ${gmailUser}`);
-  if (await clickFirst(page, 'button', ['Create your own Gmail address'])) await pageSettled(page);
+  if (await clickFirst(page, 'button', ['Create your own Gmail address']))
+    await pageSettled(page);
   await s.fill('Username', gmailUser);
   await pageSettled(page);
   await clickNext(page);
   await pageSettled(page);
 
   // A username Google refuses is marked invalid on its own input.
-  const username = page.locator('input[name="Username"], input[aria-label="Username"]').first();
-  if ((await username.isVisible()) && (await username.getAttribute('aria-invalid')) === 'true') {
+  const username = page
+    .locator('input[name="Username"], input[aria-label="Username"]')
+    .first();
+  if (
+    (await username.isVisible()) &&
+    (await username.getAttribute('aria-invalid')) === 'true'
+  ) {
     const retry = gmailUser + String(Math.floor(Math.random() * 900 + 100));
     console.log(`[google] username refused, retrying ${retry}`);
     await s.fill('Username', retry);
@@ -132,11 +165,25 @@ async function signup(s) {
   let phone = await phoneInput(page);
   if (!phone) {
     // Whatever alternative the page offers that leads to a phone field.
-    for (const alt of ['Try another way', "Can't scan", 'Use phone instead', 'Another method', 'Text message', 'Call me', 'Verify by phone']) {
-      if (await clickFirst(page, 'button', [alt]) || await clickFirst(page, 'link', [alt])) {
+    for (const alt of [
+      'Try another way',
+      "Can't scan",
+      'Use phone instead',
+      'Another method',
+      'Text message',
+      'Call me',
+      'Verify by phone',
+    ]) {
+      if (
+        (await clickFirst(page, 'button', [alt])) ||
+        (await clickFirst(page, 'link', [alt]))
+      ) {
         await pageSettled(page);
         phone = await phoneInput(page);
-        if (phone) { console.log(`[google] got phone input via "${alt}"`); break; }
+        if (phone) {
+          console.log(`[google] got phone input via "${alt}"`);
+          break;
+        }
       }
     }
   }
@@ -155,8 +202,13 @@ async function signup(s) {
     while (!phone) {
       phone = await phoneInput(page);
       if (phone) break;
-      if (!(await clickNext(page)) && !(await clickFirst(page, 'button', ['Continue', 'Use phone number']))) {
-        throw new Error(`google offers no phone field and no control to continue at ${page.url()}`);
+      if (
+        !(await clickNext(page)) &&
+        !(await clickFirst(page, 'button', ['Continue', 'Use phone number']))
+      ) {
+        throw new Error(
+          `google offers no phone field and no control to continue at ${page.url()}`,
+        );
       }
       await pageSettled(page);
     }
@@ -177,9 +229,13 @@ async function signup(s) {
 
   console.log('[google] waiting for SMS code...');
   const code = await s.pollSmsCode();
-  if (!code || code.startsWith('error') || code === 'no code received') throw new Error(`sms code not delivered: ${code}`);
+  if (!code || code.startsWith('error') || code === 'no code received')
+    throw new Error(`sms code not delivered: ${code}`);
   console.log(`[google] SMS code: ${code}`);
-  const codeField = (await field(page, 'code')) ?? (await autocompleteField(page, 'one-time-code')) ?? (await phoneInput(page));
+  const codeField =
+    (await field(page, 'code')) ??
+    (await autocompleteField(page, 'one-time-code')) ??
+    (await phoneInput(page));
   if (!codeField) throw new Error('google offers no field for the SMS code');
   await humanFill(page, codeField, code);
   await pageSettled(page);
@@ -191,20 +247,40 @@ async function signup(s) {
   // Google shows are walked; a page with no control to continue is the failure.
   for (;;) {
     const host = hostOf(page);
-    if (host === 'myaccount.google.com' || host === 'mail.google.com' || host.endsWith('youtube.com')) break;
-    if (await control(page, 'button', 'I agree') || await control(page, 'button', 'Accept')) {
+    if (
+      host === 'myaccount.google.com' ||
+      host === 'mail.google.com' ||
+      host.endsWith('youtube.com')
+    )
+      break;
+    if (
+      (await control(page, 'button', 'I agree')) ||
+      (await control(page, 'button', 'Accept'))
+    ) {
       await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
       await pageSettled(page);
     }
-    if (await clickFirst(page, 'button', ['Skip', 'I agree', 'Accept', 'Confirm'])) { await pageSettled(page); continue; }
-    if (!(await clickNext(page))) throw new Error(`google offers no control to continue at ${page.url()}`);
+    if (
+      await clickFirst(page, 'button', ['Skip', 'I agree', 'Accept', 'Confirm'])
+    ) {
+      await pageSettled(page);
+      continue;
+    }
+    if (!(await clickNext(page)))
+      throw new Error(`google offers no control to continue at ${page.url()}`);
     await pageSettled(page);
   }
 
   // Success is the account session, not what the page says.
   const cookies = await s.ctx.cookies();
-  const googleCookies = cookies.filter(c => c.domain?.includes('google.com') && /^(SID|HSID|SSID|SAPISID|APISID|__Secure-\w+)/.test(c.name));
-  console.log(`[google] final url: ${page.url()}, auth cookies: ${googleCookies.map(c => c.name).join(',')}`);
+  const googleCookies = cookies.filter(
+    (c) =>
+      c.domain?.includes('google.com') &&
+      /^(SID|HSID|SSID|SAPISID|APISID|__Secure-\w+)/.test(c.name),
+  );
+  console.log(
+    `[google] final url: ${page.url()}, auth cookies: ${googleCookies.map((c) => c.name).join(',')}`,
+  );
   if (googleCookies.length < 2) throw new Error('no_auth_cookies');
 
   const result = await s.saveAccount('google', {
@@ -221,11 +297,16 @@ function instrumentSession(s) {
   s.page.on('crash', () => console.log('[evt] RENDERER CRASHED'));
   s.ctx.on('close', () => console.log('[evt] ctx.close'));
   const br = s.ctx.browser?.();
-  if (br) br.on('disconnected', () => console.log('[evt] browser.disconnected'));
+  if (br)
+    br.on('disconnected', () => console.log('[evt] browser.disconnected'));
 }
 const proxy = freshProxy();
 console.log(`\n=== Google signup proxy=${proxy.slice(-60)} ===`);
-const s = await WSession.start({ label: 'google_register', proxy, targetHost: 'accounts.google.com' });
+const s = await WSession.start({
+  label: 'google_register',
+  proxy,
+  targetHost: 'accounts.google.com',
+});
 instrumentSession(s);
 try {
   const username = await signup(s);

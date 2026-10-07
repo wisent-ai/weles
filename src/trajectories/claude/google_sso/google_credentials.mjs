@@ -6,13 +6,24 @@
 // enabled, and provider refusals are reported by the corresponding stage.
 import { fillAndVerify, waitForEnabledThenClick } from './page_controls.mjs';
 import { resolveOtp } from './authenticator_code.mjs';
-import { requireAuthenticatorCode, selectAuthenticatorMethod, waitForGoogleChallengeExit } from '../../codex/google_sso/authenticator_code.mjs';
-import { waitForGooglePassword, waitForGooglePasswordResult } from '../../codex/google_sso/google_credentials.mjs';
+import {
+  requireAuthenticatorCode,
+  selectAuthenticatorMethod,
+  waitForGoogleChallengeExit,
+} from '../../codex/google_sso/authenticator_code.mjs';
+import {
+  waitForGooglePassword,
+  waitForGooglePasswordResult,
+} from '../../codex/google_sso/google_credentials.mjs';
 import { completeGooglePhoneApproval } from '../../_shared/services/google_sso/sign_in/challenge/phone.mjs';
 
 export async function enterGoogleCredentials({
-  page, login, mark,
-  humanFill, humanClickLocator, humanType,
+  page,
+  login,
+  mark,
+  humanFill,
+  humanClickLocator,
+  humanType,
 }) {
   mark('google_email');
   // Visible markup alone does not guarantee that dispatched input is retained.
@@ -20,16 +31,25 @@ export async function enterGoogleCredentials({
   // Google sign-in v2 renders the identifier field as input[type="text"]
   // with autocomplete="username webauthn" (id="identifierId") rather than
   // type="email". Match either variant so the locator survives A/B changes.
-  const gEmailIn = page.locator(
-    'input[type="text"][autocomplete*="username"], input#identifierId, input[name="identifier"], input[type="email"]'
-  ).filter({ visible: true }).first();
+  const gEmailIn = page
+    .locator(
+      'input[type="text"][autocomplete*="username"], input#identifierId, input[name="identifier"], input[type="email"]',
+    )
+    .filter({ visible: true })
+    .first();
   await gEmailIn.waitFor({ state: 'visible' });
   // Each step that waits on the page is its own stage: a run that stood
   // still for 47 minutes on Google's empty identifier field reported only
   // `google_email`, so nobody could tell a field that never took focus from
   // typing Google ignored or a Next that never enabled.
   mark('google_email_field_visible');
-  await fillAndVerify(page, gEmailIn, login.email, humanClickLocator, humanType);
+  await fillAndVerify(
+    page,
+    gEmailIn,
+    login.email,
+    humanClickLocator,
+    humanType,
+  );
   mark('google_email_typed');
   // Trusted typing delivers key/input events. Dispatch focusout/blur for the
   // field's on-blur validator before observing the Next control's enabled state.
@@ -45,11 +65,17 @@ export async function enterGoogleCredentials({
   } catch (e) {
     if (!e.message.includes('Execution context was destroyed')) throw e;
   }
-  await waitForEnabledThenClick(page,/next|continue|dalej/i);
+  await waitForEnabledThenClick(page, /next|continue|dalej/i);
   mark('google_email_submitted');
 
   const gPwIn = await waitForGooglePassword({ page, mark, humanClickLocator });
-  await fillAndVerify(page, gPwIn, login.password, humanClickLocator, humanType);
+  await fillAndVerify(
+    page,
+    gPwIn,
+    login.password,
+    humanClickLocator,
+    humanType,
+  );
   try {
     await gPwIn.evaluate((el) => {
       el.dispatchEvent(new Event('blur', { bubbles: true }));
@@ -58,14 +84,21 @@ export async function enterGoogleCredentials({
   } catch (e) {
     if (!e.message.includes('Execution context was destroyed')) throw e;
   }
-  await waitForEnabledThenClick(page,/next|sign in|continue|dalej|zaloguj/i);
+  await waitForEnabledThenClick(page, /next|sign in|continue|dalej|zaloguj/i);
   await waitForGooglePasswordResult(page);
 
   mark('google_2fa_check');
-  const otpSel = 'input[type="tel"][autocomplete="one-time-code"], input[name="totpPin"], input[autocomplete="one-time-code"]';
+  const otpSel =
+    'input[type="tel"][autocomplete="one-time-code"], input[name="totpPin"], input[autocomplete="one-time-code"]';
   const gOtp = () => page.locator(otpSel).filter({ visible: true }).first();
-  if (!resolveOtp(login)
-      && await completeGooglePhoneApproval(page, login.email, `claude-google-sign-in ${login.email}`)) {
+  if (
+    !resolveOtp(login) &&
+    (await completeGooglePhoneApproval(
+      page,
+      login.email,
+      `claude-google-sign-in ${login.email}`,
+    ))
+  ) {
     mark('google_2fa_phone', { required: true, method: 'phone' });
     return;
   }
@@ -77,7 +110,9 @@ export async function enterGoogleCredentials({
     try {
       const diag = await page.evaluate(() => {
         const texts = [];
-        for (const el of Array.from(document.querySelectorAll('button,[role="button"],a,li,span,div'))) {
+        for (const el of Array.from(
+          document.querySelectorAll('button,[role="button"],a,li,span,div'),
+        )) {
           const t = (el.innerText || el.textContent || '').trim();
           if (!t || t.length > 45) continue;
           const r = el.getBoundingClientRect();
@@ -87,27 +122,46 @@ export async function enterGoogleCredentials({
         }
         return { path: location.pathname, host: location.host, texts };
       });
-      console.log(`[google_sso] 2fa-diag host=${diag.host} path=${diag.path} clickables=${JSON.stringify(diag.texts)}`);
-    } catch (e) { console.log(`[google_sso] 2fa-diag failed: ${e.message}`); }
-    const result = await selectAuthenticatorMethod(page, Boolean(login.totpSecret || process.env.CLAUDE_2FA_CODE));
+      console.log(
+        `[google_sso] 2fa-diag host=${diag.host} path=${diag.path} clickables=${JSON.stringify(diag.texts)}`,
+      );
+    } catch (e) {
+      console.log(`[google_sso] 2fa-diag failed: ${e.message}`);
+    }
+    const result = await selectAuthenticatorMethod(
+      page,
+      Boolean(login.totpSecret || process.env.CLAUDE_2FA_CODE),
+    );
     if (result === 'no-2fa') {
       mark('google_2fa_not_requested', { required: false, method: null });
       console.log('[google_sso] no 2fa challenge present — nothing to answer');
       return;
     }
     if (result === 'stuck') {
-      const err = new Error('google 2FA present but could not switch to authenticator — aborting to avoid push/sms loop');
+      const err = new Error(
+        'google 2FA present but could not switch to authenticator — aborting to avoid push/sms loop',
+      );
       err.fatal2fa = true;
       err.code = 'google_authenticator_method_unavailable';
       err.second_factor = { required: true, method: null };
       throw err;
     }
-    console.log('[google_sso] selected authenticator (TOTP) method via "Try another way"');
+    console.log(
+      '[google_sso] selected authenticator (TOTP) method via "Try another way"',
+    );
     await gOtp().waitFor({ state: 'visible' });
   }
   mark('google_2fa_authenticator', { required: true, method: 'authenticator' });
   const otp = await requireAuthenticatorCode(page, resolveOtp(login));
   await humanFill(page, gOtp(), otp);
-  await humanClickLocator(page, page.locator('#totpNext button, button:has-text("Next"), button[type="submit"]').filter({ visible: true }).first());
+  await humanClickLocator(
+    page,
+    page
+      .locator(
+        '#totpNext button, button:has-text("Next"), button[type="submit"]',
+      )
+      .filter({ visible: true })
+      .first(),
+  );
   await waitForGoogleChallengeExit(page);
 }

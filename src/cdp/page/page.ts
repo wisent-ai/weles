@@ -11,7 +11,9 @@ function selectorCheck(selector: string, state: string): string {
   const base = selector.startsWith('xpath=')
     ? `document.evaluate(${JSON.stringify(selector.slice(6))},document,null,XPathResult.FIRST_ORDERED_NODE_TYPE,null).singleNodeValue`
     : `document.querySelector(${JSON.stringify(selector)})`;
-  return state === 'detached' || state === 'hidden' ? `!(${base})` : `!!(${base})`;
+  return state === 'detached' || state === 'hidden'
+    ? `!(${base})`
+    : `!!(${base})`;
 }
 
 export class CDPPage {
@@ -48,19 +50,27 @@ export class CDPPage {
     this._ft = new FrameTree(connection, sessionId);
 
     this._fetch = new FetchInterception(connection, sessionId);
-    this._conn.on('Page.loadEventFired', () => {
-      this._loadFired = true;
-      for (const r of this._loadResolvers) r();
-      this._loadResolvers = [];
-      this._fire('load');
-    }, sessionId);
+    this._conn.on(
+      'Page.loadEventFired',
+      () => {
+        this._loadFired = true;
+        for (const r of this._loadResolvers) r();
+        this._loadResolvers = [];
+        this._fire('load');
+      },
+      sessionId,
+    );
 
-    this._conn.on('Page.domContentEventFired', () => {
-      this._dcFired = true;
-      for (const r of this._dcResolvers) r();
-      this._dcResolvers = [];
-      this._fire('domcontentloaded');
-    }, sessionId);
+    this._conn.on(
+      'Page.domContentEventFired',
+      () => {
+        this._dcFired = true;
+        for (const r of this._dcResolvers) r();
+        this._dcResolvers = [];
+        this._fire('domcontentloaded');
+      },
+      sessionId,
+    );
   }
 
   get url(): string {
@@ -89,25 +99,42 @@ export class CDPPage {
   }
 
   get keyboard(): CDPKeyboard {
-    if (!this._keyboard) this._keyboard = new CDPKeyboard(this._conn, this._sessionId);
+    if (!this._keyboard)
+      this._keyboard = new CDPKeyboard(this._conn, this._sessionId);
     return this._keyboard;
   }
 
   async init(): Promise<void> {
     await this._conn.send('Page.enable', undefined, this._sessionId);
     await this._conn.send('Network.enable', undefined, this._sessionId);
-    const tree = await this._conn.send('Page.getFrameTree', undefined, this._sessionId);
+    const tree = await this._conn.send(
+      'Page.getFrameTree',
+      undefined,
+      this._sessionId,
+    );
     const root = tree?.frameTree?.frame ?? {};
     this._ft.setMainFrame(root.id ?? '', root.url ?? '');
-    this._conn.on('Network.responseReceived', (p: any) => this._fire('response', p), this._sessionId);
+    this._conn.on(
+      'Network.responseReceived',
+      (p: any) => this._fire('response', p),
+      this._sessionId,
+    );
     if (this._recordVideo) {
-      const dir = typeof this._recordVideo === 'object' ? this._recordVideo.dir : undefined;
-      this._screencast = new CDPScreencast(this._conn, this._sessionId, { outputDir: dir });
+      const dir =
+        typeof this._recordVideo === 'object'
+          ? this._recordVideo.dir
+          : undefined;
+      this._screencast = new CDPScreencast(this._conn, this._sessionId, {
+        outputDir: dir,
+      });
       await this._screencast.start();
     }
   }
 
-  async goto(url: string, options?: { waitUntil?: 'load' | 'domcontentloaded'; timeout?: number }): Promise<void> {
+  async goto(
+    url: string,
+    options?: { waitUntil?: 'load' | 'domcontentloaded'; timeout?: number },
+  ): Promise<void> {
     const waitUntil = options?.waitUntil ?? 'load';
     this._loadFired = false;
     this._dcFired = false;
@@ -126,12 +153,20 @@ export class CDPPage {
   }
 
   async goBack(): Promise<void> {
-    const h = await this._conn.send('Page.getNavigationHistory', undefined, this._sessionId);
+    const h = await this._conn.send(
+      'Page.getNavigationHistory',
+      undefined,
+      this._sessionId,
+    );
     const idx = h?.currentIndex ?? 0;
     if (idx > 0) {
-      await this._conn.send('Page.navigateToHistoryEntry', {
-        entryId: h.entries[idx - 1].id,
-      }, this._sessionId);
+      await this._conn.send(
+        'Page.navigateToHistoryEntry',
+        {
+          entryId: h.entries[idx - 1].id,
+        },
+        this._sessionId,
+      );
     }
   }
 
@@ -144,7 +179,11 @@ export class CDPPage {
   async content(): Promise<string> {
     const mf = this._ft.mainFrame;
     if (!mf) throw new CDPError('No main frame');
-    const r = await this._conn.send('Page.getResourceContent', { frameId: mf.frameId, url: this.url }, this._sessionId);
+    const r = await this._conn.send(
+      'Page.getResourceContent',
+      { frameId: mf.frameId, url: this.url },
+      this._sessionId,
+    );
     return r?.content ?? '';
   }
   async title(): Promise<string> {
@@ -153,11 +192,19 @@ export class CDPPage {
     return (await mf.evaluate('document.title')) ?? '';
   }
 
-  async screenshot(options?: { path?: string; fullPage?: boolean; format?: string }): Promise<Buffer> {
+  async screenshot(options?: {
+    path?: string;
+    fullPage?: boolean;
+    format?: string;
+  }): Promise<Buffer> {
     const format = options?.format ?? 'png';
     const params: Record<string, any> = { format };
     if (options?.fullPage) {
-      const m = await this._conn.send('Page.getLayoutMetrics', undefined, this._sessionId);
+      const m = await this._conn.send(
+        'Page.getLayoutMetrics',
+        undefined,
+        this._sessionId,
+      );
       const cs = m?.contentSize ?? {};
       params.clip = {
         x: 0,
@@ -167,7 +214,11 @@ export class CDPPage {
         height: cs.height ?? 1080,
       };
     }
-    const r = await this._conn.send('Page.captureScreenshot', params, this._sessionId);
+    const r = await this._conn.send(
+      'Page.captureScreenshot',
+      params,
+      this._sessionId,
+    );
     const buf = Buffer.from(r?.data ?? '', 'base64');
     if (options?.path) {
       const { writeFileSync } = require('node:fs');
@@ -176,7 +227,10 @@ export class CDPPage {
     return buf;
   }
 
-  async waitForSelector(selector: string, options?: { state?: string }): Promise<void> {
+  async waitForSelector(
+    selector: string,
+    options?: { state?: string },
+  ): Promise<void> {
     const state = options?.state ?? 'visible';
     // Resolved inside the page by a MutationObserver: the DOM change that
     // satisfies the selector is what ends the wait.
@@ -196,17 +250,27 @@ export class CDPPage {
       } catch (error) {
         // A navigation replaced the document under the observer; the new
         // document is asked the same question.
-        if (!/context was destroyed|Cannot find context|Execution context/i.test(String(error))) throw error;
+        if (
+          !/context was destroyed|Cannot find context|Execution context/i.test(
+            String(error),
+          )
+        )
+          throw error;
       }
     }
   }
 
-  async waitForLoadState(state: 'load' | 'domcontentloaded' = 'load'): Promise<void> {
+  async waitForLoadState(
+    state: 'load' | 'domcontentloaded' = 'load',
+  ): Promise<void> {
     return this._waitForLoadState(state);
   }
 
   waitForUrl(urlOrPattern: string | RegExp): Promise<void> {
-    const matches = (url: string) => urlOrPattern instanceof RegExp ? urlOrPattern.test(url) : url.includes(urlOrPattern);
+    const matches = (url: string) =>
+      urlOrPattern instanceof RegExp
+        ? urlOrPattern.test(url)
+        : url.includes(urlOrPattern);
     if (matches(this.url)) return Promise.resolve();
     const { promise, resolve } = Promise.withResolvers<void>();
     const onNavigated = (params: any) => {
@@ -216,7 +280,11 @@ export class CDPPage {
       if (frameId !== this._ft.mainFrame?.frameId) return;
       if (!matches(params?.frame?.url ?? params?.url ?? '')) return;
       this._conn.off('Page.frameNavigated', onNavigated, this._sessionId);
-      this._conn.off('Page.navigatedWithinDocument', onNavigated, this._sessionId);
+      this._conn.off(
+        'Page.navigatedWithinDocument',
+        onNavigated,
+        this._sessionId,
+      );
       resolve();
     };
     this._conn.on('Page.frameNavigated', onNavigated, this._sessionId);
@@ -230,56 +298,87 @@ export class CDPPage {
   }
 
   getByText(text: string, exact = false): any {
-    return this.locator(exact ? `xpath=//text()[.="${text}"]/parent::*` : `xpath=//text()[contains(.,"${text}")]/parent::*`);
+    return this.locator(
+      exact
+        ? `xpath=//text()[.="${text}"]/parent::*`
+        : `xpath=//text()[contains(.,"${text}")]/parent::*`,
+    );
   }
 
   async addInitScript(script: string): Promise<void> {
     this._initScripts.push(script);
-    await this._conn.send('Page.addScriptToEvaluateOnNewDocument', {
-      source: script,
-      worldName: '',
-    }, this._sessionId);
+    await this._conn.send(
+      'Page.addScriptToEvaluateOnNewDocument',
+      {
+        source: script,
+        worldName: '',
+      },
+      this._sessionId,
+    );
   }
 
-  async setProxyAuth(credentials: { username: string; password: string }): Promise<void> {
+  async setProxyAuth(credentials: {
+    username: string;
+    password: string;
+  }): Promise<void> {
     await this._fetch.setProxyAuth(credentials);
   }
 
-  async route(pattern: string, handler: (route: CDPRoute) => Promise<void>): Promise<void> {
+  async route(
+    pattern: string,
+    handler: (route: CDPRoute) => Promise<void>,
+  ): Promise<void> {
     await this._fetch.route(pattern, handler);
   }
 
   on(event: string, handler: EventHandler): void {
     const list = this._handlers.get(event);
-    if (list) { list.push(handler); } else { this._handlers.set(event, [handler]); }
+    if (list) {
+      list.push(handler);
+    } else {
+      this._handlers.set(event, [handler]);
+    }
     this._conn.on(event, handler, this._sessionId);
   }
 
   off(event: string, handler: EventHandler): void {
     const list = this._handlers.get(event);
-    if (list) { const idx = list.indexOf(handler); if (idx >= 0) list.splice(idx, 1); }
+    if (list) {
+      const idx = list.indexOf(handler);
+      if (idx >= 0) list.splice(idx, 1);
+    }
     this._conn.off(event, handler, this._sessionId);
   }
 
   async close(): Promise<void> {
     if (this._closed) return;
     this._closed = true;
-    if (this._screencast && !this._screencast._stopped) await this._screencast.stop().catch(() => {});
-    try { await this._conn.send('Target.closeTarget', { targetId: this._targetId }); } catch { /* closed */ }
+    if (this._screencast && !this._screencast._stopped)
+      await this._screencast.stop().catch(() => {});
+    try {
+      await this._conn.send('Target.closeTarget', { targetId: this._targetId });
+    } catch {
+      /* closed */
+    }
   }
 
   private _fire(name: string, data?: any): void {
     const handlers = this._handlers.get(name);
     if (!handlers) return;
     for (const h of handlers) {
-      try { h(data); } catch { /* listener errors silently dropped */ }
+      try {
+        h(data);
+      } catch {
+        /* listener errors silently dropped */
+      }
     }
   }
 
   private _waitForLoadState(state: string): Promise<void> {
     if (state === 'domcontentloaded' && this._dcFired) return Promise.resolve();
-    if ((state === 'load' || state === 'networkidle') && this._loadFired) return Promise.resolve();
-    return new Promise(resolve => {
+    if ((state === 'load' || state === 'networkidle') && this._loadFired)
+      return Promise.resolve();
+    return new Promise((resolve) => {
       if (state === 'domcontentloaded') {
         this._dcResolvers.push(resolve);
       } else {
@@ -287,5 +386,4 @@ export class CDPPage {
       }
     });
   }
-
 }

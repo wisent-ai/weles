@@ -4,18 +4,23 @@ import { reloginLinkedinInline } from '../../../_shared/linkedin/relogin.mjs';
 import { detectLinkedInBanSignals } from '../../../../../dist/platforms/linkedin/ban_signals.js';
 
 await runAction({
-  platform: 'linkedin', action: 'organic_comment',
+  platform: 'linkedin',
+  action: 'organic_comment',
   inlineRelogin: reloginLinkedinInline,
   feedUrl: 'https://www.linkedin.com/feed/',
   surfaceLabel: 'linkedin feed',
   pickPost: async (s) => {
     try {
       const text = await s.page.evaluate(() => {
-        const el = document.querySelector('.feed-shared-update-v2__description, .update-components-text');
+        const el = document.querySelector(
+          '.feed-shared-update-v2__description, .update-components-text',
+        );
         return el?.textContent?.trim() ?? '';
       });
-      return { postTitle: (text || ''), postBody: '' };
-    } catch { return { postTitle: '', postBody: '' }; }
+      return { postTitle: text || '', postBody: '' };
+    } catch {
+      return { postTitle: '', postBody: '' };
+    }
   },
   submitComment: linkedinSubmitComment,
   banDetector: detectLinkedInBanSignals,

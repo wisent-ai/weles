@@ -11,10 +11,14 @@ const PROJECT_ID = (await import('#ncbr-settings')).projectId();
 const PROJECT_URL = `https://lsi2.ncbr.gov.pl/projekt/${PROJECT_ID}`;
 const BASE = `${PROJECT_URL}/projekt_step/`;
 const URLS = {
-  '1.3': (await import('#ncbr-settings')).sectionUrl('1_3'),
-  '2.2': (await import('#ncbr-settings')).sectionUrl('2_2'),
+  1.3: (await import('#ncbr-settings')).sectionUrl('1_3'),
+  2.2: (await import('#ncbr-settings')).sectionUrl('2_2'),
 };
-const OUT = process.env.OUT || (await import('#ncbr-settings')).applicationFile('contacts_2_2_repair_evidence.json');
+const OUT =
+  process.env.OUT ||
+  (await import('#ncbr-settings')).applicationFile(
+    'contacts_2_2_repair_evidence.json',
+  );
 const email = process.env.NCBR_EMAIL;
 const password = process.env.NCBR_PASSWORD;
 if (!email || !password) {
@@ -23,10 +27,12 @@ if (!email || !password) {
 }
 delete process.env.NCBR_PASSWORD;
 
-
-const session = await WSession.start({ label: 'ncbr_repair_contacts_2_2_wsession', proxy: 'direct', browser: 'chromium' });
+const session = await WSession.start({
+  label: 'ncbr_repair_contacts_2_2_wsession',
+  proxy: 'direct',
+  browser: 'chromium',
+});
 const page = session.page;
-
 
 function progress(message) {
   console.log(`[repair_contacts_2_2] ${new Date().toISOString()} ${message}`);
@@ -34,10 +40,20 @@ function progress(message) {
 
 const form = lsiForm({ page, session, email, password, progress });
 const { login } = form;
-const { diag13, diag13Edit, diag13ContactEdit, repair13, repair22, readTables } = contactRepairs({ page, email, progress, URLS, ...form });
+const {
+  diag13,
+  diag13Edit,
+  diag13ContactEdit,
+  repair13,
+  repair22,
+  readTables,
+} = contactRepairs({ page, email, progress, URLS, ...form });
 
 await login();
-const out = { parsed: { features: FEATURES.length, factors: FACTORS.length }, actions: {} };
+const out = {
+  parsed: { features: FEATURES.length, factors: FACTORS.length },
+  actions: {},
+};
 if (process.env.DIAG_13 === '1') {
   out.diag13 = await diag13();
   writeFileSync(OUT, JSON.stringify(out, null, 2));
@@ -48,20 +64,41 @@ if (process.env.DIAG_13 === '1') {
 if (process.env.DIAG_13_EDIT === '1') {
   out.diag13Edit = await diag13Edit();
   writeFileSync(OUT, JSON.stringify(out, null, 2));
-  console.log(JSON.stringify({ out: OUT, diag13Edit: out.diag13Edit }, null, 2));
+  console.log(
+    JSON.stringify({ out: OUT, diag13Edit: out.diag13Edit }, null, 2),
+  );
   await session.ctx.close();
   process.exit(0);
 }
 if (process.env.DIAG_13_CONTACT_EDIT === '1') {
   out.diag13ContactEdit = await diag13ContactEdit();
   writeFileSync(OUT, JSON.stringify(out, null, 2));
-  console.log(JSON.stringify({ out: OUT, diag13ContactEdit: out.diag13ContactEdit }, null, 2));
+  console.log(
+    JSON.stringify(
+      { out: OUT, diag13ContactEdit: out.diag13ContactEdit },
+      null,
+      2,
+    ),
+  );
   await session.ctx.close();
   process.exit(0);
 }
 out.actions['1.3'] = await repair13();
 out.actions['2.2'] = await repair22();
 writeFileSync(OUT, JSON.stringify(out, null, 2));
-console.log(JSON.stringify({ out: OUT, parsed: out.parsed, readback: { '1.3': out.actions['1.3'].readback, '2.2': out.actions['2.2'].readback } }, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      out: OUT,
+      parsed: out.parsed,
+      readback: {
+        1.3: out.actions['1.3'].readback,
+        2.2: out.actions['2.2'].readback,
+      },
+    },
+    null,
+    2,
+  ),
+);
 await session.ctx.close();
 process.exit(0);

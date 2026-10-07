@@ -1,7 +1,11 @@
 import { readFileSync, statSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { basename, dirname, join } from 'node:path';
-import type { BrowserContext, BrowserContextOptions, LaunchOptions } from 'playwright';
+import type {
+  BrowserContext,
+  BrowserContextOptions,
+  LaunchOptions,
+} from 'playwright';
 import type { AsyncNewBrowserOptions } from '../../async_api.js';
 import type { FingerprintConfig } from '../../fingerprint.js';
 import type { HostHardware } from '../../runtime/host_hardware.js';
@@ -26,7 +30,10 @@ export interface ContextLaunchInput {
 }
 
 export function readDiagnosticScript(name: string): string {
-  return readFileSync(join(__dirname, '..', '..', 'diagnostics', 'page', name), 'utf-8');
+  return readFileSync(
+    join(__dirname, '..', '..', 'diagnostics', 'page', name),
+    'utf-8',
+  );
 }
 export const CHROMIUM_ARGS = [
   '--disable-blink-features=AutomationControlled',
@@ -68,20 +75,41 @@ function inferMacAppName(executablePath: string): string | null {
 // G16: identity of the exact browser BUILD that ran. The binary hash is the
 // expensive bit (shasum of a large Mach-O) so it is cached per path — the
 // worker is long-lived and the binary does not change mid-process.
-const _binaryIdentityCache = new Map<string, { sha256: string | null; mtime: string | null; bytes: number | null }>();
-function binaryIdentity(path: string): { sha256: string | null; mtime: string | null; bytes: number | null } {
+const _binaryIdentityCache = new Map<
+  string,
+  { sha256: string | null; mtime: string | null; bytes: number | null }
+>();
+function binaryIdentity(path: string): {
+  sha256: string | null;
+  mtime: string | null;
+  bytes: number | null;
+} {
   const cached = _binaryIdentityCache.get(path);
   if (cached) return cached;
-  const id: { sha256: string | null; mtime: string | null; bytes: number | null } = { sha256: null, mtime: null, bytes: null };
+  const id: {
+    sha256: string | null;
+    mtime: string | null;
+    bytes: number | null;
+  } = { sha256: null, mtime: null, bytes: null };
   try {
     const st = statSync(path);
     id.mtime = st.mtime.toISOString();
     id.bytes = st.size;
-  } catch { /* best-effort */ }
+  } catch {
+    /* best-effort */
+  }
   try {
-    const out = execSync(`shasum -a 256 ${JSON.stringify(path)}`, { encoding: 'utf8', maxBuffer: 1 << 20, stdio: ['ignore', 'pipe', 'ignore'] }).trim().split(/\s+/)[0];
+    const out = execSync(`shasum -a 256 ${JSON.stringify(path)}`, {
+      encoding: 'utf8',
+      maxBuffer: 1 << 20,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+      .trim()
+      .split(/\s+/)[0];
     if (/^[0-9a-f]{64}$/.test(out)) id.sha256 = out;
-  } catch { /* best-effort */ }
+  } catch {
+    /* best-effort */
+  }
   _binaryIdentityCache.set(path, id);
   return id;
 }
@@ -103,7 +131,9 @@ export function browserProvenance(base: {
   launchArgs?: string[];
 }) {
   const executablePath = base.executablePath || null;
-  const binId = executablePath ? binaryIdentity(executablePath) : { sha256: null, mtime: null, bytes: null };
+  const binId = executablePath
+    ? binaryIdentity(executablePath)
+    : { sha256: null, mtime: null, bytes: null };
   return {
     browser_type: base.browserType,
     source: base.source,
@@ -127,12 +157,30 @@ export function browserProvenance(base: {
   };
 }
 
-export function chromiumNetlogConfig(): { enabled: boolean; mode: string; includeCaptureMode: boolean } {
-  const requested = String(process.env.WELES_CHROMIUM_NETLOG ?? '').trim().toLowerCase();
+export function chromiumNetlogConfig(): {
+  enabled: boolean;
+  mode: string;
+  includeCaptureMode: boolean;
+} {
+  const requested = String(process.env.WELES_CHROMIUM_NETLOG ?? '')
+    .trim()
+    .toLowerCase();
   const fullDiagnostics = process.env.WELES_FULL_DIAGNOSTICS === '1';
-  const disabled = requested === '0' || requested === 'false' || requested === 'off';
-  const enabled = !disabled && (fullDiagnostics || requested === '1' || requested === 'safe' || requested === 'default' || requested === 'everything');
-  const mode = (process.env.WELES_CHROMIUM_NETLOG_MODE ?? (requested === 'everything' ? 'everything' : 'safe')).trim().toLowerCase();
+  const disabled =
+    requested === '0' || requested === 'false' || requested === 'off';
+  const enabled =
+    !disabled &&
+    (fullDiagnostics ||
+      requested === '1' ||
+      requested === 'safe' ||
+      requested === 'default' ||
+      requested === 'everything');
+  const mode = (
+    process.env.WELES_CHROMIUM_NETLOG_MODE ??
+    (requested === 'everything' ? 'everything' : 'safe')
+  )
+    .trim()
+    .toLowerCase();
   return {
     enabled,
     mode,
@@ -141,10 +189,17 @@ export function chromiumNetlogConfig(): { enabled: boolean; mode: string; includ
 }
 
 export function redactContextOpts(opts: unknown): unknown {
-  return JSON.parse(JSON.stringify(opts, (k, v) => {
-    if (/username|password|authorization|cookie|token|apikey|api_key|secret/i.test(k)) return '<redacted>';
-    return v;
-  }));
+  return JSON.parse(
+    JSON.stringify(opts, (k, v) => {
+      if (
+        /username|password|authorization|cookie|token|apikey|api_key|secret/i.test(
+          k,
+        )
+      )
+        return '<redacted>';
+      return v;
+    }),
+  );
 }
 /**
  * Observe navigation attempts to custom URI schemes (slack://, zoommtg://,
@@ -170,16 +225,32 @@ export function attachProtocolHandlerWatcher(context: BrowserContext) {
     page.on('framenavigated', (frame) => {
       const url = frame.url();
       const scheme = url.split(':', 1)[0];
-      if (scheme && scheme !== 'http' && scheme !== 'https'
-          && scheme !== 'about' && scheme !== 'data' && scheme !== 'blob') {
-        if (shouldLog('nav', url)) console.log(`[async_api] custom-protocol nav attempted: ${url}`);
+      if (
+        scheme &&
+        scheme !== 'http' &&
+        scheme !== 'https' &&
+        scheme !== 'about' &&
+        scheme !== 'data' &&
+        scheme !== 'blob'
+      ) {
+        if (shouldLog('nav', url))
+          console.log(`[async_api] custom-protocol nav attempted: ${url}`);
       }
     });
     page.on('request', (req) => {
       const url = req.url();
-      if (url.startsWith('http') || url.startsWith('about:') || url.startsWith('data:') || url.startsWith('blob:')) return;
+      if (
+        url.startsWith('http') ||
+        url.startsWith('about:') ||
+        url.startsWith('data:') ||
+        url.startsWith('blob:')
+      )
+        return;
       const frameUrl = req.frame()?.url?.() ?? '';
-      if (shouldLog('request', url, frameUrl)) console.log(`[async_api] custom-protocol request: ${url} (frame=${frameUrl})`);
+      if (shouldLog('request', url, frameUrl))
+        console.log(
+          `[async_api] custom-protocol request: ${url} (frame=${frameUrl})`,
+        );
     });
   });
 }

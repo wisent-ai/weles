@@ -16,7 +16,12 @@ const SURROGATE = /[\uD800-\uDFFF]/g;
 
 /** JSON.stringify's view of a member: its toJSON result when it has one. */
 function prepared(key: string, value: unknown): unknown {
-  if (value !== null && typeof value === 'object' && 'toJSON' in value && typeof value.toJSON === 'function') {
+  if (
+    value !== null &&
+    typeof value === 'object' &&
+    'toJSON' in value &&
+    typeof value.toJSON === 'function'
+  ) {
     return value.toJSON(key);
   }
   return value;
@@ -30,17 +35,31 @@ function writeString(fd: number, text: string): void {
     // Never cut a surrogate pair: its halves would each read as a lone surrogate.
     const last = text.charCodeAt(end - 1);
     if (end < text.length && last >= 0xd800 && last <= 0xdbff) end -= 1;
-    writeSync(fd, JSON.stringify(text.slice(start, end).replace(SURROGATE, '\uFFFD')).slice(1, -1));
+    writeSync(
+      fd,
+      JSON.stringify(text.slice(start, end).replace(SURROGATE, '\uFFFD')).slice(
+        1,
+        -1,
+      ),
+    );
     start = end;
   }
   writeSync(fd, '"');
 }
 
-function writeValue(fd: number, key: string, raw: unknown, inArray: boolean, stack: Set<object>): void {
+function writeValue(
+  fd: number,
+  key: string,
+  raw: unknown,
+  inArray: boolean,
+  stack: Set<object>,
+): void {
   const value = prepared(key, raw);
   let whole: string | undefined;
   try {
-    whole = JSON.stringify(value, (_k, v: unknown) => (typeof v === 'string' ? v.replace(SURROGATE, '\uFFFD') : v));
+    whole = JSON.stringify(value, (_k, v: unknown) =>
+      typeof v === 'string' ? v.replace(SURROGATE, '\uFFFD') : v,
+    );
   } catch (error) {
     if (!(error instanceof RangeError)) throw error;
   }
@@ -48,7 +67,11 @@ function writeValue(fd: number, key: string, raw: unknown, inArray: boolean, sta
     writeSync(fd, whole);
     return;
   }
-  if (value === undefined || typeof value === 'function' || typeof value === 'symbol') {
+  if (
+    value === undefined ||
+    typeof value === 'function' ||
+    typeof value === 'symbol'
+  ) {
     // Only reached inside an array: JSON.stringify writes null there.
     if (inArray) writeSync(fd, 'null');
     return;
@@ -58,9 +81,12 @@ function writeValue(fd: number, key: string, raw: unknown, inArray: boolean, sta
     return;
   }
   if (value === null || typeof value !== 'object') {
-    throw new RangeError(`cannot serialise a ${typeof value} too large for one string`);
+    throw new RangeError(
+      `cannot serialise a ${typeof value} too large for one string`,
+    );
   }
-  if (stack.has(value)) throw new TypeError('Converting circular structure to JSON');
+  if (stack.has(value))
+    throw new TypeError('Converting circular structure to JSON');
   stack.add(value);
   if (Array.isArray(value)) {
     writeSync(fd, '[');
@@ -74,7 +100,12 @@ function writeValue(fd: number, key: string, raw: unknown, inArray: boolean, sta
     let first = true;
     for (const [member, item] of Object.entries(value)) {
       const shown = prepared(member, item);
-      if (shown === undefined || typeof shown === 'function' || typeof shown === 'symbol') continue;
+      if (
+        shown === undefined ||
+        typeof shown === 'function' ||
+        typeof shown === 'symbol'
+      )
+        continue;
       if (!first) writeSync(fd, ',');
       first = false;
       writeSync(fd, `${JSON.stringify(member)}:`);

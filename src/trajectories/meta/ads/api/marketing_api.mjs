@@ -7,8 +7,10 @@ import { basename } from 'node:path';
 import { integrationAction } from '../../../../_shared/integrations.mjs';
 
 export function adAccountId() {
-  const raw = process.env.AD_ACCOUNT_ID || process.env.META_ADS_COMPANY_ACCOUNT_ID;
-  if (!raw) throw new Error('AD_ACCOUNT_ID or META_ADS_COMPANY_ACCOUNT_ID required');
+  const raw =
+    process.env.AD_ACCOUNT_ID || process.env.META_ADS_COMPANY_ACCOUNT_ID;
+  if (!raw)
+    throw new Error('AD_ACCOUNT_ID or META_ADS_COMPANY_ACCOUNT_ID required');
   return raw.startsWith('act_') ? raw : `act_${raw.replace(/\D/g, '')}`;
 }
 
@@ -31,14 +33,18 @@ export function numberEnv(name) {
 export function microsFromUsd(value) {
   if (value == null || value === '') return undefined;
   const n = Number(value);
-  if (!Number.isFinite(n) || n < 0) throw new Error(`invalid USD amount: ${value}`);
+  if (!Number.isFinite(n) || n < 0)
+    throw new Error(`invalid USD amount: ${value}`);
   // Meta Marketing API monetary fields use the account currency's minor unit
   // for USD ad accounts, not micro-units.
   return Math.round(n * 100);
 }
 
 export function splitList(value, sep = ',') {
-  return String(value || '').split(sep).map((v) => v.trim()).filter(Boolean);
+  return String(value || '')
+    .split(sep)
+    .map((v) => v.trim())
+    .filter(Boolean);
 }
 
 export function parseJsonEnv(name, fallback = undefined) {
@@ -52,19 +58,32 @@ export function parseJsonEnv(name, fallback = undefined) {
 }
 
 export function compactObject(obj) {
-  return Object.fromEntries(Object.entries(obj).filter(([, v]) => {
-    if (v === undefined || v === null || v === '') return false;
-    if (v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0) return false;
-    return true;
-  }));
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, v]) => {
+      if (v === undefined || v === null || v === '') return false;
+      if (
+        v &&
+        typeof v === 'object' &&
+        !Array.isArray(v) &&
+        Object.keys(v).length === 0
+      )
+        return false;
+      return true;
+    }),
+  );
 }
 
 /** Graph parameters without the unset ones; the service sends each as Meta reads it. */
 function graphParams(params) {
-  return Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null));
+  return Object.fromEntries(
+    Object.entries(params).filter(([, v]) => v !== undefined && v !== null),
+  );
 }
 
-export function withValidateOnly(params, { submit = submitEnabled(), validateOnly = true } = {}) {
+export function withValidateOnly(
+  params,
+  { submit = submitEnabled(), validateOnly = true } = {},
+) {
   if (submit || !validateOnly) return params;
   return { ...params, execution_options: ['validate_only'] };
 }
@@ -80,7 +99,9 @@ function graphTarget(path) {
   const parts = path.split('/').filter(Boolean);
   if (parts.length === 1) return { id: parts[0] };
   if (parts.length === 2) return { owner_id: parts[0], edge: parts[1] };
-  throw new Error(`Meta Graph path ${path} is neither /<id> nor /<owner>/<edge>`);
+  throw new Error(
+    `Meta Graph path ${path} is neither /<id> nor /<owner>/<edge>`,
+  );
 }
 
 function graphAction(method, target) {
@@ -92,21 +113,36 @@ function graphAction(method, target) {
     if (method === 'GET') return 'meta.graph.list';
     if (method === 'POST') return 'meta.graph.create';
   }
-  throw new Error(`Meta Graph ${method} is not an action on ${JSON.stringify(target)}`);
+  throw new Error(
+    `Meta Graph ${method} is not an action on ${JSON.stringify(target)}`,
+  );
 }
 
 export async function graphRequest(method, path, params = {}, opts = {}) {
-  if (!requestEnabled(opts)) throw new Error('SUBMIT=1 required for Meta Marketing API request');
+  if (!requestEnabled(opts))
+    throw new Error('SUBMIT=1 required for Meta Marketing API request');
   const target = graphTarget(path);
-  const json = await integrationAction('echo-paid-ads', graphAction(method, target), { ...target, params: graphParams(params) });
+  const json = await integrationAction(
+    'echo-paid-ads',
+    graphAction(method, target),
+    { ...target, params: graphParams(params) },
+  );
   console.log(JSON.stringify(json, null, 2));
   return json;
 }
 
-export async function graphUpload(path, fields, _fileField, filePath, opts = {}) {
-  if (!requestEnabled(opts)) throw new Error('SUBMIT=1 required for Meta Marketing API upload');
+export async function graphUpload(
+  path,
+  fields,
+  _fileField,
+  filePath,
+  opts = {},
+) {
+  if (!requestEnabled(opts))
+    throw new Error('SUBMIT=1 required for Meta Marketing API upload');
   const target = graphTarget(path);
-  if (!target.edge) throw new Error(`Meta Graph upload path ${path} names no edge`);
+  if (!target.edge)
+    throw new Error(`Meta Graph upload path ${path} names no edge`);
   const json = await integrationAction('echo-paid-ads', 'meta.graph.upload', {
     ...target,
     params: graphParams(fields),

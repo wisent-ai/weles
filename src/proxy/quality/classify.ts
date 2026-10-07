@@ -13,7 +13,11 @@ import { promisify } from 'node:util';
 import { DATACENTER_ORGS, RESIDENTIAL_ORGS, WHOIS_FIELDS } from './lists.js';
 
 const exec = promisify(execFile);
-const CACHE_PATH = join(process.env.HOME ?? '', '.weles', 'ip_classifier_cache.json');
+const CACHE_PATH = join(
+  process.env.HOME ?? '',
+  '.weles',
+  'ip_classifier_cache.json',
+);
 
 export type IpQuality = 'residential' | 'datacenter' | 'unknown';
 
@@ -27,7 +31,12 @@ export interface ClassifyResult {
 }
 
 function loadCache(): Record<string, ClassifyResult> {
-  try { if (existsSync(CACHE_PATH)) return JSON.parse(readFileSync(CACHE_PATH, 'utf8')); } catch { /* ignore */ }
+  try {
+    if (existsSync(CACHE_PATH))
+      return JSON.parse(readFileSync(CACHE_PATH, 'utf8'));
+  } catch {
+    /* ignore */
+  }
   return {};
 }
 
@@ -35,10 +44,14 @@ function saveCache(cache: Record<string, ClassifyResult>): void {
   try {
     mkdirSync(dirname(CACHE_PATH), { recursive: true });
     writeFileSync(CACHE_PATH, JSON.stringify(cache, null, 2));
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
-async function whoisLookup(ip: string): Promise<{ org: string; netname: string }> {
+async function whoisLookup(
+  ip: string,
+): Promise<{ org: string; netname: string }> {
   try {
     const { stdout } = await exec('whois', [ip]);
     const out: Record<string, string> = {};
@@ -49,15 +62,21 @@ async function whoisLookup(ip: string): Promise<{ org: string; netname: string }
         if (m && !out[f.toLowerCase()]) out[f.toLowerCase()] = m[1].trim();
       }
     }
-    const org = out['orgname'] ? out['orgname']
-      : out['organization'] ? out['organization']
-      : out['org-name'] ? out['org-name']
-      : out['descr'] ? out['descr']
-      : '';
+    const org = out['orgname']
+      ? out['orgname']
+      : out['organization']
+        ? out['organization']
+        : out['org-name']
+          ? out['org-name']
+          : out['descr']
+            ? out['descr']
+            : '';
     const netname = out['netname'] ? out['netname'] : '';
     return { org, netname };
   } catch (error) {
-    console.log(`[ip-classify] whois_failed for ${ip}: ${(error as Error).message}`);
+    console.log(
+      `[ip-classify] whois_failed for ${ip}: ${(error as Error).message}`,
+    );
     return { org: '', netname: '' };
   }
 }
@@ -77,9 +96,21 @@ export async function classifyIp(ip: string): Promise<ClassifyResult> {
   const resMatch = matchAny(combined, RESIDENTIAL_ORGS);
   let quality: IpQuality = 'unknown';
   let matched_term = '';
-  if (dcMatch) { quality = 'datacenter'; matched_term = dcMatch; }
-  else if (resMatch) { quality = 'residential'; matched_term = resMatch; }
-  const result: ClassifyResult = { ip, quality, org, netname, source: 'whois', matched_term };
+  if (dcMatch) {
+    quality = 'datacenter';
+    matched_term = dcMatch;
+  } else if (resMatch) {
+    quality = 'residential';
+    matched_term = resMatch;
+  }
+  const result: ClassifyResult = {
+    ip,
+    quality,
+    org,
+    netname,
+    source: 'whois',
+    matched_term,
+  };
   cache[ip] = result;
   saveCache(cache);
   return result;

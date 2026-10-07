@@ -5,12 +5,21 @@ import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 const SESSION = process.env.SESSION || 'ncbr-step-b';
-const WELES = new URL('../../../../../..', import.meta.url).pathname.replace(/\/$/, '');
-const SRC = (await import('#ncbr-settings')).applicationFile('wersja_B_2.3_rynek_i_potencjal.md');
+const WELES = new URL('../../../../../..', import.meta.url).pathname.replace(
+  /\/$/,
+  '',
+);
+const SRC = (await import('#ncbr-settings')).applicationFile(
+  'wersja_B_2.3_rynek_i_potencjal.md',
+);
 const URL = (await import('#ncbr-settings')).sectionUrl('2_3');
 
 const md = readFileSync(SRC, 'utf8');
-const clean = (s) => String(s || '').replace(/\s*<!--[\s\S]*?-->\s*/g, ' ').replace(/\s+/g, ' ').trim();
+const clean = (s) =>
+  String(s || '')
+    .replace(/\s*<!--[\s\S]*?-->\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 function between(start, end) {
   const parts = md.split(start);
@@ -22,9 +31,12 @@ function between(start, end) {
 
 function competitorRows(start, end) {
   const block = between(start, end);
-  return block.split(/\r?\n/)
+  return block
+    .split(/\r?\n/)
     .map((line) => line.trim())
-    .filter((line) => line.startsWith('|') && !/---|Podmiot konkurencyjny/.test(line))
+    .filter(
+      (line) => line.startsWith('|') && !/---|Podmiot konkurencyjny/.test(line),
+    )
     .map((line) => {
       const cells = line.split('|').map(clean);
       return { producer: cells[1], product: cells[3], advantage: cells[5] };
@@ -32,14 +44,26 @@ function competitorRows(start, end) {
     .filter((row) => row.producer && row.product && row.advantage);
 }
 
-const eu = competitorRows('## Oferta konkurencji wewnątrz UE', '## Oferta konkurencji spoza UE');
-const nonEu = competitorRows('## Oferta konkurencji spoza UE', '## Rynek docelowy');
+const eu = competitorRows(
+  '## Oferta konkurencji wewnątrz UE',
+  '## Oferta konkurencji spoza UE',
+);
+const nonEu = competitorRows(
+  '## Oferta konkurencji spoza UE',
+  '## Rynek docelowy',
+);
 
 function action(args, optional = false) {
-  const out = spawnSync(process.execPath, ['src/_shared/keeper/action.mjs', ...args], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' });
+  const out = spawnSync(
+    process.execPath,
+    ['src/_shared/keeper/action.mjs', ...args],
+    { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' },
+  );
   if (out.status !== 0) {
     if (optional) return { ok: false, stdout: out.stdout, stderr: out.stderr };
-    throw new Error(`${args.join(' ')}\nstdout=${out.stdout}\nstderr=${out.stderr}`);
+    throw new Error(
+      `${args.join(' ')}\nstdout=${out.stdout}\nstderr=${out.stderr}`,
+    );
   }
   return JSON.parse(out.stdout.trim());
 }
@@ -53,11 +77,15 @@ function idle(kind = 'short') {
 }
 
 function tableText() {
-  return read(`(() => Array.from(document.querySelectorAll('table')).map((t) => t.innerText.replace(/\\s+/g, ' ')).join('\\n'))()`);
+  return read(
+    `(() => Array.from(document.querySelectorAll('table')).map((t) => t.innerText.replace(/\\s+/g, ' ')).join('\\n'))()`,
+  );
 }
 
 function tableCounts() {
-  return read(`(() => Array.from(document.querySelectorAll('table')).map((t) => t.querySelectorAll('tbody tr').length))()`);
+  return read(
+    `(() => Array.from(document.querySelectorAll('table')).map((t) => t.querySelectorAll('tbody tr').length))()`,
+  );
 }
 
 function clickDodaj(nth) {
@@ -136,10 +164,16 @@ for (const row of nonEu) {
   added.push(addRow(1, 'non-UE', row));
 }
 
-console.log(JSON.stringify({
-  ok: true,
-  source: { eu: eu.length, nonEu: nonEu.length },
-  added,
-  tableCounts: tableCounts(),
-  tableText: tableText(),
-}, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      ok: true,
+      source: { eu: eu.length, nonEu: nonEu.length },
+      added,
+      tableCounts: tableCounts(),
+      tableText: tableText(),
+    },
+    null,
+    2,
+  ),
+);

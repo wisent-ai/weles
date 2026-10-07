@@ -17,38 +17,58 @@ if (!page) {
   process.exit(1);
 }
 
-await page.goto((await import('#ncbr-settings')).sectionUrl('10_4'), { waitUntil: 'domcontentloaded' });
+await page.goto((await import('#ncbr-settings')).sectionUrl('10_4'), {
+  waitUntil: 'domcontentloaded',
+});
 await pageSettled(page);
 
-const result = await page.evaluate(async ({ base, projectId }) => {
-  async function fetchText(path) {
-    const res = await fetch(`${base}${path}`, { credentials: 'include', headers: { Accept: 'application/json' } });
-    const text = await res.text();
-    let data = null;
-    try { data = JSON.parse(text); } catch {}
-    return { status: res.status, text: text, data };
-  }
+const result = await page.evaluate(
+  async ({ base, projectId }) => {
+    async function fetchText(path) {
+      const res = await fetch(`${base}${path}`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      const text = await res.text();
+      let data = null;
+      try {
+        data = JSON.parse(text);
+      } catch {}
+      return { status: res.status, text: text, data };
+    }
 
-  const project = await fetchText(`/api/beneficiary/project/${projectId}`);
-  const projectsPlural = await fetchText(`/api/beneficiary/projects/${projectId}`);
-  const permissions = await fetchText(`/api/beneficiary/project/${projectId}/get-user-permissions`);
-  const storage = {};
-  for (const [k, v] of Object.entries(localStorage)) {
-    if (/project|version|application|wniosek|beneficiary/i.test(k)) storage[k] = String(v);
-  }
-  const resources = performance.getEntriesByType('resource')
-    .map((e) => e.name)
-    .filter((name) => /project-versions|project-sections|project\/|registries-values|APPLICATION_DATA/i.test(name))
-    .slice(-80);
-  return {
-    href: location.href,
-    project,
-    projectsPlural,
-    permissions,
-    storage,
-    resources,
-  };
-}, { base, projectId });
+    const project = await fetchText(`/api/beneficiary/project/${projectId}`);
+    const projectsPlural = await fetchText(
+      `/api/beneficiary/projects/${projectId}`,
+    );
+    const permissions = await fetchText(
+      `/api/beneficiary/project/${projectId}/get-user-permissions`,
+    );
+    const storage = {};
+    for (const [k, v] of Object.entries(localStorage)) {
+      if (/project|version|application|wniosek|beneficiary/i.test(k))
+        storage[k] = String(v);
+    }
+    const resources = performance
+      .getEntriesByType('resource')
+      .map((e) => e.name)
+      .filter((name) =>
+        /project-versions|project-sections|project\/|registries-values|APPLICATION_DATA/i.test(
+          name,
+        ),
+      )
+      .slice(-80);
+    return {
+      href: location.href,
+      project,
+      projectsPlural,
+      permissions,
+      storage,
+      resources,
+    };
+  },
+  { base, projectId },
+);
 
 console.log(JSON.stringify(result, null, 2));
 process.exit(0);

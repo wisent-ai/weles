@@ -32,15 +32,25 @@ export function addBrowser(context: BrowserContext): string {
 
 export function addPage(browserId: string, page: Page): string {
   const pageId = `page-${nextPageId++}`;
-  const events: PageEvents = { consoleErrors: [], failedRequests: [], responses: [] };
+  const events: PageEvents = {
+    consoleErrors: [],
+    failedRequests: [],
+    responses: [],
+  };
   page.on('console', (message) => {
     if (message.type() === 'error') events.consoleErrors.push(message.text());
   });
   page.on('requestfailed', (request) => {
-    events.failedRequests.push(`${request.method()} ${request.url()} — ${request.failure()?.errorText || 'failed'}`);
+    events.failedRequests.push(
+      `${request.method()} ${request.url()} — ${request.failure()?.errorText || 'failed'}`,
+    );
   });
   page.on('response', (response) => {
-    events.responses.push({ url: response.url(), status: response.status(), method: response.request().method() });
+    events.responses.push({
+      url: response.url(),
+      status: response.status(),
+      method: response.request().method(),
+    });
   });
   pages.set(pageId, page);
   pageEvents.set(pageId, events);
@@ -59,13 +69,18 @@ export function dropBrowser(browserId: string): BrowserSlot {
 }
 
 export function asString(value: unknown, name: string): string {
-  if (typeof value !== 'string' || value.length === 0) throw new Error(`${name} must be a non-empty string`);
+  if (typeof value !== 'string' || value.length === 0)
+    throw new Error(`${name} must be a non-empty string`);
   return value;
 }
 
-export function asOptionalNumber(value: unknown, name: string): number | undefined {
+export function asOptionalNumber(
+  value: unknown,
+  name: string,
+): number | undefined {
   if (value === undefined) return undefined;
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) throw new Error(`${name} must be a positive number`);
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0)
+    throw new Error(`${name} must be a positive number`);
   return value;
 }
 
@@ -91,5 +106,13 @@ export function getPageEvents(pageId: unknown): PageEvents {
 }
 
 export function textResult(value: unknown) {
-  return { content: [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value, null, 2) }] };
+  return {
+    content: [
+      {
+        type: 'text',
+        text:
+          typeof value === 'string' ? value : JSON.stringify(value, null, 2),
+      },
+    ],
+  };
 }

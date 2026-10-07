@@ -2,8 +2,8 @@ import { chromium } from 'playwright';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const browser = await chromium.connectOverCDP(endpoint);
-const context = browser.contexts()[0] || await browser.newContext();
-const page = context.pages()[0] || await context.newPage();
+const context = browser.contexts()[0] || (await browser.newContext());
+const page = context.pages()[0] || (await context.newPage());
 
 const result = await page.evaluate(async () => {
   const scripts = Array.from(document.scripts)

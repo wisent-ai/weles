@@ -7,30 +7,43 @@ import { handleGoogleLogin } from './login.mjs';
 
 export function extractSetupSecret(text) {
   const compact = String(text || '').replace(/\s+/g, ' ');
-  const labeled = compact.match(/(?:setup key|secret key|key)\D{0,80}([A-Z2-7](?:\s?[A-Z2-7]){15,})/i);
+  const labeled = compact.match(
+    /(?:setup key|secret key|key)\D{0,80}([A-Z2-7](?:\s?[A-Z2-7]){15,})/i,
+  );
   if (labeled) return labeled[1].toUpperCase().replace(/[^A-Z2-7]/g, '');
   const candidate = compact.match(/\b[A-Z2-7](?:\s?[A-Z2-7]){23,}\b/i);
   return candidate ? candidate[0].toUpperCase().replace(/[^A-Z2-7]/g, '') : '';
 }
 
-
 export async function openAuthenticatorSettings(creds) {
   await nav(AUTHENTICATOR_URL);
   if (/accounts\.google\.com/.test((await state()).url || '')) {
-    if (!await handleGoogleLogin(creds)) return false;
+    if (!(await handleGoogleLogin(creds))) return false;
     await nav(AUTHENTICATOR_URL);
   }
   const s = await state();
-  if (/security/i.test(s.url || '') && !/Authenticator app|2-Step Verification|Change authenticator/i.test(s.text || '')) {
+  if (
+    /security/i.test(s.url || '') &&
+    !/Authenticator app|2-Step Verification|Change authenticator/i.test(
+      s.text || '',
+    )
+  ) {
     await nav(SECURITY_URL);
-    await clickText(['2-Step Verification', '2-step verification']).catch(() => {});
+    await clickText(['2-Step Verification', '2-step verification']).catch(
+      () => {},
+    );
   }
   return true;
 }
 
 export async function activateSetup(creds) {
   const steps = [];
-  if (!await openAuthenticatorSettings(creds)) return { ok: false, blocked: 'google_login_failed_or_manual_code_timeout', steps };
+  if (!(await openAuthenticatorSettings(creds)))
+    return {
+      ok: false,
+      blocked: 'google_login_failed_or_manual_code_timeout',
+      steps,
+    };
 
   // Each screen Google shows is answered until the authenticator is activated
   // or a screen blocks it; an unrecognised screen is waited on.
@@ -40,7 +53,12 @@ export async function activateSetup(creds) {
     steps.push({ i, url: s.url, textPreview: redact(text) });
 
     if (/accounts\.google\.com/.test(s.url || '')) {
-      if (!await handleGoogleLogin(creds)) return { ok: false, blocked: 'google_reauth_failed_or_manual_code_timeout', steps };
+      if (!(await handleGoogleLogin(creds)))
+        return {
+          ok: false,
+          blocked: 'google_reauth_failed_or_manual_code_timeout',
+          steps,
+        };
       continue;
     }
 
@@ -54,46 +72,93 @@ export async function activateSetup(creds) {
       continue;
     }
 
-    if (/Set up authenticator|Add authenticator|Authenticator app/i.test(text) && !/Enter code|verification code/i.test(text)) {
-      await clickText(['Set up authenticator', 'Add authenticator', 'Authenticator app', 'Get started']).catch(() => {});
+    if (
+      /Set up authenticator|Add authenticator|Authenticator app/i.test(text) &&
+      !/Enter code|verification code/i.test(text)
+    ) {
+      await clickText([
+        'Set up authenticator',
+        'Add authenticator',
+        'Authenticator app',
+        'Get started',
+      ]).catch(() => {});
       continue;
     }
 
-    if (/QR code|scan|setup key|secret key|Can.?t scan/i.test(text) && !/Enter code|verification code/i.test(text)) {
-      if (!/setup key|secret key/i.test(text)) await clickText(["Can't scan it", 'setup key', 'Enter a setup key']).catch(() => {});
+    if (
+      /QR code|scan|setup key|secret key|Can.?t scan/i.test(text) &&
+      !/Enter code|verification code/i.test(text)
+    ) {
+      if (!/setup key|secret key/i.test(text))
+        await clickText([
+          "Can't scan it",
+          'setup key',
+          'Enter a setup key',
+        ]).catch(() => {});
       await idle('deliberate');
       const withKey = await state();
       const setupSecret = extractSetupSecret(withKey.text || '');
-      if (!setupSecret) return { ok: false, blocked: 'google_setup_key_not_found', steps };
+      if (!setupSecret)
+        return { ok: false, blocked: 'google_setup_key_not_found', steps };
       await clickText(['Next', 'Continue']).catch(() => {});
       await idle('deliberate');
       const code = generateTotp(setupSecret);
-      await fill('input[name="totpPin"], input[name="Pin"], input[type="tel"], input[type="text"], input[inputmode="numeric"]', code);
-      await clickText(['Verify', 'Next', 'Done']).catch(async () => press('Enter'));
+      await fill(
+        'input[name="totpPin"], input[name="Pin"], input[type="tel"], input[type="text"], input[inputmode="numeric"]',
+        code,
+      );
+      await clickText(['Verify', 'Next', 'Done']).catch(async () =>
+        press('Enter'),
+      );
       await idle('deliberate');
       const after = await state();
-      if (/Wrong code|Try again|Invalid code|Couldn.?t verify/i.test(after.text || '')) {
+      if (
+        /Wrong code|Try again|Invalid code|Couldn.?t verify/i.test(
+          after.text || '',
+        )
+      ) {
         const retry = generateTotp(setupSecret, { now: Date.now() + 31_000 });
-        await fill('input[name="totpPin"], input[name="Pin"], input[type="tel"], input[type="text"], input[inputmode="numeric"]', retry);
-        await clickText(['Verify', 'Next', 'Done']).catch(async () => press('Enter'));
+        await fill(
+          'input[name="totpPin"], input[name="Pin"], input[type="tel"], input[type="text"], input[inputmode="numeric"]',
+          retry,
+        );
+        await clickText(['Verify', 'Next', 'Done']).catch(async () =>
+          press('Enter'),
+        );
         await idle('deliberate');
       }
       const finalState = await state();
-      if (/Wrong code|Try again|Invalid code|Couldn.?t verify/i.test(finalState.text || '')) return { ok: false, blocked: 'new_google_totp_code_rejected', steps };
+      if (
+        /Wrong code|Try again|Invalid code|Couldn.?t verify/i.test(
+          finalState.text || '',
+        )
+      )
+        return { ok: false, blocked: 'new_google_totp_code_rejected', steps };
       writeScopedLogin('googleAds', {
         email: creds.email,
         password: creds.password,
         totpSecret: setupSecret,
       });
-      return { ok: true, activated: true, stored: true, url: finalState.url, steps };
+      return {
+        ok: true,
+        activated: true,
+        stored: true,
+        url: finalState.url,
+        steps,
+      };
     }
 
     if (/Enter code|verification code/i.test(text)) {
       const setupSecret = extractSetupSecret(text);
       if (setupSecret) {
         const code = generateTotp(setupSecret);
-        await fill('input[name="totpPin"], input[name="Pin"], input[type="tel"], input[type="text"], input[inputmode="numeric"]', code);
-        await clickText(['Verify', 'Next', 'Done']).catch(async () => press('Enter'));
+        await fill(
+          'input[name="totpPin"], input[name="Pin"], input[type="tel"], input[type="text"], input[inputmode="numeric"]',
+          code,
+        );
+        await clickText(['Verify', 'Next', 'Done']).catch(async () =>
+          press('Enter'),
+        );
         continue;
       }
       return { ok: false, blocked: 'code_input_without_setup_key', steps };

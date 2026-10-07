@@ -25,8 +25,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 /** The declaration, relative to the checkout it belongs to. */
-export const ENGAGEMENT_DECLARATION_PATH = 'src/worker/deploy/weles-engagement-declaration.json';
-export const ENGAGEMENT_DECLARATION_SCHEMA = 'wisent.weles-engagement-declaration.v1';
+export const ENGAGEMENT_DECLARATION_PATH =
+  'src/worker/deploy/weles-engagement-declaration.json';
+export const ENGAGEMENT_DECLARATION_SCHEMA =
+  'wisent.weles-engagement-declaration.v1';
 
 /** Reviewed trajectories live here, and a declaration may name nothing else. */
 const TRAJECTORY_ROOT = 'src/trajectories/';
@@ -75,23 +77,31 @@ export function loadDeclaredEngagements(
     document = JSON.parse(readFileSync(path, 'utf8')) as unknown;
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    throw new Error(`${ENGAGEMENT_DECLARATION_PATH} could not be read: ${reason}`);
+    throw new Error(
+      `${ENGAGEMENT_DECLARATION_PATH} could not be read: ${reason}`,
+    );
   }
   if (!document || typeof document !== 'object' || Array.isArray(document)) {
     throw new Error(`${ENGAGEMENT_DECLARATION_PATH} must be one JSON object`);
   }
   const declaration = document as Record<string, unknown>;
   if (declaration.schema !== ENGAGEMENT_DECLARATION_SCHEMA) {
-    throw new Error(`${ENGAGEMENT_DECLARATION_PATH} must declare schema ${ENGAGEMENT_DECLARATION_SCHEMA}`);
+    throw new Error(
+      `${ENGAGEMENT_DECLARATION_PATH} must declare schema ${ENGAGEMENT_DECLARATION_SCHEMA}`,
+    );
   }
   const entries = declaration.engagements;
   if (!Array.isArray(entries) || !entries.length) {
-    throw new Error(`${ENGAGEMENT_DECLARATION_PATH} must declare at least one engagement`);
+    throw new Error(
+      `${ENGAGEMENT_DECLARATION_PATH} must declare at least one engagement`,
+    );
   }
   const declared = new Map<string, DeclaredEngagement>();
   for (const [index, raw] of entries.entries()) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-      throw new Error(`${ENGAGEMENT_DECLARATION_PATH} entry ${index} is not an object`);
+      throw new Error(
+        `${ENGAGEMENT_DECLARATION_PATH} entry ${index} is not an object`,
+      );
     }
     const entry = raw as Record<string, unknown>;
     const engagement = field(entry, 'engagement');
@@ -104,7 +114,9 @@ export function loadDeclaredEngagements(
       );
     }
     if (!ENGAGEMENT_NAME.test(engagement)) {
-      throw new Error(`${ENGAGEMENT_DECLARATION_PATH} declares the malformed engagement name ${engagement}`);
+      throw new Error(
+        `${ENGAGEMENT_DECLARATION_PATH} declares the malformed engagement name ${engagement}`,
+      );
     }
     if (engagement !== `${platform}.${verb}`) {
       throw new Error(
@@ -112,7 +124,9 @@ export function loadDeclaredEngagements(
       );
     }
     if (declared.has(engagement)) {
-      throw new Error(`${ENGAGEMENT_DECLARATION_PATH} declares engagement ${engagement} twice`);
+      throw new Error(
+        `${ENGAGEMENT_DECLARATION_PATH} declares engagement ${engagement} twice`,
+      );
     }
     if (!trajectory.startsWith(TRAJECTORY_ROOT) || trajectory.includes('..')) {
       throw new Error(
@@ -120,7 +134,9 @@ export function loadDeclaredEngagements(
       );
     }
     if (!existsSync(join(repositoryRoot, trajectory))) {
-      throw new Error(`declared engagement ${engagement} names a missing reviewed trajectory: ${trajectory}`);
+      throw new Error(
+        `declared engagement ${engagement} names a missing reviewed trajectory: ${trajectory}`,
+      );
     }
     declared.set(engagement, { engagement, platform, verb, trajectory });
   }
@@ -151,12 +167,16 @@ export function admitEngagement(
   repositoryRoot: string = welesRepositoryRoot(),
 ): DeclaredEngagement {
   if (typeof named !== 'string' || !named.trim()) {
-    throw new Error('engagement must name a declared engagement as <platform>.<verb>');
+    throw new Error(
+      'engagement must name a declared engagement as <platform>.<verb>',
+    );
   }
   const engagement = named.trim();
   const declared = declaredEngagements(repositoryRoot).get(engagement);
   if (!declared) {
-    throw new Error(`engagement ${engagement} is not declared in ${ENGAGEMENT_DECLARATION_PATH}`);
+    throw new Error(
+      `engagement ${engagement} is not declared in ${ENGAGEMENT_DECLARATION_PATH}`,
+    );
   }
   return declared;
 }
@@ -179,7 +199,9 @@ export function applySavedTaskEnv(
   const engagement = params.engagement;
   const trajectoryId = params.trajectory_id;
   if (engagement !== undefined && trajectoryId !== undefined) {
-    throw new Error('generic_saved_task takes an engagement or a trajectory_id, not both');
+    throw new Error(
+      'generic_saved_task takes an engagement or a trajectory_id, not both',
+    );
   }
   if (engagement !== undefined) {
     const declared = admitEngagement(engagement);
@@ -188,5 +210,6 @@ export function applySavedTaskEnv(
     env.PLATFORM = declared.platform;
     env.VERB = declared.verb;
   }
-  if (typeof trajectoryId === 'string') env.GENERIC_SAVED_TRAJECTORY_ID = trajectoryId;
+  if (typeof trajectoryId === 'string')
+    env.GENERIC_SAVED_TRAJECTORY_ID = trajectoryId;
 }

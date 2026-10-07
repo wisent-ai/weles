@@ -2,31 +2,53 @@
 // validation readback.
 import { FINANCING_8 } from './rows.mjs';
 import { PROJECT_URL, URLS, email, evidence, password } from './settings.mjs';
-import { clickLastButton, hasText, kclick, kfill, nav, press, readVisibleFields, ro, saveOpenForm, send } from './keeper.mjs';
+import {
+  clickLastButton,
+  hasText,
+  kclick,
+  kfill,
+  nav,
+  press,
+  readVisibleFields,
+  ro,
+  saveOpenForm,
+  send,
+} from './keeper.mjs';
 
 export async function loginIfNeeded() {
   await nav('https://lsi2.ncbr.gov.pl/logowanie');
-  const info = await ro(`({url:location.href, hasMail:!!document.querySelector('input[name="mail"],#mail'), hasPassword:!!document.querySelector('input[name="password"],#password')})`);
+  const info = await ro(
+    `({url:location.href, hasMail:!!document.querySelector('input[name="mail"],#mail'), hasPassword:!!document.querySelector('input[name="password"],#password')})`,
+  );
   if (!info.hasMail || !info.hasPassword) {
-    evidence.steps.push({ step: 'login', status: 'already_authenticated', info });
+    evidence.steps.push({
+      step: 'login',
+      status: 'already_authenticated',
+      info,
+    });
     return;
   }
   await kfill('input[name="mail"], #mail', email);
   await kfill('input[name="password"], #password', password);
-  const checkbox = await ro(`(()=>{const c=document.querySelector('input[name="isStatuteAccepted"],#isStatuteAccepted');return c?{checked:c.checked,visible:!!(c.offsetWidth||c.offsetHeight||c.getClientRects().length)}:null;})()`);
-  if (checkbox && !checkbox.checked) await kclick('input[name="isStatuteAccepted"], #isStatuteAccepted');
+  const checkbox = await ro(
+    `(()=>{const c=document.querySelector('input[name="isStatuteAccepted"],#isStatuteAccepted');return c?{checked:c.checked,visible:!!(c.offsetWidth||c.offsetHeight||c.getClientRects().length)}:null;})()`,
+  );
+  if (checkbox && !checkbox.checked)
+    await kclick('input[name="isStatuteAccepted"], #isStatuteAccepted');
   await kclick('#login-btn, button:has-text("Zaloguj")');
   const u = (await send({ action: 'url' })).url;
-    if (!u.includes('/logowanie')) {
-      evidence.steps.push({ step: 'login', status: 'ok', url: u });
-      return;
-    }
+  if (!u.includes('/logowanie')) {
+    evidence.steps.push({ step: 'login', status: 'ok', url: u });
+    return;
+  }
   const body = await ro(`document.body.innerText`);
   throw new Error(`login stayed on login page: ${body}`);
 }
 
 export async function tableText() {
-  return await ro(`Array.from(document.querySelectorAll('table')).map((t,i)=>({i,rows:t.querySelectorAll('tbody tr').length,text:t.innerText.replace(/\\s+/g,' ')}))`);
+  return await ro(
+    `Array.from(document.querySelectorAll('table')).map((t,i)=>({i,rows:t.querySelectorAll('tbody tr').length,text:t.innerText.replace(/\\s+/g,' ')}))`,
+  );
 }
 
 export async function openEditRow(candidates) {
@@ -36,8 +58,10 @@ export async function openEditRow(candidates) {
     tried.push(sel);
     try {
       await kclick(sel);
-      await kclick(`[role="menuitem"]:has-text("Edytuj"), .MuiMenuItem-root:has-text("Edytuj")`);
-      
+      await kclick(
+        `[role="menuitem"]:has-text("Edytuj"), .MuiMenuItem-root:has-text("Edytuj")`,
+      );
+
       return { candidate };
     } catch (e) {
       tried.push(`miss:${candidate}:${String(e.message)}`);
@@ -55,7 +79,11 @@ export async function fillKnownFields(fields) {
       await kfill(selector, value);
       filled.push({ name, status: 'filled', len: String(value).length });
     } catch (e) {
-      filled.push({ name, status: 'not_found_or_locked', error: String(e.message) });
+      filled.push({
+        name,
+        status: 'not_found_or_locked',
+        error: String(e.message),
+      });
     }
   }
   const after = await readVisibleFields();
@@ -74,7 +102,11 @@ export async function repairRows(sectionName, url, rows) {
       const save = await saveOpenForm();
       out.push({ candidates: row.candidates, edit, fill, save });
     } catch (e) {
-      out.push({ candidates: row.candidates, error: String(e.message), tableBefore });
+      out.push({
+        candidates: row.candidates,
+        error: String(e.message),
+        tableBefore,
+      });
     }
   }
   evidence.steps.push({ step: sectionName, rows: out });
@@ -83,12 +115,15 @@ export async function repairRows(sectionName, url, rows) {
 
 export async function repair22Factor() {
   await nav(URLS.s22);
-  const inputSel = 'input[name$="rezultat_prac_br_spelnia_nastepujace_czynniki"]';
+  const inputSel =
+    'input[name$="rezultat_prac_br_spelnia_nastepujace_czynniki"]';
   const before = await readVisibleFields();
   let picked = null;
   try {
     await kfill(inputSel, 'wpływa na zwiększenie bezpieczeństwa dostaw');
-    const options = await ro(`Array.from(document.querySelectorAll('[role="option"]')).map(o=>o.textContent.trim()).filter(Boolean)`);
+    const options = await ro(
+      `Array.from(document.querySelectorAll('[role="option"]')).map(o=>o.textContent.trim()).filter(Boolean)`,
+    );
     const exact = options.find((o) => /bezpieczeństwa dostaw/i.test(o));
     if (exact) {
       await kclick(`[role="option"]:has-text(${hasText(exact)})`);
@@ -97,18 +132,29 @@ export async function repair22Factor() {
       await press('Enter');
       picked = 'Enter';
     }
-    
+
     const save = await saveOpenForm();
     evidence.steps.push({ step: '2.2_factor', before, picked, save });
   } catch (e) {
-    evidence.steps.push({ step: '2.2_factor', error: String(e.message), before });
+    evidence.steps.push({
+      step: '2.2_factor',
+      error: String(e.message),
+      before,
+    });
   }
 }
 
 export function section8ValueFor(field) {
   const hay = `${field.name || ''} ${field.label || ''}`.toLowerCase();
-  for (const [needle, value] of Object.entries(FINANCING_8)) if (hay.includes(needle)) return value;
-  if (hay.includes('wspólnot') || hay.includes('wspolnot') || hay.includes('dofinansowanie') || hay.includes('publiczne')) return '11950000.00';
+  for (const [needle, value] of Object.entries(FINANCING_8))
+    if (hay.includes(needle)) return value;
+  if (
+    hay.includes('wspólnot') ||
+    hay.includes('wspolnot') ||
+    hay.includes('dofinansowanie') ||
+    hay.includes('publiczne')
+  )
+    return '11950000.00';
   return null;
 }
 
@@ -117,11 +163,15 @@ export async function repair8() {
   const tableBefore = await tableText();
   let mode = 'edit_existing';
   try {
-    await openEditRow(['Wisent Polska', 'WISENT POLSKA', '3515000', '3 515 000']);
+    await openEditRow([
+      'Wisent Polska',
+      'WISENT POLSKA',
+      '3515000',
+      '3 515 000',
+    ]);
   } catch {
     mode = 'add';
     await clickLastButton('Dodaj');
-    
   }
   const before = await readVisibleFields();
   const fills = [];
@@ -133,14 +183,29 @@ export async function repair8() {
       await kfill(`input[name="${f.name}"], textarea[name="${f.name}"]`, v);
       fills.push({ name: f.name, label: f.label, value: v, status: 'filled' });
     } catch (e) {
-      fills.push({ name: f.name, label: f.label, value: v, status: 'error', error: String(e.message) });
+      fills.push({
+        name: f.name,
+        label: f.label,
+        value: v,
+        status: 'error',
+        error: String(e.message),
+      });
     }
   }
   const after = await readVisibleFields();
   const save = await saveOpenForm();
   await nav(URLS.s8);
   const tableAfter = await tableText();
-  evidence.steps.push({ step: '8_financing', mode, tableBefore, before, fills, after, save, tableAfter });
+  evidence.steps.push({
+    step: '8_financing',
+    mode,
+    tableBefore,
+    before,
+    fills,
+    after,
+    save,
+    tableAfter,
+  });
 }
 
 export async function validate() {
@@ -150,10 +215,19 @@ export async function validate() {
   try {
     clicked = await clickLastButton('Sprawdź wniosek');
   } catch (e) {
-    evidence.steps.push({ step: 'validate_click_error', error: String(e.message) });
+    evidence.steps.push({
+      step: 'validate_click_error',
+      error: String(e.message),
+    });
   }
-  
+
   const after = await ro(`document.body.innerText`);
   const url = (await send({ action: 'url' })).url;
-  evidence.steps.push({ step: 'validate', clicked, url, beforeSnippet: before, afterSnippet: after });
+  evidence.steps.push({
+    step: 'validate',
+    clicked,
+    url,
+    beforeSnippet: before,
+    afterSnippet: after,
+  });
 }

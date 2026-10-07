@@ -1,8 +1,22 @@
 // Running one section through the Pangram UI trajectory, reusing an earlier result of the
 // same text when there is one, and trusting only a real run.
-import { existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
-import { LOGS_DIR, NO_ACCOUNT, OUT_DIR, REUSE_EXISTING, RUN_ID, WEL } from './settings.mjs';
+import {
+  LOGS_DIR,
+  NO_ACCOUNT,
+  OUT_DIR,
+  REUSE_EXISTING,
+  RUN_ID,
+  WEL,
+} from './settings.mjs';
 import { sh, slug } from './text.mjs';
 
 export function walkJson(dir) {
@@ -11,7 +25,11 @@ export function walkJson(dir) {
   while (stack.length) {
     const cur = stack.pop();
     let entries = [];
-    try { entries = readdirSync(cur, { withFileTypes: true }); } catch { continue; }
+    try {
+      entries = readdirSync(cur, { withFileTypes: true });
+    } catch {
+      continue;
+    }
     for (const e of entries) {
       const p = join(cur, e.name);
       if (e.isDirectory()) stack.push(p);
@@ -33,7 +51,8 @@ export function loadExistingUiResults() {
       if (key && json.source === 'ui' && json.verdict) {
         const prev = map.get(key);
         const mtime = statSync(p).mtimeMs;
-        if (!prev || mtime > prev.mtime) map.set(key, { path: p, mtime, result: json });
+        if (!prev || mtime > prev.mtime)
+          map.set(key, { path: p, mtime, result: json });
       }
     } catch {
       // Ignore corrupt or partial files.
@@ -63,24 +82,41 @@ export function runPangram(item, textFile, action, accountId = '') {
   };
   if (NO_ACCOUNT) {
     env.PANGRAM_NO_ACCOUNT = '1';
-    env.PANGRAM_WAIT_FOR_HUMAN_VERIFICATION = process.env.PANGRAM_WAIT_FOR_HUMAN_VERIFICATION || '1';
+    env.PANGRAM_WAIT_FOR_HUMAN_VERIFICATION =
+      process.env.PANGRAM_WAIT_FOR_HUMAN_VERIFICATION || '1';
   } else {
     env.PANGRAM_REQUIRE_ACCOUNT = '1';
   }
   if (accountId) env.ACCOUNT_ID = accountId;
-  const res = sh(process.execPath, ['--env-file=.env', 'src/trajectories/pangram/analyze_text.mjs'], {
-    cwd: WEL,
-    env,
-    maxBuffer: 20 * 1024 * 1024,
-  });
+  const res = sh(
+    process.execPath,
+    ['--env-file=.env', 'src/trajectories/pangram/analyze_text.mjs'],
+    {
+      cwd: WEL,
+      env,
+      maxBuffer: 20 * 1024 * 1024,
+    },
+  );
   const partSuffix = item.part ? `_p${String(item.part).padStart(2, '0')}` : '';
-  const logPath = join(LOGS_DIR, `${slug(item.path)}_${slug(item.id)}${partSuffix}_${slug(accountId || 'auto')}.log`);
+  const logPath = join(
+    LOGS_DIR,
+    `${slug(item.path)}_${slug(item.id)}${partSuffix}_${slug(accountId || 'auto')}.log`,
+  );
   writeFileSync(logPath, `${res.stdout || ''}\n${res.stderr || ''}`.trim());
-  const result = existsSync(resultPath) ? JSON.parse(readFileSync(resultPath, 'utf8')) : null;
-  const ban = existsSync(banPath) ? JSON.parse(readFileSync(banPath, 'utf8')) : null;
+  const result = existsSync(resultPath)
+    ? JSON.parse(readFileSync(resultPath, 'utf8'))
+    : null;
+  const ban = existsSync(banPath)
+    ? JSON.parse(readFileSync(banPath, 'utf8'))
+    : null;
   return { res, logPath, resultPath, banPath, result, ban, accountId };
 }
 
 export function trustedResult(run) {
-  return run.res.status === 0 && run.ban?.healthy === true && run.result?.source === 'ui' && run.result?.verdict;
+  return (
+    run.res.status === 0 &&
+    run.ban?.healthy === true &&
+    run.result?.source === 'ui' &&
+    run.result?.verdict
+  );
 }

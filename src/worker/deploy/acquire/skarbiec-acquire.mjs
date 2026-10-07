@@ -3,7 +3,10 @@
 import { randomBytes, sign } from 'node:crypto';
 import { readFileSync, lstatSync, writeSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
-import { resolveSkarbiecEndpoint, formatEndpointErrorMessage } from './endpoint-resolution.mjs';
+import {
+  resolveSkarbiecEndpoint,
+  formatEndpointErrorMessage,
+} from './endpoint-resolution.mjs';
 
 // A refusal whose cause the caller must act on differently ends with one
 // machine line naming that cause (refused, scope_not_declared,
@@ -12,13 +15,21 @@ import { resolveSkarbiecEndpoint, formatEndpointErrorMessage } from './endpoint-
 // The write is synchronous: stderr is a pipe to the reader, where Node's
 // process.stderr.write is asynchronous and process.exit may drop the line.
 function stop(reason, message) {
-  writeSync(process.stderr.fd, `${message}\nSKARBIEC_ACQUIRE_REASON ${reason}\n`);
+  writeSync(
+    process.stderr.fd,
+    `${message}\nSKARBIEC_ACQUIRE_REASON ${reason}\n`,
+  );
   process.exit(1);
 }
 
 const [scopeFile, consumer, item, field, ...extraArgs] = process.argv.slice(2);
-if (extraArgs.length > 0 || [scopeFile, consumer, item, field].some((value) => !value)) {
-  throw new Error('usage: skarbiec-acquire.mjs <scope-file> <consumer> <item> <field>');
+if (
+  extraArgs.length > 0 ||
+  [scopeFile, consumer, item, field].some((value) => !value)
+) {
+  throw new Error(
+    'usage: skarbiec-acquire.mjs <scope-file> <consumer> <item> <field>',
+  );
 }
 
 const { resolved } = await resolveSkarbiecEndpoint();
@@ -35,9 +46,18 @@ const exactName = /^[A-Za-z\d._-]+$/;
 // is `acquire:role:<role>#<field>` and Skarbiec redeems the one live item
 // tagged `stado:role:<role>`, so neither this catalog nor the caller names a
 // vault item.
-const exactCoordinate = (value) => exactName.test(value.startsWith('role:') ? value.slice('role:'.length) : value);
-if (!exactName.test(consumer) || !exactCoordinate(item) || !exactName.test(field)) {
-  throw new Error('consumer and field must be exact names, and item an exact name or role:<exact name>');
+const exactCoordinate = (value) =>
+  exactName.test(
+    value.startsWith('role:') ? value.slice('role:'.length) : value,
+  );
+if (
+  !exactName.test(consumer) ||
+  !exactCoordinate(item) ||
+  !exactName.test(field)
+) {
+  throw new Error(
+    'consumer and field must be exact names, and item an exact name or role:<exact name>',
+  );
 }
 
 const scopeRows = readFileSync(scopeFile, 'utf8')
@@ -46,14 +66,23 @@ const scopeRows = readFileSync(scopeFile, 'utf8')
   .filter((line) => line && !line.startsWith('#'));
 const parsedScopes = scopeRows.map((line) => {
   const columns = line.split('|');
-  if (columns.length !== 3 || !exactName.test(columns[0]) || !exactCoordinate(columns[1]) || !exactName.test(columns[2])) {
-    throw new Error('invalid Skarbiec bootstrap scope; expected consumer|item|field, item an exact name or role:<exact name>');
+  if (
+    columns.length !== 3 ||
+    !exactName.test(columns[0]) ||
+    !exactCoordinate(columns[1]) ||
+    !exactName.test(columns[2])
+  ) {
+    throw new Error(
+      'invalid Skarbiec bootstrap scope; expected consumer|item|field, item an exact name or role:<exact name>',
+    );
   }
   return columns;
 });
 const scopeKeys = parsedScopes.map((columns) => columns.join('|'));
 if (!scopeKeys.length || new Set(scopeKeys).size !== scopeKeys.length) {
-  throw new Error('Skarbiec bootstrap scope catalog must be nonempty and duplicate-free');
+  throw new Error(
+    'Skarbiec bootstrap scope catalog must be nonempty and duplicate-free',
+  );
 }
 if (!scopeKeys.includes([consumer, item, field].join('|'))) {
   // Name the table that was read and how big it is: this refusal is produced
@@ -61,36 +90,54 @@ if (!scopeKeys.includes([consumer, item, field].join('|'))) {
   // WHICH copy of the catalogue is in force, not the grant.
   stop(
     'scope_not_declared',
-    `undeclared Skarbiec acquisition scope for ${consumer} on ${item}#${field}`
-    + ` in ${scopeFile} (${scopeKeys.length} declared scopes)`,
+    `undeclared Skarbiec acquisition scope for ${consumer} on ${item}#${field}` +
+      ` in ${scopeFile} (${scopeKeys.length} declared scopes)`,
   );
 }
 
 const endpoint = new URL(endpointText);
-const loopback = new Set(['localhost', '127.0.0.1', '::1', '[::1]']).has(endpoint.hostname);
-if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash
-    || (endpoint.pathname !== '/' && endpoint.pathname !== '')
-    || (endpoint.protocol !== 'https:' && !(endpoint.protocol === 'http:' && loopback))) {
-  throw new Error('Skarbiec endpoint must be an HTTPS origin or loopback HTTP origin');
+const loopback = new Set(['localhost', '127.0.0.1', '::1', '[::1]']).has(
+  endpoint.hostname,
+);
+if (
+  endpoint.username ||
+  endpoint.password ||
+  endpoint.search ||
+  endpoint.hash ||
+  (endpoint.pathname !== '/' && endpoint.pathname !== '') ||
+  (endpoint.protocol !== 'https:' &&
+    !(endpoint.protocol === 'http:' && loopback))
+) {
+  throw new Error(
+    'Skarbiec endpoint must be an HTTPS origin or loopback HTTP origin',
+  );
 }
-
-
 
 const unsafeBits = 0o077;
 const workloadId = process.env.SKARBIEC_WORKLOAD_ID;
 const signingKeyFile = process.env.SKARBIEC_WORKLOAD_SIGNING_KEY_FILE;
-if (!workloadId || workloadId.trim() !== workloadId
-    || [...workloadId].some((character) => character < ' ' || character === '\u007f')
-    || workloadId.length > 128) {
+if (
+  !workloadId ||
+  workloadId.trim() !== workloadId ||
+  [...workloadId].some(
+    (character) => character < ' ' || character === '\u007f',
+  ) ||
+  workloadId.length > 128
+) {
   throw new Error('invalid SKARBIEC_WORKLOAD_ID');
 }
 if (!signingKeyFile || !isAbsolute(signingKeyFile)) {
-  throw new Error('SKARBIEC_WORKLOAD_SIGNING_KEY_FILE must be an absolute path');
+  throw new Error(
+    'SKARBIEC_WORKLOAD_SIGNING_KEY_FILE must be an absolute path',
+  );
 }
 const signingMetadata = lstatSync(signingKeyFile);
-if (!signingMetadata.isFile() || signingMetadata.isSymbolicLink()
-    || signingMetadata.uid !== process.getuid()
-    || (signingMetadata.mode & unsafeBits) !== 0) {
+if (
+  !signingMetadata.isFile() ||
+  signingMetadata.isSymbolicLink() ||
+  signingMetadata.uid !== process.getuid() ||
+  (signingMetadata.mode & unsafeBits) !== 0
+) {
   throw new Error('unsafe Skarbiec workload signing key file');
 }
 const workloadTimestamp = Math.floor(Date.now() / 1000);
@@ -98,11 +145,16 @@ const workloadNonce = randomBytes(32).toString('base64url');
 const separator = Buffer.alloc(1);
 const proofPayload = Buffer.concat([
   Buffer.from('SKARBIEC-WORKLOAD-ACQUISITION\0v1\0', 'utf8'),
-  Buffer.from(consumer, 'utf8'), separator,
-  Buffer.from(item, 'utf8'), separator,
-  Buffer.from(field, 'utf8'), separator,
-  Buffer.from(workloadId, 'utf8'), separator,
-  Buffer.from(String(workloadTimestamp), 'ascii'), separator,
+  Buffer.from(consumer, 'utf8'),
+  separator,
+  Buffer.from(item, 'utf8'),
+  separator,
+  Buffer.from(field, 'utf8'),
+  separator,
+  Buffer.from(workloadId, 'utf8'),
+  separator,
+  Buffer.from(String(workloadTimestamp), 'ascii'),
+  separator,
   Buffer.from(workloadNonce, 'ascii'),
 ]);
 const signingKey = readFileSync(signingKeyFile);
@@ -113,8 +165,11 @@ try {
   signingKey.fill(0);
   proofPayload.fill(0);
 }
-const validHex = [...workloadSignature].every((character) =>
-  (character >= '0' && character <= '9') || (character >= 'a' && character <= 'f'));
+const validHex = [...workloadSignature].every(
+  (character) =>
+    (character >= '0' && character <= '9') ||
+    (character >= 'a' && character <= 'f'),
+);
 if (workloadSignature.length !== 128 || !validHex) {
   throw new Error('invalid Skarbiec workload proof signature');
 }
@@ -129,29 +184,34 @@ async function refuse(stage, response, consumer, item, field) {
   let detail = '';
   try {
     const text = await response.text();
-    detail = text.replace(/"value"\s*:\s*"(?:[^"\\]|\\.)*"/g, '"value":"<redacted>"')
+    detail = text
+      .replace(/"value"\s*:\s*"(?:[^"\\]|\\.)*"/g, '"value":"<redacted>"')
       .replace(/\s+/g, ' ')
       .trim();
   } catch {
     detail = '<body unreadable>';
   }
   const reason = REFUSAL_BY_STATUS[response.status] ?? 'refused';
-  stop(reason,
-    `Skarbiec ${stage} at ${endpoint.origin} refused ${consumer} for ${item}#${field}: HTTP ${response.status}`
-    + `${detail ? ` ${detail}` : ''}`
-    // The issue call carries no bearer: the authority authorizes the tuple
-    // (X-Consumer, item, field, workload_id, timestamp, nonce, Ed25519 signature).
-    // A 401 therefore means the authority holds no token whose consumer, capability
-    // and workload binding cover that tuple, so the workload identity this client
-    // asserted has to be visible next to the refusal — it is a name, not a secret,
-    // and without it the only unchecked half of the comparison stays invisible.
-    + ` [asserted workload_id=${workloadId}, proof over ${consumer}\0${item}\0${field}]`,
+  stop(
+    reason,
+    `Skarbiec ${stage} at ${endpoint.origin} refused ${consumer} for ${item}#${field}: HTTP ${response.status}` +
+      `${detail ? ` ${detail}` : ''}` +
+      // The issue call carries no bearer: the authority authorizes the tuple
+      // (X-Consumer, item, field, workload_id, timestamp, nonce, Ed25519 signature).
+      // A 401 therefore means the authority holds no token whose consumer, capability
+      // and workload binding cover that tuple, so the workload identity this client
+      // asserted has to be visible next to the refusal — it is a name, not a secret,
+      // and without it the only unchecked half of the comparison stays invisible.
+      ` [asserted workload_id=${workloadId}, proof over ${consumer}\0${item}\0${field}]`,
   );
 }
 
 // Skarbiec's statuses for a proved workload: 404 is a field the item does not
 // carry (skarbiec README, acquisition), 401 a tuple no grant covers.
-const REFUSAL_BY_STATUS = { 404: 'field_not_present', 401: 'workload_not_authorized' };
+const REFUSAL_BY_STATUS = {
+  404: 'field_not_present',
+  401: 'workload_not_authorized',
+};
 
 const body = JSON.stringify({ id: item, field });
 const issueBody = JSON.stringify({
@@ -177,8 +237,8 @@ async function post(path, headers, payload) {
   } catch (cause) {
     stop(
       'authority_unreachable',
-      `Skarbiec at ${endpoint.origin} is unreachable for ${consumer} on ${item}#${field}`
-      + ` (${path}): ${cause?.cause?.code ?? cause?.code ?? String(cause)}`,
+      `Skarbiec at ${endpoint.origin} is unreachable for ${consumer} on ${item}#${field}` +
+        ` (${path}): ${cause?.cause?.code ?? cause?.code ?? String(cause)}`,
     );
   }
 }
@@ -189,11 +249,20 @@ if (!issueResponse.ok) {
 }
 const issued = await issueResponse.json();
 const issuedKeys = ['consumer', 'expires_at', 'field', 'item', 'token'];
-if (!issued || issued.consumer !== consumer || issued.item !== item || issued.field !== field
-    || Object.keys(issued).sort().join('|') !== issuedKeys.join('|')
-    || typeof issued.token !== 'string' || !issued.token || /\s/.test(issued.token)
-    || !Number.isSafeInteger(issued.expires_at)) {
-  throw new Error('Skarbiec returned an invalid field-bound acquisition bearer');
+if (
+  !issued ||
+  issued.consumer !== consumer ||
+  issued.item !== item ||
+  issued.field !== field ||
+  Object.keys(issued).sort().join('|') !== issuedKeys.join('|') ||
+  typeof issued.token !== 'string' ||
+  !issued.token ||
+  /\s/.test(issued.token) ||
+  !Number.isSafeInteger(issued.expires_at)
+) {
+  throw new Error(
+    'Skarbiec returned an invalid field-bound acquisition bearer',
+  );
 }
 
 const readResponse = await post(
@@ -212,29 +281,50 @@ const requiredKeys = ['consumer', 'field', 'item', 'value'];
 const optionalKeys = ['provider'];
 const keys = Object.keys(result || {});
 const declaredProvider = result?.provider;
-const providerByteLength = typeof declaredProvider === 'string' ? Buffer.byteLength(declaredProvider, 'utf8') : null;
-const providerValid = declaredProvider === undefined || (typeof declaredProvider === 'string'
-  && providerByteLength > 0 && providerByteLength <= 128 && !/[\u0000\r\n]/.test(declaredProvider));
-if (!result || result.consumer !== consumer || result.item !== item || result.field !== field
-    || requiredKeys.some((key) => !keys.includes(key))
-    || keys.some((key) => !requiredKeys.includes(key) && !optionalKeys.includes(key))
-    || typeof result.value !== 'string' || !result.value
-    || !providerValid) {
+const providerByteLength =
+  typeof declaredProvider === 'string'
+    ? Buffer.byteLength(declaredProvider, 'utf8')
+    : null;
+const providerValid =
+  declaredProvider === undefined ||
+  (typeof declaredProvider === 'string' &&
+    providerByteLength > 0 &&
+    providerByteLength <= 128 &&
+    !/[\u0000\r\n]/.test(declaredProvider));
+if (
+  !result ||
+  result.consumer !== consumer ||
+  result.item !== item ||
+  result.field !== field ||
+  requiredKeys.some((key) => !keys.includes(key)) ||
+  keys.some(
+    (key) => !requiredKeys.includes(key) && !optionalKeys.includes(key),
+  ) ||
+  typeof result.value !== 'string' ||
+  !result.value ||
+  !providerValid
+) {
   const shape = {
     keys,
     consumerMatches: result?.consumer === consumer,
     itemMatches: result?.item === item,
     fieldMatches: result?.field === field,
-    valueType: result?.value === null ? 'null' : Array.isArray(result?.value) ? 'array' : typeof result?.value,
+    valueType:
+      result?.value === null
+        ? 'null'
+        : Array.isArray(result?.value)
+          ? 'array'
+          : typeof result?.value,
     valueLength: typeof result?.value === 'string' ? result.value.length : null,
     providerType: typeof result?.provider,
-    providerLength: typeof result?.provider === 'string' ? result.provider.length : null,
+    providerLength:
+      typeof result?.provider === 'string' ? result.provider.length : null,
     providerBytes: providerByteLength,
     providerValid,
   };
   throw new Error(
-    `Skarbiec returned an invalid single-field response at ${endpoint.origin}`
-    + ` for ${consumer} on ${item}#${field}: ${JSON.stringify(shape)}`,
+    `Skarbiec returned an invalid single-field response at ${endpoint.origin}` +
+      ` for ${consumer} on ${item}#${field}: ${JSON.stringify(shape)}`,
   );
 }
 process.stdout.write(result.value);

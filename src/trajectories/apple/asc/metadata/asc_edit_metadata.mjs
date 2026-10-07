@@ -6,7 +6,10 @@ import { getSocialAccount } from '../../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../../dist/session/wsession.js';
 
 const APP_ID = process.env.APP_ID;
-if (!APP_ID) { console.log('FAIL: APP_ID env var required'); process.exit(1); }
+if (!APP_ID) {
+  console.log('FAIL: APP_ID env var required');
+  process.exit(1);
+}
 
 const fields = {
   description: process.env.DESCRIPTION,
@@ -15,14 +18,27 @@ const fields = {
   whatsNew: process.env.WHATS_NEW,
 };
 const toUpdate = Object.entries(fields).filter(([, v]) => v);
-if (!toUpdate.length) { console.log('FAIL: at least one of DESCRIPTION/KEYWORDS/PROMO_TEXT/WHATS_NEW must be set'); process.exit(1); }
+if (!toUpdate.length) {
+  console.log(
+    'FAIL: at least one of DESCRIPTION/KEYWORDS/PROMO_TEXT/WHATS_NEW must be set',
+  );
+  process.exit(1);
+}
 
 const acct = await getSocialAccount('apple');
-if (!acct) { console.log('FAIL: no apple account'); process.exit(1); }
+if (!acct) {
+  console.log('FAIL: no apple account');
+  process.exit(1);
+}
 
-const s = await WSession.start({ label: 'apple_asc_edit_metadata', proxy: process.env.PROXY_URL || undefined });
+const s = await WSession.start({
+  label: 'apple_asc_edit_metadata',
+  proxy: process.env.PROXY_URL || undefined,
+});
 try {
-  await s.goto(`https://appstoreconnect.apple.com/apps/${APP_ID}/distribution/info`);
+  await s.goto(
+    `https://appstoreconnect.apple.com/apps/${APP_ID}/distribution/info`,
+  );
   await pageSettled(s.page);
   if ((s.page.url?.() ?? '').includes('idmsa.apple.com')) {
     console.log('FAIL: session expired, rerun apple/login.mjs');
@@ -43,10 +59,14 @@ try {
   await pageSettled(s.page);
 
   // Save button
-  await s.page.locator('button:has-text("Save"), button[data-test-id="save"]').click();
+  await s.page
+    .locator('button:has-text("Save"), button[data-test-id="save"]')
+    .click();
   await pageSettled(s.page);
 
-  console.log(`PASS: updated ${toUpdate.map(([k]) => k).join(', ')} for app ${APP_ID}`);
+  console.log(
+    `PASS: updated ${toUpdate.map(([k]) => k).join(', ')} for app ${APP_ID}`,
+  );
 } catch (e) {
   console.log('FAIL:', e.message);
   process.exit(1);

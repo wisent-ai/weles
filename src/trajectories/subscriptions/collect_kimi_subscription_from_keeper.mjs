@@ -21,24 +21,36 @@ function parseArgs() {
   for (let i = 2; i < process.argv.length; i += 1) {
     const arg = process.argv[i];
     if (arg === '--session') out.session = process.argv[++i] || '';
-    else if (arg === '--account') out.account = process.argv[++i] || out.account;
-    else if (arg === '--service-credential-id') out.serviceCredentialId = process.argv[++i] || out.serviceCredentialId;
+    else if (arg === '--account')
+      out.account = process.argv[++i] || out.account;
+    else if (arg === '--service-credential-id')
+      out.serviceCredentialId = process.argv[++i] || out.serviceCredentialId;
     else throw new Error(`unknown arg: ${arg}`);
   }
   if (!out.session) throw new Error('missing --session or SESSION');
-  if (!out.account) throw new Error('missing --account or SUBSCRIPTION_ACCOUNT: the account the subscription is billed to');
-  if (!out.serviceCredentialId.trim()) throw new Error('missing --service-credential-id: the credential for this subscription account');
+  if (!out.account)
+    throw new Error(
+      'missing --account or SUBSCRIPTION_ACCOUNT: the account the subscription is billed to',
+    );
+  if (!out.serviceCredentialId.trim())
+    throw new Error(
+      'missing --service-credential-id: the credential for this subscription account',
+    );
   return out;
 }
 
 async function action(session, cmd) {
   const answer = await keeperRequest(keeperSocket(session), cmd);
-  if (!answer.ok) throw new Error(answer.error || `keeper action failed: ${cmd.action}`);
+  if (!answer.ok)
+    throw new Error(answer.error || `keeper action failed: ${cmd.action}`);
   return answer;
 }
 
 async function readText(session) {
-  const result = await action(session, { action: 'eval', js: 'document.body.innerText' });
+  const result = await action(session, {
+    action: 'eval',
+    js: 'document.body.innerText',
+  });
   return String(result.result || '');
 }
 
@@ -60,12 +72,17 @@ async function clickExactText(session, textValue) {
     })()`,
   });
   if (!result.result) throw new Error(`no visible text target: ${textValue}`);
-  await action(session, { action: 'humanclick', x: result.result.x, y: result.result.y });
+  await action(session, {
+    action: 'humanclick',
+    x: result.result.x,
+    y: result.result.y,
+  });
   await action(session, { action: 'humanidle', kind: 'deliberate' });
 }
 
 function linesOf(text) {
-  return text.split(/\r?\n/)
+  return text
+    .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
 }
@@ -81,7 +98,8 @@ function parseInvoices(lines) {
     const date = parseDate(lines[i]);
     const amount = lines[i + 1]?.match(/^\$(\d+(?:\.\d{2})?)$/);
     const status = lines[i + 2]?.trim();
-    if (!date || !amount || !/^(Paid|Refunded|Open|Void)$/i.test(status || '')) continue;
+    if (!date || !amount || !/^(Paid|Refunded|Open|Void)$/i.test(status || ''))
+      continue;
     invoices.push({ date, amount_usd: Number(amount[1]), status });
   }
   return invoices;
@@ -90,26 +108,39 @@ function parseInvoices(lines) {
 function extractInfo(text) {
   const lines = linesOf(text);
   const upgradeIdx = lines.findIndex((line) => line === 'Upgrade Plan');
-  const plan = upgradeIdx > 0 ? lines[upgradeIdx - 1] : lines.find((line) => line === 'Allegro') || null;
-  const renewLine = lines.find((line) => /^Next auto-renewal date:/i.test(line));
+  const plan =
+    upgradeIdx > 0
+      ? lines[upgradeIdx - 1]
+      : lines.find((line) => line === 'Allegro') || null;
+  const renewLine = lines.find((line) =>
+    /^Next auto-renewal date:/i.test(line),
+  );
   const renewalAt = renewLine ? parseDate(renewLine) : null;
   const benefitsStart = lines.findIndex((line) => line === 'Basic Benefits');
-  const benefits = benefitsStart >= 0
-    ? lines.slice(benefitsStart + 1).filter((line) => !['Cancel Plan'].includes(line))
-    : [];
+  const benefits =
+    benefitsStart >= 0
+      ? lines
+          .slice(benefitsStart + 1)
+          .filter((line) => !['Cancel Plan'].includes(line))
+      : [];
   return {
     plan,
     renewal_at: renewalAt,
     renewal_line: renewLine || null,
     benefits,
-    ui_excerpt: lines.slice(Math.max(0, upgradeIdx - 2), upgradeIdx >= 0 ? upgradeIdx + 40 : 80),
+    ui_excerpt: lines.slice(
+      Math.max(0, upgradeIdx - 2),
+      upgradeIdx >= 0 ? upgradeIdx + 40 : 80,
+    ),
   };
 }
 
 function extractQuota(text) {
   const lines = linesOf(text);
   const usageIdx = lines.findIndex((line) => line === 'Total usage');
-  const giftIdx = lines.findIndex((line, idx) => line === 'Total usage' && idx > usageIdx);
+  const giftIdx = lines.findIndex(
+    (line, idx) => line === 'Total usage' && idx > usageIdx,
+  );
   const resetLine = lines.find((line) => /^Reset time:/i.test(line));
   const giftExpiryLine = lines.find((line) => /^Expires on/i.test(line));
   const history = [];
@@ -127,25 +158,37 @@ function extractQuota(text) {
     gift_usage_percent: giftIdx >= 0 ? lines[giftIdx + 1] || null : null,
     gift_expires_at: giftExpiryLine ? parseDate(giftExpiryLine) : null,
     recent_usage: history,
-    ui_excerpt: lines.slice(Math.max(0, usageIdx - 3), usageIdx >= 0 ? usageIdx + 70 : 90),
+    ui_excerpt: lines.slice(
+      Math.max(0, usageIdx - 3),
+      usageIdx >= 0 ? usageIdx + 70 : 90,
+    ),
   };
 }
 
 function selectCurrentPlanCost(invoices) {
   const paid = invoices.filter((item) => /^Paid$/i.test(item.status));
   if (!paid.length) return null;
-  const latestDate = paid.map((item) => item.date).sort().at(-1);
+  const latestDate = paid
+    .map((item) => item.date)
+    .sort()
+    .at(-1);
   const latestPaid = paid.filter((item) => item.date === latestDate);
   return Math.max(...latestPaid.map((item) => item.amount_usd));
 }
 
 async function main() {
   const args = parseArgs();
-  await action(args.session, { action: 'nav', url: 'https://www.kimi.com/membership/subscription' });
+  await action(args.session, {
+    action: 'nav',
+    url: 'https://www.kimi.com/membership/subscription',
+  });
   await action(args.session, { action: 'humanidle', kind: 'deliberate' });
 
   const infoText = await readText(args.session);
-  if (!/Subscription Info/i.test(infoText) || !/Next auto-renewal date/i.test(infoText)) {
+  if (
+    !/Subscription Info/i.test(infoText) ||
+    !/Next auto-renewal date/i.test(infoText)
+  ) {
     throw new Error('keeper page does not look like Kimi subscription UI');
   }
   const info = extractInfo(infoText);
@@ -174,7 +217,10 @@ async function main() {
       source: 'kimi.com membership subscription UI',
       collected_at: new Date().toISOString(),
       renewal_line: info.renewal_line,
-      monthly_cost_basis: monthlyCost == null ? null : 'largest paid invoice on latest invoice date in Billing & Invoices UI',
+      monthly_cost_basis:
+        monthlyCost == null
+          ? null
+          : 'largest paid invoice on latest invoice date in Billing & Invoices UI',
       benefits: info.benefits,
       invoices,
       quota,
@@ -186,31 +232,37 @@ async function main() {
     },
   };
   const saved = await upsertSubscription(row);
-  console.log(JSON.stringify({
-    ok: true,
-    row: {
-      service_name: row.service_name,
-      provider: row.provider,
-      account_identifier: row.account_identifier,
-      status: row.status,
-      plan: row.plan,
-      monthly_cost_usd: row.monthly_cost_usd,
-      expires_at: row.expires_at,
-      invoice_rows: invoices.length,
-      usage_percent: quota.total_usage_percent,
-    },
-    saved: saved.map((item) => ({
-      id: item.id,
-      service_name: item.service_name,
-      provider: item.provider,
-      account_identifier: item.account_identifier,
-      status: item.status,
-      plan: item.plan,
-      monthly_cost_usd: item.monthly_cost_usd,
-      expires_at: item.expires_at,
-      last_verified_at: item.last_verified_at,
-    })),
-  }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        row: {
+          service_name: row.service_name,
+          provider: row.provider,
+          account_identifier: row.account_identifier,
+          status: row.status,
+          plan: row.plan,
+          monthly_cost_usd: row.monthly_cost_usd,
+          expires_at: row.expires_at,
+          invoice_rows: invoices.length,
+          usage_percent: quota.total_usage_percent,
+        },
+        saved: saved.map((item) => ({
+          id: item.id,
+          service_name: item.service_name,
+          provider: item.provider,
+          account_identifier: item.account_identifier,
+          status: item.status,
+          plan: item.plan,
+          monthly_cost_usd: item.monthly_cost_usd,
+          expires_at: item.expires_at,
+          last_verified_at: item.last_verified_at,
+        })),
+      },
+      null,
+      2,
+    ),
+  );
 }
 
 main().catch((error) => {

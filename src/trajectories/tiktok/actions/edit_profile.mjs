@@ -6,69 +6,134 @@
 // this trajectory can be live-validated, unlike instagram where all 5
 // char-linked accounts are deactivated.
 
-import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
+import {
+  getSocialAccount,
+  resolveAccountSession,
+  markCookiesStale,
+} from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
-import { assertAuthed, AuthProbeError } from '../../_shared/auth/auth-probe.mjs';
-import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/auth/cookie-freshness.mjs';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../dist/human/mouse.js';
+import {
+  assertAuthed,
+  AuthProbeError,
+} from '../../_shared/auth/auth-probe.mjs';
+import {
+  loadFreshCookieJarOrFail,
+  CookieJarStaleError,
+} from '../../_shared/auth/cookie-freshness.mjs';
 import { loadAvatarFile } from '../../_shared/runner/avatar-loader.mjs';
 import { updateAccountMetadata } from '../../_shared/skarbiec/accounts.mjs';
 
-
 const acct = await getSocialAccount('tiktok');
-if (!acct) { console.log('FAIL: no active tiktok account in Skarbiec'); process.exit(1); }
+if (!acct) {
+  console.log('FAIL: no active tiktok account in Skarbiec');
+  process.exit(1);
+}
 console.log(`[tt-profile] using account: ${acct.username}`);
 const character = acct.metadata?.character;
-if (!character || typeof character !== 'object') { console.log(`FAIL: no character stored for tiktok/${acct.username}`); process.exit(1); }
-console.log(`[tt-profile] character: ${character.name} (niche=${character.niche})`);
-const avatarUrl = character.avatar_url
-  || (Array.isArray(character.training_images) ? character.training_images[0] : null);
+if (!character || typeof character !== 'object') {
+  console.log(`FAIL: no character stored for tiktok/${acct.username}`);
+  process.exit(1);
+}
+console.log(
+  `[tt-profile] character: ${character.name} (niche=${character.niche})`,
+);
+const avatarUrl =
+  character.avatar_url ||
+  (Array.isArray(character.training_images)
+    ? character.training_images[0]
+    : null);
 
 // TikTok bio cap is 80 chars.
 const targetBio = (character.bio || '').slice(0, 80);
 const targetName = character.name || '';
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
-const s = await WSession.start({ label: 'tiktok_edit_profile', proxy: proxyUrl, persona });
+const s = await WSession.start({
+  label: 'tiktok_edit_profile',
+  proxy: proxyUrl,
+  persona,
+});
 
 try {
   let stored;
   try {
-    const all = loadFreshCookieJarOrFail(acct, { platform: 'tiktok', label: 'tiktok_edit_profile', currentProxyUrl: proxyUrl, currentPersona: persona });
-    stored = all.filter(c => /tiktok\.com/.test(c.domain ?? ''));
-    if (!stored.length) throw new CookieJarStaleError('cookie_jar_no_domain_match: jar fresh but no tiktok.com cookies', { platform: 'tiktok' });
+    const all = loadFreshCookieJarOrFail(acct, {
+      platform: 'tiktok',
+      label: 'tiktok_edit_profile',
+      currentProxyUrl: proxyUrl,
+      currentPersona: persona,
+    });
+    stored = all.filter((c) => /tiktok\.com/.test(c.domain ?? ''));
+    if (!stored.length)
+      throw new CookieJarStaleError(
+        'cookie_jar_no_domain_match: jar fresh but no tiktok.com cookies',
+        { platform: 'tiktok' },
+      );
   } catch (jarErr) {
-    if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); process.exit(1); }
+    if (jarErr instanceof CookieJarStaleError) {
+      console.log(`FAIL: ${jarErr.message}`);
+      await markCookiesStale(acct.id);
+      process.exit(1);
+    }
     throw jarErr;
   }
-  await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
+  await s.ctx.addCookies(stored.map((c) => ({ ...c, path: c.path || '/' })));
 
   // TikTok's account-edit URL. The exact path has shifted across redesigns —
   // try the canonical /setting first; if redirected, the trajectory will
   // surface that final URL in the auth-probe failure.
-  await s.page.goto('https://www.tiktok.com/setting', { waitUntil: 'domcontentloaded' });
+  await s.page.goto('https://www.tiktok.com/setting', {
+    waitUntil: 'domcontentloaded',
+  });
   await humanIdlePause('long');
   if (/\/login(\/|$)/.test(s.page.url())) {
     console.log(`FAIL: cookies stale, redirected to login (${s.page.url()})`);
     await markCookiesStale(acct.id);
     process.exit(1);
   }
-  try { await assertAuthed('tiktok', s, { label: 'tiktok_edit_profile' }); }
-  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
+  try {
+    await assertAuthed('tiktok', s, { label: 'tiktok_edit_profile' });
+  } catch (probeErr) {
+    if (probeErr instanceof AuthProbeError) {
+      console.log(`FAIL: ${probeErr.message}`);
+      await markCookiesStale(acct.id);
+      process.exit(1);
+    }
+    throw probeErr;
+  }
 
   // Profile fields on /setting:
   //   * Name      → input[data-e2e="edit-profile-name"] or input near "Name" label
   //   * Bio       → textarea[data-e2e="edit-profile-bio"] or textarea near "Bio"
   // Both are inline-edit fields; some cohorts gate edits behind a "Edit profile" button.
-  const editBtn = s.page.locator('button:has-text("Edit profile"), [data-e2e="edit-profile-entrance"]').filter({ visible: true }).first();
+  const editBtn = s.page
+    .locator(
+      'button:has-text("Edit profile"), [data-e2e="edit-profile-entrance"]',
+    )
+    .filter({ visible: true })
+    .first();
   if (await editBtn.isVisible().catch(() => false)) {
     await humanClickLocator(s.page, editBtn);
     await humanIdlePause('deliberate');
   }
 
-  const nameIn = s.page.locator('input[data-e2e*="name" i], input[placeholder*="name" i], input[aria-label*="name" i]').filter({ visible: true }).first();
-  const bioIn = s.page.locator('textarea[data-e2e*="bio" i], textarea[placeholder*="bio" i], textarea[aria-label*="bio" i]').filter({ visible: true }).first();
+  const nameIn = s.page
+    .locator(
+      'input[data-e2e*="name" i], input[placeholder*="name" i], input[aria-label*="name" i]',
+    )
+    .filter({ visible: true })
+    .first();
+  const bioIn = s.page
+    .locator(
+      'textarea[data-e2e*="bio" i], textarea[placeholder*="bio" i], textarea[aria-label*="bio" i]',
+    )
+    .filter({ visible: true })
+    .first();
 
   const writes = [];
   if (await nameIn.count()) {
@@ -99,26 +164,48 @@ try {
   // <input type="file" accept="image/*">. After upload, an "Apply" button
   // commits the crop.
   if (avatarUrl) {
-    const tmpAvatar = await loadAvatarFile(avatarUrl, { size: 512, format: 'jpeg', quality: 88 });
+    const tmpAvatar = await loadAvatarFile(avatarUrl, {
+      size: 512,
+      format: 'jpeg',
+      quality: 88,
+    });
     if (tmpAvatar) {
       try {
-        const changeBtn = s.page.locator('[data-e2e*="avatar" i], button:has-text("Change photo"), div[role="button"]:has-text("Change photo")').filter({ visible: true }).first();
+        const changeBtn = s.page
+          .locator(
+            '[data-e2e*="avatar" i], button:has-text("Change photo"), div[role="button"]:has-text("Change photo")',
+          )
+          .filter({ visible: true })
+          .first();
         if (await changeBtn.isVisible().catch(() => false)) {
           await humanClickLocator(s.page, changeBtn);
           await humanIdlePause('deliberate');
         }
-        const fileIn = s.page.locator('input[type="file"][accept*="image"]').first();
+        const fileIn = s.page
+          .locator('input[type="file"][accept*="image"]')
+          .first();
         if (await fileIn.count()) {
           await fileIn.setInputFiles(tmpAvatar);
-          const applyBtn = s.page.locator('button:has-text("Apply"), button:has-text("Confirm"), button:has-text("Save")').filter({ visible: true }).first();
+          const applyBtn = s.page
+            .locator(
+              'button:has-text("Apply"), button:has-text("Confirm"), button:has-text("Save")',
+            )
+            .filter({ visible: true })
+            .first();
           try {
             await applyBtn.waitFor({ state: 'visible' });
             await humanClickLocator(s.page, applyBtn);
             writes.push('avatar uploaded');
             await humanIdlePause('deliberate');
-          } catch { console.log('[tt-profile] avatar apply not visible'); }
-        } else { console.log('[tt-profile] no image file input on /setting'); }
-      } catch (e) { console.log(`[tt-profile] avatar err: ${e.message}`); }
+          } catch {
+            console.log('[tt-profile] avatar apply not visible');
+          }
+        } else {
+          console.log('[tt-profile] no image file input on /setting');
+        }
+      } catch (e) {
+        console.log(`[tt-profile] avatar err: ${e.message}`);
+      }
     }
   }
 
@@ -128,18 +215,28 @@ try {
     updated_at: new Date().toISOString(),
   });
 
-  if (!writes.length) { console.log('PASS: no-op (form values already match character; Skarbiec synced)'); process.exit(0); }
+  if (!writes.length) {
+    console.log(
+      'PASS: no-op (form values already match character; Skarbiec synced)',
+    );
+    process.exit(0);
+  }
   console.log(`[tt-profile] writes: ${writes.join('; ')}`);
 
   // Save. TikTok's button often reads "Save" — sometimes inside a modal.
-  const saveBtn = s.page.locator('button:has-text("Save"), [data-e2e="save-profile"]').filter({ visible: true }).first();
+  const saveBtn = s.page
+    .locator('button:has-text("Save"), [data-e2e="save-profile"]')
+    .filter({ visible: true })
+    .first();
   await saveBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, saveBtn);
   await humanIdlePause('deliberate');
 
   const verifiedBio = await bioIn.inputValue().catch(() => '');
   if (verifiedBio.trim() !== targetBio.trim()) {
-    console.log(`FAIL: bio mismatch after save ("${verifiedBio}..." != "${targetBio}...")`);
+    console.log(
+      `FAIL: bio mismatch after save ("${verifiedBio}..." != "${targetBio}...")`,
+    );
     process.exit(1);
   }
   console.log(`PASS: ${acct.username} profile updated to ${character.name}`);

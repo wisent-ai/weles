@@ -28,14 +28,21 @@ export async function overleafGoogleSignIn(s, login, options) {
     return { alreadySignedIn: true, url: s.page.url() };
   }
 
-  const cookieBtn = s.page.getByRole('button', { name: /essential cookies only|accept all cookies/i }).first();
-  if (await cookieBtn.count() > 0) {
+  const cookieBtn = s.page
+    .getByRole('button', { name: /essential cookies only|accept all cookies/i })
+    .first();
+  if ((await cookieBtn.count()) > 0) {
     console.log(`[${label}] dismissing cookie banner`);
     await humanClickLocator(s.page, cookieBtn);
     await pageSettled(s.page);
   }
-  const googleBtn = s.page.getByRole('button', { name: /log in with google|sign in with google/i })
-    .or(s.page.getByRole('link', { name: /log in with google|sign in with google/i }))
+  const googleBtn = s.page
+    .getByRole('button', { name: /log in with google|sign in with google/i })
+    .or(
+      s.page.getByRole('link', {
+        name: /log in with google|sign in with google/i,
+      }),
+    )
     .filter({ visible: true })
     .first();
   await googleBtn.waitFor({ state: 'visible' });
@@ -49,23 +56,41 @@ export async function overleafGoogleSignIn(s, login, options) {
   await surface.waitForLoadState('domcontentloaded');
 
   if (chooseAnotherAccount) {
-    const emailInputs = await surface.locator('input[type="email"], input[name="identifier"], input#identifierId').filter({ visible: true }).count();
-    const useAnother = surface.getByText(/Use another account/i).filter({ visible: true }).first();
-    if (emailInputs === 0 && await useAnother.count() > 0) {
+    const emailInputs = await surface
+      .locator(
+        'input[type="email"], input[name="identifier"], input#identifierId',
+      )
+      .filter({ visible: true })
+      .count();
+    const useAnother = surface
+      .getByText(/Use another account/i)
+      .filter({ visible: true })
+      .first();
+    if (emailInputs === 0 && (await useAnother.count()) > 0) {
       await humanClickLocator(surface, useAnother);
       await pageSettled(surface);
     }
   }
 
-  const ok = await googleSso(s, login, mode === 'popup'
-    ? { originHost: 'overleaf.com', page: surface }
-    : { originHost: 'overleaf.com' });
-  if (!ok) throw new Error(`Google SSO for Overleaf did not complete (${mode}) at ${surface.url()}`);
+  const ok = await googleSso(
+    s,
+    login,
+    mode === 'popup'
+      ? { originHost: 'overleaf.com', page: surface }
+      : { originHost: 'overleaf.com' },
+  );
+  if (!ok)
+    throw new Error(
+      `Google SSO for Overleaf did not complete (${mode}) at ${surface.url()}`,
+    );
 
   await s.page.waitForURL((url) => !ON_GOOGLE.test(String(url)));
   await pageSettled(s.page);
   const url = s.page.url();
   console.log(`[${label}] settled URL: ${url}`);
-  if (ON_LOGIN.test(url)) throw new Error(`Overleaf returned to /login after Google SSO (auth not established) — ${url}`);
+  if (ON_LOGIN.test(url))
+    throw new Error(
+      `Overleaf returned to /login after Google SSO (auth not established) — ${url}`,
+    );
   return { alreadySignedIn: false, url };
 }

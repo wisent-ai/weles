@@ -88,10 +88,14 @@ export function proxySignature(proxyOrUrl) {
   if (typeof proxyOrUrl === 'string') {
     try {
       const u = new URL(proxyOrUrl);
-      const prov = providerFromUser(u.username ? decodeURIComponent(u.username) : '');
+      const prov = providerFromUser(
+        u.username ? decodeURIComponent(u.username) : '',
+      );
       if (prov) return `${prov}:${u.port || ''}`.replace(/:$/, '');
       return `${u.hostname}:${u.port || ''}`.replace(/:$/, '');
-    } catch { return 'direct'; }
+    } catch {
+      return 'direct';
+    }
   }
   return 'direct';
 }
@@ -127,24 +131,54 @@ export function personaSignature(persona) {
  *                      runs without a session context (debug, probes).
  *                      Default false.
  */
-export function loadFreshCookieJarOrFail(acct, { platform, label, currentProxyUrl, currentPersona, skipBindingCheck = false }) {
-  const cookies = Array.isArray(acct?.metadata?.cookies) ? acct.metadata.cookies : null;
+export function loadFreshCookieJarOrFail(
+  acct,
+  {
+    platform,
+    label,
+    currentProxyUrl,
+    currentPersona,
+    skipBindingCheck = false,
+  },
+) {
+  const cookies = Array.isArray(acct?.metadata?.cookies)
+    ? acct.metadata.cookies
+    : null;
   if (!cookies || cookies.length === 0) {
-    throw new CookieJarStaleError(`cookie_jar_empty: no cookies stored for ${platform}/${acct?.username ?? '?'} — login required`, {
-      platform, label, reason: 'empty', account_id: acct?.id ?? null,
-    });
+    throw new CookieJarStaleError(
+      `cookie_jar_empty: no cookies stored for ${platform}/${acct?.username ?? '?'} — login required`,
+      {
+        platform,
+        label,
+        reason: 'empty',
+        account_id: acct?.id ?? null,
+      },
+    );
   }
   const mintedAtRaw = acct?.metadata?.cookies_minted_at;
   if (!mintedAtRaw) {
-    throw new CookieJarStaleError(`cookie_jar_unstamped: no cookies_minted_at — jar predates freshness regime, login required`, {
-      platform, label, reason: 'no_minted_at', account_id: acct?.id ?? null,
-    });
+    throw new CookieJarStaleError(
+      `cookie_jar_unstamped: no cookies_minted_at — jar predates freshness regime, login required`,
+      {
+        platform,
+        label,
+        reason: 'no_minted_at',
+        account_id: acct?.id ?? null,
+      },
+    );
   }
   const mintedMs = Date.parse(mintedAtRaw);
   if (!Number.isFinite(mintedMs)) {
-    throw new CookieJarStaleError(`cookie_jar_bad_mint_ts: cookies_minted_at=${mintedAtRaw} not a valid ISO ts — login required`, {
-      platform, label, reason: 'bad_minted_at', mintedAtRaw, account_id: acct?.id ?? null,
-    });
+    throw new CookieJarStaleError(
+      `cookie_jar_bad_mint_ts: cookies_minted_at=${mintedAtRaw} not a valid ISO ts — login required`,
+      {
+        platform,
+        label,
+        reason: 'bad_minted_at',
+        mintedAtRaw,
+        account_id: acct?.id ?? null,
+      },
+    );
   }
   // --- Proxy + persona binding checks ---
   // If the jar was minted under a different proxy or persona than the one
@@ -159,27 +193,59 @@ export function loadFreshCookieJarOrFail(acct, { platform, label, currentProxyUr
     if (storedProxy && currentProxyUrl) {
       // cookies_minted_proxy is stored as a pre-resolved signature string
       // (e.g. "gate.oxylabs.io:1234"), NOT a URL or ProxyConfig object.
-      const storedSig = typeof storedProxy === 'string' && !storedProxy.includes('://') ? storedProxy : proxySignature(storedProxy);
+      const storedSig =
+        typeof storedProxy === 'string' && !storedProxy.includes('://')
+          ? storedProxy
+          : proxySignature(storedProxy);
       const currentSig = proxySignature(currentProxyUrl);
       // Legacy sigs are "<ip>:<port>", new sigs are "<provider>:<port>" --
       // tolerate the migration when ports match (next login overwrites it).
       const portsMatch = storedSig.split(':')[1] === currentSig.split(':')[1];
-      const looksLikeMigration = portsMatch && /^(oxylabs|brightdata|pingproxies|packetstream|iproyal):/.test(currentSig) && /^\d+\.\d+\.\d+\.\d+:/.test(storedSig);
-      if (storedSig !== 'direct' && currentSig !== 'direct' && storedSig !== currentSig && !looksLikeMigration) {
-        throw new CookieJarStaleError(`cookie_jar_proxy_mismatch: jar minted under proxy=${storedSig} but current proxy=${currentSig} for ${platform} — login required`, {
-          platform, label, reason: 'proxy_mismatch', stored_proxy: storedSig, current_proxy: currentSig, account_id: acct?.id ?? null,
-        });
+      const looksLikeMigration =
+        portsMatch &&
+        /^(oxylabs|brightdata|pingproxies|packetstream|iproyal):/.test(
+          currentSig,
+        ) &&
+        /^\d+\.\d+\.\d+\.\d+:/.test(storedSig);
+      if (
+        storedSig !== 'direct' &&
+        currentSig !== 'direct' &&
+        storedSig !== currentSig &&
+        !looksLikeMigration
+      ) {
+        throw new CookieJarStaleError(
+          `cookie_jar_proxy_mismatch: jar minted under proxy=${storedSig} but current proxy=${currentSig} for ${platform} — login required`,
+          {
+            platform,
+            label,
+            reason: 'proxy_mismatch',
+            stored_proxy: storedSig,
+            current_proxy: currentSig,
+            account_id: acct?.id ?? null,
+          },
+        );
       }
     }
     if (storedPersona && currentPersona) {
       // cookies_minted_persona is stored as a pre-resolved signature string
       // (e.g. "cs:12345"), NOT a persona object.
-      const storedSig = typeof storedPersona === 'string' ? storedPersona : personaSignature(storedPersona);
+      const storedSig =
+        typeof storedPersona === 'string'
+          ? storedPersona
+          : personaSignature(storedPersona);
       const currentSig = personaSignature(currentPersona);
       if (storedSig && currentSig && storedSig !== currentSig) {
-        throw new CookieJarStaleError(`cookie_jar_persona_mismatch: jar minted under persona=${storedSig} but current persona=${currentSig} for ${platform} — login required`, {
-          platform, label, reason: 'persona_mismatch', stored_persona: storedSig, current_persona: currentSig, account_id: acct?.id ?? null,
-        });
+        throw new CookieJarStaleError(
+          `cookie_jar_persona_mismatch: jar minted under persona=${storedSig} but current persona=${currentSig} for ${platform} — login required`,
+          {
+            platform,
+            label,
+            reason: 'persona_mismatch',
+            stored_persona: storedSig,
+            current_persona: currentSig,
+            account_id: acct?.id ?? null,
+          },
+        );
       }
     }
   }
@@ -197,25 +263,47 @@ export function loadFreshCookieJarOrFail(acct, { platform, label, currentProxyUr
  * of the freshness gate is that cookies_minted_at proves a fresh login
  * happened, not just that some cookies got copied around.
  */
-export async function persistFreshCookieJar(acct, cookies, { currentProxyUrl, currentPersona, persistProxy = false } = {}) {
+export async function persistFreshCookieJar(
+  acct,
+  cookies,
+  { currentProxyUrl, currentPersona, persistProxy = false } = {},
+) {
   if (!acct?.id) return { ok: false, reason: 'no_skarbiec_account_id' };
   const now = new Date().toISOString();
   // Stamp proxy + persona at minting time so loadFreshCookieJarOrFail can
   // refuse jars replayed from a different egress identity.
   const mintedProxy = currentProxyUrl
-    ? (typeof currentProxyUrl === 'string'
+    ? typeof currentProxyUrl === 'string'
       ? proxySignature(currentProxyUrl)
-      : proxySignature(currentProxyUrl))
-    : (acct?.metadata?.proxy
+      : proxySignature(currentProxyUrl)
+    : acct?.metadata?.proxy
       ? proxySignature(acct.metadata.proxy)
-      : null);
+      : null;
   const mintedPersona = currentPersona
     ? personaSignature(currentPersona)
-    : (acct?.metadata?.persona
+    : acct?.metadata?.persona
       ? personaSignature(acct.metadata.persona)
-      : null);
-  const nextMetadata = { ...(acct.metadata ?? {}), cookies, cookies_updated_at: now, cookies_minted_at: now, cookies_minted_proxy: mintedProxy, cookies_minted_persona: mintedPersona };
-  if (persistProxy && typeof currentProxyUrl === 'string' && currentProxyUrl) { try { const u = new URL(currentProxyUrl); nextMetadata.proxy = { host: u.hostname, port: Number(u.port), protocol: u.protocol.replace(/:$/, ''), username: decodeURIComponent(u.username || ''), password: decodeURIComponent(u.password || '') }; } catch {} }
+      : null;
+  const nextMetadata = {
+    ...(acct.metadata ?? {}),
+    cookies,
+    cookies_updated_at: now,
+    cookies_minted_at: now,
+    cookies_minted_proxy: mintedProxy,
+    cookies_minted_persona: mintedPersona,
+  };
+  if (persistProxy && typeof currentProxyUrl === 'string' && currentProxyUrl) {
+    try {
+      const u = new URL(currentProxyUrl);
+      nextMetadata.proxy = {
+        host: u.hostname,
+        port: Number(u.port),
+        protocol: u.protocol.replace(/:$/, ''),
+        username: decodeURIComponent(u.username || ''),
+        password: decodeURIComponent(u.password || ''),
+      };
+    } catch {}
+  }
   // Clear cookies_stale_at — the whole point of persisting fresh cookies is
   // they're no longer stale. getSocialAccount and the routine selector skip
   // an account whose stale mark is newer than its minted cookies. Same
@@ -224,7 +312,11 @@ export async function persistFreshCookieJar(acct, cookies, { currentProxyUrl, cu
   try {
     updateAccountMetadata(acct.id, nextMetadata);
   } catch (error) {
-    return { ok: false, reason: 'skarbiec_write_failed', body: String(error?.message ?? error) };
+    return {
+      ok: false,
+      reason: 'skarbiec_write_failed',
+      body: String(error?.message ?? error),
+    };
   }
   // Mutate the in-memory acct so subsequent code in the same process sees
   // the fresh stamp without an extra DB round-trip.

@@ -9,13 +9,24 @@ export async function solverTaskResult(svc, apiKey, taskId) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ clientKey: apiKey, taskId }),
   });
-  if (!response.ok) throw new Error(`captcha_${svc.name}_http_${response.status}: getTaskResult for task ${taskId} failed`);
+  if (!response.ok)
+    throw new Error(
+      `captcha_${svc.name}_http_${response.status}: getTaskResult for task ${taskId} failed`,
+    );
   const res = await response.json();
-  if (res.errorId) throw new Error(`captcha_${svc.name}_error: task ${taskId}: ${res.errorCode ?? 'error'} ${res.errorDescription ?? ''}`.trim());
+  if (res.errorId)
+    throw new Error(
+      `captcha_${svc.name}_error: task ${taskId}: ${res.errorCode ?? 'error'} ${res.errorDescription ?? ''}`.trim(),
+    );
   if (res.status !== 'ready') {
-    throw new Error(`captcha_${svc.name}_processing: task ${taskId} has no result yet (status ${res.status ?? 'unknown'}); read it again with this task id`);
+    throw new Error(
+      `captcha_${svc.name}_processing: task ${taskId} has no result yet (status ${res.status ?? 'unknown'}); read it again with this task id`,
+    );
   }
   const token = res.solution?.gRecaptchaResponse ?? res.solution?.token;
-  if (!token) throw new Error(`captcha_${svc.name}_no_token: task ${taskId} is ready but its solution carries no token`);
+  if (!token)
+    throw new Error(
+      `captcha_${svc.name}_no_token: task ${taskId} is ready but its solution carries no token`,
+    );
   return token;
 }

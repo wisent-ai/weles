@@ -15,14 +15,22 @@ export async function captureRequiredBrowserEvidence(activeSession) {
     fullPage: false,
     type: 'png',
   });
-  const accessibilityTree = await activeSession.page.locator('body').ariaSnapshot();
+  const accessibilityTree = await activeSession.page
+    .locator('body')
+    .ariaSnapshot();
   const treeBytes = Buffer.from(accessibilityTree, 'utf8');
   for (const [name, bytes] of [
     ['browser_evidence_final.png', screenshot],
     ['browser_evidence_accessibility_tree.txt', treeBytes],
   ]) {
-    if (!Buffer.isBuffer(bytes) || bytes.byteLength === 0 || bytes.byteLength > EVIDENCE_ARTIFACT_LIMIT_BYTES) {
-      throw new Error(`required browser-evidence artifact ${name} is empty or exceeds 8 MiB`);
+    if (
+      !Buffer.isBuffer(bytes) ||
+      bytes.byteLength === 0 ||
+      bytes.byteLength > EVIDENCE_ARTIFACT_LIMIT_BYTES
+    ) {
+      throw new Error(
+        `required browser-evidence artifact ${name} is empty or exceeds 8 MiB`,
+      );
     }
     const descriptor = openSync(join(directory, name), 'wx', 0o600);
     try {

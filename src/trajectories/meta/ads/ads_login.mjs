@@ -12,9 +12,11 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
+const USER_DATA_DIR =
+  process.env.WELES_USER_DATA_DIR ||
+  process.env.ADS_PROFILE_DIR ||
+  join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
 mkdirSync(USER_DATA_DIR, { recursive: true });
-
 
 function stableProfilePersona() {
   const p = join(USER_DATA_DIR, 'persona.json');
@@ -27,20 +29,39 @@ function stableProfilePersona() {
 async function bringBrowserToFront(s) {
   await s.page.bringToFront().catch(() => {});
   if (process.platform !== 'darwin') return;
-  spawnSync('osascript', ['-e', 'tell application "Chromium" to activate'], { stdio: 'ignore' });
-  spawnSync('osascript', ['-e', 'tell application "System Events" to set frontmost of every process whose name is "Chromium" to true'], { stdio: 'ignore' });
+  spawnSync('osascript', ['-e', 'tell application "Chromium" to activate'], {
+    stdio: 'ignore',
+  });
+  spawnSync(
+    'osascript',
+    [
+      '-e',
+      'tell application "System Events" to set frontmost of every process whose name is "Chromium" to true',
+    ],
+    { stdio: 'ignore' },
+  );
 }
 
 function isLoginUrl(url) {
-  return /facebook\.com\/login|business\.facebook\.com\/business\/loginpage|checkpoint|recover/i.test(url);
+  return /facebook\.com\/login|business\.facebook\.com\/business\/loginpage|checkpoint|recover/i.test(
+    url,
+  );
 }
 
 function hasMetaAuthCookie(cookies) {
-  const names = new Set(cookies.filter((c) => /facebook\.com|business\.facebook\.com/.test(c.domain || '')).map((c) => c.name));
+  const names = new Set(
+    cookies
+      .filter((c) =>
+        /facebook\.com|business\.facebook\.com/.test(c.domain || ''),
+      )
+      .map((c) => c.name),
+  );
   return names.has('c_user') && names.has('xs');
 }
 
-console.log(`[meta-ads-login] profile=${USER_DATA_DIR} viewport=${process.env.WELES_VIEWPORT}`);
+console.log(
+  `[meta-ads-login] profile=${USER_DATA_DIR} viewport=${process.env.WELES_VIEWPORT}`,
+);
 const s = await WSession.start({
   label: 'meta_ads_login',
   browser: 'chromium',
@@ -61,10 +82,17 @@ try {
     await pageSettled(s.page);
   }
   cookies = await s.ctx.cookies().catch(() => []);
-  const metaNames = cookies.filter((c) => /facebook\.com|business\.facebook\.com/.test(c.domain || '')).map((c) => c.name).sort();
-  console.log(`[meta-ads-login] cookie names: ${Array.from(new Set(metaNames)).join(', ')}`);
+  const metaNames = cookies
+    .filter((c) => /facebook\.com|business\.facebook\.com/.test(c.domain || ''))
+    .map((c) => c.name)
+    .sort();
+  console.log(
+    `[meta-ads-login] cookie names: ${Array.from(new Set(metaNames)).join(', ')}`,
+  );
   if (!hasMetaAuthCookie(cookies)) {
-    console.log(`FAIL: login not persisted; missing c_user/xs (url=${s.page.url?.() ?? ''})`);
+    console.log(
+      `FAIL: login not persisted; missing c_user/xs (url=${s.page.url?.() ?? ''})`,
+    );
     process.exit(2);
   }
   console.log('PASS: Meta Ads login persisted');

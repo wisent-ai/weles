@@ -7,7 +7,9 @@ import { assertAuthed, AuthProbeError } from '../auth/auth-probe.mjs';
 import { reloginLinkedinInline } from './relogin.mjs';
 
 function isAuthWall(error) {
-  return error instanceof AuthProbeError || /auth_wall/.test(String(error?.message));
+  return (
+    error instanceof AuthProbeError || /auth_wall/.test(String(error?.message))
+  );
 }
 
 /**

@@ -48,7 +48,10 @@ export function recordingsBase(): string {
 // segment to get the run root. Defaults the first segment to the dispatch
 // ACTION when called with none and ACTION is set.
 export function runRecordingsDir(...segments: string[]): string {
-  const segs = segments.length === 0 && process.env.ACTION ? [process.env.ACTION] : segments;
+  const segs =
+    segments.length === 0 && process.env.ACTION
+      ? [process.env.ACTION]
+      : segments;
   const d = join(recordingsBase(), runId(), ...segs);
   mkdirSync(d, { recursive: true });
   return d;

@@ -89,7 +89,9 @@ export const gpuRendererRules: DetectionRule[] = [
     category: 'webgl',
     severity: 'critical',
     test(s) {
-      const r = String(s?.js?.webgl1?.params?.UNMASKED_RENDERER || '').toLowerCase();
+      const r = String(
+        s?.js?.webgl1?.params?.UNMASKED_RENDERER || '',
+      ).toLowerCase();
       if (r.includes('swiftshader')) {
         return {
           id: 'webgl_swiftshader',

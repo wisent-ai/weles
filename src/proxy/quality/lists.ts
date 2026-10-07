@@ -9,6 +9,8 @@
 
 import declaredOrgs from './data/org-lists.json';
 
-export const DATACENTER_ORGS: ReadonlyArray<string> = declaredOrgs.datacenter_orgs;
-export const RESIDENTIAL_ORGS: ReadonlyArray<string> = declaredOrgs.residential_orgs;
+export const DATACENTER_ORGS: ReadonlyArray<string> =
+  declaredOrgs.datacenter_orgs;
+export const RESIDENTIAL_ORGS: ReadonlyArray<string> =
+  declaredOrgs.residential_orgs;
 export const WHOIS_FIELDS: ReadonlyArray<string> = declaredOrgs.whois_fields;

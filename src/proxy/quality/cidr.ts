@@ -11,8 +11,10 @@
 const ASN_CACHE_PATH = `${process.env.HOME ?? ''}/.weles/asn_cache.json`;
 
 export function isIpv4(ip: string): boolean {
-  return /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.test(ip)
-    && ip.split('.').every((o) => Number(o) >= 0 && Number(o) <= 255);
+  return (
+    /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.test(ip) &&
+    ip.split('.').every((o) => Number(o) >= 0 && Number(o) <= 255)
+  );
 }
 
 function ipToInt(ip: string): number {
@@ -21,7 +23,9 @@ function ipToInt(ip: string): number {
 }
 
 function intToIp(n: number): string {
-  return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.');
+  return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join(
+    '.',
+  );
 }
 
 // Network address of `ip` masked to `bits` (e.g. maskCidr('135.132.89.213',19)
@@ -52,7 +56,9 @@ function loadAsnCache(): AsnCache {
     if (!existsSync(ASN_CACHE_PATH)) return {};
     const j = JSON.parse(readFileSync(ASN_CACHE_PATH, 'utf8'));
     return j && typeof j === 'object' ? j : {};
-  } catch { return {}; }
+  } catch {
+    return {};
+  }
 }
 
 function saveAsnCache(c: AsnCache): void {
@@ -61,7 +67,9 @@ function saveAsnCache(c: AsnCache): void {
     const { dirname } = require('node:path');
     mkdirSync(dirname(ASN_CACHE_PATH), { recursive: true });
     writeFileSync(ASN_CACHE_PATH, JSON.stringify(c));
-  } catch { /* best-effort */ }
+  } catch {
+    /* best-effort */
+  }
 }
 
 // Resolve the origin ASN for an IP via RIPEstat. Cached forever per /32
@@ -75,14 +83,16 @@ export async function lookupAsn(ip: string): Promise<string | undefined> {
     const r = await fetch(
       `https://stat.ripe.net/data/network-info/data.json?resource=${ip}`,
     );
-    const j = await r.json() as { data?: { asns?: string[] } };
+    const j = (await r.json()) as { data?: { asns?: string[] } };
     const asn = j?.data?.asns?.[0];
     if (asn) {
       cache[ip] = { asn: String(asn), at: new Date().toISOString() };
       saveAsnCache(cache);
       return String(asn);
     }
-  } catch { /* network/parse failure → undefined */ }
+  } catch {
+    /* network/parse failure → undefined */
+  }
   return undefined;
 }
 
@@ -103,7 +113,12 @@ export async function allBurnKeys(ip: string): Promise<string[]> {
 // One JSONL line per probe: ts, platform, exit ip + its /24+/19, verdict,
 // body bytes. Read with quality/cidr ledger consumers or jq. Bounded by
 // nothing here (it is a diagnostic trail); rotate externally if needed.
-export function recordProbe(platform: string, ip: string, result: string, bytes?: number): void {
+export function recordProbe(
+  platform: string,
+  ip: string,
+  result: string,
+  bytes?: number,
+): void {
   try {
     const { mkdirSync, appendFileSync } = require('node:fs');
     const { dirname } = require('node:path');
@@ -120,6 +135,7 @@ export function recordProbe(platform: string, ip: string, result: string, bytes?
       bytes: bytes ?? null,
     };
     appendFileSync(fp, JSON.stringify(row) + '\n');
-  } catch { /* best-effort diagnostic */ }
+  } catch {
+    /* best-effort diagnostic */
+  }
 }
-

@@ -2,7 +2,10 @@
 // "Disabled" state (toggle off in the dashboard header), causing every CONNECT
 // to fail with "client_10002: zone not found". Flip the toggle.
 
-import { getScopedGoogleLogin, googleSso } from '../_shared/services/google_sso.mjs';
+import {
+  getScopedGoogleLogin,
+  googleSso,
+} from '../_shared/services/google_sso.mjs';
 import { WSession } from '../../../dist/session/wsession.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { readScopedSecret } from '../../_shared/scoped-secrets.mjs';
@@ -11,24 +14,42 @@ import { humanIdlePause } from '../../../dist/human/mouse.js';
 const ZONE = readScopedSecret('brightdataProxy', 'zone');
 
 const login = await getScopedGoogleLogin('brightdataDashboard');
-if (!login) { console.log('FAIL: no Bright Data creds'); process.exit(1); }
+if (!login) {
+  console.log('FAIL: no Bright Data creds');
+  process.exit(1);
+}
 
-const s = await WSession.start({ label: 'brightdata_enable_zone', browser: 'chromium' });
+const s = await WSession.start({
+  label: 'brightdata_enable_zone',
+  browser: 'chromium',
+});
 try {
   await s.goto('https://brightdata.com/cp/login');
   await humanIdlePause('deliberate');
-  await s.page.locator('button:has-text("Log in with Google")').filter({ visible: true }).first().click();
+  await s.page
+    .locator('button:has-text("Log in with Google")')
+    .filter({ visible: true })
+    .first()
+    .click();
   const ok = await googleSso(s, login, { originHost: 'brightdata.com' });
-  if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }
+  if (!ok) {
+    console.log('FAIL: Google SSO did not complete');
+    process.exit(1);
+  }
   await humanIdlePause('deliberate');
 
   // Skip onboarding modal.
   for (const sel of ['button:has-text("Skip")', '[aria-label="Close"]']) {
     const btn = s.page.locator(sel).filter({ visible: true }).first();
-    if (await btn.isVisible().catch(() => false)) { await btn.click({ force: true }).catch(() => {}); await humanIdlePause('short'); }
+    if (await btn.isVisible().catch(() => false)) {
+      await btn.click({ force: true }).catch(() => {});
+      await humanIdlePause('short');
+    }
   }
 
-  await s.page.goto(`https://brightdata.com/cp/zones/${ZONE}/access_params`, { waitUntil: 'domcontentloaded' });
+  await s.page.goto(`https://brightdata.com/cp/zones/${ZONE}/access_params`, {
+    waitUntil: 'domcontentloaded',
+  });
   await humanIdlePause('long');
 
   // Dismiss the "What is your role?" onboarding modal every time it
@@ -49,7 +70,9 @@ try {
         await btn.click({ force: true }).catch(() => {});
         await humanIdlePause('short');
         dismissed = true;
-        console.log(`[trajectory] modal dismissed via ${sel} (attempt ${attempt})`);
+        console.log(
+          `[trajectory] modal dismissed via ${sel} (attempt ${attempt})`,
+        );
         break;
       }
     }
@@ -59,18 +82,32 @@ try {
     if (!dismissed) break;
   }
 
-  await s.page.screenshot({ path: `${runRecordingsDir('brightdata_enable_zone')}/before.png`, fullPage: true }).catch(() => {});
+  await s.page
+    .screenshot({
+      path: `${runRecordingsDir('brightdata_enable_zone')}/before.png`,
+      fullPage: true,
+    })
+    .catch(() => {});
 
   // The Disabled toggle is in the top-right of the page header. Find by
   // the [role="switch"] that's NOT in any dialog/modal.
   const toggleInfo = await s.page.evaluate(() => {
-    const switches = Array.from(document.querySelectorAll('[role="switch"], input[type="checkbox"]'));
+    const switches = Array.from(
+      document.querySelectorAll('[role="switch"], input[type="checkbox"]'),
+    );
     const out = [];
     for (const sw of switches) {
       const inDialog = sw.closest('[role="dialog"], [aria-modal="true"]');
       const rect = sw.getBoundingClientRect();
       const checked = sw.getAttribute('aria-checked') ?? sw.checked;
-      out.push({ tag: sw.tagName, checked: String(checked), x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.width), inDialog: !!inDialog });
+      out.push({
+        tag: sw.tagName,
+        checked: String(checked),
+        x: Math.round(rect.x),
+        y: Math.round(rect.y),
+        w: Math.round(rect.width),
+        inDialog: !!inDialog,
+      });
     }
     return out;
   });
@@ -85,15 +122,24 @@ try {
   for (const sw of switches) {
     const box = await sw.boundingBox().catch(() => null);
     if (!box) continue;
-    const inDialog = await sw.evaluate(el => !!el.closest('[role="dialog"], [aria-modal="true"]')).catch(() => false);
+    const inDialog = await sw
+      .evaluate((el) => !!el.closest('[role="dialog"], [aria-modal="true"]'))
+      .catch(() => false);
     if (inDialog) continue;
-    if (box.y < bestY) { bestY = box.y; headerSwitch = sw; }
+    if (box.y < bestY) {
+      bestY = box.y;
+      headerSwitch = sw;
+    }
   }
-  if (!headerSwitch) { console.log('FAIL: no header checkbox found'); process.exit(2); }
+  if (!headerSwitch) {
+    console.log('FAIL: no header checkbox found');
+    process.exit(2);
+  }
   // The actual checkbox input is hidden (size 0×0); the visible toggle is
   // a styled wrapper. Click the parent label/wrapper which forwards the click.
-  await headerSwitch.evaluate(el => {
-    const wrapper = el.closest('label') || el.closest('.toggle, .switch') || el.parentElement;
+  await headerSwitch.evaluate((el) => {
+    const wrapper =
+      el.closest('label') || el.closest('.toggle, .switch') || el.parentElement;
     (wrapper ?? el).click();
   });
   console.log(`[trajectory] clicked header checkbox wrapper at y=${bestY}`);
@@ -101,7 +147,12 @@ try {
   await humanIdlePause('deliberate');
 
   // Confirm if a dialog asks.
-  for (const sel of ['button:has-text("Activate")', 'button:has-text("Enable")', 'button:has-text("Confirm")', 'button:has-text("Yes")']) {
+  for (const sel of [
+    'button:has-text("Activate")',
+    'button:has-text("Enable")',
+    'button:has-text("Confirm")',
+    'button:has-text("Yes")',
+  ]) {
     const btn = s.page.locator(sel).filter({ visible: true }).first();
     if (await btn.isVisible().catch(() => false)) {
       await btn.click({ force: true }).catch(() => {});
@@ -111,7 +162,12 @@ try {
     }
   }
 
-  await s.page.screenshot({ path: `${runRecordingsDir('brightdata_enable_zone')}/after.png`, fullPage: true }).catch(() => {});
+  await s.page
+    .screenshot({
+      path: `${runRecordingsDir('brightdata_enable_zone')}/after.png`,
+      fullPage: true,
+    })
+    .catch(() => {});
 
   // Verify enabled.
   const enabledNow = await s.page.evaluate(() => {
@@ -120,7 +176,8 @@ try {
     return sw.getAttribute('aria-checked');
   });
   console.log(`[trajectory] toggle aria-checked=${enabledNow}`);
-  if (enabledNow === 'true') console.log('PASS: zone enabled'); else console.log('WARN: toggle not confirmed enabled — check screenshot');
+  if (enabledNow === 'true') console.log('PASS: zone enabled');
+  else console.log('WARN: toggle not confirmed enabled — check screenshot');
 } catch (e) {
   console.log('FAIL:', e.message);
   process.exit(1);

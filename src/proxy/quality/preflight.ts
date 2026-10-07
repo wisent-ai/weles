@@ -7,11 +7,15 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { classifyIp, type ClassifyResult, type IpQuality, isAcceptableForRegister } from './classify.js';
+import {
+  classifyIp,
+  type ClassifyResult,
+  type IpQuality,
+  isAcceptableForRegister,
+} from './classify.js';
 
 const exec = promisify(execFile);
 const PROBE_URL = 'https://api.ipify.org';
-
 
 export interface PreflightResult {
   ok: boolean;
@@ -27,7 +31,9 @@ function buildCurlArgs(proxyUrl: string): string[] {
   return ['-sS', '--proxy', proxyUrl, PROBE_URL];
 }
 
-export async function preflightProxy(proxyUrl: string): Promise<PreflightResult> {
+export async function preflightProxy(
+  proxyUrl: string,
+): Promise<PreflightResult> {
   if (!proxyUrl) return { ok: false, ip: '', error: 'empty proxy url' };
   try {
     const { stdout } = await exec('curl', buildCurlArgs(proxyUrl));
@@ -39,12 +45,17 @@ export async function preflightProxy(proxyUrl: string): Promise<PreflightResult>
     const acceptable = isAcceptableForRegister(classification.quality);
     return { ok: acceptable, ip, classification };
   } catch (e: any) {
-    return { ok: false, ip: '', error: e?.message ? String(e.message) : 'proxy probe failed' };
+    return {
+      ok: false,
+      ip: '',
+      error: e?.message ? String(e.message) : 'proxy probe failed',
+    };
   }
 }
 
 export function summarizePreflight(r: PreflightResult): string {
-  if (!r.ok && !r.classification) return `preflight FAIL ip=${r.ip || '?'} err=${r.error ?? '?'}`;
+  if (!r.ok && !r.classification)
+    return `preflight FAIL ip=${r.ip || '?'} err=${r.error ?? '?'}`;
   const q = r.classification?.quality ?? ('unknown' as IpQuality);
   const org = r.classification?.org ?? '';
   const verdict = r.ok ? 'ACCEPT' : 'REJECT';

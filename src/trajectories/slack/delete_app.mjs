@@ -24,7 +24,9 @@ if (!APP_ID) {
 
 const { WSession } = await import(`${WELES}/dist/session/wsession.js`);
 const { humanFill } = await import(`${WELES}/dist/human/keyboard.js`);
-const { humanClickLocator, humanIdlePause } = await import(`${WELES}/dist/human/mouse.js`);
+const { humanClickLocator, humanIdlePause } = await import(
+  `${WELES}/dist/human/mouse.js`
+);
 
 const headless = process.env.HEADLESS === '1';
 const s = await WSession.start({ label: 'slack-delete', headless });
@@ -34,48 +36,64 @@ const SHOT_DIR = join(WELES, '.work', 'slack-delete');
 mkdirSync(SHOT_DIR, { recursive: true });
 async function shot(label) {
   const fp = join(SHOT_DIR, `${label}_${Date.now()}.png`);
-  try { await s.page.screenshot({ path: fp, fullPage: true }); console.log(`[slack-delete] shot=${fp}`); }
-  catch (e) { console.log(`[slack-delete] screenshot WARN ${label}: ${e.message}`); }
+  try {
+    await s.page.screenshot({ path: fp, fullPage: true });
+    console.log(`[slack-delete] shot=${fp}`);
+  } catch (e) {
+    console.log(`[slack-delete] screenshot WARN ${label}: ${e.message}`);
+  }
 }
 
 async function safeShutdown() {
   if (!s.shutdown) return;
-  try { await s.shutdown(); } catch (e) { console.log(`[slack-delete] shutdown WARN: ${e.message}`); }
+  try {
+    await s.shutdown();
+  } catch (e) {
+    console.log(`[slack-delete] shutdown WARN: ${e.message}`);
+  }
 }
 
 // --- Step 1: Google SSO ----------------------------------------------------
 console.log(`[slack-delete] step 1: Google SSO as ${SLACK_EMAIL}`);
-await s.page.goto('https://wisent-workspace.slack.com', { waitUntil: 'domcontentloaded' });
+await s.page.goto('https://wisent-workspace.slack.com', {
+  waitUntil: 'domcontentloaded',
+});
 await humanIdlePause('deliberate');
 await shot('01-slack-landing');
 
-const googleBtn = s.page.getByRole('button', { name: /^\s*google\s*$/i })
+const googleBtn = s.page
+  .getByRole('button', { name: /^\s*google\s*$/i })
   .or(s.page.getByRole('link', { name: /^\s*google\s*$/i }));
 await humanClickLocator(s.page, googleBtn.first());
 await humanIdlePause('long');
 
-await humanFill(s.page, s.page.locator('input[type="email"]').first(), SLACK_EMAIL);
+await humanFill(
+  s.page,
+  s.page.locator('input[type="email"]').first(),
+  SLACK_EMAIL,
+);
 await s.page.keyboard.press('Enter');
 await humanIdlePause('long');
 
 async function fillPasswordWhenAvailable() {
   const pwd = s.page.locator('input[type="password"]');
-  if (await pwd.count() === 0) return false;
+  if ((await pwd.count()) === 0) return false;
   await humanFill(s.page, pwd, SLACK_PASS);
   await s.page.keyboard.press('Enter');
   await humanIdlePause('long');
   return true;
 }
-if (!await fillPasswordWhenAvailable()) {
+if (!(await fillPasswordWhenAvailable())) {
   // Passkey challenge path: Google presents passkey instead of password
   // input. "Try another way" → "Enter your password" surfaces the field.
-  const tryOther = s.page.getByRole('button', { name: /try another way/i })
+  const tryOther = s.page
+    .getByRole('button', { name: /try another way/i })
     .or(s.page.getByRole('link', { name: /try another way/i }));
-  if (await tryOther.count() > 0) {
+  if ((await tryOther.count()) > 0) {
     await humanClickLocator(s.page, tryOther.first());
     await humanIdlePause('long');
     const enterPwd = s.page.getByText(/enter your password/i).first();
-    if (await enterPwd.count() > 0) {
+    if ((await enterPwd.count()) > 0) {
       await humanClickLocator(s.page, enterPwd);
       await humanIdlePause('long');
       await fillPasswordWhenAvailable();
@@ -84,7 +102,7 @@ if (!await fillPasswordWhenAvailable()) {
 }
 
 const continueBtn = s.page.getByRole('button', { name: /^\s*continue\s*$/i });
-if (await continueBtn.count() > 0) {
+if ((await continueBtn.count()) > 0) {
   await humanClickLocator(s.page, continueBtn.first());
   await humanIdlePause('long');
 }
@@ -95,7 +113,9 @@ console.log(`[slack-delete] post-signin url=${s.page.url()}`);
 // workspace host triggers the redirect that plants the api.slack.com
 // session for this workspace.
 console.log('[slack-delete] step 2: seat api.slack.com workspace auth');
-await s.page.goto('https://wisent-workspace.slack.com/apps/manage', { waitUntil: 'domcontentloaded' });
+await s.page.goto('https://wisent-workspace.slack.com/apps/manage', {
+  waitUntil: 'domcontentloaded',
+});
 await humanIdlePause('long');
 
 // --- Step 3: delete the app ------------------------------------------------

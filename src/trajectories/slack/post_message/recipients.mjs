@@ -4,7 +4,10 @@ import { slackPost } from './api.mjs';
 // SLACK_RECIPIENT_GROUPS ('name,alias;name,alias'). The people a message goes
 // to are deployment configuration, not code.
 // chat.postMessage to a user id opens/uses the DM, so no im:write needed.
-export const RECIPIENT_GROUPS = parseMatcherGroups(process.env.SLACK_RECIPIENT_GROUPS, []);
+export const RECIPIENT_GROUPS = parseMatcherGroups(
+  process.env.SLACK_RECIPIENT_GROUPS,
+  [],
+);
 
 const TARGET_NAME = (process.env.SLACK_TARGET_CHANNEL_NAME || '').toLowerCase();
 const TARGET_CHAN = process.env.SLACK_TARGET_CHANNEL || '';
@@ -12,7 +15,10 @@ const TAGGING_ENABLED = process.env.SLACK_ENABLE_TAGGING !== '0';
 const MENTION_MODE = (process.env.SLACK_MENTION_MODE || 'prefix').toLowerCase();
 
 export function parseCsv(value) {
-  return String(value || '').split(',').map((x) => x.trim()).filter(Boolean);
+  return String(value || '')
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean);
 }
 
 /** Matcher groups from 'a,b;c,d' text; the given groups when the text is empty. */
@@ -21,7 +27,12 @@ export function parseMatcherGroups(value, defaults) {
   return String(value)
     .toLowerCase()
     .split(/[;|]/)
-    .map((group) => group.split(',').map((x) => x.trim()).filter(Boolean))
+    .map((group) =>
+      group
+        .split(',')
+        .map((x) => x.trim())
+        .filter(Boolean),
+    )
     .filter((group) => group.length);
 }
 
@@ -38,10 +49,13 @@ export function resolveUsersFromMembers(members, groups) {
   for (const group of groups) {
     const hit = members.find((user) => {
       const fields = memberFields(user);
-      return group.some((matcher) => fields.some((field) => field.includes(matcher)));
+      return group.some((matcher) =>
+        fields.some((field) => field.includes(matcher)),
+      );
     });
     if (hit && !hits.some((u) => u.id === hit.id)) hits.push(hit);
-    else if (!hit) console.log(`[slack] WARN no user matched ${group.join('/')}`);
+    else if (!hit)
+      console.log(`[slack] WARN no user matched ${group.join('/')}`);
   }
   return hits;
 }
@@ -66,14 +80,21 @@ export function applyMentions(text, ids) {
 
 /** Who to mention in a channel post: explicit ids, else the matcher groups resolved against the members. */
 export async function mentionIdsForTarget(target, loadMembers) {
-  if (!TAGGING_ENABLED || MENTION_MODE === 'none' || !isChannelTarget(target)) return [];
-  const explicit = parseCsv(process.env.SLACK_MENTION_USER_IDS || process.env.SLACK_MENTION_USER_ID);
+  if (!TAGGING_ENABLED || MENTION_MODE === 'none' || !isChannelTarget(target))
+    return [];
+  const explicit = parseCsv(
+    process.env.SLACK_MENTION_USER_IDS || process.env.SLACK_MENTION_USER_ID,
+  );
   if (explicit.length) return [...new Set(explicit)];
 
-  const groups = parseMatcherGroups(process.env.SLACK_MENTION_USER_MATCHERS, RECIPIENT_GROUPS);
+  const groups = parseMatcherGroups(
+    process.env.SLACK_MENTION_USER_MATCHERS,
+    RECIPIENT_GROUPS,
+  );
   const members = await loadMembers();
   const hits = resolveUsersFromMembers(members, groups);
-  for (const hit of hits) console.log(`[slack] mention ${hit.real_name || hit.name} -> ${hit.id}`);
+  for (const hit of hits)
+    console.log(`[slack] mention ${hit.real_name || hit.name} -> ${hit.id}`);
   return hits.map((hit) => hit.id);
 }
 
@@ -89,17 +110,28 @@ export async function listMembers() {
  */
 export async function resolveTargets() {
   if (TARGET_CHAN) return [TARGET_CHAN];
-  if (process.env.SLACK_TARGET_USER_IDS) return parseCsv(process.env.SLACK_TARGET_USER_IDS);
-  if (process.env.SLACK_TARGET_USER_ID) return [process.env.SLACK_TARGET_USER_ID];
+  if (process.env.SLACK_TARGET_USER_IDS)
+    return parseCsv(process.env.SLACK_TARGET_USER_IDS);
+  if (process.env.SLACK_TARGET_USER_ID)
+    return [process.env.SLACK_TARGET_USER_ID];
   // A real channel by name only if it actually resolves; a name that is a
   // person, not a channel, is answered by the recipient groups below.
   if (process.env.SLACK_TARGET_CHANNEL_NAME) {
     try {
-      const list = await slackPost('conversations.list', { types: 'public_channel,private_channel', limit: '1000' });
-      const c = (list.channels || []).find((x) => (x.name || '').toLowerCase() === TARGET_NAME);
+      const list = await slackPost('conversations.list', {
+        types: 'public_channel,private_channel',
+        limit: '1000',
+      });
+      const c = (list.channels || []).find(
+        (x) => (x.name || '').toLowerCase() === TARGET_NAME,
+      );
       if (c) return [c.id];
-      console.log(`[slack] no visible channel named "${TARGET_NAME}" — resolving user targets instead`);
-    } catch (e) { console.log(`[slack] conversations.list skipped: ${e.message}`); }
+      console.log(
+        `[slack] no visible channel named "${TARGET_NAME}" — resolving user targets instead`,
+      );
+    } catch (e) {
+      console.log(`[slack] conversations.list skipped: ${e.message}`);
+    }
   }
   // DM one user per recipient group, resolved by name/email matcher.
   const groups = process.env.SLACK_TARGET_USER_MATCHERS
@@ -109,8 +141,16 @@ export async function resolveTargets() {
   const ids = [];
   for (const group of groups) {
     const hit = resolveUsersFromMembers(members, [group])[0];
-    if (hit && !ids.includes(hit.id)) { ids.push(hit.id); console.log(`[slack] recipient ${hit.real_name || hit.name} -> ${hit.id}`); }
+    if (hit && !ids.includes(hit.id)) {
+      ids.push(hit.id);
+      console.log(
+        `[slack] recipient ${hit.real_name || hit.name} -> ${hit.id}`,
+      );
+    }
   }
-  if (!ids.length) throw new Error(`no channel "${TARGET_NAME}" and no recipients matched: set SLACK_TARGET_CHANNEL, SLACK_TARGET_USER_IDS or SLACK_RECIPIENT_GROUPS`);
+  if (!ids.length)
+    throw new Error(
+      `no channel "${TARGET_NAME}" and no recipients matched: set SLACK_TARGET_CHANNEL, SLACK_TARGET_USER_IDS or SLACK_RECIPIENT_GROUPS`,
+    );
   return ids;
 }

@@ -32,15 +32,23 @@ export async function clickAny(s, selectors, label) {
 
 export async function clickText(s, text, label = text) {
   const escaped = String(text).replaceAll('"', '\\"');
-  const clicked = await clickAny(s, [
-    `[role="radio"]:has-text("${escaped}")`,
-    `material-radio:has-text("${escaped}")`,
-    `material-list-item:has-text("${escaped}")`,
-  ], label);
+  const clicked = await clickAny(
+    s,
+    [
+      `[role="radio"]:has-text("${escaped}")`,
+      `material-radio:has-text("${escaped}")`,
+      `material-list-item:has-text("${escaped}")`,
+    ],
+    label,
+  );
   if (clicked) return true;
-  const fallback = s.page.locator('button,[role="button"],[role="radio"],material-radio,material-list-item')
-    .filter({ hasText: text, visible: true }).first();
-  if (await fallback.count() === 0) return false;
+  const fallback = s.page
+    .locator(
+      'button,[role="button"],[role="radio"],material-radio,material-list-item',
+    )
+    .filter({ hasText: text, visible: true })
+    .first();
+  if ((await fallback.count()) === 0) return false;
   await humanClickLocator(s.page, fallback);
   console.log(`[google-ads] clicked: ${label}`);
   await pageSettled(s.page);
@@ -64,23 +72,44 @@ export async function fillAny(s, selectors, value, label) {
 
 export async function fillTextNearLabel(s, labelPattern, value, label) {
   if (!value) return false;
-  const filled = await s.page.evaluate(({ pattern, value }) => {
-    const re = new RegExp(pattern, 'i');
-    const norm = (text) => String(text || '').replace(/\s+/g, ' ').trim();
-    const roots = Array.from(document.querySelectorAll('material-input, material-textarea, label, div, section, form'))
-      .filter((el) => re.test(norm(el.innerText || el.textContent || el.getAttribute('aria-label'))));
-    for (const root of roots) {
-      const input = root.querySelector?.('input,textarea,[contenteditable="true"]');
-      if (!input) continue;
-      input.focus();
-      if (input.isContentEditable) input.textContent = value;
-      else input.value = value;
-      input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }));
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-      return true;
-    }
-    return false;
-  }, { pattern: labelPattern.source, value: String(value) });
+  const filled = await s.page.evaluate(
+    ({ pattern, value }) => {
+      const re = new RegExp(pattern, 'i');
+      const norm = (text) =>
+        String(text || '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      const roots = Array.from(
+        document.querySelectorAll(
+          'material-input, material-textarea, label, div, section, form',
+        ),
+      ).filter((el) =>
+        re.test(
+          norm(el.innerText || el.textContent || el.getAttribute('aria-label')),
+        ),
+      );
+      for (const root of roots) {
+        const input = root.querySelector?.(
+          'input,textarea,[contenteditable="true"]',
+        );
+        if (!input) continue;
+        input.focus();
+        if (input.isContentEditable) input.textContent = value;
+        else input.value = value;
+        input.dispatchEvent(
+          new InputEvent('input', {
+            bubbles: true,
+            inputType: 'insertText',
+            data: value,
+          }),
+        );
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+      }
+      return false;
+    },
+    { pattern: labelPattern.source, value: String(value) },
+  );
   if (filled) {
     console.log(`[google-ads] filled: ${label}`);
     await pageSettled(s.page);
@@ -92,7 +121,10 @@ export async function fillTextNearLabel(s, labelPattern, value, label) {
 
 export async function typeListIntoFirstVisible(s, selectors, csv, label) {
   if (!csv) return false;
-  const values = csv.split(',').map((v) => v.trim()).filter(Boolean);
+  const values = csv
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean);
   if (!values.length) return false;
   for (const sel of selectors) {
     const loc = s.page.locator(sel).filter({ visible: true }).first();
@@ -144,7 +176,11 @@ export function normalizeCustomerId(id) {
 export function currentCustomerId(url) {
   try {
     const u = new URL(url);
-    return normalizeCustomerId(u.searchParams.get('ocid') || u.searchParams.get('customerId') || u.searchParams.get('authuser'));
+    return normalizeCustomerId(
+      u.searchParams.get('ocid') ||
+        u.searchParams.get('customerId') ||
+        u.searchParams.get('authuser'),
+    );
   } catch {
     return null;
   }
@@ -153,7 +189,9 @@ export function currentCustomerId(url) {
 export async function ensureCustomer(s) {
   const target = normalizeCustomerId(CUSTOMER_ID);
   const before = currentCustomerId(s.page.url?.() ?? '');
-  console.log(`[google-ads] current customer=${before || 'unknown'} target=${target || 'unspecified'}`);
+  console.log(
+    `[google-ads] current customer=${before || 'unknown'} target=${target || 'unspecified'}`,
+  );
   if (!target) return before;
   if (before === target) return before;
 
@@ -164,7 +202,9 @@ export async function ensureCustomer(s) {
   const after = currentCustomerId(s.page.url?.() ?? '');
   console.log(`[google-ads] customer after switch=${after || 'unknown'}`);
   if (after && after !== target) {
-    console.log(`FAIL: wrong Google Ads customer selected; expected=${target} actual=${after} url=${s.page.url?.() ?? ''}`);
+    console.log(
+      `FAIL: wrong Google Ads customer selected; expected=${target} actual=${after} url=${s.page.url?.() ?? ''}`,
+    );
     process.exit(1);
   }
   return after;

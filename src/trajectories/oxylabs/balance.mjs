@@ -1,10 +1,19 @@
 // Oxylabs balance check via Google GSI iframe button + popup-based OAuth.
 // One scrape covers BOTH 'Oxylabs Residential' and 'Oxylabs Mobile' rows.
 import { WSession } from '../../../dist/session/wsession.js';
-import { googleSso, parseBalanceFromText, getScopedGoogleLogin } from '../_shared/services/google_sso.mjs'
+import {
+  googleSso,
+  parseBalanceFromText,
+  getScopedGoogleLogin,
+} from '../_shared/services/google_sso.mjs';
 import { patchEffectiveBalance } from '../_shared/services/proxy_probe.mjs';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
-import { pageSettled, popupOrNavigation, reviewUntilClosed, urlMatching } from '../_shared/page/settled.mjs';
+import {
+  pageSettled,
+  popupOrNavigation,
+  reviewUntilClosed,
+  urlMatching,
+} from '../_shared/page/settled.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
@@ -13,27 +22,49 @@ const LOGIN_URL = 'https://dashboard.oxylabs.io/';
 const BILLING_URL = 'https://dashboard.oxylabs.io/en/billing-plans';
 
 const login = await getScopedGoogleLogin('oxylabsDashboard');
-if (!login) { console.log('FAIL: no Google SSO creds'); throw new Error('no Google SSO creds'); }
+if (!login) {
+  console.log('FAIL: no Google SSO creds');
+  throw new Error('no Google SSO creds');
+}
 console.log(`[trajectory] Using Google SSO: ${login.email}`);
 
-const s = await WSession.start({ label: 'oxylabs_balance', browser: 'chromium' });
+const s = await WSession.start({
+  label: 'oxylabs_balance',
+  browser: 'chromium',
+});
 try {
   await s.goto(LOGIN_URL);
   await pageSettled(s.page);
 
-  const gsiFrame = s.page.frames().find(f => /gsi\/button/.test(f.url()));
-  if (!gsiFrame) { console.log('FAIL: Oxylabs Google GSI iframe not found'); throw new Error('Oxylabs Google GSI iframe not found'); }
+  const gsiFrame = s.page.frames().find((f) => /gsi\/button/.test(f.url()));
+  if (!gsiFrame) {
+    console.log('FAIL: Oxylabs Google GSI iframe not found');
+    throw new Error('Oxylabs Google GSI iframe not found');
+  }
 
   const google = gsiFrame.locator('div[role="button"]').first();
-  if (!(await google.isEnabled())) throw new Error(`OXYLABS_GOOGLE_CONTROL_DISABLED: ${s.page.url()}`);
-  const popup = await popupOrNavigation(s.page, /^https:\/\/accounts\.google\.com\//,
-    () => humanClickLocator(s.page, google));
+  if (!(await google.isEnabled()))
+    throw new Error(`OXYLABS_GOOGLE_CONTROL_DISABLED: ${s.page.url()}`);
+  const popup = await popupOrNavigation(
+    s.page,
+    /^https:\/\/accounts\.google\.com\//,
+    () => humanClickLocator(s.page, google),
+  );
   if (popup) await pageSettled(popup);
 
-  const ok = await googleSso(s, login, { originHost: 'oxylabs.io', page: popup ?? undefined });
-  if (!ok) throw new Error(`OXYLABS_SSO_INCOMPLETE: Google sign-in did not complete; observed ${s.page.url()}`);
+  const ok = await googleSso(s, login, {
+    originHost: 'oxylabs.io',
+    page: popup ?? undefined,
+  });
+  if (!ok)
+    throw new Error(
+      `OXYLABS_SSO_INCOMPLETE: Google sign-in did not complete; observed ${s.page.url()}`,
+    );
 
-  await urlMatching(s.page, /^(?!https:\/\/dashboard\.oxylabs\.io\/en\/?(\?.*)?$)/);
+  await urlMatching(
+    s.page,
+    /^(?!https:\/\/dashboard\.oxylabs\.io\/en\/?(\?.*)?$)/,
+  );
   console.log(`[trajectory] post-login url=${s.page.url()}`);
 
   // Oxylabs uses GB-based prepaid plans, not USD wallets. The overview page
@@ -65,7 +96,13 @@ try {
   let balance = null;
   for (const pat of patterns) {
     const m = text.match(pat);
-    if (m && m[1]) { balance = Number(m[1]); console.log(`[trajectory] GB remaining=${balance} (pattern=${patterns.indexOf(pat)})`); break; }
+    if (m && m[1]) {
+      balance = Number(m[1]);
+      console.log(
+        `[trajectory] GB remaining=${balance} (pattern=${patterns.indexOf(pat)})`,
+      );
+      break;
+    }
   }
   if (balance == null) balance = parseBalanceFromText(text);
   if (balance == null) {
@@ -78,13 +115,24 @@ try {
     try {
       const html = await s.page.content();
       writeFileSync(join(dir, 'dashboard.html'), html);
-    } catch (error) { console.error('OXYLABS_DIAGNOSTIC_HTML_FAILED:', error); }
-    try { await s.page.screenshot({ path: join(dir, 'dashboard.png'), fullPage: true }); }
-    catch (error) { console.error('OXYLABS_DIAGNOSTIC_SCREENSHOT_FAILED:', error); }
+    } catch (error) {
+      console.error('OXYLABS_DIAGNOSTIC_HTML_FAILED:', error);
+    }
+    try {
+      await s.page.screenshot({
+        path: join(dir, 'dashboard.png'),
+        fullPage: true,
+      });
+    } catch (error) {
+      console.error('OXYLABS_DIAGNOSTIC_SCREENSHOT_FAILED:', error);
+    }
     const gbIdx = [];
-    for (let i = 0; (i = text.toLowerCase().indexOf('gb', i)) >= 0; i++) gbIdx.push(i);
+    for (let i = 0; (i = text.toLowerCase().indexOf('gb', i)) >= 0; i++)
+      gbIdx.push(i);
     for (const i of gbIdx.slice(0, 10)) {
-      console.log(`[trajectory] GB context @${i}: ${text.slice(Math.max(0, i - 60), i + 20).replace(/\s+/g, ' ')}`);
+      console.log(
+        `[trajectory] GB context @${i}: ${text.slice(Math.max(0, i - 60), i + 20).replace(/\s+/g, ' ')}`,
+      );
     }
     throw new Error(`oxylabs_balance_regex_no_match — text dumped to ${dir}/`);
   }
@@ -94,15 +142,22 @@ try {
   // overrides balance to 0 so cron decisions reflect EFFECTIVE balance.
   const r1 = await patchEffectiveBalance('Oxylabs Residential', balance);
   const r2 = await patchEffectiveBalance('Oxylabs Mobile', balance);
-  if (!r1 || !r2) { console.log(`FAIL: PATCH residential=${r1} mobile=${r2}`); throw new Error(`PATCH residential=${r1} mobile=${r2}`); }
-  console.log(`PASS: dashboard=$${balance} (effective balance written + probed)`);
+  if (!r1 || !r2) {
+    console.log(`FAIL: PATCH residential=${r1} mobile=${r2}`);
+    throw new Error(`PATCH residential=${r1} mobile=${r2}`);
+  }
+  console.log(
+    `PASS: dashboard=$${balance} (effective balance written + probed)`,
+  );
 } catch (error) {
   console.error('FAIL:', error);
   process.exitCode = 1;
 } finally {
   try {
     if (process.env.KEEP_OPEN === '1' && !s.page.isClosed()) {
-      console.log('[trajectory] KEEP_OPEN=1 — close the browser window or stop the command to finish review');
+      console.log(
+        '[trajectory] KEEP_OPEN=1 — close the browser window or stop the command to finish review',
+      );
       await reviewUntilClosed(s);
     }
   } finally {

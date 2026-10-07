@@ -11,28 +11,60 @@
   try {
     if (typeof window.Sanitizer === 'undefined') {
       class Sanitizer {
-        constructor(config) { this._cfg = config; }
-        sanitize() { return null; }
-        sanitizeFor() { return null; }
-        static getDefaultConfiguration() { return {}; }
+        constructor(config) {
+          this._cfg = config;
+        }
+        sanitize() {
+          return null;
+        }
+        sanitizeFor() {
+          return null;
+        }
+        static getDefaultConfiguration() {
+          return {};
+        }
       }
-      Object.defineProperty(window, 'Sanitizer', { value: Sanitizer, writable: true, configurable: true });
+      Object.defineProperty(window, 'Sanitizer', {
+        value: Sanitizer,
+        writable: true,
+        configurable: true,
+      });
     }
     if (typeof window.AnimationTrigger === 'undefined') {
-      class AnimationTrigger { constructor(opts) { Object.assign(this, opts ?? {}); } }
-      Object.defineProperty(window, 'AnimationTrigger', { value: AnimationTrigger, writable: true, configurable: true });
+      class AnimationTrigger {
+        constructor(opts) {
+          Object.assign(this, opts ?? {});
+        }
+      }
+      Object.defineProperty(window, 'AnimationTrigger', {
+        value: AnimationTrigger,
+        writable: true,
+        configurable: true,
+      });
     }
     if (typeof window.TimelineTrigger === 'undefined') {
       class TimelineTrigger {}
-      Object.defineProperty(window, 'TimelineTrigger', { value: TimelineTrigger, writable: true, configurable: true });
+      Object.defineProperty(window, 'TimelineTrigger', {
+        value: TimelineTrigger,
+        writable: true,
+        configurable: true,
+      });
     }
     if (typeof window.TimelineTriggerRange === 'undefined') {
       class TimelineTriggerRange {}
-      Object.defineProperty(window, 'TimelineTriggerRange', { value: TimelineTriggerRange, writable: true, configurable: true });
+      Object.defineProperty(window, 'TimelineTriggerRange', {
+        value: TimelineTriggerRange,
+        writable: true,
+        configurable: true,
+      });
     }
     if (typeof window.TimelineTriggerRangeList === 'undefined') {
       class TimelineTriggerRangeList {}
-      Object.defineProperty(window, 'TimelineTriggerRangeList', { value: TimelineTriggerRangeList, writable: true, configurable: true });
+      Object.defineProperty(window, 'TimelineTriggerRangeList', {
+        value: TimelineTriggerRangeList,
+        writable: true,
+        configurable: true,
+      });
     }
   } catch {}
 })();
@@ -56,16 +88,16 @@
     // returns true and creates a new fingerprint tell vs real Chrome.
     var CODEC_TOKEN_RE = /\bcodecs="?([a-z0-9.,\s-]+)"?/i;
     var KNOWN_PROP = [
-      /^avc1\.[0-9a-f]{6}$/i,        // H.264 with profile/level
+      /^avc1\.[0-9a-f]{6}$/i, // H.264 with profile/level
       /^avc3\.[0-9a-f]{6}$/i,
-      /^hev1\.\d+\.\d+\.[a-z]\d+\.[a-z0-9]+$/i,  // HEVC
+      /^hev1\.\d+\.\d+\.[a-z]\d+\.[a-z0-9]+$/i, // HEVC
       /^hvc1\.\d+\.\d+\.[a-z]\d+\.[a-z0-9]+$/i,
-      /^mp4a\.\d+(\.\d+)?$/i,        // AAC variants
+      /^mp4a\.\d+(\.\d+)?$/i, // AAC variants
       /^mp3$/i,
       /^ac-3$/i,
       /^ec-3$/i,
     ];
-    var isProp = function(s) {
+    var isProp = function (s) {
       if (!s) return false;
       var m = CODEC_TOKEN_RE.exec(s);
       if (!m) {
@@ -73,11 +105,16 @@
         // returns true for this MIME alone.
         return /^\s*audio\/mpeg\s*$/i.test(s);
       }
-      var tokens = m[1].split(',').map(function(t) { return t.trim(); });
+      var tokens = m[1].split(',').map(function (t) {
+        return t.trim();
+      });
       for (var i = 0; i < tokens.length; i++) {
         var matched = false;
         for (var j = 0; j < KNOWN_PROP.length; j++) {
-          if (KNOWN_PROP[j].test(tokens[i])) { matched = true; break; }
+          if (KNOWN_PROP[j].test(tokens[i])) {
+            matched = true;
+            break;
+          }
         }
         if (!matched) return false;
       }
@@ -86,14 +123,17 @@
 
     if (typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported) {
       var origIts = MediaSource.isTypeSupported.bind(MediaSource);
-      MediaSource.isTypeSupported = function(type) {
+      MediaSource.isTypeSupported = function (type) {
         if (origIts(type)) return true;
         if (isProp(type)) return true;
         return false;
       };
     }
 
-    if (typeof HTMLMediaElement !== 'undefined' && HTMLMediaElement.prototype.canPlayType) {
+    if (
+      typeof HTMLMediaElement !== 'undefined' &&
+      HTMLMediaElement.prototype.canPlayType
+    ) {
       var origCpt = HTMLMediaElement.prototype.canPlayType;
       // Arkose's audio_codecs fingerprint probes bare MIMEs (audio/mp4, audio/aac)
       // where Chrome returns "maybe"/"probably" across all platforms even without
@@ -101,8 +141,13 @@
       // branding returns "" for these, which differs from Chrome and shows up in
       // the Arkose bda payload as audio_codecs{m4a:"",aac:""} instead of
       // {m4a:"maybe",aac:"probably"}.
-      var BARE_MIME_MAP = { 'audio/mp4': 'maybe', 'audio/x-m4a': 'maybe', 'audio/aac': 'probably', 'audio/mpeg': 'probably' };
-      HTMLMediaElement.prototype.canPlayType = function(type) {
+      var BARE_MIME_MAP = {
+        'audio/mp4': 'maybe',
+        'audio/x-m4a': 'maybe',
+        'audio/aac': 'probably',
+        'audio/mpeg': 'probably',
+      };
+      HTMLMediaElement.prototype.canPlayType = function (type) {
         var r = origCpt.call(this, type);
         if (r) return r;
         var trimmed = (type + '').trim().toLowerCase();
@@ -112,12 +157,19 @@
       };
     }
 
-    if (navigator.mediaCapabilities && navigator.mediaCapabilities.decodingInfo) {
-      var origDec = navigator.mediaCapabilities.decodingInfo.bind(navigator.mediaCapabilities);
-      navigator.mediaCapabilities.decodingInfo = function(config) {
+    if (
+      navigator.mediaCapabilities &&
+      navigator.mediaCapabilities.decodingInfo
+    ) {
+      var origDec = navigator.mediaCapabilities.decodingInfo.bind(
+        navigator.mediaCapabilities,
+      );
+      navigator.mediaCapabilities.decodingInfo = function (config) {
         try {
-          var ct = (config && config.video && config.video.contentType) ||
-                   (config && config.audio && config.audio.contentType) || '';
+          var ct =
+            (config && config.video && config.video.contentType) ||
+            (config && config.audio && config.audio.contentType) ||
+            '';
           if (isProp(ct)) {
             return Promise.resolve({
               supported: true,

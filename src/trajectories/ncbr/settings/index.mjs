@@ -21,18 +21,25 @@ const LSI2_PROJECT_BASE = 'https://lsi2.ncbr.gov.pl/projekt/';
 
 function required(name, meaning) {
   const value = process.env[name]?.trim();
-  if (!value) throw new Error(`${name} is not set: ${meaning}; nothing is assumed`);
+  if (!value)
+    throw new Error(`${name} is not set: ${meaning}; nothing is assumed`);
   return value;
 }
 
 /** The DevTools endpoint of the browser session the trajectory drives. */
 export function cdpEndpoint() {
-  return required('NCBR_CDP_ENDPOINT', 'name the DevTools endpoint of the signed-in NCBR browser session');
+  return required(
+    'NCBR_CDP_ENDPOINT',
+    'name the DevTools endpoint of the signed-in NCBR browser session',
+  );
 }
 
 /** The LSI2 project id of the application being worked on. */
 export function projectId() {
-  return required('NCBR_PROJECT_ID', 'name the LSI2 project id of the application this run works on');
+  return required(
+    'NCBR_PROJECT_ID',
+    'name the LSI2 project id of the application this run works on',
+  );
 }
 
 /** The project's page: NCBR_PROJECT_URL, or the LSI2 page of NCBR_PROJECT_ID. */
@@ -52,7 +59,10 @@ export function sectionBase() {
  * than written into a script.
  */
 export function sectionId(key) {
-  return required(`NCBR_SECTION_${key}`, `name the projekt_step id of section ${key.replace(/_/g, '.')}`);
+  return required(
+    `NCBR_SECTION_${key}`,
+    `name the projekt_step id of section ${key.replace(/_/g, '.')}`,
+  );
 }
 
 /** One section's page, by its key. */
@@ -62,17 +72,26 @@ export function sectionUrl(key) {
 
 /** The project version (wersja wniosku) id the version-scoped pages use. */
 export function projectVersionId() {
-  return required('NCBR_PROJECT_VERSION_ID', 'name the LSI2 version id of the application this run works on');
+  return required(
+    'NCBR_PROJECT_VERSION_ID',
+    'name the LSI2 version id of the application this run works on',
+  );
 }
 
 /** The applicant's folder holding the application text, with a trailing slash. */
 export function applicationTextDir() {
-  const dir = required('NCBR_APPLICATION_TEXT_DIR', "name the applicant's folder holding the application text");
+  const dir = required(
+    'NCBR_APPLICATION_TEXT_DIR',
+    "name the applicant's folder holding the application text",
+  );
   return dir.endsWith('/') ? dir : `${dir}/`;
 }
 
 /** One file of the application text, by its name inside the folder. */
 export function applicationFile(name) {
-  if (!name) throw new Error('a file name inside the application text folder is required');
+  if (!name)
+    throw new Error(
+      'a file name inside the application text folder is required',
+    );
   return `${applicationTextDir()}${name}`;
 }

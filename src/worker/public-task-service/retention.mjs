@@ -32,7 +32,10 @@ export function createEvidenceRetention({
     await syncDirectory(dirname(failureRoot));
     const diagnosticRoot = join(runRoot, 'artifacts');
     await mkdir(diagnosticRoot, { recursive: true, mode: 0o700 });
-    const code = error instanceof EvidenceRetentionError ? error.code : 'storage-retries-exhausted';
+    const code =
+      error instanceof EvidenceRetentionError
+        ? error.code
+        : 'storage-retries-exhausted';
     const diagnostic = {
       schema: 'weles.browser-evidence-retention-failure.v1',
       taskId: task.id,
@@ -86,9 +89,11 @@ export function createEvidenceRetention({
       // The task stays pending with its error visible and is retried on the
       // next sweep: storage that keeps refusing shows as pending, and no
       // attempt count is chosen to turn it into a failure.
-      task.evidenceError = `${task.retentionFailure
-        ? 'failed evidence receipt retention is pending'
-        : 'evidence retention is pending'}: ${error.message}`;
+      task.evidenceError = `${
+        task.retentionFailure
+          ? 'failed evidence receipt retention is pending'
+          : 'evidence retention is pending'
+      }: ${error.message}`;
       await persistTask(task);
       return task;
     }

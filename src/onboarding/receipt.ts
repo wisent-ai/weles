@@ -12,14 +12,18 @@ export type ReceiptClaims = {
 };
 
 export async function loadReceiptVerifier(): Promise<{
-  verifyReceipt(receipt: unknown, keys: Readonly<Record<string, string>>): unknown;
+  verifyReceipt(
+    receipt: unknown,
+    keys: Readonly<Record<string, string>>,
+  ): unknown;
 }> {
   // The official receipt verifier is ESM-only while the Weles CLI is CommonJS, so it must cross the module boundary asynchronously.
   return await import('@wisent-ai/weles-client');
 }
 
 function requiredStringProperty(value: object, field: string): string {
-  if (!(field in value)) throw new Error(`verified receipt claim ${field} is missing`);
+  if (!(field in value))
+    throw new Error(`verified receipt claim ${field} is missing`);
   const descriptor = Object.getOwnPropertyDescriptor(value, field);
   const candidate = descriptor?.value;
   if (typeof candidate !== 'string' || !candidate.trim()) {
@@ -29,7 +33,8 @@ function requiredStringProperty(value: object, field: string): string {
 }
 
 export function requireVerifiedClaims(value: unknown): ReceiptClaims {
-  if (!value || typeof value !== 'object') throw new Error('verified receipt claims are invalid');
+  if (!value || typeof value !== 'object')
+    throw new Error('verified receipt claims are invalid');
   return {
     taskId: requiredStringProperty(value, 'taskId'),
     organizationId: requiredStringProperty(value, 'organizationId'),

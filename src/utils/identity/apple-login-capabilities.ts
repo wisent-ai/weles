@@ -1,7 +1,9 @@
 import { assertCapability, type CapabilityRef } from '../capability.js';
 
-export type AppleTwoFactorSource =
-  { mode: 'capability'; capability: CapabilityRef };
+export type AppleTwoFactorSource = {
+  mode: 'capability';
+  capability: CapabilityRef;
+};
 
 export interface AppleLoginCapabilities {
   email: CapabilityRef;
@@ -10,13 +12,19 @@ export interface AppleLoginCapabilities {
 }
 
 const EXPECTED_KEYS = ['email', 'password', 'two_factor'] as const;
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function parseObject(input: unknown): Record<string, unknown> {
   if (typeof input === 'string') {
-    try { input = JSON.parse(input); } catch { throw new Error('invalid Apple login capabilities JSON'); }
+    try {
+      input = JSON.parse(input);
+    } catch {
+      throw new Error('invalid Apple login capabilities JSON');
+    }
   }
-  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('invalid Apple login capabilities');
+  if (!input || typeof input !== 'object' || Array.isArray(input))
+    throw new Error('invalid Apple login capabilities');
   return input as Record<string, unknown>;
 }
 
@@ -24,12 +32,21 @@ function parseCapabilityRef(input: unknown): CapabilityRef {
   return parseObject(input) as unknown as CapabilityRef;
 }
 
-export function parseAppleLoginCapabilities(input: unknown, authorizationId: string): AppleLoginCapabilities {
-  if (!UUID_PATTERN.test(authorizationId)) throw new Error('invalid Apple authorization id');
+export function parseAppleLoginCapabilities(
+  input: unknown,
+  authorizationId: string,
+): AppleLoginCapabilities {
+  if (!UUID_PATTERN.test(authorizationId))
+    throw new Error('invalid Apple authorization id');
   const record = parseObject(input);
   const keys = Object.keys(record).sort();
-  if (keys.length !== EXPECTED_KEYS.length || EXPECTED_KEYS.some((key, index) => keys[index] !== key)) {
-    throw new Error('Apple login capabilities require exactly email, password, and two_factor');
+  if (
+    keys.length !== EXPECTED_KEYS.length ||
+    EXPECTED_KEYS.some((key, index) => keys[index] !== key)
+  ) {
+    throw new Error(
+      'Apple login capabilities require exactly email, password, and two_factor',
+    );
   }
 
   const email = parseCapabilityRef(record.email);
@@ -47,10 +64,14 @@ export function parseAppleLoginCapabilities(input: unknown, authorizationId: str
 
   const twoFactorRaw = parseObject(record.two_factor);
   const mode = twoFactorRaw.mode;
-  if (mode !== 'capability'
-      || Object.keys(twoFactorRaw).length !== 2
-      || !Object.hasOwn(twoFactorRaw, 'capability')) {
-    throw new Error('Apple 2FA requires exactly one authorization-bound capability');
+  if (
+    mode !== 'capability' ||
+    Object.keys(twoFactorRaw).length !== 2 ||
+    !Object.hasOwn(twoFactorRaw, 'capability')
+  ) {
+    throw new Error(
+      'Apple 2FA requires exactly one authorization-bound capability',
+    );
   }
   const capability = parseCapabilityRef(twoFactorRaw.capability);
   assertCapability(capability, {

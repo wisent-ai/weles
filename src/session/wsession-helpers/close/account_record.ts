@@ -4,7 +4,11 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { markSignupSuccess } from '../../../utils/email/domain.js';
-import { getReceived, listReceived, receivingConfigured } from '../../../utils/email/resend-receiving.js';
+import {
+  getReceived,
+  listReceived,
+  receivingConfigured,
+} from '../../../utils/email/resend-receiving.js';
 import type { WSession } from '../../wsession.js';
 import { putAccount } from '../../../state/skarbiec-records.js';
 import { recordingsDir } from './fingerprint_capture.js';
@@ -22,24 +26,43 @@ function profileUrl(platform: string, username: string, name?: string): string {
   return urls[platform] ?? '';
 }
 
-export async function wsCheckEmail(s: WSession, email: string, sender: string): Promise<string> {
-  if (!receivingConfigured()) return 'error: the wisent-integrations inbox route (STADO_INTEGRATION_API_URL, WELES_STADO_INTEGRATION_TOKEN) is not configured';
+export async function wsCheckEmail(
+  s: WSession,
+  email: string,
+  sender: string,
+): Promise<string> {
+  if (!receivingConfigured())
+    return 'error: the wisent-integrations inbox route (STADO_INTEGRATION_API_URL, WELES_STADO_INTEGRATION_TOKEN) is not configured';
   const addr = s.resolveEnv(email).toLowerCase();
   const senderHint = sender.toLowerCase();
   const earliestAcceptMs = Date.now() - 90_000;
   for (const em of (await listReceived(10, addr)).data) {
-    const to = (em.to ?? []).map((t: any) => (typeof t === 'string' ? t : t.email ?? '').toLowerCase());
+    const to = (em.to ?? []).map((t: any) =>
+      (typeof t === 'string' ? t : (t.email ?? '')).toLowerCase(),
+    );
     if (!to.includes(addr)) continue;
-    if (senderHint && !(em.from ?? '').toLowerCase().includes(senderHint)) continue;
+    if (senderHint && !(em.from ?? '').toLowerCase().includes(senderHint))
+      continue;
     const emAt = em.created_at ? new Date(em.created_at).getTime() : 0;
     if (emAt < earliestAcceptMs) continue;
-    const d = await getReceived(em.id) as { subject?: string; text?: string; html?: string };
+    const d = (await getReceived(em.id)) as {
+      subject?: string;
+      text?: string;
+      html?: string;
+    };
     const content = `${d.subject ?? ''}\n${d.text ?? ''}\n${d.html ?? ''}`;
-    const verificationMatch = content.match(/https:\/\/api-dashboard\.search\.brave\.com\/verification[^\s"'<>\]]+/);
+    const verificationMatch = content.match(
+      /https:\/\/api-dashboard\.search\.brave\.com\/verification[^\s"'<>\]]+/,
+    );
     if (verificationMatch) {
-      const verificationURL = verificationMatch[0].replace(/&amp;/g, '&').replace(/[),.;]+$/, '');
+      const verificationURL = verificationMatch[0]
+        .replace(/&amp;/g, '&')
+        .replace(/[),.;]+$/, '');
       const target = new URL(verificationURL);
-      if (target.hostname === 'api-dashboard.search.brave.com' && target.pathname === '/verification') {
+      if (
+        target.hostname === 'api-dashboard.search.brave.com' &&
+        target.pathname === '/verification'
+      ) {
         await s.page.goto(target.href, { waitUntil: 'domcontentloaded' });
         return `verification email opened on ${target.origin}${target.pathname}`;
       }
@@ -54,14 +77,22 @@ export async function wsCheckEmail(s: WSession, email: string, sender: string): 
 export async function wsSaveAccount(
   s: WSession,
   platform: string,
-  data: { username: string; email: string; password: string; name?: string; status?: string },
+  data: {
+    username: string;
+    email: string;
+    password: string;
+    name?: string;
+    status?: string;
+  },
 ): Promise<string> {
   // The account item is the durable result of this trajectory.
   const username = s.resolveEnv(data.username);
   const email = s.resolveEnv(data.email);
   const password = s.resolveEnv(data.password);
   const name = data.name ? s.resolveEnv(data.name) : undefined;
-  const storageState = await s.ctx.storageState().catch(() => ({ cookies: [] as any[], origins: [] as any[] }));
+  const storageState = await s.ctx
+    .storageState()
+    .catch(() => ({ cookies: [] as any[], origins: [] as any[] }));
   const cookies = (storageState as any).cookies ?? [];
   const metadata = {
     email,
@@ -85,11 +116,13 @@ export async function wsSaveAccount(
       metadata,
       displayName: name,
     });
-    writeFileSync(join(recordingsDir(s.label || undefined), 'account.json'), JSON.stringify({ item, platform, username }, null, 2));
+    writeFileSync(
+      join(recordingsDir(s.label || undefined), 'account.json'),
+      JSON.stringify({ item, platform, username }, null, 2),
+    );
     await markSignupSuccess(email, platform).catch(() => {});
     return `account saved: ${item}`;
   } catch (error) {
     return `error: ${error instanceof Error ? error.message : String(error)}`;
   }
 }
-

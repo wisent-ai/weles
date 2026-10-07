@@ -35,17 +35,23 @@ export function platformFilter(body) {
 }
 
 export function accountId(body) {
-  return text(object(body, 'body').account_id, 'account_id', { required: true });
+  return text(object(body, 'body').account_id, 'account_id', {
+    required: true,
+  });
 }
 
 export function accountInput(body) {
   const account = object(object(body, 'body').account, 'account');
-  const metadata = Object.hasOwn(account, 'metadata') ? object(account.metadata, 'account.metadata') : {};
+  const metadata = Object.hasOwn(account, 'metadata')
+    ? object(account.metadata, 'account.metadata')
+    : {};
   return {
     platform: text(account.platform, 'account.platform', { required: true }),
     username: text(account.username, 'account.username', { required: true }),
     password: text(account.password, 'account.password', { required: false }),
-    displayName: text(account.display_name, 'account.display_name', { required: false }),
+    displayName: text(account.display_name, 'account.display_name', {
+      required: false,
+    }),
     metadata,
   };
 }
@@ -53,25 +59,42 @@ export function accountInput(body) {
 export function accountPatch(body) {
   const patch = object(object(body, 'body').patch, 'patch');
   const result = {};
-  if (Object.hasOwn(patch, 'metadata')) result.metadata = object(patch.metadata, 'patch.metadata');
+  if (Object.hasOwn(patch, 'metadata'))
+    result.metadata = object(patch.metadata, 'patch.metadata');
   if (Object.hasOwn(patch, 'active')) {
-    if (typeof patch.active !== 'boolean') throw new RecordRequestRefused('patch.active', 'must be true or false');
+    if (typeof patch.active !== 'boolean')
+      throw new RecordRequestRefused('patch.active', 'must be true or false');
     result.active = patch.active;
   }
-  if (!Object.keys(result).length) throw new RecordRequestRefused('patch', 'names neither metadata nor active');
+  if (!Object.keys(result).length)
+    throw new RecordRequestRefused(
+      'patch',
+      'names neither metadata nor active',
+    );
   return result;
 }
 
 export function settingKeys(body) {
   const keys = object(body, 'body').keys;
-  if (!Array.isArray(keys) || !keys.length || keys.some((key) => typeof key !== 'string')) {
-    throw new RecordRequestRefused('keys', 'must be a non-empty list of setting names');
+  if (
+    !Array.isArray(keys) ||
+    !keys.length ||
+    keys.some((key) => typeof key !== 'string')
+  ) {
+    throw new RecordRequestRefused(
+      'keys',
+      'must be a non-empty list of setting names',
+    );
   }
   return keys;
 }
 
 export function settingInput(body) {
   const input = object(body, 'body');
-  if (!Object.hasOwn(input, 'value')) throw new RecordRequestRefused('value', 'is required');
-  return { key: text(input.key, 'key', { required: true }), value: input.value };
+  if (!Object.hasOwn(input, 'value'))
+    throw new RecordRequestRefused('value', 'is required');
+  return {
+    key: text(input.key, 'key', { required: true }),
+    value: input.value,
+  };
 }

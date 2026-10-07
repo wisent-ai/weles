@@ -3,11 +3,16 @@
 // Never writes, saves, submits, uploads, or deletes.
 
 import { chromium } from 'playwright';
-import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../../dist/human/mouse.js';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const projectId = (await import('#ncbr-settings')).projectId();
-const projectUrl = ['https://', `lsi2.ncbr.gov.pl/projekt/${projectId}`].join('');
+const projectUrl = ['https://', `lsi2.ncbr.gov.pl/projekt/${projectId}`].join(
+  '',
+);
 const fast = Boolean(process.env.FAST);
 const scopeMode = process.env.SCOPE || 'all';
 
@@ -17,7 +22,6 @@ if (!page) {
   console.log(JSON.stringify({ error: 'NO_PAGE' }, null, 2));
   process.exit(1);
 }
-
 
 const fallbackSections = [
   ['1.1', (await import('#ncbr-settings')).sectionId('1_1')],
@@ -66,19 +70,31 @@ async function waitForSectionShell() {
 }
 
 function cleanText(v) {
-  return String(v || '').replace(/\s+/g, ' ').trim();
+  return String(v || '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function classifyField(f) {
   const value = cleanText(f.value);
   if (value.length < 80) return null;
   const name = `${f.name} ${f.label}`.toLowerCase();
-  if (/nip|regon|krs|numer|kwota|koszt|wartosc|wartość|rok|data|email|telefon|kod|adres|ulica|gmina|powiat|wojew|miejscow|nazwa_skrocona/.test(name)) return null;
+  if (
+    /nip|regon|krs|numer|kwota|koszt|wartosc|wartość|rok|data|email|telefon|kod|adres|ulica|gmina|powiat|wojew|miejscow|nazwa_skrocona/.test(
+      name,
+    )
+  )
+    return null;
   if (/radio|checkbox|combobox/.test(f.role || '')) return null;
   const max = Number(f.max) || null;
-  const near = Boolean(max && (value.length >= max - 25 || value.length / max >= 0.97));
+  const near = Boolean(
+    max && (value.length >= max - 25 || value.length / max >= 0.97),
+  );
   const noSentenceEnd = !/[.!?…:;)"”\]]$/.test(value);
-  const dangling = /\b(?:i|oraz|z|ze|w|we|na|do|dla|przez|które|który|która|aby|lub|or|and|AI)$/i.test(value);
+  const dangling =
+    /\b(?:i|oraz|z|ze|w|we|na|do|dla|przez|które|który|która|aby|lub|or|and|AI)$/i.test(
+      value,
+    );
   const artifact = /(\*\*|^#{1,6}\s|\(limit\s*\d|<!--|\|---)/im.test(value);
   if (!near && !noSentenceEnd && !dangling && !artifact) return null;
   return {
@@ -106,50 +122,76 @@ async function fieldDump(scope) {
       for (let node = el.parentElement; node; node = node.parentElement) {
         const lab = node.querySelector('label, .MuiFormLabel-root, legend');
         if (lab?.textContent) return lab.textContent.trim();
-        if (Array.from(node.querySelectorAll('input, textarea, select')).some((f) => f !== el)) break;
+        if (
+          Array.from(node.querySelectorAll('input, textarea, select')).some(
+            (f) => f !== el,
+          )
+        )
+          break;
       }
       return '';
     };
-    return Array.from(document.querySelectorAll('textarea, input')).map((el) => ({
-      scope,
-      tag: el.tagName,
-      type: el.getAttribute('type') || '',
-      role: el.getAttribute('role') || '',
-      name: el.getAttribute('name') || '',
-      label: labelFor(el),
-      value: el.value || '',
-      max: el.getAttribute('maxlength') || '',
-      readOnly: el.readOnly,
-      disabled: el.disabled,
-    })).filter((f) => f.name && f.value && f.name !== 'table_search' && !f.disabled);
+    return Array.from(document.querySelectorAll('textarea, input'))
+      .map((el) => ({
+        scope,
+        tag: el.tagName,
+        type: el.getAttribute('type') || '',
+        role: el.getAttribute('role') || '',
+        name: el.getAttribute('name') || '',
+        label: labelFor(el),
+        value: el.value || '',
+        max: el.getAttribute('maxlength') || '',
+        readOnly: el.readOnly,
+        disabled: el.disabled,
+      }))
+      .filter(
+        (f) => f.name && f.value && f.name !== 'table_search' && !f.disabled,
+      );
   }, scope); // allow-raw-playwright: read-only field dump
 }
 
 async function rowCount() {
-  return page.evaluate(() => Array.from(document.querySelectorAll('table tbody tr'))
-    .filter((r) => r.querySelector('button[aria-label="overflow-options"]')).length);
+  return page.evaluate(
+    () =>
+      Array.from(document.querySelectorAll('table tbody tr')).filter((r) =>
+        r.querySelector('button[aria-label="overflow-options"]'),
+      ).length,
+  );
 }
 
 async function openRow(index) {
-  const rows = page.locator('table tbody tr').filter({ has: page.locator('button[aria-label="overflow-options"]') });
-  const btn = rows.nth(index).locator('button[aria-label="overflow-options"]').first();
-  const ok = await btn.count() > 0;
+  const rows = page
+    .locator('table tbody tr')
+    .filter({ has: page.locator('button[aria-label="overflow-options"]') });
+  const btn = rows
+    .nth(index)
+    .locator('button[aria-label="overflow-options"]')
+    .first();
+  const ok = (await btn.count()) > 0;
   if (ok) await humanClickLocator(page, btn);
   if (!ok) return false;
   await pause('deliberate');
-  const hasEdit = await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().count();
+  const hasEdit = await page
+    .getByRole('menuitem', { name: 'Edytuj', exact: true })
+    .first()
+    .count();
   if (!hasEdit) {
     await page.keyboard.press('Escape'); // allow-raw-playwright: close menu after read-only check
     await pause('short');
     return false;
   }
-  await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: open existing row for read-only value inspection
+  await page
+    .getByRole('menuitem', { name: 'Edytuj', exact: true })
+    .first()
+    .dispatchEvent('click'); // allow-raw-playwright: open existing row for read-only value inspection
   await pause(sleepKind());
   return true;
 }
 
 async function cancelOpenForm() {
-  const buttons = page.getByRole('button', { name: 'Anuluj', exact: true }).filter({ visible: true });
+  const buttons = page
+    .getByRole('button', { name: 'Anuluj', exact: true })
+    .filter({ visible: true });
   const count = await buttons.count();
   if (count) await humanClickLocator(page, buttons.nth(count - 1));
   await pause(sleepKind());
@@ -166,7 +208,9 @@ for (const section of sections) {
     await waitForSectionShell();
     await pause(sleepKind());
     await page.evaluate(() => {
-      const banner = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies'));
+      const banner = Array.from(document.querySelectorAll('div')).find((d) =>
+        (d.innerText || '').includes('pliki cookies'),
+      );
       if (banner) banner.style.pointerEvents = 'none';
     }); // allow-raw-playwright: neutralise cookie banner only
     const visible = await fieldDump(`${section.label}:visible`);
@@ -177,7 +221,12 @@ for (const section of sections) {
     const count = await rowCount();
     let opened = 0;
     if (scopeMode === 'visible') {
-      sectionStats.push({ section: section.label, visibleFields: visible.length, rows: count, inspectedRows: 0 });
+      sectionStats.push({
+        section: section.label,
+        visibleFields: visible.length,
+        rows: count,
+        inspectedRows: 0,
+      });
       continue;
     }
     for (let i = 0; i < count; i += 1) {
@@ -194,16 +243,30 @@ for (const section of sections) {
       }
       await cancelOpenForm();
     }
-    sectionStats.push({ section: section.label, visibleFields: visible.length, rows: count, inspectedRows: opened });
+    sectionStats.push({
+      section: section.label,
+      visibleFields: visible.length,
+      rows: count,
+      inspectedRows: opened,
+    });
   } catch (e) {
-    sectionStats.push({ section: section.label, error: String(e?.message || e) });
+    sectionStats.push({
+      section: section.label,
+      error: String(e?.message || e),
+    });
   }
 }
 
-console.log(JSON.stringify({
-  projectId,
-  scannedSections: sectionStats,
-  findingCount: findings.length,
-  findings,
-}, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      projectId,
+      scannedSections: sectionStats,
+      findingCount: findings.length,
+      findings,
+    },
+    null,
+    2,
+  ),
+);
 process.exit(0);

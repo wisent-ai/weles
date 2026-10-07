@@ -11,15 +11,36 @@ import { pageSettled } from '../../../_shared/page/settled.mjs';
 import { writeFileSync } from 'node:fs';
 import { WSession } from '../../../../../dist/session/wsession.js';
 import { assertGoogleAdsProfileNotAlreadyOpen } from '../_profile_guard.mjs';
-import { CLOSE_AFTER_HARVEST, RESULT_FILE, USER_DATA_DIR, cid, keywords, norm } from './planner/settings.mjs';
-import { continueFromAccountChooser, ensurePreferredGoogleAccount, isLoginUrl, lastAuthFailure, stableProfilePersona } from './planner/sign_in.mjs';
-import { campaignsUrl, installKeywordPlannerCapture } from './planner/capture.mjs';
+import {
+  CLOSE_AFTER_HARVEST,
+  RESULT_FILE,
+  USER_DATA_DIR,
+  cid,
+  keywords,
+  norm,
+} from './planner/settings.mjs';
+import {
+  continueFromAccountChooser,
+  ensurePreferredGoogleAccount,
+  isLoginUrl,
+  lastAuthFailure,
+  stableProfilePersona,
+} from './planner/sign_in.mjs';
+import {
+  campaignsUrl,
+  installKeywordPlannerCapture,
+} from './planner/capture.mjs';
 import { collectKeywordPlanner, openKeywordPlanner } from './planner/page.mjs';
 
 async function main() {
-  console.log(`[google-ads-keyword-planner] customer=${cid} keywords=${JSON.stringify(keywords)}`);
+  console.log(
+    `[google-ads-keyword-planner] customer=${cid} keywords=${JSON.stringify(keywords)}`,
+  );
   const startUrl = campaignsUrl('cid', cid);
-  assertGoogleAdsProfileNotAlreadyOpen(USER_DATA_DIR, 'google_ads_keyword_planner');
+  assertGoogleAdsProfileNotAlreadyOpen(
+    USER_DATA_DIR,
+    'google_ads_keyword_planner',
+  );
   const s = await WSession.start({
     label: 'google_ads_keyword_planner',
     browser: process.env.BROWSER || 'chromium',
@@ -30,20 +51,28 @@ async function main() {
   });
   const captured = installKeywordPlannerCapture(s.page);
   try {
-    await s.page.goto(startUrl, { waitUntil: 'domcontentloaded' }).catch((error) => {
-      console.log(`[google-ads-keyword-planner] WARN: initial navigation failed ${String(error?.message || error)}`);
-    });
+    await s.page
+      .goto(startUrl, { waitUntil: 'domcontentloaded' })
+      .catch((error) => {
+        console.log(
+          `[google-ads-keyword-planner] WARN: initial navigation failed ${String(error?.message || error)}`,
+        );
+      });
     await pageSettled(s.page);
     await ensurePreferredGoogleAccount(s, startUrl);
     await continueFromAccountChooser(s);
     await pageSettled(s.page);
 
     const current = s.page.url?.() || '';
-    const text = await s.page.evaluate(() => document.body?.innerText || '').catch(() => '');
+    const text = await s.page
+      .evaluate(() => document.body?.innerText || '')
+      .catch(() => '');
     if (isLoginUrl(current)) {
       const report = {
         ok: false,
-        blocked: lastAuthFailure()?.blocked || 'google_ads_browser_session_not_logged_in',
+        blocked:
+          lastAuthFailure()?.blocked ||
+          'google_ads_browser_session_not_logged_in',
         customer: cid,
         keywords,
         url: current,
@@ -54,7 +83,10 @@ async function main() {
       console.log(JSON.stringify(report, null, 2));
       process.exit(2);
     }
-    if (/multifactorauthalert|block=true/i.test(current) || /multi-factor|2-step verification|2-Step Verification/i.test(text)) {
+    if (
+      /multifactorauthalert|block=true/i.test(current) ||
+      /multi-factor|2-step verification|2-Step Verification/i.test(text)
+    ) {
       const report = {
         ok: false,
         blocked: 'google_ads_mfa_required',
@@ -85,14 +117,18 @@ async function main() {
 
     const report = await collectKeywordPlanner(s, captured);
     report.open = open;
-    report.ok = report.parsedRows.length > 0 || report.rpc.keywordMentions.length > 0;
+    report.ok =
+      report.parsedRows.length > 0 || report.rpc.keywordMentions.length > 0;
     writeFileSync(RESULT_FILE, JSON.stringify(report, null, 2));
     console.log(`GOOGLE_ADS_KEYWORD_PLANNER_REPORT ${JSON.stringify(report)}`);
     console.log(JSON.stringify(report, null, 2));
     console.log('PASS: Google Ads keyword planner read completed (browser)');
   } finally {
     if (CLOSE_AFTER_HARVEST) await s.close().catch(() => {});
-    else console.log('[google-ads-keyword-planner] leaving Google Ads profile open');
+    else
+      console.log(
+        '[google-ads-keyword-planner] leaving Google Ads profile open',
+      );
   }
 }
 

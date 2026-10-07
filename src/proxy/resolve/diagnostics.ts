@@ -37,37 +37,52 @@ export function diagHash(value: unknown): string | undefined {
 }
 
 function proxyPreflightDir(): string | undefined {
-  const label = process.env.WELES_PROXY_DIAGNOSTICS_LABEL || process.env.WELES_LABEL;
+  const label =
+    process.env.WELES_PROXY_DIAGNOSTICS_LABEL || process.env.WELES_LABEL;
   if (!label) return undefined;
   const dir = runRecordingsDir(label); // G17: recordings/<run_uuid>/<label>/proxy_preflight.json
   mkdirSync(dir, { recursive: true });
   return dir;
 }
 
-export function writeProxyPreflightDiagnostics(diag: Record<string, unknown>): void {
+export function writeProxyPreflightDiagnostics(
+  diag: Record<string, unknown>,
+): void {
   try {
     const dir = proxyPreflightDir();
     if (!dir) return;
-    writeFileSync(join(dir, 'proxy_preflight.json'), JSON.stringify({
-      ...diag,
-      redaction: {
-        proxy_credentials: 'omitted',
-        sticky_ids: 'sha256-prefix only',
-        exit_ips: 'sha256-prefix only',
-        linkedin_probe: 'request headers, curl transport metadata, and unauthenticated response bodies captured; proxy credentials omitted',
-      },
-    }, null, 2));
+    writeFileSync(
+      join(dir, 'proxy_preflight.json'),
+      JSON.stringify(
+        {
+          ...diag,
+          redaction: {
+            proxy_credentials: 'omitted',
+            sticky_ids: 'sha256-prefix only',
+            exit_ips: 'sha256-prefix only',
+            linkedin_probe:
+              'request headers, curl transport metadata, and unauthenticated response bodies captured; proxy credentials omitted',
+          },
+        },
+        null,
+        2,
+      ),
+    );
   } catch {}
 }
 
-export function platformFromTarget(host: string | undefined): string | undefined {
+export function platformFromTarget(
+  host: string | undefined,
+): string | undefined {
   if (!host) return undefined;
   const h = host.toLowerCase();
-  if (h.includes('instagram.com') || h.includes('threads.net')) return 'instagram';
+  if (h.includes('instagram.com') || h.includes('threads.net'))
+    return 'instagram';
   if (h.includes('x.com') || h.includes('twitter.com')) return 'twitter';
   if (h.includes('linkedin.com')) return 'linkedin';
   if (h.includes('reddit.com')) return 'reddit';
-  if (h.includes('discord.com') || h.includes('discordapp.com')) return 'discord';
+  if (h.includes('discord.com') || h.includes('discordapp.com'))
+    return 'discord';
   if (h.includes('github.com')) return 'github';
   if (h.includes('tiktok.com')) return 'tiktok';
   if (h.includes('producthunt.com')) return 'producthunt';

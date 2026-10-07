@@ -14,7 +14,9 @@ export function stableProfilePersona() {
 }
 
 export function norm(value) {
-  return String(value || '').replace(/\s+/g, ' ').trim();
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 export function isAppleLoginUrl(url) {
@@ -26,22 +28,41 @@ export async function requireAuthenticatedSession(s) {
   if (url === 'about:blank') return false;
 
   const loginUrl = isAppleLoginUrl(url);
-  const authIframe = await s.page.locator('iframe[src*="idmsa.apple.com"], iframe[src*="appleid.apple.com"]').count() > 0;
+  const authIframe =
+    (await s.page
+      .locator(
+        'iframe[src*="idmsa.apple.com"], iframe[src*="appleid.apple.com"]',
+      )
+      .count()) > 0;
   let authPrompt = false;
   for (const frame of s.page.frames()) {
-    authPrompt ||= await frame.locator([
-      '#account_name_text_field',
-      '#password_text_field',
-      'input[type="password"]',
-      'input[aria-label*="digit"]',
-      'input[aria-label*="Digit"]',
-      'input[type="tel"][maxlength="1"]',
-    ].join(', ')).first().isVisible().catch(() => false);
-    authPrompt ||= await frame.getByText(/Two-Factor Authentication|verification code sent to your Apple devices/i).first().isVisible().catch(() => false);
+    authPrompt ||= await frame
+      .locator(
+        [
+          '#account_name_text_field',
+          '#password_text_field',
+          'input[type="password"]',
+          'input[aria-label*="digit"]',
+          'input[aria-label*="Digit"]',
+          'input[type="tel"][maxlength="1"]',
+        ].join(', '),
+      )
+      .first()
+      .isVisible()
+      .catch(() => false);
+    authPrompt ||= await frame
+      .getByText(
+        /Two-Factor Authentication|verification code sent to your Apple devices/i,
+      )
+      .first()
+      .isVisible()
+      .catch(() => false);
     if (authPrompt) break;
   }
   if (loginUrl || authIframe || authPrompt) {
-    console.log('FAIL_CLOSED: Apple login/password/2FA is required; this harvester will not authenticate. An explicitly authorized apple_login is the only permitted login path.');
+    console.log(
+      'FAIL_CLOSED: Apple login/password/2FA is required; this harvester will not authenticate. An explicitly authorized apple_login is the only permitted login path.',
+    );
     return false;
   }
   return true;
@@ -58,8 +79,15 @@ export async function gotoAndWait(page, url) {
 export async function ensureReportPage(page) {
   const url = page.url?.() || '';
   if (/\/report/i.test(url)) return true;
-  const text = await page.evaluate(() => document.body?.innerText || '').catch(() => '');
-  if (/Manage Your Campaigns|Reporting is not in real time|Create Campaign|Campaign end date reached/i.test(text)) return true;
+  const text = await page
+    .evaluate(() => document.body?.innerText || '')
+    .catch(() => '');
+  if (
+    /Manage Your Campaigns|Reporting is not in real time|Create Campaign|Campaign end date reached/i.test(
+      text,
+    )
+  )
+    return true;
   return false;
 }
 
@@ -69,7 +97,12 @@ export function installNetworkCapture(page) {
   page.on('request', (request) => {
     try {
       const url = request.url();
-      if (!/app-ads\.apple\.com\/reporting\/graphql|app-ads\.apple\.com\/cm\/api/i.test(url)) return;
+      if (
+        !/app-ads\.apple\.com\/reporting\/graphql|app-ads\.apple\.com\/cm\/api/i.test(
+          url,
+        )
+      )
+        return;
       requests.push({
         ts: Date.now(),
         method: request.method(),
@@ -83,12 +116,17 @@ export function installNetworkCapture(page) {
     void (async () => {
       try {
         const url = response.url();
-        if (!/app-ads\.apple\.com\/reporting\/graphql|app-ads\.apple\.com\/cm\/api/i.test(url)) return;
+        if (
+          !/app-ads\.apple\.com\/reporting\/graphql|app-ads\.apple\.com\/cm\/api/i.test(
+            url,
+          )
+        )
+          return;
         const headers = response.headers();
         const contentType = String(headers['content-type'] || '');
         let body = '';
         if (/json|text|javascript|html|xml/i.test(contentType)) {
-          body = (await response.text().catch(() => ''));
+          body = await response.text().catch(() => '');
         }
         responses.push({
           ts: Date.now(),

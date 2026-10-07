@@ -39,7 +39,9 @@ async function browserFetch(page, url, options = {}) {
       });
       const text = await res.text();
       let data = null;
-      try { data = JSON.parse(text); } catch {}
+      try {
+        data = JSON.parse(text);
+      } catch {}
       return {
         status: res.status,
         statusText: res.statusText,
@@ -60,13 +62,23 @@ const s = await WSession.start({
 
 const report = {
   pageUrl: await s.page.url(),
-  target: { section: SECTION_6_5, collection: COLLECTION, goodRyczalt: GOOD_RYCZALT },
+  target: {
+    section: SECTION_6_5,
+    collection: COLLECTION,
+    goodRyczalt: GOOD_RYCZALT,
+  },
   steps: [],
 };
 
 try {
-  report.steps.push({ name: 'auth', result: await browserFetch(s.page, urls.auth) });
-  report.steps.push({ name: 'before_values', result: await browserFetch(s.page, urls.values) });
+  report.steps.push({
+    name: 'auth',
+    result: await browserFetch(s.page, urls.auth),
+  });
+  report.steps.push({
+    name: 'before_values',
+    result: await browserFetch(s.page, urls.values),
+  });
 
   // Probe whether the collection endpoint can clear the collection directly.
   // If the backend supports DELETE at collection level, this is the exact fix:
@@ -79,7 +91,10 @@ try {
     }),
   });
 
-  report.steps.push({ name: 'after_delete_values', result: await browserFetch(s.page, urls.values) });
+  report.steps.push({
+    name: 'after_delete_values',
+    result: await browserFetch(s.page, urls.values),
+  });
 
   // If direct clear did not work, try validation only to get a richer server
   // payload. This endpoint is what the UI calls for "Sprawdź wniosek"; it can

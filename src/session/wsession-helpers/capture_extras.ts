@@ -9,14 +9,22 @@ import { join } from 'node:path';
 import { execSync } from 'node:child_process';
 export { attachCdpLifecycle } from './capture/cdp_lifecycle.js';
 
-
 // Service worker registration events. Fires when the page registers / activates
 // a SW; relevant because many bot-checks (PerimeterX, Akamai, hCaptcha) ship
 // their logic via SW for cross-frame state.
-export function attachServiceWorkers(ctx: BrowserContext, swEvents: any[]): void {
+export function attachServiceWorkers(
+  ctx: BrowserContext,
+  swEvents: any[],
+): void {
   try {
     (ctx as any).on?.('serviceworker', (sw: any) => {
-      try { swEvents.push({ t: Date.now(), phase: 'register', url: sw.url?.() ?? null }); } catch {}
+      try {
+        swEvents.push({
+          t: Date.now(),
+          phase: 'register',
+          url: sw.url?.() ?? null,
+        });
+      } catch {}
     });
   } catch {}
 }
@@ -36,40 +44,105 @@ export async function captureFinalCdpSnapshots(ws: any): Promise<void> {
   // visibility, position. Full ~600-property CSS spec list isn't passed
   // because the resulting snapshot would be 100x larger; this set covers the
   // properties LinkedIn / PerimeterX / Akamai actually read.
-  const cs = 'font-family,font-size,font-weight,font-style,font-variant,line-height,letter-spacing,color,background-color,background-image,width,height,min-width,min-height,max-width,max-height,display,position,visibility,opacity,transform,transform-origin,border,border-radius,box-shadow,text-shadow,filter,backdrop-filter,clip-path,overflow,z-index,cursor,pointer-events,user-select,text-align,text-decoration,text-transform,white-space,word-break,direction,writing-mode';
-  try { ws._instDomSnapshot = await cdp.send('DOMSnapshot.captureSnapshot', { computedStyles: cs.split(','), includeDOMRects: true, includePaintOrder: true, includeBlendedBackgroundColors: true, includeTextColorOpacities: true }); } catch (e: any) { ws._instDomSnapshotError = String(e?.message ?? e); }
-  try { ws._instDomPiercedTree = await cdp.send('DOM.getDocument', { depth: -1, pierce: true }); } catch (e: any) { ws._instDomPiercedTreeError = String(e?.message ?? e); }
+  const cs =
+    'font-family,font-size,font-weight,font-style,font-variant,line-height,letter-spacing,color,background-color,background-image,width,height,min-width,min-height,max-width,max-height,display,position,visibility,opacity,transform,transform-origin,border,border-radius,box-shadow,text-shadow,filter,backdrop-filter,clip-path,overflow,z-index,cursor,pointer-events,user-select,text-align,text-decoration,text-transform,white-space,word-break,direction,writing-mode';
+  try {
+    ws._instDomSnapshot = await cdp.send('DOMSnapshot.captureSnapshot', {
+      computedStyles: cs.split(','),
+      includeDOMRects: true,
+      includePaintOrder: true,
+      includeBlendedBackgroundColors: true,
+      includeTextColorOpacities: true,
+    });
+  } catch (e: any) {
+    ws._instDomSnapshotError = String(e?.message ?? e);
+  }
+  try {
+    ws._instDomPiercedTree = await cdp.send('DOM.getDocument', {
+      depth: -1,
+      pierce: true,
+    });
+  } catch (e: any) {
+    ws._instDomPiercedTreeError = String(e?.message ?? e);
+  }
   try {
     const chunks: string[] = [];
-    const handler = (e: any) => { chunks.push(e?.chunk ?? ''); };
+    const handler = (e: any) => {
+      chunks.push(e?.chunk ?? '');
+    };
     cdp.on('HeapProfiler.addHeapSnapshotChunk', handler);
-    await cdp.send('HeapProfiler.takeHeapSnapshot', { reportProgress: false, captureNumericValue: true });
+    await cdp.send('HeapProfiler.takeHeapSnapshot', {
+      reportProgress: false,
+      captureNumericValue: true,
+    });
     cdp.off?.('HeapProfiler.addHeapSnapshotChunk', handler);
     ws._instHeapSnapshot = chunks.join('');
-  } catch (e: any) { ws._instHeapSnapshotError = String(e?.message ?? e); }
+  } catch (e: any) {
+    ws._instHeapSnapshotError = String(e?.message ?? e);
+  }
 }
 
 // One-shot OS-level snapshots at session start.
 export function captureHostSnapshots(ws: any): void {
-  const probe = (cmd: string) => { try { return execSync(cmd, { encoding: 'utf8' }); } catch (e: any) { return 'ERR: ' + String(e?.message ?? e); } };
+  const probe = (cmd: string) => {
+    try {
+      return execSync(cmd, { encoding: 'utf8' });
+    } catch (e: any) {
+      return 'ERR: ' + String(e?.message ?? e);
+    }
+  };
   const isMac = process.platform === 'darwin';
   ws._instHostSnapshots = {
-    ps: probe(isMac ? 'ps -axo pid,ppid,user,command' : 'ps -axo pid,ppid,user,cmd'),
+    ps: probe(
+      isMac ? 'ps -axo pid,ppid,user,command' : 'ps -axo pid,ppid,user,cmd',
+    ),
     ifconfig: probe(isMac ? 'ifconfig' : 'ip -j addr'),
     route: probe(isMac ? 'netstat -rn' : 'ip -j route'),
     netstat: probe(isMac ? 'netstat -an -p tcp' : 'ss -tan'),
-    top: probe(isMac ? 'top -l 1 -n 20 -stats pid,command,cpu,mem,state' : 'top -bn1 -w 200 | head -30'),
+    top: probe(
+      isMac
+        ? 'top -l 1 -n 20 -stats pid,command,cpu,mem,state'
+        : 'top -bn1 -w 200 | head -30',
+    ),
     vmstat: probe(isMac ? 'vm_stat' : 'free -m'),
     uptime: probe('uptime'),
-    resolv: probe(isMac ? 'scutil --dns 2>/dev/null || cat /etc/resolv.conf' : 'cat /etc/resolv.conf'),
-    pmset: probe(isMac ? 'pmset -g batt; pmset -g therm' : 'cat /sys/class/power_supply/BAT0/uevent 2>/dev/null || echo no-battery'),
-    sysctl_net: probe(isMac ? 'sysctl -a 2>/dev/null | grep -E "net\\." | head -200' : 'sysctl -a 2>/dev/null | grep -E "net\\." | head -200'),
-    launchctl: isMac ? probe('launchctl list | head -100') : probe('systemctl list-units --type=service --state=running | head -100'),
+    resolv: probe(
+      isMac
+        ? 'scutil --dns 2>/dev/null || cat /etc/resolv.conf'
+        : 'cat /etc/resolv.conf',
+    ),
+    pmset: probe(
+      isMac
+        ? 'pmset -g batt; pmset -g therm'
+        : 'cat /sys/class/power_supply/BAT0/uevent 2>/dev/null || echo no-battery',
+    ),
+    sysctl_net: probe(
+      isMac
+        ? 'sysctl -a 2>/dev/null | grep -E "net\\." | head -200'
+        : 'sysctl -a 2>/dev/null | grep -E "net\\." | head -200',
+    ),
+    launchctl: isMac
+      ? probe('launchctl list | head -100')
+      : probe(
+          'systemctl list-units --type=service --state=running | head -100',
+        ),
     arp: probe(isMac ? 'arp -an' : 'ip neigh'),
-    dns_cache: isMac ? probe('dscacheutil -cachedump -entries 2>/dev/null || echo cache-disabled') : probe('resolvectl statistics 2>/dev/null || echo no-resolvectl'),
-    thermal: isMac ? probe('powermetrics -n 1 -i 100 --samplers smc 2>/dev/null | head -50 || echo needs-sudo') : probe('sensors 2>/dev/null || echo no-sensors'),
-    lsof_node: probe(`lsof -p ${process.pid} 2>/dev/null | head -100 || echo lsof-failed`),
-    sockstat: isMac ? probe('netstat -an -p tcp -p udp 2>/dev/null | head -80') : probe('ss -tani 2>/dev/null | head -80'),
+    dns_cache: isMac
+      ? probe(
+          'dscacheutil -cachedump -entries 2>/dev/null || echo cache-disabled',
+        )
+      : probe('resolvectl statistics 2>/dev/null || echo no-resolvectl'),
+    thermal: isMac
+      ? probe(
+          'powermetrics -n 1 -i 100 --samplers smc 2>/dev/null | head -50 || echo needs-sudo',
+        )
+      : probe('sensors 2>/dev/null || echo no-sensors'),
+    lsof_node: probe(
+      `lsof -p ${process.pid} 2>/dev/null | head -100 || echo lsof-failed`,
+    ),
+    sockstat: isMac
+      ? probe('netstat -an -p tcp -p udp 2>/dev/null | head -80')
+      : probe('ss -tani 2>/dev/null | head -80'),
     captured_at: new Date().toISOString(),
   };
 }
@@ -80,13 +153,61 @@ export function captureHostSnapshots(ws: any): void {
 export function attachPagePlaywrightEvents(ws: any): void {
   if (!ws.page) return;
   ws._instPlaywrightEvents = [];
-  const push = (e: any) => { try { ws._instPlaywrightEvents.push(e); } catch {} };
-  try { ws.page.on?.('popup', (p: any) => push({ t: Date.now(), phase: 'popup', url: p?.url?.() ?? null })); } catch {}
-  try { ws.page.on?.('download', (d: any) => push({ t: Date.now(), phase: 'download', url: d?.url?.() ?? null, suggestedFilename: d?.suggestedFilename?.() ?? null })); } catch {}
-  try { ws.page.on?.('filechooser', (f: any) => push({ t: Date.now(), phase: 'filechooser', isMultiple: f?.isMultiple?.() ?? null })); } catch {}
-  try { ws.page.on?.('dialog', (d: any) => push({ t: Date.now(), phase: 'dialog', type: d?.type?.(), message: d?.message?.(), defaultValue: d?.defaultValue?.() })); } catch {}
-  try { ws.page.on?.('worker', (w: any) => push({ t: Date.now(), phase: 'worker', url: w?.url?.() ?? null })); } catch {}
-  try { ws.page.on?.('framenavigated', (f: any) => push({ t: Date.now(), phase: 'frameNavigated', url: f?.url?.() ?? null, name: f?.name?.() ?? null })); } catch {}
+  const push = (e: any) => {
+    try {
+      ws._instPlaywrightEvents.push(e);
+    } catch {}
+  };
+  try {
+    ws.page.on?.('popup', (p: any) =>
+      push({ t: Date.now(), phase: 'popup', url: p?.url?.() ?? null }),
+    );
+  } catch {}
+  try {
+    ws.page.on?.('download', (d: any) =>
+      push({
+        t: Date.now(),
+        phase: 'download',
+        url: d?.url?.() ?? null,
+        suggestedFilename: d?.suggestedFilename?.() ?? null,
+      }),
+    );
+  } catch {}
+  try {
+    ws.page.on?.('filechooser', (f: any) =>
+      push({
+        t: Date.now(),
+        phase: 'filechooser',
+        isMultiple: f?.isMultiple?.() ?? null,
+      }),
+    );
+  } catch {}
+  try {
+    ws.page.on?.('dialog', (d: any) =>
+      push({
+        t: Date.now(),
+        phase: 'dialog',
+        type: d?.type?.(),
+        message: d?.message?.(),
+        defaultValue: d?.defaultValue?.(),
+      }),
+    );
+  } catch {}
+  try {
+    ws.page.on?.('worker', (w: any) =>
+      push({ t: Date.now(), phase: 'worker', url: w?.url?.() ?? null }),
+    );
+  } catch {}
+  try {
+    ws.page.on?.('framenavigated', (f: any) =>
+      push({
+        t: Date.now(),
+        phase: 'frameNavigated',
+        url: f?.url?.() ?? null,
+        name: f?.name?.() ?? null,
+      }),
+    );
+  } catch {}
 }
 
 // Sibling-file manifest: list every file currently in recordings/<label>/
@@ -95,11 +216,19 @@ export function attachPagePlaywrightEvents(ws: any): void {
 // instead of inlining them.
 export function buildSiblingManifest(dir: string, instFn: string): any[] {
   try {
-    return readdirSync(dir).filter(n => join(dir, n) !== instFn).map(n => {
-      try { const s = statSync(join(dir, n)); return { name: n, size: s.size, mtime: s.mtimeMs }; }
-      catch { return { name: n, error: 'stat_failed' }; }
-    });
-  } catch { return []; }
+    return readdirSync(dir)
+      .filter((n) => join(dir, n) !== instFn)
+      .map((n) => {
+        try {
+          const s = statSync(join(dir, n));
+          return { name: n, size: s.size, mtime: s.mtimeMs };
+        } catch {
+          return { name: n, error: 'stat_failed' };
+        }
+      });
+  } catch {
+    return [];
+  }
 }
 
 // Process-wide console capture. Each WSession owns its own list of console
@@ -116,10 +245,16 @@ let _consolePatched = false;
 function patchConsoleOnce(): void {
   if (_consolePatched) return;
   _consolePatched = true;
-  const formats = (args: any[]) => args.map(a => {
-    try { return typeof a === 'string' ? a : JSON.stringify(a); }
-    catch { return String(a); }
-  }).join(' ');
+  const formats = (args: any[]) =>
+    args
+      .map((a) => {
+        try {
+          return typeof a === 'string' ? a : JSON.stringify(a);
+        } catch {
+          return String(a);
+        }
+      })
+      .join(' ');
   for (const level of CONSOLE_LEVELS) {
     const orig = (console as any)[level].bind(console);
     (console as any)[level] = (...args: any[]) => {
@@ -143,6 +278,8 @@ export function attachStdoutCapture(ws: { _instStdout?: ConsoleLine[] }): void {
     SESSION_LINES.add(new WeakRef(lines));
   } catch {}
 }
-export function sliceStdout(ws: { _instStdout?: ConsoleLine[] }): ConsoleLine[] {
+export function sliceStdout(ws: {
+  _instStdout?: ConsoleLine[];
+}): ConsoleLine[] {
   return ws._instStdout ?? [];
 }

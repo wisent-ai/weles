@@ -4,20 +4,26 @@ import { reloginLinkedinInline } from '../../../_shared/linkedin/relogin.mjs';
 import { detectLinkedInBanSignals } from '../../../../../dist/platforms/linkedin/ban_signals.js';
 
 await runAction({
-  platform: 'linkedin', action: 'promote',
+  platform: 'linkedin',
+  action: 'promote',
   inlineRelogin: reloginLinkedinInline,
   feedUrl: 'https://www.linkedin.com/feed/',
   surfaceLabel: 'linkedin feed',
   resolveUserUrl: (u) => `https://www.linkedin.com/in/${u.replace(/^@/, '')}/`,
-  resolveSearchUrl: (q) => `https://www.linkedin.com/feed/hashtag/${encodeURIComponent(q.replace(/^#/, ''))}/`,
+  resolveSearchUrl: (q) =>
+    `https://www.linkedin.com/feed/hashtag/${encodeURIComponent(q.replace(/^#/, ''))}/`,
   pickPost: async (s) => {
     try {
       const text = await s.page.evaluate(() => {
-        const el = document.querySelector('.feed-shared-update-v2__description, .update-components-text');
+        const el = document.querySelector(
+          '.feed-shared-update-v2__description, .update-components-text',
+        );
         return el?.textContent?.trim() ?? '';
       });
-      return { postTitle: (text || ''), postBody: '' };
-    } catch { return { postTitle: '', postBody: '' }; }
+      return { postTitle: text || '', postBody: '' };
+    } catch {
+      return { postTitle: '', postBody: '' };
+    }
   },
   submitComment: linkedinSubmitComment,
   submitTargetedComment: linkedinSubmitComment,

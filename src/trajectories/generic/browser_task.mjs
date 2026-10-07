@@ -5,9 +5,22 @@ import { CREDENTIAL_FIELD_ABSENT } from '../../../dist/session/wsession-helpers/
 import { execute, AgentFailure } from '../../../dist/agent/index.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { writeWelesTrajectoryDraft } from '../../../dist/trajectories/writer.js';
-import { envString, normalizedReplay, parseJsonEnv, requireHttpUrl, safeStringMap } from './browser_task/inputs.mjs';
-import { identityInstructions, identityPlatformFromConstraints, sessionPlatformFromConstraints } from './browser_task/identity.mjs';
-import { ensureFigmaSession, ensureSupabaseSession } from './browser_task/sso_sessions.mjs';
+import {
+  envString,
+  normalizedReplay,
+  parseJsonEnv,
+  requireHttpUrl,
+  safeStringMap,
+} from './browser_task/inputs.mjs';
+import {
+  identityInstructions,
+  identityPlatformFromConstraints,
+  sessionPlatformFromConstraints,
+} from './browser_task/identity.mjs';
+import {
+  ensureFigmaSession,
+  ensureSupabaseSession,
+} from './browser_task/sso_sessions.mjs';
 import { captureRequiredBrowserEvidence } from './browser_task/evidence.mjs';
 
 const label = process.env.GENERIC_TASK_LABEL || 'generic_browser_task';
@@ -18,7 +31,11 @@ function writeJson(name, value) {
   writeFileSync(join(dir, name), JSON.stringify(value, null, 2));
 }
 
-async function applyCredentialPrefill(activeSession, taskConstraints, initialHistory) {
+async function applyCredentialPrefill(
+  activeSession,
+  taskConstraints,
+  initialHistory,
+) {
   const entries = Array.isArray(taskConstraints.credential_prefill)
     ? taskConstraints.credential_prefill
     : [];
@@ -29,16 +46,29 @@ async function applyCredentialPrefill(activeSession, taskConstraints, initialHis
       throw new Error('credential_prefill entries must be objects');
     }
     const target = typeof entry.target === 'string' ? entry.target : '';
-    const fieldClass = typeof entry.field_class === 'string' ? entry.field_class : '';
+    const fieldClass =
+      typeof entry.field_class === 'string' ? entry.field_class : '';
     const capability = entry.capability;
-    if (!target || !fieldClass || !capability || typeof capability !== 'object' || Array.isArray(capability)) {
+    if (
+      !target ||
+      !fieldClass ||
+      !capability ||
+      typeof capability !== 'object' ||
+      Array.isArray(capability)
+    ) {
       throw new Error('credential_prefill entry is incomplete');
     }
     // Only a missing field leaves the capability available to the agent.
-    const outcome = await activeSession.fillCredential(target, fieldClass, capability);
+    const outcome = await activeSession.fillCredential(
+      target,
+      fieldClass,
+      capability,
+    );
     if (outcome === CREDENTIAL_FIELD_ABSENT) {
       pending.push(entry);
-      console.log(`[generic] prefill deferred: no ${fieldClass} field on this page; its capability is unspent`);
+      console.log(
+        `[generic] prefill deferred: no ${fieldClass} field on this page; its capability is unspent`,
+      );
     } else if (outcome.startsWith('credential filled')) {
       completed.push({ target, field_class: fieldClass });
       initialHistory.push({
@@ -47,7 +77,9 @@ async function applyCredentialPrefill(activeSession, taskConstraints, initialHis
         result: outcome,
       });
     } else {
-      throw new Error(`credential prefill for ${fieldClass} did not fill its target after redemption: ${outcome}`);
+      throw new Error(
+        `credential prefill for ${fieldClass} did not fill its target after redemption: ${outcome}`,
+      );
     }
   }
   taskConstraints.credential_prefill = pending;
@@ -59,12 +91,23 @@ const objective = envString('GENERIC_TASK_OBJECTIVE');
 if (!objective.trim()) throw new Error('GENERIC_TASK_OBJECTIVE is required');
 
 const constraints = parseJsonEnv('GENERIC_TASK_CONSTRAINTS', {});
-const browserEvidencePolicy = parseJsonEnv('WELES_BROWSER_EVIDENCE_POLICY_JSON', null);
-const browserEvidencePolicyActive = envString('WELES_BROWSER_EVIDENCE_POLICY') === 'spis-browser-evidence.1';
-if (browserEvidencePolicyActive && (!browserEvidencePolicy || browserEvidencePolicy.version !== 'spis-browser-evidence.1')) {
-  throw new Error('Spis browser-evidence policy document is missing or inconsistent');
+const browserEvidencePolicy = parseJsonEnv(
+  'WELES_BROWSER_EVIDENCE_POLICY_JSON',
+  null,
+);
+const browserEvidencePolicyActive =
+  envString('WELES_BROWSER_EVIDENCE_POLICY') === 'spis-browser-evidence.1';
+if (
+  browserEvidencePolicyActive &&
+  (!browserEvidencePolicy ||
+    browserEvidencePolicy.version !== 'spis-browser-evidence.1')
+) {
+  throw new Error(
+    'Spis browser-evidence policy document is missing or inconsistent',
+  );
 }
-const storesCredentialInSkarbiec = constraints.store_secret_target === 'skarbiec';
+const storesCredentialInSkarbiec =
+  constraints.store_secret_target === 'skarbiec';
 if (storesCredentialInSkarbiec) {
   process.env.WELES_SECURE_CREDENTIAL_TASK = '1';
   process.env.WELES_NO_INSTRUMENT = '1';
@@ -72,13 +115,20 @@ if (storesCredentialInSkarbiec) {
   process.env.WELES_PAGE_DIAGNOSTICS = '0';
 }
 if (browserEvidencePolicyActive && storesCredentialInSkarbiec) {
-  throw new Error('Spis browser-evidence tasks cannot acquire or store credentials');
+  throw new Error(
+    'Spis browser-evidence tasks cannot acquire or store credentials',
+  );
 }
 const envHints = safeStringMap(parseJsonEnv('GENERIC_TASK_ENV', {}));
 for (const [key, value] of Object.entries(envHints)) process.env[key] = value;
 
-const flowName = envString('GENERIC_TASK_FLOW_NAME') || `generic:${new URL(url).hostname}:${objective.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
-const proxy = envString('GENERIC_TASK_PROXY', process.env.PROXY_URL_OVERRIDE || 'none');
+const flowName =
+  envString('GENERIC_TASK_FLOW_NAME') ||
+  `generic:${new URL(url).hostname}:${objective.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+const proxy = envString(
+  'GENERIC_TASK_PROXY',
+  process.env.PROXY_URL_OVERRIDE || 'none',
+);
 const headless = envString('GENERIC_TASK_HEADLESS') === '1';
 const browser = envString('GENERIC_TASK_BROWSER', 'chromium');
 const os = envString('GENERIC_TASK_OS', 'macos');
@@ -86,14 +136,18 @@ const locale = envString('GENERIC_TASK_LOCALE') || undefined;
 const keeperFirst = envString('GENERIC_TASK_KEEPER_FIRST') === '1';
 const replay = normalizedReplay(parseJsonEnv('GENERIC_TASK_REPLAY', null));
 const replayOnly = envString('GENERIC_TASK_REPLAY_ONLY') === '1';
-const skipSavedFlowReplay = keeperFirst || envString('GENERIC_TASK_SKIP_SAVED_FLOW_REPLAY') === '1' || !!replay;
+const skipSavedFlowReplay =
+  keeperFirst ||
+  envString('GENERIC_TASK_SKIP_SAVED_FLOW_REPLAY') === '1' ||
+  !!replay;
 
 /** The draft the agent starts from: a saved replay, a keeper-first discovery, or a written draft. */
 async function initialDraft() {
   if (replay) {
     return {
       source: 'saved-replay',
-      guidance: 'Replay-only validation mode: execute the persisted trajectory steps from the database. Do not ask the model to invent replacement steps if replay fails.',
+      guidance:
+        'Replay-only validation mode: execute the persisted trajectory steps from the database. Do not ask the model to invent replacement steps if replay fails.',
       steps: replay,
     };
   }
@@ -118,18 +172,23 @@ function goalFor(trajectoryDraft, completedPrefills) {
     '',
     trajectoryDraft.guidance,
     'Draft guidance remains subordinate to the objective, constraints and current page:',
-    ...trajectoryDraft.steps.filter(step => typeof step === 'string'),
-    ...(completedPrefills.length ? [
-      'Already completed credential fills: ' + JSON.stringify(completedPrefills),
-      'Their single-use capabilities are consumed and are not available to fill again. Continue from the current page instead of repeating initialization. Navigation may clear these fields; if no unspent capability remains, stop and report that state rather than inventing credentials.',
-    ] : []),
+    ...trajectoryDraft.steps.filter((step) => typeof step === 'string'),
+    ...(completedPrefills.length
+      ? [
+          'Already completed credential fills: ' +
+            JSON.stringify(completedPrefills),
+          'Their single-use capabilities are consumed and are not available to fill again. Continue from the current page instead of repeating initialization. Navigation may clear these fields; if no unspent capability remains, stop and report that state rather than inventing credentials.',
+        ]
+      : []),
     '',
     'Initial URL: ' + url,
     'Constraints: ' + JSON.stringify(constraints),
-    ...(browserEvidencePolicyActive ? [
-      'The Weles service enforces the attached browser-evidence policy before every interactive tool and inside page permission APIs. Treat policy_withheld results as retained evidence and continue only with non-interactive observation.',
-      'Browser-evidence policy: ' + JSON.stringify(browserEvidencePolicy),
-    ] : []),
+    ...(browserEvidencePolicyActive
+      ? [
+          'The Weles service enforces the attached browser-evidence policy before every interactive tool and inside page permission APIs. Treat policy_withheld results as retained evidence and continue only with non-interactive observation.',
+          'Browser-evidence policy: ' + JSON.stringify(browserEvidencePolicy),
+        ]
+      : []),
     'Do not make purchases, submit payments, delete data, or perform irreversible/destructive actions.',
     storesCredentialInSkarbiec
       ? 'Do not call done with extracted credential data. Finish only after store_credential has confirmed encrypted storage; return only its non-secret receipt.'
@@ -138,7 +197,14 @@ function goalFor(trajectoryDraft, completedPrefills) {
 }
 
 function draftSummary(trajectoryDraft) {
-  return trajectoryDraft ? { source: trajectoryDraft.source, model: trajectoryDraft.model, steps: trajectoryDraft.steps, error: trajectoryDraft.error } : null;
+  return trajectoryDraft
+    ? {
+        source: trajectoryDraft.source,
+        model: trajectoryDraft.model,
+        steps: trajectoryDraft.steps,
+        error: trajectoryDraft.error,
+      }
+    : null;
 }
 
 let session = null;
@@ -146,11 +212,31 @@ let result = null;
 let trajectoryDraft = null;
 const initialHistory = [];
 try {
-  console.log(`[generic] url=${url} flow=${flowName} browser=${browser} mode=${keeperFirst ? 'keeper_first' : replay ? 'saved_replay' : 'draft_first'}`);
+  console.log(
+    `[generic] url=${url} flow=${flowName} browser=${browser} mode=${keeperFirst ? 'keeper_first' : replay ? 'saved_replay' : 'draft_first'}`,
+  );
   trajectoryDraft = await initialDraft();
-  session = await WSession.start({ label, proxy, targetHost: new URL(url).hostname, headless, browser, os, locale, platform: sessionPlatformFromConstraints(constraints) || undefined, pageDiagnostics: keeperFirst ? false : undefined });
-  initialHistory.push({ tool: 'navigate', args: { url }, result: await session.goto(url) });
-  const completedPrefills = await applyCredentialPrefill(session, constraints, initialHistory);
+  session = await WSession.start({
+    label,
+    proxy,
+    targetHost: new URL(url).hostname,
+    headless,
+    browser,
+    os,
+    locale,
+    platform: sessionPlatformFromConstraints(constraints) || undefined,
+    pageDiagnostics: keeperFirst ? false : undefined,
+  });
+  initialHistory.push({
+    tool: 'navigate',
+    args: { url },
+    result: await session.goto(url),
+  });
+  const completedPrefills = await applyCredentialPrefill(
+    session,
+    constraints,
+    initialHistory,
+  );
   await ensureSupabaseSession(session, constraints);
   await ensureFigmaSession(session, constraints);
   result = await execute(session, goalFor(trajectoryDraft, completedPrefills), {
@@ -160,27 +246,31 @@ try {
     replay,
     replayOnly,
     skipSavedFlowReplay,
-    disableFlowPersistence: browserEvidencePolicyActive || completedPrefills.length > 0,
+    disableFlowPersistence:
+      browserEvidencePolicyActive || completedPrefills.length > 0,
     disableArtifacts: browserEvidencePolicyActive,
   });
   const history = result.history.slice(initialHistory.length);
-  if (browserEvidencePolicyActive) await captureRequiredBrowserEvidence(session);
-  const payload = browserEvidencePolicyActive ? {
-    ok: true,
-    url,
-    final_url: session.page.url?.() ?? null,
-    step_count: history.length,
-    completed_at: new Date().toISOString(),
-  } : {
-    ok: true,
-    url,
-    final_url: session.page.url?.() ?? null,
-    value: result.value ?? null,
-    initialization_history: initialHistory,
-    history,
-    trajectory_draft: draftSummary(trajectoryDraft),
-    completed_at: new Date().toISOString(),
-  };
+  if (browserEvidencePolicyActive)
+    await captureRequiredBrowserEvidence(session);
+  const payload = browserEvidencePolicyActive
+    ? {
+        ok: true,
+        url,
+        final_url: session.page.url?.() ?? null,
+        step_count: history.length,
+        completed_at: new Date().toISOString(),
+      }
+    : {
+        ok: true,
+        url,
+        final_url: session.page.url?.() ?? null,
+        value: result.value ?? null,
+        initialization_history: initialHistory,
+        history,
+        trajectory_draft: draftSummary(trajectoryDraft),
+        completed_at: new Date().toISOString(),
+      };
   writeJson('generic_task_result.json', payload);
   writeJson('ban_signal.json', {
     action: label,
@@ -192,31 +282,46 @@ try {
   console.log(`PASS: ${label}`);
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
-  const history = (error instanceof AgentFailure ? error.history : result?.history ?? []).slice(initialHistory.length);
+  const history = (
+    error instanceof AgentFailure ? error.history : (result?.history ?? [])
+  ).slice(initialHistory.length);
   const finalUrl = session?.page?.url?.() ?? null;
-  const needsHumanApproval = /needs_human_approval/i.test(message) || history.some((step) => /needs_human_approval/i.test(String(step?.args?.reason ?? '')));
-  writeJson('generic_task_result.json', browserEvidencePolicyActive ? {
-    ok: false,
-    url,
-    final_url: finalUrl,
-    error: message.slice(0, 1_000),
-    history_steps: history.length,
-    completed_at: new Date().toISOString(),
-  } : {
-    ok: false,
-    url,
-    final_url: finalUrl,
-    error: message,
-    initialization_history: initialHistory,
-    history,
-    trajectory_draft: draftSummary(trajectoryDraft),
-    completed_at: new Date().toISOString(),
-  });
+  const needsHumanApproval =
+    /needs_human_approval/i.test(message) ||
+    history.some((step) =>
+      /needs_human_approval/i.test(String(step?.args?.reason ?? '')),
+    );
+  writeJson(
+    'generic_task_result.json',
+    browserEvidencePolicyActive
+      ? {
+          ok: false,
+          url,
+          final_url: finalUrl,
+          error: message.slice(0, 1_000),
+          history_steps: history.length,
+          completed_at: new Date().toISOString(),
+        }
+      : {
+          ok: false,
+          url,
+          final_url: finalUrl,
+          error: message,
+          initialization_history: initialHistory,
+          history,
+          trajectory_draft: draftSummary(trajectoryDraft),
+          completed_at: new Date().toISOString(),
+        },
+  );
   writeJson('ban_signal.json', {
     action: label,
     healthy: false,
     signal: 'task_failed',
-    details: { final_url: finalUrl, error: message.slice(0, 1_000), steps: history.length },
+    details: {
+      final_url: finalUrl,
+      error: message.slice(0, 1_000),
+      steps: history.length,
+    },
     ts: new Date().toISOString(),
   });
   if (needsHumanApproval) {

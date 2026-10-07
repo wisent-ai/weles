@@ -14,19 +14,27 @@ import { parseArgs } from 'node:util';
 
 const MANIFEST = '.wisent-release.json';
 const { values } = parseArgs({ options: { replaces: { type: 'string' } } });
-const replaced = values.replaces ?? JSON.parse(readFileSync('package.json', 'utf8')).version;
+const replaced =
+  values.replaces ?? JSON.parse(readFileSync('package.json', 'utf8')).version;
 if (!/^\d+\.\d+\.\d+$/.test(String(replaced))) {
-  throw new Error(`the replaced release must be a version such as the one in package.json; got ${replaced}`);
+  throw new Error(
+    `the replaced release must be a version such as the one in package.json; got ${replaced}`,
+  );
 }
 const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8'));
 const runtime = manifest.runtime;
 if (!runtime || !Array.isArray(runtime.rollback_compatible_with)) {
-  throw new Error(`${MANIFEST} has no runtime.rollback_compatible_with list to record ${replaced} in`);
+  throw new Error(
+    `${MANIFEST} has no runtime.rollback_compatible_with list to record ${replaced} in`,
+  );
 }
 if (runtime.rollback_compatible_with.includes(replaced)) {
   console.log(`${MANIFEST} already names ${replaced} as rollback-compatible`);
 } else {
-  runtime.rollback_compatible_with = [replaced, ...runtime.rollback_compatible_with];
+  runtime.rollback_compatible_with = [
+    replaced,
+    ...runtime.rollback_compatible_with,
+  ];
   writeFileSync(MANIFEST, `${JSON.stringify(manifest, null, 2)}\n`);
   console.log(`${MANIFEST}: ${replaced} recorded as rollback-compatible`);
 }

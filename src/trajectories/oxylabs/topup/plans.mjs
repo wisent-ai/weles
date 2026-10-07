@@ -10,7 +10,9 @@ export const PLANS = [
   { name: 'Advanced', price: 500, gb: 100 },
 ];
 export function nearestPlan(usd) {
-  return PLANS.reduce((a, b) => Math.abs(b.price - usd) < Math.abs(a.price - usd) ? b : a);
+  return PLANS.reduce((a, b) =>
+    Math.abs(b.price - usd) < Math.abs(a.price - usd) ? b : a,
+  );
 }
 
 export async function detectCurrentPlan(s, plan) {
@@ -20,21 +22,37 @@ export async function detectCurrentPlan(s, plan) {
   // tier subscriptions are recurring monthly charges that the user must
   // commit to explicitly. Fixed-tier upgrade lives in this file as a
   // separate branch but is gated to never run from auto-cron context.
-  await s.goto('https://dashboard.oxylabs.io/en/overview/MP', { waitUntil: 'domcontentloaded' }).catch(() => {});
+  await s
+    .goto('https://dashboard.oxylabs.io/en/overview/MP', {
+      waitUntil: 'domcontentloaded',
+    })
+    .catch(() => {});
   await humanIdlePause('long');
   const planText = await s.page.evaluate(() => document.body.innerText);
-  const isPayAsYouGo = /Current plan\s*\|?\s*Pay as you go/i.test(planText) || /\bPay as you go\b/i.test(planText);
+  const isPayAsYouGo =
+    /Current plan\s*\|?\s*Pay as you go/i.test(planText) ||
+    /\bPay as you go\b/i.test(planText);
   let currentPlanName = isPayAsYouGo ? 'Pay as you go' : null;
   if (!currentPlanName) {
     for (const p of PLANS) {
-      if (new RegExp(`\\b${p.name}\\b\\s*(Plan|\\$${p.price}|/mo|month)`, 'i').test(planText)) {
-        currentPlanName = p.name; break;
+      if (
+        new RegExp(
+          `\\b${p.name}\\b\\s*(Plan|\\$${p.price}|/mo|month)`,
+          'i',
+        ).test(planText)
+      ) {
+        currentPlanName = p.name;
+        break;
       }
     }
   }
-  console.log(`[trajectory] current plan=${currentPlanName ?? 'unknown'}; requested=${plan.name}`);
+  console.log(
+    `[trajectory] current plan=${currentPlanName ?? 'unknown'}; requested=${plan.name}`,
+  );
   if (!currentPlanName) {
-    console.log(`FAIL: could not detect current Oxylabs plan from /overview/MP — refusing to charge with unknown state`);
+    console.log(
+      `FAIL: could not detect current Oxylabs plan from /overview/MP — refusing to charge with unknown state`,
+    );
     process.exit(1);
   }
   return { isPayAsYouGo, currentPlanName };

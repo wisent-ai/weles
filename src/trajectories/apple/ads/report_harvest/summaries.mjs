@@ -2,7 +2,9 @@
 import { norm } from './session.mjs';
 
 export function responseIsRelevant(response) {
-  return /app-ads\.apple\.com|searchads|report|campaign|budget|spend|analytics|api/i.test(response.url || '');
+  return /app-ads\.apple\.com|searchads|report|campaign|budget|spend|analytics|api/i.test(
+    response.url || '',
+  );
 }
 
 export function sanitizeResponses(responses) {
@@ -18,7 +20,9 @@ export function sanitizeResponses(responses) {
         status: response.status,
         contentType,
         bodyLength: body.length,
-        bodyPreview: /json|text|javascript|html|xml/i.test(contentType) ? body : '',
+        bodyPreview: /json|text|javascript|html|xml/i.test(contentType)
+          ? body
+          : '',
       };
     })
     .slice(-300);
@@ -26,11 +30,18 @@ export function sanitizeResponses(responses) {
 
 export function summarizeReport(pageState, responses) {
   const text = norm(pageState.text);
-  const totalsMatch = text.match(/TOTALS\s+(\$[0-9,.]+)\s+(\$[0-9,.]+)\s+(\$[0-9,.]+)\s+(\$[0-9,.]+)/i);
+  const totalsMatch = text.match(
+    /TOTALS\s+(\$[0-9,.]+)\s+(\$[0-9,.]+)\s+(\$[0-9,.]+)\s+(\$[0-9,.]+)/i,
+  );
   const campaigns = [];
   for (const row of pageState.rows || []) {
     const rowText = norm(row.text);
-    if (!/Search Results|\$\d|Campaign end date reached|Paused|Running|Ended/i.test(rowText)) continue;
+    if (
+      !/Search Results|\$\d|Campaign end date reached|Paused|Running|Ended/i.test(
+        rowText,
+      )
+    )
+      continue;
     if (/TOTALS|Copyright|Terms of Service/i.test(rowText)) continue;
     campaigns.push(rowText);
   }
@@ -39,28 +50,38 @@ export function summarizeReport(pageState, responses) {
     title: pageState.title,
     totals: totalsMatch ? totalsMatch.slice(1) : [],
     campaignRows: campaigns,
-    dateControls: (pageState.controls || []).filter((control) => /date|time|calendar|range|UTC|\d{4}|\d{1,2}\/\d{1,2}/i.test([
-      control.text,
-      control.ariaLabel,
-      control.title,
-      control.placeholder,
-      control.value,
-      control.className,
-      control.name,
-      control.id,
-    ].join(' '))),
-    reportControls: (pageState.controls || []).filter((control) => /report|filter|view|column|download|export|campaign|spend|impression|tap|install/i.test([
-      control.text,
-      control.ariaLabel,
-      control.title,
-      control.placeholder,
-      control.value,
-      control.className,
-      control.name,
-      control.id,
-    ].join(' '))),
+    dateControls: (pageState.controls || []).filter((control) =>
+      /date|time|calendar|range|UTC|\d{4}|\d{1,2}\/\d{1,2}/i.test(
+        [
+          control.text,
+          control.ariaLabel,
+          control.title,
+          control.placeholder,
+          control.value,
+          control.className,
+          control.name,
+          control.id,
+        ].join(' '),
+      ),
+    ),
+    reportControls: (pageState.controls || []).filter((control) =>
+      /report|filter|view|column|download|export|campaign|spend|impression|tap|install/i.test(
+        [
+          control.text,
+          control.ariaLabel,
+          control.title,
+          control.placeholder,
+          control.value,
+          control.className,
+          control.name,
+          control.id,
+        ].join(' '),
+      ),
+    ),
     relevantResponseCount: responses.length,
-    relevantResponseUrls: [...new Set(responses.map((response) => response.url))].slice(-120),
+    relevantResponseUrls: [
+      ...new Set(responses.map((response) => response.url)),
+    ].slice(-120),
   };
 }
 
@@ -107,7 +128,11 @@ export function getCampaignReportPayload(requests) {
   for (const request of requests.slice().reverse()) {
     try {
       const parsed = JSON.parse(request.postData || '{}');
-      if (parsed?.operationName === 'getReportsByCampaign' && parsed?.query && parsed?.variables?.reportOptions?.filter) {
+      if (
+        parsed?.operationName === 'getReportsByCampaign' &&
+        parsed?.query &&
+        parsed?.variables?.reportOptions?.filter
+      ) {
         return parsed;
       }
     } catch {}

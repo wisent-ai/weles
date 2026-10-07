@@ -16,11 +16,11 @@
 export type CaptchaOutcome = 'solved' | 'failed' | 'all_failed';
 
 export interface CaptchaEvent {
-  provider: string;          // anticaptcha | capsolver | capmonster | twocaptcha | nocaptcha | '' (marker)
-  resource: string;          // task_type: recaptcha_v2 | hcaptcha | funcaptcha | perimeterx | turnstile | ...
+  provider: string; // anticaptcha | capsolver | capmonster | twocaptcha | nocaptcha | '' (marker)
+  resource: string; // task_type: recaptcha_v2 | hcaptcha | funcaptcha | perimeterx | turnstile | ...
   outcome: CaptchaOutcome;
-  cost_usd: number;          // 0 for failures / markers
-  ts: string;                // ISO timestamp
+  cost_usd: number; // 0 for failures / markers
+  ts: string; // ISO timestamp
 }
 
 // Module-level: one process == one run == one trajectory, so a module-level
@@ -29,9 +29,19 @@ const EVENTS: CaptchaEvent[] = [];
 let CHALLENGE_FACED = false;
 
 /** Record a successful solve. Called from the cost tracker's recordCaptcha. */
-export function recordCaptchaSolved(provider: string, resource: string, cost_usd: number): void {
+export function recordCaptchaSolved(
+  provider: string,
+  resource: string,
+  cost_usd: number,
+): void {
   CHALLENGE_FACED = true;
-  EVENTS.push({ provider: String(provider), resource: String(resource), outcome: 'solved', cost_usd: Number.isFinite(cost_usd) ? cost_usd : 0, ts: new Date().toISOString() });
+  EVENTS.push({
+    provider: String(provider),
+    resource: String(resource),
+    outcome: 'solved',
+    cost_usd: Number.isFinite(cost_usd) ? cost_usd : 0,
+    ts: new Date().toISOString(),
+  });
 }
 
 /**
@@ -40,7 +50,14 @@ export function recordCaptchaSolved(provider: string, resource: string, cost_usd
  */
 export function markCaptchaChallenge(resource?: string): void {
   CHALLENGE_FACED = true;
-  if (resource) EVENTS.push({ provider: '', resource: String(resource), outcome: 'failed', cost_usd: 0, ts: new Date().toISOString() });
+  if (resource)
+    EVENTS.push({
+      provider: '',
+      resource: String(resource),
+      outcome: 'failed',
+      cost_usd: 0,
+      ts: new Date().toISOString(),
+    });
 }
 
 /**
@@ -49,10 +66,19 @@ export function markCaptchaChallenge(resource?: string): void {
  */
 export function markAllProvidersFailed(resource: string): void {
   CHALLENGE_FACED = true;
-  EVENTS.push({ provider: '', resource: String(resource), outcome: 'all_failed', cost_usd: 0, ts: new Date().toISOString() });
+  EVENTS.push({
+    provider: '',
+    resource: String(resource),
+    outcome: 'all_failed',
+    cost_usd: 0,
+    ts: new Date().toISOString(),
+  });
 }
 
 /** Full per-run snapshot for persistence. */
-export function captchaSnapshot(): { challenge_faced: boolean; events: CaptchaEvent[] } {
+export function captchaSnapshot(): {
+  challenge_faced: boolean;
+  events: CaptchaEvent[];
+} {
   return { challenge_faced: CHALLENGE_FACED, events: EVENTS.slice() };
 }

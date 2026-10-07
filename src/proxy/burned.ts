@@ -19,8 +19,9 @@ interface BurnedEntry {
   signals: string[];
   platforms: string[];
 }
-interface BurnedValue { hosts: Record<string, BurnedEntry> }
-
+interface BurnedValue {
+  hosts: Record<string, BurnedEntry>;
+}
 
 // Read on every question, never from a copy: a host another process marked
 // burned a moment ago is burned now.
@@ -32,7 +33,10 @@ async function save(value: BurnedValue): Promise<void> {
   writeSetting('burned_proxies', value);
 }
 
-export async function isBurned(host: string, platform?: string): Promise<boolean> {
+export async function isBurned(
+  host: string,
+  platform?: string,
+): Promise<boolean> {
   if (!host) return false;
   const v = await load();
   const entry = v.hosts[host];
@@ -54,7 +58,11 @@ export async function listBurned(): Promise<Record<string, BurnedEntry>> {
  * signals (ip_blocked, captcha_challenge from CDN). Idempotent — increments
  * ban_count and union-s signals/platforms on subsequent calls.
  */
-export async function markBurned(host: string, signal: string, platform?: string): Promise<void> {
+export async function markBurned(
+  host: string,
+  signal: string,
+  platform?: string,
+): Promise<void> {
   if (!host || !signal) return;
   const v = await load();
   const now = new Date().toISOString();
@@ -63,10 +71,19 @@ export async function markBurned(host: string, signal: string, platform?: string
     entry.last_burned_at = now;
     entry.ban_count += 1;
     if (!entry.signals.includes(signal)) entry.signals.push(signal);
-    if (platform && !entry.platforms.includes(platform)) entry.platforms.push(platform);
+    if (platform && !entry.platforms.includes(platform))
+      entry.platforms.push(platform);
   } else {
-    v.hosts[host] = { first_burned_at: now, last_burned_at: now, ban_count: 1, signals: [signal], platforms: platform ? [platform] : [] };
+    v.hosts[host] = {
+      first_burned_at: now,
+      last_burned_at: now,
+      ban_count: 1,
+      signals: [signal],
+      platforms: platform ? [platform] : [],
+    };
   }
   await save(v);
-  console.log(`[burned-proxy] +${host} signal=${signal} ban_count=${v.hosts[host].ban_count}`);
+  console.log(
+    `[burned-proxy] +${host} signal=${signal} ban_count=${v.hosts[host].ban_count}`,
+  );
 }

@@ -14,11 +14,18 @@ import { humanClickLocator } from '../../../../../dist/human/mouse.js';
 import { pageSettled } from '../../page/settled.mjs';
 import { ROLE_TITLES, ROLE_COMPANIES } from './stooge_data.mjs';
 
-function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function pick(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
 async function clickIfVisible(page, locator) {
   let visible = false;
-  try { visible = await locator.isVisible(); } catch (e) { console.log(`[onboarding] isVisible err: ${e.message}`); return false; }
+  try {
+    visible = await locator.isVisible();
+  } catch (e) {
+    console.log(`[onboarding] isVisible err: ${e.message}`);
+    return false;
+  }
   if (!visible) return false;
   await humanClickLocator(page, locator);
   return true;
@@ -26,7 +33,12 @@ async function clickIfVisible(page, locator) {
 
 async function fillIfVisible(page, locator, value) {
   let visible = false;
-  try { visible = await locator.isVisible(); } catch (e) { console.log(`[onboarding] isVisible err: ${e.message}`); return false; }
+  try {
+    visible = await locator.isVisible();
+  } catch (e) {
+    console.log(`[onboarding] isVisible err: ${e.message}`);
+    return false;
+  }
   if (!visible) return false;
   await humanFill(page, locator, value);
   return true;
@@ -44,57 +56,139 @@ export async function fillPostRegisterOnboarding(page) {
   const title = pick(ROLE_TITLES);
   const company = pick(ROLE_COMPANIES);
   try {
-    await page.goto('https://www.linkedin.com/in/me/edit/position/new/', { waitUntil: 'domcontentloaded' });
+    await page.goto('https://www.linkedin.com/in/me/edit/position/new/', {
+      waitUntil: 'domcontentloaded',
+    });
     await pageSettled(page);
-    const titleFilled = await fillIfVisible(page, page.locator('input[id*="title-typeahead" i], input[aria-label*="Title" i], input[id*="title" i]').first(), title);
+    const titleFilled = await fillIfVisible(
+      page,
+      page
+        .locator(
+          'input[id*="title-typeahead" i], input[aria-label*="Title" i], input[id*="title" i]',
+        )
+        .first(),
+      title,
+    );
     await pageSettled(page);
-    const companyFilled = await fillIfVisible(page, page.locator('input[id*="company-typeahead" i], input[aria-label*="Company" i], input[name="companyName"]').first(), company);
+    const companyFilled = await fillIfVisible(
+      page,
+      page
+        .locator(
+          'input[id*="company-typeahead" i], input[aria-label*="Company" i], input[name="companyName"]',
+        )
+        .first(),
+      company,
+    );
     await pageSettled(page);
-    await clickIfVisible(page, page.locator('div[role="listbox"] li, ul[role="listbox"] li').first());
+    await clickIfVisible(
+      page,
+      page.locator('div[role="listbox"] li, ul[role="listbox"] li').first(),
+    );
     await pageSettled(page);
-    const saved = await clickIfVisible(page, page.locator('button:has-text("Save"), button:has-text("Add to my profile"), button[type="submit"]:has-text("Save")').first());
+    const saved = await clickIfVisible(
+      page,
+      page
+        .locator(
+          'button:has-text("Save"), button:has-text("Add to my profile"), button[type="submit"]:has-text("Save")',
+        )
+        .first(),
+    );
     if (titleFilled && companyFilled && saved) {
       roleAdded = true;
       console.log(`[onboarding] role added: ${title} @ ${company}`);
     } else {
-      console.log(`[onboarding] role fill incomplete title=${titleFilled} company=${companyFilled} saved=${saved}`);
+      console.log(
+        `[onboarding] role fill incomplete title=${titleFilled} company=${companyFilled} saved=${saved}`,
+      );
     }
-  } catch (e) { console.log(`[onboarding] role err: ${e.message}`); }
+  } catch (e) {
+    console.log(`[onboarding] role err: ${e.message}`);
+  }
 
   await pageSettled(page);
 
   let schoolAdded = false;
   try {
-    await page.goto('https://www.linkedin.com/in/me/edit/education/new/', { waitUntil: 'domcontentloaded' });
+    await page.goto('https://www.linkedin.com/in/me/edit/education/new/', {
+      waitUntil: 'domcontentloaded',
+    });
     await pageSettled(page);
-    const schoolFilled = await fillIfVisible(page, page.locator('input[id*="school-typeahead" i], input[id*="school" i], input[aria-label*="School" i]').first(), 'Stanford University');
+    const schoolFilled = await fillIfVisible(
+      page,
+      page
+        .locator(
+          'input[id*="school-typeahead" i], input[id*="school" i], input[aria-label*="School" i]',
+        )
+        .first(),
+      'Stanford University',
+    );
     await pageSettled(page);
-    await clickIfVisible(page, page.locator('div[role="listbox"] li, ul[role="listbox"] li').first());
+    await clickIfVisible(
+      page,
+      page.locator('div[role="listbox"] li, ul[role="listbox"] li').first(),
+    );
     await pageSettled(page);
-    await fillIfVisible(page, page.locator('input[id*="degree" i], input[aria-label*="Degree" i]').first(), 'Bachelor of Science (BS)');
+    await fillIfVisible(
+      page,
+      page
+        .locator('input[id*="degree" i], input[aria-label*="Degree" i]')
+        .first(),
+      'Bachelor of Science (BS)',
+    );
     await pageSettled(page);
-    await fillIfVisible(page, page.locator('input[id*="fieldOfStudy" i], input[aria-label*="Field of study" i], input[id*="field" i]').first(), 'Computer Science');
+    await fillIfVisible(
+      page,
+      page
+        .locator(
+          'input[id*="fieldOfStudy" i], input[aria-label*="Field of study" i], input[id*="field" i]',
+        )
+        .first(),
+      'Computer Science',
+    );
     await pageSettled(page);
-    const saved = await clickIfVisible(page, page.locator('button:has-text("Save"), button[type="submit"]:has-text("Save")').first());
+    const saved = await clickIfVisible(
+      page,
+      page
+        .locator(
+          'button:has-text("Save"), button[type="submit"]:has-text("Save")',
+        )
+        .first(),
+    );
     if (schoolFilled && saved) {
       schoolAdded = true;
       console.log('[onboarding] school added: Stanford University');
     } else {
-      console.log(`[onboarding] school fill incomplete school=${schoolFilled} saved=${saved}`);
+      console.log(
+        `[onboarding] school fill incomplete school=${schoolFilled} saved=${saved}`,
+      );
     }
-  } catch (e) { console.log(`[onboarding] school err: ${e.message}`); }
+  } catch (e) {
+    console.log(`[onboarding] school err: ${e.message}`);
+  }
 
   let viewable = false;
   try {
-    await page.goto('https://www.linkedin.com/in/williamhgates/', { waitUntil: 'domcontentloaded' });
+    await page.goto('https://www.linkedin.com/in/williamhgates/', {
+      waitUntil: 'domcontentloaded',
+    });
     await pageSettled(page);
     let body = '';
-    try { body = await page.evaluate(() => document.body.innerText); }
-    catch (e) { console.log(`[onboarding] body read err: ${e.message}`); }
-    const gated = /one step away from viewing|complete one quick step|Add a job or school to continue/i.test(body);
+    try {
+      body = await page.evaluate(() => document.body.innerText);
+    } catch (e) {
+      console.log(`[onboarding] body read err: ${e.message}`);
+    }
+    const gated =
+      /one step away from viewing|complete one quick step|Add a job or school to continue/i.test(
+        body,
+      );
     viewable = !gated && body.length > 500;
-    console.log(`[onboarding] post-build profile view: gated=${gated} bodyLen=${body.length} viewable=${viewable}`);
-  } catch (e) { console.log(`[onboarding] view-verify err: ${e.message}`); }
+    console.log(
+      `[onboarding] post-build profile view: gated=${gated} bodyLen=${body.length} viewable=${viewable}`,
+    );
+  } catch (e) {
+    console.log(`[onboarding] view-verify err: ${e.message}`);
+  }
 
   return { roleAdded, schoolAdded, viewable };
 }

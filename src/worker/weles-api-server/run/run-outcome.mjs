@@ -16,7 +16,17 @@
 // read a single outcome instead of burning the account twice.
 
 import { createHash } from 'node:crypto';
-import { lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, realpathSync, watch, writeFileSync } from 'node:fs';
+import {
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  statSync,
+  realpathSync,
+  watch,
+  writeFileSync,
+} from 'node:fs';
 import { basename, join, sep } from 'node:path';
 
 import { RECORDINGS_ROOT, RUN_RESULTS_DIR } from '../configuration.mjs';
@@ -75,30 +85,58 @@ export function terminalRunResultFile(runId, signal) {
       if (error) reject(error);
       else resolve(file);
     };
-    const onAbort = () => finish(new Error(`terminal result read for ${runId} was cancelled`, { cause: signal.reason }));
+    const onAbort = () =>
+      finish(
+        new Error(`terminal result read for ${runId} was cancelled`, {
+          cause: signal.reason,
+        }),
+      );
     const read = () => {
       try {
         const file = runResultFile(runId);
-        if (!file) throw new Error(`run ${runId}: persisted result disappeared`);
+        if (!file)
+          throw new Error(`run ${runId}: persisted result disappeared`);
         const result = JSON.parse(readFileSync(file.path, 'utf8'));
         if (result.status === 'running' && result.ok === null) return;
-        if ((result.status === 'finished' || result.status === 'failed') && typeof result.ok === 'boolean') {
+        if (
+          (result.status === 'finished' || result.status === 'failed') &&
+          typeof result.ok === 'boolean'
+        ) {
           finish(null, file);
           return;
         }
-        throw new Error(`run ${runId}: invalid persisted outcome status=${JSON.stringify(result.status)} ok=${JSON.stringify(result.ok)}`);
+        throw new Error(
+          `run ${runId}: invalid persisted outcome status=${JSON.stringify(result.status)} ok=${JSON.stringify(result.ok)}`,
+        );
       } catch (error) {
-        finish(new Error(`read terminal result for ${runId}: ${error.message}`, { cause: error }));
+        finish(
+          new Error(`read terminal result for ${runId}: ${error.message}`, {
+            cause: error,
+          }),
+        );
       }
     };
     const watcher = watch(RUN_RESULTS_DIR, (event, filename) => {
-      if (event === 'rename' && String(filename) === basename(RUN_RESULTS_DIR)) {
-        finish(new Error(`watch terminal result for ${runId}: result directory was moved or removed`));
+      if (
+        event === 'rename' &&
+        String(filename) === basename(RUN_RESULTS_DIR)
+      ) {
+        finish(
+          new Error(
+            `watch terminal result for ${runId}: result directory was moved or removed`,
+          ),
+        );
       } else if (filename === null || String(filename) === `${runId}.json`) {
         read();
       }
     });
-    watcher.once('error', (error) => finish(new Error(`watch terminal result for ${runId}: ${error.message}`, { cause: error })));
+    watcher.once('error', (error) =>
+      finish(
+        new Error(`watch terminal result for ${runId}: ${error.message}`, {
+          cause: error,
+        }),
+      ),
+    );
     signal?.addEventListener('abort', onAbort, { once: true });
     if (signal?.aborted) onAbort();
     else read();
@@ -106,10 +144,17 @@ export function terminalRunResultFile(runId, signal) {
 }
 
 export function lastJsonLine(stdout) {
-  const lines = stdout.split('\n').map((l) => l.trim()).filter(Boolean);
+  const lines = stdout
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
   for (let i = lines.length - 1; i >= 0; i -= 1) {
     if (lines[i].startsWith('{') || lines[i].startsWith('[')) {
-      try { return JSON.parse(lines[i]); } catch { /* keep scanning up */ }
+      try {
+        return JSON.parse(lines[i]);
+      } catch {
+        /* keep scanning up */
+      }
     }
   }
   return null;
@@ -123,10 +168,15 @@ export function findResultDoc(runId) {
     const runMetadata = lstatSync(runRoot);
     const actionMetadata = lstatSync(actionRoot);
     const resultMetadata = lstatSync(resultPath);
-    if (!runMetadata.isDirectory() || runMetadata.isSymbolicLink()
-        || !actionMetadata.isDirectory() || actionMetadata.isSymbolicLink()
-        || !resultMetadata.isFile() || resultMetadata.isSymbolicLink()
-        || !resultMetadata.size) {
+    if (
+      !runMetadata.isDirectory() ||
+      runMetadata.isSymbolicLink() ||
+      !actionMetadata.isDirectory() ||
+      actionMetadata.isSymbolicLink() ||
+      !resultMetadata.isFile() ||
+      resultMetadata.isSymbolicLink() ||
+      !resultMetadata.size
+    ) {
       return null;
     }
     const realRunRoot = realpathSync(runRoot);
@@ -163,7 +213,11 @@ export function runOutputs(runId) {
   const errors = {};
   const runRoot = join(RECORDINGS_ROOT, runId);
   let rootMetadata;
-  try { rootMetadata = lstatSync(runRoot); } catch { return { outputs, errors }; }
+  try {
+    rootMetadata = lstatSync(runRoot);
+  } catch {
+    return { outputs, errors };
+  }
   if (rootMetadata.isSymbolicLink() || !rootMetadata.isDirectory()) {
     errors['.'] = 'recording root is a symbolic link or not a directory';
     return { outputs, errors };
@@ -171,26 +225,38 @@ export function runOutputs(runId) {
   let realRunRoot;
   try {
     realRunRoot = realpathSync(runRoot);
-    if (!realRunRoot.startsWith(`${realpathSync(RECORDINGS_ROOT)}${sep}`)) throw new Error('recording root resolves outside the recordings directory');
+    if (!realRunRoot.startsWith(`${realpathSync(RECORDINGS_ROOT)}${sep}`))
+      throw new Error(
+        'recording root resolves outside the recordings directory',
+      );
   } catch (error) {
     errors['.'] = String(error?.message || error);
     return { outputs, errors };
   }
   const visit = (directory) => {
     let entries;
-    try { entries = readdirSync(directory, { withFileTypes: true }); } catch (error) {
-      errors[directory.slice(realRunRoot.length + 1) || '.'] = String(error?.message || error);
+    try {
+      entries = readdirSync(directory, { withFileTypes: true });
+    } catch (error) {
+      errors[directory.slice(realRunRoot.length + 1) || '.'] = String(
+        error?.message || error,
+      );
       return;
     }
     for (const entry of entries) {
       const path = join(directory, entry.name);
-      if (entry.isDirectory()) { visit(path); continue; }
+      if (entry.isDirectory()) {
+        visit(path);
+        continue;
+      }
       const key = RUN_OUTPUT_FILES[entry.name];
       if (!entry.isFile() || !key || key in outputs) continue;
       try {
         outputs[key] = JSON.parse(readFileSync(path, 'utf8'));
       } catch (error) {
-        errors[path.slice(realRunRoot.length + 1)] = String(error?.message || error);
+        errors[path.slice(realRunRoot.length + 1)] = String(
+          error?.message || error,
+        );
       }
     }
   };

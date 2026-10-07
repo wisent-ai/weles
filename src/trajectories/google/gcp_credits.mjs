@@ -31,7 +31,9 @@ const PROFILES_CFG = join(homedir(), '.weles', 'chrome_profiles.json');
 
 function loadProfilesConfig() {
   if (!existsSync(PROFILES_CFG)) {
-    throw new Error(`Profile config missing: ${PROFILES_CFG}. See ~/.weles/chrome_profiles.json template.`);
+    throw new Error(
+      `Profile config missing: ${PROFILES_CFG}. See ~/.weles/chrome_profiles.json template.`,
+    );
   }
   return JSON.parse(readFileSync(PROFILES_CFG, 'utf8'));
 }
@@ -61,8 +63,14 @@ function discoverProfileDir(email) {
   return matches[0]?.dir || null;
 }
 
-const forbidden = new Set((cfg.forbidden_emails || []).map(s => s.toLowerCase()));
-const requestedEmail = (process.env.GCP_PROFILE_EMAIL || cfg.default_email || '').toLowerCase();
+const forbidden = new Set(
+  (cfg.forbidden_emails || []).map((s) => s.toLowerCase()),
+);
+const requestedEmail = (
+  process.env.GCP_PROFILE_EMAIL ||
+  cfg.default_email ||
+  ''
+).toLowerCase();
 const explicitDir = process.env.GCP_PROFILE_DIR;
 
 let PROFILE;
@@ -71,14 +79,20 @@ if (explicitDir) {
   console.log(`[gcp_credits] using explicit profile dir from env: ${PROFILE}`);
 } else {
   if (forbidden.has(requestedEmail)) {
-    throw new Error(`Email "${requestedEmail}" is in forbidden_emails (${PROFILES_CFG}).`);
+    throw new Error(
+      `Email "${requestedEmail}" is in forbidden_emails (${PROFILES_CFG}).`,
+    );
   }
   const dir = discoverProfileDir(requestedEmail);
   if (!dir) {
-    throw new Error(`No Chrome profile found for "${requestedEmail}" with non-empty gaia_id in ${LOCAL_STATE}. Profile may not be signed in.`);
+    throw new Error(
+      `No Chrome profile found for "${requestedEmail}" with non-empty gaia_id in ${LOCAL_STATE}. Profile may not be signed in.`,
+    );
   }
   PROFILE = dir;
-  console.log(`[gcp_credits] discovered ${requestedEmail} -> ${PROFILE} (Local State)`);
+  console.log(
+    `[gcp_credits] discovered ${requestedEmail} -> ${PROFILE} (Local State)`,
+  );
 }
 
 function chromeAlive() {
@@ -92,32 +106,49 @@ function quitChrome() {
   console.log('[gcp_credits] quitting Chrome (graceful)...');
   spawnSync('osascript', ['-e', 'tell application "Google Chrome" to quit']);
   if (!chromeAlive()) return;
-  console.log('[gcp_credits] Chrome still running after quit, forcing pkill -9');
+  console.log(
+    '[gcp_credits] Chrome still running after quit, forcing pkill -9',
+  );
   spawnSync('pkill', ['-9', '-f', 'Google Chrome']);
-  if (chromeAlive()) throw new Error('Chrome still running after pkill — abort');
+  if (chromeAlive())
+    throw new Error('Chrome still running after pkill — abort');
 }
 
 // Blocks until Chrome reports the active tab of its front window as loaded.
 function waitForTabLoaded() {
   const r = spawnSync('osascript', [
-    '-e', 'tell application "Google Chrome"',
-    '-e', 'repeat until (exists front window)',
-    '-e', 'end repeat',
-    '-e', 'repeat while (loading of active tab of front window)',
-    '-e', 'end repeat',
-    '-e', 'end tell',
+    '-e',
+    'tell application "Google Chrome"',
+    '-e',
+    'repeat until (exists front window)',
+    '-e',
+    'end repeat',
+    '-e',
+    'repeat while (loading of active tab of front window)',
+    '-e',
+    'end repeat',
+    '-e',
+    'end tell',
   ]);
-  if (r.status !== 0) throw new Error(`gcp_credits: Chrome did not report the tab state: ${r.stderr?.toString().trim()}`);
+  if (r.status !== 0)
+    throw new Error(
+      `gcp_credits: Chrome did not report the tab state: ${r.stderr?.toString().trim()}`,
+    );
 }
 
 quitChrome();
 
-console.log(`[gcp_credits] launching Chrome.app (profile=${PROFILE}) -> ${URL}`);
+console.log(
+  `[gcp_credits] launching Chrome.app (profile=${PROFILE}) -> ${URL}`,
+);
 
 const r = spawnSync('open', [
-  '-na', 'Google Chrome', '--args',
+  '-na',
+  'Google Chrome',
+  '--args',
   `--profile-directory=${PROFILE}`,
-  '--no-first-run', '--no-default-browser-check',
+  '--no-first-run',
+  '--no-default-browser-check',
   URL,
 ]);
 if (r.status !== 0) {
@@ -140,9 +171,12 @@ if (TAB === 'issued') {
       return 'no match';
     })();`.replace(/\s+/g, ' ');
   const r = spawnSync('osascript', [
-    '-e', `tell application "Google Chrome" to tell active tab of front window to execute javascript "${clickJs.replace(/"/g, '\\"')}"`,
+    '-e',
+    `tell application "Google Chrome" to tell active tab of front window to execute javascript "${clickJs.replace(/"/g, '\\"')}"`,
   ]);
-  console.log(`[gcp_credits] tab click result: ${(r.stdout?.toString() || '').trim() || (r.stderr?.toString() || '').trim()}`);
+  console.log(
+    `[gcp_credits] tab click result: ${(r.stdout?.toString() || '').trim() || (r.stderr?.toString() || '').trim()}`,
+  );
   waitForTabLoaded();
 }
 

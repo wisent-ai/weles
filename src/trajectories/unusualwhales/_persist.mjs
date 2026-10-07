@@ -20,18 +20,29 @@ function ingestConfig() {
   const token = requireEnv('TRADING_TOOLS_INGEST_TOKEN');
   const hmacSecret = requireEnv('TRADING_TOOLS_INGEST_HMAC_SECRET');
   if (Buffer.byteLength(token) < MIN_SECRET_BYTES) {
-    throw new Error('TRADING_TOOLS_INGEST_TOKEN must contain at least 32 bytes');
+    throw new Error(
+      'TRADING_TOOLS_INGEST_TOKEN must contain at least 32 bytes',
+    );
   }
   if (Buffer.byteLength(hmacSecret) < MIN_SECRET_BYTES) {
-    throw new Error('TRADING_TOOLS_INGEST_HMAC_SECRET must contain at least 32 bytes');
+    throw new Error(
+      'TRADING_TOOLS_INGEST_HMAC_SECRET must contain at least 32 bytes',
+    );
   }
   if (token === hmacSecret) {
-    throw new Error('Trading Tools ingest bearer and HMAC secret must be distinct');
+    throw new Error(
+      'Trading Tools ingest bearer and HMAC secret must be distinct',
+    );
   }
-  for (const siblingName of ['WELES_STADO_OBJECT_API_TOKEN', 'WELES_STADO_MODEL_ROUTER_TOKEN']) {
+  for (const siblingName of [
+    'WELES_STADO_OBJECT_API_TOKEN',
+    'WELES_STADO_MODEL_ROUTER_TOKEN',
+  ]) {
     const sibling = String(process.env[siblingName] || '').trim();
     if (sibling && (sibling === token || sibling === hmacSecret)) {
-      throw new Error(`Trading Tools ingest credentials must be distinct from ${siblingName}`);
+      throw new Error(
+        `Trading Tools ingest credentials must be distinct from ${siblingName}`,
+      );
     }
   }
   let endpoint;
@@ -40,14 +51,29 @@ function ingestConfig() {
   } catch {
     throw new Error('TRADING_TOOLS_INGEST_URL must be a valid URL');
   }
-  const loopback = endpoint.hostname === 'localhost' || endpoint.hostname === '127.0.0.1'
-    || endpoint.hostname === '::1' || endpoint.hostname === '[::1]';
-  if (endpoint.protocol !== 'https:' && !(endpoint.protocol === 'http:' && loopback)) {
-    throw new Error('TRADING_TOOLS_INGEST_URL must use HTTPS, except for authenticated loopback HTTP');
+  const loopback =
+    endpoint.hostname === 'localhost' ||
+    endpoint.hostname === '127.0.0.1' ||
+    endpoint.hostname === '::1' ||
+    endpoint.hostname === '[::1]';
+  if (
+    endpoint.protocol !== 'https:' &&
+    !(endpoint.protocol === 'http:' && loopback)
+  ) {
+    throw new Error(
+      'TRADING_TOOLS_INGEST_URL must use HTTPS, except for authenticated loopback HTTP',
+    );
   }
-  if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash
-    || !endpoint.pathname.endsWith(INGEST_PATH_SUFFIX)) {
-    throw new Error(`TRADING_TOOLS_INGEST_URL must be a credential-free endpoint ending ${INGEST_PATH_SUFFIX}`);
+  if (
+    endpoint.username ||
+    endpoint.password ||
+    endpoint.search ||
+    endpoint.hash ||
+    !endpoint.pathname.endsWith(INGEST_PATH_SUFFIX)
+  ) {
+    throw new Error(
+      `TRADING_TOOLS_INGEST_URL must be a credential-free endpoint ending ${INGEST_PATH_SUFFIX}`,
+    );
   }
   return { endpoint: endpoint.toString(), token, hmacSecret };
 }
@@ -66,7 +92,9 @@ async function ingestStockContext(body) {
   const config = ingestConfig();
   const serialized = JSON.stringify(body);
   const timestamp = String(Math.floor(Date.now() / 1000));
-  const bodyDigest = createHash('sha256').update(serialized, 'utf8').digest('hex');
+  const bodyDigest = createHash('sha256')
+    .update(serialized, 'utf8')
+    .digest('hex');
   const signature = createHmac('sha256', config.hmacSecret)
     .update(`${CALLER_ID}:${timestamp}:${bodyDigest}`, 'utf8')
     .digest('hex');
@@ -84,7 +112,9 @@ async function ingestStockContext(body) {
   });
   const responseText = await response.text();
   if (response.status !== 201) {
-    throw new Error(`Trading Tools stock-context ingest failed (${response.status}): ${responseText}`);
+    throw new Error(
+      `Trading Tools stock-context ingest failed (${response.status}): ${responseText}`,
+    );
   }
   let stored;
   try {
@@ -95,9 +125,14 @@ async function ingestStockContext(body) {
   if (!stored || typeof stored.id !== 'string' || !stored.id) {
     throw new Error('Trading Tools stock-context ingest returned no row id');
   }
-  if (stored.screenshot_uri != null
-    && (typeof stored.screenshot_uri !== 'string' || !stored.screenshot_uri.startsWith('stado://trading-tools/stock-context/'))) {
-    throw new Error('Trading Tools stock-context ingest returned an invalid screenshot URI');
+  if (
+    stored.screenshot_uri != null &&
+    (typeof stored.screenshot_uri !== 'string' ||
+      !stored.screenshot_uri.startsWith('stado://trading-tools/stock-context/'))
+  ) {
+    throw new Error(
+      'Trading Tools stock-context ingest returned an invalid screenshot URI',
+    );
   }
   return stored;
 }
@@ -114,7 +149,14 @@ async function ingestStockContext(body) {
  * @param {object} [params.metadata] - extra metadata
  * @returns {Promise<{id: string, screenshot_object_key: string|null, screenshot_uri: string|null, captured_at?: string}>}
  */
-export async function persistContext({ ticker, page, tab, data, screenshotPath, metadata }) {
+export async function persistContext({
+  ticker,
+  page,
+  tab,
+  data,
+  screenshotPath,
+  metadata,
+}) {
   if (!ticker) throw new Error('persistContext: ticker required');
   if (!page) throw new Error('persistContext: page required');
 

@@ -26,13 +26,23 @@ export class CDPFrame {
     this._parentFrame = parentFrame;
   }
 
-  get url(): string { return this._url; }
-  set url(v: string) { this._url = v; }
+  get url(): string {
+    return this._url;
+  }
+  set url(v: string) {
+    this._url = v;
+  }
 
-  get name(): string { return this._name; }
-  set name(v: string) { this._name = v; }
+  get name(): string {
+    return this._name;
+  }
+  set name(v: string) {
+    this._name = v;
+  }
 
-  get parentFrame(): CDPFrame | null { return this._parentFrame; }
+  get parentFrame(): CDPFrame | null {
+    return this._parentFrame;
+  }
 
   invalidateContext(): void {
     this._isolatedContextId = null;
@@ -40,32 +50,44 @@ export class CDPFrame {
 
   private async _ensureIsolatedWorld(): Promise<number> {
     if (this._isolatedContextId !== null) return this._isolatedContextId;
-    const result = await this._conn.send('Page.createIsolatedWorld', {
-      frameId: this.frameId,
-      worldName: '',
-      grantUniveralAccess: true,
-    }, this._sessionId);
+    const result = await this._conn.send(
+      'Page.createIsolatedWorld',
+      {
+        frameId: this.frameId,
+        worldName: '',
+        grantUniveralAccess: true,
+      },
+      this._sessionId,
+    );
     this._isolatedContextId = result.executionContextId;
     return this._isolatedContextId!;
   }
 
   async evaluate(expression: string, arg?: any): Promise<any> {
     const contextId = await this._ensureIsolatedWorld();
-    const result = await this._conn.send('Runtime.evaluate', {
-      expression: wrapExpression(expression, arg),
-      contextId,
-      returnByValue: true,
-      awaitPromise: true,
-    }, this._sessionId);
+    const result = await this._conn.send(
+      'Runtime.evaluate',
+      {
+        expression: wrapExpression(expression, arg),
+        contextId,
+        returnByValue: true,
+        awaitPromise: true,
+      },
+      this._sessionId,
+    );
     return extractValue(result);
   }
 
   async evaluateMain(expression: string, arg?: any): Promise<any> {
-    const result = await this._conn.send('Runtime.evaluate', {
-      expression: wrapExpression(expression, arg),
-      returnByValue: true,
-      awaitPromise: true,
-    }, this._sessionId);
+    const result = await this._conn.send(
+      'Runtime.evaluate',
+      {
+        expression: wrapExpression(expression, arg),
+        returnByValue: true,
+        awaitPromise: true,
+      },
+      this._sessionId,
+    );
     return extractValue(result);
   }
 
@@ -88,9 +110,13 @@ export class FrameTree {
     this._setupListeners();
   }
 
-  get mainFrame(): CDPFrame | null { return this._mainFrame; }
+  get mainFrame(): CDPFrame | null {
+    return this._mainFrame;
+  }
 
-  get frames(): CDPFrame[] { return [...this._frames.values()]; }
+  get frames(): CDPFrame[] {
+    return [...this._frames.values()];
+  }
 
   get(frameId: string): CDPFrame | undefined {
     return this._frames.get(frameId);
@@ -104,35 +130,52 @@ export class FrameTree {
   }
 
   private _setupListeners(): void {
-    this._conn.on('Page.frameAttached', (params: any) => {
-      const frameId: string = params.frameId;
-      const parentId: string = params.parentFrameId ?? '';
-      const parent = this._frames.get(parentId) ?? null;
-      this._frames.set(frameId,
-        new CDPFrame(frameId, this._conn, this._sessionId, '', '', parent));
-    }, this._sessionId);
-
-    this._conn.on('Page.frameNavigated', (params: any) => {
-      const info = params.frame ?? {};
-      const frameId: string = info.id ?? '';
-      let frame = this._frames.get(frameId);
-      if (!frame) {
-        frame = new CDPFrame(
-          frameId, this._conn, this._sessionId,
-          info.url ?? '', info.name ?? '',
+    this._conn.on(
+      'Page.frameAttached',
+      (params: any) => {
+        const frameId: string = params.frameId;
+        const parentId: string = params.parentFrameId ?? '';
+        const parent = this._frames.get(parentId) ?? null;
+        this._frames.set(
+          frameId,
+          new CDPFrame(frameId, this._conn, this._sessionId, '', '', parent),
         );
-        this._frames.set(frameId, frame);
-        if (!this._mainFrame) this._mainFrame = frame;
-      } else {
-        frame.url = info.url ?? frame.url;
-        frame.name = info.name ?? frame.name;
-        frame.invalidateContext();
-      }
-    }, this._sessionId);
+      },
+      this._sessionId,
+    );
 
-    this._conn.on('Page.frameDetached', (params: any) => {
-      this._frames.delete(params.frameId);
-    }, this._sessionId);
+    this._conn.on(
+      'Page.frameNavigated',
+      (params: any) => {
+        const info = params.frame ?? {};
+        const frameId: string = info.id ?? '';
+        let frame = this._frames.get(frameId);
+        if (!frame) {
+          frame = new CDPFrame(
+            frameId,
+            this._conn,
+            this._sessionId,
+            info.url ?? '',
+            info.name ?? '',
+          );
+          this._frames.set(frameId, frame);
+          if (!this._mainFrame) this._mainFrame = frame;
+        } else {
+          frame.url = info.url ?? frame.url;
+          frame.name = info.name ?? frame.name;
+          frame.invalidateContext();
+        }
+      },
+      this._sessionId,
+    );
+
+    this._conn.on(
+      'Page.frameDetached',
+      (params: any) => {
+        this._frames.delete(params.frameId);
+      },
+      this._sessionId,
+    );
   }
 }
 
@@ -144,10 +187,18 @@ export function wrapExpression(expression: string, arg?: any): string {
     let depth = 1;
     for (let i = 0; i < inner.length; i++) {
       if (inner[i] === '(') depth++;
-      else if (inner[i] === ')') { depth--; if (depth === 0 && i < inner.length - 1) return s; }
+      else if (inner[i] === ')') {
+        depth--;
+        if (depth === 0 && i < inner.length - 1) return s;
+      }
     }
   }
-  if (s.startsWith('(') || s.startsWith('function') || s.startsWith('async') || s.includes('=>')) {
+  if (
+    s.startsWith('(') ||
+    s.startsWith('function') ||
+    s.startsWith('async') ||
+    s.includes('=>')
+  ) {
     const serialized = arg !== undefined ? JSON.stringify(arg) : '';
     return `(${s})(${serialized})`;
   }
@@ -162,7 +213,9 @@ export function extractValue(result: any): any {
   const exception = result?.exceptionDetails;
   if (exception) {
     const exObj = exception.exception ?? {};
-    throw new CDPError(exObj.description ?? exObj.value ?? exception.text ?? '');
+    throw new CDPError(
+      exObj.description ?? exObj.value ?? exception.text ?? '',
+    );
   }
   return r.value;
 }

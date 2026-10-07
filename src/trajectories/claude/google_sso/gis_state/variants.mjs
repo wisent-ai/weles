@@ -44,9 +44,14 @@ export function classifyGisState(st) {
   if (!st || !st.ok) return 'unknown';
   if (st.host === 'platform.claude.com') return 'code_page';
   if (st.host === 'accounts.google.com') {
-    if (/\/signin\/rejected|deniedsigninrejected/.test(st.pathname)) return 'google_rejected';
+    if (/\/signin\/rejected|deniedsigninrejected/.test(st.pathname))
+      return 'google_rejected';
     if (st.accountRow) return 'google_account_chooser';
-    if (st.otherAccountRow || (/accountchooser|oauthchooseaccount/.test(st.pathname) && st.rowCount > 0)) return 'google_chooser_without_account';
+    if (
+      st.otherAccountRow ||
+      (/accountchooser|oauthchooseaccount/.test(st.pathname) && st.rowCount > 0)
+    )
+      return 'google_chooser_without_account';
     // Identifier first: the sign-in flow this file drives starts at the email
     // field, so a page offering both fields is an identifier page. A page with
     // only a password field is Google re-verifying an existing session, which
@@ -60,12 +65,14 @@ export function classifyGisState(st) {
     // the whole action. The older scope screen (/signin/oauth, /o/oauth2) is the
     // same decision, so both resolve here.
     if (st.googlePrimary) return 'google_confirm_continue';
-    if (/\/signin\/(v2\/)?challenge/.test(st.pathname)) return 'google_challenge';
+    if (/\/signin\/(v2\/)?challenge/.test(st.pathname))
+      return 'google_challenge';
     return 'google_other';
   }
   // A visible captcha challenge over claude.ai's page owns the decision: the
   // gate behind it stays disabled until someone answers it.
-  if (/(^|\.)claude\.(ai|com)$/.test(st.host) && st.captchaChallenge) return 'claude_captcha';
+  if (/(^|\.)claude\.(ai|com)$/.test(st.host) && st.captchaChallenge)
+    return 'claude_captcha';
   if (st.consent) return 'oauth_consent';
   // The grant screen is there but still loading: it enables Authorize itself.
   if (st.consentPending) return 'oauth_consent_pending';
@@ -75,13 +82,17 @@ export function classifyGisState(st) {
   if (st.gisButtonPending) return 'claude_gis_gate_pending';
   // claude.ai's app shell before it renders: no control yet, only the
   // loading marker. Nothing to click; the page renders into a driven state.
-  if (/(^|\.)claude\.(ai|com)$/.test(st.host) && st.appLoading) return 'claude_app_loading';
+  if (/(^|\.)claude\.(ai|com)$/.test(st.host) && st.appLoading)
+    return 'claude_app_loading';
   // Signed in, but claude.ai answered the CLI's authorize request with the app
   // itself: run 19ac8c0f ended on https://claude.ai/new titled "New chat -
   // Claude" as the only live page, with no grant affordance and no gate. The
   // session is exactly what the authorize URL needs, so this state is driven by
   // re-issuing that URL here rather than waited out.
-  if (/(^|\.)claude\.(ai|com)$/.test(st.host) && !/^\/(login|oauth)(\/|$)/.test(st.pathname)) {
+  if (
+    /(^|\.)claude\.(ai|com)$/.test(st.host) &&
+    !/^\/(login|oauth)(\/|$)/.test(st.pathname)
+  ) {
     return 'claude_app_authenticated';
   }
   return 'unknown';

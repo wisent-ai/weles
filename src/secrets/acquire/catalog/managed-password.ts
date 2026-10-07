@@ -15,7 +15,9 @@
 
 import type { SecretDefinition } from '../catalog.js';
 
-export function microsoftPasswordDefinition(credentialId: string): SecretDefinition {
+export function microsoftPasswordDefinition(
+  credentialId: string,
+): SecretDefinition {
   return {
     secret: credentialId,
     provider: 'microsoft',
@@ -25,10 +27,15 @@ export function microsoftPasswordDefinition(credentialId: string): SecretDefinit
     formUrl: 'https://account.live.com/password/Change',
     flowName: 'microsoft-password-lifecycle',
     endpoints: ['Microsoft account sign-in'],
-    usageText: 'Adopt, rotate, or verify one exact Microsoft account password and commit it to Skarbiec only after a fresh password login succeeds.',
+    usageText:
+      'Adopt, rotate, or verify one exact Microsoft account password and commit it to Skarbiec only after a fresh password login succeeds.',
     dailyRequests: '1',
     requestedScopes: [],
-    capabilities: ['password_adoption', 'password_rotation', 'fresh_login_verification'],
+    capabilities: [
+      'password_adoption',
+      'password_rotation',
+      'fresh_login_verification',
+    ],
     runtimeInstall: false,
     headless: false,
     storeSecretTarget: 'skarbiec',
@@ -39,11 +46,14 @@ export function microsoftPasswordDefinition(credentialId: string): SecretDefinit
 export const ENTRA_PROVIDER = 'microsoft_entra';
 export const ENTRA_ORIGIN = 'https://login.microsoftonline.com';
 export const ENTRA_UPN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-export const LOWER_UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
+export const LOWER_UUID =
+  /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
 
 // The deployment declaration pins the provider independently of the request.
 // Callers reject a conflicting requested provider before queueing a lifecycle.
-export function entraPasswordDefinition(credentialId: string): SecretDefinition {
+export function entraPasswordDefinition(
+  credentialId: string,
+): SecretDefinition {
   return {
     secret: credentialId,
     provider: ENTRA_PROVIDER,
@@ -53,10 +63,16 @@ export function entraPasswordDefinition(credentialId: string): SecretDefinition 
     formUrl: ENTRA_ORIGIN,
     flowName: 'microsoft-entra-password-lifecycle',
     endpoints: ['Microsoft Entra sign-in'],
-    usageText: 'Adopt, rotate, reset, or verify one exact Microsoft Entra directory password and commit it to Skarbiec only after the signed-in tenant, principal object id, and UPN are confirmed by a fresh login.',
+    usageText:
+      'Adopt, rotate, reset, or verify one exact Microsoft Entra directory password and commit it to Skarbiec only after the signed-in tenant, principal object id, and UPN are confirmed by a fresh login.',
     dailyRequests: '1',
     requestedScopes: [],
-    capabilities: ['password_adoption', 'password_rotation', 'password_reset', 'fresh_login_verification'],
+    capabilities: [
+      'password_adoption',
+      'password_rotation',
+      'password_reset',
+      'fresh_login_verification',
+    ],
     runtimeInstall: false,
     headless: false,
     storeSecretTarget: 'skarbiec',

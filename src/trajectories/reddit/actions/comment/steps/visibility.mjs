@@ -1,4 +1,9 @@
-import { contextRead, ownListingHas, publicAboutStatus, readOwnHandle } from './reddit_json.mjs';
+import {
+  contextRead,
+  ownListingHas,
+  publicAboutStatus,
+  readOwnHandle,
+} from './reddit_json.mjs';
 
 /**
  * Check a blocking submission signal against the authenticated comment
@@ -6,7 +11,13 @@ import { contextRead, ownListingHas, publicAboutStatus, readOwnHandle } from './
  * signal. Return false when it contains the comment; otherwise throw.
  */
 export async function confirmBlockingSignal(s, banSignal, body) {
-  if (!banSignal || !/^(rate_limited|shadowbanned|banned_account|banned_subreddit|thread_locked)$/.test(banSignal.signal)) return banSignal;
+  if (
+    !banSignal ||
+    !/^(rate_limited|shadowbanned|banned_account|banned_subreddit|thread_locked)$/.test(
+      banSignal.signal,
+    )
+  )
+    return banSignal;
   let inAuthListing = false;
   try {
     const me = await readOwnHandle(s.page);
@@ -15,11 +26,17 @@ export async function confirmBlockingSignal(s, banSignal, body) {
     console.log(`[ban-signal] auth listing unreadable: ${e.message}`);
   }
   if (inAuthListing) {
-    console.log(`[ban-signal] ${banSignal.signal} XHR signal — but comment IS in auth listing. Treating as false positive, continuing to public-visibility poll.`);
+    console.log(
+      `[ban-signal] ${banSignal.signal} XHR signal — but comment IS in auth listing. Treating as false positive, continuing to public-visibility poll.`,
+    );
     return false;
   }
-  console.log(`[ban-signal] ${banSignal.signal} (auth listing missing the comment, real failure)`);
-  throw new Error(`reddit returned ${banSignal.signal} on submit — ${banSignal?.details?.flagged_url ?? 'unknown endpoint'}`);
+  console.log(
+    `[ban-signal] ${banSignal.signal} (auth listing missing the comment, real failure)`,
+  );
+  throw new Error(
+    `reddit returned ${banSignal.signal} on submit — ${banSignal?.details?.flagged_url ?? 'unknown endpoint'}`,
+  );
 }
 
 /**
@@ -36,25 +53,48 @@ export async function confirmBlockingSignal(s, banSignal, body) {
  * Returns { publiclyVisible, stillVisibleAtEnd }: seen at least once, and
  * seen on the last poll.
  */
-export async function pollPublicVisibility(s, { baseUrl, postedCommentId, handle, body }) {
+export async function pollPublicVisibility(
+  s,
+  { baseUrl, postedCommentId, handle, body },
+) {
   if (postedCommentId) {
     // Reddit's comment-permalink JSON format is /r/<sub>/comments/<post>/<post-slug>/<comment-id>/.json
     // (NOT /r/<sub>/comments/<post>/<post-slug>/comment/<comment-id>/.json — the
     // /comment/ segment is not part of the comment-permalink JSON route).
-    const { status, body: text } = await contextRead(s, `${baseUrl}/${postedCommentId}/.json`);
-    let j = false; try { j = JSON.parse(text); } catch { /* not JSON: the permalink answered with a page */ }
+    const { status, body: text } = await contextRead(
+      s,
+      `${baseUrl}/${postedCommentId}/.json`,
+    );
+    let j = false;
+    try {
+      j = JSON.parse(text);
+    } catch {
+      /* not JSON: the permalink answered with a page */
+    }
     const commentNode = j?.[1]?.data?.children?.[0];
-    const has = commentNode?.kind === 't1' && commentNode?.data?.id === postedCommentId && (!handle || commentNode?.data?.author === handle);
-    console.log(`[verify] permalink id=${postedCommentId} status=${status} hasMatch=${has}`);
+    const has =
+      commentNode?.kind === 't1' &&
+      commentNode?.data?.id === postedCommentId &&
+      (!handle || commentNode?.data?.author === handle);
+    console.log(
+      `[verify] permalink id=${postedCommentId} status=${status} hasMatch=${has}`,
+    );
     return { publiclyVisible: has, stillVisibleAtEnd: has };
   }
   if (handle) {
-    const { status, body: text } = await contextRead(s, `https://old.reddit.com/user/${encodeURIComponent(handle)}/comments/.json?limit=25&sort=new`);
+    const { status, body: text } = await contextRead(
+      s,
+      `https://old.reddit.com/user/${encodeURIComponent(handle)}/comments/.json?limit=25&sort=new`,
+    );
     const has = text.includes(body);
-    console.log(`[verify] handle=${handle} userListing status=${status} bodyLen=${text.length} hasMatch=${has}`);
+    console.log(
+      `[verify] handle=${handle} userListing status=${status} bodyLen=${text.length} hasMatch=${has}`,
+    );
     return { publiclyVisible: has, stillVisibleAtEnd: has };
   }
-  throw new Error('reddit comment verify: neither a posted comment id nor the account handle is known, so public visibility cannot be read');
+  throw new Error(
+    'reddit comment verify: neither a posted comment id nor the account handle is known, so public visibility cannot be read',
+  );
 }
 
 /**
@@ -73,21 +113,65 @@ export async function pollPublicVisibility(s, { baseUrl, postedCommentId, handle
  */
 export async function classifyInvisibleComment(s, priorSignal, body) {
   let realHandle = false;
-  try { realHandle = await readOwnHandle(s.page); } catch (e) { console.log(`[ban-signal] own handle unreadable: ${e.message}`); }
+  try {
+    realHandle = await readOwnHandle(s.page);
+  } catch (e) {
+    console.log(`[ban-signal] own handle unreadable: ${e.message}`);
+  }
   let unauthAboutStatus = 0;
   let inAuthListing = false;
   if (realHandle) {
-    try { unauthAboutStatus = await publicAboutStatus(s, realHandle); } catch (e) { console.log(`[ban-signal] about.json unreadable: ${e.message}`); }
-    try { inAuthListing = await ownListingHas(s.page, realHandle, body, 15); } catch (e) { console.log(`[ban-signal] auth listing unreadable: ${e.message}`); }
+    try {
+      unauthAboutStatus = await publicAboutStatus(s, realHandle);
+    } catch (e) {
+      console.log(`[ban-signal] about.json unreadable: ${e.message}`);
+    }
+    try {
+      inAuthListing = await ownListingHas(s.page, realHandle, body, 15);
+    } catch (e) {
+      console.log(`[ban-signal] auth listing unreadable: ${e.message}`);
+    }
   }
   if (unauthAboutStatus === 404) {
-    return { signal: 'shadowbanned', healthy: false, details: { real_handle: realHandle, reason: 'about.json 404 publicly — account shadowbanned' } };
+    return {
+      signal: 'shadowbanned',
+      healthy: false,
+      details: {
+        real_handle: realHandle,
+        reason: 'about.json 404 publicly — account shadowbanned',
+      },
+    };
   }
   if (unauthAboutStatus === 200 && inAuthListing) {
-    return { signal: 'new_account_cooling', healthy: false, details: { real_handle: realHandle, reason: 'about.json 200 + comment in auth listing but not public — Reddit cooling new account' } };
+    return {
+      signal: 'new_account_cooling',
+      healthy: false,
+      details: {
+        real_handle: realHandle,
+        reason:
+          'about.json 200 + comment in auth listing but not public — Reddit cooling new account',
+      },
+    };
   }
   if (inAuthListing) {
-    return { signal: 'subreddit_filter', healthy: false, details: { real_handle: realHandle, reason: 'comment in auth listing but not public — subreddit AutoMod filtered it' } };
+    return {
+      signal: 'subreddit_filter',
+      healthy: false,
+      details: {
+        real_handle: realHandle,
+        reason:
+          'comment in auth listing but not public — subreddit AutoMod filtered it',
+      },
+    };
   }
-  return priorSignal || { signal: 'rate_limited', healthy: false, details: { real_handle: realHandle, reason: 'comment missing from auth listing — submission rejected' } };
+  return (
+    priorSignal || {
+      signal: 'rate_limited',
+      healthy: false,
+      details: {
+        real_handle: realHandle,
+        reason: 'comment missing from auth listing — submission rejected',
+      },
+    }
+  );
 }

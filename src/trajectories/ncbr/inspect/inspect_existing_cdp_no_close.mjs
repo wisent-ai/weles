@@ -17,13 +17,18 @@ if (!page) {
 const result = await page.evaluate(async () => {
   async function tryFetch(url) {
     try {
-      const res = await fetch(url, { credentials: 'include', headers: { Accept: 'application/json' } });
-      return { status: res.status, text: (await res.text()) };
+      const res = await fetch(url, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      return { status: res.status, text: await res.text() };
     } catch (error) {
       return { error: String(error?.message || error) };
     }
   }
-  const inputs = Array.from(document.querySelectorAll('input,textarea,select')).map((el) => ({
+  const inputs = Array.from(
+    document.querySelectorAll('input,textarea,select'),
+  ).map((el) => ({
     tag: el.tagName.toLowerCase(),
     type: el.getAttribute('type'),
     name: el.getAttribute('name'),
@@ -36,9 +41,11 @@ const result = await page.evaluate(async () => {
   return {
     href: location.href,
     title: document.title,
-    bodyText: (document.body?.innerText || ''),
+    bodyText: document.body?.innerText || '',
     inputs,
-    auth: await tryFetch('https://lsi2.ncbr.gov.pl/api/beneficiary/project/433468ab-ff8a-4bd2-9f03-7da65ba73e1f/get-user-permissions'),
+    auth: await tryFetch(
+      'https://lsi2.ncbr.gov.pl/api/beneficiary/project/433468ab-ff8a-4bd2-9f03-7da65ba73e1f/get-user-permissions',
+    ),
   };
 });
 

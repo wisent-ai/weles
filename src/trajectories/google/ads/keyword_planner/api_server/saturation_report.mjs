@@ -11,7 +11,10 @@ import { generateKeywordsWithRouter } from './model_router.mjs';
 function parseVolume(row) {
   const explicit = Number(row?.avgMonthlySearches);
   if (Number.isFinite(explicit)) return explicit;
-  const digits = String(row?.avgMonthlySearchesText || '').replace(/[^\d]/g, '');
+  const digits = String(row?.avgMonthlySearchesText || '').replace(
+    /[^\d]/g,
+    '',
+  );
   return digits ? Number(digits) : 0;
 }
 
@@ -34,14 +37,20 @@ function competitionPenalty(competition) {
 }
 
 function rankKeywordRows(rows) {
-  return [...(rows || [])].map((row) => {
-    const volume = parseVolume(row);
-    const yoy = parseSignedPercent(row.yoyChange);
-    const lowBid = parseBid(row, 'topOfPageBidLow');
-    const competition = row.competition || null;
-    const score = Math.log10(volume + 1) + Math.max(-1, Math.min(2, yoy / 100)) - competitionPenalty(competition) - (lowBid ? Math.min(0.4, lowBid / 25) : 0);
-    return { ...row, score: Number(score.toFixed(4)) };
-  }).sort((a, b) => b.score - a.score);
+  return [...(rows || [])]
+    .map((row) => {
+      const volume = parseVolume(row);
+      const yoy = parseSignedPercent(row.yoyChange);
+      const lowBid = parseBid(row, 'topOfPageBidLow');
+      const competition = row.competition || null;
+      const score =
+        Math.log10(volume + 1) +
+        Math.max(-1, Math.min(2, yoy / 100)) -
+        competitionPenalty(competition) -
+        (lowBid ? Math.min(0.4, lowBid / 25) : 0);
+      return { ...row, score: Number(score.toFixed(4)) };
+    })
+    .sort((a, b) => b.score - a.score);
 }
 
 function uniqueKeywords(values) {
@@ -58,7 +67,12 @@ function uniqueKeywords(values) {
 }
 
 function mergeRows(existingRows, newRows) {
-  const byKeyword = new Map(existingRows.map((row) => [normalizeKeyword(row.keyword).toLowerCase(), row]));
+  const byKeyword = new Map(
+    existingRows.map((row) => [
+      normalizeKeyword(row.keyword).toLowerCase(),
+      row,
+    ]),
+  );
   for (const row of newRows || []) {
     const key = normalizeKeyword(row.keyword).toLowerCase();
     if (!key || byKeyword.has(key)) continue;
@@ -67,9 +81,11 @@ function mergeRows(existingRows, newRows) {
   return [...byKeyword.values()];
 }
 
-
 export async function runKeywordReport(input, generation) {
-  let keywords = uniqueKeywords([...input.seedKeywords, ...generation.keywords]);
+  let keywords = uniqueKeywords([
+    ...input.seedKeywords,
+    ...generation.keywords,
+  ]);
   if (!keywords.length) throw new Error('no keyword candidates to check');
 
   const generations = [generation];
@@ -87,9 +103,14 @@ export async function runKeywordReport(input, generation) {
   let saturationRationale = generation.rationale || null;
 
   while (true) {
-    const pendingKeywords = keywords.filter((keyword) => !checkedKeys.has(keyword.toLowerCase()));
+    const pendingKeywords = keywords.filter(
+      (keyword) => !checkedKeys.has(keyword.toLowerCase()),
+    );
     if (pendingKeywords.length) {
-      const run = await runKeywordPlanner({ ...input, keywords: pendingKeywords });
+      const run = await runKeywordPlanner({
+        ...input,
+        keywords: pendingKeywords,
+      });
       lastRun = run;
       for (const keyword of pendingKeywords) {
         checkedKeys.add(keyword.toLowerCase());
@@ -118,24 +139,35 @@ export async function runKeywordReport(input, generation) {
 
     if (saturated) break;
 
-    const nextGeneration = await generateKeywordsWithRouter(input, { checkedKeywords, rows });
+    const nextGeneration = await generateKeywordsWithRouter(input, {
+      checkedKeywords,
+      rows,
+    });
     generations.push(nextGeneration);
     saturated = Boolean(nextGeneration.saturated);
     saturationRationale = nextGeneration.rationale || saturationRationale;
-    const nextKeywords = uniqueKeywords(nextGeneration.keywords)
-      .filter((keyword) => !keywords.some((existing) => existing.toLowerCase() === keyword.toLowerCase()));
+    const nextKeywords = uniqueKeywords(nextGeneration.keywords).filter(
+      (keyword) =>
+        !keywords.some(
+          (existing) => existing.toLowerCase() === keyword.toLowerCase(),
+        ),
+    );
     if (!nextKeywords.length) {
       saturated = true;
-      saturationRationale = nextGeneration.rationale || 'model-router returned no new deduped intent keywords';
+      saturationRationale =
+        nextGeneration.rationale ||
+        'model-router returned no new deduped intent keywords';
       break;
     }
     keywords = uniqueKeywords([...keywords, ...nextKeywords]);
   }
 
-  const uncheckedKeywords = keywords.filter((keyword) => !checkedKeys.has(keyword.toLowerCase()));
+  const uncheckedKeywords = keywords.filter(
+    (keyword) => !checkedKeys.has(keyword.toLowerCase()),
+  );
   return {
     ok: rows.length > 0,
-    exitCode: rows.length > 0 ? 0 : lastRun?.exitCode ?? 7,
+    exitCode: rows.length > 0 ? 0 : (lastRun?.exitCode ?? 7),
     resultFile: lastRun?.resultFile || null,
     stdout,
     stderr,

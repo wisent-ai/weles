@@ -22,13 +22,21 @@ await runHealthProbe({
     // past that. Instead rely on the final URL + HTTP status: unauthed gets
     // a 302 to /login, authed renders /settings/profile with status 200.
     const finalUrl = resp?.url ?? '';
-    const authed = /\/settings\/profile/.test(finalUrl) && !/\/login/.test(finalUrl) && resp?.status === 200;
+    const authed =
+      /\/settings\/profile/.test(finalUrl) &&
+      !/\/login/.test(finalUrl) &&
+      resp?.status === 200;
     const html = typeof body === 'string' ? body : '';
     return {
       ok: authed,
       karma: null,
-      is_suspended: /account (has been )?suspended|flagged for review/i.test(html),
+      is_suspended: /account (has been )?suspended|flagged for review/i.test(
+        html,
+      ),
     };
   },
-  extractLoggedOut: (resp) => resp.status === 200 && typeof resp.body === 'string' && !/this is not the web page you are looking for/i.test(resp.body),
+  extractLoggedOut: (resp) =>
+    resp.status === 200 &&
+    typeof resp.body === 'string' &&
+    !/this is not the web page you are looking for/i.test(resp.body),
 });

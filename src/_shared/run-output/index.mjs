@@ -23,7 +23,10 @@ const ROOT_VARIABLE = 'WELES_RUN_OUTPUT_DIR';
 
 export function runOutputRoot() {
   const configured = process.env[ROOT_VARIABLE]?.trim();
-  const root = configured && configured.length > 0 ? configured : join(homedir(), '.weles', 'runs');
+  const root =
+    configured && configured.length > 0
+      ? configured
+      : join(homedir(), '.weles', 'runs');
   if (!isAbsolute(root)) {
     throw new Error(`${ROOT_VARIABLE} must be an absolute path, got ${root}`);
   }

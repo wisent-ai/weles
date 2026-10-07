@@ -23,7 +23,10 @@ export interface Flow {
   lastSuccess: string;
 }
 
-const FLOWS_DIR = join(process.env.WELES_CACHE_DIR ?? join(homedir(), '.weles'), 'flows');
+const FLOWS_DIR = join(
+  process.env.WELES_CACHE_DIR ?? join(homedir(), '.weles'),
+  'flows',
+);
 
 function flowPath(name: string): string {
   mkdirSync(FLOWS_DIR, { recursive: true });
@@ -31,16 +34,31 @@ function flowPath(name: string): string {
 }
 
 function isFlow(value: unknown): value is Flow {
-  return typeof value === 'object' && value !== null
-    && 'schema' in value && value.schema === FLOW_SCHEMA
-    && 'name' in value && typeof value.name === 'string'
-    && 'lastSuccess' in value && typeof value.lastSuccess === 'string'
-    && 'steps' in value && Array.isArray(value.steps)
-    && value.steps.every((step: unknown) => typeof step === 'object' && step !== null
-      && 'tool' in step && typeof step.tool === 'string' && step.tool !== 'fill_credential'
-      && 'args' in step && typeof step.args === 'object' && step.args !== null
-      && !Array.isArray(step.args)
-      && (!('result' in step) || typeof step.result === 'string'));
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'schema' in value &&
+    value.schema === FLOW_SCHEMA &&
+    'name' in value &&
+    typeof value.name === 'string' &&
+    'lastSuccess' in value &&
+    typeof value.lastSuccess === 'string' &&
+    'steps' in value &&
+    Array.isArray(value.steps) &&
+    value.steps.every(
+      (step: unknown) =>
+        typeof step === 'object' &&
+        step !== null &&
+        'tool' in step &&
+        typeof step.tool === 'string' &&
+        step.tool !== 'fill_credential' &&
+        'args' in step &&
+        typeof step.args === 'object' &&
+        step.args !== null &&
+        !Array.isArray(step.args) &&
+        (!('result' in step) || typeof step.result === 'string'),
+    )
+  );
 }
 
 export function loadFlow(name: string): Flow | null {
@@ -49,14 +67,21 @@ export function loadFlow(name: string): Flow | null {
   try {
     const flow: unknown = JSON.parse(readFileSync(p, 'utf-8'));
     return isFlow(flow) ? flow : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 export function saveFlow(name: string, steps: FlowStep[]): boolean {
   // Scoped capabilities are one-shot. Their issued IDs are not a reusable
   // login recipe, even when this run successfully filled the field.
-  if (steps.some(step => step.tool === 'fill_credential')) return false;
-  const flow = { schema: FLOW_SCHEMA, name, steps, lastSuccess: new Date().toISOString() };
+  if (steps.some((step) => step.tool === 'fill_credential')) return false;
+  const flow = {
+    schema: FLOW_SCHEMA,
+    name,
+    steps,
+    lastSuccess: new Date().toISOString(),
+  };
   writeFileSync(flowPath(name), JSON.stringify(flow, null, 2));
   return true;
 }
@@ -69,7 +94,10 @@ export function saveFlow(name: string, steps: FlowStep[]): boolean {
 export async function replayFlow(
   flow: Flow,
   dispatch: (tool: string, args: Record<string, unknown>) => Promise<string>,
-): Promise<{ success: true; value?: unknown } | { success: false; failedAtStep: number; error?: unknown }> {
+): Promise<
+  | { success: true; value?: unknown }
+  | { success: false; failedAtStep: number; error?: unknown }
+> {
   for (let i = 0; i < flow.steps.length; i++) {
     const step = flow.steps[i];
     if (step.tool === 'done') return { success: true, value: step.args.value };

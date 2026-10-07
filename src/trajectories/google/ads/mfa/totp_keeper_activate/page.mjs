@@ -86,8 +86,9 @@ export async function clickText(values) {
 }
 
 export async function fill(selector, text) {
-  await action({ action: 'fill_fast', selector, text })
-    .catch(() => action({ action: 'set_value', selector, text }));
+  await action({ action: 'fill_fast', selector, text }).catch(() =>
+    action({ action: 'set_value', selector, text }),
+  );
   await idle('short');
 }
 

@@ -2,57 +2,117 @@
 // via /settings/profile (modern shreddit). Companion to the per-platform
 // edit_profile chain.
 
-import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
+import {
+  getSocialAccount,
+  resolveAccountSession,
+  markCookiesStale,
+} from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
-import { assertAuthed, AuthProbeError } from '../../_shared/auth/auth-probe.mjs';
-import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/auth/cookie-freshness.mjs';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../dist/human/mouse.js';
+import {
+  assertAuthed,
+  AuthProbeError,
+} from '../../_shared/auth/auth-probe.mjs';
+import {
+  loadFreshCookieJarOrFail,
+  CookieJarStaleError,
+} from '../../_shared/auth/cookie-freshness.mjs';
 import { loadAvatarFile } from '../../_shared/runner/avatar-loader.mjs';
 import { updateAccountMetadata } from '../../_shared/skarbiec/accounts.mjs';
 
-
 const acct = await getSocialAccount('reddit');
-if (!acct) { console.log('FAIL: no active reddit account in Skarbiec'); process.exit(1); }
+if (!acct) {
+  console.log('FAIL: no active reddit account in Skarbiec');
+  process.exit(1);
+}
 console.log(`[rd-profile] using account: ${acct.username}`);
 const character = acct.metadata?.character;
-if (!character || typeof character !== 'object') { console.log(`FAIL: no character stored for reddit/${acct.username}`); process.exit(1); }
-console.log(`[rd-profile] character: ${character.name} (niche=${character.niche})`);
-const avatarUrl = character.avatar_url
-  || (Array.isArray(character.training_images) ? character.training_images[0] : null);
+if (!character || typeof character !== 'object') {
+  console.log(`FAIL: no character stored for reddit/${acct.username}`);
+  process.exit(1);
+}
+console.log(
+  `[rd-profile] character: ${character.name} (niche=${character.niche})`,
+);
+const avatarUrl =
+  character.avatar_url ||
+  (Array.isArray(character.training_images)
+    ? character.training_images[0]
+    : null);
 
 const targetName = (character.name || '').slice(0, 30); // reddit display name cap
 const targetBio = (character.bio || '').slice(0, 200); // reddit "about" cap
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
-const s = await WSession.start({ label: 'reddit_edit_profile', proxy: proxyUrl, persona });
+const s = await WSession.start({
+  label: 'reddit_edit_profile',
+  proxy: proxyUrl,
+  persona,
+});
 
 try {
   let stored;
   try {
-    const all = loadFreshCookieJarOrFail(acct, { platform: 'reddit', label: 'reddit_edit_profile', currentProxyUrl: proxyUrl, currentPersona: persona });
-    stored = all.filter(c => /reddit\.com/.test(c.domain ?? ''));
-    if (!stored.length) throw new CookieJarStaleError('cookie_jar_no_domain_match: jar fresh but no reddit.com cookies', { platform: 'reddit' });
+    const all = loadFreshCookieJarOrFail(acct, {
+      platform: 'reddit',
+      label: 'reddit_edit_profile',
+      currentProxyUrl: proxyUrl,
+      currentPersona: persona,
+    });
+    stored = all.filter((c) => /reddit\.com/.test(c.domain ?? ''));
+    if (!stored.length)
+      throw new CookieJarStaleError(
+        'cookie_jar_no_domain_match: jar fresh but no reddit.com cookies',
+        { platform: 'reddit' },
+      );
   } catch (jarErr) {
-    if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); process.exit(1); }
+    if (jarErr instanceof CookieJarStaleError) {
+      console.log(`FAIL: ${jarErr.message}`);
+      await markCookiesStale(acct.id);
+      process.exit(1);
+    }
     throw jarErr;
   }
-  await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
+  await s.ctx.addCookies(stored.map((c) => ({ ...c, path: c.path || '/' })));
 
-  await s.page.goto('https://www.reddit.com/settings/profile', { waitUntil: 'domcontentloaded' });
+  await s.page.goto('https://www.reddit.com/settings/profile', {
+    waitUntil: 'domcontentloaded',
+  });
   await humanIdlePause('long');
   if (/\/login/.test(s.page.url())) {
     console.log(`FAIL: cookies stale, redirected to login (${s.page.url()})`);
     await markCookiesStale(acct.id);
     process.exit(1);
   }
-  try { await assertAuthed('reddit', s, { label: 'reddit_edit_profile' }); }
-  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
+  try {
+    await assertAuthed('reddit', s, { label: 'reddit_edit_profile' });
+  } catch (probeErr) {
+    if (probeErr instanceof AuthProbeError) {
+      console.log(`FAIL: ${probeErr.message}`);
+      await markCookiesStale(acct.id);
+      process.exit(1);
+    }
+    throw probeErr;
+  }
 
   // shreddit /settings/profile fields. The exact selectors vary across
   // cohorts, so try a wide net.
-  const nameIn = s.page.locator('input[name*="display" i], input[id*="displayName" i], input[aria-label*="display name" i]').filter({ visible: true }).first();
-  const bioIn = s.page.locator('textarea[name*="about" i], textarea[id*="about" i], textarea[aria-label*="about" i], textarea[placeholder*="about" i]').filter({ visible: true }).first();
+  const nameIn = s.page
+    .locator(
+      'input[name*="display" i], input[id*="displayName" i], input[aria-label*="display name" i]',
+    )
+    .filter({ visible: true })
+    .first();
+  const bioIn = s.page
+    .locator(
+      'textarea[name*="about" i], textarea[id*="about" i], textarea[aria-label*="about" i], textarea[placeholder*="about" i]',
+    )
+    .filter({ visible: true })
+    .first();
 
   const writes = [];
   if (await nameIn.count()) {
@@ -92,16 +152,28 @@ try {
   // that have never posted see "Unable to resolve profile" — make a
   // throwaway post first if your account is fresh.
   if (avatarUrl) {
-    const tmpAvatar = await loadAvatarFile(avatarUrl, { size: 512, format: 'jpeg', quality: 88 });
+    const tmpAvatar = await loadAvatarFile(avatarUrl, {
+      size: 512,
+      format: 'jpeg',
+      quality: 88,
+    });
     if (tmpAvatar) {
       try {
-        await s.page.goto(`https://www.reddit.com/user/${acct.username}/`, { waitUntil: 'domcontentloaded' });
+        await s.page.goto(`https://www.reddit.com/user/${acct.username}/`, {
+          waitUntil: 'domcontentloaded',
+        });
         await humanIdlePause('long');
-        const editAvatarBtn = s.page.locator('button[aria-label="Edit profile avatar"], [aria-label="Edit profile avatar"]').first();
+        const editAvatarBtn = s.page
+          .locator(
+            'button[aria-label="Edit profile avatar"], [aria-label="Edit profile avatar"]',
+          )
+          .first();
         if (await editAvatarBtn.count()) {
           await humanClickLocator(s.page, editAvatarBtn);
           await humanIdlePause('deliberate');
-          const selectBtn = s.page.locator('button:has-text("Select a new image")').first();
+          const selectBtn = s.page
+            .locator('button:has-text("Select a new image")')
+            .first();
           if (await selectBtn.count()) {
             const fcPromise = s.page.waitForEvent('filechooser');
             await humanClickLocator(s.page, selectBtn);
@@ -109,11 +181,17 @@ try {
             await fc.setFiles(tmpAvatar);
             await humanIdlePause('long');
             // Save lives in shadow DOM; Playwright locators pierce open shadow roots.
-            const saveCandidates = s.page.getByRole('button', { name: 'Save', exact: true }).filter({ visible: true });
+            const saveCandidates = s.page
+              .getByRole('button', { name: 'Save', exact: true })
+              .filter({ visible: true });
             let saved = false;
-            for (let index = 0; index < await saveCandidates.count(); index += 1) {
+            for (
+              let index = 0;
+              index < (await saveCandidates.count());
+              index += 1
+            ) {
               const candidate = saveCandidates.nth(index);
-              if (!await candidate.isEnabled().catch(() => false)) continue;
+              if (!(await candidate.isEnabled().catch(() => false))) continue;
               await humanClickLocator(s.page, candidate);
               saved = true;
               break;
@@ -121,10 +199,20 @@ try {
             if (saved) {
               await humanIdlePause('long');
               writes.push('avatar uploaded');
-            } else { console.log('[rd-profile] no enabled Save after setFiles'); }
-          } else { console.log('[rd-profile] no Select-a-new-image after Edit-avatar click'); }
-        } else { console.log('[rd-profile] Edit-profile-avatar button not visible'); }
-      } catch (e) { console.log(`[rd-profile] avatar err: ${e.message}`); }
+            } else {
+              console.log('[rd-profile] no enabled Save after setFiles');
+            }
+          } else {
+            console.log(
+              '[rd-profile] no Select-a-new-image after Edit-avatar click',
+            );
+          }
+        } else {
+          console.log('[rd-profile] Edit-profile-avatar button not visible');
+        }
+      } catch (e) {
+        console.log(`[rd-profile] avatar err: ${e.message}`);
+      }
     }
   }
 
@@ -134,11 +222,19 @@ try {
     updated_at: new Date().toISOString(),
   });
 
-  if (!writes.length) { console.log('PASS: no-op (form values already match character; Skarbiec synced)'); process.exit(0); }
+  if (!writes.length) {
+    console.log(
+      'PASS: no-op (form values already match character; Skarbiec synced)',
+    );
+    process.exit(0);
+  }
   console.log(`[rd-profile] writes: ${writes.join('; ')}`);
 
   // shreddit's save uses a Save button at the bottom of the form section.
-  const saveBtn = s.page.locator('button:has-text("Save"), button[type="submit"]').filter({ visible: true }).first();
+  const saveBtn = s.page
+    .locator('button:has-text("Save"), button[type="submit"]')
+    .filter({ visible: true })
+    .first();
   await saveBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, saveBtn);
   await humanIdlePause('deliberate');

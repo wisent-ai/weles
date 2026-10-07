@@ -59,7 +59,9 @@ const chromiumDefaults = {
 function findChromiumBinary(explicitPath?: string): string {
   if (explicitPath) {
     if (existsSync(explicitPath)) return explicitPath;
-    throw new Error(`Chromium binary not found at explicit path: ${explicitPath}`);
+    throw new Error(
+      `Chromium binary not found at explicit path: ${explicitPath}`,
+    );
   }
 
   const envPath = process.env.CHROMIUM_PATH;
@@ -81,14 +83,17 @@ function findChromiumBinary(explicitPath?: string): string {
   }
 
   throw new Error(
-    'Could not find a Chromium binary. Set CHROMIUM_PATH or pass chromiumPath in options.'
+    'Could not find a Chromium binary. Set CHROMIUM_PATH or pass chromiumPath in options.',
   );
 }
 
-export async function launchChromium(options: LaunchOptions = {}): Promise<LaunchResult> {
+export async function launchChromium(
+  options: LaunchOptions = {},
+): Promise<LaunchResult> {
   const binary = findChromiumBinary(options.chromiumPath);
 
-  const userDataDir = options.userDataDir ?? mkdtempSync(join(tmpdir(), 'weles-'));
+  const userDataDir =
+    options.userDataDir ?? mkdtempSync(join(tmpdir(), 'weles-'));
 
   const launchArgs = [...chromiumDefaults.args];
 
@@ -103,7 +108,10 @@ export async function launchChromium(options: LaunchOptions = {}): Promise<Launc
     try {
       const pu = new URL(options.proxyServer);
       if (pu.username) {
-        proxyAuth = { username: decodeURIComponent(pu.username), password: decodeURIComponent(pu.password) };
+        proxyAuth = {
+          username: decodeURIComponent(pu.username),
+          password: decodeURIComponent(pu.password),
+        };
         launchArgs.push(`--proxy-server=${pu.protocol}//${pu.host}`);
       } else {
         launchArgs.push(`--proxy-server=${options.proxyServer}`);
@@ -131,8 +139,8 @@ export async function launchChromium(options: LaunchOptions = {}): Promise<Launc
     child.on('exit', (code, signal) => {
       reject(
         new Error(
-          `Chromium exited before DevTools URL was found (code=${code}, signal=${signal})`
-        )
+          `Chromium exited before DevTools URL was found (code=${code}, signal=${signal})`,
+        ),
       );
     });
 

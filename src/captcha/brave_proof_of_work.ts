@@ -4,19 +4,36 @@
 
 // Resolves in the page, on an animation frame, once the challenge form shows
 // one of the outcomes the caller is watching for (or has gone away).
-async function braveFormChanged(page: Page, phase: 'validation' | 'calculation'): Promise<void> {
-  await page.waitForFunction((which: string) => {
-    const solution = document.querySelector<HTMLInputElement>('input[name="captchaSolution"]');
-    const button = document.querySelector<HTMLButtonElement>('#captcha-button');
-    if (!solution || !button) return true;
-    const form = button.closest('form');
-    if (form && !form.checkValidity()) return true;
-    const alerted = Array.from(document.querySelectorAll<HTMLElement>('.alert, [role="alert"], .error'))
-      .some(element => element.innerText.trim().length > 0);
-    if (alerted && (which === 'validation' || !/verifying/i.test(button.innerText))) return true;
-    if (which === 'validation') return !button.disabled;
-    return solution.value.length > 0 || /verified/i.test(button.innerText);
-  }, phase, { polling: 'raf' });
+async function braveFormChanged(
+  page: Page,
+  phase: 'validation' | 'calculation',
+): Promise<void> {
+  await page.waitForFunction(
+    (which: string) => {
+      const solution = document.querySelector<HTMLInputElement>(
+        'input[name="captchaSolution"]',
+      );
+      const button =
+        document.querySelector<HTMLButtonElement>('#captcha-button');
+      if (!solution || !button) return true;
+      const form = button.closest('form');
+      if (form && !form.checkValidity()) return true;
+      const alerted = Array.from(
+        document.querySelectorAll<HTMLElement>(
+          '.alert, [role="alert"], .error',
+        ),
+      ).some((element) => element.innerText.trim().length > 0);
+      if (
+        alerted &&
+        (which === 'validation' || !/verifying/i.test(button.innerText))
+      )
+        return true;
+      if (which === 'validation') return !button.disabled;
+      return solution.value.length > 0 || /verified/i.test(button.innerText);
+    },
+    phase,
+    { polling: 'raf' },
+  );
 }
 
 type Page = any;
@@ -31,14 +48,20 @@ export interface BraveProofOfWorkState {
   url: string;
 }
 
-export async function braveProofOfWorkState(page: Page): Promise<BraveProofOfWorkState | null> {
+export async function braveProofOfWorkState(
+  page: Page,
+): Promise<BraveProofOfWorkState | null> {
   return await page.evaluate(() => {
-    const solution = document.querySelector<HTMLInputElement>('input[name="captchaSolution"]');
+    const solution = document.querySelector<HTMLInputElement>(
+      'input[name="captchaSolution"]',
+    );
     const button = document.querySelector<HTMLButtonElement>('#captcha-button');
     if (!solution || !button) return null;
     const form = button.closest('form');
-    const errorText = Array.from(document.querySelectorAll<HTMLElement>('.alert, [role="alert"], .error'))
-      .map(element => element.innerText.trim())
+    const errorText = Array.from(
+      document.querySelectorAll<HTMLElement>('.alert, [role="alert"], .error'),
+    )
+      .map((element) => element.innerText.trim())
       .filter(Boolean)
       .join(' ');
     return {
@@ -53,25 +76,36 @@ export async function braveProofOfWorkState(page: Page): Promise<BraveProofOfWor
   });
 }
 
-export async function solveBraveProofOfWork(page: Page, initial: BraveProofOfWorkState): Promise<boolean> {
+export async function solveBraveProofOfWork(
+  page: Page,
+  initial: BraveProofOfWorkState,
+): Promise<boolean> {
   let ready = initial;
   if (!ready.formValid) {
-    console.log('[captcha] Brave proof-of-work blocked: registration form is invalid');
+    console.log(
+      '[captcha] Brave proof-of-work blocked: registration form is invalid',
+    );
     return false;
   }
 
   if (ready.buttonDisabled && ready.solutionLength === 0) {
-    console.log('[captcha] Brave proof-of-work waiting for registration validation');
+    console.log(
+      '[captcha] Brave proof-of-work waiting for registration validation',
+    );
     await braveFormChanged(page, 'validation');
     const state = await braveProofOfWorkState(page);
     if (!state) return false;
     ready = state;
     if (!ready.formValid) {
-      console.log('[captcha] Brave proof-of-work blocked: registration form became invalid');
+      console.log(
+        '[captcha] Brave proof-of-work blocked: registration form became invalid',
+      );
       return false;
     }
     if (ready.errorText) {
-      console.log(`[captcha] Brave proof-of-work validation failed: ${ready.errorText}`);
+      console.log(
+        `[captcha] Brave proof-of-work validation failed: ${ready.errorText}`,
+      );
       return false;
     }
   }
@@ -83,7 +117,8 @@ export async function solveBraveProofOfWork(page: Page, initial: BraveProofOfWor
     console.log('[captcha] Brave proof-of-work calculation started');
   }
 
-  if (ready.solutionLength > 0 || /verified/i.test(ready.buttonText)) return true;
+  if (ready.solutionLength > 0 || /verified/i.test(ready.buttonText))
+    return true;
   const initialURL = ready.url;
   for (;;) {
     try {
@@ -97,14 +132,20 @@ export async function solveBraveProofOfWork(page: Page, initial: BraveProofOfWor
     if (!state) {
       const currentURL = page.url?.() ?? '';
       if (currentURL !== initialURL) {
-        console.log('[captcha] Brave proof-of-work submitted the registration form');
+        console.log(
+          '[captcha] Brave proof-of-work submitted the registration form',
+        );
         return true;
       }
-      console.log('[captcha] Brave proof-of-work form disappeared after calculation');
+      console.log(
+        '[captcha] Brave proof-of-work form disappeared after calculation',
+      );
       return true;
     }
     if (state.solutionLength > 0 || /verified/i.test(state.buttonText)) {
-      console.log(`[captcha] Brave proof-of-work solved solution_length=${state.solutionLength}`);
+      console.log(
+        `[captcha] Brave proof-of-work solved solution_length=${state.solutionLength}`,
+      );
       return true;
     }
     if (state.url !== initialURL) {
@@ -116,7 +157,9 @@ export async function solveBraveProofOfWork(page: Page, initial: BraveProofOfWor
       return false;
     }
     if (!state.formValid) {
-      console.log(`[captcha] Brave proof-of-work blocked: registration form became invalid started=${started}`);
+      console.log(
+        `[captcha] Brave proof-of-work blocked: registration form became invalid started=${started}`,
+      );
       return false;
     }
   }

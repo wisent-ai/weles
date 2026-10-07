@@ -44,7 +44,11 @@ function allAccessLogs(ws: any): any[] {
 }
 
 function countAccess(logs: any[], obj: string, propPrefix?: string): number {
-  return logs.filter((x) => x?.o === obj && (!propPrefix || String(x?.p ?? '').startsWith(propPrefix))).length;
+  return logs.filter(
+    (x) =>
+      x?.o === obj &&
+      (!propPrefix || String(x?.p ?? '').startsWith(propPrefix)),
+  ).length;
 }
 
 function status(hasData: boolean, wasAttempted: boolean): CoverageStatus {
@@ -55,37 +59,87 @@ function status(hasData: boolean, wasAttempted: boolean): CoverageStatus {
 export function buildCaptureCoverage(ws: any): any {
   const logs = allAccessLogs(ws);
   const collectors: CollectorCoverage[] = [];
-  const add = (id: string, section: string, collector: string, expected: string, s: CoverageStatus, evidence: Evidence[]) => {
+  const add = (
+    id: string,
+    section: string,
+    collector: string,
+    expected: string,
+    s: CoverageStatus,
+    evidence: Evidence[],
+  ) => {
     collectors.push({ id, section, collector, expected, status: s, evidence });
   };
 
   const accessCount = logs.length;
-  add('A.runtime.page_access_log', 'A', 'page-side runtime access log', 'property reads and wrapped method calls across frames', status(accessCount > 0, !!ws?._instAccum), [
-    { field: 'accesses[].log', count: accessCount },
-  ]);
-  add('A.runtime.console_errors', 'A', 'console and page error capture', 'Playwright and CDP console/error events', status(len(ws?._instConsole) + len(ws?._instPageErrors) + len(ws?._instRuntime) > 0, true), [
-    { field: 'console', count: len(ws?._instConsole) },
-    { field: 'pageerrors', count: len(ws?._instPageErrors) },
-    { field: 'runtime', count: len(ws?._instRuntime) },
-  ]);
+  add(
+    'A.runtime.page_access_log',
+    'A',
+    'page-side runtime access log',
+    'property reads and wrapped method calls across frames',
+    status(accessCount > 0, !!ws?._instAccum),
+    [{ field: 'accesses[].log', count: accessCount }],
+  );
+  add(
+    'A.runtime.console_errors',
+    'A',
+    'console and page error capture',
+    'Playwright and CDP console/error events',
+    status(
+      len(ws?._instConsole) + len(ws?._instPageErrors) + len(ws?._instRuntime) >
+        0,
+      true,
+    ),
+    [
+      { field: 'console', count: len(ws?._instConsole) },
+      { field: 'pageerrors', count: len(ws?._instPageErrors) },
+      { field: 'runtime', count: len(ws?._instRuntime) },
+    ],
+  );
 
   const canvasCount = countAccess(logs, 'Canvas');
-  add('B.rendering.canvas', 'B', 'canvas pixel hooks', 'toDataURL/getImageData raw output', status(canvasCount > 0, accessCount > 0), [
-    { field: 'accesses.Canvas', count: canvasCount },
-  ]);
-  const audioCount = countAccess(logs, 'AudioBuffer') + countAccess(logs, 'OfflineAudioContext');
-  add('B.rendering.audio', 'B', 'audio output hooks', 'AudioBuffer and OfflineAudioContext rendered bytes', status(audioCount > 0, accessCount > 0), [
-    { field: 'accesses.AudioBuffer+OfflineAudioContext', count: audioCount },
-    { field: 'webaudio', count: len(ws?._instWebAudio), error: errorOf(ws, '_instWebAudioError') },
-  ]);
+  add(
+    'B.rendering.canvas',
+    'B',
+    'canvas pixel hooks',
+    'toDataURL/getImageData raw output',
+    status(canvasCount > 0, accessCount > 0),
+    [{ field: 'accesses.Canvas', count: canvasCount }],
+  );
+  const audioCount =
+    countAccess(logs, 'AudioBuffer') + countAccess(logs, 'OfflineAudioContext');
+  add(
+    'B.rendering.audio',
+    'B',
+    'audio output hooks',
+    'AudioBuffer and OfflineAudioContext rendered bytes',
+    status(audioCount > 0, accessCount > 0),
+    [
+      { field: 'accesses.AudioBuffer+OfflineAudioContext', count: audioCount },
+      {
+        field: 'webaudio',
+        count: len(ws?._instWebAudio),
+        error: errorOf(ws, '_instWebAudioError'),
+      },
+    ],
+  );
   const glCount = countAccess(logs, 'WebGL') + countAccess(logs, 'WebGL2');
-  add('B.rendering.webgl', 'B', 'WebGL parameter hooks', 'WebGL/WebGL2 getParameter reads', status(glCount > 0, accessCount > 0), [
-    { field: 'accesses.WebGL+WebGL2', count: glCount },
-  ]);
+  add(
+    'B.rendering.webgl',
+    'B',
+    'WebGL parameter hooks',
+    'WebGL/WebGL2 getParameter reads',
+    status(glCount > 0, accessCount > 0),
+    [{ field: 'accesses.WebGL+WebGL2', count: glCount }],
+  );
   const gpuCount = countAccess(logs, 'WebGPU');
-  add('B.rendering.webgpu', 'B', 'WebGPU adapter hook', 'requestAdapter info/features/limits', status(gpuCount > 0, accessCount > 0), [
-    { field: 'accesses.WebGPU', count: gpuCount },
-  ]);
+  add(
+    'B.rendering.webgpu',
+    'B',
+    'WebGPU adapter hook',
+    'requestAdapter info/features/limits',
+    status(gpuCount > 0, accessCount > 0),
+    [{ field: 'accesses.WebGPU', count: gpuCount }],
+  );
 
   let cdpTargetCount = 0;
   if (Array.isArray(ws?._instTargetEvents)) {
@@ -93,69 +147,227 @@ export function buildCaptureCoverage(ws: any): any {
       if (event?.phase !== 'attach_error') cdpTargetCount++;
     }
   }
-  const cdpAny = len(ws?._instCdpFirehose) + cdpTargetCount + len(ws?._instFrameEvents);
-  add('C.cdp.firehose', 'C', 'CDP event firehose', 'every subscribed CDP event, whole', status(cdpAny > 0, !!ws?._cdpDiagnosticsReady), [
-    { field: 'cdp_firehose', count: len(ws?._instCdpFirehose) },
-    { field: 'cdp_targets', count: cdpTargetCount, error: errorOf(ws, '_cdpAttachError') },
-    { field: 'cdp_frames', count: len(ws?._instFrameEvents) },
-  ]);
-  add('C.cdp.final_snapshots', 'C', 'final CDP snapshots', 'DOMSnapshot, pierced DOM, heap snapshot, browser/process state', status(present(ws?._instDomSnapshot) || present(ws?._instHeapSnapshot), !!ws?._cdp), [
-    { field: 'dom_snapshot', present: present(ws?._instDomSnapshot), error: errorOf(ws, '_instDomSnapshotError') },
-    { field: 'dom_pierced_tree', present: present(ws?._instDomPiercedTree), error: errorOf(ws, '_instDomPiercedTreeError') },
-    { field: 'heap_snapshot', present: present(ws?._instHeapSnapshot), error: errorOf(ws, '_instHeapSnapshotError') },
-    { field: 'system_info', present: present(ws?._instSystemInfo) },
-  ]);
-  add('C.cdp.metrics_tracing_coverage', 'C', 'metrics, tracing, and coverage', 'Performance/Memory activity checkpoints, Tracing, JS/CSS coverage', status(len(ws?._instMetricsHistory) + len(ws?._instTracing) > 0 || present(ws?._instJsCoverageData), !!ws?._cdp), [
-    { field: 'cdp_metrics', count: len(ws?._instMetricsHistory) },
-    { field: 'cdp_tracing', count: len(ws?._instTracing), error: errorOf(ws, '_instTracingError') },
-    { field: 'js_coverage', present: present(ws?._instJsCoverageData), error: errorOf(ws, '_instJsCoverageError') },
-    { field: 'css_coverage', present: present(ws?._instCssCoverageData), error: errorOf(ws, '_instCssCoverageError') },
-  ]);
+  const cdpAny =
+    len(ws?._instCdpFirehose) + cdpTargetCount + len(ws?._instFrameEvents);
+  add(
+    'C.cdp.firehose',
+    'C',
+    'CDP event firehose',
+    'every subscribed CDP event, whole',
+    status(cdpAny > 0, !!ws?._cdpDiagnosticsReady),
+    [
+      { field: 'cdp_firehose', count: len(ws?._instCdpFirehose) },
+      {
+        field: 'cdp_targets',
+        count: cdpTargetCount,
+        error: errorOf(ws, '_cdpAttachError'),
+      },
+      { field: 'cdp_frames', count: len(ws?._instFrameEvents) },
+    ],
+  );
+  add(
+    'C.cdp.final_snapshots',
+    'C',
+    'final CDP snapshots',
+    'DOMSnapshot, pierced DOM, heap snapshot, browser/process state',
+    status(
+      present(ws?._instDomSnapshot) || present(ws?._instHeapSnapshot),
+      !!ws?._cdp,
+    ),
+    [
+      {
+        field: 'dom_snapshot',
+        present: present(ws?._instDomSnapshot),
+        error: errorOf(ws, '_instDomSnapshotError'),
+      },
+      {
+        field: 'dom_pierced_tree',
+        present: present(ws?._instDomPiercedTree),
+        error: errorOf(ws, '_instDomPiercedTreeError'),
+      },
+      {
+        field: 'heap_snapshot',
+        present: present(ws?._instHeapSnapshot),
+        error: errorOf(ws, '_instHeapSnapshotError'),
+      },
+      { field: 'system_info', present: present(ws?._instSystemInfo) },
+    ],
+  );
+  add(
+    'C.cdp.metrics_tracing_coverage',
+    'C',
+    'metrics, tracing, and coverage',
+    'Performance/Memory activity checkpoints, Tracing, JS/CSS coverage',
+    status(
+      len(ws?._instMetricsHistory) + len(ws?._instTracing) > 0 ||
+        present(ws?._instJsCoverageData),
+      !!ws?._cdp,
+    ),
+    [
+      { field: 'cdp_metrics', count: len(ws?._instMetricsHistory) },
+      {
+        field: 'cdp_tracing',
+        count: len(ws?._instTracing),
+        error: errorOf(ws, '_instTracingError'),
+      },
+      {
+        field: 'js_coverage',
+        present: present(ws?._instJsCoverageData),
+        error: errorOf(ws, '_instJsCoverageError'),
+      },
+      {
+        field: 'css_coverage',
+        present: present(ws?._instCssCoverageData),
+        error: errorOf(ws, '_instCssCoverageError'),
+      },
+    ],
+  );
 
-  add('D.network.playwright', 'D', 'Playwright network/body capture', 'requests, responses, failures, bodies, WebSocket frames', status(len(ws?._instRequests) > 0, !!ws?._instRequests), [
-    { field: 'requests', count: len(ws?._instRequests) },
-  ]);
-  add('D.network.cdp_extra', 'D', 'CDP network extra-info', 'wire headers, cookie blocking, cache, WebSocket handshake events', status(len(ws?._instCdpNetwork) > 0, !!ws?._cdp), [
-    { field: 'cdp_network', count: len(ws?._instCdpNetwork) },
-  ]);
-  add('D.network.pcap', 'D', 'pcap sidecar', 'tcpdump pcap plus SSLKEYLOGFILE path/status', status(!!ws?._instPcap?.enabled && !ws?._instPcap?.spawn_error, !!ws?._instPcap), [
-    { field: 'pcap.enabled', present: !!ws?._instPcap?.enabled, error: ws?._instPcap?.spawn_error ?? null },
-  ]);
+  add(
+    'D.network.playwright',
+    'D',
+    'Playwright network/body capture',
+    'requests, responses, failures, bodies, WebSocket frames',
+    status(len(ws?._instRequests) > 0, !!ws?._instRequests),
+    [{ field: 'requests', count: len(ws?._instRequests) }],
+  );
+  add(
+    'D.network.cdp_extra',
+    'D',
+    'CDP network extra-info',
+    'wire headers, cookie blocking, cache, WebSocket handshake events',
+    status(len(ws?._instCdpNetwork) > 0, !!ws?._cdp),
+    [{ field: 'cdp_network', count: len(ws?._instCdpNetwork) }],
+  );
+  add(
+    'D.network.pcap',
+    'D',
+    'pcap sidecar',
+    'tcpdump pcap plus SSLKEYLOGFILE path/status',
+    status(
+      !!ws?._instPcap?.enabled && !ws?._instPcap?.spawn_error,
+      !!ws?._instPcap,
+    ),
+    [
+      {
+        field: 'pcap.enabled',
+        present: !!ws?._instPcap?.enabled,
+        error: ws?._instPcap?.spawn_error ?? null,
+      },
+    ],
+  );
 
-  add('E.host.snapshots', 'E', 'host snapshot bundle', 'process, network, DNS, power, route, lsof, and platform summaries', status(present(ws?._instHostSnapshots), true), [
-    { field: 'host_snapshots', count: len(ws?._instHostSnapshots) },
-    { field: 'host', present: present(ws?._instHost) },
-  ]);
-  add('F.provenance.persona_proxy', 'F', 'persona, proxy, and version provenance', 'persona/proxy config and version fields', status(present(ws?.personaConfig) || present(ws?.proxyConfig) || present(ws?._versions), true), [
-    { field: 'persona', present: present(ws?.personaConfig) },
-    { field: 'proxy', present: present(ws?.proxyConfig) },
-    { field: 'versions', present: present(ws?._versions) },
-  ]);
-  add('H.storage.state', 'H', 'browser storage state', 'context storage snapshots and storage events', status(len(ws?._instStorageHistory) + len(ws?._instStorageEvents) > 0, !!ws?._instStorageHistory), [
-    { field: 'storage_history', count: len(ws?._instStorageHistory) },
-    { field: 'storage_events', count: len(ws?._instStorageEvents) },
-    { field: 'indexed_db', count: len(ws?._instIndexedDb), error: errorOf(ws, '_instIndexedDbError') },
-  ]);
-  add('I.workers.contexts', 'I', 'worker inventory and events', 'worker global surface snapshots plus Runtime/Network events', status(len(ws?._instWorkerSurfaces) + len(ws?._instWorkerEvents) > 0, !!ws?._instWorkerSurfaces), [
-    { field: 'worker_surfaces', count: len(ws?._instWorkerSurfaces), error: errorOf(ws, '_instWorkerSurfacesError') },
-    { field: 'worker_events', count: len(ws?._instWorkerEvents) },
-  ]);
+  add(
+    'E.host.snapshots',
+    'E',
+    'host snapshot bundle',
+    'process, network, DNS, power, route, lsof, and platform summaries',
+    status(present(ws?._instHostSnapshots), true),
+    [
+      { field: 'host_snapshots', count: len(ws?._instHostSnapshots) },
+      { field: 'host', present: present(ws?._instHost) },
+    ],
+  );
+  add(
+    'F.provenance.persona_proxy',
+    'F',
+    'persona, proxy, and version provenance',
+    'persona/proxy config and version fields',
+    status(
+      present(ws?.personaConfig) ||
+        present(ws?.proxyConfig) ||
+        present(ws?._versions),
+      true,
+    ),
+    [
+      { field: 'persona', present: present(ws?.personaConfig) },
+      { field: 'proxy', present: present(ws?.proxyConfig) },
+      { field: 'versions', present: present(ws?._versions) },
+    ],
+  );
+  add(
+    'H.storage.state',
+    'H',
+    'browser storage state',
+    'context storage snapshots and storage events',
+    status(
+      len(ws?._instStorageHistory) + len(ws?._instStorageEvents) > 0,
+      !!ws?._instStorageHistory,
+    ),
+    [
+      { field: 'storage_history', count: len(ws?._instStorageHistory) },
+      { field: 'storage_events', count: len(ws?._instStorageEvents) },
+      {
+        field: 'indexed_db',
+        count: len(ws?._instIndexedDb),
+        error: errorOf(ws, '_instIndexedDbError'),
+      },
+    ],
+  );
+  add(
+    'I.workers.contexts',
+    'I',
+    'worker inventory and events',
+    'worker global surface snapshots plus Runtime/Network events',
+    status(
+      len(ws?._instWorkerSurfaces) + len(ws?._instWorkerEvents) > 0,
+      !!ws?._instWorkerSurfaces,
+    ),
+    [
+      {
+        field: 'worker_surfaces',
+        count: len(ws?._instWorkerSurfaces),
+        error: errorOf(ws, '_instWorkerSurfacesError'),
+      },
+      { field: 'worker_events', count: len(ws?._instWorkerEvents) },
+    ],
+  );
   const rtcCount = countAccess(logs, 'RTCPeerConnection');
-  add('J.webrtc.page_hooks', 'J', 'WebRTC page hooks', 'SDP, ICE, and getStats observed from page calls', status(rtcCount > 0, accessCount > 0), [
-    { field: 'accesses.RTCPeerConnection', count: rtcCount },
-  ]);
+  add(
+    'J.webrtc.page_hooks',
+    'J',
+    'WebRTC page hooks',
+    'SDP, ICE, and getStats observed from page calls',
+    status(rtcCount > 0, accessCount > 0),
+    [{ field: 'accesses.RTCPeerConnection', count: rtcCount }],
+  );
   const inputCount = countAccess(logs, 'Input');
-  add('K.trajectory.input_events', 'K', 'input event recorder', 'pointer, keyboard, wheel, scroll, focus, blur, and value changes', status(inputCount > 0, accessCount > 0), [
-    { field: 'accesses.Input', count: inputCount },
-  ]);
-  add('M.artifacts.sibling_manifest', 'M', 'recording artifact manifest', 'sibling screenshots, DOM, video, pcap, netlog, and aux files', status(!!ws?._instDir, !!ws?._instDir), [
-    { field: 'sibling_files_available_at_serialize', present: !!ws?._instDir },
-  ]);
+  add(
+    'K.trajectory.input_events',
+    'K',
+    'input event recorder',
+    'pointer, keyboard, wheel, scroll, focus, blur, and value changes',
+    status(inputCount > 0, accessCount > 0),
+    [{ field: 'accesses.Input', count: inputCount }],
+  );
+  add(
+    'M.artifacts.sibling_manifest',
+    'M',
+    'recording artifact manifest',
+    'sibling screenshots, DOM, video, pcap, netlog, and aux files',
+    status(!!ws?._instDir, !!ws?._instDir),
+    [
+      {
+        field: 'sibling_files_available_at_serialize',
+        present: !!ws?._instDir,
+      },
+    ],
+  );
 
-  const missing = 'A.js_native_matrix|A.wasm_matrix|B.media_matrix|B.css_svg_mathml_matrix|D.decoded_transport_fingerprints|E.deep_host_inventory|G.dom_resource_accessibility_graph|H.identity_privacy_adtech_state|L.schema_validation'.split('|');
+  const missing =
+    'A.js_native_matrix|A.wasm_matrix|B.media_matrix|B.css_svg_mathml_matrix|D.decoded_transport_fingerprints|E.deep_host_inventory|G.dom_resource_accessibility_graph|H.identity_privacy_adtech_state|L.schema_validation'.split(
+      '|',
+    );
   for (const id of missing) {
     const section = id.slice(0, 1);
-    add(id, section, 'not wired in current diagnostics', 'canonical todo collector surface', 'missing', []);
+    add(
+      id,
+      section,
+      'not wired in current diagnostics',
+      'canonical todo collector surface',
+      'missing',
+      [],
+    );
   }
 
   const summary = { emitted: 0, attempted: 0, missing: 0 };

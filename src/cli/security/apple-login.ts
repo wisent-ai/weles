@@ -10,7 +10,11 @@
 
 import type { ParsedCli } from '../../cli.js';
 import { printAnswer, UsageError } from '../usage.js';
-import { issueAppleAuthorization, readAppleRun, startAppleRun } from '../../runtime/api/apple-runs.js';
+import {
+  issueAppleAuthorization,
+  readAppleRun,
+  startAppleRun,
+} from '../../runtime/api/apple-runs.js';
 
 const CONFIRMATION_PHRASE = 'AUTHORIZE ONE APPLE LOGIN';
 // The Skarbiec role the Apple account plays (tag stado:role:<role>); the
@@ -19,19 +23,28 @@ const STANDARD_ACCOUNT_ROLE = 'apple-account-holder';
 const ROLE = /^[a-z0-9][a-z0-9-]{0,126}$/;
 const HOST = /^[A-Za-z0-9][A-Za-z0-9._-]{0,252}$/;
 const STANDARD_AGENT = 'weles-worker';
-const START_OPTIONS = ['provider', 'account-role', 'confirm', 'execution-host', 'execution-agent', 'expires-in-minutes'];
+const START_OPTIONS = [
+  'provider',
+  'account-role',
+  'confirm',
+  'execution-host',
+  'execution-agent',
+  'expires-in-minutes',
+];
 const PROVIDER = 'apple';
 
 function optional(parsed: ParsedCli, key: string, standard: string): string {
   const value = parsed.options[key];
   if (value === undefined) return standard;
-  if (typeof value !== 'string' || !value) throw new Error(`--${key} needs a value`);
+  if (typeof value !== 'string' || !value)
+    throw new Error(`--${key} needs a value`);
   return value;
 }
 
 function required(parsed: ParsedCli, key: string): string {
   const value = parsed.options[key];
-  if (typeof value !== 'string' || !value) throw new Error(`--${key} is required`);
+  if (typeof value !== 'string' || !value)
+    throw new Error(`--${key} is required`);
   return value;
 }
 
@@ -42,13 +55,27 @@ async function start(parsed: ParsedCli): Promise<Record<string, unknown>> {
   // How long the one-use capabilities live is the operator's to say for each
   // run; no lifetime is chosen here.
   const expiryMinutes = Number(required(parsed, 'expires-in-minutes'));
-  if (!ROLE.test(accountRole)) throw new Error('--account-role must be a Skarbiec role (lowercase letters, digits and hyphens)');
-  if (required(parsed, 'confirm') !== CONFIRMATION_PHRASE) throw new Error(`--confirm must exactly equal "${CONFIRMATION_PHRASE}"`);
-  if (!HOST.test(executionHost)) throw new Error('--execution-host must name the Stado host that runs the browser');
+  if (!ROLE.test(accountRole))
+    throw new Error(
+      '--account-role must be a Skarbiec role (lowercase letters, digits and hyphens)',
+    );
+  if (required(parsed, 'confirm') !== CONFIRMATION_PHRASE)
+    throw new Error(`--confirm must exactly equal "${CONFIRMATION_PHRASE}"`);
+  if (!HOST.test(executionHost))
+    throw new Error(
+      '--execution-host must name the Stado host that runs the browser',
+    );
   if (!Number.isInteger(expiryMinutes) || expiryMinutes <= 0) {
-    throw new Error('--expires-in-minutes must be a positive whole number of minutes');
+    throw new Error(
+      '--expires-in-minutes must be a positive whole number of minutes',
+    );
   }
-  const authorization = await issueAppleAuthorization(accountRole, executionHost, executionAgent, expiryMinutes);
+  const authorization = await issueAppleAuthorization(
+    accountRole,
+    executionHost,
+    executionAgent,
+    expiryMinutes,
+  );
   const runId = await startAppleRun('apple_login', authorization, {});
   return {
     status: 'running',
@@ -67,17 +94,24 @@ export async function runAppleLogin(parsed: ParsedCli): Promise<void> {
   const allowed = reading ? ['run'] : START_OPTIONS;
   const unknown = keys.filter((key) => !allowed.includes(key));
   if (parsed.positional.length || unknown.length) {
-    throw new UsageError(`login takes either ${START_OPTIONS.map((key) => `--${key}`).join(' ')} or --run <run-id>; got ${[...parsed.positional, ...unknown.map((key) => `--${key}`)].join(' ')}`);
+    throw new UsageError(
+      `login takes either ${START_OPTIONS.map((key) => `--${key}`).join(' ')} or --run <run-id>; got ${[...parsed.positional, ...unknown.map((key) => `--${key}`)].join(' ')}`,
+    );
   }
   const json = parsed.options.json === true;
   if (!reading) {
     if (parsed.options.provider !== PROVIDER) {
-      throw new UsageError(`login needs --provider naming the identity provider to sign in to; Weles signs in to ${PROVIDER}`);
+      throw new UsageError(
+        `login needs --provider naming the identity provider to sign in to; Weles signs in to ${PROVIDER}`,
+      );
     }
     printAnswer(await start(parsed), json);
     return;
   }
   const run = await readAppleRun(required(parsed, 'run'));
-  printAnswer({ status: run.status, run: run.id, ok: run.ok, error: run.error }, json);
+  printAnswer(
+    { status: run.status, run: run.id, ok: run.ok, error: run.error },
+    json,
+  );
   if (run.ok === false) process.exitCode = 1;
 }

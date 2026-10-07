@@ -1,4 +1,7 @@
-import { readOptionalWelesServiceSecret, type WelesServiceSecret } from '../../secrets/scoped-service.js';
+import {
+  readOptionalWelesServiceSecret,
+  type WelesServiceSecret,
+} from '../../secrets/scoped-service.js';
 
 // Exact scoped ISP rows. Endpoints and credentials come from one dedicated
 // Skarbiec item/client per provider; absent grants omit the provider.
@@ -16,7 +19,10 @@ export type IspRow = {
 
 export function maybeOxylabsIspRow(): IspRow | undefined {
   const host = readOptionalWelesServiceSecret('oxylabsIsp', 'host');
-  const port = readOptionalWelesServiceSecret('oxylabsIsp', 'ports')?.split(',').map((value) => value.trim()).find(Boolean);
+  const port = readOptionalWelesServiceSecret('oxylabsIsp', 'ports')
+    ?.split(',')
+    .map((value) => value.trim())
+    .find(Boolean);
   if (!host || !port) return undefined;
   return {
     display_name: 'Oxylabs ISP',
@@ -32,7 +38,10 @@ export function maybeOxylabsIspRow(): IspRow | undefined {
 
 export function maybeOxylabsDedicatedIspRow(): IspRow | undefined {
   const host = readOptionalWelesServiceSecret('oxylabsDedicatedIsp', 'host');
-  const port = readOptionalWelesServiceSecret('oxylabsDedicatedIsp', 'ports')?.split(',').map((value) => value.trim()).find(Boolean);
+  const port = readOptionalWelesServiceSecret('oxylabsDedicatedIsp', 'ports')
+    ?.split(',')
+    .map((value) => value.trim())
+    .find(Boolean);
   if (!host || !port) return undefined;
   return {
     display_name: 'Oxylabs Dedicated ISP',
@@ -51,7 +60,14 @@ export function maybeDecodoIspRows(): IspRow[] {
   const host = readOptionalWelesServiceSecret('decodoIsp', 'host');
   const rawPorts = readOptionalWelesServiceSecret('decodoIsp', 'ports');
   if (!host || !rawPorts) return [];
-  const ports = [...new Set(rawPorts.split(',').map((port) => String(Number(port.trim()))).filter((port) => port !== 'NaN'))];
+  const ports = [
+    ...new Set(
+      rawPorts
+        .split(',')
+        .map((port) => String(Number(port.trim())))
+        .filter((port) => port !== 'NaN'),
+    ),
+  ];
   return ports.map((port) => ({
     display_name: ports.length === 1 ? 'Decodo ISP' : `Decodo ISP ${port}`,
     proxy_host: host,

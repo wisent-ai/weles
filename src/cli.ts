@@ -3,7 +3,12 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AsyncNewBrowserOptions } from './async_api.js';
 import { runDoctor } from './cli/diagnostics.js';
-import { runImport, runOnboarding, runRelease, runDesign } from './cli/workflows.js';
+import {
+  runImport,
+  runOnboarding,
+  runRelease,
+  runDesign,
+} from './cli/workflows.js';
 import { runRuns } from './cli/worker/runs.js';
 import { runAccountSecurity } from './cli/security/account-security.js';
 import { runAppPassword } from './cli/security/app-password.js';
@@ -14,7 +19,25 @@ import { runKeeper } from './cli/keeper.js';
 import { adoptRecords } from './state/skarbiec-records.js';
 import { HELP, UsageError, exitStatusFor, printAnswer } from './cli/usage.js';
 
-type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import' | 'release' | 'design' | 'runs' | 'account-security' | 'app-password' | 'developer-certificate' | 'login' | 'worker' | 'records' | 'keeper';
+type CliCommand =
+  | 'help'
+  | 'version'
+  | 'doctor'
+  | 'open'
+  | 'screenshot'
+  | 'mcp'
+  | 'onboarding'
+  | 'import'
+  | 'release'
+  | 'design'
+  | 'runs'
+  | 'account-security'
+  | 'app-password'
+  | 'developer-certificate'
+  | 'login'
+  | 'worker'
+  | 'records'
+  | 'keeper';
 
 export type ParsedCli = {
   command: CliCommand;
@@ -24,7 +47,9 @@ export type ParsedCli = {
 
 function readPackageJson(): { version?: string; bin?: unknown } {
   try {
-    return JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8')) as { version?: string; bin?: unknown };
+    return JSON.parse(
+      readFileSync(join(__dirname, '..', 'package.json'), 'utf8'),
+    ) as { version?: string; bin?: unknown };
   } catch {
     return {};
   }
@@ -75,27 +100,100 @@ export function parseCliArgs(argv: string[]): ParsedCli {
 }
 
 function normalizeCommand(command?: string): CliCommand {
-  if (!command || command === '--help' || command === '-h' || command === 'help') return 'help';
-  if (command === '--version' || command === '-v' || command === 'version') return 'version';
-  if (command === 'account-security' || command === 'app-password' || command === 'developer-certificate' || command === 'login' || command === 'worker' || command === 'records' || command === 'keeper') return command;
-  if (command === 'doctor' || command === 'open' || command === 'screenshot' || command === 'mcp' || command === 'onboarding' || command === 'import' || command === 'release' || command === 'design' || command === 'runs') return command;
+  if (
+    !command ||
+    command === '--help' ||
+    command === '-h' ||
+    command === 'help'
+  )
+    return 'help';
+  if (command === '--version' || command === '-v' || command === 'version')
+    return 'version';
+  if (
+    command === 'account-security' ||
+    command === 'app-password' ||
+    command === 'developer-certificate' ||
+    command === 'login' ||
+    command === 'worker' ||
+    command === 'records' ||
+    command === 'keeper'
+  )
+    return command;
+  if (
+    command === 'doctor' ||
+    command === 'open' ||
+    command === 'screenshot' ||
+    command === 'mcp' ||
+    command === 'onboarding' ||
+    command === 'import' ||
+    command === 'release' ||
+    command === 'design' ||
+    command === 'runs'
+  )
+    return command;
   throw new UsageError(`unknown command: ${command}`);
 }
 
 function optionTakesValue(key: string): boolean {
   if (key === 'login-item' || key === 'login-role') return true;
-  return ['browser', 'os', 'locale', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'subject', 'receipt', 'keys', 'state-dir', 'host', 'decision', 'baseline', 'declaration', 'manifest', 'source-revision', 'candidate-tag', 'released', 'published-surface', 'reason', 'correcting', 'root', 'run', 'detail', 'account-role', 'confirm', 'execution-host', 'execution-agent', 'private-key-out', 'certificate-out', 'expires-in-minutes', 'private-key', 'store-host', 'session', 'url', 'provider', 'organization', 'request'].includes(key);
+  return [
+    'browser',
+    'os',
+    'locale',
+    'user-data-dir',
+    'proxy',
+    'screenshot',
+    'wait-for-text',
+    'subject',
+    'receipt',
+    'keys',
+    'state-dir',
+    'host',
+    'decision',
+    'baseline',
+    'declaration',
+    'manifest',
+    'source-revision',
+    'candidate-tag',
+    'released',
+    'published-surface',
+    'reason',
+    'correcting',
+    'root',
+    'run',
+    'detail',
+    'account-role',
+    'confirm',
+    'execution-host',
+    'execution-agent',
+    'private-key-out',
+    'certificate-out',
+    'expires-in-minutes',
+    'private-key',
+    'store-host',
+    'session',
+    'url',
+    'provider',
+    'organization',
+    'request',
+  ].includes(key);
 }
 
-function cliOptionsToBrowserOptions(options: Record<string, string | boolean>): AsyncNewBrowserOptions {
+function cliOptionsToBrowserOptions(
+  options: Record<string, string | boolean>,
+): AsyncNewBrowserOptions {
   const browserOptions: AsyncNewBrowserOptions = {
     headless: options.headless === true,
   };
-  if (typeof options.browser === 'string') browserOptions.browser = options.browser;
+  if (typeof options.browser === 'string')
+    browserOptions.browser = options.browser;
   if (typeof options.os === 'string') browserOptions.os = options.os;
-  if (typeof options.locale === 'string') browserOptions.locale = options.locale;
-  if (typeof options['user-data-dir'] === 'string') browserOptions.userDataDir = options['user-data-dir'];
-  if (typeof options.proxy === 'string') browserOptions.proxy = { server: options.proxy };
+  if (typeof options.locale === 'string')
+    browserOptions.locale = options.locale;
+  if (typeof options['user-data-dir'] === 'string')
+    browserOptions.userDataDir = options['user-data-dir'];
+  if (typeof options.proxy === 'string')
+    browserOptions.proxy = { server: options.proxy };
   return browserOptions;
 }
 
@@ -104,7 +202,9 @@ async function runOpen(parsed: ParsedCli): Promise<void> {
   if (!url) throw new UsageError('open requires <url>');
   routeConsoleToStderr();
   const { AsyncNewBrowser } = await import('./async_api.js');
-  const context = await AsyncNewBrowser(cliOptionsToBrowserOptions(parsed.options));
+  const context = await AsyncNewBrowser(
+    cliOptionsToBrowserOptions(parsed.options),
+  );
   let out: Record<string, unknown> | undefined;
   let operationError: unknown;
   let operationFailed = false;
@@ -112,7 +212,10 @@ async function runOpen(parsed: ParsedCli): Promise<void> {
     const page = await context.newPage();
     const response = await page.goto(url, { waitUntil: 'domcontentloaded' });
     if (typeof parsed.options['wait-for-text'] === 'string') {
-      await page.getByText(parsed.options['wait-for-text'], { exact: false }).first().waitFor({ state: 'visible' });
+      await page
+        .getByText(parsed.options['wait-for-text'], { exact: false })
+        .first()
+        .waitFor({ state: 'visible' });
     }
     const title = await page.title();
     out = {
@@ -123,13 +226,15 @@ async function runOpen(parsed: ParsedCli): Promise<void> {
     };
 
     if (typeof parsed.options.screenshot === 'string') {
-      await page.screenshot({ path: parsed.options.screenshot, fullPage: true });
+      await page.screenshot({
+        path: parsed.options.screenshot,
+        fullPage: true,
+      });
       out.screenshot = parsed.options.screenshot;
     }
     if (parsed.options.text === true) {
       out.text = await page.locator('body').innerText();
     }
-
   } catch (error) {
     operationError = error;
     operationFailed = true;
@@ -138,16 +243,26 @@ async function runOpen(parsed: ParsedCli): Promise<void> {
     try {
       await context.close();
     } catch (closeError) {
-      const closeDetail = closeError instanceof Error ? closeError.message : String(closeError);
+      const closeDetail =
+        closeError instanceof Error ? closeError.message : String(closeError);
       if (operationFailed) {
-        const operationDetail = operationError instanceof Error ? operationError.message : String(operationError);
-        throw new AggregateError([operationError, closeError],
-          `${parsed.command} failed: ${operationDetail}; browser close failed: ${closeDetail}`);
+        const operationDetail =
+          operationError instanceof Error
+            ? operationError.message
+            : String(operationError);
+        throw new AggregateError(
+          [operationError, closeError],
+          `${parsed.command} failed: ${operationDetail}; browser close failed: ${closeDetail}`,
+        );
       }
-      throw new Error(`closing browser after ${parsed.command} failed: ${closeDetail}`, { cause: closeError });
+      throw new Error(
+        `closing browser after ${parsed.command} failed: ${closeDetail}`,
+        { cause: closeError },
+      );
     }
   }
-  if (!out) throw new Error(`${parsed.command} completed without a navigation result`);
+  if (!out)
+    throw new Error(`${parsed.command} completed without a navigation result`);
   printAnswer(out, parsed.options.json === true);
 }
 
@@ -157,8 +272,6 @@ async function runScreenshot(parsed: ParsedCli): Promise<void> {
   parsed.options.screenshot = file;
   await runOpen(parsed);
 }
-
-
 
 export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   const parsed = parseCliArgs(argv);
@@ -171,8 +284,12 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   // "open requires <url>".
   if (parsed.options.help === true || parsed.positional.includes('-h')) {
     const prefix = `  weles ${parsed.command}`;
-    const lines = HELP.split('\n').filter((line) => line === prefix || line.startsWith(`${prefix} `));
-    process.stdout.write(lines.length === 0 ? HELP : `Usage:\n${lines.join('\n')}\n`);
+    const lines = HELP.split('\n').filter(
+      (line) => line === prefix || line.startsWith(`${prefix} `),
+    );
+    process.stdout.write(
+      lines.length === 0 ? HELP : `Usage:\n${lines.join('\n')}\n`,
+    );
     return;
   }
   if (parsed.command === 'version') {
@@ -236,7 +353,10 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
     return;
   }
   if (parsed.command === 'records') {
-    if (parsed.positional.join(' ') !== 'adopt' || Object.keys(parsed.options).some((key) => key !== 'json')) {
+    if (
+      parsed.positional.join(' ') !== 'adopt' ||
+      Object.keys(parsed.options).some((key) => key !== 'json')
+    ) {
       throw new UsageError('records takes exactly: adopt [--json]');
     }
     printAnswer(adoptRecords(), parsed.options.json === true);

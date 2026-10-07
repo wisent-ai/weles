@@ -8,10 +8,31 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { WSession } from '../../../../../dist/session/wsession.js';
-import { verifyExitCountry, verifyExitReputation } from '../../../../../dist/proxy/policy.js';
-import { INCLUDE_TEXT, OUT, PROBE_OS, SAMPLES_PER_PROVIDER, STOP_AFTER_SUBMIT, SUBMIT_CANDIDATE, TARGET_CC, WORK } from './rotating_weles_probe/settings.mjs';
-import { buildStickyAuth, fetchRows, hash, proxyUrlFor, sampleExitIp } from './rotating_weles_probe/proxies.mjs';
-import { classifySummary, summarizeSignup } from './rotating_weles_probe/page.mjs';
+import {
+  verifyExitCountry,
+  verifyExitReputation,
+} from '../../../../../dist/proxy/policy.js';
+import {
+  INCLUDE_TEXT,
+  OUT,
+  PROBE_OS,
+  SAMPLES_PER_PROVIDER,
+  STOP_AFTER_SUBMIT,
+  SUBMIT_CANDIDATE,
+  TARGET_CC,
+  WORK,
+} from './rotating_weles_probe/settings.mjs';
+import {
+  buildStickyAuth,
+  fetchRows,
+  hash,
+  proxyUrlFor,
+  sampleExitIp,
+} from './rotating_weles_probe/proxies.mjs';
+import {
+  classifySummary,
+  summarizeSignup,
+} from './rotating_weles_probe/page.mjs';
 import { submitSignupCandidate } from './rotating_weles_probe/submit.mjs';
 import { pageSettled } from '../../../_shared/page/settled.mjs';
 
@@ -26,8 +47,13 @@ const results = undeclared.map((row) => ({
 }));
 let submitted = false;
 
-console.log(`[wprobe] providers=${rows.length} undeclared=${undeclared.length} samples=${SAMPLES_PER_PROVIDER} cc=${TARGET_CC} submit=${SUBMIT_CANDIDATE} os=${PROBE_OS}`);
-for (const row of undeclared) console.log(`[wprobe] ${row.displayName} (${row.id}) declares no proxy_type in its Skarbiec context; set it to isp, mobile or residential`);
+console.log(
+  `[wprobe] providers=${rows.length} undeclared=${undeclared.length} samples=${SAMPLES_PER_PROVIDER} cc=${TARGET_CC} submit=${SUBMIT_CANDIDATE} os=${PROBE_OS}`,
+);
+for (const row of undeclared)
+  console.log(
+    `[wprobe] ${row.displayName} (${row.id}) declares no proxy_type in its Skarbiec context; set it to isp, mobile or residential`,
+  );
 
 for (const row of rows) {
   if (submitted && STOP_AFTER_SUBMIT) break;
@@ -38,8 +64,12 @@ for (const row of rows) {
     const auth = buildStickyAuth(row, sessId, TARGET_CC);
     const proxyUrl = proxyUrlFor(row, auth.username, auth.password);
     const exitIp = sampleExitIp(proxyUrl);
-    const geo = exitIp ? await verifyExitCountry(exitIp, TARGET_CC) : { result: 'unknown' };
-    const reputation = exitIp ? await verifyExitReputation(exitIp).catch(() => ({ result: 'unknown' })) : { result: 'unknown' };
+    const geo = exitIp
+      ? await verifyExitCountry(exitIp, TARGET_CC)
+      : { result: 'unknown' };
+    const reputation = exitIp
+      ? await verifyExitReputation(exitIp).catch(() => ({ result: 'unknown' }))
+      : { result: 'unknown' };
     const item = {
       provider: row.provider,
       display_name: row.displayName,
@@ -67,20 +97,32 @@ for (const row of rows) {
         platform: 'linkedin',
       });
       let gotoError = '';
-      await s.page.goto('https://www.linkedin.com/signup', { waitUntil: 'domcontentloaded' }).catch((e) => { gotoError = String(e?.message ?? e); });
+      await s.page
+        .goto('https://www.linkedin.com/signup', {
+          waitUntil: 'domcontentloaded',
+        })
+        .catch((e) => {
+          gotoError = String(e?.message ?? e);
+        });
       if (!gotoError) await pageSettled(s.page);
       const summary = await summarizeSignup(s.page);
       const classification = classifySummary(summary);
       item.browser = { ...classification, goto_error: gotoError, summary };
       if (SUBMIT_CANDIDATE && classification.result === 'form' && !submitted) {
-        console.log(`[wprobe] submitting form candidate provider=${row.display_name} exit=${exitIp || '?'}`);
+        console.log(
+          `[wprobe] submitting form candidate provider=${row.display_name} exit=${exitIp || '?'}`,
+        );
         item.submit = await submitSignupCandidate(s);
         submitted = true;
       }
-      console.log(`[wprobe] ${row.display_name} sample=${i + 1}/${SAMPLES_PER_PROVIDER} exit=${exitIp || '?'} geo=${geo.result} rep=${reputation.result} browser=${classification.result}${classification.signal ? `:${classification.signal}` : ''}${item.submit ? ` submit=${item.submit.result}` : ''}`);
+      console.log(
+        `[wprobe] ${row.display_name} sample=${i + 1}/${SAMPLES_PER_PROVIDER} exit=${exitIp || '?'} geo=${geo.result} rep=${reputation.result} browser=${classification.result}${classification.signal ? `:${classification.signal}` : ''}${item.submit ? ` submit=${item.submit.result}` : ''}`,
+      );
     } catch (e) {
       item.error = String(e?.message ?? e);
-      console.log(`[wprobe] ${row.display_name} sample=${i + 1}/${SAMPLES_PER_PROVIDER} exit=${exitIp || '?'} error=${item.error}`);
+      console.log(
+        `[wprobe] ${row.display_name} sample=${i + 1}/${SAMPLES_PER_PROVIDER} exit=${exitIp || '?'} error=${item.error}`,
+      );
     } finally {
       await s?.close?.().catch(() => {});
     }
@@ -121,11 +163,16 @@ const summary = {
   results,
 };
 
-writeFileSync(join(OUT, 'rotating_weles_probe.json'), JSON.stringify(summary, null, 2));
+writeFileSync(
+  join(OUT, 'rotating_weles_probe.json'),
+  JSON.stringify(summary, null, 2),
+);
 writeFileSync(join(WORK, 'latest.json'), JSON.stringify(summary, null, 2));
 
 if (formCandidates.length) {
-  console.log(`PASS: browser form candidates=${formCandidates.length} submit_attempts=${submitAttempts.length}`);
+  console.log(
+    `PASS: browser form candidates=${formCandidates.length} submit_attempts=${submitAttempts.length}`,
+  );
 } else {
   console.log('FAIL: no browser form candidates');
   process.exitCode = 2;

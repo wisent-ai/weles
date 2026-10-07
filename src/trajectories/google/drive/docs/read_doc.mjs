@@ -24,7 +24,10 @@ const DOC_INPUT = arg('--doc') || process.env.DOC_URL || process.env.DOC_ID;
 const OUT_PATH = arg('--out');
 const LABEL = 'drive_read_doc';
 
-if (!DOC_INPUT) { console.log('FAIL: --doc (or DOC_URL / DOC_ID) required'); process.exit(2); }
+if (!DOC_INPUT) {
+  console.log('FAIL: --doc (or DOC_URL / DOC_ID) required');
+  process.exit(2);
+}
 
 function extractId(s) {
   const m = s.match(/\/document\/d\/([A-Za-z0-9_-]+)/);
@@ -34,20 +37,30 @@ function extractId(s) {
 }
 
 const DOC_ID = extractId(DOC_INPUT);
-if (!DOC_ID) { console.log('FAIL: could not extract doc id from "' + DOC_INPUT + '"'); process.exit(2); }
+if (!DOC_ID) {
+  console.log('FAIL: could not extract doc id from "' + DOC_INPUT + '"');
+  process.exit(2);
+}
 
-function log(...a) { console.error('[drive_read_doc]', ...a); }
+function log(...a) {
+  console.error('[drive_read_doc]', ...a);
+}
 
 async function resolveCreds() {
   return readScopedLogin('googleDrive');
 }
 
 const creds = await resolveCreds();
-const s = await WSession.start({ label: LABEL, browser: process.env.BROWSER || 'chromium' });
+const s = await WSession.start({
+  label: LABEL,
+  browser: process.env.BROWSER || 'chromium',
+});
 
 try {
   log('engine:', s.personaConfig?.browser ?? 'unknown', '| doc_id:', DOC_ID);
-  await s.page.goto('https://docs.google.com/document/u/0/', { waitUntil: 'domcontentloaded' });
+  await s.page.goto('https://docs.google.com/document/u/0/', {
+    waitUntil: 'domcontentloaded',
+  });
   await pageSettled(s.page);
 
   if (/accounts\.google\.com|ServiceLogin|signin/.test(s.page.url())) {
@@ -57,13 +70,16 @@ try {
     await pageSettled(s.page);
   }
 
-  const exportUrl = 'https://docs.google.com/document/d/' + DOC_ID + '/export?format=txt';
+  const exportUrl =
+    'https://docs.google.com/document/d/' + DOC_ID + '/export?format=txt';
   log('fetching:', exportUrl);
   const resp = await s.page.context().request.get(exportUrl); // allow-raw-playwright: read-only export HTTP fetch via the page's authenticated context
   const status = resp.status();
   log('HTTP', status);
   if (status !== 200) {
-    throw new Error(`DRIVE_DOCUMENT_EXPORT_HTTP_ERROR: HTTP ${status} for ${exportUrl}`);
+    throw new Error(
+      `DRIVE_DOCUMENT_EXPORT_HTTP_ERROR: HTTP ${status} for ${exportUrl}`,
+    );
   }
   const body = await resp.text();
   log('body chars:', body.length);

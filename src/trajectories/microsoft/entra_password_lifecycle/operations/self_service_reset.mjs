@@ -17,7 +17,10 @@
 
 import { outcome } from '../answer_and_custody.mjs';
 import { commitAfterFreshLogin } from '../authorized_session.mjs';
-import { openSelfServiceReset, submitResetPasswordForm } from '../directory_password.mjs';
+import {
+  openSelfServiceReset,
+  submitResetPasswordForm,
+} from '../directory_password.mjs';
 import { tenantOfUpnDomain } from '../proven_identity.mjs';
 
 export async function resetDirectoryPassword(session, account, contract, plan) {
@@ -55,7 +58,8 @@ export async function resetDirectoryPassword(session, account, contract, plan) {
       retryable: false,
       providerEffect: 'none',
       rollbackStatus: 'none',
-      reason: 'the Entra self-service reset requires interactive identity verification',
+      reason:
+        'the Entra self-service reset requires interactive identity verification',
     });
   }
   if (surface === 'not_eligible') {
@@ -66,7 +70,8 @@ export async function resetDirectoryPassword(session, account, contract, plan) {
       retryable: false,
       providerEffect: 'none',
       rollbackStatus: 'none',
-      reason: 'the Entra directory refused a self-service reset for this account',
+      reason:
+        'the Entra directory refused a self-service reset for this account',
     });
   }
   if (surface !== 'password_form') {
@@ -77,7 +82,8 @@ export async function resetDirectoryPassword(session, account, contract, plan) {
       retryable: true,
       providerEffect: 'none',
       rollbackStatus: 'none',
-      reason: 'the Entra self-service reset did not present a new-password form',
+      reason:
+        'the Entra self-service reset did not present a new-password form',
     });
   }
   const submitted = await submitResetPasswordForm(session, nextPassword);
@@ -87,30 +93,29 @@ export async function resetDirectoryPassword(session, account, contract, plan) {
     // reset password unproven, and reset has no known value to roll back to.
     return outcome(contract, {
       status: 'operation_failed',
-      code: submitted === 'rejected' ? 'ENTRA_RESET_REJECTED' : 'ENTRA_RESET_AMBIGUOUS',
+      code:
+        submitted === 'rejected'
+          ? 'ENTRA_RESET_REJECTED'
+          : 'ENTRA_RESET_AMBIGUOUS',
       phase: 'password_change',
       retryable: submitted === 'rejected',
       providerEffect: submitted === 'rejected' ? 'none' : 'unknown',
       rollbackStatus: 'none',
-      reason: submitted === 'rejected'
-        ? 'the Entra directory rejected the reset password'
-        : 'the Entra reset outcome is ambiguous and the previous password is unknown',
+      reason:
+        submitted === 'rejected'
+          ? 'the Entra directory rejected the reset password'
+          : 'the Entra reset outcome is ambiguous and the previous password is unknown',
     });
   }
   const resetAt = new Date().toISOString();
-  const reset = await commitAfterFreshLogin(
-    session,
-    account,
-    contract,
-    {
-      password: nextPassword,
-      writeOperation: 'reset',
-      sink,
-      proxyUrl,
-      providerEffect: 'changed',
-      evidence,
-    },
-  );
+  const reset = await commitAfterFreshLogin(session, account, contract, {
+    password: nextPassword,
+    writeOperation: 'reset',
+    sink,
+    proxyUrl,
+    providerEffect: 'changed',
+    evidence,
+  });
   if (reset.answer) return reset.answer;
   if (!reset.committed) {
     // No known previous password means no compensating provider rollback.
@@ -121,7 +126,8 @@ export async function resetDirectoryPassword(session, account, contract, plan) {
       retryable: false,
       providerEffect: 'changed',
       rollbackStatus: 'none',
-      reason: 'the Entra reset succeeded but the Skarbiec commit failed and no rollback value exists',
+      reason:
+        'the Entra reset succeeded but the Skarbiec commit failed and no rollback value exists',
     });
   }
   return outcome(contract, {
@@ -130,6 +136,7 @@ export async function resetDirectoryPassword(session, account, contract, plan) {
     rollbackStatus: 'none',
     changedAt: resetAt,
     evidence,
-    reason: 'the Entra password was reset, re-authenticated, and committed to Skarbiec',
+    reason:
+      'the Entra password was reset, re-authenticated, and committed to Skarbiec',
   });
 }

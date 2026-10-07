@@ -4,11 +4,14 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { parseArgs, requiredArg } from './lib.mjs';
 
-
 function stable(value) {
   if (Array.isArray(value)) return value.map(stable);
   if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stable(value[key])]));
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map((key) => [key, stable(value[key])]),
+    );
   }
   return value;
 }
@@ -40,7 +43,9 @@ const component = {
     digestAuthority: 'stado-build-receipt',
   },
 };
-await writeFile(resolve(root, 'component-manifest.json'), encoded(component), { mode: 0o600 });
+await writeFile(resolve(root, 'component-manifest.json'), encoded(component), {
+  mode: 0o600,
+});
 
 const subject = { name: 'dist/cli.js', digest: { sha256: binarySha256 } };
 const provenance = {
@@ -58,7 +63,11 @@ const provenance = {
   },
 };
 const provenanceBytes = encoded(provenance);
-await writeFile(resolve(root, 'receipts/provenance.intoto.json'), provenanceBytes, { mode: 0o600 });
+await writeFile(
+  resolve(root, 'receipts/provenance.intoto.json'),
+  provenanceBytes,
+  { mode: 0o600 },
+);
 
 const sbomBytes = await readFile(resolve(root, 'receipts/sbom.cyclonedx.json'));
 const statement = {
@@ -83,4 +92,8 @@ const envelope = {
   signatures: [],
   stadoReceiptRequired: true,
 };
-await writeFile(resolve(root, 'receipts/dsse-evidence.json'), encoded(envelope), { mode: 0o600 });
+await writeFile(
+  resolve(root, 'receipts/dsse-evidence.json'),
+  encoded(envelope),
+  { mode: 0o600 },
+);

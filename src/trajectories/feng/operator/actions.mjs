@@ -7,14 +7,23 @@ export async function operatorAction(s, kind, instruction, observe, detail) {
     run: s.label,
     instruction,
   });
-  console.log(`[feng] prośba operatora: ${request.id}; powiadomienie przyjęte: ${request.pages.some((attempt) => attempt.ok)}`);
+  console.log(
+    `[feng] prośba operatora: ${request.id}; powiadomienie przyjęte: ${request.pages.some((attempt) => attempt.ok)}`,
+  );
   try {
     await observe();
   } catch (error) {
     try {
-      closeOperatorRequest(request.id, false, `The browser stage failed: ${String(error?.message || error)}`);
+      closeOperatorRequest(
+        request.id,
+        false,
+        `The browser stage failed: ${String(error?.message || error)}`,
+      );
     } catch (closeError) {
-      throw new AggregateError([error, closeError], 'FENG browser observation and operator-request closure failed');
+      throw new AggregateError(
+        [error, closeError],
+        'FENG browser observation and operator-request closure failed',
+      );
     }
     throw error;
   }

@@ -7,7 +7,10 @@
  *   pool but no cookies, GET /user/<u>/about.json. If logged-in OK but
  *   logged-out 404s → shadowban.
  */
-import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
+import {
+  getSocialAccount,
+  resolveAccountSession,
+} from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { detectRedditBanSignals } from '../../../dist/platforms/reddit/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -16,26 +19,46 @@ import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { replaceAccountMetadata } from '../_shared/skarbiec/accounts.mjs';
 
 const acct = await getSocialAccount('reddit');
-if (!acct) { console.log('FAIL: no active reddit account in Skarbiec'); process.exit(1); }
+if (!acct) {
+  console.log('FAIL: no active reddit account in Skarbiec');
+  process.exit(1);
+}
 console.log(`[health] Probing account: ${acct.username}`);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 
 const loggedIn = { url: null, status: null, body: null, signal: null };
-const sIn = await WSession.start({ label: 'reddit_health_in', proxy: proxyUrl, persona });
+const sIn = await WSession.start({
+  label: 'reddit_health_in',
+  proxy: proxyUrl,
+  persona,
+});
 try {
   // Inject stored auth cookies so /api/me.json returns the user, not anon.
-  const stored = Array.isArray(acct.metadata?.cookies) ? acct.metadata.cookies : [];
-  const prepared = stored.filter((c) => c && c.name && c.value && (c.domain || c.url)).map((c) => ({ ...c, path: c.path || '/' }));
+  const stored = Array.isArray(acct.metadata?.cookies)
+    ? acct.metadata.cookies
+    : [];
+  const prepared = stored
+    .filter((c) => c && c.name && c.value && (c.domain || c.url))
+    .map((c) => ({ ...c, path: c.path || '/' }));
   if (prepared.length > 0) await sIn.ctx.addCookies(prepared).catch(() => {});
   await sIn.goto('https://www.reddit.com/api/me.json');
   loggedIn.url = sIn.page.url();
-  const meResp = sIn.capturedResponses.find(r => /\/api\/me\.json/.test(r.url));
+  const meResp = sIn.capturedResponses.find((r) =>
+    /\/api\/me\.json/.test(r.url),
+  );
   if (meResp) {
     loggedIn.status = meResp.status;
-    try { loggedIn.body = JSON.parse(meResp.body); } catch { loggedIn.body = meResp.body ?? null; }
+    try {
+      loggedIn.body = JSON.parse(meResp.body);
+    } catch {
+      loggedIn.body = meResp.body ?? null;
+    }
   }
-  loggedIn.signal = await detectRedditBanSignals(sIn.page, sIn.capturedResponses).catch(() => null);
+  loggedIn.signal = await detectRedditBanSignals(
+    sIn.page,
+    sIn.capturedResponses,
+  ).catch(() => null);
 } catch (e) {
   loggedIn.error = e.message;
 } finally {
@@ -44,16 +67,28 @@ try {
 
 // Reddit-assigned username may differ from email prefix; pull from me.json if
 // available (logged-in probe ran first), else fall back to acct.username.
-const realHandle = loggedIn.body?.data?.name ?? loggedIn.body?.name ?? acct.username;
+const realHandle =
+  loggedIn.body?.data?.name ?? loggedIn.body?.name ?? acct.username;
 const loggedOut = { url: null, status: null, body: null };
-const sOut = await WSession.start({ label: 'reddit_health_out', proxy: proxyUrl });
+const sOut = await WSession.start({
+  label: 'reddit_health_out',
+  proxy: proxyUrl,
+});
 try {
-  await sOut.goto(`https://www.reddit.com/user/${encodeURIComponent(realHandle)}/about.json`);
+  await sOut.goto(
+    `https://www.reddit.com/user/${encodeURIComponent(realHandle)}/about.json`,
+  );
   loggedOut.url = sOut.page.url();
-  const aboutResp = sOut.capturedResponses.find(r => /\/user\/.+\/about\.json/.test(r.url));
+  const aboutResp = sOut.capturedResponses.find((r) =>
+    /\/user\/.+\/about\.json/.test(r.url),
+  );
   if (aboutResp) {
     loggedOut.status = aboutResp.status;
-    try { loggedOut.body = JSON.parse(aboutResp.body); } catch { loggedOut.body = aboutResp.body ?? null; }
+    try {
+      loggedOut.body = JSON.parse(aboutResp.body);
+    } catch {
+      loggedOut.body = aboutResp.body ?? null;
+    }
   }
 } catch (e) {
   loggedOut.error = e.message;
@@ -66,8 +101,11 @@ try {
 // data.name proves cookies authed — that's the only signal we need for inOk.
 const meName = loggedIn.body?.data?.name ?? loggedIn.body?.name ?? null;
 const inOk = !!meName && (loggedIn.status === 200 || loggedIn.status == null);
-const inKarma = loggedIn.body?.data?.total_karma ?? loggedIn.body?.data?.link_karma ?? null;
-const inSuspended = loggedIn.body?.data?.is_suspended === true || loggedIn.body?.is_suspended === true;
+const inKarma =
+  loggedIn.body?.data?.total_karma ?? loggedIn.body?.data?.link_karma ?? null;
+const inSuspended =
+  loggedIn.body?.data?.is_suspended === true ||
+  loggedIn.body?.is_suspended === true;
 // Reddit returns 403 on anonymous /user/<u>/about.json — that's anti-bot at
 // the edge, not shadowban evidence. Treat any non-200/non-404 as "couldn't
 // determine" so health stays 'healthy' when the logged-in probe authed cleanly.
@@ -77,7 +115,12 @@ const shadowbanned = inOk && !outOk && loggedOut.status === 404;
 
 let signal;
 if (inSuspended) signal = 'suspended';
-else if (!inOk && loggedIn.signal?.signal && loggedIn.signal.signal !== 'healthy') signal = loggedIn.signal.signal;
+else if (
+  !inOk &&
+  loggedIn.signal?.signal &&
+  loggedIn.signal.signal !== 'healthy'
+)
+  signal = loggedIn.signal.signal;
 else if (shadowbanned) signal = 'shadowbanned';
 else if (inOk && (outOk || outIndeterminate)) signal = 'healthy';
 // Trust the banDetector when it returns healthy even if /api/me.json returned
@@ -85,9 +128,15 @@ else if (inOk && (outOk || outIndeterminate)) signal = 'healthy';
 // has platform-aware logic the local extractor doesn't.
 else if (loggedIn.signal?.healthy === true) signal = 'healthy';
 // No response captured + no detector signal = proxy CONNECT failed.
-else if (loggedIn.url == null && loggedIn.status == null && !loggedIn.signal) signal = 'proxy_failed';
+else if (loggedIn.url == null && loggedIn.status == null && !loggedIn.signal)
+  signal = 'proxy_failed';
 else if (loggedIn.status === 429) signal = 'ratelimited';
-else if (typeof loggedIn.status === 'number' && loggedIn.status >= 400 && loggedIn.status < 500) signal = 'edge_blocked';
+else if (
+  typeof loggedIn.status === 'number' &&
+  loggedIn.status >= 400 &&
+  loggedIn.status < 500
+)
+  signal = 'edge_blocked';
 else signal = 'unknown';
 
 const snapshot = {
@@ -104,10 +153,15 @@ const snapshot = {
 
 const outDir = runRecordingsDir('reddit_health');
 mkdirSync(outDir, { recursive: true });
-const filePath = join(outDir, `${acct.username}_${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
+const filePath = join(
+  outDir,
+  `${acct.username}_${new Date().toISOString().replace(/[:.]/g, '-')}.json`,
+);
 writeFileSync(filePath, JSON.stringify(snapshot, null, 2));
 
-console.log(`[health] signal=${signal} karma=${inKarma} shadowbanned=${shadowbanned}`);
+console.log(
+  `[health] signal=${signal} karma=${inKarma} shadowbanned=${shadowbanned}`,
+);
 console.log(`[health] snapshot -> ${filePath}`);
 
 // When Reddit's edge blocks our exit IP (ip_blocked signal), wipe the stored
@@ -116,7 +170,9 @@ console.log(`[health] snapshot -> ${filePath}`);
 if (signal === 'ip_blocked' && acct.id) {
   const { proxy: _drop, ...metadata } = acct.metadata ?? {};
   replaceAccountMetadata(acct.id, metadata);
-  console.log(`[proxy-rotate] cleared stored proxy for account ${acct.id} — next run will re-roll`);
+  console.log(
+    `[proxy-rotate] cleared stored proxy for account ${acct.id} — next run will re-roll`,
+  );
 }
 
 // Exit 0 for every actionable signal — suspended / shadowbanned / ip_blocked

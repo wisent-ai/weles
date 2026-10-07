@@ -10,36 +10,53 @@ import { pageCondition, pageSettled } from '../_shared/page/settled.mjs';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanFill } from '../../../dist/human/keyboard.js';
 
-const URL = 'https://www.sprind.org/taten/challenges/submissions/next-frontier-ai';
+const URL =
+  'https://www.sprind.org/taten/challenges/submissions/next-frontier-ai';
 const LABEL = 'sprind_counter_probe';
 
-const s = await WSession.start({ label: LABEL, proxy: process.env.PROXY_URL || undefined });
+const s = await WSession.start({
+  label: LABEL,
+  proxy: process.env.PROXY_URL || undefined,
+});
 try {
   await s.goto(URL);
-  await pageCondition(s.page, () => document.querySelector('textarea') !== null);
+  await pageCondition(
+    s.page,
+    () => document.querySelector('textarea') !== null,
+  );
   await pageSettled(s.page);
 
-  const readState = async () => s.page.evaluate(() => {
-    // First textarea on the page is the project title (0/50 in labels).
-    const ta = document.querySelector('textarea');
-    if (!ta) return { error: 'no textarea' };
-    const container = ta.closest('.field, .form-field, .w-form-field, [data-name], section, fieldset, div') || ta.parentElement;
-    let counterText = '';
-    if (container) {
-      const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-      let n;
-      while ((n = walker.nextNode())) {
-        const t = (n.nodeValue || '').trim();
-        if (/^\d+\s*\/\s*\d+$/.test(t)) { counterText = t; break; }
+  const readState = async () =>
+    s.page.evaluate(() => {
+      // First textarea on the page is the project title (0/50 in labels).
+      const ta = document.querySelector('textarea');
+      if (!ta) return { error: 'no textarea' };
+      const container =
+        ta.closest(
+          '.field, .form-field, .w-form-field, [data-name], section, fieldset, div',
+        ) || ta.parentElement;
+      let counterText = '';
+      if (container) {
+        const walker = document.createTreeWalker(
+          container,
+          NodeFilter.SHOW_TEXT,
+        );
+        let n;
+        while ((n = walker.nextNode())) {
+          const t = (n.nodeValue || '').trim();
+          if (/^\d+\s*\/\s*\d+$/.test(t)) {
+            counterText = t;
+            break;
+          }
+        }
       }
-    }
-    return {
-      taValue: ta.value,
-      taValueLen: ta.value.length,
-      taValueWords: ta.value.trim() ? ta.value.trim().split(/\s+/).length : 0,
-      counterText,
-    };
-  });
+      return {
+        taValue: ta.value,
+        taValueLen: ta.value.length,
+        taValueWords: ta.value.trim() ? ta.value.trim().split(/\s+/).length : 0,
+        counterText,
+      };
+    });
 
   const taLocator = s.page.locator('textarea').first();
   await taLocator.scrollIntoViewIfNeeded();

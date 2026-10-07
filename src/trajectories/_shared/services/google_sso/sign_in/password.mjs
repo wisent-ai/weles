@@ -20,7 +20,10 @@ export async function submitGooglePassword(page, creds, passwordFieldCount) {
   let usedTryAnotherWay = false;
   for (;;) {
     await pageSettled(page);
-    pwInVisible = await page.locator(PASSWORD_FIELD).filter({ visible: true }).count();
+    pwInVisible = await page
+      .locator(PASSWORD_FIELD)
+      .filter({ visible: true })
+      .count();
     if (pwInVisible > 0) break;
 
     // Google's "Welcome" / challenge selection page lists sign-in methods.
@@ -29,31 +32,60 @@ export async function submitGooglePassword(page, creds, passwordFieldCount) {
     // button, and Playwright's visible filter can be flaky on the listitem
     // itself, so ask by semantic role first, then by text, then by the nearest
     // clickable ancestor of that text.
-    if (!usedPasswordChoice && /signin\/challenge\/(selection|pk\/presend)/.test(page.url())) {
+    if (
+      !usedPasswordChoice &&
+      /signin\/challenge\/(selection|pk\/presend)/.test(page.url())
+    ) {
       usedPasswordChoice = true;
 
       const pwOptionNames = [/Enter your password/i, /Use your password/i];
       let clickedChoice = false;
       for (const nameRe of pwOptionNames) {
-        const semantic = page.getByRole('button', { name: nameRe, exact: false }).or(page.getByRole('link', { name: nameRe, exact: false })).filter({ visible: true }).first();
+        const semantic = page
+          .getByRole('button', { name: nameRe, exact: false })
+          .or(page.getByRole('link', { name: nameRe, exact: false }))
+          .filter({ visible: true })
+          .first();
         if (await semantic.isVisible().catch(() => false)) {
-          console.log(`[google_sso] clicking password option via role (${nameRe.source})`);
-          await semantic.click({ force: true }).catch(() => humanClickLocator(page, semantic));
+          console.log(
+            `[google_sso] clicking password option via role (${nameRe.source})`,
+          );
+          await semantic
+            .click({ force: true })
+            .catch(() => humanClickLocator(page, semantic));
           clickedChoice = true;
           break;
         }
-        const textual = page.locator('li, div[role="option"], div[role="button"], button, a').filter({ hasText: nameRe }).filter({ visible: true }).first();
+        const textual = page
+          .locator('li, div[role="option"], div[role="button"], button, a')
+          .filter({ hasText: nameRe })
+          .filter({ visible: true })
+          .first();
         if (await textual.isVisible().catch(() => false)) {
-          console.log(`[google_sso] clicking password option via text (${nameRe.source})`);
-          await textual.click({ force: true }).catch(() => humanClickLocator(page, textual));
+          console.log(
+            `[google_sso] clicking password option via text (${nameRe.source})`,
+          );
+          await textual
+            .click({ force: true })
+            .catch(() => humanClickLocator(page, textual));
           clickedChoice = true;
           break;
         }
         // Last resort: find the text node and click its nearest clickable ancestor.
-        const nearestClickable = page.locator('button, [role="button"], a, [role="link"], li, [role="option"]').filter({ hasText: nameRe }).filter({ visible: true }).first();
-        const foundByJs = await humanClickLocator(page, nearestClickable).then(() => true).catch(() => false);
+        const nearestClickable = page
+          .locator(
+            'button, [role="button"], a, [role="link"], li, [role="option"]',
+          )
+          .filter({ hasText: nameRe })
+          .filter({ visible: true })
+          .first();
+        const foundByJs = await humanClickLocator(page, nearestClickable)
+          .then(() => true)
+          .catch(() => false);
         if (foundByJs) {
-          console.log(`[google_sso] clicked password option via JS ancestor (${nameRe.source})`);
+          console.log(
+            `[google_sso] clicked password option via JS ancestor (${nameRe.source})`,
+          );
           clickedChoice = true;
           break;
         }
@@ -72,7 +104,9 @@ export async function submitGooglePassword(page, creds, passwordFieldCount) {
 
   if (!pwInVisible) {
     await logGooglePageDiag(page, 'no_password_input');
-    console.log(`[google_sso] FAIL: never reached password input (url=${page.url()})`);
+    console.log(
+      `[google_sso] FAIL: never reached password input (url=${page.url()})`,
+    );
     return false;
   }
 
@@ -88,20 +122,50 @@ export async function submitGooglePassword(page, creds, passwordFieldCount) {
   await page.keyboard.press('Enter');
   await pageSettled(page);
 
-  if (/challenge\/pwd/.test(page.url()) && await pwIn.isVisible().catch(() => false)) {
-    console.log('[google_sso] password page still visible after Enter; clicking Next');
-    const currentPasswordLength = await pwIn.evaluate((el) => String(el.value || '').length);
+  if (
+    /challenge\/pwd/.test(page.url()) &&
+    (await pwIn.isVisible().catch(() => false))
+  ) {
+    console.log(
+      '[google_sso] password page still visible after Enter; clicking Next',
+    );
+    const currentPasswordLength = await pwIn.evaluate(
+      (el) => String(el.value || '').length,
+    );
     if (currentPasswordLength === 0) {
-      console.log('[google_sso] password input was cleared before the Next click; refilling');
+      console.log(
+        '[google_sso] password input was cleared before the Next click; refilling',
+      );
       await humanFill(page, pwIn, creds.password);
     }
-    const nextByRole = page.getByRole('button', { name: 'Next', exact: true }).filter({ visible: true }).last();
-    const nextByText = page.locator('button, [role="button"]').filter({ hasText: /^\s*Next\s*$/i }).filter({ visible: true }).last();
-    const passwordNextLegacy = page.locator('#passwordNext button').filter({ visible: true }).first();
-    const genericNext = page.getByRole('button', { name: /^(Next|Sign in|Continue)$/i }).filter({ visible: true }).last();
+    const nextByRole = page
+      .getByRole('button', { name: 'Next', exact: true })
+      .filter({ visible: true })
+      .last();
+    const nextByText = page
+      .locator('button, [role="button"]')
+      .filter({ hasText: /^\s*Next\s*$/i })
+      .filter({ visible: true })
+      .last();
+    const passwordNextLegacy = page
+      .locator('#passwordNext button')
+      .filter({ visible: true })
+      .first();
+    const genericNext = page
+      .getByRole('button', { name: /^(Next|Sign in|Continue)$/i })
+      .filter({ visible: true })
+      .last();
     let nextBtn = null;
-    for (const candidate of [nextByRole, nextByText, passwordNextLegacy, genericNext]) {
-      if (await candidate.isVisible().catch(() => false)) { nextBtn = candidate; break; }
+    for (const candidate of [
+      nextByRole,
+      nextByText,
+      passwordNextLegacy,
+      genericNext,
+    ]) {
+      if (await candidate.isVisible().catch(() => false)) {
+        nextBtn = candidate;
+        break;
+      }
     }
     if (nextBtn) {
       await humanClickLocator(page, nextBtn).catch(async () => {

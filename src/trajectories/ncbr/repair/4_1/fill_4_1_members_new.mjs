@@ -16,13 +16,25 @@ if (!page) {
   process.exit(1);
 }
 
-
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
-await page.evaluate(() => { const b = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies')); if (b) b.style.pointerEvents = 'none'; }); // allow-raw-playwright: cookie banner
+await page.evaluate(() => {
+  const b = Array.from(document.querySelectorAll('div')).find((d) =>
+    (d.innerText || '').includes('pliki cookies'),
+  );
+  if (b) b.style.pointerEvents = 'none';
+}); // allow-raw-playwright: cookie banner
 
 const form = membersForm({ page, SECTION_URL });
-const { clickDodaj, fillByName, setAuto, setApplicant, setStatus, saveForm, fillProjectSubrow } = form;
+const {
+  clickDodaj,
+  fillByName,
+  setAuto,
+  setApplicant,
+  setStatus,
+  saveForm,
+  fillProjectSubrow,
+} = form;
 await runModes({ page, form });
 
 const existingState = await page.evaluate(() => {
@@ -33,7 +45,9 @@ const existingState = await page.evaluate(() => {
   };
 });
 const onlyNames = process.env.ONLY_NAMES
-  ? process.env.ONLY_NAMES.split(',').map((x) => x.trim()).filter(Boolean)
+  ? process.env.ONLY_NAMES.split(',')
+      .map((x) => x.trim())
+      .filter(Boolean)
   : null;
 const ms = members().filter((m) => {
   const full = `${m.imie} ${m.nazwisko}`;
@@ -41,7 +55,16 @@ const ms = members().filter((m) => {
   return !existingState.text.includes(full);
 });
 if (ms.length === 0) {
-  console.log(JSON.stringify({ skipped: true, reason: `all parsed members visible; rows ${existingState.rows}` }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        skipped: true,
+        reason: `all parsed members visible; rows ${existingState.rows}`,
+      },
+      null,
+      2,
+    ),
+  );
   process.exit(0);
 }
 
@@ -55,11 +78,22 @@ for (const m of ms) {
   await setAuto('wyksztalcenie', m.wyksztalcenie);
   filled.push(await fillByName('tytul_naukowy', m.tytul));
   await setAuto('rola_w_projekcie', m.rola);
-  filled.push(await fillByName('doswiadczenie_naukowe_i_zawodowe', m.doswiadczenie));
-  filled.push(await fillByName('stanowisko_i_zakres_obowiazkow_w_projekcie', m.stanowisko));
+  filled.push(
+    await fillByName('doswiadczenie_naukowe_i_zawodowe', m.doswiadczenie),
+  );
+  filled.push(
+    await fillByName(
+      'stanowisko_i_zakres_obowiazkow_w_projekcie',
+      m.stanowisko,
+    ),
+  );
   filled.push(await fillByName('wymiar_zaangazowania_w_projekcie', m.wymiar));
   await setStatus();
-  try { await setApplicant(); } catch (e) { /* single applicant may be auto-bound after status */ }
+  try {
+    await setApplicant();
+  } catch (e) {
+    /* single applicant may be auto-bound after status */
+  }
   if (m.rola.toLowerCase().includes('kierownik') && m.projects.length) {
     await fillProjectSubrow(m.projects[0], 0);
   }
@@ -68,7 +102,9 @@ for (const m of ms) {
     added.push(`${m.imie} ${m.nazwisko}`);
     console.log(`SAVED ${m.imie} ${m.nazwisko}`);
   } catch (e) {
-    console.log(`NOT SAVED ${m.imie} ${m.nazwisko}: ${String(e?.message || e)}`);
+    console.log(
+      `NOT SAVED ${m.imie} ${m.nazwisko}: ${String(e?.message || e)}`,
+    );
     break;
   }
 }

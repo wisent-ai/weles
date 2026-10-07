@@ -1,6 +1,11 @@
 export { CDPConnection } from './cdp/connection.js';
 export { launchChromium } from './cdp/launcher.js';
-export { CDPError, CDPTimeoutError, CDPNavigationError, CDPTargetClosedError } from './cdp/errors.js';
+export {
+  CDPError,
+  CDPTimeoutError,
+  CDPNavigationError,
+  CDPTargetClosedError,
+} from './cdp/errors.js';
 export { CDPPage } from './cdp/page/page.js';
 export { CDPFrame, FrameTree } from './cdp/page/frame.js';
 export { CDPMouse, CDPKeyboard } from './cdp/input.js';
@@ -10,16 +15,37 @@ export { CDPBrowserContext } from './browser/context.js';
 export { CDPWeles, cdpNewBrowser } from './browser/api.js';
 export { generate, toConfig, toCppConfig } from './fingerprint.js';
 export { buildInitScript } from './page-init/loader.js';
-export { askPage, checkPage, identifyPage, findClickTarget, VisionRefusedError } from './vision/analyze.js';
+export {
+  askPage,
+  checkPage,
+  identifyPage,
+  findClickTarget,
+  VisionRefusedError,
+} from './vision/analyze.js';
 export { pruneRecordings } from './runtime/prune.js';
-export { waitCloudflare, bypassCloudflare, isChallenged } from './cloudflare/challenge.js';
+export {
+  waitCloudflare,
+  bypassCloudflare,
+  isChallenged,
+} from './cloudflare/challenge.js';
 export { Capture } from './capture/capture.js';
 export { SessionStore } from './session/store.js';
-export { ProxyPool, proxyUrl, toPlaywright, parseProxyUrl } from './proxy/config.js';
+export {
+  ProxyPool,
+  proxyUrl,
+  toPlaywright,
+  parseProxyUrl,
+} from './proxy/config.js';
 export type { ProxyConfig } from './proxy/config.js';
 export { humanMove, humanClick } from './human/mouse.js';
 export { humanType } from './human/keyboard.js';
-export { FetchAccountValue, Trajectory, execute, AgentFailure, dispatch } from './agent/index.js';
+export {
+  FetchAccountValue,
+  Trajectory,
+  execute,
+  AgentFailure,
+  dispatch,
+} from './agent/index.js';
 export type { ToolCall, LoopResult } from './agent/loop.js';
 export { AsyncNewBrowser, AsyncWeles } from './async_api.js';
 export { WSession } from './session/wsession.js';
@@ -30,15 +56,44 @@ export { solveRecaptchaV2 } from './captcha/recaptcha.js';
 export * as vision from './agent/flows/vision.js';
 export * as agentLogin from './agent/flows/login.js';
 export * as discover from './agent/flows/discover.js';
-export { acquireSecret, buildSecretAcquisitionPlan } from './secrets/acquire.js';
-export type { AcquireSecretRequest, AcquireSecretResult } from './secrets/acquire.js';
-export { loadArtifactDeliveryClientConfig, requestSignedArtifactUrls } from './worker/artifacts/artifact-delivery-client.js';
+export {
+  acquireSecret,
+  buildSecretAcquisitionPlan,
+} from './secrets/acquire.js';
+export type {
+  AcquireSecretRequest,
+  AcquireSecretResult,
+} from './secrets/acquire.js';
+export {
+  loadArtifactDeliveryClientConfig,
+  requestSignedArtifactUrls,
+} from './worker/artifacts/artifact-delivery-client.js';
 export type { ArtifactDeliveryClientConfig } from './worker/artifacts/artifact-delivery-client.js';
-export type { ArtifactLocatorSet, SignedArtifactResponse } from './worker/artifacts/artifact-delivery.js';
+export type {
+  ArtifactLocatorSet,
+  SignedArtifactResponse,
+} from './worker/artifacts/artifact-delivery.js';
 
-export { FileJourneyStorage, runWelesOnboarding, WELES_FIRST_USE_FALLBACK } from './onboarding/first-use.js';
-export type { WelesOnboardingInput, WelesOnboardingView } from './onboarding/first-use.js';
-export { importWelesTrajectoryDocument, importWelesTrajectoryFile } from './runtime/import.js';
-export type { WelesImportClientOptions, WelesImportItem, WelesImportReport } from './runtime/import.js';
+export {
+  FileJourneyStorage,
+  runWelesOnboarding,
+  WELES_FIRST_USE_FALLBACK,
+} from './onboarding/first-use.js';
+export type {
+  WelesOnboardingInput,
+  WelesOnboardingView,
+} from './onboarding/first-use.js';
+export {
+  importWelesTrajectoryDocument,
+  importWelesTrajectoryFile,
+} from './runtime/import.js';
+export type {
+  WelesImportClientOptions,
+  WelesImportItem,
+  WelesImportReport,
+} from './runtime/import.js';
 export { accountSecurityRun } from './runtime/api/account-security.js';
-export type { AccountSecurityRun, AccountSecurityResult } from './runtime/api/account-security.js';
+export type {
+  AccountSecurityRun,
+  AccountSecurityResult,
+} from './runtime/api/account-security.js';

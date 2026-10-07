@@ -46,7 +46,12 @@ export const webrtcRoutingRules: DetectionRule[] = [
     test(s) {
       const egressRaw = String(s?.network?.ip || '');
       const egressIP = egressRaw.split(':')[0];
-      const rtcPublic = (s?.js?.webRTC?.localIPs || []).filter((ip: string) => !/^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|127\.|0\.0\.0\.0$|255\.)/.test(ip));
+      const rtcPublic = (s?.js?.webRTC?.localIPs || []).filter(
+        (ip: string) =>
+          !/^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|127\.|0\.0\.0\.0$|255\.)/.test(
+            ip,
+          ),
+      );
       if (!egressIP || rtcPublic.length === 0) return null;
       if (!rtcPublic.includes(egressIP)) {
         return {

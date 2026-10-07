@@ -23,12 +23,18 @@ export async function reloginLinkedinInline(s, acct) {
   const email = acct?.metadata?.email ?? acct?.username;
   const password = acct?.metadata?.password;
   if (!email || !password) return { ok: false, reason: 'missing_creds' };
-  console.log(`[linkedin_relogin] starting inline form-login for ${email} on existing session`);
+  console.log(
+    `[linkedin_relogin] starting inline form-login for ${email} on existing session`,
+  );
   // Drop stale cookies before navigating to /login so LinkedIn doesn't
   // bounce us back to /feed via the auth-aware redirect.
-  try { await s.ctx.clearCookies(); } catch {}
   try {
-    await s.page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded' });
+    await s.ctx.clearCookies();
+  } catch {}
+  try {
+    await s.page.goto('https://www.linkedin.com/login', {
+      waitUntil: 'domcontentloaded',
+    });
   } catch (e) {
     return { ok: false, reason: `goto_err:${e.message}` };
   }
@@ -45,21 +51,37 @@ export async function reloginLinkedinInline(s, acct) {
   // If page never reached /login (e.g. redirected to /feed, /home, /onboarding,
   // or somewhere else), force-navigate via document.location since clearCookies
   // alone may not have cleared localStorage-bound auth state.
-  if (!/\/(login|signin|uas\/login)\b/.test(landedUrl) && !CHECKPOINT_RE.test(landedUrl)) {
-    console.log(`[linkedin_relogin] not on /login — clearing storage and force-navigating`);
+  if (
+    !/\/(login|signin|uas\/login)\b/.test(landedUrl) &&
+    !CHECKPOINT_RE.test(landedUrl)
+  ) {
+    console.log(
+      `[linkedin_relogin] not on /login — clearing storage and force-navigating`,
+    );
     try {
-      await s.page.evaluate(`(()=>{try{localStorage.clear();sessionStorage.clear();}catch(e){}})()`);
-      await s.page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded' });
+      await s.page.evaluate(
+        `(()=>{try{localStorage.clear();sessionStorage.clear();}catch(e){}})()`,
+      );
+      await s.page.goto('https://www.linkedin.com/login', {
+        waitUntil: 'domcontentloaded',
+      });
       await pageSettled(s.page);
       landedUrl = s.page.url?.() ?? '';
       console.log(`[linkedin_relogin] post-force-goto URL: ${landedUrl}`);
-    } catch (e) { return { ok: false, reason: `force_goto_err:${e.message}` }; }
+    } catch (e) {
+      return { ok: false, reason: `force_goto_err:${e.message}` };
+    }
   }
   // Fill the form. Same selectors as linkedin_login.mjs.
-  const usernameSel = 'input#username, input[name="session_key"], input[type="email"][autocomplete*="username"], input[type="email"]';
-  const passwordSel = 'input#password, input[name="session_password"], input[type="password"][autocomplete*="current-password"], input[type="password"]';
+  const usernameSel =
+    'input#username, input[name="session_key"], input[type="email"][autocomplete*="username"], input[type="email"]';
+  const passwordSel =
+    'input#password, input[name="session_password"], input[type="password"][autocomplete*="current-password"], input[type="password"]';
   try {
-    const userLoc = s.page.locator(usernameSel).filter({ visible: true }).first();
+    const userLoc = s.page
+      .locator(usernameSel)
+      .filter({ visible: true })
+      .first();
     await userLoc.waitFor({ state: 'visible' });
     await humanClickLocator(s.page, userLoc);
     await pageSettled(s.page);
@@ -70,14 +92,30 @@ export async function reloginLinkedinInline(s, acct) {
     await pageSettled(s.page);
     await humanType(s.page, password);
     await pageSettled(s.page);
-  } catch (e) { return { ok: false, reason: `fill_err:${e.message}` }; }
-  const submitBtn = s.page.getByRole('button', { name: /^\s*sign\s*in\s*$/i }).filter({ visible: true }).first();
-  try { await submitBtn.waitFor({ state: 'visible' }); } catch (e) { return { ok: false, reason: `submit_not_visible:${e.message}` }; }
+  } catch (e) {
+    return { ok: false, reason: `fill_err:${e.message}` };
+  }
+  const submitBtn = s.page
+    .getByRole('button', { name: /^\s*sign\s*in\s*$/i })
+    .filter({ visible: true })
+    .first();
+  try {
+    await submitBtn.waitFor({ state: 'visible' });
+  } catch (e) {
+    return { ok: false, reason: `submit_not_visible:${e.message}` };
+  }
   await injectV3LoginToken(s.page).catch(() => {});
-  try { await humanClickLocator(s.page, submitBtn); } catch { /* form may have already submitted */ }
+  try {
+    await humanClickLocator(s.page, submitBtn);
+  } catch {
+    /* form may have already submitted */
+  }
   // The form posts and the page navigates away from /login whatever the
   // answer; the page it lands on then settles.
-  await urlMatching(s.page, (u) => !/^https?:\/\/www\.linkedin\.com\/login\/?$/.test(u));
+  await urlMatching(
+    s.page,
+    (u) => !/^https?:\/\/www\.linkedin\.com\/login\/?$/.test(u),
+  );
   await pageSettled(s.page);
   let cookies = await s.ctx.cookies();
   let liAt = cookies.find((c) => c.name === 'li_at' && c.value);
@@ -87,6 +125,11 @@ export async function reloginLinkedinInline(s, acct) {
     liAt = r.liAt;
     finalUrl = r.finalUrl;
   }
-  if (liAt) { console.log(`[linkedin_relogin] PASS: li_at minted via inline relogin — ${finalUrl}`); return { ok: true, liAt, finalUrl }; }
+  if (liAt) {
+    console.log(
+      `[linkedin_relogin] PASS: li_at minted via inline relogin — ${finalUrl}`,
+    );
+    return { ok: true, liAt, finalUrl };
+  }
   return { ok: false, reason: `no_li_at_after_form:${finalUrl}` };
 }

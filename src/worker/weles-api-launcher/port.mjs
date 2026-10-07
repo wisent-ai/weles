@@ -26,14 +26,28 @@ export function portHolder(listing) {
 export async function holderHealth(apiPort) {
   try {
     const response = await fetch(`http://127.0.0.1:${apiPort}/healthz`);
-    if (!response.ok) return { weles: false, detail: `it answered /healthz with HTTP ${response.status}` };
+    if (!response.ok)
+      return {
+        weles: false,
+        detail: `it answered /healthz with HTTP ${response.status}`,
+      };
     const body = await response.json();
     const source = typeof body?.source === 'string' ? body.source : '';
     if (!source.startsWith('weles')) {
-      return { weles: false, detail: `its /healthz names ${source || 'no source'}` };
+      return {
+        weles: false,
+        detail: `its /healthz names ${source || 'no source'}`,
+      };
     }
-    return { weles: true, source, version: typeof body?.version === 'string' ? body.version : '' };
+    return {
+      weles: true,
+      source,
+      version: typeof body?.version === 'string' ? body.version : '',
+    };
   } catch (error) {
-    return { weles: false, detail: `/healthz could not be read: ${error.message}` };
+    return {
+      weles: false,
+      detail: `/healthz could not be read: ${error.message}`,
+    };
   }
 }

@@ -19,11 +19,13 @@ const PAGE_HELPERS = `
         return st.display !== 'none' && st.visibility !== 'hidden' && Number(st.opacity || '1') !== 0;
       };`;
 
-const CONTROL_NODES = 'button, [role="button"], [role="menuitem"], a, [role="link"], li, div[role="option"], material-button, material-list-item';
+const CONTROL_NODES =
+  'button, [role="button"], [role="menuitem"], a, [role="link"], li, div[role="option"], material-button, material-list-item';
 
 export async function action(cmd) {
   const answer = await keeperRequest(SOCK, cmd);
-  if (!answer.ok) throw new Error(answer.error || `keeper action failed: ${cmd.action}`);
+  if (!answer.ok)
+    throw new Error(answer.error || `keeper action failed: ${cmd.action}`);
   return answer;
 }
 
@@ -77,7 +79,10 @@ export async function evalState() {
       };
     })()`,
   });
-  if (!res.result) throw new Error('keeper ran the page-state script but answered with no document; the tab did not report its state');
+  if (!res.result)
+    throw new Error(
+      'keeper ran the page-state script but answered with no document; the tab did not report its state',
+    );
   return res.result;
 }
 
@@ -105,12 +110,17 @@ export async function locateControl(patternSource, options = {}) {
       }).filter(Boolean).sort((a, b) => a.area - b.area);
     })()`,
   });
-  if (!Array.isArray(res.result)) throw new Error(`keeper ran the control search for ${patternSource} but answered with no match list`);
+  if (!Array.isArray(res.result))
+    throw new Error(
+      `keeper ran the control search for ${patternSource} but answered with no match list`,
+    );
   return res.result;
 }
 
 export async function humanClickPoint(x, y, label) {
-  console.log(`[google-ads-keyword-planner-keeper] clicking ${label} at ${Math.round(x)},${Math.round(y)}`);
+  console.log(
+    `[google-ads-keyword-planner-keeper] clicking ${label} at ${Math.round(x)},${Math.round(y)}`,
+  );
   await action({ action: 'humanclick', x, y });
   await idle('deliberate');
 }
@@ -119,12 +129,18 @@ export async function clickControl(patternSource, label, options = {}) {
   const matches = await locateControl(patternSource, options);
   if (!matches.length) return false;
   const target = matches[0];
-  await humanClickPoint(target.cx, target.cy, label || target.text || target.aria || patternSource);
+  await humanClickPoint(
+    target.cx,
+    target.cy,
+    label || target.text || target.aria || patternSource,
+  );
   return true;
 }
 
 export async function fillSelector(selector, text, label) {
-  console.log(`[google-ads-keyword-planner-keeper] filling ${label || selector}`);
+  console.log(
+    `[google-ads-keyword-planner-keeper] filling ${label || selector}`,
+  );
   await action({ action: 'fill', selector, text });
   await idle('deliberate');
 }
@@ -139,7 +155,8 @@ export async function fillKeywordInput() {
   console.log('[google-ads-keyword-planner-keeper] filling keyword input');
   await action({
     action: 'fill',
-    selector: 'textarea[aria-label*="keywords" i], textarea[aria-label*="paste" i], [role="textbox"][aria-label*="keywords" i]',
+    selector:
+      'textarea[aria-label*="keywords" i], textarea[aria-label*="paste" i], [role="textbox"][aria-label*="keywords" i]',
     text,
   });
   await idle('deliberate');
@@ -149,7 +166,9 @@ export async function fillKeywordInput() {
     return value.length > 0 && text.startsWith(value);
   });
   if (!landed) {
-    throw new Error(`keyword box did not take the ${keywords.length} keyword(s) of this run; the form on screen is not the keyword entry form`);
+    throw new Error(
+      `keyword box did not take the ${keywords.length} keyword(s) of this run; the form on screen is not the keyword entry form`,
+    );
   }
 }
 
@@ -166,5 +185,9 @@ export async function dismissChrome() {
       return overlays.length;
     })()`,
   });
-  await clickControl('Close notifications|Get the Google Ads app dismiss|Close setup', 'dismiss overlay', { maxArea: 80_000 }).catch(() => false);
+  await clickControl(
+    'Close notifications|Get the Google Ads app dismiss|Close setup',
+    'dismiss overlay',
+    { maxArea: 80_000 },
+  ).catch(() => false);
 }

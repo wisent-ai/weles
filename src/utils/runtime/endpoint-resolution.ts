@@ -25,7 +25,10 @@ export async function isEndpointListening(urlString: string): Promise<boolean> {
   try {
     const url = new URL(urlString);
     const host = url.hostname;
-    const port = parseInt(url.port || (url.protocol === 'https:' ? '443' : '80'), 10);
+    const port = parseInt(
+      url.port || (url.protocol === 'https:' ? '443' : '80'),
+      10,
+    );
 
     if (isNaN(port) || port < 1 || port > 65535) {
       return false;
@@ -40,7 +43,9 @@ export async function isEndpointListening(urlString: string): Promise<boolean> {
     });
 
     socket.on('error', (error: NodeJS.ErrnoException) => {
-      console.log(`[endpoint] ${host}:${port} not listening: ${error.code ?? error.message}`);
+      console.log(
+        `[endpoint] ${host}:${port} not listening: ${error.code ?? error.message}`,
+      );
       resolve(false);
     });
 

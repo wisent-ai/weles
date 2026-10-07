@@ -4,7 +4,11 @@ import { dirname, join } from 'node:path';
 
 export async function syncDirectory(path) {
   const directory = await open(path, 'r');
-  try { await directory.sync(); } finally { await directory.close(); }
+  try {
+    await directory.sync();
+  } finally {
+    await directory.close();
+  }
 }
 
 export async function atomicJsonWrite(path, document) {

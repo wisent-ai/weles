@@ -25,7 +25,8 @@ export class PageRequestRefused extends Error {
 }
 
 function positiveInteger(body, field) {
-  if (!Object.hasOwn(body, field)) throw new PageRequestRefused(field, 'is required');
+  if (!Object.hasOwn(body, field))
+    throw new PageRequestRefused(field, 'is required');
   const value = body[field];
   if (!Number.isSafeInteger(value) || value <= 0) {
     throw new PageRequestRefused(field, 'must be a positive integer');
@@ -48,7 +49,10 @@ function text(value, field, { required }) {
 // size of its own, so a request without one is refused by name.
 function viewportOf(body) {
   if (!Object.hasOwn(body, 'viewport')) {
-    throw new PageRequestRefused('viewport', 'is required: give { width, height } in CSS pixels');
+    throw new PageRequestRefused(
+      'viewport',
+      'is required: give { width, height } in CSS pixels',
+    );
   }
   const viewport = body.viewport;
   if (typeof viewport !== 'object' || viewport === null) {
@@ -64,9 +68,14 @@ function common(body) {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
     throw new PageRequestRefused('body', 'must be a JSON object');
   }
-  const loadState = Object.hasOwn(body, 'load_state') ? body.load_state : STANDARD_LOAD_STATE;
+  const loadState = Object.hasOwn(body, 'load_state')
+    ? body.load_state
+    : STANDARD_LOAD_STATE;
   if (!LOAD_STATES.includes(loadState)) {
-    throw new PageRequestRefused('load_state', `must be one of ${LOAD_STATES.join(', ')}`);
+    throw new PageRequestRefused(
+      'load_state',
+      `must be one of ${LOAD_STATES.join(', ')}`,
+    );
   }
   return {
     url: text(body.url, 'url', { required: true }),
@@ -79,9 +88,14 @@ function common(body) {
 /** POST /pages/snapshot: one page read as text, structure and an optional image. */
 export function snapshotRequest(body) {
   const request = common(body);
-  const screenshot = Object.hasOwn(body, 'screenshot') ? body.screenshot : NO_SCREENSHOT;
+  const screenshot = Object.hasOwn(body, 'screenshot')
+    ? body.screenshot
+    : NO_SCREENSHOT;
   if (!SCREENSHOT_MODES.includes(screenshot)) {
-    throw new PageRequestRefused('screenshot', `must be one of ${SCREENSHOT_MODES.join(', ')}`);
+    throw new PageRequestRefused(
+      'screenshot',
+      `must be one of ${SCREENSHOT_MODES.join(', ')}`,
+    );
   }
   return { ...request, screenshot };
 }
@@ -91,12 +105,17 @@ export function formExportRequest(body) {
   const request = common(body);
   const fields = Object.hasOwn(body, 'fields') ? body.fields : [];
   if (!Array.isArray(fields)) {
-    throw new PageRequestRefused('fields', 'must be a list of { selector, value }');
+    throw new PageRequestRefused(
+      'fields',
+      'must be a list of { selector, value }',
+    );
   }
   return {
     ...request,
     fields: fields.map((field, index) => ({
-      selector: text(field?.selector, `fields[${index}].selector`, { required: true }),
+      selector: text(field?.selector, `fields[${index}].selector`, {
+        required: true,
+      }),
       value: text(field?.value, `fields[${index}].value`, { required: true }),
     })),
     clickText: text(body.click_text, 'click_text', { required: true }),

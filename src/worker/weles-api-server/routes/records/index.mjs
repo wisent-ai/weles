@@ -17,7 +17,11 @@
 // bearer. Every answer is { ok: true, data } or { ok: false, code, error }, and
 // every request leaves one event:record_route line in the unit log.
 
-import { json, readBody, requireTokenAuthorization } from '../../http-exchange.mjs';
+import {
+  json,
+  readBody,
+  requireTokenAuthorization,
+} from '../../http-exchange.mjs';
 import {
   HTTP_INVALID_REQUEST,
   HTTP_NOT_FOUND,
@@ -59,11 +63,17 @@ function existing(records, id) {
 }
 
 const ROUTES = {
-  '/records/accounts/list': (records, body) => ({ accounts: records.listAccounts(platformFilter(body)).map(publicAccount) }),
-  '/records/accounts/get': (records, body) => ({ account: publicAccount(existing(records, accountId(body))) }),
+  '/records/accounts/list': (records, body) => ({
+    accounts: records.listAccounts(platformFilter(body)).map(publicAccount),
+  }),
+  '/records/accounts/get': (records, body) => ({
+    account: publicAccount(existing(records, accountId(body))),
+  }),
   '/records/accounts/upsert': (records, body) => {
     const input = accountInput(body);
-    const id = input.password ? records.putAccount(input) : records.putAccountProfile(input);
+    const id = input.password
+      ? records.putAccount(input)
+      : records.putAccountProfile(input);
     return { account: publicAccount(existing(records, id)) };
   },
   '/records/accounts/update': (records, body) => {
@@ -74,7 +84,10 @@ const ROUTES = {
     return { account: publicAccount(existing(records, id)) };
   },
   '/records/settings/get': (records, body) => ({
-    settings: settingKeys(body).map((key) => ({ key, value: records.readSetting(key, null) })),
+    settings: settingKeys(body).map((key) => ({
+      key,
+      value: records.readSetting(key, null),
+    })),
   }),
   '/records/settings/set': (records, body) => {
     const setting = settingInput(body);
@@ -84,7 +97,11 @@ const ROUTES = {
 };
 
 const REFUSALS = [
-  { type: RecordRequestRefused, status: HTTP_INVALID_REQUEST, code: 'invalid_request' },
+  {
+    type: RecordRequestRefused,
+    status: HTTP_INVALID_REQUEST,
+    code: 'invalid_request',
+  },
   { type: RecordNotFound, status: HTTP_NOT_FOUND, code: 'record_not_found' },
 ];
 const RECORD_FAILURE = { status: HTTP_RECORD_FAILED, code: 'record_failed' };
@@ -102,7 +119,8 @@ export async function respondToRecord(req, res, url, records) {
     const data = ROUTES[url.pathname](records, await readBody(req));
     json(res, HTTP_OK, { ok: true, data });
   } catch (error) {
-    const { status, code } = REFUSALS.find(({ type }) => error instanceof type) || RECORD_FAILURE;
+    const { status, code } =
+      REFUSALS.find(({ type }) => error instanceof type) || RECORD_FAILURE;
     outcome = { status, code, message: String(error?.message || error) };
     json(res, status, {
       ok: false,
@@ -111,13 +129,15 @@ export async function respondToRecord(req, res, url, records) {
       ...(error instanceof RecordRequestRefused ? { field: error.field } : {}),
     });
   } finally {
-    console.log(JSON.stringify({
-      event: 'record_route',
-      route: url.pathname,
-      status: outcome.status,
-      code: outcome.code,
-      ...(outcome.message ? { error: outcome.message } : {}),
-      elapsed_ms: Date.now() - started,
-    }));
+    console.log(
+      JSON.stringify({
+        event: 'record_route',
+        route: url.pathname,
+        status: outcome.status,
+        code: outcome.code,
+        ...(outcome.message ? { error: outcome.message } : {}),
+        elapsed_ms: Date.now() - started,
+      }),
+    );
   }
 }

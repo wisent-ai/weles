@@ -9,7 +9,15 @@
 import { readdirSync, statSync, unlinkSync } from 'node:fs';
 import { join, extname } from 'node:path';
 
-const SIDECAR_EXTS = ['.json', '.txt', '.log', '.png', '.webm', '.har', '.html'];
+const SIDECAR_EXTS = [
+  '.json',
+  '.txt',
+  '.log',
+  '.png',
+  '.webm',
+  '.har',
+  '.html',
+];
 
 interface FileEntry {
   mtime: number;
@@ -28,10 +36,14 @@ function walk(dir: string): FileEntry[] {
         try {
           const st = statSync(full);
           result.push({ mtime: st.mtimeMs, size: st.size, path: full });
-        } catch { /* skip unreadable */ }
+        } catch {
+          /* skip unreadable */
+        }
       }
     }
-  } catch { /* skip unreadable dirs */ }
+  } catch {
+    /* skip unreadable dirs */
+  }
   return result;
 }
 
@@ -47,7 +59,9 @@ export function pruneRecordings(dir: string, maxBytes: number): void {
       try {
         unlinkSync(fp);
         total -= size;
-      } catch { continue; }
+      } catch {
+        continue;
+      }
       // Remove sidecar files with same stem
       const stem = fp.slice(0, fp.length - extname(fp).length);
       for (const ext of SIDECAR_EXTS) {
@@ -57,8 +71,12 @@ export function pruneRecordings(dir: string, maxBytes: number): void {
           const scSize = statSync(sc).size;
           unlinkSync(sc);
           total -= scSize;
-        } catch { /* skip */ }
+        } catch {
+          /* skip */
+        }
       }
     }
-  } catch { /* skip all errors */ }
+  } catch {
+    /* skip all errors */
+  }
 }

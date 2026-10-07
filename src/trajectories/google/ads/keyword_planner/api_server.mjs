@@ -16,17 +16,34 @@
 //   WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET required Brama request-signing secret
 
 import { existsSync } from 'node:fs';
-import { ALLOW_UNAUTH, API_TOKEN, RUNNER, redact } from './api_server/service_settings.mjs';
-import { authorized, json, readJsonBody, validateReportRequest, validateRequest } from './api_server/request_intake.mjs';
+import {
+  ALLOW_UNAUTH,
+  API_TOKEN,
+  RUNNER,
+  redact,
+} from './api_server/service_settings.mjs';
+import {
+  authorized,
+  json,
+  readJsonBody,
+  validateReportRequest,
+  validateRequest,
+} from './api_server/request_intake.mjs';
 import { runKeywordPlanner } from './api_server/keeper_harvest.mjs';
 import { generateKeywordsWithRouter } from './api_server/model_router.mjs';
-import { buildKeywordReport, runKeywordReport } from './api_server/saturation_report.mjs';
+import {
+  buildKeywordReport,
+  runKeywordReport,
+} from './api_server/saturation_report.mjs';
 
 const KEYWORD_VOLUME = '/google-ads/keyword-volume';
 const KEYWORD_REPORT = '/google-ads/keyword-report';
 
 export function isKeywordPlannerRoute(req, url) {
-  return req.method === 'POST' && (url.pathname === KEYWORD_VOLUME || url.pathname === KEYWORD_REPORT);
+  return (
+    req.method === 'POST' &&
+    (url.pathname === KEYWORD_VOLUME || url.pathname === KEYWORD_REPORT)
+  );
 }
 
 export async function respondToKeywordPlanner(req, res, url) {
@@ -34,13 +51,20 @@ export async function respondToKeywordPlanner(req, res, url) {
     if (!authorized(req)) {
       json(res, API_TOKEN || ALLOW_UNAUTH ? 401 : 500, {
         ok: false,
-        error: API_TOKEN || ALLOW_UNAUTH ? 'unauthorized' : 'missing_WELES_KEYWORD_PLANNER_API_TOKEN',
+        error:
+          API_TOKEN || ALLOW_UNAUTH
+            ? 'unauthorized'
+            : 'missing_WELES_KEYWORD_PLANNER_API_TOKEN',
       });
       return;
     }
 
     if (!existsSync(RUNNER)) {
-      json(res, 500, { ok: false, error: 'ads_keyword_planner_keeper_missing', runner: RUNNER });
+      json(res, 500, {
+        ok: false,
+        error: 'ads_keyword_planner_keeper_missing',
+        runner: RUNNER,
+      });
       return;
     }
 

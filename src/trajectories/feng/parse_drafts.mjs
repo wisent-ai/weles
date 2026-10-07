@@ -37,7 +37,8 @@ function extractValues(text, sourceFile, warnings) {
   // Strip backtick-quoted spans so documentation examples like
   // `<!-- value name="..." -->` inside prose don't show up as real markers.
   const sanitized = text.replace(/`[^`\n]*`/g, '');
-  const re = /<!--\s*value\s+name="([^"]+)"\s*-->([\s\S]*?)<!--\s*\/value\s*-->/g;
+  const re =
+    /<!--\s*value\s+name="([^"]+)"\s*-->([\s\S]*?)<!--\s*\/value\s*-->/g;
   let m;
   while ((m = re.exec(sanitized))) {
     const name = m[1].trim();
@@ -58,7 +59,11 @@ function main() {
     const values = extractValues(text, f);
     for (const [name, payload] of Object.entries(values)) {
       if (all[name] !== undefined) {
-        dupes.push({ name, first: all[name].sourceFile, second: payload.sourceFile });
+        dupes.push({
+          name,
+          first: all[name].sourceFile,
+          second: payload.sourceFile,
+        });
       }
       all[name] = payload;
     }
@@ -66,10 +71,14 @@ function main() {
   if (dupes.length > 0) {
     process.stderr.write(`WARN: ${dupes.length} duplicated value name(s):\n`);
     for (const d of dupes) {
-      process.stderr.write(`  ${d.name}\n    first:  ${d.first}\n    second: ${d.second}\n`);
+      process.stderr.write(
+        `  ${d.name}\n    first:  ${d.first}\n    second: ${d.second}\n`,
+      );
     }
   }
-  process.stderr.write(`OK: parsed ${Object.keys(all).length} value(s) from ${files.length} file(s) under ${root}\n`);
+  process.stderr.write(
+    `OK: parsed ${Object.keys(all).length} value(s) from ${files.length} file(s) under ${root}\n`,
+  );
   process.stdout.write(JSON.stringify(all, null, 2) + '\n');
 }
 

@@ -21,9 +21,14 @@ const QUERY = arg('--q') || process.env.GD_QUERY;
 const LIMIT = parseInt(process.env.GD_LIMIT || '50', 10);
 const LABEL = 'drive_search';
 
-if (!QUERY) { console.log('FAIL: --q (or GD_QUERY) required'); process.exit(2); }
+if (!QUERY) {
+  console.log('FAIL: --q (or GD_QUERY) required');
+  process.exit(2);
+}
 
-function log(...a) { console.log('[drive_search]', ...a); }
+function log(...a) {
+  console.log('[drive_search]', ...a);
+}
 
 async function resolveCreds() {
   return readScopedLogin('googleDrive');
@@ -32,11 +37,15 @@ async function resolveCreds() {
 const creds = await resolveCreds();
 // Chromium is the default engine — Firefox engine stalls at Google's
 // password challenge page (same pattern as create_doc / list_docs).
-const s = await WSession.start({ label: LABEL, browser: process.env.BROWSER || 'chromium' });
+const s = await WSession.start({
+  label: LABEL,
+  browser: process.env.BROWSER || 'chromium',
+});
 
 try {
   log('engine:', s.personaConfig?.browser ?? 'unknown', '| query:', QUERY);
-  const url = 'https://drive.google.com/drive/search?q=' + encodeURIComponent(QUERY);
+  const url =
+    'https://drive.google.com/drive/search?q=' + encodeURIComponent(QUERY);
   await s.page.goto(url, { waitUntil: 'domcontentloaded' });
   await pageSettled(s.page);
 
@@ -55,8 +64,11 @@ try {
     if (new URL(s.page.url()).hostname === 'accounts.google.com') {
       throw new Error(`DRIVE_SEARCH_SIGN_IN_REQUIRED: ${s.page.url()}`);
     }
-    results = await s.page.evaluate(() => { // allow-raw-playwright: read-only DOM scrape of Drive search results, no synthetic interaction
-      const empty = !!document.querySelector('[aria-label*="No matching" i], [aria-label*="No files found" i]');
+    results = await s.page.evaluate(() => {
+      // allow-raw-playwright: read-only DOM scrape of Drive search results, no synthetic interaction
+      const empty = !!document.querySelector(
+        '[aria-label*="No matching" i], [aria-label*="No files found" i]',
+      );
       if (empty) return { empty: true, rows: [] };
       const rows = Array.from(document.querySelectorAll('[data-id]'));
       if (rows.length === 0) return null;
@@ -83,16 +95,22 @@ try {
         }
         // mimeType peek via Drive's icon aria-label; best-effort.
         let mimeIcon = '';
-        const iconNode = r.querySelector('[role="img"][aria-label*="Google" i]');
+        const iconNode = r.querySelector(
+          '[role="img"][aria-label*="Google" i]',
+        );
         if (iconNode) {
           const iconLabel = iconNode.getAttribute('aria-label');
           if (iconLabel) mimeIcon = iconLabel;
         }
         let docUrl = '';
-        if (/Document/i.test(mimeIcon)) docUrl = `https://docs.google.com/document/d/${id}/edit`;
-        else if (/Spreadsheet/i.test(mimeIcon)) docUrl = `https://docs.google.com/spreadsheets/d/${id}/edit`;
-        else if (/Slides/i.test(mimeIcon)) docUrl = `https://docs.google.com/presentation/d/${id}/edit`;
-        else if (/Form/i.test(mimeIcon)) docUrl = `https://docs.google.com/forms/d/${id}/edit`;
+        if (/Document/i.test(mimeIcon))
+          docUrl = `https://docs.google.com/document/d/${id}/edit`;
+        else if (/Spreadsheet/i.test(mimeIcon))
+          docUrl = `https://docs.google.com/spreadsheets/d/${id}/edit`;
+        else if (/Slides/i.test(mimeIcon))
+          docUrl = `https://docs.google.com/presentation/d/${id}/edit`;
+        else if (/Form/i.test(mimeIcon))
+          docUrl = `https://docs.google.com/forms/d/${id}/edit`;
         else docUrl = `https://drive.google.com/file/d/${id}/view`;
         out.push({ fileId: id, title, mimeType: mimeIcon, url: docUrl });
       }

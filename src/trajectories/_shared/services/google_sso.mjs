@@ -40,7 +40,11 @@ export async function googleSso(session, creds, opts = {}) {
   if (arrival.at === 'caller_site') return true;
   if (arrival.at === 'refused') return false;
 
-  const submitted = await submitGooglePassword(page, creds, arrival.passwordFieldCount);
+  const submitted = await submitGooglePassword(
+    page,
+    creds,
+    arrival.passwordFieldCount,
+  );
   if (!submitted) return false;
 
   return await watchGoogleRedirect(page, session, creds, opts);

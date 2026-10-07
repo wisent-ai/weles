@@ -23,11 +23,19 @@ import { runOutputPath } from '#run-output';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { pageSettled } from '../../_shared/page/settled.mjs';
 import {
-  accountProfileDir, loginMaterial, signIn,
+  accountProfileDir,
+  loginMaterial,
+  signIn,
 } from '../../_shared/services/google_sso/sign_in/account.mjs';
-import { createAppPassword, openAppPasswords, redactAppPasswords } from './page.mjs';
 import {
-  APP_NAME, SKRZYNKA_BIN_VARIABLE, SKRZYNKA_DEFAULT_BIN,
+  createAppPassword,
+  openAppPasswords,
+  redactAppPasswords,
+} from './page.mjs';
+import {
+  APP_NAME,
+  SKRZYNKA_BIN_VARIABLE,
+  SKRZYNKA_DEFAULT_BIN,
 } from './constants.mjs';
 
 const RUN = 'google-app-password';
@@ -53,7 +61,9 @@ async function issue(page, wait, login) {
   const asked = new Set();
   for (;;) {
     const opened = await openAppPasswords(page, wait);
-    const step = opened.ok ? await createAppPassword(page, wait, APP_NAME) : opened;
+    const step = opened.ok
+      ? await createAppPassword(page, wait, APP_NAME)
+      : opened;
     if (step.ok || step.blocked !== 'google_sign_in_required') return step;
     const at = page.url();
     if (asked.has(at)) return step;
@@ -65,18 +75,42 @@ async function issue(page, wait, login) {
 
 /** Hand the password to Skrzynka on stdin; its JSON answer is the verdict. */
 function giveToSkrzynka(organization, email, password) {
-  const binary = String(process.env[SKRZYNKA_BIN_VARIABLE] || '').trim() || SKRZYNKA_DEFAULT_BIN;
-  const result = spawnSync(binary, ['--organization', organization, 'account', 'app-password', '--provider', 'gmail', '--email', email], {
-    input: password,
-    encoding: 'utf8',
-  });
+  const binary =
+    String(process.env[SKRZYNKA_BIN_VARIABLE] || '').trim() ||
+    SKRZYNKA_DEFAULT_BIN;
+  const result = spawnSync(
+    binary,
+    [
+      '--organization',
+      organization,
+      'account',
+      'app-password',
+      '--provider',
+      'gmail',
+      '--email',
+      email,
+    ],
+    {
+      input: password,
+      encoding: 'utf8',
+    },
+  );
   if (result.error) {
-    return { ok: false, blocked: 'skrzynka_unavailable', detail: `${binary}: ${result.error.message}` };
+    return {
+      ok: false,
+      blocked: 'skrzynka_unavailable',
+      detail: `${binary}: ${result.error.message}`,
+    };
   }
   // spawnSync with an encoding answers both streams as text.
   const output = redactAppPasswords(`${result.stdout}${result.stderr}`);
   if (result.status !== 0) {
-    return { ok: false, blocked: 'skrzynka_refused_app_password', exit_status: result.status, detail: output };
+    return {
+      ok: false,
+      blocked: 'skrzynka_refused_app_password',
+      exit_status: result.status,
+      detail: output,
+    };
   }
   return { ok: true, skrzynka: output };
 }
@@ -84,17 +118,29 @@ function giveToSkrzynka(organization, email, password) {
 async function main() {
   const loginItem = String(process.env.WELES_LOGIN_ITEM || '').trim();
   if (!loginItem) {
-    report({ ok: false, blocked: 'login_item_required', detail: 'WELES_LOGIN_ITEM must name the Skarbiec Google login' });
+    report({
+      ok: false,
+      blocked: 'login_item_required',
+      detail: 'WELES_LOGIN_ITEM must name the Skarbiec Google login',
+    });
     process.exit(2);
   }
   const organization = String(process.env.SKRZYNKA_ORGANIZATION || '').trim();
   if (!organization) {
-    report({ ok: false, blocked: 'organization_required', detail: 'SKRZYNKA_ORGANIZATION must name the Skrzynka organization the mailbox is declared in' });
+    report({
+      ok: false,
+      blocked: 'organization_required',
+      detail:
+        'SKRZYNKA_ORGANIZATION must name the Skrzynka organization the mailbox is declared in',
+    });
     process.exit(2);
   }
   const login = loginMaterial(loginItem);
   const session = await WSession.start({
-    label: `${RUN}-${loginItem}`, browser: 'chromium', headless: false, userDataDir: accountProfileDir(login),
+    label: `${RUN}-${loginItem}`,
+    browser: 'chromium',
+    headless: false,
+    userDataDir: accountProfileDir(login),
   });
   const wait = () => pageSettled(session.page);
   let issued;
@@ -104,21 +150,47 @@ async function main() {
     await session.close();
   }
   if (!issued.ok) {
-    const next = issued.blocked === 'google_push_approval_required'
-      ? { next_action: `POST /run {"action":"google_authenticator_enrol","params":{"login_item":"${loginItem}"},"detached":true} on this executor, then weles app-password --provider google --login-role <the role this login plays> --organization ${organization}` }
-      : {};
-    report({ ok: false, login_item: loginItem, email: login.email, ...issued, ...next });
+    const next =
+      issued.blocked === 'google_push_approval_required'
+        ? {
+            next_action: `POST /run {"action":"google_authenticator_enrol","params":{"login_item":"${loginItem}"},"detached":true} on this executor, then weles app-password --provider google --login-role <the role this login plays> --organization ${organization}`,
+          }
+        : {};
+    report({
+      ok: false,
+      login_item: loginItem,
+      email: login.email,
+      ...issued,
+      ...next,
+    });
     process.exit(3);
   }
   const handed = giveToSkrzynka(organization, login.email, issued.password);
   if (!handed.ok) {
-    report({ ok: false, login_item: loginItem, email: login.email, app_password_created: true, ...handed });
+    report({
+      ok: false,
+      login_item: loginItem,
+      email: login.email,
+      app_password_created: true,
+      ...handed,
+    });
     process.exit(4);
   }
-  report({ ok: true, login_item: loginItem, organization, email: login.email, app_name: APP_NAME, skrzynka: handed.skrzynka });
+  report({
+    ok: true,
+    login_item: loginItem,
+    organization,
+    email: login.email,
+    app_name: APP_NAME,
+    skrzynka: handed.skrzynka,
+  });
 }
 
 main().catch((error) => {
-  report({ ok: false, blocked: 'google_app_password_error', error: String(error?.message || error) });
+  report({
+    ok: false,
+    blocked: 'google_app_password_error',
+    error: String(error?.message || error),
+  });
   process.exit(1);
 });

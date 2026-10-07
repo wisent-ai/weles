@@ -4,9 +4,16 @@ import { pageSettled } from '../../_shared/page/settled.mjs';
 // cross_login) if the trajectory lands on idmsa.apple.com.
 // Args: APP_ID (numeric), RATING (1-5), TITLE, REVIEW_TEXT.
 
-import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
+import {
+  getSocialAccount,
+  resolveAccountSession,
+} from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { humanClick, humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import {
+  humanClick,
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
 
 // A review is a real publication under the account's name: the app, the
@@ -15,14 +22,32 @@ const APP_ID = process.env.APP_ID;
 const RATING = parseInt(process.env.RATING ?? '', 10);
 const TITLE = process.env.TITLE;
 const REVIEW_TEXT = process.env.REVIEW_TEXT;
-if (!APP_ID) { console.log('FAIL: APP_ID env var required'); process.exit(1); }
-if (!/^\d+$/.test(APP_ID)) { console.log('FAIL: APP_ID must be numeric'); process.exit(1); }
-if (!Number.isInteger(RATING) || RATING < 1 || RATING > 5) { console.log('FAIL: RATING env var required, 1-5'); process.exit(1); }
-if (!TITLE) { console.log('FAIL: TITLE env var required'); process.exit(1); }
-if (!REVIEW_TEXT) { console.log('FAIL: REVIEW_TEXT env var required'); process.exit(1); }
+if (!APP_ID) {
+  console.log('FAIL: APP_ID env var required');
+  process.exit(1);
+}
+if (!/^\d+$/.test(APP_ID)) {
+  console.log('FAIL: APP_ID must be numeric');
+  process.exit(1);
+}
+if (!Number.isInteger(RATING) || RATING < 1 || RATING > 5) {
+  console.log('FAIL: RATING env var required, 1-5');
+  process.exit(1);
+}
+if (!TITLE) {
+  console.log('FAIL: TITLE env var required');
+  process.exit(1);
+}
+if (!REVIEW_TEXT) {
+  console.log('FAIL: REVIEW_TEXT env var required');
+  process.exit(1);
+}
 
 const acct = await getSocialAccount('apple');
-if (!acct) { console.log('FAIL: no apple account'); process.exit(1); }
+if (!acct) {
+  console.log('FAIL: no apple account');
+  process.exit(1);
+}
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({
@@ -38,7 +63,9 @@ try {
   // Routine should skip this account for 24h instead of re-trying.
   const initialUrl = s.page.url?.() ?? '';
   if (initialUrl.includes('idmsa.apple.com') || initialUrl.includes('/login')) {
-    console.log('FAIL_COOKIES_STALE: redirected to Apple ID login on listing fetch');
+    console.log(
+      'FAIL_COOKIES_STALE: redirected to Apple ID login on listing fetch',
+    );
     process.exit(2);
   }
 
@@ -47,7 +74,14 @@ try {
   // wheel bursts decides whether it is reached. It throws if the button is
   // absent; the outer catch turns that into a FAIL, which for "Write a Review
   // absent" usually means not signed in.
-  await humanClickLocator(s.page, s.page.locator('button:has-text("Write a Review"), a:has-text("Write a Review")').first());
+  await humanClickLocator(
+    s.page,
+    s.page
+      .locator(
+        'button:has-text("Write a Review"), a:has-text("Write a Review")',
+      )
+      .first(),
+  );
   await pageSettled(s.page);
 
   // The review modal can redirect to idmsa for re-auth when cookies are stale.
@@ -60,22 +94,48 @@ try {
   // Star rating. Apple renders 5 radios labelled "<n> stars". Resolve the
   // Nth radio's bbox and humanClick its centre; the keyboard-driven widget
   // is unreliable under locator.click pointer events historically.
-  const starLocator = s.page.locator(`[role="radio"][aria-label*="${RATING} star"], [role="radio"][aria-label="${RATING}"]`).first();
+  const starLocator = s.page
+    .locator(
+      `[role="radio"][aria-label*="${RATING} star"], [role="radio"][aria-label="${RATING}"]`,
+    )
+    .first();
   const box = await starLocator.boundingBox();
-  if (!box) { console.log(`FAIL: rating radio has no bounding box for RATING=${RATING}`); process.exit(1); }
-  await humanClick(s.page, Math.round(box.x + box.width / 2), Math.round(box.y + box.height / 2));
+  if (!box) {
+    console.log(`FAIL: rating radio has no bounding box for RATING=${RATING}`);
+    process.exit(1);
+  }
+  await humanClick(
+    s.page,
+    Math.round(box.x + box.width / 2),
+    Math.round(box.y + box.height / 2),
+  );
   await humanIdlePause('deliberate');
 
   // Title field.
-  await humanFill(s.page, s.page.locator('input[placeholder*="title" i], input[aria-label*="title" i]').first(), TITLE);
+  await humanFill(
+    s.page,
+    s.page
+      .locator('input[placeholder*="title" i], input[aria-label*="title" i]')
+      .first(),
+    TITLE,
+  );
   await humanIdlePause('deliberate');
 
   // Review body — textarea or contenteditable.
-  await humanFill(s.page, s.page.locator('textarea, [contenteditable="true"]').first(), REVIEW_TEXT);
+  await humanFill(
+    s.page,
+    s.page.locator('textarea, [contenteditable="true"]').first(),
+    REVIEW_TEXT,
+  );
   await humanIdlePause('deliberate');
 
   // Submit. Apple labels the button "Send" in the public web review modal.
-  await humanClickLocator(s.page, s.page.locator('button:has-text("Send"), button:has-text("Submit")').first());
+  await humanClickLocator(
+    s.page,
+    s.page
+      .locator('button:has-text("Send"), button:has-text("Submit")')
+      .first(),
+  );
   await pageSettled(s.page);
 
   // Verify: Apple does not redirect on submit; the modal collapses back to

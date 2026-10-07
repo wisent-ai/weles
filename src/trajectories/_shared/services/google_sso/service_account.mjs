@@ -5,14 +5,19 @@
 // caller asked for is an error, not a substitution; a page with no labelled
 // balance returns nothing rather than the first price it happened to show.
 import { readScopedLogin } from '../../../../_shared/scoped-secrets.mjs';
-import { findWelesRecordId, updateWelesRecord } from '../../skarbiec/accounts.mjs';
+import {
+  findWelesRecordId,
+  updateWelesRecord,
+} from '../../skarbiec/accounts.mjs';
 
 export function parseBalanceFromText(text) {
   // Require a "Balance:" / "Credits:" / "Wallet:" / "Funds:" labelled
   // match. An unlabelled service price is not an account balance. Return null
   // when no labelled balance is found rather than persisting a misleading value.
   if (!text) return null;
-  const labeled = text.match(/(?:balance|credit[s]?|wallet|funds)[^\n$€£]{0,40}\$([0-9]+(?:\.[0-9]{1,4})?)/i);
+  const labeled = text.match(
+    /(?:balance|credit[s]?|wallet|funds)[^\n$€£]{0,40}\$([0-9]+(?:\.[0-9]{1,4})?)/i,
+  );
   if (labeled) return Number(labeled[1]);
   return null;
 }
@@ -23,7 +28,9 @@ export function parseBalanceFromText(text) {
 export async function getGoogleSsoCreds(email) {
   const login = readScopedLogin('googleSso');
   if (email && login.email.toLowerCase() !== String(email).toLowerCase()) {
-    throw new Error('scoped Google SSO identity does not match the requested account');
+    throw new Error(
+      'scoped Google SSO identity does not match the requested account',
+    );
   }
   return login;
 }
@@ -32,9 +39,12 @@ export async function getScopedGoogleLogin(serviceName) {
 }
 
 export async function patchServiceBalance(displayName, balance) {
-  const id = findWelesRecordId((document) =>
-    document.context?.owner === 'weles'
-      && String(document.context?.display_name ?? '').toLowerCase() === String(displayName).toLowerCase());
+  const id = findWelesRecordId(
+    (document) =>
+      document.context?.owner === 'weles' &&
+      String(document.context?.display_name ?? '').toLowerCase() ===
+        String(displayName).toLowerCase(),
+  );
   if (!id) return false;
   const now = new Date().toISOString();
   return updateWelesRecord(id, {

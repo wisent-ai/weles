@@ -43,8 +43,11 @@ async function ensureSession() {
 }
 
 async function safeEval(page, fn) {
-  try { return { ok: true, value: await page.evaluate(fn) }; }
-  catch (e) { return { ok: false, error: e }; }
+  try {
+    return { ok: true, value: await page.evaluate(fn) };
+  } catch (e) {
+    return { ok: false, error: e };
+  }
 }
 
 // One captcha solve per page: a second challenge after a solved one means
@@ -53,15 +56,24 @@ async function clearCaptchas(page, s) {
   const gated = async () => {
     // Google's rate-limit interstitial is its /sorry/ page, or a captcha
     // form rendered in place of the results.
-    const r = await safeEval(page, () => location.pathname.startsWith('/sorry')
-      || !!document.querySelector('#captcha-form, #gs_captcha_f, iframe[src*="recaptcha"]'));
+    const r = await safeEval(
+      page,
+      () =>
+        location.pathname.startsWith('/sorry') ||
+        !!document.querySelector(
+          '#captcha-form, #gs_captcha_f, iframe[src*="recaptcha"]',
+        ),
+    );
     if (!r.ok) throw r.error;
     return r.value;
   };
-  if (!await gated()) return;
+  if (!(await gated())) return;
   await solvePageCaptcha(page, solver, s);
   await pageSettled(s.page);
-  if (await gated()) throw new Error('scholar_rate_limited: the captcha came back after it was solved');
+  if (await gated())
+    throw new Error(
+      'scholar_rate_limited: the captcha came back after it was solved',
+    );
 }
 
 async function navOnce(s, url) {
@@ -70,7 +82,10 @@ async function navOnce(s, url) {
   await clearCaptchas(s.page, s);
   const r = await safeEval(s.page, () => !!document.querySelector('.gs_r'));
   if (!r.ok) throw r.error;
-  if (!r.value) throw new Error(`scholar_no_results: the settled page shows no result tile (${s.page.url()})`);
+  if (!r.value)
+    throw new Error(
+      `scholar_no_results: the settled page shows no result tile (${s.page.url()})`,
+    );
 }
 
 async function fetchOne(query) {
@@ -78,13 +93,18 @@ async function fetchOne(query) {
   const s = await ensureSession();
   await navOnce(s, url);
   const r = await safeEval(s.page, () => {
-    const div = document.querySelector('.gs_r.gs_or.gs_scl') || document.querySelector('.gs_r');
+    const div =
+      document.querySelector('.gs_r.gs_or.gs_scl') ||
+      document.querySelector('.gs_r');
     if (!div) return { citations: null, title: null };
     const titleEl = div.querySelector('.gs_rt a');
     let citations = null;
     for (const a of div.querySelectorAll('.gs_fl a, a')) {
       const m = a.textContent && a.textContent.match(/Cited by (\d+)/);
-      if (m) { citations = parseInt(m[1], 10); break; }
+      if (m) {
+        citations = parseInt(m[1], 10);
+        break;
+      }
     }
     return {
       citations,
@@ -100,13 +120,19 @@ try {
   for (const arg of args) {
     try {
       const result = await fetchOne(arg);
-      console.log(`${arg}\t${result.citations == null ? 'NA' : result.citations}\t${result.title || ''}`);
+      console.log(
+        `${arg}\t${result.citations == null ? 'NA' : result.citations}\t${result.title || ''}`,
+      );
     } catch (e) {
-      console.log(`${arg}\tERR\t${(e.message || '')}`);
+      console.log(`${arg}\tERR\t${e.message || ''}`);
     }
   }
 } finally {
   if (session) {
-    try { await session.close(); } catch (closeErr) { console.error('close error:', closeErr.message); }
+    try {
+      await session.close();
+    } catch (closeErr) {
+      console.error('close error:', closeErr.message);
+    }
   }
 }

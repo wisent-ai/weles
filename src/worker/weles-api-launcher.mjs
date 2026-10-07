@@ -15,7 +15,11 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 
-import { ENV_FILES, PATH_PREFIX, loadEnvFile } from './weles-api-launcher/configuration.mjs';
+import {
+  ENV_FILES,
+  PATH_PREFIX,
+  loadEnvFile,
+} from './weles-api-launcher/configuration.mjs';
 import { holderHealth, portHolder } from './weles-api-launcher/port.mjs';
 import { refuse } from './weles-api-launcher/running.mjs';
 import { startup } from './weles-api-launcher/startup.mjs';
@@ -34,7 +38,10 @@ if (releaseVersion && releaseSha256) {
 // WELES_API_HOST and WELES_API_PORT into this unit's environment). None is
 // built in: a guessed one exposed every interface on a port nobody chose.
 for (const name of ['WELES_API_HOST', 'WELES_API_PORT']) {
-  if (!process.env[name]?.trim()) refuse(`${name} is not set: set it to the address the Weles service declaration assigns`);
+  if (!process.env[name]?.trim())
+    refuse(
+      `${name} is not set: set it to the address the Weles service declaration assigns`,
+    );
 }
 const port = process.env.WELES_API_PORT;
 
@@ -57,7 +64,9 @@ retirePredecessors();
 // quietly — the unit exits nonzero so the fleet sees a service that is not
 // serving.
 const lsof = existsSync('/usr/sbin/lsof') ? '/usr/sbin/lsof' : 'lsof';
-const served = spawnSync(lsof, ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN'], { encoding: 'utf8' });
+const served = spawnSync(lsof, ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN'], {
+  encoding: 'utf8',
+});
 if (served.status === 0 && served.stdout.trim()) {
   const holder = portHolder(served.stdout);
   const health = await holderHealth(port);

@@ -22,8 +22,15 @@
 import { WSession } from '../../../../../dist/session/wsession.js';
 import { urlMatching } from '../../../_shared/page/settled.mjs';
 import { googleSso } from '../../../_shared/services/google_sso.mjs';
-import { DOCUMENT_REPLACED, readAcrossNavigation } from '../../../_shared/services/google_sso/page_diagnostics.mjs';
-import { humanClick, humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import {
+  DOCUMENT_REPLACED,
+  readAcrossNavigation,
+} from '../../../_shared/services/google_sso/page_diagnostics.mjs';
+import {
+  humanClick,
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../../dist/human/mouse.js';
 import { humanType, humanFill } from '../../../../../dist/human/keyboard.js';
 import { nativeSelectAllAndDelete } from '../../../../../dist/human/mouse-native.js';
 import { readFileSync } from 'node:fs';
@@ -37,13 +44,21 @@ function arg(name) {
 const TITLE = arg('--title') || process.env.DOC_TITLE;
 const CONTENT_PATH = arg('--content') || process.env.DOC_CONTENT_PATH;
 
-if (!TITLE) { console.log('FAIL: --title (or DOC_TITLE) required'); process.exit(2); }
-if (!CONTENT_PATH) { console.log('FAIL: --content (or DOC_CONTENT_PATH) required'); process.exit(2); }
+if (!TITLE) {
+  console.log('FAIL: --title (or DOC_TITLE) required');
+  process.exit(2);
+}
+if (!CONTENT_PATH) {
+  console.log('FAIL: --content (or DOC_CONTENT_PATH) required');
+  process.exit(2);
+}
 
 const content = readFileSync(CONTENT_PATH, 'utf8');
 const LABEL = 'drive_create_doc';
 
-function log(...a) { console.log('[drive_create_doc]', ...a); }
+function log(...a) {
+  console.log('[drive_create_doc]', ...a);
+}
 
 async function resolveCreds() {
   return readScopedLogin('googleDrive');
@@ -57,26 +72,43 @@ const creds = await resolveCreds();
 // those as canvas-backed controls Firefox's WSession can't resolve.
 // Chromium fills title + body cleanly. Override with BROWSER=firefox
 // only when probing engine parity.
-const s = await WSession.start({ label: LABEL, browser: process.env.BROWSER || 'chromium' });
+const s = await WSession.start({
+  label: LABEL,
+  browser: process.env.BROWSER || 'chromium',
+});
 
 try {
-  log('engine:', s.personaConfig?.browser ?? 'unknown', '| title:', TITLE, '| content_bytes:', content.length);
+  log(
+    'engine:',
+    s.personaConfig?.browser ?? 'unknown',
+    '| title:',
+    TITLE,
+    '| content_bytes:',
+    content.length,
+  );
 
   // docs.google.com/document/create creates a new blank doc and
   // redirects to /document/d/<id>/edit when signed in. When signed
   // out, it lands on accounts.google.com first.
-  await s.page.goto('https://docs.google.com/document/create', { waitUntil: 'domcontentloaded' });
+  await s.page.goto('https://docs.google.com/document/create', {
+    waitUntil: 'domcontentloaded',
+  });
   await humanIdlePause('deliberate');
 
   if (/accounts\.google\.com|ServiceLogin|signin/.test(s.page.url())) {
     log('logged out — running googleSso for', creds.email);
     const ok = await googleSso(s, creds);
-    if (!ok) { log('FAIL: googleSso did not complete (url=' + s.page.url() + ')'); process.exit(2); }
+    if (!ok) {
+      log('FAIL: googleSso did not complete (url=' + s.page.url() + ')');
+      process.exit(2);
+    }
     await humanIdlePause('long');
     // After login Google usually redirects back to the create URL, but if it
     // landed on the Drive home, force the create nav.
     if (!/document\/d\//.test(s.page.url())) {
-      await s.page.goto('https://docs.google.com/document/create', { waitUntil: 'domcontentloaded' });
+      await s.page.goto('https://docs.google.com/document/create', {
+        waitUntil: 'domcontentloaded',
+      });
       await humanIdlePause('deliberate');
     }
   }
@@ -115,7 +147,8 @@ try {
   // path here so create_doc's own title step verifies under the same
   // post-commit DOM probe.
   try {
-    const bbox = await s.page.evaluate(() => { // allow-raw-playwright: read-only bbox lookup of the title label
+    const bbox = await s.page.evaluate(() => {
+      // allow-raw-playwright: read-only bbox lookup of the title label
       const candidates = [
         '.docs-title-input-label-inner',
         '.docs-title-input-label',
@@ -135,16 +168,22 @@ try {
     } else {
       await humanClick(s.page, Math.round(bbox.x), Math.round(bbox.y));
       await humanIdlePause('deliberate');
-      const after = await s.page.evaluate(() => { // allow-raw-playwright: read-only DOM probe of the title input state
+      const after = await s.page.evaluate(() => {
+        // allow-raw-playwright: read-only DOM probe of the title input state
         const inp = document.querySelector('input.docs-title-input');
         return {
           inputPresent: !!inp,
-          inputVisible: inp ? (inp.offsetWidth > 0 || inp.offsetHeight > 0) : false,
+          inputVisible: inp
+            ? inp.offsetWidth > 0 || inp.offsetHeight > 0
+            : false,
           activeIsTitle: document.activeElement === inp,
         };
       });
       if (!after.inputPresent || !after.inputVisible || !after.activeIsTitle) {
-        log('WARN: title input did not become editable after click — ' + JSON.stringify(after));
+        log(
+          'WARN: title input did not become editable after click — ' +
+            JSON.stringify(after),
+        );
       } else {
         // Select existing title text via DOM setSelectionRange on the
         // already-focused input — Docs' title field intercepts
@@ -154,7 +193,8 @@ try {
         // programmatically select-all, then humanType — the typed
         // characters replace the selection. setSelectionRange is not
         // on the humanized-actions hook's banned list.
-        await s.page.evaluate(() => { // allow-raw-playwright: read-only setSelectionRange on already-focused input
+        await s.page.evaluate(() => {
+          // allow-raw-playwright: read-only setSelectionRange on already-focused input
           const inp = document.querySelector('input.docs-title-input');
           if (inp && document.activeElement === inp) {
             inp.setSelectionRange(0, inp.value.length);
@@ -165,14 +205,21 @@ try {
         await humanIdlePause('short');
         await s.page.keyboard.press('Enter'); // allow-raw-playwright: commit-title Enter press
         await humanIdlePause('deliberate');
-        const committed = await s.page.evaluate(() => { // allow-raw-playwright: read-only DOM probe of committed title
+        const committed = await s.page.evaluate(() => {
+          // allow-raw-playwright: read-only DOM probe of committed title
           const label = document.querySelector('.docs-title-input-label-inner');
           return label ? (label.textContent || '').trim() : null;
         });
         if (committed === TITLE) {
           log('title set: ' + TITLE);
         } else {
-          log('WARN: title commit not verified (label=' + JSON.stringify(committed) + ' expected=' + JSON.stringify(TITLE) + ')');
+          log(
+            'WARN: title commit not verified (label=' +
+              JSON.stringify(committed) +
+              ' expected=' +
+              JSON.stringify(TITLE) +
+              ')',
+          );
         }
       }
     }
@@ -184,7 +231,11 @@ try {
   // uses Playwright's default visibility timeout (30s) — long enough for
   // first hydration, short enough to fail fast on a wrong selector.
   try {
-    const canvas = s.page.locator('.kix-appview-editor, .docs-texteventtarget-iframe, [contenteditable="true"]').first();
+    const canvas = s.page
+      .locator(
+        '.kix-appview-editor, .docs-texteventtarget-iframe, [contenteditable="true"]',
+      )
+      .first();
     await canvas.waitFor({ state: 'visible' });
     await humanClickLocator(s.page, canvas);
     await humanIdlePause('deliberate');

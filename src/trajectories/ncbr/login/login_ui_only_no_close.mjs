@@ -1,7 +1,10 @@
 // UI-only NCBR LSI login. No API/fetch auth probes. Never closes the page.
 
 import { chromium } from 'playwright';
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
@@ -9,16 +12,19 @@ const email = process.env.NCBR_EMAIL;
 const password = process.env.NCBR_PASSWORD;
 
 if (!email || !password) {
-  console.log(JSON.stringify({ error: 'Missing NCBR_EMAIL or NCBR_PASSWORD' }, null, 2));
+  console.log(
+    JSON.stringify({ error: 'Missing NCBR_EMAIL or NCBR_PASSWORD' }, null, 2),
+  );
   process.exit(2);
 }
 
 const browser = await chromium.connectOverCDP(endpoint);
-const context = browser.contexts()[0] || await browser.newContext();
-const page = context.pages()[0] || await context.newPage();
+const context = browser.contexts()[0] || (await browser.newContext());
+const page = context.pages()[0] || (await context.newPage());
 
-
-await page.goto('https://lsi2.ncbr.gov.pl/logowanie', { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: public LSI login page navigation
+await page.goto('https://lsi2.ncbr.gov.pl/logowanie', {
+  waitUntil: 'domcontentloaded',
+}); // allow-raw-playwright: public LSI login page navigation
 await humanIdlePause('long');
 const emailInput = page.locator('#mail, input[name="mail"]').first();
 await humanClickLocator(page, emailInput);
@@ -27,7 +33,9 @@ const passwordInput = page.locator('#password, input[name="password"]').first();
 await humanClickLocator(page, passwordInput);
 await humanFill(page, passwordInput, password);
 
-const checkbox = page.locator('#isStatuteAccepted, input[name="isStatuteAccepted"]').first();
+const checkbox = page
+  .locator('#isStatuteAccepted, input[name="isStatuteAccepted"]')
+  .first();
 if (await checkbox.count()) {
   const checked = await checkbox.isChecked().catch(() => false);
   if (!checked) await checkbox.check({ force: true }); // allow-raw-playwright: accept LSI statute checkbox
@@ -35,15 +43,27 @@ if (await checkbox.count()) {
 
 const button = page.locator('#login-btn, button:has-text("Zaloguj")').first();
 await button.waitFor({ state: 'visible' });
-const beforeClick = await button.evaluate((b) => ({ disabled: b.disabled, text: b.innerText.trim() }));
+const beforeClick = await button.evaluate((b) => ({
+  disabled: b.disabled,
+  text: b.innerText.trim(),
+}));
 await humanClickLocator(page, button);
 await page.waitForLoadState('load');
 await humanIdlePause('long');
 
-console.log(JSON.stringify({
-  beforeClick,
-  url: page.url(),
-  title: await page.title().catch(() => ''),
-  body: (await page.locator('body').innerText().catch(() => '')),
-}, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      beforeClick,
+      url: page.url(),
+      title: await page.title().catch(() => ''),
+      body: await page
+        .locator('body')
+        .innerText()
+        .catch(() => ''),
+    },
+    null,
+    2,
+  ),
+);
 process.exit(0);

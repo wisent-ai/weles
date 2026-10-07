@@ -7,7 +7,10 @@ import { detectTwitterBanSignals } from '../../../../../dist/platforms/twitter/b
 const observed = declaredObservation();
 
 await runAction({
-  platform: 'twitter', action: 'browse',
-  feedUrl: observed.origin, scrolls: observed.scrolls, dwellMs: observed.dwellMs,
+  platform: 'twitter',
+  action: 'browse',
+  feedUrl: observed.origin,
+  scrolls: observed.scrolls,
+  dwellMs: observed.dwellMs,
   banDetector: detectTwitterBanSignals,
 });

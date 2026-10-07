@@ -2,12 +2,20 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('4_2');
-const MD = readFileSync((await import('#ncbr-settings')).applicationFile('wersja_B_4_2_zasoby_techniczne.md'), 'utf8');
+const MD = readFileSync(
+  (await import('#ncbr-settings')).applicationFile(
+    'wersja_B_4_2_zasoby_techniczne.md',
+  ),
+  'utf8',
+);
 
 function val(block, label) {
   const marker = `**${label}:**`;
@@ -15,13 +23,19 @@ function val(block, label) {
   if (a < 0) return '';
   const rest = block.slice(a + marker.length);
   const b = rest.search(/\n\n\*\*|\n---|\n## /);
-  return rest.slice(0, b >= 0 ? b : undefined).replace(/\s+/g, ' ').trim();
+  return rest
+    .slice(0, b >= 0 ? b : undefined)
+    .replace(/\s+/g, ' ')
+    .trim();
 }
-const rows = MD.split(/^## Wpis \d+\s*$/m).slice(1).map((block) => ({
-  typ: val(block, 'Typ zasobu'),
-  nazwa: val(block, 'Nazwa zasobu'),
-  przeznaczenie: val(block, 'Przeznaczenie'),
-})).filter((r) => r.typ && r.nazwa && r.przeznaczenie);
+const rows = MD.split(/^## Wpis \d+\s*$/m)
+  .slice(1)
+  .map((block) => ({
+    typ: val(block, 'Typ zasobu'),
+    nazwa: val(block, 'Nazwa zasobu'),
+    przeznaczenie: val(block, 'Przeznaczenie'),
+  }))
+  .filter((r) => r.typ && r.nazwa && r.przeznaczenie);
 
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
@@ -30,27 +44,37 @@ if (!page) {
   process.exit(1);
 }
 
-
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
 await page.evaluate(() => {
-  const b = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies'));
+  const b = Array.from(document.querySelectorAll('div')).find((d) =>
+    (d.innerText || '').includes('pliki cookies'),
+  );
   if (b) b.style.pointerEvents = 'none';
 }); // allow-raw-playwright: neutralise cookie banner
 
 async function clickDodaj() {
-  const add = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true }).first();
+  const add = page
+    .getByRole('button', { name: 'Dodaj', exact: true })
+    .filter({ visible: true })
+    .first();
   await humanClickLocator(page, add);
   await humanIdlePause('long');
 }
 
 async function setApplicant() {
   const applicant = page.locator('input[name*="nazwa_skrocona"]').first();
-  const applicantSelect = applicant.locator('xpath=ancestor::*[contains(@class, "MuiInputBase-root")][1]').locator('.MuiSelect-select, [role="combobox"]').first();
-  if (await applicantSelect.count()) await humanClickLocator(page, applicantSelect);
+  const applicantSelect = applicant
+    .locator('xpath=ancestor::*[contains(@class, "MuiInputBase-root")][1]')
+    .locator('.MuiSelect-select, [role="combobox"]')
+    .first();
+  if (await applicantSelect.count())
+    await humanClickLocator(page, applicantSelect);
   await humanIdlePause('deliberate');
-  const opt = page.getByRole('option', { name: 'Wisent Polska', exact: true }).first();
-  if (await opt.count() > 0) await opt.dispatchEvent('click'); // allow-raw-playwright: select applicant
+  const opt = page
+    .getByRole('option', { name: 'Wisent Polska', exact: true })
+    .first();
+  if ((await opt.count()) > 0) await opt.dispatchEvent('click'); // allow-raw-playwright: select applicant
   await humanIdlePause('short');
 }
 
@@ -60,8 +84,12 @@ async function setAuto(suffix, value) {
   await humanClickLocator(page, inp); // allow-raw-playwright: open type autocomplete
   await humanFill(page, inp, prefix); // allow-raw-playwright: comma-free prefix filter
   await humanIdlePause('deliberate');
-  const opt = page.locator("[role='listbox'] [role='option'], [role='option']").filter({ hasText: prefix }).first();
-  if (await opt.count() === 0) throw new Error(`no option for ${suffix}: ${prefix}`);
+  const opt = page
+    .locator("[role='listbox'] [role='option'], [role='option']")
+    .filter({ hasText: prefix })
+    .first();
+  if ((await opt.count()) === 0)
+    throw new Error(`no option for ${suffix}: ${prefix}`);
   const picked = (await opt.textContent())?.trim();
   await opt.dispatchEvent('click'); // allow-raw-playwright: pick resource type
   await humanIdlePause('short');
@@ -69,9 +97,12 @@ async function setAuto(suffix, value) {
 }
 
 async function fillSuffix(suffix, value) {
-  const loc = page.locator(`textarea[name$="${suffix}"], input[name$="${suffix}"]`).first();
+  const loc = page
+    .locator(`textarea[name$="${suffix}"], input[name$="${suffix}"]`)
+    .first();
   await loc.waitFor({ state: 'visible' });
-  const max = Number(await loc.getAttribute('maxlength')) || String(value).length;
+  const max =
+    Number(await loc.getAttribute('maxlength')) || String(value).length;
   let v = String(value || '');
   if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
   await humanFill(page, loc, v); // allow-raw-playwright: resource text field
@@ -82,19 +113,26 @@ async function fillSuffix(suffix, value) {
 async function saveEnabled() {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  const save = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true }).last();
+  const save = page
+    .getByRole('button', { name: 'Zapisz', exact: true })
+    .filter({ visible: true })
+    .last();
   await humanClickLocator(page, save);
   await humanIdlePause('long');
 }
 
 if (process.env.DIAG) {
   await clickDodaj();
-  const out = await page.evaluate(() => Array.from(document.querySelectorAll('input, textarea')).map((el) => ({
-    tag: el.tagName,
-    name: el.name || null,
-    role: el.getAttribute('role'),
-    max: el.getAttribute('maxlength'),
-  })).filter((f) => f.name));
+  const out = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('input, textarea'))
+      .map((el) => ({
+        tag: el.tagName,
+        name: el.name || null,
+        role: el.getAttribute('role'),
+        max: el.getAttribute('maxlength'),
+      }))
+      .filter((f) => f.name),
+  );
   console.log(JSON.stringify({ parsed: rows.length, fields: out }, null, 2));
   process.exit(0);
 }
@@ -103,10 +141,17 @@ const added = [];
 for (const row of rows) {
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('long');
-  const exists = await page.evaluate((needle) => (document.body.innerText || '').includes(needle), row.nazwa);
+  const exists = await page.evaluate(
+    (needle) => (document.body.innerText || '').includes(needle),
+    row.nazwa,
+  );
   if (exists) continue;
   await clickDodaj();
-  try { await setApplicant(); } catch (e) { /* single applicant may be auto-selected */ }
+  try {
+    await setApplicant();
+  } catch (e) {
+    /* single applicant may be auto-selected */
+  }
   const picked = await setAuto('typ_zasobu', row.typ);
   const filled = [];
   filled.push(await fillSuffix('nazwa_zasobu', row.nazwa));
@@ -119,7 +164,10 @@ await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
 const readback = await page.evaluate(() => {
   const table = document.querySelector('table');
-  return { rows: table ? table.querySelectorAll('tbody tr').length : 0, text: (table?.innerText || '').replace(/\s+/g, ' ') };
+  return {
+    rows: table ? table.querySelectorAll('tbody tr').length : 0,
+    text: (table?.innerText || '').replace(/\s+/g, ' '),
+  };
 });
 console.log(JSON.stringify({ added, readback }, null, 2));
 process.exit(0);

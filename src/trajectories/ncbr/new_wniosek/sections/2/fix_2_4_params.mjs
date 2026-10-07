@@ -4,18 +4,32 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('2_4');
-const MD = (await import('#ncbr-settings')).applicationFile('wersja_B_2.4_efekty_zewnetrzne.md');
+const MD = (await import('#ncbr-settings')).applicationFile(
+  'wersja_B_2.4_efekty_zewnetrzne.md',
+);
 
 const md = readFileSync(MD, 'utf8');
-const clean = (s) => (s || '').replace(/\s*<!--[\s\S]*?-->\s*/g, ' ').replace(/\s+/g, ' ').trim();
+const clean = (s) =>
+  (s || '')
+    .replace(/\s*<!--[\s\S]*?-->\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 function tableValue(block, key) {
-  const line = block.split('\n').find((l) => l.trim().startsWith('|') && l.toLowerCase().includes(key.toLowerCase()));
+  const line = block
+    .split('\n')
+    .find(
+      (l) =>
+        l.trim().startsWith('|') && l.toLowerCase().includes(key.toLowerCase()),
+    );
   if (!line) throw new Error(`missing 2.4 table row: ${key}`);
   const cells = line.split('|').map((c) => c.trim());
   return clean(cells[2]);
@@ -40,8 +54,11 @@ if (!page) {
 }
 
 async function clickVisibleButton(text) {
-  const buttons = page.getByRole('button', { name: text, exact: true }).filter({ visible: true });
-  if (await buttons.count() === 0) throw new Error(`button not found: ${text}`);
+  const buttons = page
+    .getByRole('button', { name: text, exact: true })
+    .filter({ visible: true });
+  if ((await buttons.count()) === 0)
+    throw new Error(`button not found: ${text}`);
   await humanClickLocator(page, buttons.last());
   await humanIdlePause('long');
 }
@@ -53,7 +70,11 @@ async function gotoSection() {
 }
 
 async function tableText() {
-  return page.evaluate(() => Array.from(document.querySelectorAll('table')).map((table) => table.innerText || '').join('\n'));
+  return page.evaluate(() =>
+    Array.from(document.querySelectorAll('table'))
+      .map((table) => table.innerText || '')
+      .join('\n'),
+  );
 } // allow-raw-playwright: read-only 2.4 table text
 
 async function fieldDump() {
@@ -69,25 +90,34 @@ async function fieldDump() {
       for (let node = el.parentElement; node; node = node.parentElement) {
         const lab = node.querySelector('label, .MuiFormLabel-root, legend');
         if (lab?.textContent) return lab.textContent.trim();
-        if (Array.from(node.querySelectorAll('input, textarea, select')).some((f) => f !== el)) break;
+        if (
+          Array.from(node.querySelectorAll('input, textarea, select')).some(
+            (f) => f !== el,
+          )
+        )
+          break;
       }
       return '';
     };
-    return Array.from(document.querySelectorAll('input, textarea')).map((el) => ({
-      tag: el.tagName,
-      name: el.name || '',
-      type: el.getAttribute('type') || '',
-      role: el.getAttribute('role') || '',
-      maxlength: el.getAttribute('maxlength') || '',
-      placeholder: el.getAttribute('placeholder') || '',
-      label: labelFor(el),
-      value: (el.value || ''),
-    })).filter((f) => f.name || f.label);
+    return Array.from(document.querySelectorAll('input, textarea'))
+      .map((el) => ({
+        tag: el.tagName,
+        name: el.name || '',
+        type: el.getAttribute('type') || '',
+        role: el.getAttribute('role') || '',
+        maxlength: el.getAttribute('maxlength') || '',
+        placeholder: el.getAttribute('placeholder') || '',
+        label: labelFor(el),
+        value: el.value || '',
+      }))
+      .filter((f) => f.name || f.label);
   }); // allow-raw-playwright: read-only field dump
 }
 
 async function fillBySuffix(suffix, value) {
-  const loc = page.locator(`input[name$="${suffix}"], textarea[name$="${suffix}"]`).first();
+  const loc = page
+    .locator(`input[name$="${suffix}"], textarea[name$="${suffix}"]`)
+    .first();
   const count = await loc.count();
   if (count === 0) throw new Error(`field not found: ${suffix}`);
   const max = Number(await loc.getAttribute('maxlength')) || value.length;
@@ -100,7 +130,8 @@ async function fillBySuffix(suffix, value) {
 async function addParam(p) {
   await gotoSection();
   const current = await tableText();
-  if (current.includes(p.nazwa.slice(0, 50))) return { skipped: true, filled: [] };
+  if (current.includes(p.nazwa.slice(0, 50)))
+    return { skipped: true, filled: [] };
   await clickVisibleButton('Dodaj');
   await humanIdlePause('deliberate');
   const filled = [];
@@ -109,8 +140,15 @@ async function addParam(p) {
   filled.push(await fillBySuffix('rok_bazowy', p.rokBazowy));
   filled.push(await fillBySuffix('wartosc_docelowa', p.docelowa));
   filled.push(await fillBySuffix('rok_docelowy', p.rokDocelowy));
-  filled.push(await fillBySuffix('metoda_szacowania_wartosci_docelowej', p.metoda));
-  filled.push(await fillBySuffix('sposob_monitorowania_weryfikacji_osiagniecia_zaplanowanych_wartosci_docelowych', p.monitoring));
+  filled.push(
+    await fillBySuffix('metoda_szacowania_wartosci_docelowej', p.metoda),
+  );
+  filled.push(
+    await fillBySuffix(
+      'sposob_monitorowania_weryfikacji_osiagniecia_zaplanowanych_wartosci_docelowych',
+      p.monitoring,
+    ),
+  );
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
   await clickVisibleButton('Zapisz');
@@ -124,7 +162,13 @@ await gotoSection();
 if (process.env.DIAG) {
   await clickVisibleButton('Dodaj');
   await humanIdlePause('deliberate');
-  console.log(JSON.stringify({ paramsParsed: params.length, fields: await fieldDump() }, null, 2));
+  console.log(
+    JSON.stringify(
+      { paramsParsed: params.length, fields: await fieldDump() },
+      null,
+      2,
+    ),
+  );
   process.exit(0);
 }
 
@@ -135,11 +179,21 @@ for (const p of params) {
 }
 
 await gotoSection();
-const readback = await page.evaluate(() => Array.from(document.querySelectorAll('table')).map((table, i) => ({
-  i,
-  rows: table.querySelectorAll('tbody tr').length,
-  text: Array.from(table.querySelectorAll('tbody tr')).map((r) => r.innerText.trim().replace(/\s+/g, ' ')),
-}))); // allow-raw-playwright: read-only 2.4 table readback
+const readback = await page.evaluate(() =>
+  Array.from(document.querySelectorAll('table')).map((table, i) => ({
+    i,
+    rows: table.querySelectorAll('tbody tr').length,
+    text: Array.from(table.querySelectorAll('tbody tr')).map((r) =>
+      r.innerText.trim().replace(/\s+/g, ' '),
+    ),
+  })),
+); // allow-raw-playwright: read-only 2.4 table readback
 
-console.log(JSON.stringify({ addedCount: added.filter((a) => !a.skipped).length, added, readback }, null, 2));
+console.log(
+  JSON.stringify(
+    { addedCount: added.filter((a) => !a.skipped).length, added, readback },
+    null,
+    2,
+  ),
+);
 process.exit(0);

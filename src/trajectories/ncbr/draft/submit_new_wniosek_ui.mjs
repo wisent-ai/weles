@@ -2,7 +2,10 @@
 // Assumes live validation has already returned clean status. Never closes page.
 
 import { chromium } from 'playwright';
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
@@ -10,15 +13,19 @@ const PROJECT_URL = (await import('#ncbr-settings')).projectUrl();
 
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
-if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' }, null, 2)); process.exit(1); }
-
+if (!page) {
+  console.log(JSON.stringify({ error: 'NO_PAGE' }, null, 2));
+  process.exit(1);
+}
 
 const responses = [];
 page.on('response', async (res) => {
   const url = res.url();
   if (!/submit|send|sign|zloz|wniosek|project|validate/i.test(url)) return;
   let text = '';
-  try { text = await res.text(); } catch {}
+  try {
+    text = await res.text();
+  } catch {}
   responses.push({ status: res.status(), url, text: text });
 });
 
@@ -26,12 +33,17 @@ await page.goto(PROJECT_URL, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
 
 await page.evaluate(() => {
-  const banner = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies'));
+  const banner = Array.from(document.querySelectorAll('div')).find((d) =>
+    (d.innerText || '').includes('pliki cookies'),
+  );
   if (banner) banner.style.pointerEvents = 'none';
 }); // allow-raw-playwright: neutralize cookie banner only
 
 async function clickVisibleButton(text) {
-  const button = page.getByRole('button', { name: text, exact: true }).filter({ visible: true }).last();
+  const button = page
+    .getByRole('button', { name: text, exact: true })
+    .filter({ visible: true })
+    .last();
   const clicked = await button.isEnabled().catch(() => false);
   if (clicked) await humanClickLocator(page, button);
   if (clicked) await humanIdlePause('long');
@@ -40,11 +52,12 @@ async function clickVisibleButton(text) {
 
 async function buttonState(text) {
   return await page.evaluate((text) => {
-    const btns = Array.from(document.querySelectorAll('button')).filter((b) =>
-      b.innerText.trim() === text
-      && b.getClientRects().length
-      && getComputedStyle(b).visibility !== 'hidden'
-      && !b.closest('[aria-hidden="true"], .MuiModal-hidden')
+    const btns = Array.from(document.querySelectorAll('button')).filter(
+      (b) =>
+        b.innerText.trim() === text &&
+        b.getClientRects().length &&
+        getComputedStyle(b).visibility !== 'hidden' &&
+        !b.closest('[aria-hidden="true"], .MuiModal-hidden'),
     );
     if (!btns.length) return null;
     const b = btns[btns.length - 1];
@@ -56,15 +69,21 @@ async function runValidationIfNeeded() {
   const submit = await buttonState('Złóż wniosek');
   if (submit && submit.disabled === false) return { ran: false };
   const start = responses.length;
-  if (!(await clickVisibleButton('Sprawdź wniosek'))) throw new Error('Sprawdź wniosek not found');
+  if (!(await clickVisibleButton('Sprawdź wniosek')))
+    throw new Error('Sprawdź wniosek not found');
   await humanIdlePause('long');
   await humanIdlePause('long');
   await humanIdlePause('long');
   await clickVisibleButton('Potwierdzam zapoznanie ze wszystkimi informacjami');
-  const validation = responses.slice(start).reverse().find((r) => r.url.includes('/validate-project'));
+  const validation = responses
+    .slice(start)
+    .reverse()
+    .find((r) => r.url.includes('/validate-project'));
   if (!validation) return { ran: true, validation: null };
   let parsed = null;
-  try { parsed = JSON.parse(validation.text); } catch {}
+  try {
+    parsed = JSON.parse(validation.text);
+  } catch {}
   const errors = [
     ...(parsed?.jsonSchemaValidationErrors || []),
     ...(parsed?.expressionValidationErrors || []),
@@ -73,7 +92,13 @@ async function runValidationIfNeeded() {
   if (validation.status !== 200 || errors.length) {
     throw new Error(`validation failed before submit: ${validation.status}`);
   }
-  return { ran: true, validation: { status: validation.status, keys: parsed ? Object.keys(parsed) : [] } };
+  return {
+    ran: true,
+    validation: {
+      status: validation.status,
+      keys: parsed ? Object.keys(parsed) : [],
+    },
+  };
 }
 
 // Close validation-result modal if it is still open from the last safe validation.
@@ -82,17 +107,23 @@ const validationBeforeSubmit = await runValidationIfNeeded();
 
 const before = await page.evaluate(() => ({
   url: location.href,
-  bodyHead: (document.body.innerText || ''),
-  buttons: Array.from(document.querySelectorAll('button')).map((b) => ({
-    text: b.innerText.trim() || b.getAttribute('aria-label') || b.title,
-    disabled: b.disabled,
-    visible: Boolean(b.getClientRects().length) && getComputedStyle(b).visibility !== 'hidden',
-  })).filter((b) => b.text),
+  bodyHead: document.body.innerText || '',
+  buttons: Array.from(document.querySelectorAll('button'))
+    .map((b) => ({
+      text: b.innerText.trim() || b.getAttribute('aria-label') || b.title,
+      disabled: b.disabled,
+      visible:
+        Boolean(b.getClientRects().length) &&
+        getComputedStyle(b).visibility !== 'hidden',
+    }))
+    .filter((b) => b.text),
 }));
 
 const submittedClick = await clickVisibleButton('Złóż wniosek');
 if (!submittedClick) {
-  console.log(JSON.stringify({ error: 'SUBMIT_BUTTON_NOT_FOUND', before }, null, 2));
+  console.log(
+    JSON.stringify({ error: 'SUBMIT_BUTTON_NOT_FOUND', before }, null, 2),
+  );
   process.exit(1);
 }
 
@@ -100,12 +131,7 @@ await humanIdlePause('long');
 await humanIdlePause('long');
 
 // If LSI asks for a final confirmation, accept the affirmative action.
-const confirmTexts = [
-  'Potwierdzam',
-  'Tak',
-  'Złóż wniosek',
-  'Złóż',
-];
+const confirmTexts = ['Potwierdzam', 'Tak', 'Złóż wniosek', 'Złóż'];
 const clickedConfirm = [];
 for (const text of confirmTexts) {
   if (await clickVisibleButton(text)) clickedConfirm.push(text);
@@ -119,16 +145,30 @@ const after = await page.evaluate((capturedResponses) => {
   return {
     url: location.href,
     title: document.title,
-    dialogs: Array.from(document.querySelectorAll('[role="dialog"], .MuiDialog-root, .MuiAlert-root, .MuiSnackbar-root')).map((e) => e.textContent.trim()).filter(Boolean),
-    buttons: Array.from(document.querySelectorAll('button')).map((b) => ({
-      text: b.innerText.trim() || b.getAttribute('aria-label') || b.title,
-      disabled: b.disabled,
-    })).filter((b) => b.text),
+    dialogs: Array.from(
+      document.querySelectorAll(
+        '[role="dialog"], .MuiDialog-root, .MuiAlert-root, .MuiSnackbar-root',
+      ),
+    )
+      .map((e) => e.textContent.trim())
+      .filter(Boolean),
+    buttons: Array.from(document.querySelectorAll('button'))
+      .map((b) => ({
+        text: b.innerText.trim() || b.getAttribute('aria-label') || b.title,
+        disabled: b.disabled,
+      }))
+      .filter((b) => b.text),
     bodyHead: body,
     bodyTail: body.slice(-2500),
     responses: capturedResponses.slice(-40),
   };
 }, responses);
 
-console.log(JSON.stringify({ validationBeforeSubmit, submittedClick, clickedConfirm, after }, null, 2));
+console.log(
+  JSON.stringify(
+    { validationBeforeSubmit, submittedClick, clickedConfirm, after },
+    null,
+    2,
+  ),
+);
 process.exit(0);

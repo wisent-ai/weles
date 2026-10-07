@@ -51,6 +51,13 @@
     "optimum online",
     "cablevision"
   ],
-  "whois_fields": ["OrgName", "Organization", "org-name", "descr", "NetName", "netname"],
+  "whois_fields": [
+    "OrgName",
+    "Organization",
+    "org-name",
+    "descr",
+    "NetName",
+    "netname"
+  ],
   "whois_fields_why": "The field names the registries answer with. ARIN says OrgName, RIPE says descr or netname, and a lookup that reads only one of them learns nothing about half the internet."
 }

@@ -2,7 +2,16 @@
 // between runs: one directory of JSON files, each written whole and renamed
 // into place, each checked for shape before it is believed.
 import { randomUUID } from 'node:crypto';
-import { link, mkdir, readFile, readdir, rename, rm, truncate, writeFile } from 'node:fs/promises';
+import {
+  link,
+  mkdir,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  truncate,
+  writeFile,
+} from 'node:fs/promises';
 import { join } from 'node:path';
 import type {
   JourneyBundle,
@@ -12,24 +21,30 @@ import type {
 } from '../onboarding-runtime';
 
 function storedProperty(value: unknown, field: string): unknown {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  if (value === null || typeof value !== 'object' || Array.isArray(value))
+    return undefined;
   return Object.getOwnPropertyDescriptor(value, field)?.value;
 }
 
 export function isStoredBundle(value: unknown): value is JourneyBundle {
   const storedDefinition = storedProperty(value, 'definition');
   const screens = storedProperty(storedDefinition, 'screens');
-  return typeof storedProperty(value, 'journey_version_id') === 'string'
-    && typeof storedProperty(value, 'canonical_definition') === 'string'
-    && typeof storedProperty(value, 'content_sha256') === 'string'
-    && typeof storedProperty(value, 'source_revision') === 'string'
-    && storedProperty(storedDefinition, 'schema_version') === 1
-    && typeof storedProperty(storedDefinition, 'product_id') === 'string'
-    && typeof storedProperty(storedDefinition, 'journey_id') === 'string'
-    && Array.isArray(screens)
-    && screens.every((screen) => typeof storedProperty(screen, 'screen_id') === 'string'
-      && Array.isArray(storedProperty(screen, 'actions'))
-      && Array.isArray(storedProperty(screen, 'transitions')));
+  return (
+    typeof storedProperty(value, 'journey_version_id') === 'string' &&
+    typeof storedProperty(value, 'canonical_definition') === 'string' &&
+    typeof storedProperty(value, 'content_sha256') === 'string' &&
+    typeof storedProperty(value, 'source_revision') === 'string' &&
+    storedProperty(storedDefinition, 'schema_version') === 1 &&
+    typeof storedProperty(storedDefinition, 'product_id') === 'string' &&
+    typeof storedProperty(storedDefinition, 'journey_id') === 'string' &&
+    Array.isArray(screens) &&
+    screens.every(
+      (screen) =>
+        typeof storedProperty(screen, 'screen_id') === 'string' &&
+        Array.isArray(storedProperty(screen, 'actions')) &&
+        Array.isArray(storedProperty(screen, 'transitions')),
+    )
+  );
 }
 
 function isStoredProgress(value: unknown): value is JourneyProgress {
@@ -37,33 +52,45 @@ function isStoredProgress(value: unknown): value is JourneyProgress {
   const status = storedProperty(value, 'status');
   const completedScreenIds = storedProperty(value, 'completed_screen_ids');
   const answers = storedProperty(value, 'answers');
-  return typeof storedProperty(value, 'attempt_id') === 'string'
-    && typeof storedProperty(value, 'product_id') === 'string'
-    && typeof storedProperty(value, 'journey_version_id') === 'string'
-    && typeof storedProperty(value, 'subject_hash') === 'string'
-    && (scopeKind === 'user' || scopeKind === 'organization' || scopeKind === 'device' || scopeKind === 'workload')
-    && typeof storedProperty(value, 'current_screen_id') === 'string'
-    && Array.isArray(completedScreenIds)
-    && completedScreenIds.every((screenId) => typeof screenId === 'string')
-    && (status === 'in_progress' || status === 'skipped' || status === 'completed'
-      || status === 'abandoned' || status === 'reset')
-    && typeof storedProperty(value, 'evidence_revision') === 'string'
-    && Array.isArray(answers);
+  return (
+    typeof storedProperty(value, 'attempt_id') === 'string' &&
+    typeof storedProperty(value, 'product_id') === 'string' &&
+    typeof storedProperty(value, 'journey_version_id') === 'string' &&
+    typeof storedProperty(value, 'subject_hash') === 'string' &&
+    (scopeKind === 'user' ||
+      scopeKind === 'organization' ||
+      scopeKind === 'device' ||
+      scopeKind === 'workload') &&
+    typeof storedProperty(value, 'current_screen_id') === 'string' &&
+    Array.isArray(completedScreenIds) &&
+    completedScreenIds.every((screenId) => typeof screenId === 'string') &&
+    (status === 'in_progress' ||
+      status === 'skipped' ||
+      status === 'completed' ||
+      status === 'abandoned' ||
+      status === 'reset') &&
+    typeof storedProperty(value, 'evidence_revision') === 'string' &&
+    Array.isArray(answers)
+  );
 }
 
 function isStoredEvent(value: unknown): value is JourneyRuntimeEvent {
   const properties = storedProperty(value, 'properties');
-  return typeof storedProperty(value, 'event_id') === 'string'
-    && typeof storedProperty(value, 'event_name') === 'string'
-    && typeof storedProperty(value, 'attempt_id') === 'string'
-    && typeof storedProperty(value, 'product_id') === 'string'
-    && typeof storedProperty(value, 'journey_version_id') === 'string'
-    && typeof storedProperty(value, 'subject_hash') === 'string'
-    && typeof storedProperty(value, 'screen_id') === 'string'
-    && typeof storedProperty(value, 'occurred_at') === 'string'
-    && typeof storedProperty(value, 'evidence_revision') === 'string'
-    && properties !== null && typeof properties === 'object' && !Array.isArray(properties)
-    && Array.isArray(storedProperty(value, 'answers'));
+  return (
+    typeof storedProperty(value, 'event_id') === 'string' &&
+    typeof storedProperty(value, 'event_name') === 'string' &&
+    typeof storedProperty(value, 'attempt_id') === 'string' &&
+    typeof storedProperty(value, 'product_id') === 'string' &&
+    typeof storedProperty(value, 'journey_version_id') === 'string' &&
+    typeof storedProperty(value, 'subject_hash') === 'string' &&
+    typeof storedProperty(value, 'screen_id') === 'string' &&
+    typeof storedProperty(value, 'occurred_at') === 'string' &&
+    typeof storedProperty(value, 'evidence_revision') === 'string' &&
+    properties !== null &&
+    typeof properties === 'object' &&
+    !Array.isArray(properties) &&
+    Array.isArray(storedProperty(value, 'answers'))
+  );
 }
 
 // Progress and the events it owes live in one record. Every write publishes a
@@ -75,7 +102,10 @@ function isStoredEvent(value: unknown): value is JourneyRuntimeEvent {
 // n+1 taken and cannot publish over a newer journal. Nothing is held between
 // steps, so a crash leaves only an unpublished temporary file or an unemptied
 // old version - never a lock that blocks the next run.
-type Journal = { progress: Record<string, JourneyProgress>; events: JourneyRuntimeEvent[] };
+type Journal = {
+  progress: Record<string, JourneyProgress>;
+  events: JourneyRuntimeEvent[];
+};
 
 const JOURNAL_VERSION = /^journal\.(\d+)\.json$/;
 const LEGACY_EVENTS_FILE = 'events.json';
@@ -95,7 +125,11 @@ export class FileJourneyStorage implements JourneyStorage {
     return join(this.directory, `${productId}-${journeyId}-bundle.json`);
   }
 
-  private progressKey(productId: string, journeyId: string, subjectHash: string): string {
+  private progressKey(
+    productId: string,
+    journeyId: string,
+    subjectHash: string,
+  ): string {
     return `${productId}-${journeyId}-${subjectHash}`;
   }
 
@@ -111,7 +145,10 @@ export class FileJourneyStorage implements JourneyStorage {
   private async save(path: string, value: unknown): Promise<void> {
     await mkdir(this.directory, { recursive: true, mode: 0o700 });
     const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
-    await writeFile(temporary, `${JSON.stringify(value)}\n`, { encoding: 'utf8', mode: 0o600 });
+    await writeFile(temporary, `${JSON.stringify(value)}\n`, {
+      encoding: 'utf8',
+      mode: 0o600,
+    });
     await rename(temporary, path);
   }
 
@@ -136,8 +173,13 @@ export class FileJourneyStorage implements JourneyStorage {
       const names = await this.listing();
       // reduce, not Math.max(...names): tombstones accumulate, and one
       // argument per file would outgrow the engine's argument limit.
-      const version = names.reduce((newest, name) => Math.max(newest, Number(JOURNAL_VERSION.exec(name)?.[1] ?? 0)), 0);
-      if (version === 0) return { journal: await this.readLegacy(names), version };
+      const version = names.reduce(
+        (newest, name) =>
+          Math.max(newest, Number(JOURNAL_VERSION.exec(name)?.[1] ?? 0)),
+        0,
+      );
+      if (version === 0)
+        return { journal: await this.readLegacy(names), version };
       const path = this.journalPath(version);
       let text: string;
       let stored: unknown;
@@ -152,27 +194,51 @@ export class FileJourneyStorage implements JourneyStorage {
       }
       const progress = storedProperty(stored, 'progress');
       const events = storedProperty(stored, 'events');
-      if (progress === null || typeof progress !== 'object' || Array.isArray(progress) || !Array.isArray(events)) {
-        throw new Error(`${path} is not a journey journal (progress map and events list)`);
+      if (
+        progress === null ||
+        typeof progress !== 'object' ||
+        Array.isArray(progress) ||
+        !Array.isArray(events)
+      ) {
+        throw new Error(
+          `${path} is not a journey journal (progress map and events list)`,
+        );
       }
       const entries = Object.entries(progress);
       const badProgress = entries.find(([, value]) => !isStoredProgress(value));
-      if (badProgress) throw new Error(`${path}: progress ${badProgress[0]} is malformed`);
+      if (badProgress)
+        throw new Error(`${path}: progress ${badProgress[0]} is malformed`);
       const badEvent = events.findIndex((event) => !isStoredEvent(event));
-      if (badEvent >= 0) throw new Error(`${path}: queued event ${badEvent} is malformed`);
-      return { journal: { progress: Object.fromEntries(entries) as Record<string, JourneyProgress>, events }, version };
+      if (badEvent >= 0)
+        throw new Error(`${path}: queued event ${badEvent} is malformed`);
+      return {
+        journal: {
+          progress: Object.fromEntries(entries) as Record<
+            string,
+            JourneyProgress
+          >,
+          events,
+        },
+        version,
+      };
     }
   }
 
   private async superseded(version: number): Promise<boolean> {
-    return (await this.listing()).some((name) => Number(JOURNAL_VERSION.exec(name)?.[1] ?? 0) > version);
+    return (await this.listing()).some(
+      (name) => Number(JOURNAL_VERSION.exec(name)?.[1] ?? 0) > version,
+    );
   }
 
   private async readLegacy(names: string[]): Promise<Journal> {
     const journal: Journal = { progress: {}, events: [] };
-    for (const name of names.filter((entry) => entry.endsWith(LEGACY_PROGRESS_SUFFIX))) {
+    for (const name of names.filter((entry) =>
+      entry.endsWith(LEGACY_PROGRESS_SUFFIX),
+    )) {
       const progress = await this.load(join(this.directory, name));
-      if (isStoredProgress(progress)) journal.progress[name.slice(0, -LEGACY_PROGRESS_SUFFIX.length)] = progress;
+      if (isStoredProgress(progress))
+        journal.progress[name.slice(0, -LEGACY_PROGRESS_SUFFIX.length)] =
+          progress;
     }
     const events = await this.load(join(this.directory, LEGACY_EVENTS_FILE));
     if (Array.isArray(events)) journal.events = events.filter(isStoredEvent);
@@ -186,8 +252,14 @@ export class FileJourneyStorage implements JourneyStorage {
     for (;;) {
       const { journal, version } = await this.readJournal();
       const result = change(journal);
-      const temporary = join(this.directory, `journal.${process.pid}.${randomUUID()}.tmp`);
-      await writeFile(temporary, `${JSON.stringify(journal)}\n`, { encoding: 'utf8', mode: 0o600 });
+      const temporary = join(
+        this.directory,
+        `journal.${process.pid}.${randomUUID()}.tmp`,
+      );
+      await writeFile(temporary, `${JSON.stringify(journal)}\n`, {
+        encoding: 'utf8',
+        mode: 0o600,
+      });
       try {
         await link(temporary, this.journalPath(version + 1));
       } catch (error) {
@@ -201,18 +273,36 @@ export class FileJourneyStorage implements JourneyStorage {
     }
   }
 
-  async loadBundle(productId: string, journeyId: string): Promise<JourneyBundle | null> {
+  async loadBundle(
+    productId: string,
+    journeyId: string,
+  ): Promise<JourneyBundle | null> {
     const bundle = await this.load(this.bundlePath(productId, journeyId));
-    return isStoredBundle(bundle) && this.surfaceIsPinned(bundle) ? bundle : null;
+    return isStoredBundle(bundle) && this.surfaceIsPinned(bundle)
+      ? bundle
+      : null;
   }
 
   saveBundle(bundle: JourneyBundle): Promise<void> {
-    return this.save(this.bundlePath(bundle.definition.product_id, bundle.definition.journey_id), bundle);
+    return this.save(
+      this.bundlePath(
+        bundle.definition.product_id,
+        bundle.definition.journey_id,
+      ),
+      bundle,
+    );
   }
 
-  async loadProgress(productId: string, journeyId: string, subjectHash: string): Promise<JourneyProgress | null> {
+  async loadProgress(
+    productId: string,
+    journeyId: string,
+    subjectHash: string,
+  ): Promise<JourneyProgress | null> {
     const { journal } = await this.readJournal();
-    return journal.progress[this.progressKey(productId, journeyId, subjectHash)] ?? null;
+    return (
+      journal.progress[this.progressKey(productId, journeyId, subjectHash)] ??
+      null
+    );
   }
 
   commitProgress(
@@ -222,9 +312,13 @@ export class FileJourneyStorage implements JourneyStorage {
     events: readonly JourneyRuntimeEvent[],
   ): Promise<void> {
     return this.withJournal((journal) => {
-      journal.progress[this.progressKey(productId, journeyId, progress.subject_hash)] = progress;
+      journal.progress[
+        this.progressKey(productId, journeyId, progress.subject_hash)
+      ] = progress;
       const known = new Set(journal.events.map((entry) => entry.event_id));
-      journal.events.push(...events.filter((event) => !known.has(event.event_id)));
+      journal.events.push(
+        ...events.filter((event) => !known.has(event.event_id)),
+      );
     });
   }
 
@@ -234,13 +328,18 @@ export class FileJourneyStorage implements JourneyStorage {
 
   appendEvent(event: JourneyRuntimeEvent): Promise<void> {
     return this.withJournal((journal) => {
-      journal.events = [...journal.events.filter((entry) => entry.event_id !== event.event_id), event];
+      journal.events = [
+        ...journal.events.filter((entry) => entry.event_id !== event.event_id),
+        event,
+      ];
     });
   }
 
   removeEvent(eventId: string): Promise<void> {
     return this.withJournal((journal) => {
-      journal.events = journal.events.filter((entry) => entry.event_id !== eventId);
+      journal.events = journal.events.filter(
+        (entry) => entry.event_id !== eventId,
+      );
     });
   }
 }

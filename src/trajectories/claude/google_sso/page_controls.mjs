@@ -7,7 +7,10 @@
 // a click waits for the control to be genuinely enabled and then moves the
 // pointer onto it.
 import { humanClick } from '../../../../dist/human/mouse.js';
-import { DOCUMENT_REPLACED, readAcrossNavigation } from '../../_shared/services/google_sso/page_diagnostics.mjs';
+import {
+  DOCUMENT_REPLACED,
+  readAcrossNavigation,
+} from '../../_shared/services/google_sso/page_diagnostics.mjs';
 import { pageCondition } from '../../_shared/page/settled.mjs';
 
 // In an OAuth redirect chain a navigation mid-call is the EXPECTED
@@ -27,21 +30,38 @@ export async function navEval(page, fn, dflt, arg) {
 // floating label there) leaves focus elsewhere and every keystroke is lost.
 // The field is then focused directly, and a field that still does not hold
 // focus is named in the failure. Throw if the value is not retained.
-export async function fillAndVerify(page, locator, text, humanClickLocator, humanType) {
-  const editable = locator.and(page.locator('input:enabled:not([readonly]), textarea:enabled:not([readonly])'));
+export async function fillAndVerify(
+  page,
+  locator,
+  text,
+  humanClickLocator,
+  humanType,
+) {
+  const editable = locator.and(
+    page.locator(
+      'input:enabled:not([readonly]), textarea:enabled:not([readonly])',
+    ),
+  );
   await editable.waitFor({ state: 'visible' });
   await humanClickLocator(page, editable);
-  const focused = () => editable.evaluate((element) => element === element.ownerDocument.activeElement);
+  const focused = () =>
+    editable.evaluate(
+      (element) => element === element.ownerDocument.activeElement,
+    );
   if (!(await focused())) {
     await editable.focus();
   }
   if (!(await focused())) {
-    throw new Error('fillAndVerify: the field did not take focus after a pointer click and a focus call; keystrokes would be lost');
+    throw new Error(
+      'fillAndVerify: the field did not take focus after a pointer click and a focus call; keystrokes would be lost',
+    );
   }
   await humanType(page, text);
   const actual = await locator.inputValue();
   if (actual !== text) {
-    throw new Error(`fillAndVerify: value mismatch after input dispatch; observed length=${actual.length}, expected length=${text.length}`);
+    throw new Error(
+      `fillAndVerify: value mismatch after input dispatch; observed length=${actual.length}, expected length=${text.length}`,
+    );
   }
 }
 
@@ -53,17 +73,26 @@ export async function fillAndVerify(page, locator, text, humanClickLocator, huma
 // gate on this engine. Browser observation and input failures propagate.
 export async function waitForEnabledThenClick(page, namePattern) {
   const patternSrc = namePattern.source;
-  const state = await pageCondition(page, (src) => {
-    const re = new RegExp(src, 'i');
-    for (const el of document.querySelectorAll('button, [role="button"]')) {
-      const txt = (el.innerText || el.textContent || '').trim();
-      if (!re.test(txt)) continue;
-      const r = el.getBoundingClientRect();
-      if (r.width < 4 || r.height < 4) continue;
-      if (el.matches(':disabled') || el.getAttribute('aria-disabled') === 'true' || el.hasAttribute('disabled')) continue;
-      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
-    }
-    return null;
-  }, patternSrc);
+  const state = await pageCondition(
+    page,
+    (src) => {
+      const re = new RegExp(src, 'i');
+      for (const el of document.querySelectorAll('button, [role="button"]')) {
+        const txt = (el.innerText || el.textContent || '').trim();
+        if (!re.test(txt)) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width < 4 || r.height < 4) continue;
+        if (
+          el.matches(':disabled') ||
+          el.getAttribute('aria-disabled') === 'true' ||
+          el.hasAttribute('disabled')
+        )
+          continue;
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      }
+      return null;
+    },
+    patternSrc,
+  );
   await humanClick(page, Math.round(state.x), Math.round(state.y));
 }

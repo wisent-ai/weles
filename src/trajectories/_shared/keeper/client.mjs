@@ -27,18 +27,30 @@ export function keeperRequest(socket, cmd) {
     try {
       resolve(JSON.parse(buf.slice(0, nl)));
     } catch (error) {
-      reject(new Error(`keeper answered ${cmd.action} with unreadable JSON: ${error.message}`));
+      reject(
+        new Error(
+          `keeper answered ${cmd.action} with unreadable JSON: ${error.message}`,
+        ),
+      );
     }
   });
   conn.on('end', () => {
     if (done) return;
     done = true;
-    reject(new Error(`keeper at ${socket} closed the connection before answering ${cmd.action}`));
+    reject(
+      new Error(
+        `keeper at ${socket} closed the connection before answering ${cmd.action}`,
+      ),
+    );
   });
   conn.on('error', (error) => {
     if (done) return;
     done = true;
-    reject(new Error(`keeper at ${socket} could not be asked ${cmd.action}: ${error.message}`));
+    reject(
+      new Error(
+        `keeper at ${socket} could not be asked ${cmd.action}: ${error.message}`,
+      ),
+    );
   });
   return promise;
 }

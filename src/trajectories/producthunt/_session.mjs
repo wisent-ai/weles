@@ -22,12 +22,17 @@ import { pageSettled } from '../_shared/page/settled.mjs';
 // helper handles OAuth-provider cookies (.x.com, .instagram.com, etc.).
 export async function injectPHCookies(s, cookies) {
   const norm = cookies
-    .filter(c => c.name && c.value)
-    .map(c => ({
-      name: c.name, value: c.value,
-      domain: c.domain?.includes('producthunt.com') ? c.domain : '.producthunt.com',
-      path: c.path || '/', secure: c.secure ?? true,
-      httpOnly: c.httpOnly ?? false, sameSite: c.sameSite || 'Lax',
+    .filter((c) => c.name && c.value)
+    .map((c) => ({
+      name: c.name,
+      value: c.value,
+      domain: c.domain?.includes('producthunt.com')
+        ? c.domain
+        : '.producthunt.com',
+      path: c.path || '/',
+      secure: c.secure ?? true,
+      httpOnly: c.httpOnly ?? false,
+      sameSite: c.sameSite || 'Lax',
       ...(c.expires && c.expires > 0 ? { expires: c.expires } : {}),
     }));
   await s.ctx.addCookies(norm);
@@ -38,7 +43,8 @@ export async function injectPHCookies(s, cookies) {
 // Return null when no suitable page is available.
 export async function pickFirstProductLaunchUrl(s) {
   // Product pages differ from launch-submission forms and legacy post URLs.
-  const href = await s.page.evaluate(`(() => {
+  const href = await s.page
+    .evaluate(`(() => {
     function pick(prefix) {
       var as = Array.from(document.querySelectorAll('a[href*="' + prefix + '"]'));
       for (var a of as) {
@@ -54,9 +60,12 @@ export async function pickFirstProductLaunchUrl(s) {
       return null;
     }
     return pick('/products/') || pick('/posts/');
-  })()`).catch(() => null);
+  })()`)
+    .catch(() => null);
   if (!href) return null;
-  return href.startsWith('http') ? href : new URL(href, 'https://www.producthunt.com').toString();
+  return href.startsWith('http')
+    ? href
+    : new URL(href, 'https://www.producthunt.com').toString();
 }
 
 // Discover the authed user's PH handle. Three register-time failures
@@ -74,10 +83,12 @@ export async function pickFirstProductLaunchUrl(s) {
 export async function extractPhHandle(s) {
   // 1. GraphQL me query.
   try {
-    const r = await s.page.context().request.post('https://www.producthunt.com/frontend/graphql', {
-      headers: { 'content-type': 'application/json' },
-      data: JSON.stringify({ query: 'query Me { user { username } }' }),
-    });
+    const r = await s.page
+      .context()
+      .request.post('https://www.producthunt.com/frontend/graphql', {
+        headers: { 'content-type': 'application/json' },
+        data: JSON.stringify({ query: 'query Me { user { username } }' }),
+      });
     if (r.ok()) {
       const body = await r.json().catch(() => ({}));
       const u = body?.data?.user?.username;
@@ -108,7 +119,10 @@ export async function extractPhHandle(s) {
   } catch {}
 
   // 4. The two pages that show the topbar once the session is valid.
-  for (const target of ['https://www.producthunt.com/', 'https://www.producthunt.com/my/notifications']) {
+  for (const target of [
+    'https://www.producthunt.com/',
+    'https://www.producthunt.com/my/notifications',
+  ]) {
     await s.page.goto(target);
     await pageSettled(s.page);
     const h = await topbarHandle(s);
@@ -118,26 +132,32 @@ export async function extractPhHandle(s) {
 }
 
 async function topbarHandle(s) {
-  return await s.page.evaluate(() => {
-    const selectors = [
-      'a[data-test^="user-image-link-"]',
-      'header a[href^="/@"]',
-      'a[href*="/@"][data-test*="user"]',
-      'a[href^="/@"]',
-    ];
-    for (const sel of selectors) {
-      const el = document.querySelector(sel);
-      const href = el?.getAttribute('href') || '';
-      const m = href.match(/\/@([^/?#]+)/);
-      if (m) return m[1];
-    }
-    const urlMatch = location.href.match(/\/@([^/?#]+)/);
-    if (urlMatch) return urlMatch[1];
-    return null;
-  }).catch(() => null);
+  return await s.page
+    .evaluate(() => {
+      const selectors = [
+        'a[data-test^="user-image-link-"]',
+        'header a[href^="/@"]',
+        'a[href*="/@"][data-test*="user"]',
+        'a[href^="/@"]',
+      ];
+      for (const sel of selectors) {
+        const el = document.querySelector(sel);
+        const href = el?.getAttribute('href') || '';
+        const m = href.match(/\/@([^/?#]+)/);
+        if (m) return m[1];
+      }
+      const urlMatch = location.href.match(/\/@([^/?#]+)/);
+      if (urlMatch) return urlMatch[1];
+      return null;
+    })
+    .catch(() => null);
 }
 
-import { findAccount, listAccounts, updateAccountMetadata } from '../_shared/skarbiec/accounts.mjs';
+import {
+  findAccount,
+  listAccounts,
+  updateAccountMetadata,
+} from '../_shared/skarbiec/accounts.mjs';
 
 // Pick a Twitter account suitable for SSO into a fresh PH registration.
 // Prefers Twitter accounts whose username is NOT already linked to any PH
@@ -150,21 +170,34 @@ export async function findUsableTwitterAccount() {
   const linkedTwitter = new Set();
   for (const account of productHunt) {
     const linked = account.metadata?.linked_twitter_username;
-    if (typeof linked === 'string' && linked) linkedTwitter.add(linked.toLowerCase());
+    if (typeof linked === 'string' && linked)
+      linkedTwitter.add(linked.toLowerCase());
     linkedTwitter.add(account.username.toLowerCase());
   }
   const rows = listAccounts('twitter');
-  const isUnlinked = (account) => !linkedTwitter.has(account.username.toLowerCase());
+  const isUnlinked = (account) =>
+    !linkedTwitter.has(account.username.toLowerCase());
   const usable = (account) => {
-    const hasCookies = Array.isArray(account.metadata?.cookies) && account.metadata.cookies.length >= 2;
+    const hasCookies =
+      Array.isArray(account.metadata?.cookies) &&
+      account.metadata.cookies.length >= 2;
     const status = String(account.metadata?.status ?? '').toLowerCase();
-    return hasCookies && !status.includes('suspend') && !status.includes('lock');
+    return (
+      hasCookies && !status.includes('suspend') && !status.includes('lock')
+    );
   };
-  return rows.find((account) => usable(account) && isUnlinked(account))
-    ?? rows.find((account) => Array.isArray(account.metadata?.cookies) && account.metadata.cookies.length >= 2 && isUnlinked(account))
-    ?? rows.find(usable)
-    ?? rows[0]
-    ?? null;
+  return (
+    rows.find((account) => usable(account) && isUnlinked(account)) ??
+    rows.find(
+      (account) =>
+        Array.isArray(account.metadata?.cookies) &&
+        account.metadata.cookies.length >= 2 &&
+        isUnlinked(account),
+    ) ??
+    rows.find(usable) ??
+    rows[0] ??
+    null
+  );
 }
 
 // Stamp linked_twitter_username on the PH row that saveAccount just inserted,
@@ -173,7 +206,9 @@ export async function stampLinkedTwitter(phUsername, twUsername) {
   const account = findAccount('producthunt', phUsername);
   if (!account) return;
   updateAccountMetadata(account.id, { linked_twitter_username: twUsername });
-  console.log(`[ph] stamped linked_twitter_username="${twUsername}" on ${account.id}`);
+  console.log(
+    `[ph] stamped linked_twitter_username="${twUsername}" on ${account.id}`,
+  );
 }
 
 // Drive the PH-specific Twitter SSO click sequence. All cross-platform
@@ -199,7 +234,8 @@ export async function loginViaTwitter(s) {
   await pageSettled(s.page);
   // Deterministic accessible-name match — avoids vision misreading the adjacent
   // Google/Apple buttons in the provider list at larger viewports.
-  const twitterLabel = /^\s*(Sign in with X|Continue with X|Sign up with Twitter|Continue with Twitter)\s*$/i;
+  const twitterLabel =
+    /^\s*(Sign in with X|Continue with X|Sign up with Twitter|Continue with Twitter)\s*$/i;
   const clickedTw = await clickOAuthProviderButton(s, twitterLabel);
   if (!clickedTw) {
     await s.click('Sign in with X').catch(() => {});
@@ -208,9 +244,17 @@ export async function loginViaTwitter(s) {
   await pageSettled(s.page);
 
   await handleOAuthConsent(s);
-  await waitForNavBackTo(s.page, 'producthunt.com', ['/auth/', 'twitter.com', 'x.com']);
+  await waitForNavBackTo(s.page, 'producthunt.com', [
+    '/auth/',
+    'twitter.com',
+    'x.com',
+  ]);
 
-  const cleared = await clearReCaptchaGate(s, new CaptchaSolver(), '/captcha_verification');
+  const cleared = await clearReCaptchaGate(
+    s,
+    new CaptchaSolver(),
+    '/captcha_verification',
+  );
   if (!cleared) throw new Error('captcha_gate_not_cleared');
   return true;
 }

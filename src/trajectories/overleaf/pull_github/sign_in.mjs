@@ -4,9 +4,15 @@ import { overleafGoogleSignIn } from '../../_shared/services/overleaf_google_sig
 import { captureOverleafAuth } from './evidence.mjs';
 
 export async function signInToOverleaf(s, sessionStore, login) {
-  const { alreadySignedIn, url } = await overleafGoogleSignIn(s, login, { label: 'pull_github' });
+  const { alreadySignedIn, url } = await overleafGoogleSignIn(s, login, {
+    label: 'pull_github',
+  });
   if (!alreadySignedIn && !/\/project(\?|$|\/)/.test(url)) {
     await s.goto('https://www.overleaf.com/project');
   }
-  await captureOverleafAuth(sessionStore, s, alreadySignedIn ? 'already-authenticated' : 'post-sso');
+  await captureOverleafAuth(
+    sessionStore,
+    s,
+    alreadySignedIn ? 'already-authenticated' : 'post-sso',
+  );
 }

@@ -5,8 +5,10 @@ import { WELES_AGENT_MODEL } from '../agent/jeden.js';
 import { resolveSkarbiecEndpoint } from '../utils/runtime/endpoint-resolution.js';
 import { listLoginAccounts } from '../utils/login-accounts.js';
 import { printAnswer } from './usage.js';
-export async function runDoctor(pkg: { version?: string; bin?: unknown }, json: boolean): Promise<void> {
-
+export async function runDoctor(
+  pkg: { version?: string; bin?: unknown },
+  json: boolean,
+): Promise<void> {
   const report: Record<string, unknown> = {
     ok: true,
     version: pkg.version ?? null,
@@ -14,7 +16,9 @@ export async function runDoctor(pkg: { version?: string; bin?: unknown }, json: 
     bin: pkg.bin ?? null,
     env: {
       CHROMIUM_PATH: process.env.CHROMIUM_PATH ? 'set' : 'unset',
-      WELES_USE_STOCK_CHROMIUM: process.env.WELES_USE_STOCK_CHROMIUM ? 'set' : 'unset',
+      WELES_USE_STOCK_CHROMIUM: process.env.WELES_USE_STOCK_CHROMIUM
+        ? 'set'
+        : 'unset',
     },
     dependencies: {
       skarbiec: null as unknown,
@@ -78,9 +82,16 @@ export async function runDoctor(pkg: { version?: string; bin?: unknown }, json: 
     report.subscriptionAuthentication = { source: 'skarbiec', ...identities };
     if (identities.errors.length) report.ok = false;
   } catch (error) {
-    report.subscriptionAuthentication = { source: 'skarbiec', accounts: [], errors: [{
-      code: 'skarbiec_inventory_unavailable', detail: error instanceof Error ? error.message : String(error),
-    }] };
+    report.subscriptionAuthentication = {
+      source: 'skarbiec',
+      accounts: [],
+      errors: [
+        {
+          code: 'skarbiec_inventory_unavailable',
+          detail: error instanceof Error ? error.message : String(error),
+        },
+      ],
+    };
     report.ok = false;
   }
 
@@ -130,7 +141,8 @@ function inspectManagedRuntime(): ManagedRuntimeReport {
       builtRevision,
       declaredRevision: null,
       agentModelAlias: alias,
-      detail: 'the unit declares no revision, so this reports what is installed and compares nothing',
+      detail:
+        'the unit declares no revision, so this reports what is installed and compares nothing',
     };
   }
   if (builtRevision !== declaredRevision) {
@@ -143,7 +155,13 @@ function inspectManagedRuntime(): ManagedRuntimeReport {
       detail: `the installed runtime is ${builtRevision.slice(0, 12)} and the unit declares ${declaredRevision.slice(0, 12)}; move it with \`stado host weles-api-runtime <host> --revision ${declaredRevision.slice(0, 12)}\``,
     };
   }
-  return { ok: true, root, builtRevision, declaredRevision, agentModelAlias: alias };
+  return {
+    ok: true,
+    root,
+    builtRevision,
+    declaredRevision,
+    agentModelAlias: alias,
+  };
 }
 
 function revision(value: string | undefined): string | null {
@@ -169,7 +187,12 @@ const REQUIRED_PLAYWRIGHT_COMPONENTS = ['ffmpeg'] as const;
 
 type BrowserRuntimeReport = {
   ok: boolean;
-  components?: Array<{ name: string; revision: string; expectedPath: string; present: boolean }>;
+  components?: Array<{
+    name: string;
+    revision: string;
+    expectedPath: string;
+    present: boolean;
+  }>;
   error?: string;
 };
 
@@ -196,8 +219,10 @@ function inspectBrowserRuntime(): BrowserRuntimeReport {
       browsers?: Array<{ name?: string; revision?: string }>;
     };
     declared = (parsed.browsers ?? [])
-      .filter((entry): entry is { name: string; revision: string } =>
-        typeof entry.name === 'string' && typeof entry.revision === 'string')
+      .filter(
+        (entry): entry is { name: string; revision: string } =>
+          typeof entry.name === 'string' && typeof entry.revision === 'string',
+      )
       .map((entry) => ({ name: entry.name, revision: entry.revision }));
   } catch (error) {
     return {
@@ -212,8 +237,17 @@ function inspectBrowserRuntime(): BrowserRuntimeReport {
   const components = REQUIRED_PLAYWRIGHT_COMPONENTS.map((name) => {
     const found = declared.find((entry) => entry.name === name);
     const revision = found?.revision ?? 'unknown';
-    const expectedPath = join(cacheRoot, `${name.replace(/-/g, '_')}-${revision}`, 'INSTALLATION_COMPLETE');
-    return { name, revision, expectedPath, present: found ? existsSync(expectedPath) : false };
+    const expectedPath = join(
+      cacheRoot,
+      `${name.replace(/-/g, '_')}-${revision}`,
+      'INSTALLATION_COMPLETE',
+    );
+    return {
+      name,
+      revision,
+      expectedPath,
+      present: found ? existsSync(expectedPath) : false,
+    };
   });
   return { ok: components.every((component) => component.present), components };
 }
@@ -236,7 +270,9 @@ function playwrightCacheRoot(): string {
   const override = process.env.PLAYWRIGHT_BROWSERS_PATH?.trim();
   if (override) return override;
   const home = homedir();
-  if (process.platform === 'darwin') return join(home, 'Library', 'Caches', 'ms-playwright');
-  if (process.platform === 'win32') return join(home, 'AppData', 'Local', 'ms-playwright');
+  if (process.platform === 'darwin')
+    return join(home, 'Library', 'Caches', 'ms-playwright');
+  if (process.platform === 'win32')
+    return join(home, 'AppData', 'Local', 'ms-playwright');
   return join(home, '.cache', 'ms-playwright');
 }

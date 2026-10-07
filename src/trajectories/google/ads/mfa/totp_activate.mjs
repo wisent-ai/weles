@@ -3,13 +3,25 @@
 
 import { writeFileSync } from 'node:fs';
 import { WSession } from '../../../../../dist/session/wsession.js';
-import { assertGoogleAdsProfileNotAlreadyOpen, closeAllowedByEnv } from '../_profile_guard.mjs';
-import { EMAIL, GOOGLE_ADS_LOGIN, RESULT_FILE, USER_DATA_DIR, redact, stableProfilePersona } from './totp_activate/settings.mjs';
+import {
+  assertGoogleAdsProfileNotAlreadyOpen,
+  closeAllowedByEnv,
+} from '../_profile_guard.mjs';
+import {
+  EMAIL,
+  GOOGLE_ADS_LOGIN,
+  RESULT_FILE,
+  USER_DATA_DIR,
+  redact,
+  stableProfilePersona,
+} from './totp_activate/settings.mjs';
 import { diag } from './totp_activate/page.mjs';
-import { activateAuthenticator, openAuthenticatorSetup } from './totp_activate/authenticator.mjs';
+import {
+  activateAuthenticator,
+  openAuthenticatorSetup,
+} from './totp_activate/authenticator.mjs';
 
 async function main() {
-
   const creds = GOOGLE_ADS_LOGIN;
   if (!creds?.password || !creds?.totpSecret) {
     const report = {
@@ -50,7 +62,8 @@ async function main() {
     if (!activation.ok) process.exit(4);
     console.log('PASS: Google Authenticator TOTP setup activated');
   } finally {
-    if (closeAllowedByEnv('GOOGLE_TOTP_ACTIVATION_CLOSE_AFTER')) await s.close().catch(() => {});
+    if (closeAllowedByEnv('GOOGLE_TOTP_ACTIVATION_CLOSE_AFTER'))
+      await s.close().catch(() => {});
     else console.log('[google-totp-activate] leaving Google Ads profile open');
   }
 }

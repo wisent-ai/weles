@@ -7,9 +7,10 @@ export const ASC_BIN = process.env.ASC_BIN || 'asc';
 export const action = process.env.APPLE_ADS_ACTION || 'ads_campaigns';
 export const org = process.env.ASC_ADS_ORG_ID;
 export const adsProfile = process.env.APPLE_ADS_PROFILE_NAME;
-export const confirmed = process.env.APPLE_ADS_CONFIRM === '1'
-  || process.env.WRITE_CONFIRM === '1'
-  || process.env.SUBMIT === '1';
+export const confirmed =
+  process.env.APPLE_ADS_CONFIRM === '1' ||
+  process.env.WRITE_CONFIRM === '1' ||
+  process.env.SUBMIT === '1';
 
 export function value(name, fallback = undefined) {
   const v = process.env[name];
@@ -34,7 +35,12 @@ export function withOrg(args) {
 
 export function withOutput(args) {
   if (process.env.APPLE_ADS_NO_OUTPUT === '1') return args;
-  if (args[0] === 'ads' && args[1] === 'auth' && ['login', 'logout', 'switch'].includes(args[2])) return args;
+  if (
+    args[0] === 'ads' &&
+    args[1] === 'auth' &&
+    ['login', 'logout', 'switch'].includes(args[2])
+  )
+    return args;
   return args.includes('--output') ? args : [...args, '--output', 'json'];
 }
 
@@ -90,16 +96,21 @@ export function splitArgs(s) {
 
 export function ensureConfirmed(kind) {
   if (!confirmed) {
-    console.log(`FAIL: ${action} would ${kind}; set apple_ads_confirm=true, write_confirm=true, or submit=true in params to proceed.`);
+    console.log(
+      `FAIL: ${action} would ${kind}; set apple_ads_confirm=true, write_confirm=true, or submit=true in params to proceed.`,
+    );
     process.exit(2);
   }
 }
 
 export function ensureCliArgsAllowed(args) {
   const joined = args.join(' ').toLowerCase();
-  const mutating = /\b(create|update|delete|pause|resume|login|logout|token)\b/.test(joined)
-    || (/\brequest\b/.test(joined) && /\b--method\s+(post|put|patch|delete)\b/.test(joined));
-  if (mutating) ensureConfirmed(`run mutating/sensitive asc args: ${args.join(' ')}`);
+  const mutating =
+    /\b(create|update|delete|pause|resume|login|logout|token)\b/.test(joined) ||
+    (/\brequest\b/.test(joined) &&
+      /\b--method\s+(post|put|patch|delete)\b/.test(joined));
+  if (mutating)
+    ensureConfirmed(`run mutating/sensitive asc args: ${args.join(' ')}`);
 }
 
 export function reportPresetArgs() {
@@ -116,7 +127,11 @@ export function reportPresetArgs() {
   args = withOptional(args, '--ad-group', 'APPLE_ADS_AD_GROUP_ID');
   args = withOptional(args, '--limit', 'LIMIT');
   args = withOptional(args, '--offset', 'OFFSET');
-  if (process.env.RETURN_ROW_TOTALS === '1' || process.env.RETURN_ROW_TOTALS === 'true') args.push('--return-row-totals');
+  if (
+    process.env.RETURN_ROW_TOTALS === '1' ||
+    process.env.RETURN_ROW_TOTALS === 'true'
+  )
+    args.push('--return-row-totals');
   return withOrg(args);
 }
 

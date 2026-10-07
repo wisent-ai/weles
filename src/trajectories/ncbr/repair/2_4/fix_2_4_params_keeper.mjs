@@ -5,15 +5,25 @@ import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 const SESSION = process.env.SESSION || 'ncbr-step-b';
-const WELES = new URL('../../../../..', import.meta.url).pathname.replace(/\/$/, '');
-const SRC = (await import('#ncbr-settings')).applicationFile('wersja_B_2.4_efekty_zewnetrzne.md');
+const WELES = new URL('../../../../..', import.meta.url).pathname.replace(
+  /\/$/,
+  '',
+);
+const SRC = (await import('#ncbr-settings')).applicationFile(
+  'wersja_B_2.4_efekty_zewnetrzne.md',
+);
 const URL = (await import('#ncbr-settings')).sectionUrl('2_4');
 
 const md = readFileSync(SRC, 'utf8');
-const clean = (s) => String(s || '').replace(/\s*<!--[\s\S]*?-->\s*/g, ' ').replace(/\s+/g, ' ').trim();
+const clean = (s) =>
+  String(s || '')
+    .replace(/\s*<!--[\s\S]*?-->\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 function rows(part) {
-  return part.split(/\r?\n/)
+  return part
+    .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line.startsWith('|') && !/^\|\s*-/.test(line))
     .map((line) => line.split('|').slice(1, -1).map(clean))
@@ -21,13 +31,17 @@ function rows(part) {
 }
 
 function val(block, key) {
-  const row = rows(block).find((cells) => cells[0].toLowerCase().includes(key.toLowerCase()));
+  const row = rows(block).find((cells) =>
+    cells[0].toLowerCase().includes(key.toLowerCase()),
+  );
   if (!row) throw new Error(`missing row ${key}`);
   return row[1];
 }
 
 const params = md
-  .split(/## Parametry opisujące dodatkowe efekty zewnętrzne (?:rezultatu prac B\+R|innowacji)/)[1]
+  .split(
+    /## Parametry opisujące dodatkowe efekty zewnętrzne (?:rezultatu prac B\+R|innowacji)/,
+  )[1]
   .split('## Podsumowanie zmian')[0]
   .split(/^### Parametr \d+\s*$/m)
   .slice(1)
@@ -43,10 +57,17 @@ const params = md
   .filter((p) => p.name);
 
 function action(args, optional = false) {
-  const result = spawnSync(process.execPath, ['src/_shared/keeper/action.mjs', ...args], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' });
+  const result = spawnSync(
+    process.execPath,
+    ['src/_shared/keeper/action.mjs', ...args],
+    { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' },
+  );
   if (result.status !== 0) {
-    if (optional) return { ok: false, stdout: result.stdout, stderr: result.stderr };
-    throw new Error(`${args.join(' ')}\nstdout=${result.stdout}\nstderr=${result.stderr}`);
+    if (optional)
+      return { ok: false, stdout: result.stdout, stderr: result.stderr };
+    throw new Error(
+      `${args.join(' ')}\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+    );
   }
   return JSON.parse(result.stdout.trim());
 }
@@ -60,7 +81,9 @@ function idle(kind = 'short') {
 }
 
 function tableText() {
-  return read(`(() => Array.from(document.querySelectorAll('table')).map((t) => t.innerText.replace(/\\s+/g, ' ')).join('\\n'))()`);
+  return read(
+    `(() => Array.from(document.querySelectorAll('table')).map((t) => t.innerText.replace(/\\s+/g, ' ')).join('\\n'))()`,
+  );
 }
 
 function fill(selector, value) {
@@ -82,7 +105,8 @@ function fill(selector, value) {
     return { ok: true, len: el.value.length, max };
   })()`;
   const out = read(js);
-  if (!out?.ok) throw new Error(`fill failed ${selector}: ${out?.error || 'unknown'}`);
+  if (!out?.ok)
+    throw new Error(`fill failed ${selector}: ${out?.error || 'unknown'}`);
   return out;
 }
 
@@ -98,7 +122,9 @@ function clickLastSave() {
 }
 
 function rowCount() {
-  return read(`(() => Array.from(document.querySelectorAll('table')).map((t) => t.querySelectorAll('tbody tr').length))()`);
+  return read(
+    `(() => Array.from(document.querySelectorAll('table')).map((t) => t.querySelectorAll('tbody tr').length))()`,
+  );
 }
 
 const added = [];
@@ -118,7 +144,10 @@ for (const p of params) {
   fill('input[name="wartosc_docelowa"]', p.target);
   fill('input[name="rok_docelowy"]', p.targetYear);
   fill('textarea[name="metoda_szacowania_wartosci_docelowej"]', p.estimate);
-  fill('textarea[name="sposob_monitorowania_weryfikacji_osiagniecia_zaplanowanych_wartosci_docelowych"]', p.verify);
+  fill(
+    'textarea[name="sposob_monitorowania_weryfikacji_osiagniecia_zaplanowanych_wartosci_docelowych"]',
+    p.verify,
+  );
   idle('deliberate');
   const save = clickLastSave();
   idle('long');
@@ -127,4 +156,16 @@ for (const p of params) {
   added.push({ name: p.name, save });
 }
 
-console.log(JSON.stringify({ ok: true, sourceRows: params.length, added, rowCount: rowCount(), table: tableText() }, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      ok: true,
+      sourceRows: params.length,
+      added,
+      rowCount: rowCount(),
+      table: tableText(),
+    },
+    null,
+    2,
+  ),
+);

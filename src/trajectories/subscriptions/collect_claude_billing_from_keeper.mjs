@@ -49,19 +49,28 @@ function parseArgs() {
   for (let i = 2; i < process.argv.length; i += 1) {
     const arg = process.argv[i];
     if (arg === '--session') out.session = process.argv[++i] || '';
-    else if (arg === '--account') out.account = process.argv[++i] || out.account;
-    else if (arg === '--service-credential-id') out.serviceCredentialId = process.argv[++i] || out.serviceCredentialId;
+    else if (arg === '--account')
+      out.account = process.argv[++i] || out.account;
+    else if (arg === '--service-credential-id')
+      out.serviceCredentialId = process.argv[++i] || out.serviceCredentialId;
     else throw new Error(`unknown arg: ${arg}`);
   }
   if (!out.session) throw new Error('missing --session or SESSION');
-  if (!out.account.trim()) throw new Error('missing --account or SUBSCRIPTION_ACCOUNT: the account the subscription is billed to');
-  if (!out.serviceCredentialId.trim()) throw new Error('missing --service-credential-id: the credential for this subscription account');
+  if (!out.account.trim())
+    throw new Error(
+      'missing --account or SUBSCRIPTION_ACCOUNT: the account the subscription is billed to',
+    );
+  if (!out.serviceCredentialId.trim())
+    throw new Error(
+      'missing --service-credential-id: the credential for this subscription account',
+    );
   return out;
 }
 
 async function action(session, cmd) {
   const answer = await keeperRequest(keeperSocket(session), cmd);
-  if (!answer.ok) throw new Error(answer.error || `keeper action failed: ${cmd.action}`);
+  if (!answer.ok)
+    throw new Error(answer.error || `keeper action failed: ${cmd.action}`);
   return answer;
 }
 
@@ -93,24 +102,35 @@ function parseInvoices(lines) {
     const date = parseHumanDate(lines[i]);
     const amount = parseAmount(lines[i + 1]);
     const status = lines[i + 2]?.trim();
-    if (!date || amount == null || !/^(Paid|Refunded|Open|Void)$/i.test(status || '')) continue;
+    if (
+      !date ||
+      amount == null ||
+      !/^(Paid|Refunded|Open|Void)$/i.test(status || '')
+    )
+      continue;
     invoices.push({ date, amount_usd: amount, status });
   }
   return invoices;
 }
 
 function extractBilling(text) {
-  const lines = text.split(/\r?\n/)
+  const lines = text
+    .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
   const billingIdx = lines.findIndex((line) => line === 'Billing');
-  const planIdx = lines.findIndex((line) => /^(Max|Pro|Free|Team|Enterprise) plan$/i.test(line));
+  const planIdx = lines.findIndex((line) =>
+    /^(Max|Pro|Free|Team|Enterprise) plan$/i.test(line),
+  );
   const plan = planIdx >= 0 ? lines[planIdx] : null;
   const usageLine = planIdx >= 0 ? lines[planIdx + 1] || null : null;
-  const cancelLine = lines.find((line) => /subscription will be canceled on/i.test(line));
+  const cancelLine = lines.find((line) =>
+    /subscription will be canceled on/i.test(line),
+  );
   const expiresAt = cancelLine ? parseHumanDate(cancelLine) : null;
   const invoices = parseInvoices(lines);
-  const latestPaid = invoices.find((item) => /^Paid$/i.test(item.status)) || null;
+  const latestPaid =
+    invoices.find((item) => /^Paid$/i.test(item.status)) || null;
   const monthlyCost = latestPaid?.amount_usd ?? null;
   return {
     service_name: 'Claude Code',
@@ -127,7 +147,10 @@ function extractBilling(text) {
       cancel_line: cancelLine || null,
       latest_paid_invoice: latestPaid,
       invoices,
-      ui_excerpt: lines.slice(Math.max(0, billingIdx), billingIdx >= 0 ? billingIdx + 44 : 90),
+      ui_excerpt: lines.slice(
+        Math.max(0, billingIdx),
+        billingIdx >= 0 ? billingIdx + 44 : 90,
+      ),
     },
   };
 }
@@ -146,30 +169,36 @@ async function main() {
     last_verified_at: new Date().toISOString(),
   };
   const saved = await upsertSubscription(row);
-  console.log(JSON.stringify({
-    ok: true,
-    row: {
-      service_name: row.service_name,
-      provider: row.provider,
-      account_identifier: row.account_identifier,
-      status: row.status,
-      plan: row.plan,
-      monthly_cost_usd: row.monthly_cost_usd,
-      expires_at: row.expires_at,
-      invoice_rows: row.metadata.invoices.length,
-    },
-    saved: saved.map((item) => ({
-      id: item.id,
-      service_name: item.service_name,
-      provider: item.provider,
-      account_identifier: item.account_identifier,
-      status: item.status,
-      plan: item.plan,
-      monthly_cost_usd: item.monthly_cost_usd,
-      expires_at: item.expires_at,
-      last_verified_at: item.last_verified_at,
-    })),
-  }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        row: {
+          service_name: row.service_name,
+          provider: row.provider,
+          account_identifier: row.account_identifier,
+          status: row.status,
+          plan: row.plan,
+          monthly_cost_usd: row.monthly_cost_usd,
+          expires_at: row.expires_at,
+          invoice_rows: row.metadata.invoices.length,
+        },
+        saved: saved.map((item) => ({
+          id: item.id,
+          service_name: item.service_name,
+          provider: item.provider,
+          account_identifier: item.account_identifier,
+          status: item.status,
+          plan: item.plan,
+          monthly_cost_usd: item.monthly_cost_usd,
+          expires_at: item.expires_at,
+          last_verified_at: item.last_verified_at,
+        })),
+      },
+      null,
+      2,
+    ),
+  );
 }
 
 main().catch((error) => {

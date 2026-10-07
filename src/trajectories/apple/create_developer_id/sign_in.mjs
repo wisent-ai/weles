@@ -16,18 +16,26 @@ async function authFrame(page) {
 async function enterEmail(s, frame, capability, guardId) {
   const emailField = frame.locator('#account_name_text_field');
   await emailField.waitFor({ state: 'visible' });
-  const emailLength = await withCapability(capability, {
-    purpose: 'weles.browser.fill', resource: 'origin:https://idmsa.apple.com/email', authorization_id: guardId,
-  }, async (email) => {
-    await emailField.focus();
-    await emailField.pressSequentially(email);
-    await emailField.press('Enter');
-    return email.length;
-  });
+  const emailLength = await withCapability(
+    capability,
+    {
+      purpose: 'weles.browser.fill',
+      resource: 'origin:https://idmsa.apple.com/email',
+      authorization_id: guardId,
+    },
+    async (email) => {
+      await emailField.focus();
+      await emailField.pressSequentially(email);
+      await emailField.press('Enter');
+      return email.length;
+    },
+  );
   await pageSettled(s.page);
   const continuePassword = frame.locator('#continue-password');
   const signInButton = frame.locator('#sign-in');
-  const legacyContinueVisible = await continuePassword.isVisible().catch(() => false);
+  const legacyContinueVisible = await continuePassword
+    .isVisible()
+    .catch(() => false);
   const signInLabel = await signInButton.innerText().catch(() => 'unreadable');
   if (legacyContinueVisible || signInLabel.trim() === 'Continue') {
     await (legacyContinueVisible ? continuePassword : signInButton).click();
@@ -38,43 +46,73 @@ async function enterEmail(s, frame, capability, guardId) {
 
 /** Type the password under its capability; returns its length for the form check. */
 async function enterPassword(frame, capability, guardId) {
-  const passwordSelectors = ['#password_text_field', 'input[type="password"]', 'input[name="password"]', 'input[aria-label*="assword"]'];
+  const passwordSelectors = [
+    '#password_text_field',
+    'input[type="password"]',
+    'input[name="password"]',
+    'input[aria-label*="assword"]',
+  ];
   let passwordField = false;
   for (const selector of passwordSelectors) {
     const candidate = frame.locator(selector).first();
-    if (await candidate.isVisible().catch(() => false)) { passwordField = candidate; break; }
+    if (await candidate.isVisible().catch(() => false)) {
+      passwordField = candidate;
+      break;
+    }
   }
   if (!passwordField) throw new Error('password field not found');
-  return withCapability(capability, {
-    purpose: 'weles.browser.fill', resource: 'origin:https://idmsa.apple.com/password', authorization_id: guardId,
-  }, async (password) => {
-    await passwordField.focus();
-    await passwordField.pressSequentially(password);
-    await passwordField.evaluate((input) => {
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-      input.blur();
-    });
-    return password.length;
-  });
+  return withCapability(
+    capability,
+    {
+      purpose: 'weles.browser.fill',
+      resource: 'origin:https://idmsa.apple.com/password',
+      authorization_id: guardId,
+    },
+    async (password) => {
+      await passwordField.focus();
+      await passwordField.pressSequentially(password);
+      await passwordField.evaluate((input) => {
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        input.blur();
+      });
+      return password.length;
+    },
+  );
 }
 
 /** Refuse to submit unless the form holds exactly what was typed and Apple enabled the button. */
 async function assertFormReady(frame, emailLength, passwordLength) {
-  const formState = await frame.evaluate(({ expectedEmailLength, expectedPasswordLength }) => {
-    const email = document.querySelector('#account_name_text_field');
-    const password = document.querySelector('#password_text_field');
-    const signIn = document.querySelector('#sign-in');
-    return {
-      emailLength: email?.value.length ?? -1, expectedEmailLength,
-      passwordLength: password?.value.length ?? -1, expectedPasswordLength,
-      disabled: signIn?.disabled ?? 'no-button',
-    };
-  }, { expectedEmailLength: emailLength, expectedPasswordLength: passwordLength });
-  if (formState.emailLength !== emailLength || formState.passwordLength !== passwordLength) throw new Error('typed credential length mismatch');
+  const formState = await frame.evaluate(
+    ({ expectedEmailLength, expectedPasswordLength }) => {
+      const email = document.querySelector('#account_name_text_field');
+      const password = document.querySelector('#password_text_field');
+      const signIn = document.querySelector('#sign-in');
+      return {
+        emailLength: email?.value.length ?? -1,
+        expectedEmailLength,
+        passwordLength: password?.value.length ?? -1,
+        expectedPasswordLength,
+        disabled: signIn?.disabled ?? 'no-button',
+      };
+    },
+    {
+      expectedEmailLength: emailLength,
+      expectedPasswordLength: passwordLength,
+    },
+  );
+  if (
+    formState.emailLength !== emailLength ||
+    formState.passwordLength !== passwordLength
+  )
+    throw new Error('typed credential length mismatch');
   await frame.waitForFunction(() => {
     const button = document.querySelector('#sign-in');
-    return button && !button.disabled && button.getAttribute('aria-disabled') !== 'true';
+    return (
+      button &&
+      !button.disabled &&
+      button.getAttribute('aria-disabled') !== 'true'
+    );
   });
 }
 
@@ -83,10 +121,17 @@ async function assertFormReady(frame, emailLength, passwordLength) {
  * capabilities. Returns the post-password state ('dashboard' or 'two_factor')
  * and, after a challenge, the receipt of the relay that served the code.
  */
-export async function signInWithCapabilities(s, { capabilities, guardId, identity }) {
+export async function signInWithCapabilities(
+  s,
+  { capabilities, guardId, identity },
+) {
   const frame = await authFrame(s.page);
   const emailLength = await enterEmail(s, frame, capabilities.email, guardId);
-  const passwordLength = await enterPassword(frame, capabilities.password, guardId);
+  const passwordLength = await enterPassword(
+    frame,
+    capabilities.password,
+    guardId,
+  );
   await assertFormReady(frame, emailLength, passwordLength);
 
   // Attached before the click, because the answer can arrive before the first
@@ -95,21 +140,31 @@ export async function signInWithCapabilities(s, { capabilities, guardId, identit
   let signInStatus = false;
   s.page.on('response', (response) => {
     try {
-      if (response.url().includes('/appleauth/auth/signin/complete')) signInStatus = response.status();
-    } catch { /* a response that cannot be read is not a verdict */ }
+      if (response.url().includes('/appleauth/auth/signin/complete'))
+        signInStatus = response.status();
+    } catch {
+      /* a response that cannot be read is not a verdict */
+    }
   });
 
   await frame.locator('#sign-in').click();
-  console.log('[apple-create-developer-id] submitted one authorized password attempt');
+  console.log(
+    '[apple-create-developer-id] submitted one authorized password attempt',
+  );
 
-  const postPasswordState = await waitForPostPasswordState(s, frame, () => signInStatus);
-  if (postPasswordState === 'failed') throw new Error('Apple rejected the guarded login attempt');
+  const postPasswordState = await waitForPostPasswordState(
+    s,
+    frame,
+    () => signInStatus,
+  );
+  if (postPasswordState === 'failed')
+    throw new Error('Apple rejected the guarded login attempt');
   if (postPasswordState === 'rejected') {
     throw new Error(
-      `Apple refused the sign-in with HTTP ${signInStatus}: the secret the broker resolved for `
-      + 'origin:https://idmsa.apple.com/password is not this account\'s current password. '
-      + 'The route names which vault field was read; nothing here can tell whether it is stale '
-      + 'or wrong, and a second attempt spends another of Apple\'s few before it locks.',
+      `Apple refused the sign-in with HTTP ${signInStatus}: the secret the broker resolved for ` +
+        "origin:https://idmsa.apple.com/password is not this account's current password. " +
+        'The route names which vault field was read; nothing here can tell whether it is stale ' +
+        "or wrong, and a second attempt spends another of Apple's few before it locks.",
     );
   }
 
@@ -118,18 +173,21 @@ export async function signInWithCapabilities(s, { capabilities, guardId, identit
     const relay = relayAppleChallenge(identity, guardId);
     const twoFactor = await completeAppleTwoFactorChallenge(s, frame, {
       logPrefix: '[apple-create-developer-id]',
-      withCode: (consume) => withCapability(
-        capabilities.two_factor.capability,
-        {
-          purpose: 'weles.apple.2fa',
-          resource: `challenge:apple/${guardId}`,
-          authorization_id: guardId,
-        },
-        consume,
-      ),
+      withCode: (consume) =>
+        withCapability(
+          capabilities.two_factor.capability,
+          {
+            purpose: 'weles.apple.2fa',
+            resource: `challenge:apple/${guardId}`,
+            authorization_id: guardId,
+          },
+          consume,
+        ),
     });
     if (!twoFactor.ok) {
-      throw new Error(`Apple 2FA did not complete (${twoFactor.source || 'unknown source'})`);
+      throw new Error(
+        `Apple 2FA did not complete (${twoFactor.source || 'unknown source'})`,
+      );
     }
     twoFactorReceipt = {
       authorization_id: guardId,

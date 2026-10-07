@@ -46,7 +46,8 @@ export const profileProvenanceRules: DetectionRule[] = [
     test(s, b) {
       const sp = s?.js?.permissions;
       const bp = b?.js?.permissions;
-      if (!sp || !bp || typeof sp !== 'object' || typeof bp !== 'object') return null;
+      if (!sp || !bp || typeof sp !== 'object' || typeof bp !== 'object')
+        return null;
       for (const k of Object.keys(sp)) {
         if (bp[k] !== undefined && sp[k] !== bp[k] && sp[k] !== 'unsupported') {
           return {
@@ -74,7 +75,8 @@ export const profileProvenanceRules: DetectionRule[] = [
           id: 'chrome_global_missing',
           category: 'navigator',
           severity: 'warning',
-          message: 'window.chrome is missing on Chromium. Bot detectors check for chrome.* globals.',
+          message:
+            'window.chrome is missing on Chromium. Bot detectors check for chrome.* globals.',
           evidence: { subjectChrome: sc, baselineChrome: bc },
         };
       }
@@ -87,7 +89,8 @@ export const profileProvenanceRules: DetectionRule[] = [
     category: 'inconsistency',
     severity: 'warning',
     test(s, b) {
-      const countPresent = (obj: any) => Object.values(obj || {}).filter(v => v === true).length;
+      const countPresent = (obj: any) =>
+        Object.values(obj || {}).filter((v) => v === true).length;
       const sCount = countPresent(s?.js?.fonts);
       const bCount = countPresent(b?.js?.fonts);
       if (sCount < 4 && bCount >= 4) {
@@ -96,7 +99,11 @@ export const profileProvenanceRules: DetectionRule[] = [
           category: 'inconsistency',
           severity: 'warning',
           message: `Only ${sCount} fonts detected (${bCount} in baseline). Container/headless environments often have a stripped font list.`,
-          evidence: { subjectFontCount: sCount, baselineFontCount: bCount, subjectFonts: s?.js?.fonts },
+          evidence: {
+            subjectFontCount: sCount,
+            baselineFontCount: bCount,
+            subjectFonts: s?.js?.fonts,
+          },
         };
       }
       return null;

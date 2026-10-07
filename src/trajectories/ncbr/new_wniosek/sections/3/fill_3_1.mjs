@@ -3,12 +3,20 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('3_1');
-const MD = readFileSync((await import('#ncbr-settings')).applicationFile('wersja_B_3.1_3.2_3.3_3.4_wdrozenie.md'), 'utf8');
+const MD = readFileSync(
+  (await import('#ncbr-settings')).applicationFile(
+    'wersja_B_3.1_3.2_3.3_3.4_wdrozenie.md',
+  ),
+  'utf8',
+);
 
 const clean = (s) => s.replace(/\s*<!--[\s\S]*?-->\s*/g, ' ').trim();
 function between(start, end) {
@@ -27,29 +35,37 @@ if (!page) {
   process.exit(1);
 }
 
-
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
 await page.evaluate(() => {
-  const b = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies'));
+  const b = Array.from(document.querySelectorAll('div')).find((d) =>
+    (d.innerText || '').includes('pliki cookies'),
+  );
   if (b) b.style.pointerEvents = 'none';
 }); // allow-raw-playwright: neutralise cookie banner
 
 async function clickDodaj() {
-  const button = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true }).first();
-  if (await button.count() === 0) throw new Error('Dodaj not found');
+  const button = page
+    .getByRole('button', { name: 'Dodaj', exact: true })
+    .filter({ visible: true })
+    .first();
+  if ((await button.count()) === 0) throw new Error('Dodaj not found');
   await humanClickLocator(page, button);
   await humanIdlePause('long');
 }
 
 async function setApplicant() {
-  const applicant = page.locator('input[name*="nazwa_skrocona_wnioskodawcy"]')
+  const applicant = page
+    .locator('input[name*="nazwa_skrocona_wnioskodawcy"]')
     .locator('xpath=ancestor::*[contains(@class, "MuiInputBase-root")][1]')
-    .locator('.MuiSelect-select, [role="combobox"]').first();
-  if (await applicant.count() > 0) await humanClickLocator(page, applicant);
+    .locator('.MuiSelect-select, [role="combobox"]')
+    .first();
+  if ((await applicant.count()) > 0) await humanClickLocator(page, applicant);
   await humanIdlePause('deliberate');
-  const opt = page.getByRole('option', { name: 'Wisent Polska', exact: true }).first();
-  if (await opt.count() > 0) await opt.dispatchEvent('click'); // allow-raw-playwright: select applicant
+  const opt = page
+    .getByRole('option', { name: 'Wisent Polska', exact: true })
+    .first();
+  if ((await opt.count()) > 0) await opt.dispatchEvent('click'); // allow-raw-playwright: select applicant
   await humanIdlePause('short');
 }
 
@@ -60,8 +76,11 @@ async function multiPick(suffix, searches) {
     await humanClickLocator(page, inp);
     await humanFill(page, inp, search);
     await humanIdlePause('deliberate');
-    const opt = page.locator("[role='listbox'] [role='option'], [role='option']").first();
-    if (await opt.count() === 0) throw new Error(`no option for ${suffix}: ${search}`);
+    const opt = page
+      .locator("[role='listbox'] [role='option'], [role='option']")
+      .first();
+    if ((await opt.count()) === 0)
+      throw new Error(`no option for ${suffix}: ${search}`);
     picked.push((await opt.textContent())?.trim());
     await opt.dispatchEvent('click'); // allow-raw-playwright: select dictionary option
     await humanIdlePause('short');
@@ -72,40 +91,75 @@ async function multiPick(suffix, searches) {
 async function saveEnabled() {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  const saves = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
-  if (await saves.count() === 0) throw new Error('no enabled Zapisz');
+  const saves = page
+    .getByRole('button', { name: 'Zapisz', exact: true })
+    .filter({ visible: true });
+  if ((await saves.count()) === 0) throw new Error('no enabled Zapisz');
   await humanClickLocator(page, saves.last());
   await humanIdlePause('long');
 }
 
 if (process.env.DIAG) {
   await clickDodaj();
-  const fields = await page.evaluate(() => Array.from(document.querySelectorAll('input, textarea')).map((el) => ({
-    tag: el.tagName,
-    name: el.name || null,
-    role: el.getAttribute('role'),
-    type: el.getAttribute('type'),
-    value: (el.value || ''),
-    max: el.getAttribute('maxlength'),
-  })).filter((f) => f.name));
+  const fields = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('input, textarea'))
+      .map((el) => ({
+        tag: el.tagName,
+        name: el.name || null,
+        role: el.getAttribute('role'),
+        type: el.getAttribute('type'),
+        value: el.value || '',
+        max: el.getAttribute('maxlength'),
+      }))
+      .filter((f) => f.name),
+  );
   console.log(JSON.stringify({ fields }, null, 2));
   process.exit(0);
 }
 
-if (!(await page.evaluate(() => (document.body.innerText || '').includes('Wprowadzenie wyników do własnej działalności gospodarczej')))) {
+if (
+  !(await page.evaluate(() =>
+    (document.body.innerText || '').includes(
+      'Wprowadzenie wyników do własnej działalności gospodarczej',
+    ),
+  ))
+) {
   await clickDodaj();
-  try { await setApplicant(); } catch (e) { /* single applicant may be auto-selected */ }
-  const sposob = await multiPick('sposob_wdrozenia_wynikow_prac_br', ['Wprowadzenie wyników do własnej', 'Udzielenie licencji']);
-  const miejsce = await multiPick('miejsce_wdrozenia_wynikow_projektu', ['na terenie RP', 'na terenie innego']);
-  await humanFill(page, page.locator('input[name$="przewidywana_data_wdrozenia"]').first(), '09.2029');
+  try {
+    await setApplicant();
+  } catch (e) {
+    /* single applicant may be auto-selected */
+  }
+  const sposob = await multiPick('sposob_wdrozenia_wynikow_prac_br', [
+    'Wprowadzenie wyników do własnej',
+    'Udzielenie licencji',
+  ]);
+  const miejsce = await multiPick('miejsce_wdrozenia_wynikow_projektu', [
+    'na terenie RP',
+    'na terenie innego',
+  ]);
+  await humanFill(
+    page,
+    page.locator('input[name$="przewidywana_data_wdrozenia"]').first(),
+    '09.2029',
+  );
   const uzasField = page.locator('textarea[name$="uzasadnienie"]').first();
   // The form states the field's limit in its maxlength; a longer text is
   // refused by name instead of cut.
   const uzasMax = await uzasField.getAttribute('maxlength');
-  if (uzasMax && UZAS.length > Number(uzasMax)) throw new Error(`uzasadnienie is ${UZAS.length} characters; the form's maxlength is ${uzasMax}`);
+  if (uzasMax && UZAS.length > Number(uzasMax))
+    throw new Error(
+      `uzasadnienie is ${UZAS.length} characters; the form's maxlength is ${uzasMax}`,
+    );
   await humanFill(page, uzasField, UZAS);
   await saveEnabled();
-  console.log(JSON.stringify({ saveResult: 'saved', sposob, miejsce, uzasLen: UZAS.length }, null, 2));
+  console.log(
+    JSON.stringify(
+      { saveResult: 'saved', sposob, miejsce, uzasLen: UZAS.length },
+      null,
+      2,
+    ),
+  );
 } else {
   console.log(JSON.stringify({ saveResult: 'already-present' }, null, 2));
 }

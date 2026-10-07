@@ -2,7 +2,8 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 
 import { PublicTaskError } from '../wire.mjs';
 
-export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -28,21 +29,38 @@ export function containsLoneSurrogate(value) {
 // public contract so producer and verifier cannot round the same request apart.
 export function canonicalJson(value) {
   if (typeof value === 'number' && !Number.isSafeInteger(value)) {
-    throw new PublicTaskError(400, 'invalid-json-number', 'canonical public JSON permits safe integers only');
+    throw new PublicTaskError(
+      400,
+      'invalid-json-number',
+      'canonical public JSON permits safe integers only',
+    );
   }
   if (typeof value === 'string' && containsLoneSurrogate(value)) {
-    throw new PublicTaskError(400, 'invalid-json-string', 'canonical public JSON rejects lone UTF-16 surrogates');
+    throw new PublicTaskError(
+      400,
+      'invalid-json-string',
+      'canonical public JSON rejects lone UTF-16 surrogates',
+    );
   }
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
   if (isObject(value)) {
     const keys = Object.keys(value).sort();
     if (keys.some(containsLoneSurrogate)) {
-      throw new PublicTaskError(400, 'invalid-json-string', 'canonical public JSON rejects lone UTF-16 surrogates');
+      throw new PublicTaskError(
+        400,
+        'invalid-json-string',
+        'canonical public JSON rejects lone UTF-16 surrogates',
+      );
     }
     return `{${keys.map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
   }
   const encoded = JSON.stringify(value);
-  if (encoded === undefined) throw new PublicTaskError(400, 'invalid-json', 'request contains a non-JSON value');
+  if (encoded === undefined)
+    throw new PublicTaskError(
+      400,
+      'invalid-json',
+      'request contains a non-JSON value',
+    );
   return encoded;
 }
 

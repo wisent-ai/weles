@@ -13,7 +13,10 @@
 // entry points.
 
 import { humanFill, humanType } from '../../../../dist/human/keyboard.js';
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../dist/human/mouse.js';
 import { pageSettled } from '../../_shared/page/settled.mjs';
 
 import { persistFreshCookieJar } from '../../_shared/auth/cookie-freshness.mjs';
@@ -26,9 +29,12 @@ import {
   updateAccountReference,
 } from './queued_job.mjs';
 
-export const IDENTITY_CHALLENGE = /verify your identity|get a code|approve (?:a )?sign.?in|enter.{0,20}code|passkey|security key|authenticator app|text my mobile|call my (?:mobile|office)|verification (?:step|method)/i;
-const PASSWORD_REJECTED = /your account or password is incorrect|password is incorrect|wrong password|password is invalid/i;
-const USERNAME_UNKNOWN = /isn.t in our system|couldn.t find your account|try entering your details again/i;
+export const IDENTITY_CHALLENGE =
+  /verify your identity|get a code|approve (?:a )?sign.?in|enter.{0,20}code|passkey|security key|authenticator app|text my mobile|call my (?:mobile|office)|verification (?:step|method)/i;
+const PASSWORD_REJECTED =
+  /your account or password is incorrect|password is incorrect|wrong password|password is invalid/i;
+const USERNAME_UNKNOWN =
+  /isn.t in our system|couldn.t find your account|try entering your details again/i;
 export const PAGE_TEXT_UNREADABLE = 'page_text_unreadable';
 export const IDENTITY_CHALLENGE_PRESENT = 'identity_challenge_present';
 const IDENTITY_CHALLENGE_ABSENT = 'identity_challenge_absent';
@@ -36,7 +42,13 @@ const STAY_SIGNED_IN_SETTLED = 'stay_signed_in_settled';
 
 export async function visible(locator) {
   const count = await locator.count().catch(() => 0);
-  return count > 0 && locator.first().isVisible().catch(() => false);
+  return (
+    count > 0 &&
+    locator
+      .first()
+      .isVisible()
+      .catch(() => false)
+  );
 }
 
 // Whether the control shows once its page has settled; a missing control is
@@ -52,7 +64,10 @@ export async function pageText(page) {
   try {
     return { ok: true, text: await page.locator('body').innerText() };
   } catch (error) {
-    return { ok: false, reason: `the page text could not be read: ${error.message}` };
+    return {
+      ok: false,
+      reason: `the page text could not be read: ${error.message}`,
+    };
   }
 }
 
@@ -60,7 +75,10 @@ async function controlValue(locator) {
   try {
     return { ok: true, value: await locator.inputValue() };
   } catch (error) {
-    return { ok: false, reason: `the control value could not be read back: ${error.message}` };
+    return {
+      ok: false,
+      reason: `the control value could not be read back: ${error.message}`,
+    };
   }
 }
 
@@ -78,11 +96,13 @@ export async function fill(page, locator, value) {
 async function fillVerified(page, locator, value) {
   let readback;
   await fill(page, locator, value);
-    await pageSettled(page);
-    readback = await controlValue(locator);
-    if (readback.ok && readback.value === value) return;
+  await pageSettled(page);
+  readback = await controlValue(locator);
+  if (readback.ok && readback.value === value) return;
   if (!readback.ok) {
-    throw new Error(`a typed sign-in value could not be verified: ${readback.reason}`);
+    throw new Error(
+      `a typed sign-in value could not be verified: ${readback.reason}`,
+    );
   }
 }
 
@@ -90,7 +110,9 @@ async function fillVerified(page, locator, value) {
 export async function identityChallengeState(page) {
   const body = await pageText(page);
   if (!body.ok) return PAGE_TEXT_UNREADABLE;
-  return IDENTITY_CHALLENGE.test(body.text) ? IDENTITY_CHALLENGE_PRESENT : IDENTITY_CHALLENGE_ABSENT;
+  return IDENTITY_CHALLENGE.test(body.text)
+    ? IDENTITY_CHALLENGE_PRESENT
+    : IDENTITY_CHALLENGE_ABSENT;
 }
 
 // 'stay_signed_in_settled' | 'page_text_unreadable'
@@ -120,13 +142,17 @@ async function choosePasswordSignIn(page) {
   const step = (surface) => {
     const move = `${from} -> ${surface} (${page.url()})`;
     if (taken.includes(move)) {
-      throw new Error(`Microsoft sign-in repeated the step ${move} without offering the password; steps: ${taken.join(', ')}`);
+      throw new Error(
+        `Microsoft sign-in repeated the step ${move} without offering the password; steps: ${taken.join(', ')}`,
+      );
     }
     taken.push(move);
     from = surface;
   };
   for (;;) {
-    const passwordInput = page.locator('input[name="passwd"], input#i0118, input[type="password"]').first();
+    const passwordInput = page
+      .locator('input[name="passwd"], input#i0118, input[type="password"]')
+      .first();
     if (await visible(passwordInput)) return;
     const passwordChoice = page.getByText(/^Use (?:your )?password$/i).first();
     if (await visible(passwordChoice)) {
@@ -134,13 +160,23 @@ async function choosePasswordSignIn(page) {
       await pageSettled(page);
       return;
     }
-    const passkeyFailed = page.getByText(/couldn.t sign you in with your passkey|something went wrong/i).first();
-    const passkeyPage = page.getByText(/Face, fingerprint, PIN or security key|device will open a security window/i).first();
+    const passkeyFailed = page
+      .getByText(/couldn.t sign you in with your passkey|something went wrong/i)
+      .first();
+    const passkeyPage = page
+      .getByText(
+        /Face, fingerprint, PIN or security key|device will open a security window/i,
+      )
+      .first();
     const bareChooser = page.getByText(/Sign in to an organization/i).first();
-    const emailInput = page.locator('input[name="loginfmt"], input#i0116, input[type="email"]').first();
+    const emailInput = page
+      .locator('input[name="loginfmt"], input#i0116, input[type="email"]')
+      .first();
     if (await visible(passkeyFailed)) {
       step('passkey error surface');
-      const otherWays = page.getByText(/Other ways to sign in|Use another way/i).first();
+      const otherWays = page
+        .getByText(/Other ways to sign in|Use another way/i)
+        .first();
       if (await visible(otherWays)) {
         await humanClickLocator(page, otherWays);
         await pageSettled(page);
@@ -155,22 +191,28 @@ async function choosePasswordSignIn(page) {
     }
     if (await visible(bareChooser)) {
       step('sign-in options chooser');
-      const back = page.locator('#idBtn_Back, button[aria-label="Back"]').first();
-      if (!await visible(back)) return;
+      const back = page
+        .locator('#idBtn_Back, button[aria-label="Back"]')
+        .first();
+      if (!(await visible(back))) return;
       await humanClickLocator(page, back);
       await pageSettled(page);
       continue;
     }
     if (await visible(emailInput)) {
       step('email page');
-      const next = page.locator('input[type="submit"]#idSIButton9, button[type="submit"]').first();
-      if (!await visible(next)) return;
+      const next = page
+        .locator('input[type="submit"]#idSIButton9, button[type="submit"]')
+        .first();
+      if (!(await visible(next))) return;
       await humanClickLocator(page, next);
       await pageSettled(page);
       continue;
     }
-    const otherWays = page.getByText(/Other ways to sign in|Use another way/i).first();
-    if (!await visible(otherWays)) return;
+    const otherWays = page
+      .getByText(/Other ways to sign in|Use another way/i)
+      .first();
+    if (!(await visible(otherWays))) return;
     step('other-ways link');
     await humanClickLocator(page, otherWays);
     await pageSettled(page);
@@ -189,7 +231,10 @@ async function clearTokenCache(page) {
     });
     return { ok: true };
   } catch (error) {
-    return { ok: false, reason: `the authorized context token cache could not be cleared: ${error.message}` };
+    return {
+      ok: false,
+      reason: `the authorized context token cache could not be cleared: ${error.message}`,
+    };
   }
 }
 
@@ -203,37 +248,60 @@ export async function signIn(session, contract, password) {
   await session.ctx.clearCookies();
   await page.goto(AUTHORIZED_CONTEXT_URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('deliberate');
-  const emailInput = page.locator('input[name="loginfmt"], input#i0116, input[type="email"]').first();
-  if (!await appears(emailInput) || !await visible(emailInput)) return 'unavailable';
+  const emailInput = page
+    .locator('input[name="loginfmt"], input#i0116, input[type="email"]')
+    .first();
+  if (!(await appears(emailInput)) || !(await visible(emailInput)))
+    return 'unavailable';
   // fillVerified proves the field holds the whole UPN before it is sent, so
   // Microsoft's "isn't in our system" answer is about the account, not a
   // truncated submit, and resubmitting the same value cannot change it.
   await fillVerified(page, emailInput, contract.accountUpn);
-  await humanClickLocator(page, page.locator('input[type="submit"]#idSIButton9, button[type="submit"]').first());
+  await humanClickLocator(
+    page,
+    page
+      .locator('input[type="submit"]#idSIButton9, button[type="submit"]')
+      .first(),
+  );
   await humanIdlePause('deliberate');
   const named = await pageText(page);
   if (!named.ok) return 'unavailable';
   if (USERNAME_UNKNOWN.test(named.text)) return 'account_unknown';
   await choosePasswordSignIn(page);
-  const passwordInput = page.locator('input[name="passwd"], input#i0118, input[type="password"]').first();
-  if (!await appears(passwordInput) || !await visible(passwordInput)) {
-    return await identityChallengeState(page) === IDENTITY_CHALLENGE_PRESENT ? 'identity_challenge' : 'unavailable';
+  const passwordInput = page
+    .locator('input[name="passwd"], input#i0118, input[type="password"]')
+    .first();
+  if (!(await appears(passwordInput)) || !(await visible(passwordInput))) {
+    return (await identityChallengeState(page)) === IDENTITY_CHALLENGE_PRESENT
+      ? 'identity_challenge'
+      : 'unavailable';
   }
   await fillVerified(page, passwordInput, password);
-  await humanClickLocator(page, page.locator('input[type="submit"]#idSIButton9, button[type="submit"]').first());
+  await humanClickLocator(
+    page,
+    page
+      .locator('input[type="submit"]#idSIButton9, button[type="submit"]')
+      .first(),
+  );
   await humanIdlePause('long');
   const answered = await pageText(page);
   if (!answered.ok) return 'unavailable';
   if (PASSWORD_REJECTED.test(answered.text)) return 'rejected';
-  if (await visible(page.locator('input[name="passwd"], input#i0118'))) return 'rejected';
-  if (await dismissStaySignedIn(page) === PAGE_TEXT_UNREADABLE) return 'unavailable';
+  if (await visible(page.locator('input[name="passwd"], input#i0118')))
+    return 'rejected';
+  if ((await dismissStaySignedIn(page)) === PAGE_TEXT_UNREADABLE)
+    return 'unavailable';
   const challenged = await identityChallengeState(page);
   if (challenged === IDENTITY_CHALLENGE_PRESENT) return 'identity_challenge';
   if (challenged === PAGE_TEXT_UNREADABLE) return 'unavailable';
   await pageSettled(page);
-  if (!AUTHORIZED_CONTEXT_URL_PATTERN.test(page.url())
-      || !AUTHORIZED_CONTEXT_HOST.test(new URL(page.url()).hostname)) {
-    return await identityChallengeState(page) === IDENTITY_CHALLENGE_PRESENT ? 'identity_challenge' : 'unavailable';
+  if (
+    !AUTHORIZED_CONTEXT_URL_PATTERN.test(page.url()) ||
+    !AUTHORIZED_CONTEXT_HOST.test(new URL(page.url()).hostname)
+  ) {
+    return (await identityChallengeState(page)) === IDENTITY_CHALLENGE_PRESENT
+      ? 'identity_challenge'
+      : 'unavailable';
   }
   return 'authenticated';
 }
@@ -241,23 +309,32 @@ export async function signIn(session, contract, password) {
 // Shared tail: fresh login with the value the provider now holds, full identity
 // assertion, then the Skarbiec commit. Never commits an unasserted identity.
 export async function commitAfterFreshLogin(session, account, contract, plan) {
-  const { password, writeOperation, sink, proxyUrl, providerEffect, evidence } = plan;
+  const { password, writeOperation, sink, proxyUrl, providerEffect, evidence } =
+    plan;
   const signedIn = await signIn(session, contract, password);
   evidence.push(`fresh_login_verification:${signedIn}`);
   if (signedIn !== 'authenticated') {
     return {
       committed: false,
       answer: outcome(contract, {
-        status: signedIn === 'identity_challenge' ? 'needs_human_approval' : 'operation_failed',
-        code: signedIn === 'identity_challenge'
-          ? 'ENTRA_FRESH_LOGIN_REQUIRES_HUMAN_APPROVAL'
-          : 'ENTRA_FRESH_LOGIN_FAILED',
-        phase: signedIn === 'identity_challenge' ? 'identity_verification' : 'fresh_login_verification',
+        status:
+          signedIn === 'identity_challenge'
+            ? 'needs_human_approval'
+            : 'operation_failed',
+        code:
+          signedIn === 'identity_challenge'
+            ? 'ENTRA_FRESH_LOGIN_REQUIRES_HUMAN_APPROVAL'
+            : 'ENTRA_FRESH_LOGIN_FAILED',
+        phase:
+          signedIn === 'identity_challenge'
+            ? 'identity_verification'
+            : 'fresh_login_verification',
         retryable: signedIn !== 'rejected',
         providerEffect,
-        reason: signedIn === 'identity_challenge'
-          ? 'the fresh Entra login after the password write needs interactive identity approval'
-          : 'the fresh Entra login with the newly written password did not authenticate',
+        reason:
+          signedIn === 'identity_challenge'
+            ? 'the fresh Entra login after the password write needs interactive identity approval'
+            : 'the fresh Entra login with the newly written password did not authenticate',
       }),
     };
   }

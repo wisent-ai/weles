@@ -102,10 +102,7 @@ const PROBES = {
       'achievements-entrypoint[username]',
       'after-login-toast-dispatcher[username]',
     ],
-    loggedOutMarkers: [
-      'a[href*="/login"]',
-      'a[href*="oauth.reddit.com/auth"]',
-    ],
+    loggedOutMarkers: ['a[href*="/login"]', 'a[href*="oauth.reddit.com/auth"]'],
   },
   github: {
     authedSelectors: [
@@ -113,10 +110,7 @@ const PROBES = {
       'meta[name="user-login"][content]',
       'a[href="/notifications"]',
     ],
-    loggedOutMarkers: [
-      'a[href="/login"]',
-      'form[action="/session"]',
-    ],
+    loggedOutMarkers: ['a[href="/login"]', 'form[action="/session"]'],
   },
   youtube: {
     authedSelectors: [
@@ -148,10 +142,7 @@ const PROBES = {
       '[class*="userBadgeContainer"]',
       'div[aria-label="Servers sidebar"]',
     ],
-    loggedOutMarkers: [
-      'input[name="email"]',
-      'button[type="submit"]',
-    ],
+    loggedOutMarkers: ['input[name="email"]', 'button[type="submit"]'],
   },
   producthunt: {
     // The authenticated topbar exposes user-avatar and notification links.
@@ -171,9 +162,7 @@ const PROBES = {
       'button[aria-label="Compose Chat"]',
       'div[data-testid="conversation-list"]',
     ],
-    loggedOutMarkers: [
-      'a[href*="/web/accounts/login"]',
-    ],
+    loggedOutMarkers: ['a[href*="/web/accounts/login"]'],
   },
 };
 
@@ -202,7 +191,10 @@ class AuthProbeError extends Error {
 export async function assertAuthed(platform, s, opts = {}) {
   const probe = PROBES[platform];
   if (!probe) {
-    throw new AuthProbeError(`assertAuthed: no probe defined for platform=${platform} — add one to auth-probe.mjs`, { platform });
+    throw new AuthProbeError(
+      `assertAuthed: no probe defined for platform=${platform} — add one to auth-probe.mjs`,
+      { platform },
+    );
   }
   const label = opts.label ?? 'auth-probe';
 
@@ -224,7 +216,9 @@ export async function assertAuthed(platform, s, opts = {}) {
   for (const sel of probe.presenceSelectors ?? []) {
     const n = await s.page.locator(sel).count();
     if (n > 0) {
-      console.log(`[${label}] authed: ${platform} matched ${sel} (presence-only, count=${n})`);
+      console.log(
+        `[${label}] authed: ${platform} matched ${sel} (presence-only, count=${n})`,
+      );
       return sel;
     }
   }
@@ -233,13 +227,14 @@ export async function assertAuthed(platform, s, opts = {}) {
   const foundLoggedOut = [];
   for (const sel of probe.loggedOutMarkers ?? []) {
     try {
-      if (await s.page.locator(sel).first().isVisible()) foundLoggedOut.push(sel);
+      if (await s.page.locator(sel).first().isVisible())
+        foundLoggedOut.push(sel);
     } catch {}
   }
   let bodyTextHit = null;
   if (probe.bodyTextNegative) {
     try {
-      const text = await s.page.evaluate(() => (document.body?.innerText || ''));
+      const text = await s.page.evaluate(() => document.body?.innerText || '');
       const m = text.match(probe.bodyTextNegative);
       if (m) bodyTextHit = m[0];
     } catch {}
@@ -247,7 +242,12 @@ export async function assertAuthed(platform, s, opts = {}) {
   const finalUrl = s.page.url?.() ?? '';
   throw new AuthProbeError(
     `${platform} session not authenticated — no authed UI found${foundLoggedOut.length ? ` (logged-out markers: ${foundLoggedOut.join(', ')})` : ''}${bodyTextHit ? ` (body: "${bodyTextHit}")` : ''}`,
-    { platform, final_url: finalUrl, logged_out_markers: foundLoggedOut, body_text_hit: bodyTextHit },
+    {
+      platform,
+      final_url: finalUrl,
+      logged_out_markers: foundLoggedOut,
+      body_text_hit: bodyTextHit,
+    },
   );
 }
 

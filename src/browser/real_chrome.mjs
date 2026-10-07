@@ -11,7 +11,10 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { pageSettled } from '../trajectories/_shared/page/settled.mjs';
 import { runId, runRecordingsDir } from '../../dist/session/run-recordings.js';
-import { customBrowserSearchHint, findCustomChromium } from '../../dist/session/find_browser.js';
+import {
+  customBrowserSearchHint,
+  findCustomChromium,
+} from '../../dist/session/find_browser.js';
 
 // Use Weles Chromium (147), which Google's signin flow recognizes as a
 // real Chrome browser (per src/trajectories/google/_export_cookies.mjs
@@ -26,7 +29,10 @@ import { customBrowserSearchHint, findCustomChromium } from '../../dist/session/
 // deployment, found and verified by the same resolver every session uses;
 // no build directory under one person's home is assumed.
 const WELES_CHROMIUM = findCustomChromium();
-if (!WELES_CHROMIUM) throw new Error(`Weles Chromium is not installed as a verified release: ${customBrowserSearchHint('chromium')}`);
+if (!WELES_CHROMIUM)
+  throw new Error(
+    `Weles Chromium is not installed as a verified release: ${customBrowserSearchHint('chromium')}`,
+  );
 
 function profileDir() {
   const dir = join(homedir(), '.weles', 'chrome_profiles', 'service_balance');
@@ -51,11 +57,17 @@ export async function launchGenuineChrome({
   viewport = { width: 1280, height: 800 },
   extraArgs = [],
 } = {}) {
-  if (!userDataDir) throw new Error('launchGenuineChrome needs a userDataDir it may own');
-  if (!executablePath) throw new Error('launchGenuineChrome needs the real Chrome executablePath');
-  const extension = extensionDir && existsSync(extensionDir)
-    ? [`--disable-extensions-except=${extensionDir}`, `--load-extension=${extensionDir}`]
-    : [];
+  if (!userDataDir)
+    throw new Error('launchGenuineChrome needs a userDataDir it may own');
+  if (!executablePath)
+    throw new Error('launchGenuineChrome needs the real Chrome executablePath');
+  const extension =
+    extensionDir && existsSync(extensionDir)
+      ? [
+          `--disable-extensions-except=${extensionDir}`,
+          `--load-extension=${extensionDir}`,
+        ]
+      : [];
   return chromium.launchPersistentContext(userDataDir, {
     executablePath,
     channel: 'chrome',
@@ -81,12 +93,18 @@ export async function launchProfileChrome({
   userDataDir,
   executablePath,
   viewport = { width: 1280, height: 800 },
-  args = ['--no-sandbox', '--disable-blink-features=AutomationControlled', '--disable-infobars'],
+  args = [
+    '--no-sandbox',
+    '--disable-blink-features=AutomationControlled',
+    '--disable-infobars',
+  ],
   ignoreDefaultArgs = ['--enable-automation', '--disable-breakpad'],
   channel = 'chrome',
 } = {}) {
-  if (!userDataDir) throw new Error('launchProfileChrome needs a userDataDir it may own');
-  if (!executablePath) throw new Error('launchProfileChrome needs the browser executablePath');
+  if (!userDataDir)
+    throw new Error('launchProfileChrome needs a userDataDir it may own');
+  if (!executablePath)
+    throw new Error('launchProfileChrome needs the browser executablePath');
   return chromium.launchPersistentContext(userDataDir, {
     executablePath,
     ...(channel ? { channel } : {}),
@@ -109,29 +127,57 @@ export async function launchRealChrome({ label = 'real_chrome' } = {}) {
     recordVideo: { dir: diagnosticsDir, size: { width: 1280, height: 720 } },
   });
   await context.addInitScript(() => {
-    try { Object.defineProperty(navigator, 'webdriver', { get: () => undefined }); } catch {}
-    try { if (!window.chrome) window.chrome = {}; if (!window.chrome.runtime) window.chrome.runtime = {}; } catch {}
-    try { Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] }); } catch {}
+    try {
+      Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+    } catch {}
+    try {
+      if (!window.chrome) window.chrome = {};
+      if (!window.chrome.runtime) window.chrome.runtime = {};
+    } catch {}
+    try {
+      Object.defineProperty(navigator, 'languages', {
+        get: () => ['en-US', 'en'],
+      });
+    } catch {}
     try {
       const orig = navigator.permissions?.query?.bind(navigator.permissions);
-      if (orig) navigator.permissions.query = (p) => p?.name === 'notifications' ? Promise.resolve({ state: Notification.permission, onchange: null }) : orig(p);
+      if (orig)
+        navigator.permissions.query = (p) =>
+          p?.name === 'notifications'
+            ? Promise.resolve({
+                state: Notification.permission,
+                onchange: null,
+              })
+            : orig(p);
     } catch {}
   });
-  const page = context.pages()[0] ?? await context.newPage();
+  const page = context.pages()[0] ?? (await context.newPage());
   try {
-    writeFileSync(join(diagnosticsDir, 'real_chrome_session.json'), JSON.stringify({
-      run_id: runId(),
-      action: process.env.ACTION || null,
-      label,
-      profile_dir: dir,
-      executable_path: WELES_CHROMIUM,
-      launched_at: new Date().toISOString(),
-    }, null, 2));
+    writeFileSync(
+      join(diagnosticsDir, 'real_chrome_session.json'),
+      JSON.stringify(
+        {
+          run_id: runId(),
+          action: process.env.ACTION || null,
+          label,
+          profile_dir: dir,
+          executable_path: WELES_CHROMIUM,
+          launched_at: new Date().toISOString(),
+        },
+        null,
+        2,
+      ),
+    );
   } catch {}
   console.log(`[real_chrome] launched (label=${label}, profile=${dir})`);
   return {
-    context, page,
-    async close() { try { await context.close(); } catch {} },
+    context,
+    page,
+    async close() {
+      try {
+        await context.close();
+      } catch {}
+    },
   };
 }
 
@@ -140,21 +186,41 @@ export async function googleSsoRealChrome(page, creds) {
   // The provider's redirect chain has finished once the page has settled.
   await pageSettled(page);
   if (!/accounts\.google\.com/.test(page.url())) {
-    console.log(`[google_sso_chrome] FAIL: never reached google (url=${page.url()})`);
+    console.log(
+      `[google_sso_chrome] FAIL: never reached google (url=${page.url()})`,
+    );
     return false;
   }
 
-  const emailIn = page.locator('input[type="email"], input[name="identifier"], input#identifierId').filter({ visible: true }).first();
+  const emailIn = page
+    .locator(
+      'input[type="email"], input[name="identifier"], input#identifierId',
+    )
+    .filter({ visible: true })
+    .first();
   await emailIn.waitFor({ state: 'visible' });
   await emailIn.click();
   await emailIn.pressSequentially(creds.email);
   console.log(`[google_sso_chrome] identifier filled (${creds.email})`);
   // Use #identifierNext only; bare [jsname="LgbsSe"] matches hidden audio-captcha button on bot-suspect sessions.
-  await page.locator('#identifierNext button, #identifierNext').filter({ visible: true }).first().click();
+  await page
+    .locator('#identifierNext button, #identifierNext')
+    .filter({ visible: true })
+    .first()
+    .click();
 
-  const password = page.locator('input[type="password"], input[name="Passwd"]').filter({ visible: true }).first();
-  const enterPw = page.locator('button:has-text("Enter your password")').filter({ visible: true }).first();
-  const tryAnother = page.locator('button:has-text("Try another way")').filter({ visible: true }).first();
+  const password = page
+    .locator('input[type="password"], input[name="Passwd"]')
+    .filter({ visible: true })
+    .first();
+  const enterPw = page
+    .locator('button:has-text("Enter your password")')
+    .filter({ visible: true })
+    .first();
+  const tryAnother = page
+    .locator('button:has-text("Try another way")')
+    .filter({ visible: true })
+    .first();
   let usedEnterPw = false;
   let usedTryAnother = false;
   for (;;) {
@@ -166,21 +232,48 @@ export async function googleSsoRealChrome(page, creds) {
     if (!usedEnterPw) options.push(enterPw.waitFor({ state: 'visible' }));
     if (!usedTryAnother) options.push(tryAnother.waitFor({ state: 'visible' }));
     if (options.length) {
-      watched.push(page.getByText(/Verifying it.s you/i).first().waitFor({ state: 'hidden' }).then(() => Promise.any(options)));
-    } else if (!await password.isVisible()) {
-      console.log(`[google_sso_chrome] FAIL: google_password_challenge_unavailable — both password options used, no password field (url=${page.url()})`);
+      watched.push(
+        page
+          .getByText(/Verifying it.s you/i)
+          .first()
+          .waitFor({ state: 'hidden' })
+          .then(() => Promise.any(options)),
+      );
+    } else if (!(await password.isVisible())) {
+      console.log(
+        `[google_sso_chrome] FAIL: google_password_challenge_unavailable — both password options used, no password field (url=${page.url()})`,
+      );
       return false;
     }
     await Promise.any(watched);
     if (await password.isVisible()) break;
     console.log(`[google_sso_chrome] url=${page.url()}`);
-    if (!usedEnterPw && await enterPw.isVisible()) { usedEnterPw = true; console.log('[google_sso_chrome] clicking Enter your password'); await enterPw.click({ force: true }); await pageSettled(page); continue; }
-    if (!usedTryAnother && await tryAnother.isVisible()) { usedTryAnother = true; console.log('[google_sso_chrome] clicking Try another way'); await tryAnother.click({ force: true }); await pageSettled(page); continue; }
+    if (!usedEnterPw && (await enterPw.isVisible())) {
+      usedEnterPw = true;
+      console.log('[google_sso_chrome] clicking Enter your password');
+      await enterPw.click({ force: true });
+      await pageSettled(page);
+      continue;
+    }
+    if (!usedTryAnother && (await tryAnother.isVisible())) {
+      usedTryAnother = true;
+      console.log('[google_sso_chrome] clicking Try another way');
+      await tryAnother.click({ force: true });
+      await pageSettled(page);
+      continue;
+    }
   }
 
-  const pwIn = page.locator('input[type="password"], input[name="Passwd"]').filter({ visible: true }).first();
+  const pwIn = page
+    .locator('input[type="password"], input[name="Passwd"]')
+    .filter({ visible: true })
+    .first();
   await pwIn.click();
   await pwIn.pressSequentially(creds.password);
-  await page.locator('#passwordNext button, #passwordNext').filter({ visible: true }).first().click();
+  await page
+    .locator('#passwordNext button, #passwordNext')
+    .filter({ visible: true })
+    .first()
+    .click();
   return true;
 }

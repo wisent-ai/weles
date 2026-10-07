@@ -27,13 +27,22 @@ const ACQUISITION_RECORD =
 
 export function credentialFailure(out) {
   const stderr = String(out.stderr_tail || '');
-  const structured = stderr.split('\n').reverse().find((line) => line.startsWith('AUTH_FAILURE '));
+  const structured = stderr
+    .split('\n')
+    .reverse()
+    .find((line) => line.startsWith('AUTH_FAILURE '));
   if (structured) {
     try {
       const failure = JSON.parse(structured.slice('AUTH_FAILURE '.length));
-      if (typeof failure.code === 'string' && typeof failure.stage === 'string'
-          && typeof failure.message === 'string') return failure;
-    } catch { /* The malformed marker is not a structured failure. */ }
+      if (
+        typeof failure.code === 'string' &&
+        typeof failure.stage === 'string' &&
+        typeof failure.message === 'string'
+      )
+        return failure;
+    } catch {
+      /* The malformed marker is not a structured failure. */
+    }
   }
   const stages = [...stderr.matchAll(/^STEP ([a-z][a-z0-9_-]{0,63})$/gm)];
   const stage = stages.length ? stages[stages.length - 1][1] : undefined;
@@ -56,7 +65,9 @@ export function credentialFailure(out) {
 // (result.value, result.value.credentials, top-level) and common field names.
 export function extractCreds(doc) {
   const candidates = [];
-  const push = (o) => { if (o && typeof o === 'object' && !Array.isArray(o)) candidates.push(o); };
+  const push = (o) => {
+    if (o && typeof o === 'object' && !Array.isArray(o)) candidates.push(o);
+  };
   push(doc);
   if (doc && typeof doc === 'object') {
     push(doc.value);
@@ -65,23 +76,39 @@ export function extractCreds(doc) {
     push(doc.account);
     push(doc.value && doc.value.account);
   }
-  const pick = (o, keys) => { for (const k of keys) { for (const kk of Object.keys(o)) { if (kk.toLowerCase() === k && typeof o[kk] === 'string' && o[kk].trim()) return o[kk].trim(); } } return ''; };
+  const pick = (o, keys) => {
+    for (const k of keys) {
+      for (const kk of Object.keys(o)) {
+        if (kk.toLowerCase() === k && typeof o[kk] === 'string' && o[kk].trim())
+          return o[kk].trim();
+      }
+    }
+    return '';
+  };
   for (const o of candidates) {
     const email = pick(o, ['email', 'login_email', 'e_mail']);
     const username = pick(o, ['username', 'user', 'handle', 'login']);
     const password = pick(o, ['password', 'login_password', 'pass', 'pwd']);
     if (email || username || password) {
-      return { email, username, password, phone: pick(o, ['phone', 'phone_number']) };
+      return {
+        email,
+        username,
+        password,
+        phone: pick(o, ['phone', 'phone_number']),
+      };
     }
   }
   return null;
 }
 
 export async function storeCredential(action, params, creds, runId) {
-  const { upsertCredential } = await import(`${REPO}/src/lib/service_credentials.mjs`);
-  const provider = (typeof params.platform === 'string' && params.platform)
-    || action.split('_')[0]
-    || 'generic';
+  const { upsertCredential } = await import(
+    `${REPO}/src/lib/service_credentials.mjs`
+  );
+  const provider =
+    (typeof params.platform === 'string' && params.platform) ||
+    action.split('_')[0] ||
+    'generic';
   const loginEmail = creds.email || creds.username || '';
   const id = `weles-api-${provider}-${runId.slice(0, 8)}`;
   const row = {

@@ -3,7 +3,10 @@
 // solve, so we authenticate with native email+password (set by register.mjs).
 import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
-import { parseBalanceFromText, patchServiceBalance } from '../_shared/services/google_sso.mjs';
+import {
+  parseBalanceFromText,
+  patchServiceBalance,
+} from '../_shared/services/google_sso.mjs';
 import { pageCondition, pageSettled } from '../_shared/page/settled.mjs';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -16,12 +19,17 @@ const DISPLAY_NAME = '2Captcha';
 
 const login = await getServiceLogin(DISPLAY_NAME);
 if (!login) {
-  console.log('FAIL: no 2Captcha credentials in DB. Run src/trajectories/twocaptcha/register.mjs to register an account.');
+  console.log(
+    'FAIL: no 2Captcha credentials in DB. Run src/trajectories/twocaptcha/register.mjs to register an account.',
+  );
   process.exit(1);
 }
 console.log(`[trajectory] Using 2Captcha login: ${login.email}`);
 
-const s = await WSession.start({ label: 'twocaptcha_balance', browser: 'chromium' });
+const s = await WSession.start({
+  label: 'twocaptcha_balance',
+  browser: 'chromium',
+});
 try {
   await s.goto(LOGIN_URL);
   await pageSettled(s.page);
@@ -32,8 +40,15 @@ try {
   // Once grecaptcha has loaded, execute() obtains a server-bound token
   // (pre-solved tokens are rejected ERROR_CAPTCHA_IS_INVALID); the response
   // field filling in is what ends the wait.
-  await pageCondition(s.page, () => typeof window.grecaptcha?.execute === 'function');
-  await s.page.evaluate(() => window.grecaptcha.execute('6Lfo9qojAAAAAPqqMn9QlAY2RBSVuEW63vDJ442M', { action: 'login' }));
+  await pageCondition(
+    s.page,
+    () => typeof window.grecaptcha?.execute === 'function',
+  );
+  await s.page.evaluate(() =>
+    window.grecaptcha.execute('6Lfo9qojAAAAAPqqMn9QlAY2RBSVuEW63vDJ442M', {
+      action: 'login',
+    }),
+  );
   const tokenLen = await pageCondition(s.page, () => {
     const ta = document.querySelector('textarea[name="g-recaptcha-response"]');
     return ta?.value && ta.value.length > 50 ? ta.value.length : false;
@@ -42,7 +57,9 @@ try {
 
   // The form's own POST answering is the end of the login attempt; the page
   // then settles on wherever that answer sent it.
-  const answered = s.page.waitForResponse((r) => r.request().method() === 'POST' && /2captcha\.com/.test(r.url()));
+  const answered = s.page.waitForResponse(
+    (r) => r.request().method() === 'POST' && /2captcha\.com/.test(r.url()),
+  );
   await s.page.locator('button:has-text("Continue")').click();
   await answered;
   await pageSettled(s.page);
@@ -54,13 +71,23 @@ try {
 
   // If account not yet confirmed, fetch the code from Resend and submit it.
   if (/\/auth\/confirm-email/.test(s.page.url())) {
-    console.log('[trajectory] account needs email confirmation; fetching code from Resend');
+    console.log(
+      '[trajectory] account needs email confirmation; fetching code from Resend',
+    );
     const list = await listReceived(10, login.email);
-    const msg = list.data.find(m => m.to?.[0] === login.email && /2captcha/i.test(m.from || ''));
-    if (!msg) { console.log('FAIL: no 2Captcha email found in Resend inbox'); process.exit(1); }
+    const msg = list.data.find(
+      (m) => m.to?.[0] === login.email && /2captcha/i.test(m.from || ''),
+    );
+    if (!msg) {
+      console.log('FAIL: no 2Captcha email found in Resend inbox');
+      process.exit(1);
+    }
     const full = await getReceived(msg.id);
     const code = (full?.text || '').match(/\b(\d{6})\b/)?.[1];
-    if (!code) { console.log('FAIL: could not extract 6-digit code from email'); process.exit(1); }
+    if (!code) {
+      console.log('FAIL: could not extract 6-digit code from email');
+      process.exit(1);
+    }
     console.log(`[trajectory] confirmation code=${code}`);
     // Fill the code into whatever input the page has
     // 2Captcha uses 6 split otp-1..otp-6 inputs; the form auto-submits when
@@ -77,7 +104,11 @@ try {
   // Two Next buttons exist (worker first, customer second). Click the second.
   if (/\/select-role/.test(s.page.url())) {
     console.log('[trajectory] selecting customer role (2nd Next button)');
-    await s.page.locator('button:has-text("Next")').nth(1).click({ force: true }).catch(() => {});
+    await s.page
+      .locator('button:has-text("Next")')
+      .nth(1)
+      .click({ force: true })
+      .catch(() => {});
     await pageSettled(s.page);
     console.log(`[trajectory] post-role url=${s.page.url()}`);
   }
@@ -90,15 +121,27 @@ try {
     const dir = runRecordingsDir('twocaptcha_balance');
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'dashboard-text.txt'), text);
-    try { writeFileSync(join(dir, 'dashboard.html'), await s.page.content()); } catch {}
-    try { await s.page.screenshot({ path: join(dir, 'dashboard.png'), fullPage: true }); } catch {}
-    console.log(`FAIL: 2Captcha balance regex did not match — full dashboard text dumped to ${dir}/`);
+    try {
+      writeFileSync(join(dir, 'dashboard.html'), await s.page.content());
+    } catch {}
+    try {
+      await s.page.screenshot({
+        path: join(dir, 'dashboard.png'),
+        fullPage: true,
+      });
+    } catch {}
+    console.log(
+      `FAIL: 2Captcha balance regex did not match — full dashboard text dumped to ${dir}/`,
+    );
     process.exit(1);
   }
   console.log(`[trajectory] balance=$${balance}`);
 
   const patched = await patchServiceBalance(DISPLAY_NAME, balance);
-  if (!patched) { console.log('FAIL: PATCH service_credentials failed'); process.exit(1); }
+  if (!patched) {
+    console.log('FAIL: PATCH service_credentials failed');
+    process.exit(1);
+  }
   console.log(`PASS: balance=$${balance} (persisted)`);
 } catch (e) {
   console.log('FAIL:', e.message);

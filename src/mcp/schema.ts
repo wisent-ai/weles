@@ -7,7 +7,10 @@ export type ToolDefinition = {
   inputSchema: Record<string, unknown>;
 };
 
-export const objectSchema = (properties: Record<string, unknown>, required: string[] = []) => ({
+export const objectSchema = (
+  properties: Record<string, unknown>,
+  required: string[] = [],
+) => ({
   type: 'object',
   properties,
   required,

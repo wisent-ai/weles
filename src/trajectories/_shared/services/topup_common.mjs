@@ -12,8 +12,14 @@ import { humanType } from '../../../../dist/human/keyboard.js';
 // The amount charged is the caller's: no amount is assumed.
 export function topupOpts() {
   const usd = Number(process.env.TOPUP_USD);
-  if (!process.env.TOPUP_USD || !(usd >= Number.MIN_VALUE) || !Number.isFinite(usd)) {
-    console.log(`FAIL: TOPUP_USD is ${process.env.TOPUP_USD ? `"${process.env.TOPUP_USD}", not an amount above zero` : 'not set'}: the US dollars this top-up charges; nothing is assumed`);
+  if (
+    !process.env.TOPUP_USD ||
+    !(usd >= Number.MIN_VALUE) ||
+    !Number.isFinite(usd)
+  ) {
+    console.log(
+      `FAIL: TOPUP_USD is ${process.env.TOPUP_USD ? `"${process.env.TOPUP_USD}", not an amount above zero` : 'not set'}: the US dollars this top-up charges; nothing is assumed`,
+    );
     process.exit(1);
   }
   if (process.env.TOPUP_CONFIRM !== '1') {
@@ -56,10 +62,14 @@ export async function findAndClickPayButton(page) {
 // frame URL contains the field type (card-number / card-expiry /
 // card-cvc / postal-code).
 const STRIPE_FRAME_PATTERNS = {
-  cardNumber: /elements-inner-(card-?number|cardNumber|payment-card-?number|payment[^/]*card-?number)/i,
-  cardExpiry: /elements-inner-(card-?expiry|cardExpiry|payment-card-?expiry|payment[^/]*card-?expiry)/i,
-  cardCvc: /elements-inner-(card-?cvc|cardCvc|payment-card-?cvc|payment[^/]*card-?cvc)/i,
-  postalCode: /elements-inner-(postal-?code|postalCode|payment-postal-?code|payment[^/]*postal-?code)/i,
+  cardNumber:
+    /elements-inner-(card-?number|cardNumber|payment-card-?number|payment[^/]*card-?number)/i,
+  cardExpiry:
+    /elements-inner-(card-?expiry|cardExpiry|payment-card-?expiry|payment[^/]*card-?expiry)/i,
+  cardCvc:
+    /elements-inner-(card-?cvc|cardCvc|payment-card-?cvc|payment[^/]*card-?cvc)/i,
+  postalCode:
+    /elements-inner-(postal-?code|postalCode|payment-postal-?code|payment[^/]*postal-?code)/i,
 };
 
 function getCardEnv() {
@@ -110,17 +120,36 @@ export async function fillStripeElements(page, card = null) {
   // Stripe mounts its card frames once the checkout page has settled; each of
   // those frames then loads on its own, and the card input is read after both.
   await pageSettled(page);
-  await Promise.all(page.frames()
-    .filter((f) => /stripe\.com|m\.stripe\.network/.test(f.url()))
-    .map((f) => f.waitForLoadState('load')));
+  await Promise.all(
+    page
+      .frames()
+      .filter((f) => /stripe\.com|m\.stripe\.network/.test(f.url()))
+      .map((f) => f.waitForLoadState('load')),
+  );
   const cardEntry = await findInputByAutocomplete(page, 'cc-number');
   if (!cardEntry) return { ok: false, reason: 'cc-number_input_not_found' };
   const filled = {};
   for (const [field, autocomplete] of Object.entries(AUTOCOMPLETE_FIELD_MAP)) {
-    const value = field === 'cardNumber' ? c.num : field === 'cardExpiry' ? c.exp : field === 'cardCvc' ? c.cvc : c.zip;
-    if (!value) { filled[field] = 'no_value'; continue; }
-    const entry = field === 'cardNumber' ? cardEntry : await findInputByAutocomplete(page, autocomplete);
-    if (!entry) { filled[field] = 'input_not_found'; continue; }
+    const value =
+      field === 'cardNumber'
+        ? c.num
+        : field === 'cardExpiry'
+          ? c.exp
+          : field === 'cardCvc'
+            ? c.cvc
+            : c.zip;
+    if (!value) {
+      filled[field] = 'no_value';
+      continue;
+    }
+    const entry =
+      field === 'cardNumber'
+        ? cardEntry
+        : await findInputByAutocomplete(page, autocomplete);
+    if (!entry) {
+      filled[field] = 'input_not_found';
+      continue;
+    }
     try {
       await entry.handle.click({ force: true });
       await entry.handle.fill('').catch(() => {});
@@ -130,7 +159,10 @@ export async function fillStripeElements(page, card = null) {
       filled[field] = `err:${e.message}`;
     }
   }
-  const ok = filled.cardNumber === 'filled' && filled.cardExpiry === 'filled' && filled.cardCvc === 'filled';
+  const ok =
+    filled.cardNumber === 'filled' &&
+    filled.cardExpiry === 'filled' &&
+    filled.cardCvc === 'filled';
   return { ok, filled };
 }
 
@@ -151,7 +183,11 @@ export const TOPUP_ENV_FILES = [
   join(homedir(), '.stado', 'topup_card.env'),
 ];
 const TOPUP_ENV_FILE = TOPUP_ENV_FILES[0];
-const TOPUP_REQUIRED = ['TOPUP_CARD_NUMBER', 'TOPUP_CARD_EXP', 'TOPUP_CARD_CVC'];
+const TOPUP_REQUIRED = [
+  'TOPUP_CARD_NUMBER',
+  'TOPUP_CARD_EXP',
+  'TOPUP_CARD_CVC',
+];
 /// The services a topup can run for: the ones that actually carry a
 /// `topup.mjs` beside this shared scaffolding.
 ///
@@ -163,7 +199,10 @@ const TOPUP_REQUIRED = ['TOPUP_CARD_NUMBER', 'TOPUP_CARD_EXP', 'TOPUP_CARD_CVC']
 function topupProviders(currentFileUrl) {
   const root = join(dirname(fileURLToPath(currentFileUrl)), '..', '..');
   return readdirSync(root, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && existsSync(join(root, entry.name, 'topup.mjs')))
+    .filter(
+      (entry) =>
+        entry.isDirectory() && existsSync(join(root, entry.name, 'topup.mjs')),
+    )
     .map((entry) => entry.name)
     .sort();
 }
@@ -195,7 +234,9 @@ export function loadTopupCardEnv() {
     } catch {
       // A malformed bundle is worth saying out loud: the alternative is a
       // trajectory reporting "no card" while a card was supplied.
-      console.log('[topup] TOPUP_CARD_JSON is set but is not JSON; ignoring it');
+      console.log(
+        '[topup] TOPUP_CARD_JSON is set but is not JSON; ignoring it',
+      );
     }
   }
   for (const path of TOPUP_ENV_FILES) {
@@ -206,7 +247,10 @@ export function loadTopupCardEnv() {
       const eq = line.indexOf('=');
       if (eq < 0) continue;
       const k = line.slice(0, eq).trim();
-      const v = line.slice(eq + 1).trim().replace(/^["']|["']$/g, '');
+      const v = line
+        .slice(eq + 1)
+        .trim()
+        .replace(/^["']|["']$/g, '');
       if (k && v && !process.env[k]) process.env[k] = v;
     }
     return path;
@@ -217,7 +261,9 @@ export function loadTopupCardEnv() {
 function loadCardEnvFile() {
   const found = loadTopupCardEnv();
   if (!found) {
-    console.log(`BLOCKER: no card file at ${TOPUP_ENV_FILES.join(' or ')}. Copy ${TOPUP_ENV_FILE}.template, paste card values from Rho dashboard, chmod 600.`);
+    console.log(
+      `BLOCKER: no card file at ${TOPUP_ENV_FILES.join(' or ')}. Copy ${TOPUP_ENV_FILE}.template, paste card values from Rho dashboard, chmod 600.`,
+    );
     return false;
   }
   return true;
@@ -226,17 +272,33 @@ function loadCardEnvFile() {
 export async function runTopupOrchestrator(provider, usd, currentFileUrl) {
   const allowed = topupProviders(currentFileUrl);
   if (!allowed.includes(provider)) {
-    console.log(`BLOCKER: unknown provider ${provider}. Allowed: ${allowed.join(', ')}`);
+    console.log(
+      `BLOCKER: unknown provider ${provider}. Allowed: ${allowed.join(', ')}`,
+    );
     process.exit(1);
   }
   const usdNum = Number(usd);
-  if (usd === undefined || usd === null || !(usdNum >= Number.MIN_VALUE) || !Number.isFinite(usdNum)) {
-    console.log(`BLOCKER: usd is ${usd === undefined || usd === null ? 'not given' : `"${usd}", not an amount above zero`}: the US dollars this top-up charges; nothing is assumed`);
+  if (
+    usd === undefined ||
+    usd === null ||
+    !(usdNum >= Number.MIN_VALUE) ||
+    !Number.isFinite(usdNum)
+  ) {
+    console.log(
+      `BLOCKER: usd is ${usd === undefined || usd === null ? 'not given' : `"${usd}", not an amount above zero`}: the US dollars this top-up charges; nothing is assumed`,
+    );
     process.exit(1);
   }
   if (!loadCardEnvFile()) process.exit(1);
   // Also source weles/.env so the trajectory's SUPABASE_* lookups work when invoked via node directly.
-  const welesEnv = join(dirname(fileURLToPath(currentFileUrl)), '..', '..', '..', '..', '.env');
+  const welesEnv = join(
+    dirname(fileURLToPath(currentFileUrl)),
+    '..',
+    '..',
+    '..',
+    '..',
+    '.env',
+  );
   if (existsSync(welesEnv)) {
     for (const raw of readFileSync(welesEnv, 'utf8').split('\n')) {
       const line = raw.trim();
@@ -244,13 +306,18 @@ export async function runTopupOrchestrator(provider, usd, currentFileUrl) {
       const eq = line.indexOf('=');
       if (eq < 0) continue;
       const k = line.slice(0, eq).trim();
-      const v = line.slice(eq + 1).trim().replace(/^["']|["']$/g, '');
+      const v = line
+        .slice(eq + 1)
+        .trim()
+        .replace(/^["']|["']$/g, '');
       if (k && v && !process.env[k]) process.env[k] = v;
     }
   }
   const missing = TOPUP_REQUIRED.filter((k) => !process.env[k]);
   if (missing.length) {
-    console.log(`BLOCKER: missing card env vars in ${TOPUP_ENV_FILE}: ${missing.join(', ')}`);
+    console.log(
+      `BLOCKER: missing card env vars in ${TOPUP_ENV_FILE}: ${missing.join(', ')}`,
+    );
     process.exit(1);
   }
   const here = dirname(fileURLToPath(currentFileUrl));
@@ -259,7 +326,9 @@ export async function runTopupOrchestrator(provider, usd, currentFileUrl) {
     console.log(`BLOCKER: trajectory not found: ${trajectory}`);
     process.exit(1);
   }
-  console.log(`[orchestrator] provider=${provider} usd=$${usdNum} card=****${process.env.TOPUP_CARD_NUMBER.slice(-4)}`);
+  console.log(
+    `[orchestrator] provider=${provider} usd=$${usdNum} card=****${process.env.TOPUP_CARD_NUMBER.slice(-4)}`,
+  );
   // `process.execPath`, not `'node'`: this also runs under the launchd worker,
   // whose unit carries no PATH. See `../../codex/reauth.mjs`.
   const child = spawn(process.execPath, [trajectory], {

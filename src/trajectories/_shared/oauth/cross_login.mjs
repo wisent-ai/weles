@@ -14,7 +14,10 @@
 // Per-(target, provider) trajectory files become thin wrappers that pass
 // targetPlatform / targetUrl / provider / provider button regex.
 
-import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
+import {
+  getSocialAccount,
+  resolveAccountSession,
+} from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import {
   injectProviderCookies,
@@ -43,18 +46,18 @@ const PROVIDER_TO_ACCOUNT_PLATFORM = {
 };
 
 export async function runCrossLogin(opts) {
-  const {
-    targetPlatform,
-    targetUrl,
-    provider,
-    providerButtonRegex,
-  } = opts;
+  const { targetPlatform, targetUrl, provider, providerButtonRegex } = opts;
 
   const accountPlatform = PROVIDER_TO_ACCOUNT_PLATFORM[provider] ?? provider;
 
   const acct = await getSocialAccount(targetPlatform);
   if (!acct) {
-    fail(targetPlatform, provider, 'no_target_account', `no active ${targetPlatform} account in DB`);
+    fail(
+      targetPlatform,
+      provider,
+      'no_target_account',
+      `no active ${targetPlatform} account in DB`,
+    );
     return;
   }
 
@@ -66,19 +69,34 @@ export async function runCrossLogin(opts) {
   const savedAccountId = process.env.ACCOUNT_ID;
   delete process.env.ACCOUNT_ID;
   let providerAcct;
-  try { providerAcct = await getSocialAccount(accountPlatform); }
-  finally { if (savedAccountId !== undefined) process.env.ACCOUNT_ID = savedAccountId; }
+  try {
+    providerAcct = await getSocialAccount(accountPlatform);
+  } finally {
+    if (savedAccountId !== undefined) process.env.ACCOUNT_ID = savedAccountId;
+  }
   if (!providerAcct) {
-    fail(targetPlatform, provider, 'provider_account_missing', `no active ${accountPlatform} (provider=${provider}) account in DB`);
+    fail(
+      targetPlatform,
+      provider,
+      'provider_account_missing',
+      `no active ${accountPlatform} (provider=${provider}) account in DB`,
+    );
     return;
   }
   const providerCookies = providerAcct.metadata?.cookies ?? [];
   if (providerCookies.length < 2) {
-    fail(targetPlatform, provider, 'provider_cookies_missing', `${accountPlatform} ${providerAcct.username} has ${providerCookies.length} cookies — login the provider first`);
+    fail(
+      targetPlatform,
+      provider,
+      'provider_cookies_missing',
+      `${accountPlatform} ${providerAcct.username} has ${providerCookies.length} cookies — login the provider first`,
+    );
     return;
   }
 
-  console.log(`[cross-login] target=${targetPlatform}/${acct.username} provider=${provider} (${accountPlatform}/${providerAcct.username})`);
+  console.log(
+    `[cross-login] target=${targetPlatform}/${acct.username} provider=${provider} (${accountPlatform}/${providerAcct.username})`,
+  );
 
   const { proxyUrl, persona } = await resolveAccountSession(acct);
   const s = await WSession.start({
@@ -89,7 +107,11 @@ export async function runCrossLogin(opts) {
 
   let banSignal = null;
   try {
-    const injected = await injectProviderCookies(s.ctx, provider, providerCookies);
+    const injected = await injectProviderCookies(
+      s.ctx,
+      provider,
+      providerCookies,
+    );
     console.log(`[cross-login] injected ${injected} ${provider} cookies`);
 
     await s.goto(targetUrl);
@@ -101,14 +123,25 @@ export async function runCrossLogin(opts) {
     if (opts.openerButtonRegex) {
       const opened = await clickOAuthProviderButton(s, opts.openerButtonRegex);
       if (opened) {
-        console.log(`[cross-login] opened auth modal via ${opts.openerButtonRegex}`);
+        console.log(
+          `[cross-login] opened auth modal via ${opts.openerButtonRegex}`,
+        );
         await pageSettled(s.page);
       }
     }
     const clicked = await clickOAuthProviderButton(s, providerButtonRegex);
     if (!clicked) {
-      banSignal = { signal: 'provider_button_not_found', healthy: false, details: { final_url: s.page.url(), button_regex: providerButtonRegex.toString() } };
-      throw new Error(`provider_button_not_found: regex=${providerButtonRegex} on ${s.page.url()}`);
+      banSignal = {
+        signal: 'provider_button_not_found',
+        healthy: false,
+        details: {
+          final_url: s.page.url(),
+          button_regex: providerButtonRegex.toString(),
+        },
+      };
+      throw new Error(
+        `provider_button_not_found: regex=${providerButtonRegex} on ${s.page.url()}`,
+      );
     }
     console.log(`[cross-login] clicked ${provider} button — handling consent`);
 
@@ -131,23 +164,54 @@ export async function runCrossLogin(opts) {
     console.log(`[cross-login] back on ${targetHost} → asserting authed`);
 
     try {
-      await assertAuthed(targetPlatform, s, { label: `${targetPlatform}_login_via_${provider}` });
+      await assertAuthed(targetPlatform, s, {
+        label: `${targetPlatform}_login_via_${provider}`,
+      });
     } catch (e) {
-      banSignal = e instanceof AuthProbeError ? e.banSignal : { signal: 'assert_authed_failed', healthy: false, details: { reason: e.message, final_url: s.page.url() } };
+      banSignal =
+        e instanceof AuthProbeError
+          ? e.banSignal
+          : {
+              signal: 'assert_authed_failed',
+              healthy: false,
+              details: { reason: e.message, final_url: s.page.url() },
+            };
       throw e;
     }
 
     const cookies = await s.ctx.cookies();
-    const persisted = await persistFreshCookieJar(acct, cookies, { currentProxyUrl: proxyUrl, currentPersona: persona });
+    const persisted = await persistFreshCookieJar(acct, cookies, {
+      currentProxyUrl: proxyUrl,
+      currentPersona: persona,
+    });
     if (persisted?.ok) {
-      banSignal = { signal: 'healthy', healthy: true, details: { provider, final_url: s.page.url(), cookies_persisted: cookies.length } };
-      console.log(`PASS: ${targetPlatform} logged in via ${provider} (${cookies.length} cookies persisted)`);
+      banSignal = {
+        signal: 'healthy',
+        healthy: true,
+        details: {
+          provider,
+          final_url: s.page.url(),
+          cookies_persisted: cookies.length,
+        },
+      };
+      console.log(
+        `PASS: ${targetPlatform} logged in via ${provider} (${cookies.length} cookies persisted)`,
+      );
     } else {
-      banSignal = { signal: 'cookies_persist_failed', healthy: false, details: { reason: persisted?.reason } };
+      banSignal = {
+        signal: 'cookies_persist_failed',
+        healthy: false,
+        details: { reason: persisted?.reason },
+      };
       throw new Error(`cookies_persist_failed: ${persisted?.reason}`);
     }
   } catch (e) {
-    if (!banSignal) banSignal = { signal: 'unknown_error', healthy: false, details: { reason: e.message } };
+    if (!banSignal)
+      banSignal = {
+        signal: 'unknown_error',
+        healthy: false,
+        details: { reason: e.message },
+      };
     console.log('FAIL:', e.message);
     process.exitCode = 1;
   } finally {
@@ -158,7 +222,11 @@ export async function runCrossLogin(opts) {
 
 function fail(targetPlatform, provider, signal, msg) {
   console.log(`FAIL: ${msg}`);
-  persistBanSignal(targetPlatform, provider, null, { signal, healthy: false, details: { reason: msg } });
+  persistBanSignal(targetPlatform, provider, null, {
+    signal,
+    healthy: false,
+    details: { reason: msg },
+  });
   process.exit(1);
 }
 
@@ -167,13 +235,22 @@ function persistBanSignal(targetPlatform, provider, acct, banSignal) {
   try {
     const dir = runRecordingsDir(`${targetPlatform}_login_via_${provider}`);
     mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({
-      action: `${targetPlatform}_login_via_${provider}`,
-      account_id: acct?.id ?? null,
-      username: acct?.username ?? null,
-      provider,
-      ts: new Date().toISOString(),
-      ...banSignal,
-    }, null, 2));
-  } catch (e) { console.log('[ban-signal] persist err:', e.message); }
+    writeFileSync(
+      join(dir, 'ban_signal.json'),
+      JSON.stringify(
+        {
+          action: `${targetPlatform}_login_via_${provider}`,
+          account_id: acct?.id ?? null,
+          username: acct?.username ?? null,
+          provider,
+          ts: new Date().toISOString(),
+          ...banSignal,
+        },
+        null,
+        2,
+      ),
+    );
+  } catch (e) {
+    console.log('[ban-signal] persist err:', e.message);
+  }
 }

@@ -16,7 +16,10 @@
 
 import { selectLoginAccount } from '../../utils/login-accounts.js';
 import { itemPlayingRole } from '../../state/skarbiec-records.js';
-import { parseAccessibilityAuditParams, parseCaptureParams } from '../params/capture-params.js';
+import {
+  parseAccessibilityAuditParams,
+  parseCaptureParams,
+} from '../params/capture-params.js';
 import { applyDeclaredEnv } from '../declared/declarations.js';
 
 /**
@@ -26,9 +29,14 @@ import { applyDeclaredEnv } from '../declared/declarations.js';
  * walks every login — passes the id it found (`login_item`). Exactly one of
  * the two. `accepted`, when given, is the whole set of keys the action takes.
  */
-function googleLogin(params: Record<string, unknown>, accepted?: string[]): string {
+function googleLogin(
+  params: Record<string, unknown>,
+  accepted?: string[],
+): string {
   if (!params || typeof params !== 'object' || Array.isArray(params)) {
-    throw new Error('login_role or login_item must name the Skarbiec Google login');
+    throw new Error(
+      'login_role or login_item must name the Skarbiec Google login',
+    );
   }
   if (accepted && Object.keys(params).some((key) => !accepted.includes(key))) {
     throw new Error(`this action accepts only ${accepted.join(' or ')}`);
@@ -38,12 +46,15 @@ function googleLogin(params: Record<string, unknown>, accepted?: string[]): stri
   if ((role === undefined) === (item === undefined)) {
     throw new Error('provide exactly one of login_role or login_item');
   }
-  if (typeof role === 'string' && role.trim()) return itemPlayingRole(role.trim());
+  if (typeof role === 'string' && role.trim())
+    return itemPlayingRole(role.trim());
   if (typeof item === 'string' && item.trim()) return item.trim();
   throw new Error('login_role or login_item must be a nonempty string');
 }
 
-export function validateAccountSecurityParams(params: Record<string, unknown>): string {
+export function validateAccountSecurityParams(
+  params: Record<string, unknown>,
+): string {
   return googleLogin(params, ['login_role', 'login_item']);
 }
 
@@ -51,12 +62,20 @@ export function validateAccountSecurityParams(params: Record<string, unknown>): 
  * An app password ends in Skrzynka, which files the mailbox under one
  * organization; the caller names it, nothing is assumed.
  */
-export function validateAppPasswordParams(params: Record<string, unknown>): { loginItem: string; organization: string } {
+export function validateAppPasswordParams(params: Record<string, unknown>): {
+  loginItem: string;
+  organization: string;
+} {
   const { organization, ...login } = params ?? {};
   if (typeof organization !== 'string' || !organization.trim()) {
-    throw new Error('organization must name the Skrzynka organization the mailbox is declared in');
+    throw new Error(
+      'organization must name the Skrzynka organization the mailbox is declared in',
+    );
   }
-  return { loginItem: googleLogin(login, ['login_role', 'login_item']), organization: organization.trim() };
+  return {
+    loginItem: googleLogin(login, ['login_role', 'login_item']),
+    organization: organization.trim(),
+  };
 }
 
 export function applyAccountAndTaskAdmission(
@@ -64,17 +83,25 @@ export function applyAccountAndTaskAdmission(
   trajPath: string,
   env: Record<string, string>,
 ): void {
-  const subscriptionLogin = trajPath.match(/\/(claude|codex|kimi)\/(login|reauth)\.mjs$/);
+  const subscriptionLogin = trajPath.match(
+    /\/(claude|codex|kimi)\/(login|reauth)\.mjs$/,
+  );
   if (subscriptionLogin) {
     const requested = params.login_item;
     const subscriptionId = params.subscription_id;
     if (typeof subscriptionId !== 'string' || !subscriptionId.trim()) {
-      throw new Error('subscription_id must name an exact Skarbiec subscription');
+      throw new Error(
+        'subscription_id must name an exact Skarbiec subscription',
+      );
     }
     if (requested !== undefined && typeof requested !== 'string') {
       throw new Error('login_item must name an exact Skarbiec login item');
     }
-    const account = selectLoginAccount(subscriptionLogin[1], requested as string | undefined, subscriptionId);
+    const account = selectLoginAccount(
+      subscriptionLogin[1],
+      requested as string | undefined,
+      subscriptionId,
+    );
     env.WELES_LOGIN_ITEM = account.loginItem;
     env.BRAMA_SUBSCRIPTION_ID = account.subscriptionId;
     env.WELES_ACCOUNT_REVISION = account.accountRevision;
@@ -93,7 +120,10 @@ export function applyAccountAndTaskAdmission(
   if (trajPath.endsWith('/google/authenticator/status.mjs')) {
     env.WELES_LOGIN_ITEM = validateAccountSecurityParams(params);
   }
-  if (trajPath.endsWith('/generic/browser_task.mjs') || trajPath.endsWith('/generic/keeper_task.mjs')) {
+  if (
+    trajPath.endsWith('/generic/browser_task.mjs') ||
+    trajPath.endsWith('/generic/keeper_task.mjs')
+  ) {
     const passthrough: Array<[string, string]> = [
       ['url', 'GENERIC_TASK_URL'],
       ['objective', 'GENERIC_TASK_OBJECTIVE'],
@@ -102,35 +132,49 @@ export function applyAccountAndTaskAdmission(
       ['browser', 'GENERIC_TASK_BROWSER'],
       ['os', 'GENERIC_TASK_OS'],
       ['locale', 'GENERIC_TASK_LOCALE'],
-            ['session_label', 'GENERIC_TASK_LABEL'],
-            ['admin_credential_id', 'GENERIC_TASK_ADMIN_CREDENTIAL_ID'],
+      ['session_label', 'GENERIC_TASK_LABEL'],
+      ['admin_credential_id', 'GENERIC_TASK_ADMIN_CREDENTIAL_ID'],
     ];
     for (const [key, envKey] of passthrough) {
       const value = params[key];
       if (typeof value === 'string') env[envKey] = value;
     }
-    if (params.headless === true || params.headless === '1') env.GENERIC_TASK_HEADLESS = '1';
-        // People-lifecycle runs reuse one seeded admin session per platform. Derive
-        // the canonical WSession label + admin credential id from the platform_key
-        // the payload already carries, unless the payload set them explicitly.
-        const lifecycleEnv = params.env && typeof params.env === 'object' ? params.env as Record<string, unknown> : {};
-        const lifecyclePlatform = typeof lifecycleEnv.platform_key === 'string' ? lifecycleEnv.platform_key : '';
-        const lifecycleFlow = typeof params.flow_name === 'string' ? params.flow_name : '';
-        if (lifecyclePlatform && lifecycleFlow.startsWith('people_')) {
-          if (!env.GENERIC_TASK_LABEL) env.GENERIC_TASK_LABEL = `people-admin-${lifecyclePlatform}`;
-          if (!env.GENERIC_TASK_ADMIN_CREDENTIAL_ID) env.GENERIC_TASK_ADMIN_CREDENTIAL_ID = `platform-admin-${lifecyclePlatform}`;
-        }
+    if (params.headless === true || params.headless === '1')
+      env.GENERIC_TASK_HEADLESS = '1';
+    // People-lifecycle runs reuse one seeded admin session per platform. Derive
+    // the canonical WSession label + admin credential id from the platform_key
+    // the payload already carries, unless the payload set them explicitly.
+    const lifecycleEnv =
+      params.env && typeof params.env === 'object'
+        ? (params.env as Record<string, unknown>)
+        : {};
+    const lifecyclePlatform =
+      typeof lifecycleEnv.platform_key === 'string'
+        ? lifecycleEnv.platform_key
+        : '';
+    const lifecycleFlow =
+      typeof params.flow_name === 'string' ? params.flow_name : '';
+    if (lifecyclePlatform && lifecycleFlow.startsWith('people_')) {
+      if (!env.GENERIC_TASK_LABEL)
+        env.GENERIC_TASK_LABEL = `people-admin-${lifecyclePlatform}`;
+      if (!env.GENERIC_TASK_ADMIN_CREDENTIAL_ID)
+        env.GENERIC_TASK_ADMIN_CREDENTIAL_ID = `platform-admin-${lifecyclePlatform}`;
+    }
     const constraints = params.constraints;
-    if (constraints && typeof constraints === 'object') env.GENERIC_TASK_CONSTRAINTS = JSON.stringify(constraints);
+    if (constraints && typeof constraints === 'object')
+      env.GENERIC_TASK_CONSTRAINTS = JSON.stringify(constraints);
     const taskEnv = params.env;
-    if (taskEnv && typeof taskEnv === 'object') env.GENERIC_TASK_ENV = JSON.stringify(taskEnv);
+    if (taskEnv && typeof taskEnv === 'object')
+      env.GENERIC_TASK_ENV = JSON.stringify(taskEnv);
   }
-  if (trajPath.endsWith('/microsoft/recover/reset_password.mjs')
-      || trajPath.endsWith('/microsoft/recover/verify_password.mjs')
-      || trajPath.endsWith('/microsoft/recover/adopt_password.mjs')
-      || trajPath.endsWith('/microsoft/entra/adopt_password.mjs')
-      || trajPath.endsWith('/microsoft/entra/reset_password.mjs')
-      || trajPath.endsWith('/microsoft/entra/verify_password.mjs')) {
+  if (
+    trajPath.endsWith('/microsoft/recover/reset_password.mjs') ||
+    trajPath.endsWith('/microsoft/recover/verify_password.mjs') ||
+    trajPath.endsWith('/microsoft/recover/adopt_password.mjs') ||
+    trajPath.endsWith('/microsoft/entra/adopt_password.mjs') ||
+    trajPath.endsWith('/microsoft/entra/reset_password.mjs') ||
+    trajPath.endsWith('/microsoft/entra/verify_password.mjs')
+  ) {
     const constraints = params.constraints;
     if (constraints && typeof constraints === 'object') {
       env.WELES_CREDENTIAL_CONSTRAINTS = JSON.stringify(constraints);
@@ -139,7 +183,9 @@ export function applyAccountAndTaskAdmission(
   if (trajPath.endsWith('/gmail/gmail_login_search.mjs')) {
     const query = params.query ?? params.q;
     if (typeof query !== 'string' || !query.trim()) {
-      throw new Error('GMAIL_QUERY_REQUIRED: query or q must be a nonempty Gmail search query');
+      throw new Error(
+        'GMAIL_QUERY_REQUIRED: query or q must be a nonempty Gmail search query',
+      );
     }
     env.GM_QUERY = query;
     const credentialService = params.credential_service;
@@ -147,8 +193,10 @@ export function applyAccountAndTaskAdmission(
       env.GM_CREDENTIAL_SERVICE = credentialService;
     }
     const max = params.max;
-    if (typeof max === 'number' || typeof max === 'string') env.GM_MAX = String(max);
-    if (params.open === false || params.open === 0 || params.open === '0') env.GM_OPEN = '0';
+    if (typeof max === 'number' || typeof max === 'string')
+      env.GM_MAX = String(max);
+    if (params.open === false || params.open === 0 || params.open === '0')
+      env.GM_OPEN = '0';
     else env.GM_OPEN = '1';
   }
   applyDeclaredEnv(params, trajPath, env);
@@ -160,21 +208,29 @@ export function applyAccountAndTaskAdmission(
     env.GENERIC_CAPTURE_PLAN = JSON.stringify(parseCaptureParams(params));
   }
   if (trajPath.endsWith('/generic/accessibility_audit.mjs')) {
-    env.GENERIC_ACCESSIBILITY_AUDIT_PLAN = JSON.stringify(parseAccessibilityAuditParams(params));
+    env.GENERIC_ACCESSIBILITY_AUDIT_PLAN = JSON.stringify(
+      parseAccessibilityAuditParams(params),
+    );
   }
   if (trajPath.endsWith('/semanticscholar/key_followup.mjs')) {
     const sourceActionLogId = params.source_action_log_id;
-    if (typeof sourceActionLogId === 'string') env.SOURCE_ACTION_LOG_ID = sourceActionLogId;
+    if (typeof sourceActionLogId === 'string')
+      env.SOURCE_ACTION_LOG_ID = sourceActionLogId;
     const attempt = params.attempt;
-    if (typeof attempt === 'number' || typeof attempt === 'string') env.ATTEMPT = String(attempt);
-    env.SEMANTIC_SCHOLAR_TENANT_ID = typeof params.tenant_id === 'string'
-      ? params.tenant_id
-      : '';
+    if (typeof attempt === 'number' || typeof attempt === 'string')
+      env.ATTEMPT = String(attempt);
+    env.SEMANTIC_SCHOLAR_TENANT_ID =
+      typeof params.tenant_id === 'string' ? params.tenant_id : '';
   }
   if (trajPath.endsWith('/overleaf/version_history_ui_phrase.mjs')) {
-    const project = params.project ?? params.overleaf_project ?? params.project_id;
+    const project =
+      params.project ?? params.overleaf_project ?? params.project_id;
     if (typeof project === 'string') env.OVERLEAF_PROJECT = project;
-    const queryText = params.query_text ?? params.overleaf_query_text ?? params.phrase ?? params.overleaf_phrase;
+    const queryText =
+      params.query_text ??
+      params.overleaf_query_text ??
+      params.phrase ??
+      params.overleaf_phrase;
     if (typeof queryText === 'string') {
       env.OVERLEAF_QUERY_TEXT = queryText;
       env.OVERLEAF_PHRASE = queryText;
@@ -185,19 +241,32 @@ export function applyAccountAndTaskAdmission(
     if (typeof mainTex === 'string') env.OVERLEAF_MAIN_TEX = mainTex;
     const authLabel = params.auth_label ?? params.overleaf_auth_label;
     if (typeof authLabel === 'string') env.OVERLEAF_AUTH_LABEL = authLabel;
-    const maxClicks = params.max_history_clicks ?? params.overleaf_history_max_clicks;
-    if (typeof maxClicks === 'number' || typeof maxClicks === 'string') env.OVERLEAF_HISTORY_MAX_CLICKS = String(maxClicks);
-    if (params.persistent_profile === false || params.persistent_profile === '0') env.WELES_OVERLEAF_PERSISTENT_PROFILE = '0';
+    const maxClicks =
+      params.max_history_clicks ?? params.overleaf_history_max_clicks;
+    if (typeof maxClicks === 'number' || typeof maxClicks === 'string')
+      env.OVERLEAF_HISTORY_MAX_CLICKS = String(maxClicks);
+    if (
+      params.persistent_profile === false ||
+      params.persistent_profile === '0'
+    )
+      env.WELES_OVERLEAF_PERSISTENT_PROFILE = '0';
     else env.WELES_OVERLEAF_PERSISTENT_PROFILE = '1';
-    env.HEADLESS = params.headless === false || params.headless === '0' ? '0' : '1';
+    env.HEADLESS =
+      params.headless === false || params.headless === '0' ? '0' : '1';
   }
-  if (trajPath.endsWith('/overleaf/push_github.mjs') || trajPath.endsWith('/overleaf/pull_github.mjs')) {
-    const project = params.project ?? params.overleaf_project ?? params.project_id;
+  if (
+    trajPath.endsWith('/overleaf/push_github.mjs') ||
+    trajPath.endsWith('/overleaf/pull_github.mjs')
+  ) {
+    const project =
+      params.project ?? params.overleaf_project ?? params.project_id;
     if (typeof project === 'string') env.OVERLEAF_PROJECT = project;
-    const repo = params.repo_slug ?? params.github_repo ?? params.overleaf_github_repo;
+    const repo =
+      params.repo_slug ?? params.github_repo ?? params.overleaf_github_repo;
     if (typeof repo === 'string') env.OVERLEAF_GITHUB_REPO = repo;
     const message = params.commit_message ?? params.overleaf_commit_message;
     if (typeof message === 'string') env.OVERLEAF_COMMIT_MESSAGE = message;
-    env.HEADLESS = params.headless === false || params.headless === '0' ? '0' : '1';
+    env.HEADLESS =
+      params.headless === false || params.headless === '0' ? '0' : '1';
   }
 }

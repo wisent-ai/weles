@@ -11,7 +11,8 @@ import {
 } from '../wire/canonical-json.mjs';
 
 export const PUBLIC_ACTION = 'generic_browser_task';
-const SENSITIVE_KEY_RE = /password|secret|token|cookie|authorization|proxy.?auth/i;
+const SENSITIVE_KEY_RE =
+  /password|secret|token|cookie|authorization|proxy.?auth/i;
 
 function requiredEnvironment(name, environment) {
   const value = String(environment[name] ?? '').trim();
@@ -20,16 +21,25 @@ function requiredEnvironment(name, environment) {
 }
 
 function parseAllowedOrigins(raw) {
-  const entries = raw.split(',').map((entry) => entry.trim()).filter(Boolean);
-  if (entries.length === 0) throw new Error('WELES_PUBLIC_API_ALLOWED_ORIGINS must not be empty');
+  const entries = raw
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  if (entries.length === 0)
+    throw new Error('WELES_PUBLIC_API_ALLOWED_ORIGINS must not be empty');
   if (entries.includes('*')) {
-    if (entries.length !== 1) throw new Error('WELES_PUBLIC_API_ALLOWED_ORIGINS wildcard must stand alone');
+    if (entries.length !== 1)
+      throw new Error(
+        'WELES_PUBLIC_API_ALLOWED_ORIGINS wildcard must stand alone',
+      );
     return new Set(['*']);
   }
   const origins = entries.map((entry) => {
     const parsed = new URL(entry);
     if (parsed.protocol !== 'https:' || parsed.origin !== entry) {
-      throw new Error('WELES_PUBLIC_API_ALLOWED_ORIGINS entries must be exact HTTPS origins');
+      throw new Error(
+        'WELES_PUBLIC_API_ALLOWED_ORIGINS entries must be exact HTTPS origins',
+      );
     }
     return entry;
   });
@@ -45,39 +55,69 @@ function parseAllowedOrigins(raw) {
 // empty Skarbiec field, and the first host to be provisioned found this
 // instead of a working public API.
 function normalizePublicKey(value) {
-  const key = value instanceof KeyObject && value.type === 'public' ? value : createPublicKey(value);
+  const key =
+    value instanceof KeyObject && value.type === 'public'
+      ? value
+      : createPublicKey(value);
   return key.export({ format: 'der', type: 'spki' }).toString('base64');
 }
 
 export function loadConfig(environment, policy) {
   const bearer = requiredEnvironment('WELES_PUBLIC_API_BEARER', environment);
-  if (Buffer.byteLength(bearer) < 32) throw new Error('WELES_PUBLIC_API_BEARER must contain at least 32 bytes');
-  const organizationId = requiredEnvironment('WELES_PUBLIC_API_ORGANIZATION_ID', environment);
-  if (!UUID_RE.test(organizationId)) throw new Error('WELES_PUBLIC_API_ORGANIZATION_ID must be a UUID');
+  if (Buffer.byteLength(bearer) < 32)
+    throw new Error('WELES_PUBLIC_API_BEARER must contain at least 32 bytes');
+  const organizationId = requiredEnvironment(
+    'WELES_PUBLIC_API_ORGANIZATION_ID',
+    environment,
+  );
+  if (!UUID_RE.test(organizationId))
+    throw new Error('WELES_PUBLIC_API_ORGANIZATION_ID must be a UUID');
   const keyId = requiredEnvironment('WELES_RECEIPT_KEY_ID', environment);
-  const keySetVersion = requiredEnvironment('WELES_RECEIPT_KEY_SET_VERSION', environment);
-  const privateKey = createPrivateKey(requiredEnvironment('WELES_RECEIPT_PRIVATE_KEY', environment));
-  if (privateKey.asymmetricKeyType !== 'ed25519') throw new Error('WELES_RECEIPT_PRIVATE_KEY must be Ed25519');
-  const keySetValue = JSON.parse(requiredEnvironment('WELES_RECEIPT_PUBLIC_KEYS_JSON', environment));
+  const keySetVersion = requiredEnvironment(
+    'WELES_RECEIPT_KEY_SET_VERSION',
+    environment,
+  );
+  const privateKey = createPrivateKey(
+    requiredEnvironment('WELES_RECEIPT_PRIVATE_KEY', environment),
+  );
+  if (privateKey.asymmetricKeyType !== 'ed25519')
+    throw new Error('WELES_RECEIPT_PRIVATE_KEY must be Ed25519');
+  const keySetValue = JSON.parse(
+    requiredEnvironment('WELES_RECEIPT_PUBLIC_KEYS_JSON', environment),
+  );
   if (!isObject(keySetValue) || Object.keys(keySetValue).length === 0) {
-    throw new Error('WELES_RECEIPT_PUBLIC_KEYS_JSON must be a non-empty object');
+    throw new Error(
+      'WELES_RECEIPT_PUBLIC_KEYS_JSON must be a non-empty object',
+    );
   }
   const publicKey = keySetValue[keyId];
   if (typeof publicKey !== 'string' || !publicKey.trim()) {
-    throw new Error('WELES_RECEIPT_PUBLIC_KEYS_JSON does not carry WELES_RECEIPT_KEY_ID');
+    throw new Error(
+      'WELES_RECEIPT_PUBLIC_KEYS_JSON does not carry WELES_RECEIPT_KEY_ID',
+    );
   }
   const derivedPublicKey = createPublicKey(privateKey);
-  if (!constantTimeTextEqual(normalizePublicKey(publicKey), normalizePublicKey(derivedPublicKey))) {
-    throw new Error('receipt private key does not match its out-of-band public key set');
+  if (
+    !constantTimeTextEqual(
+      normalizePublicKey(publicKey),
+      normalizePublicKey(derivedPublicKey),
+    )
+  ) {
+    throw new Error(
+      'receipt private key does not match its out-of-band public key set',
+    );
   }
-  if (!isObject(policy) || typeof policy.version !== 'string') throw new Error('browser-evidence policy is invalid');
+  if (!isObject(policy) || typeof policy.version !== 'string')
+    throw new Error('browser-evidence policy is invalid');
   return Object.freeze({
     bearer,
     organizationId,
     keyId,
     keySetVersion,
     privateKey,
-    allowedOrigins: parseAllowedOrigins(requiredEnvironment('WELES_PUBLIC_API_ALLOWED_ORIGINS', environment)),
+    allowedOrigins: parseAllowedOrigins(
+      requiredEnvironment('WELES_PUBLIC_API_ALLOWED_ORIGINS', environment),
+    ),
     policy,
     policyDigest: digest(canonicalJson(policy)),
   });
@@ -87,23 +127,41 @@ export function loadConfig(environment, policy) {
 // keys. No length, count or depth is chosen here.
 export function assertBoundedJson(value, path = 'input') {
   if (typeof value === 'string' && containsLoneSurrogate(value)) {
-    throw new PublicTaskError(400, 'invalid-input', `${path} rejects lone UTF-16 surrogates`);
+    throw new PublicTaskError(
+      400,
+      'invalid-input',
+      `${path} rejects lone UTF-16 surrogates`,
+    );
   }
   if (typeof value === 'number' && !Number.isSafeInteger(value)) {
-    throw new PublicTaskError(400, 'invalid-input', `${path} permits safe integers only`);
+    throw new PublicTaskError(
+      400,
+      'invalid-input',
+      `${path} permits safe integers only`,
+    );
   }
   if (Array.isArray(value)) {
-    value.forEach((entry, index) => assertBoundedJson(entry, `${path}[${index}]`));
+    value.forEach((entry, index) =>
+      assertBoundedJson(entry, `${path}[${index}]`),
+    );
     return;
   }
   if (!isObject(value)) return;
   const entries = Object.entries(value);
   for (const [key, entry] of entries) {
     if (containsLoneSurrogate(key)) {
-      throw new PublicTaskError(400, 'invalid-input', `${path} contains a key with a lone UTF-16 surrogate`);
+      throw new PublicTaskError(
+        400,
+        'invalid-input',
+        `${path} contains a key with a lone UTF-16 surrogate`,
+      );
     }
     if (SENSITIVE_KEY_RE.test(key)) {
-      throw new PublicTaskError(400, 'sensitive-input-denied', `plaintext secret-shaped field denied at ${path}.${key}`);
+      throw new PublicTaskError(
+        400,
+        'sensitive-input-denied',
+        `plaintext secret-shaped field denied at ${path}.${key}`,
+      );
     }
     assertBoundedJson(entry, `${path}.${key}`);
   }
@@ -111,28 +169,61 @@ export function assertBoundedJson(value, path = 'input') {
 
 export function exactHttpsOrigin(value) {
   if (typeof value !== 'string') {
-    throw new PublicTaskError(400, 'invalid-origin', 'origin must be an exact HTTPS origin');
+    throw new PublicTaskError(
+      400,
+      'invalid-origin',
+      'origin must be an exact HTTPS origin',
+    );
   }
   let parsed;
-  try { parsed = new URL(value); } catch {
-    throw new PublicTaskError(400, 'invalid-origin', 'origin must be an exact HTTPS origin');
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new PublicTaskError(
+      400,
+      'invalid-origin',
+      'origin must be an exact HTTPS origin',
+    );
   }
   if (parsed.protocol !== 'https:' || parsed.origin !== value) {
-    throw new PublicTaskError(400, 'invalid-origin', 'origin must be an exact HTTPS origin');
+    throw new PublicTaskError(
+      400,
+      'invalid-origin',
+      'origin must be an exact HTTPS origin',
+    );
   }
   return value;
 }
 
 export function exactPublicHttpsUrl(value) {
   if (typeof value !== 'string') {
-    throw new PublicTaskError(400, 'invalid-input', 'input.product_url must be a public HTTPS URL');
+    throw new PublicTaskError(
+      400,
+      'invalid-input',
+      'input.product_url must be a public HTTPS URL',
+    );
   }
   let parsed;
-  try { parsed = new URL(value); } catch {
-    throw new PublicTaskError(400, 'invalid-input', 'input.product_url must be a public HTTPS URL');
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new PublicTaskError(
+      400,
+      'invalid-input',
+      'input.product_url must be a public HTTPS URL',
+    );
   }
-  if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.toString() !== value) {
-    throw new PublicTaskError(400, 'invalid-input', 'input.product_url must be exact canonical HTTPS without credentials');
+  if (
+    parsed.protocol !== 'https:' ||
+    parsed.username ||
+    parsed.password ||
+    parsed.toString() !== value
+  ) {
+    throw new PublicTaskError(
+      400,
+      'invalid-input',
+      'input.product_url must be exact canonical HTTPS without credentials',
+    );
   }
   return parsed.toString();
 }

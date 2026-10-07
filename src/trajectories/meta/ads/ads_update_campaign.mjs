@@ -42,11 +42,17 @@ function splitArgs(s) {
     const ch = s[i];
     if (q) {
       if (ch === q) q = null;
-      else if (ch === '\\' && i + 1 < s.length) { i += 1; cur += s[i]; }
-      else cur += ch;
+      else if (ch === '\\' && i + 1 < s.length) {
+        i += 1;
+        cur += s[i];
+      } else cur += ch;
     } else if (ch === '"' || ch === "'") q = ch;
-    else if (/\s/.test(ch)) { if (cur) { out.push(cur); cur = ''; } }
-    else cur += ch;
+    else if (/\s/.test(ch)) {
+      if (cur) {
+        out.push(cur);
+        cur = '';
+      }
+    } else cur += ch;
   }
   if (q) throw new Error('META_ADS_CLI_ARGS has an unterminated quote');
   if (cur) out.push(cur);
@@ -55,11 +61,18 @@ function splitArgs(s) {
 
 function runMeta(args) {
   return new Promise((resolve, reject) => {
-    const child = spawn(META_CLI_BIN, args, { stdio: ['ignore', 'pipe', 'pipe'], env: process.env });
+    const child = spawn(META_CLI_BIN, args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: process.env,
+    });
     let out = '';
     let err = '';
-    child.stdout.on('data', (d) => { out += d.toString(); });
-    child.stderr.on('data', (d) => { err += d.toString(); });
+    child.stdout.on('data', (d) => {
+      out += d.toString();
+    });
+    child.stderr.on('data', (d) => {
+      err += d.toString();
+    });
     child.on('error', reject);
     child.on('close', (code) => resolve({ code, out, err }));
   });
@@ -67,7 +80,9 @@ function runMeta(args) {
 
 function runBrowserFallback() {
   if (!ADS_URL) return false;
-  console.log('[meta-ads-update] Meta CLI unavailable; using browser fallback via ads_campaign.mjs');
+  console.log(
+    '[meta-ads-update] Meta CLI unavailable; using browser fallback via ads_campaign.mjs',
+  );
   const here = dirname(fileURLToPath(import.meta.url));
   const script = resolve(here, 'ads_campaign.mjs');
   const child = spawn(process.execPath, [script], {
@@ -86,24 +101,36 @@ function runBrowserFallback() {
   return true;
 }
 
-const auth = await runMeta(['auth', 'status']).catch((e) => ({ code: 127, out: '', err: e.message || String(e) }));
+const auth = await runMeta(['auth', 'status']).catch((e) => ({
+  code: 127,
+  out: '',
+  err: e.message || String(e),
+}));
 if (auth.code !== 0) {
   if (runBrowserFallback()) await new Promise(() => {});
   console.log('FAIL: Meta Ads CLI is not installed or not authenticated');
-  if (auth.err || auth.out) console.log((auth.err || auth.out));
+  if (auth.err || auth.out) console.log(auth.err || auth.out);
   process.exit(2);
 }
 
-const args = META_ADS_CLI_ARGS ? splitArgs(META_ADS_CLI_ARGS) : [
-  'ads', 'campaign', 'update', CAMPAIGN_ID,
-  ...(CAMPAIGN_NAME ? ['--name', CAMPAIGN_NAME] : []),
-  ...(STATUS ? ['--status', STATUS.toUpperCase()] : []),
-  ...(DAILY_BUDGET_USD ? ['--daily-budget', String(DAILY_BUDGET_USD)] : []),
-  ...(AD_ACCOUNT_ID ? ['--ad-account-id', AD_ACCOUNT_ID] : []),
-  '--output', 'json',
-];
+const args = META_ADS_CLI_ARGS
+  ? splitArgs(META_ADS_CLI_ARGS)
+  : [
+      'ads',
+      'campaign',
+      'update',
+      CAMPAIGN_ID,
+      ...(CAMPAIGN_NAME ? ['--name', CAMPAIGN_NAME] : []),
+      ...(STATUS ? ['--status', STATUS.toUpperCase()] : []),
+      ...(DAILY_BUDGET_USD ? ['--daily-budget', String(DAILY_BUDGET_USD)] : []),
+      ...(AD_ACCOUNT_ID ? ['--ad-account-id', AD_ACCOUNT_ID] : []),
+      '--output',
+      'json',
+    ];
 
-console.log(`[meta-ads-update] ${META_CLI_BIN} ${args.map((a) => /\s/.test(a) ? JSON.stringify(a) : a).join(' ')}`);
+console.log(
+  `[meta-ads-update] ${META_CLI_BIN} ${args.map((a) => (/\s/.test(a) ? JSON.stringify(a) : a)).join(' ')}`,
+);
 const result = await runMeta(args);
 if (result.out) console.log(result.out.trim());
 if (result.err) console.error(result.err.trim());
@@ -111,4 +138,6 @@ if (result.code !== 0) {
   console.log(`FAIL: meta CLI exited ${result.code}`);
   process.exit(result.code || 1);
 }
-console.log(`PASS: Meta Ads campaign update completed${CAMPAIGN_ID ? ` (${CAMPAIGN_ID})` : ''}`);
+console.log(
+  `PASS: Meta Ads campaign update completed${CAMPAIGN_ID ? ` (${CAMPAIGN_ID})` : ''}`,
+);

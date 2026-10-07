@@ -19,7 +19,12 @@ import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 // Sources land where the caller says; nothing under one person's home is assumed.
 const OUT_DIR = process.env.OVERLEAF_SOURCES_DIR;
-if (!OUT_DIR) { console.error('FAIL: OVERLEAF_SOURCES_DIR env var required: the directory the project zips are written to'); process.exit(1); }
+if (!OUT_DIR) {
+  console.error(
+    'FAIL: OVERLEAF_SOURCES_DIR env var required: the directory the project zips are written to',
+  );
+  process.exit(1);
+}
 const SHOT_DIR = runRecordingsDir('overleaf_download_all');
 mkdirSync(OUT_DIR, { recursive: true });
 let shotN = 0;
@@ -40,10 +45,17 @@ async function dieUI(s, tag, msg) {
 }
 
 const login = await getGoogleSsoCreds();
-if (!login) { console.error('FAIL: getGoogleSsoCreds() returned null.'); process.exit(1); }
+if (!login) {
+  console.error('FAIL: getGoogleSsoCreds() returned null.');
+  process.exit(1);
+}
 console.log(`[download_all] Google creds loaded for ${login.email}`);
 
-const s = await WSession.start({ label: 'download_all', browser: 'chromium', headful: process.env.HEADLESS !== '1' });
+const s = await WSession.start({
+  label: 'download_all',
+  browser: 'chromium',
+  headful: process.env.HEADLESS !== '1',
+});
 
 try {
   await overleafGoogleSignIn(s, login, { label: 'download_all' });
@@ -84,23 +96,34 @@ try {
         writeFileSync(`${OUT_DIR}/${proj.id}.zip`, buf);
         ok = true;
       } else {
-        console.error(`[download_all] ${proj.id} download HTTP ${resp.status()}`);
+        console.error(
+          `[download_all] ${proj.id} download HTTP ${resp.status()}`,
+        );
       }
     } catch (e) {
-      console.error(`[download_all] ${proj.id} download error: ${e && e.message ? e.message : e}`);
+      console.error(
+        `[download_all] ${proj.id} download error: ${e && e.message ? e.message : e}`,
+      );
     }
     results.push({ ...proj, bytes, ok });
-    console.log(`PROJECT ${JSON.stringify({ id: proj.id, title: proj.title, bytes, ok })}`);
+    console.log(
+      `PROJECT ${JSON.stringify({ id: proj.id, title: proj.title, bytes, ok })}`,
+    );
   }
 
   writeFileSync(`${OUT_DIR}/_index.json`, JSON.stringify(results, null, 2));
   const good = results.filter((r) => r.ok).length;
-  console.log(`\n[download_all] OK — downloaded ${good}/${results.length} project sources into ${OUT_DIR}`);
+  console.log(
+    `\n[download_all] OK — downloaded ${good}/${results.length} project sources into ${OUT_DIR}`,
+  );
   console.log(`[download_all] index: ${OUT_DIR}/_index.json`);
   await s.close();
   process.exit(0);
 } catch (err) {
-  console.error('[download_all] unhandled error:', err && err.message ? err.message : err);
+  console.error(
+    '[download_all] unhandled error:',
+    err && err.message ? err.message : err,
+  );
   const dp = await shot(s, 'exception');
   console.error(`[download_all] DOM dump: ${dp}`);
   await s.close();

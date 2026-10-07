@@ -43,9 +43,13 @@ async function external(url) {
     externals.set(url, { names, namespace });
   }
   const { names, namespace } = externals.get(url);
-  return new vm.SyntheticModule(names, function init() {
-    for (const name of names) this.setExport(name, namespace[name]);
-  }, { context, identifier: url });
+  return new vm.SyntheticModule(
+    names,
+    function init() {
+      for (const name of names) this.setExport(name, namespace[name]);
+    },
+    { context, identifier: url },
+  );
 }
 
 // One graph per module checked, so a refusal deep in a shared dependency is
@@ -55,16 +59,20 @@ async function link(path) {
   const graph = new Map();
   const sourceModule = (url) => {
     if (!graph.has(url)) {
-      graph.set(url, new vm.SourceTextModule(readFileSync(fileURLToPath(url), 'utf8'), {
-        context,
-        identifier: url,
-      }));
+      graph.set(
+        url,
+        new vm.SourceTextModule(readFileSync(fileURLToPath(url), 'utf8'), {
+          context,
+          identifier: url,
+        }),
+      );
     }
     return graph.get(url);
   };
   const linker = async (specifier, referencing) => {
     const url = import.meta.resolve(specifier, referencing.identifier);
-    if (url.startsWith('file:') && url.endsWith('.mjs')) return sourceModule(url);
+    if (url.startsWith('file:') && url.endsWith('.mjs'))
+      return sourceModule(url);
     const key = `external:${url}`;
     if (!graph.has(key)) graph.set(key, await external(url));
     return graph.get(key);
@@ -85,5 +93,7 @@ for (const root of roots) {
   }
 }
 for (const failure of failures) console.error(`module-links: ${failure}`);
-console.log(`module-links: ${linked} module(s) linked, ${failures.length} refused`);
+console.log(
+  `module-links: ${linked} module(s) linked, ${failures.length} refused`,
+);
 process.exit(failures.length ? 1 : 0);

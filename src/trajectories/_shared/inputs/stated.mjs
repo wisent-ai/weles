@@ -3,7 +3,9 @@
 // or malformed value by name, saying what it decides, instead of assuming one.
 
 function refuse(name, raw, shape, what) {
-  return new Error(`${name} is ${raw ? `"${raw}", not ${shape}` : 'not set'}: ${what}; nothing is assumed`);
+  return new Error(
+    `${name} is ${raw ? `"${raw}", not ${shape}` : 'not set'}: ${what}; nothing is assumed`,
+  );
 }
 
 /** A whole number above zero, stated in `name`. */
@@ -30,13 +32,17 @@ export function statedBudget(name, what) {
 export function statedNumber(name, what) {
   const raw = process.env[name];
   const value = Number(raw);
-  if (!raw || !Number.isFinite(value)) throw refuse(name, raw, 'a number', what);
+  if (!raw || !Number.isFinite(value))
+    throw refuse(name, raw, 'a number', what);
   return value;
 }
 
 /** Non-empty text from the first of `names` that is set (identifiers, ids). */
 export function statedText(names, what) {
   const name = names.find((candidate) => process.env[candidate]?.trim());
-  if (!name) throw new Error(`none of ${names.join(', ')} is set: ${what}; nothing is assumed`);
+  if (!name)
+    throw new Error(
+      `none of ${names.join(', ')} is set: ${what}; nothing is assumed`,
+    );
   return process.env[name].trim();
 }

@@ -73,7 +73,8 @@ export const mediaFingerprintRules: DetectionRule[] = [
           id: 'audio_context_missing',
           category: 'audio',
           severity: 'warning',
-          message: 'AudioContext is missing or failed on subject while baseline has it. Headless/no-audio setups are flagged.',
+          message:
+            'AudioContext is missing or failed on subject while baseline has it. Headless/no-audio setups are flagged.',
           evidence: { subjectAudio: sa, baselineAudio: ba },
         };
       }

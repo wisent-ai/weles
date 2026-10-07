@@ -20,9 +20,12 @@ interface FocusableLocator {
  * The explicitly selected per-page CDP transport follows input acknowledgements,
  * without adding artificial inter-key pauses or claiming native device timing.
  */
-export async function humanType(page: HumanKeyboardPage, text: string): Promise<void> {
+export async function humanType(
+  page: HumanKeyboardPage,
+  text: string,
+): Promise<void> {
   if (cdpInput()) {
-    await page.keyboard.type(text);  // allow-raw-playwright: per-page transport, resolved by input acknowledgement
+    await page.keyboard.type(text); // allow-raw-playwright: per-page transport, resolved by input acknowledgement
     return;
   }
   await nativeType(text);
@@ -39,14 +42,18 @@ export async function humanType(page: HumanKeyboardPage, text: string): Promise<
  * locator.pressSequentially with fixed delay produces uniform inter-key
  * timing both of which anti-bot trackers flag.
  */
-export async function humanFill(page: HumanKeyboardPage & EvaluatingPage, locator: FocusableLocator, text: string): Promise<void> {
+export async function humanFill(
+  page: HumanKeyboardPage & EvaluatingPage,
+  locator: FocusableLocator,
+  text: string,
+): Promise<void> {
   await humanClickLocator(page, locator);
   await pageSettled(page);
   await locator.focus();
   if (cdpInput()) {
-    await page.keyboard.press('ControlOrMeta+A');  // allow-raw-playwright: implementation file — defines the humanized atom's cdp transport
-    await page.keyboard.press('Delete');  // allow-raw-playwright: implementation file — defines the humanized atom's cdp transport
-    await page.keyboard.type(text);  // allow-raw-playwright: per-page transport, resolved by input acknowledgement
+    await page.keyboard.press('ControlOrMeta+A'); // allow-raw-playwright: implementation file — defines the humanized atom's cdp transport
+    await page.keyboard.press('Delete'); // allow-raw-playwright: implementation file — defines the humanized atom's cdp transport
+    await page.keyboard.type(text); // allow-raw-playwright: per-page transport, resolved by input acknowledgement
     return;
   }
   nativeSelectAllAndDelete();

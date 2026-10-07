@@ -13,7 +13,10 @@ import { registrationPassword } from '../../../../dist/utils/identity/password.j
 
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../dist/human/mouse.js';
 
 const EMAIL = process.env.PARP_EMAIL;
 if (!EMAIL) throw new Error('set PARP_EMAIL to the PARP account address');
@@ -23,19 +26,43 @@ const RESET_SENDER = process.env.PARP_RESET_SENDER || 'lsi@parp.gov.pl';
 const LOGIN_URL = 'https://lsi.parp.gov.pl/';
 const SKRZYNKA = process.env.SKRZYNKA_BIN || 'skrzynka';
 
-const RESET_TRIGGERS = ['Zapomniałem hasła', 'Nie pamiętam hasła', 'Reset hasła', 'Przypomnij hasło'];
-const EMAIL_SELECTORS = ['input[type="email"]', 'input[name="email"]', 'input[id*="email" i]', 'input[placeholder*="email" i]'];
+const RESET_TRIGGERS = [
+  'Zapomniałem hasła',
+  'Nie pamiętam hasła',
+  'Reset hasła',
+  'Przypomnij hasło',
+];
+const EMAIL_SELECTORS = [
+  'input[type="email"]',
+  'input[name="email"]',
+  'input[id*="email" i]',
+  'input[placeholder*="email" i]',
+];
 const SUBMIT_TEXTS = ['Resetuj hasło', 'Wyślij link', 'Wyślij', 'Submit'];
-const PASSWORD_SELECTORS_NEW = ['input[type="password"][name*="new" i]', 'input[type="password"]:nth-of-type(1)', 'input[type="password"]'];
-const PASSWORD_SELECTORS_CONFIRM = ['input[type="password"][name*="confirm" i]', 'input[type="password"]:nth-of-type(2)'];
+const PASSWORD_SELECTORS_NEW = [
+  'input[type="password"][name*="new" i]',
+  'input[type="password"]:nth-of-type(1)',
+  'input[type="password"]',
+];
+const PASSWORD_SELECTORS_CONFIRM = [
+  'input[type="password"][name*="confirm" i]',
+  'input[type="password"]:nth-of-type(2)',
+];
 const CONFIRM_TEXTS = ['Ustaw hasło', 'Zapisz', 'Zatwierdź', 'Potwierdź'];
 
-function logn(msg) { console.log(`[parp_login] ${msg}`); }
+function logn(msg) {
+  console.log(`[parp_login] ${msg}`);
+}
 
-async function url(s) { return await s.page.url(); }
+async function url(s) {
+  return await s.page.url();
+}
 
 async function screenshot(s, name) {
-  const path = join(runRecordingsDir('parp_login'), `parp_${name}_${Date.now()}.png`);
+  const path = join(
+    runRecordingsDir('parp_login'),
+    `parp_${name}_${Date.now()}.png`,
+  );
   await s.page.screenshot({ path, fullPage: true });
   logn(`screenshot: ${path}`);
   return path;
@@ -70,9 +97,13 @@ function skrzynka(args) {
 }
 
 function resetMailbox() {
-  const mailbox = skrzynka(['mailbox', 'list']).find((m) => m.email.toLowerCase() === EMAIL.toLowerCase());
+  const mailbox = skrzynka(['mailbox', 'list']).find(
+    (m) => m.email.toLowerCase() === EMAIL.toLowerCase(),
+  );
   if (!mailbox) {
-    throw new Error(`Skrzynka has no mailbox ${EMAIL}; import its Skarbiec item with skrzynka mailbox import`);
+    throw new Error(
+      `Skrzynka has no mailbox ${EMAIL}; import its Skarbiec item with skrzynka mailbox import`,
+    );
   }
   return mailbox.id;
 }
@@ -82,10 +113,14 @@ function resetMailbox() {
 // older mail and homepage or footer links never qualify.
 function resetLink(body) {
   const host = new URL(LOGIN_URL).host;
-  return [...body.matchAll(/https?:\/\/[^\s<>"]+/gi)].map((m) => m[0]).find((candidate) => {
-    const url = new URL(candidate);
-    return url.host === host && (url.pathname.length > 1 || url.search.length > 0);
-  });
+  return [...body.matchAll(/https?:\/\/[^\s<>"]+/gi)]
+    .map((m) => m[0])
+    .find((candidate) => {
+      const url = new URL(candidate);
+      return (
+        url.host === host && (url.pathname.length > 1 || url.search.length > 0)
+      );
+    });
 }
 
 // One sync and read of the PARP mailbox in Skrzynka; Skrzynka offers no push
@@ -94,9 +129,19 @@ function resetLink(body) {
 function readResetLink(requestedAt) {
   const mailboxId = resetMailbox();
   skrzynka(['sync', '--mailbox', mailboxId]);
-  const link = skrzynka(['message', 'list', '--mailbox', mailboxId, '--limit', '100'])
-    .filter((m) => m.sender.toLowerCase().includes(RESET_SENDER.toLowerCase())
-      && Date.parse(m.received_at) >= requestedAt)
+  const link = skrzynka([
+    'message',
+    'list',
+    '--mailbox',
+    mailboxId,
+    '--limit',
+    '100',
+  ])
+    .filter(
+      (m) =>
+        m.sender.toLowerCase().includes(RESET_SENDER.toLowerCase()) &&
+        Date.parse(m.received_at) >= requestedAt,
+    )
     .sort((a, b) => b.received_at.localeCompare(a.received_at))
     .map((m) => resetLink(m.body_text))
     .find(Boolean);
@@ -105,7 +150,10 @@ function readResetLink(requestedAt) {
 }
 
 async function main() {
-  const s = await WSession.start({ label: 'parp_login', proxy: process.env.PROXY_URL });
+  const s = await WSession.start({
+    label: 'parp_login',
+    proxy: process.env.PROXY_URL,
+  });
 
   logn('otwieram lsi.parp.gov.pl');
   await s.goto(LOGIN_URL);
@@ -144,7 +192,9 @@ async function main() {
   logn('czytam skrzynkę PARP w Skrzynce');
   const link = readResetLink(requestedAt);
   if (!link) {
-    logn(`FAIL: mail resetowy od ${RESET_SENDER} jeszcze nie dotarł do skrzynki ${EMAIL} w Skrzynce; uruchom ponownie, gdy przyjdzie (albo PARP ma captcha / blokadę resetu).`);
+    logn(
+      `FAIL: mail resetowy od ${RESET_SENDER} jeszcze nie dotarł do skrzynki ${EMAIL} w Skrzynce; uruchom ponownie, gdy przyjdzie (albo PARP ma captcha / blokadę resetu).`,
+    );
     process.exitCode = 1;
     await s.close();
     return;
@@ -159,7 +209,18 @@ async function main() {
   if (!existsSync(STORE.replace(/\/[^/]+$/, ''))) {
     mkdirSync(STORE.replace(/\/[^/]+$/, ''), { recursive: true });
   }
-  writeFileSync(STORE, JSON.stringify({ email: EMAIL, password: NEW_PASSWORD, createdAt: new Date().toISOString() }, null, 2));
+  writeFileSync(
+    STORE,
+    JSON.stringify(
+      {
+        email: EMAIL,
+        password: NEW_PASSWORD,
+        createdAt: new Date().toISOString(),
+      },
+      null,
+      2,
+    ),
+  );
 
   if (!(await fillByAnySelector(s, PASSWORD_SELECTORS_NEW, NEW_PASSWORD))) {
     logn('FAIL: nie znalazłem pola nowe hasło');
@@ -167,7 +228,11 @@ async function main() {
     await s.close();
     return;
   }
-  const confirmFilled = await fillByAnySelector(s, PASSWORD_SELECTORS_CONFIRM, NEW_PASSWORD);
+  const confirmFilled = await fillByAnySelector(
+    s,
+    PASSWORD_SELECTORS_CONFIRM,
+    NEW_PASSWORD,
+  );
   logn(`pola hasła wypełnione (confirm: ${confirmFilled})`);
   await humanIdlePause('short');
 

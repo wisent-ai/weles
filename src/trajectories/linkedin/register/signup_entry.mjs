@@ -17,34 +17,55 @@ export async function prewarmLinkedinGuestSession(session, urls) {
   };
   for (const url of urls) {
     try {
-      await session.runStep(`prewarm_${diagnostics.transitions.length}`, async () => {
-        await session.page.goto(url, { waitUntil: 'domcontentloaded' });
-        return `prewarm ${session.page.url()}`;
-      });
+      await session.runStep(
+        `prewarm_${diagnostics.transitions.length}`,
+        async () => {
+          await session.page.goto(url, { waitUntil: 'domcontentloaded' });
+          return `prewarm ${session.page.url()}`;
+        },
+      );
       // Fast scroll to generate behavioral signal without spending human-like time
       // on a cold guest session. The goal is cookie/telemetry warm-up, not realism.
       await session.scroll('down', 400);
       await pageSettled(session.page);
     } catch (prewarmErr) {
       console.log(`[register] prewarm skip ${url}: ${prewarmErr.message}`);
-      diagnostics.transitions.push({ url, stage: 'prewarm_error', error: String(prewarmErr?.message ?? prewarmErr) });
+      diagnostics.transitions.push({
+        url,
+        stage: 'prewarm_error',
+        error: String(prewarmErr?.message ?? prewarmErr),
+      });
       continue;
     }
-    diagnostics.transitions.push(await session.page.evaluate(() => {
-      const attr = (el, name) => {
-        const raw = el?.getAttribute(name);
-        return typeof raw === 'string' ? raw : null;
-      };
-      return {
-        url: location.href,
-        title: document.title,
-        referrer: document.referrer,
-        cookie_count: document.cookie ? document.cookie.split(';').filter(Boolean).length : 0,
-        page_key: attr(document.querySelector('meta[name="pageKey"]'), 'content'),
-        authwall: /\/authwall/.test(location.href),
-        visible_text_sample: (document.body?.innerText || '').replace(/\s+/g, ' ').trim(),
-      };
-    }).catch((e) => ({ url: session.page.url(), error: String(e?.message ?? e) })));
+    diagnostics.transitions.push(
+      await session.page
+        .evaluate(() => {
+          const attr = (el, name) => {
+            const raw = el?.getAttribute(name);
+            return typeof raw === 'string' ? raw : null;
+          };
+          return {
+            url: location.href,
+            title: document.title,
+            referrer: document.referrer,
+            cookie_count: document.cookie
+              ? document.cookie.split(';').filter(Boolean).length
+              : 0,
+            page_key: attr(
+              document.querySelector('meta[name="pageKey"]'),
+              'content',
+            ),
+            authwall: /\/authwall/.test(location.href),
+            visible_text_sample: (document.body?.innerText || '')
+              .replace(/\s+/g, ' ')
+              .trim(),
+          };
+        })
+        .catch((e) => ({
+          url: session.page.url(),
+          error: String(e?.message ?? e),
+        })),
+    );
   }
   await writeSubmitDiagnostics('guest_prewarm_diagnostics', diagnostics);
   return diagnostics;
@@ -57,7 +78,8 @@ export async function enterLinkedinSignup(session, entryUrl) {
   }
   try {
     const u = new URL(entry);
-    if (!/(^|\.)linkedin\.com$/i.test(u.hostname)) throw new Error(`non-linkedin host: ${u.hostname}`);
+    if (!/(^|\.)linkedin\.com$/i.test(u.hostname))
+      throw new Error(`non-linkedin host: ${u.hostname}`);
   } catch (e) {
     throw new Error(`bad_entry_path: ${String(e?.message ?? e)}`);
   }
@@ -69,31 +91,55 @@ export async function enterLinkedinSignup(session, entryUrl) {
     transitions: [],
   };
   const record = async (stage) => {
-    diagnostics.transitions.push(await session.page.evaluate((s) => {
-      const attr = (el, name) => {
-        const raw = el?.getAttribute(name);
-        return typeof raw === 'string' ? raw : null;
-      };
-      return {
-        stage: s,
-        url: location.href,
-        title: document.title,
-        referrer: document.referrer,
-        signup_links: Array.from(document.querySelectorAll('a[href*="/signup"], a[href*="/join"]')).map((a) => ({
-          text: (a.textContent || '').replace(/\s+/g, ' ').trim(),
-          href: a.href,
-          trk: attr(a, 'data-tracking-control-name') ?? new URL(a.href, location.href).searchParams.get('trk'),
-          visible: !!(a.offsetWidth || a.offsetHeight || a.getClientRects().length),
+    diagnostics.transitions.push(
+      await session.page
+        .evaluate((s) => {
+          const attr = (el, name) => {
+            const raw = el?.getAttribute(name);
+            return typeof raw === 'string' ? raw : null;
+          };
+          return {
+            stage: s,
+            url: location.href,
+            title: document.title,
+            referrer: document.referrer,
+            signup_links: Array.from(
+              document.querySelectorAll('a[href*="/signup"], a[href*="/join"]'),
+            ).map((a) => ({
+              text: (a.textContent || '').replace(/\s+/g, ' ').trim(),
+              href: a.href,
+              trk:
+                attr(a, 'data-tracking-control-name') ??
+                new URL(a.href, location.href).searchParams.get('trk'),
+              visible: !!(
+                a.offsetWidth ||
+                a.offsetHeight ||
+                a.getClientRects().length
+              ),
+            })),
+            signup_affordances: Array.from(
+              document.querySelectorAll('a, button'),
+            )
+              .map((el) => ({
+                tag: el.tagName.toLowerCase(),
+                text: (el.textContent || '').replace(/\s+/g, ' ').trim(),
+                href: el instanceof HTMLAnchorElement ? el.href : '',
+                trk: attr(el, 'data-tracking-control-name'),
+                visible: !!(
+                  el.offsetWidth ||
+                  el.offsetHeight ||
+                  el.getClientRects().length
+                ),
+              }))
+              .filter((el) => /^(sign up|join now)$/i.test(el.text)),
+          };
+        }, stage)
+        .catch((e) => ({
+          stage,
+          error: String(e?.message ?? e),
+          url: session.page.url(),
         })),
-        signup_affordances: Array.from(document.querySelectorAll('a, button')).map((el) => ({
-          tag: el.tagName.toLowerCase(),
-          text: (el.textContent || '').replace(/\s+/g, ' ').trim(),
-          href: el instanceof HTMLAnchorElement ? el.href : '',
-          trk: attr(el, 'data-tracking-control-name'),
-          visible: !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length),
-        })).filter((el) => /^(sign up|join now)$/i.test(el.text)),
-      };
-    }, stage).catch((e) => ({ stage, error: String(e?.message ?? e), url: session.page.url() })));
+    );
   };
 
   if (direct) {
@@ -104,14 +150,18 @@ export async function enterLinkedinSignup(session, entryUrl) {
       });
     } catch (e) {
       const formVisible = await session.page
-        .locator('input[name="email-address"], input#email-address, input[type="email"]')
+        .locator(
+          'input[name="email-address"], input#email-address, input[type="email"]',
+        )
         .first()
         .isVisible()
         .catch(() => false);
       if (!formVisible) throw e;
       diagnostics.direct_signup_goto_timeout_form_visible = true;
       diagnostics.direct_signup_goto_timeout_error = String(e?.message ?? e);
-      console.log('[register] signup goto timed out, but signup form is visible — continuing');
+      console.log(
+        '[register] signup goto timed out, but signup form is visible — continuing',
+      );
     }
     await record('after_direct_signup');
     await writeSubmitDiagnostics('entry_path_diagnostics', diagnostics);
@@ -125,7 +175,8 @@ export async function enterLinkedinSignup(session, entryUrl) {
   await pageSettled(session.page);
   await record('after_entry');
 
-  const explicitSelector = process.env.LINKEDIN_REGISTER_ENTRY_CLICK_SELECTOR || '';
+  const explicitSelector =
+    process.env.LINKEDIN_REGISTER_ENTRY_CLICK_SELECTOR || '';
   const clickCandidates = explicitSelector
     ? [session.page.locator(explicitSelector).filter({ visible: true }).first()]
     : [
@@ -139,7 +190,7 @@ export async function enterLinkedinSignup(session, entryUrl) {
   let clickedAffordance = null;
   for (const loc of clickCandidates) {
     try {
-      if (await loc.count() && await loc.isVisible()) {
+      if ((await loc.count()) && (await loc.isVisible())) {
         clickedAffordance = await loc.evaluate((el) => ({
           tag: el.tagName.toLowerCase(),
           text: (el.textContent || '').replace(/\s+/g, ' ').trim(),
@@ -159,14 +210,20 @@ export async function enterLinkedinSignup(session, entryUrl) {
   diagnostics.click_error = clickError;
   if (!clicked) {
     await writeSubmitDiagnostics('entry_path_diagnostics', diagnostics);
-    throw new Error(`entry_path_no_signup_click: the declared entry path offered no clickable "Sign up" or "Join now" affordance, so the run never reached the signup form; it stopped at ${session.page.url()}`);
+    throw new Error(
+      `entry_path_no_signup_click: the declared entry path offered no clickable "Sign up" or "Join now" affordance, so the run never reached the signup form; it stopped at ${session.page.url()}`,
+    );
   }
   try {
     await session.page.waitForURL(/\/signup(?:$|[/?#])/);
   } catch (transitionError) {
-    diagnostics.signup_transition_error = String(transitionError?.message ?? transitionError);
+    diagnostics.signup_transition_error = String(
+      transitionError?.message ?? transitionError,
+    );
     await writeSubmitDiagnostics('entry_path_diagnostics', diagnostics);
-    throw new Error(`entry_path_no_signup_transition: the entry affordance was clicked but the browser never arrived at the signup form; it stopped at ${session.page.url()}`);
+    throw new Error(
+      `entry_path_no_signup_transition: the entry affordance was clicked but the browser never arrived at the signup form; it stopped at ${session.page.url()}`,
+    );
   }
   await pageSettled(session.page);
   await record('after_signup_transition');

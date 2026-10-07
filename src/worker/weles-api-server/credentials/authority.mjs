@@ -15,14 +15,24 @@ export class CredentialAdmissionError extends Error {
 
 // Resolve each caller against its issuing authority. A revoked or expired
 // bearer must not remain usable because the Weles process has not restarted.
-export function createCredentialAuthority({ checkedTokenFile, skarbiecEndpoint }) {
+export function createCredentialAuthority({
+  checkedTokenFile,
+  skarbiecEndpoint,
+}) {
   return async function authorize(request) {
     const header = request.headers.authorization;
-    const count = request.rawHeaders.filter((value, index) => index % 2 === 0
-      && value.toLowerCase() === 'authorization').length;
-    const presented = typeof header === 'string' && /^Bearer ([^\s]+)$/i.exec(header);
+    const count = request.rawHeaders.filter(
+      (value, index) =>
+        index % 2 === 0 && value.toLowerCase() === 'authorization',
+    ).length;
+    const presented =
+      typeof header === 'string' && /^Bearer ([^\s]+)$/i.exec(header);
     if (count !== 1 || !presented || header.length > 4096) {
-      throw new CredentialAdmissionError(401, 'WELES_CREDENTIAL_UNAUTHORIZED', 'one bearer is required');
+      throw new CredentialAdmissionError(
+        401,
+        'WELES_CREDENTIAL_UNAUTHORIZED',
+        'one bearer is required',
+      );
     }
     let own;
     let endpoint;
@@ -33,7 +43,11 @@ export function createCredentialAuthority({ checkedTokenFile, skarbiecEndpoint }
       if (!own || /\s/.test(own)) throw new Error(`invalid ${TOKEN_FILE}`);
       endpoint = skarbiecEndpoint();
     } catch (error) {
-      throw new CredentialAdmissionError(503, 'WELES_CREDENTIAL_AUTH_UNCONFIGURED', error.message);
+      throw new CredentialAdmissionError(
+        503,
+        'WELES_CREDENTIAL_AUTH_UNCONFIGURED',
+        error.message,
+      );
     }
     let response;
     let identity;
@@ -49,22 +63,42 @@ export function createCredentialAuthority({ checkedTokenFile, skarbiecEndpoint }
       });
       identity = await readRequest(response.body);
     } catch (error) {
-      throw new CredentialAdmissionError(503, 'WELES_CREDENTIAL_AUTH_UNAVAILABLE',
-        `Skarbiec token introspection failed: ${error.cause?.code || error.code || error.message}`);
+      throw new CredentialAdmissionError(
+        503,
+        'WELES_CREDENTIAL_AUTH_UNAVAILABLE',
+        `Skarbiec token introspection failed: ${error.cause?.code || error.code || error.message}`,
+      );
     }
     if (!response.ok) {
-      throw new CredentialAdmissionError(503, 'WELES_CREDENTIAL_AUTH_REFUSED',
-        `Skarbiec refused ${CONSUMER} token introspection with HTTP ${response.status}`);
+      throw new CredentialAdmissionError(
+        503,
+        'WELES_CREDENTIAL_AUTH_REFUSED',
+        `Skarbiec refused ${CONSUMER} token introspection with HTTP ${response.status}`,
+      );
     }
     if (identity.active !== true) {
-      throw new CredentialAdmissionError(401, 'WELES_CREDENTIAL_UNAUTHORIZED', 'bearer is not active');
+      throw new CredentialAdmissionError(
+        401,
+        'WELES_CREDENTIAL_UNAUTHORIZED',
+        'bearer is not active',
+      );
     }
-    if (identity.audience !== 'weles' || typeof identity.consumer !== 'string'
-        || !Array.isArray(identity.capabilities)
-        || !identity.capabilities.some((scope) => scope.action === 'call'
-          && scope.item === 'weles' && scope.field === CAPABILITY)) {
-      throw new CredentialAdmissionError(403, 'WELES_CREDENTIAL_SCOPE_REFUSED',
-        `bearer requires audience weles and call:weles#${CAPABILITY}`);
+    if (
+      identity.audience !== 'weles' ||
+      typeof identity.consumer !== 'string' ||
+      !Array.isArray(identity.capabilities) ||
+      !identity.capabilities.some(
+        (scope) =>
+          scope.action === 'call' &&
+          scope.item === 'weles' &&
+          scope.field === CAPABILITY,
+      )
+    ) {
+      throw new CredentialAdmissionError(
+        403,
+        'WELES_CREDENTIAL_SCOPE_REFUSED',
+        `bearer requires audience weles and call:weles#${CAPABILITY}`,
+      );
     }
     return identity.consumer;
   };

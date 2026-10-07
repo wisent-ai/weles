@@ -4,7 +4,8 @@ export const scalarRepairs = [
   {
     section: '1.2',
     suffix: 'produkt_koncowy_technologii_krytycznej',
-    value: 'Rodzina modeli generatywnych RNM 1B-70B tworzona w UE jako produkt końcowy technologii krytycznej AI. Produkt obejmuje wagi modeli, architekturę treningu reprezentacyjnego, katalog kierunków konceptów, bibliotekę interwencji i mechanizm śladu audytowego. W odróżnieniu od klasycznych transformerów RNM projektują stabilne reprezentacje już w treningu, co umożliwia kontrolę i audyt zachowania modelu bez pełnego ponownego trenowania.',
+    value:
+      'Rodzina modeli generatywnych RNM 1B-70B tworzona w UE jako produkt końcowy technologii krytycznej AI. Produkt obejmuje wagi modeli, architekturę treningu reprezentacyjnego, katalog kierunków konceptów, bibliotekę interwencji i mechanizm śladu audytowego. W odróżnieniu od klasycznych transformerów RNM projektują stabilne reprezentacje już w treningu, co umożliwia kontrolę i audyt zachowania modelu bez pełnego ponownego trenowania.',
   },
   {
     section: '2.2',
@@ -83,80 +84,106 @@ export const indicatorRepairs = [
   {
     name: 'Liczba wdrożonych wyników prac B+R',
     year: '2029',
-    methodology: 'Wskaźnik liczy jedno wdrożenie wyników B+R projektu RNM po zakończeniu prac: użycie rodziny modeli RNM, biblioteki interwencji lub katalogu konceptów w działalności Wisent Polska albo u licencjobiorcy z UE. Do licznika trafia wyłącznie wdrożenie powiązane z konkretną wersją modelu, manifestem artefaktów, datą uruchomienia, zakresem funkcji oraz dowodem wykorzystania. Nie wlicza się demonstracji, testów jednorazowych, publikacji repozytorium ani materiałów promocyjnych.',
-    verification: 'Weryfikacja opiera się na rejestrze wdrożeń RNM zawierającym identyfikator wdrożenia, wersję modelu, hash artefaktów, zakres funkcji, datę uruchomienia i podmiot korzystający. Dowodami są decyzja o wdrożeniu, umowa licencyjna lub wdrożeniowa, faktura albo wewnętrzny protokół produkcyjnego użycia, logi dostępowe i manifest techniczny. Weryfikator sprawdza, czy wdrożenie dotyczy wyników B+R, a nie zwykłej publikacji kodu.',
+    methodology:
+      'Wskaźnik liczy jedno wdrożenie wyników B+R projektu RNM po zakończeniu prac: użycie rodziny modeli RNM, biblioteki interwencji lub katalogu konceptów w działalności Wisent Polska albo u licencjobiorcy z UE. Do licznika trafia wyłącznie wdrożenie powiązane z konkretną wersją modelu, manifestem artefaktów, datą uruchomienia, zakresem funkcji oraz dowodem wykorzystania. Nie wlicza się demonstracji, testów jednorazowych, publikacji repozytorium ani materiałów promocyjnych.',
+    verification:
+      'Weryfikacja opiera się na rejestrze wdrożeń RNM zawierającym identyfikator wdrożenia, wersję modelu, hash artefaktów, zakres funkcji, datę uruchomienia i podmiot korzystający. Dowodami są decyzja o wdrożeniu, umowa licencyjna lub wdrożeniowa, faktura albo wewnętrzny protokół produkcyjnego użycia, logi dostępowe i manifest techniczny. Weryfikator sprawdza, czy wdrożenie dotyczy wyników B+R, a nie zwykłej publikacji kodu.',
   },
   {
     name: 'Liczba wprowadzonych innowacji produktowych',
     year: '2029',
-    methodology: 'Wskaźnik liczy jedną innowację produktową: Wisent RNM Platform, czyli rodzinę modeli RNM z katalogiem konceptów, biblioteką interwencji i mechanizmem audytu reprezentacyjnego. Innowacja jest liczona po spełnieniu trzech warunków: istnieje wersjonowany artefakt produktu, opisane są funkcje odróżniające RNM od modeli referencyjnych, a produkt jest udostępniony użytkownikom lub klientom na rynku UE. Benchmarki są danymi pomocniczymi; podstawą jest fakt wprowadzenia produktu.',
-    verification: 'Weryfikator porównuje kartę produktu RNM, manifest modeli, dokumentację funkcji reprezentacyjnych, repozytorium biblioteki i dowody udostępnienia produktu. Sprawdza, czy produkt obejmuje sterowanie konceptami, ślad audytowy i integrację z modelem RNM, a nie usługę konsultingową albo standardowy transformer. Dodatkowymi dowodami są umowy licencyjne, faktury, data wydania artefaktów i lista funkcji dostępnych w produkcie.',
+    methodology:
+      'Wskaźnik liczy jedną innowację produktową: Wisent RNM Platform, czyli rodzinę modeli RNM z katalogiem konceptów, biblioteką interwencji i mechanizmem audytu reprezentacyjnego. Innowacja jest liczona po spełnieniu trzech warunków: istnieje wersjonowany artefakt produktu, opisane są funkcje odróżniające RNM od modeli referencyjnych, a produkt jest udostępniony użytkownikom lub klientom na rynku UE. Benchmarki są danymi pomocniczymi; podstawą jest fakt wprowadzenia produktu.',
+    verification:
+      'Weryfikator porównuje kartę produktu RNM, manifest modeli, dokumentację funkcji reprezentacyjnych, repozytorium biblioteki i dowody udostępnienia produktu. Sprawdza, czy produkt obejmuje sterowanie konceptami, ślad audytowy i integrację z modelem RNM, a nie usługę konsultingową albo standardowy transformer. Dodatkowymi dowodami są umowy licencyjne, faktury, data wydania artefaktów i lista funkcji dostępnych w produkcie.',
   },
   {
     name: 'Liczba wprowadzonych innowacji procesowych',
     year: '2029',
-    methodology: 'Wskaźnik pozostaje równy 0, ponieważ projekt deklaruje innowację produktową, a nie procesową. Wyliczenie polega na sprawdzeniu, czy w dokumentacji projektu nie wskazano odrębnej zmiany procesu produkcji, logistyki, zarządzania jakością, dostaw, obsługi klienta lub organizacji pracy jako rezultatu dofinansowanego projektu. Pipeline treningowy i walidacyjny są środkiem B+R prowadzącym do produktu RNM, nie samodzielną innowacją procesową.',
-    verification: 'Weryfikacja polega na przeglądzie klasyfikacji innowacji w sekcji 2.2, rejestru rezultatów projektu oraz opisów wdrożenia. Wartość 0 jest potwierdzona, jeżeli jedynym rezultatem rynkowym jest produkt RNM, a dokumentacja nie zawiera odrębnego wdrożenia procesu wewnętrznego jako innowacji. Dowodem jest rejestr innowacji podpisany przez spółkę i zestawienie rezultatów bez pozycji procesowej.',
+    methodology:
+      'Wskaźnik pozostaje równy 0, ponieważ projekt deklaruje innowację produktową, a nie procesową. Wyliczenie polega na sprawdzeniu, czy w dokumentacji projektu nie wskazano odrębnej zmiany procesu produkcji, logistyki, zarządzania jakością, dostaw, obsługi klienta lub organizacji pracy jako rezultatu dofinansowanego projektu. Pipeline treningowy i walidacyjny są środkiem B+R prowadzącym do produktu RNM, nie samodzielną innowacją procesową.',
+    verification:
+      'Weryfikacja polega na przeglądzie klasyfikacji innowacji w sekcji 2.2, rejestru rezultatów projektu oraz opisów wdrożenia. Wartość 0 jest potwierdzona, jeżeli jedynym rezultatem rynkowym jest produkt RNM, a dokumentacja nie zawiera odrębnego wdrożenia procesu wewnętrznego jako innowacji. Dowodem jest rejestr innowacji podpisany przez spółkę i zestawienie rezultatów bez pozycji procesowej.',
   },
   {
     name: 'Przedsiębiorstwa wprowadzające innowacje produktowe lub procesowe',
     year: '2029',
-    methodology: 'Wskaźnik liczy przedsiębiorstwa, które wprowadziły innowację powstałą w projekcie. W tym projekcie licznikiem jest Wisent Polska jako beneficjent wdrażający innowację produktową RNM. Nie dolicza się klientów testowych ani podmiotów uczestniczących w walidacji technicznej, jeżeli nie wprowadzają u siebie innowacji jako własnego produktu lub procesu. Wartość 1 oznacza jedno przedsiębiorstwo wdrażające produkt RNM.',
-    verification: 'Weryfikacja obejmuje rejestr innowacji Wisent Polska, dokument wdrożenia produktu RNM, dokumenty rejestrowe spółki i dowód udostępnienia produktu na rynku UE. Sprawdza się, czy beneficjent faktycznie wprowadził innowację produktową, a nie tylko zakończył prace badawcze. Dowodami są manifest produktu, data wydania, umowa lub faktura oraz zapis decyzji o wprowadzeniu produktu.',
+    methodology:
+      'Wskaźnik liczy przedsiębiorstwa, które wprowadziły innowację powstałą w projekcie. W tym projekcie licznikiem jest Wisent Polska jako beneficjent wdrażający innowację produktową RNM. Nie dolicza się klientów testowych ani podmiotów uczestniczących w walidacji technicznej, jeżeli nie wprowadzają u siebie innowacji jako własnego produktu lub procesu. Wartość 1 oznacza jedno przedsiębiorstwo wdrażające produkt RNM.',
+    verification:
+      'Weryfikacja obejmuje rejestr innowacji Wisent Polska, dokument wdrożenia produktu RNM, dokumenty rejestrowe spółki i dowód udostępnienia produktu na rynku UE. Sprawdza się, czy beneficjent faktycznie wprowadził innowację produktową, a nie tylko zakończył prace badawcze. Dowodami są manifest produktu, data wydania, umowa lub faktura oraz zapis decyzji o wprowadzeniu produktu.',
   },
   {
     name: 'Przedsiębiorstwa wprowadzające innowacje produktowe',
     year: '2029',
-    methodology: 'Wskaźnik liczy przedsiębiorstwa wprowadzające innowację produktową. Wartość docelowa 1 obejmuje Wisent Polska, ponieważ rezultatem projektu jest produkt RNM, a nie sama metoda badawcza. Warunkiem zaliczenia jest dostępny artefakt produktu: wersja modeli, biblioteka, katalog konceptów i funkcje audytu/interwencji. Klienci i partnerzy walidacyjni nie są liczeni, chyba że odrębnie wprowadzą własną innowację produktową.',
-    verification: 'Weryfikator sprawdza zestaw artefaktów produktu RNM: wersjonowane modele, bibliotekę, katalog konceptów, opis funkcji, datę udostępnienia i dokument sprzedażowy lub licencyjny. Wartość 1 jest uznana, gdy Wisent Polska wprowadziła produkt na rynek UE lub do własnej działalności gospodarczej w sposób udokumentowany. Same wyniki benchmarków i publikacje naukowe nie wystarczają.',
+    methodology:
+      'Wskaźnik liczy przedsiębiorstwa wprowadzające innowację produktową. Wartość docelowa 1 obejmuje Wisent Polska, ponieważ rezultatem projektu jest produkt RNM, a nie sama metoda badawcza. Warunkiem zaliczenia jest dostępny artefakt produktu: wersja modeli, biblioteka, katalog konceptów i funkcje audytu/interwencji. Klienci i partnerzy walidacyjni nie są liczeni, chyba że odrębnie wprowadzą własną innowację produktową.',
+    verification:
+      'Weryfikator sprawdza zestaw artefaktów produktu RNM: wersjonowane modele, bibliotekę, katalog konceptów, opis funkcji, datę udostępnienia i dokument sprzedażowy lub licencyjny. Wartość 1 jest uznana, gdy Wisent Polska wprowadziła produkt na rynek UE lub do własnej działalności gospodarczej w sposób udokumentowany. Same wyniki benchmarków i publikacje naukowe nie wystarczają.',
   },
   {
     name: 'Przedsiębiorstwa wprowadzające innowacje procesowe',
     year: '2029',
-    methodology: 'Wartość docelowa wynosi 0, ponieważ projekt nie przewiduje wprowadzenia innowacji procesowej jako rezultatu. Wyliczenie jest negatywne: sprawdza się, czy żadne przedsiębiorstwo, w tym Wisent Polska, nie deklaruje w ramach projektu nowego procesu produkcji, logistyki, zarządzania lub dostarczania usług jako osobnej innowacji. Zmiany narzędziowe potrzebne do wytworzenia RNM nie są liczone jako wdrożony proces.',
-    verification: 'Weryfikacja polega na przeglądzie rejestru innowacji, dokumentów wdrożeniowych i ewidencji rezultatów. Wartość 0 jest potwierdzona, jeżeli dokumenty wskazują wyłącznie innowację produktową i brak odrębnych procesów wdrożonych jako rezultat projektu. Dowodami są klasyfikacja z sekcji 2.2, rejestr rezultatów i oświadczenie spółki o braku innowacji procesowej.',
+    methodology:
+      'Wartość docelowa wynosi 0, ponieważ projekt nie przewiduje wprowadzenia innowacji procesowej jako rezultatu. Wyliczenie jest negatywne: sprawdza się, czy żadne przedsiębiorstwo, w tym Wisent Polska, nie deklaruje w ramach projektu nowego procesu produkcji, logistyki, zarządzania lub dostarczania usług jako osobnej innowacji. Zmiany narzędziowe potrzebne do wytworzenia RNM nie są liczone jako wdrożony proces.',
+    verification:
+      'Weryfikacja polega na przeglądzie rejestru innowacji, dokumentów wdrożeniowych i ewidencji rezultatów. Wartość 0 jest potwierdzona, jeżeli dokumenty wskazują wyłącznie innowację produktową i brak odrębnych procesów wdrożonych jako rezultat projektu. Dowodami są klasyfikacja z sekcji 2.2, rejestr rezultatów i oświadczenie spółki o braku innowacji procesowej.',
   },
   {
     name: 'Małe i średnie przedsiębiorstwa (MŚP) wprowadzające innowacje produktowe lub procesowe',
     year: '2029',
-    methodology: 'Wskaźnik liczy MŚP, które wprowadziły innowację produktową lub procesową. W projekcie liczy się Wisent Polska, jeżeli na dzień rozliczenia zachowuje status MŚP i wprowadza produkt RNM. Metodologia łączy dwie weryfikacje: status przedsiębiorstwa według definicji MŚP oraz fakt wprowadzenia innowacji produktowej. Nie liczy się partnerów, dostawców compute ani użytkowników testowych.',
-    verification: 'Dowody obejmują dokumenty KRS, dane zatrudnienia i finansowe potrzebne do statusu MŚP, rejestr innowacji, manifest produktu RNM oraz dokument wdrożenia lub sprzedaży. Weryfikator sprawdza aktualność statusu MŚP oraz związek innowacji z wynikami projektu. Wartość 1 jest przyjęta tylko wtedy, gdy oba warunki są spełnione jednocześnie.',
+    methodology:
+      'Wskaźnik liczy MŚP, które wprowadziły innowację produktową lub procesową. W projekcie liczy się Wisent Polska, jeżeli na dzień rozliczenia zachowuje status MŚP i wprowadza produkt RNM. Metodologia łączy dwie weryfikacje: status przedsiębiorstwa według definicji MŚP oraz fakt wprowadzenia innowacji produktowej. Nie liczy się partnerów, dostawców compute ani użytkowników testowych.',
+    verification:
+      'Dowody obejmują dokumenty KRS, dane zatrudnienia i finansowe potrzebne do statusu MŚP, rejestr innowacji, manifest produktu RNM oraz dokument wdrożenia lub sprzedaży. Weryfikator sprawdza aktualność statusu MŚP oraz związek innowacji z wynikami projektu. Wartość 1 jest przyjęta tylko wtedy, gdy oba warunki są spełnione jednocześnie.',
   },
   {
     name: 'Małe i średnie przedsiębiorstwa (MŚP) wprowadzające innowacje procesowe',
     year: '2029',
-    methodology: 'Wartość wskaźnika wynosi 0, ponieważ Wisent Polska jako MŚP nie wprowadza w projekcie innowacji procesowej. Wyliczenie polega na sprawdzeniu braku procesowego rezultatu w dokumentacji oraz potwierdzeniu, że wszystkie prace nad pipeline, walidacją i integracją służą opracowaniu produktu RNM. Nie tworzy się osobnego procesu biznesowego jako rezultatu wskaźnikowego.',
-    verification: 'Weryfikacja wykorzystuje rejestr rezultatów, sekcję 2.2, dokumenty wdrożeniowe oraz oświadczenie spółki. Wartość 0 jest potwierdzona, gdy dokumenty nie wskazują żadnej procesowej innowacji MŚP, a jedyny rezultat to produkt RNM. Kontrola statusu MŚP jest pomocnicza i nie zmienia wartości, ponieważ liczba procesowych innowacji pozostaje zerowa.',
+    methodology:
+      'Wartość wskaźnika wynosi 0, ponieważ Wisent Polska jako MŚP nie wprowadza w projekcie innowacji procesowej. Wyliczenie polega na sprawdzeniu braku procesowego rezultatu w dokumentacji oraz potwierdzeniu, że wszystkie prace nad pipeline, walidacją i integracją służą opracowaniu produktu RNM. Nie tworzy się osobnego procesu biznesowego jako rezultatu wskaźnikowego.',
+    verification:
+      'Weryfikacja wykorzystuje rejestr rezultatów, sekcję 2.2, dokumenty wdrożeniowe oraz oświadczenie spółki. Wartość 0 jest potwierdzona, gdy dokumenty nie wskazują żadnej procesowej innowacji MŚP, a jedyny rezultat to produkt RNM. Kontrola statusu MŚP jest pomocnicza i nie zmienia wartości, ponieważ liczba procesowych innowacji pozostaje zerowa.',
   },
   {
     name: 'Małe i średnie przedsiębiorstwa (MŚP) wprowadzające innowacje produktowe',
     year: '2029',
-    methodology: 'Wskaźnik liczy MŚP, które wprowadziły innowację produktową. Wartość 1 oznacza Wisent Polska jako MŚP wprowadzające produkt RNM. Zaliczenie wymaga jednocześnie potwierdzenia statusu MŚP oraz udostępnienia produktu obejmującego modele RNM, bibliotekę, katalog konceptów i funkcje audytu/interwencji. Wartość nie obejmuje podmiotów korzystających z produktu ani dostawców infrastruktury.',
-    verification: 'Weryfikator sprawdza dokumenty statusu MŚP, rejestr innowacji, manifest modeli RNM, repozytorium biblioteki, datę wydania i dowód udostępnienia produktu na rynku UE. Źródłami są KRS, dane finansowe i zatrudnieniowe, karta produktu, umowa licencyjna lub faktura. Wartość 1 jest uznana wyłącznie po potwierdzeniu obu elementów: statusu MŚP i faktycznego wprowadzenia innowacji produktowej.',
+    methodology:
+      'Wskaźnik liczy MŚP, które wprowadziły innowację produktową. Wartość 1 oznacza Wisent Polska jako MŚP wprowadzające produkt RNM. Zaliczenie wymaga jednocześnie potwierdzenia statusu MŚP oraz udostępnienia produktu obejmującego modele RNM, bibliotekę, katalog konceptów i funkcje audytu/interwencji. Wartość nie obejmuje podmiotów korzystających z produktu ani dostawców infrastruktury.',
+    verification:
+      'Weryfikator sprawdza dokumenty statusu MŚP, rejestr innowacji, manifest modeli RNM, repozytorium biblioteki, datę wydania i dowód udostępnienia produktu na rynku UE. Źródłami są KRS, dane finansowe i zatrudnieniowe, karta produktu, umowa licencyjna lub faktura. Wartość 1 jest uznana wyłącznie po potwierdzeniu obu elementów: statusu MŚP i faktycznego wprowadzenia innowacji produktowej.',
   },
   {
     name: 'Złożone wnioski patentowe',
     year: '2029',
-    methodology: 'Wartość wskaźnika wynosi 0, ponieważ projekt nie planuje zgłoszeń patentowych jako rezultatu. Strategia ochrony polega na kontroli praw autorskich do kodu, tajemnicy przedsiębiorstwa dla wybranych procedur operacyjnych, licencjach na modele i bibliotekę oraz publicznym udostępnieniu wybranych artefaktów w sposób wzmacniający europejski ekosystem AI. Brak zgłoszeń patentowych nie oznacza braku ochrony IP, lecz świadomy wybór mechanizmu ochrony odpowiedniego dla oprogramowania AI.',
-    verification: 'Weryfikacja wartości 0 polega na przeglądzie rejestru decyzji IP, rejestru zgłoszeń patentowych, repozytoriów kodu, licencji i dokumentacji praw autorskich. Dowodem jest oświadczenie spółki i rejestr IP wskazujący, że w okresie realizacji projektu nie dokonano zgłoszenia patentowego jako rezultatu dofinansowanych prac. Ewentualna późniejsza decyzja biznesowa poza zakresem wskaźnika nie zmienia wartości docelowej projektu.',
+    methodology:
+      'Wartość wskaźnika wynosi 0, ponieważ projekt nie planuje zgłoszeń patentowych jako rezultatu. Strategia ochrony polega na kontroli praw autorskich do kodu, tajemnicy przedsiębiorstwa dla wybranych procedur operacyjnych, licencjach na modele i bibliotekę oraz publicznym udostępnieniu wybranych artefaktów w sposób wzmacniający europejski ekosystem AI. Brak zgłoszeń patentowych nie oznacza braku ochrony IP, lecz świadomy wybór mechanizmu ochrony odpowiedniego dla oprogramowania AI.',
+    verification:
+      'Weryfikacja wartości 0 polega na przeglądzie rejestru decyzji IP, rejestru zgłoszeń patentowych, repozytoriów kodu, licencji i dokumentacji praw autorskich. Dowodem jest oświadczenie spółki i rejestr IP wskazujący, że w okresie realizacji projektu nie dokonano zgłoszenia patentowego jako rezultatu dofinansowanych prac. Ewentualna późniejsza decyzja biznesowa poza zakresem wskaźnika nie zmienia wartości docelowej projektu.',
   },
   {
     name: 'Miejsca pracy utworzone we wspieranych jednostkach',
     year: '2030',
-    methodology: 'Wskaźnik liczony jest jako liczba nowych miejsc pracy w pełnych równoważnikach czasu pracy, utworzonych w Wisent Polska w związku z komercjalizacją produktu RNM. Wartość bazowa wynosi 0. Wartość docelowa obejmuje stanowiska badawcze, inżynierskie, produktowe, wdrożeniowe i wsparcia technicznego związane z utrzymaniem oraz sprzedażą produktu RNM na rynku UE. Do wskaźnika nie wlicza się krótkich usług zewnętrznych ani dostawców infrastruktury.',
-    verification: 'Weryfikacja opiera się na umowach o pracę lub kontraktach, listach płac, ewidencji czasu pracy, strukturze organizacyjnej i opisie powiązania stanowisk z produktem RNM. Weryfikator przelicza zatrudnienie na pełne równoważniki czasu pracy i sprawdza, czy miejsca pracy powstały po wdrożeniu produktu oraz są zlokalizowane w UE. Dowodami są dokumenty kadrowe, rejestr stanowisk i raport z powiązania kosztów zatrudnienia z komercjalizacją RNM.',
+    methodology:
+      'Wskaźnik liczony jest jako liczba nowych miejsc pracy w pełnych równoważnikach czasu pracy, utworzonych w Wisent Polska w związku z komercjalizacją produktu RNM. Wartość bazowa wynosi 0. Wartość docelowa obejmuje stanowiska badawcze, inżynierskie, produktowe, wdrożeniowe i wsparcia technicznego związane z utrzymaniem oraz sprzedażą produktu RNM na rynku UE. Do wskaźnika nie wlicza się krótkich usług zewnętrznych ani dostawców infrastruktury.',
+    verification:
+      'Weryfikacja opiera się na umowach o pracę lub kontraktach, listach płac, ewidencji czasu pracy, strukturze organizacyjnej i opisie powiązania stanowisk z produktem RNM. Weryfikator przelicza zatrudnienie na pełne równoważniki czasu pracy i sprawdza, czy miejsca pracy powstały po wdrożeniu produktu oraz są zlokalizowane w UE. Dowodami są dokumenty kadrowe, rejestr stanowisk i raport z powiązania kosztów zatrudnienia z komercjalizacją RNM.',
   },
   {
     name: 'Przychody ze sprzedaży nowych lub udoskonalonych produktów/usług',
     year: '2029',
-    methodology: 'Wskaźnik oblicza się jako wartość przychodów lub wiążących kontraktów sprzedażowych dla produktów i usług opartych na wynikach projektu RNM osiągniętą do końca 2029 r., po pierwszym wdrożeniu produktu. Zakres obejmuje licencje, subskrypcje enterprise i wdrożenia asystowane produktu RNM dla podmiotów z UE. Wartość docelowa 3 600 000 PLN odpowiada rocznej wartości zakontraktowanej sprzedaży: sześciu klientom enterprise, średniej wartości kontraktu ok. 150 000 USD i kursowi 4,00 PLN/USD.',
-    verification: 'Weryfikacja opiera się na umowach licencyjnych lub subskrypcyjnych, zamówieniach, fakturach zaliczkowych lub sprzedażowych, ewidencji przychodów, rejestrze kontrahentów i harmonogramach rozliczeń. Sprawdza się, czy kontrakty dotyczą produktu RNM, czy kontrahenci działają na rynku UE oraz czy łączna wartość sprzedaży zakontraktowanej lub zafakturowanej do końca 2029 r. odpowiada wartości docelowej wskaźnika.',
+    methodology:
+      'Wskaźnik oblicza się jako wartość przychodów lub wiążących kontraktów sprzedażowych dla produktów i usług opartych na wynikach projektu RNM osiągniętą do końca 2029 r., po pierwszym wdrożeniu produktu. Zakres obejmuje licencje, subskrypcje enterprise i wdrożenia asystowane produktu RNM dla podmiotów z UE. Wartość docelowa 3 600 000 PLN odpowiada rocznej wartości zakontraktowanej sprzedaży: sześciu klientom enterprise, średniej wartości kontraktu ok. 150 000 USD i kursowi 4,00 PLN/USD.',
+    verification:
+      'Weryfikacja opiera się na umowach licencyjnych lub subskrypcyjnych, zamówieniach, fakturach zaliczkowych lub sprzedażowych, ewidencji przychodów, rejestrze kontrahentów i harmonogramach rozliczeń. Sprawdza się, czy kontrakty dotyczą produktu RNM, czy kontrahenci działają na rynku UE oraz czy łączna wartość sprzedaży zakontraktowanej lub zafakturowanej do końca 2029 r. odpowiada wartości docelowej wskaźnika.',
   },
   {
     name: 'Przychody uzyskane z innowacji w procesie biznesowym',
     year: '2030',
-    methodology: 'Wartość docelowa wynosi 0 PLN, ponieważ projekt nie deklaruje innowacji procesowej jako rezultatu rynkowego. Przychody ze sprzedaży dotyczą produktu RNM i są raportowane we wskaźniku przychodów z nowych lub udoskonalonych produktów/usług. Ten wskaźnik pozostaje zerowy, aby uniknąć podwójnego liczenia i zachować spójność z klasyfikacją innowacji produktowej w sekcji 2.2.',
-    verification: 'Weryfikacja polega na przeglądzie klasyfikacji innowacji, ewidencji przychodów i rejestru umów. Wartość 0 jest potwierdzona, jeżeli żaden przychód nie został przypisany do innowacji procesowej, a wszystkie przychody z rezultatów projektu są klasyfikowane jako przychody z produktu RNM. Dowodami są raport końcowy, zestawienie przychodów według źródła i oświadczenie o braku innowacji procesowej.',
+    methodology:
+      'Wartość docelowa wynosi 0 PLN, ponieważ projekt nie deklaruje innowacji procesowej jako rezultatu rynkowego. Przychody ze sprzedaży dotyczą produktu RNM i są raportowane we wskaźniku przychodów z nowych lub udoskonalonych produktów/usług. Ten wskaźnik pozostaje zerowy, aby uniknąć podwójnego liczenia i zachować spójność z klasyfikacją innowacji produktowej w sekcji 2.2.',
+    verification:
+      'Weryfikacja polega na przeglądzie klasyfikacji innowacji, ewidencji przychodów i rejestru umów. Wartość 0 jest potwierdzona, jeżeli żaden przychód nie został przypisany do innowacji procesowej, a wszystkie przychody z rezultatów projektu są klasyfikowane jako przychody z produktu RNM. Dowodami są raport końcowy, zestawienie przychodów według źródła i oświadczenie o braku innowacji procesowej.',
   },
   {
     name: 'Redukcja ilości tokenów treningowych dla RNM 70B wobec modelu odniesienia (transformer) do osiągnięcia parytetu jakości na MMLU',

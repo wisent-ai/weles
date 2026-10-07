@@ -4,7 +4,9 @@ import { join } from 'node:path';
 import { DIAG_DIR, PRIVATE_KEY_PATH, PUBLIC_KEY_PATH } from './settings.mjs';
 
 export function extractValuesNearLabels(text) {
-  const compact = String(text || '').replace(/\s+/g, ' ').trim();
+  const compact = String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim();
   const patterns = {
     clientId: /Client ID\s*[:\-]?\s*([A-Za-z0-9._-]{6,})/i,
     teamId: /Team ID\s*[:\-]?\s*([A-Z0-9]{6,})/i,
@@ -29,8 +31,13 @@ export function summarizeAppleArtifacts(pageState, localState) {
   ].filter(Boolean);
 
   const hasCredentialLabels = /Client ID|Team ID|Key ID/i.test(text);
-  const hasApiSurface = /API|Public Key|Generate API client|Campaign Management API/i.test(text);
-  const hasCreateButton = buttons.some((button) => /Generate API client|Create API client|Add API client|Generate/i.test(button));
+  const hasApiSurface =
+    /API|Public Key|Generate API client|Campaign Management API/i.test(text);
+  const hasCreateButton = buttons.some((button) =>
+    /Generate API client|Create API client|Add API client|Generate/i.test(
+      button,
+    ),
+  );
 
   return {
     hasExistingAppleAdsApiClient: hasCredentialLabels,
@@ -38,13 +45,16 @@ export function summarizeAppleArtifacts(pageState, localState) {
     canGenerateApiClient: hasCreateButton || /Public Key/i.test(text),
     extracted: values,
     local: localState,
-    matchedButtons: buttons.filter((button) => /API|Client|Key|Generate|Create|Public Key/i.test(button)),
+    matchedButtons: buttons.filter((button) =>
+      /API|Client|Key|Generate|Create|Public Key/i.test(button),
+    ),
     textMatches: {
       clientId: /Client ID/i.test(text),
       teamId: /Team ID/i.test(text),
       keyId: /Key ID/i.test(text),
       publicKey: /Public Key/i.test(text),
-      generateApiClient: /Generate API client|Create API client|Add API client/i.test(text),
+      generateApiClient:
+        /Generate API client|Create API client|Add API client/i.test(text),
     },
   };
 }
@@ -64,22 +74,42 @@ export async function inspectExistingAppleAdsApi(page, pageState) {
     },
   };
 
-  const domState = await page.evaluate(() => {
-    const norm = (value) => String(value || '').replace(/\s+/g, ' ').trim();
-    const visible = (el) => Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
-    const rows = Array.from(document.querySelectorAll('tr, [role="row"], li, section, article'))
-      .filter(visible)
-      .map((el) => norm(el.innerText || el.textContent))
-      .filter((text) => /API|Client|Team ID|Key ID|Public Key|Generate|Create/i.test(text));
-    const controls = Array.from(document.querySelectorAll('button, [role="button"], a'))
-      .filter(visible)
-      .map((el) => ({
-        text: norm(el.innerText || el.textContent || el.getAttribute('aria-label')),
-        href: el.href || '',
-      }))
-      .filter((item) => /API|Client|Key|Generate|Create|Public Key/i.test(`${item.text} ${item.href}`));
-    return { rows, controls };
-  }).catch((error) => ({ error: error.message, rows: [], controls: [] }));
+  const domState = await page
+    .evaluate(() => {
+      const norm = (value) =>
+        String(value || '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      const visible = (el) =>
+        Boolean(
+          el.offsetWidth || el.offsetHeight || el.getClientRects().length,
+        );
+      const rows = Array.from(
+        document.querySelectorAll('tr, [role="row"], li, section, article'),
+      )
+        .filter(visible)
+        .map((el) => norm(el.innerText || el.textContent))
+        .filter((text) =>
+          /API|Client|Team ID|Key ID|Public Key|Generate|Create/i.test(text),
+        );
+      const controls = Array.from(
+        document.querySelectorAll('button, [role="button"], a'),
+      )
+        .filter(visible)
+        .map((el) => ({
+          text: norm(
+            el.innerText || el.textContent || el.getAttribute('aria-label'),
+          ),
+          href: el.href || '',
+        }))
+        .filter((item) =>
+          /API|Client|Key|Generate|Create|Public Key/i.test(
+            `${item.text} ${item.href}`,
+          ),
+        );
+      return { rows, controls };
+    })
+    .catch((error) => ({ error: error.message, rows: [], controls: [] }));
 
   const summary = {
     ...summarizeAppleArtifacts(pageState, localState),
@@ -90,12 +120,18 @@ export async function inspectExistingAppleAdsApi(page, pageState) {
   const outPath = join(DIAG_DIR, 'apple_ads_api_existing.json');
   writeFileSync(outPath, JSON.stringify(summary, null, 2));
   console.log(`[apple-ads-api-setup] existing_api json=${outPath}`);
-  console.log(`[apple-ads-api-setup] existing_api ${JSON.stringify({
-    hasExistingAppleAdsApiClient: summary.hasExistingAppleAdsApiClient,
-    hasAppleAdsApiSurface: summary.hasAppleAdsApiSurface,
-    canGenerateApiClient: summary.canGenerateApiClient,
-    extracted: summary.extracted,
-    local: summary.local,
-  }, null, 2)}`);
+  console.log(
+    `[apple-ads-api-setup] existing_api ${JSON.stringify(
+      {
+        hasExistingAppleAdsApiClient: summary.hasExistingAppleAdsApiClient,
+        hasAppleAdsApiSurface: summary.hasAppleAdsApiSurface,
+        canGenerateApiClient: summary.canGenerateApiClient,
+        extracted: summary.extracted,
+        local: summary.local,
+      },
+      null,
+      2,
+    )}`,
+  );
   return summary;
 }

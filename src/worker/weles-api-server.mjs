@@ -64,23 +64,53 @@
 
 import http from 'node:http';
 
-import { REPO, RUN_RELEASE_IDENTITY } from './weles-api-server/release-identity.mjs';
+import {
+  REPO,
+  RUN_RELEASE_IDENTITY,
+} from './weles-api-server/release-identity.mjs';
 
-const { resolveTrajectory, paramsToEnv, validateAccountSecurityParams, validateAppPasswordParams } = await import(`${REPO}/dist/worker/dispatch.js`);
-const { buildDeploymentVersionValue } = await import(`${REPO}/dist/worker/release/deployment_version.js`);
+const {
+  resolveTrajectory,
+  paramsToEnv,
+  validateAccountSecurityParams,
+  validateAppPasswordParams,
+} = await import(`${REPO}/dist/worker/dispatch.js`);
+const { buildDeploymentVersionValue } = await import(
+  `${REPO}/dist/worker/release/deployment_version.js`
+);
 // The subscription and login identities are resolved from Skarbiec per request.
-const { selectLoginAccount } = await import(`${REPO}/dist/utils/login-accounts.js`);
-const { readPrivateStadoObjectIdentity, uploadArtifacts } = await import(`${REPO}/dist/worker/upload-artifacts.js`);
-const { publicAddresses, resolveBrowserEvidenceTarget, SPIS_BROWSER_EVIDENCE_POLICY } = await import(`${REPO}/dist/agent/browser-evidence-policy.js`);
+const { selectLoginAccount } = await import(
+  `${REPO}/dist/utils/login-accounts.js`
+);
+const { readPrivateStadoObjectIdentity, uploadArtifacts } = await import(
+  `${REPO}/dist/worker/upload-artifacts.js`
+);
+const {
+  publicAddresses,
+  resolveBrowserEvidenceTarget,
+  SPIS_BROWSER_EVIDENCE_POLICY,
+} = await import(`${REPO}/dist/agent/browser-evidence-policy.js`);
 const { AsyncNewBrowser } = await import(`${REPO}/dist/async_api.js`);
 const accountRecords = await import(`${REPO}/dist/state/skarbiec-records.js`);
-const { createPublicTaskService, publicTaskErrorResponse } = await import('./public-task-service.mjs');
-const { importWelesTrajectoryDocument } = await import(`${REPO}/dist/runtime/import.js`);
+const { createPublicTaskService, publicTaskErrorResponse } = await import(
+  './public-task-service.mjs'
+);
+const { importWelesTrajectoryDocument } = await import(
+  `${REPO}/dist/runtime/import.js`
+);
 const { acquireSecret } = await import(`${REPO}/dist/secrets/acquire.js`);
-const { definitionFor } = await import(`${REPO}/dist/secrets/acquire/catalog.js`);
-const { resolvedAcquiredSecretContract } = await import(`${REPO}/dist/secrets/scoped-service/contracts.js`);
-const { checkedTokenFile, skarbiecEndpoint } = await import(`${REPO}/dist/secrets/scoped-service/transport.js`);
-const { createCredentialOperationService } = await import('./weles-api-server/credentials/service.mjs');
+const { definitionFor } = await import(
+  `${REPO}/dist/secrets/acquire/catalog.js`
+);
+const { resolvedAcquiredSecretContract } = await import(
+  `${REPO}/dist/secrets/scoped-service/contracts.js`
+);
+const { checkedTokenFile, skarbiecEndpoint } = await import(
+  `${REPO}/dist/secrets/scoped-service/transport.js`
+);
+const { createCredentialOperationService } = await import(
+  './weles-api-server/credentials/service.mjs'
+);
 
 const {
   ALLOW_RAW_CREDS,
@@ -93,11 +123,20 @@ const {
   TOKEN,
 } = await import('./weles-api-server/configuration.mjs');
 const { redactSecrets } = await import('./weles-api-server/http-exchange.mjs');
-const { publicTaskChildEnvironment, readPublicServiceIdentity } = await import('./weles-api-server/public-admission.mjs');
-const { createTrajectoryRunner } = await import('./weles-api-server/run/trajectory-process.mjs');
-const { createApiRequestHandler } = await import('./weles-api-server/routes/api-request-router.mjs');
+const { publicTaskChildEnvironment, readPublicServiceIdentity } = await import(
+  './weles-api-server/public-admission.mjs'
+);
+const { createTrajectoryRunner } = await import(
+  './weles-api-server/run/trajectory-process.mjs'
+);
+const { createApiRequestHandler } = await import(
+  './weles-api-server/routes/api-request-router.mjs'
+);
 
-const runTrajectory = createTrajectoryRunner({ resolveTrajectory, paramsToEnv });
+const runTrajectory = createTrajectoryRunner({
+  resolveTrajectory,
+  paramsToEnv,
+});
 
 const publicTaskService = createPublicTaskService({
   environment: process.env,
@@ -111,23 +150,18 @@ const publicTaskService = createPublicTaskService({
   concurrency: PUBLIC_TASK_CONCURRENCY,
   trajectoryReady: Boolean(resolveTrajectory('generic_browser_task')),
   artifactRetentionReady: Boolean(
-    process.env.STADO_API_URL
-      && process.env.WELES_STADO_OBJECT_API_TOKEN
-      && Buffer.byteLength(process.env.WELES_STADO_OBJECT_API_TOKEN) >= 32
+    process.env.STADO_API_URL &&
+      process.env.WELES_STADO_OBJECT_API_TOKEN &&
+      Buffer.byteLength(process.env.WELES_STADO_OBJECT_API_TOKEN) >= 32,
   ),
   readServiceIdentity: readPublicServiceIdentity,
   resolveTarget: resolveBrowserEvidenceTarget,
-  runTrajectory: ({ action, params, runId, signal, policy, networkTarget }) => runTrajectory(
-    action,
-    params,
-    null,
-    true,
-    {
+  runTrajectory: ({ action, params, runId, signal, policy, networkTarget }) =>
+    runTrajectory(action, params, null, true, {
       runId,
       signal,
       childEnvironment: publicTaskChildEnvironment(policy, networkTarget),
-    },
-  ),
+    }),
 });
 await publicTaskService.recover();
 
@@ -139,29 +173,31 @@ const credentialOperationService = createCredentialOperationService({
   skarbiecEndpoint,
   runResultsRoot: RUN_RESULTS_DIR,
   releaseIdentity: RUN_RELEASE_IDENTITY,
-  runTrajectory: ({ action, params, accountId, runId, signal }) => runTrajectory(
-    action, params, accountId, false, { runId, signal },
-  ),
+  runTrajectory: ({ action, params, accountId, runId, signal }) =>
+    runTrajectory(action, params, accountId, false, { runId, signal }),
 });
 credentialOperationService.recover();
 
-
-const server = http.createServer(createApiRequestHandler({
-  buildDeploymentVersionValue,
-  credentialOperationService,
-  importWelesTrajectoryDocument,
-  publicTaskErrorResponse,
-  pageBrowser: { openBrowser: AsyncNewBrowser, publicAddresses },
-  accountRecords,
-  publicTaskService,
-  runTrajectory,
-  selectLoginAccount,
-  validateAccountSecurityParams,
-  validateAppPasswordParams,
-}));
+const server = http.createServer(
+  createApiRequestHandler({
+    buildDeploymentVersionValue,
+    credentialOperationService,
+    importWelesTrajectoryDocument,
+    publicTaskErrorResponse,
+    pageBrowser: { openBrowser: AsyncNewBrowser, publicAddresses },
+    accountRecords,
+    publicTaskService,
+    runTrajectory,
+    selectLoginAccount,
+    validateAccountSecurityParams,
+    validateAppPasswordParams,
+  }),
+);
 
 server.listen(PORT, HOST, () => {
-  console.log(`[weles-api] listening http://${HOST}:${PORT} auth=${Boolean(TOKEN || ALLOW_UNAUTH)} rawCreds=${ALLOW_RAW_CREDS}`);
+  console.log(
+    `[weles-api] listening http://${HOST}:${PORT} auth=${Boolean(TOKEN || ALLOW_UNAUTH)} rawCreds=${ALLOW_RAW_CREDS}`,
+  );
 });
 
 let shutdownStarted = false;
@@ -172,8 +208,15 @@ async function shutdownApi(signal) {
   server.close();
   // The drain ends when the services report their tasks settled; a task that
   // never settles is the service's defect to name, not a reason to exit early.
-  await Promise.all([publicTaskService.shutdown(), credentialOperationService.shutdown()]);
+  await Promise.all([
+    publicTaskService.shutdown(),
+    credentialOperationService.shutdown(),
+  ]);
   process.exit(0);
 }
-process.on('SIGTERM', () => { void shutdownApi('SIGTERM'); });
-process.on('SIGINT', () => { void shutdownApi('SIGINT'); });
+process.on('SIGTERM', () => {
+  void shutdownApi('SIGTERM');
+});
+process.on('SIGINT', () => {
+  void shutdownApi('SIGINT');
+});

@@ -7,7 +7,10 @@ import { detectInstagramBanSignals } from '../../../../../dist/platforms/instagr
 const observed = declaredObservation();
 
 await runAction({
-  platform: 'instagram', action: 'browse',
-  feedUrl: observed.origin, scrolls: observed.scrolls, dwellMs: observed.dwellMs,
+  platform: 'instagram',
+  action: 'browse',
+  feedUrl: observed.origin,
+  scrolls: observed.scrolls,
+  dwellMs: observed.dwellMs,
   banDetector: detectInstagramBanSignals,
 });

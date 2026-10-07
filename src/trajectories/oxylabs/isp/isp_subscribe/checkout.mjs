@@ -19,8 +19,15 @@ export async function completeCheckout(s) {
   for (let step = 0; ; step++) {
     await pageSettled(s.page);
     const url = s.page.url();
-    const btns = await s.page.evaluate(() => Array.from(document.querySelectorAll('button')).filter(b => b.offsetParent).map(b => (b.textContent||'').trim()).filter(Boolean));
-    console.log(`[trajectory] checkout step ${step}: url=${url} btns=${JSON.stringify(btns)}`);
+    const btns = await s.page.evaluate(() =>
+      Array.from(document.querySelectorAll('button'))
+        .filter((b) => b.offsetParent)
+        .map((b) => (b.textContent || '').trim())
+        .filter(Boolean),
+    );
+    console.log(
+      `[trajectory] checkout step ${step}: url=${url} btns=${JSON.stringify(btns)}`,
+    );
     await shot(s, `checkout_step${step}`);
 
     // Success page detection.
@@ -34,14 +41,27 @@ export async function completeCheckout(s) {
     // EXPLICIT: We do NOT use Link. If the modal appears, click "Pay without
     // Link" to drop to manual card entry, then fillStripeElements with creds
     // from whichever source the shared loader answered with / TOPUP_CARD_* env.
-    const linkOtpVisible = await s.page.evaluate(() => {
-      const cells = Array.from(document.querySelectorAll('input[maxlength="1"], input[inputmode="numeric"]')).filter(i => i.offsetParent !== null);
-      return cells.length >= 6;
-    }).catch(() => false);
+    const linkOtpVisible = await s.page
+      .evaluate(() => {
+        const cells = Array.from(
+          document.querySelectorAll(
+            'input[maxlength="1"], input[inputmode="numeric"]',
+          ),
+        ).filter((i) => i.offsetParent !== null);
+        return cells.length >= 6;
+      })
+      .catch(() => false);
 
     if (linkOtpVisible) {
-      console.log('[trajectory] Stripe Link OTP modal detected — clicking "Pay without Link" (per directive: never use Link)');
-      const noLinkBtn = s.page.locator('button:has-text("Pay without Link"), a:has-text("Pay without Link")').filter({ visible: true }).first();
+      console.log(
+        '[trajectory] Stripe Link OTP modal detected — clicking "Pay without Link" (per directive: never use Link)',
+      );
+      const noLinkBtn = s.page
+        .locator(
+          'button:has-text("Pay without Link"), a:has-text("Pay without Link")',
+        )
+        .filter({ visible: true })
+        .first();
       if (!(await noLinkBtn.isVisible().catch(() => false))) {
         console.log('FAIL: "Pay without Link" not visible');
         await shot(s, 'no_pay_without_link');
@@ -55,7 +75,9 @@ export async function completeCheckout(s) {
       const filled = await fillStripeElements(s.page);
       console.log(`[trajectory] fillStripeElements: ${JSON.stringify(filled)}`);
       if (!filled.ok) {
-        console.log(`FAIL: card fill failed: ${filled.reason || JSON.stringify(filled.filled)}`);
+        console.log(
+          `FAIL: card fill failed: ${filled.reason || JSON.stringify(filled.filled)}`,
+        );
         await shot(s, 'card_fill_failed');
         process.exit(2);
       }
@@ -77,14 +99,28 @@ export async function completeCheckout(s) {
         await humanType(s.page, value);
         return true;
       };
-      const nameFilled = await fillExtra('input[name="billingName"], input[autocomplete="cc-name"], input[placeholder*="Full name on card" i], input[placeholder*="Cardholder" i]', name);
-      const streetFilled = await fillExtra('input[name="billingAddressLine1"], input[autocomplete="address-line1"], input[placeholder="Address" i]', street);
-      const cityFilled = await fillExtra('input[name="billingLocality"], input[autocomplete="address-level2"], input[placeholder="City" i]', city);
-      console.log(`[trajectory] extra fields: name=${nameFilled} street=${streetFilled} city=${cityFilled}`);
+      const nameFilled = await fillExtra(
+        'input[name="billingName"], input[autocomplete="cc-name"], input[placeholder*="Full name on card" i], input[placeholder*="Cardholder" i]',
+        name,
+      );
+      const streetFilled = await fillExtra(
+        'input[name="billingAddressLine1"], input[autocomplete="address-line1"], input[placeholder="Address" i]',
+        street,
+      );
+      const cityFilled = await fillExtra(
+        'input[name="billingLocality"], input[autocomplete="address-level2"], input[placeholder="City" i]',
+        city,
+      );
+      console.log(
+        `[trajectory] extra fields: name=${nameFilled} street=${streetFilled} city=${cityFilled}`,
+      );
       await humanIdlePause('short');
       await shot(s, 'after_card_fill');
       // Click Subscribe / Pay.
-      const subBtn = s.page.locator('button:has-text("Subscribe"), button:has-text("Pay")').filter({ visible: true }).last();
+      const subBtn = s.page
+        .locator('button:has-text("Subscribe"), button:has-text("Pay")')
+        .filter({ visible: true })
+        .last();
       if (!(await subBtn.isVisible().catch(() => false))) {
         console.log('FAIL: no Subscribe/Pay button after card fill');
         await shot(s, 'no_subscribe_after_fill');
@@ -97,7 +133,6 @@ export async function completeCheckout(s) {
       await shot(s, 'after_final_subscribe');
       continue;
     }
-
 
     // No OTP modal — pick the most-committal button.
     const commitOrder = [
@@ -116,11 +151,16 @@ export async function completeCheckout(s) {
         // Defensive: do NOT click "Pay without Link" — that drops to manual
         // card entry. We want the saved-card path via Link OTP.
         if (/without\s+link/i.test(txt || '')) {
-          console.log(`[trajectory] skipping "${(txt||'').trim()}" — would drop to manual card form`);
+          console.log(
+            `[trajectory] skipping "${(txt || '').trim()}" — would drop to manual card form`,
+          );
           continue;
         }
-        await shot(s, `before_click_${(txt||'').trim().slice(0,16).replace(/\W+/g,'_')}_step${step}`);
-        console.log(`[trajectory] clicking "${(txt||'').trim()}"…`);
+        await shot(
+          s,
+          `before_click_${(txt || '').trim().slice(0, 16).replace(/\W+/g, '_')}_step${step}`,
+        );
+        console.log(`[trajectory] clicking "${(txt || '').trim()}"…`);
         await btn.click({ force: true }).catch(() => {});
         clicked = true;
         break;

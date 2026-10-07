@@ -6,12 +6,20 @@ export async function summarizeSignup(page) {
     const visible = (el) => {
       const r = el.getBoundingClientRect();
       const s = getComputedStyle(el);
-      return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden';
+      return (
+        r.width > 0 &&
+        r.height > 0 &&
+        s.display !== 'none' &&
+        s.visibility !== 'hidden'
+      );
     };
     return {
       url: location.href,
       title: document.title,
-      pageKey: document.querySelector('meta[name="pageKey"]')?.getAttribute('content') || '',
+      pageKey:
+        document
+          .querySelector('meta[name="pageKey"]')
+          ?.getAttribute('content') || '',
       bodyText: (document.body?.innerText || '').replace(/\s+/g, ' ').trim(),
       inputs: Array.from(document.querySelectorAll('input')).map((i) => ({
         name: i.name,
@@ -20,11 +28,13 @@ export async function summarizeSignup(page) {
         autocomplete: i.getAttribute('autocomplete') || '',
         visible: visible(i),
       })),
-      buttons: Array.from(document.querySelectorAll('button,a')).filter(visible).map((el) => ({
-        tag: el.tagName.toLowerCase(),
-        text: (el.textContent || '').replace(/\s+/g, ' ').trim(),
-        href: el instanceof HTMLAnchorElement ? el.href : '',
-      })),
+      buttons: Array.from(document.querySelectorAll('button,a'))
+        .filter(visible)
+        .map((el) => ({
+          tag: el.tagName.toLowerCase(),
+          text: (el.textContent || '').replace(/\s+/g, ' ').trim(),
+          href: el instanceof HTMLAnchorElement ? el.href : '',
+        })),
       iframes: Array.from(document.querySelectorAll('iframe')).map((f) => ({
         id: f.id,
         name: f.name,
@@ -40,7 +50,11 @@ export async function summarizeSignup(page) {
 
 export function classifySummary(summary) {
   const signal = getLinkedinChallengeSignal(summary);
-  const visibleInputs = new Set((summary.inputs || []).filter((i) => i.visible).flatMap((i) => [i.name, i.id, i.type]));
+  const visibleInputs = new Set(
+    (summary.inputs || [])
+      .filter((i) => i.visible)
+      .flatMap((i) => [i.name, i.id, i.type]),
+  );
   const buttonText = (summary.buttons || []).map((b) => b.text).join(' ');
   const hasSignupFields =
     (visibleInputs.has('email-address') || visibleInputs.has('email')) &&
@@ -54,7 +68,10 @@ export function classifySummary(summary) {
 export function redactText(text = '') {
   return String(text)
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '<redacted-email>')
-    .replace(/("(?:password|email|emailAddress|firstName|lastName|first-name|last-name|csrfToken|loginCsrfParam)"\s*:\s*)"[^"]*"/gi, '$1"<redacted>"');
+    .replace(
+      /("(?:password|email|emailAddress|firstName|lastName|first-name|last-name|csrfToken|loginCsrfParam)"\s*:\s*)"[^"]*"/gi,
+      '$1"<redacted>"',
+    );
 }
 
 export async function summarizeApiResponse(res) {
@@ -68,16 +85,21 @@ export async function summarizeApiResponse(res) {
   return {
     status: res.status(),
     url: res.url(),
-    body_keys: bodyJson && typeof bodyJson === 'object' ? Object.keys(bodyJson) : null,
+    body_keys:
+      bodyJson && typeof bodyJson === 'object' ? Object.keys(bodyJson) : null,
     has_challenge_url: Boolean(bodyJson?.challengeUrl),
-    challenge_url_prefix: bodyJson?.challengeUrl ? String(bodyJson.challengeUrl) : '',
+    challenge_url_prefix: bodyJson?.challengeUrl
+      ? String(bodyJson.challengeUrl)
+      : '',
     body_redacted: redactText(bodyText),
   };
 }
 
 export async function linkedinAuthState(session) {
   const cookies = await session.ctx.cookies().catch(() => []);
-  const linkedinCookies = cookies.filter((c) => /linkedin\.com$/.test(c.domain ?? ''));
+  const linkedinCookies = cookies.filter((c) =>
+    /linkedin\.com$/.test(c.domain ?? ''),
+  );
   return {
     final_url: session.page.url(),
     linkedin_cookie_count: linkedinCookies.length,

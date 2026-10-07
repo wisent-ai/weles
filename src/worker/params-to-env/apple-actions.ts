@@ -29,25 +29,52 @@ export function applyAppleActionParams(
       env.APPLE_ADS_ACTION = action.slice(underscore + 1);
     }
     if (typeof params.query === 'string') env.SEARCH_QUERY = params.query;
-    if (typeof params.search_query === 'string') env.SEARCH_QUERY = params.search_query;
+    if (typeof params.search_query === 'string')
+      env.SEARCH_QUERY = params.search_query;
   }
   if (trajPath.endsWith('/apple/ads/api_client_setup_probe.mjs')) {
-    if (typeof params.apple_ads_keep_open_after_login_ms === 'number') env.APPLE_ADS_KEEP_OPEN_AFTER_LOGIN_MS = String(params.apple_ads_keep_open_after_login_ms);
-    if (typeof params.apple_ads_keep_open_after_login_ms === 'string') env.APPLE_ADS_KEEP_OPEN_AFTER_LOGIN_MS = params.apple_ads_keep_open_after_login_ms;
-    if (params.apple_ads_close_after_probe === true || params.apple_ads_close_after_probe === '1') env.APPLE_ADS_CLOSE_AFTER_PROBE = '1';
-    if (typeof params.apple_ads_diag_dir === 'string') env.APPLE_ADS_DIAG_DIR = params.apple_ads_diag_dir;
+    if (typeof params.apple_ads_keep_open_after_login_ms === 'number')
+      env.APPLE_ADS_KEEP_OPEN_AFTER_LOGIN_MS = String(
+        params.apple_ads_keep_open_after_login_ms,
+      );
+    if (typeof params.apple_ads_keep_open_after_login_ms === 'string')
+      env.APPLE_ADS_KEEP_OPEN_AFTER_LOGIN_MS =
+        params.apple_ads_keep_open_after_login_ms;
+    if (
+      params.apple_ads_close_after_probe === true ||
+      params.apple_ads_close_after_probe === '1'
+    )
+      env.APPLE_ADS_CLOSE_AFTER_PROBE = '1';
+    if (typeof params.apple_ads_diag_dir === 'string')
+      env.APPLE_ADS_DIAG_DIR = params.apple_ads_diag_dir;
   }
-  if (trajPath.endsWith('/apple/login.mjs') || trajPath.endsWith('/apple/create_developer_id.mjs')) {
+  if (
+    trajPath.endsWith('/apple/login.mjs') ||
+    trajPath.endsWith('/apple/create_developer_id.mjs')
+  ) {
     const guardId = params.apple_auth_guard_id;
-    if (typeof guardId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(guardId)) {
-      throw new Error('apple_auth_guard_id must be a valid UUID for apple_login');
+    if (
+      typeof guardId !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        guardId,
+      )
+    ) {
+      throw new Error(
+        'apple_auth_guard_id must be a valid UUID for apple_login',
+      );
     }
     const executionHost = params.apple_execution_host;
     const executionAgent = params.apple_execution_agent;
-    if (typeof executionHost !== 'string' || !/^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,251}[A-Za-z0-9])?$/.test(executionHost)) {
+    if (
+      typeof executionHost !== 'string' ||
+      !/^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,251}[A-Za-z0-9])?$/.test(executionHost)
+    ) {
       throw new Error('apple_execution_host is required for apple_login');
     }
-    if (typeof executionAgent !== 'string' || !/^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,198}[A-Za-z0-9])?$/.test(executionAgent)) {
+    if (
+      typeof executionAgent !== 'string' ||
+      !/^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,198}[A-Za-z0-9])?$/.test(executionAgent)
+    ) {
       throw new Error('apple_execution_agent is required for apple_login');
     }
     if (params.apple_login_capabilities === undefined) {
@@ -58,7 +85,9 @@ export function applyAppleActionParams(
     // that run its id, so no caller names an item.
     const appleRole = params.login_role;
     if (typeof appleRole !== 'string' || !appleRole) {
-      throw new Error('login_role must name the Skarbiec role of the Apple account for an apple trajectory');
+      throw new Error(
+        'login_role must name the Skarbiec role of the Apple account for an apple trajectory',
+      );
     }
     env.WELES_LOGIN_ITEM = itemPlayingRole(appleRole);
     env.APPLE_AUTH_GUARD_ID = guardId;
@@ -77,9 +106,12 @@ export function applyAppleActionParams(
     env.WELES_PAGE_DIAGNOSTICS = '0';
     if (trajPath.endsWith('/apple/create_developer_id.mjs')) {
       // A remote caller sends the public request itself; a local one may name files.
-      if (typeof params.apple_csr_base64 === 'string') env.APPLE_CSR_BASE64 = params.apple_csr_base64;
-      if (typeof params.apple_csr_path === 'string') env.APPLE_CSR_PATH = params.apple_csr_path;
-      if (typeof params.apple_certificate_path === 'string') env.APPLE_CERTIFICATE_PATH = params.apple_certificate_path;
+      if (typeof params.apple_csr_base64 === 'string')
+        env.APPLE_CSR_BASE64 = params.apple_csr_base64;
+      if (typeof params.apple_csr_path === 'string')
+        env.APPLE_CSR_PATH = params.apple_csr_path;
+      if (typeof params.apple_certificate_path === 'string')
+        env.APPLE_CERTIFICATE_PATH = params.apple_certificate_path;
     }
   }
 }

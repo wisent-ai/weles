@@ -12,15 +12,24 @@
 // Google credentials, computing the 2FA code, and writing the DOM of a failed
 // run are modules beside it.
 import { enterGoogleCredentials } from './google_sso/google_credentials.mjs';
-import { clickGisTarget, observeGisPage } from './google_sso/gis_state/page_reading.mjs';
-import { classifyGisState, gisVariantRank } from './google_sso/gis_state/variants.mjs';
+import {
+  clickGisTarget,
+  observeGisPage,
+} from './google_sso/gis_state/page_reading.mjs';
+import {
+  classifyGisState,
+  gisVariantRank,
+} from './google_sso/gis_state/variants.mjs';
 import { dumpGisFailureDom } from './google_sso/failure_dom.mjs';
 import { answerClaudeCaptcha } from './google_sso/captcha_answer.mjs';
 import { pageCondition, pageSettled } from '../_shared/page/settled.mjs';
 
 export { waitForEnabledThenClick } from './google_sso/page_controls.mjs';
 export { readGisState } from './google_sso/gis_state/page_reading.mjs';
-export { classifyGisState, gisVariantRank } from './google_sso/gis_state/variants.mjs';
+export {
+  classifyGisState,
+  gisVariantRank,
+} from './google_sso/gis_state/variants.mjs';
 
 // The GIS handoff is governed by what the pages report, never by a clock or a
 // count of attempts: the old fixed 4-attempt loop clicked the button again
@@ -39,9 +48,19 @@ export { classifyGisState, gisVariantRank } from './google_sso/gis_state/variant
 
 // Variants this step drives; any other state that holds still is a failure.
 const DRIVEN_VARIANTS = new Set([
-  'code_page', 'claude_gis_gate', 'claude_gis_gate_pending', 'google_rejected', 'google_account_chooser',
-  'google_chooser_without_account', 'google_identifier', 'google_confirm_continue',
-  'oauth_consent', 'oauth_consent_pending', 'claude_app_authenticated', 'claude_app_loading', 'claude_captcha',
+  'code_page',
+  'claude_gis_gate',
+  'claude_gis_gate_pending',
+  'google_rejected',
+  'google_account_chooser',
+  'google_chooser_without_account',
+  'google_identifier',
+  'google_confirm_continue',
+  'oauth_consent',
+  'oauth_consent_pending',
+  'claude_app_authenticated',
+  'claude_app_loading',
+  'claude_captcha',
 ]);
 
 // Resolves once something that can change the handoff's state happens: the
@@ -53,7 +72,8 @@ async function stateChange(page, active, url) {
   const onNavigated = (frame) => {
     if (frame === active.mainFrame() && frame.url() !== url) resolve();
   };
-  const onCrash = () => reject(new Error(`gis_continue: acting page crashed at ${active.url()}`));
+  const onCrash = () =>
+    reject(new Error(`gis_continue: acting page crashed at ${active.url()}`));
   active.on('framenavigated', onNavigated);
   active.on('close', resolve);
   active.on('crash', onCrash);
@@ -85,9 +105,13 @@ async function anyPageChange(page, views, also) {
   for (const { p, st } of views) {
     const url = st?.url ?? p.url();
     if (p.isClosed() || p.url() !== url) resolve();
-    listen(p, 'framenavigated', (frame) => { if (frame === p.mainFrame() && frame.url() !== url) resolve(); });
+    listen(p, 'framenavigated', (frame) => {
+      if (frame === p.mainFrame() && frame.url() !== url) resolve();
+    });
     listen(p, 'close', resolve);
-    listen(p, 'crash', () => reject(new Error(`gis_continue: a handoff page crashed at ${p.url()}`)));
+    listen(p, 'crash', () =>
+      reject(new Error(`gis_continue: a handoff page crashed at ${p.url()}`)),
+    );
   }
   listen(context, 'page', resolve);
   also.then(resolve, resolve);
@@ -102,20 +126,36 @@ async function clickOfferedControl(active, kind) {
   const hit = await clickGisTarget(active, kind);
   if (!hit.clicked) {
     const current = new URL(active.url());
-    const error = new Error(`gis_continue: ${kind} was not clicked at ${current.host}${current.pathname}: ${hit.reason}`);
+    const error = new Error(
+      `gis_continue: ${kind} was not clicked at ${current.host}${current.pathname}: ${hit.reason}`,
+    );
     error.code = 'gis_control_unavailable';
     throw error;
   }
 }
 
 export async function doGoogleSso({
-  page, login, authorizeUrl, mark,
-  humanFill, humanClickLocator, humanType,
+  page,
+  login,
+  authorizeUrl,
+  mark,
+  humanFill,
+  humanClickLocator,
+  humanType,
 }) {
   mark('google_prelogin_goto');
-  await page.goto('https://accounts.google.com/ServiceLogin?hl=en', { waitUntil: 'commit' });
+  await page.goto('https://accounts.google.com/ServiceLogin?hl=en', {
+    waitUntil: 'commit',
+  });
 
-  await enterGoogleCredentials({ page, login, mark, humanFill, humanClickLocator, humanType });
+  await enterGoogleCredentials({
+    page,
+    login,
+    mark,
+    humanFill,
+    humanClickLocator,
+    humanType,
+  });
 
   // Session established. Now load claude.ai's OAuth — GIS sees the account.
   mark('goto_authorize');
@@ -127,7 +167,12 @@ export async function doGoogleSso({
   // its sign-in gate. Inspect every live page and select the intended account
   // by data-identifier, not localized text; keep the popup available to finish.
   const seen = new WeakSet();
-  const onPopup = (p) => { if (!seen.has(p)) { seen.add(p); mark('gis_popup'); } };
+  const onPopup = (p) => {
+    if (!seen.has(p)) {
+      seen.add(p);
+      mark('gis_popup');
+    }
+  };
   page.context().on('page', onPopup);
   let freshEntryTried = false;
   const lastActions = new WeakMap();
@@ -155,12 +200,20 @@ export async function doGoogleSso({
         }
         views.push({ p, st, variant: classifyGisState(st) });
       }
-      views.sort((a, b) => gisVariantRank(a.variant) - gisVariantRank(b.variant));
+      views.sort(
+        (a, b) => gisVariantRank(a.variant) - gisVariantRank(b.variant),
+      );
       const view = views[0];
-      if (!view) { stuck = null; break; }
+      if (!view) {
+        stuck = null;
+        break;
+      }
       const { p: active, st, variant } = view;
 
-      if (variant === 'code_page') { mark('code_page'); return active; }
+      if (variant === 'code_page') {
+        mark('code_page');
+        return active;
+      }
 
       // A state this step does not drive: give its page the chance to settle
       // into a driven one, then report it by name. Google's popup is such a
@@ -177,7 +230,10 @@ export async function doGoogleSso({
           if (active.isClosed()) continue;
           throw error;
         }
-        if (!DRIVEN_VARIANTS.has(again)) { stuck = view; break; }
+        if (!DRIVEN_VARIANTS.has(again)) {
+          stuck = view;
+          break;
+        }
         continue;
       }
 
@@ -189,14 +245,19 @@ export async function doGoogleSso({
         await stateChange(page, active, st.url);
         continue;
       }
-      const claim = () => { lastActions.set(active, actionKey); };
+      const claim = () => {
+        lastActions.set(active, actionKey);
+      };
 
       if (variant === 'claude_gis_gate') {
         // The gate is only meaningful while no Google page is holding the
         // decision; otherwise clicking it opens yet another popup. A click that
         // just opened a popup shows up once the gate page has settled.
         await pageSettled(active);
-        const google = page.context().pages().find((p) => !p.isClosed() && /accounts\.google\.com/.test(p.url()));
+        const google = page
+          .context()
+          .pages()
+          .find((p) => !p.isClosed() && /accounts\.google\.com/.test(p.url()));
         if (google) {
           await stateChange(page, google, google.url());
           continue;
@@ -212,9 +273,16 @@ export async function doGoogleSso({
         // moves on. Either ends this wait; the operator sees the stage in
         // `weles runs show` and can end a gate that never opens.
         mark('gis_gate_pending');
-        const enabled = pageCondition(active, () => Array.from(document.querySelectorAll('button,[role="button"]'))
-          .some((el) => /continue with google|^google$/i.test((el.innerText || el.textContent || '').trim())
-            && !el.disabled && el.getAttribute('aria-disabled') !== 'true'));
+        const enabled = pageCondition(active, () =>
+          Array.from(document.querySelectorAll('button,[role="button"]')).some(
+            (el) =>
+              /continue with google|^google$/i.test(
+                (el.innerText || el.textContent || '').trim(),
+              ) &&
+              !el.disabled &&
+              el.getAttribute('aria-disabled') !== 'true',
+          ),
+        );
         // A navigation ends the page read with a destroyed context; any page
         // of the handoff moving on (Google's popup loading) also ends it.
         await anyPageChange(page, views, enabled);
@@ -227,7 +295,10 @@ export async function doGoogleSso({
         // show`, and the operator ends a page that never loads with
         // `weles runs cancel`.
         mark('claude_app_loading');
-        const rendered = pageCondition(active, () => document.querySelector('[data-page-loading]') === null);
+        const rendered = pageCondition(
+          active,
+          () => document.querySelector('[data-page-loading]') === null,
+        );
         await anyPageChange(page, views, rendered);
         continue;
       }
@@ -239,9 +310,18 @@ export async function doGoogleSso({
         // sees the stage in `weles runs show` and ends a screen that never
         // enables with `weles runs cancel`.
         mark('oauth_consent_pending');
-        const enabled = pageCondition(active, () => Array.from(document.querySelectorAll('button,[role="button"]'))
-          .some((el) => /^(authorize|allow|zezwól|zezwol|autoryzuj)$/i.test((el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim())
-            && !el.disabled && el.getAttribute('aria-disabled') !== 'true'));
+        const enabled = pageCondition(active, () =>
+          Array.from(document.querySelectorAll('button,[role="button"]')).some(
+            (el) =>
+              /^(authorize|allow|zezwól|zezwol|autoryzuj)$/i.test(
+                (el.innerText || el.textContent || '')
+                  .replace(/\s+/g, ' ')
+                  .trim(),
+              ) &&
+              !el.disabled &&
+              el.getAttribute('aria-disabled') !== 'true',
+          ),
+        );
         await anyPageChange(page, views, enabled);
         continue;
       }
@@ -254,22 +334,34 @@ export async function doGoogleSso({
         // again at the same address after the answer is a new one.
         mark('claude_captcha_answer');
         await answerClaudeCaptcha(active, views, variant);
-        await anyPageChange(page, views, pageCondition(active, () => !document.querySelector(
-          'iframe[src*="hcaptcha.com"][src*="frame=challenge"], iframe[src*="recaptcha"][src*="bframe"], iframe[src*="arkoselabs"], iframe[src*="challenges.cloudflare.com"]',
-        )));
+        await anyPageChange(
+          page,
+          views,
+          pageCondition(
+            active,
+            () =>
+              !document.querySelector(
+                'iframe[src*="hcaptcha.com"][src*="frame=challenge"], iframe[src*="recaptcha"][src*="bframe"], iframe[src*="arkoselabs"], iframe[src*="challenges.cloudflare.com"]',
+              ),
+          ),
+        );
         continue;
       }
 
       if (variant === 'google_rejected') {
         const dump = await dumpGisFailureDom(views, variant);
-        throw new Error(`gis_continue: Google refused this sign-in (variant 'google_rejected') at ${st.host}${st.pathname}; body="${st.bodyText}"; DOM snapshot: ${dump.written[0]?.path ?? dump.indexPath}`);
+        throw new Error(
+          `gis_continue: Google refused this sign-in (variant 'google_rejected') at ${st.host}${st.pathname}; body="${st.bodyText}"; DOM snapshot: ${dump.written[0]?.path ?? dump.indexPath}`,
+        );
       }
 
       if (variant === 'google_account_chooser') {
         claim();
         mark('gis_account_chooser');
         // Only the configured identity's exact data-identifier match is selected.
-        console.log(`[google_sso] selecting account row by ${st.accountRowMatchedBy} (${st.rowIdentifiers.join(', ')})`);
+        console.log(
+          `[google_sso] selecting account row by ${st.accountRowMatchedBy} (${st.rowIdentifiers.join(', ')})`,
+        );
         await clickOfferedControl(active, 'account_row');
         continue;
       }
@@ -280,7 +372,10 @@ export async function doGoogleSso({
         // handled below.
         if (!st.otherAccountRow) {
           await pageSettled(active);
-          if (!(await observeGisPage(active, login.email)).otherAccountRow) { stuck = view; break; }
+          if (!(await observeGisPage(active, login.email)).otherAccountRow) {
+            stuck = view;
+            break;
+          }
           continue;
         }
         claim();
@@ -290,10 +385,20 @@ export async function doGoogleSso({
       }
 
       if (variant === 'google_identifier') {
-        if (freshEntryTried) { stuck = view; break; }
+        if (freshEntryTried) {
+          stuck = view;
+          break;
+        }
         claim();
         freshEntryTried = true;
-        await enterGoogleCredentials({ page: active, login, mark, humanFill, humanClickLocator, humanType });
+        await enterGoogleCredentials({
+          page: active,
+          login,
+          mark,
+          humanFill,
+          humanClickLocator,
+          humanType,
+        });
         continue;
       }
 
@@ -321,8 +426,13 @@ export async function doGoogleSso({
         // screen, which the loop then handles as oauth_consent, and the callback
         // page the CLI expects arrives as code_page.
         if (authorizeRedriven) {
-          const dump = await dumpGisFailureDom(views, 'claude_authorize_consumed');
-          throw new Error(`gis_continue: claude_authorize_consumed — claude.ai answered the re-driven authorize URL with its app as well (now ${st.url} title="${st.title}"); the CLI's authorize request is spent, a new one is needed; DOM snapshot: ${dump.written[0]?.path ?? dump.indexPath}`);
+          const dump = await dumpGisFailureDom(
+            views,
+            'claude_authorize_consumed',
+          );
+          throw new Error(
+            `gis_continue: claude_authorize_consumed — claude.ai answered the re-driven authorize URL with its app as well (now ${st.url} title="${st.title}"); the CLI's authorize request is spent, a new one is needed; DOM snapshot: ${dump.written[0]?.path ?? dump.indexPath}`,
+          );
         }
         claim();
         authorizeRedriven = true;
@@ -335,10 +445,17 @@ export async function doGoogleSso({
 
     const variant = stuck?.variant ?? 'no_live_page';
     const dump = await dumpGisFailureDom(views, variant);
-    const where = stuck?.st ? `${stuck.st.host}${stuck.st.pathname} title="${stuck.st.title}"` : 'no live page';
-    const evidence = dump.written.map((w) => w.path).join(', ') || dump.indexPath;
-    const rows = stuck?.st?.rowIdentifiers?.length ? ` rows=[${stuck.st.rowIdentifiers.join(', ')}]` : '';
-    throw new Error(`gis_continue: unhandled variant '${variant}' at ${where}${rows} after its page settled; live pages=${views.map((v) => v.variant).join('+') || 'none'}; DOM snapshot: ${evidence}`);
+    const where = stuck?.st
+      ? `${stuck.st.host}${stuck.st.pathname} title="${stuck.st.title}"`
+      : 'no live page';
+    const evidence =
+      dump.written.map((w) => w.path).join(', ') || dump.indexPath;
+    const rows = stuck?.st?.rowIdentifiers?.length
+      ? ` rows=[${stuck.st.rowIdentifiers.join(', ')}]`
+      : '';
+    throw new Error(
+      `gis_continue: unhandled variant '${variant}' at ${where}${rows} after its page settled; live pages=${views.map((v) => v.variant).join('+') || 'none'}; DOM snapshot: ${evidence}`,
+    );
   } finally {
     page.context().off('page', onPopup);
   }

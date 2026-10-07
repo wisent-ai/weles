@@ -32,15 +32,23 @@ const REVISION_PATTERN = /^[0-9a-f]{40}$/;
 function git(args) {
   const result = spawnSync('git', ['-C', ROOT, ...args], { encoding: 'utf8' });
   if (result.error || result.status !== 0) {
-    throw new Error(`git ${args.join(' ')} failed: ${(result.stderr || result.error?.message || '').trim()}`);
+    throw new Error(
+      `git ${args.join(' ')} failed: ${(result.stderr || result.error?.message || '').trim()}`,
+    );
   }
   return result.stdout.trim();
 }
 
 function node(args) {
-  const result = spawnSync(process.execPath, args, { cwd: ROOT, encoding: 'utf8', stdio: 'inherit' });
+  const result = spawnSync(process.execPath, args, {
+    cwd: ROOT,
+    encoding: 'utf8',
+    stdio: 'inherit',
+  });
   if (result.error || result.status !== 0) {
-    throw new Error(`${args.join(' ')} failed (exit ${result.status ?? 'none'}): ${result.error?.message || 'see output above'}`);
+    throw new Error(
+      `${args.join(' ')} failed (exit ${result.status ?? 'none'}): ${result.error?.message || 'see output above'}`,
+    );
   }
 }
 
@@ -51,9 +59,13 @@ function prepare() {
   }
   const dirty = git(['status', '--porcelain', '--untracked-files=no']);
   if (dirty) {
-    throw new Error(`a managed runtime must serve an exact commit; this tree is modified:\n${dirty}`);
+    throw new Error(
+      `a managed runtime must serve an exact commit; this tree is modified:\n${dirty}`,
+    );
   }
-  const version = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version;
+  const version = JSON.parse(
+    readFileSync(join(ROOT, 'package.json'), 'utf8'),
+  ).version;
   const identity = {
     schema: IDENTITY_SCHEMA,
     product: PRODUCT,
@@ -63,7 +75,9 @@ function prepare() {
   };
   writeFileSync(IDENTITY_FILE, `${JSON.stringify(identity)}\n`);
   node([join(ROOT, 'release', 'native', 'runtime.mjs'), 'install', NATIVE_BIN]);
-  process.stdout.write(`${JSON.stringify({ prepared: { version, source_revision: revision, native_bin: NATIVE_BIN } })}\n`);
+  process.stdout.write(
+    `${JSON.stringify({ prepared: { version, source_revision: revision, native_bin: NATIVE_BIN } })}\n`,
+  );
 }
 
 try {

@@ -52,15 +52,25 @@ export const clientHintsRules: DetectionRule[] = [
       if (!uad) return null;
       const platform = String(uad.platform || '').toLowerCase();
       const arch = String(uad.architecture || '').toLowerCase();
-      const renderer = String(s?.js?.webgl1?.params?.UNMASKED_RENDERER || '').toLowerCase();
+      const renderer = String(
+        s?.js?.webgl1?.params?.UNMASKED_RENDERER || '',
+      ).toLowerCase();
       // Apple Silicon GPU must report arm arch on macOS.
-      if (platform === 'macos' && renderer.includes('apple') && arch !== 'arm') {
+      if (
+        platform === 'macos' &&
+        renderer.includes('apple') &&
+        arch !== 'arm'
+      ) {
         return {
           id: 'uad_platform_arch',
           category: 'inconsistency',
           severity: 'critical',
           message: `macOS + Apple GPU but client-hints architecture is '${arch}' (expected 'arm').`,
-          evidence: { platform, architecture: arch, renderer: s?.js?.webgl?.unmaskedRenderer },
+          evidence: {
+            platform,
+            architecture: arch,
+            renderer: s?.js?.webgl?.unmaskedRenderer,
+          },
         };
       }
       // Windows/Linux personas should be x86.

@@ -19,19 +19,40 @@ export async function dumpGisFailureDom(pages, variant) {
     try {
       html = await p.content();
     } catch (readError) {
-      missing.push({ url: st?.url ?? null, variant: v, reason: `DOM not read: ${readError.message}` });
+      missing.push({
+        url: st?.url ?? null,
+        variant: v,
+        reason: `DOM not read: ${readError.message}`,
+      });
       continue;
     }
     const path = join(dir, `gis_unhandled_${variant}_p${i}_${v}_${stamp}.html`);
     try {
       writeFileSync(path, html);
-      written.push({ path, url: st?.url ?? null, title: st?.title ?? null, variant: v });
+      written.push({
+        path,
+        url: st?.url ?? null,
+        title: st?.title ?? null,
+        variant: v,
+      });
     } catch (writeError) {
-      missing.push({ url: st?.url ?? null, variant: v, reason: `DOM not written to ${path}: ${writeError.message}` });
+      missing.push({
+        url: st?.url ?? null,
+        variant: v,
+        reason: `DOM not written to ${path}: ${writeError.message}`,
+      });
     }
   }
   const indexPath = join(dir, `gis_unhandled_${variant}_${stamp}.json`);
-  try { writeFileSync(indexPath, JSON.stringify({ variant, pages: written, missing }, null, 2)); }
-  catch (indexError) { console.log(`[google_sso] the DOM index ${indexPath} could not be written: ${indexError.message}`); }
+  try {
+    writeFileSync(
+      indexPath,
+      JSON.stringify({ variant, pages: written, missing }, null, 2),
+    );
+  } catch (indexError) {
+    console.log(
+      `[google_sso] the DOM index ${indexPath} could not be written: ${indexError.message}`,
+    );
+  }
   return { indexPath, written, missing };
 }

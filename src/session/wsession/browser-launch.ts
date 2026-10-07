@@ -19,7 +19,10 @@
 
 import { type BrowserContext, type Page, chromium } from 'playwright';
 import { join } from 'node:path';
-import { AsyncNewBrowser, type AsyncNewBrowserOptions } from '../../async_api.js';
+import {
+  AsyncNewBrowser,
+  type AsyncNewBrowserOptions,
+} from '../../async_api.js';
 import { type Persona, generatePersona } from '../../browser/persona.js';
 import { Capture } from '../../capture/capture.js';
 import { installBrowserEvidencePolicy } from '../../agent/browser-evidence-policy.js';
@@ -28,7 +31,10 @@ import { seedHumanTiming } from '../../utils/motion/timing.js';
 import type { WSession } from '../wsession.js';
 import { SessionStore } from '../store.js';
 import { findCustomBrowser } from '../find_browser.js';
-import { loadOperatorCdpConfig, type OperatorCdpConfig } from '../placement/operator-cdp.js';
+import {
+  loadOperatorCdpConfig,
+  type OperatorCdpConfig,
+} from '../placement/operator-cdp.js';
 import { enforceWelesServicePlacement } from '../placement/service-placement.js';
 import { runRecordingsDir, runRecordingsRoot } from '../run-recordings.js';
 import { isSkarbiecCredentialTask } from '../wsession-helpers/credential-store.js';
@@ -40,9 +46,15 @@ import {
   type SessionProxy,
   type WSessionOptions,
 } from './session-request.js';
-import { hashDiagnosticValue, writePrelaunchSessionMeta, writeRealizedSessionMeta } from './run-provenance.js';
+import {
+  hashDiagnosticValue,
+  writePrelaunchSessionMeta,
+  writeRealizedSessionMeta,
+} from './run-provenance.js';
 
-function recordingsDir(label?: string): string { return label ? runRecordingsDir(label) : runRecordingsRoot(); }
+function recordingsDir(label?: string): string {
+  return label ? runRecordingsDir(label) : runRecordingsRoot();
+}
 
 // async_api decorates the context it returns with the browser release it used
 // and the fingerprint the page actually presents.
@@ -83,7 +95,9 @@ export interface LaunchedSession {
 
 export type SessionLaunch = OperatorSession | LaunchedSession;
 
-export async function openSessionBrowser(opts: WSessionOptions): Promise<SessionLaunch> {
+export async function openSessionBrowser(
+  opts: WSessionOptions,
+): Promise<SessionLaunch> {
   enforceWelesServicePlacement('WSession.start');
   const label = opts.label ?? '';
   const secureCredentialTask = isSkarbiecCredentialTask();
@@ -93,36 +107,80 @@ export async function openSessionBrowser(opts: WSessionOptions): Promise<Session
   // seed keep drawing from Math.random, so this only makes behavior
   // reproducible — it does not change the statistical distribution. Recorded
   // into session_meta as a required non-null number (result.run.timing_seed).
-  const timingSeed = (Math.floor(Math.random() * 0xffffffff) >>> 0);
+  const timingSeed = Math.floor(Math.random() * 0xffffffff) >>> 0;
   seedHumanTiming(timingSeed);
   const operatorCdp = opts.operatorCdp ? loadOperatorCdpConfig() : null;
-  console.log(`[wsession] start() label=${label} operatorCdp=${Boolean(operatorCdp)} proxy=${redactProxyForLog(opts.proxy)}`);
+  console.log(
+    `[wsession] start() label=${label} operatorCdp=${Boolean(operatorCdp)} proxy=${redactProxyForLog(opts.proxy)}`,
+  );
   if (label && !secureCredentialTask) process.env.WELES_LABEL = label;
   if (operatorCdp) return await adoptOperatorBrowser(operatorCdp, label);
-  const proxyRequested = !!opts.proxy && !['none', 'direct'].includes(String(opts.proxy).toLowerCase());
+  const proxyRequested =
+    !!opts.proxy &&
+    !['none', 'direct'].includes(String(opts.proxy).toLowerCase());
   // WELES_FORCE_BROWSER pins the persona's browser engine globally (e.g. on a
   // host that only has the patched Chromium installed, not Firefox). Explicit
   // opts.browser still wins; unset rolls naturally (60/40 chromium/firefox).
-  const persona: Persona = opts.persona ?? generatePersona({ country: countryHintFromProxyRequest(opts.proxy), os: opts.os as Persona['os'] | undefined, browser: (opts.browser ?? process.env.WELES_FORCE_BROWSER) as Persona['browser'] | undefined });
-  const proxy = proxyRequested ? await resolveProxy(opts.proxy!, opts.targetHost, persona) : undefined;
+  const persona: Persona =
+    opts.persona ??
+    generatePersona({
+      country: countryHintFromProxyRequest(opts.proxy),
+      os: opts.os as Persona['os'] | undefined,
+      browser: (opts.browser ?? process.env.WELES_FORCE_BROWSER) as
+        | Persona['browser']
+        | undefined,
+    });
+  const proxy = proxyRequested
+    ? await resolveProxy(opts.proxy!, opts.targetHost, persona)
+    : undefined;
   // Pre-launch envelope; overwritten with the realized data after launch.
-  writePrelaunchSessionMeta({ label, persona, proxy, proxyRequested: opts.proxy ?? null, timingSeed });
+  writePrelaunchSessionMeta({
+    label,
+    persona,
+    proxy,
+    proxyRequested: opts.proxy ?? null,
+    timingSeed,
+  });
   if (proxyRequested && !proxy) {
-    throw new Error(`proxy_unavailable: requested ${opts.proxy} for ${opts.targetHost ?? 'unknown target'}`);
+    throw new Error(
+      `proxy_unavailable: requested ${opts.proxy} for ${opts.targetHost ?? 'unknown target'}`,
+    );
   }
   // WELES_PAGE_DIAGNOSTICS=0 force-disables in-page instrumentation (property-trap,
   // input-recorder) as a clean-room control for signup A/B tests. (Tested on
   // reddit: toggling it changed nothing — the verify-init gate is exit-IP
   // reputation, not in-page instrumentation. Kept as a knob regardless.)
-  const instrumentationDisabled = process.env.WELES_NO_INSTRUMENT === '1'
-    || process.env.WELES_BROWSER_EVIDENCE_POLICY === 'spis-browser-evidence.1';
-  const pageDiagnostics = secureCredentialTask || instrumentationDisabled || process.env.WELES_PAGE_DIAGNOSTICS === '0'
-    ? false
-    : (opts.pageDiagnostics ?? (label !== 'linkedin_register'));
-  const userDataDir = opts.userDataDir ?? process.env.WELES_USER_DATA_DIR ?? accountProfileDirectory(opts, persona.browser);
-  const bOpts: AsyncNewBrowserOptions = { os: persona.os, browser: persona.browser, headless: opts.headless ?? (process.env.WELES_HEADLESS === '1'), recordVideo: secureCredentialTask ? false : (opts.record ?? (process.env.WELES_DISABLE_RECORDING !== '1')), locale: opts.locale, persona, proxy, pageDiagnostics, userAgent: opts.userAgent, userDataDir };
+  const instrumentationDisabled =
+    process.env.WELES_NO_INSTRUMENT === '1' ||
+    process.env.WELES_BROWSER_EVIDENCE_POLICY === 'spis-browser-evidence.1';
+  const pageDiagnostics =
+    secureCredentialTask ||
+    instrumentationDisabled ||
+    process.env.WELES_PAGE_DIAGNOSTICS === '0'
+      ? false
+      : (opts.pageDiagnostics ?? label !== 'linkedin_register');
+  const userDataDir =
+    opts.userDataDir ??
+    process.env.WELES_USER_DATA_DIR ??
+    accountProfileDirectory(opts, persona.browser);
+  const bOpts: AsyncNewBrowserOptions = {
+    os: persona.os,
+    browser: persona.browser,
+    headless: opts.headless ?? process.env.WELES_HEADLESS === '1',
+    recordVideo: secureCredentialTask
+      ? false
+      : (opts.record ?? process.env.WELES_DISABLE_RECORDING !== '1'),
+    locale: opts.locale,
+    persona,
+    proxy,
+    pageDiagnostics,
+    userAgent: opts.userAgent,
+    userDataDir,
+  };
   if (process.env.CHROMIUM_PATH) {
-    throw new Error('Explicit browser path overrides are retired; configure the exact Stado browser release version and SHA-256');
+    throw new Error(
+      'Explicit browser path overrides are retired; configure the exact Stado browser release version and SHA-256',
+    );
   }
   const cp = findCustomBrowser(bOpts.browser);
   if (!cp) throw new Error(`Verified ${bOpts.browser} release not found`);
@@ -137,12 +195,19 @@ export async function openSessionBrowser(opts: WSessionOptions): Promise<Session
   }
   const ctx = await AsyncNewBrowser(bOpts);
   await installBrowserEvidencePolicy(ctx, label);
-  const page = ctx.pages()[0] || await ctx.newPage();
+  const page = ctx.pages()[0] || (await ctx.newPage());
   const capture = captureFor(page, label);
-  if (label && !instrumentationDisabled) { const s = new SessionStore(); await s.injectPlaywright(ctx, label); }
+  if (label && !instrumentationDisabled) {
+    const s = new SessionStore();
+    await s.injectPlaywright(ctx, label);
+  }
   return {
     kind: 'launched',
-    ctx, page, capture, label, persona,
+    ctx,
+    page,
+    capture,
+    label,
+    persona,
     proxy: bOpts.proxy,
     proxyRequest: opts.proxy ?? null,
     platform: opts.platform,
@@ -151,7 +216,10 @@ export async function openSessionBrowser(opts: WSessionOptions): Promise<Session
 }
 
 /** What the new session owns once its browser is up. */
-export async function adoptLaunchedBrowser(ws: WSession, launch: LaunchedSession): Promise<void> {
+export async function adoptLaunchedBrowser(
+  ws: WSession,
+  launch: LaunchedSession,
+): Promise<void> {
   const realized = launch.ctx as BrowserContext & RealizedContext;
   const session = ws as unknown as AdoptingSession;
   ws.proxyConfig = launch.proxy;
@@ -159,11 +227,25 @@ export async function adoptLaunchedBrowser(ws: WSession, launch: LaunchedSession
   session._browserProvenance = realized._welesBrowserProvenance ?? null;
   // G17g: on a worker SIGTERM (graceful timeout), close the context so
   // Playwright seals the HAR + video before the process is hard-killed.
-  process.once('SIGTERM', () => { try { void launch.ctx.close?.(); } catch { /* noop */ } });
-  if (launch.platform) { ws.identity = await ws.generateIdentity(launch.platform); console.log(`[wsession] identity generated platform=${launch.platform} username_hash=${hashDiagnosticValue(ws.identity.username)}`); }
+  process.once('SIGTERM', () => {
+    try {
+      void launch.ctx.close?.();
+    } catch {
+      /* noop */
+    }
+  });
+  if (launch.platform) {
+    ws.identity = await ws.generateIdentity(launch.platform);
+    console.log(
+      `[wsession] identity generated platform=${launch.platform} username_hash=${hashDiagnosticValue(ws.identity.username)}`,
+    );
+  }
   await probeExitIp(launch);
   // async_api always attaches the realized fingerprint to the context it built.
-  const realizedFingerprint = realized._welesFingerprintConfig as Record<string, unknown>;
+  const realizedFingerprint = realized._welesFingerprintConfig as Record<
+    string,
+    unknown
+  >;
   writeRealizedSessionMeta({
     label: launch.label,
     persona: launch.persona,
@@ -178,7 +260,8 @@ export async function adoptLaunchedBrowser(ws: WSession, launch: LaunchedSession
   // Captures every request/response (utf8 + base64), WebSocket frames in both
   // directions, TCP serverAddr, TLS securityDetails. Runs on every WSession —
   // keepers and trajectories — without exception. See net_record.ts.
-  if (!session._secureCredentialTask && process.env.WELES_NO_INSTRUMENT !== '1') startInstrumentation(ws, launch.ctx, launch.label);
+  if (!session._secureCredentialTask && process.env.WELES_NO_INSTRUMENT !== '1')
+    startInstrumentation(ws, launch.ctx, launch.label);
 }
 
 // Capture takes the devtools-shaped context it screenshots through; a session
@@ -186,26 +269,40 @@ export async function adoptLaunchedBrowser(ws: WSession, launch: LaunchedSession
 // structurally compatible with a Playwright page host, so the single-page
 // host is asserted into it here, once.
 function captureFor(page: Page, label: string): Capture {
-  const pageHost = { newPage: async () => page } as unknown as ConstructorParameters<typeof Capture>[0];
+  const pageHost = {
+    newPage: async () => page,
+  } as unknown as ConstructorParameters<typeof Capture>[0];
   return new Capture(pageHost, label ? recordingsDir(label) : undefined);
 }
 
 // The operator's browser is already running and already logged in: attach to
 // its devtools endpoint, take the context and page it offers, and put the
 // browser-evidence policy on before anything navigates.
-async function adoptOperatorBrowser(operatorCdp: OperatorCdpConfig, label: string): Promise<OperatorSession> {
+async function adoptOperatorBrowser(
+  operatorCdp: OperatorCdpConfig,
+  label: string,
+): Promise<OperatorSession> {
   const browser = await chromium.connectOverCDP(operatorCdp.endpoint, {
     headers: { Authorization: `Bearer ${operatorCdp.token}` },
   });
-  const ctx = browser.contexts().at(0) || await browser.newContext({
-    locale: 'en-US',
-    ...(process.env.WELES_BROWSER_EVIDENCE_POLICY === 'spis-browser-evidence.1'
-      ? { acceptDownloads: false, serviceWorkers: 'block' as const }
-      : {}),
-  });
+  const ctx =
+    browser.contexts().at(0) ||
+    (await browser.newContext({
+      locale: 'en-US',
+      ...(process.env.WELES_BROWSER_EVIDENCE_POLICY ===
+      'spis-browser-evidence.1'
+        ? { acceptDownloads: false, serviceWorkers: 'block' as const }
+        : {}),
+    }));
   await installBrowserEvidencePolicy(ctx, label);
-  const page = ctx.pages().at(0) || await ctx.newPage();
-  return { kind: 'operator-cdp', ctx, page, capture: captureFor(page, label), label };
+  const page = ctx.pages().at(0) || (await ctx.newPage());
+  return {
+    kind: 'operator-cdp',
+    ctx,
+    page,
+    capture: captureFor(page, label),
+    label,
+  };
 }
 
 // Which exit the proxy actually gave us. Recorded on the proxy object itself,
@@ -215,6 +312,9 @@ async function probeExitIp(launch: LaunchedSession): Promise<void> {
   if (!proxy?.server) return;
   try {
     const r = await launch.ctx.request.get('https://api.ipify.org');
-    if (r.ok()) { const t = (await r.text()).trim(); if (/^[0-9a-fA-F.:]+$/.test(t)) proxy.exit_ip = t; }
+    if (r.ok()) {
+      const t = (await r.text()).trim();
+      if (/^[0-9a-fA-F.:]+$/.test(t)) proxy.exit_ip = t;
+    }
   } catch {}
 }

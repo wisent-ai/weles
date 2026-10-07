@@ -2,17 +2,27 @@
 // section 2.2 features and factors parsed out of the application's markdown source.
 import { readFileSync } from 'node:fs';
 
-export const MD22 = (await import('#ncbr-settings')).applicationFile('wersja_B_2.2_innowacyjnosc_i_zaleznosci.md');
+export const MD22 = (await import('#ncbr-settings')).applicationFile(
+  'wersja_B_2.2_innowacyjnosc_i_zaleznosci.md',
+);
 const md = readFileSync(MD22, 'utf8');
 // People's names, phones and addresses live with the application text in the
 // private application folder, never in this repository.
-const CONTACTS_FILE = process.env.NCBR_CONTACTS_FILE
-  || (await import('#ncbr-settings')).applicationFile('contacts/applicant-contacts.json');
+const CONTACTS_FILE =
+  process.env.NCBR_CONTACTS_FILE ||
+  (await import('#ncbr-settings')).applicationFile(
+    'contacts/applicant-contacts.json',
+  );
 const APPLICANT = JSON.parse(readFileSync(CONTACTS_FILE, 'utf8'));
 export const EDORECZENIA = APPLICANT.applicant.e_doreczenie;
 export const CONTACT = APPLICANT.contacts[1];
 
-function clean(s) { return String(s || '').replace(/\s*<!--[\s\S]*?-->\s*/g, ' ').replace(/\s+/g, ' ').trim(); }
+function clean(s) {
+  return String(s || '')
+    .replace(/\s*<!--[\s\S]*?-->\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 function featureBlock(n) {
   const start = `### Cecha/funkcjonalność ${n}:`;
   const a = md.indexOf(start);
@@ -29,20 +39,27 @@ function tableVal(block, label) {
   }
   return '';
 }
-export const FEATURES = [1, 2, 3, 4, 5].map((n) => {
-  const block = featureBlock(n);
-  return {
-    cecha: tableVal(block, 'Cecha/funkcjonalność rezultatu projektu'),
-    bazowa: tableVal(block, 'Wartość bazowa'),
-    docelowa: tableVal(block, 'Wartość docelowa'),
-    referencyjny: tableVal(block, 'Produkt/proces referencyjny'),
-    korzysc: tableVal(block, 'Korzyść/przewaga'),
-    weryfikacja: tableVal(block, 'Sposób weryfikacji'),
-  };
-}).filter((row) => row.cecha && row.docelowa);
-const factorTable = md.slice(md.indexOf('## Podsumowanie wpływu prac B+R na ograniczanie'));
-export const FACTORS = factorTable.split(/\r?\n/)
-  .filter((line) => line.trim().startsWith('|') && !/---|Wybrany czynnik/.test(line))
+export const FEATURES = [1, 2, 3, 4, 5]
+  .map((n) => {
+    const block = featureBlock(n);
+    return {
+      cecha: tableVal(block, 'Cecha/funkcjonalność rezultatu projektu'),
+      bazowa: tableVal(block, 'Wartość bazowa'),
+      docelowa: tableVal(block, 'Wartość docelowa'),
+      referencyjny: tableVal(block, 'Produkt/proces referencyjny'),
+      korzysc: tableVal(block, 'Korzyść/przewaga'),
+      weryfikacja: tableVal(block, 'Sposób weryfikacji'),
+    };
+  })
+  .filter((row) => row.cecha && row.docelowa);
+const factorTable = md.slice(
+  md.indexOf('## Podsumowanie wpływu prac B+R na ograniczanie'),
+);
+export const FACTORS = factorTable
+  .split(/\r?\n/)
+  .filter(
+    (line) => line.trim().startsWith('|') && !/---|Wybrany czynnik/.test(line),
+  )
   .map((line) => {
     const cells = line.split('|').map((c) => clean(c));
     return {
@@ -55,4 +72,5 @@ export const FACTORS = factorTable.split(/\r?\n/)
       metoda: cells[7],
       weryfikacja: cells[8],
     };
-  }).filter((row) => row.czynnik && row.parametr);
+  })
+  .filter((row) => row.czynnik && row.parametr);

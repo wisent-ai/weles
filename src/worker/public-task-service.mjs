@@ -1,6 +1,10 @@
 import { join } from 'node:path';
 
-import { PublicTaskError, STATUS_SCHEMA, publicTaskErrorResponse } from './public-task-service/wire.mjs';
+import {
+  PublicTaskError,
+  STATUS_SCHEMA,
+  publicTaskErrorResponse,
+} from './public-task-service/wire.mjs';
 import {
   CANCELLATION_SCHEMA,
   PUBLIC_ACTION,
@@ -9,7 +13,10 @@ import {
   createDeployedIdentity,
   loadConfig,
 } from './public-task-service/admission.mjs';
-import { RECEIPT_SCHEMA, createEvidenceRetention } from './public-task-service/retention.mjs';
+import {
+  RECEIPT_SCHEMA,
+  createEvidenceRetention,
+} from './public-task-service/retention.mjs';
 import { createTaskOperations } from './public-task-service/task.mjs';
 import { createDispatcher } from './public-task-service/task/dispatch.mjs';
 import { createTaskStore } from './public-task-service/task/store.mjs';
@@ -71,12 +78,23 @@ export function createPublicTaskService(options) {
   const health = Object.freeze({
     get ready() {
       const state = dispatcher.dispatcherStatus();
-      return !state.draining && !state.recovering && state.healthy
-        && deployedIdentity.staticReady && deployedIdentity.identityReady();
+      return (
+        !state.draining &&
+        !state.recovering &&
+        state.healthy &&
+        deployedIdentity.staticReady &&
+        deployedIdentity.identityReady()
+      );
     },
-    get prerequisites() { return deployedIdentity.readinessStatus(); },
-    get serviceIdentity() { return deployedIdentity.lastServiceIdentity(); },
-    get dispatcher() { return dispatcher.dispatcherStatus(); },
+    get prerequisites() {
+      return deployedIdentity.readinessStatus();
+    },
+    get serviceIdentity() {
+      return deployedIdentity.lastServiceIdentity();
+    },
+    get dispatcher() {
+      return dispatcher.dispatcherStatus();
+    },
     basePath: '/api/v1',
     action: PUBLIC_ACTION,
     consumer: 'spis',
@@ -93,7 +111,9 @@ export function createPublicTaskService(options) {
   async function handle(request, url, readBody) {
     if (request.method === 'GET' && url.pathname === '/api/v1/version') {
       let serviceIdentity;
-      try { serviceIdentity = await deployedIdentity.currentServiceIdentity(); } catch {
+      try {
+        serviceIdentity = await deployedIdentity.currentServiceIdentity();
+      } catch {
         return {
           status: 503,
           payload: {
@@ -121,35 +141,65 @@ export function createPublicTaskService(options) {
           ready: admissionReady,
           prerequisites: deployedIdentity.readinessStatus(),
           dispatcher: dispatcher.dispatcherStatus(),
-          client: { currentVersion: '0.1.0', minimumVersion: '0.1.0', supportedGenerations: 2 },
-          apiSchemas: [TASK_SCHEMA, CANCELLATION_SCHEMA, STATUS_SCHEMA, RECEIPT_SCHEMA, VERSION_SCHEMA],
+          client: {
+            currentVersion: '0.1.0',
+            minimumVersion: '0.1.0',
+            supportedGenerations: 2,
+          },
+          apiSchemas: [
+            TASK_SCHEMA,
+            CANCELLATION_SCHEMA,
+            STATUS_SCHEMA,
+            RECEIPT_SCHEMA,
+            VERSION_SCHEMA,
+          ],
           publicTask: { ...health, serviceIdentity, ready: admissionReady },
         },
       };
     }
 
     const taskMatch = /^\/api\/v1\/tasks\/([0-9a-f-]+)$/.exec(url.pathname);
-    const cancelMatch = /^\/api\/v1\/tasks\/([0-9a-f-]+)\/cancel$/.exec(url.pathname);
-    const isSubmit = request.method === 'POST' && url.pathname === '/api/v1/tasks';
+    const cancelMatch = /^\/api\/v1\/tasks\/([0-9a-f-]+)\/cancel$/.exec(
+      url.pathname,
+    );
+    const isSubmit =
+      request.method === 'POST' && url.pathname === '/api/v1/tasks';
     const isGet = request.method === 'GET' && Boolean(taskMatch);
     const isCancel = request.method === 'POST' && Boolean(cancelMatch);
     if (!isSubmit && !isGet && !isCancel) return null;
-    if ((isSubmit || isCancel)
-        && String(request.headers['content-type'] ?? '').split(';', 1)[0].trim().toLowerCase() !== 'application/json') {
-      throw new PublicTaskError(415, 'unsupported-media-type', 'public task bodies require Content-Type: application/json');
+    if (
+      (isSubmit || isCancel) &&
+      String(request.headers['content-type'] ?? '')
+        .split(';', 1)[0]
+        .trim()
+        .toLowerCase() !== 'application/json'
+    ) {
+      throw new PublicTaskError(
+        415,
+        'unsupported-media-type',
+        'public task bodies require Content-Type: application/json',
+      );
     }
     if (!bearerAuthorized(request, config.bearer)) {
       throw new PublicTaskError(401, 'unauthorized', 'unauthorized');
     }
     if (isSubmit && dispatcher.dispatcherStatus().recovering) {
-      throw new PublicTaskError(503, 'worker-recovering', 'task admission is paused while the worker recovers its durable state');
+      throw new PublicTaskError(
+        503,
+        'worker-recovering',
+        'task admission is paused while the worker recovers its durable state',
+      );
     }
     if (isSubmit) return operations.submit(request, await readBody(request));
     if (isGet) {
       const wait = url.searchParams.get('wait');
       if (wait === null) return operations.getTask(taskMatch[1]);
       if (wait !== 'terminal') {
-        throw new PublicTaskError(400, 'invalid-wait', 'wait accepts only "terminal"');
+        throw new PublicTaskError(
+          400,
+          'invalid-wait',
+          'wait accepts only "terminal"',
+        );
       }
       return operations.awaitTask(taskMatch[1]);
     }
@@ -158,19 +208,29 @@ export function createPublicTaskService(options) {
 
   async function restartWorker() {
     if (!dispatcher.beginRecovery()) {
-      return { ok: false, error: 'worker_busy', dispatcher: dispatcher.dispatcherStatus() };
+      return {
+        ok: false,
+        error: 'worker_busy',
+        dispatcher: dispatcher.dispatcherStatus(),
+      };
     }
     try {
       await operations.recover();
     } catch (error) {
       await dispatcher.finishRecovery(error);
-      return { ok: false, error: 'worker_recovery_failed', dispatcher: dispatcher.dispatcherStatus() };
+      return {
+        ok: false,
+        error: 'worker_recovery_failed',
+        dispatcher: dispatcher.dispatcherStatus(),
+      };
     }
     await dispatcher.finishRecovery();
     const state = dispatcher.dispatcherStatus();
     return {
       ok: state.healthy && !state.draining,
-      ...(state.healthy && !state.draining ? {} : { error: 'worker_not_running_after_control_action' }),
+      ...(state.healthy && !state.draining
+        ? {}
+        : { error: 'worker_not_running_after_control_action' }),
       dispatcher: state,
     };
   }

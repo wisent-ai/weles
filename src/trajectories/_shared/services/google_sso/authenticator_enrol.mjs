@@ -12,7 +12,8 @@ import { humanClickLocator } from '../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../dist/human/keyboard.js';
 import { generateTotp } from './totp_secret.mjs';
 
-const CLICKABLE = 'button, [role="button"], a, [role="link"], li, div[role="option"]';
+const CLICKABLE =
+  'button, [role="button"], a, [role="link"], li, div[role="option"]';
 
 /** The authenticator settings page, by its direct address.
  *
@@ -21,7 +22,8 @@ const CLICKABLE = 'button, [role="button"], a, [role="link"], li, div[role="opti
  * own language: an account answering in Polish shows "Skonfiguruj aplikację"
  * where this module looks for "Set up authenticator", so a run that signed
  * in correctly still refuses with `setup_action_not_found`. */
-export const AUTHENTICATOR_SETUP_URL = 'https://myaccount.google.com/two-step-verification/authenticator?hl=en';
+export const AUTHENTICATOR_SETUP_URL =
+  'https://myaccount.google.com/two-step-verification/authenticator?hl=en';
 
 export async function bodyText(page) {
   return await page.evaluate(() => document.body?.innerText || '');
@@ -33,7 +35,8 @@ function preview(text) {
 }
 
 export async function clickByText(page, pattern, label) {
-  const role = page.getByRole('button', { name: pattern, exact: false })
+  const role = page
+    .getByRole('button', { name: pattern, exact: false })
     .or(page.getByRole('link', { name: pattern, exact: false }))
     .filter({ visible: true })
     .first();
@@ -42,7 +45,11 @@ export async function clickByText(page, pattern, label) {
     await humanClickLocator(page, role);
     return true;
   }
-  const textual = page.locator(CLICKABLE).filter({ hasText: pattern }).filter({ visible: true }).first();
+  const textual = page
+    .locator(CLICKABLE)
+    .filter({ hasText: pattern })
+    .filter({ visible: true })
+    .first();
   if (await textual.isVisible()) {
     console.log(`[google-authenticator-enrol] clicking ${label} via text`);
     await humanClickLocator(page, textual);
@@ -64,13 +71,28 @@ export async function openAuthenticatorSetup(page, wait) {
   await page.goto(AUTHENTICATOR_SETUP_URL, { waitUntil: 'domcontentloaded' });
   await wait();
   const url = page.url();
-  if (onSignIn(url)) return { ok: false, blocked: 'google_sign_in_required', url, textPreview: '' };
+  if (onSignIn(url))
+    return {
+      ok: false,
+      blocked: 'google_sign_in_required',
+      url,
+      textPreview: '',
+    };
   const text = await bodyText(page);
-  if (/two-step-verification\/authenticator/i.test(url)
-    || /Authenticator app|Set up authenticator|Change authenticator app|Your authenticator/i.test(text)) {
+  if (
+    /two-step-verification\/authenticator/i.test(url) ||
+    /Authenticator app|Set up authenticator|Change authenticator app|Your authenticator/i.test(
+      text,
+    )
+  ) {
     return { ok: true, url };
   }
-  return { ok: false, blocked: 'authenticator_setup_page_not_reached', url, textPreview: preview(text) };
+  return {
+    ok: false,
+    blocked: 'authenticator_setup_page_not_reached',
+    url,
+    textPreview: preview(text),
+  };
 }
 
 /**
@@ -82,39 +104,62 @@ export async function openAuthenticatorSetup(page, wait) {
 export async function revealSetupKey(page, wait) {
   const textBefore = await bodyText(page);
   if (/Remove anyway/i.test(textBefore)) {
-    return { ok: false, blocked: 'authenticator_replacement_requires_consent', textPreview: preview(textBefore) };
+    return {
+      ok: false,
+      blocked: 'authenticator_replacement_requires_consent',
+      textPreview: preview(textBefore),
+    };
   }
   // Enrolment may add a factor, but must not replace an existing authenticator
   // just because its seed is unavailable to Weles.
-  const started = await clickByText(page, /Set up authenticator|Add authenticator/i, 'set up authenticator');
+  const started = await clickByText(
+    page,
+    /Set up authenticator|Add authenticator/i,
+    'set up authenticator',
+  );
   if (!started) {
     return {
       ok: false,
       blocked: /Change authenticator app/i.test(textBefore)
-        ? 'authenticator_replacement_requires_consent' : 'setup_action_not_found',
+        ? 'authenticator_replacement_requires_consent'
+        : 'setup_action_not_found',
       textPreview: preview(textBefore),
     };
   }
   await wait();
-  if (!await clickByText(page, /Can.?t scan it/i, "Can't scan it?")) {
-    return { ok: false, blocked: 'setup_key_reveal_not_found', textPreview: preview(await bodyText(page)) };
+  if (!(await clickByText(page, /Can.?t scan it/i, "Can't scan it?"))) {
+    return {
+      ok: false,
+      blocked: 'setup_key_reveal_not_found',
+      textPreview: preview(await bodyText(page)),
+    };
   }
   await wait();
   const text = await bodyText(page);
   const secret = extractSetupKey(text);
-  if (!secret) return { ok: false, blocked: 'setup_key_not_shown', textPreview: preview(text) };
+  if (!secret)
+    return {
+      ok: false,
+      blocked: 'setup_key_not_shown',
+      textPreview: preview(text),
+    };
   return { ok: true, secret };
 }
 
 /** The base32 setup key in Google's grouped rendering, as one bare secret. */
 export function extractSetupKey(text) {
-  const match = String(text || '').match(/\b((?:[a-z2-7]{4}\s+){7}[a-z2-7]{4})\b/i);
+  const match = String(text || '').match(
+    /\b((?:[a-z2-7]{4}\s+){7}[a-z2-7]{4})\b/i,
+  );
   if (!match) return '';
   return match[1].replace(/\s+/g, '').toUpperCase();
 }
 
 export function redactKeys(text) {
-  return String(text || '').replace(/(?:[a-z2-7]{4}\s+){7}[a-z2-7]{4}/gi, '<redacted-setup-key>');
+  return String(text || '').replace(
+    /(?:[a-z2-7]{4}\s+){7}[a-z2-7]{4}/gi,
+    '<redacted-setup-key>',
+  );
 }
 
 /** The code for the current period. Google accepts the adjacent period as
@@ -129,7 +174,10 @@ function freshCode(secret) {
  * @returns {{ ok: true, url: string } | { ok: false, blocked: string, textPreview: string }}
  */
 export async function confirmSetupCode(page, wait, secret) {
-  const input = page.locator('input[type="tel"], input[type="text"], input[name="totpPin"], input[aria-label*="code" i]')
+  const input = page
+    .locator(
+      'input[type="tel"], input[type="text"], input[name="totpPin"], input[aria-label*="code" i]',
+    )
     .filter({ visible: true })
     .first();
   // Whether the code field is on screen is decided by the field, never by the
@@ -138,30 +186,61 @@ export async function confirmSetupCode(page, wait, secret) {
   // already shown, skipped the Next that reveals it, and refused with
   // `setup_code_input_not_found` while Google was still showing the setup key.
   if (!(await input.isVisible())) {
-    if (!await clickByText(page, /^Next$/i, 'next')) {
-      return { ok: false, blocked: 'setup_code_input_not_found', textPreview: preview(await bodyText(page)) };
+    if (!(await clickByText(page, /^Next$/i, 'next'))) {
+      return {
+        ok: false,
+        blocked: 'setup_code_input_not_found',
+        textPreview: preview(await bodyText(page)),
+      };
     }
     await wait();
   }
   await input.waitFor({ state: 'visible' });
   const code = freshCode(secret);
   await humanFill(page, input, code);
-  if (!await clickByText(page, /^(Next|Verify|Turn on|Done)$/i, 'submit setup code')) {
-    return { ok: false, blocked: 'setup_code_submit_not_found', textPreview: preview(await bodyText(page)) };
+  if (
+    !(await clickByText(
+      page,
+      /^(Next|Verify|Turn on|Done)$/i,
+      'submit setup code',
+    ))
+  ) {
+    return {
+      ok: false,
+      blocked: 'setup_code_submit_not_found',
+      textPreview: preview(await bodyText(page)),
+    };
   }
   await wait();
   const text = await bodyText(page);
-  if (/Wrong code|Try again|Invalid code|Couldn't verify|Enter the code/i.test(text)) {
-    return { ok: false, blocked: 'setup_code_rejected', textPreview: preview(text) };
+  if (
+    /Wrong code|Try again|Invalid code|Couldn't verify|Enter the code/i.test(
+      text,
+    )
+  ) {
+    return {
+      ok: false,
+      blocked: 'setup_code_rejected',
+      textPreview: preview(text),
+    };
   }
-  const completed = page.getByRole('button', { name: /Change authenticator app/i })
+  const completed = page
+    .getByRole('button', { name: /Change authenticator app/i })
     .or(page.getByRole('link', { name: /Change authenticator app/i }))
-    .filter({ visible: true }).first();
+    .filter({ visible: true })
+    .first();
   const url = new URL(page.url());
-  if (url.hostname !== 'myaccount.google.com'
-      || !/two-step-verification\/authenticator/.test(url.pathname)
-      || await input.isVisible() || !await completed.isVisible()) {
-    return { ok: false, blocked: 'setup_confirmation_unobserved', textPreview: preview(text) };
+  if (
+    url.hostname !== 'myaccount.google.com' ||
+    !/two-step-verification\/authenticator/.test(url.pathname) ||
+    (await input.isVisible()) ||
+    !(await completed.isVisible())
+  ) {
+    return {
+      ok: false,
+      blocked: 'setup_confirmation_unobserved',
+      textPreview: preview(text),
+    };
   }
   return { ok: true, url: page.url() };
 }

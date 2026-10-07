@@ -3,7 +3,9 @@ import { registrationPassword as generatedPassword } from '../../../../dist/util
 
 function pickEmailDomain() {
   const domains = (process.env.PANGRAM_EMAIL_DOMAINS || 'wisentmedia.com')
-    .split(',').map((s) => s.trim()).filter(Boolean);
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
   return domains[Math.floor(Math.random() * domains.length)];
 }
 
@@ -11,7 +13,8 @@ function pickEmailDomain() {
 export function generateEmail() {
   if (process.env.PANGRAM_EMAIL) return process.env.PANGRAM_EMAIL;
   const domain = pickEmailDomain();
-  const local = process.env.PANGRAM_EMAIL_LOCAL_PART || `svc.pangram.${randomUUID()}`;
+  const local =
+    process.env.PANGRAM_EMAIL_LOCAL_PART || `svc.pangram.${randomUUID()}`;
   return `${local}@${domain}`;
 }
 

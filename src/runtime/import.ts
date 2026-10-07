@@ -39,34 +39,47 @@ export type WelesImportClientOptions = {
   fetch?: typeof fetch;
 };
 
-
-function parseReport(value: unknown, organizationId: string, targetHost: string): WelesImportReport {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Weles returned an invalid import result');
+function parseReport(
+  value: unknown,
+  organizationId: string,
+  targetHost: string,
+): WelesImportReport {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error('Weles returned an invalid import result');
   const report = value as Record<string, unknown>;
-  if (report.schema !== 'weles.seed-import.v1'
-    || report.ok !== true
-    || report.organization_id !== organizationId
-    || report.execution_host !== targetHost
-    || !Number.isInteger(report.imported)
-    || !Number.isInteger(report.unchanged)
-    || !Number.isInteger(report.refused)
-    || Number(report.imported) < 0
-    || Number(report.unchanged) < 0
-    || Number(report.refused) < 0
-    || !Array.isArray(report.items)
-    || report.items.length !== Number(report.imported) + Number(report.unchanged) + Number(report.refused)
-    || !report.items.every((value) => {
-      if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  if (
+    report.schema !== 'weles.seed-import.v1' ||
+    report.ok !== true ||
+    report.organization_id !== organizationId ||
+    report.execution_host !== targetHost ||
+    !Number.isInteger(report.imported) ||
+    !Number.isInteger(report.unchanged) ||
+    !Number.isInteger(report.refused) ||
+    Number(report.imported) < 0 ||
+    Number(report.unchanged) < 0 ||
+    Number(report.refused) < 0 ||
+    !Array.isArray(report.items) ||
+    report.items.length !==
+      Number(report.imported) +
+        Number(report.unchanged) +
+        Number(report.refused) ||
+    !report.items.every((value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value))
+        return false;
       const item = value as Record<string, unknown>;
-      return typeof item.source_id === 'string'
-        && typeof item.name === 'string'
-        && typeof item.action === 'string'
-        && typeof item.state === 'string'
-        && IMPORT_STATES[item.state] === true
-        && (item.trajectory_id === null || typeof item.trajectory_id === 'string')
-        && (item.status === null || typeof item.status === 'string')
-        && (item.reason === null || typeof item.reason === 'string');
-    })) {
+      return (
+        typeof item.source_id === 'string' &&
+        typeof item.name === 'string' &&
+        typeof item.action === 'string' &&
+        typeof item.state === 'string' &&
+        IMPORT_STATES[item.state] === true &&
+        (item.trajectory_id === null ||
+          typeof item.trajectory_id === 'string') &&
+        (item.status === null || typeof item.status === 'string') &&
+        (item.reason === null || typeof item.reason === 'string')
+      );
+    })
+  ) {
     throw new Error('Weles returned an unsupported import result');
   }
   return report as WelesImportReport;
@@ -79,7 +92,8 @@ export async function importWelesTrajectoryDocument(
 ): Promise<WelesImportReport> {
   const connection = welesApiConnection('/api/v1/imports', options);
   const host = targetHost.trim().toLowerCase().replace(/\.+$/, '');
-  if (!HOST_RE.test(host)) throw new Error('--host must be the exact managed Weles worker hostname');
+  if (!HOST_RE.test(host))
+    throw new Error('--host must be the exact managed Weles worker hostname');
 
   let sourceJson: string | undefined;
   try {
@@ -87,10 +101,13 @@ export async function importWelesTrajectoryDocument(
   } catch {
     throw new Error('trajectory export must be JSON-serializable');
   }
-  if (!sourceJson || sourceJson[0] !== '{') throw new Error('trajectory export must be a JSON object');
-  if (Buffer.byteLength(sourceJson, 'utf8') > MAX_IMPORT_BYTES) throw new Error('trajectory export exceeds 2 MiB');
+  if (!sourceJson || sourceJson[0] !== '{')
+    throw new Error('trajectory export must be a JSON object');
+  if (Buffer.byteLength(sourceJson, 'utf8') > MAX_IMPORT_BYTES)
+    throw new Error('trajectory export exceeds 2 MiB');
   const requestBody = `{"source":${sourceJson},"target_host":${JSON.stringify(host)}}`;
-  if (Buffer.byteLength(requestBody, 'utf8') > MAX_IMPORT_REQUEST_BYTES) throw new Error('trajectory import request exceeds its 2 MiB source limit');
+  if (Buffer.byteLength(requestBody, 'utf8') > MAX_IMPORT_REQUEST_BYTES)
+    throw new Error('trajectory import request exceeds its 2 MiB source limit');
 
   const response = await connection.fetch(connection.endpoint, {
     method: 'POST',
@@ -98,20 +115,25 @@ export async function importWelesTrajectoryDocument(
     body: requestBody,
   });
   const text = await response.text();
-  if (Buffer.byteLength(text, 'utf8') > MAX_IMPORT_BYTES) throw new Error('Weles import response exceeds 2 MiB');
+  if (Buffer.byteLength(text, 'utf8') > MAX_IMPORT_BYTES)
+    throw new Error('Weles import response exceeds 2 MiB');
   let body: unknown;
   try {
     body = JSON.parse(text);
   } catch {
-    throw new Error(`Weles import endpoint returned non-JSON (HTTP ${response.status})`);
+    throw new Error(
+      `Weles import endpoint returned non-JSON (HTTP ${response.status})`,
+    );
   }
   if (!response.ok) {
-    const bodyRecord = body && typeof body === 'object' && !Array.isArray(body)
-      ? body as Record<string, unknown>
-      : null;
-    const error = typeof bodyRecord?.error === 'string'
-      ? bodyRecord.error
-      : `Weles import failed with HTTP ${response.status}`;
+    const bodyRecord =
+      body && typeof body === 'object' && !Array.isArray(body)
+        ? (body as Record<string, unknown>)
+        : null;
+    const error =
+      typeof bodyRecord?.error === 'string'
+        ? bodyRecord.error
+        : `Weles import failed with HTTP ${response.status}`;
     throw new Error(error);
   }
   return parseReport(body, connection.organizationId, host);
@@ -123,10 +145,13 @@ export async function importWelesTrajectoryFile(
   options: WelesImportClientOptions = {},
 ): Promise<WelesImportReport> {
   const metadata = await stat(path).catch(() => null);
-  if (!metadata?.isFile()) throw new Error(`trajectory export is not a readable file: ${path}`);
-  if (metadata.size > MAX_IMPORT_BYTES) throw new Error('trajectory export exceeds 2 MiB');
+  if (!metadata?.isFile())
+    throw new Error(`trajectory export is not a readable file: ${path}`);
+  if (metadata.size > MAX_IMPORT_BYTES)
+    throw new Error('trajectory export exceeds 2 MiB');
   const bytes = await readFile(path);
-  if (bytes.byteLength > MAX_IMPORT_BYTES) throw new Error('trajectory export exceeds 2 MiB');
+  if (bytes.byteLength > MAX_IMPORT_BYTES)
+    throw new Error('trajectory export exceeds 2 MiB');
   let source: unknown;
   try {
     source = JSON.parse(bytes.toString('utf8')) as unknown;

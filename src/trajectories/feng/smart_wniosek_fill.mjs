@@ -32,8 +32,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // dla MŚP używa się lsi-fn.parp.gov.pl. Generator jest aplikacją Vue/React,
 // więc DOM ujawnia się dopiero po hydration — selektory trzeba odzyskać
 // z otwartej przeglądarki, nie z raw HTML.
-const GENERATOR_URL = process.env.PARP_GENERATOR_URL || 'https://lsi.parp.gov.pl/';
-const FIELD_MAP_PATH = process.env.FENG_FIELD_MAP || resolve(__dirname, 'field_map.json');
+const GENERATOR_URL =
+  process.env.PARP_GENERATOR_URL || 'https://lsi.parp.gov.pl/';
+const FIELD_MAP_PATH =
+  process.env.FENG_FIELD_MAP || resolve(__dirname, 'field_map.json');
 const VALUES_PATH = process.env.FENG_VALUES || null;
 
 function loadValues() {
@@ -60,11 +62,14 @@ function isLoginUrl(url) {
   return /\/login|\/auth|\/signin/.test(new URL(url).pathname);
 }
 
-
 async function reviewPageClosed(page) {
-  if (page.isClosed()) throw new Error('FENG_REVIEW_PAGE_CLOSED: the page closed before review began');
+  if (page.isClosed())
+    throw new Error(
+      'FENG_REVIEW_PAGE_CLOSED: the page closed before review began',
+    );
   const { promise, resolve, reject } = Promise.withResolvers();
-  const onCrash = () => reject(new Error('FENG_REVIEW_PAGE_CRASHED: the review page crashed'));
+  const onCrash = () =>
+    reject(new Error('FENG_REVIEW_PAGE_CRASHED: the review page crashed'));
   page.on('close', resolve);
   page.on('crash', onCrash);
   try {
@@ -126,14 +131,16 @@ async function applyField(s, name, spec, payload, summary) {
     }
     summary.filled.push({ name, length: payload.length });
   } catch (e) {
-    summary.errors.push({ name, error: (e.message || '') });
+    summary.errors.push({ name, error: e.message || '' });
   }
 }
 
 async function main() {
   const values = loadValues();
   const fieldMap = loadFieldMap();
-  console.log(`[feng] ${Object.keys(values).length} wartości w drafcie, ${Object.keys(fieldMap).length} mapowań w field_map`);
+  console.log(
+    `[feng] ${Object.keys(values).length} wartości w drafcie, ${Object.keys(fieldMap).length} mapowań w field_map`,
+  );
 
   const operatorCdp = Boolean(process.env.WELES_OPERATOR_CDP_URL);
   const s = await WSession.start({
@@ -142,24 +149,38 @@ async function main() {
     operatorCdp,
   });
   try {
-    if (operatorCdp) console.log('[feng] podłączony przez uwierzytelnioną bramę operatora CDP');
+    if (operatorCdp)
+      console.log(
+        '[feng] podłączony przez uwierzytelnioną bramę operatora CDP',
+      );
     console.log(`[feng] otwieram generator: ${GENERATOR_URL}`);
     await s.goto(GENERATOR_URL);
 
     if (isLoginUrl(await currentUrl(s))) {
-      await operatorAction(s, 'feng-portal-login',
+      await operatorAction(
+        s,
+        'feng-portal-login',
         'Zaloguj się do generatora PARP i wykonaj wymagane 2FA w tej sesji Weles. Automat wznowi pracę, gdy strona opuści ścieżkę logowania.',
         () => urlMatching(s.page, (url) => !isLoginUrl(url)),
-        'The browser left its login route; this observation does not independently verify the signed-in account.');
+        'The browser left its login route; this observation does not independently verify the signed-in account.',
+      );
     }
-    console.log(`[feng] aktualna strona po etapie logowania: ${await currentUrl(s)}`);
+    console.log(
+      `[feng] aktualna strona po etapie logowania: ${await currentUrl(s)}`,
+    );
 
     if (process.env.FENG_WNIOSEK_URL) {
-      console.log(`[feng] nawiguję do wniosku: ${process.env.FENG_WNIOSEK_URL}`);
+      console.log(
+        `[feng] nawiguję do wniosku: ${process.env.FENG_WNIOSEK_URL}`,
+      );
       await s.goto(process.env.FENG_WNIOSEK_URL);
     } else {
-      console.log('[feng] FENG_WNIOSEK_URL nie ustawione — używam aktualnego URL.');
-      console.log('[feng] Otwórz w keeperze wniosek do edycji, dopisz URL do envu i uruchom ponownie jeśli trzeba.');
+      console.log(
+        '[feng] FENG_WNIOSEK_URL nie ustawione — używam aktualnego URL.',
+      );
+      console.log(
+        '[feng] Otwórz w keeperze wniosek do edycji, dopisz URL do envu i uruchom ponownie jeśli trzeba.',
+      );
     }
 
     const summary = { filled: [], skipped: [], errors: [], missing_map: [] };
@@ -177,7 +198,9 @@ async function main() {
     console.log(`  wypełnione:  ${summary.filled.length}`);
     console.log(`  pominięte:   ${summary.skipped.length}`);
     console.log(`  błędy:       ${summary.errors.length}`);
-    console.log(`  brak mapowania (do dopisania w field_map.json): ${summary.missing_map.length}`);
+    console.log(
+      `  brak mapowania (do dopisania w field_map.json): ${summary.missing_map.length}`,
+    );
     if (summary.missing_map.length > 0) {
       console.log('  pierwsze 20 nazw bez mapowania:');
       for (const n of summary.missing_map) console.log(`    ${n}`);
@@ -188,10 +211,13 @@ async function main() {
       for (const e of summary.errors) console.log(`    ${e.name}: ${e.error}`);
     }
 
-    await operatorAction(s, 'feng-form-review',
+    await operatorAction(
+      s,
+      'feng-form-review',
       'Przejrzyj pola wniosku PARP w tej sesji Weles. Gdy skończysz, zamknij stronę przeglądarki. Automat nie potwierdza zapisu na serwerze ani nie wysyła wniosku. Ctrl+C anuluje przebieg.',
       () => reviewPageClosed(s.page),
-      'The review page was closed; this does not prove that the form was saved or submitted.');
+      'The review page was closed; this does not prove that the form was saved or submitted.',
+    );
   } finally {
     await s.close();
   }

@@ -2,7 +2,10 @@
 // DIAG=1 opens one task row and dumps fields. Never closes page.
 
 import { chromium } from 'playwright';
-import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../../dist/human/mouse.js';
 import { tasks } from './fill_6_1_tasks_new/source.mjs';
 import { tasksForm } from './fill_6_1_tasks_new/form.mjs';
 import { milestoneSteps } from './fill_6_1_tasks_new/milestones.mjs';
@@ -17,28 +20,51 @@ if (!page) {
   process.exit(1);
 }
 
-
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
-await page.evaluate(() => { const b = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies')); if (b) b.style.pointerEvents = 'none'; }); // allow-raw-playwright: cookie banner
+await page.evaluate(() => {
+  const b = Array.from(document.querySelectorAll('div')).find((d) =>
+    (d.innerText || '').includes('pliki cookies'),
+  );
+  if (b) b.style.pointerEvents = 'none';
+}); // allow-raw-playwright: cookie banner
 
 const form = tasksForm({ page, SECTION_URL });
 const milestones = milestoneSteps({ page, form });
-const { clickDodaj, fillByName, fillSelector, radio, setApplicant, saveForm } = form;
+const { clickDodaj, fillByName, fillSelector, radio, setApplicant, saveForm } =
+  form;
 await runModes({ page, SECTION_URL, form, milestones });
 
-const wanted = process.env.TASKS ? new Set(process.env.TASKS.split(',').map((x) => x.trim()).filter(Boolean)) : null;
-const parsed = tasks().filter((t) => t.nr !== '0' && (!wanted || wanted.has(t.nr)));
+const wanted = process.env.TASKS
+  ? new Set(
+      process.env.TASKS.split(',')
+        .map((x) => x.trim())
+        .filter(Boolean),
+    )
+  : null;
+const parsed = tasks().filter(
+  (t) => t.nr !== '0' && (!wanted || wanted.has(t.nr)),
+);
 const currentRows = await page.evaluate(() => {
   const table = document.querySelector('table');
   return table ? table.querySelectorAll('tbody tr').length : 0;
 });
 if (!wanted && currentRows >= parsed.length && parsed.length > 0) {
-  console.log(JSON.stringify({ skipped: true, currentRows, parsed: parsed.length }, null, 2));
+  console.log(
+    JSON.stringify(
+      { skipped: true, currentRows, parsed: parsed.length },
+      null,
+      2,
+    ),
+  );
   process.exit(0);
 }
 
-const kind = { 'Badania przemysłowe': 'badania_przemyslowe', 'Prace rozwojowe': 'prace_rozwojowe', 'Koszty pośrednie': 'koszty_posrednie' };
+const kind = {
+  'Badania przemysłowe': 'badania_przemyslowe',
+  'Prace rozwojowe': 'prace_rozwojowe',
+  'Koszty pośrednie': 'koszty_posrednie',
+};
 const added = [];
 for (const t of parsed) {
   console.log(`START TASK ${t.nr}`);
@@ -50,17 +76,39 @@ for (const t of parsed) {
   await fillByName('startDate', t.start);
   await fillByName('endDate', t.end);
   await radio(kind[t.rodzaj] || t.rodzaj);
-  try { await setApplicant(); } catch (e) { /* single applicant may be auto-bound */ }
+  try {
+    await setApplicant();
+  } catch (e) {
+    /* single applicant may be auto-bound */
+  }
   await fillByName('zakres_planowanych_prac_br', t.zakres);
   await fillByName('szczegolowy_opis_prac', t.szczegolowy);
   for (let i = 0; i < t.milestones.length; i++) {
-    await humanClickLocator(page, page.locator('button:visible').filter({ hasText: /^Dodaj kolejny$/ }).first()); // allow-raw-playwright: add nested milestone row
+    await humanClickLocator(
+      page,
+      page
+        .locator('button:visible')
+        .filter({ hasText: /^Dodaj kolejny$/ })
+        .first(),
+    ); // allow-raw-playwright: add nested milestone row
     await humanIdlePause('long');
     const m = t.milestones[i];
-    await fillSelector(`[name="kamienie_milowe_kolekcja[${i}].kamienie_milowe_nazwa"]`, m.nazwa);
-    await fillSelector(`[name="kamienie_milowe_kolekcja[${i}].kamienie_milowe_parametry"]`, m.parametry);
-    await fillSelector(`[name="kamienie_milowe_kolekcja[${i}].kamienie_milowe_opis_weryfikacji"]`, m.weryfikacja);
-    await fillSelector(`[name="kamienie_milowe_kolekcja[${i}].kamienie_milowe_opis_wplywu"]`, m.wplyw);
+    await fillSelector(
+      `[name="kamienie_milowe_kolekcja[${i}].kamienie_milowe_nazwa"]`,
+      m.nazwa,
+    );
+    await fillSelector(
+      `[name="kamienie_milowe_kolekcja[${i}].kamienie_milowe_parametry"]`,
+      m.parametry,
+    );
+    await fillSelector(
+      `[name="kamienie_milowe_kolekcja[${i}].kamienie_milowe_opis_weryfikacji"]`,
+      m.weryfikacja,
+    );
+    await fillSelector(
+      `[name="kamienie_milowe_kolekcja[${i}].kamienie_milowe_opis_wplywu"]`,
+      m.wplyw,
+    );
   }
   try {
     await saveForm();

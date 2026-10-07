@@ -55,15 +55,29 @@ export async function run(
     // Relative or unavailable URLs are handled by the existing login flow.
   }
   if (hostname === 'apple.com' || hostname.endsWith('.apple.com')) {
-    throw new Error('Generic Apple password submission is disabled; use the owner-authorized canonical apple_login flow');
+    throw new Error(
+      'Generic Apple password submission is disabled; use the owner-authorized canonical apple_login flow',
+    );
   }
 
-  if (!await vision.fill(page, 'the username or email input field of the login form', username)) {
+  if (
+    !(await vision.fill(
+      page,
+      'the username or email input field of the login form',
+      username,
+    ))
+  ) {
     console.log('[login] could not find username field');
     return false;
   }
 
-  if (!await vision.fill(page, 'the password input field of the login form', password)) {
+  if (
+    !(await vision.fill(
+      page,
+      'the password input field of the login form',
+      password,
+    ))
+  ) {
     console.log('[login] could not find password field');
     return false;
   }
@@ -89,7 +103,9 @@ export async function run(
   await waitCloudflare(page);
 
   const newUrl = getUrl(page);
-  const success = !newUrl.toLowerCase().includes('login') && !newUrl.toLowerCase().includes('signin');
+  const success =
+    !newUrl.toLowerCase().includes('login') &&
+    !newUrl.toLowerCase().includes('signin');
   console.log(`[login] post-submit url=${newUrl} success=${success}`);
   return success;
 }

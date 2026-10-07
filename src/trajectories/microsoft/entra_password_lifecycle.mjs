@@ -51,8 +51,15 @@ import {
   proveStagedCandidate,
   verifyManagedPassword,
 } from './entra_password_lifecycle/operations/verification_and_adoption.mjs';
-import { clearBearerTokens, trackBearerTokens } from './entra_password_lifecycle/proven_identity.mjs';
-import { constraints, openSession, queuedAccount } from './entra_password_lifecycle/queued_job.mjs';
+import {
+  clearBearerTokens,
+  trackBearerTokens,
+} from './entra_password_lifecycle/proven_identity.mjs';
+import {
+  constraints,
+  openSession,
+  queuedAccount,
+} from './entra_password_lifecycle/queued_job.mjs';
 
 // Every operation runs its phases inside one browser session, and the answer
 // those phases produced is the run's product: it already names the provider
@@ -85,7 +92,9 @@ async function withEntraSession(account, label, run) {
   try {
     await session.close();
   } catch (closeError) {
-    console.error(`${label} answered ${answer.status} and its browser session stayed open: ${closeError.message}`);
+    console.error(
+      `${label} answered ${answer.status} and its browser session stayed open: ${closeError.message}`,
+    );
   }
   return answer;
 }
@@ -102,7 +111,8 @@ export async function resetEntraPassword() {
       retryable: false,
       providerEffect: 'none',
       rollbackStatus: 'none',
-      reason: 'the queued account row is not bound to the requested Entra identity and managed credential',
+      reason:
+        'the queued account row is not bound to the requested Entra identity and managed credential',
     });
   }
   evidence.push('admission:account_bound');
@@ -115,21 +125,29 @@ export async function resetEntraPassword() {
       retryable: false,
       providerEffect: 'none',
       rollbackStatus: 'none',
-      reason: 'rotation requires the known managed Entra password so a compensating rollback stays possible',
+      reason:
+        'rotation requires the known managed Entra password so a compensating rollback stays possible',
     });
   }
   const nextPassword = generatedPassword();
   return withEntraSession(
     account,
     'microsoft_entra_reset_password',
-    ({ session, proxyUrl, sink }) => (contract.operation === 'reset'
-      ? resetDirectoryPassword(session, account, contract, { nextPassword, sink, proxyUrl, evidence })
-      : rotateDirectoryPassword(
-        session,
-        account,
-        contract,
-        { currentPassword, nextPassword, sink, proxyUrl, evidence },
-      )),
+    ({ session, proxyUrl, sink }) =>
+      contract.operation === 'reset'
+        ? resetDirectoryPassword(session, account, contract, {
+            nextPassword,
+            sink,
+            proxyUrl,
+            evidence,
+          })
+        : rotateDirectoryPassword(session, account, contract, {
+            currentPassword,
+            nextPassword,
+            sink,
+            proxyUrl,
+            evidence,
+          }),
   );
 }
 
@@ -145,7 +163,8 @@ export async function verifyEntraPassword() {
       retryable: false,
       providerEffect: 'none',
       rollbackStatus: 'none',
-      reason: 'the queued account row is not bound to the requested Entra identity and managed credential',
+      reason:
+        'the queued account row is not bound to the requested Entra identity and managed credential',
     });
   }
   evidence.push('admission:account_bound');
@@ -165,12 +184,13 @@ export async function verifyEntraPassword() {
   return withEntraSession(
     account,
     'microsoft_entra_verify_password',
-    ({ session, proxyUrl, sink }) => verifyManagedPassword(
-      session,
-      account,
-      contract,
-      { password, sink, proxyUrl, evidence },
-    ),
+    ({ session, proxyUrl, sink }) =>
+      verifyManagedPassword(session, account, contract, {
+        password,
+        sink,
+        proxyUrl,
+        evidence,
+      }),
   );
 }
 
@@ -186,7 +206,8 @@ export async function adoptEntraPassword() {
       retryable: false,
       providerEffect: 'none',
       rollbackStatus: 'none',
-      reason: 'the queued account row is not bound to the requested Entra identity and managed credential',
+      reason:
+        'the queued account row is not bound to the requested Entra identity and managed credential',
     });
   }
   evidence.push('admission:account_bound');
@@ -199,18 +220,20 @@ export async function adoptEntraPassword() {
       retryable: true,
       providerEffect: 'none',
       rollbackStatus: 'none',
-      reason: 'the staged Entra password candidate for this request is unavailable from Skarbiec',
+      reason:
+        'the staged Entra password candidate for this request is unavailable from Skarbiec',
     });
   }
   evidence.push('credential_read:staged_candidate');
   return withEntraSession(
     account,
     'microsoft_entra_adopt_password',
-    ({ session, proxyUrl, sink }) => proveStagedCandidate(
-      session,
-      account,
-      contract,
-      { candidate, sink, proxyUrl, evidence },
-    ),
+    ({ session, proxyUrl, sink }) =>
+      proveStagedCandidate(session, account, contract, {
+        candidate,
+        sink,
+        proxyUrl,
+        evidence,
+      }),
   );
 }

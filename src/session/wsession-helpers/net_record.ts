@@ -9,8 +9,25 @@
 import type { BrowserContext } from 'playwright';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { platform as osPlatform, release as osRelease, arch as osArch, totalmem, cpus, hostname, version as osVersion } from 'node:os';
-import { attachServiceWorkers, attachCdpLifecycle, buildSiblingManifest, attachStdoutCapture, sliceStdout, captureHostSnapshots, captureFinalCdpSnapshots, attachPagePlaywrightEvents } from './capture_extras.js';
+import {
+  platform as osPlatform,
+  release as osRelease,
+  arch as osArch,
+  totalmem,
+  cpus,
+  hostname,
+  version as osVersion,
+} from 'node:os';
+import {
+  attachServiceWorkers,
+  attachCdpLifecycle,
+  buildSiblingManifest,
+  attachStdoutCapture,
+  sliceStdout,
+  captureHostSnapshots,
+  captureFinalCdpSnapshots,
+  attachPagePlaywrightEvents,
+} from './capture_extras.js';
 import { startPcap, attachWorkerInventory } from './pcap_sidecar.js';
 import { runRecordingsDir } from '../run-recordings.js';
 import { buildCaptureCoverage } from './capture/capture_coverage.js';
@@ -31,13 +48,22 @@ import { writeJsonFile } from './capture/artifact/json_file.js';
 // the visual companions to it. The capture surface deliberately has NO domain
 // filter, NO body truncation, and runs on every WSession (keepers and
 // trajectories).
-export function startInstrumentation(ws: any, ctx: BrowserContext, label: string | undefined): any[] {
+export function startInstrumentation(
+  ws: any,
+  ctx: BrowserContext,
+  label: string | undefined,
+): any[] {
   const fullDiagnostics = process.env.WELES_FULL_DIAGNOSTICS === '1';
-  const cdpDiagnostics = fullDiagnostics || process.env.WELES_CDP_DIAGNOSTICS === '1';
-  const storageDiagnostics = fullDiagnostics || process.env.WELES_STORAGE_DIAGNOSTICS === '1';
-  const pcapDiagnostics = fullDiagnostics || process.env.WELES_PCAP_DIAGNOSTICS === '1';
-  const workerDiagnostics = fullDiagnostics || process.env.WELES_WORKER_DIAGNOSTICS === '1';
-  const hostDiagnostics = fullDiagnostics || process.env.WELES_HOST_DIAGNOSTICS === '1';
+  const cdpDiagnostics =
+    fullDiagnostics || process.env.WELES_CDP_DIAGNOSTICS === '1';
+  const storageDiagnostics =
+    fullDiagnostics || process.env.WELES_STORAGE_DIAGNOSTICS === '1';
+  const pcapDiagnostics =
+    fullDiagnostics || process.env.WELES_PCAP_DIAGNOSTICS === '1';
+  const workerDiagnostics =
+    fullDiagnostics || process.env.WELES_WORKER_DIAGNOSTICS === '1';
+  const hostDiagnostics =
+    fullDiagnostics || process.env.WELES_HOST_DIAGNOSTICS === '1';
   const dir = runRecordingsDir(label || 'session'); // G17: recordings/<run_uuid>/<label>/
   mkdirSync(dir, { recursive: true });
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
@@ -66,9 +92,16 @@ export function startInstrumentation(ws: any, ctx: BrowserContext, label: string
   ws._instDir = dir;
   ws._instStartedAt = startedAt;
   ws._instHost = {
-    platform: osPlatform(), release: osRelease(), arch: osArch(), version: osVersion?.() ?? null,
-    hostname: hostname(), totalmem: totalmem(), cpu_count: cpus().length, cpu_model: cpus()[0]?.model ?? null,
-    node_version: process.version, pid: process.pid,
+    platform: osPlatform(),
+    release: osRelease(),
+    arch: osArch(),
+    version: osVersion?.() ?? null,
+    hostname: hostname(),
+    totalmem: totalmem(),
+    cpu_count: cpus().length,
+    cpu_model: cpus()[0]?.model ?? null,
+    node_version: process.version,
+    pid: process.pid,
   };
   ws._instStdout = [];
   ws._instDomTimeline = [];
@@ -77,7 +110,12 @@ export function startInstrumentation(ws: any, ctx: BrowserContext, label: string
   attachPageDiagnostics(ws, consoleMsgs, pageErrors);
   attachServiceWorkers(ctx, swEvents);
   if (cdpDiagnostics) {
-    ws._cdpDiagnosticsReady = attachCdpLifecycle(ws, ctx, targetEvents, frameEvents);
+    ws._cdpDiagnosticsReady = attachCdpLifecycle(
+      ws,
+      ctx,
+      targetEvents,
+      frameEvents,
+    );
   }
   if (pcapDiagnostics) {
     startPcap(ws, label);
@@ -90,7 +128,9 @@ export function startInstrumentation(ws: any, ctx: BrowserContext, label: string
   }
   attachPagePlaywrightEvents(ws);
   ws._instCheckpoints = attachInstrumentationCheckpoints(
-    ws, ctx, { cdpDiagnostics, storageDiagnostics },
+    ws,
+    ctx,
+    { cdpDiagnostics, storageDiagnostics },
     () => writeJsonFile(fn, buildDumpPayload(ws)),
   );
   return reqs;
@@ -104,46 +144,98 @@ export async function finalDump(ws: any): Promise<void> {
   // End CDP Tracing + coverage tracking first so per-domain takeXxx results
   // are populated before serialization. Failures noted, not silenced.
   if (ws._cdp) {
-    try { await ws._cdp.send('Tracing.end'); } catch (e: any) { ws._instTracingEndError = String(e?.message ?? e); }
-    try { ws._instJsCoverageData = await ws._cdp.send('Profiler.takePreciseCoverage'); await ws._cdp.send('Profiler.stopPreciseCoverage'); } catch (e: any) { ws._instJsCoverageEndError = String(e?.message ?? e); }
-    try { ws._instCssCoverageData = await ws._cdp.send('CSS.takeCoverageDelta'); await ws._cdp.send('CSS.stopRuleUsageTracking'); } catch (e: any) { ws._instCssCoverageEndError = String(e?.message ?? e); }
+    try {
+      await ws._cdp.send('Tracing.end');
+    } catch (e: any) {
+      ws._instTracingEndError = String(e?.message ?? e);
+    }
+    try {
+      ws._instJsCoverageData = await ws._cdp.send(
+        'Profiler.takePreciseCoverage',
+      );
+      await ws._cdp.send('Profiler.stopPreciseCoverage');
+    } catch (e: any) {
+      ws._instJsCoverageEndError = String(e?.message ?? e);
+    }
+    try {
+      ws._instCssCoverageData = await ws._cdp.send('CSS.takeCoverageDelta');
+      await ws._cdp.send('CSS.stopRuleUsageTracking');
+    } catch (e: any) {
+      ws._instCssCoverageEndError = String(e?.message ?? e);
+    }
   }
   // One-shot DOMSnapshot + HeapProfiler at close — captured before pcap/page
   // teardown so the snapshots reflect the actual final state of the session.
-  try { await captureFinalCdpSnapshots(ws); } catch {}
-  try { const { stopPcap } = await import('./pcap_sidecar.js'); await stopPcap(ws); } catch {}
+  try {
+    await captureFinalCdpSnapshots(ws);
+  } catch {}
+  try {
+    const { stopPcap } = await import('./pcap_sidecar.js');
+    await stopPcap(ws);
+  } catch {}
   try {
     await ws._instCheckpoints?.captureFinal();
     writeJsonFile(ws._instFile, buildDumpPayload(ws, { closing: true }));
     console.log(`[wsession] final inst dump -> ${ws._instFile}`);
-  } catch (e: any) { console.error(`[wsession] final instrumentation dump ${ws._instFile} failed: ${e?.message ?? e}`); }
+  } catch (e: any) {
+    console.error(
+      `[wsession] final instrumentation dump ${ws._instFile} failed: ${e?.message ?? e}`,
+    );
+  }
 }
 
 // Subscribe to console + pageerror so they ride in the same merged inst dump
 // instead of being lost. Each console event gets type, text, location, and
 // per-arg .jsonValue() resolution where possible. pageerror captures uncaught
 // runtime errors from the page itself.
-function attachPageDiagnostics(ws: any, consoleMsgs: any[], pageErrors: any[]): void {
+function attachPageDiagnostics(
+  ws: any,
+  consoleMsgs: any[],
+  pageErrors: any[],
+): void {
   try {
     ws.page.on?.('console', async (msg: any) => {
       try {
         const args: any[] = [];
-        for (const a of (msg.args?.() ?? [])) {
-          try { args.push(await a.jsonValue?.()); } catch { args.push(String(a)); }
+        for (const a of msg.args?.() ?? []) {
+          try {
+            args.push(await a.jsonValue?.());
+          } catch {
+            args.push(String(a));
+          }
         }
-        consoleMsgs.push({ t: Date.now(), type: msg.type?.(), text: msg.text?.(), location: msg.location?.(), args });
+        consoleMsgs.push({
+          t: Date.now(),
+          type: msg.type?.(),
+          text: msg.text?.(),
+          location: msg.location?.(),
+          args,
+        });
         void ws._instCheckpoints?.checkpoint('console');
       } catch {}
     });
     ws.page.on?.('pageerror', (err: any) => {
-      try { pageErrors.push({ t: Date.now(), name: err?.name, message: err?.message, stack: err?.stack }); } catch {}
+      try {
+        pageErrors.push({
+          t: Date.now(),
+          name: err?.name,
+          message: err?.message,
+          stack: err?.stack,
+        });
+      } catch {}
     });
     ws.page.on?.('crash', () => {
-      try { pageErrors.push({ t: Date.now(), name: 'crash', message: 'page crashed', stack: null }); } catch {}
+      try {
+        pageErrors.push({
+          t: Date.now(),
+          name: 'crash',
+          message: 'page crashed',
+          stack: null,
+        });
+      } catch {}
     });
   } catch {}
 }
-
 
 // Single source of truth for the dump shape. Called from activity checkpoints
 // and from finalDump at close. Sources every channel that's been wired into
@@ -238,6 +330,9 @@ function buildDumpPayload(ws: any, opts: { closing?: boolean } = {}): any {
     pcap: ws._instPcap ?? null,
     capture_coverage: buildCaptureCoverage(ws),
     stdout: sliceStdout(ws),
-    sibling_files: ws._instDir && ws._instFile ? buildSiblingManifest(ws._instDir, ws._instFile) : [],
+    sibling_files:
+      ws._instDir && ws._instFile
+        ? buildSiblingManifest(ws._instDir, ws._instFile)
+        : [],
   };
 }

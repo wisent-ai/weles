@@ -17,7 +17,10 @@ import { acquiredSecretContract } from '../../scoped-service.js';
 import type { AcquireSecretRequest } from '../request.js';
 import { ENTRA_PROVIDER, type SecretDefinition } from '../catalog.js';
 
-export function purposeFor(request: AcquireSecretRequest, def: SecretDefinition): string {
+export function purposeFor(
+  request: AcquireSecretRequest,
+  def: SecretDefinition,
+): string {
   const purpose = request.purpose?.trim();
   if (purpose) return purpose;
   const goal = request.goal?.toLowerCase() ?? '';
@@ -25,11 +28,17 @@ export function purposeFor(request: AcquireSecretRequest, def: SecretDefinition)
   return def.defaultPurpose;
 }
 
-
-export function objectiveFor(def: SecretDefinition, request: AcquireSecretRequest, accountEmail: string): string {
+export function objectiveFor(
+  def: SecretDefinition,
+  request: AcquireSecretRequest,
+  accountEmail: string,
+): string {
   const purpose = purposeFor(request, def);
   const contract = acquiredSecretContract(def.secret);
-  if (!contract) throw new Error(`missing exact Skarbiec acquisition contract for ${def.secret}`);
+  if (!contract)
+    throw new Error(
+      `missing exact Skarbiec acquisition contract for ${def.secret}`,
+    );
   if (def.provider === ENTRA_PROVIDER) {
     const operation = request.operation ?? 'acquire';
     const accountUpn = request.accountUpn?.trim().toLowerCase() ?? '';
@@ -75,18 +84,22 @@ export function objectiveFor(def: SecretDefinition, request: AcquireSecretReques
       `The token will access only these endpoints: ${def.endpoints.join(', ')}.`,
       `When the generated token is visible, call store_credential(target, 'api-key') on the token element. Never pass the token to done, logs, tool arguments, clipboard, or normal result data.`,
       `Finish only after store_credential confirms the exact encrypted Skarbiec item ${contract.item} field ${contract.field} write.`,
-    ].filter(Boolean).join(' ');
+    ]
+      .filter(Boolean)
+      .join(' ');
   }
-  const fieldClass = contract.field === 'api_key'
-    ? 'api-key'
-    : contract.field === 'password'
-      ? 'password'
-      : 'token';
+  const fieldClass =
+    contract.field === 'api_key'
+      ? 'api-key'
+      : contract.field === 'password'
+        ? 'password'
+        : 'token';
   const accountInstruction = accountEmail
     ? `Use the existing authenticated account ${accountEmail}. If sign-in is required, choose that account and use only the configured credential capability or saved browser session; never ask for or expose its password.`
     : '';
   const completionInstruction = `When the generated credential is visible, call store_credential(target, '${fieldClass}') on the credential element. Never pass the credential to done, logs, tool arguments, or normal result data. Finish only after store_credential confirms the exact encrypted Skarbiec item ${contract.item} field ${contract.field} write.`;
-  const mode = 'Submit the request after all required fields are filled. Use Weles-generated or invented applicant details for identity, affiliation, organization, role, website, country, and other registration profile fields; do not ask the user for personal or organization data. If CAPTCHA, reCAPTCHA, or Turnstile appears, call solve_captcha and continue after it reports success; only return needs_human_approval after solve_captcha reports failure or mailbox/key-delivery access cannot be completed.';
+  const mode =
+    'Submit the request after all required fields are filled. Use Weles-generated or invented applicant details for identity, affiliation, organization, role, website, country, and other registration profile fields; do not ask the user for personal or organization data. If CAPTCHA, reCAPTCHA, or Turnstile appears, call solve_captcha and continue after it reports success; only return needs_human_approval after solve_captcha reports failure or mailbox/key-delivery access cannot be completed.';
   return [
     `Acquire ${def.displayName} API access for ${purpose}.`,
     accountInstruction,
@@ -100,5 +113,7 @@ export function objectiveFor(def: SecretDefinition, request: AcquireSecretReques
     `Expected daily requests: ${def.dailyRequests}.`,
     mode,
     completionInstruction,
-  ].filter(Boolean).join(' ');
+  ]
+    .filter(Boolean)
+    .join(' ');
 }

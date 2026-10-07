@@ -35,22 +35,31 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const REQUIREMENTS_FILE = process.env.WELES_TRAJECTORY_REQUIREMENTS_FILE
-  ?? path.join(HERE, 'requirements.json');
-const OBJECT_URI = process.env.WELES_TRAJECTORY_REQUIREMENTS_URI
-  ?? 'stado://probierz/job_requirements/weles-trajectories.json';
+const REQUIREMENTS_FILE =
+  process.env.WELES_TRAJECTORY_REQUIREMENTS_FILE ??
+  path.join(HERE, 'requirements.json');
+const OBJECT_URI =
+  process.env.WELES_TRAJECTORY_REQUIREMENTS_URI ??
+  'stado://probierz/job_requirements/weles-trajectories.json';
 const REQUIREMENTS_SCHEMA = 'wisent.trajectory-requirements.v1';
 // The capability ids this first pass defines. A declaration naming anything else
 // has no reader anywhere on the fleet, and publishing it would put a promise in
 // front of every consumer that nothing can keep.
 const KNOWN_CAPABILITIES = ['display', 'browser-render', 'os'];
-const STADO_CONFIG = process.env.STADO_CONFIG
-  ?? path.join(os.homedir(), '.config', 'stado', 'config.json');
+const STADO_CONFIG =
+  process.env.STADO_CONFIG ??
+  path.join(os.homedir(), '.config', 'stado', 'config.json');
 
-const digest = (bytes) => createHash('sha256').update(bytes).digest('hex').slice(0, 'a'.repeat(16).length);
+const digest = (bytes) =>
+  createHash('sha256')
+    .update(bytes)
+    .digest('hex')
+    .slice(0, 'a'.repeat(16).length);
 
 function expandHome(value) {
-  return value.startsWith('~/') ? path.join(os.homedir(), value.slice('~/'.length)) : value;
+  return value.startsWith('~/')
+    ? path.join(os.homedir(), value.slice('~/'.length))
+    : value;
 }
 
 // Where the object API is and what authorises this write. Both come from the
@@ -63,11 +72,16 @@ function objectApi() {
   let resolved = { url, tokenFile, caFile, source: 'environment' };
   if (!url || !tokenFile) {
     if (!existsSync(STADO_CONFIG)) {
-      throw new Error(`no object API configuration: ${STADO_CONFIG} is absent and WELES_OBJECT_API_URL / WELES_OBJECT_API_TOKEN_FILE are unset`);
+      throw new Error(
+        `no object API configuration: ${STADO_CONFIG} is absent and WELES_OBJECT_API_URL / WELES_OBJECT_API_TOKEN_FILE are unset`,
+      );
     }
-    const stado = JSON.parse(readFileSync(STADO_CONFIG, 'utf8'))?.storage?.stado;
+    const stado = JSON.parse(readFileSync(STADO_CONFIG, 'utf8'))?.storage
+      ?.stado;
     if (!stado?.url || !stado?.token_file) {
-      throw new Error(`${STADO_CONFIG} has no storage.stado.url and storage.stado.token_file to publish through`);
+      throw new Error(
+        `${STADO_CONFIG} has no storage.stado.url and storage.stado.token_file to publish through`,
+      );
     }
     resolved = {
       url: url || stado.url,
@@ -78,7 +92,8 @@ function objectApi() {
   }
   const endpoint = new URL(resolved.url);
   const tokenPath = expandHome(resolved.tokenFile);
-  if (!existsSync(tokenPath)) throw new Error(`object API bearer file is absent: ${tokenPath}`);
+  if (!existsSync(tokenPath))
+    throw new Error(`object API bearer file is absent: ${tokenPath}`);
   const token = readFileSync(tokenPath, 'utf8').trim();
   if (!token) throw new Error(`object API bearer file is empty: ${tokenPath}`);
   caFile = resolved.caFile ? expandHome(resolved.caFile) : '';
@@ -110,7 +125,9 @@ function request(method, api, body) {
     const req = transport.request(target, options, (res) => {
       const chunks = [];
       res.on('data', (chunk) => chunks.push(chunk));
-      res.on('end', () => resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks) }));
+      res.on('end', () =>
+        resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks) }),
+      );
     });
     req.on('error', reject);
     if (body) req.write(body);
@@ -121,30 +138,46 @@ function request(method, api, body) {
 const bytes = readFileSync(REQUIREMENTS_FILE);
 const document = JSON.parse(bytes.toString('utf8'));
 if (document?.schema !== REQUIREMENTS_SCHEMA) {
-  throw new Error(`${REQUIREMENTS_FILE} declares schema '${document?.schema}', expected '${REQUIREMENTS_SCHEMA}'`);
+  throw new Error(
+    `${REQUIREMENTS_FILE} declares schema '${document?.schema}', expected '${REQUIREMENTS_SCHEMA}'`,
+  );
 }
 const trajectories = Object.entries(document?.trajectories ?? {});
-if (!trajectories.length) throw new Error(`${REQUIREMENTS_FILE} declares no trajectories`);
+if (!trajectories.length)
+  throw new Error(`${REQUIREMENTS_FILE} declares no trajectories`);
 for (const [trajectory, required] of trajectories) {
-  if (!Array.isArray(required)) throw new Error(`${trajectory} does not declare a list of capabilities`);
+  if (!Array.isArray(required))
+    throw new Error(`${trajectory} does not declare a list of capabilities`);
   for (const capability of required) {
     if (!KNOWN_CAPABILITIES.includes(capability)) {
-      throw new Error(`${trajectory} declares capability '${capability}', which is not one of ${KNOWN_CAPABILITIES.join(', ')}`);
+      throw new Error(
+        `${trajectory} declares capability '${capability}', which is not one of ${KNOWN_CAPABILITIES.join(', ')}`,
+      );
     }
   }
 }
 
 const api = objectApi();
-process.stdout.write(`file      ${REQUIREMENTS_FILE} (${bytes.byteLength} bytes, sha256 ${digest(bytes)})\n`);
-process.stdout.write(`declares  ${trajectories.map(([name, required]) => `${name}=[${required.join(',')}]`).join(' ')}\n`);
+process.stdout.write(
+  `file      ${REQUIREMENTS_FILE} (${bytes.byteLength} bytes, sha256 ${digest(bytes)})\n`,
+);
+process.stdout.write(
+  `declares  ${trajectories.map(([name, required]) => `${name}=[${required.join(',')}]`).join(' ')}\n`,
+);
 process.stdout.write(`endpoint  ${api.endpoint.origin} (from ${api.source})\n`);
-process.stdout.write(`bearer    ${api.tokenPath} (${api.token.length} chars, sha256 ${digest(api.token)})\n`);
+process.stdout.write(
+  `bearer    ${api.tokenPath} (${api.token.length} chars, sha256 ${digest(api.token)})\n`,
+);
 process.stdout.write(`uri       ${OBJECT_URI}\n`);
 
 const put = await request('PUT', api, bytes);
-process.stdout.write(`PUT       HTTP ${put.status} ${put.body.toString('utf8').trim()}\n`);
+process.stdout.write(
+  `PUT       HTTP ${put.status} ${put.body.toString('utf8').trim()}\n`,
+);
 if (put.status < 200 || put.status >= 300) {
-  process.stderr.write(`FAIL: the object API refused the write with HTTP ${put.status}. A 401 here means the '${new URL(OBJECT_URI).host}' namespace policy has no prefix rule covering '${OBJECT_URI.split('/').slice(3, -1).join('/')}/'.\n`);
+  process.stderr.write(
+    `FAIL: the object API refused the write with HTTP ${put.status}. A 401 here means the '${new URL(OBJECT_URI).host}' namespace policy has no prefix rule covering '${OBJECT_URI.split('/').slice(3, -1).join('/')}/'.\n`,
+  );
   process.exit(1);
 }
 
@@ -152,9 +185,13 @@ if (put.status < 200 || put.status >= 300) {
 // that returns different bytes is the shape of failure worth catching, and the
 // consumers all arrive through this door.
 const got = await request('GET', api);
-process.stdout.write(`GET       HTTP ${got.status} (${got.body.byteLength} bytes, sha256 ${digest(got.body)})\n`);
+process.stdout.write(
+  `GET       HTTP ${got.status} (${got.body.byteLength} bytes, sha256 ${digest(got.body)})\n`,
+);
 if (got.status !== 200 || !got.body.equals(bytes)) {
-  process.stderr.write(`FAIL: published object does not read back byte-identical (local ${bytes.byteLength} bytes ${digest(bytes)}, remote ${got.body.byteLength} bytes ${digest(got.body)}).\n`);
+  process.stderr.write(
+    `FAIL: published object does not read back byte-identical (local ${bytes.byteLength} bytes ${digest(bytes)}, remote ${got.body.byteLength} bytes ${digest(got.body)}).\n`,
+  );
   process.exit(1);
 }
 process.stdout.write(`published ${OBJECT_URI} reads back byte-identical\n`);

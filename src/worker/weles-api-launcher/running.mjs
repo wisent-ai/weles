@@ -21,10 +21,16 @@ function loadEnvFile(path) {
     if (!trimmed || trimmed.startsWith('#')) continue;
     const separator = trimmed.indexOf('=');
     if (separator <= 0) continue;
-    const key = trimmed.slice(0, separator).replace(/^export\s+/, '').trim();
+    const key = trimmed
+      .slice(0, separator)
+      .replace(/^export\s+/, '')
+      .trim();
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
     let value = trimmed.slice(separator + 1).trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
       value = value.slice(1, -1);
     }
     process.env[key] = value;
@@ -32,10 +38,15 @@ function loadEnvFile(path) {
 }
 
 export function run(command, args, label) {
-  const result = spawnSync(command, args, { encoding: 'utf8', env: process.env });
+  const result = spawnSync(command, args, {
+    encoding: 'utf8',
+    env: process.env,
+  });
   if (result.error) refuse(`${label} could not run: ${result.error.message}`);
   if (result.status !== 0) {
-    refuse(`${label} refused (exit ${result.status ?? 'none'}, signal ${result.signal ?? 'none'}): ${(result.stderr || result.stdout || 'no diagnostic output').trim()}`);
+    refuse(
+      `${label} refused (exit ${result.status ?? 'none'}, signal ${result.signal ?? 'none'}): ${(result.stderr || result.stdout || 'no diagnostic output').trim()}`,
+    );
   }
   return result.stdout.trim();
 }

@@ -1,9 +1,17 @@
 import type { Page } from 'playwright';
-import { detectFromConfig, type BanSignal } from '../_shared/ban_signals_base.js';
+import {
+  detectFromConfig,
+  type BanSignal,
+} from '../_shared/ban_signals_base.js';
 
 export async function detectLinkedInBanSignals(
   page: Page,
-  responses: Array<{ url: string; status: number; headers?: Record<string, string>; body?: string }> = [],
+  responses: Array<{
+    url: string;
+    status: number;
+    headers?: Record<string, string>;
+    body?: string;
+  }> = [],
 ): Promise<BanSignal> {
   return detectFromConfig(page, responses, {
     url: {
@@ -15,19 +23,40 @@ export async function detectLinkedInBanSignals(
       suspended: [/\/help\/linkedin\/answer.*restrict/, /\/restrict/],
     },
     text: {
-      suspended: [/your account has been restricted/i, /account.{0,10}restricted/i],
-      rate_limited: [/temporarily restricted/i, /you'?ve reached the weekly invitation limit/i, /commercial use limit/i],
-      checkpoint: [/let'?s do a quick security check/i, /verify your identity/i, /enter the (code|verification)/i],
+      suspended: [
+        /your account has been restricted/i,
+        /account.{0,10}restricted/i,
+      ],
+      rate_limited: [
+        /temporarily restricted/i,
+        /you'?ve reached the weekly invitation limit/i,
+        /commercial use limit/i,
+      ],
+      checkpoint: [
+        /let'?s do a quick security check/i,
+        /verify your identity/i,
+        /enter the (code|verification)/i,
+      ],
     },
     responseBody: [
-      { signal: 'checkpoint', urlMatch: /\/voyager\/api\//, bodyMatch: /CHALLENGE|SECURITY_CHECKPOINT/ },
-      { signal: 'rate_limited', urlMatch: /\/voyager\/api\//, bodyMatch: /TOO_MANY_REQUESTS|throttled/i },
+      {
+        signal: 'checkpoint',
+        urlMatch: /\/voyager\/api\//,
+        bodyMatch: /CHALLENGE|SECURITY_CHECKPOINT/,
+      },
+      {
+        signal: 'rate_limited',
+        urlMatch: /\/voyager\/api\//,
+        bodyMatch: /TOO_MANY_REQUESTS|throttled/i,
+      },
     ],
     // LinkedIn loads invisible reCAPTCHA Enterprise scoring on normal,
     // authenticated feed pages. Treat only visible/challenge captcha frames
     // as a challenge; the enterprise "anchor?size=invisible" frame alone is
     // not a ban signal.
-    captchaFrameMatch: /hcaptcha|arkoselabs|funcaptcha|geetest|recaptcha\/(?:api2|enterprise)\/bframe/i,
-    suspiciousApiEndpoints: /\/voyager\/api\/(invitation|messaging|growth|relationships)/,
+    captchaFrameMatch:
+      /hcaptcha|arkoselabs|funcaptcha|geetest|recaptcha\/(?:api2|enterprise)\/bframe/i,
+    suspiciousApiEndpoints:
+      /\/voyager\/api\/(invitation|messaging|growth|relationships)/,
   });
 }

@@ -6,7 +6,10 @@
 // (phone verification or captcha), navigates to the challenge iframe when
 // needed, solves it, and returns control to the normal post-createAccount flow.
 
-import { isChallengeCleared, waitForChallenge } from './create_account_challenge/detect.mjs';
+import {
+  isChallengeCleared,
+  waitForChallenge,
+} from './create_account_challenge/detect.mjs';
 import { solveLinkedinCaptchaChallenge } from './create_account_challenge/captcha_solve.mjs';
 import { pageSettled } from '../../page/settled.mjs';
 import { solveLinkedinPhoneChallenge } from './phone_verify.mjs';
@@ -15,9 +18,14 @@ const DEFAULT_COUNTRY = 'US';
 
 async function solveChallengeInPage(page, session, country) {
   const challenge = await waitForChallenge(page);
-  if (!challenge) throw new Error('create_account_challenge: no recognizable challenge UI appeared in challenge page');
+  if (!challenge)
+    throw new Error(
+      'create_account_challenge: no recognizable challenge UI appeared in challenge page',
+    );
 
-  console.log(`[create_account_challenge] detected ${challenge.kind} in challenge page`);
+  console.log(
+    `[create_account_challenge] detected ${challenge.kind} in challenge page`,
+  );
 
   if (challenge.kind === 'phone_verification') {
     await solveLinkedinPhoneChallenge(session, country);
@@ -26,18 +34,25 @@ async function solveChallengeInPage(page, session, country) {
 
   if (challenge.kind === 'captcha') {
     await solveLinkedinCaptchaChallenge(page, session?.proxyConfig);
-    console.log('[create_account_challenge] captcha solved, reading the settled page...');
+    console.log(
+      '[create_account_challenge] captcha solved, reading the settled page...',
+    );
     await pageSettled(page);
-    if (await isChallengeCleared(page)) return { kind: 'captcha', solved: true };
+    if (await isChallengeCleared(page))
+      return { kind: 'captcha', solved: true };
     const phoneFrame = page.locator('input[name="phoneNumber"]').first();
-    if (await phoneFrame.count() && await phoneFrame.isVisible()) {
+    if ((await phoneFrame.count()) && (await phoneFrame.isVisible())) {
       await solveLinkedinPhoneChallenge(session, country);
       return { kind: 'captcha_then_phone', solved: true };
     }
-    throw new Error(`create_account_challenge: challenge still shown after the captcha was solved, at ${page.url()}`);
+    throw new Error(
+      `create_account_challenge: challenge still shown after the captcha was solved, at ${page.url()}`,
+    );
   }
 
-  throw new Error(`create_account_challenge: unsupported challenge kind ${challenge.kind}`);
+  throw new Error(
+    `create_account_challenge: unsupported challenge kind ${challenge.kind}`,
+  );
 }
 
 /**
@@ -60,15 +75,23 @@ export async function handleCreateAccountChallenge(session, opts = {}) {
   // LinkedIn sometimes renders the challenge inside /checkpoint/challengeIframe/...
   // rather than inline on /signup. Navigate there and solve it.
   if (!challenge && challengeUrl && challengeUrl.startsWith('/checkpoint/')) {
-    const absoluteUrl = new URL(challengeUrl, 'https://www.linkedin.com/').toString();
-    console.log(`[create_account_challenge] navigating to challenge iframe ${absoluteUrl}`);
+    const absoluteUrl = new URL(
+      challengeUrl,
+      'https://www.linkedin.com/',
+    ).toString();
+    console.log(
+      `[create_account_challenge] navigating to challenge iframe ${absoluteUrl}`,
+    );
     await page.goto(absoluteUrl, { waitUntil: 'domcontentloaded' });
     await pageSettled(page);
     console.log(`[create_account_challenge] challenge page url=${page.url()}`);
     return solveChallengeInPage(page, session, country);
   }
 
-  if (!challenge) throw new Error('create_account_challenge: no recognizable challenge UI appeared');
+  if (!challenge)
+    throw new Error(
+      'create_account_challenge: no recognizable challenge UI appeared',
+    );
 
   return solveChallengeInPage(page, session, country);
 }

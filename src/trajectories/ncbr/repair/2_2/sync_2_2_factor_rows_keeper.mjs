@@ -2,19 +2,34 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 const SESSION = process.env.SESSION || 'ncbr-step-b';
-const WELES = new URL('../../../../..', import.meta.url).pathname.replace(/\/$/, '');
-const SRC = (await import('#ncbr-settings')).applicationFile('wersja_B_2.2_innowacyjnosc_i_zaleznosci.md');
-const OUT = (await import('#ncbr-settings')).applicationFile('sync_2_2_factor_rows_evidence_20260625.json');
+const WELES = new URL('../../../../..', import.meta.url).pathname.replace(
+  /\/$/,
+  '',
+);
+const SRC = (await import('#ncbr-settings')).applicationFile(
+  'wersja_B_2.2_innowacyjnosc_i_zaleznosci.md',
+);
+const OUT = (await import('#ncbr-settings')).applicationFile(
+  'sync_2_2_factor_rows_evidence_20260625.json',
+);
 const URL = (await import('#ncbr-settings')).sectionUrl('2_2');
 
-const clean = (s) => String(s || '').replace(/\s*<!--[\s\S]*?-->\s*/g, ' ').replace(/\s+/g, ' ').trim();
+const clean = (s) =>
+  String(s || '')
+    .replace(/\s*<!--[\s\S]*?-->\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 const md = readFileSync(SRC, 'utf8');
 
 function parseRows() {
-  const start = md.indexOf('## Podsumowanie wpływu prac B+R na ograniczanie lub zwalczanie zależności Unii');
+  const start = md.indexOf(
+    '## Podsumowanie wpływu prac B+R na ograniczanie lub zwalczanie zależności Unii',
+  );
   const end = md.indexOf('## Powiązanie rezultatu prac B+R', start);
-  if (start < 0 || end < 0) throw new Error('2.2 factor table markers not found');
-  return md.slice(start, end)
+  if (start < 0 || end < 0)
+    throw new Error('2.2 factor table markers not found');
+  return md
+    .slice(start, end)
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line.startsWith('|') && !/^\|\s*-/.test(line))
@@ -29,18 +44,34 @@ function parseRows() {
 }
 
 let rows = parseRows();
-if (rows.length !== 5) throw new Error(`expected 5 factor rows, got ${rows.length}`);
+if (rows.length !== 5)
+  throw new Error(`expected 5 factor rows, got ${rows.length}`);
 if (process.env.ONLY) {
   const needle = process.env.ONLY.toLowerCase();
-  rows = rows.filter((row) => `${row.factor} ${row.param}`.toLowerCase().includes(needle));
-  if (rows.length === 0) throw new Error(`ONLY did not match any factor row: ${process.env.ONLY}`);
+  rows = rows.filter((row) =>
+    `${row.factor} ${row.param}`.toLowerCase().includes(needle),
+  );
+  if (rows.length === 0)
+    throw new Error(`ONLY did not match any factor row: ${process.env.ONLY}`);
 }
 
 function action(args, optional = false) {
-  const result = spawnSync(process.execPath, ['src/_shared/keeper/action.mjs', ...args], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' });
+  const result = spawnSync(
+    process.execPath,
+    ['src/_shared/keeper/action.mjs', ...args],
+    { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' },
+  );
   if (result.status !== 0) {
-    if (optional) return { ok: false, stdout: result.stdout, stderr: result.stderr, status: result.status };
-    throw new Error(`${args.join(' ')}\nstdout=${result.stdout}\nstderr=${result.stderr}`);
+    if (optional)
+      return {
+        ok: false,
+        stdout: result.stdout,
+        stderr: result.stderr,
+        status: result.status,
+      };
+    throw new Error(
+      `${args.join(' ')}\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+    );
   }
   const out = String(result.stdout || '').trim();
   if (!out) throw new Error(`empty keeper output for ${args.join(' ')}`);
@@ -61,7 +92,8 @@ function loginIfNeeded() {
   if (!/login|logowanie|auth/i.test(current)) return false;
   const email = process.env.NCBR_EMAIL;
   const password = process.env.NCBR_PASSWORD;
-  if (!email || !password) throw new Error('login required but NCBR_EMAIL/NCBR_PASSWORD not set');
+  if (!email || !password)
+    throw new Error('login required but NCBR_EMAIL/NCBR_PASSWORD not set');
   action(['fill_fast', 'input#mail, input[name="mail"]', email]);
   action(['fill_fast', 'input#password, input[name="password"]', password]);
   action(['click_fast', 'input[name="isStatuteAccepted"]'], true);
@@ -80,8 +112,13 @@ function fill(name, value) {
     const max = Number(el.getAttribute('maxlength')) || value.length;
     return { ok: value.length <= max, name, len: value.length, max, currentLen: (el.value || '').length };
   })()`);
-  if (!check?.ok) throw new Error(`fill precheck failed ${name}: ${JSON.stringify(check)}`);
-  action(['fill_fast', `textarea[name="${name}"]:visible, input[name="${name}"]:visible`, value]);
+  if (!check?.ok)
+    throw new Error(`fill precheck failed ${name}: ${JSON.stringify(check)}`);
+  action([
+    'fill_fast',
+    `textarea[name="${name}"]:visible, input[name="${name}"]:visible`,
+    value,
+  ]);
   idle('short');
   return read(`(() => {
     const name = ${JSON.stringify(name)};
@@ -118,7 +155,10 @@ function saveSubform() {
       return b ? { disabled: b.disabled, text: b.innerText } : null;
     })()`);
     if (!status) return { ok: true, clicks };
-    if (!status.disabled) { action(['dispatch_click', '#collection-obj-form-save-btn'], true); clicks += 1; }
+    if (!status.disabled) {
+      action(['dispatch_click', '#collection-obj-form-save-btn'], true);
+      clicks += 1;
+    }
   }
 }
 
@@ -142,14 +182,45 @@ const before = allRowsText();
 const synced = [];
 
 for (const row of rows) {
-  console.log(JSON.stringify({ stage: 'open', param: row.param, methodLen: row.method.length, verifyLen: row.verify.length }));
+  console.log(
+    JSON.stringify({
+      stage: 'open',
+      param: row.param,
+      methodLen: row.method.length,
+      verifyLen: row.verify.length,
+    }),
+  );
   const opened = openByParam(row.param);
   const paramName = fill('nazwa_parametru', row.param);
-  console.log(JSON.stringify({ stage: 'filled-param', param: row.param, len: paramName.len, max: paramName.max }));
+  console.log(
+    JSON.stringify({
+      stage: 'filled-param',
+      param: row.param,
+      len: paramName.len,
+      max: paramName.max,
+    }),
+  );
   const method = fill('metoda_szacowania_wartosci_docelowej', row.method);
-  console.log(JSON.stringify({ stage: 'filled-method', param: row.param, len: method.len, max: method.max }));
-  const verify = fill('sposob_monitorowania_weryfikacji_osiagniecia_zaplanowanych_wartosci_docelowych', row.verify);
-  console.log(JSON.stringify({ stage: 'filled-verify', param: row.param, len: verify.len, max: verify.max }));
+  console.log(
+    JSON.stringify({
+      stage: 'filled-method',
+      param: row.param,
+      len: method.len,
+      max: method.max,
+    }),
+  );
+  const verify = fill(
+    'sposob_monitorowania_weryfikacji_osiagniecia_zaplanowanych_wartosci_docelowych',
+    row.verify,
+  );
+  console.log(
+    JSON.stringify({
+      stage: 'filled-verify',
+      param: row.param,
+      len: verify.len,
+      max: verify.max,
+    }),
+  );
   action(['press', 'Tab'], true);
   idle('long');
   saveSubform();
@@ -160,12 +231,31 @@ for (const row of rows) {
 }
 
 const after = allRowsText();
-const evidence = { ok: true, url: URL, rows: rows.length, before, synced, after, finishedAt: new Date().toISOString() };
+const evidence = {
+  ok: true,
+  url: URL,
+  rows: rows.length,
+  before,
+  synced,
+  after,
+  finishedAt: new Date().toISOString(),
+};
 writeFileSync(OUT, JSON.stringify(evidence, null, 2));
 
-console.log(JSON.stringify({
-  ok: true,
-  out: OUT,
-  rows: rows.length,
-  lengths: synced.map((r) => ({ param: r.param, paramName: `${r.paramName.len}/${r.paramName.max}`, method: `${r.method.len}/${r.method.max}`, verify: `${r.verify.len}/${r.verify.max}` })),
-}, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      ok: true,
+      out: OUT,
+      rows: rows.length,
+      lengths: synced.map((r) => ({
+        param: r.param,
+        paramName: `${r.paramName.len}/${r.paramName.max}`,
+        method: `${r.method.len}/${r.method.max}`,
+        verify: `${r.verify.len}/${r.verify.max}`,
+      })),
+    },
+    null,
+    2,
+  ),
+);

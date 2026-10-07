@@ -21,4 +21,9 @@ export const password = process.env.NCBR_PASSWORD;
 if (!password) throw new Error('NCBR_PASSWORD missing');
 delete process.env.NCBR_PASSWORD;
 
-export const evidence = { startedAt: new Date().toISOString(), session: SESSION, project: PROJECT_ID, steps: [] };
+export const evidence = {
+  startedAt: new Date().toISOString(),
+  session: SESSION,
+  project: PROJECT_ID,
+  steps: [],
+};

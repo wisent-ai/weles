@@ -18,7 +18,9 @@ await runHealthProbe({
   beforeGoto: async (s, acct) => {
     const token = acct.metadata?.discord_token;
     if (typeof token !== 'string' || !token) return;
-    await s.ctx.addInitScript(`(() => { try { localStorage.setItem("token", ${JSON.stringify(JSON.stringify(token))}); } catch {} })()`);
+    await s.ctx.addInitScript(
+      `(() => { try { localStorage.setItem("token", ${JSON.stringify(JSON.stringify(token))}); } catch {} })()`,
+    );
   },
   extractLoggedIn: (body, resp) => {
     // Discord serves channels/@me as 200 HTML to unauthed users too, then JS
@@ -26,12 +28,15 @@ await runHealthProbe({
     // while the browser's final URL moves to /login. Use final_url from the
     // ban detector (it comes from page.url() post-navigation).
     const finalUrl = resp?.signal?.details?.final_url ?? resp?.url ?? '';
-    const authed = /\/channels\/@me/.test(finalUrl) && !/\/login/.test(finalUrl);
+    const authed =
+      /\/channels\/@me/.test(finalUrl) && !/\/login/.test(finalUrl);
     const html = typeof body === 'string' ? body : '';
     return {
       ok: authed && resp?.status === 200,
       karma: null,
-      is_suspended: /account disabled|your account has been terminated/i.test(html),
+      is_suspended: /account disabled|your account has been terminated/i.test(
+        html,
+      ),
     };
   },
 });

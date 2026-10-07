@@ -8,11 +8,16 @@ import { WSession } from '../../../../../dist/session/wsession.js';
 import { pageSettled } from '../../../_shared/page/settled.mjs';
 import { statedText } from '../../../_shared/inputs/stated.mjs';
 
-const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
-const BUSINESS_ID = statedText(['META_BUSINESS_ID', 'BUSINESS_ID'], 'the Meta Business Manager id this run acts in');
+const USER_DATA_DIR =
+  process.env.WELES_USER_DATA_DIR ||
+  process.env.ADS_PROFILE_DIR ||
+  join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
+const BUSINESS_ID = statedText(
+  ['META_BUSINESS_ID', 'BUSINESS_ID'],
+  'the Meta Business Manager id this run acts in',
+);
 const ASSET_KIND = process.env.META_ASSET_KIND || 'apps';
 mkdirSync(USER_DATA_DIR, { recursive: true });
-
 
 const pagePaths = {
   apps: 'apps',
@@ -33,7 +38,8 @@ function sanitizedUrl(rawUrl) {
     const parsed = new URL(rawUrl);
     parsed.hash = parsed.hash ? '#<redacted>' : '';
     for (const key of [...parsed.searchParams.keys()]) {
-      if (/token|code|secret|state|session|auth/i.test(key)) parsed.searchParams.set(key, '<redacted>');
+      if (/token|code|secret|state|session|auth/i.test(key))
+        parsed.searchParams.set(key, '<redacted>');
     }
     return parsed.toString();
   } catch {
@@ -44,13 +50,25 @@ function sanitizedUrl(rawUrl) {
 async function snapshot(page, label) {
   await pageSettled(page);
   const data = await page.evaluate(() => {
-    const textOf = (el) => (el.innerText || el.textContent || el.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
+    const textOf = (el) =>
+      (el.innerText || el.textContent || el.getAttribute('aria-label') || '')
+        .replace(/\s+/g, ' ')
+        .trim();
     const visible = (el) => {
       const style = window.getComputedStyle(el);
       const rect = el.getBoundingClientRect();
-      return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+      return (
+        style.visibility !== 'hidden' &&
+        style.display !== 'none' &&
+        rect.width > 0 &&
+        rect.height > 0
+      );
     };
-    const controls = Array.from(document.querySelectorAll('button, [role="button"], a, [role="menuitem"], input, textarea, [aria-label]'))
+    const controls = Array.from(
+      document.querySelectorAll(
+        'button, [role="button"], a, [role="menuitem"], input, textarea, [aria-label]',
+      ),
+    )
       .filter(visible)
       .map((el) => {
         const rect = el.getBoundingClientRect();
@@ -60,7 +78,8 @@ async function snapshot(page, label) {
           role: el.getAttribute('role') || el.tagName.toLowerCase(),
           href: el.getAttribute('href') || '',
           placeholder: el.getAttribute('placeholder') || '',
-          disabled: el.disabled === true || el.getAttribute('aria-disabled') === 'true',
+          disabled:
+            el.disabled === true || el.getAttribute('aria-disabled') === 'true',
           x: Math.round(rect.left + rect.width / 2),
           y: Math.round(rect.top + rect.height / 2),
         };
@@ -72,44 +91,74 @@ async function snapshot(page, label) {
       controls,
     };
   });
-  console.log(JSON.stringify({
-    stage: 'snapshot',
-    label,
-    url: sanitizedUrl(page.url?.() || ''),
-    ...data,
-    controls: data.controls.map((control) => ({ ...control, href: sanitizedUrl(control.href) })),
-  }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        stage: 'snapshot',
+        label,
+        url: sanitizedUrl(page.url?.() || ''),
+        ...data,
+        controls: data.controls.map((control) => ({
+          ...control,
+          href: sanitizedUrl(control.href),
+        })),
+      },
+      null,
+      2,
+    ),
+  );
   return data;
 }
 
 async function clickEnabledAdd(page) {
-  const target = await page.evaluate(() => {
-    const textOf = (el) => (el.innerText || el.textContent || el.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
-    const visible = (el) => {
-      const style = window.getComputedStyle(el);
-      const rect = el.getBoundingClientRect();
-      return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
-    };
-    const candidates = Array.from(document.querySelectorAll('button, [role="button"]'))
-      .filter(visible)
-      .map((el) => {
+  const target = await page
+    .evaluate(() => {
+      const textOf = (el) =>
+        (el.innerText || el.textContent || el.getAttribute('aria-label') || '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      const visible = (el) => {
+        const style = window.getComputedStyle(el);
         const rect = el.getBoundingClientRect();
-        return {
-          text: textOf(el),
-          x: Math.round(rect.left + rect.width / 2),
-          y: Math.round(rect.top + rect.height / 2),
-          disabled: el.disabled === true || el.getAttribute('aria-disabled') === 'true',
-          score: rect.left > 300 ? 1000 - rect.top : 0,
-        };
-      })
-      .filter((item) => /^add$|^dodaj$/i.test(item.text) && !item.disabled)
-      .sort((a, b) => b.score - a.score);
-    return candidates[0] || null;
-  }).catch(() => null);
+        return (
+          style.visibility !== 'hidden' &&
+          style.display !== 'none' &&
+          rect.width > 0 &&
+          rect.height > 0
+        );
+      };
+      const candidates = Array.from(
+        document.querySelectorAll('button, [role="button"]'),
+      )
+        .filter(visible)
+        .map((el) => {
+          const rect = el.getBoundingClientRect();
+          return {
+            text: textOf(el),
+            x: Math.round(rect.left + rect.width / 2),
+            y: Math.round(rect.top + rect.height / 2),
+            disabled:
+              el.disabled === true ||
+              el.getAttribute('aria-disabled') === 'true',
+            score: rect.left > 300 ? 1000 - rect.top : 0,
+          };
+        })
+        .filter((item) => /^add$|^dodaj$/i.test(item.text) && !item.disabled)
+        .sort((a, b) => b.score - a.score);
+      return candidates[0] || null;
+    })
+    .catch(() => null);
   if (!target) return null;
   await page.mouse.click(target.x, target.y);
   await pageSettled(page);
-  console.log(JSON.stringify({ stage: 'clicked_add', text: target.text, x: target.x, y: target.y }));
+  console.log(
+    JSON.stringify({
+      stage: 'clicked_add',
+      text: target.text,
+      x: target.x,
+      y: target.y,
+    }),
+  );
   return target;
 }
 
@@ -119,13 +168,19 @@ if (!path) {
   process.exit(1);
 }
 
-console.log(JSON.stringify({
-  stage: 'start',
-  userDataDir: USER_DATA_DIR,
-  businessId: BUSINESS_ID,
-  assetKind: ASSET_KIND,
-  headless: process.env.META_BUSINESS_HEADLESS !== '0',
-}, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      stage: 'start',
+      userDataDir: USER_DATA_DIR,
+      businessId: BUSINESS_ID,
+      assetKind: ASSET_KIND,
+      headless: process.env.META_BUSINESS_HEADLESS !== '0',
+    },
+    null,
+    2,
+  ),
+);
 
 const s = await WSession.start({
   label: `meta_business_add_${ASSET_KIND}_probe`,

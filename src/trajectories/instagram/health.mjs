@@ -13,13 +13,19 @@ await runHealthProbe({
   banDetector: detectInstagramBanSignals,
   extractLoggedIn: (body, resp) => {
     const finalUrl = resp?.url ?? '';
-    const authed = !/\/accounts\/login/.test(finalUrl) && /instagram\.com/.test(finalUrl);
+    const authed =
+      !/\/accounts\/login/.test(finalUrl) && /instagram\.com/.test(finalUrl);
     const html = typeof body === 'string' ? body : '';
     return {
       ok: authed && resp?.status === 200,
       karma: null,
-      is_suspended: /your account has been disabled|account has been suspended/i.test(html),
+      is_suspended:
+        /your account has been disabled|account has been suspended/i.test(html),
     };
   },
-  extractLoggedOut: (resp) => resp.status === 200 && !/sorry, this page isn'?t available|page not found/i.test(typeof resp.body === 'string' ? resp.body : ''),
+  extractLoggedOut: (resp) =>
+    resp.status === 200 &&
+    !/sorry, this page isn'?t available|page not found/i.test(
+      typeof resp.body === 'string' ? resp.body : '',
+    ),
 });

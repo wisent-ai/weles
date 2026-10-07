@@ -8,19 +8,55 @@ import { statedCount } from '../../_shared/inputs/stated.mjs';
 
 const WEL = `${process.env.HOME}/Documents/CodingProjects/Wisent/weles`;
 const ROOT = `${process.env.HOME}/Documents/CodingProjects/Wisent/backends/STEP_sciezka_A_Wisent`;
-const REPORT_ROOT = process.env.REPORT_ROOT || join(ROOT, 'pangram_section_audit');
+const REPORT_ROOT =
+  process.env.REPORT_ROOT || join(ROOT, 'pangram_section_audit');
 const TS = new Date().toISOString().replace(/[:.]/g, '-');
 const RUN_PREFIX = process.env.WELES_RUN_ID || `ncbr-pangram-parallel-${TS}`;
 const ONLY_PATH = process.env.ONLY_PATH || '';
 // How many shards run at once is the caller's: it is bounded by the Pangram
 // accounts and the machine the caller runs on, which this code cannot see.
-const MAX_PARALLEL = statedCount('MAX_PARALLEL', 'how many audit shards run at once');
-const DEFAULT_SHARDS = ONLY_PATH.toUpperCase() === 'A'
-  ? ['^A 1\\.', '^A 2\\.', '^A 3\\.', '^A 4\\.', '^A 5\\.', '^A 6\\.', '^A 7', '^A 8', '^A 9\\.', '^A 10\\.']
-  : ['^B 1\\.', '^B 2\\.', '^B 3\\.', '^B 4\\.', '^B 5\\.', '^B 6\\.', '^B 7', '^B 8', '^B 9\\.', '^B 10\\.'];
+const MAX_PARALLEL = statedCount(
+  'MAX_PARALLEL',
+  'how many audit shards run at once',
+);
+const DEFAULT_SHARDS =
+  ONLY_PATH.toUpperCase() === 'A'
+    ? [
+        '^A 1\\.',
+        '^A 2\\.',
+        '^A 3\\.',
+        '^A 4\\.',
+        '^A 5\\.',
+        '^A 6\\.',
+        '^A 7',
+        '^A 8',
+        '^A 9\\.',
+        '^A 10\\.',
+      ]
+    : [
+        '^B 1\\.',
+        '^B 2\\.',
+        '^B 3\\.',
+        '^B 4\\.',
+        '^B 5\\.',
+        '^B 6\\.',
+        '^B 7',
+        '^B 8',
+        '^B 9\\.',
+        '^B 10\\.',
+      ];
 
-const shards = (process.env.SECTION_PATTERNS || process.env.PANGRAM_AUDIT_SHARDS || DEFAULT_SHARDS.join('|||'))
-  .split(process.env.SECTION_PATTERNS?.includes('|||') || process.env.PANGRAM_AUDIT_SHARDS?.includes('|||') ? '|||' : ',')
+const shards = (
+  process.env.SECTION_PATTERNS ||
+  process.env.PANGRAM_AUDIT_SHARDS ||
+  DEFAULT_SHARDS.join('|||')
+)
+  .split(
+    process.env.SECTION_PATTERNS?.includes('|||') ||
+      process.env.PANGRAM_AUDIT_SHARDS?.includes('|||')
+      ? '|||'
+      : ',',
+  )
   .map((s) => s.trim())
   .filter(Boolean);
 
@@ -39,7 +75,11 @@ function slug(s) {
 function parseLastJson(stdout) {
   const match = String(stdout || '').match(/\{[\s\S]*\}\s*$/);
   if (!match) return null;
-  try { return JSON.parse(match[0]); } catch { return null; }
+  try {
+    return JSON.parse(match[0]);
+  } catch {
+    return null;
+  }
 }
 
 function runShard(shard, index) {
@@ -54,15 +94,28 @@ function runShard(shard, index) {
   if (accountId) env.ACCOUNT_IDS = accountId;
 
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, ['--env-file=.env', 'src/trajectories/pangram/ncbr_audit/audit_ncbr_sections_ui.mjs'], {
-      cwd: WEL,
-      env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    const child = spawn(
+      process.execPath,
+      [
+        '--env-file=.env',
+        'src/trajectories/pangram/ncbr_audit/audit_ncbr_sections_ui.mjs',
+      ],
+      {
+        cwd: WEL,
+        env,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    );
     let stdout = '';
     let stderr = '';
-    child.stdout.on('data', (d) => { stdout += d; process.stdout.write(`[${index + 1}] ${d}`); });
-    child.stderr.on('data', (d) => { stderr += d; process.stderr.write(`[${index + 1}] ${d}`); });
+    child.stdout.on('data', (d) => {
+      stdout += d;
+      process.stdout.write(`[${index + 1}] ${d}`);
+    });
+    child.stderr.on('data', (d) => {
+      stderr += d;
+      process.stderr.write(`[${index + 1}] ${d}`);
+    });
     child.on('close', (code, signal) => {
       resolve({
         index,
@@ -95,13 +148,20 @@ await new Promise((resolve) => {
       runShard(shard, index).then((result) => {
         results[index] = result;
         active -= 1;
-        writeFileSync(join(outDir, 'parallel_report.partial.json'), JSON.stringify({
-          runPrefix: RUN_PREFIX,
-          generatedAt: new Date().toISOString(),
-          onlyPath: ONLY_PATH || null,
-          maxParallel: MAX_PARALLEL,
-          results: results.filter(Boolean),
-        }, null, 2));
+        writeFileSync(
+          join(outDir, 'parallel_report.partial.json'),
+          JSON.stringify(
+            {
+              runPrefix: RUN_PREFIX,
+              generatedAt: new Date().toISOString(),
+              onlyPath: ONLY_PATH || null,
+              maxParallel: MAX_PARALLEL,
+              results: results.filter(Boolean),
+            },
+            null,
+            2,
+          ),
+        );
         pump();
       });
     }
@@ -117,10 +177,22 @@ const report = {
   maxParallel: MAX_PARALLEL,
   shardCount: shards.length,
   failedShardCount: results.filter((r) => r.code !== 0).length,
-  checkedCount: results.reduce((sum, r) => sum + Number(r.summary?.checkedCount || 0), 0),
-  humanCount: results.reduce((sum, r) => sum + Number(r.summary?.humanCount || 0), 0),
-  aiGeneratedCount: results.reduce((sum, r) => sum + Number(r.summary?.aiGeneratedCount || 0), 0),
-  skippedCount: results.reduce((sum, r) => sum + Number(r.summary?.skippedCount || 0), 0),
+  checkedCount: results.reduce(
+    (sum, r) => sum + Number(r.summary?.checkedCount || 0),
+    0,
+  ),
+  humanCount: results.reduce(
+    (sum, r) => sum + Number(r.summary?.humanCount || 0),
+    0,
+  ),
+  aiGeneratedCount: results.reduce(
+    (sum, r) => sum + Number(r.summary?.aiGeneratedCount || 0),
+    0,
+  ),
+  skippedCount: results.reduce(
+    (sum, r) => sum + Number(r.summary?.skippedCount || 0),
+    0,
+  ),
   results,
 };
 

@@ -26,14 +26,19 @@ export const readGisState = (arg) => {
     const r = rect(el);
     return r.width >= arg.minBox && r.height >= arg.minBox;
   };
-  const live = (el) => !(el.disabled
-    || el.getAttribute('aria-disabled') === 'true'
-    || el.getAttribute('disabled') !== null);
-  const label = (el) => (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+  const live = (el) =>
+    !(
+      el.disabled ||
+      el.getAttribute('aria-disabled') === 'true' ||
+      el.getAttribute('disabled') !== null
+    );
+  const label = (el) =>
+    (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
   // Tag the element the state machine will act on, so the click re-finds exactly
   // this element (after scrolling it into view) instead of trusting a coordinate
   // read one poll earlier. Tags from the previous poll are cleared first.
-  for (const stale of Array.from(document.querySelectorAll('[data-weles-gis]'))) stale.removeAttribute('data-weles-gis');
+  for (const stale of Array.from(document.querySelectorAll('[data-weles-gis]')))
+    stale.removeAttribute('data-weles-gis');
   const point = (el, kind) => {
     el.setAttribute('data-weles-gis', kind);
     const r = rect(el);
@@ -50,11 +55,15 @@ export const readGisState = (arg) => {
 
   // Selectable account rows carry data-identifier. Text mentioning the address
   // can instead be an account-switch action and must not count as a row.
-  const rows = Array.from(document.querySelectorAll('[data-identifier]'))
-    .filter((el) => el.getAttribute('data-identifier').trim() && shown(el));
+  const rows = Array.from(
+    document.querySelectorAll('[data-identifier]'),
+  ).filter((el) => el.getAttribute('data-identifier').trim() && shown(el));
   const wanted = (arg.email || '').trim().toLowerCase();
   const mine = wanted
-    ? rows.find((el) => el.getAttribute('data-identifier').trim().toLowerCase() === wanted)
+    ? rows.find(
+        (el) =>
+          el.getAttribute('data-identifier').trim().toLowerCase() === wanted,
+      )
     : null;
   // A different account is not a substitute, even when it is the only row.
   // "Use another account" is a separate control, never another identity's row.
@@ -64,13 +73,19 @@ export const readGisState = (arg) => {
   // button[jsname="LgbsSe"] with identical classes on the confirm screen), and a
   // negative label is never clicked. #submit_approve_access is Google's own id on
   // the older scope screen and wins when present.
-  const affirmative = /^(continue|next|allow|confirm|agree|i agree|kontynuuj|dalej|zezwól|potwierdź|zgadzam się)$/i;
-  const negative = /^(cancel|back|not now|no thanks|deny|anuluj|wstecz|nie teraz|odmów)$/i;
+  const affirmative =
+    /^(continue|next|allow|confirm|agree|i agree|kontynuuj|dalej|zezwól|potwierdź|zgadzam się)$/i;
+  const negative =
+    /^(cancel|back|not now|no thanks|deny|anuluj|wstecz|nie teraz|odmów)$/i;
   const affirmativeButton = () => {
-    const structural = pick('#submit_approve_access button, #submit_approve_access, [data-primary-action-label] button', 'primary');
+    const structural = pick(
+      '#submit_approve_access button, #submit_approve_access, [data-primary-action-label] button',
+      'primary',
+    );
     if (structural) return structural;
-    const buttons = Array.from(document.querySelectorAll('button, [role="button"]'))
-      .filter((el) => shown(el) && live(el) && !negative.test(label(el)));
+    const buttons = Array.from(
+      document.querySelectorAll('button, [role="button"]'),
+    ).filter((el) => shown(el) && live(el) && !negative.test(label(el)));
     const named = buttons.find((el) => affirmative.test(label(el)));
     return named ? point(named, 'primary') : null;
   };
@@ -85,21 +100,44 @@ export const readGisState = (arg) => {
     rowIdentifiers: rows.map((el) => el.getAttribute('data-identifier')),
     accountRow: mine ? point(mine, 'account_row') : null,
     accountRowMatchedBy: mine ? 'data_identifier' : null,
-    otherAccountRow: pick('button,[role="button"],[role="link"],li,a', 'other_account',
-      /^(use another account|add account|dodaj konto|inne konto|użyj innego konta)$/i),
+    otherAccountRow: pick(
+      'button,[role="button"],[role="link"],li,a',
+      'other_account',
+      /^(use another account|add account|dodaj konto|inne konto|użyj innego konta)$/i,
+    ),
     // claude.ai's own grant affordance, in either language this fleet sees.
-    consent: pick('button,[role="button"]', 'consent', /^(authorize|allow|zezwól|zezwol|autoryzuj)$/i),
+    consent: pick(
+      'button,[role="button"]',
+      'consent',
+      /^(authorize|allow|zezwól|zezwol|autoryzuj)$/i,
+    ),
     // The grant screen renders Authorize and Decline disabled while it loads
     // its authorize data: run 23bf6ab4 read the screen 70 ms after
     // /v1/oauth/<org>/authorize was requested, both buttons disabled="".
-    consentPending: Array.from(document.querySelectorAll('button,[role="button"]'))
-      .some((el) => shown(el) && !live(el) && /^(authorize|allow|zezwól|zezwol|autoryzuj)$/i.test(label(el))),
-    gisButton: pick('button,[role="button"]', 'gis_button', /continue with google|^google$/i),
+    consentPending: Array.from(
+      document.querySelectorAll('button,[role="button"]'),
+    ).some(
+      (el) =>
+        shown(el) &&
+        !live(el) &&
+        /^(authorize|allow|zezwól|zezwol|autoryzuj)$/i.test(label(el)),
+    ),
+    gisButton: pick(
+      'button,[role="button"]',
+      'gis_button',
+      /continue with google|^google$/i,
+    ),
     // claude.ai renders its "Continue with Google" button disabled until its
     // Google library is ready: run c5f8838e failed on that page as 'unknown'
     // two seconds after the authorize URL loaded.
-    gisButtonPending: Array.from(document.querySelectorAll('button,[role="button"]'))
-      .some((el) => shown(el) && !live(el) && /continue with google|^google$/i.test(label(el))),
+    gisButtonPending: Array.from(
+      document.querySelectorAll('button,[role="button"]'),
+    ).some(
+      (el) =>
+        shown(el) &&
+        !live(el) &&
+        /continue with google|^google$/i.test(label(el)),
+    ),
     // claude.ai serves its authorize page as an app shell that renders later:
     // run 5661801e recorded claude.ai/oauth/authorize titled "Claude" with an
     // empty #root under [data-page-loading] and no control at all, and run
@@ -111,11 +149,19 @@ export const readGisState = (arg) => {
     // claude.ai answers some sign-ins with an hCaptcha challenge right after
     // Google's popup closes (run 23bf6ab4: "Drag the letter to the place where
     // it fits", an hcaptcha.com frame=challenge iframe over the login page).
-    captchaChallenge: Array.from(document.querySelectorAll(
-      'iframe[src*="hcaptcha.com"][src*="frame=challenge"], iframe[src*="recaptcha"][src*="bframe"], iframe[src*="arkoselabs"], iframe[src*="challenges.cloudflare.com"]',
-    )).some(shown),
-    identifierField: Array.from(document.querySelectorAll('input[type="text"][autocomplete*="username"], input#identifierId, input[name="identifier"], input[type="email"]')).some(shown),
-    passwordField: Array.from(document.querySelectorAll('input[type="password"]')).some(shown),
+    captchaChallenge: Array.from(
+      document.querySelectorAll(
+        'iframe[src*="hcaptcha.com"][src*="frame=challenge"], iframe[src*="recaptcha"][src*="bframe"], iframe[src*="arkoselabs"], iframe[src*="challenges.cloudflare.com"]',
+      ),
+    ).some(shown),
+    identifierField: Array.from(
+      document.querySelectorAll(
+        'input[type="text"][autocomplete*="username"], input#identifierId, input[name="identifier"], input[type="email"]',
+      ),
+    ).some(shown),
+    passwordField: Array.from(
+      document.querySelectorAll('input[type="password"]'),
+    ).some(shown),
     bodyText: document.body ? document.body.innerText.replace(/\s+/g, ' ') : '',
   };
   // Only look for the affirmative button once no row is waiting to be picked:
@@ -129,20 +175,32 @@ export const readGisState = (arg) => {
 // and only then move the pointer onto it. The coordinate a probe read before a
 // scroll or a re-render is not where the affordance is now.
 export async function clickGisTarget(page, kind) {
-  const spot = await navEval(page, (k) => {
-    const el = document.querySelector(`[data-weles-gis="${k}"]`);
-    if (!el) return null;
-    el.scrollIntoView({ block: 'center', inline: 'center' });
-    const r = el.getBoundingClientRect();
-    if (r.width < 1 || r.height < 1) return null;
-    const x = r.x + r.width / 2;
-    const y = r.y + r.height / 2;
-    const hit = document.elementFromPoint(x, y);
-    const reachable = Boolean(hit) && (hit === el || el.contains(hit) || hit.contains(el));
-    return { x, y, reachable, hit: hit ? [hit.tagName, ...hit.classList].join('.') : null };
-  }, null, kind);
+  const spot = await navEval(
+    page,
+    (k) => {
+      const el = document.querySelector(`[data-weles-gis="${k}"]`);
+      if (!el) return null;
+      el.scrollIntoView({ block: 'center', inline: 'center' });
+      const r = el.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1) return null;
+      const x = r.x + r.width / 2;
+      const y = r.y + r.height / 2;
+      const hit = document.elementFromPoint(x, y);
+      const reachable =
+        Boolean(hit) && (hit === el || el.contains(hit) || hit.contains(el));
+      return {
+        x,
+        y,
+        reachable,
+        hit: hit ? [hit.tagName, ...hit.classList].join('.') : null,
+      };
+    },
+    null,
+    kind,
+  );
   if (!spot) return { clicked: false, reason: `no element tagged ${kind}` };
-  if (!spot.reachable) return { clicked: false, reason: `${kind} covered by ${spot.hit}` };
+  if (!spot.reachable)
+    return { clicked: false, reason: `${kind} covered by ${spot.hit}` };
   await humanClick(page, Math.round(spot.x), Math.round(spot.y));
   return { clicked: true, reason: null };
 }

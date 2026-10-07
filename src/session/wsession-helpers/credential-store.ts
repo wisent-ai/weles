@@ -31,7 +31,9 @@ type StoreConstraints = {
 type CredentialLocator = {
   count: () => Promise<number>;
   nth: (index: number) => {
-    evaluate: <Value>(pageFunction: (element: Element) => Value) => Promise<Value>;
+    evaluate: <Value>(
+      pageFunction: (element: Element) => Value,
+    ) => Promise<Value>;
   };
 };
 
@@ -52,7 +54,9 @@ function credentialConstraintsText(): string {
   const configured = [
     process.env.GENERIC_TASK_CONSTRAINTS,
     process.env.WELES_CREDENTIAL_CONSTRAINTS,
-  ].filter((value): value is string => typeof value === 'string' && value.length > 0);
+  ].filter(
+    (value): value is string => typeof value === 'string' && value.length > 0,
+  );
   if (configured.length > 1) {
     throw new Error('multiple credential constraint sources are not allowed');
   }
@@ -60,22 +64,26 @@ function credentialConstraintsText(): string {
 }
 
 export function isSkarbiecCredentialTask(): boolean {
-  if (typeof process.env.WELES_CREDENTIAL_CONSTRAINTS === 'string'
-      && process.env.WELES_CREDENTIAL_CONSTRAINTS.length > 0) {
+  if (
+    typeof process.env.WELES_CREDENTIAL_CONSTRAINTS === 'string' &&
+    process.env.WELES_CREDENTIAL_CONSTRAINTS.length > 0
+  ) {
     return true;
   }
   try {
     const constraints: unknown = JSON.parse(credentialConstraintsText());
     return Boolean(
-      constraints
-      && typeof constraints === 'object'
-      && !Array.isArray(constraints)
-      && 'store_secret_target' in constraints
-      && constraints.store_secret_target === 'skarbiec',
+      constraints &&
+        typeof constraints === 'object' &&
+        !Array.isArray(constraints) &&
+        'store_secret_target' in constraints &&
+        constraints.store_secret_target === 'skarbiec',
     );
   } catch {
-    return typeof process.env.GENERIC_TASK_CONSTRAINTS === 'string'
-      && process.env.GENERIC_TASK_CONSTRAINTS.length > 0;
+    return (
+      typeof process.env.GENERIC_TASK_CONSTRAINTS === 'string' &&
+      process.env.GENERIC_TASK_CONSTRAINTS.length > 0
+    );
   }
 }
 
@@ -94,38 +102,60 @@ function storeConstraints(): StoreConstraints {
     throw new Error('credential storage is not authorized for this task');
   }
   const secretName = typeof record.secret === 'string' ? record.secret : '';
-  const itemId = typeof record.vault_item_id === 'string' ? record.vault_item_id : '';
-  const field = typeof record.vault_field === 'string' ? record.vault_field : '';
-  const sourceOrigin = typeof record.secret_source_origin === 'string' ? record.secret_source_origin : '';
-  const tenantId = typeof record.tenant_id === 'string' ? record.tenant_id : null;
-  const accountEmail = typeof record.account_email === 'string' ? record.account_email.trim().toLowerCase() : '';
-  const requestId = typeof record.request_id === 'string' ? record.request_id : '';
-  const operation = typeof record.operation === 'string' ? record.operation : '';
+  const itemId =
+    typeof record.vault_item_id === 'string' ? record.vault_item_id : '';
+  const field =
+    typeof record.vault_field === 'string' ? record.vault_field : '';
+  const sourceOrigin =
+    typeof record.secret_source_origin === 'string'
+      ? record.secret_source_origin
+      : '';
+  const tenantId =
+    typeof record.tenant_id === 'string' ? record.tenant_id : null;
+  const accountEmail =
+    typeof record.account_email === 'string'
+      ? record.account_email.trim().toLowerCase()
+      : '';
+  const requestId =
+    typeof record.request_id === 'string' ? record.request_id : '';
+  const operation =
+    typeof record.operation === 'string' ? record.operation : '';
   const contract = acquiredSecretContract(secretName);
   // A table contract pins the capture origin. A derived contract has none to pin:
   // Skarbiec records the signup origin declared for the acquire operation and
   // echoes it here, so that recorded value is the pin when there is one, and the
   // live page origin becomes the recorded provenance when the caller declared
   // none. The item and the field stay bound to the contract either way.
-  if (!contract
-    || itemId !== contract.item
-    || field !== contract.field
-    || (contract.sourceOrigin === null
+  if (
+    !contract ||
+    itemId !== contract.item ||
+    field !== contract.field ||
+    (contract.sourceOrigin === null
       ? Boolean(sourceOrigin) && !isWelesAcquiredSourceOrigin(sourceOrigin)
-      : sourceOrigin !== contract.sourceOrigin)) {
-    throw new Error('credential storage target is not in the exact Weles acquisition allowlist');
+      : sourceOrigin !== contract.sourceOrigin)
+  ) {
+    throw new Error(
+      'credential storage target is not in the exact Weles acquisition allowlist',
+    );
   }
-  const fieldClass: CredentialFieldClass = field === 'api_key'
-    ? 'api-key'
-    : field === 'password'
-      ? 'password'
-      : 'token';
+  const fieldClass: CredentialFieldClass =
+    field === 'api_key'
+      ? 'api-key'
+      : field === 'password'
+        ? 'password'
+        : 'token';
   if (fieldClass === 'password' && !accountEmail) {
-    throw new Error('password credential storage requires an exact account email');
+    throw new Error(
+      'password credential storage requires an exact account email',
+    );
   }
-  if (!/^[a-f0-9]{64}$/i.test(requestId)
-      || !['acquire', 'rotate', 'verify'].includes(operation)) {
-    throw new Error('credential storage requires an exact request id and operation');
+  if (
+    !/^[a-f0-9]{64}$/i.test(requestId) ||
+    !['acquire', 'rotate', 'verify'].includes(operation)
+  ) {
+    throw new Error(
+      'credential storage requires an exact request id and operation',
+    );
   }
   return {
     secretName: secretName as WelesAcquiredSecret,
@@ -140,7 +170,6 @@ function storeConstraints(): StoreConstraints {
     operation,
   };
 }
-
 
 async function captureCandidate(
   session: WSession,
@@ -157,7 +186,8 @@ async function captureCandidate(
       return false;
     }
   });
-  if (authorizedPages.length === 0) throw new Error('credential source origin mismatch');
+  if (authorizedPages.length === 0)
+    throw new Error('credential source origin mismatch');
   const frames = authorizedPages
     .flatMap((page) => page.frames())
     .filter((frame) => {
@@ -167,35 +197,60 @@ async function captureCandidate(
         return false;
       }
     });
-  const keyword = target.toLowerCase().replace(/[^a-z0-9_-]+/g, ' ').trim().split(/\s+/).find((part) => part.length >= 3) ?? '';
+  const keyword =
+    target
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, ' ')
+      .trim()
+      .split(/\s+/)
+      .find((part) => part.length >= 3) ?? '';
   for (const frame of frames) {
     const locators: CredentialLocator[] = [];
     if (/^(#|\.|\[|input|textarea|code|pre)/.test(target.trim())) {
       locators.push(frame.locator(target));
     }
-    try { locators.push(frame.getByLabel(target, { exact: false })); } catch {}
-    try { locators.push(frame.getByRole('textbox', { name: new RegExp(target, 'i') })); } catch {}
+    try {
+      locators.push(frame.getByLabel(target, { exact: false }));
+    } catch {}
+    try {
+      locators.push(
+        frame.getByRole('textbox', { name: new RegExp(target, 'i') }),
+      );
+    } catch {}
     const escapedKeyword = keyword.replace(/["\\]/g, '\\$&');
-    locators.push(frame.locator([
-      'input[readonly]',
-      'textarea[readonly]',
-      'input',
-      'textarea',
-      'code',
-      '[data-testid*="token" i]',
-      '[data-testid*="key" i]',
-      '[class*="token" i]',
-      '[class*="api-key" i]',
-      escapedKeyword ? `[aria-label*="${escapedKeyword}" i]` : '',
-    ].filter(Boolean).join(',')));
+    locators.push(
+      frame.locator(
+        [
+          'input[readonly]',
+          'textarea[readonly]',
+          'input',
+          'textarea',
+          'code',
+          '[data-testid*="token" i]',
+          '[data-testid*="key" i]',
+          '[class*="token" i]',
+          '[class*="api-key" i]',
+          escapedKeyword ? `[aria-label*="${escapedKeyword}" i]` : '',
+        ]
+          .filter(Boolean)
+          .join(','),
+      ),
+    );
 
     for (const locator of locators) {
       const count = await locator.count().catch(() => 0);
       for (let index = 0; index < count; index += 1) {
-        const candidate = await locator.nth(index).evaluate((element: Element) => {
-          if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) return element.value;
-          return element.textContent ?? '';
-        }).catch(() => '');
+        const candidate = await locator
+          .nth(index)
+          .evaluate((element: Element) => {
+            if (
+              element instanceof HTMLInputElement ||
+              element instanceof HTMLTextAreaElement
+            )
+              return element.value;
+            return element.textContent ?? '';
+          })
+          .catch(() => '');
         const value = String(candidate).trim();
         const secret = Buffer.from(value, 'utf8');
         if (isWelesAcquiredSecretValue(secretName, secret)) return secret;
@@ -203,10 +258,10 @@ async function captureCandidate(
       }
     }
   }
-  throw new Error('credential element was not found or did not match the required secret shape');
+  throw new Error(
+    'credential element was not found or did not match the required secret shape',
+  );
 }
-
-
 
 export async function wsStoreCredential(
   session: WSession,
@@ -216,15 +271,25 @@ export async function wsStoreCredential(
   if (!target.trim()) throw new Error('credential target is empty');
   const constraints = storeConstraints();
   if (fieldClass !== constraints.fieldClass) {
-    throw new Error('credential field class does not match the exact Weles acquisition allowlist');
+    throw new Error(
+      'credential field class does not match the exact Weles acquisition allowlist',
+    );
   }
 
-  const captureOrigin = constraints.sourceOrigin
-    || new URL((session.page as CredentialPage).url()).origin;
+  const captureOrigin =
+    constraints.sourceOrigin ||
+    new URL((session.page as CredentialPage).url()).origin;
   if (!isWelesAcquiredSourceOrigin(captureOrigin)) {
-    throw new Error('credential capture origin is not one absolute https origin');
+    throw new Error(
+      'credential capture origin is not one absolute https origin',
+    );
   }
-  const secret = await captureCandidate(session, target, constraints.secretName, captureOrigin);
+  const secret = await captureCandidate(
+    session,
+    target,
+    constraints.secretName,
+    captureOrigin,
+  );
   try {
     writeWelesAcquiredSecret(
       constraints.secretName,
@@ -239,29 +304,40 @@ export async function wsStoreCredential(
         declaredOrigin: constraints.declaredOrigin,
       },
     );
-    writeFileSync(join(runRecordingsDir(), 'credential_capture.json'), JSON.stringify({
-      requestId: constraints.requestId,
-      operation: constraints.operation,
-      vaultItemId: constraints.itemId,
-      field: constraints.field,
-      sourceOrigin: captureOrigin,
-      storedAt: new Date().toISOString(),
-    }), { mode: constants.S_IRUSR | constants.S_IWUSR });
+    writeFileSync(
+      join(runRecordingsDir(), 'credential_capture.json'),
+      JSON.stringify({
+        requestId: constraints.requestId,
+        operation: constraints.operation,
+        vaultItemId: constraints.itemId,
+        field: constraints.field,
+        sourceOrigin: captureOrigin,
+        storedAt: new Date().toISOString(),
+      }),
+      { mode: constants.S_IRUSR | constants.S_IWUSR },
+    );
   } finally {
     secret.fill(0);
   }
   return `credential stored in Skarbiec item ${constraints.itemId} field ${constraints.field}`;
 }
 
-export async function wsAutoStoreCredential(session: WSession): Promise<string | null> {
+export async function wsAutoStoreCredential(
+  session: WSession,
+): Promise<string | null> {
   if (!isSkarbiecCredentialTask()) return null;
   try {
-    return await wsStoreCredential(session, 'generated credential', storeConstraints().fieldClass);
+    return await wsStoreCredential(
+      session,
+      'generated credential',
+      storeConstraints().fieldClass,
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (
-      message === 'credential source origin mismatch'
-      || message === 'credential element was not found or did not match the required secret shape'
+      message === 'credential source origin mismatch' ||
+      message ===
+        'credential element was not found or did not match the required secret shape'
     ) {
       return null;
     }

@@ -8,60 +8,116 @@
 // Idempotent: skips writes when the form value already equals the character
 // row's value, so re-running is cheap.
 
-import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
+import {
+  getSocialAccount,
+  resolveAccountSession,
+  markCookiesStale,
+} from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
-import { assertAuthed, AuthProbeError } from '../../_shared/auth/auth-probe.mjs';
-import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/auth/cookie-freshness.mjs';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../dist/human/mouse.js';
+import {
+  assertAuthed,
+  AuthProbeError,
+} from '../../_shared/auth/auth-probe.mjs';
+import {
+  loadFreshCookieJarOrFail,
+  CookieJarStaleError,
+} from '../../_shared/auth/cookie-freshness.mjs';
 import { loadAvatarFile } from '../../_shared/runner/avatar-loader.mjs';
 import { updateAccountMetadata } from '../../_shared/skarbiec/accounts.mjs';
 
-
 const acct = await getSocialAccount('instagram');
-if (!acct) { console.log('FAIL: no active instagram account in Skarbiec'); process.exit(1); }
+if (!acct) {
+  console.log('FAIL: no active instagram account in Skarbiec');
+  process.exit(1);
+}
 console.log(`[ig-profile] using account: ${acct.username}`);
 const character = acct.metadata?.character;
-if (!character || typeof character !== 'object') { console.log(`FAIL: no character stored for instagram/${acct.username}`); process.exit(1); }
-console.log(`[ig-profile] character: ${character.name} (niche=${character.niche})`);
-const avatarUrl = character.avatar_url
-  || (Array.isArray(character.training_images) ? character.training_images[0] : null);
+if (!character || typeof character !== 'object') {
+  console.log(`FAIL: no character stored for instagram/${acct.username}`);
+  process.exit(1);
+}
+console.log(
+  `[ig-profile] character: ${character.name} (niche=${character.niche})`,
+);
+const avatarUrl =
+  character.avatar_url ||
+  (Array.isArray(character.training_images)
+    ? character.training_images[0]
+    : null);
 
 const targetBio = (character.bio || '').slice(0, 150);
 const targetName = character.name || '';
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
-const s = await WSession.start({ label: 'instagram_edit_profile', proxy: proxyUrl, persona });
+const s = await WSession.start({
+  label: 'instagram_edit_profile',
+  proxy: proxyUrl,
+  persona,
+});
 
 try {
   let stored;
   try {
-    const all = loadFreshCookieJarOrFail(acct, { platform: 'instagram', label: 'instagram_edit_profile', currentProxyUrl: proxyUrl, currentPersona: persona });
-    stored = all.filter(c => /instagram\.com/.test(c.domain ?? ''));
-    if (!stored.length) throw new CookieJarStaleError('cookie_jar_no_domain_match: jar fresh but no instagram.com cookies', { platform: 'instagram' });
+    const all = loadFreshCookieJarOrFail(acct, {
+      platform: 'instagram',
+      label: 'instagram_edit_profile',
+      currentProxyUrl: proxyUrl,
+      currentPersona: persona,
+    });
+    stored = all.filter((c) => /instagram\.com/.test(c.domain ?? ''));
+    if (!stored.length)
+      throw new CookieJarStaleError(
+        'cookie_jar_no_domain_match: jar fresh but no instagram.com cookies',
+        { platform: 'instagram' },
+      );
   } catch (jarErr) {
-    if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); process.exit(1); }
+    if (jarErr instanceof CookieJarStaleError) {
+      console.log(`FAIL: ${jarErr.message}`);
+      await markCookiesStale(acct.id);
+      process.exit(1);
+    }
     throw jarErr;
   }
-  await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
+  await s.ctx.addCookies(stored.map((c) => ({ ...c, path: c.path || '/' })));
 
-  await s.page.goto('https://www.instagram.com/accounts/edit/', { waitUntil: 'domcontentloaded' });
+  await s.page.goto('https://www.instagram.com/accounts/edit/', {
+    waitUntil: 'domcontentloaded',
+  });
   await humanIdlePause('long');
   if (/\/accounts\/login/.test(s.page.url())) {
     console.log(`FAIL: cookies stale, redirected to login (${s.page.url()})`);
     await markCookiesStale(acct.id);
     process.exit(1);
   }
-  try { await assertAuthed('instagram', s, { label: 'instagram_edit_profile' }); }
-  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
+  try {
+    await assertAuthed('instagram', s, { label: 'instagram_edit_profile' });
+  } catch (probeErr) {
+    if (probeErr instanceof AuthProbeError) {
+      console.log(`FAIL: ${probeErr.message}`);
+      await markCookiesStale(acct.id);
+      process.exit(1);
+    }
+    throw probeErr;
+  }
 
   // The /accounts/edit form has aria-labeled inputs:
   //   * Name      → input with aria-label*="Name"
   //   * Bio       → textarea (the only one on the page) with aria-label*="Bio"
   // Both render as visible focused-on-mount fields. Read current value, only
   // type when it differs from the character target.
-  const nameIn = s.page.locator('input[aria-label*="Name" i], input[name="full_name" i]').filter({ visible: true }).first();
-  const bioIn = s.page.locator('textarea[aria-label*="Bio" i], textarea[name="biography" i]').filter({ visible: true }).first();
+  const nameIn = s.page
+    .locator('input[aria-label*="Name" i], input[name="full_name" i]')
+    .filter({ visible: true })
+    .first();
+  const bioIn = s.page
+    .locator('textarea[aria-label*="Bio" i], textarea[name="biography" i]')
+    .filter({ visible: true })
+    .first();
 
   const writes = [];
   if (await nameIn.count()) {
@@ -93,14 +149,28 @@ try {
   // button binding fires a filechooser; we also accept direct setInputFiles
   // on the hidden input when the binding is missing.
   if (avatarUrl) {
-    const tmpAvatar = await loadAvatarFile(avatarUrl, { size: 512, format: 'jpeg', quality: 88 });
+    const tmpAvatar = await loadAvatarFile(avatarUrl, {
+      size: 512,
+      format: 'jpeg',
+      quality: 88,
+    });
     if (tmpAvatar) {
       try {
-        const changeBtn = s.page.locator('button:has-text("Change profile photo"), div[role="button"]:has-text("Change profile photo")').filter({ visible: true }).first();
+        const changeBtn = s.page
+          .locator(
+            'button:has-text("Change profile photo"), div[role="button"]:has-text("Change profile photo")',
+          )
+          .filter({ visible: true })
+          .first();
         if (await changeBtn.isVisible().catch(() => false)) {
           await humanClickLocator(s.page, changeBtn);
           await humanIdlePause('deliberate');
-          const upload = s.page.locator('button:has-text("Upload Photo"), button:has-text("Upload photo")').filter({ visible: true }).first();
+          const upload = s.page
+            .locator(
+              'button:has-text("Upload Photo"), button:has-text("Upload photo")',
+            )
+            .filter({ visible: true })
+            .first();
           if (await upload.isVisible().catch(() => false)) {
             const fileChooserPromise = s.page.waitForEvent('filechooser');
             await humanClickLocator(s.page, upload);
@@ -109,15 +179,25 @@ try {
             await humanIdlePause('deliberate');
             writes.push('avatar uploaded');
           } else {
-            const fileIn = s.page.locator('input[type="file"][accept*="image"]').first();
+            const fileIn = s.page
+              .locator('input[type="file"][accept*="image"]')
+              .first();
             if (await fileIn.count()) {
               await fileIn.setInputFiles(tmpAvatar);
               await humanIdlePause('deliberate');
               writes.push('avatar uploaded');
-            } else { console.log('[ig-profile] no upload affordance after Change clicked'); }
+            } else {
+              console.log(
+                '[ig-profile] no upload affordance after Change clicked',
+              );
+            }
           }
-        } else { console.log('[ig-profile] Change profile photo button not visible'); }
-      } catch (e) { console.log(`[ig-profile] avatar err: ${e.message}`); }
+        } else {
+          console.log('[ig-profile] Change profile photo button not visible');
+        }
+      } catch (e) {
+        console.log(`[ig-profile] avatar err: ${e.message}`);
+      }
     }
   }
 
@@ -127,12 +207,22 @@ try {
     updated_at: new Date().toISOString(),
   });
 
-  if (!writes.length) { console.log('PASS: no-op (form values already match character; Skarbiec synced)'); process.exit(0); }
+  if (!writes.length) {
+    console.log(
+      'PASS: no-op (form values already match character; Skarbiec synced)',
+    );
+    process.exit(0);
+  }
   console.log(`[ig-profile] writes: ${writes.join('; ')}`);
 
   // Submit. Instagram's submit on this page is a <div role="button"> reading
   // "Submit" or sometimes a localized variant.
-  const submitBtn = s.page.locator('div[role="button"]:has-text("Submit"), button[type="submit"]:has-text("Submit")').filter({ visible: true }).first();
+  const submitBtn = s.page
+    .locator(
+      'div[role="button"]:has-text("Submit"), button[type="submit"]:has-text("Submit")',
+    )
+    .filter({ visible: true })
+    .first();
   await submitBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, submitBtn);
   await humanIdlePause('deliberate');
@@ -141,11 +231,15 @@ try {
   const verifiedName = await nameIn.inputValue().catch(() => '');
   const verifiedBio = await bioIn.inputValue().catch(() => '');
   if (targetName && verifiedName.trim() !== targetName.trim()) {
-    console.log(`FAIL: name mismatch after submit ("${verifiedName}" != "${targetName}")`);
+    console.log(
+      `FAIL: name mismatch after submit ("${verifiedName}" != "${targetName}")`,
+    );
     process.exit(1);
   }
   if (verifiedBio.trim() !== targetBio.trim()) {
-    console.log(`FAIL: bio mismatch after submit ("${verifiedBio}..." != "${targetBio}...")`);
+    console.log(
+      `FAIL: bio mismatch after submit ("${verifiedBio}..." != "${targetBio}...")`,
+    );
     process.exit(1);
   }
   console.log(`PASS: ${acct.username} profile updated to ${character.name}`);

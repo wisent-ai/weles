@@ -14,7 +14,8 @@ export async function uploadIpa(opts) {
   const privateKey = opts.privateKey;
   const platform = opts.platform || 'ios';
 
-  if (!ipaPath || !existsSync(ipaPath)) throw new Error(`IPA not found: ${ipaPath}`);
+  if (!ipaPath || !existsSync(ipaPath))
+    throw new Error(`IPA not found: ${ipaPath}`);
   if (!keyId || !issuerId || !privateKey) {
     throw new Error('exact Weles App Store Connect API grant unavailable');
   }
@@ -23,8 +24,20 @@ export async function uploadIpa(opts) {
   writeFileSync(join(keyDir, `AuthKey_${keyId}.p8`), privateKey, {
     mode: 0o600,
   });
-  const args = ['altool', '--upload-app', '-f', ipaPath, '-t', platform,
-    '--apiKey', keyId, '--apiIssuer', issuerId, '--output-format', 'json'];
+  const args = [
+    'altool',
+    '--upload-app',
+    '-f',
+    ipaPath,
+    '-t',
+    platform,
+    '--apiKey',
+    keyId,
+    '--apiIssuer',
+    issuerId,
+    '--output-format',
+    'json',
+  ];
 
   try {
     return await new Promise((resolve, reject) => {
@@ -34,8 +47,12 @@ export async function uploadIpa(opts) {
       });
       let out = '';
       let err = '';
-      cp.stdout.on('data', (data) => { out += data.toString(); });
-      cp.stderr.on('data', (data) => { err += data.toString(); });
+      cp.stdout.on('data', (data) => {
+        out += data.toString();
+      });
+      cp.stderr.on('data', (data) => {
+        err += data.toString();
+      });
       cp.on('error', reject);
       cp.on('close', (code) => {
         if (code === 0) {
@@ -43,7 +60,7 @@ export async function uploadIpa(opts) {
           resolve({ ok: true, stdout: out });
           return;
         }
-        reject(new Error(`altool failed: ${(err || out)}`));
+        reject(new Error(`altool failed: ${err || out}`));
       });
     });
   } finally {

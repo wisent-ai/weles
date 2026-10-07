@@ -47,7 +47,11 @@ function launchctl(args) {
  * process is the declared unit; returns the labels it retired.
  */
 export function retirePredecessors(environment = process.env) {
-  if (process.platform !== 'darwin' || environment.XPC_SERVICE_NAME !== DECLARED_UNIT) return [];
+  if (
+    process.platform !== 'darwin' ||
+    environment.XPC_SERVICE_NAME !== DECLARED_UNIT
+  )
+    return [];
   const domain = `gui/${process.getuid()}`;
   const agents = join(homedir(), 'Library', 'LaunchAgents');
   const retired = [];
@@ -56,16 +60,22 @@ export function retirePredecessors(environment = process.env) {
     if (!launchctl(['print', `${domain}/${label}`]) && !existsSync(plist)) {
       const daemon = join('/Library/LaunchDaemons', `${label}.plist`);
       if (existsSync(daemon)) {
-        console.error(`[weles-api] ${label} is a system LaunchDaemon (${daemon}); this user's process cannot retire it and it still runs beside this one`);
+        console.error(
+          `[weles-api] ${label} is a system LaunchDaemon (${daemon}); this user's process cannot retire it and it still runs beside this one`,
+        );
       }
       continue;
     }
     launchctl(['bootout', `${domain}/${label}`]);
     try {
       rmSync(plist, { force: true });
-      console.log(`[weles-api] retired ${label}: its work runs in this process`);
+      console.log(
+        `[weles-api] retired ${label}: its work runs in this process`,
+      );
     } catch (error) {
-      console.error(`[weles-api] ${label} is stopped but ${plist} stays: ${error.message}`);
+      console.error(
+        `[weles-api] ${label} is stopped but ${plist} stays: ${error.message}`,
+      );
     }
     retired.push(label);
   }

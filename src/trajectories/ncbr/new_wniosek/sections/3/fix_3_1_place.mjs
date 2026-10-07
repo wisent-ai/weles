@@ -1,7 +1,10 @@
 // Repair section 3.1 existing implementation row: fill required implementation place. UI-only.
 
 import { chromium } from 'playwright';
-import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
 import { openRowEditor } from '../../../forms/row-editor.mjs';
 
@@ -15,50 +18,69 @@ if (!page) {
   process.exit(1);
 }
 
-
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
 await page.evaluate(() => {
-  const b = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies'));
+  const b = Array.from(document.querySelectorAll('div')).find((d) =>
+    (d.innerText || '').includes('pliki cookies'),
+  );
   if (b) b.style.pointerEvents = 'none';
 }); // allow-raw-playwright: neutralise cookie banner
 
 async function editExistingRow() {
-  const row = page.locator('table tbody tr').filter({ hasText: 'Wisent Polska' }).first();
-  await openRowEditor(page, row, page.locator('input[name$="miejsce_wdrozenia_wynikow_projektu"]'));
+  const row = page
+    .locator('table tbody tr')
+    .filter({ hasText: 'Wisent Polska' })
+    .first();
+  await openRowEditor(
+    page,
+    row,
+    page.locator('input[name$="miejsce_wdrozenia_wynikow_projektu"]'),
+  );
 }
 
 await editExistingRow();
 
 if (process.env.DIAG) {
-  const input = page.locator('input[name$="miejsce_wdrozenia_wynikow_projektu"]').first();
-  if (await input.count() > 0) {
+  const input = page
+    .locator('input[name$="miejsce_wdrozenia_wynikow_projektu"]')
+    .first();
+  if ((await input.count()) > 0) {
     await humanClickLocator(page, input);
     await humanIdlePause('deliberate');
   }
   const dump = await page.evaluate(() => ({
-    fields: Array.from(document.querySelectorAll('input, textarea')).map((el) => ({
-      tag: el.tagName,
-      type: el.getAttribute('type') || null,
-      name: el.getAttribute('name') || null,
-      role: el.getAttribute('role') || null,
-      value: (el.value || ''),
-      max: el.getAttribute('maxlength') || null,
-    })).filter((f) => f.name),
-    options: Array.from(document.querySelectorAll("[role='listbox'] [role='option']")).map((o) => o.textContent.trim()),
-    buttons: Array.from(document.querySelectorAll('button')).map((b) => b.innerText.trim()).filter(Boolean),
+    fields: Array.from(document.querySelectorAll('input, textarea'))
+      .map((el) => ({
+        tag: el.tagName,
+        type: el.getAttribute('type') || null,
+        name: el.getAttribute('name') || null,
+        role: el.getAttribute('role') || null,
+        value: el.value || '',
+        max: el.getAttribute('maxlength') || null,
+      }))
+      .filter((f) => f.name),
+    options: Array.from(
+      document.querySelectorAll("[role='listbox'] [role='option']"),
+    ).map((o) => o.textContent.trim()),
+    buttons: Array.from(document.querySelectorAll('button'))
+      .map((b) => b.innerText.trim())
+      .filter(Boolean),
   }));
   console.log(JSON.stringify(dump, null, 2));
   process.exit(0);
 }
 
 async function pickPlace(search) {
-  const input = page.locator('input[name$="miejsce_wdrozenia_wynikow_projektu"]').first();
+  const input = page
+    .locator('input[name$="miejsce_wdrozenia_wynikow_projektu"]')
+    .first();
   await humanClickLocator(page, input);
   await humanFill(page, input, search);
   await humanIdlePause('deliberate');
   const opt = page.locator("[role='listbox'] [role='option']").first();
-  if (await opt.count() === 0) throw new Error(`no place option for ${search}`);
+  if ((await opt.count()) === 0)
+    throw new Error(`no place option for ${search}`);
   const text = (await opt.textContent())?.trim();
   await opt.dispatchEvent('click'); // allow-raw-playwright: pick place option
   await humanIdlePause('short');
@@ -72,7 +94,9 @@ await humanIdlePause('deliberate');
 await humanIdlePause('deliberate');
 let saveResult = 'saved';
 try {
-  const saves = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
+  const saves = page
+    .getByRole('button', { name: 'Zapisz', exact: true })
+    .filter({ visible: true });
   const saveCount = await saves.count();
   if (!saveCount) throw new Error('no enabled Zapisz');
   await humanClickLocator(page, saves.nth(saveCount - 1));

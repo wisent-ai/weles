@@ -19,7 +19,11 @@
 // point, because a refused card and a refused form look identical in a log.
 
 import { WSession } from '../../../dist/session/wsession.js';
-import { fillStripeElements, loadTopupCardEnv, TOPUP_ENV_FILES } from '../_shared/services/topup_common.mjs';
+import {
+  fillStripeElements,
+  loadTopupCardEnv,
+  TOPUP_ENV_FILES,
+} from '../_shared/services/topup_common.mjs';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { pageSettled, urlMatching } from '../_shared/page/settled.mjs';
 import { humanType } from '../../../dist/human/keyboard.js';
@@ -30,7 +34,9 @@ const cardFile = loadTopupCardEnv();
 
 const url = process.env.STRIPE_CHECKOUT_URL ?? '';
 if (!/^https:\/\/checkout\.stripe\.com\//.test(url)) {
-  console.log('FAIL: STRIPE_CHECKOUT_URL must be a https://checkout.stripe.com/ session page');
+  console.log(
+    'FAIL: STRIPE_CHECKOUT_URL must be a https://checkout.stripe.com/ session page',
+  );
   process.exit(2);
 }
 if (process.env.STRIPE_PAY_CONFIRM !== '1') {
@@ -45,11 +51,16 @@ const card = {
   name: process.env.STRIPE_PAY_NAME ?? process.env.TOPUP_CARD_NAME ?? '',
 };
 if (!card.num || !card.exp || !card.cvc) {
-  console.log(`FAIL: TOPUP_CARD_NUMBER/EXP/CVC missing (card file: ${cardFile ?? 'none of ' + TOPUP_ENV_FILES.join(', ')})`);
+  console.log(
+    `FAIL: TOPUP_CARD_NUMBER/EXP/CVC missing (card file: ${cardFile ?? 'none of ' + TOPUP_ENV_FILES.join(', ')})`,
+  );
   process.exit(2);
 }
 
-const s = await WSession.start({ label: 'stripe_pay_checkout', browser: 'chromium' });
+const s = await WSession.start({
+  label: 'stripe_pay_checkout',
+  browser: 'chromium',
+});
 try {
   await s.goto(url);
   await pageSettled(s.page);
@@ -70,7 +81,9 @@ try {
   // Stripe Link intercepts with an email OTP that only the account owner can
   // pass. Drop to manual card entry the moment it offers.
   const withoutLink = s.page
-    .locator('button:has-text("Pay without Link"), button:has-text("Enter card details"), button:has-text("Use another")')
+    .locator(
+      'button:has-text("Pay without Link"), button:has-text("Enter card details"), button:has-text("Use another")',
+    )
     .filter({ visible: true })
     .first();
   if (await withoutLink.isVisible().catch(() => false)) {
@@ -87,7 +100,10 @@ try {
   // form, or the page looks like it has none.
   const email = process.env.STRIPE_PAY_EMAIL?.trim();
   if (email) {
-    const emailIn = s.page.locator('input[name="email"], input#email, input[type="email"]').filter({ visible: true }).first();
+    const emailIn = s.page
+      .locator('input[name="email"], input#email, input[type="email"]')
+      .filter({ visible: true })
+      .first();
     if (await emailIn.isVisible().catch(() => false)) {
       await humanClickLocator(s.page, emailIn);
       await humanType(s.page, email);
@@ -100,20 +116,42 @@ try {
   // empty, the card fields never rendered, and the page reported having no card
   // form. Try the ways a person could click that row, and stop at the one that
   // makes a card field appear.
-  const cardField = s.page.locator('input[name="cardNumber"], input#cardNumber').filter({ visible: true }).first();
+  const cardField = s.page
+    .locator('input[name="cardNumber"], input#cardNumber')
+    .filter({ visible: true })
+    .first();
   const cardVisible = async () => cardField.isVisible().catch(() => false);
   if (!(await cardVisible())) {
     const attempts = [
-      ['hidden radio', async () => {
-        const radios = s.page.locator('input[type="radio"]');
-        if ((await radios.count().catch(() => 0)) > 0) await radios.first().check({ force: true });
-      }],
-      ['row text', async () => {
-        await humanClickLocator(s.page, s.page.getByText('Card', { exact: true }).first());
-      }],
-      ['accordion button', async () => {
-        await humanClickLocator(s.page, s.page.locator('[data-testid*="card"], [id*="card-tab"]').filter({ visible: true }).first());
-      }],
+      [
+        'hidden radio',
+        async () => {
+          const radios = s.page.locator('input[type="radio"]');
+          if ((await radios.count().catch(() => 0)) > 0)
+            await radios.first().check({ force: true });
+        },
+      ],
+      [
+        'row text',
+        async () => {
+          await humanClickLocator(
+            s.page,
+            s.page.getByText('Card', { exact: true }).first(),
+          );
+        },
+      ],
+      [
+        'accordion button',
+        async () => {
+          await humanClickLocator(
+            s.page,
+            s.page
+              .locator('[data-testid*="card"], [id*="card-tab"]')
+              .filter({ visible: true })
+              .first(),
+          );
+        },
+      ],
     ];
     for (const [name, attempt] of attempts) {
       await attempt().catch(() => {});
@@ -127,7 +165,9 @@ try {
   }
 
   // Link saves the card to a phone number nobody can confirm from here.
-  const saveInfo = s.page.locator('input[type="checkbox"]').filter({ visible: true });
+  const saveInfo = s.page
+    .locator('input[type="checkbox"]')
+    .filter({ visible: true });
   const saveCount = await saveInfo.count().catch(() => 0);
   for (let i = 0; i < saveCount; i++) {
     const box = saveInfo.nth(i);
@@ -142,21 +182,35 @@ try {
   // a log: the older one puts card inputs on the page, the current one puts
   // each field in its own Stripe iframe. Try the page first, then the frames
   // through the shared Elements filler every other purchase trajectory uses.
-  console.log(`[stripe-checkout] filling ****${card.num.slice(-4)} exp=${card.exp}`);
-  const cardIn = s.page.locator('input[name="cardNumber"], input#cardNumber').filter({ visible: true }).first();
+  console.log(
+    `[stripe-checkout] filling ****${card.num.slice(-4)} exp=${card.exp}`,
+  );
+  const cardIn = s.page
+    .locator('input[name="cardNumber"], input#cardNumber')
+    .filter({ visible: true })
+    .first();
   await pageSettled(s.page);
   const onPage = await cardIn.isVisible().catch(() => false);
 
   if (onPage) {
     await humanClickLocator(s.page, cardIn);
     await humanType(s.page, card.num);
-    const expIn = s.page.locator('input[name="cardExpiry"], input#cardExpiry').filter({ visible: true }).first();
+    const expIn = s.page
+      .locator('input[name="cardExpiry"], input#cardExpiry')
+      .filter({ visible: true })
+      .first();
     await humanClickLocator(s.page, expIn);
     await humanType(s.page, card.exp);
-    const cvcIn = s.page.locator('input[name="cardCvc"], input#cardCvc').filter({ visible: true }).first();
+    const cvcIn = s.page
+      .locator('input[name="cardCvc"], input#cardCvc')
+      .filter({ visible: true })
+      .first();
     await humanClickLocator(s.page, cvcIn);
     await humanType(s.page, card.cvc);
-    const nameIn = s.page.locator('input[name="billingName"], input#billingName').filter({ visible: true }).first();
+    const nameIn = s.page
+      .locator('input[name="billingName"], input#billingName')
+      .filter({ visible: true })
+      .first();
     if (card.name && (await nameIn.isVisible().catch(() => false))) {
       await humanClickLocator(s.page, nameIn);
       await humanType(s.page, card.name);
@@ -172,13 +226,21 @@ try {
     console.log('[stripe-checkout] filled the page form');
   } else {
     const filled = await fillStripeElements(s.page, {
-      num: card.num, exp: card.exp, cvc: card.cvc, zip: card.zip,
+      num: card.num,
+      exp: card.exp,
+      cvc: card.cvc,
+      zip: card.zip,
     });
     console.log(`[stripe-checkout] elements fill: ${JSON.stringify(filled)}`);
     if (!filled.ok) {
       await s.screenshot('card_form_not_found');
-      const offered = await s.page.locator('button, [role="button"]').allInnerTexts().catch(() => []);
-      console.log(`FAIL: no card form to fill (${filled.reason ?? 'partial'}); the page offered: ${offered.filter(Boolean).slice(0, 8).join(' | ')}`);
+      const offered = await s.page
+        .locator('button, [role="button"]')
+        .allInnerTexts()
+        .catch(() => []);
+      console.log(
+        `FAIL: no card form to fill (${filled.reason ?? 'partial'}); the page offered: ${offered.filter(Boolean).slice(0, 8).join(' | ')}`,
+      );
       process.exit(1);
     }
     // The hosted page keeps name and postal code outside the Elements frames.
@@ -196,17 +258,28 @@ try {
   }
   await s.screenshot('before_submit');
 
-  const payBtn = s.page.locator('button[type="submit"]').filter({ visible: true }).last();
+  const payBtn = s.page
+    .locator('button[type="submit"]')
+    .filter({ visible: true })
+    .last();
   await humanClickLocator(s.page, payBtn);
   console.log('[stripe-checkout] submitted');
 
   // Three things can happen: the page redirects to the success URL, the issuer
   // demands 3-D Secure, or Stripe renders an inline decline. Whichever the page
   // shows first is the outcome.
-  const declinedText = s.page.locator('text=/declined|Your card was|could not be processed|incorrect/i').first();
-  const threeDs = s.page.locator('iframe[src*="3d_secure"], iframe[src*="hooks.stripe.com/3d_secure"], iframe[name*="3ds" i]').first();
+  const declinedText = s.page
+    .locator('text=/declined|Your card was|could not be processed|incorrect/i')
+    .first();
+  const threeDs = s.page
+    .locator(
+      'iframe[src*="3d_secure"], iframe[src*="hooks.stripe.com/3d_secure"], iframe[name*="3ds" i]',
+    )
+    .first();
   const outcome = await Promise.any([
-    urlMatching(s.page, (u) => !/checkout\.stripe\.com/.test(u)).then(() => 'redirected'),
+    urlMatching(s.page, (u) => !/checkout\.stripe\.com/.test(u)).then(
+      () => 'redirected',
+    ),
     declinedText.waitFor({ state: 'visible' }).then(() => 'declined'),
     threeDs.waitFor({ state: 'visible' }).then(() => '3ds'),
   ]);
@@ -215,13 +288,17 @@ try {
     // A live 3-D Secure challenge belongs to the cardholder's bank and phone.
     // Say so, with the screenshot, instead of pretending to wait forever.
     await s.screenshot('3ds_challenge');
-    console.log('FAIL: the issuer demanded 3-D Secure, which only the cardholder can pass');
+    console.log(
+      'FAIL: the issuer demanded 3-D Secure, which only the cardholder can pass',
+    );
     process.exit(1);
   }
   if (outcome === 'declined') {
     await s.screenshot('declined');
     const text = await s.page
-      .locator('text=/declined|Your card was|could not be processed|incorrect/i')
+      .locator(
+        'text=/declined|Your card was|could not be processed|incorrect/i',
+      )
       .first()
       .innerText()
       .catch(() => '');
@@ -230,7 +307,9 @@ try {
   }
   await s.screenshot('post_submit');
   if (outcome !== 'redirected') {
-    console.log(`FAIL: still on the checkout page after submitting; url=${s.page.url()}`);
+    console.log(
+      `FAIL: still on the checkout page after submitting; url=${s.page.url()}`,
+    );
     process.exit(1);
   }
   console.log(`PASS-CHARGED: final url=${s.page.url()}`);

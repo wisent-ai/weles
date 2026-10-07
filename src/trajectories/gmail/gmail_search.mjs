@@ -25,17 +25,23 @@ const OPEN_BODIES = process.env.GM_OPEN !== '0';
 const SEARCH_URL =
   'https://mail.google.com/mail/u/0/#search/' + encodeURIComponent(QUERY);
 
-function log(...a) { console.log('[gmail_search]', ...a); }
+function log(...a) {
+  console.log('[gmail_search]', ...a);
+}
 
 // Returns 'login' or 'in' from observed page state. Browser failures propagate.
 async function detectSession(page) {
   for (;;) {
-    if (/accounts\.google\.com|ServiceLogin|signin|challenge/.test(page.url())) {
+    if (
+      /accounts\.google\.com|ServiceLogin|signin|challenge/.test(page.url())
+    ) {
       return 'login';
     }
     const rows = await page.locator('tr.zA').count();
-    const empty = await page.getByText(/No messages matched|No results found/i)
-      .first().isVisible();
+    const empty = await page
+      .getByText(/No messages matched|No results found/i)
+      .first()
+      .isVisible();
     if (rows > 0 || empty) return 'in';
     await pageSettled(page);
   }
@@ -48,27 +54,40 @@ try {
 
   const status = await detectSession(s.page);
   if (status !== 'in') {
-    log('FAIL: profile not signed in to Gmail (status=' + status + ', url='
-      + s.page.url() + ').');
+    log(
+      'FAIL: profile not signed in to Gmail (status=' +
+        status +
+        ', url=' +
+        s.page.url() +
+        ').',
+    );
     log('Fix: run src/trajectories/_shared/services/setup_chrome_profile.mjs');
     log('and sign in once; the session persists for this trajectory.');
     await s.close();
     process.exit(2);
   }
 
-  const rows = await s.page.evaluate(() => { // allow-raw-playwright: read-only DOM text scrape of the inbox result list, no synthetic interaction
+  const rows = await s.page.evaluate(() => {
+    // allow-raw-playwright: read-only DOM text scrape of the inbox result list, no synthetic interaction
     const out = [];
     const trs = Array.from(document.querySelectorAll('tr.zA'));
     for (const r of trs) {
-      const fEl = r.querySelector('.yW span[email]') ||
-                  r.querySelector('.yW span') || r.querySelector('.zF');
+      const fEl =
+        r.querySelector('.yW span[email]') ||
+        r.querySelector('.yW span') ||
+        r.querySelector('.zF');
       const sEl = r.querySelector('.bog');
-      const dEl = r.querySelector('.xW span[title]') || r.querySelector('.xW span');
+      const dEl =
+        r.querySelector('.xW span[title]') || r.querySelector('.xW span');
       const snEl = r.querySelector('.y2');
       out.push({
-        from: fEl ? (fEl.getAttribute('email') || fEl.textContent || '').trim() : '',
+        from: fEl
+          ? (fEl.getAttribute('email') || fEl.textContent || '').trim()
+          : '',
         subject: sEl ? (sEl.textContent || '').trim() : '',
-        date: dEl ? (dEl.getAttribute('title') || dEl.textContent || '').trim() : '',
+        date: dEl
+          ? (dEl.getAttribute('title') || dEl.textContent || '').trim()
+          : '',
         snippet: snEl ? (snEl.textContent || '').trim() : '',
       });
     }
@@ -89,12 +108,16 @@ try {
     for (let idx = 0; idx < n; idx++) {
       try {
         await humanClickLocator(s.page, s.page.locator('tr.zA').nth(idx));
-        await s.page.locator('.a3s, div[role="listitem"] .ii').first()
+        await s.page
+          .locator('.a3s, div[role="listitem"] .ii')
+          .first()
           .waitFor({ state: 'visible' });
-        const body = await s.page.evaluate(() => { // allow-raw-playwright: read-only DOM text scrape of an opened email body, no synthetic interaction
+        const body = await s.page.evaluate(() => {
+          // allow-raw-playwright: read-only DOM text scrape of an opened email body, no synthetic interaction
           const subj = document.querySelector('h2.hP');
           const blocks = Array.from(document.querySelectorAll('.a3s'))
-            .map((b) => b.innerText.trim()).filter(Boolean);
+            .map((b) => b.innerText.trim())
+            .filter(Boolean);
           return {
             subj: subj ? subj.textContent.trim() : '',
             text: blocks.join('\n---\n'),
@@ -114,7 +137,11 @@ try {
   log('done.');
   await s.close();
 } catch (e) {
-  log('ERROR: ' + (e && e.stack || e));
-  try { await s.close(); } catch (ce) { log('close failed: ' + ce.message); }
+  log('ERROR: ' + ((e && e.stack) || e));
+  try {
+    await s.close();
+  } catch (ce) {
+    log('close failed: ' + ce.message);
+  }
   process.exit(1);
 }

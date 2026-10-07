@@ -17,7 +17,7 @@ export type WelesTrajectoryDraft = {
 function stringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value
-    .map((item) => typeof item === 'string' ? item.trim() : '')
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
     .filter((item) => item.length > 0);
 }
 
@@ -32,11 +32,18 @@ function fallbackSteps(): string[] {
   ];
 }
 
-function formatGuidance(steps: string[], source: WelesTrajectoryDraft['source'], model?: string): string {
-  const header = source === 'model-router'
-    ? `Brama trajectory draft${model ? ` (${model})` : ''}:`
-    : 'Fallback Weles trajectory draft:';
-  return [header, ...steps.map((step, index) => `${index + 1}. ${step}`)].join('\n');
+function formatGuidance(
+  steps: string[],
+  source: WelesTrajectoryDraft['source'],
+  model?: string,
+): string {
+  const header =
+    source === 'model-router'
+      ? `Brama trajectory draft${model ? ` (${model})` : ''}:`
+      : 'Fallback Weles trajectory draft:';
+  return [header, ...steps.map((step, index) => `${index + 1}. ${step}`)].join(
+    '\n',
+  );
 }
 
 function writerPrompt(input: WelesTrajectoryWriterInput): string {
@@ -58,19 +65,30 @@ function writerPrompt(input: WelesTrajectoryWriterInput): string {
   ].join('\n');
 }
 
-export function fallbackWelesTrajectoryDraft(input: WelesTrajectoryWriterInput, error?: unknown): WelesTrajectoryDraft {
+export function fallbackWelesTrajectoryDraft(
+  input: WelesTrajectoryWriterInput,
+  error?: unknown,
+): WelesTrajectoryDraft {
   void input;
   const steps = fallbackSteps();
   return {
     source: 'fallback',
     steps,
     guidance: formatGuidance(steps, 'fallback'),
-    error: error instanceof Error ? error.message : error ? String(error) : undefined,
+    error:
+      error instanceof Error
+        ? error.message
+        : error
+          ? String(error)
+          : undefined,
   };
 }
 
-export async function writeWelesTrajectoryDraft(input: WelesTrajectoryWriterInput): Promise<WelesTrajectoryDraft> {
-  if (process.env.WELES_DISABLE_TRAJECTORY_WRITER === '1') return fallbackWelesTrajectoryDraft(input);
+export async function writeWelesTrajectoryDraft(
+  input: WelesTrajectoryWriterInput,
+): Promise<WelesTrajectoryDraft> {
+  if (process.env.WELES_DISABLE_TRAJECTORY_WRITER === '1')
+    return fallbackWelesTrajectoryDraft(input);
   try {
     const routed = await callJeden(writerPrompt(input));
     const parsed = parseJsonFrom(routed.raw);

@@ -71,10 +71,17 @@ export function applyActionNameDispatch(
     for (const [key, envKey] of passthrough) {
       const value = params[key];
       if (typeof value === 'string') env[envKey] = value;
-      else if (typeof value === 'number' || typeof value === 'boolean') env[envKey] = String(value);
-      else if (value && typeof value === 'object') env[envKey] = JSON.stringify(value);
+      else if (typeof value === 'number' || typeof value === 'boolean')
+        env[envKey] = String(value);
+      else if (value && typeof value === 'object')
+        env[envKey] = JSON.stringify(value);
     }
-    if (params.confirm === true || params.write_confirm === true || params.confirm === '1' || params.write_confirm === '1') {
+    if (
+      params.confirm === true ||
+      params.write_confirm === true ||
+      params.confirm === '1' ||
+      params.write_confirm === '1'
+    ) {
       env.WRITE_CONFIRM = '1';
     }
   }

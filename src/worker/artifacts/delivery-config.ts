@@ -32,11 +32,19 @@ function parseSecureBaseUrl(raw: string, name: string): string {
     throw new Error(`${name} must be a valid URL`);
   }
   if (parsed.username || parsed.password || parsed.search || parsed.hash) {
-    throw new Error(`${name} must not contain credentials, query parameters, or a fragment`);
+    throw new Error(
+      `${name} must not contain credentials, query parameters, or a fragment`,
+    );
   }
-  const loopback = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1'
-    || parsed.hostname === '::1' || parsed.hostname === '[::1]';
-  if (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && loopback)) {
+  const loopback =
+    parsed.hostname === 'localhost' ||
+    parsed.hostname === '127.0.0.1' ||
+    parsed.hostname === '::1' ||
+    parsed.hostname === '[::1]';
+  if (
+    parsed.protocol !== 'https:' &&
+    !(parsed.protocol === 'http:' && loopback)
+  ) {
     throw new Error(`${name} must use HTTPS, except for loopback HTTP`);
   }
   if (parsed.pathname !== '/' && parsed.pathname !== '') {
@@ -45,10 +53,16 @@ function parseSecureBaseUrl(raw: string, name: string): string {
   return parsed.origin;
 }
 
-
-export function loadArtifactDeliveryConfig(env: NodeJS.ProcessEnv = process.env): ArtifactDeliveryConfig {
+export function loadArtifactDeliveryConfig(
+  env: NodeJS.ProcessEnv = process.env,
+): ArtifactDeliveryConfig {
   const host = requiredEnv(env, 'WELES_ARTIFACT_DELIVERY_HOST');
-  if (host.trim() !== host || host.includes('/') || host.includes('\\') || host.includes('\0')) {
+  if (
+    host.trim() !== host ||
+    host.includes('/') ||
+    host.includes('\\') ||
+    host.includes('\0')
+  ) {
     throw new Error('WELES_ARTIFACT_DELIVERY_HOST is invalid');
   }
   const port = Number(requiredEnv(env, 'WELES_ARTIFACT_DELIVERY_PORT'));
@@ -57,7 +71,9 @@ export function loadArtifactDeliveryConfig(env: NodeJS.ProcessEnv = process.env)
   }
   const ttlSeconds = Number(requiredEnv(env, 'WELES_ARTIFACT_URL_TTL_SECONDS'));
   if (!Number.isInteger(ttlSeconds) || ttlSeconds < 1) {
-    throw new Error('WELES_ARTIFACT_URL_TTL_SECONDS must be a whole number of seconds, one or more');
+    throw new Error(
+      'WELES_ARTIFACT_URL_TTL_SECONDS must be a whole number of seconds, one or more',
+    );
   }
 
   const clientToken = requiredEnv(env, 'WELES_ARTIFACT_DELIVERY_TOKEN');
@@ -65,13 +81,19 @@ export function loadArtifactDeliveryConfig(env: NodeJS.ProcessEnv = process.env)
   const stadoApiToken = requiredEnv(env, 'WELES_STADO_OBJECT_API_TOKEN');
   const subscriptionsToken = requiredEnv(env, 'OKO_WELES_SUBSCRIPTIONS_TOKEN');
   if (Buffer.byteLength(clientToken) < MIN_SECRET_BYTES) {
-    throw new Error('WELES_ARTIFACT_DELIVERY_TOKEN must contain at least 32 bytes');
+    throw new Error(
+      'WELES_ARTIFACT_DELIVERY_TOKEN must contain at least 32 bytes',
+    );
   }
   if (Buffer.byteLength(signingSecret) < MIN_SECRET_BYTES) {
-    throw new Error('WELES_ARTIFACT_SIGNING_SECRET must contain at least 32 bytes');
+    throw new Error(
+      'WELES_ARTIFACT_SIGNING_SECRET must contain at least 32 bytes',
+    );
   }
   if (Buffer.byteLength(subscriptionsToken) < MIN_SECRET_BYTES) {
-    throw new Error('OKO_WELES_SUBSCRIPTIONS_TOKEN must contain at least 32 bytes');
+    throw new Error(
+      'OKO_WELES_SUBSCRIPTIONS_TOKEN must contain at least 32 bytes',
+    );
   }
   const serviceCredentials = [
     clientToken,
@@ -80,27 +102,40 @@ export function loadArtifactDeliveryConfig(env: NodeJS.ProcessEnv = process.env)
     subscriptionsToken,
   ];
   if (new Set(serviceCredentials).size !== serviceCredentials.length) {
-    throw new Error('Weles artifact, subscription, and Stado credentials must be distinct');
+    throw new Error(
+      'Weles artifact, subscription, and Stado credentials must be distinct',
+    );
   }
   for (const siblingName of ['WELES_STADO_MODEL_ROUTER_TOKEN']) {
     const sibling = String(env[siblingName] ?? '').trim();
     if (sibling && serviceCredentials.includes(sibling)) {
-      throw new Error(`${siblingName} must be distinct from Weles service credentials`);
+      throw new Error(
+        `${siblingName} must be distinct from Weles service credentials`,
+      );
     }
   }
 
-  const allowedOriginRaw = String(env.WELES_ARTIFACT_ALLOWED_ORIGIN ?? '').trim();
+  const allowedOriginRaw = String(
+    env.WELES_ARTIFACT_ALLOWED_ORIGIN ?? '',
+  ).trim();
   return {
     host,
     port,
-    publicBaseUrl: parseSecureBaseUrl(requiredEnv(env, 'WELES_ARTIFACT_DELIVERY_URL'), 'WELES_ARTIFACT_DELIVERY_URL'),
+    publicBaseUrl: parseSecureBaseUrl(
+      requiredEnv(env, 'WELES_ARTIFACT_DELIVERY_URL'),
+      'WELES_ARTIFACT_DELIVERY_URL',
+    ),
     clientToken,
     signingSecret,
     ttlSeconds,
-    stadoApiUrl: parseSecureBaseUrl(requiredEnv(env, 'STADO_API_URL'), 'STADO_API_URL'),
+    stadoApiUrl: parseSecureBaseUrl(
+      requiredEnv(env, 'STADO_API_URL'),
+      'STADO_API_URL',
+    ),
     stadoApiToken,
     subscriptionsToken,
-    allowedOrigin: allowedOriginRaw ? parseSecureBaseUrl(allowedOriginRaw, 'WELES_ARTIFACT_ALLOWED_ORIGIN') : null,
+    allowedOrigin: allowedOriginRaw
+      ? parseSecureBaseUrl(allowedOriginRaw, 'WELES_ARTIFACT_ALLOWED_ORIGIN')
+      : null,
   };
 }
-

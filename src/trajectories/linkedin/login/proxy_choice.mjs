@@ -14,11 +14,16 @@ import { resolveProxy } from '../../../../dist/proxy/config.js';
 // plus legacy isp.oxylabs.io / disp.oxylabs.io for accounts
 // still pinned there). The generic 'isp us' filter on the fresh-pick path
 // lets the canonical Decodo win by being first in the providers list.
-const STATIC_ISP_RE = /(^|\.)(isp\.oxylabs\.io|disp\.oxylabs\.io|isp\.decodo\.com)$/i;
+const STATIC_ISP_RE =
+  /(^|\.)(isp\.oxylabs\.io|disp\.oxylabs\.io|isp\.decodo\.com)$/i;
 
 export function isStaticIsp(url) {
   if (!url) return false;
-  try { return STATIC_ISP_RE.test(new URL(url).hostname); } catch { return false; }
+  try {
+    return STATIC_ISP_RE.test(new URL(url).hostname);
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -28,7 +33,9 @@ export function isStaticIsp(url) {
  */
 export async function chooseLoginProxy(storedProxyUrl, username) {
   if (isStaticIsp(storedProxyUrl)) {
-    console.log(`[linkedin_login] reusing stored static ISP sticky for ${username}`);
+    console.log(
+      `[linkedin_login] reusing stored static ISP sticky for ${username}`,
+    );
     return storedProxyUrl;
   }
   console.log(`[linkedin_login] stored proxy not static ISP — picking fresh`);

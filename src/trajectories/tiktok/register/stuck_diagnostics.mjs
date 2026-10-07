@@ -11,22 +11,91 @@ import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 function readPageState(page) {
   return page.evaluate(() => {
     const out = { ts: Date.now(), url: location.href };
-    const inputs = Array.from(document.querySelectorAll('input')).map(i => ({ placeholder: i.placeholder, name: i.name, type: i.type, valueLen: (i.value||'').length, validity: { valid: i.validity?.valid, badInput: i.validity?.badInput, valueMissing: i.validity?.valueMissing, customError: i.validity?.customError, validationMessage: i.validationMessage } }));
-    const btns = Array.from(document.querySelectorAll('button')).map(b => ({ text: b.textContent.trim(), disabled: b.disabled, ariaDisabled: b.getAttribute('aria-disabled'), dataE2e: b.getAttribute('data-e2e'), cls: String(b.className) }));
-    const errs = Array.from(document.querySelectorAll('[class*="error" i],[class*="tip" i],[class*="warning" i]')).map(e => (e.textContent||'').trim()).filter(Boolean);
+    const inputs = Array.from(document.querySelectorAll('input')).map((i) => ({
+      placeholder: i.placeholder,
+      name: i.name,
+      type: i.type,
+      valueLen: (i.value || '').length,
+      validity: {
+        valid: i.validity?.valid,
+        badInput: i.validity?.badInput,
+        valueMissing: i.validity?.valueMissing,
+        customError: i.validity?.customError,
+        validationMessage: i.validationMessage,
+      },
+    }));
+    const btns = Array.from(document.querySelectorAll('button')).map((b) => ({
+      text: b.textContent.trim(),
+      disabled: b.disabled,
+      ariaDisabled: b.getAttribute('aria-disabled'),
+      dataE2e: b.getAttribute('data-e2e'),
+      cls: String(b.className),
+    }));
+    const errs = Array.from(
+      document.querySelectorAll(
+        '[class*="error" i],[class*="tip" i],[class*="warning" i]',
+      ),
+    )
+      .map((e) => (e.textContent || '').trim())
+      .filter(Boolean);
     const cookies = document.cookie;
     // Keys come from the storage itself, so every read below is of a present key.
-    const ls = {}; try { for (const k of Object.keys(localStorage)) ls[k] = String(localStorage.getItem(k)); } catch {}
-    const ss = {}; try { for (const k of Object.keys(sessionStorage)) ss[k] = String(sessionStorage.getItem(k)); } catch {}
-    const perf = performance.getEntriesByType('resource').filter(e => /tiktok|mssdk|ttwid|passport|verification/.test(e.name)).slice(-50).map(e => ({ name: e.name, duration: Math.round(e.duration), responseEnd: Math.round(e.responseEnd), transferSize: e.transferSize }));
-    const sigiTag = document.querySelector('script#SIGI_STATE') || document.querySelector('script#__UNIVERSAL_DATA_FOR_REHYDRATION__');
-    let sigiKeys = null; if (sigiTag) { try { const j = JSON.parse(sigiTag.textContent || '{}'); sigiKeys = Object.keys(j); } catch {} }
+    const ls = {};
+    try {
+      for (const k of Object.keys(localStorage))
+        ls[k] = String(localStorage.getItem(k));
+    } catch {}
+    const ss = {};
+    try {
+      for (const k of Object.keys(sessionStorage))
+        ss[k] = String(sessionStorage.getItem(k));
+    } catch {}
+    const perf = performance
+      .getEntriesByType('resource')
+      .filter((e) => /tiktok|mssdk|ttwid|passport|verification/.test(e.name))
+      .slice(-50)
+      .map((e) => ({
+        name: e.name,
+        duration: Math.round(e.duration),
+        responseEnd: Math.round(e.responseEnd),
+        transferSize: e.transferSize,
+      }));
+    const sigiTag =
+      document.querySelector('script#SIGI_STATE') ||
+      document.querySelector('script#__UNIVERSAL_DATA_FOR_REHYDRATION__');
+    let sigiKeys = null;
+    if (sigiTag) {
+      try {
+        const j = JSON.parse(sigiTag.textContent || '{}');
+        sigiKeys = Object.keys(j);
+      } catch {}
+    }
     const wclick = window.__wclick || [];
     const root = document.documentElement;
-    const themeAttr = [root.getAttribute('data-theme'), root.getAttribute('class')].find(Boolean) ?? '';
-    const colorScheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    const bodyText = (document.body.innerText||'');
-    return { ...out, inputs, btns, errs, cookies, ls, ss, perf, sigiKeys, wclick, themeAttr, colorScheme, bodyText };
+    const themeAttr =
+      [root.getAttribute('data-theme'), root.getAttribute('class')].find(
+        Boolean,
+      ) ?? '';
+    const colorScheme = window.matchMedia('(prefers-color-scheme: dark)')
+      .matches
+      ? 'dark'
+      : 'light';
+    const bodyText = document.body.innerText || '';
+    return {
+      ...out,
+      inputs,
+      btns,
+      errs,
+      cookies,
+      ls,
+      ss,
+      perf,
+      sigiKeys,
+      wclick,
+      themeAttr,
+      colorScheme,
+      bodyText,
+    };
   });
 }
 
@@ -44,5 +113,7 @@ export async function dumpStuckState(s, stage) {
     const fname = join(dir, `${stage}_${Date.now()}.json`);
     writeFileSync(fname, JSON.stringify({ stage, dump, ctxCookies }, null, 2));
     console.log(`[stuck-diag] dumped ${stage} state to ${fname}`);
-  } catch (e) { console.log(`[stuck-diag] err: ${e.message}`); }
+  } catch (e) {
+    console.log(`[stuck-diag] err: ${e.message}`);
+  }
 }

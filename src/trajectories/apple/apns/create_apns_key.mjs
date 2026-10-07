@@ -14,10 +14,15 @@ const OUT_DIR = `${homedir()}/.swiatowid`;
 const KEY_NAME = process.env.APNS_KEY_NAME || 'Oko APNs';
 
 async function clickText(page, rx) {
-  for (const loc of [page.getByRole('button', { name: rx }).first(),
-                     page.getByRole('link', { name: rx }).first(),
-                     page.getByText(rx).first()]) {
-    if (await loc.count() > 0) { await humanClickLocator(page, loc); return true; }
+  for (const loc of [
+    page.getByRole('button', { name: rx }).first(),
+    page.getByRole('link', { name: rx }).first(),
+    page.getByText(rx).first(),
+  ]) {
+    if ((await loc.count()) > 0) {
+      await humanClickLocator(page, loc);
+      return true;
+    }
   }
   return false;
 }
@@ -31,7 +36,9 @@ const s = await WSession.start({
 await s.goto(ADD_URL);
 await pageSettled(s.page);
 if (/idmsa|\/login|authResult=FAILED/.test(s.page.url())) {
-  console.log('NEED_LOGIN: persisted Apple session expired — cannot create the key without a fresh login.');
+  console.log(
+    'NEED_LOGIN: persisted Apple session expired — cannot create the key without a fresh login.',
+  );
   console.log('current url:', s.page.url());
 } else {
   console.log('[apns] on add page, logged in');
@@ -42,8 +49,13 @@ if (/idmsa|\/login|authResult=FAILED/.test(s.page.url())) {
     await humanFill(s.page, s.page.locator('#name').first(), KEY_NAME);
     await pageSettled(s.page);
     // Check the APNs service via its label (trusted event enables Continue).
-    const lbl = s.page.locator('label').filter({ hasText: 'Apple Push Notifications service (APNs)' }).first();
-    if (await lbl.count() > 0) { await humanClickLocator(s.page, lbl); }
+    const lbl = s.page
+      .locator('label')
+      .filter({ hasText: 'Apple Push Notifications service (APNs)' })
+      .first();
+    if ((await lbl.count()) > 0) {
+      await humanClickLocator(s.page, lbl);
+    }
     await pageSettled(s.page);
     await clickText(s.page, /^continue$/i);
     await pageSettled(s.page);
@@ -52,7 +64,10 @@ if (/idmsa|\/login|authResult=FAILED/.test(s.page.url())) {
     const dl = await clickText(s.page, /download/i);
     console.log('[apns] download clicked =', dl);
   } catch (e) {
-    console.log('[apns] click flow error (finish in window if needed):', e.message);
+    console.log(
+      '[apns] click flow error (finish in window if needed):',
+      e.message,
+    );
   }
   console.log('[apns] waiting for the .p8 download…');
   const download = await downloadPromise;

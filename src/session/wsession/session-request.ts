@@ -46,7 +46,8 @@ export function redactProxyForLog(proxy: unknown): string {
   if (typeof proxy === 'string') {
     try {
       const u = new URL(proxy);
-      if (u.username) u.username = `${decodeURIComponent(u.username).slice(0, 18)}...`;
+      if (u.username)
+        u.username = `${decodeURIComponent(u.username).slice(0, 18)}...`;
       if (u.password) u.password = '***';
       return u.toString();
     } catch {
@@ -54,7 +55,11 @@ export function redactProxyForLog(proxy: unknown): string {
     }
   }
   if (typeof proxy === 'object') {
-    const p = proxy as { server?: string; username?: string; password?: string };
+    const p = proxy as {
+      server?: string;
+      username?: string;
+      password?: string;
+    };
     return JSON.stringify({
       server: p.server,
       username: p.username,
@@ -64,11 +69,28 @@ export function redactProxyForLog(proxy: unknown): string {
   return String(proxy);
 }
 
-export function countryHintFromProxyRequest(proxy: unknown): string | undefined {
-  if (typeof proxy !== 'string' || proxy.startsWith('http') || proxy.startsWith('socks')) return undefined;
-  const countryTokens = new Set(['us', 'uk', 'gb', 'br', 'de', 'fr', 'nl', 'ca', 'au']);
+export function countryHintFromProxyRequest(
+  proxy: unknown,
+): string | undefined {
+  if (
+    typeof proxy !== 'string' ||
+    proxy.startsWith('http') ||
+    proxy.startsWith('socks')
+  )
+    return undefined;
+  const countryTokens = new Set([
+    'us',
+    'uk',
+    'gb',
+    'br',
+    'de',
+    'fr',
+    'nl',
+    'ca',
+    'au',
+  ]);
   const tokens = proxy.toLowerCase().match(/\b[a-z]{2}\b/g) ?? [];
-  const cc = tokens.find(t => countryTokens.has(t));
+  const cc = tokens.find((t) => countryTokens.has(t));
   return cc?.toUpperCase();
 }
 
@@ -77,19 +99,24 @@ export function countryHintFromProxyRequest(proxy: unknown): string | undefined 
  * keyed by a hash of ACCOUNT_ID under <platform>/<browser>. Undefined when the
  * run has no ACCOUNT_ID, which is how a session gets an ephemeral profile.
  */
-export function accountProfileDirectory(opts: WSessionOptions, browser: string): string | undefined {
+export function accountProfileDirectory(
+  opts: WSessionOptions,
+  browser: string,
+): string | undefined {
   const accountId = process.env.ACCOUNT_ID?.trim();
   if (!accountId) return undefined;
   const action = process.env.ACTION?.trim() ?? '';
-  const inferredPlatform = opts.platform?.trim()
-    || action.split('_').at(0)?.trim()
-    || opts.targetHost?.trim()
-    || 'unknown';
+  const inferredPlatform =
+    opts.platform?.trim() ||
+    action.split('_').at(0)?.trim() ||
+    opts.targetHost?.trim() ||
+    'unknown';
   const safePlatform = inferredPlatform.toLowerCase().replace(/[^\w.-]+/g, '-');
   const safeBrowser = browser.toLowerCase().replace(/[^\w.-]+/g, '-');
   const accountKey = createHash('sha256').update(accountId).digest('hex');
-  const root = process.env.WELES_BROWSER_PROFILE_ROOT?.trim()
-    || join(userInfo().homedir, '.local', 'state', 'weles', 'browser-profiles');
+  const root =
+    process.env.WELES_BROWSER_PROFILE_ROOT?.trim() ||
+    join(userInfo().homedir, '.local', 'state', 'weles', 'browser-profiles');
   const parent = join(root, safePlatform, safeBrowser);
   const directory = join(parent, accountKey);
   mkdirSync(parent, { recursive: true, mode: 0o700 });

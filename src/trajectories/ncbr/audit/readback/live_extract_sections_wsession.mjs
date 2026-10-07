@@ -3,12 +3,17 @@
 
 import { writeFileSync } from 'node:fs';
 import { WSession } from '../../../../../dist/index.js';
-import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../dist/human/keyboard.js';
 
 const PROJECT_ID = (await import('#ncbr-settings')).projectId();
 const PROJECT_URL = (await import('#ncbr-settings')).projectUrl();
-const OUT = process.env.OUT || (await import('#ncbr-settings')).applicationFile('live_lsi_readback.json');
+const OUT =
+  process.env.OUT ||
+  (await import('#ncbr-settings')).applicationFile('live_lsi_readback.json');
 const email = process.env.NCBR_EMAIL;
 const password = process.env.NCBR_PASSWORD;
 
@@ -51,7 +56,11 @@ const known = [
   ['10.2', (await import('#ncbr-settings')).sectionId('10_2')],
   ['10.3', (await import('#ncbr-settings')).sectionId('10_3')],
   ['10.4', (await import('#ncbr-settings')).sectionId('10_4')],
-].map(([label, id]) => ({ label, url: `${PROJECT_URL}/projekt_step/${id}`, source: 'known' }));
+].map(([label, id]) => ({
+  label,
+  url: `${PROJECT_URL}/projekt_step/${id}`,
+  source: 'known',
+}));
 
 async function setReactInputValue(locator, value) {
   await locator.waitFor({ state: 'visible' });
@@ -69,62 +78,123 @@ function uniqueSections(uiUrls) {
   return Array.from(byUrl.values()).sort((a, b) => {
     const ka = Number(String(a.label || '').match(/^\d+(?:\.\d+)?/)?.[0] || 99);
     const kb = Number(String(b.label || '').match(/^\d+(?:\.\d+)?/)?.[0] || 99);
-    return ka - kb || String(a.label || a.id).localeCompare(String(b.label || b.id));
+    return (
+      ka - kb || String(a.label || a.id).localeCompare(String(b.label || b.id))
+    );
   });
 }
 
-const session = await WSession.start({ label: 'ncbr_live_extract_sections_wsession', proxy: 'direct', browser: 'chromium' });
+const session = await WSession.start({
+  label: 'ncbr_live_extract_sections_wsession',
+  proxy: 'direct',
+  browser: 'chromium',
+});
 const page = session.page;
 
-
-await page.goto('https://lsi2.ncbr.gov.pl/logowanie', { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: Weles-controlled LSI login navigation
-await setReactInputValue(page.locator('#mail, input[name="mail"]').first(), email);
-await setReactInputValue(page.locator('#password, input[name="password"]').first(), password);
-const statute = page.locator('#isStatuteAccepted, input[name="isStatuteAccepted"]').first();
-if (await statute.count() > 0 && !await statute.isChecked()) {
-  const statuteLabel = page.locator('label, .MuiFormControlLabel-root, .MuiCheckbox-root')
-    .filter({ has: statute }).filter({ visible: true }).first();
-  await humanClickLocator(page, await statuteLabel.count() > 0 ? statuteLabel : statute);
+await page.goto('https://lsi2.ncbr.gov.pl/logowanie', {
+  waitUntil: 'domcontentloaded',
+}); // allow-raw-playwright: Weles-controlled LSI login navigation
+await setReactInputValue(
+  page.locator('#mail, input[name="mail"]').first(),
+  email,
+);
+await setReactInputValue(
+  page.locator('#password, input[name="password"]').first(),
+  password,
+);
+const statute = page
+  .locator('#isStatuteAccepted, input[name="isStatuteAccepted"]')
+  .first();
+if ((await statute.count()) > 0 && !(await statute.isChecked())) {
+  const statuteLabel = page
+    .locator('label, .MuiFormControlLabel-root, .MuiCheckbox-root')
+    .filter({ has: statute })
+    .filter({ visible: true })
+    .first();
+  await humanClickLocator(
+    page,
+    (await statuteLabel.count()) > 0 ? statuteLabel : statute,
+  );
 }
-await page.waitForFunction(() => {
-  const btn = document.querySelector('#login-btn') || Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Zaloguj');
-  return !!btn && !btn.disabled;
-}, null, { polling: 'raf' }); // allow-raw-playwright: wait for MUI login validation
-for (let attempt = 1; attempt <= 3 && page.url().includes('/logowanie'); attempt += 1) {
-  const loginButton = page.locator('#login-btn, button:has-text("Zaloguj")').filter({ visible: true }).first();
-  if (await loginButton.count() === 0) throw new Error('login button not found for retry');
+await page.waitForFunction(
+  () => {
+    const btn =
+      document.querySelector('#login-btn') ||
+      Array.from(document.querySelectorAll('button')).find(
+        (b) => b.innerText.trim() === 'Zaloguj',
+      );
+    return !!btn && !btn.disabled;
+  },
+  null,
+  { polling: 'raf' },
+); // allow-raw-playwright: wait for MUI login validation
+for (
+  let attempt = 1;
+  attempt <= 3 && page.url().includes('/logowanie');
+  attempt += 1
+) {
+  const loginButton = page
+    .locator('#login-btn, button:has-text("Zaloguj")')
+    .filter({ visible: true })
+    .first();
+  if ((await loginButton.count()) === 0)
+    throw new Error('login button not found for retry');
   await humanClickLocator(page, loginButton);
   await page.waitForLoadState('load');
   await humanIdlePause('long');
 }
-if (page.url().includes('/logowanie')) throw new Error('login stayed on login page');
+if (page.url().includes('/logowanie'))
+  throw new Error('login stayed on login page');
 
 await page.goto(PROJECT_URL, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: read-only project navigation
 await humanIdlePause('long');
 
 const status = await page.evaluate(() => {
   const body = document.body?.innerText || '';
-  const lines = body.split('\n').map((l) => l.trim()).filter(Boolean);
+  const lines = body
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
   return {
     url: location.href,
     title: document.title,
-    statusLines: lines.filter((l) => /W przygotowaniu|Złożony|Zlozony|Wycofany|Konkurs:|nabór|nabor/i.test(l)),
-    submitButtons: Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Złóż wniosek').map((b) => ({ disabled: b.disabled })),
+    statusLines: lines.filter((l) =>
+      /W przygotowaniu|Złożony|Zlozony|Wycofany|Konkurs:|nabór|nabor/i.test(l),
+    ),
+    submitButtons: Array.from(document.querySelectorAll('button'))
+      .filter((b) => b.innerText.trim() === 'Złóż wniosek')
+      .map((b) => ({ disabled: b.disabled })),
   };
 }); // allow-raw-playwright: read project status only
 
 const uiUrls = await page.evaluate(() => {
   const out = [];
-  for (const a of document.querySelectorAll('a[href*="/projekt_step/"], [href*="/projekt_step/"]')) {
+  for (const a of document.querySelectorAll(
+    'a[href*="/projekt_step/"], [href*="/projekt_step/"]',
+  )) {
     const href = a.href || a.getAttribute('href');
     const text = (a.textContent || '').trim().replace(/\s+/g, ' ');
-    if (href) out.push({ label: text, url: new URL(href, location.href).href, source: 'ui' });
+    if (href)
+      out.push({
+        label: text,
+        url: new URL(href, location.href).href,
+        source: 'ui',
+      });
   }
   return out;
 }); // allow-raw-playwright: discover visible section URLs from UI
 
-const only = process.env.ONLY ? new Set(process.env.ONLY.split(',').map((x) => x.trim()).filter(Boolean)) : null;
-const sections = uniqueSections(uiUrls).filter((section) => !only || only.has(String(section.label)) || only.has(String(section.id)));
+const only = process.env.ONLY
+  ? new Set(
+      process.env.ONLY.split(',')
+        .map((x) => x.trim())
+        .filter(Boolean),
+    )
+  : null;
+const sections = uniqueSections(uiUrls).filter(
+  (section) =>
+    !only || only.has(String(section.label)) || only.has(String(section.id)),
+);
 const extracted = [];
 
 function writeSnapshot(partial) {
@@ -154,7 +224,9 @@ function writeSnapshot(partial) {
 
 for (let i = 0; i < sections.length; i += 1) {
   const section = sections[i];
-  console.log(`[extract] ${i + 1}/${sections.length} ${section.label || section.id}`);
+  console.log(
+    `[extract] ${i + 1}/${sections.length} ${section.label || section.id}`,
+  );
   await page.goto(section.url, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: read-only section navigation
   await page.waitForSelector('input, textarea, table, button'); // allow-raw-playwright: wait for section controls before readback
   await humanIdlePause('deliberate');
@@ -169,8 +241,14 @@ for (let i = 0; i < sections.length; i += 1) {
       // ancestor holding another field names that field, not this one.
       for (let node = el.parentElement; node; node = node.parentElement) {
         const lab = node.querySelector('label, .MuiFormLabel-root, legend');
-        if (lab?.textContent) return lab.textContent.trim().replace(/\s+/g, ' ');
-        if (Array.from(node.querySelectorAll('input, textarea, select')).some((f) => f !== el)) break;
+        if (lab?.textContent)
+          return lab.textContent.trim().replace(/\s+/g, ' ');
+        if (
+          Array.from(node.querySelectorAll('input, textarea, select')).some(
+            (f) => f !== el,
+          )
+        )
+          break;
       }
       return null;
     }
@@ -189,7 +267,8 @@ for (let i = 0; i < sections.length; i += 1) {
         label: labelFor(el),
         role: el.getAttribute('role'),
         max: el.getAttribute('maxlength'),
-        checked: type === 'radio' || type === 'checkbox' ? Boolean(el.checked) : null,
+        checked:
+          type === 'radio' || type === 'checkbox' ? Boolean(el.checked) : null,
         value,
         valueLength: value.length,
         ariaInvalid: el.getAttribute('aria-invalid'),
@@ -197,26 +276,39 @@ for (let i = 0; i < sections.length; i += 1) {
         readOnly: Boolean(el.readOnly),
       });
     }
-    const muiValues = Array.from(document.querySelectorAll('[role="combobox"], .MuiSelect-select')).map((el) => ({
-      text: (el.textContent || el.value || '').trim().replace(/\s+/g, ' '),
-      label: labelFor(el),
-      ariaExpanded: el.getAttribute('aria-expanded'),
-    })).filter((x) => x.text || x.label);
-    const tables = Array.from(document.querySelectorAll('table')).map((table) => ({
-      rows: table.querySelectorAll('tbody tr').length,
-      headers: Array.from(table.querySelectorAll('th')).map((th) => th.textContent.trim().replace(/\s+/g, ' ')),
-      text: table.innerText.replace(/\s+/g, ' ').trim(),
-    }));
+    const muiValues = Array.from(
+      document.querySelectorAll('[role="combobox"], .MuiSelect-select'),
+    )
+      .map((el) => ({
+        text: (el.textContent || el.value || '').trim().replace(/\s+/g, ' '),
+        label: labelFor(el),
+        ariaExpanded: el.getAttribute('aria-expanded'),
+      }))
+      .filter((x) => x.text || x.label);
+    const tables = Array.from(document.querySelectorAll('table')).map(
+      (table) => ({
+        rows: table.querySelectorAll('tbody tr').length,
+        headers: Array.from(table.querySelectorAll('th')).map((th) =>
+          th.textContent.trim().replace(/\s+/g, ' '),
+        ),
+        text: table.innerText.replace(/\s+/g, ' ').trim(),
+      }),
+    );
     const body = document.body?.innerText || '';
     return {
       ...sectionMeta,
       finalUrl: location.href,
       title: document.title,
-      headingLines: body.split('\n').map((l) => l.trim()).filter((l) => /^\d+(?:\.\d+)?\./.test(l)),
+      headingLines: body
+        .split('\n')
+        .map((l) => l.trim())
+        .filter((l) => /^\d+(?:\.\d+)?\./.test(l)),
       fields,
       muiValues,
       tables,
-      buttons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim(), disabled: b.disabled })).filter((b) => b.text),
+      buttons: Array.from(document.querySelectorAll('button'))
+        .map((b) => ({ text: b.innerText.trim(), disabled: b.disabled }))
+        .filter((b) => b.text),
       body,
     };
   }, section); // allow-raw-playwright: extract read-only DOM state

@@ -14,7 +14,9 @@ import {
 import { dirname } from 'node:path';
 
 export function readJson(path) {
-  return JSON.parse(path === '-' ? readFileSync(0, 'utf8') : readFileSync(path, 'utf8'));
+  return JSON.parse(
+    path === '-' ? readFileSync(0, 'utf8') : readFileSync(path, 'utf8'),
+  );
 }
 
 export function writeJson(path, value) {
@@ -35,7 +37,11 @@ export function writeJson(path, value) {
     descriptor = undefined;
     renameSync(temporary, path);
     const directory = openSync(parent, 'r');
-    try { fsyncSync(directory); } finally { closeSync(directory); }
+    try {
+      fsyncSync(directory);
+    } finally {
+      closeSync(directory);
+    }
   } catch (error) {
     if (descriptor !== undefined) closeSync(descriptor);
     rmSync(temporary, { force: true });
@@ -44,7 +50,8 @@ export function writeJson(path, value) {
 }
 
 export function objectAt(value, name) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${name} must be an object`);
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error(`${name} must be an object`);
   return value;
 }
 
@@ -52,4 +59,3 @@ export function arrayAt(value, name) {
   if (!Array.isArray(value)) throw new Error(`${name} must be an array`);
   return value;
 }
-

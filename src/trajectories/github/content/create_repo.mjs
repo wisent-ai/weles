@@ -1,4 +1,7 @@
-import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
+import {
+  getSocialAccount,
+  resolveAccountSession,
+} from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { detectGitHubBanSignals } from '../../../../dist/platforms/github/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -13,27 +16,44 @@ import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 // Word pool used to generate organic-looking repo names when REPO_NAME isn't
 // supplied. Set WELES_GITHUB_REPO_WORDS to override (comma-separated) so the
 // orchestrator can diversify the pool without touching trajectory code.
-const WORD_POOL = (process.env.WELES_GITHUB_REPO_WORDS ?? 'notes,scratch,dotfiles,playground,sandbox,learning,snippets,configs,bits,practice').split(',');
+const WORD_POOL = (
+  process.env.WELES_GITHUB_REPO_WORDS ??
+  'notes,scratch,dotfiles,playground,sandbox,learning,snippets,configs,bits,practice'
+).split(',');
 function slug() {
-  const w = WORD_POOL[Math.floor(Math.random() * WORD_POOL.length)].trim() || 'scratch';
+  const w =
+    WORD_POOL[Math.floor(Math.random() * WORD_POOL.length)].trim() || 'scratch';
   return `${w}-${randomBytes(3).toString('hex')}`;
 }
 
-const REPO_NAME = (process.env.REPO_NAME || slug()).replace(/[^a-zA-Z0-9_.-]/g, '').slice(0, 90);
-const REPO_DESC = (process.env.REPO_DESC || 'personal workspace');
+const REPO_NAME = (process.env.REPO_NAME || slug())
+  .replace(/[^a-zA-Z0-9_.-]/g, '')
+  .slice(0, 90);
+const REPO_DESC = process.env.REPO_DESC || 'personal workspace';
 
 const acct = await getSocialAccount('github');
-if (!acct) { console.log('FAIL: no active github account'); process.exit(1); }
+if (!acct) {
+  console.log('FAIL: no active github account');
+  process.exit(1);
+}
 const { proxyUrl, persona } = await resolveAccountSession(acct);
-const s = await WSession.start({ label: 'github_create_repo', proxy: proxyUrl, persona });
+const s = await WSession.start({
+  label: 'github_create_repo',
+  proxy: proxyUrl,
+  persona,
+});
 let ban = null;
 try {
-  const cookies = (acct.metadata?.cookies ?? []).filter(c => (c.domain ?? '').includes('github.com'));
+  const cookies = (acct.metadata?.cookies ?? []).filter((c) =>
+    (c.domain ?? '').includes('github.com'),
+  );
   if (cookies.length) await s.ctx.addCookies(cookies).catch(() => {});
   await s.goto('https://github.com/new');
   checkReachable(s, 'github');
   await pageSettled(s.page);
-  const loggedOut = await s.page.evaluate(() => !!document.querySelector('a[href="/login"]'));
+  const loggedOut = await s.page.evaluate(
+    () => !!document.querySelector('a[href="/login"]'),
+  );
   if (loggedOut) throw new Error('not_logged_in: cookies stale');
 
   // Deterministic Playwright. GitHub /new form selectors:
@@ -49,20 +69,65 @@ try {
   const descIn = s.page.locator('input[name="Description"]').first();
   await humanFill(s.page, descIn, REPO_DESC);
   await pageSettled(s.page);
-  await humanClickLocator(s.page, s.page.locator('button[type="submit"]').filter({ hasText: 'Create repository' }).first());
+  await humanClickLocator(
+    s.page,
+    s.page
+      .locator('button[type="submit"]')
+      .filter({ hasText: 'Create repository' })
+      .first(),
+  );
 
-  await submitAnswered(s.page, /github\.com\/new\b/, s.page.locator('.flash-error, [role="alert"], .error').filter({ hasText: /\S/ }).first());
+  await submitAnswered(
+    s.page,
+    /github\.com\/new\b/,
+    s.page
+      .locator('.flash-error, [role="alert"], .error')
+      .filter({ hasText: /\S/ })
+      .first(),
+  );
   const finalUrl = s.page.url?.() ?? '';
-  if (!new RegExp(`github\\.com/${acct.username}/${REPO_NAME}(?:/|$)`).test(finalUrl)) {
+  if (
+    !new RegExp(`github\\.com/${acct.username}/${REPO_NAME}(?:/|$)`).test(
+      finalUrl,
+    )
+  ) {
     throw new Error(`repo_not_created: final url=${finalUrl}`);
   }
-  ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${ban?.signal}  PASS: created ${acct.username}/${REPO_NAME}`);
+  ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(
+    () => null,
+  );
+  console.log(
+    `[ban-signal] ${ban?.signal}  PASS: created ${acct.username}/${REPO_NAME}`,
+  );
 } catch (e) {
-  ban = e.banSignal ?? await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
+  ban =
+    e.banSignal ??
+    (await detectGitHubBanSignals(s.page, s.capturedResponses).catch(
+      () => null,
+    ));
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message}`);
   process.exitCode = 1;
 } finally {
-  if (ban) { try { const dir = runRecordingsDir('github_create_repo'); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'github_create_repo', repo_name: REPO_NAME, ...ban, ts: new Date().toISOString() }, null, 2)); } catch {} }
+  if (ban) {
+    try {
+      const dir = runRecordingsDir('github_create_repo');
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        join(dir, 'ban_signal.json'),
+        JSON.stringify(
+          {
+            account_id: acct.id,
+            username: acct.username,
+            action: 'github_create_repo',
+            repo_name: REPO_NAME,
+            ...ban,
+            ts: new Date().toISOString(),
+          },
+          null,
+          2,
+        ),
+      );
+    } catch {}
+  }
   await s.close();
 }

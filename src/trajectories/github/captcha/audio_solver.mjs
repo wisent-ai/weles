@@ -60,11 +60,16 @@ const AUDIO_HOOK_SCRIPT = `(() => {
 // The Arkose enforcement frame, once it has rendered buttons, images or text.
 // It may attach after this call, so frame attachment is awaited as an event.
 async function getGameFrame(page) {
-  const isEnforcement = (f) => /arkoselabs\.com.*enforcement.*\.html/.test(f.url());
-  const enforcement = page.frames().find(isEnforcement)
-    ?? await page.waitForEvent('framenavigated', { predicate: isEnforcement });
+  const isEnforcement = (f) =>
+    /arkoselabs\.com.*enforcement.*\.html/.test(f.url());
+  const enforcement =
+    page.frames().find(isEnforcement) ??
+    (await page.waitForEvent('framenavigated', { predicate: isEnforcement }));
   await enforcement.waitForFunction(
-    () => document.querySelectorAll('button').length > 0 || document.querySelectorAll('img,canvas').length > 0 || (document.body?.innerText ?? '').length > 20,
+    () =>
+      document.querySelectorAll('button').length > 0 ||
+      document.querySelectorAll('img,canvas').length > 0 ||
+      (document.body?.innerText ?? '').length > 20,
     undefined,
     { polling: 'raf' },
   );
@@ -78,7 +83,8 @@ async function classifyAudio(b64, mime, targetSound, numOptions) {
     mimeType: mime,
     prompt,
   });
-  const match = text.match(/Answer\s*[:\s=]\s*(\d+)/i) ?? text.match(/(\d+)\s*$/);
+  const match =
+    text.match(/Answer\s*[:\s=]\s*(\d+)/i) ?? text.match(/(\d+)\s*$/);
   const answer = Number(match?.at(1));
   if (!Number.isInteger(answer) || answer < 1 || answer > numOptions) {
     throw new Error(`model-router returned no valid audio option: ${text}`);
@@ -90,7 +96,10 @@ async function classifyAudio(b64, mime, targetSound, numOptions) {
 export async function solveAudioPuzzle(page, { maxRounds = 10 } = {}) {
   await page.evaluate(AUDIO_HOOK_SCRIPT).catch(() => {});
   const frame = await getGameFrame(page);
-  if (!frame) { console.log('[audio] No Arkose game frame found'); return false; }
+  if (!frame) {
+    console.log('[audio] No Arkose game frame found');
+    return false;
+  }
   console.log(`[audio] Game frame: ${frame.url()}`);
   await frame.evaluate(AUDIO_HOOK_SCRIPT).catch(() => {});
 
@@ -101,50 +110,98 @@ export async function solveAudioPuzzle(page, { maxRounds = 10 } = {}) {
     const btns = Array.from(document.querySelectorAll('button, [role="button"], a')).filter(b => b.offsetParent !== null);
     return btns.map(b => ({ text: b.innerText?.trim(), aria: b.getAttribute('aria-label'), cls: b.className }));
   })()`);
-  const audioMatch = inventory.find(b => /audio|sound|accessibility/i.test((b.text || '') + ' ' + (b.aria || '')));
-  if (!audioMatch) { console.log(`[audio] No Audio button on the settled puzzle — buttons(${inventory.length}): ${JSON.stringify(inventory)}`); return false; }
+  const audioMatch = inventory.find((b) =>
+    /audio|sound|accessibility/i.test((b.text || '') + ' ' + (b.aria || '')),
+  );
+  if (!audioMatch) {
+    console.log(
+      `[audio] No Audio button on the settled puzzle — buttons(${inventory.length}): ${JSON.stringify(inventory)}`,
+    );
+    return false;
+  }
   console.log(`[audio] Found audio-like button: ${JSON.stringify(audioMatch)}`);
-  const audioBtn = frame.locator(`button:has-text("${audioMatch.text}"), [aria-label="${audioMatch.aria}"]`).first();
+  const audioBtn = frame
+    .locator(
+      `button:has-text("${audioMatch.text}"), [aria-label="${audioMatch.aria}"]`,
+    )
+    .first();
   await audioBtn.click();
   console.log('[audio] Clicked Audio puzzle');
   await pageSettled(frame);
 
   for (let round = 1; round <= maxRounds; round++) {
-    const info = await frame.evaluate(`(() => {
+    const info = await frame
+      .evaluate(`(() => {
       const text = document.body?.innerText ?? '';
       const buttons = Array.from(document.querySelectorAll('button')).filter(b => b.offsetParent !== null).map(b => b.innerText.trim());
       const nums = Array.from(document.querySelectorAll('button, [role="button"]')).filter(b => b.offsetParent !== null && /^\\d+$/.test(b.innerText.trim())).map(b => b.innerText.trim());
       return { text, buttons, numOptions: nums.length };
-    })()`).catch(() => null);
-    if (!info) { console.log(`[audio] Round ${round}: frame eval failed`); break; }
+    })()`)
+      .catch(() => null);
+    if (!info) {
+      console.log(`[audio] Round ${round}: frame eval failed`);
+      break;
+    }
     console.log(`[audio] R${round}: ${info.text.replace(/\n/g, ' ')}`);
 
-    if (/complete|success|solved|verified/i.test(info.text)) { console.log('[audio] Success text detected'); return true; }
-    if (/blocked|try again|failed/i.test(info.text)) { console.log('[audio] Blocked'); return false; }
+    if (/complete|success|solved|verified/i.test(info.text)) {
+      console.log('[audio] Success text detected');
+      return true;
+    }
+    if (/blocked|try again|failed/i.test(info.text)) {
+      console.log('[audio] Blocked');
+      return false;
+    }
 
     const targetMatch = info.text.match(/sound of (.+?)[?\n.]/i);
-    if (!targetMatch) { console.log(`[audio] R${round}: no target in text — assuming done`); break; }
+    if (!targetMatch) {
+      console.log(`[audio] R${round}: no target in text — assuming done`);
+      break;
+    }
     const target = targetMatch[1].trim().toLowerCase();
-    console.log(`[audio] R${round} target: "${target}", ${info.numOptions} options`);
+    console.log(
+      `[audio] R${round} target: "${target}", ${info.numOptions} options`,
+    );
 
-    const playBtn = frame.locator('button:has-text("Play"), button[aria-label*="play" i]').first();
+    const playBtn = frame
+      .locator('button:has-text("Play"), button[aria-label*="play" i]')
+      .first();
     if (await playBtn.isVisible().catch(() => false)) {
       await playBtn.click().catch(() => {});
       console.log(`[audio] R${round}: Play clicked`);
     }
     // The hook records each clip as it plays; wait until one is captured in
     // any frame, then take the biggest from that frame.
-    const capturedIn = await Promise.any(page.frames().map((f) => f.waitForFunction(
-      () => (window.__playedAudio || []).some((a) => a.b64 && a.b64.length > 1000),
-      undefined,
-      { polling: 'raf' },
-    ).then(() => f)));
-    let b64 = null, mime = 'audio/wav';
-    const clips = await capturedIn.evaluate(`(() => (window.__playedAudio || []).filter(a => a.b64 && a.b64.length > 1000))()`);
+    const capturedIn = await Promise.any(
+      page
+        .frames()
+        .map((f) =>
+          f
+            .waitForFunction(
+              () =>
+                (window.__playedAudio || []).some(
+                  (a) => a.b64 && a.b64.length > 1000,
+                ),
+              undefined,
+              { polling: 'raf' },
+            )
+            .then(() => f),
+        ),
+    );
+    let b64 = null,
+      mime = 'audio/wav';
+    const clips = await capturedIn.evaluate(
+      `(() => (window.__playedAudio || []).filter(a => a.b64 && a.b64.length > 1000))()`,
+    );
     if (clips?.length) {
-      const biggest = clips.reduce((m, c) => (c.size ?? c.b64.length) > (m.size ?? m.b64.length) ? c : m);
-      b64 = biggest.b64; mime = biggest.type || 'audio/wav';
-      console.log(`[audio] R${round}: captured ${clips.length} clips, biggest=${biggest.size ?? biggest.b64.length}b`);
+      const biggest = clips.reduce((m, c) =>
+        (c.size ?? c.b64.length) > (m.size ?? m.b64.length) ? c : m,
+      );
+      b64 = biggest.b64;
+      mime = biggest.type || 'audio/wav';
+      console.log(
+        `[audio] R${round}: captured ${clips.length} clips, biggest=${biggest.size ?? biggest.b64.length}b`,
+      );
     }
     if (!b64) {
       console.log(`[audio] R${round}: no audio captured; refusing to guess`);
@@ -155,19 +212,23 @@ export async function solveAudioPuzzle(page, { maxRounds = 10 } = {}) {
     try {
       pick = await classifyAudio(b64, mime, target, info.numOptions || 6);
     } catch (error) {
-      console.log(`[audio] R${round}: Stado model-router failed: ${String(error?.message || error)}`);
+      console.log(
+        `[audio] R${round}: Stado model-router failed: ${String(error?.message || error)}`,
+      );
       return false;
     }
     console.log(`[audio] R${round}: picking option ${pick}`);
 
-    const clicked = await frame.evaluate(`(n => {
+    const clicked = await frame
+      .evaluate(`(n => {
       const buttons = Array.from(document.querySelectorAll('button, [role="button"]')).filter(b => b.offsetParent !== null);
       for (const b of buttons) {
         const t = b.innerText.trim();
         if (t === String(n) || new RegExp('^' + n + '\\\\b').test(t)) { b.click(); return { clicked: true, text: t }; }
       }
       return { clicked: false };
-    })(${pick})`).catch(e => ({ err: e.message }));
+    })(${pick})`)
+      .catch((e) => ({ err: e.message }));
     console.log(`[audio] R${round}: click=${JSON.stringify(clicked)}`);
 
     // Clear captured audio for next round

@@ -1,7 +1,15 @@
 import { readSetting, writeSetting } from '../state/skarbiec-records.js';
 import { readWelesRun, submitWelesRun } from '../worker/run-submit/index.js';
-import { acquiredSecretContract, writeWelesAcquiredSecret } from './scoped-service.js';
-import { getReceived, listReceived, receivingConfigured, type ReceivedSummary } from '../utils/email/resend-receiving.js';
+import {
+  acquiredSecretContract,
+  writeWelesAcquiredSecret,
+} from './scoped-service.js';
+import {
+  getReceived,
+  listReceived,
+  receivingConfigured,
+  type ReceivedSummary,
+} from '../utils/email/resend-receiving.js';
 
 type ActionLogRow = {
   id: string;
@@ -12,9 +20,6 @@ type ActionLogRow = {
   result?: Record<string, unknown> | null;
   tenant_id?: string | null;
 };
-
-
-
 
 type ScannerResult =
   | {
@@ -38,7 +43,11 @@ type ScannerResult =
       next_scheduled_at: string | null;
     }
   | {
-      status: 'needs_configuration' | 'source_not_found' | 'target_email_missing' | 'expired';
+      status:
+        | 'needs_configuration'
+        | 'source_not_found'
+        | 'target_email_missing'
+        | 'expired';
       validated: false;
       reason: string;
       source_action_log_id?: string;
@@ -50,19 +59,18 @@ type ScannerResult =
 const SEMANTIC_SECRET = 'semantic_scholar.api_key';
 const FOLLOWUP_ACTION = 'semanticscholar_key_followup';
 const FOLLOWUP_PLATFORM = 'semanticscholar';
-const VALIDATION_URL = 'https://api.semanticscholar.org/graph/v1/paper/search?query=test&limit=1&fields=title';
-
-
+const VALIDATION_URL =
+  'https://api.semanticscholar.org/graph/v1/paper/search?query=test&limit=1&fields=title';
 
 function record(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 function text(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
-
-
 
 function sourceConstraints(row: ActionLogRow): Record<string, unknown> {
   return record(record(row.params).constraints);
@@ -72,12 +80,14 @@ function isSemanticSubmission(row: ActionLogRow): boolean {
   const constraints = sourceConstraints(row);
   const rowTenant = text(row.tenant_id) || null;
   const constraintTenant = text(constraints.tenant_id) || null;
-  return constraints.secret === SEMANTIC_SECRET
-    && constraints.provider === 'semantic_scholar'
-    && constraints.operation === 'acquire'
-    && constraints.vault_item_id === 'weles-semantic-scholar-api'
-    && /^[a-f0-9]{64}$/i.test(text(constraints.request_id))
-    && rowTenant === constraintTenant;
+  return (
+    constraints.secret === SEMANTIC_SECRET &&
+    constraints.provider === 'semantic_scholar' &&
+    constraints.operation === 'acquire' &&
+    constraints.vault_item_id === 'weles-semantic-scholar-api' &&
+    /^[a-f0-9]{64}$/i.test(text(constraints.request_id)) &&
+    rowTenant === constraintTenant
+  );
 }
 
 function identityEmail(row: ActionLogRow): string {
@@ -87,31 +97,45 @@ function identityEmail(row: ActionLogRow): string {
   if (direct) return direct;
   const session = record(result.session);
   const envAll = record(session.env_all);
-  return ['SEMANTIC_SCHOLAR_NEW_EMAIL', 'GENERIC_NEW_EMAIL', 'UW_EMAIL', 'VL_EMAIL']
-    .map((key) => text(envAll[key]).trim())
-    .find(Boolean) ?? '';
+  return (
+    ['SEMANTIC_SCHOLAR_NEW_EMAIL', 'GENERIC_NEW_EMAIL', 'UW_EMAIL', 'VL_EMAIL']
+      .map((key) => text(envAll[key]).trim())
+      .find(Boolean) ?? ''
+  );
 }
 
-async function loadSourceSubmission(sourceActionLogId: string | undefined, tenantId: string | null): Promise<ActionLogRow | null> {
+async function loadSourceSubmission(
+  sourceActionLogId: string | undefined,
+  tenantId: string | null,
+): Promise<ActionLogRow | null> {
   if (!sourceActionLogId) return null;
   const row = await readWelesRun<ActionLogRow>(sourceActionLogId);
   if (!row) return null;
   const normalized = { ...row, id: row.id || sourceActionLogId };
-  return isSemanticSubmission(normalized) && (normalized.tenant_id ?? null) === tenantId ? normalized : null;
+  return isSemanticSubmission(normalized) &&
+    (normalized.tenant_id ?? null) === tenantId
+    ? normalized
+    : null;
 }
 
 function messageRecipients(message: ReceivedSummary): string[] {
-  return (message.to ?? []).map((entry) => typeof entry === 'string' ? entry : text(entry.email)).map((entry) => entry.toLowerCase());
+  return (message.to ?? [])
+    .map((entry) => (typeof entry === 'string' ? entry : text(entry.email)))
+    .map((entry) => entry.toLowerCase());
 }
 
-
-function contentForCandidateExtraction(message: Record<string, unknown>): string {
+function contentForCandidateExtraction(
+  message: Record<string, unknown>,
+): string {
   return [message.subject, message.text, message.html].map(text).join('\n');
 }
 
 export function extractSemanticScholarKeyCandidates(content: string): string[] {
   const candidates = new Set<string>();
-  const normalized = content.replace(/&amp;/g, '&').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+  const normalized = content
+    .replace(/&amp;/g, '&')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ');
   const contextual = [
     /(?:api\s*key|x-api-key|secret\s*key|access\s*key)\s*(?:is|:|=)?\s*([A-Za-z0-9][A-Za-z0-9._-]{19,127})/gi,
     /(?:SEMANTIC_SCHOLAR_API_KEY|S2_API_KEY)\s*(?:=|:)\s*([A-Za-z0-9][A-Za-z0-9._-]{19,127})/g,
@@ -122,14 +146,23 @@ export function extractSemanticScholarKeyCandidates(content: string): string[] {
   return [...candidates].filter((candidate) => {
     if (candidate.includes('@')) return false;
     if (/^https?:/i.test(candidate)) return false;
-    if (/^(semantic|scholar|received|request|information|patience)$/i.test(candidate)) return false;
+    if (
+      /^(semantic|scholar|received|request|information|patience)$/i.test(
+        candidate,
+      )
+    )
+      return false;
     return /[0-9]/.test(candidate) && /[A-Za-z]/.test(candidate);
   });
 }
 
-async function validateCandidate(candidate: string): Promise<{ ok: boolean; status: string }> {
+async function validateCandidate(
+  candidate: string,
+): Promise<{ ok: boolean; status: string }> {
   try {
-    const response = await fetch(VALIDATION_URL, { headers: { 'x-api-key': candidate } });
+    const response = await fetch(VALIDATION_URL, {
+      headers: { 'x-api-key': candidate },
+    });
     return { ok: response.ok, status: `HTTP ${response.status}` };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -143,7 +176,16 @@ function sourceStartedAt(row: ActionLogRow): number {
   return Number.isFinite(ms) ? ms : 0;
 }
 
-async function scanMailboxForValidKey(source: ActionLogRow): Promise<{ stored: true; emailId: string; validationStatus: string; emailsScanned: number; matchedEmails: number } | { stored: false; emailsScanned: number; matchedEmails: number }> {
+async function scanMailboxForValidKey(source: ActionLogRow): Promise<
+  | {
+      stored: true;
+      emailId: string;
+      validationStatus: string;
+      emailsScanned: number;
+      matchedEmails: number;
+    }
+  | { stored: false; emailsScanned: number; matchedEmails: number }
+> {
   const target = identityEmail(source).toLowerCase();
   const minCreatedAt = sourceStartedAt(source);
   let after: string | undefined;
@@ -168,7 +210,8 @@ async function scanMailboxForValidKey(source: ActionLogRow): Promise<{ stored: t
           const validation = await validateCandidate(candidate);
           if (!validation.ok) continue;
           const constraints = sourceConstraints(source);
-          const tenantId = text(source.tenant_id) || text(constraints.tenant_id) || null;
+          const tenantId =
+            text(source.tenant_id) || text(constraints.tenant_id) || null;
           writeWelesAcquiredSecret(
             SEMANTIC_SECRET,
             'api_key',
@@ -179,7 +222,13 @@ async function scanMailboxForValidKey(source: ActionLogRow): Promise<{ stored: t
               operation: text(constraints.operation) || 'acquire',
             },
           );
-          return { stored: true, emailId: message.id, validationStatus: validation.status, emailsScanned, matchedEmails };
+          return {
+            stored: true,
+            emailId: message.id,
+            validationStatus: validation.status,
+            emailsScanned,
+            matchedEmails,
+          };
         } finally {
           secret.fill(0);
         }
@@ -191,8 +240,15 @@ async function scanMailboxForValidKey(source: ActionLogRow): Promise<{ stored: t
   }
   return { stored: false, emailsScanned, matchedEmails };
 }
-export async function queueSemanticScholarFollowup(sourceActionLogId: string, delayMs = 0, attempt = 0, tenantId?: string | null): Promise<{ queued: boolean; action_log_id: string; scheduled_at?: string }> {
-  const key = `semantic_followup_${sourceActionLogId}_${attempt}`.replace(/[^a-z0-9_]/gi, '_').toLowerCase();
+export async function queueSemanticScholarFollowup(
+  sourceActionLogId: string,
+  delayMs = 0,
+  attempt = 0,
+  tenantId?: string | null,
+): Promise<{ queued: boolean; action_log_id: string; scheduled_at?: string }> {
+  const key = `semantic_followup_${sourceActionLogId}_${attempt}`
+    .replace(/[^a-z0-9_]/gi, '_')
+    .toLowerCase();
   const existing = readSetting<string | null>(key, null);
   if (existing) return { queued: false, action_log_id: existing };
   const scheduledAt = new Date(Date.now() + delayMs).toISOString();
@@ -217,23 +273,49 @@ function statedFollowupCount(name: string, what: string): number {
   const raw = process.env[name];
   const value = Number(raw);
   if (!raw || !Number.isSafeInteger(value) || !(value >= Number.MIN_VALUE)) {
-    throw new Error(`${name} is ${raw ? `"${raw}", not a whole number above zero` : 'not set'}: ${what}; nothing is assumed`);
+    throw new Error(
+      `${name} is ${raw ? `"${raw}", not a whole number above zero` : 'not set'}: ${what}; nothing is assumed`,
+    );
   }
   return value;
 }
 
-export async function runSemanticScholarKeyFollowup(sourceActionLogId?: string, attemptArg?: number, tenantId: string | null = null): Promise<ScannerResult> {
+export async function runSemanticScholarKeyFollowup(
+  sourceActionLogId?: string,
+  attemptArg?: number,
+  tenantId: string | null = null,
+): Promise<ScannerResult> {
   if (!receivingConfigured()) {
-    return { status: 'needs_configuration', validated: false, reason: 'the wisent-integrations inbox route (STADO_INTEGRATION_API_URL, WELES_STADO_INTEGRATION_TOKEN) is not configured', next_scheduled_at: null };
+    return {
+      status: 'needs_configuration',
+      validated: false,
+      reason:
+        'the wisent-integrations inbox route (STADO_INTEGRATION_API_URL, WELES_STADO_INTEGRATION_TOKEN) is not configured',
+      next_scheduled_at: null,
+    };
   }
   const source = await loadSourceSubmission(sourceActionLogId, tenantId);
-  if (!source) return { status: 'source_not_found', validated: false, reason: 'no completed Semantic Scholar submission found', next_scheduled_at: null };
-  if (!identityEmail(source)) return { status: 'target_email_missing', validated: false, reason: 'submitted run has no generated email in result metadata', source_action_log_id: source.id, next_scheduled_at: null };
+  if (!source)
+    return {
+      status: 'source_not_found',
+      validated: false,
+      reason: 'no completed Semantic Scholar submission found',
+      next_scheduled_at: null,
+    };
+  if (!identityEmail(source))
+    return {
+      status: 'target_email_missing',
+      validated: false,
+      reason: 'submitted run has no generated email in result metadata',
+      source_action_log_id: source.id,
+      next_scheduled_at: null,
+    };
 
   const scan = await scanMailboxForValidKey(source);
   if (scan.stored) {
     const contract = acquiredSecretContract(SEMANTIC_SECRET);
-    if (!contract) throw new Error('missing exact Semantic Scholar Skarbiec contract');
+    if (!contract)
+      throw new Error('missing exact Semantic Scholar Skarbiec contract');
     return {
       status: 'validated',
       validated: true,
@@ -246,11 +328,39 @@ export async function runSemanticScholarKeyFollowup(sourceActionLogId?: string, 
   }
 
   const attempt = Number.isFinite(attemptArg) ? Number(attemptArg) : 0;
-  const maxAttempts = statedFollowupCount('SEMANTIC_SCHOLAR_FOLLOWUP_MAX_ATTEMPTS', 'how many times the inbox is read for the Semantic Scholar key email');
-  const intervalMs = statedFollowupCount('SEMANTIC_SCHOLAR_FOLLOWUP_INTERVAL_MS', 'how long to wait between reads of the inbox for the Semantic Scholar key email');
+  const maxAttempts = statedFollowupCount(
+    'SEMANTIC_SCHOLAR_FOLLOWUP_MAX_ATTEMPTS',
+    'how many times the inbox is read for the Semantic Scholar key email',
+  );
+  const intervalMs = statedFollowupCount(
+    'SEMANTIC_SCHOLAR_FOLLOWUP_INTERVAL_MS',
+    'how long to wait between reads of the inbox for the Semantic Scholar key email',
+  );
   if (attempt + 1 >= maxAttempts) {
-    return { status: 'expired', validated: false, reason: 'no Semantic Scholar key email found before follow-up expiry', source_action_log_id: source.id, emails_scanned: scan.emailsScanned, matched_emails: scan.matchedEmails, next_scheduled_at: null };
+    return {
+      status: 'expired',
+      validated: false,
+      reason: 'no Semantic Scholar key email found before follow-up expiry',
+      source_action_log_id: source.id,
+      emails_scanned: scan.emailsScanned,
+      matched_emails: scan.matchedEmails,
+      next_scheduled_at: null,
+    };
   }
-  const queued = await queueSemanticScholarFollowup(source.id, intervalMs, attempt + 1, tenantId);
-  return { status: 'pending', validated: false, reason: 'no Semantic Scholar key email found yet', source_action_log_id: source.id, next_action_log_id: queued.action_log_id, emails_scanned: scan.emailsScanned, matched_emails: scan.matchedEmails, next_scheduled_at: queued.scheduled_at ?? null };
+  const queued = await queueSemanticScholarFollowup(
+    source.id,
+    intervalMs,
+    attempt + 1,
+    tenantId,
+  );
+  return {
+    status: 'pending',
+    validated: false,
+    reason: 'no Semantic Scholar key email found yet',
+    source_action_log_id: source.id,
+    next_action_log_id: queued.action_log_id,
+    emails_scanned: scan.emailsScanned,
+    matched_emails: scan.matchedEmails,
+    next_scheduled_at: queued.scheduled_at ?? null,
+  };
 }

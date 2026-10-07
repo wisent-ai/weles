@@ -11,10 +11,15 @@ import { upgradeTier } from './topup/tier.mjs';
 
 const { usd } = topupOpts();
 const plan = nearestPlan(usd);
-console.log(`[trajectory] requested $${usd}, using nearest plan: ${plan.name} ($${plan.price}/${plan.gb}GB)`);
+console.log(
+  `[trajectory] requested $${usd}, using nearest plan: ${plan.name} ($${plan.price}/${plan.gb}GB)`,
+);
 
 const login = await getScopedGoogleLogin('oxylabsDashboard');
-if (!login) { console.log('FAIL: no Google SSO creds'); process.exit(1); }
+if (!login) {
+  console.log('FAIL: no Google SSO creds');
+  process.exit(1);
+}
 
 const s = await WSession.start({ label: 'oxylabs_topup', browser: 'chromium' });
 try {
@@ -25,4 +30,6 @@ try {
 } catch (e) {
   console.log('FAIL:', e.message);
   process.exit(1);
-} finally { await s.close(); }
+} finally {
+  await s.close();
+}

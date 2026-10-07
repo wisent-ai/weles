@@ -21,12 +21,18 @@ export async function shot(s, tag) {
 export async function dieUI(s, tag, msg) {
   console.error(`\n[pull_github] STEP FAILED: ${tag} — ${msg}`);
   const p = await shot(s, `fail_${tag}`);
-  console.error(`[pull_github] FAIL (exit 2). Inspect ${p} to correct the exact selector — do not guess.`);
+  console.error(
+    `[pull_github] FAIL (exit 2). Inspect ${p} to correct the exact selector — do not guess.`,
+  );
   await s.close();
   process.exit(2);
 }
 export async function captureOverleafAuth(store, s, why) {
   const cookies = await store.capturePlaywright(s.ctx, OVERLEAF_AUTH_LABEL);
-  const overleafCookies = cookies.filter((c) => String(c.domain || '').includes('overleaf.com')).length;
-  console.log(`[pull_github] captured ${overleafCookies}/${cookies.length} cookies for ${OVERLEAF_AUTH_LABEL} (${why})`);
+  const overleafCookies = cookies.filter((c) =>
+    String(c.domain || '').includes('overleaf.com'),
+  ).length;
+  console.log(
+    `[pull_github] captured ${overleafCookies}/${cookies.length} cookies for ${OVERLEAF_AUTH_LABEL} (${why})`,
+  );
 }

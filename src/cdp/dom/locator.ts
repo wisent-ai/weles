@@ -74,30 +74,40 @@ export class CDPLocator {
     const y = box.y + box.height / 2;
 
     // Access the frame's private connection/session for raw CDP calls.
-    const conn = (this._frame as any)._conn as import('../connection.js').CDPConnection;
+    const conn = (this._frame as any)
+      ._conn as import('../connection.js').CDPConnection;
     const sessionId: string = (this._frame as any)._sessionId;
 
-    await conn.send('Input.dispatchMouseEvent', {
-      type: 'mousePressed',
-      x,
-      y,
-      button: 'left',
-      clickCount: 1,
-    }, sessionId);
+    await conn.send(
+      'Input.dispatchMouseEvent',
+      {
+        type: 'mousePressed',
+        x,
+        y,
+        button: 'left',
+        clickCount: 1,
+      },
+      sessionId,
+    );
 
-    await conn.send('Input.dispatchMouseEvent', {
-      type: 'mouseReleased',
-      x,
-      y,
-      button: 'left',
-      clickCount: 1,
-    }, sessionId);
+    await conn.send(
+      'Input.dispatchMouseEvent',
+      {
+        type: 'mouseReleased',
+        x,
+        y,
+        button: 'left',
+        clickCount: 1,
+      },
+      sessionId,
+    );
   }
 
   /** Focus the element, clear its value, and set a new one (React-compatible). */
   async fill(value: string): Promise<void> {
     const resolve = resolveElementJS(this._selector, this._index);
-    await this._frame.evaluate(`((v) => {
+    await this._frame.evaluate(
+      `((v) => {
       ${resolve}
       if (!el) throw new Error('Element not found');
       el.focus();
@@ -105,28 +115,39 @@ export class CDPLocator {
       setter.call(el, v);
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
-    })`, value);
+    })`,
+      value,
+    );
   }
 
   /** Focus the element and type each character via Input.dispatchKeyEvent. */
   async type(text: string): Promise<void> {
     await this._focus();
 
-    const conn = (this._frame as any)._conn as import('../connection.js').CDPConnection;
+    const conn = (this._frame as any)
+      ._conn as import('../connection.js').CDPConnection;
     const sessionId: string = (this._frame as any)._sessionId;
 
     for (const char of text) {
-      await conn.send('Input.dispatchKeyEvent', {
-        type: 'keyDown',
-        text: char,
-        key: char,
-        unmodifiedText: char,
-      }, sessionId);
+      await conn.send(
+        'Input.dispatchKeyEvent',
+        {
+          type: 'keyDown',
+          text: char,
+          key: char,
+          unmodifiedText: char,
+        },
+        sessionId,
+      );
 
-      await conn.send('Input.dispatchKeyEvent', {
-        type: 'keyUp',
-        key: char,
-      }, sessionId);
+      await conn.send(
+        'Input.dispatchKeyEvent',
+        {
+          type: 'keyUp',
+          key: char,
+        },
+        sessionId,
+      );
     }
   }
 
@@ -175,7 +196,12 @@ export class CDPLocator {
   }
 
   /** Return the element's bounding rectangle. */
-  async boundingBox(): Promise<{ x: number; y: number; width: number; height: number } | null> {
+  async boundingBox(): Promise<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null> {
     const resolve = resolveElementJS(this._selector, this._index);
     return this._frame.evaluate(`(() => {
       ${resolve}
@@ -203,7 +229,9 @@ export class CDPLocator {
         return r.snapshotLength;
       })()`);
     }
-    return this._frame.evaluate(`document.querySelectorAll(${JSON.stringify(this._selector)}).length`);
+    return this._frame.evaluate(
+      `document.querySelectorAll(${JSON.stringify(this._selector)}).length`,
+    );
   }
 
   // -- Private helpers -----------------------------------------------------

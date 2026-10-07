@@ -4,18 +4,23 @@ import { detectDiscordBanSignals } from '../../../../../dist/platforms/discord/b
 
 const channelPath = process.env.SERVER_CHANNEL_PATH || '@me';
 await runAction({
-  platform: 'discord', action: 'organic_message',
+  platform: 'discord',
+  action: 'organic_message',
   feedUrl: `https://discord.com/channels/${channelPath}`,
   surfaceLabel: 'discord channel',
   pickPost: async (s) => {
     try {
       const text = await s.page.evaluate(() => {
-        const messages = Array.from(document.querySelectorAll('[class*="messageContent"]')).slice(-5);
+        const messages = Array.from(
+          document.querySelectorAll('[class*="messageContent"]'),
+        ).slice(-5);
         const last = messages[messages.length - 1];
         return last?.textContent?.trim() ?? '';
       });
-      return { postTitle: (text || ''), postBody: '' };
-    } catch { return { postTitle: '', postBody: '' }; }
+      return { postTitle: text || '', postBody: '' };
+    } catch {
+      return { postTitle: '', postBody: '' };
+    }
   },
   submitComment: discordSubmitMessage,
   banDetector: detectDiscordBanSignals,

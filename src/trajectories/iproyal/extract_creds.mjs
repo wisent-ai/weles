@@ -6,8 +6,14 @@
 // product page, dumps it for inspection, and parses the proxy
 // username:password so they can be written into .env + GCP.
 import { WSession } from '../../../dist/session/wsession.js';
-import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
-import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
+import {
+  googleSso,
+  getGoogleSsoCreds,
+} from '../_shared/services/google_sso.mjs';
+import {
+  humanIdlePause,
+  humanClickLocator,
+} from '../../../dist/human/mouse.js';
 import { urlMatching } from '../_shared/page/settled.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -17,22 +23,39 @@ const OUT = join(process.cwd(), '.work', 'iproyal_extract_creds');
 mkdirSync(OUT, { recursive: true });
 
 const login = await getGoogleSsoCreds();
-if (!login) { console.log('FAIL: no Google SSO creds'); process.exit(1); }
+if (!login) {
+  console.log('FAIL: no Google SSO creds');
+  process.exit(1);
+}
 console.log(`[extract] Using Google SSO: ${login.email}`);
 
-const s = await WSession.start({ label: 'iproyal_extract_creds', browser: 'chromium' });
+const s = await WSession.start({
+  label: 'iproyal_extract_creds',
+  browser: 'chromium',
+});
 try {
   await s.goto(LOGIN_URL);
   await humanIdlePause('deliberate');
 
   const popupPromise = s.page.waitForEvent('popup');
-  const gBtn = s.page.locator('button:has-text("Login with Google"), button:has-text("Continue with Google")').filter({ visible: true }).first();
+  const gBtn = s.page
+    .locator(
+      'button:has-text("Login with Google"), button:has-text("Continue with Google")',
+    )
+    .filter({ visible: true })
+    .first();
   await humanClickLocator(s.page, gBtn);
   const popup = await popupPromise;
   await popup.waitForLoadState('domcontentloaded');
 
-  const ok = await googleSso(s, login, { originHost: 'iproyal.com', page: popup });
-  if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }
+  const ok = await googleSso(s, login, {
+    originHost: 'iproyal.com',
+    page: popup,
+  });
+  if (!ok) {
+    console.log('FAIL: Google SSO did not complete');
+    process.exit(1);
+  }
 
   await urlMatching(s.page, /^(?!.*\/login)/);
   console.log(`[extract] post-login url=${s.page.url()}`);
@@ -56,16 +79,28 @@ try {
       await s.page.goto(url, { waitUntil: 'domcontentloaded' });
       await humanIdlePause('long');
       const tag = url.replace(/[^a-z0-9]+/gi, '_');
-      text = await s.page.evaluate(() => document.body.innerText);  // allow-raw-playwright: read-only innerText, no DOM interaction
+      text = await s.page.evaluate(() => document.body.innerText); // allow-raw-playwright: read-only innerText, no DOM interaction
       writeFileSync(join(OUT, `${tag}.txt`), text);
       writeFileSync(join(OUT, `${tag}.html`), await s.page.content());
-      await s.page.screenshot({ path: join(OUT, `${tag}.png`), fullPage: true });
-      console.log(`[extract] dumped ${url} (textlen=${text.length}, final=${s.page.url()})`);
+      await s.page.screenshot({
+        path: join(OUT, `${tag}.png`),
+        fullPage: true,
+      });
+      console.log(
+        `[extract] dumped ${url} (textlen=${text.length}, final=${s.page.url()})`,
+      );
 
-      const fields = await s.page.evaluate(() => {  // allow-raw-playwright: read-only field/value scrape, no click/scroll/submit
+      const fields = await s.page.evaluate(() => {
+        // allow-raw-playwright: read-only field/value scrape, no click/scroll/submit
         const out = {};
         for (const inp of Array.from(document.querySelectorAll('input'))) {
-          const k = (inp.name || inp.id || inp.getAttribute('aria-label') || inp.placeholder || '').toLowerCase();
+          const k = (
+            inp.name ||
+            inp.id ||
+            inp.getAttribute('aria-label') ||
+            inp.placeholder ||
+            ''
+          ).toLowerCase();
           const v = inp.value || '';
           if (!v) continue;
           if (/user|login/.test(k)) out.username = v;
@@ -75,32 +110,49 @@ try {
         }
         return out;
       });
-      Object.assign(found, Object.fromEntries(Object.entries(fields).filter(([, v]) => v)));
+      Object.assign(
+        found,
+        Object.fromEntries(Object.entries(fields).filter(([, v]) => v)),
+      );
 
       // Common dashboard pattern: a "user:pass@host:port" connection string
       // or labelled "Username <x>" / "Password <y>" lines in body text.
-      const cs = text.match(/([A-Za-z0-9._-]+):([A-Za-z0-9._-]{6,})@([a-z0-9.-]+\.[a-z]{2,}):(\d{2,5})/);
-      if (cs) { found.username ??= cs[1]; found.password ??= cs[2]; found.host ??= cs[3]; found.port ??= cs[4]; }
+      const cs = text.match(
+        /([A-Za-z0-9._-]+):([A-Za-z0-9._-]{6,})@([a-z0-9.-]+\.[a-z]{2,}):(\d{2,5})/,
+      );
+      if (cs) {
+        found.username ??= cs[1];
+        found.password ??= cs[2];
+        found.host ??= cs[3];
+        found.port ??= cs[4];
+      }
       const um = text.match(/user(?:name)?\s*[:\n]\s*([A-Za-z0-9._-]{4,})/i);
       const pm = text.match(/pass(?:word)?\s*[:\n]\s*([A-Za-z0-9._-]{6,})/i);
       if (um) found.username ??= um[1];
       if (pm) found.password ??= pm[1];
 
-      if (found.username && found.password) { console.log(`[extract] credentials found on ${url}`); break; }
+      if (found.username && found.password) {
+        console.log(`[extract] credentials found on ${url}`);
+        break;
+      }
     } catch (e) {
-      console.log(`[extract] ${url} err: ${(e.message || String(e))}`);
+      console.log(`[extract] ${url} err: ${e.message || String(e)}`);
     }
   }
 
   writeFileSync(join(OUT, 'extracted.json'), JSON.stringify(found, null, 2));
   if (found.username && found.password) {
-    console.log(`PASS: extracted IPRoyal creds username=${found.username} host=${found.host ?? '?'} port=${found.port ?? '?'} (password ${found.password.length} chars) -> ${OUT}/extracted.json`);
+    console.log(
+      `PASS: extracted IPRoyal creds username=${found.username} host=${found.host ?? '?'} port=${found.port ?? '?'} (password ${found.password.length} chars) -> ${OUT}/extracted.json`,
+    );
   } else {
-    console.log(`FAIL: could not parse IPRoyal proxy creds — inspect dumps in ${OUT}/ (txt+html+png per candidate page)`);
+    console.log(
+      `FAIL: could not parse IPRoyal proxy creds — inspect dumps in ${OUT}/ (txt+html+png per candidate page)`,
+    );
     process.exit(1);
   }
 } catch (e) {
-  console.log('FAIL:', (e.message || String(e)));
+  console.log('FAIL:', e.message || String(e));
   process.exit(1);
 } finally {
   await s.close();

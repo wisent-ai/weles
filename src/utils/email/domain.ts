@@ -37,14 +37,20 @@ async function hasValidMx(domain: string): Promise<boolean> {
   try {
     return (await resolveMx(domain)).length > 0;
   } catch (error) {
-    console.log(`[email] mx_lookup_failed: ${domain}: ${(error as NodeJS.ErrnoException).code ?? (error as Error).message}`);
+    console.log(
+      `[email] mx_lookup_failed: ${domain}: ${(error as NodeJS.ErrnoException).code ?? (error as Error).message}`,
+    );
     return false;
   }
 }
 
 function envDerived(): string {
-  const domains = process.env.AGENT_EMAIL_DOMAINS?.split(',').map((value) => value.trim()).filter(Boolean) ?? [];
-  if (domains.length) return domains[Math.floor(Math.random() * domains.length)];
+  const domains =
+    process.env.AGENT_EMAIL_DOMAINS?.split(',')
+      .map((value) => value.trim())
+      .filter(Boolean) ?? [];
+  if (domains.length)
+    return domains[Math.floor(Math.random() * domains.length)];
   return process.env.AGENT_DOMAIN ?? 'wisentmedia.com';
 }
 
@@ -52,14 +58,18 @@ function platformBlock(row: DomainRow, platform?: string): boolean {
   if (!platform) return false;
   const key = platform.toLowerCase();
   const metadata = row.metadata ?? {};
-  return Boolean(metadata.platform_blocks?.[key] ?? metadata.blocked_platforms?.[key]);
+  return Boolean(
+    metadata.platform_blocks?.[key] ?? metadata.blocked_platforms?.[key],
+  );
 }
 
 async function pickStoredDomain(platform?: string): Promise<string | null> {
   const rows = readDomainRows();
   const now = new Date().toISOString();
   let changed = false;
-  for (const row of rows.filter((candidate) => candidate.status === 'mx_broken')) {
+  for (const row of rows.filter(
+    (candidate) => candidate.status === 'mx_broken',
+  )) {
     if (await hasValidMx(row.domain)) {
       row.status = 'active';
       row.updated_at = now;
@@ -68,7 +78,13 @@ async function pickStoredDomain(platform?: string): Promise<string | null> {
   }
   const candidates = rows
     .filter((row) => row.status === 'active' && !platformBlock(row, platform))
-    .sort((left, right) => left.signup_count - right.signup_count || String(left.last_used_at ?? '').localeCompare(String(right.last_used_at ?? '')));
+    .sort(
+      (left, right) =>
+        left.signup_count - right.signup_count ||
+        String(left.last_used_at ?? '').localeCompare(
+          String(right.last_used_at ?? ''),
+        ),
+    );
   for (const row of candidates) {
     if (!(await hasValidMx(row.domain))) {
       row.status = 'mx_broken';
@@ -81,7 +97,10 @@ async function pickStoredDomain(platform?: string): Promise<string | null> {
     return row.domain;
   }
   if (changed) writeDomainRows(rows);
-  if (platform && rows.length) throw new Error(`domain_unavailable: every inbound domain is broken or blocked for ${platform}`);
+  if (platform && rows.length)
+    throw new Error(
+      `domain_unavailable: every inbound domain is broken or blocked for ${platform}`,
+    );
   return null;
 }
 
@@ -91,8 +110,13 @@ export async function pickDomain(platform?: string): Promise<string> {
   return (await pickStoredDomain(platform)) ?? envDerived();
 }
 
-export async function markSignupSuccess(emailOrDomain: string, platform?: string): Promise<void> {
-  const domain = emailOrDomain.includes('@') ? emailOrDomain.split('@')[1] : emailOrDomain;
+export async function markSignupSuccess(
+  emailOrDomain: string,
+  platform?: string,
+): Promise<void> {
+  const domain = emailOrDomain.includes('@')
+    ? emailOrDomain.split('@')[1]
+    : emailOrDomain;
   const rows = readDomainRows();
   const row = rows.find((candidate) => candidate.domain === domain);
   if (!row) return;
@@ -103,14 +127,23 @@ export async function markSignupSuccess(emailOrDomain: string, platform?: string
   if (platform) {
     row.metadata = {
       ...(row.metadata ?? {}),
-      platform_success: { ...(row.metadata?.platform_success ?? {}), [platform.toLowerCase()]: now },
+      platform_success: {
+        ...(row.metadata?.platform_success ?? {}),
+        [platform.toLowerCase()]: now,
+      },
     };
   }
   writeDomainRows(rows);
 }
 
-export async function reportBlocked(domainOrEmail: string, reason?: string, platform?: string): Promise<void> {
-  const domain = domainOrEmail.includes('@') ? domainOrEmail.split('@')[1] : domainOrEmail;
+export async function reportBlocked(
+  domainOrEmail: string,
+  reason?: string,
+  platform?: string,
+): Promise<void> {
+  const domain = domainOrEmail.includes('@')
+    ? domainOrEmail.split('@')[1]
+    : domainOrEmail;
   const rows = readDomainRows();
   const row = rows.find((candidate) => candidate.domain === domain);
   if (!row) return;
@@ -122,12 +155,14 @@ export async function reportBlocked(domainOrEmail: string, reason?: string, plat
   row.metadata = {
     ...(row.metadata ?? {}),
     last_block_reason: reason ?? 'unspecified',
-    ...(platformKey ? {
-      platform_blocks: {
-        ...(row.metadata?.platform_blocks ?? {}),
-        [platformKey]: { reason: reason ?? 'unspecified', at: now },
-      },
-    } : {}),
+    ...(platformKey
+      ? {
+          platform_blocks: {
+            ...(row.metadata?.platform_blocks ?? {}),
+            [platformKey]: { reason: reason ?? 'unspecified', at: now },
+          },
+        }
+      : {}),
   };
   writeDomainRows(rows);
 }

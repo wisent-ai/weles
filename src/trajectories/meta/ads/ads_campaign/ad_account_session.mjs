@@ -8,18 +8,35 @@ import { pageSettled } from '../../../_shared/page/settled.mjs';
 // somebody else's money.
 
 import { spawnSync } from 'node:child_process';
-import { AD_ACCOUNT_ID, AD_ACCOUNT_NAME, BUSINESS_ID, WAIT_FOR_LOGIN, targetUrl } from './campaign_request.mjs';
+import {
+  AD_ACCOUNT_ID,
+  AD_ACCOUNT_NAME,
+  BUSINESS_ID,
+  WAIT_FOR_LOGIN,
+  targetUrl,
+} from './campaign_request.mjs';
 import { pageText } from './panel_controls.mjs';
 
 async function bringBrowserToFront(s) {
   await s.page.bringToFront();
   if (process.platform !== 'darwin') return;
-  spawnSync('osascript', ['-e', 'tell application "Chromium" to activate'], { stdio: 'ignore' });
-  spawnSync('osascript', ['-e', 'tell application "System Events" to set frontmost of every process whose name is "Chromium" to true'], { stdio: 'ignore' });
+  spawnSync('osascript', ['-e', 'tell application "Chromium" to activate'], {
+    stdio: 'ignore',
+  });
+  spawnSync(
+    'osascript',
+    [
+      '-e',
+      'tell application "System Events" to set frontmost of every process whose name is "Chromium" to true',
+    ],
+    { stdio: 'ignore' },
+  );
 }
 
 function isLoginUrl(url) {
-  return /facebook\.com\/login|business\.facebook\.com\/business\/loginpage|checkpoint|recover/i.test(url);
+  return /facebook\.com\/login|business\.facebook\.com\/business\/loginpage|checkpoint|recover/i.test(
+    url,
+  );
 }
 
 // Returns only when Ads Manager is on screen; every other outcome is a
@@ -38,7 +55,11 @@ async function passLoginGate(s) {
     await s.goto(targetUrl);
     await pageSettled(s.page);
   }
-  if (/business\.facebook\.com\/security|two_factor|checkpoint/i.test(await pageText(s))) {
+  if (
+    /business\.facebook\.com\/security|two_factor|checkpoint/i.test(
+      await pageText(s),
+    )
+  ) {
     console.log('FAIL: Meta account requires security verification');
     process.exit(2);
   }
@@ -56,7 +77,10 @@ function currentAdAccountId(url) {
 // its numeric id in brackets. No such line on the page is its own answer.
 async function visibleSelectedAdAccount(s) {
   const text = await pageText(s);
-  const accountLine = text.split('\n').map((line) => line.trim()).find((line) => /\(\d{6,}\)/.test(line));
+  const accountLine = text
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => /\(\d{6,}\)/.test(line));
   if (accountLine === undefined) return { id: null, label: null };
   const [, id] = accountLine.match(/\((\d{6,})\)/);
   return { id, label: accountLine };
@@ -64,7 +88,9 @@ async function visibleSelectedAdAccount(s) {
 
 async function ensureAdAccount(s) {
   const before = currentAdAccountId(s.page.url?.() ?? '');
-  console.log(`[meta-ads] current ad account=${before || 'unknown'} target=${AD_ACCOUNT_ID || 'unspecified'}`);
+  console.log(
+    `[meta-ads] current ad account=${before || 'unknown'} target=${AD_ACCOUNT_ID || 'unspecified'}`,
+  );
   if (!AD_ACCOUNT_ID) return before;
 
   if (before !== AD_ACCOUNT_ID) {
@@ -77,17 +103,29 @@ async function ensureAdAccount(s) {
   }
   const after = currentAdAccountId(s.page.url?.() ?? '');
   const visible = await visibleSelectedAdAccount(s);
-  console.log(`[meta-ads] ad account after switch=${after || 'unknown'} visible=${visible.label || 'unknown'}`);
+  console.log(
+    `[meta-ads] ad account after switch=${after || 'unknown'} visible=${visible.label || 'unknown'}`,
+  );
   if (after !== AD_ACCOUNT_ID) {
-    console.log(`FAIL: wrong Meta ad account selected; expected=${AD_ACCOUNT_ID} actual=${after || 'unknown'} url=${s.page.url?.() ?? ''}`);
+    console.log(
+      `FAIL: wrong Meta ad account selected; expected=${AD_ACCOUNT_ID} actual=${after || 'unknown'} url=${s.page.url?.() ?? ''}`,
+    );
     process.exit(1);
   }
   if (visible.id && visible.id !== AD_ACCOUNT_ID) {
-    console.log(`FAIL: Meta visible account mismatch; expected=${AD_ACCOUNT_ID} actual=${visible.id} label=${visible.label || ''}`);
+    console.log(
+      `FAIL: Meta visible account mismatch; expected=${AD_ACCOUNT_ID} actual=${visible.id} label=${visible.label || ''}`,
+    );
     process.exit(1);
   }
-  if (AD_ACCOUNT_NAME && visible.label && !visible.label.toLowerCase().includes(AD_ACCOUNT_NAME.toLowerCase())) {
-    console.log(`FAIL: Meta visible account name mismatch; expected contains=${AD_ACCOUNT_NAME} label=${visible.label}`);
+  if (
+    AD_ACCOUNT_NAME &&
+    visible.label &&
+    !visible.label.toLowerCase().includes(AD_ACCOUNT_NAME.toLowerCase())
+  ) {
+    console.log(
+      `FAIL: Meta visible account name mismatch; expected contains=${AD_ACCOUNT_NAME} label=${visible.label}`,
+    );
     process.exit(1);
   }
   return after;

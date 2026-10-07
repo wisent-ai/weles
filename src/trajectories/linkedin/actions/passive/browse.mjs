@@ -8,8 +8,11 @@ import { detectLinkedInBanSignals } from '../../../../../dist/platforms/linkedin
 const observed = declaredObservation();
 
 await runAction({
-  platform: 'linkedin', action: 'browse',
+  platform: 'linkedin',
+  action: 'browse',
   inlineRelogin: reloginLinkedinInline,
-  feedUrl: observed.origin, scrolls: observed.scrolls, dwellMs: observed.dwellMs,
+  feedUrl: observed.origin,
+  scrolls: observed.scrolls,
+  dwellMs: observed.dwellMs,
   banDetector: detectLinkedInBanSignals,
 });

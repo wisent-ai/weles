@@ -27,8 +27,13 @@ export async function queueAcquisition(
 ): Promise<AcquireSecretResult> {
   const params = paramsFor(def, request);
   let vaultItemId: string | undefined;
-  if (params.constraints && typeof params.constraints === 'object' && !Array.isArray(params.constraints)) {
-    const constrainedItemId = (params.constraints as Record<string, unknown>).vault_item_id;
+  if (
+    params.constraints &&
+    typeof params.constraints === 'object' &&
+    !Array.isArray(params.constraints)
+  ) {
+    const constrainedItemId = (params.constraints as Record<string, unknown>)
+      .vault_item_id;
     if (typeof constrainedItemId === 'string') vaultItemId = constrainedItemId;
   }
   if (request.dryRun === true) {
@@ -45,8 +50,12 @@ export async function queueAcquisition(
   }
 
   const missing = [
-    ...(!hasWelesAcquiredSecretWriter(def.secret, request.tenantId) ? [`scoped Skarbiec writer for ${def.secret}`] : []),
-    ...(!/^[a-f0-9]{64}$/i.test(request.requestId ?? '') ? ['one exact credential operation request id'] : []),
+    ...(!hasWelesAcquiredSecretWriter(def.secret, request.tenantId)
+      ? [`scoped Skarbiec writer for ${def.secret}`]
+      : []),
+    ...(!/^[a-f0-9]{64}$/i.test(request.requestId ?? '')
+      ? ['one exact credential operation request id']
+      : []),
   ];
   if (missing.length) {
     return {

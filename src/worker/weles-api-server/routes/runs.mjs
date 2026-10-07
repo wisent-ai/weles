@@ -1,9 +1,21 @@
 import { readFileSync } from 'node:fs';
 
-import { OPERATOR_ANSWERS, answerOperatorRequest, openRequestOfRun } from '../../../operator/request.mjs';
-import { json, readBody, requireTokenAuthorization } from '../http-exchange.mjs';
+import {
+  OPERATOR_ANSWERS,
+  answerOperatorRequest,
+  openRequestOfRun,
+} from '../../../operator/request.mjs';
+import {
+  json,
+  readBody,
+  requireTokenAuthorization,
+} from '../http-exchange.mjs';
 import { SAFE_RUN_ID, runResultFile } from '../run/run-outcome.mjs';
-import { cancelRun, listRunningRuns, runningRun } from '../run/running-runs.mjs';
+import {
+  cancelRun,
+  listRunningRuns,
+  runningRun,
+} from '../run/running-runs.mjs';
 
 // The runs this worker is running, what each waits for, and the ways to act
 // on one.
@@ -44,9 +56,10 @@ function notRunningHere(res, runId, verb) {
     ok: false,
     error: 'run_not_running_here',
     run_id: runId,
-    message: record.status === 'finished'
-      ? `the run finished at ${record.completed_at}; there is nothing to ${verb}`
-      : `the run is recorded as ${record.status} but this server has no child for it: the server that ran it has stopped`,
+    message:
+      record.status === 'finished'
+        ? `the run finished at ${record.completed_at}; there is nothing to ${verb}`
+        : `the run is recorded as ${record.status} but this server has no child for it: the server that ran it has stopped`,
     record,
   });
 }
@@ -59,15 +72,26 @@ function notRunningHere(res, runId, verb) {
  */
 async function answerRun(req, res, runId) {
   let body;
-  try { body = await readBody(req); }
-  catch (error) { json(res, 400, { ok: false, error: error.message }); return; }
+  try {
+    body = await readBody(req);
+  } catch (error) {
+    json(res, 400, { ok: false, error: error.message });
+    return;
+  }
   const answer = typeof body.answer === 'string' ? body.answer : '';
   if (!OPERATOR_ANSWERS.includes(answer)) {
-    json(res, 400, { ok: false, error: 'invalid_answer', message: `answer must be one of ${OPERATOR_ANSWERS.join(', ')}; ending the wait is POST /runs/${runId}/cancel` });
+    json(res, 400, {
+      ok: false,
+      error: 'invalid_answer',
+      message: `answer must be one of ${OPERATOR_ANSWERS.join(', ')}; ending the wait is POST /runs/${runId}/cancel`,
+    });
     return;
   }
   const live = runningRun(runId);
-  if (!live) { notRunningHere(res, runId, 'answer'); return; }
+  if (!live) {
+    notRunningHere(res, runId, 'answer');
+    return;
+  }
   const request = openRequestOfRun(runId);
   if (!request) {
     json(res, 409, {
@@ -79,7 +103,11 @@ async function answerRun(req, res, runId) {
     });
     return;
   }
-  answerOperatorRequest(request.id, answer, typeof body.detail === 'string' ? body.detail : '');
+  answerOperatorRequest(
+    request.id,
+    answer,
+    typeof body.detail === 'string' ? body.detail : '',
+  );
   json(res, 200, { ok: true, run_id: runId, running: runningRun(runId) });
 }
 
@@ -115,11 +143,19 @@ export async function respondToRuns(req, res, url) {
     return;
   }
   let body;
-  try { body = await readBody(req); }
-  catch (error) { json(res, 400, { ok: false, error: error.message }); return; }
+  try {
+    body = await readBody(req);
+  } catch (error) {
+    json(res, 400, { ok: false, error: error.message });
+    return;
+  }
   const detail = typeof body.detail === 'string' ? body.detail.trim() : '';
   if (!detail) {
-    json(res, 400, { ok: false, error: 'detail_required', message: 'say who cancels the run and why in detail' });
+    json(res, 400, {
+      ok: false,
+      error: 'detail_required',
+      message: 'say who cancels the run and why in detail',
+    });
     return;
   }
   const cancelled = cancelRun(runId, detail);

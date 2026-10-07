@@ -5,7 +5,10 @@
 // redacted before anyone else sees it. It never starts a keeper: a detached
 // keeper would outlive the request as a second permanent Weles process.
 
-import { keeperRequest, keeperSocket } from '../../../../_shared/keeper/client.mjs';
+import {
+  keeperRequest,
+  keeperSocket,
+} from '../../../../_shared/keeper/client.mjs';
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -45,19 +48,31 @@ function readRedactedPlannerResult(resultFile) {
   try {
     report = JSON.parse(readFileSync(resultFile, 'utf8'));
   } catch (error) {
-    return { ok: false, reason: `planner result file ${resultFile} could not be read as JSON: ${error?.message || error}` };
+    return {
+      ok: false,
+      reason: `planner result file ${resultFile} could not be read as JSON: ${error?.message || error}`,
+    };
   }
   try {
-    writeFileSync(resultFile, JSON.stringify(JSON.parse(redact(JSON.stringify(report))), null, 2));
+    writeFileSync(
+      resultFile,
+      JSON.stringify(JSON.parse(redact(JSON.stringify(report))), null, 2),
+    );
   } catch (error) {
-    return { ok: false, reason: `planner result file ${resultFile} was read but could not be rewritten with credentials redacted: ${error?.message || error}` };
+    return {
+      ok: false,
+      reason: `planner result file ${resultFile} was read but could not be rewritten with credentials redacted: ${error?.message || error}`,
+    };
   }
   return report;
 }
 
 export async function runKeywordPlanner(input) {
   mkdirSync(DIAG_DIR, { recursive: true });
-  const resultFile = join(DIAG_DIR, `${Date.now()}-${process.pid}-${safeSlug(input.keywords[0])}.json`);
+  const resultFile = join(
+    DIAG_DIR,
+    `${Date.now()}-${process.pid}-${safeSlug(input.keywords[0])}.json`,
+  );
   const keeper = await ensureKeeper(input.session);
   if (!keeper.ready) {
     return {
@@ -84,7 +99,8 @@ export async function runKeywordPlanner(input) {
       GOOGLE_ADS_CUSTOMER_ID: input.customerId,
       GOOGLE_ADS_KEYWORDS: input.keywords.join('\n'),
       GOOGLE_ADS_RESULT_FILE: resultFile,
-      GOOGLE_ADS_CLOSE_AFTER_HARVEST: process.env.GOOGLE_ADS_CLOSE_AFTER_HARVEST || '0',
+      GOOGLE_ADS_CLOSE_AFTER_HARVEST:
+        process.env.GOOGLE_ADS_CLOSE_AFTER_HARVEST || '0',
       GOOGLE_ADS_KEYWORD_BROWSER_AUTOMATION: '1',
       WELES_DISABLE_RECORDING: process.env.WELES_DISABLE_RECORDING || '1',
       WELES_NO_INSTRUMENT: process.env.WELES_NO_INSTRUMENT || '1',
@@ -100,18 +116,40 @@ export async function runKeywordPlanner(input) {
     let stderr = '';
     let settled = false;
 
-    child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
-    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
     child.on('error', (error) => {
       if (settled) return;
       settled = true;
-      resolveRun({ ok: false, exitCode: 1, stdout, stderr: `${stderr}\n${error?.message || error}`, resultFile, keeper, report: null });
+      resolveRun({
+        ok: false,
+        exitCode: 1,
+        stdout,
+        stderr: `${stderr}\n${error?.message || error}`,
+        resultFile,
+        keeper,
+        report: null,
+      });
     });
     child.on('close', (code) => {
       if (settled) return;
       settled = true;
-      const report = existsSync(resultFile) ? readRedactedPlannerResult(resultFile) : null;
-      resolveRun({ ok: code === 0 && Boolean(report?.ok), exitCode: code, stdout, stderr, resultFile, keeper, report });
+      const report = existsSync(resultFile)
+        ? readRedactedPlannerResult(resultFile)
+        : null;
+      resolveRun({
+        ok: code === 0 && Boolean(report?.ok),
+        exitCode: code,
+        stdout,
+        stderr,
+        resultFile,
+        keeper,
+        report,
+      });
     });
   });
 }

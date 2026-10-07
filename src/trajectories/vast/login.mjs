@@ -12,15 +12,21 @@ const PRICE_GPU = process.env.PRICE_GPU ?? '0.80';
 const ws = await WSession.start({ label: LABEL, headless: false });
 const store = new SessionStore();
 // Grant clipboard read/write so the Copy button round-trips through JS.
-await ws.ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'https://cloud.vast.ai' }).catch(() => {});
+await ws.ctx
+  .grantPermissions(['clipboard-read', 'clipboard-write'], {
+    origin: 'https://cloud.vast.ai',
+  })
+  .catch(() => {});
 
 async function loggedIn() {
-  return ws.page.evaluate(`(() => {
+  return ws.page
+    .evaluate(`(() => {
     var h = (document.querySelector('header')?.innerText || '').toLowerCase();
     if (/\\blog\\s*in\\b|\\bsign\\s*in\\b/.test(h)) return false;
     var all = (document.body?.innerText || '').toLowerCase();
     return /wisent/.test(all) || /credit:/.test(h);
-  })()`).catch(() => false);
+  })()`)
+    .catch(() => false);
 }
 
 try {
@@ -36,19 +42,42 @@ try {
     const popup = await popupP;
     console.log('[vast] popup opened:', !!popup);
     if (popup) {
-      try { await popup.waitForLoadState('domcontentloaded'); } catch {}
+      try {
+        await popup.waitForLoadState('domcontentloaded');
+      } catch {}
       // Google's OAuth popup closes itself when sign-in completes; each step
       // it shows is answered until then.
       while (!popup.isClosed()) {
         let path = '';
-        try { path = new URL(popup.url()).pathname; } catch {}
+        try {
+          path = new URL(popup.url()).pathname;
+        } catch {}
         if (path.includes('/signin/identifier')) {
-          try { await popup.fill('input[type="email"]', EMAIL); await popup.click('#identifierNext').catch(() => {}); } catch {}
-        } else if (path.includes('/challenge/pwd') || path.includes('/challenge/password')) {
-          if (!PWD) throw new Error('Google asked for the password and no password is configured');
-          try { await popup.fill('input[type="password"]', PWD); await popup.click('#passwordNext').catch(() => {}); } catch {}
-        } else if (path.includes('/signin/oauth/') || path.includes('/oauthconsent')) {
-          await popup.evaluate(`(() => { var b = Array.from(document.querySelectorAll('button,[role="button"],a')).find(e => /^(continue|allow|confirm)$/i.test((e.innerText||'').trim())); if (b) b.click(); })()`).catch(() => {});
+          try {
+            await popup.fill('input[type="email"]', EMAIL);
+            await popup.click('#identifierNext').catch(() => {});
+          } catch {}
+        } else if (
+          path.includes('/challenge/pwd') ||
+          path.includes('/challenge/password')
+        ) {
+          if (!PWD)
+            throw new Error(
+              'Google asked for the password and no password is configured',
+            );
+          try {
+            await popup.fill('input[type="password"]', PWD);
+            await popup.click('#passwordNext').catch(() => {});
+          } catch {}
+        } else if (
+          path.includes('/signin/oauth/') ||
+          path.includes('/oauthconsent')
+        ) {
+          await popup
+            .evaluate(
+              `(() => { var b = Array.from(document.querySelectorAll('button,[role="button"],a')).find(e => /^(continue|allow|confirm)$/i.test((e.innerText||'').trim())); if (b) b.click(); })()`,
+            )
+            .catch(() => {});
         }
         await humanIdlePause('short');
       }
@@ -77,7 +106,11 @@ try {
   await humanIdlePause('long');
   await store.capturePlaywright(ws.ctx, LABEL);
 
-  await ws.page.goto('https://cloud.vast.ai/host/setup/', { waitUntil: 'domcontentloaded' }).catch(() => {});
+  await ws.page
+    .goto('https://cloud.vast.ai/host/setup/', {
+      waitUntil: 'domcontentloaded',
+    })
+    .catch(() => {});
   await humanIdlePause('long');
 
   // Find the <pre>/<code> block containing the real install command, scroll
@@ -117,9 +150,13 @@ try {
   })()`);
   console.log('[vast] install block result ->', JSON.stringify(result));
 
-  await ws.page.screenshot({ path: '/tmp/vast_install_cmd.png', fullPage: true }).catch(() => {});
+  await ws.page
+    .screenshot({ path: '/tmp/vast_install_cmd.png', fullPage: true })
+    .catch(() => {});
   console.log('[vast] final screenshot -> /tmp/vast_install_cmd.png');
-  await ws.page.screenshot({ path: '/tmp/vast_transcript.png', fullPage: true }).catch(() => {});
+  await ws.page
+    .screenshot({ path: '/tmp/vast_transcript.png', fullPage: true })
+    .catch(() => {});
   console.log('[vast] screenshot -> /tmp/vast_transcript.png');
   await humanIdlePause('long');
 
@@ -129,13 +166,17 @@ try {
   })()`);
   console.log('[vast] after state ->', JSON.stringify(afterState));
 
-  await ws.page.screenshot({ path: '/tmp/vast_weles_final.png', fullPage: true }).catch(() => {});
+  await ws.page
+    .screenshot({ path: '/tmp/vast_weles_final.png', fullPage: true })
+    .catch(() => {});
   console.log('[vast] screenshot -> /tmp/vast_weles_final.png');
 
   process.exit(0);
 } catch (e) {
   console.log(`FAIL: ${e.message}`);
-  await ws.page.screenshot({ path: '/tmp/vast_weles_err.png', fullPage: true }).catch(() => {});
+  await ws.page
+    .screenshot({ path: '/tmp/vast_weles_err.png', fullPage: true })
+    .catch(() => {});
   process.exit(1);
 } finally {
   await ws.ctx.close?.().catch(() => {});

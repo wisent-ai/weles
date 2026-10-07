@@ -20,10 +20,16 @@ const result = await page.evaluate(() => {
     return {
       reactKeys: reactKeys(el),
       propKeys: Object.keys(props || {}),
-      propTypes: Object.fromEntries(Object.entries(props || {}).map(([k, v]) => [k, typeof v])),
+      propTypes: Object.fromEntries(
+        Object.entries(props || {}).map(([k, v]) => [k, typeof v]),
+      ),
     };
   }
-  const btn = document.querySelector('#login-btn') || Array.from(document.querySelectorAll('button')).find((b) => /zaloguj/i.test(b.innerText || ''));
+  const btn =
+    document.querySelector('#login-btn') ||
+    Array.from(document.querySelectorAll('button')).find((b) =>
+      /zaloguj/i.test(b.innerText || ''),
+    );
   const mail = document.querySelector('#mail');
   const pass = document.querySelector('#password');
   const checkbox = document.querySelector('#isStatuteAccepted');
@@ -34,7 +40,12 @@ const result = await page.evaluate(() => {
       exists: !!btn,
       text: btn?.innerText || '',
       disabled: btn?.disabled ?? null,
-      rect: btn ? (() => { const r = btn.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; })() : null,
+      rect: btn
+        ? (() => {
+            const r = btn.getBoundingClientRect();
+            return { x: r.x, y: r.y, w: r.width, h: r.height };
+          })()
+        : null,
       props: propsOf(btn),
     },
     form: {
@@ -44,9 +55,21 @@ const result = await page.evaluate(() => {
       method: form?.getAttribute('method') || null,
       props: propsOf(form),
     },
-    mail: { exists: !!mail, valueLength: mail?.value?.length || 0, props: propsOf(mail) },
-    pass: { exists: !!pass, valueLength: pass?.value?.length || 0, props: propsOf(pass) },
-    checkbox: { exists: !!checkbox, checked: checkbox?.checked || false, props: propsOf(checkbox) },
+    mail: {
+      exists: !!mail,
+      valueLength: mail?.value?.length || 0,
+      props: propsOf(mail),
+    },
+    pass: {
+      exists: !!pass,
+      valueLength: pass?.value?.length || 0,
+      props: propsOf(pass),
+    },
+    checkbox: {
+      exists: !!checkbox,
+      checked: checkbox?.checked || false,
+      props: propsOf(checkbox),
+    },
   };
 });
 

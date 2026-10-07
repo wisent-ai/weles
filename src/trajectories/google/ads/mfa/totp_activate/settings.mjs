@@ -8,17 +8,22 @@ import { readScopedLogin } from '../../../../../_shared/scoped-secrets.mjs';
 
 export const GOOGLE_ADS_LOGIN = readScopedLogin('googleAds');
 export const EMAIL = GOOGLE_ADS_LOGIN.email;
-export const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'google_ads');
-export const DIAG_DIR = process.env.GOOGLE_TOTP_ACTIVATION_DIAG_DIR || runOutputPath('google-totp-activation');
-export const RESULT_FILE = process.env.GOOGLE_TOTP_ACTIVATION_RESULT_FILE || join(DIAG_DIR, 'result.json');
-
+export const USER_DATA_DIR =
+  process.env.WELES_USER_DATA_DIR ||
+  process.env.ADS_PROFILE_DIR ||
+  join(homedir(), '.weles', 'browser_profiles', 'google_ads');
+export const DIAG_DIR =
+  process.env.GOOGLE_TOTP_ACTIVATION_DIAG_DIR ||
+  runOutputPath('google-totp-activation');
+export const RESULT_FILE =
+  process.env.GOOGLE_TOTP_ACTIVATION_RESULT_FILE ||
+  join(DIAG_DIR, 'result.json');
 
 process.env.WELES_DISABLE_RECORDING ??= '1';
 process.env.WELES_NO_INSTRUMENT ??= '1';
 process.env.GOOGLE_SSO_NO_SCREENSHOTS ??= '1';
 mkdirSync(USER_DATA_DIR, { recursive: true });
 mkdirSync(DIAG_DIR, { recursive: true });
-
 
 export function stableProfilePersona() {
   const p = join(USER_DATA_DIR, 'persona.json');
@@ -32,24 +37,36 @@ export function extractTotpSecret(value) {
   const text = String(value || '').trim();
   if (!text) return '';
   if (/^otpauth:\/\//i.test(text)) {
-    try { return new URL(text).searchParams.get('secret') || ''; } catch { return ''; }
+    try {
+      return new URL(text).searchParams.get('secret') || '';
+    } catch {
+      return '';
+    }
   }
   return text;
 }
 
 export function normalizeSecret(secret) {
-  return extractTotpSecret(secret).toUpperCase().replace(/[\s=-]/g, '');
+  return extractTotpSecret(secret)
+    .toUpperCase()
+    .replace(/[\s=-]/g, '');
 }
 
 export function redact(value, secret = '') {
   const normalized = normalizeSecret(secret);
-  const escaped = normalized ? normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '';
+  const escaped = normalized
+    ? normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    : '';
   let text = String(value || '');
-  if (escaped) text = text.replace(new RegExp(escaped, 'gi'), '<redacted-totp-secret>');
+  if (escaped)
+    text = text.replace(new RegExp(escaped, 'gi'), '<redacted-totp-secret>');
   text = text
     .replace(/[A-Z2-7](?:\s?[A-Z2-7]){15,}/g, '<redacted-base32-secret>')
     .replace(/"login_password"\s*:\s*"[^"]+"/g, '"login_password":"<redacted>"')
-    .replace(/"google_totp_secret"\s*:\s*"[^"]+"/g, '"google_totp_secret":"<redacted>"');
+    .replace(
+      /"google_totp_secret"\s*:\s*"[^"]+"/g,
+      '"google_totp_secret":"<redacted>"',
+    );
   return text;
 }
 

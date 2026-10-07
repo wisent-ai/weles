@@ -9,25 +9,35 @@ export type Item = Record<string, any>;
 /** One reading of a member id that yields exactly one account. */
 const ONE_ACCOUNT = 1;
 
-export const text = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
+export const text = (value: unknown): string =>
+  typeof value === 'string' ? value.trim() : '';
 
 export const itemId = (item: Item): string => text(item.id ?? item.name);
 
 export const tag = (item: Item, prefix: string): string =>
-  (Array.isArray(item.tags) ? item.tags : []).map((value: string) =>
-    typeof value === 'string' && value.startsWith(prefix) ? value.slice(prefix.length) : '',
-  ).find(Boolean) ?? '';
+  (Array.isArray(item.tags) ? item.tags : [])
+    .map((value: string) =>
+      typeof value === 'string' && value.startsWith(prefix)
+        ? value.slice(prefix.length)
+        : '',
+    )
+    .find(Boolean) ?? '';
 
 /** The owner-channel command that declares how to sign into a login row,
  * keeping every tag the row already carries. */
 export const loginMethodDeclaration = (item: Item): string => {
-  const kept = (Array.isArray(item.tags) ? item.tags : [])
-    .filter((value: string) => typeof value === 'string' && !value.startsWith('weles:login-method:'));
-  const tags = [...kept, 'weles:login-method:<google_sso|email_password>'].join(',');
+  const kept = (Array.isArray(item.tags) ? item.tags : []).filter(
+    (value: string) =>
+      typeof value === 'string' && !value.startsWith('weles:login-method:'),
+  );
+  const tags = [...kept, 'weles:login-method:<google_sso|email_password>'].join(
+    ',',
+  );
   return `stado credentials item retag --host <vault owner> ${itemId(item)} --tags ${tags}`;
 };
 
-export const providerName = (value: string): string => value === 'claude-code' ? 'claude' : value;
+export const providerName = (value: string): string =>
+  value === 'claude-code' ? 'claude' : value;
 
 export const sameAccount = (left: string, right: string): boolean =>
   left.toLowerCase() === right.toLowerCase();
@@ -41,7 +51,10 @@ export const sameAccount = (left: string, right: string): boolean =>
  * which account it is — in its own id.
  */
 export const slug = (value: string): string =>
-  value.trim().toLowerCase().replace(/[^a-z0-9]/g, '-');
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '-');
 
 /**
  * The account a member id names, matched forward: every candidate login's

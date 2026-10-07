@@ -47,11 +47,19 @@ export function items(value) {
 
 /** A JSON object; a whole number read as a float is a number, not an object. */
 export function isRecord(item) {
-  return item !== null && typeof item === 'object' && !Array.isArray(item) && !(item instanceof FloatNumber);
+  return (
+    item !== null &&
+    typeof item === 'object' &&
+    !Array.isArray(item) &&
+    !(item instanceof FloatNumber)
+  );
 }
 
 function channelHex(value) {
-  const channel = Math.max(0, Math.min(CHANNEL_MAX, roundHalfEven(Number(value) * CHANNEL_MAX)));
+  const channel = Math.max(
+    0,
+    Math.min(CHANNEL_MAX, roundHalfEven(Number(value) * CHANNEL_MAX)),
+  );
   return channel.toString(16).padStart(HEX_WIDTH, '0');
 }
 
@@ -79,7 +87,9 @@ export function paintValue(paint) {
   if (kind.startsWith('GRADIENT')) {
     return {
       type: kind,
-      stops: items(paint.gradientStops).filter((stop) => isRecord(stop.color)).map((stop) => hexOf(stop.color)),
+      stops: items(paint.gradientStops)
+        .filter((stop) => isRecord(stop.color))
+        .map((stop) => hexOf(stop.color)),
     };
   }
   return null;
@@ -92,16 +102,29 @@ export function effectValue(effect) {
     value.color = hexOf(effect.color);
     value.alpha = new FloatNumber(alphaOf(effect.color));
   }
-  if (isRecord(effect.offset)) value.offset = [effect.offset.x, effect.offset.y];
-  if (effect.spread !== undefined && effect.spread !== null) value.spread = effect.spread;
+  if (isRecord(effect.offset))
+    value.offset = [effect.offset.x, effect.offset.y];
+  if (effect.spread !== undefined && effect.spread !== null)
+    value.spread = effect.spread;
   return value;
 }
 
 /** The text settings of a Figma text style the vocabulary keeps, set ones only. */
 export function textValue(style) {
-  const { fontFamily, fontWeight, fontSize, lineHeightPx, letterSpacing } = style;
-  const kept = { fontFamily, fontWeight, fontSize, lineHeightPx, letterSpacing };
-  return Object.fromEntries(Object.entries(kept).filter(([, setting]) => setting !== undefined && setting !== null));
+  const { fontFamily, fontWeight, fontSize, lineHeightPx, letterSpacing } =
+    style;
+  const kept = {
+    fontFamily,
+    fontWeight,
+    fontSize,
+    lineHeightPx,
+    letterSpacing,
+  };
+  return Object.fromEntries(
+    Object.entries(kept).filter(
+      ([, setting]) => setting !== undefined && setting !== null,
+    ),
+  );
 }
 
 /**
@@ -110,7 +133,9 @@ export function textValue(style) {
  */
 export function radiusOf(value) {
   const numeric =
-    typeof value === 'number' || value instanceof FloatNumber || (typeof value === 'string' && value.trim() !== '');
+    typeof value === 'number' ||
+    value instanceof FloatNumber ||
+    (typeof value === 'string' && value.trim() !== '');
   if (!numeric) return null;
   const number = Number(value);
   if (!Number.isFinite(number)) return null;
@@ -128,10 +153,16 @@ export function count(counter, key) {
  * they were first counted in.
  */
 export function mostCommon(counter) {
-  return new Map([...counter.entries()].sort((left, right) => right[1] - left[1]));
+  return new Map(
+    [...counter.entries()].sort((left, right) => right[1] - left[1]),
+  );
 }
 
 /** The counting map ordered by its keys read as numbers. */
 export function byNumericKey(counter) {
-  return new Map([...counter.entries()].sort((left, right) => Number(left[0]) - Number(right[0])));
+  return new Map(
+    [...counter.entries()].sort(
+      (left, right) => Number(left[0]) - Number(right[0]),
+    ),
+  );
 }

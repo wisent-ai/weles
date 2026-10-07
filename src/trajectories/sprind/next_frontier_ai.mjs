@@ -17,12 +17,16 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
-const URL = 'https://www.sprind.org/taten/challenges/submissions/next-frontier-ai';
+const URL =
+  'https://www.sprind.org/taten/challenges/submissions/next-frontier-ai';
 const LABEL = 'sprind_next_frontier_ai';
 const OUT_DIR = runRecordingsDir(LABEL);
 mkdirSync(OUT_DIR, { recursive: true });
 
-const s = await WSession.start({ label: LABEL, proxy: process.env.PROXY_URL || undefined });
+const s = await WSession.start({
+  label: LABEL,
+  proxy: process.env.PROXY_URL || undefined,
+});
 
 try {
   await s.goto(URL);
@@ -30,7 +34,10 @@ try {
   // Webflow / Tally / similar embedded forms hydrate after first paint; wait
   // for the first input/textarea/select to exist before extracting, then let
   // late-mounted sections settle.
-  await pageCondition(s.page, () => document.querySelector('input, textarea, select') !== null);
+  await pageCondition(
+    s.page,
+    () => document.querySelector('input, textarea, select') !== null,
+  );
   await pageSettled(s.page);
 
   const extract = await s.page.evaluate(() => {
@@ -38,7 +45,12 @@ try {
       if (!el) return false;
       const r = el.getBoundingClientRect();
       const cs = getComputedStyle(el);
-      return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0;
+      return (
+        cs.display !== 'none' &&
+        cs.visibility !== 'hidden' &&
+        r.width > 0 &&
+        r.height > 0
+      );
     };
 
     const labelFor = (el) => {
@@ -49,11 +61,14 @@ try {
       const ancestorLabel = el.closest('label');
       if (ancestorLabel) {
         const clone = ancestorLabel.cloneNode(true);
-        clone.querySelectorAll('input,textarea,select,button').forEach((n) => n.remove());
+        clone
+          .querySelectorAll('input,textarea,select,button')
+          .forEach((n) => n.remove());
         const t = clone.innerText.trim();
         if (t) return t;
       }
-      if (el.getAttribute('aria-label')) return el.getAttribute('aria-label').trim();
+      if (el.getAttribute('aria-label'))
+        return el.getAttribute('aria-label').trim();
       const labelledBy = el.getAttribute('aria-labelledby');
       if (labelledBy) {
         const parts = [];
@@ -64,19 +79,30 @@ try {
         const t = parts.filter(Boolean).join(' ');
         if (t) return t;
       }
-      const container = el.closest('.field, .form-field, .w-form-field, [data-name], section, fieldset, div');
+      const container = el.closest(
+        '.field, .form-field, .w-form-field, [data-name], section, fieldset, div',
+      );
       if (container) {
-        const heading = container.querySelector('label, .field-label, .form-label, h2, h3, h4, strong');
+        const heading = container.querySelector(
+          'label, .field-label, .form-label, h2, h3, h4, strong',
+        );
         if (heading && !heading.contains(el)) return heading.innerText.trim();
       }
       return el.placeholder || el.name || '';
     };
 
     const helperFor = (el) => {
-      const container = el.closest('.field, .form-field, .w-form-field, [data-name], section, fieldset, div');
+      const container = el.closest(
+        '.field, .form-field, .w-form-field, [data-name], section, fieldset, div',
+      );
       if (!container) return '';
-      const helpers = container.querySelectorAll('.helper, .help, .form-help, .field-help, .description, small, .text-sm');
-      return Array.from(helpers).map((n) => n.innerText.trim()).filter(Boolean).join(' | ');
+      const helpers = container.querySelectorAll(
+        '.helper, .help, .form-help, .field-help, .description, small, .text-sm',
+      );
+      return Array.from(helpers)
+        .map((n) => n.innerText.trim())
+        .filter(Boolean)
+        .join(' | ');
     };
 
     const fields = [];
@@ -97,7 +123,10 @@ try {
         helper: helperFor(el),
       };
       if (el.tagName === 'SELECT') {
-        base.options = Array.from(el.options).map((o) => ({ value: o.value, text: o.text.trim() }));
+        base.options = Array.from(el.options).map((o) => ({
+          value: o.value,
+          text: o.text.trim(),
+        }));
       }
       // Textareas on this form have no HTML maxlength; the limit lives in
       // the label as a trailing "0/<N>". Verified empirically (counter
@@ -110,16 +139,32 @@ try {
     });
 
     const headings = Array.from(document.querySelectorAll('h1, h2, h3, h4'))
-      .map((h) => ({ level: h.tagName.toLowerCase(), text: h.innerText.trim() }))
+      .map((h) => ({
+        level: h.tagName.toLowerCase(),
+        text: h.innerText.trim(),
+      }))
       .filter((h) => h.text);
 
-    const buttons = Array.from(document.querySelectorAll('button, input[type=submit], input[type=button]'))
+    const buttons = Array.from(
+      document.querySelectorAll(
+        'button, input[type=submit], input[type=button]',
+      ),
+    )
       .filter((b) => {
         const r = b.getBoundingClientRect();
         const cs = getComputedStyle(b);
-        return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0;
+        return (
+          cs.display !== 'none' &&
+          cs.visibility !== 'hidden' &&
+          r.width > 0 &&
+          r.height > 0
+        );
       })
-      .map((b) => ({ text: (b.innerText || b.value || '').trim(), type: b.type || null, name: b.name || null }))
+      .map((b) => ({
+        text: (b.innerText || b.value || '').trim(),
+        type: b.type || null,
+        name: b.name || null,
+      }))
       .filter((b) => b.text);
 
     return {
@@ -138,7 +183,9 @@ try {
   writeFileSync(join(OUT_DIR, 'page.html'), html);
   await s.page.screenshot({ path: join(OUT_DIR, 'page.png'), fullPage: true });
 
-  console.log(`PASS: ${extract.fields.length} fields, ${extract.headings.length} headings, ${extract.buttons.length} buttons, ${extract.formCount} <form>s — wrote ${OUT_DIR}`);
+  console.log(
+    `PASS: ${extract.fields.length} fields, ${extract.headings.length} headings, ${extract.buttons.length} buttons, ${extract.formCount} <form>s — wrote ${OUT_DIR}`,
+  );
 } finally {
   await s.close();
 }

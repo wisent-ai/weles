@@ -27,7 +27,11 @@ import { gunzipSync } from 'node:zlib';
 
 import { byNumericKey, isRecord, mostCommon } from './figma-values.mjs';
 import { walkDocument } from './figma-walk.mjs';
-import { FloatNumber, parseJsonBytes, stringifyOrdered } from './json-bytes.mjs';
+import {
+  FloatNumber,
+  parseJsonBytes,
+  stringifyOrdered,
+} from './json-bytes.mjs';
 
 /** The vocabulary file's format; a reader refuses one it does not know. */
 const SCHEMA_VERSION = 1;
@@ -60,11 +64,21 @@ function summaryOf(payload, walk) {
 }
 
 function variablesOf(walk) {
-  const ordered = [...walk.variables.entries()].sort((left, right) => right[1].uses - left[1].uses);
+  const ordered = [...walk.variables.entries()].sort(
+    (left, right) => right[1].uses - left[1].uses,
+  );
   return new Map(
     ordered.map(([id, variable]) => {
       const hexes = mostCommon(variable.hexes);
-      return [id, { hex: hexes.keys().next().value, hexes, uses: variable.uses, pages: mostCommon(variable.pages) }];
+      return [
+        id,
+        {
+          hex: hexes.keys().next().value,
+          hexes,
+          uses: variable.uses,
+          pages: mostCommon(variable.pages),
+        },
+      ];
     }),
   );
 }
@@ -89,7 +103,9 @@ function pagesOf(walk) {
   for (const [page, stats] of walk.byPage) {
     if (!page) continue;
     pages.set(page, {
-      radii: [...stats.radii].sort((left, right) => left - right).map((radius) => new FloatNumber(radius)),
+      radii: [...stats.radii]
+        .sort((left, right) => left - right)
+        .map((radius) => new FloatNumber(radius)),
       pills: stats.pills,
       paints: mostCommon(stats.paints),
       effects: mostCommon(stats.effects),
@@ -123,13 +139,23 @@ function vocabularyOf(payload, walk) {
  * summary and the node index, and the vocabulary when `vocabularyPath` is
  * given.
  */
-export function parseFigmaDocument(source, summaryPath, nodesPath, vocabularyPath) {
+export function parseFigmaDocument(
+  source,
+  summaryPath,
+  nodesPath,
+  vocabularyPath,
+) {
   const raw = readFileSync(source);
-  const payload = parseJsonBytes(source.endsWith('.gz') ? gunzipSync(raw) : raw);
+  const payload = parseJsonBytes(
+    source.endsWith('.gz') ? gunzipSync(raw) : raw,
+  );
   const walk = walkDocument(payload);
   writeFileSync(summaryPath, stringifyOrdered(summaryOf(payload, walk)));
   writeFileSync(nodesPath, stringifyOrdered(walk.nodes));
   if (vocabularyPath) {
-    writeFileSync(vocabularyPath, `${stringifyOrdered(vocabularyOf(payload, walk), VOCABULARY_INDENT)}\n`);
+    writeFileSync(
+      vocabularyPath,
+      `${stringifyOrdered(vocabularyOf(payload, walk), VOCABULARY_INDENT)}\n`,
+    );
   }
 }

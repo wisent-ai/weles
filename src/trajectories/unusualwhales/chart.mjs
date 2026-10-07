@@ -12,17 +12,27 @@ const { persistContext } = await import('./_persist.mjs');
 loadEnv();
 
 const args = {};
-for (let i = 2; i < process.argv.length; i += 2) args[process.argv[i].replace(/^--/, '')] = process.argv[i + 1];
+for (let i = 2; i < process.argv.length; i += 2)
+  args[process.argv[i].replace(/^--/, '')] = process.argv[i + 1];
 const ticker = (args.ticker || '').toUpperCase();
 const tab = args.tab || 'Net Prem';
 const outPath = args.out;
-if (!ticker || !outPath) { console.error('FAIL: --ticker and --out required'); process.exit(1); }
+if (!ticker || !outPath) {
+  console.error('FAIL: --ticker and --out required');
+  process.exit(1);
+}
 
 const email = process.env.UW_EMAIL;
 const password = process.env.UW_PASSWORD;
-if (!email || !password) { console.error('FAIL: UW creds not set'); process.exit(1); }
+if (!email || !password) {
+  console.error('FAIL: UW creds not set');
+  process.exit(1);
+}
 
-const s = await WSession.start({ label: `uw_chart_${ticker}`, proxy: process.env.PROXY_URL || 'residential' });
+const s = await WSession.start({
+  label: `uw_chart_${ticker}`,
+  proxy: process.env.PROXY_URL || 'residential',
+});
 
 try {
   await loginUnusualWhales(s, email, password);
@@ -34,13 +44,26 @@ try {
 
   // Click the tab by matching button text — use Playwright locator with
   // exact-text filter so the click dispatches with isTrusted=true.
-  const tabLoc = s.page.locator('button, a, div[role="tab"], [class*="tab"]').filter({ hasText: new RegExp(`^${tab.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}$`) }).first();
+  const tabLoc = s.page
+    .locator('button, a, div[role="tab"], [class*="tab"]')
+    .filter({
+      hasText: new RegExp(
+        `^${tab.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}$`,
+      ),
+    })
+    .first();
   const tabCount = await tabLoc.count();
   let clicked = { ok: false, count: tabCount };
-  if (tabCount) { await tabLoc.scrollIntoViewIfNeeded().catch(() => {}); await tabLoc.click().catch(() => {}); clicked = { ok: true, tag: 'locator' }; }
+  if (tabCount) {
+    await tabLoc.scrollIntoViewIfNeeded().catch(() => {});
+    await tabLoc.click().catch(() => {});
+    clicked = { ok: true, tag: 'locator' };
+  }
   console.error(`[chart] clicked tab "${tab}": ${JSON.stringify(clicked)}`);
   if (!clicked.ok) {
-    console.error(`FAIL: tab "${tab}" not found in page (candidates=${clicked.count})`);
+    console.error(
+      `FAIL: tab "${tab}" not found in page (candidates=${clicked.count})`,
+    );
     process.exit(1);
   }
   await pageSettled(s.page); // let chart re-render
@@ -66,9 +89,14 @@ try {
 
   if (box && !box.err && box.width && box.height) {
     console.error(`[chart] screenshotting clip: ${JSON.stringify(box)}`);
-    await s.page.screenshot({ path: outPath, clip: { x: box.x, y: box.y, width: box.width, height: box.height } });
+    await s.page.screenshot({
+      path: outPath,
+      clip: { x: box.x, y: box.y, width: box.width, height: box.height },
+    });
   } else {
-    console.error(`FAIL: no chart container found for tab "${tab}": ${JSON.stringify(box)}`);
+    console.error(
+      `FAIL: no chart container found for tab "${tab}": ${JSON.stringify(box)}`,
+    );
     process.exit(1);
   }
   console.error(`[chart] saved to ${outPath}`);
@@ -81,7 +109,9 @@ try {
     screenshotPath: outPath,
     metadata: { source: 'chart.mjs' },
   });
-  console.error(`[chart] persisted row id=${persisted.id} uri=${persisted.screenshot_uri || 'none'}`);
+  console.error(
+    `[chart] persisted row id=${persisted.id} uri=${persisted.screenshot_uri || 'none'}`,
+  );
 } catch (e) {
   console.error(`FAIL: ${e.message}`);
   process.exit(1);

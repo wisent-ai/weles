@@ -20,7 +20,10 @@
 //       BROWSER      'firefox' | 'chromium' to pin the engine (default: roll)
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso } from '../_shared/services/google_sso.mjs';
-import { DOCUMENT_REPLACED, readAcrossNavigation } from '../_shared/services/google_sso/page_diagnostics.mjs';
+import {
+  DOCUMENT_REPLACED,
+  readAcrossNavigation,
+} from '../_shared/services/google_sso/page_diagnostics.mjs';
 import { dismissGooglePostLogin } from '../_shared/services/google_sso/sign_in/redirect_watch.mjs';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { pageSettled } from '../_shared/page/settled.mjs';
@@ -28,19 +31,26 @@ import { readScopedLogin } from '../../_shared/scoped-secrets.mjs';
 
 const QUERY = process.env.GM_QUERY;
 if (typeof QUERY !== 'string' || !QUERY.trim()) {
-  throw new Error('GMAIL_QUERY_REQUIRED: GM_QUERY must be a nonempty Gmail search query');
+  throw new Error(
+    'GMAIL_QUERY_REQUIRED: GM_QUERY must be a nonempty Gmail search query',
+  );
 }
 const OPEN_BODIES = process.env.GM_OPEN !== '0';
 const MAX_OPEN = parseInt(process.env.GM_MAX || '6', 10);
-const CREDENTIAL_SERVICE = process.env.GM_CREDENTIAL_SERVICE === 'googleSso'
-  ? 'googleSso'
-  : 'gmail';
+const CREDENTIAL_SERVICE =
+  process.env.GM_CREDENTIAL_SERVICE === 'googleSso' ? 'googleSso' : 'gmail';
 function gmailUrl(email, fragment) {
-  return 'https://mail.google.com/mail/u/0/?tab=rm&ogbl&authuser='
-    + encodeURIComponent(email) + '#' + fragment;
+  return (
+    'https://mail.google.com/mail/u/0/?tab=rm&ogbl&authuser=' +
+    encodeURIComponent(email) +
+    '#' +
+    fragment
+  );
 }
 
-function log(...a) { console.log('[gmail_login_search]', ...a); }
+function log(...a) {
+  console.log('[gmail_login_search]', ...a);
+}
 
 // Locator.isVisible() rejects when its document is replaced mid-navigation;
 // that case (reported by the page, not read from the error's words) is "not
@@ -57,12 +67,18 @@ async function resolveCreds() {
 // Returns 'in' or 'login' from observed page state. Browser failures propagate.
 async function detectSession(page) {
   for (;;) {
-    if (/accounts\.google\.com|ServiceLogin|signin|challenge/.test(page.url())) {
+    if (
+      /accounts\.google\.com|ServiceLogin|signin|challenge/.test(page.url())
+    ) {
       return 'login';
     }
     const rows = await page.locator('tr.zA').count();
     const empty = await visible(
-      page.getByText(/No messages matched|No results found|did not match any messages/i).first(),
+      page
+        .getByText(
+          /No messages matched|No results found|did not match any messages/i,
+        )
+        .first(),
     );
     if (rows > 0 || empty) return 'in';
     await pageSettled(page);
@@ -71,10 +87,17 @@ async function detectSession(page) {
 
 async function needsGoogleLogin(page) {
   if (new URL(page.url()).hostname !== 'mail.google.com') return true;
-  if (/accounts\.google\.com|ServiceLogin|signin|challenge/.test(page.url())) return true;
-  const heading = await page.getByRole('heading', { name: /^Sign in$/i }).count();
+  if (/accounts\.google\.com|ServiceLogin|signin|challenge/.test(page.url()))
+    return true;
+  const heading = await page
+    .getByRole('heading', { name: /^Sign in$/i })
+    .count();
   if (heading > 0) return true;
-  const identifier = await page.locator('input[type="email"], input[name="identifier"], input#identifierId').count();
+  const identifier = await page
+    .locator(
+      'input[type="email"], input[name="identifier"], input#identifierId',
+    )
+    .count();
   return identifier > 0;
 }
 
@@ -92,7 +115,9 @@ try {
 
   const gmailNeedsLogin = await needsGoogleLogin(s.page);
   if (gmailNeedsLogin) {
-    const useAnotherAccount = s.page.getByText(/^Use another account$/i).first();
+    const useAnotherAccount = s.page
+      .getByText(/^Use another account$/i)
+      .first();
     if (await visible(useAnotherAccount)) {
       log('choosing another Google account');
       await humanClickLocator(s.page, useAnotherAccount);
@@ -117,25 +142,38 @@ try {
   await pageSettled(s.page);
   const status = await detectSession(s.page);
   if (status !== 'in') {
-    log('FAIL: search did not render (status=' + status + ', url='
-      + s.page.url() + ').');
+    log(
+      'FAIL: search did not render (status=' +
+        status +
+        ', url=' +
+        s.page.url() +
+        ').',
+    );
     await s.close();
     process.exit(2);
   }
 
-  const rows = await s.page.evaluate(() => { // allow-raw-playwright: read-only DOM text scrape of the inbox result list, no synthetic interaction
+  const rows = await s.page.evaluate(() => {
+    // allow-raw-playwright: read-only DOM text scrape of the inbox result list, no synthetic interaction
     const out = [];
     const trs = Array.from(document.querySelectorAll('tr.zA'));
     for (const r of trs) {
-      const fEl = r.querySelector('.yW span[email]') ||
-                  r.querySelector('.yW span') || r.querySelector('.zF');
+      const fEl =
+        r.querySelector('.yW span[email]') ||
+        r.querySelector('.yW span') ||
+        r.querySelector('.zF');
       const sEl = r.querySelector('.bog');
-      const dEl = r.querySelector('.xW span[title]') || r.querySelector('.xW span');
+      const dEl =
+        r.querySelector('.xW span[title]') || r.querySelector('.xW span');
       const snEl = r.querySelector('.y2');
       out.push({
-        from: fEl ? (fEl.getAttribute('email') || fEl.textContent || '').trim() : '',
+        from: fEl
+          ? (fEl.getAttribute('email') || fEl.textContent || '').trim()
+          : '',
         subject: sEl ? (sEl.textContent || '').trim() : '',
-        date: dEl ? (dEl.getAttribute('title') || dEl.textContent || '').trim() : '',
+        date: dEl
+          ? (dEl.getAttribute('title') || dEl.textContent || '').trim()
+          : '',
         snippet: snEl ? (snEl.textContent || '').trim() : '',
       });
     }
@@ -156,12 +194,16 @@ try {
     for (let idx = 0; idx < n; idx++) {
       try {
         await humanClickLocator(s.page, s.page.locator('tr.zA').nth(idx));
-        await s.page.locator('.a3s, div[role="listitem"] .ii').first()
+        await s.page
+          .locator('.a3s, div[role="listitem"] .ii')
+          .first()
           .waitFor({ state: 'visible' });
-        const body = await s.page.evaluate(() => { // allow-raw-playwright: read-only DOM text scrape of an opened email body, no synthetic interaction
+        const body = await s.page.evaluate(() => {
+          // allow-raw-playwright: read-only DOM text scrape of an opened email body, no synthetic interaction
           const subj = document.querySelector('h2.hP');
           const blocks = Array.from(document.querySelectorAll('.a3s'))
-            .map((b) => b.innerText.trim()).filter(Boolean);
+            .map((b) => b.innerText.trim())
+            .filter(Boolean);
           return {
             subj: subj ? subj.textContent.trim() : '',
             text: blocks.join('\n---\n'),
@@ -182,7 +224,11 @@ try {
   await s.close();
   process.exit(0);
 } catch (e) {
-  log('ERROR: ' + (e && e.stack || e));
-  try { await s.close(); } catch (ce) { log('close failed: ' + ce.message); }
+  log('ERROR: ' + ((e && e.stack) || e));
+  try {
+    await s.close();
+  } catch (ce) {
+    log('close failed: ' + ce.message);
+  }
   process.exit(1);
 }

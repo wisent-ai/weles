@@ -4,42 +4,49 @@ import { reviewUntilClosed } from '../../../_shared/page/settled.mjs';
 
 export async function fetchExactCampaignReports(page, templatePayload, ranges) {
   if (!templatePayload || !ranges.length) return [];
-  return await page.evaluate(async ({ templatePayload, ranges }) => {
-    const outputs = [];
-    for (const range of ranges) {
-      const payload = JSON.parse(JSON.stringify(templatePayload));
-      payload.variables.reportOptions.filter.startTime = range.startTime;
-      payload.variables.reportOptions.filter.endTime = range.endTime;
-      payload.variables.reportOptions.filter.returnGrandTotals = true;
-      payload.variables.reportOptions.filter.returnRowTotals = true;
-      payload.variables.reportOptions.filter.selector = payload.variables.reportOptions.filter.selector || {};
-      payload.variables.reportOptions.filter.selector.pagination = { offset: 0, limit: 100 };
-      const res = await fetch('/reporting/graphql', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          accept: 'application/json',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-      const body = await res.text();
-      let json = null;
-      try {
-        json = JSON.parse(body);
-      } catch {}
-      outputs.push({
-        label: range.label,
-        startTime: range.startTime,
-        endTime: range.endTime,
-        status: res.status,
-        ok: res.ok,
-        body,
-        json,
-      });
-    }
-    return outputs;
-  }, { templatePayload, ranges });
+  return await page.evaluate(
+    async ({ templatePayload, ranges }) => {
+      const outputs = [];
+      for (const range of ranges) {
+        const payload = JSON.parse(JSON.stringify(templatePayload));
+        payload.variables.reportOptions.filter.startTime = range.startTime;
+        payload.variables.reportOptions.filter.endTime = range.endTime;
+        payload.variables.reportOptions.filter.returnGrandTotals = true;
+        payload.variables.reportOptions.filter.returnRowTotals = true;
+        payload.variables.reportOptions.filter.selector =
+          payload.variables.reportOptions.filter.selector || {};
+        payload.variables.reportOptions.filter.selector.pagination = {
+          offset: 0,
+          limit: 100,
+        };
+        const res = await fetch('/reporting/graphql', {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            accept: 'application/json',
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+        const body = await res.text();
+        let json = null;
+        try {
+          json = JSON.parse(body);
+        } catch {}
+        outputs.push({
+          label: range.label,
+          startTime: range.startTime,
+          endTime: range.endTime,
+          status: res.status,
+          ok: res.ok,
+          body,
+          json,
+        });
+      }
+      return outputs;
+    },
+    { templatePayload, ranges },
+  );
 }
 
 export function moneyAmount(value) {
@@ -101,7 +108,9 @@ export function summarizeExactReports(exactReports) {
 export async function keepOpen(session) {
   try {
     if (!CLOSE_AFTER_HARVEST && !session.page.isClosed()) {
-      console.log('[apple-ads-report-harvest] keeping browser open for review; close the window or stop the command to finish; APPLE_ADS_CLOSE_AFTER_HARVEST=1 skips review');
+      console.log(
+        '[apple-ads-report-harvest] keeping browser open for review; close the window or stop the command to finish; APPLE_ADS_CLOSE_AFTER_HARVEST=1 skips review',
+      );
       await reviewUntilClosed(session);
     }
   } finally {

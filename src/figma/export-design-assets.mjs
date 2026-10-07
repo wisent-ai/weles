@@ -1,8 +1,21 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
-import { download, extensionFor, gzipFile, request, sha256, slugify } from './transfer.mjs';
+import {
+  download,
+  extensionFor,
+  gzipFile,
+  request,
+  sha256,
+  slugify,
+} from './transfer.mjs';
 import { parseFigmaDocument } from './document/parse-figma-document.mjs';
 import { readExportRequest } from './export-request.mjs';
 import { prepareExport } from './export-checkout.mjs';
@@ -11,8 +24,16 @@ export async function exportDesignAssets(requestPath) {
   const input = readExportRequest(requestPath);
   const workspace = prepareExport(input);
   const { exportRoot, cacheRoot } = workspace;
-  const acquireScript = process.env.SKARBIEC_WELES_READER_COMMAND
-    || join(import.meta.dirname, '..', 'worker', 'deploy', 'acquire', 'skarbiec-acquire.mjs');
+  const acquireScript =
+    process.env.SKARBIEC_WELES_READER_COMMAND ||
+    join(
+      import.meta.dirname,
+      '..',
+      'worker',
+      'deploy',
+      'acquire',
+      'skarbiec-acquire.mjs',
+    );
   let acquired;
   let tokenBuffer;
   let success = false;
@@ -29,9 +50,12 @@ export async function exportDesignAssets(requestPath) {
     const cachePath = join(cacheRoot, `${fileKey}.json`);
     if (!existsSync(cachePath)) {
       const bearer = tokenBuffer.toString('utf8');
-      const response = await request(`https://api.figma.com/v1/files/${fileKey}`, {
-        headers: { 'X-Figma-Token': bearer },
-      });
+      const response = await request(
+        `https://api.figma.com/v1/files/${fileKey}`,
+        {
+          headers: { 'X-Figma-Token': bearer },
+        },
+      );
       writeFileSync(cachePath, Buffer.from(await response.arrayBuffer()));
     }
     const summaryPath = join(cacheRoot, `${fileKey}.summary.json`);
@@ -65,7 +89,10 @@ export async function exportDesignAssets(requestPath) {
           continue;
         }
         const extension = format === 'jpg' ? '.jpg' : `.${format}`;
-        const path = join(destination, `${slugify(node.name)}-${node.id.replace(/[^a-z0-9]/gi, '-')}${extension}`);
+        const path = join(
+          destination,
+          `${slugify(node.name)}-${node.id.replace(/[^a-z0-9]/gi, '-')}${extension}`,
+        );
         const artifact = await download(url, path);
         rendered.push({
           ...node,
@@ -81,25 +108,31 @@ export async function exportDesignAssets(requestPath) {
   }
 
   try {
-    acquired = spawnSync(process.execPath, [
-      acquireScript, input.scopeFile, input.consumer, input.item, input.field,
-    ], {
-      encoding: 'buffer',
-      env: {
-        ...process.env,
-        WC_SKARBIEC_URL: input.endpoint,
-        SKARBIEC_WORKLOAD_ID: input.workloadId,
-        SKARBIEC_WORKLOAD_SIGNING_KEY_FILE: input.signingKeyFile,
+    acquired = spawnSync(
+      process.execPath,
+      [acquireScript, input.scopeFile, input.consumer, input.item, input.field],
+      {
+        encoding: 'buffer',
+        env: {
+          ...process.env,
+          WC_SKARBIEC_URL: input.endpoint,
+          SKARBIEC_WORKLOAD_ID: input.workloadId,
+          SKARBIEC_WORKLOAD_SIGNING_KEY_FILE: input.signingKeyFile,
+        },
+        maxBuffer: 65536,
       },
-      maxBuffer: 65536,
-    });
+    );
     tokenBuffer = acquired.stdout;
     if (acquired.status !== 0) {
-      const detail = String(acquired.stderr || acquired.error?.message || acquired.signal || '')
-        .replace(/[A-Za-z0-9_-]{32,}/g, '[redacted]');
-      throw new Error(`Figma credential acquisition failed (exit ${acquired.status}): ${detail.trim()}`);
+      const detail = String(
+        acquired.stderr || acquired.error?.message || acquired.signal || '',
+      ).replace(/[A-Za-z0-9_-]{32,}/g, '[redacted]');
+      throw new Error(
+        `Figma credential acquisition failed (exit ${acquired.status}): ${detail.trim()}`,
+      );
     }
-    if (!Buffer.isBuffer(tokenBuffer) || !tokenBuffer.length) throw new Error('Figma credential acquisition returned an empty token');
+    if (!Buffer.isBuffer(tokenBuffer) || !tokenBuffer.length)
+      throw new Error('Figma credential acquisition returned an empty token');
 
     const exportSummary = [];
     for (const file of input.files) {
@@ -108,7 +141,11 @@ export async function exportDesignAssets(requestPath) {
       mkdirSync(fileRoot, { recursive: true });
       console.error(`exporting ${file.name}: document`);
       const nodesPath = join(fileRoot, 'nodes.json');
-      const documentResponse = await figmaDocument(file.key, nodesPath, join(fileRoot, 'vocabulary.json'));
+      const documentResponse = await figmaDocument(
+        file.key,
+        nodesPath,
+        join(fileRoot, 'vocabulary.json'),
+      );
       const collected = {
         nodes: JSON.parse(readFileSync(nodesPath, 'utf8')),
         topLevelNodes: documentResponse.summary.topLevelNodes,
@@ -120,11 +157,16 @@ export async function exportDesignAssets(requestPath) {
       console.error(`exporting ${file.name}: source images`);
       const sourceImages = await figmaJson(`/v1/files/${file.key}/images`);
       const imageManifest = [];
-      for (const [imageRef, url] of Object.entries(sourceImages.meta?.images || {})) {
+      for (const [imageRef, url] of Object.entries(
+        sourceImages.meta?.images || {},
+      )) {
         if (!url) continue;
         const response = await request(url, {});
         const buffer = Buffer.from(await response.arrayBuffer());
-        const extension = extensionFor(response.headers.get('content-type'), url);
+        const extension = extensionFor(
+          response.headers.get('content-type'),
+          url,
+        );
         const relative = join('assets', 'images', `${imageRef}${extension}`);
         const absolute = join(fileRoot, relative);
         mkdirSync(dirname(absolute), { recursive: true });
@@ -134,13 +176,20 @@ export async function exportDesignAssets(requestPath) {
           path: relative,
           bytes: buffer.length,
           sha256: sha256(buffer),
-          contentType: response.headers.get('content-type') || 'application/octet-stream',
+          contentType:
+            response.headers.get('content-type') || 'application/octet-stream',
         });
       }
 
       console.error(`exporting ${file.name}: previews`);
       const previewRoot = join(fileRoot, 'assets', 'previews');
-      const previewManifest = await renderNodes(file.key, collected.topLevelNodes, previewRoot, 'png', 1);
+      const previewManifest = await renderNodes(
+        file.key,
+        collected.topLevelNodes,
+        previewRoot,
+        'png',
+        1,
+      );
       for (const entry of previewManifest) {
         if (entry.path) entry.path = entry.path.slice(fileRoot.length + 1);
       }
@@ -167,29 +216,42 @@ export async function exportDesignAssets(requestPath) {
         componentSetCount: documentResponse.summary.componentSets,
         styleCount: documentResponse.summary.styles,
         sourceImageCount: imageManifest.length,
-        previewCount: previewManifest.filter((entry) => entry.status === 'downloaded').length,
+        previewCount: previewManifest.filter(
+          (entry) => entry.status === 'downloaded',
+        ).length,
         explicitExportCount: explicitManifest.length,
       };
-      writeFileSync(join(fileRoot, 'assets.json'), `${JSON.stringify({ images: imageManifest, previews: previewManifest, exports: explicitManifest }, null, 2)}\n`);
-      writeFileSync(join(fileRoot, 'metadata.json'), `${JSON.stringify(metadata, null, 2)}\n`);
+      writeFileSync(
+        join(fileRoot, 'assets.json'),
+        `${JSON.stringify({ images: imageManifest, previews: previewManifest, exports: explicitManifest }, null, 2)}\n`,
+      );
+      writeFileSync(
+        join(fileRoot, 'metadata.json'),
+        `${JSON.stringify(metadata, null, 2)}\n`,
+      );
       exportSummary.push({ folder, ...metadata });
     }
 
     const generatedAt = new Date().toISOString();
-    writeFileSync(join(exportRoot, 'inventory.json'), `${JSON.stringify({ generatedAt, teamId: input.teamId, files: exportSummary }, null, 2)}\n`);
+    writeFileSync(
+      join(exportRoot, 'inventory.json'),
+      `${JSON.stringify({ generatedAt, teamId: input.teamId, files: exportSummary }, null, 2)}\n`,
+    );
     const publication = workspace.publish(generatedAt);
     success = true;
-    console.log(JSON.stringify({
-      ...publication,
-      files: exportSummary.map((file) => ({
-        name: file.name,
-        key: file.key,
-        nodes: file.nodeCount,
-        sourceImages: file.sourceImageCount,
-        previews: file.previewCount,
-        exports: file.explicitExportCount,
-      })),
-    }));
+    console.log(
+      JSON.stringify({
+        ...publication,
+        files: exportSummary.map((file) => ({
+          name: file.name,
+          key: file.key,
+          nodes: file.nodeCount,
+          sourceImages: file.sourceImageCount,
+          previews: file.previewCount,
+          exports: file.explicitExportCount,
+        })),
+      }),
+    );
   } finally {
     if (Buffer.isBuffer(tokenBuffer)) tokenBuffer.fill(0);
     if (Buffer.isBuffer(acquired?.stderr)) acquired.stderr.fill(0);

@@ -2,7 +2,10 @@
 // UI-only, no direct API writes. Never closes page.
 
 import { chromium } from 'playwright';
-import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../dist/human/keyboard.js';
 import { openNewRow, openRowEditor } from '../../forms/row-editor.mjs';
 import { fillField } from '../../form-input.mjs';
@@ -40,27 +43,44 @@ if (!page) {
   process.exit(1);
 }
 
-
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
-await page.evaluate(() => { const b = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies')); if (b) b.style.pointerEvents = 'none'; }); // allow-raw-playwright: cookie banner
+await page.evaluate(() => {
+  const b = Array.from(document.querySelectorAll('div')).find((d) =>
+    (d.innerText || '').includes('pliki cookies'),
+  );
+  if (b) b.style.pointerEvents = 'none';
+}); // allow-raw-playwright: cookie banner
 
 async function clickDodaj() {
-  const button = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true }).first();
+  const button = page
+    .getByRole('button', { name: 'Dodaj', exact: true })
+    .filter({ visible: true })
+    .first();
   await openNewRow(page, button, page.locator('[name="wydatki_ogolem"]'));
 }
 
 async function openSelect(name) {
-  const target = page.locator(`input[name="${name}"]`).first().locator('xpath=ancestor::*[contains(@class,"MuiInputBase-root")][1]').locator('.MuiSelect-select, [role="combobox"]').first();
-  if (await target.count() === 0) throw new Error(`select not found: ${name}`);
-  await humanClickLocator(page, target) // allow-raw-playwright: open MUI select
+  const target = page
+    .locator(`input[name="${name}"]`)
+    .first()
+    .locator('xpath=ancestor::*[contains(@class,"MuiInputBase-root")][1]')
+    .locator('.MuiSelect-select, [role="combobox"]')
+    .first();
+  if ((await target.count()) === 0)
+    throw new Error(`select not found: ${name}`);
+  await humanClickLocator(page, target); // allow-raw-playwright: open MUI select
   await humanIdlePause('deliberate');
 }
 
 async function pickSelect(name, contains) {
   await openSelect(name);
-  const opt = page.locator("[role='option']").filter({ hasText: contains }).first();
-  if (await opt.count() === 0) throw new Error(`no select option ${name} -> ${contains}`);
+  const opt = page
+    .locator("[role='option']")
+    .filter({ hasText: contains })
+    .first();
+  if ((await opt.count()) === 0)
+    throw new Error(`no select option ${name} -> ${contains}`);
   const picked = (await opt.textContent())?.trim();
   await opt.dispatchEvent('click'); // allow-raw-playwright: select option
   await humanIdlePause('short');
@@ -74,14 +94,27 @@ async function setAuto(name, search) {
     await humanClickLocator(page, inp); // allow-raw-playwright: open editable autocomplete
     await humanFill(page, inp, search); // allow-raw-playwright: filter editable autocomplete
   } else {
-    const target = page.locator(`input[name="${name}"]`).first().locator('xpath=ancestor::*[contains(@class,"MuiAutocomplete-root") or contains(@class,"MuiFormControl-root")][1]').locator('.MuiAutocomplete-popupIndicator, button').first();
-    if (await target.count() === 0) throw new Error(`autocomplete opener not found: ${name}`);
-    await humanClickLocator(page, target) // allow-raw-playwright: open readonly autocomplete through MUI popup indicator
+    const target = page
+      .locator(`input[name="${name}"]`)
+      .first()
+      .locator(
+        'xpath=ancestor::*[contains(@class,"MuiAutocomplete-root") or contains(@class,"MuiFormControl-root")][1]',
+      )
+      .locator('.MuiAutocomplete-popupIndicator, button')
+      .first();
+    if ((await target.count()) === 0)
+      throw new Error(`autocomplete opener not found: ${name}`);
+    await humanClickLocator(page, target); // allow-raw-playwright: open readonly autocomplete through MUI popup indicator
   }
   await humanIdlePause('deliberate');
-  let opt = page.locator("[role='listbox'] [role='option']").filter({ hasText: search }).first();
-  if (await opt.count() === 0) opt = page.locator("[role='listbox'] [role='option']").first();
-  if (await opt.count() === 0) throw new Error(`no autocomplete option ${name} -> ${search}`);
+  let opt = page
+    .locator("[role='listbox'] [role='option']")
+    .filter({ hasText: search })
+    .first();
+  if ((await opt.count()) === 0)
+    opt = page.locator("[role='listbox'] [role='option']").first();
+  if ((await opt.count()) === 0)
+    throw new Error(`no autocomplete option ${name} -> ${search}`);
   const picked = (await opt.textContent())?.trim();
   await opt.dispatchEvent('click'); // allow-raw-playwright: select filtered option
   await humanIdlePause('short');
@@ -94,8 +127,15 @@ async function fill(name, value) {
 }
 
 async function saveForm() {
-  await humanIdlePause('deliberate'); await humanIdlePause('deliberate');
-  await humanClickLocator(page, page.locator('button:not([disabled])').filter({ hasText: /^Zapisz$/ }).last()) // allow-raw-playwright: save indirect-cost row
+  await humanIdlePause('deliberate');
+  await humanIdlePause('deliberate');
+  await humanClickLocator(
+    page,
+    page
+      .locator('button:not([disabled])')
+      .filter({ hasText: /^Zapisz$/ })
+      .last(),
+  ); // allow-raw-playwright: save indirect-cost row
   await humanIdlePause('long');
 }
 
@@ -103,38 +143,106 @@ if (process.env.DIAG) {
   await clickDodaj();
   if (process.env.AFTER_HELP) {
     await fill('nazwa_zadania', '0. Koszty pośrednie: Koszty pośrednie');
-    try { await pickSelect('nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta', 'Wisent Polska'); } catch (e) { /* may be auto */ }
+    try {
+      await pickSelect(
+        'nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta',
+        'Wisent Polska',
+      );
+    } catch (e) {
+      /* may be auto */
+    }
     await setAuto('rodzaj_pomocy', process.env.HELP || 'Badania przemysłowe');
     await humanIdlePause('long');
   }
-  const fields = await page.evaluate(() => Array.from(document.querySelectorAll('input, textarea')).map((i) => {
-    const label = i.id ? document.querySelector(`label[for="${CSS.escape(i.id)}"]`)?.textContent?.trim() : null;
-    const wrap = i.closest('label, .MuiFormControlLabel-root, .MuiFormGroup-root, .MuiBox-root');
-    return { tag: i.tagName, type: i.type || null, name: i.name || null, value: i.value || null, readOnly: i.readOnly, disabled: i.disabled, role: i.getAttribute('role'), max: i.getAttribute('maxlength'), label, nearby: wrap ? wrap.textContent.trim() : null };
-  }).filter((x) => x.name || x.label));
-  const buttons = await page.evaluate(() => Array.from(document.querySelectorAll('button')).map((b) => b.innerText.trim()).filter(Boolean));
-  const saveDisabled = await page.evaluate(() => Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz').map((b) => b.disabled));
+  const fields = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('input, textarea'))
+      .map((i) => {
+        const label = i.id
+          ? document
+              .querySelector(`label[for="${CSS.escape(i.id)}"]`)
+              ?.textContent?.trim()
+          : null;
+        const wrap = i.closest(
+          'label, .MuiFormControlLabel-root, .MuiFormGroup-root, .MuiBox-root',
+        );
+        return {
+          tag: i.tagName,
+          type: i.type || null,
+          name: i.name || null,
+          value: i.value || null,
+          readOnly: i.readOnly,
+          disabled: i.disabled,
+          role: i.getAttribute('role'),
+          max: i.getAttribute('maxlength'),
+          label,
+          nearby: wrap ? wrap.textContent.trim() : null,
+        };
+      })
+      .filter((x) => x.name || x.label),
+  );
+  const buttons = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('button'))
+      .map((b) => b.innerText.trim())
+      .filter(Boolean),
+  );
+  const saveDisabled = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('button'))
+      .filter((b) => b.innerText.trim() === 'Zapisz')
+      .map((b) => b.disabled),
+  );
   const optionDumps = {};
-  for (const name of ['nazwa_zadania', 'nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta']) {
+  for (const name of [
+    'nazwa_zadania',
+    'nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta',
+  ]) {
     try {
       await openSelect(name);
-      optionDumps[name] = await page.evaluate(() => Array.from(document.querySelectorAll('[role="option"]')).map((o) => o.textContent.trim()));
+      optionDumps[name] = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('[role="option"]')).map((o) =>
+          o.textContent.trim(),
+        ),
+      );
       await page.keyboard.press('Escape'); // allow-raw-playwright: close options dump
-    } catch (e) { optionDumps[name] = String(e?.message || e); }
+    } catch (e) {
+      optionDumps[name] = String(e?.message || e);
+    }
   }
-  console.log(JSON.stringify({ fields, buttons, saveDisabled, optionDumps }, null, 2));
+  console.log(
+    JSON.stringify({ fields, buttons, saveDisabled, optionDumps }, null, 2),
+  );
   process.exit(0);
 }
 
 if (process.env.MENU) {
   const contains = process.env.CONTAINS || 'badania przemysłowe';
-  const row = page.locator('table').first().locator('tbody tr').filter({ hasText: contains }).first();
-  await row.locator('button[aria-label="overflow-options"]').first().dispatchEvent('click'); // allow-raw-playwright: open row overflow menu for action discovery
+  const row = page
+    .locator('table')
+    .first()
+    .locator('tbody tr')
+    .filter({ hasText: contains })
+    .first();
+  await row
+    .locator('button[aria-label="overflow-options"]')
+    .first()
+    .dispatchEvent('click'); // allow-raw-playwright: open row overflow menu for action discovery
   await humanIdlePause('deliberate');
   const menu = await page.evaluate(() => ({
-    menuitems: Array.from(document.querySelectorAll('[role="menuitem"]')).map((e) => e.textContent.trim()).filter(Boolean),
-    menus: Array.from(document.querySelectorAll('[role="menu"], .MuiPopover-root, .MuiMenu-paper')).map((e) => e.textContent.trim()).filter(Boolean),
-    buttonsTail: Array.from(document.querySelectorAll('button')).map((e) => e.textContent.trim() || e.getAttribute('aria-label') || e.title).filter(Boolean).slice(-20),
+    menuitems: Array.from(document.querySelectorAll('[role="menuitem"]'))
+      .map((e) => e.textContent.trim())
+      .filter(Boolean),
+    menus: Array.from(
+      document.querySelectorAll(
+        '[role="menu"], .MuiPopover-root, .MuiMenu-paper',
+      ),
+    )
+      .map((e) => e.textContent.trim())
+      .filter(Boolean),
+    buttonsTail: Array.from(document.querySelectorAll('button'))
+      .map(
+        (e) => e.textContent.trim() || e.getAttribute('aria-label') || e.title,
+      )
+      .filter(Boolean)
+      .slice(-20),
   }));
   console.log(JSON.stringify({ contains, menu }, null, 2));
   process.exit(0);
@@ -144,7 +252,12 @@ if (process.env.EDIT) {
   const contains = process.env.CONTAINS;
   const grant = process.env.GRANT;
   if (!contains || !grant) throw new Error('EDIT requires CONTAINS and GRANT');
-  const row = page.locator('table').first().locator('tbody tr').filter({ hasText: contains }).first();
+  const row = page
+    .locator('table')
+    .first()
+    .locator('tbody tr')
+    .filter({ hasText: contains })
+    .first();
   await openRowEditor(page, row, page.locator('[name="dofinansowanie"]'));
   await fill('dofinansowanie', grant);
   await saveForm();
@@ -152,8 +265,16 @@ if (process.env.EDIT) {
   process.exit(0);
 }
 
-const wanted = process.env.ROWS ? new Set(process.env.ROWS.split(',').map((x) => Number(x.trim())).filter(Boolean)) : null;
-const selectedRows = ROWS.map((r, i) => ({ ...r, rowNo: i + 1 })).filter((r) => !wanted || wanted.has(r.rowNo));
+const wanted = process.env.ROWS
+  ? new Set(
+      process.env.ROWS.split(',')
+        .map((x) => Number(x.trim()))
+        .filter(Boolean),
+    )
+  : null;
+const selectedRows = ROWS.map((r, i) => ({ ...r, rowNo: i + 1 })).filter(
+  (r) => !wanted || wanted.has(r.rowNo),
+);
 const added = [];
 
 for (const r of selectedRows) {
@@ -161,10 +282,25 @@ for (const r of selectedRows) {
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
   await clickDodaj();
   await fill('nazwa_zadania', '0. Koszty pośrednie: Koszty pośrednie');
-  try { await pickSelect('nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta', 'Wisent Polska'); } catch (e) { /* sometimes auto */ }
+  try {
+    await pickSelect(
+      'nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta',
+      'Wisent Polska',
+    );
+  } catch (e) {
+    /* sometimes auto */
+  }
   await setAuto('rodzaj_pomocy', r.help);
-  try { await setAuto('rodzaj_metody_uproszczonej', r.method); } catch (e) { console.log(`SKIP METHOD ${String(e?.message || e)}`); }
-  try { await setAuto('kategoria_kosztu_feng', r.category); } catch (e) { console.log(`SKIP CATEGORY ${String(e?.message || e)}`); }
+  try {
+    await setAuto('rodzaj_metody_uproszczonej', r.method);
+  } catch (e) {
+    console.log(`SKIP METHOD ${String(e?.message || e)}`);
+  }
+  try {
+    await setAuto('kategoria_kosztu_feng', r.category);
+  } catch (e) {
+    console.log(`SKIP CATEGORY ${String(e?.message || e)}`);
+  }
   await fill('wydatki_ogolem', r.total);
   await fill('wydatki_kwalifikowalne', r.total);
   await fill('dofinansowanie', r.grant);

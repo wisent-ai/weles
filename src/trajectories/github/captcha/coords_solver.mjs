@@ -6,12 +6,16 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { humanClick } from '../../../../dist/human/mouse.js';
 import { pageSettled } from '../../_shared/page/settled.mjs';
-import { completeMultimodal, requireStadoModelRouterConfig } from './stado_model_router.mjs';
+import {
+  completeMultimodal,
+  requireStadoModelRouterConfig,
+} from './stado_model_router.mjs';
 
 async function waitForCaptchaUI(page) {
   // Force-strip `v-hidden`/`d-none` classes and inline visibility so puzzle iframe becomes visible.
   // GitHub's JS normally removes these after solver-ready event, but our automation flow doesn't trigger that.
-  await page.evaluate(`(() => {
+  await page
+    .evaluate(`(() => {
     const f = document.querySelector('iframe.js-octocaptcha-frame');
     if (!f) return { ok: false, reason: 'no-iframe' };
     f.classList.remove('v-hidden', 'd-none');
@@ -24,21 +28,31 @@ async function waitForCaptchaUI(page) {
       el.removeAttribute('hidden');
     }
     return { ok: true };
-  })()`).catch(() => {});
+  })()`)
+    .catch(() => {});
   const iframe = page.locator('iframe.js-octocaptcha-frame').first();
   await iframe.waitFor({ state: 'visible' });
   await pageSettled(getEnforcementFrame(page) ?? page);
   const box = await iframe.boundingBox();
   if (!box || box.height <= 200 || box.width <= 200) {
-    console.log(`[coords] puzzle iframe settled at ${box ? `${Math.round(box.width)}x${Math.round(box.height)}` : 'no box'}, too small to hold a puzzle`);
+    console.log(
+      `[coords] puzzle iframe settled at ${box ? `${Math.round(box.width)}x${Math.round(box.height)}` : 'no box'}, too small to hold a puzzle`,
+    );
     return null;
   }
-  const buf = await page.screenshot({ type: 'png', clip: { x: box.x, y: box.y, width: box.width, height: box.height } });
+  const buf = await page.screenshot({
+    type: 'png',
+    clip: { x: box.x, y: box.y, width: box.width, height: box.height },
+  });
   if (buf.length <= 15000) {
-    console.log(`[coords] puzzle iframe settled with an empty-looking ${Math.round(buf.length / 1024)}KB render`);
+    console.log(
+      `[coords] puzzle iframe settled with an empty-looking ${Math.round(buf.length / 1024)}KB render`,
+    );
     return null;
   }
-  console.log(`[coords] Puzzle UI ready: ${Math.round(box.width)}x${Math.round(box.height)}, ${Math.round(buf.length / 1024)}KB`);
+  console.log(
+    `[coords] Puzzle UI ready: ${Math.round(box.width)}x${Math.round(box.height)}, ${Math.round(buf.length / 1024)}KB`,
+  );
   return { iframe, box };
 }
 
@@ -85,14 +99,16 @@ Emit ONLY the JSON on a single line — no prose, no markdown, no explanation be
     // The model answers either in pixels or on a 0-1000 grid; a coordinate
     // past twice the screen is read as the grid.
     if (x >= width * 2 || y >= height * 2) {
-      x = Math.round(x * width / 1000);
-      y = Math.round(y * height / 1000);
+      x = Math.round((x * width) / 1000);
+      y = Math.round((y * height) / 1000);
     }
     x = Math.max(0, Math.min(width - 1, x));
     y = Math.max(0, Math.min(height - 1, y));
     const score = Number(text.match(/"score"\s*:\s*(\d+)/)?.at(1) ?? '0');
     const why = text.match(/"why"\s*:\s*"([^"]*)"/)?.at(1) ?? '';
-    console.log(`[stado-model] screen=${screen} action=${action} score=${score} model=${model} coords(${x},${y}) — ${why}`);
+    console.log(
+      `[stado-model] screen=${screen} action=${action} score=${score} model=${model} coords(${x},${y}) — ${why}`,
+    );
     return { x, y, screen, action, score };
   } catch (error) {
     return { err: `router: ${String(error?.message || error)}` };
@@ -101,25 +117,36 @@ Emit ONLY the JSON on a single line — no prose, no markdown, no explanation be
 
 async function submitCoords(apiKey, imageBase64, comment) {
   const task = { type: 'CoordinatesTask', body: imageBase64, comment };
-  const cr = await (await fetch('https://api.2captcha.com/createTask', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ clientKey: apiKey, task }),
-  })).json();
+  const cr = await (
+    await fetch('https://api.2captcha.com/createTask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientKey: apiKey, task }),
+    })
+  ).json();
   if (cr.errorId) return { err: `${cr.errorCode} ${cr.errorDescription}` };
   console.log(`[coords] taskId=${cr.taskId}`);
   // 2Captcha has no push or blocking answer; one read reports where the
   // human worker is.
-  const res = await (await fetch('https://api.2captcha.com/getTaskResult', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ clientKey: apiKey, taskId: cr.taskId }),
-  })).json();
+  const res = await (
+    await fetch('https://api.2captcha.com/getTaskResult', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientKey: apiKey, taskId: cr.taskId }),
+    })
+  ).json();
   if (res.errorId) return { err: `${res.errorCode} ${res.errorDescription}` };
-  if (res.status !== 'ready') return { err: `captcha_2captcha_processing: task ${cr.taskId} has no coordinates yet` };
+  if (res.status !== 'ready')
+    return {
+      err: `captcha_2captcha_processing: task ${cr.taskId} has no coordinates yet`,
+    };
   return { coords: res.solution?.coordinates ?? [] };
 }
 
 function getEnforcementFrame(page) {
-  return page.frames().find(f => /arkoselabs\.com.*enforcement.*\.html/.test(f.url()));
+  return page
+    .frames()
+    .find((f) => /arkoselabs\.com.*enforcement.*\.html/.test(f.url()));
 }
 
 // Shadow-DOM + nested same-origin iframe button search. Arkose wraps in shadow
@@ -167,20 +194,37 @@ async function clickInEnforcement(page, needles) {
   // Accept either a single string or a prioritized array of substrings.
   const arr = Array.isArray(needles) ? needles : [needles];
   for (const n of arr) {
-    const r = await frame.evaluate(`${SHADOW_BTN_QUERY}(${JSON.stringify(n.toLowerCase())})`).catch(e => ({ err: e.message }));
+    const r = await frame
+      .evaluate(`${SHADOW_BTN_QUERY}(${JSON.stringify(n.toLowerCase())})`)
+      .catch((e) => ({ err: e.message }));
     if (r?.ok) return r;
   }
   // Return info from last attempt so caller can log button inventory.
-  return await frame.evaluate(`${SHADOW_BTN_QUERY}(${JSON.stringify(arr[arr.length - 1].toLowerCase())})`).catch(e => ({ err: e.message }));
+  return await frame
+    .evaluate(
+      `${SHADOW_BTN_QUERY}(${JSON.stringify(arr[arr.length - 1].toLowerCase())})`,
+    )
+    .catch((e) => ({ err: e.message }));
 }
 
 async function clickVisualPuzzleInEnforcement(page) {
   // Arkose labels this button as "Visual challenge" in some renders and "Visual puzzle"
   // in others — match either substring, on the settled puzzle frame.
   await pageSettled(getEnforcementFrame(page) ?? page);
-  const r = await clickInEnforcement(page, ['visual puzzle', 'visual challenge', 'visual']);
-  if (r?.ok) { console.log(`[coords] clicked Visual puzzle in enforcement: "${r.text}" at (${Math.round(r.x)},${Math.round(r.y)})`); return true; }
-  console.log(`[coords] no Visual puzzle button (count=${r?.count ?? '?'} sample=${JSON.stringify(r?.texts ?? [])})`);
+  const r = await clickInEnforcement(page, [
+    'visual puzzle',
+    'visual challenge',
+    'visual',
+  ]);
+  if (r?.ok) {
+    console.log(
+      `[coords] clicked Visual puzzle in enforcement: "${r.text}" at (${Math.round(r.x)},${Math.round(r.y)})`,
+    );
+    return true;
+  }
+  console.log(
+    `[coords] no Visual puzzle button (count=${r?.count ?? '?'} sample=${JSON.stringify(r?.texts ?? [])})`,
+  );
   return false;
 }
 
@@ -191,65 +235,201 @@ export async function solveRotationViaCoords(page, { maxRounds = 80 } = {}) {
   // puzzle-type chooser screen. Without this, every screenshot is the chooser.
   await clickVisualPuzzleInEnforcement(page);
   const waited = await waitForCaptchaUI(page);
-  if (!waited) { console.log('[coords] captcha iframe never rendered'); return false; }
+  if (!waited) {
+    console.log('[coords] captcha iframe never rendered');
+    return false;
+  }
 
-  let navCount = 0, bestScore = 0, totalSubmits = 0; // per-puzzle + session state
-  const SUBMIT_BUDGET = parseInt(process.env.WELES_ARKOSE_SUBMIT_BUDGET ?? '4', 10);
+  let navCount = 0,
+    bestScore = 0,
+    totalSubmits = 0; // per-puzzle + session state
+  const SUBMIT_BUDGET = parseInt(
+    process.env.WELES_ARKOSE_SUBMIT_BUDGET ?? '4',
+    10,
+  );
   for (let round = 1; round <= maxRounds; round++) {
     const urlNow = page.url?.() ?? '';
-    if (/signup_emailsent|verif|launch-code|account_verif/.test(urlNow)) { console.log(`[coords] R${round}: URL solved at ${urlNow}`); return true; }
-    const box = await page.locator('iframe.js-octocaptcha-frame').first().boundingBox().catch(() => null);
-    if (!box) { await pageSettled(page);
-          const u = page.url?.() ?? '';
-          if (/signup_emailsent|verif|launch-code|account_verif/.test(u)) { console.log(`[coords] R${round}: iframe gone, URL advanced to ${u}`); return true; } console.log(`[coords] R${round}: iframe gone, URL stuck at ${page.url?.() ?? ''}`); return false; }  // allow-raw-playwright: polling/rate-limit loop
+    if (/signup_emailsent|verif|launch-code|account_verif/.test(urlNow)) {
+      console.log(`[coords] R${round}: URL solved at ${urlNow}`);
+      return true;
+    }
+    const box = await page
+      .locator('iframe.js-octocaptcha-frame')
+      .first()
+      .boundingBox()
+      .catch(() => null);
+    if (!box) {
+      await pageSettled(page);
+      const u = page.url?.() ?? '';
+      if (/signup_emailsent|verif|launch-code|account_verif/.test(u)) {
+        console.log(`[coords] R${round}: iframe gone, URL advanced to ${u}`);
+        return true;
+      }
+      console.log(
+        `[coords] R${round}: iframe gone, URL stuck at ${page.url?.() ?? ''}`,
+      );
+      return false;
+    } // allow-raw-playwright: polling/rate-limit loop
     let buf;
-    try { buf = await page.screenshot({ type: 'png', clip: { x: box.x, y: box.y, width: box.width, height: box.height } }); }
-    catch (e) { console.log(`[coords] R${round}: screenshot err: ${e.message}`); return false; }
+    try {
+      buf = await page.screenshot({
+        type: 'png',
+        clip: { x: box.x, y: box.y, width: box.width, height: box.height },
+      });
+    } catch (e) {
+      console.log(`[coords] R${round}: screenshot err: ${e.message}`);
+      return false;
+    }
     const b64 = buf.toString('base64');
-    try { mkdirSync('/tmp/gh_shots', { recursive: true }); writeFileSync(`/tmp/gh_shots/round_${round}.png`, buf); } catch {}
-    console.log(`[coords] R${round}: ${Math.round(buf.length / 1024)}KB image (${Math.round(box.width)}x${Math.round(box.height)}) -> /tmp/gh_shots/round_${round}.png`);
+    try {
+      mkdirSync('/tmp/gh_shots', { recursive: true });
+      writeFileSync(`/tmp/gh_shots/round_${round}.png`, buf);
+    } catch {}
+    console.log(
+      `[coords] R${round}: ${Math.round(buf.length / 1024)}KB image (${Math.round(box.width)}x${Math.round(box.height)}) -> /tmp/gh_shots/round_${round}.png`,
+    );
     let clickXY = null;
     // Tier 1: Stado's authenticated model router classifies the screen.
     {
-      const g = await solveViaStadoModelRouter(b64, Math.round(box.width), Math.round(box.height));
-      const w = Math.round(box.width), h = Math.round(box.height);
-      if (g.screen === 'A') clickXY = { x: Math.round(w / 2), y: 262, src: 'stado-model-A' };
-      else if (g.screen === 'D') clickXY = { x: 120, y: 418, src: 'stado-model-D' };
+      const g = await solveViaStadoModelRouter(
+        b64,
+        Math.round(box.width),
+        Math.round(box.height),
+      );
+      const w = Math.round(box.width),
+        h = Math.round(box.height);
+      if (g.screen === 'A')
+        clickXY = { x: Math.round(w / 2), y: 262, src: 'stado-model-A' };
+      else if (g.screen === 'D')
+        clickXY = { x: 120, y: 418, src: 'stado-model-D' };
       else if (g.screen === 'E') {
-        if (g.action === 'none') { console.log(`[coords] R${round} E-none — waiting for puzzle to load`); await pageSettled(getEnforcementFrame(page) ?? page); continue; }  // allow-raw-playwright: review — context-dependent timer
-        if (navCount > 20) { console.log(`IP_FLAGGED: Arkose nav=${navCount} on single puzzle without match — carousel exhausted, rotate`); process.exit(42); }
+        if (g.action === 'none') {
+          console.log(`[coords] R${round} E-none — waiting for puzzle to load`);
+          await pageSettled(getEnforcementFrame(page) ?? page);
+          continue;
+        } // allow-raw-playwright: review — context-dependent timer
+        if (navCount > 20) {
+          console.log(
+            `IP_FLAGGED: Arkose nav=${navCount} on single puzzle without match — carousel exhausted, rotate`,
+          );
+          process.exit(42);
+        }
         bestScore = Math.max(bestScore, g.score || 0);
         const threshold = Math.max(7, 9 - Math.floor(navCount / 4));
-        const submitNow = g.action === 'submit' || (g.score >= threshold && g.score >= bestScore);
-        const needles = submitNow ? ['submit'] : ['navigate to next', 'next', 'arrow'];
+        const submitNow =
+          g.action === 'submit' ||
+          (g.score >= threshold && g.score >= bestScore);
+        const needles = submitNow
+          ? ['submit']
+          : ['navigate to next', 'next', 'arrow'];
         const domResult = await clickInEnforcement(page, needles);
-        if (domResult?.ok) { await humanClick(page, Math.round(box.x + domResult.x), Math.round(box.y + domResult.y)); console.log(`[coords] R${round} E-${submitNow?'submit':'next'} (score=${g.score} thresh=${threshold} nav=${navCount} submits=${totalSubmits}) humanClick: ${domResult.sig?.txt || domResult.sig?.aria}`); if (submitNow) { totalSubmits++; navCount = 0; bestScore = 0; if (totalSubmits > SUBMIT_BUDGET) { console.log(`IP_FLAGGED: Arkose served ${totalSubmits} puzzles without URL advance — treat as flagged, rotate proxy`); process.exit(42); } } else navCount++; await pageSettled(getEnforcementFrame(page) ?? page); const u = page.url?.() ?? ''; if (/signup_emailsent|verif|launch-code|account_verif/.test(u)) return true; continue; }  // allow-raw-playwright: review — context-dependent timer
-        const ex = g.x || (submitNow ? 226 : 370); const ey = g.y || (submitNow ? 340 : 300);
-        clickXY = submitNow ? { x: ex, y: ey, src: 'stado-model-E-submit-coord' } : { x: ex, y: ey, src: 'stado-model-E-next-swipe', swipe: -100 };
-      }
-      else if (g.screen === 'G') {
+        if (domResult?.ok) {
+          await humanClick(
+            page,
+            Math.round(box.x + domResult.x),
+            Math.round(box.y + domResult.y),
+          );
+          console.log(
+            `[coords] R${round} E-${submitNow ? 'submit' : 'next'} (score=${g.score} thresh=${threshold} nav=${navCount} submits=${totalSubmits}) humanClick: ${domResult.sig?.txt || domResult.sig?.aria}`,
+          );
+          if (submitNow) {
+            totalSubmits++;
+            navCount = 0;
+            bestScore = 0;
+            if (totalSubmits > SUBMIT_BUDGET) {
+              console.log(
+                `IP_FLAGGED: Arkose served ${totalSubmits} puzzles without URL advance — treat as flagged, rotate proxy`,
+              );
+              process.exit(42);
+            }
+          } else navCount++;
+          await pageSettled(getEnforcementFrame(page) ?? page);
+          const u = page.url?.() ?? '';
+          if (/signup_emailsent|verif|launch-code|account_verif/.test(u))
+            return true;
+          continue;
+        } // allow-raw-playwright: review — context-dependent timer
+        const ex = g.x || (submitNow ? 226 : 370);
+        const ey = g.y || (submitNow ? 340 : 300);
+        clickXY = submitNow
+          ? { x: ex, y: ey, src: 'stado-model-E-submit-coord' }
+          : { x: ex, y: ey, src: 'stado-model-E-next-swipe', swipe: -100 };
+      } else if (g.screen === 'G') {
         // Any non-E screen ends the current puzzle — reset nav state so the next
         // puzzle starts at max threshold instead of inheriting a low one.
-        navCount = 0; bestScore = 0;
-        const r = await clickInEnforcement(page, ['try again', 'reload', 'restart']);
-        if (r?.ok) { await humanClick(page, Math.round(box.x + r.x), Math.round(box.y + r.y)); console.log(`[coords] R${round} G recover humanClick: ${JSON.stringify(r.sig ?? r.text)}`); await pageSettled(getEnforcementFrame(page) ?? page); continue; }  // allow-raw-playwright: review — context-dependent timer
-        clickXY = { x: g.x || Math.round(w / 2), y: g.y || 340, src: 'stado-model-G-try-coord' };
-      }
-      else if ((g.screen === 'B' || g.screen === 'F') && g.action !== 'none' && g.x) { navCount = 0; bestScore = 0; clickXY = { x: g.x, y: g.y, src: `stado-model-${g.screen}` }; }
-      else if ((g.screen === 'B' || g.screen === 'F' || g.screen === 'C') && g.action === 'none') { navCount = 0; bestScore = 0; console.log(`[coords] R${round} ${g.screen}-none — waiting for UI`); await pageSettled(getEnforcementFrame(page) ?? page); continue; }  // allow-raw-playwright: review — context-dependent timer
-      else console.log(`[coords] R${round} Stado model-router screen=${g.screen ?? '?'} err=${g.err ?? '-'}, falling back`);
-      if (clickXY) console.log(`[coords] R${round} ${clickXY.src}: (${clickXY.x},${clickXY.y})`);
+        navCount = 0;
+        bestScore = 0;
+        const r = await clickInEnforcement(page, [
+          'try again',
+          'reload',
+          'restart',
+        ]);
+        if (r?.ok) {
+          await humanClick(
+            page,
+            Math.round(box.x + r.x),
+            Math.round(box.y + r.y),
+          );
+          console.log(
+            `[coords] R${round} G recover humanClick: ${JSON.stringify(r.sig ?? r.text)}`,
+          );
+          await pageSettled(getEnforcementFrame(page) ?? page);
+          continue;
+        } // allow-raw-playwright: review — context-dependent timer
+        clickXY = {
+          x: g.x || Math.round(w / 2),
+          y: g.y || 340,
+          src: 'stado-model-G-try-coord',
+        };
+      } else if (
+        (g.screen === 'B' || g.screen === 'F') &&
+        g.action !== 'none' &&
+        g.x
+      ) {
+        navCount = 0;
+        bestScore = 0;
+        clickXY = { x: g.x, y: g.y, src: `stado-model-${g.screen}` };
+      } else if (
+        (g.screen === 'B' || g.screen === 'F' || g.screen === 'C') &&
+        g.action === 'none'
+      ) {
+        navCount = 0;
+        bestScore = 0;
+        console.log(`[coords] R${round} ${g.screen}-none — waiting for UI`);
+        await pageSettled(getEnforcementFrame(page) ?? page);
+        continue;
+      } // allow-raw-playwright: review — context-dependent timer
+      else
+        console.log(
+          `[coords] R${round} Stado model-router screen=${g.screen ?? '?'} err=${g.err ?? '-'}, falling back`,
+        );
+      if (clickXY)
+        console.log(
+          `[coords] R${round} ${clickXY.src}: (${clickXY.x},${clickXY.y})`,
+        );
     }
     // The 2captcha path remains explicit opt-in. It is attempted only when the
     // authenticated model router cannot produce coordinates and the operator
     // has enabled the human-worker service.
     if (!clickXY && twoKey && process.env.WELES_2CAPTCHA_COORDS === '1') {
-      const res = await submitCoords(twoKey, b64, `Arkose FunCaptcha. Return (x,y) of the correct tile center.`);
-      if (res.coords?.length) { clickXY = { x: res.coords[0].x, y: res.coords[0].y, src: '2captcha' }; console.log(`[coords] R${round} 2captcha: (${res.coords[0].x},${res.coords[0].y})`); }
-      else console.log(`[coords] R${round} 2captcha: ${res.err}`);
+      const res = await submitCoords(
+        twoKey,
+        b64,
+        `Arkose FunCaptcha. Return (x,y) of the correct tile center.`,
+      );
+      if (res.coords?.length) {
+        clickXY = { x: res.coords[0].x, y: res.coords[0].y, src: '2captcha' };
+        console.log(
+          `[coords] R${round} 2captcha: (${res.coords[0].x},${res.coords[0].y})`,
+        );
+      } else console.log(`[coords] R${round} 2captcha: ${res.err}`);
     }
-    if (!clickXY) { console.log(`[coords] R${round}: no coords from any solver`); continue; }
-    const pageX = box.x + clickXY.x, pageY = box.y + clickXY.y;
+    if (!clickXY) {
+      console.log(`[coords] R${round}: no coords from any solver`);
+      continue;
+    }
+    const pageX = box.x + clickXY.x,
+      pageY = box.y + clickXY.y;
     // Each acknowledged pointer operation advances the gesture. Preserve the
     // six drag waypoints, but do not add inter-waypoint idle time.
     await page.mouse.move(pageX - 5, pageY - 3);
@@ -258,9 +438,13 @@ export async function solveRotationViaCoords(page, { maxRounds = 80 } = {}) {
     try {
       await page.mouse.down();
       if (clickXY.swipe) {
-        const steps = 6, dx = clickXY.swipe;
+        const steps = 6,
+          dx = clickXY.swipe;
         for (let i = 1; i <= steps; i++) {
-          await page.mouse.move(pageX + Math.round(dx * i / steps), pageY + (i % 2 === 0 ? 1 : -1));
+          await page.mouse.move(
+            pageX + Math.round((dx * i) / steps),
+            pageY + (i % 2 === 0 ? 1 : -1),
+          );
         }
       }
     } catch (error) {
@@ -270,15 +454,24 @@ export async function solveRotationViaCoords(page, { maxRounds = 80 } = {}) {
       try {
         await page.mouse.up();
       } catch (releaseError) {
-        if (pointerFailure) throw new AggregateError([pointerFailure, releaseError], 'captcha pointer action and button release failed');
+        if (pointerFailure)
+          throw new AggregateError(
+            [pointerFailure, releaseError],
+            'captcha pointer action and button release failed',
+          );
         throw releaseError;
       }
     }
     const gesture = clickXY.swipe ? `swipe(${clickXY.swipe}px)` : 'clicked';
-    console.log(`[coords] R${round} ${clickXY.src} ${gesture} page(${Math.round(pageX)},${Math.round(pageY)})`);
+    console.log(
+      `[coords] R${round} ${clickXY.src} ${gesture} page(${Math.round(pageX)},${Math.round(pageY)})`,
+    );
     await pageSettled(page);
     const u = page.url?.() ?? '';
-    if (/signup_emailsent|verif|launch-code|account_verif/.test(u)) { console.log(`[coords] URL advanced to ${u}`); return true; }
+    if (/signup_emailsent|verif|launch-code|account_verif/.test(u)) {
+      console.log(`[coords] URL advanced to ${u}`);
+      return true;
+    }
   }
   return false;
 }

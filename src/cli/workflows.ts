@@ -1,6 +1,12 @@
 import { readFileSync } from 'node:fs';
-import { importWelesTrajectoryFile, type WelesImportReport } from '../runtime/import.js';
-import { runWelesOnboarding, type WelesOnboardingInput } from '../onboarding/first-use.js';
+import {
+  importWelesTrajectoryFile,
+  type WelesImportReport,
+} from '../runtime/import.js';
+import {
+  runWelesOnboarding,
+  type WelesOnboardingInput,
+} from '../onboarding/first-use.js';
 import type { ParsedCli } from '../cli.js';
 import { printAnswer, UsageError } from './usage.js';
 function readJsonFile(path: string, label: string): unknown {
@@ -18,11 +24,14 @@ function readReceiptKeys(path: string): Readonly<Record<string, string>> {
     throw new Error('receipt key map must be a JSON object');
   }
   const entries = Object.entries(value);
-  if (entries.length === 0) throw new Error('receipt key map must not be empty');
+  if (entries.length === 0)
+    throw new Error('receipt key map must not be empty');
   const keys: Record<string, string> = {};
   for (const [key, publicKey] of entries) {
     if (!key || typeof publicKey !== 'string' || !publicKey.trim()) {
-      throw new Error('receipt key map must contain non-empty key IDs and PEM public keys');
+      throw new Error(
+        'receipt key map must contain non-empty key IDs and PEM public keys',
+      );
     }
     keys[key] = publicKey;
   }
@@ -31,8 +40,10 @@ function readReceiptKeys(path: string): Readonly<Record<string, string>> {
 
 async function executeImport(parsed: ParsedCli): Promise<WelesImportReport> {
   const [path] = parsed.positional;
-  if (!path || parsed.positional.length !== 1) throw new UsageError('import requires <trajectory-export.json>');
-  if (typeof parsed.options.host !== 'string') throw new UsageError('import requires --host <managed-worker-hostname>');
+  if (!path || parsed.positional.length !== 1)
+    throw new UsageError('import requires <trajectory-export.json>');
+  if (typeof parsed.options.host !== 'string')
+    throw new UsageError('import requires --host <managed-worker-hostname>');
   const report = await importWelesTrajectoryFile(path, parsed.options.host);
   // A refused row is a refusal of a well-formed import, so it exits 1; 2 is
   // every Weles usage error.
@@ -45,51 +56,102 @@ export async function runImport(parsed: ParsedCli): Promise<void> {
   printAnswer(report, parsed.options.json === true);
 }
 
-function isOnboardingAction(value: string): value is NonNullable<WelesOnboardingInput['action']> {
-  return value === 'status' || value === 'next' || value === 'verify' || value === 'reset';
+function isOnboardingAction(
+  value: string,
+): value is NonNullable<WelesOnboardingInput['action']> {
+  return (
+    value === 'status' ||
+    value === 'next' ||
+    value === 'verify' ||
+    value === 'reset'
+  );
 }
 
 export async function runOnboarding(parsed: ParsedCli): Promise<void> {
   const action = parsed.positional[0] ?? 'status';
   if (action === 'import') {
     if (parsed.positional.length !== 2) {
-      throw new UsageError('onboarding import requires <trajectory-export.json>');
+      throw new UsageError(
+        'onboarding import requires <trajectory-export.json>',
+      );
     }
     const common = {
-      subject: typeof parsed.options.subject === 'string' ? parsed.options.subject : undefined,
-      stateDirectory: typeof parsed.options['state-dir'] === 'string' ? parsed.options['state-dir'] : undefined,
+      subject:
+        typeof parsed.options.subject === 'string'
+          ? parsed.options.subject
+          : undefined,
+      stateDirectory:
+        typeof parsed.options['state-dir'] === 'string'
+          ? parsed.options['state-dir']
+          : undefined,
     };
     const before = await runWelesOnboarding({ action: 'status', ...common });
     if (before.screen.id !== 'existing-data') {
-      throw new Error('complete the authorization-boundary step before importing existing data');
+      throw new Error(
+        'complete the authorization-boundary step before importing existing data',
+      );
     }
-    const report = await executeImport({ ...parsed, command: 'import', positional: parsed.positional.slice(1) });
+    const report = await executeImport({
+      ...parsed,
+      command: 'import',
+      positional: parsed.positional.slice(1),
+    });
     if (report.imported + report.unchanged === 0) {
-      printAnswer({ import: report, onboarding: before }, parsed.options.json === true);
+      printAnswer(
+        { import: report, onboarding: before },
+        parsed.options.json === true,
+      );
       return;
     }
-    const view = await runWelesOnboarding({ action: 'import', importReport: report, ...common });
-    printAnswer({ import: report, onboarding: view }, parsed.options.json === true);
+    const view = await runWelesOnboarding({
+      action: 'import',
+      importReport: report,
+      ...common,
+    });
+    printAnswer(
+      { import: report, onboarding: view },
+      parsed.options.json === true,
+    );
     return;
   }
   if (!isOnboardingAction(action) || parsed.positional.length > 1) {
-    throw new Error('onboarding action must be status, next, import, verify, or reset');
+    throw new Error(
+      'onboarding action must be status, next, import, verify, or reset',
+    );
   }
   const receiptPath = parsed.options.receipt;
   const keysPath = parsed.options.keys;
-  if (action === 'verify' && (typeof receiptPath !== 'string' || typeof keysPath !== 'string')) {
-    throw new UsageError('onboarding verify requires --receipt <file> and --keys <file>');
+  if (
+    action === 'verify' &&
+    (typeof receiptPath !== 'string' || typeof keysPath !== 'string')
+  ) {
+    throw new UsageError(
+      'onboarding verify requires --receipt <file> and --keys <file>',
+    );
   }
-  const receiptDocument = typeof receiptPath === 'string' ? readJsonFile(receiptPath, 'workflow receipt') : undefined;
-  const receipt = receiptDocument && typeof receiptDocument === 'object' && 'receipt' in receiptDocument
-    ? receiptDocument.receipt
-    : receiptDocument;
+  const receiptDocument =
+    typeof receiptPath === 'string'
+      ? readJsonFile(receiptPath, 'workflow receipt')
+      : undefined;
+  const receipt =
+    receiptDocument &&
+    typeof receiptDocument === 'object' &&
+    'receipt' in receiptDocument
+      ? receiptDocument.receipt
+      : receiptDocument;
   const view = await runWelesOnboarding({
     action,
-    subject: typeof parsed.options.subject === 'string' ? parsed.options.subject : undefined,
-    stateDirectory: typeof parsed.options['state-dir'] === 'string' ? parsed.options['state-dir'] : undefined,
+    subject:
+      typeof parsed.options.subject === 'string'
+        ? parsed.options.subject
+        : undefined,
+    stateDirectory:
+      typeof parsed.options['state-dir'] === 'string'
+        ? parsed.options['state-dir']
+        : undefined,
     receipt,
-    receiptKeys: typeof keysPath === 'string' ? readReceiptKeys(keysPath) : undefined,
+    receiptKeys:
+      typeof keysPath === 'string' ? readReceiptKeys(keysPath) : undefined,
   });
   printAnswer(view, parsed.options.json === true);
 }
@@ -107,7 +169,8 @@ export async function runRelease(parsed: ParsedCli): Promise<void> {
   const [action] = parsed.positional;
   const option = (name: string): string => {
     const value = parsed.options[name];
-    if (typeof value !== 'string' || !value.trim()) throw new Error(`--${name} is required`);
+    if (typeof value !== 'string' || !value.trim())
+      throw new Error(`--${name} is required`);
     return value;
   };
   if (action === 'surface') {
@@ -115,10 +178,13 @@ export async function runRelease(parsed: ParsedCli): Promise<void> {
     // published release exposes is recovered: extract that release's source
     // revision and read it with today's reader, rather than trusting a
     // document the build wrote when the reader was broken.
-    const root = typeof parsed.options.root === 'string' && parsed.options.root.trim()
-      ? parsed.options.root
-      : undefined;
-    process.stdout.write(`${JSON.stringify(await release.surface(root), null, 2)}\n`);
+    const root =
+      typeof parsed.options.root === 'string' && parsed.options.root.trim()
+        ? parsed.options.root
+        : undefined;
+    process.stdout.write(
+      `${JSON.stringify(await release.surface(root), null, 2)}\n`,
+    );
     return;
   }
   if (action === 'enforce-version') {
@@ -160,8 +226,8 @@ export async function runRelease(parsed: ParsedCli): Promise<void> {
     return;
   }
   throw new Error(
-    'weles release takes surface, enforce-version, validate-manifest or adopt-baseline, '
-    + `not ${action ?? '<nothing>'}`,
+    'weles release takes surface, enforce-version, validate-manifest or adopt-baseline, ' +
+      `not ${action ?? '<nothing>'}`,
   );
 }
 
@@ -184,13 +250,21 @@ const DESIGN_PROVIDER = 'figma';
 export async function runDesign(parsed: ParsedCli): Promise<void> {
   const [action, ...paths] = parsed.positional;
   if (parsed.options.provider !== DESIGN_PROVIDER) {
-    throw new UsageError(`design needs --provider naming the design tool; Weles implements ${DESIGN_PROVIDER}`);
+    throw new UsageError(
+      `design needs --provider naming the design tool; Weles implements ${DESIGN_PROVIDER}`,
+    );
   }
   // The provider modules are ES modules and this CLI compiles to CommonJS,
   // which cannot static-import ESM.
   if (action === 'export-assets') {
-    if (paths.length || typeof parsed.options.request !== 'string' || !parsed.options.request.trim()) {
-      throw new UsageError('design export-assets requires --provider figma --request <export-request.json> and no positional paths');
+    if (
+      paths.length ||
+      typeof parsed.options.request !== 'string' ||
+      !parsed.options.request.trim()
+    ) {
+      throw new UsageError(
+        'design export-assets requires --provider figma --request <export-request.json> and no positional paths',
+      );
     }
     const exporter = await import('../figma/export-design-assets.mjs');
     await exporter.exportDesignAssets(parsed.options.request);
@@ -199,11 +273,15 @@ export async function runDesign(parsed: ParsedCli): Promise<void> {
   if (action === 'parse-document') {
     const parser = await import('../figma/document/parse-figma-document.mjs');
     if (paths.length < parser.REQUIRED_PATHS) {
-      throw new UsageError('weles design parse-document takes --provider figma <document.json[.gz]> <summary.json> <nodes.json> [<vocabulary.json>]');
+      throw new UsageError(
+        'weles design parse-document takes --provider figma <document.json[.gz]> <summary.json> <nodes.json> [<vocabulary.json>]',
+      );
     }
     const [source, summaryPath, nodesPath, vocabularyPath] = paths;
     parser.parseFigmaDocument(source, summaryPath, nodesPath, vocabularyPath);
     return;
   }
-  throw new UsageError(`weles design takes export-assets or parse-document, not ${action ?? '<nothing>'}`);
+  throw new UsageError(
+    `weles design takes export-assets or parse-document, not ${action ?? '<nothing>'}`,
+  );
 }

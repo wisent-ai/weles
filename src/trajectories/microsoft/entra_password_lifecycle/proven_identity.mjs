@@ -24,8 +24,12 @@ function decodedTokenClaims(token) {
   const segments = token.split('.');
   if (segments.length !== 3) return null;
   try {
-    const payload = JSON.parse(Buffer.from(segments[1], 'base64url').toString('utf8'));
-    return payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : null;
+    const payload = JSON.parse(
+      Buffer.from(segments[1], 'base64url').toString('utf8'),
+    );
+    return payload && typeof payload === 'object' && !Array.isArray(payload)
+      ? payload
+      : null;
   } catch {
     return null;
   }
@@ -37,18 +41,32 @@ function claimedIdentities(values) {
     for (const [token] of String(value).matchAll(JWT_SCAN)) {
       const claims = decodedTokenClaims(token);
       if (!claims) continue;
-      const tid = typeof claims.tid === 'string' ? claims.tid.trim().toLowerCase() : '';
-      const oid = typeof claims.oid === 'string' ? claims.oid.trim().toLowerCase() : '';
+      const tid =
+        typeof claims.tid === 'string' ? claims.tid.trim().toLowerCase() : '';
+      const oid =
+        typeof claims.oid === 'string' ? claims.oid.trim().toLowerCase() : '';
       if (!LOWER_UUID.test(tid) || !LOWER_UUID.test(oid)) continue;
-      const named = [claims.preferred_username, claims.upn, claims.unique_name]
-        .find((candidate) => typeof candidate === 'string' && EMAIL.test(candidate.trim()));
+      const named = [
+        claims.preferred_username,
+        claims.upn,
+        claims.unique_name,
+      ].find(
+        (candidate) =>
+          typeof candidate === 'string' && EMAIL.test(candidate.trim()),
+      );
       // idp is present only when the signing identity provider differs from the
       // resource tenant, which is exactly the guest case this trajectory must
       // refuse: a federated principal carries the resource tenant in tid and its
       // guest object id in oid, so tid and oid alone cannot tell it apart from a
       // directory-managed member.
-      const idp = typeof claims.idp === 'string' ? claims.idp.trim().toLowerCase() : '';
-      identities.push({ tid, oid, upn: named ? named.trim().toLowerCase() : '', idp });
+      const idp =
+        typeof claims.idp === 'string' ? claims.idp.trim().toLowerCase() : '';
+      identities.push({
+        tid,
+        oid,
+        upn: named ? named.trim().toLowerCase() : '',
+        idp,
+      });
     }
   }
   return identities;
@@ -76,7 +94,10 @@ async function storedTokenValues(page) {
   try {
     const values = await page.evaluate(() => {
       const found = [];
-      for (const store of [globalThis.sessionStorage, globalThis.localStorage]) {
+      for (const store of [
+        globalThis.sessionStorage,
+        globalThis.localStorage,
+      ]) {
         if (!store) continue;
         for (let index = 0; index < store.length; index += 1) {
           const key = store.key(index);
@@ -89,16 +110,26 @@ async function storedTokenValues(page) {
     });
     return { ok: true, values };
   } catch (error) {
-    return { ok: false, reason: `the authorized context token storage could not be read: ${error.message}` };
+    return {
+      ok: false,
+      reason: `the authorized context token storage could not be read: ${error.message}`,
+    };
   }
 }
 
 async function authorizedClaims(page, sink) {
   const stored = await storedTokenValues(page);
   if (!stored.ok) {
-    return { ok: false, reason: stored.reason, identities: claimedIdentities(sink) };
+    return {
+      ok: false,
+      reason: stored.reason,
+      identities: claimedIdentities(sink),
+    };
   }
-  return { ok: true, identities: claimedIdentities([...stored.values, ...sink]) };
+  return {
+    ok: true,
+    identities: claimedIdentities([...stored.values, ...sink]),
+  };
 }
 
 // The authorized context has to be open before its claims can be read; a
@@ -109,7 +140,10 @@ async function openAuthorizedContext(page) {
     await page.goto(AUTHORIZED_CONTEXT_URL, { waitUntil: 'domcontentloaded' });
     return { ok: true };
   } catch (error) {
-    return { ok: false, reason: `the authorized Entra context could not be opened: ${error.message}` };
+    return {
+      ok: false,
+      reason: `the authorized Entra context could not be opened: ${error.message}`,
+    };
   }
 }
 
@@ -143,16 +177,24 @@ export async function assertEntraIdentity(session, contract, sink) {
         : `the authorized Entra session exposed no readable tid and oid claims: ${claims.reason}`,
     };
   }
-  const directoryMatches = identities.every((identity) => identity.tid === contract.tenantId
-    && identity.oid === contract.principalObjectId);
-  const conflictingUpn = identities.some((identity) => identity.upn && identity.upn !== contract.accountUpn);
-  const confirmedUpn = identities.some((identity) => identity.upn === contract.accountUpn);
+  const directoryMatches = identities.every(
+    (identity) =>
+      identity.tid === contract.tenantId &&
+      identity.oid === contract.principalObjectId,
+  );
+  const conflictingUpn = identities.some(
+    (identity) => identity.upn && identity.upn !== contract.accountUpn,
+  );
+  const confirmedUpn = identities.some(
+    (identity) => identity.upn === contract.accountUpn,
+  );
   if (!directoryMatches || conflictingUpn || !confirmedUpn) {
     return {
       ok: false,
       code: 'ENTRA_IDENTITY_MISMATCH',
       retryable: false,
-      reason: 'the signed-in Entra identity does not match the queued tenant, principal object id, and UPN',
+      reason:
+        'the signed-in Entra identity does not match the queued tenant, principal object id, and UPN',
     };
   }
   // A guest federated from another identity provider -- in practice a personal
@@ -184,21 +226,33 @@ export async function tenantOfUpnDomain(accountUpn) {
   try {
     response = await fetch(discovery);
   } catch (error) {
-    return { ok: false, reason: `the OpenID configuration of the UPN domain ${domain} could not be requested: ${error.message}` };
+    return {
+      ok: false,
+      reason: `the OpenID configuration of the UPN domain ${domain} could not be requested: ${error.message}`,
+    };
   }
   if (!response.ok) {
-    return { ok: false, reason: `the OpenID configuration of the UPN domain ${domain} answered HTTP ${response.status}` };
+    return {
+      ok: false,
+      reason: `the OpenID configuration of the UPN domain ${domain} answered HTTP ${response.status}`,
+    };
   }
   let document;
   try {
     document = await response.json();
   } catch (error) {
-    return { ok: false, reason: `the OpenID configuration of the UPN domain ${domain} was not readable JSON: ${error.message}` };
+    return {
+      ok: false,
+      reason: `the OpenID configuration of the UPN domain ${domain} was not readable JSON: ${error.message}`,
+    };
   }
   const issuer = typeof document?.issuer === 'string' ? document.issuer : '';
   const found = issuer.match(ANY_UUID);
   if (!found) {
-    return { ok: false, reason: `the OpenID configuration issuer of the UPN domain ${domain} names no tenant id` };
+    return {
+      ok: false,
+      reason: `the OpenID configuration issuer of the UPN domain ${domain} names no tenant id`,
+    };
   }
   return { ok: true, tenantId: found[0].toLowerCase() };
 }

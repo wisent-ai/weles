@@ -13,9 +13,17 @@ import { Capture } from '../capture/capture.js';
 import { loadFlow, saveFlow, replayFlow } from '../session/flows.js';
 import { pageSettled } from '../browser/settled.js';
 import { callJeden } from './jeden.js';
-import { askLlm, buildState, parseJsonFrom, type ModelDecisionProvider } from './loop/observe.js';
+import {
+  askLlm,
+  buildState,
+  parseJsonFrom,
+  type ModelDecisionProvider,
+} from './loop/observe.js';
 import { PageQuestionError } from '../vision/analyze.js';
-import { CapabilityDeniedError, CapabilityTransportError } from '../utils/capability/broker.js';
+import {
+  CapabilityDeniedError,
+  CapabilityTransportError,
+} from '../utils/capability/broker.js';
 import { CredentialFillError } from '../session/wsession-helpers/close/credential_fill.js';
 
 export interface ToolCall {
@@ -49,7 +57,11 @@ export class AgentFailure extends Error {
 function declaredMaxSteps(history: ToolCall[]): number {
   const raw = String(process.env.WELES_AGENT_MAX_STEPS ?? '').trim();
   const steps = Number(raw);
-  if (!raw || !Number.isSafeInteger(steps) || Math.sign(steps) !== Math.sign(Number.MAX_SAFE_INTEGER)) {
+  if (
+    !raw ||
+    !Number.isSafeInteger(steps) ||
+    Math.sign(steps) !== Math.sign(Number.MAX_SAFE_INTEGER)
+  ) {
     throw new AgentFailure(
       `WELES_AGENT_MAX_STEPS is ${raw ? `"${raw}", not a whole number above zero` : 'not set'}: declare how many model steps one browser task may take`,
       history,
@@ -61,10 +73,23 @@ function declaredMaxSteps(history: ToolCall[]): number {
 export async function execute(
   session: WSession,
   goal: string,
-  options?: { envHints?: Record<string, string>; replay?: ToolCall[]; flowName?: string; replayOnly?: boolean; skipSavedFlowReplay?: boolean; disableFlowPersistence?: boolean; disableArtifacts?: boolean; modelDecision?: ModelDecisionProvider; maxSteps?: number; initialHistory?: ToolCall[] },
+  options?: {
+    envHints?: Record<string, string>;
+    replay?: ToolCall[];
+    flowName?: string;
+    replayOnly?: boolean;
+    skipSavedFlowReplay?: boolean;
+    disableFlowPersistence?: boolean;
+    disableArtifacts?: boolean;
+    modelDecision?: ModelDecisionProvider;
+    maxSteps?: number;
+    initialHistory?: ToolCall[];
+  },
 ): Promise<LoopResult> {
   // Initialization is observed history, not a draft the model should execute again.
-  const history: ToolCall[] = options?.initialHistory ? [...options.initialHistory] : [];
+  const history: ToolCall[] = options?.initialHistory
+    ? [...options.initialHistory]
+    : [];
   const envHints = options?.envHints ?? {};
   let replay = options?.replay ?? null;
   const page = session.page;
@@ -72,27 +97,49 @@ export async function execute(
   const flowName = options?.flowName;
   const maxSteps = options?.maxSteps ?? declaredMaxSteps(history);
 
-
   // Try replaying a saved flow before using the LLM unless this is an explicit
   // keeper/discovery run. Keeper-first runs must map the live success path, not
   // silently reuse a stale local cache entry under the same flow name.
-  if (flowName && !replay && !options?.skipSavedFlowReplay && !options?.disableFlowPersistence) {
+  if (
+    flowName &&
+    !replay &&
+    !options?.skipSavedFlowReplay &&
+    !options?.disableFlowPersistence
+  ) {
     const saved = loadFlow(flowName);
     if (saved) {
-      console.log(`[loop] Replaying saved flow: ${flowName} (${saved.steps.length} steps)`);
-      const result = await replayFlow(saved, (tool, args) => dispatch(session, tool, args));
+      console.log(
+        `[loop] Replaying saved flow: ${flowName} (${saved.steps.length} steps)`,
+      );
+      const result = await replayFlow(saved, (tool, args) =>
+        dispatch(session, tool, args),
+      );
       if (result.success) {
-        const v = typeof result.value === 'string' ? session.resolveEnv(result.value) : result.value;
+        const v =
+          typeof result.value === 'string'
+            ? session.resolveEnv(result.value)
+            : result.value;
         return { value: v, history: history.concat(saved.steps as ToolCall[]) };
       }
-      if (result.error instanceof PageQuestionError || result.error instanceof CapabilityTransportError
-        || result.error instanceof CapabilityDeniedError || result.error instanceof CredentialFillError) {
+      if (
+        result.error instanceof PageQuestionError ||
+        result.error instanceof CapabilityTransportError ||
+        result.error instanceof CapabilityDeniedError ||
+        result.error instanceof CredentialFillError
+      ) {
         const failed = saved.steps[result.failedAtStep];
-        throw new AgentFailure(String(result.error), [...history, {
-          tool: failed.tool, args: failed.args, error: String(result.error),
-        }]);
+        throw new AgentFailure(String(result.error), [
+          ...history,
+          {
+            tool: failed.tool,
+            args: failed.args,
+            error: String(result.error),
+          },
+        ]);
       }
-      console.log(`[loop] Replay failed at step ${result.failedAtStep}, switching to LLM`);
+      console.log(
+        `[loop] Replay failed at step ${result.failedAtStep}, switching to LLM`,
+      );
     }
   }
 
@@ -102,7 +149,8 @@ export async function execute(
     const pages = mainPage.context().pages();
     let opened: any;
     for (const candidate of pages) {
-      if (!knownPages.has(candidate) && !candidate.isClosed()) opened = candidate;
+      if (!knownPages.has(candidate) && !candidate.isClosed())
+        opened = candidate;
       knownPages.add(candidate);
     }
     if (opened) return opened;
@@ -120,15 +168,23 @@ export async function execute(
     const observedUrl = activePage.url();
     let decision: Record<string, any>;
 
-    if (replay && step < replay.length && (options?.replayOnly || !['read', 'done'].includes(replay[step].tool))) {
+    if (
+      replay &&
+      step < replay.length &&
+      (options?.replayOnly || !['read', 'done'].includes(replay[step].tool))
+    ) {
       decision = replay[step];
-      console.log(`[loop] step ${step} REPLAY: ${decision.tool} ${JSON.stringify(decision.args)}`);
+      console.log(
+        `[loop] step ${step} REPLAY: ${decision.tool} ${JSON.stringify(decision.args)}`,
+      );
     } else if (replay && options?.replayOnly && step >= replay.length) {
       throw new AgentFailure('replay completed without done', history);
     } else {
       const imgPath = options?.disableArtifacts
         ? null
-        : await capture.screenshot(activePage, `loop_step${step}`).catch(() => null);
+        : await capture
+            .screenshot(activePage, `loop_step${step}`)
+            .catch(() => null);
       const state = await buildState(activePage, history, envHints);
       decision = await askLlm(
         goal,
@@ -145,7 +201,9 @@ export async function execute(
     if (dispatchPage !== activePage || activePage.url() !== observedUrl) {
       activePage = dispatchPage;
       session.page = activePage;
-      console.log('[loop] page changed while choosing a tool; observing the current page before input');
+      console.log(
+        '[loop] page changed while choosing a tool; observing the current page before input',
+      );
       continue;
     }
 
@@ -154,19 +212,30 @@ export async function execute(
       args: decision.args ?? {},
       thought: decision.thought ?? '',
     };
-    console.log(`[loop] step ${step} thought: ${(call.thought ?? '')}`);
-    console.log(`[loop] step ${step} tool: ${call.tool} args=${JSON.stringify(call.args)}`);
+    console.log(`[loop] step ${step} thought: ${call.thought ?? ''}`);
+    console.log(
+      `[loop] step ${step} tool: ${call.tool} args=${JSON.stringify(call.args)}`,
+    );
 
     if (call.tool === 'done') {
       call.result = 'done';
       history.push(call);
       if (flowName && !options?.disableFlowPersistence) {
-        const steps = history.slice(options?.initialHistory?.length ?? 0)
-          .filter(h => !h.error).map(h => ({ tool: h.tool, args: h.args, result: h.result }));
-        if (saveFlow(flowName, steps)) console.log(`[loop] Flow saved: ${flowName} (${steps.length} steps)`);
-        else console.log(`[loop] Flow not cached: ${flowName} uses a one-shot credential capability`);
+        const steps = history
+          .slice(options?.initialHistory?.length ?? 0)
+          .filter((h) => !h.error)
+          .map((h) => ({ tool: h.tool, args: h.args, result: h.result }));
+        if (saveFlow(flowName, steps))
+          console.log(`[loop] Flow saved: ${flowName} (${steps.length} steps)`);
+        else
+          console.log(
+            `[loop] Flow not cached: ${flowName} uses a one-shot credential capability`,
+          );
       }
-      const resolved = typeof call.args.value === 'string' ? session.resolveEnv(call.args.value) : call.args.value;
+      const resolved =
+        typeof call.args.value === 'string'
+          ? session.resolveEnv(call.args.value)
+          : call.args.value;
       return { value: resolved, history };
     }
     if (call.tool === 'give_up') {
@@ -182,19 +251,29 @@ export async function execute(
       call.error = String(e);
       console.log(`[loop] step ${step} error: ${call.error}`);
       history.push(call);
-      if (e instanceof PageQuestionError || e instanceof CapabilityTransportError
-        || e instanceof CapabilityDeniedError || e instanceof CredentialFillError) {
+      if (
+        e instanceof PageQuestionError ||
+        e instanceof CapabilityTransportError ||
+        e instanceof CapabilityDeniedError ||
+        e instanceof CredentialFillError
+      ) {
         throw new AgentFailure(String(e), history);
       }
       if (replay && options?.replayOnly) {
-        throw new AgentFailure(`replay failed at step ${step}: ${call.error}`, history);
+        throw new AgentFailure(
+          `replay failed at step ${step}: ${call.error}`,
+          history,
+        );
       }
       // The page the agent drove was closed (a popup that finished, a tab the
       // site replaced): the page says so itself, so its state decides, not
       // the error's wording.
       if (activePage.isClosed()) {
         activePage = getActivePage(activePage);
-        if (replay) { replay = null; console.log('[loop] replay aborted, switching to LLM'); }
+        if (replay) {
+          replay = null;
+          console.log('[loop] replay aborted, switching to LLM');
+        }
       }
       continue;
     }

@@ -2,7 +2,10 @@
 // UI-only. Never closes the page and never submits.
 
 import { chromium } from 'playwright';
-import { humanClickLocator, humanIdlePause } from '../../../../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../../dist/human/keyboard.js';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
@@ -15,11 +18,12 @@ if (!page) {
   process.exit(1);
 }
 
-
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
 await page.evaluate(() => {
-  const b = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies'));
+  const b = Array.from(document.querySelectorAll('div')).find((d) =>
+    (d.innerText || '').includes('pliki cookies'),
+  );
   if (b) b.style.pointerEvents = 'none';
 }); // allow-raw-playwright: neutralise cookie banner overlay only
 
@@ -35,22 +39,46 @@ async function activityRows() {
 
 const before = await activityRows();
 if (before.length <= 1) {
-  console.log(JSON.stringify({ before, deleted: false, note: 'no duplicate activity rows' }, null, 2));
+  console.log(
+    JSON.stringify(
+      { before, deleted: false, note: 'no duplicate activity rows' },
+      null,
+      2,
+    ),
+  );
   process.exit(0);
 }
 
 const activityTable = page.locator('table').nth(2);
-const duplicateRow = activityTable.locator('tbody tr').filter({ has: page.locator('button[aria-label="overflow-options"]') }).nth(1);
-await humanClickLocator(page, duplicateRow.locator('button[aria-label="overflow-options"]'));
+const duplicateRow = activityTable
+  .locator('tbody tr')
+  .filter({ has: page.locator('button[aria-label="overflow-options"]') })
+  .nth(1);
+await humanClickLocator(
+  page,
+  duplicateRow.locator('button[aria-label="overflow-options"]'),
+);
 await humanIdlePause('deliberate');
 
-const deleteItem = page.locator('[role="menuitem"], .MuiMenuItem-root').filter({ hasText: /usuń|usun/i }).first();
+const deleteItem = page
+  .locator('[role="menuitem"], .MuiMenuItem-root')
+  .filter({ hasText: /usuń|usun/i })
+  .first();
 await humanClickLocator(page, deleteItem);
 await humanIdlePause('deliberate');
 
-const confirmDelete = page.getByRole('button', { name: /usuń|usun|tak|potwierdź|potwierdz/i }).filter({ visible: true }).last();
+const confirmDelete = page
+  .getByRole('button', { name: /usuń|usun|tak|potwierdź|potwierdz/i })
+  .filter({ visible: true })
+  .last();
 await humanClickLocator(page, confirmDelete);
 await humanIdlePause('long');
 
-console.log(JSON.stringify({ before, deleted: true, after: await activityRows() }, null, 2));
+console.log(
+  JSON.stringify(
+    { before, deleted: true, after: await activityRows() },
+    null,
+    2,
+  ),
+);
 process.exit(0);

@@ -3,14 +3,19 @@ import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { humanFill, humanType } from '../../../dist/human/keyboard.js';
 
 export async function fillAppleTwoFactorCode(scope, page, code) {
-  const inputs = await scope.locator([
-    'input[aria-label*="digit"]',
-    'input[aria-label*="Digit"]',
-    'input[id*="char"]',
-    'input[type="tel"][maxlength="1"]',
-    'input[type="tel"]',
-    'input',
-  ].join(', ')).filter({ visible: true }).all();
+  const inputs = await scope
+    .locator(
+      [
+        'input[aria-label*="digit"]',
+        'input[aria-label*="Digit"]',
+        'input[id*="char"]',
+        'input[type="tel"][maxlength="1"]',
+        'input[type="tel"]',
+        'input',
+      ].join(', '),
+    )
+    .filter({ visible: true })
+    .all();
 
   if (inputs.length === 1) {
     await humanFill(page, inputs[0], code);
@@ -19,7 +24,8 @@ export async function fillAppleTwoFactorCode(scope, page, code) {
   // Apple shows one box per digit of the code it sent; the code's own length
   // says how many boxes to fill.
   if (inputs.length >= code.length) {
-    for (const [index, digit] of [...code].entries()) await humanFill(page, inputs[index], digit);
+    for (const [index, digit] of [...code].entries())
+      await humanFill(page, inputs[index], digit);
     return { ok: true, mode: 'one_input_per_digit', count: inputs.length };
   }
   if (page?.keyboard) {
@@ -39,18 +45,30 @@ async function clickExactText(scope, page, pattern) {
     await humanClickLocator(page, locator);
     return true;
   }
-  const fallback = scope.locator('button, [role="button"], a').filter({ hasText: pattern }).filter({ visible: true }).first();
-  return await humanClickLocator(page, fallback).then(() => true).catch(() => false);
+  const fallback = scope
+    .locator('button, [role="button"], a')
+    .filter({ hasText: pattern })
+    .filter({ visible: true })
+    .first();
+  return await humanClickLocator(page, fallback)
+    .then(() => true)
+    .catch(() => false);
 }
 
 export async function clickAppleTrustBrowser(page, frame) {
-  if (frame && await clickExactText(frame, page, /^Trust$/i).catch(() => false)) return true;
-  if (page && await clickExactText(page, page, /^Trust$/i).catch(() => false)) return true;
+  if (
+    frame &&
+    (await clickExactText(frame, page, /^Trust$/i).catch(() => false))
+  )
+    return true;
+  if (page && (await clickExactText(page, page, /^Trust$/i).catch(() => false)))
+    return true;
   return false;
 }
 
 async function completeAppleTwoFactorCode(session, frame, options, code) {
-  if (!/^\d{6}$/.test(code || '')) throw new Error('Apple 2FA provider returned an invalid code');
+  if (!/^\d{6}$/.test(code || ''))
+    throw new Error('Apple 2FA provider returned an invalid code');
   const page = options.page || session?.page;
   const fillResult = await fillAppleTwoFactorCode(frame || page, page, code);
   if (!fillResult.ok) {
@@ -63,8 +81,11 @@ async function completeAppleTwoFactorCode(session, frame, options, code) {
     };
   }
   await pageSettled(page);
-  const trustClicked = await clickAppleTrustBrowser(page, frame).catch(() => false);
-  if (trustClicked && options.logPrefix) console.log(`${options.logPrefix} clicked trust browser`);
+  const trustClicked = await clickAppleTrustBrowser(page, frame).catch(
+    () => false,
+  );
+  if (trustClicked && options.logPrefix)
+    console.log(`${options.logPrefix} clicked trust browser`);
   return {
     ok: true,
     source: 'capability',
@@ -74,14 +95,17 @@ async function completeAppleTwoFactorCode(session, frame, options, code) {
   };
 }
 
-export async function completeAppleTwoFactorChallenge(session, frame, options = {}) {
+export async function completeAppleTwoFactorChallenge(
+  session,
+  frame,
+  options = {},
+) {
   if (typeof options.withCode !== 'function') {
-    throw new Error('Apple 2FA requires an authorization-bound capability provider');
+    throw new Error(
+      'Apple 2FA requires an authorization-bound capability provider',
+    );
   }
-  return options.withCode((code) => completeAppleTwoFactorCode(
-    session,
-    frame,
-    options,
-    code,
-  ));
+  return options.withCode((code) =>
+    completeAppleTwoFactorCode(session, frame, options, code),
+  );
 }

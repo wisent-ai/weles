@@ -22,19 +22,14 @@ import { assertEntraIdentity } from '../proven_identity.mjs';
 
 export async function verifyManagedPassword(session, account, contract, plan) {
   const { password, sink, proxyUrl, evidence } = plan;
-  const verified = await commitAfterFreshLogin(
-    session,
-    account,
-    contract,
-    {
-      password,
-      writeOperation: 'verify',
-      sink,
-      proxyUrl,
-      providerEffect: 'none',
-      evidence,
-    },
-  );
+  const verified = await commitAfterFreshLogin(session, account, contract, {
+    password,
+    writeOperation: 'verify',
+    sink,
+    proxyUrl,
+    providerEffect: 'none',
+    evidence,
+  });
   if (verified.answer) {
     return outcome(contract, {
       ...verified.answer,
@@ -60,7 +55,8 @@ export async function verifyManagedPassword(session, account, contract, plan) {
     rollbackStatus: 'none',
     changedAt: null,
     evidence,
-    reason: 'the managed Entra password authenticated freshly and was rewritten unchanged',
+    reason:
+      'the managed Entra password authenticated freshly and was rewritten unchanged',
   });
 }
 
@@ -70,19 +66,29 @@ export async function proveStagedCandidate(session, account, contract, plan) {
   evidence.push(`fresh_login_verification:${signedIn}`);
   if (signedIn !== 'authenticated') {
     return outcome(contract, {
-      status: signedIn === 'identity_challenge' ? 'needs_human_approval' : 'operation_failed',
-      code: signedIn === 'identity_challenge'
-        ? 'ADOPT_REQUIRES_HUMAN_APPROVAL'
-        : signedIn === 'rejected' ? 'ADOPT_PASSWORD_REJECTED' : 'ENTRA_SIGN_IN_SURFACE_UNAVAILABLE',
-      phase: signedIn === 'identity_challenge' ? 'identity_verification' : 'fresh_login_verification',
+      status:
+        signedIn === 'identity_challenge'
+          ? 'needs_human_approval'
+          : 'operation_failed',
+      code:
+        signedIn === 'identity_challenge'
+          ? 'ADOPT_REQUIRES_HUMAN_APPROVAL'
+          : signedIn === 'rejected'
+            ? 'ADOPT_PASSWORD_REJECTED'
+            : 'ENTRA_SIGN_IN_SURFACE_UNAVAILABLE',
+      phase:
+        signedIn === 'identity_challenge'
+          ? 'identity_verification'
+          : 'fresh_login_verification',
       retryable: signedIn === 'unavailable',
       providerEffect: 'none',
       rollbackStatus: 'none',
-      reason: signedIn === 'identity_challenge'
-        ? 'the adoption login needs interactive Entra identity approval before the staged candidate can be trusted'
-        : signedIn === 'rejected'
-          ? 'the Entra directory rejected the staged password candidate at sign-in'
-          : 'the Entra password sign-in surface was unavailable',
+      reason:
+        signedIn === 'identity_challenge'
+          ? 'the adoption login needs interactive Entra identity approval before the staged candidate can be trusted'
+          : signedIn === 'rejected'
+            ? 'the Entra directory rejected the staged password candidate at sign-in'
+            : 'the Entra password sign-in surface was unavailable',
     });
   }
   const identity = await assertEntraIdentity(session, contract, sink);
@@ -106,6 +112,7 @@ export async function proveStagedCandidate(session, account, contract, plan) {
     rollbackStatus: 'none',
     changedAt: null,
     evidence,
-    reason: 'the staged Entra password authenticated freshly against the asserted directory identity and can be adopted as managed',
+    reason:
+      'the staged Entra password authenticated freshly against the asserted directory identity and can be adopted as managed',
   });
 }

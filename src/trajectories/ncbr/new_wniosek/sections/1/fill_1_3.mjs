@@ -3,7 +3,10 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
 import { cdpEndpoint, sectionUrl } from '#ncbr-settings';
 import { selectRadio } from '../../../form-input.mjs';
@@ -15,9 +18,14 @@ const SECTION_URL = sectionUrl('1_3');
 const VAT = 'Nie dotyczy.';
 // The applicant's phone and addresses live with the application text in the
 // private application folder, never in this repository.
-const CONTACTS_FILE = process.env.NCBR_CONTACTS_FILE
-  || (await import('#ncbr-settings')).applicationFile('contacts/applicant-contacts.json');
-const { applicant: APPLICANT } = JSON.parse(readFileSync(CONTACTS_FILE, 'utf8'));
+const CONTACTS_FILE =
+  process.env.NCBR_CONTACTS_FILE ||
+  (await import('#ncbr-settings')).applicationFile(
+    'contacts/applicant-contacts.json',
+  );
+const { applicant: APPLICANT } = JSON.parse(
+  readFileSync(CONTACTS_FILE, 'utf8'),
+);
 
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
@@ -27,13 +35,17 @@ if (!page) {
 }
 
 async function clickDodaj(nth) {
-  const button = page.getByRole('button', { name: 'Dodaj', exact: true }).nth(nth);
-  if (await button.count() === 0) throw new Error(`Dodaj #${nth} not found`);
+  const button = page
+    .getByRole('button', { name: 'Dodaj', exact: true })
+    .nth(nth);
+  if ((await button.count()) === 0) throw new Error(`Dodaj #${nth} not found`);
   await humanClickLocator(page, button);
   await humanIdlePause('long');
 }
 async function saveForm() {
-  const saves = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
+  const saves = page
+    .getByRole('button', { name: 'Zapisz', exact: true })
+    .filter({ visible: true });
   const count = await saves.count();
   if (!count) throw new Error('no enabled Zapisz');
   await humanClickLocator(page, saves.nth(count - 1));
@@ -41,7 +53,10 @@ async function saveForm() {
   await humanIdlePause('deliberate');
 }
 async function radio(value) {
-  await selectRadio(page, page.locator(`input[type="radio"][value="${value}"]`).first());
+  await selectRadio(
+    page,
+    page.locator(`input[type="radio"][value="${value}"]`).first(),
+  );
 }
 async function text(name, value) {
   await humanFill(page, page.locator(`[name="${name}"]`).first(), value);
@@ -51,17 +66,26 @@ async function setAuto(name, value) {
   await humanFill(page, inp, value);
   await humanIdlePause('deliberate');
   const opts = page.locator("[role='listbox'] [role='option']");
-  if (await opts.count() === 0) throw new Error(`1.3 no options: ${name} -> ${value}`);
+  if ((await opts.count()) === 0)
+    throw new Error(`1.3 no options: ${name} -> ${value}`);
   await opts.first().dispatchEvent('click'); // allow-raw-playwright: pick filtered option (Kimi reference)
   await humanIdlePause('short');
 }
 
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
-await page.evaluate(() => { const b = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies')); if (b) b.style.pointerEvents = 'none'; }); // allow-raw-playwright: neutralise cookie banner (Kimi reference)
+await page.evaluate(() => {
+  const b = Array.from(document.querySelectorAll('div')).find((d) =>
+    (d.innerText || '').includes('pliki cookies'),
+  );
+  if (b) b.style.pointerEvents = 'none';
+}); // allow-raw-playwright: neutralise cookie banner (Kimi reference)
 
 await clickDodaj(0);
-await page.locator("textarea[name='nazwa']").first().waitFor({ state: 'visible' });
+await page
+  .locator("textarea[name='nazwa']")
+  .first()
+  .waitFor({ state: 'visible' });
 
 await radio('wnioskodawca_samodzielny');
 await text('nazwa', 'WISENT POLSKA SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ');
@@ -92,7 +116,11 @@ await text('www_podmiot', 'https://wisent.ai/');
 await text('adres_e_doreczenie_podmiot', APPLICANT.e_doreczenie);
 
 let saveResult = 'saved';
-try { await saveForm(); } catch (e) { saveResult = `NOT SAVED: ${String(e?.message || e)}`; }
+try {
+  await saveForm();
+} catch (e) {
+  saveResult = `NOT SAVED: ${String(e?.message || e)}`;
+}
 
 const readback = await page.evaluate(() => {
   const tbl = document.querySelector('table');

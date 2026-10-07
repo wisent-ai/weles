@@ -9,7 +9,9 @@ const SESSION = process.env.SESSION || 'ncbr-step-b';
 const PROJECT_ID = (await import('#ncbr-settings')).projectId();
 const PROJECT_URL = `https://lsi2.ncbr.gov.pl/projekt/${PROJECT_ID}`;
 const BASE = `https://lsi2.ncbr.gov.pl/projekt/${PROJECT_ID}/projekt_step/`;
-const OUT_DIR = process.env.OUT_DIR || (await import('#ncbr-settings')).applicationFile('audit_collection_rows');
+const OUT_DIR =
+  process.env.OUT_DIR ||
+  (await import('#ncbr-settings')).applicationFile('audit_collection_rows');
 const EMAIL = process.env.NCBR_EMAIL || '';
 const PASSWORD = process.env.NCBR_PASSWORD || '';
 delete process.env.NCBR_PASSWORD;
@@ -49,7 +51,8 @@ async function action(cmd, optional = false) {
     if (optional) return { ok: false, error: error.message };
     throw error;
   }
-  if (!res.ok && !optional) throw new Error(`${cmd.action} failed: ${res.error}`);
+  if (!res.ok && !optional)
+    throw new Error(`${cmd.action} failed: ${res.error}`);
   return res;
 }
 
@@ -66,7 +69,9 @@ async function dispatchClick(selector, optional = false) {
   const res = await action({ action: 'dispatch_click', selector }, true);
   if (res.ok) return res;
   if (optional) return res;
-  throw new Error(`dispatch click failed: ${selector}: ${res.error || 'unknown'}`);
+  throw new Error(
+    `dispatch click failed: ${selector}: ${res.error || 'unknown'}`,
+  );
 }
 
 async function idle(kind = 'short') {
@@ -88,21 +93,42 @@ async function loginIfNeeded() {
     hasMail: Boolean(document.querySelector('#mail, input[name="mail"]')),
     hasPassword: Boolean(document.querySelector('#password, input[name="password"]')),
   }))()`);
-  if (!state.hasMail || !state.hasPassword) return { status: 'already_authenticated_or_project_page', state };
-  if (!EMAIL || !PASSWORD) throw new Error('login page reached but NCBR_EMAIL/NCBR_PASSWORD are not set');
-  await action({ action: 'fill', selector: '#mail, input[name="mail"]', text: EMAIL });
+  if (!state.hasMail || !state.hasPassword)
+    return { status: 'already_authenticated_or_project_page', state };
+  if (!EMAIL || !PASSWORD)
+    throw new Error(
+      'login page reached but NCBR_EMAIL/NCBR_PASSWORD are not set',
+    );
+  await action({
+    action: 'fill',
+    selector: '#mail, input[name="mail"]',
+    text: EMAIL,
+  });
   await idle('short');
-  await action({ action: 'fill', selector: '#password, input[name="password"]', text: PASSWORD });
+  await action({
+    action: 'fill',
+    selector: '#password, input[name="password"]',
+    text: PASSWORD,
+  });
   await idle('short');
   const check = await read(`(() => {
     const el = document.querySelector('#isStatuteAccepted, input[name="isStatuteAccepted"]');
     return el ? { present: true, checked: el.checked } : { present: false };
   })()`);
-  if (check.present && !check.checked) await action({ action: 'click', selector: '#isStatuteAccepted, input[name="isStatuteAccepted"]' });
-  await action({ action: 'click', selector: '#login-btn, button:has-text("Zaloguj")' });
+  if (check.present && !check.checked)
+    await action({
+      action: 'click',
+      selector: '#isStatuteAccepted, input[name="isStatuteAccepted"]',
+    });
+  await action({
+    action: 'click',
+    selector: '#login-btn, button:has-text("Zaloguj")',
+  });
   await idle('long');
   await idle('long');
-  return read(`(() => ({ status: location.href.includes('/logowanie') ? 'still_login_page' : 'logged_in', url: location.href }))()`);
+  return read(
+    `(() => ({ status: location.href.includes('/logowanie') ? 'still_login_page' : 'logged_in', url: location.href }))()`,
+  );
 }
 
 async function rowButtons() {
@@ -160,9 +186,14 @@ async function readOpenFields() {
 }
 
 async function closeEditor() {
-  await click('#collection-obj-form-cancel-btn, button:has-text("Anuluj")', true);
+  await click(
+    '#collection-obj-form-cancel-btn, button:has-text("Anuluj")',
+    true,
+  );
   await idle('short');
-  const confirm = await read(`(() => Array.from(document.querySelectorAll('[role="dialog"] button')).map((b) => b.innerText.trim()).filter(Boolean))()`);
+  const confirm = await read(
+    `(() => Array.from(document.querySelectorAll('[role="dialog"] button')).map((b) => b.innerText.trim()).filter(Boolean))()`,
+  );
   if (confirm.includes('Wyjdź')) {
     await click('button:has-text("Wyjdź")', true);
     await idle('short');
@@ -171,7 +202,9 @@ async function closeEditor() {
 
 async function inspectRow(row) {
   const needle = String(row.text || '');
-  const byText = needle ? `tr:has-text(${JSON.stringify(needle)}) button[aria-label="overflow-options"]` : '';
+  const byText = needle
+    ? `tr:has-text(${JSON.stringify(needle)}) button[aria-label="overflow-options"]`
+    : '';
   const exactSelector = `:nth-match(table tbody tr, ${row.globalRowIndex}) button[aria-label="overflow-options"]`;
   const selectors = [byText, exactSelector].filter(Boolean);
   let openMenu = { ok: false, error: 'menu not attempted' };
@@ -181,31 +214,62 @@ async function inspectRow(row) {
     for (const opener of [click, dispatchClick]) {
       openMenu = await opener(selector, true);
       await idle('short');
-      menuVisible = await read(`(() => Array.from(document.querySelectorAll('[role="menuitem"], li, button'))
+      menuVisible =
+        await read(`(() => Array.from(document.querySelectorAll('[role="menuitem"], li, button'))
         .some((el) => Boolean(el.offsetParent) && el.innerText.trim() === 'Edytuj'))()`);
       if (openMenu.ok && menuVisible) break;
     }
     if (openMenu.ok && menuVisible) break;
   }
-  if (!openMenu.ok || !menuVisible) return { row, editable: false, error: `menu open failed: ${openMenu.error || 'unknown'}` };
+  if (!openMenu.ok || !menuVisible)
+    return {
+      row,
+      editable: false,
+      error: `menu open failed: ${openMenu.error || 'unknown'}`,
+    };
   await idle('short');
-  const menu = await read(`(() => Array.from(document.querySelectorAll('[role="menu"], .MuiMenu-paper')).map((e) => e.innerText.trim()).filter(Boolean))()`);
+  const menu = await read(
+    `(() => Array.from(document.querySelectorAll('[role="menu"], .MuiMenu-paper')).map((e) => e.innerText.trim()).filter(Boolean))()`,
+  );
   let edit = await dispatchClick('[role="menuitem"]:has-text("Edytuj")', true);
-  if (!edit.ok) edit = await click('[role="menuitem"]:has-text("Edytuj")', true);
+  if (!edit.ok)
+    edit = await click('[role="menuitem"]:has-text("Edytuj")', true);
   await idle('long');
-  if (!edit.ok) return { row, editable: false, menu, error: edit.error || null };
-  const opened = await read(`(() => Boolean(document.querySelector('#collection-obj-form-cancel-btn')))()`);
-  if (!opened) return { row, editable: false, menu, error: 'edit click did not open collection form' };
+  if (!edit.ok)
+    return { row, editable: false, menu, error: edit.error || null };
+  const opened = await read(
+    `(() => Boolean(document.querySelector('#collection-obj-form-cancel-btn')))()`,
+  );
+  if (!opened)
+    return {
+      row,
+      editable: false,
+      menu,
+      error: 'edit click did not open collection form',
+    };
   const open = await readOpenFields();
   await closeEditor();
-  if (!open.fields.length) return { row, editable: false, menu, error: 'collection form opened but no visible named fields', ...open };
+  if (!open.fields.length)
+    return {
+      row,
+      editable: false,
+      menu,
+      error: 'collection form opened but no visible named fields',
+      ...open,
+    };
   return { row, editable: true, menu, ...open };
 }
 
 const wanted = process.env.SECTION_FILTER
-  ? new Set(process.env.SECTION_FILTER.split(',').map((s) => s.trim()).filter(Boolean))
+  ? new Set(
+      process.env.SECTION_FILTER.split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+    )
   : null;
-const sections = wanted ? SECTIONS.filter(([label]) => wanted.has(label)) : SECTIONS;
+const sections = wanted
+  ? SECTIONS.filter(([label]) => wanted.has(label))
+  : SECTIONS;
 
 const out = {
   projectId: PROJECT_ID,
@@ -219,7 +283,13 @@ try {
   for (const [label, id] of sections) {
     const navState = await nav(label, id);
     const rows = await rowButtons();
-    const section = { label, id, nav: navState, rowCount: rows.length, rows: [] };
+    const section = {
+      label,
+      id,
+      nav: navState,
+      rowCount: rows.length,
+      rows: [],
+    };
     out.sections.push(section);
     console.log(JSON.stringify({ progress: label, rows: rows.length }));
     for (let rowOrdinal = 0; rowOrdinal < rows.length; rowOrdinal += 1) {
@@ -227,22 +297,31 @@ try {
       const currentRows = await rowButtons();
       const row = currentRows[rowOrdinal];
       if (!row) {
-        section.rows.push({ rowOrdinal, editable: false, error: 'row disappeared before inspection' });
+        section.rows.push({
+          rowOrdinal,
+          editable: false,
+          error: 'row disappeared before inspection',
+        });
         continue;
       }
       const inspected = await inspectRow(row);
       section.rows.push(inspected);
-      writeFileSync(join(OUT_DIR, 'partial.json'), JSON.stringify(out, null, 2));
-      console.log(JSON.stringify({
-        progress: label,
-        table: row.tableIndex,
-        row: row.rowIndex,
-        editable: inspected.editable,
-        fields: inspected.fields?.length || 0,
-        over: inspected.overLimit?.length || 0,
-        markdown: inspected.markdownHits?.length || 0,
-        error: inspected.error || null,
-      }));
+      writeFileSync(
+        join(OUT_DIR, 'partial.json'),
+        JSON.stringify(out, null, 2),
+      );
+      console.log(
+        JSON.stringify({
+          progress: label,
+          table: row.tableIndex,
+          row: row.rowIndex,
+          editable: inspected.editable,
+          fields: inspected.fields?.length || 0,
+          over: inspected.overLimit?.length || 0,
+          markdown: inspected.markdownHits?.length || 0,
+          error: inspected.error || null,
+        }),
+      );
     }
     writeFileSync(join(OUT_DIR, 'partial.json'), JSON.stringify(out, null, 2));
   }
@@ -250,12 +329,26 @@ try {
   out.summary = {
     sections: out.sections.length,
     rows: out.sections.reduce((sum, s) => sum + s.rows.length, 0),
-    overLimit: out.sections.flatMap((s) => s.rows.flatMap((r) => r.overLimit || [])).length,
-    markdownHits: out.sections.flatMap((s) => s.rows.flatMap((r) => r.markdownHits || [])).length,
+    overLimit: out.sections.flatMap((s) =>
+      s.rows.flatMap((r) => r.overLimit || []),
+    ).length,
+    markdownHits: out.sections.flatMap((s) =>
+      s.rows.flatMap((r) => r.markdownHits || []),
+    ).length,
   };
-  const fp = join(OUT_DIR, `audit_${sections.map(([l]) => l).join('_').replace(/[^0-9A-Za-z_.-]+/g, '_') || 'all'}.json`);
+  const fp = join(
+    OUT_DIR,
+    `audit_${
+      sections
+        .map(([l]) => l)
+        .join('_')
+        .replace(/[^0-9A-Za-z_.-]+/g, '_') || 'all'
+    }.json`,
+  );
   writeFileSync(fp, JSON.stringify(out, null, 2));
-  console.log(JSON.stringify({ ok: true, out: fp, summary: out.summary }, null, 2));
+  console.log(
+    JSON.stringify({ ok: true, out: fp, summary: out.summary }, null, 2),
+  );
 } catch (e) {
   out.error = String(e?.stack || e);
   writeFileSync(join(OUT_DIR, 'error.json'), JSON.stringify(out, null, 2));

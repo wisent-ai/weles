@@ -14,7 +14,9 @@ import type { CDPConnection } from '../connection.js';
 
 export class CDPVideo {
   _path: string | null = null;
-  async path(): Promise<string | null> { return this._path; }
+  async path(): Promise<string | null> {
+    return this._path;
+  }
 }
 
 export class CDPScreencast {
@@ -36,7 +38,11 @@ export class CDPScreencast {
    * `$TMPDIR`, which no part of this product owns and which this workshop
    * forbids work from touching. They are removed once the WebM exists.
    */
-  constructor(conn: CDPConnection, sessionId: string, options?: { outputDir?: string; everyNthFrame?: number }) {
+  constructor(
+    conn: CDPConnection,
+    sessionId: string,
+    options?: { outputDir?: string; everyNthFrame?: number },
+  ) {
     this._conn = conn;
     this._sid = sessionId;
     this._everyNth = options?.everyNthFrame ?? 2;
@@ -49,9 +55,14 @@ export class CDPScreencast {
     if (this._started) return;
     this._started = true;
     this._conn.on('Page.screencastFrame', this._listener, this._sid);
-    await this._conn.send('Page.startScreencast', {
-      format: 'png', everyNthFrame: this._everyNth,
-    }, this._sid);
+    await this._conn.send(
+      'Page.startScreencast',
+      {
+        format: 'png',
+        everyNthFrame: this._everyNth,
+      },
+      this._sid,
+    );
   }
 
   private _onFrame(params: any): void {
@@ -59,15 +70,24 @@ export class CDPScreencast {
     const data: string = params.data ?? '';
     if (!data) return;
     this._frameCount++;
-    const framePath = join(this._frameDir, `frame_${String(this._frameCount).padStart(6, '0')}.png`);
+    const framePath = join(
+      this._frameDir,
+      `frame_${String(this._frameCount).padStart(6, '0')}.png`,
+    );
     writeFileSync(framePath, Buffer.from(data, 'base64'));
-    this._conn.send('Page.screencastFrameAck', { sessionId }, this._sid).catch(() => {});
+    this._conn
+      .send('Page.screencastFrameAck', { sessionId }, this._sid)
+      .catch(() => {});
   }
 
   async stop(): Promise<string | null> {
     if (this._stopped) return this.video._path;
     this._stopped = true;
-    try { await this._conn.send('Page.stopScreencast', undefined, this._sid); } catch { /* target closed */ }
+    try {
+      await this._conn.send('Page.stopScreencast', undefined, this._sid);
+    } catch {
+      /* target closed */
+    }
     this._conn.off('Page.screencastFrame', this._listener, this._sid);
     if (this._frameCount === 0) return null;
     const videoPath = this._stitch();
@@ -106,25 +126,47 @@ export class CDPScreencast {
  * Exported because this is the step that has never worked and the only one
  * a test can drive without a browser: hand it real PNGs, get a real video.
  */
-export function stitchFrames(frameDir: string, outputDir: string, frameCount: number): string {
+export function stitchFrames(
+  frameDir: string,
+  outputDir: string,
+  frameCount: number,
+): string {
   mkdirSync(outputDir, { recursive: true });
   const ts = new Date().toISOString().replace(/[:.]/g, '_');
   const outPath = join(outputDir, `screencast_${ts}.webm`);
   const pattern = join(frameDir, 'frame_%06d.png');
   const ffmpeg = resolveMediaTool('ffmpeg');
   try {
-    execFileSync(ffmpeg, [
-      '-y', '-framerate', '5', '-start_number', '1', '-i', pattern,
-      '-c:v', 'libvpx', '-pix_fmt', 'yuv420p', '-b:v', '1M', outPath,
-    ], { encoding: 'utf-8', stdio: 'pipe' });
+    execFileSync(
+      ffmpeg,
+      [
+        '-y',
+        '-framerate',
+        '5',
+        '-start_number',
+        '1',
+        '-i',
+        pattern,
+        '-c:v',
+        'libvpx',
+        '-pix_fmt',
+        'yuv420p',
+        '-b:v',
+        '1M',
+        outPath,
+      ],
+      { encoding: 'utf-8', stdio: 'pipe' },
+    );
   } catch (error) {
-    const captured = error && typeof error === 'object' && 'stderr' in error
-      ? String(error.stderr ?? '').trim()
-      : '';
-    const cause = captured || (error instanceof Error ? error.message : String(error));
+    const captured =
+      error && typeof error === 'object' && 'stderr' in error
+        ? String(error.stderr ?? '').trim()
+        : '';
+    const cause =
+      captured || (error instanceof Error ? error.message : String(error));
     throw new Error(
-      `${ffmpeg} could not stitch ${frameCount} frame(s) from ${frameDir} `
-      + `into ${outPath}: ${cause}`,
+      `${ffmpeg} could not stitch ${frameCount} frame(s) from ${frameDir} ` +
+        `into ${outPath}: ${cause}`,
       { cause: error },
     );
   }

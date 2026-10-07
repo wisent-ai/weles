@@ -42,7 +42,11 @@ export class CDPConnection {
     });
   }
 
-  send(method: string, params?: Record<string, any>, sessionId?: string): Promise<any> {
+  send(
+    method: string,
+    params?: Record<string, any>,
+    sessionId?: string,
+  ): Promise<any> {
     if (this._closed || !this._ws) {
       return Promise.reject(new CDPTargetClosedError());
     }
@@ -105,7 +109,9 @@ export class CDPConnection {
       if (pending) {
         this._pending.delete(msg.id);
         if (msg.error) {
-          pending.reject(new CDPError(`${msg.error.message} (${msg.error.code})`));
+          pending.reject(
+            new CDPError(`${msg.error.message} (${msg.error.code})`),
+          );
         } else {
           pending.resolve(msg.result);
         }

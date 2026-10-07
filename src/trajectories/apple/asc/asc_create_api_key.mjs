@@ -12,23 +12,45 @@ import { homedir } from 'node:os';
 async function requireAuthenticatedSession(s) {
   await pageSettled(s.page);
   const url = s.page.url?.() ?? '';
-  const loginUrl = /idmsa\.apple\.com|appleid\.apple\.com|\/login(?:[/?#]|$)|signin/i.test(url);
-  const authIframe = await s.page.locator('iframe[src*="idmsa.apple.com"], iframe[src*="appleid.apple.com"]').count() > 0;
+  const loginUrl =
+    /idmsa\.apple\.com|appleid\.apple\.com|\/login(?:[/?#]|$)|signin/i.test(
+      url,
+    );
+  const authIframe =
+    (await s.page
+      .locator(
+        'iframe[src*="idmsa.apple.com"], iframe[src*="appleid.apple.com"]',
+      )
+      .count()) > 0;
   let authPrompt = false;
   for (const frame of s.page.frames()) {
-    authPrompt ||= await frame.locator([
-      '#account_name_text_field',
-      '#password_text_field',
-      'input[type="password"]',
-      'input[aria-label*="digit"]',
-      'input[aria-label*="Digit"]',
-      'input[type="tel"][maxlength="1"]',
-    ].join(', ')).first().isVisible().catch(() => false);
-    authPrompt ||= await frame.getByText(/Two-Factor Authentication|verification code sent to your Apple devices/i).first().isVisible().catch(() => false);
+    authPrompt ||= await frame
+      .locator(
+        [
+          '#account_name_text_field',
+          '#password_text_field',
+          'input[type="password"]',
+          'input[aria-label*="digit"]',
+          'input[aria-label*="Digit"]',
+          'input[type="tel"][maxlength="1"]',
+        ].join(', '),
+      )
+      .first()
+      .isVisible()
+      .catch(() => false);
+    authPrompt ||= await frame
+      .getByText(
+        /Two-Factor Authentication|verification code sent to your Apple devices/i,
+      )
+      .first()
+      .isVisible()
+      .catch(() => false);
     if (authPrompt) break;
   }
   if (loginUrl || authIframe || authPrompt) {
-    throw new Error('FAIL_CLOSED: Apple login/password/2FA is required; this trajectory will not authenticate. An explicitly authorized apple_login is the only permitted login path.');
+    throw new Error(
+      'FAIL_CLOSED: Apple login/password/2FA is required; this trajectory will not authenticate. An explicitly authorized apple_login is the only permitted login path.',
+    );
   }
 }
 
@@ -39,15 +61,25 @@ const OUT_DIR = `${homedir()}/.swiatowid`;
 async function requireApiPage(s) {
   await requireAuthenticatedSession(s);
   let parsedUrl = new URL(s.page.url?.() || 'about:blank');
-  const authenticatedHost = parsedUrl.hostname === 'appstoreconnect.apple.com' && !/\/login(?:\/|$)|idmsa/i.test(parsedUrl.pathname);
-  if (authenticatedHost && !parsedUrl.pathname.startsWith('/access/integrations/api')) {
+  const authenticatedHost =
+    parsedUrl.hostname === 'appstoreconnect.apple.com' &&
+    !/\/login(?:\/|$)|idmsa/i.test(parsedUrl.pathname);
+  if (
+    authenticatedHost &&
+    !parsedUrl.pathname.startsWith('/access/integrations/api')
+  ) {
     await s.goto(API_URL);
     await pageSettled(s.page);
     await requireAuthenticatedSession(s);
     parsedUrl = new URL(s.page.url?.() || 'about:blank');
   }
-  if (parsedUrl.hostname !== 'appstoreconnect.apple.com' || !parsedUrl.pathname.startsWith('/access/integrations/api')) {
-    throw new Error('FAIL_CLOSED: authenticated App Store Connect API integrations page was not confirmed; run an explicitly authorized apple_login before retrying.');
+  if (
+    parsedUrl.hostname !== 'appstoreconnect.apple.com' ||
+    !parsedUrl.pathname.startsWith('/access/integrations/api')
+  ) {
+    throw new Error(
+      'FAIL_CLOSED: authenticated App Store Connect API integrations page was not confirmed; run an explicitly authorized apple_login before retrying.',
+    );
   }
   console.log(`[asc-create] strona API — ${parsedUrl.href}`);
 }
@@ -56,27 +88,54 @@ async function requireApiPage(s) {
 // element is a no-op; a real click error is re-thrown to the caller, which logs
 // it and still falls back to the human clicking in the window.
 async function clickByText(page, rx) {
-  for (const loc of [page.getByRole('button', { name: rx }).first(),
-                     page.getByRole('link', { name: rx }).first(),
-                     page.getByText(rx).first()]) {
-    if (await loc.count() > 0) { await humanClickLocator(page, loc); return true; }
+  for (const loc of [
+    page.getByRole('button', { name: rx }).first(),
+    page.getByRole('link', { name: rx }).first(),
+    page.getByText(rx).first(),
+  ]) {
+    if ((await loc.count()) > 0) {
+      await humanClickLocator(page, loc);
+      return true;
+    }
   }
   return false;
 }
 
 async function clickGenerate(page) {
   const clickables = await page.evaluate(() => {
-    const els = [...document.querySelectorAll('button, a, [role="button"], [role="menuitem"]')];
-    return [...new Set(els.map(e => (e.getAttribute('aria-label') || e.textContent || '').replace(/\s+/g, ' ').trim()).filter(Boolean))];
+    const els = [
+      ...document.querySelectorAll(
+        'button, a, [role="button"], [role="menuitem"]',
+      ),
+    ];
+    return [
+      ...new Set(
+        els
+          .map((e) =>
+            (e.getAttribute('aria-label') || e.textContent || '')
+              .replace(/\s+/g, ' ')
+              .trim(),
+          )
+          .filter(Boolean),
+      ),
+    ];
   });
-  console.log('[asc-create] klikalne na stronie: ' + JSON.stringify(clickables));
+  console.log(
+    '[asc-create] klikalne na stronie: ' + JSON.stringify(clickables),
+  );
 
-  const opened = await clickByText(page, /generate api key|generate team key|generate key|add a key/i);
+  const opened = await clickByText(
+    page,
+    /generate api key|generate team key|generate key|add a key/i,
+  );
   console.log('[asc-create] generate-open=' + opened);
   await pageSettled(page);
 
   const name = page.getByRole('textbox').first();
-  if (await name.count() > 0) { await humanFill(page, name, KEY_NAME); await pageSettled(page); }
+  if ((await name.count()) > 0) {
+    await humanFill(page, name, KEY_NAME);
+    await pageSettled(page);
+  }
   await clickByText(page, /app manager/i);
   await pageSettled(page);
   await clickByText(page, /^\s*generate\s*$|^\s*create\s*$/i);
@@ -101,18 +160,25 @@ try {
   try {
     await clickGenerate(s.page);
   } catch (e) {
-    console.log('[asc-create] auto-klik nie przeszedł, dokończ w oknie ręcznie:', e.message);
+    console.log(
+      '[asc-create] auto-klik nie przeszedł, dokończ w oknie ręcznie:',
+      e.message,
+    );
   }
 
-  console.log('[asc-create] czekam na pobranie .p8 (kliknij „Download API Key" jeśli trzeba)…');
+  console.log(
+    '[asc-create] czekam na pobranie .p8 (kliknij „Download API Key" jeśli trzeba)…',
+  );
   const download = await downloadPromise;
-  const suggested = download.suggestedFilename();           // AuthKey_<KEYID>.p8
+  const suggested = download.suggestedFilename(); // AuthKey_<KEYID>.p8
   const dest = `${OUT_DIR}/${suggested}`;
   await download.saveAs(dest);
   const keyId = suggested.replace(/^AuthKey_/, '').replace(/\.p8$/, '');
   console.log(`SAVED_P8=${dest}`);
   console.log(`KEY_ID=${keyId}`);
-  console.log('PASS: API key downloaded — OKNO ZOSTAJE OTWARTE (świadomie nie zamykam sesji).');
+  console.log(
+    'PASS: API key downloaded — OKNO ZOSTAJE OTWARTE (świadomie nie zamykam sesji).',
+  );
   // Deliberately NOT closing: the live, logged-in window stays open so the
   // session is never thrown away again. The .p8 is already saved to disk and the
   // key id is printed above, so the result is captured without tearing down.

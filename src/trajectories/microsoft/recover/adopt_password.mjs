@@ -2,8 +2,11 @@ import { adoptMicrosoftPassword } from '../password_lifecycle.mjs';
 
 let operation = '';
 try {
-  const constraints = JSON.parse(process.env.WELES_CREDENTIAL_CONSTRAINTS ?? '{}');
-  operation = typeof constraints.operation === 'string' ? constraints.operation : '';
+  const constraints = JSON.parse(
+    process.env.WELES_CREDENTIAL_CONSTRAINTS ?? '{}',
+  );
+  operation =
+    typeof constraints.operation === 'string' ? constraints.operation : '';
 } catch {
   operation = '';
 }

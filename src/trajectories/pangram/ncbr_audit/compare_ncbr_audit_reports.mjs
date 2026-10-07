@@ -4,7 +4,9 @@ import { readFileSync } from 'node:fs';
 
 const [aPath, bPath] = process.argv.slice(2);
 if (!aPath || !bPath) {
-  console.error('usage: node compare_ncbr_audit_reports.mjs <old-audit-report.json> <new-audit-report.json>');
+  console.error(
+    'usage: node compare_ncbr_audit_reports.mjs <old-audit-report.json> <new-audit-report.json>',
+  );
   process.exit(2);
 }
 
@@ -58,10 +60,16 @@ function badCount(s) {
 }
 
 function totals(results) {
-  const checked = results.filter((r) => r.status === 'checked' || r.status === 'reused');
+  const checked = results.filter(
+    (r) => r.status === 'checked' || r.status === 'reused',
+  );
   const human = checked.filter((r) => r.verdict === 'human').length;
-  const soft = checked.filter((r) => r.verdict === 'human' && (r.ai_percent ?? 0) >= 50).length;
-  const aiGenerated = checked.filter((r) => r.verdict === 'ai_generated').length;
+  const soft = checked.filter(
+    (r) => r.verdict === 'human' && (r.ai_percent ?? 0) >= 50,
+  ).length;
+  const aiGenerated = checked.filter(
+    (r) => r.verdict === 'ai_generated',
+  ).length;
   const aiAssisted = checked.filter((r) => r.verdict === 'ai_assisted').length;
   return {
     total: results.length,
@@ -80,31 +88,37 @@ const aResults = load(aPath);
 const bResults = load(bPath);
 const a = summarize(aResults);
 const b = summarize(bResults);
-const ids = [...new Set([...a.keys(), ...b.keys()])].sort((x, y) => x.localeCompare(y, 'pl', { numeric: true }));
+const ids = [...new Set([...a.keys(), ...b.keys()])].sort((x, y) =>
+  x.localeCompare(y, 'pl', { numeric: true }),
+);
 
 console.log(`TOTAL_A\t${JSON.stringify(totals(aResults))}`);
 console.log(`TOTAL_B\t${JSON.stringify(totals(bResults))}`);
-console.log('id\ttitle\told_class\told_checked\told_human\told_ai_generated\told_ai_assisted\told_soft_human\told_skipped\tnew_class\tnew_checked\tnew_human\tnew_ai_generated\tnew_ai_assisted\tnew_soft_human\tnew_skipped\tdelta_bad');
+console.log(
+  'id\ttitle\told_class\told_checked\told_human\told_ai_generated\told_ai_assisted\told_soft_human\told_skipped\tnew_class\tnew_checked\tnew_human\tnew_ai_generated\tnew_ai_assisted\tnew_soft_human\tnew_skipped\tdelta_bad',
+);
 for (const id of ids) {
   const oldS = a.get(id);
   const newS = b.get(id);
-  console.log([
-    id,
-    newS?.title || oldS?.title || '',
-    klass(oldS),
-    oldS?.checked || 0,
-    oldS?.human || 0,
-    oldS?.ai_generated || 0,
-    oldS?.ai_assisted || 0,
-    oldS?.soft_human || 0,
-    oldS?.skipped || 0,
-    klass(newS),
-    newS?.checked || 0,
-    newS?.human || 0,
-    newS?.ai_generated || 0,
-    newS?.ai_assisted || 0,
-    newS?.soft_human || 0,
-    newS?.skipped || 0,
-    badCount(newS) - badCount(oldS),
-  ].join('\t'));
+  console.log(
+    [
+      id,
+      newS?.title || oldS?.title || '',
+      klass(oldS),
+      oldS?.checked || 0,
+      oldS?.human || 0,
+      oldS?.ai_generated || 0,
+      oldS?.ai_assisted || 0,
+      oldS?.soft_human || 0,
+      oldS?.skipped || 0,
+      klass(newS),
+      newS?.checked || 0,
+      newS?.human || 0,
+      newS?.ai_generated || 0,
+      newS?.ai_assisted || 0,
+      newS?.soft_human || 0,
+      newS?.skipped || 0,
+      badCount(newS) - badCount(oldS),
+    ].join('\t'),
+  );
 }

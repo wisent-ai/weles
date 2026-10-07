@@ -23,13 +23,29 @@
 // leaks out with them.
 
 import { isWelesAcquiredSourceOrigin } from './scoped-service.js';
-import type { AcquireSecretRequest, AcquireSecretResult } from './acquire/request.js';
-import { definitionFor, normalizeSecret, ENTRA_PROVIDER, ENTRA_UPN, LOWER_UUID } from './acquire/catalog.js';
+import type {
+  AcquireSecretRequest,
+  AcquireSecretResult,
+} from './acquire/request.js';
+import {
+  definitionFor,
+  normalizeSecret,
+  ENTRA_PROVIDER,
+  ENTRA_UPN,
+  LOWER_UUID,
+} from './acquire/catalog.js';
 import { paramsFor, queueAction } from './acquire/queued-job.js';
-import { queueEntraPasswordOperation, queueMicrosoftPasswordOperation } from './acquire/password-lifecycle.js';
+import {
+  queueEntraPasswordOperation,
+  queueMicrosoftPasswordOperation,
+} from './acquire/password-lifecycle.js';
 import { queueAcquisition } from './acquire/api-key-acquisition.js';
 
-export type { AcquireSecretRequest, AcquireSecretResult, CredentialOperation } from './acquire/request.js';
+export type {
+  AcquireSecretRequest,
+  AcquireSecretResult,
+  CredentialOperation,
+} from './acquire/request.js';
 
 export async function acquireSecret(
   request: AcquireSecretRequest,
@@ -40,12 +56,12 @@ export async function acquireSecret(
     // Name what the caller asked for. An id that matches no declaration
     // normalizes to nothing, and a refusal reading "unknown" hides the very fact
     // that resolves it: which id has no declared contract.
-    const secret = normalizeSecret(request)
-      || request.credentialId?.trim()
-      || 'unknown';
-    const message = request.provider === 'microsoft' || request.provider === ENTRA_PROVIDER
-      ? `No managed password declaration for ${secret}; configure WELES_MANAGED_PASSWORD_CONTRACTS_FILE on the executor`
-      : `No secret acquisition registry entry for ${secret}`;
+    const secret =
+      normalizeSecret(request) || request.credentialId?.trim() || 'unknown';
+    const message =
+      request.provider === 'microsoft' || request.provider === ENTRA_PROVIDER
+        ? `No managed password declaration for ${secret}; configure WELES_MANAGED_PASSWORD_CONTRACTS_FILE on the executor`
+        : `No secret acquisition registry entry for ${secret}`;
     return { status: 'unsupported_secret', secret, message };
   }
   if (request.provider && request.provider !== def.provider) {
@@ -81,19 +97,20 @@ export async function acquireSecret(
     };
   }
 
-
   return queueAcquisition(def, request, enqueue);
 }
 
-export function buildSecretAcquisitionPlan(request: AcquireSecretRequest): AcquireSecretResult {
+export function buildSecretAcquisitionPlan(
+  request: AcquireSecretRequest,
+): AcquireSecretResult {
   const def = definitionFor(request);
   if (!def) {
-    const secret = normalizeSecret(request)
-      || request.credentialId?.trim()
-      || 'unknown';
-    const message = request.provider === 'microsoft' || request.provider === ENTRA_PROVIDER
-      ? `No managed password declaration for ${secret}; configure WELES_MANAGED_PASSWORD_CONTRACTS_FILE on the executor`
-      : `No secret acquisition registry entry for ${secret}`;
+    const secret =
+      normalizeSecret(request) || request.credentialId?.trim() || 'unknown';
+    const message =
+      request.provider === 'microsoft' || request.provider === ENTRA_PROVIDER
+        ? `No managed password declaration for ${secret}; configure WELES_MANAGED_PASSWORD_CONTRACTS_FILE on the executor`
+        : `No secret acquisition registry entry for ${secret}`;
     return { status: 'unsupported_secret', secret, message };
   }
   if (request.provider && request.provider !== def.provider) {
@@ -104,8 +121,10 @@ export function buildSecretAcquisitionPlan(request: AcquireSecretRequest): Acqui
     };
   }
   const operation = request.operation ?? 'acquire';
-  if ((def.operations && !def.operations.includes(operation))
-      || (!def.operations && operation !== 'acquire')) {
+  if (
+    (def.operations && !def.operations.includes(operation)) ||
+    (!def.operations && operation !== 'acquire')
+  ) {
     return {
       status: 'unsupported_operation',
       operation,
@@ -120,8 +139,12 @@ export function buildSecretAcquisitionPlan(request: AcquireSecretRequest): Acqui
   // rather than hand back a plan the caller cannot act on.
   if (def.provider === ENTRA_PROVIDER) {
     const missing = [
-      ...(ENTRA_UPN.test(request.accountUpn?.trim().toLowerCase() ?? '') ? [] : ['one exact account UPN']),
-      ...(LOWER_UUID.test(request.tenantId?.trim().toLowerCase() ?? '') ? [] : ['one exact tenant id']),
+      ...(ENTRA_UPN.test(request.accountUpn?.trim().toLowerCase() ?? '')
+        ? []
+        : ['one exact account UPN']),
+      ...(LOWER_UUID.test(request.tenantId?.trim().toLowerCase() ?? '')
+        ? []
+        : ['one exact tenant id']),
       ...(LOWER_UUID.test(request.principalObjectId?.trim().toLowerCase() ?? '')
         ? []
         : ['one exact principal object id']),

@@ -24,7 +24,6 @@ import declaredProviders from './data/providers.json';
  *   - platform_routine_paused
  */
 
-
 // Every provider Weles can route through, from `data/providers.json` beside
 // this file. Prices come only from the `proxy_rate_cards` Skarbiec setting: a
 // rate written in code went stale the day a provider changed its price, and it
@@ -55,10 +54,19 @@ const FAIL_SIGNALS = new Set<string>([
   'proxy_auth_failed',
 ]);
 
-interface MatrixCell { result: 'pass' | 'fail'; at: string }
-interface MatrixValue { matrix: Record<string, Record<string, MatrixCell>> }
-interface RatesValue { rates: Record<string, { per_gb: number }> }
-interface PausedValue { [platform: string]: { paused_at: string; reason: string } }
+interface MatrixCell {
+  result: 'pass' | 'fail';
+  at: string;
+}
+interface MatrixValue {
+  matrix: Record<string, Record<string, MatrixCell>>;
+}
+interface RatesValue {
+  rates: Record<string, { per_gb: number }>;
+}
+interface PausedValue {
+  [platform: string]: { paused_at: string; reason: string };
+}
 
 // Each setting is read on every question, never from a copy: an outcome another
 // worker recorded a moment ago decides this selection.
@@ -115,24 +123,44 @@ export async function rankByCapability(action: string): Promise<{
     const providerCells = matrix.matrix[p] ?? {};
     const cell = providerCells[action]?.result;
     const platformCells = platformPrefix
-      ? Object.entries(providerCells).filter(([act]) => act.startsWith(platformPrefix))
+      ? Object.entries(providerCells).filter(([act]) =>
+          act.startsWith(platformPrefix),
+        )
       : [];
-    const hasPlatformPass = platformCells.some(([, platformCell]) => platformCell.result === 'pass');
-    const hasPlatformFail = platformCells.some(([, platformCell]) => platformCell.result === 'fail');
+    const hasPlatformPass = platformCells.some(
+      ([, platformCell]) => platformCell.result === 'pass',
+    );
+    const hasPlatformFail = platformCells.some(
+      ([, platformCell]) => platformCell.result === 'fail',
+    );
     const rate = rates.rates?.[p]?.per_gb;
     if (typeof rate !== 'number' || !Number.isFinite(rate)) {
       unpriced.push(p);
       continue;
     }
     if (cell === 'fail') failing.push(p);
-    else if (cell === 'pass') candidates.push({ provider: p, cost_per_gb: rate, standing: 'pass' });
-    else if (hasPlatformPass) candidates.push({ provider: p, cost_per_gb: rate, standing: 'platform_pass' });
+    else if (cell === 'pass')
+      candidates.push({ provider: p, cost_per_gb: rate, standing: 'pass' });
+    else if (hasPlatformPass)
+      candidates.push({
+        provider: p,
+        cost_per_gb: rate,
+        standing: 'platform_pass',
+      });
     else if (hasPlatformFail) failing.push(p);
-    else candidates.push({ provider: p, cost_per_gb: rate, standing: 'unknown' });
+    else
+      candidates.push({ provider: p, cost_per_gb: rate, standing: 'unknown' });
   }
-  const tiers: RankedProvider['standing'][] = ['pass', 'platform_pass', 'unknown'];
+  const tiers: RankedProvider['standing'][] = [
+    'pass',
+    'platform_pass',
+    'unknown',
+  ];
   candidates.sort((a, b) =>
-    a.standing === b.standing ? a.cost_per_gb - b.cost_per_gb : tiers.indexOf(a.standing) - tiers.indexOf(b.standing));
+    a.standing === b.standing
+      ? a.cost_per_gb - b.cost_per_gb
+      : tiers.indexOf(a.standing) - tiers.indexOf(b.standing),
+  );
   return { candidates, failing, unpriced };
 }
 
@@ -140,8 +168,14 @@ export async function rankByCapability(action: string): Promise<{
  * The sentence a route that found no exit ends with: which providers were
  * tried and resolved none, which fail this action, and which carry no rate.
  */
-export function noExitCause(action: string, tried: ProviderName[], failing: ProviderName[], unpriced: ProviderName[]): string {
-  const named = (list: ProviderName[]) => (list.length ? list.join(', ') : 'none');
+export function noExitCause(
+  action: string,
+  tried: ProviderName[],
+  failing: ProviderName[],
+  unpriced: ProviderName[],
+): string {
+  const named = (list: ProviderName[]) =>
+    list.length ? list.join(', ') : 'none';
   return `no proxy exit for ${action}: tried without an exit: ${named(tried)}; failing this action in proxy_capability_matrix: ${named(failing)}; no rate in the proxy_rate_cards setting: ${named(unpriced)}`;
 }
 
@@ -165,7 +199,8 @@ export async function recordOutcome(
   if (status === 'pending_review') return;
   let result: 'pass' | 'fail' | null = null;
   if (FAIL_SIGNALS.has(sig)) result = 'fail';
-  else if (status === 'completed' && (HEALTHY_SIGNALS.has(sig) || sig === '')) result = 'pass';
+  else if (status === 'completed' && (HEALTHY_SIGNALS.has(sig) || sig === ''))
+    result = 'pass';
   if (!result) return;
 
   const v = await loadMatrix();
@@ -173,7 +208,9 @@ export async function recordOutcome(
   v.matrix[provider] ??= {};
   v.matrix[provider][action] = { result, at };
   await saveSetting('proxy_capability_matrix', v);
-  console.log(`[capability] +${provider}/${action} = ${result} (signal=${sig || 'none'})`);
+  console.log(
+    `[capability] +${provider}/${action} = ${result} (signal=${sig || 'none'})`,
+  );
 
   // Circuit-breaker: if every provider for this platform is now 'fail' for
   // this action, raise platform_routine_paused. If at least one is 'pass'
@@ -182,12 +219,17 @@ export async function recordOutcome(
   // (provider, anything-on-this-platform) cell means the proxy can still
   // do the platform, which is good enough for the breaker.
   if (!platform) return;
-  const someoneWorks = ALL_PROVIDERS.some(p =>
-    Object.entries(v.matrix[p] ?? {}).some(([act, cell]) => act.startsWith(`${platform}_`) && cell.result === 'pass'),
+  const someoneWorks = ALL_PROVIDERS.some((p) =>
+    Object.entries(v.matrix[p] ?? {}).some(
+      ([act, cell]) => act.startsWith(`${platform}_`) && cell.result === 'pass',
+    ),
   );
   const paused = await loadPaused();
   if (!someoneWorks && !paused[platform]) {
-    paused[platform] = { paused_at: at, reason: `no proxy passes for any ${platform}_* action` };
+    paused[platform] = {
+      paused_at: at,
+      reason: `no proxy passes for any ${platform}_* action`,
+    };
     await saveSetting('platform_routine_paused', paused);
     console.log(`[capability] CIRCUIT-BREAKER: paused platform=${platform}`);
   } else if (someoneWorks && paused[platform]) {
@@ -216,7 +258,10 @@ const DIRECT_EGRESS_PLATFORMS: Readonly<Record<string, true>> = Object.freeze({
  * stable ISP route; platforms that accept worker egress stay direct unless an
  * operator explicitly forces a proxy.
  */
-export function taskNetworkRequirements(action: string, platform: string): TaskNetworkRequirements {
+export function taskNetworkRequirements(
+  action: string,
+  platform: string,
+): TaskNetworkRequirements {
   const normalizedPlatform = platform.trim().toLowerCase();
   if (DIRECT_EGRESS_PLATFORMS[normalizedPlatform]) {
     return {
@@ -239,7 +284,10 @@ export async function isPlatformPaused(platform: string): Promise<boolean> {
 }
 
 /** Returns true if the matrix marks this (provider, action) cell as 'fail'. */
-export async function isCellFail(provider: string, action: string): Promise<boolean> {
+export async function isCellFail(
+  provider: string,
+  action: string,
+): Promise<boolean> {
   const m = await loadMatrix();
   return m.matrix[provider]?.[action]?.result === 'fail';
 }

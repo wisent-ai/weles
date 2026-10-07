@@ -2,7 +2,10 @@
 
 export async function summarizeVisible(page, queryText) {
   return await page.evaluate((queryText) => {
-    const normalize = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+    const normalize = (s) =>
+      String(s || '')
+        .replace(/\s+/g, ' ')
+        .trim();
     const texts = [];
     const addText = (label, value) => {
       const text = String(value || '');
@@ -14,24 +17,52 @@ export async function summarizeVisible(page, queryText) {
       if (!doc) return;
       try {
         if (typeof doc === 'string') addText(label, doc);
-        else if (typeof doc.toString === 'function') addText(label, doc.toString());
-        else if (typeof doc.getValue === 'function') addText(label, doc.getValue());
+        else if (typeof doc.toString === 'function')
+          addText(label, doc.toString());
+        else if (typeof doc.getValue === 'function')
+          addText(label, doc.getValue());
       } catch {
         // Ignore inaccessible editor internals.
       }
     };
     const seenObjects = new Set();
     const inspectObject = (obj, label, depth = 0) => {
-      if (!obj || (typeof obj !== 'object' && typeof obj !== 'function')) return;
+      if (!obj || (typeof obj !== 'object' && typeof obj !== 'function'))
+        return;
       if (seenObjects.has(obj) || depth > 3) return;
       seenObjects.add(obj);
-      try { if (typeof obj.getValue === 'function') addText(`${label}.getValue`, obj.getValue()); } catch {}
-      try { addDoc(`${label}.state.doc`, obj.state?.doc); } catch {}
-      try { addDoc(`${label}.view.state.doc`, obj.view?.state?.doc); } catch {}
-      try { if (typeof obj.doc?.getValue === 'function') addText(`${label}.doc.getValue`, obj.doc.getValue()); } catch {}
-      try { if (typeof obj.cm?.getValue === 'function') addText(`${label}.cm.getValue`, obj.cm.getValue()); } catch {}
-      for (const key of ['view', 'editor', 'sourceEditor', '_editor', 'cm', 'codeMirror', 'doc', 'state', 'model']) {
-        try { inspectObject(obj[key], `${label}.${key}`, depth + 1); } catch {}
+      try {
+        if (typeof obj.getValue === 'function')
+          addText(`${label}.getValue`, obj.getValue());
+      } catch {}
+      try {
+        addDoc(`${label}.state.doc`, obj.state?.doc);
+      } catch {}
+      try {
+        addDoc(`${label}.view.state.doc`, obj.view?.state?.doc);
+      } catch {}
+      try {
+        if (typeof obj.doc?.getValue === 'function')
+          addText(`${label}.doc.getValue`, obj.doc.getValue());
+      } catch {}
+      try {
+        if (typeof obj.cm?.getValue === 'function')
+          addText(`${label}.cm.getValue`, obj.cm.getValue());
+      } catch {}
+      for (const key of [
+        'view',
+        'editor',
+        'sourceEditor',
+        '_editor',
+        'cm',
+        'codeMirror',
+        'doc',
+        'state',
+        'model',
+      ]) {
+        try {
+          inspectObject(obj[key], `${label}.${key}`, depth + 1);
+        } catch {}
       }
     };
     const inspectDomEditorState = () => {
@@ -44,7 +75,9 @@ export async function summarizeVisible(page, queryText) {
         '[class*="cm-"]',
         '[class*="CodeMirror"]',
       ];
-      for (const el of Array.from(document.querySelectorAll(selectors.join(',')))) {
+      for (const el of Array.from(
+        document.querySelectorAll(selectors.join(',')),
+      )) {
         inspectObject(el, `dom.${el.className || el.tagName}`);
         try {
           for (const key of Reflect.ownKeys(el)) {
@@ -57,8 +90,17 @@ export async function summarizeVisible(page, queryText) {
       }
     };
     const inspectKnownGlobals = () => {
-      for (const key of ['_ide', 'ide', 'editor', 'editorManager', 'angular', 'webpackChunkoverleaf']) {
-        try { inspectObject(window[key], `window.${key}`); } catch {}
+      for (const key of [
+        '_ide',
+        'ide',
+        'editor',
+        'editorManager',
+        'angular',
+        'webpackChunkoverleaf',
+      ]) {
+        try {
+          inspectObject(window[key], `window.${key}`);
+        } catch {}
       }
       try {
         const current = window._ide?.editorManager?.getCurrentEditor?.();
@@ -74,14 +116,19 @@ export async function summarizeVisible(page, queryText) {
       const re = /[A-Za-z0-9]+/g;
       let m;
       while ((m = re.exec(String(s || '')))) {
-        out.push({ token: m[0].toLowerCase(), start: m.index, end: m.index + m[0].length });
+        out.push({
+          token: m[0].toLowerCase(),
+          start: m.index,
+          end: m.index + m[0].length,
+        });
       }
       return out;
     };
     const bestTokenWindow = (body, wanted) => {
       const targetTokens = tokenizeWithOffsets(wanted).map((t) => t.token);
       const bodyTokens = tokenizeWithOffsets(body);
-      if (targetTokens.length < 3 || bodyTokens.length < targetTokens.length) return null;
+      if (targetTokens.length < 3 || bodyTokens.length < targetTokens.length)
+        return null;
       let best = null;
       for (let i = 0; i <= bodyTokens.length - targetTokens.length; i += 1) {
         let hits = 0;
@@ -90,7 +137,12 @@ export async function summarizeVisible(page, queryText) {
         }
         const score = hits / targetTokens.length;
         if (!best || score > best.score) {
-          best = { score, start: bodyTokens[i].start, end: bodyTokens[i + targetTokens.length - 1].end, hits };
+          best = {
+            score,
+            start: bodyTokens[i].start,
+            end: bodyTokens[i + targetTokens.length - 1].end,
+            hits,
+          };
         }
       }
       const threshold = targetTokens.length >= 10 ? 0.82 : 0.9;
@@ -98,9 +150,13 @@ export async function summarizeVisible(page, queryText) {
     };
     const bestDocumentText = () => {
       const looksLikeLatex = (text) =>
-        /\\documentclass|\\begin\{document\}|\\title\{|\\section\{|\\subsection\{|\\paragraph\{/.test(text);
+        /\\documentclass|\\begin\{document\}|\\title\{|\\section\{|\\subsection\{|\\paragraph\{/.test(
+          text,
+        );
       const docs = texts
-        .filter((entry) => entry.text.length >= 500 && looksLikeLatex(entry.text))
+        .filter(
+          (entry) => entry.text.length >= 500 && looksLikeLatex(entry.text),
+        )
         .sort((left, right) => right.text.length - left.text.length);
       return docs[0] || null;
     };
@@ -110,33 +166,49 @@ export async function summarizeVisible(page, queryText) {
     inspectDomEditorState();
     inspectKnownGlobals();
     const candidates = [];
-    for (const el of Array.from(document.querySelectorAll('button,a,[role="button"],li,div'))) {
+    for (const el of Array.from(
+      document.querySelectorAll('button,a,[role="button"],li,div'),
+    )) {
       const text = normalize(el.textContent || '');
       if (!text || text.length < 3 || text.length > 500) continue;
       const rect = el.getBoundingClientRect();
       const style = window.getComputedStyle(el);
-      if (rect.width <= 0 || rect.height <= 0 || style.visibility === 'hidden' || style.display === 'none') continue;
+      if (
+        rect.width <= 0 ||
+        rect.height <= 0 ||
+        style.visibility === 'hidden' ||
+        style.display === 'none'
+      )
+        continue;
       candidates.push(text);
       if (candidates.length >= 120) break;
     }
     const editorText = texts.map((entry) => entry.text).join('\n\n');
     const documentText = bestDocumentText();
-    const nbody = normalize([body, rawBody, editorText].filter(Boolean).join(' '));
+    const nbody = normalize(
+      [body, rawBody, editorText].filter(Boolean).join(' '),
+    );
     const idx = wanted ? nbody.indexOf(wanted) : -1;
     const fuzzy = idx >= 0 ? null : bestTokenWindow(nbody, wanted);
-    const targetIndex = idx >= 0 ? idx : (fuzzy ? fuzzy.start : -1);
-    const targetEnd = idx >= 0 ? idx + wanted.length : (fuzzy ? fuzzy.end : -1);
+    const targetIndex = idx >= 0 ? idx : fuzzy ? fuzzy.start : -1;
+    const targetEnd = idx >= 0 ? idx + wanted.length : fuzzy ? fuzzy.end : -1;
     return {
       title: document.title,
       url: location.href,
       targetIndex,
-      targetMatchKind: idx >= 0 ? 'exact' : (fuzzy ? 'token_window' : 'none'),
+      targetMatchKind: idx >= 0 ? 'exact' : fuzzy ? 'token_window' : 'none',
       targetScore: idx >= 0 ? 1 : (fuzzy?.score ?? 0),
-      targetContext: targetIndex >= 0 ? nbody.slice(Math.max(0, targetIndex - 500), targetEnd + 500) : null,
+      targetContext:
+        targetIndex >= 0
+          ? nbody.slice(Math.max(0, targetIndex - 500), targetEnd + 500)
+          : null,
       documentText: documentText?.text ?? null,
       documentTextSource: documentText?.label ?? null,
       documentTextLength: documentText?.text.length ?? 0,
-      editorTextSources: texts.map((entry) => ({ label: entry.label, length: entry.text.length })),
+      editorTextSources: texts.map((entry) => ({
+        label: entry.label,
+        length: entry.text.length,
+      })),
       visibleItems: Array.from(new Set(candidates)),
       bodyHead: nbody,
     };

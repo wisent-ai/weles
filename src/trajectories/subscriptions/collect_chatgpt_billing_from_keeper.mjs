@@ -48,17 +48,22 @@ function parseArgs() {
   for (let i = 2; i < process.argv.length; i += 1) {
     const arg = process.argv[i];
     if (arg === '--session') out.session = process.argv[++i] || '';
-    else if (arg === '--account') out.account = process.argv[++i] || out.account;
+    else if (arg === '--account')
+      out.account = process.argv[++i] || out.account;
     else throw new Error(`unknown arg: ${arg}`);
   }
   if (!out.session) throw new Error('missing --session or SESSION');
-  if (!out.account) throw new Error('missing --account or SUBSCRIPTION_ACCOUNT: the account the subscription is billed to');
+  if (!out.account)
+    throw new Error(
+      'missing --account or SUBSCRIPTION_ACCOUNT: the account the subscription is billed to',
+    );
   return out;
 }
 
 async function action(session, cmd) {
   const answer = await keeperRequest(keeperSocket(session), cmd);
-  if (!answer.ok) throw new Error(answer.error || `keeper action failed: ${cmd.action}`);
+  if (!answer.ok)
+    throw new Error(answer.error || `keeper action failed: ${cmd.action}`);
   return answer;
 }
 
@@ -85,7 +90,8 @@ function parseBillingHistory(lines) {
     const date = parseHumanDate(lines[i]);
     const amount = lines[i + 1]?.match(/^US\$(\d+(?:\.\d{2})?)$/);
     const status = lines[i + 2]?.trim();
-    if (!date || !amount || !/^(Paid|Refunded|Open|Void)$/i.test(status || '')) continue;
+    if (!date || !amount || !/^(Paid|Refunded|Open|Void)$/i.test(status || ''))
+      continue;
     history.push({
       date,
       amount_usd: Number(amount[1]),
@@ -98,7 +104,10 @@ function parseBillingHistory(lines) {
 function latestPaidMonthTotal(history) {
   const paid = history.filter((item) => /^Paid$/i.test(item.status));
   if (!paid.length) return null;
-  const latestMonth = paid.map((item) => item.date.slice(0, 7)).sort().at(-1);
+  const latestMonth = paid
+    .map((item) => item.date.slice(0, 7))
+    .sort()
+    .at(-1);
   const total = paid
     .filter((item) => item.date.startsWith(latestMonth))
     .reduce((sum, item) => sum + item.amount_usd, 0);
@@ -106,20 +115,29 @@ function latestPaidMonthTotal(history) {
 }
 
 function extractBilling(text) {
-  const lines = text.split(/\r?\n/)
+  const lines = text
+    .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
-  const billingIdx = lines.findIndex((line, idx) => line === 'Billing' && lines[idx + 1]?.startsWith('ChatGPT '));
-  const plan = billingIdx >= 0 ? lines[billingIdx + 1] : lines.find((line) => /^ChatGPT\s+/i.test(line)) || null;
-  const cancelLine = lines.find((line) => /Your plan will be canceled on/i.test(line));
+  const billingIdx = lines.findIndex(
+    (line, idx) => line === 'Billing' && lines[idx + 1]?.startsWith('ChatGPT '),
+  );
+  const plan =
+    billingIdx >= 0
+      ? lines[billingIdx + 1]
+      : lines.find((line) => /^ChatGPT\s+/i.test(line)) || null;
+  const cancelLine = lines.find((line) =>
+    /Your plan will be canceled on/i.test(line),
+  );
   const expiresAt = cancelLine ? parseHumanDate(cancelLine) : null;
   const billingHistory = parseBillingHistory(lines);
-  const latestPaid = billingHistory.find((item) => /^Paid$/i.test(item.status)) || null;
+  const latestPaid =
+    billingHistory.find((item) => /^Paid$/i.test(item.status)) || null;
   const latestPaidMonthCost = latestPaidMonthTotal(billingHistory);
   return {
     service_name: 'Codex',
     provider: ['op', 'en', 'ai'].join(''),
-    status: expiresAt ? 'active' : (plan ? 'active' : 'unknown'),
+    status: expiresAt ? 'active' : plan ? 'active' : 'unknown',
     plan,
     expires_at: expiresAt,
     monthly_cost_usd: latestPaidMonthCost,
@@ -128,10 +146,16 @@ function extractBilling(text) {
       source: 'chatgpt.com settings billing UI',
       collected_at: new Date().toISOString(),
       cancel_line: cancelLine || null,
-      monthly_cost_basis: latestPaidMonthCost == null ? null : 'sum of paid Billing history invoices in the latest invoice month',
+      monthly_cost_basis:
+        latestPaidMonthCost == null
+          ? null
+          : 'sum of paid Billing history invoices in the latest invoice month',
       latest_paid_invoice: latestPaid,
       billing_history: billingHistory,
-      ui_excerpt: lines.slice(Math.max(0, billingIdx), billingIdx >= 0 ? billingIdx + 40 : 80),
+      ui_excerpt: lines.slice(
+        Math.max(0, billingIdx),
+        billingIdx >= 0 ? billingIdx + 40 : 80,
+      ),
     },
   };
 }
@@ -149,30 +173,36 @@ async function main() {
     last_verified_at: new Date().toISOString(),
   };
   const saved = await upsertSubscription(row);
-  console.log(JSON.stringify({
-    ok: true,
-    row: {
-      service_name: row.service_name,
-      provider: row.provider,
-      account_identifier: row.account_identifier,
-      status: row.status,
-      plan: row.plan,
-      monthly_cost_usd: row.monthly_cost_usd,
-      expires_at: row.expires_at,
-      billing_history_rows: row.metadata.billing_history.length,
-    },
-    saved: saved.map((item) => ({
-      id: item.id,
-      service_name: item.service_name,
-      provider: item.provider,
-      account_identifier: item.account_identifier,
-      status: item.status,
-      plan: item.plan,
-      monthly_cost_usd: item.monthly_cost_usd,
-      expires_at: item.expires_at,
-      last_verified_at: item.last_verified_at,
-    })),
-  }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        row: {
+          service_name: row.service_name,
+          provider: row.provider,
+          account_identifier: row.account_identifier,
+          status: row.status,
+          plan: row.plan,
+          monthly_cost_usd: row.monthly_cost_usd,
+          expires_at: row.expires_at,
+          billing_history_rows: row.metadata.billing_history.length,
+        },
+        saved: saved.map((item) => ({
+          id: item.id,
+          service_name: item.service_name,
+          provider: item.provider,
+          account_identifier: item.account_identifier,
+          status: item.status,
+          plan: item.plan,
+          monthly_cost_usd: item.monthly_cost_usd,
+          expires_at: item.expires_at,
+          last_verified_at: item.last_verified_at,
+        })),
+      },
+      null,
+      2,
+    ),
+  );
 }
 
 main().catch((error) => {

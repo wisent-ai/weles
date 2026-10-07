@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { operatorJson, welesOperatorConnection, type WelesApiOptions } from './connection.js';
+import {
+  operatorJson,
+  welesOperatorConnection,
+  type WelesApiOptions,
+} from './connection.js';
 
 // The Apple trajectories (apple_login, apple_create_developer_id) start only
 // with a guard id, the execution host and agent, and three one-use capabilities
@@ -12,7 +16,15 @@ const SECONDS_PER_MINUTE = 60;
 // The capability issuer is the .mjs module the Apple trajectories import from
 // src/auth; it sits outside the TypeScript rootDir's compiled tree, so it is
 // loaded by its path in the installed release rather than a static import.
-const PLACEMENT_MODULE = join(__dirname, '..', '..', '..', 'src', 'auth', 'apple-account-placement.mjs');
+const PLACEMENT_MODULE = join(
+  __dirname,
+  '..',
+  '..',
+  '..',
+  'src',
+  'auth',
+  'apple-account-placement.mjs',
+);
 
 /** The authorization one Apple run carries. */
 export type AppleAuthorization = {
@@ -32,13 +44,28 @@ export type AppleRun = {
   error: string | null;
 };
 
-async function exchange(path: string, method: 'GET' | 'POST', body: string | undefined, operation: string, options: WelesApiOptions) {
+async function exchange(
+  path: string,
+  method: 'GET' | 'POST',
+  body: string | undefined,
+  operation: string,
+  options: WelesApiOptions,
+) {
   const connection = welesOperatorConnection(path, options);
   try {
-    const response = await connection.fetch(connection.endpoint, { method, headers: connection.headers, redirect: 'error', body });
+    const response = await connection.fetch(connection.endpoint, {
+      method,
+      headers: connection.headers,
+      redirect: 'error',
+      body,
+    });
     const answer = await operatorJson(response);
     if (!response.ok) {
-      throw new Error([`HTTP ${response.status}`, optionalText(answer.error)].filter(Boolean).join(': '));
+      throw new Error(
+        [`HTTP ${response.status}`, optionalText(answer.error)]
+          .filter(Boolean)
+          .join(': '),
+      );
     }
     return answer;
   } catch (cause) {
@@ -59,7 +86,10 @@ function optionalBoolean(value: unknown): boolean | null {
 
 /** A new guard id and the three one-use capabilities Stado mints for it on the execution host. */
 export async function issueAppleAuthorization(
-  accountRole: string, executionHost: string, executionAgent: string, expiryMinutes: number,
+  accountRole: string,
+  executionHost: string,
+  executionAgent: string,
+  expiryMinutes: number,
 ): Promise<AppleAuthorization> {
   const guardId = randomUUID();
   const placement = await import(pathToFileURL(PLACEMENT_MODULE).href);
@@ -79,18 +109,24 @@ export async function startAppleRun(
   extraParams: Record<string, string>,
   options: WelesApiOptions = {},
 ): Promise<string> {
-  const answer = await exchange('/run', 'POST', JSON.stringify({
-    action,
-    params: {
-      login_role: authorization.accountRole,
-      apple_auth_guard_id: authorization.guardId,
-      apple_execution_host: authorization.executionHost,
-      apple_execution_agent: authorization.executionAgent,
-      apple_login_capabilities: authorization.capabilities,
-      ...extraParams,
-    },
-    detached: true,
-  }), `submit_${action}`, options);
+  const answer = await exchange(
+    '/run',
+    'POST',
+    JSON.stringify({
+      action,
+      params: {
+        login_role: authorization.accountRole,
+        apple_auth_guard_id: authorization.guardId,
+        apple_execution_host: authorization.executionHost,
+        apple_execution_agent: authorization.executionAgent,
+        apple_login_capabilities: authorization.capabilities,
+        ...extraParams,
+      },
+      detached: true,
+    }),
+    `submit_${action}`,
+    options,
+  );
   if (answer.ok !== true || typeof answer.detached_run !== 'string') {
     throw new Error(`submit_${action}: Weles did not accept the run`);
   }
@@ -98,7 +134,10 @@ export async function startAppleRun(
 }
 
 /** Read a started Apple run back. */
-export async function readAppleRun(runId: string, options: WelesApiOptions = {}): Promise<AppleRun> {
+export async function readAppleRun(
+  runId: string,
+  options: WelesApiOptions = {},
+): Promise<AppleRun> {
   const id = runId.trim();
   if (!id) throw new Error('run_id_required');
   const answer = await exchange(
@@ -109,9 +148,17 @@ export async function readAppleRun(runId: string, options: WelesApiOptions = {})
     options,
   );
   if (typeof answer.status !== 'string') {
-    throw new Error(`read_apple_run_result: run ${id} result carries no status`);
+    throw new Error(
+      `read_apple_run_result: run ${id} result carries no status`,
+    );
   }
   let error = optionalText(answer.error);
   if (!error && answer.ok === false) error = optionalText(answer.stderr_tail);
-  return { id, status: answer.status, ok: optionalBoolean(answer.ok), stdout: optionalText(answer.stdout), error };
+  return {
+    id,
+    status: answer.status,
+    ok: optionalBoolean(answer.ok),
+    stdout: optionalText(answer.stdout),
+    error,
+  };
 }

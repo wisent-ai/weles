@@ -15,25 +15,48 @@ const { persistContext } = await import('../unusualwhales/_persist.mjs');
 loadEnv();
 
 const args = {};
-for (let i = 2; i < process.argv.length; i += 2) args[process.argv[i].replace(/^--/, '')] = process.argv[i + 1];
+for (let i = 2; i < process.argv.length; i += 2)
+  args[process.argv[i].replace(/^--/, '')] = process.argv[i + 1];
 const ticker = (args.ticker || process.env.TICKER || '').toUpperCase();
 const pageKey = args.page || process.env.PAGE || 'overview';
 const screenshotPath = args.screenshot;
-if (!ticker) { console.error('FAIL: --ticker required'); process.exit(1); }
-
-const ALLOWED = new Set([
-  'overview', 'technicals', 'forecast',
-  'financials-overview', 'financials-income-statement', 'financials-revenue', 'financials-dividends',
-  'analysis', 'analysis-overview', 'news', 'ideas',
-  'options-chain', 'seasonals', 'holdings', 'etfs',
-  'economic-calendar', 'reports-history', 'minds', 'documents',
-]);
-if (!ALLOWED.has(pageKey)) {
-  console.error(`FAIL: unknown page '${pageKey}'. Allowed: ${Array.from(ALLOWED).join(', ')}`);
+if (!ticker) {
+  console.error('FAIL: --ticker required');
   process.exit(1);
 }
 
-const s = await WSession.start({ label: `tv_scrape_${ticker}_${pageKey}`, proxy: process.env.PROXY_URL || 'oxylabs' });
+const ALLOWED = new Set([
+  'overview',
+  'technicals',
+  'forecast',
+  'financials-overview',
+  'financials-income-statement',
+  'financials-revenue',
+  'financials-dividends',
+  'analysis',
+  'analysis-overview',
+  'news',
+  'ideas',
+  'options-chain',
+  'seasonals',
+  'holdings',
+  'etfs',
+  'economic-calendar',
+  'reports-history',
+  'minds',
+  'documents',
+]);
+if (!ALLOWED.has(pageKey)) {
+  console.error(
+    `FAIL: unknown page '${pageKey}'. Allowed: ${Array.from(ALLOWED).join(', ')}`,
+  );
+  process.exit(1);
+}
+
+const s = await WSession.start({
+  label: `tv_scrape_${ticker}_${pageKey}`,
+  proxy: process.env.PROXY_URL || 'oxylabs',
+});
 
 try {
   // Resolve exchange prefix by navigating /symbols/TICKER/ and reading the
@@ -45,7 +68,9 @@ try {
   const m = finalUrl.match(/\/symbols\/([A-Z]+-[A-Z0-9.]+)\//);
   const symbolId = m ? m[1] : null;
   if (!symbolId) {
-    console.error(`FAIL: could not resolve exchange prefix, landed at ${finalUrl}`);
+    console.error(
+      `FAIL: could not resolve exchange prefix, landed at ${finalUrl}`,
+    );
     process.exit(1);
   }
   console.error(`[tv] resolved ${ticker} -> ${symbolId}`);
@@ -63,7 +88,9 @@ try {
   await pageSettled(s.page);
 
   if (screenshotPath) {
-    await s.page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {});
+    await s.page
+      .screenshot({ path: screenshotPath, fullPage: true })
+      .catch(() => {});
     console.error(`[tv] screenshot: ${screenshotPath}`);
   }
 
@@ -93,9 +120,18 @@ try {
     screenshotPath,
     metadata: { source: 'tradingview/scrape.mjs', symbolId },
   });
-  console.error(`[tv] persisted row id=${persisted.id} uri=${persisted.screenshot_uri || 'none'}`);
+  console.error(
+    `[tv] persisted row id=${persisted.id} uri=${persisted.screenshot_uri || 'none'}`,
+  );
 
-  process.stdout.write(JSON.stringify({ ticker, page: `tv_${pageKey}`, ...data, stock_context: persisted }) + '\n');
+  process.stdout.write(
+    JSON.stringify({
+      ticker,
+      page: `tv_${pageKey}`,
+      ...data,
+      stock_context: persisted,
+    }) + '\n',
+  );
   process.exit(0);
 } catch (e) {
   console.error(`FAIL: ${e.message}`);

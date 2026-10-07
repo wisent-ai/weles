@@ -26,27 +26,57 @@ const TITLE = process.env.TITLE;
 const REVIEW_TEXT = process.env.REVIEW_TEXT;
 const WDA_URL = process.env.WDA_URL;
 
-if (!APP_ID) { console.log('FAIL: APP_ID env var required'); process.exit(1); }
-if (!/^\d+$/.test(APP_ID)) { console.log('FAIL: APP_ID must be numeric'); process.exit(1); }
-if (!Number.isInteger(RATING) || RATING < 1 || RATING > 5) { console.log('FAIL: RATING env var required, 1-5'); process.exit(1); }
-if (!TITLE) { console.log('FAIL: TITLE env var required'); process.exit(1); }
-if (!REVIEW_TEXT) { console.log('FAIL: REVIEW_TEXT env var required'); process.exit(1); }
-if (!WDA_URL) { console.log('FAIL: WDA_URL env var required: the WebDriverAgent address of the phone this run drives; no phone is assumed'); process.exit(1); }
+if (!APP_ID) {
+  console.log('FAIL: APP_ID env var required');
+  process.exit(1);
+}
+if (!/^\d+$/.test(APP_ID)) {
+  console.log('FAIL: APP_ID must be numeric');
+  process.exit(1);
+}
+if (!Number.isInteger(RATING) || RATING < 1 || RATING > 5) {
+  console.log('FAIL: RATING env var required, 1-5');
+  process.exit(1);
+}
+if (!TITLE) {
+  console.log('FAIL: TITLE env var required');
+  process.exit(1);
+}
+if (!REVIEW_TEXT) {
+  console.log('FAIL: REVIEW_TEXT env var required');
+  process.exit(1);
+}
+if (!WDA_URL) {
+  console.log(
+    'FAIL: WDA_URL env var required: the WebDriverAgent address of the phone this run drives; no phone is assumed',
+  );
+  process.exit(1);
+}
 
 // Informational only — the active Apple ID is whatever the device is signed
 // in to. The account row is used for log/audit, not for credentials.
 const acct = await getSocialAccount('apple');
-if (acct) console.log(`[ios-review] expected Apple ID: ${acct.username} (${acct.metadata?.email ?? 'no email on row'})`);
+if (acct)
+  console.log(
+    `[ios-review] expected Apple ID: ${acct.username} (${acct.metadata?.email ?? 'no email on row'})`,
+  );
 
 const APP_STORE_BUNDLE = 'com.apple.AppStore';
 
 async function wda(method, path, body) {
-  const opts = { method, headers: body ? { 'Content-Type': 'application/json' } : {} };
+  const opts = {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : {},
+  };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(`${WDA_URL}${path}`, opts);
   const text = await res.text();
   let json = null;
-  try { json = JSON.parse(text); } catch { /* non-JSON 5xx body */ }
+  try {
+    json = JSON.parse(text);
+  } catch {
+    /* non-JSON 5xx body */
+  }
   if (!res.ok) {
     const reason = json?.value?.message ?? text;
     throw new Error(`WDA ${method} ${path} → ${res.status}: ${reason}`);
@@ -59,7 +89,9 @@ async function ensureSession() {
   if (!status) throw new Error('WDA /status returned empty');
   const existing = status.sessionId;
   if (existing) return existing;
-  const created = await wda('POST', '/session', { capabilities: { alwaysMatch: { bundleId: APP_STORE_BUNDLE } } });
+  const created = await wda('POST', '/session', {
+    capabilities: { alwaysMatch: { bundleId: APP_STORE_BUNDLE } },
+  });
   const sid = created?.value?.sessionId ?? created?.sessionId;
   if (!sid) throw new Error('failed to create WDA session');
   return sid;
@@ -68,19 +100,26 @@ async function ensureSession() {
 async function activateAppStore(sid) {
   // /wda/apps/launch activates the App Store. If the app crashed or was
   // never opened, this also cold-starts it.
-  await wda('POST', `/session/${sid}/wda/apps/launch`, { bundleId: APP_STORE_BUNDLE });
+  await wda('POST', `/session/${sid}/wda/apps/launch`, {
+    bundleId: APP_STORE_BUNDLE,
+  });
   await humanIdlePause('deliberate');
 }
 
 async function openAppListing(sid) {
   // The itms-apps deeplink opens the App Store app at the specific listing.
   // /url on iOS routes through Springboard and respects the foreground app.
-  await wda('POST', `/session/${sid}/url`, { url: `itms-apps://apps.apple.com/app/id${APP_ID}` });
+  await wda('POST', `/session/${sid}/url`, {
+    url: `itms-apps://apps.apple.com/app/id${APP_ID}`,
+  });
   await humanIdlePause('deliberate');
 }
 
 async function findFirst(sid, predicate) {
-  const r = await wda('POST', `/session/${sid}/elements`, { using: 'predicate string', value: predicate });
+  const r = await wda('POST', `/session/${sid}/elements`, {
+    using: 'predicate string',
+    value: predicate,
+  });
   const list = r?.value ?? [];
   if (!list.length) return null;
   const e = list[0];
@@ -95,7 +134,10 @@ async function setElementValue(sid, eid, text) {
   // WDA's value endpoint accepts an array of strings or a single string. The
   // older protocol uses {"value": ["a","b",...]}; the W3C variant uses
   // {"text": "ab"}. Send both keys for compatibility across WDA versions.
-  await wda('POST', `/session/${sid}/element/${eid}/value`, { value: text.split(''), text });
+  await wda('POST', `/session/${sid}/element/${eid}/value`, {
+    value: text.split(''),
+    text,
+  });
 }
 
 async function uiSource(sid) {
@@ -104,9 +146,11 @@ async function uiSource(sid) {
 }
 
 async function writeReviewButton(sid) {
-  return await findFirst(sid, `name == "Write a Review"`)
-    ?? await findFirst(sid, `name == "Write Review"`)
-    ?? await findFirst(sid, `label LIKE '*Write*Review*'`);
+  return (
+    (await findFirst(sid, `name == "Write a Review"`)) ??
+    (await findFirst(sid, `name == "Write Review"`)) ??
+    (await findFirst(sid, `label LIKE '*Write*Review*'`))
+  );
 }
 
 // Scroll the listing one WDA page at a time until Write a Review is in the
@@ -114,16 +158,23 @@ async function writeReviewButton(sid) {
 // unchanged means the listing ended without one. The drag count and screen
 // coordinates once here assumed one phone size.
 async function scrollToWriteReview(sid) {
-  const listing = await findFirst(sid, `type == "XCUIElementTypeCollectionView" OR type == "XCUIElementTypeScrollView"`);
+  const listing = await findFirst(
+    sid,
+    `type == "XCUIElementTypeCollectionView" OR type == "XCUIElementTypeScrollView"`,
+  );
   if (!listing) {
     await dumpUiSource(sid, 'listing-missing');
-    throw new Error('the App Store listing shows no scrollable view to look for Write a Review in');
+    throw new Error(
+      'the App Store listing shows no scrollable view to look for Write a Review in',
+    );
   }
   let before = await uiSource(sid);
   for (;;) {
     const button = await writeReviewButton(sid);
     if (button) return button;
-    await wda('POST', `/session/${sid}/wda/element/${listing}/scroll`, { direction: 'down' });
+    await wda('POST', `/session/${sid}/wda/element/${listing}/scroll`, {
+      direction: 'down',
+    });
     const after = await uiSource(sid);
     if (after === before) return null;
     before = after;
@@ -156,7 +207,9 @@ try {
   const writeBtn = await scrollToWriteReview(sid);
   if (!writeBtn) {
     await dumpUiSource(sid, 'write-review-missing');
-    console.log('FAIL: Write a Review button not found: the listing scrolled to its end (a further scroll left the UI tree unchanged) without one');
+    console.log(
+      'FAIL: Write a Review button not found: the listing scrolled to its end (a further scroll left the UI tree unchanged) without one',
+    );
     process.exit(1);
   }
   await tapElement(sid, writeBtn);
@@ -165,10 +218,15 @@ try {
   // 4. Sign-in modal. If the Apple ID isn't signed into Media & Purchases,
   // iOS shows a system sheet — we can't dismiss it programmatically because
   // the operator chose not to sign in. Fail loud so the operator notices.
-  const signInPrompt = await findFirst(sid, `name == "Sign In" OR name == "Apple ID Password"`);
+  const signInPrompt = await findFirst(
+    sid,
+    `name == "Sign In" OR name == "Apple ID Password"`,
+  );
   if (signInPrompt) {
     await dumpUiSource(sid, 'sign-in-prompt');
-    console.log('FAIL: App Store needs Apple ID sign-in via Settings → Media & Purchases (manual)');
+    console.log(
+      'FAIL: App Store needs Apple ID sign-in via Settings → Media & Purchases (manual)',
+    );
     process.exit(2);
   }
 
@@ -186,7 +244,10 @@ try {
 
   // 6. Title field. The review sheet textfield labelled "Title" is the
   // top input.
-  const titleField = await findFirst(sid, `type == "XCUIElementTypeTextField" AND (name == "Title" OR label == "Title")`);
+  const titleField = await findFirst(
+    sid,
+    `type == "XCUIElementTypeTextField" AND (name == "Title" OR label == "Title")`,
+  );
   if (!titleField) {
     await dumpUiSource(sid, 'title-field-missing');
     console.log('FAIL: title text field not found');
@@ -223,14 +284,19 @@ try {
   // 9. Verify: the review sheet closes back to the listing on success.
   // An error alert ("Could not submit", "Try again") indicates server-side
   // rejection (account too new, app not owned, throttled).
-  const errorAlert = await findFirst(sid, `name CONTAINS[c] "couldn't" OR name CONTAINS[c] "try again" OR name CONTAINS[c] "error"`);
+  const errorAlert = await findFirst(
+    sid,
+    `name CONTAINS[c] "couldn't" OR name CONTAINS[c] "try again" OR name CONTAINS[c] "error"`,
+  );
   if (errorAlert) {
     await dumpUiSource(sid, 'submit-error-alert');
     console.log('FAIL: error alert visible after submit');
     process.exit(1);
   }
 
-  console.log(`PASS: review submitted for app ${APP_ID} (${RATING}★) via iOS WDA`);
+  console.log(
+    `PASS: review submitted for app ${APP_ID} (${RATING}★) via iOS WDA`,
+  );
 } catch (e) {
   console.log('FAIL:', e.message);
   process.exit(1);

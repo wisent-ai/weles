@@ -18,13 +18,38 @@ console.log(`[trajectory] registering: ${EMAIL}`);
 // a task still being solved is a named error carrying its id.
 async function solveInvisibleRecaptcha() {
   const key = process.env.CAPSOLVER_API_KEY;
-  if (!key) throw new Error('twocaptcha_register: CAPSOLVER_API_KEY is not configured');
-  const create = await (await fetch('https://api.capsolver.com/createTask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: key, task: { type: 'ReCaptchaV2TaskProxyLess', websiteURL: REGISTER_URL, websiteKey: RECAPTCHA_SITEKEY, isInvisible: true } }) })).json();
-  if (!create.taskId) throw new Error(`twocaptcha_register: CapSolver refused the task: ${create.errorCode ?? JSON.stringify(create)}`);
-  return solverTaskResult({ name: 'capsolver', url: 'https://api.capsolver.com' }, key, create.taskId);
+  if (!key)
+    throw new Error('twocaptcha_register: CAPSOLVER_API_KEY is not configured');
+  const create = await (
+    await fetch('https://api.capsolver.com/createTask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientKey: key,
+        task: {
+          type: 'ReCaptchaV2TaskProxyLess',
+          websiteURL: REGISTER_URL,
+          websiteKey: RECAPTCHA_SITEKEY,
+          isInvisible: true,
+        },
+      }),
+    })
+  ).json();
+  if (!create.taskId)
+    throw new Error(
+      `twocaptcha_register: CapSolver refused the task: ${create.errorCode ?? JSON.stringify(create)}`,
+    );
+  return solverTaskResult(
+    { name: 'capsolver', url: 'https://api.capsolver.com' },
+    key,
+    create.taskId,
+  );
 }
 
-const s = await WSession.start({ label: 'twocaptcha_register', browser: 'chromium' });
+const s = await WSession.start({
+  label: 'twocaptcha_register',
+  browser: 'chromium',
+});
 try {
   await s.goto(REGISTER_URL);
   await humanIdlePause('long');
@@ -35,8 +60,11 @@ try {
 
   const token = await solveInvisibleRecaptcha();
   await s.page.evaluate((t) => {
-    document.querySelectorAll('textarea[name="g-recaptcha-response"]').forEach(el => el.value = t);
-    if (typeof window.onRecaptchaSubmit === 'function') window.onRecaptchaSubmit(t);
+    document
+      .querySelectorAll('textarea[name="g-recaptcha-response"]')
+      .forEach((el) => (el.value = t));
+    if (typeof window.onRecaptchaSubmit === 'function')
+      window.onRecaptchaSubmit(t);
   }, token);
   console.log('[trajectory] reCAPTCHA token injected');
 
@@ -50,7 +78,10 @@ try {
     process.exit(1);
   }
 
-  const item = writeServiceCredentials('2Captcha', { username: EMAIL, password });
+  const item = writeServiceCredentials('2Captcha', {
+    username: EMAIL,
+    password,
+  });
   console.log(`PASS: registered ${EMAIL}; credentials persisted to ${item}`);
 } catch (e) {
   console.log('FAIL:', e.message);

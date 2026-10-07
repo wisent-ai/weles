@@ -11,14 +11,34 @@ export function writeBan(acct, signal, details) {
   try {
     const dir = runRecordingsDir('linkedin_login');
     mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'linkedin_login', signal, healthy: signal === 'healthy', details: details ?? {}, ts: new Date().toISOString() }, null, 2));
+    writeFileSync(
+      join(dir, 'ban_signal.json'),
+      JSON.stringify(
+        {
+          account_id: acct.id,
+          username: acct.username,
+          action: 'linkedin_login',
+          signal,
+          healthy: signal === 'healthy',
+          details: details ?? {},
+          ts: new Date().toISOString(),
+        },
+        null,
+        2,
+      ),
+    );
   } catch (e) {
     console.log(`[linkedin_login] ban_signal not written: ${e.message}`);
   }
 }
 
 /** Record the failure and mark the stored cookies stale so routine cron stops re-attempting a dead account. */
-export async function markStaleAndFail(acct, reason, finalUrl, signal = 'checkpoint') {
+export async function markStaleAndFail(
+  acct,
+  reason,
+  finalUrl,
+  signal = 'checkpoint',
+) {
   writeBan(acct, signal, { final_url: finalUrl, reason });
   if (acct.id) await markCookiesStale(acct.id);
 }
@@ -30,11 +50,21 @@ export async function markStaleAndFail(acct, reason, finalUrl, signal = 'checkpo
  * proxy CONNECT failure.
  */
 export function classifyLoginError(message, finalUrl) {
-  if (/ERR_HTTP_RESPONSE_CODE_FAILURE|ERR_BLOCKED_BY_RESPONSE|ERR_BLOCKED_BY_CLIENT|ERR_BLOCKED_BY_ADMINISTRATOR/.test(message)) return 'ip_blocked';
-  if (/ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED/.test(message)) return 'proxy_failed';
+  if (
+    /ERR_HTTP_RESPONSE_CODE_FAILURE|ERR_BLOCKED_BY_RESPONSE|ERR_BLOCKED_BY_CLIENT|ERR_BLOCKED_BY_ADMINISTRATOR/.test(
+      message,
+    )
+  )
+    return 'ip_blocked';
+  if (/ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED/.test(message))
+    return 'proxy_failed';
   if (finalUrl.startsWith('chrome-error://')) return 'proxy_failed';
   if (/Timeout|net::ERR_TIMED_OUT/.test(message)) return 'proxy_failed';
-  if (CHECKPOINT_RE.test(finalUrl) || /image-selection|select.*buses|solve_captcha/i.test(message)) return 'checkpoint';
+  if (
+    CHECKPOINT_RE.test(finalUrl) ||
+    /image-selection|select.*buses|solve_captcha/i.test(message)
+  )
+    return 'checkpoint';
   return 'unknown_error';
 }
 
@@ -42,7 +72,9 @@ export function classifyLoginError(message, finalUrl) {
 export function currentWelesFingerprintTag(s) {
   try {
     const args = s?.ctx?._welesBrowserProvenance?.launch_args || [];
-    const fpArg = args.find((arg) => String(arg).startsWith('--weles-fingerprint='));
+    const fpArg = args.find((arg) =>
+      String(arg).startsWith('--weles-fingerprint='),
+    );
     const match = String(fpArg || '').match(/weles-fp-[^/]+/);
     return match?.[0] || false;
   } catch {
@@ -53,5 +85,7 @@ export function currentWelesFingerprintTag(s) {
 /** Kill whatever the tagged browser left behind; nothing to reap is not an error. */
 export function reapWelesFingerprintTag(tag) {
   if (!tag) return;
-  try { execFileSync('pkill', ['-f', tag], { stdio: 'ignore' }); } catch {}
+  try {
+    execFileSync('pkill', ['-f', tag], { stdio: 'ignore' });
+  } catch {}
 }

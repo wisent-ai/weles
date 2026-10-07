@@ -24,7 +24,11 @@ const trajectoryId = process.env.GENERIC_SAVED_TRAJECTORY_ID || '';
 const trajectoryItem = process.env.GENERIC_SAVED_TRAJECTORY_ITEM || '';
 
 function headers() {
-  return { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}`, 'content-type': 'application/json' };
+  return {
+    apikey: DATABASE_TOKEN,
+    Authorization: `Bearer ${DATABASE_TOKEN}`,
+    'content-type': 'application/json',
+  };
 }
 
 function isObject(value) {
@@ -36,7 +40,11 @@ function setJsonEnv(name, value) {
 }
 
 function replaySteps(definition) {
-  const replay = Array.isArray(definition.replay) ? definition.replay : Array.isArray(definition.steps) ? definition.steps : [];
+  const replay = Array.isArray(definition.replay)
+    ? definition.replay
+    : Array.isArray(definition.steps)
+      ? definition.steps
+      : [];
   const steps = [];
   for (const raw of replay) {
     if (!isObject(raw) || typeof raw.tool !== 'string' || !raw.tool) continue;
@@ -54,10 +62,15 @@ if (engagement) {
   // reviewed trajectory did not arrive with the engagement, the run refuses
   // rather than guessing a path from the engagement name.
   if (!engagementTrajectory) {
-    throw new Error(`declared engagement ${engagement} reached execution without its reviewed trajectory`);
+    throw new Error(
+      `declared engagement ${engagement} reached execution without its reviewed trajectory`,
+    );
   }
-  const repositoryRoot = process.env.WELES_REPO || resolve(import.meta.dirname, '..', '..', '..');
-  console.log(`[saved-task] engagement ${engagement} -> ${engagementTrajectory}`);
+  const repositoryRoot =
+    process.env.WELES_REPO || resolve(import.meta.dirname, '..', '..', '..');
+  console.log(
+    `[saved-task] engagement ${engagement} -> ${engagementTrajectory}`,
+  );
   await import(pathToFileURL(join(repositoryRoot, engagementTrajectory)).href);
 } else {
   let row;
@@ -66,24 +79,40 @@ if (engagement) {
     // Imported here, not at the top: reading a vault record resolves the
     // attested Skarbiec binary through Stado while the module loads, and a
     // declared engagement replays a reviewed trajectory without any of that.
-    const { readWelesRecord } = await import('../_shared/skarbiec/accounts.mjs');
+    const { readWelesRecord } = await import(
+      '../_shared/skarbiec/accounts.mjs'
+    );
     const document = readWelesRecord(trajectoryItem);
-    if (document.context?.status !== 'active') throw new Error(`saved trajectory is not active: ${trajectoryItem}`);
+    if (document.context?.status !== 'active')
+      throw new Error(`saved trajectory is not active: ${trajectoryItem}`);
     const fields = document.fields ?? {};
     row = {
       id: trajectoryItem,
       name: document.context?.display_name ?? trajectoryItem,
       url: fields.url ?? '',
       objective: fields.objective ?? '',
-      definition: fields.definition_json ? JSON.parse(fields.definition_json) : {},
-      execution_host: fields.execution_host ?? document.context?.execution_host ?? null,
+      definition: fields.definition_json
+        ? JSON.parse(fields.definition_json)
+        : {},
+      execution_host:
+        fields.execution_host ?? document.context?.execution_host ?? null,
     };
     trajectoryReference = trajectoryItem;
   } else {
-    if (!DATABASE_URL || !DATABASE_TOKEN) throw new Error('WELES_DATABASE_URL and WELES_DATABASE_TOKEN required');
-    if (!trajectoryId) throw new Error('GENERIC_SAVED_TRAJECTORY_ID or GENERIC_SAVED_TRAJECTORY_ITEM required');
-    const res = await fetch(`${DATABASE_URL}/rest/v1/weles_trajectories?id=eq.${encodeURIComponent(trajectoryId)}&status=eq.active&select=id,name,action,url,objective,definition,execution_host`, { headers: headers() });
-    if (!res.ok) throw new Error(`load saved trajectory HTTP ${res.status}: ${await res.text()}`);
+    if (!DATABASE_URL || !DATABASE_TOKEN)
+      throw new Error('WELES_DATABASE_URL and WELES_DATABASE_TOKEN required');
+    if (!trajectoryId)
+      throw new Error(
+        'GENERIC_SAVED_TRAJECTORY_ID or GENERIC_SAVED_TRAJECTORY_ITEM required',
+      );
+    const res = await fetch(
+      `${DATABASE_URL}/rest/v1/weles_trajectories?id=eq.${encodeURIComponent(trajectoryId)}&status=eq.active&select=id,name,action,url,objective,definition,execution_host`,
+      { headers: headers() },
+    );
+    if (!res.ok)
+      throw new Error(
+        `load saved trajectory HTTP ${res.status}: ${await res.text()}`,
+      );
     const rows = await res.json();
     row = rows[0];
     if (!row) throw new Error(`saved trajectory not found: ${trajectoryId}`);
@@ -91,31 +120,49 @@ if (engagement) {
   }
   const definition = isObject(row.definition) ? row.definition : {};
   if (row.execution_host) {
-    const expectedHost = String(row.execution_host).trim().toLowerCase().replace(/\.+$/, '');
+    const expectedHost = String(row.execution_host)
+      .trim()
+      .toLowerCase()
+      .replace(/\.+$/, '');
     const actualHost = hostname().trim().toLowerCase().replace(/\.+$/, '');
     if (expectedHost !== actualHost) {
-      throw new Error(`saved trajectory ${trajectoryReference} is bound to managed host ${expectedHost}; refusing execution on ${actualHost}`);
+      throw new Error(
+        `saved trajectory ${trajectoryReference} is bound to managed host ${expectedHost}; refusing execution on ${actualHost}`,
+      );
     }
   }
 
-  process.env.GENERIC_TASK_LABEL = definition.session_label ? String(definition.session_label) : 'generic_saved_task';
+  process.env.GENERIC_TASK_LABEL = definition.session_label
+    ? String(definition.session_label)
+    : 'generic_saved_task';
   process.env.GENERIC_TASK_URL = String(definition.url || row.url || '');
-  process.env.GENERIC_TASK_OBJECTIVE = String(definition.objective || row.objective || '');
-  if (definition.flow_name) process.env.GENERIC_TASK_FLOW_NAME = String(definition.flow_name);
+  process.env.GENERIC_TASK_OBJECTIVE = String(
+    definition.objective || row.objective || '',
+  );
+  if (definition.flow_name)
+    process.env.GENERIC_TASK_FLOW_NAME = String(definition.flow_name);
   else process.env.GENERIC_TASK_FLOW_NAME = `saved:${row.id}`;
-  if (definition.proxy) process.env.GENERIC_TASK_PROXY = String(definition.proxy);
+  if (definition.proxy)
+    process.env.GENERIC_TASK_PROXY = String(definition.proxy);
   if (definition.headless === true) process.env.GENERIC_TASK_HEADLESS = '1';
-  if (definition.browser) process.env.GENERIC_TASK_BROWSER = String(definition.browser);
+  if (definition.browser)
+    process.env.GENERIC_TASK_BROWSER = String(definition.browser);
   if (definition.os) process.env.GENERIC_TASK_OS = String(definition.os);
-  if (definition.locale) process.env.GENERIC_TASK_LOCALE = String(definition.locale);
+  if (definition.locale)
+    process.env.GENERIC_TASK_LOCALE = String(definition.locale);
   setJsonEnv('GENERIC_TASK_CONSTRAINTS', definition.constraints);
   setJsonEnv('GENERIC_TASK_ENV', definition.env);
   const replay = replaySteps(definition);
-  if (replay.length === 0) throw new Error(`saved trajectory ${trajectoryReference} has no replay steps`);
+  if (replay.length === 0)
+    throw new Error(
+      `saved trajectory ${trajectoryReference} has no replay steps`,
+    );
   process.env.GENERIC_TASK_REPLAY = JSON.stringify(replay);
   process.env.GENERIC_TASK_REPLAY_ONLY = '1';
   process.env.GENERIC_TASK_SKIP_SAVED_FLOW_REPLAY = '1';
 
-  console.log(`[saved-task] ${row.name} (${row.id}) -> ${process.env.GENERIC_TASK_URL}`);
+  console.log(
+    `[saved-task] ${row.name} (${row.id}) -> ${process.env.GENERIC_TASK_URL}`,
+  );
   await import('./browser_task.mjs');
 }

@@ -4,26 +4,70 @@
 // register_guard/page_state.mjs and the proxy assertions in register_guard/proxy.mjs;
 // both are re-exported here, the one module every LinkedIn trajectory imports.
 import { humanClickLocator } from '../../../../../dist/human/mouse.js';
-import { LINKEDIN_SIGNUP_EMAIL_SELECTOR, LINKEDIN_SIGNUP_PASSWORD_SELECTOR, assertNoLinkedinChallengePage, firstVisible, getLinkedinAuthState, getLinkedinChallengeSignal, summarizeLinkedinPage } from './register_guard/page_state.mjs';
-import { assertLinkedinDedicatedIspProxy, assertLinkedinProxyStable, assertLinkedinRegisterProxyRequest, getLinkedinFailureDiagnostics, summarizeLinkedinProxyState } from './register_guard/proxy.mjs';
+import {
+  LINKEDIN_SIGNUP_EMAIL_SELECTOR,
+  LINKEDIN_SIGNUP_PASSWORD_SELECTOR,
+  assertNoLinkedinChallengePage,
+  firstVisible,
+  getLinkedinAuthState,
+  getLinkedinChallengeSignal,
+  summarizeLinkedinPage,
+} from './register_guard/page_state.mjs';
+import {
+  assertLinkedinDedicatedIspProxy,
+  assertLinkedinProxyStable,
+  assertLinkedinRegisterProxyRequest,
+  getLinkedinFailureDiagnostics,
+  summarizeLinkedinProxyState,
+} from './register_guard/proxy.mjs';
 
-export { LINKEDIN_SIGNUP_EMAIL_SELECTOR, LINKEDIN_SIGNUP_PASSWORD_SELECTOR, assertNoLinkedinChallengePage, getLinkedinAuthState, getLinkedinChallengeSignal };
-export { assertLinkedinDedicatedIspProxy, assertLinkedinProxyStable, assertLinkedinRegisterProxyRequest, getLinkedinFailureDiagnostics, summarizeLinkedinProxyState };
+export {
+  LINKEDIN_SIGNUP_EMAIL_SELECTOR,
+  LINKEDIN_SIGNUP_PASSWORD_SELECTOR,
+  assertNoLinkedinChallengePage,
+  getLinkedinAuthState,
+  getLinkedinChallengeSignal,
+};
+export {
+  assertLinkedinDedicatedIspProxy,
+  assertLinkedinProxyStable,
+  assertLinkedinRegisterProxyRequest,
+  getLinkedinFailureDiagnostics,
+  summarizeLinkedinProxyState,
+};
 
-export async function assertLinkedinAuthenticatedRegistration(session, stage = '') {
+export async function assertLinkedinAuthenticatedRegistration(
+  session,
+  stage = '',
+) {
   const state = await getLinkedinAuthState(session);
   const challengeSignal = getLinkedinChallengeSignal({ url: state.final_url });
   if (challengeSignal) {
-    throw new Error(`DETECTION_TRIGGERED: ${challengeSignal} stage=${stage} final_url=${state.final_url}`);
+    throw new Error(
+      `DETECTION_TRIGGERED: ${challengeSignal} stage=${stage} final_url=${state.final_url}`,
+    );
   }
-  if (/^https?:\/\/www\.linkedin\.com\/signup\/?$/.test(state.final_url) || state.final_url.includes('/signup/api/')) {
-    throw new Error(`signup_did_not_complete: stage=${stage} final_url=${state.final_url}`);
+  if (
+    /^https?:\/\/www\.linkedin\.com\/signup\/?$/.test(state.final_url) ||
+    state.final_url.includes('/signup/api/')
+  ) {
+    throw new Error(
+      `signup_did_not_complete: stage=${stage} final_url=${state.final_url}`,
+    );
   }
-  if (/verify|email-verification|email_verification|checkpoint/.test(state.final_url)) {
-    throw new Error(`signup_verification_incomplete: stage=${stage} final_url=${state.final_url}`);
+  if (
+    /verify|email-verification|email_verification|checkpoint/.test(
+      state.final_url,
+    )
+  ) {
+    throw new Error(
+      `signup_verification_incomplete: stage=${stage} final_url=${state.final_url}`,
+    );
   }
   if (!state.has_li_at) {
-    throw new Error(`signup_did_not_authenticate: stage=${stage} final_url=${state.final_url} linkedin_cookie_count=${state.linkedin_cookie_count}`);
+    throw new Error(
+      `signup_did_not_authenticate: stage=${stage} final_url=${state.final_url} linkedin_cookie_count=${state.linkedin_cookie_count}`,
+    );
   }
   return state;
 }
@@ -46,13 +90,17 @@ async function nudgeIntoSignup(page) {
     return `clicked:${sel}`;
   }
   if (/\/signup/.test(url)) return null;
-  await page.goto('https://www.linkedin.com/signup', { waitUntil: 'domcontentloaded' });
+  await page.goto('https://www.linkedin.com/signup', {
+    waitUntil: 'domcontentloaded',
+  });
   return 'goto:/signup';
 }
 
 async function visibleSignupForm(page) {
   const emailLoc = await firstVisible(page, LINKEDIN_SIGNUP_EMAIL_SELECTOR);
-  const pwdLoc = emailLoc ? await firstVisible(page, LINKEDIN_SIGNUP_PASSWORD_SELECTOR) : null;
+  const pwdLoc = emailLoc
+    ? await firstVisible(page, LINKEDIN_SIGNUP_PASSWORD_SELECTOR)
+    : null;
   return emailLoc && pwdLoc ? { emailLoc, pwdLoc } : null;
 }
 
@@ -63,40 +111,69 @@ export async function ensureLinkedinSignupForm(session) {
   for (;;) {
     const form = await visibleSignupForm(page);
     if (form) {
-      console.log(`[linkedin_register] signup form observed after ${lastAction}`);
+      console.log(
+        `[linkedin_register] signup form observed after ${lastAction}`,
+      );
       return form;
     }
     const summary = await summarizeLinkedinPage(page);
     const state = JSON.stringify({
-      url: summary.url, pageKey: summary.pageKey,
-      inputs: summary.inputs, buttons: summary.buttons,
+      url: summary.url,
+      pageKey: summary.pageKey,
+      inputs: summary.inputs,
+      buttons: summary.buttons,
     });
     if (observed.has(state)) {
-      throw new Error(`signup_form_unavailable: state_repeated after ${lastAction}; ${JSON.stringify(summary)}`);
+      throw new Error(
+        `signup_form_unavailable: state_repeated after ${lastAction}; ${JSON.stringify(summary)}`,
+      );
     }
     observed.add(state);
     const action = await nudgeIntoSignup(page);
     if (!action) {
-      throw new Error(`signup_form_unavailable: no_signup_transition after ${lastAction}; ${JSON.stringify(summary)}`);
+      throw new Error(
+        `signup_form_unavailable: no_signup_transition after ${lastAction}; ${JSON.stringify(summary)}`,
+      );
     }
     lastAction = action;
   }
 }
 
-export function classifyLinkedinRegisterFailure(errorMessage = '', finalUrl = '') {
-  if (/^(PROXY_|PROXY_NOT_DEDICATED_ISP)|proxy_unavailable/i.test(errorMessage) || finalUrl.startsWith('chrome-error://')) return 'proxy_failed';
-  if (errorMessage.startsWith('ACCOUNT_PERSIST_FAILED')) return 'account_persist_failed';
-  if (errorMessage.startsWith('PHONE_VERIFICATION_REQUIRED')) return 'phone_verification_required';
-  if (errorMessage.startsWith('FINGERPRINT_INCONSISTENT')) return 'fingerprint_inconsistent';
-  if (errorMessage.startsWith('DETECTION_TRIGGERED')) return 'detection_triggered';
-  if (/signup_(did_not_complete|verification_incomplete|did_not_authenticate)/.test(errorMessage)) return 'registration_not_accepted';
-  if (/captcha|challenge|checkpoint/i.test(finalUrl) || /captcha|challenge|checkpoint/i.test(errorMessage)) return 'captcha_challenge';
+export function classifyLinkedinRegisterFailure(
+  errorMessage = '',
+  finalUrl = '',
+) {
+  if (
+    /^(PROXY_|PROXY_NOT_DEDICATED_ISP)|proxy_unavailable/i.test(errorMessage) ||
+    finalUrl.startsWith('chrome-error://')
+  )
+    return 'proxy_failed';
+  if (errorMessage.startsWith('ACCOUNT_PERSIST_FAILED'))
+    return 'account_persist_failed';
+  if (errorMessage.startsWith('PHONE_VERIFICATION_REQUIRED'))
+    return 'phone_verification_required';
+  if (errorMessage.startsWith('FINGERPRINT_INCONSISTENT'))
+    return 'fingerprint_inconsistent';
+  if (errorMessage.startsWith('DETECTION_TRIGGERED'))
+    return 'detection_triggered';
+  if (
+    /signup_(did_not_complete|verification_incomplete|did_not_authenticate)/.test(
+      errorMessage,
+    )
+  )
+    return 'registration_not_accepted';
+  if (
+    /captcha|challenge|checkpoint/i.test(finalUrl) ||
+    /captcha|challenge|checkpoint/i.test(errorMessage)
+  )
+    return 'captcha_challenge';
   if (/signup_form_unavailable/.test(errorMessage)) return 'form_unavailable';
   return 'action_failed';
 }
 
 export function linkedinRegisterExitCode(signal = '') {
-  if (signal === 'detection_triggered' || signal === 'captcha_challenge') return 2;
+  if (signal === 'detection_triggered' || signal === 'captcha_challenge')
+    return 2;
   if (signal === 'proxy_failed') return 3;
   if (signal === 'phone_verification_required') return 4;
   if (signal === 'registration_not_accepted') return 4;

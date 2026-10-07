@@ -3,42 +3,84 @@
 //
 // Companion to instagram/tiktok/linkedin edit_profile.
 
-import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
+import {
+  getSocialAccount,
+  resolveAccountSession,
+  markCookiesStale,
+} from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
-import { assertAuthed, AuthProbeError } from '../../_shared/auth/auth-probe.mjs';
-import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/auth/cookie-freshness.mjs';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../dist/human/mouse.js';
+import {
+  assertAuthed,
+  AuthProbeError,
+} from '../../_shared/auth/auth-probe.mjs';
+import {
+  loadFreshCookieJarOrFail,
+  CookieJarStaleError,
+} from '../../_shared/auth/cookie-freshness.mjs';
 import { loadAvatarFile } from '../../_shared/runner/avatar-loader.mjs';
 import { updateAccountMetadata } from '../../_shared/skarbiec/accounts.mjs';
 
-
 const acct = await getSocialAccount('twitter');
-if (!acct) { console.log('FAIL: no active twitter account in Skarbiec'); process.exit(1); }
+if (!acct) {
+  console.log('FAIL: no active twitter account in Skarbiec');
+  process.exit(1);
+}
 console.log(`[tw-profile] using account: ${acct.username}`);
 const character = acct.metadata?.character;
-if (!character || typeof character !== 'object') { console.log(`FAIL: no character stored for twitter/${acct.username}`); process.exit(1); }
-console.log(`[tw-profile] character: ${character.name} (niche=${character.niche})`);
-const avatarUrl = character.avatar_url
-  || (Array.isArray(character.training_images) ? character.training_images[0] : null);
+if (!character || typeof character !== 'object') {
+  console.log(`FAIL: no character stored for twitter/${acct.username}`);
+  process.exit(1);
+}
+console.log(
+  `[tw-profile] character: ${character.name} (niche=${character.niche})`,
+);
+const avatarUrl =
+  character.avatar_url ||
+  (Array.isArray(character.training_images)
+    ? character.training_images[0]
+    : null);
 
 const targetName = character.name || '';
 const targetBio = (character.bio || '').slice(0, 160); // X (Twitter) bio limit
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
-const s = await WSession.start({ label: 'twitter_edit_profile', proxy: proxyUrl, persona });
+const s = await WSession.start({
+  label: 'twitter_edit_profile',
+  proxy: proxyUrl,
+  persona,
+});
 
 try {
   let stored;
   try {
-    const all = loadFreshCookieJarOrFail(acct, { platform: 'twitter', label: 'twitter_edit_profile', currentProxyUrl: proxyUrl, currentPersona: persona });
-    stored = all.filter(c => /(^|\.)x\.com$|(^|\.)twitter\.com$/.test(c.domain ?? ''));
-    if (!stored.length) throw new CookieJarStaleError('cookie_jar_no_domain_match: jar fresh but no x.com/twitter.com cookies', { platform: 'twitter' });
+    const all = loadFreshCookieJarOrFail(acct, {
+      platform: 'twitter',
+      label: 'twitter_edit_profile',
+      currentProxyUrl: proxyUrl,
+      currentPersona: persona,
+    });
+    stored = all.filter((c) =>
+      /(^|\.)x\.com$|(^|\.)twitter\.com$/.test(c.domain ?? ''),
+    );
+    if (!stored.length)
+      throw new CookieJarStaleError(
+        'cookie_jar_no_domain_match: jar fresh but no x.com/twitter.com cookies',
+        { platform: 'twitter' },
+      );
   } catch (jarErr) {
-    if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); process.exit(1); }
+    if (jarErr instanceof CookieJarStaleError) {
+      console.log(`FAIL: ${jarErr.message}`);
+      await markCookiesStale(acct.id);
+      process.exit(1);
+    }
     throw jarErr;
   }
-  await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
+  await s.ctx.addCookies(stored.map((c) => ({ ...c, path: c.path || '/' })));
 
   // Land on home first so assertAuthed has a known authed surface, then
   // navigate to the profile and click "Edit profile".
@@ -49,10 +91,20 @@ try {
     await markCookiesStale(acct.id);
     process.exit(1);
   }
-  try { await assertAuthed('twitter', s, { label: 'twitter_edit_profile' }); }
-  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
+  try {
+    await assertAuthed('twitter', s, { label: 'twitter_edit_profile' });
+  } catch (probeErr) {
+    if (probeErr instanceof AuthProbeError) {
+      console.log(`FAIL: ${probeErr.message}`);
+      await markCookiesStale(acct.id);
+      process.exit(1);
+    }
+    throw probeErr;
+  }
 
-  await s.page.goto(`https://x.com/${encodeURIComponent(acct.username)}`, { waitUntil: 'domcontentloaded' });
+  await s.page.goto(`https://x.com/${encodeURIComponent(acct.username)}`, {
+    waitUntil: 'domcontentloaded',
+  });
   await humanIdlePause('deliberate');
 
   // Twitter exposes one of two affordances on the user's own profile:
@@ -61,7 +113,12 @@ try {
   //     /i/flow/setup_profile (fresh account, never customized).
   // Both flows surface input[data-testid="fileInput"] for the avatar plus
   // text fields for name/bio.
-  const editBtn = s.page.locator('a[data-testid="edit_profile"], a[href="/settings/profile"], button[data-testid="editProfileButton"], a[data-testid="editProfileButton"], [data-testid="editProfileButton"], div[role="button"]:has-text("Edit profile")').filter({ visible: true }).first();
+  const editBtn = s.page
+    .locator(
+      'a[data-testid="edit_profile"], a[href="/settings/profile"], button[data-testid="editProfileButton"], a[data-testid="editProfileButton"], [data-testid="editProfileButton"], div[role="button"]:has-text("Edit profile")',
+    )
+    .filter({ visible: true })
+    .first();
   await editBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, editBtn);
   await humanIdlePause('deliberate');
@@ -69,8 +126,14 @@ try {
   // The Edit-profile modal exposes:
   //   Name → input[name="displayName"]
   //   Bio  → textarea[name="description"]
-  const nameIn = s.page.locator('input[name="displayName"], input[aria-label="Name"]').filter({ visible: true }).first();
-  const bioIn = s.page.locator('textarea[name="description"], textarea[aria-label*="Bio" i]').filter({ visible: true }).first();
+  const nameIn = s.page
+    .locator('input[name="displayName"], input[aria-label="Name"]')
+    .filter({ visible: true })
+    .first();
+  const bioIn = s.page
+    .locator('textarea[name="description"], textarea[aria-label*="Bio" i]')
+    .filter({ visible: true })
+    .first();
 
   const writes = [];
   if (await nameIn.count()) {
@@ -106,29 +169,54 @@ try {
   // input[data-testid="fileInput"]. Twitter's
   // crop modal shows "Apply" once the file is loaded.
   if (avatarUrl) {
-    const tmpAvatar = await loadAvatarFile(avatarUrl, { size: 512, format: 'jpeg', quality: 88 });
+    const tmpAvatar = await loadAvatarFile(avatarUrl, {
+      size: 512,
+      format: 'jpeg',
+      quality: 88,
+    });
     if (tmpAvatar) {
       try {
         const fileIn = s.page.locator('input[data-testid="fileInput"]').first();
         if (await fileIn.count()) {
           await fileIn.setInputFiles(tmpAvatar);
-          const applyBtn = s.page.locator('button[data-testid="applyButton"], div[role="button"]:has-text("Apply"), button:has-text("Apply")').filter({ visible: true }).first();
+          const applyBtn = s.page
+            .locator(
+              'button[data-testid="applyButton"], div[role="button"]:has-text("Apply"), button:has-text("Apply")',
+            )
+            .filter({ visible: true })
+            .first();
           try {
             await applyBtn.waitFor({ state: 'visible' });
             await humanClickLocator(s.page, applyBtn);
             writes.push('avatar uploaded');
             await humanIdlePause('deliberate');
-          } catch { console.log('[tw-profile] avatar apply btn never appeared'); }
-        } else { console.log('[tw-profile] fileInput not in DOM — twitter UI variant'); }
-      } catch (e) { console.log(`[tw-profile] avatar err: ${e.message}`); }
+          } catch {
+            console.log('[tw-profile] avatar apply btn never appeared');
+          }
+        } else {
+          console.log('[tw-profile] fileInput not in DOM — twitter UI variant');
+        }
+      } catch (e) {
+        console.log(`[tw-profile] avatar err: ${e.message}`);
+      }
     }
   }
 
-  if (!writes.length) { console.log('PASS: no-op (form values already match character; Skarbiec synced)'); process.exit(0); }
+  if (!writes.length) {
+    console.log(
+      'PASS: no-op (form values already match character; Skarbiec synced)',
+    );
+    process.exit(0);
+  }
   console.log(`[tw-profile] writes: ${writes.join('; ')}`);
 
   // Save: Profile_Save_Button (Edit flow) or Next/Done (setup flow).
-  const saveBtn = s.page.locator('button[data-testid="Profile_Save_Button"], button[data-testid="ocfSelectAvatarNextButton"], button[data-testid="OCF_CallToAction_Button"], div[role="button"]:has-text("Save"), button:has-text("Save"), button:has-text("Done")').filter({ visible: true }).first();
+  const saveBtn = s.page
+    .locator(
+      'button[data-testid="Profile_Save_Button"], button[data-testid="ocfSelectAvatarNextButton"], button[data-testid="OCF_CallToAction_Button"], div[role="button"]:has-text("Save"), button:has-text("Save"), button:has-text("Done")',
+    )
+    .filter({ visible: true })
+    .first();
   await saveBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, saveBtn);
   await humanIdlePause('long');

@@ -10,19 +10,40 @@
 // entry it starts from, the authenticator code that entry answers 2FA with, the
 // two mailbox steps OpenAI demands of a new identity, and the Codex consent page
 // are modules beside it.
-import { fillAndVerify, navEval, waitForEnabledThenClick } from './google_sso/page_controls.mjs';
-import { enterGoogleCredentials, establishGoogleSession } from './google_sso/google_credentials.mjs';
-import { acceptPendingWorkspaceInvite, completeEmailVerification } from './google_sso/openai_mailbox.mjs';
-import { handleCodexConsentPage, isTerminalHost } from './google_sso/openai_consent.mjs';
+import {
+  fillAndVerify,
+  navEval,
+  waitForEnabledThenClick,
+} from './google_sso/page_controls.mjs';
+import {
+  enterGoogleCredentials,
+  establishGoogleSession,
+} from './google_sso/google_credentials.mjs';
+import {
+  acceptPendingWorkspaceInvite,
+  completeEmailVerification,
+} from './google_sso/openai_mailbox.mjs';
+import {
+  handleCodexConsentPage,
+  isTerminalHost,
+} from './google_sso/openai_consent.mjs';
 import { pageSettled, urlMatching } from '../_shared/page/settled.mjs';
-import { clickGisTarget, observeGisPage } from '../claude/google_sso/gis_state/page_reading.mjs';
+import {
+  clickGisTarget,
+  observeGisPage,
+} from '../claude/google_sso/gis_state/page_reading.mjs';
 
 export { establishGoogleSession } from './google_sso/google_credentials.mjs';
 export { waitForEnabledThenClick } from './google_sso/page_controls.mjs';
 
 export async function doGoogleSso({
-  page, login, authorizeUrl, mark,
-  humanFill, humanClickLocator, humanType,
+  page,
+  login,
+  authorizeUrl,
+  mark,
+  humanFill,
+  humanClickLocator,
+  humanType,
 }) {
   // WSession may reuse a provider profile. A pre-existing Google session can
   // make GIS silently authorize its default account even after we authenticated
@@ -30,7 +51,14 @@ export async function doGoogleSso({
   // only Google identity available to the handoff is `login.email`.
   await page.context().clearCookies();
   mark('google_session_cleared');
-  await establishGoogleSession({ page, login, mark, humanFill, humanClickLocator, humanType });
+  await establishGoogleSession({
+    page,
+    login,
+    mark,
+    humanFill,
+    humanClickLocator,
+    humanType,
+  });
 
   mark('goto_authorize');
   await page.goto(authorizeUrl, { waitUntil: 'commit' });
@@ -65,23 +93,34 @@ export async function doGoogleSso({
     const hit = await clickGisTarget(active, kind);
     if (!hit.clicked) {
       const current = new URL(active.url());
-      const error = new Error(`gis_continue: ${kind} was not clicked at ${current.host}${current.pathname}: ${hit.reason}`);
+      const error = new Error(
+        `gis_continue: ${kind} was not clicked at ${current.host}${current.pathname}: ${hit.reason}`,
+      );
       error.code = 'gis_control_unavailable';
       throw error;
     }
   };
   const advanceGoogleChooser = async (active) => {
     const view = await observeGisPage(active, login.email);
-    if (!view || view.host !== 'accounts.google.com'
-        || !/accountchooser|oauthchooseaccount|identifier|\/signin\/oauth|\/o\/oauth2/.test(view.pathname)) return false;
+    if (
+      !view ||
+      view.host !== 'accounts.google.com' ||
+      !/accountchooser|oauthchooseaccount|identifier|\/signin\/oauth|\/o\/oauth2/.test(
+        view.pathname,
+      )
+    )
+      return false;
     const current = new URL(active.url());
-    if (current.host !== view.host || current.pathname !== view.pathname) return true;
+    if (current.host !== view.host || current.pathname !== view.pathname)
+      return true;
     let kind = null;
     if (view.accountRow) kind = 'account_row';
     else if (view.identifierField) kind = 'identifier';
     else if (view.otherAccountRow) kind = 'other_account';
     else if (view.rowCount > 0) {
-      const error = new Error(`gis_continue: requested Google account is not offered and no other-account control is available at ${view.host}${view.pathname}; visible account rows=${view.rowCount}`);
+      const error = new Error(
+        `gis_continue: requested Google account is not offered and no other-account control is available at ${view.host}${view.pathname}; visible account rows=${view.rowCount}`,
+      );
       error.code = 'google_account_not_offered';
       throw error;
     } else if (view.googlePrimary && !view.passwordField) kind = 'primary';
@@ -91,16 +130,30 @@ export async function doGoogleSso({
     googleActions.set(active, key);
     if (kind === 'identifier') {
       if (chooserFreshTried) {
-        const error = new Error(`gis_continue: Google offered identifier entry again at ${view.host}${view.pathname}`);
+        const error = new Error(
+          `gis_continue: Google offered identifier entry again at ${view.host}${view.pathname}`,
+        );
         error.code = 'google_identifier_repeated';
         throw error;
       }
       chooserFreshTried = true;
-      await enterGoogleCredentials({ page: active, login, mark, humanFill, humanClickLocator, humanType });
+      await enterGoogleCredentials({
+        page: active,
+        login,
+        mark,
+        humanFill,
+        humanClickLocator,
+        humanType,
+      });
     } else {
       await clickTagged(active, kind);
-      mark(kind === 'account_row' ? 'gis_account_chooser'
-        : kind === 'other_account' ? 'gis_use_another_account' : 'gis_confirm_continue');
+      mark(
+        kind === 'account_row'
+          ? 'gis_account_chooser'
+          : kind === 'other_account'
+            ? 'gis_use_another_account'
+            : 'gis_confirm_continue',
+      );
     }
     step(`${kind}@${view.host}${view.pathname}`);
     return true;
@@ -117,12 +170,20 @@ export async function doGoogleSso({
       // completes it without a chooser.
       if (strategy === 'email_first') {
         const emailField = page
-          .locator('input[type="email"], input[name="username"], input[name="email"], input[autocomplete="username"]')
+          .locator(
+            'input[type="email"], input[name="username"], input[name="email"], input[autocomplete="username"]',
+          )
           .filter({ visible: true })
           .first();
-        if (await emailField.count() > 0 && await emailField.isVisible()) {
+        if ((await emailField.count()) > 0 && (await emailField.isVisible())) {
           mark('openai_email_first');
-          await fillAndVerify(page, emailField, login.email, humanClickLocator, humanType);
+          await fillAndVerify(
+            page,
+            emailField,
+            login.email,
+            humanClickLocator,
+            humanType,
+          );
           await waitForEnabledThenClick(page, /^(continue|next|dalej)$/i);
           await pageSettled(page);
         }
@@ -145,37 +206,81 @@ export async function doGoogleSso({
             if (popupPage.isClosed()) continue;
             throw error;
           }
-          if (await handleCodexConsentPage(popupPage, mark)) { mark('openai_callback'); return popupPage; }
+          if (await handleCodexConsentPage(popupPage, mark)) {
+            mark('openai_callback');
+            return popupPage;
+          }
           const current = new URL(popupPage.url());
-          if (isTerminalHost(current.host, current.href)) { mark('openai_callback'); return popupPage; }
+          if (isTerminalHost(current.host, current.href)) {
+            mark('openai_callback');
+            return popupPage;
+          }
           if (await advanceGoogleChooser(popupPage)) popupActed = true;
         }
-        const st = await navEval(page, () => {
-          const b = Array.from(document.querySelectorAll('button,[role="button"]'));
-          const c = b.find((x) => /^(authorize|allow)$/i.test((x.innerText || x.textContent || '').trim())
-            && !(x.disabled || x.getAttribute('aria-disabled') === 'true'));
-          return { host: location.host, pathname: location.pathname, href: location.href, consent: !!c };
-        }, { host: '', pathname: '', href: '', consent: false });
+        const st = await navEval(
+          page,
+          () => {
+            const b = Array.from(
+              document.querySelectorAll('button,[role="button"]'),
+            );
+            const c = b.find(
+              (x) =>
+                /^(authorize|allow)$/i.test(
+                  (x.innerText || x.textContent || '').trim(),
+                ) &&
+                !(x.disabled || x.getAttribute('aria-disabled') === 'true'),
+            );
+            return {
+              host: location.host,
+              pathname: location.pathname,
+              href: location.href,
+              consent: !!c,
+            };
+          },
+          { host: '', pathname: '', href: '', consent: false },
+        );
         step(`${st.host}${st.pathname}`);
-        if (login.code && st.host === 'auth.openai.com' && st.pathname.startsWith('/codex/device')) {
-          const codeField = page.locator('input[name="user_code"],input[name="usercode"],input[autocomplete="one-time-code"]')
-            .filter({ visible: true }).first();
-          if (await codeField.isVisible()) { mark('device_code_ready'); return page; }
+        if (
+          login.code &&
+          st.host === 'auth.openai.com' &&
+          st.pathname.startsWith('/codex/device')
+        ) {
+          const codeField = page
+            .locator(
+              'input[name="user_code"],input[name="usercode"],input[autocomplete="one-time-code"]',
+            )
+            .filter({ visible: true })
+            .first();
+          if (await codeField.isVisible()) {
+            mark('device_code_ready');
+            return page;
+          }
         }
-        if (await handleCodexConsentPage(page, mark)) { mark('openai_callback'); return page; }
-        if (isTerminalHost(st.host, st.href)) { mark('openai_callback'); return page; }
+        if (await handleCodexConsentPage(page, mark)) {
+          mark('openai_callback');
+          return page;
+        }
+        if (isTerminalHost(st.host, st.href)) {
+          mark('openai_callback');
+          return page;
+        }
         // OpenAI issues Codex credentials only to an identity that already has a
         // ChatGPT account, and says otherwise by parking on personal signup:
         // /add-phone, an account-creation page, or a password page for a
         // password this account never had. An invited seat gets its account by
         // accepting the invitation, so accept it once and retry the authorize
         // URL instead of reloading a page that cannot proceed.
-        if (!inviteTried
-            && st.host === 'auth.openai.com'
-            && /\/add-phone|\/create-account|\/log-in\/password/.test(st.pathname)) {
+        if (
+          !inviteTried &&
+          st.host === 'auth.openai.com' &&
+          /\/add-phone|\/create-account|\/log-in\/password/.test(st.pathname)
+        ) {
           inviteTried = true;
           const landed = await acceptPendingWorkspaceInvite(page, login, mark);
-          if (typeof landed === 'string' && /email-verification|verify-email/i.test(landed)) {
+          if (
+            typeof landed === 'string' &&
+            /email-verification|verify-email/i.test(landed)
+          ) {
             await completeEmailVerification(page, login, mark);
           }
           await page.goto(authorizeUrl, { waitUntil: 'commit' });
@@ -190,32 +295,49 @@ export async function doGoogleSso({
         }
         if (st.consent) {
           mark('oauth_consent_click');
-          await waitForEnabledThenClick(page, /^(authorize|allow|continue|dalej|next)$/i);
+          await waitForEnabledThenClick(
+            page,
+            /^(authorize|allow|continue|dalej|next)$/i,
+          );
           // Consent granted: Google redirects to auth.openai.com, which then
           // redirects to platform.openai.com/chatgpt.com. Wait for any OpenAI
           // terminal host; do NOT reload authorizeUrl (it would re-trigger the
           // consent flow). Single bounded wait.
-          const landed = await urlMatching(page, (u) => isTerminalHost(new URL(u).host, ''));
-                    mark('openai_callback');
-                    console.log(`[google_sso] consent landed on ${landed}`);
-                    return page;
-          
+          const landed = await urlMatching(page, (u) =>
+            isTerminalHost(new URL(u).host, ''),
+          );
+          mark('openai_callback');
+          console.log(`[google_sso] consent landed on ${landed}`);
+          return page;
         }
         // A round in which no popup is open or moved and the page stayed on
         // the same address with nothing to act on ends this strategy.
-        const popupOpen = [...popupPages].some((popupPage) => !popupPage.isClosed());
+        const popupOpen = [...popupPages].some(
+          (popupPage) => !popupPage.isClosed(),
+        );
         if (!popupActed && !popupOpen && st.href === lastHref) break;
         lastHref = st.href;
         await pageSettled(page); // allow-raw-playwright: terminal-state poll
       }
       const where = await navEval(page, () => location.href, '?');
-      console.log(`[google_sso] no terminal state after ${strategy} at ${where}; reloading authorizeUrl`);
+      console.log(
+        `[google_sso] no terminal state after ${strategy} at ${where}; reloading authorizeUrl`,
+      );
       await page.goto(authorizeUrl, { waitUntil: 'commit' });
       await pageSettled(page);
     }
-    const d = await navEval(page, () => ({ url: location.href, body: (document.body?.innerText || '').replace(/\s+/g, ' ') }), { url: '?', body: 'context destroyed' });
+    const d = await navEval(
+      page,
+      () => ({
+        url: location.href,
+        body: (document.body?.innerText || '').replace(/\s+/g, ' '),
+      }),
+      { url: '?', body: 'context destroyed' },
+    );
     d.trail = trail;
-    throw new Error(`gis_continue: no consent/code after the GIS button and email-first ways in diag=${JSON.stringify(d)}`);
+    throw new Error(
+      `gis_continue: no consent/code after the GIS button and email-first ways in diag=${JSON.stringify(d)}`,
+    );
   } finally {
     page.off('popup', onPopup);
     for (const popupPage of popupPages) popupPage.off('popup', onPopup);

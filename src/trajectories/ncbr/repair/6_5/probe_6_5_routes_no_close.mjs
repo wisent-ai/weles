@@ -2,8 +2,8 @@ import { chromium } from 'playwright';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const browser = await chromium.connectOverCDP(endpoint);
-const context = browser.contexts()[0] || await browser.newContext();
-const page = context.pages()[0] || await context.newPage();
+const context = browser.contexts()[0] || (await browser.newContext());
+const page = context.pages()[0] || (await context.newPage());
 
 const BASE = 'https://lsi2.ncbr.gov.pl';
 const VERSION_ID = (await import('#ncbr-settings')).projectVersionId();
@@ -33,27 +33,30 @@ const urls = [
 const results = [];
 for (const url of urls) {
   for (const method of ['OPTIONS', 'HEAD', 'GET']) {
-    const res = await page.evaluate(async ({ url, method }) => {
-      try {
-        const r = await fetch(url, {
-          method,
-          credentials: 'include',
-          headers: { Accept: 'application/json' },
-        });
-        const text = method === 'HEAD' ? '' : await r.text();
-        return {
-          method,
-          url,
-          status: r.status,
-          statusText: r.statusText,
-          allow: r.headers.get('allow'),
-          contentType: r.headers.get('content-type'),
-          text: text,
-        };
-      } catch (error) {
-        return { method, url, error: String(error?.message || error) };
-      }
-    }, { url, method });
+    const res = await page.evaluate(
+      async ({ url, method }) => {
+        try {
+          const r = await fetch(url, {
+            method,
+            credentials: 'include',
+            headers: { Accept: 'application/json' },
+          });
+          const text = method === 'HEAD' ? '' : await r.text();
+          return {
+            method,
+            url,
+            status: r.status,
+            statusText: r.statusText,
+            allow: r.headers.get('allow'),
+            contentType: r.headers.get('content-type'),
+            text: text,
+          };
+        } catch (error) {
+          return { method, url, error: String(error?.message || error) };
+        }
+      },
+      { url, method },
+    );
     results.push(res);
   }
 }

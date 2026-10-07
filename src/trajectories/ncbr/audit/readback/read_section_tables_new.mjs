@@ -1,7 +1,10 @@
 // Read-only table dump for a NEW NCBR section. SECTION_URL env required.
 
 import { chromium } from 'playwright';
-import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../../dist/human/mouse.js';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const url = process.env.SECTION_URL;
@@ -17,51 +20,92 @@ if (!page) {
 await page.goto(url, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
 if (process.env.NAV_LABEL) {
-  await humanClickLocator(page, page.getByText(process.env.NAV_LABEL, { exact: true }).filter({ visible: true }).first());
+  await humanClickLocator(
+    page,
+    page
+      .getByText(process.env.NAV_LABEL, { exact: true })
+      .filter({ visible: true })
+      .first(),
+  );
   await humanIdlePause('long');
 }
 if (process.env.ROW_NEEDLE) {
-  const table = page.locator('table').nth(Number(process.env.ROW_TABLE_INDEX || 0));
+  const table = page
+    .locator('table')
+    .nth(Number(process.env.ROW_TABLE_INDEX || 0));
   await table.locator('tbody tr').first().waitFor({ state: 'visible' });
   // Cells are separate elements, so a needle spanning cells (a first and last name) must match the row's visible text.
-  const rowTexts = await table.locator('tbody tr').evaluateAll((nodes) => nodes.map((node) => node.innerText.replace(/\s+/g, ' ').trim())); // allow-raw-playwright: read-only row texts
+  const rowTexts = await table
+    .locator('tbody tr')
+    .evaluateAll((nodes) =>
+      nodes.map((node) => node.innerText.replace(/\s+/g, ' ').trim()),
+    ); // allow-raw-playwright: read-only row texts
   const needle = process.env.ROW_NEEDLE.replace(/\s+/g, ' ').trim();
-  const indexes = rowTexts.map((text, index) => (text.includes(needle) ? index : -1)).filter((index) => index >= 0);
+  const indexes = rowTexts
+    .map((text, index) => (text.includes(needle) ? index : -1))
+    .filter((index) => index >= 0);
   if (indexes.length !== 1) {
-    throw new Error(`Expected one row matching ${needle}, matched ${indexes.length} of ${rowTexts.length}: ${JSON.stringify(rowTexts.map((text) => text))}`);
+    throw new Error(
+      `Expected one row matching ${needle}, matched ${indexes.length} of ${rowTexts.length}: ${JSON.stringify(rowTexts.map((text) => text))}`,
+    );
   }
   const row = table.locator('tbody tr').nth(indexes[0]);
-  await row.locator('button[aria-label*="overflow-options"]').dispatchEvent('click');
-  const edit = page.getByRole('menuitem', { name: 'Edytuj', exact: true }).filter({ visible: true });
+  await row
+    .locator('button[aria-label*="overflow-options"]')
+    .dispatchEvent('click');
+  const edit = page
+    .getByRole('menuitem', { name: 'Edytuj', exact: true })
+    .filter({ visible: true });
   await edit.waitFor({ state: 'visible' });
   await edit.dispatchEvent('click');
   await humanIdlePause('long');
 }
 const includeHtml = Boolean(process.env.HTML);
-const out = await page.evaluate(({ includeHtml }) => ({
-  url: location.href,
-  body: document.body.innerText,
-  fields: Array.from(document.querySelectorAll('textarea[name], input[name]:not([type="password"]):not([type="hidden"]), select[name]'))
-    .filter((el) => el.name !== 'table_search')
-    .map((el) => ({
-      name: el.name,
-      type: el.getAttribute('type'),
-      value: el.value || '',
-      checked: el.matches('input[type="checkbox"], input[type="radio"]') ? el.checked : undefined,
-      muiChecked: el.matches('input[type="radio"]') ? el.closest('.MuiRadio-root')?.classList.contains('Mui-checked') : undefined,
+const out = await page.evaluate(
+  ({ includeHtml }) => ({
+    url: location.href,
+    body: document.body.innerText,
+    fields: Array.from(
+      document.querySelectorAll(
+        'textarea[name], input[name]:not([type="password"]):not([type="hidden"]), select[name]',
+      ),
+    )
+      .filter((el) => el.name !== 'table_search')
+      .map((el) => ({
+        name: el.name,
+        type: el.getAttribute('type'),
+        value: el.value || '',
+        checked: el.matches('input[type="checkbox"], input[type="radio"]')
+          ? el.checked
+          : undefined,
+        muiChecked: el.matches('input[type="radio"]')
+          ? el.closest('.MuiRadio-root')?.classList.contains('Mui-checked')
+          : undefined,
+      })),
+    tables: Array.from(document.querySelectorAll('table')).map((table, i) => ({
+      i,
+      rows: table.querySelectorAll('tbody tr').length,
+      text: Array.from(table.querySelectorAll('tbody tr')).map((r) =>
+        r.innerText.trim().replace(/\s+/g, ' '),
+      ),
+      html: includeHtml
+        ? Array.from(table.querySelectorAll('tbody tr')).map((r) => r.outerHTML)
+        : undefined,
     })),
-  tables: Array.from(document.querySelectorAll('table')).map((table, i) => ({
-    i,
-    rows: table.querySelectorAll('tbody tr').length,
-    text: Array.from(table.querySelectorAll('tbody tr')).map((r) => r.innerText.trim().replace(/\s+/g, ' ')),
-    html: includeHtml ? Array.from(table.querySelectorAll('tbody tr')).map((r) => r.outerHTML) : undefined,
-  })),
-}), { includeHtml });
+  }),
+  { includeHtml },
+);
 if (process.env.SCREENSHOT_PATH) {
   await page.screenshot({ path: process.env.SCREENSHOT_PATH, fullPage: true });
 }
 console.log(JSON.stringify(out, null, 2));
 if (process.env.ROW_NEEDLE) {
-  await humanClickLocator(page, page.getByRole('button', { name: 'close side drawer', exact: true }).filter({ visible: true }).last());
+  await humanClickLocator(
+    page,
+    page
+      .getByRole('button', { name: 'close side drawer', exact: true })
+      .filter({ visible: true })
+      .last(),
+  );
 }
 process.exit(0);

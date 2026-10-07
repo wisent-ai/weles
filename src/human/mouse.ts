@@ -4,7 +4,12 @@
 import { cubicBezier } from '../utils/motion/bezier.js';
 import { randomBetween, waitMs, humanRandom } from '../utils/motion/timing.js';
 import { getMoveTemplate } from './trace.js';
-import { getOffsetFromPage, nativeClick, nativeBatchMove, nativeMove } from './mouse-native.js';
+import {
+  getOffsetFromPage,
+  nativeClick,
+  nativeBatchMove,
+  nativeMove,
+} from './mouse-native.js';
 import { settledTargetBox } from './pointer/target-box.js';
 import { pageSettled, type EvaluatingPage } from '../browser/settled.js';
 
@@ -15,20 +20,29 @@ export interface MousePage {
   };
 }
 
-
 /**
  * The three named kinds are the reaction-shaped defaults. A `[min, max]` pair
  * is a dwell budget somebody declared — a declared observation carries its own
  * millisecond range, and passing it here is what makes that column real rather
  * than a number in a file nobody applied.
  */
-export type IdlePause = 'short' | 'deliberate' | 'long' | readonly [number, number];
+export type IdlePause =
+  | 'short'
+  | 'deliberate'
+  | 'long'
+  | readonly [number, number];
 
-export async function humanIdlePause(kind: IdlePause = 'deliberate'): Promise<void> {
-  const ms = typeof kind !== 'string' ? randomBetween(kind[0], kind[1])
-    : kind === 'short' ? randomBetween(180, 400)
-    : kind === 'long' ? randomBetween(5000, 11000)
-    : randomBetween(2500, 5500);
+export async function humanIdlePause(
+  kind: IdlePause = 'deliberate',
+): Promise<void> {
+  const ms =
+    typeof kind !== 'string'
+      ? randomBetween(kind[0], kind[1])
+      : kind === 'short'
+        ? randomBetween(180, 400)
+        : kind === 'long'
+          ? randomBetween(5000, 11000)
+          : randomBetween(2500, 5500);
   await waitMs(ms);
 }
 
@@ -46,21 +60,25 @@ export async function humanIdlePause(kind: IdlePause = 'deliberate'): Promise<vo
  * @param totalDeltaY   cumulative pixels (positive down, negative up)
  */
 export async function humanScroll(
-  page: EvaluatingPage & { mouse: { wheel(dx: number, dy: number): Promise<void> } },
+  page: EvaluatingPage & {
+    mouse: { wheel(dx: number, dy: number): Promise<void> };
+  },
   totalDeltaY: number,
 ): Promise<void> {
   if (!Number.isFinite(totalDeltaY)) {
-    throw new Error(`humanScroll needs a finite pixel distance, got ${String(totalDeltaY)}`);
+    throw new Error(
+      `humanScroll needs a finite pixel distance, got ${String(totalDeltaY)}`,
+    );
   }
   let remaining = Math.abs(totalDeltaY);
   while (remaining > Number.MIN_VALUE) {
-      // Each wheel event is 80-260 px (matches macOS magic-mouse / trackpad
-      // intermediate scroll deltas; far from the unrealistic 1000+ that
-      // page.evaluate(window.scrollBy(0, N)) would produce).
-      const dy = Math.min(remaining, Math.floor(randomBetween(80, 260)));
-      remaining -= dy;
-      await page.mouse.wheel(0, Math.sign(totalDeltaY) * dy);
-      await pageSettled(page);
+    // Each wheel event is 80-260 px (matches macOS magic-mouse / trackpad
+    // intermediate scroll deltas; far from the unrealistic 1000+ that
+    // page.evaluate(window.scrollBy(0, N)) would produce).
+    const dy = Math.min(remaining, Math.floor(randomBetween(80, 260)));
+    remaining -= dy;
+    await page.mouse.wheel(0, Math.sign(totalDeltaY) * dy);
+    await pageSettled(page);
   }
 }
 
@@ -69,12 +87,16 @@ export async function humanScroll(
  * window height, so "read the next screen" means the same on every display.
  */
 export async function humanScrollPage(
-  page: EvaluatingPage & { mouse: { wheel(dx: number, dy: number): Promise<void> } },
+  page: EvaluatingPage & {
+    mouse: { wheel(dx: number, dy: number): Promise<void> };
+  },
   direction: 'down' | 'up',
 ): Promise<void> {
-  const height = await page.evaluate(() => window.innerHeight) as number;
+  const height = (await page.evaluate(() => window.innerHeight)) as number;
   if (!(height > Number.MIN_VALUE)) {
-    throw new Error(`humanScrollPage read no viewport height from the page (window.innerHeight = ${String(height)})`);
+    throw new Error(
+      `humanScrollPage read no viewport height from the page (window.innerHeight = ${String(height)})`,
+    );
   }
   await humanScroll(page, direction === 'down' ? height : -height);
 }
@@ -83,9 +105,15 @@ export async function humanScrollPage(
 // contexts do not share a host cursor. WELES_INPUT=native explicitly selects
 // the global OS cursor through cliclick; the native bridge checks focus and
 // command outcomes. Both transports preserve path geometry.
-export function cdpInput(): boolean { return process.env.WELES_INPUT !== 'native'; }
+export function cdpInput(): boolean {
+  return process.env.WELES_INPUT !== 'native';
+}
 
-async function emitPath(page: any, off: any, points: Array<{ x: number; y: number }>): Promise<void> {
+async function emitPath(
+  page: any,
+  off: any,
+  points: Array<{ x: number; y: number }>,
+): Promise<void> {
   if (cdpInput()) {
     for (const p of points) {
       await page.mouse.move(p.x, p.y);
@@ -99,11 +127,21 @@ async function emitPath(page: any, off: any, points: Array<{ x: number; y: numbe
   // so it should be non-null here; assert and surface a loud error if a
   // caller violates that invariant rather than silently passing null
   // into the native bridge.
-  if (!off) throw new Error('emitPath: native path requires NativeOffset; caller passed null');
+  if (!off)
+    throw new Error(
+      'emitPath: native path requires NativeOffset; caller passed null',
+    );
   await nativeBatchMove(off, points);
 }
 
-export async function humanMove(page: any, x: number, y: number, startX?: number, startY?: number, steps?: number): Promise<void> {
+export async function humanMove(
+  page: any,
+  x: number,
+  y: number,
+  startX?: number,
+  startY?: number,
+  steps?: number,
+): Promise<void> {
   const off = cdpInput() ? null : await getOffsetFromPage(page);
   const sx = startX ?? randomBetween(200, 600);
   const sy = startY ?? randomBetween(150, 450);
@@ -114,7 +152,8 @@ export async function humanMove(page: any, x: number, y: number, startX?: number
     return;
   }
   const n = steps ?? Math.max(20, Math.floor(randomBetween(30, 60)));
-  const dx = x - sx; const dy = y - sy;
+  const dx = x - sx;
+  const dy = y - sy;
   const cp1x = sx + dx * randomBetween(0.1, 0.4) + randomBetween(-80, 80);
   const cp1y = sy + dy * randomBetween(0.1, 0.4) + randomBetween(-80, 80);
   const cp2x = sx + dx * randomBetween(0.6, 0.9) + randomBetween(-60, 60);
@@ -141,12 +180,21 @@ export async function humanMove(page: any, x: number, y: number, startX?: number
  *
  * Throws when the bounding box can't be resolved — no degraded path.
  */
-export async function humanClickLocator(page: any, locator: any): Promise<void> {
+export async function humanClickLocator(
+  page: any,
+  locator: any,
+): Promise<void> {
   const box = await settledTargetBox(page, locator);
   const padX = Math.max(2, Math.floor(box.width * 0.15));
   const padY = Math.max(2, Math.floor(box.height * 0.15));
-  const tx = box.x + padX + Math.floor(humanRandom() * Math.max(1, box.width - padX * 2));
-  const ty = box.y + padY + Math.floor(humanRandom() * Math.max(1, box.height - padY * 2));
+  const tx =
+    box.x +
+    padX +
+    Math.floor(humanRandom() * Math.max(1, box.width - padX * 2));
+  const ty =
+    box.y +
+    padY +
+    Math.floor(humanRandom() * Math.max(1, box.height - padY * 2));
   await humanMove(page, tx, ty);
   const jx = Math.round(tx + randomBetween(-2, 2));
   const jy = Math.round(ty + randomBetween(-2, 2));
@@ -178,16 +226,26 @@ export async function humanHoverLocator(
   await pageSettled(page);
   if (opts.leave ?? true) {
     const current = await locator.boundingBox();
-    if (!current) throw new Error('humanHoverLocator: target detached before pointer leave');
-    const viewport = await page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));
+    if (!current)
+      throw new Error(
+        'humanHoverLocator: target detached before pointer leave',
+      );
+    const viewport = await page.evaluate(() => ({
+      width: window.innerWidth,
+      height: window.innerHeight,
+    }));
     const ox = current.x > 0 ? 0 : Math.max(0, viewport.width - 1);
     const oy = current.y > 0 ? 0 : Math.max(0, viewport.height - 1);
-    if (ox >= current.x && ox < current.x + current.width
-      && oy >= current.y && oy < current.y + current.height) {
+    if (
+      ox >= current.x &&
+      ox < current.x + current.width &&
+      oy >= current.y &&
+      oy < current.y + current.height
+    ) {
       throw new Error(
-        'humanHoverLocator: no off-target viewport corner is available; '
-        + `box x=${current.x} y=${current.y} w=${current.width} h=${current.height}`
-        + ` viewport ${viewport.width}x${viewport.height}`,
+        'humanHoverLocator: no off-target viewport corner is available; ' +
+          `box x=${current.x} y=${current.y} w=${current.width} h=${current.height}` +
+          ` viewport ${viewport.width}x${viewport.height}`,
       );
     }
     await humanMove(page, ox, oy);
@@ -195,7 +253,13 @@ export async function humanHoverLocator(
   }
 }
 
-export async function humanClick(page: any, x: number, y: number, startX?: number, startY?: number): Promise<void> {
+export async function humanClick(
+  page: any,
+  x: number,
+  y: number,
+  startX?: number,
+  startY?: number,
+): Promise<void> {
   await humanMove(page, x, y, startX, startY);
   const jx = Math.round(x + randomBetween(-2, 2));
   const jy = Math.round(y + randomBetween(-2, 2));
@@ -211,4 +275,9 @@ export async function humanClick(page: any, x: number, y: number, startX?: numbe
 
 // Native cliclick-backed click/type helpers extracted to mouse-native.ts.
 export type { NativeOffset } from './mouse-native.js';
-export { getOffsetFromPage, nativeClick, nativeType, getWindowOffset } from './mouse-native.js';
+export {
+  getOffsetFromPage,
+  nativeClick,
+  nativeType,
+  getWindowOffset,
+} from './mouse-native.js';

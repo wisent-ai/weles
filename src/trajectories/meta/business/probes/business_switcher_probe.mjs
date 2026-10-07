@@ -8,10 +8,15 @@ import { WSession } from '../../../../../dist/session/wsession.js';
 import { pageSettled } from '../../../_shared/page/settled.mjs';
 import { statedText } from '../../../_shared/inputs/stated.mjs';
 
-const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
-const BUSINESS_ID = statedText(['META_BUSINESS_ID', 'BUSINESS_ID'], 'the Meta Business Manager id this run acts in');
+const USER_DATA_DIR =
+  process.env.WELES_USER_DATA_DIR ||
+  process.env.ADS_PROFILE_DIR ||
+  join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
+const BUSINESS_ID = statedText(
+  ['META_BUSINESS_ID', 'BUSINESS_ID'],
+  'the Meta Business Manager id this run acts in',
+);
 mkdirSync(USER_DATA_DIR, { recursive: true });
-
 
 function stableProfilePersona() {
   const p = join(USER_DATA_DIR, 'persona.json');
@@ -26,7 +31,8 @@ function sanitizedUrl(rawUrl) {
     const parsed = new URL(rawUrl);
     parsed.hash = parsed.hash ? '#<redacted>' : '';
     for (const key of [...parsed.searchParams.keys()]) {
-      if (/token|code|secret|state|session|auth/i.test(key)) parsed.searchParams.set(key, '<redacted>');
+      if (/token|code|secret|state|session|auth/i.test(key))
+        parsed.searchParams.set(key, '<redacted>');
     }
     return parsed.toString();
   } catch {
@@ -37,13 +43,25 @@ function sanitizedUrl(rawUrl) {
 async function snapshot(page, label) {
   await pageSettled(page);
   const data = await page.evaluate(() => {
-    const textOf = (el) => (el.innerText || el.textContent || el.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
+    const textOf = (el) =>
+      (el.innerText || el.textContent || el.getAttribute('aria-label') || '')
+        .replace(/\s+/g, ' ')
+        .trim();
     const visible = (el) => {
       const style = window.getComputedStyle(el);
       const rect = el.getBoundingClientRect();
-      return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+      return (
+        style.visibility !== 'hidden' &&
+        style.display !== 'none' &&
+        rect.width > 0 &&
+        rect.height > 0
+      );
     };
-    const controls = Array.from(document.querySelectorAll('button, [role="button"], a, [role="menuitem"], [aria-label]'))
+    const controls = Array.from(
+      document.querySelectorAll(
+        'button, [role="button"], a, [role="menuitem"], [aria-label]',
+      ),
+    )
       .filter(visible)
       .map((el) => {
         const rect = el.getBoundingClientRect();
@@ -51,7 +69,8 @@ async function snapshot(page, label) {
           text: textOf(el),
           role: el.getAttribute('role') || el.tagName.toLowerCase(),
           href: el.getAttribute('href') || '',
-          disabled: el.disabled === true || el.getAttribute('aria-disabled') === 'true',
+          disabled:
+            el.disabled === true || el.getAttribute('aria-disabled') === 'true',
           x: Math.round(rect.left + rect.width / 2),
           y: Math.round(rect.top + rect.height / 2),
         };
@@ -69,19 +88,36 @@ async function snapshot(page, label) {
       bodyText: bodyText,
       controls,
       links,
-      businessIds: Array.from(new Set([
-        ...bodyText.matchAll(/\b\d{12,18}\b/g),
-        ...links.flatMap((link) => [...link.href.matchAll(/business_id=(\d+)/g)].map((match) => match[1])),
-      ].map((match) => Array.isArray(match) ? match[0] : match))),
+      businessIds: Array.from(
+        new Set(
+          [
+            ...bodyText.matchAll(/\b\d{12,18}\b/g),
+            ...links.flatMap((link) =>
+              [...link.href.matchAll(/business_id=(\d+)/g)].map(
+                (match) => match[1],
+              ),
+            ),
+          ].map((match) => (Array.isArray(match) ? match[0] : match)),
+        ),
+      ),
     };
   });
-  console.log(JSON.stringify({
-    stage: 'snapshot',
-    label,
-    url: sanitizedUrl(page.url?.() || ''),
-    ...data,
-    links: data.links.map((link) => ({ ...link, href: sanitizedUrl(link.href) })),
-  }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        stage: 'snapshot',
+        label,
+        url: sanitizedUrl(page.url?.() || ''),
+        ...data,
+        links: data.links.map((link) => ({
+          ...link,
+          href: sanitizedUrl(link.href),
+        })),
+      },
+      null,
+      2,
+    ),
+  );
   return data;
 }
 
@@ -89,50 +125,86 @@ async function clickBusinessSwitcher(page) {
   const topLeft = { text: 'top-left portfolio selector', x: 220, y: 36 };
   await page.mouse.click(topLeft.x, topLeft.y);
   await pageSettled(page);
-  const opened = await page.evaluate(() => {
-    const bodyText = (document.body?.innerText || '').replace(/\s+/g, ' ');
-    return /switch|przełącz|portfolio|firmowe|business/i.test(bodyText) && /Wisent-AI/i.test(bodyText);
-  }).catch(() => false);
+  const opened = await page
+    .evaluate(() => {
+      const bodyText = (document.body?.innerText || '').replace(/\s+/g, ' ');
+      return (
+        /switch|przełącz|portfolio|firmowe|business/i.test(bodyText) &&
+        /Wisent-AI/i.test(bodyText)
+      );
+    })
+    .catch(() => false);
   if (opened) {
     console.log(JSON.stringify({ stage: 'clicked_switcher', ...topLeft }));
     return topLeft;
   }
 
-  const target = await page.evaluate(() => {
-    const textOf = (el) => (el.innerText || el.textContent || el.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
-    const visible = (el) => {
-      const style = window.getComputedStyle(el);
-      const rect = el.getBoundingClientRect();
-      return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
-    };
-    const controls = Array.from(document.querySelectorAll('button, [role="button"], [aria-label], a'))
-      .filter(visible)
-      .map((el) => {
+  const target = await page
+    .evaluate(() => {
+      const textOf = (el) =>
+        (el.innerText || el.textContent || el.getAttribute('aria-label') || '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      const visible = (el) => {
+        const style = window.getComputedStyle(el);
         const rect = el.getBoundingClientRect();
-        const text = textOf(el);
-        let score = 0;
-        if (/Wisent|portfolio|firmowe|business/i.test(text)) score += 1000;
-        if (rect.top < 80 && rect.left < 360) score += 1000;
-        if (/Meta Business Suite|All Tools|Pomoc|Powiadomienia/i.test(text)) score -= 1000;
-        return { text, x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2), score };
-      })
-      .filter((item) => item.score > 0)
-      .sort((a, b) => b.score - a.score);
-    return controls[0] || null;
-  }).catch(() => null);
+        return (
+          style.visibility !== 'hidden' &&
+          style.display !== 'none' &&
+          rect.width > 0 &&
+          rect.height > 0
+        );
+      };
+      const controls = Array.from(
+        document.querySelectorAll('button, [role="button"], [aria-label], a'),
+      )
+        .filter(visible)
+        .map((el) => {
+          const rect = el.getBoundingClientRect();
+          const text = textOf(el);
+          let score = 0;
+          if (/Wisent|portfolio|firmowe|business/i.test(text)) score += 1000;
+          if (rect.top < 80 && rect.left < 360) score += 1000;
+          if (/Meta Business Suite|All Tools|Pomoc|Powiadomienia/i.test(text))
+            score -= 1000;
+          return {
+            text,
+            x: Math.round(rect.left + rect.width / 2),
+            y: Math.round(rect.top + rect.height / 2),
+            score,
+          };
+        })
+        .filter((item) => item.score > 0)
+        .sort((a, b) => b.score - a.score);
+      return controls[0] || null;
+    })
+    .catch(() => null);
   if (!target) return null;
   await page.mouse.click(target.x, target.y);
   await pageSettled(page);
-  console.log(JSON.stringify({ stage: 'clicked_switcher', text: target.text, x: target.x, y: target.y }));
+  console.log(
+    JSON.stringify({
+      stage: 'clicked_switcher',
+      text: target.text,
+      x: target.x,
+      y: target.y,
+    }),
+  );
   return target;
 }
 
-console.log(JSON.stringify({
-  stage: 'start',
-  userDataDir: USER_DATA_DIR,
-  businessId: BUSINESS_ID,
-  headless: process.env.META_BUSINESS_HEADLESS !== '0',
-}, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      stage: 'start',
+      userDataDir: USER_DATA_DIR,
+      businessId: BUSINESS_ID,
+      headless: process.env.META_BUSINESS_HEADLESS !== '0',
+    },
+    null,
+    2,
+  ),
+);
 
 const s = await WSession.start({
   label: 'meta_business_switcher_probe',

@@ -3,54 +3,82 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../dist/human/keyboard.js';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const projectId = (await import('#ncbr-settings')).projectId();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('9_2');
-const MD = readFileSync((await import('#ncbr-settings')).applicationFile('wersja_B_9.2_wskazniki.md'), 'utf8');
+const MD = readFileSync(
+  (await import('#ncbr-settings')).applicationFile('wersja_B_9.2_wskazniki.md'),
+  'utf8',
+);
 
 function cell(block, label) {
-  const re = new RegExp(`^\\|\\s*(?:\\*\\*)?${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:\\*\\*)?\\s*\\|\\s*([\\s\\S]*?)\\s*\\|\\s*$`, 'm');
+  const re = new RegExp(
+    `^\\|\\s*(?:\\*\\*)?${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:\\*\\*)?\\s*\\|\\s*([\\s\\S]*?)\\s*\\|\\s*$`,
+    'm',
+  );
   return (block.match(re)?.[1] || '').trim();
 }
 
-const numeric = (v) => String(v || '').replace(/\s/g, '').replace(',', '.');
+const numeric = (v) =>
+  String(v || '')
+    .replace(/\s/g, '')
+    .replace(',', '.');
 const year = (v) => String(Number(String(v || '').trim()) || v || '');
 
 function parseIndicators() {
-  return MD.split(/^### /m).slice(1).map((raw) => {
-    const block = `### ${raw}`;
-    return {
-      heading: raw.split('\n', 1)[0].trim(),
-      name: cell(block, 'Nazwa wskaźnika'),
-      unit: cell(block, 'Jednostka miary'),
-      baseYear: cell(block, 'Rok bazowy'),
-      baseValue: numeric(cell(block, 'Wartość bazowa')),
-      targetYear: cell(block, 'Rok osiągnięcia wartości docelowej'),
-      targetValue: numeric(cell(block, 'Wartość docelowa')),
-      methodology: cell(block, 'Opis metodologii wyliczenia wskaźnika'),
-      verification: cell(block, 'Opis sposobu weryfikacji osiągnięcia zaplanowanych wartości wskaźnika'),
-    };
-  }).filter((x) => x.name && !/HarmBench|attack success rate/i.test(x.name));
+  return MD.split(/^### /m)
+    .slice(1)
+    .map((raw) => {
+      const block = `### ${raw}`;
+      return {
+        heading: raw.split('\n', 1)[0].trim(),
+        name: cell(block, 'Nazwa wskaźnika'),
+        unit: cell(block, 'Jednostka miary'),
+        baseYear: cell(block, 'Rok bazowy'),
+        baseValue: numeric(cell(block, 'Wartość bazowa')),
+        targetYear: cell(block, 'Rok osiągnięcia wartości docelowej'),
+        targetValue: numeric(cell(block, 'Wartość docelowa')),
+        methodology: cell(block, 'Opis metodologii wyliczenia wskaźnika'),
+        verification: cell(
+          block,
+          'Opis sposobu weryfikacji osiągnięcia zaplanowanych wartości wskaźnika',
+        ),
+      };
+    })
+    .filter((x) => x.name && !/HarmBench|attack success rate/i.test(x.name));
 }
 
 const indicators = parseIndicators();
 if (process.env.PARSE) {
-  console.log(JSON.stringify({ count: indicators.length, names: indicators.map((i) => i.name) }, null, 2));
+  console.log(
+    JSON.stringify(
+      { count: indicators.length, names: indicators.map((i) => i.name) },
+      null,
+      2,
+    ),
+  );
   process.exit(0);
 }
 
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
-if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' }, null, 2)); process.exit(1); }
-
+if (!page) {
+  console.log(JSON.stringify({ error: 'NO_PAGE' }, null, 2));
+  process.exit(1);
+}
 
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: authenticated LSI section navigation
 await humanIdlePause('long');
 await page.evaluate(() => {
-  const banner = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies'));
+  const banner = Array.from(document.querySelectorAll('div')).find((d) =>
+    (d.innerText || '').includes('pliki cookies'),
+  );
   if (banner) banner.style.pointerEvents = 'none';
 }); // allow-raw-playwright: neutralise cookie overlay only
 
@@ -58,9 +86,28 @@ if (process.env.INSPECT) {
   const data = await page.evaluate(() => ({
     url: location.href,
     title: document.title,
-    buttons: Array.from(document.querySelectorAll('button')).map((b) => ({ text: b.innerText.trim(), aria: b.getAttribute('aria-label'), disabled: b.disabled })).filter((b) => b.text || b.aria),
-    rows: Array.from(document.querySelectorAll('table tbody tr')).map((r) => Array.from(r.querySelectorAll('td')).map((td) => td.innerText.trim().replace(/\s+/g, ' ')).join(' | ')),
-    fields: Array.from(document.querySelectorAll('input, textarea')).filter((el) => el.offsetParent !== null).map((el) => ({ name: el.name || '', role: el.getAttribute('role'), value: (el.value || ''), len: (el.value || '').length, readOnly: el.readOnly, disabled: el.disabled })),
+    buttons: Array.from(document.querySelectorAll('button'))
+      .map((b) => ({
+        text: b.innerText.trim(),
+        aria: b.getAttribute('aria-label'),
+        disabled: b.disabled,
+      }))
+      .filter((b) => b.text || b.aria),
+    rows: Array.from(document.querySelectorAll('table tbody tr')).map((r) =>
+      Array.from(r.querySelectorAll('td'))
+        .map((td) => td.innerText.trim().replace(/\s+/g, ' '))
+        .join(' | '),
+    ),
+    fields: Array.from(document.querySelectorAll('input, textarea'))
+      .filter((el) => el.offsetParent !== null)
+      .map((el) => ({
+        name: el.name || '',
+        role: el.getAttribute('role'),
+        value: el.value || '',
+        len: (el.value || '').length,
+        readOnly: el.readOnly,
+        disabled: el.disabled,
+      })),
   })); // allow-raw-playwright: read current 9.2 UI state only
   console.log(JSON.stringify(data, null, 2));
   process.exit(0);
@@ -70,9 +117,15 @@ async function openRow(index) {
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: refresh section table
   await humanIdlePause('long');
   const row = page.locator('table tbody tr').nth(index + 1);
-  await row.locator('button[aria-label="overflow-options"]').first().dispatchEvent('click'); // allow-raw-playwright: open row menu
+  await row
+    .locator('button[aria-label="overflow-options"]')
+    .first()
+    .dispatchEvent('click'); // allow-raw-playwright: open row menu
   await humanIdlePause('deliberate');
-  await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit existing row
+  await page
+    .getByRole('menuitem', { name: 'Edytuj', exact: true })
+    .first()
+    .dispatchEvent('click'); // allow-raw-playwright: edit existing row
   await humanIdlePause('long');
 }
 
@@ -81,25 +134,30 @@ async function openRowByNeedles(needles) {
   await humanIdlePause('long');
   const rows = page.locator('table tbody tr');
   let menuButton = null;
-  for (let index = 0; index < await rows.count(); index += 1) {
+  for (let index = 0; index < (await rows.count()); index += 1) {
     const row = rows.nth(index);
     const text = await row.innerText().catch(() => '');
     if (!needles.some((needle) => text.includes(needle))) continue;
     menuButton = row.locator('button[aria-label="overflow-options"]').first();
     break;
   }
-  if (!menuButton || await menuButton.count() === 0) throw new Error(`row not found: ${needles.join(' / ')}`);
+  if (!menuButton || (await menuButton.count()) === 0)
+    throw new Error(`row not found: ${needles.join(' / ')}`);
   await humanClickLocator(page, menuButton);
   await humanIdlePause('deliberate');
-  await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit matched row
+  await page
+    .getByRole('menuitem', { name: 'Edytuj', exact: true })
+    .first()
+    .dispatchEvent('click'); // allow-raw-playwright: edit matched row
   await humanIdlePause('long');
 }
 
 async function clickAdd() {
-  const button = page.getByRole('button', { name: 'Dodaj', exact: true })
+  const button = page
+    .getByRole('button', { name: 'Dodaj', exact: true })
     .filter({ visible: true })
     .first();
-  if (await button.count() === 0) throw new Error('enabled Dodaj not found');
+  if ((await button.count()) === 0) throw new Error('enabled Dodaj not found');
   await humanClickLocator(page, button);
   await humanIdlePause('long');
 }
@@ -107,19 +165,27 @@ async function clickAdd() {
 async function saveForm() {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  const saves = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
+  const saves = page
+    .getByRole('button', { name: 'Zapisz', exact: true })
+    .filter({ visible: true });
   const saveCount = await saves.count();
-  const state = saveCount > 0
-    ? { status: 'saved', errors: [] }
-    : {
-        status: 'no-enabled-save',
-        errors: await page.locator('[aria-invalid="true"], .Mui-error').allTextContents(),
-      };
+  const state =
+    saveCount > 0
+      ? { status: 'saved', errors: [] }
+      : {
+          status: 'no-enabled-save',
+          errors: await page
+            .locator('[aria-invalid="true"], .Mui-error')
+            .allTextContents(),
+        };
   if (saveCount > 0) await humanClickLocator(page, saves.nth(saveCount - 1));
   await humanIdlePause('long');
   if (state.status !== 'saved') {
-    const cancel = page.getByRole('button', { name: 'Anuluj', exact: true }).filter({ visible: true }).first();
-    if (await cancel.count() > 0) await humanClickLocator(page, cancel);
+    const cancel = page
+      .getByRole('button', { name: 'Anuluj', exact: true })
+      .filter({ visible: true })
+      .first();
+    if ((await cancel.count()) > 0) await humanClickLocator(page, cancel);
     await humanIdlePause('long');
   }
   return state;
@@ -127,13 +193,14 @@ async function saveForm() {
 
 async function fillField(suffix, value, { preserve = false } = {}) {
   const loc = page.locator(`[name$="${suffix}"]`).first();
-  if (await loc.count() === 0) return null;
+  if ((await loc.count()) === 0) return null;
   if (await loc.evaluate((el) => el.readOnly || el.disabled)) return null; // allow-raw-playwright: check field mutability
   if (preserve) {
     const cur = await loc.inputValue();
     if (cur) return `${suffix}:preserved`;
   }
-  const max = Number(await loc.getAttribute('maxlength')) || String(value || '').length;
+  const max =
+    Number(await loc.getAttribute('maxlength')) || String(value || '').length;
   let v = String(value || '');
   if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
   await humanFill(page, loc, v);
@@ -142,12 +209,16 @@ async function fillField(suffix, value, { preserve = false } = {}) {
 
 async function pickName(value) {
   const input = page.locator('input[name$="nazwa_wskaznika"]').first();
-  if (await input.count() === 0) return null;
-  if (await input.evaluate((el) => el.readOnly || el.disabled).catch(() => true)) return null; // allow-raw-playwright: check field mutability
+  if ((await input.count()) === 0) return null;
+  if (
+    await input.evaluate((el) => el.readOnly || el.disabled).catch(() => true)
+  )
+    return null; // allow-raw-playwright: check field mutability
   await humanFill(page, input, value);
   await humanIdlePause('deliberate');
   const opt = page.getByRole('option', { name: value, exact: true }).first();
-  if (await opt.count() > 0) await opt.dispatchEvent('click'); // allow-raw-playwright: select exact indicator option
+  if ((await opt.count()) > 0)
+    await opt.dispatchEvent('click'); // allow-raw-playwright: select exact indicator option
   else await fillField('nazwa_wskaznika', value);
   await humanIdlePause('short');
   return value;
@@ -160,24 +231,44 @@ async function fillIndicator(ind, index) {
   filled.push(await fillField('jednostka_miary', ind.unit));
   filled.push(await fillField('rok_bazowy', year(ind.baseYear)));
   filled.push(await fillField('wartosc_bazowa', ind.baseValue));
-  filled.push(await fillField('rok_osiagniecia_wartosci_docelowej', year(ind.targetYear)));
-  filled.push(await fillField('wartosc_docelowa', ind.targetValue, { preserve: index === 12 }));
+  filled.push(
+    await fillField('rok_osiagniecia_wartosci_docelowej', year(ind.targetYear)),
+  );
+  filled.push(
+    await fillField('wartosc_docelowa', ind.targetValue, {
+      preserve: index === 12,
+    }),
+  );
   filled.push(await fillField('opis_metodologii', ind.methodology));
   filled.push(await fillField('opis_sposobu_weryfikacji', ind.verification));
   return filled.filter(Boolean);
 }
 
 if (process.env.VERIFY_DETAILS) {
-  const count = await page.locator('button[aria-label="overflow-options"]').count();
+  const count = await page
+    .locator('button[aria-label="overflow-options"]')
+    .count();
   const rows = [];
   for (let i = 0; i < count; i++) {
     await openRow(i);
-    rows.push(await page.evaluate(() => {
-      const val = (suffix) => Array.from(document.querySelectorAll('input, textarea')).find((el) => (el.name || '').endsWith(suffix))?.value || '';
-      return { name: val('nazwa_wskaznika'), methodologyLen: val('opis_metodologii').length, verificationLen: val('opis_sposobu_weryfikacji').length };
-    })); // allow-raw-playwright: read visible row fields
-    const cancel = page.getByRole('button', { name: 'Anuluj', exact: true }).filter({ visible: true }).first();
-    if (await cancel.count() > 0) await humanClickLocator(page, cancel);
+    rows.push(
+      await page.evaluate(() => {
+        const val = (suffix) =>
+          Array.from(document.querySelectorAll('input, textarea')).find((el) =>
+            (el.name || '').endsWith(suffix),
+          )?.value || '';
+        return {
+          name: val('nazwa_wskaznika'),
+          methodologyLen: val('opis_metodologii').length,
+          verificationLen: val('opis_sposobu_weryfikacji').length,
+        };
+      }),
+    ); // allow-raw-playwright: read visible row fields
+    const cancel = page
+      .getByRole('button', { name: 'Anuluj', exact: true })
+      .filter({ visible: true })
+      .first();
+    if ((await cancel.count()) > 0) await humanClickLocator(page, cancel);
     await humanIdlePause('long');
   }
   console.log(JSON.stringify({ count, rows }, null, 2));
@@ -187,33 +278,60 @@ if (process.env.VERIFY_DETAILS) {
 if (process.env.TARGET_GRANTLAND) {
   const targets = [
     {
-      indicator: indicators.find((i) => i.name === 'Liczba przedsięwzięć proekologicznych'),
+      indicator: indicators.find(
+        (i) => i.name === 'Liczba przedsięwzięć proekologicznych',
+      ),
       needles: ['Liczba przedsięwzięć proekologicznych'],
     },
     {
-      indicator: indicators.find((i) => i.name.startsWith('Redukcja ilości tokenów treningowych')),
+      indicator: indicators.find((i) =>
+        i.name.startsWith('Redukcja ilości tokenów treningowych'),
+      ),
       needles: ['Redukcja ilości tokenów treningowych'],
     },
     {
-      indicator: indicators.find((i) => i.name.startsWith('Udział cykli treningowych RNM z pomiarem energii')),
-      needles: ['Udział cykli treningowych RNM z pomiarem energii', 'Udział cykli treningowych RNM z raportem energii'],
+      indicator: indicators.find((i) =>
+        i.name.startsWith('Udział cykli treningowych RNM z pomiarem energii'),
+      ),
+      needles: [
+        'Udział cykli treningowych RNM z pomiarem energii',
+        'Udział cykli treningowych RNM z raportem energii',
+      ],
     },
   ];
   const results = [];
   for (const t of targets) {
-    if (!t.indicator) throw new Error(`target indicator not parsed: ${t.needles.join(' / ')}`);
+    if (!t.indicator)
+      throw new Error(`target indicator not parsed: ${t.needles.join(' / ')}`);
     await openRowByNeedles(t.needles);
     const filled = await fillIndicator(t.indicator, 99);
     const save = await saveForm();
     results.push({ name: t.indicator.name, save, filled });
   }
-  const rows = await page.evaluate(() => Array.from(document.querySelectorAll('table tbody tr')).map((r) => r.innerText.replace(/\s+/g, ' ').trim()).filter(Boolean)); // allow-raw-playwright: read updated 9.2 table
-  console.log(JSON.stringify({ results, rows: rows.filter((r) => /proekologicznych|Redukcja ilości|Udział cykli/.test(r)) }, null, 2));
+  const rows = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('table tbody tr'))
+      .map((r) => r.innerText.replace(/\s+/g, ' ').trim())
+      .filter(Boolean),
+  ); // allow-raw-playwright: read updated 9.2 table
+  console.log(
+    JSON.stringify(
+      {
+        results,
+        rows: rows.filter((r) =>
+          /proekologicznych|Redukcja ilości|Udział cykli/.test(r),
+        ),
+      },
+      null,
+      2,
+    ),
+  );
   process.exit(0);
 }
 
 const edited = [];
-const rowCount = await page.locator('button[aria-label="overflow-options"]').count();
+const rowCount = await page
+  .locator('button[aria-label="overflow-options"]')
+  .count();
 for (let i = 0; i < Math.min(rowCount, indicators.length); i++) {
   await openRow(i);
   const filled = await fillIndicator(indicators[i], i);
@@ -225,7 +343,10 @@ const added = [];
 for (let i = rowCount; i < indicators.length; i++) {
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: refresh before add
   await humanIdlePause('long');
-  const body = await page.locator('body').innerText().catch(() => '');
+  const body = await page
+    .locator('body')
+    .innerText()
+    .catch(() => '');
   if (body.includes(indicators[i].name)) continue;
   await clickAdd();
   const filled = await fillIndicator(indicators[i], i);
@@ -233,6 +354,9 @@ for (let i = rowCount; i < indicators.length; i++) {
   added.push({ name: indicators[i].name, save, filled });
 }
 
-const rows = await page.evaluate(() => document.querySelector('table')?.querySelectorAll('tbody tr').length || 0); // allow-raw-playwright: read table row count
+const rows = await page.evaluate(
+  () =>
+    document.querySelector('table')?.querySelectorAll('tbody tr').length || 0,
+); // allow-raw-playwright: read table row count
 console.log(JSON.stringify({ edited: edited.length, added, rows }, null, 2));
 process.exit(0);

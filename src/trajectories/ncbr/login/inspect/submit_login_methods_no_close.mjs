@@ -8,31 +8,55 @@ const email = process.env.NCBR_EMAIL;
 const password = process.env.NCBR_PASSWORD;
 
 if (!email || !password) {
-  console.log(JSON.stringify({ error: 'Missing credentials env vars' }, null, 2));
+  console.log(
+    JSON.stringify({ error: 'Missing credentials env vars' }, null, 2),
+  );
   process.exit(2);
 }
 
 const browser = await chromium.connectOverCDP(endpoint);
-const context = browser.contexts()[0] || await browser.newContext();
-const page = context.pages()[0] || await context.newPage();
+const context = browser.contexts()[0] || (await browser.newContext());
+const page = context.pages()[0] || (await context.newPage());
 
 const events = [];
 page.on('request', (req) => {
   const method = req.method();
   const url = req.url();
-  if (!(url.includes('lsi2.ncbr.gov.pl') && (method !== 'GET' || url.includes('/user/refresh')))) return;
+  if (
+    !(
+      url.includes('lsi2.ncbr.gov.pl') &&
+      (method !== 'GET' || url.includes('/user/refresh'))
+    )
+  )
+    return;
   let postData = req.postData() || '';
-  postData = postData.replaceAll(password, '[REDACTED]').replaceAll(email, '[EMAIL]');
+  postData = postData
+    .replaceAll(password, '[REDACTED]')
+    .replaceAll(email, '[EMAIL]');
   events.push({ kind: 'request', method, url, postData: postData });
 });
 page.on('response', async (res) => {
   const method = res.request().method();
   const url = res.url();
-  if (!(url.includes('lsi2.ncbr.gov.pl') && (method !== 'GET' || url.includes('/user/refresh')))) return;
+  if (
+    !(
+      url.includes('lsi2.ncbr.gov.pl') &&
+      (method !== 'GET' || url.includes('/user/refresh'))
+    )
+  )
+    return;
   let text = '';
-  try { text = await res.text(); } catch {}
+  try {
+    text = await res.text();
+  } catch {}
   text = text.replaceAll(password, '[REDACTED]').replaceAll(email, '[EMAIL]');
-  events.push({ kind: 'response', method, url, status: res.status(), text: text });
+  events.push({
+    kind: 'response',
+    method,
+    url,
+    status: res.status(),
+    text: text,
+  });
 });
 
 async function authStatus() {
@@ -42,7 +66,7 @@ async function authStatus() {
         'https://lsi2.ncbr.gov.pl/api/beneficiary/project/433468ab-ff8a-4bd2-9f03-7da65ba73e1f/get-user-permissions',
         { credentials: 'include', headers: { Accept: 'application/json' } },
       );
-      return { status: res.status, text: (await res.text()) };
+      return { status: res.status, text: await res.text() };
     } catch (error) {
       return { error: String(error?.message || error) };
     }
@@ -50,7 +74,9 @@ async function authStatus() {
 }
 
 async function fillForm() {
-  await page.goto('https://lsi2.ncbr.gov.pl/logowanie', { waitUntil: 'domcontentloaded' });
+  await page.goto('https://lsi2.ncbr.gov.pl/logowanie', {
+    waitUntil: 'domcontentloaded',
+  });
   await page.waitForSelector('#mail');
   await humanFill(page, page.locator('#mail'), '');
   await page.locator('#mail').type(email);
@@ -58,7 +84,10 @@ async function fillForm() {
   await page.locator('#password').type(password);
   const checkbox = page.locator('#isStatuteAccepted').first();
   if (!(await checkbox.isChecked().catch(() => false))) {
-    await humanClickLocator(page, page.locator('label:has(#isStatuteAccepted)')).catch(async () => {
+    await humanClickLocator(
+      page,
+      page.locator('label:has(#isStatuteAccepted)'),
+    ).catch(async () => {
       await humanClickLocator(page, checkbox);
     });
   }
@@ -88,40 +117,53 @@ async function tryMethod(name, fn) {
 await fillForm();
 const methods = [];
 
-methods.push(await tryMethod('locator-click', async () => {
-  await humanClickLocator(page, page.locator('#login-btn'));
-}));
+methods.push(
+  await tryMethod('locator-click', async () => {
+    await humanClickLocator(page, page.locator('#login-btn'));
+  }),
+);
 if (methods.at(-1).auth.status === 200) {
   console.log(JSON.stringify({ methods, events }, null, 2));
   process.exit(0);
 }
 
-methods.push(await tryMethod('keyboard-enter-password', async () => {
-  await page.locator('#password').press('Enter');
-}));
+methods.push(
+  await tryMethod('keyboard-enter-password', async () => {
+    await page.locator('#password').press('Enter');
+  }),
+);
 if (methods.at(-1).auth.status === 200) {
   console.log(JSON.stringify({ methods, events }, null, 2));
   process.exit(0);
 }
 
-methods.push(await tryMethod('dispatch-submit', async () => {
-  await page.evaluate(() => {
-    const form = document.querySelector('#mail')?.closest('form');
-    form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-  });
-}));
+methods.push(
+  await tryMethod('dispatch-submit', async () => {
+    await page.evaluate(() => {
+      const form = document.querySelector('#mail')?.closest('form');
+      form?.dispatchEvent(
+        new Event('submit', { bubbles: true, cancelable: true }),
+      );
+    });
+  }),
+);
 if (methods.at(-1).auth.status === 200) {
   console.log(JSON.stringify({ methods, events }, null, 2));
   process.exit(0);
 }
 
-methods.push(await tryMethod('request-submit', async () => {
-  await page.evaluate(() => {
-    const form = document.querySelector('#mail')?.closest('form');
-    if (form?.requestSubmit) form.requestSubmit();
-  });
-}));
+methods.push(
+  await tryMethod('request-submit', async () => {
+    await page.evaluate(() => {
+      const form = document.querySelector('#mail')?.closest('form');
+      if (form?.requestSubmit) form.requestSubmit();
+    });
+  }),
+);
 
-const bodyText = (await page.locator('body').innerText().catch(() => ''));
+const bodyText = await page
+  .locator('body')
+  .innerText()
+  .catch(() => '');
 console.log(JSON.stringify({ methods, events, bodyText }, null, 2));
 process.exit(0);

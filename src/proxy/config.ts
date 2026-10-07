@@ -2,10 +2,17 @@
 // ProxyConfig interface & helpers
 // ---------------------------------------------------------------------------
 
-import { readOptionalPinnedProxyCredential, readOptionalWelesServiceSecret } from '../secrets/scoped-service.js';
+import {
+  readOptionalPinnedProxyCredential,
+  readOptionalWelesServiceSecret,
+} from '../secrets/scoped-service.js';
 import { providerFromHost } from './policy.js';
 import type { ExitReputation } from './policy.js';
-import { proxyTypeOf, secretServiceFor, stickyCredentials } from './sources/provider_credentials.js';
+import {
+  proxyTypeOf,
+  secretServiceFor,
+  stickyCredentials,
+} from './sources/provider_credentials.js';
 
 export { resolveProxy } from './resolve/resolve_proxy.js';
 
@@ -98,12 +105,18 @@ export function hydratePinnedProxy(pin: ProxyConfig): ProxyConfig | undefined {
     ? readOptionalPinnedProxyCredential(pin.credential_ref)
     : undefined;
   if (accountCredential && pin.credential_mode === 'exact') {
-    return { ...pin, username: accountCredential.username, password: accountCredential.password };
+    return {
+      ...pin,
+      username: accountCredential.username,
+      password: accountCredential.password,
+    };
   }
 
   const provider = pin.provider ?? providerFromHost(pin.host);
   if (!provider) return undefined;
-  const proxyType = proxyTypeOf(pin.proxy_type) ?? (provider === 'decodo' ? 'isp' : 'residential');
+  const proxyType =
+    proxyTypeOf(pin.proxy_type) ??
+    (provider === 'decodo' ? 'isp' : 'residential');
   let username = accountCredential?.username;
   let password = accountCredential?.password;
   if (!username || !password) {
@@ -113,15 +126,21 @@ export function hydratePinnedProxy(pin: ProxyConfig): ProxyConfig | undefined {
     password = readOptionalWelesServiceSecret(secretService, 'password');
   }
   if (!username || !password) return undefined;
-  if (proxyType === 'isp') return { ...pin, provider, proxy_type: proxyType, username, password };
+  if (proxyType === 'isp')
+    return { ...pin, provider, proxy_type: proxyType, username, password };
 
   const sessionId = pin.sticky_session_id;
   if (!sessionId) return undefined;
-  const sticky = stickyCredentials(provider, proxyType, { username, password }, {
-    country: pin.country ?? 'us',
-    city: pin.city,
-    sessionId,
-  });
+  const sticky = stickyCredentials(
+    provider,
+    proxyType,
+    { username, password },
+    {
+      country: pin.country ?? 'us',
+      city: pin.city,
+      sessionId,
+    },
+  );
   return {
     ...pin,
     provider,
@@ -134,11 +153,16 @@ export function hydratePinnedProxy(pin: ProxyConfig): ProxyConfig | undefined {
 export class ProxyPool {
   private _proxies: ProxyConfig[] = [];
   private _index = 0;
-  get length(): number { return this._proxies.length; }
-  add(config: ProxyConfig): void { this._proxies.push(config); }
+  get length(): number {
+    return this._proxies.length;
+  }
+  add(config: ProxyConfig): void {
+    this._proxies.push(config);
+  }
   next(random = false): ProxyConfig {
     if (this._proxies.length === 0) throw new Error('ProxyPool is empty');
-    if (random) return this._proxies[Math.floor(Math.random() * this._proxies.length)];
+    if (random)
+      return this._proxies[Math.floor(Math.random() * this._proxies.length)];
     const proxy = this._proxies[this._index % this._proxies.length];
     this._index++;
     return proxy;

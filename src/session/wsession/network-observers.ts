@@ -70,10 +70,18 @@ function shouldCaptureResponseBody(res: ObservedResponse): boolean {
     if (process.env.WELES_CAPTURE_RESPONSE_BODIES !== '1') return false;
     const req = res.request?.();
     const resourceType = req?.resourceType?.();
-    if (resourceType && ['image', 'media', 'font', 'stylesheet'].includes(resourceType)) return false;
+    if (
+      resourceType &&
+      ['image', 'media', 'font', 'stylesheet'].includes(resourceType)
+    )
+      return false;
     const headers = res.headers?.() ?? {};
     const contentType = String(headers['content-type'] ?? '').toLowerCase();
-    if (contentType && !/json|text|javascript|xml|html|x-www-form-urlencoded/.test(contentType)) return false;
+    if (
+      contentType &&
+      !/json|text|javascript|xml|html|x-www-form-urlencoded/.test(contentType)
+    )
+      return false;
     const len = Number(headers['content-length'] ?? 0);
     return !len || len <= 256 * 1024;
   } catch {
@@ -81,26 +89,84 @@ function shouldCaptureResponseBody(res: ObservedResponse): boolean {
   }
 }
 
-export function observeSessionNetwork(ws: WSession, ctx: BrowserContext, page: Page): Promise<void> {
+export function observeSessionNetwork(
+  ws: WSession,
+  ctx: BrowserContext,
+  page: Page,
+): Promise<void> {
   // The counters and the credential-task flag are private to WSession; this is
   // the same session object, viewed through the members these observers write.
   const state = ws as unknown as ObservedSessionState;
   // Intercept API responses to capture captcha data (Discord register + login)
   const authPaths = ['/auth/register', '/auth/login'];
-  page.on?.('request', (req: ObservedRequest) => { try { const u = req.url(); if (authPaths.some(p => u.includes(p)) && req.method() === 'POST') { ws.captchaFormData = JSON.parse(req.postData() ?? '{}'); ws.captchaEndpoint = u; const h = req.headers(); ws.captchaHeaders = {}; for (const k of Object.keys(h)) { if (k.startsWith('x-')) ws.captchaHeaders[k] = h[k]; } } } catch {} });
-  page.on?.('response', async (res: ObservedResponse) => { try { const u = res.url(); if (authPaths.some(p => u.includes(p)) && res.status() >= 400) { const d = await res.json(); if (d.captcha_key !== undefined) { ws.captchaResponse = d; console.log(`[wsession] Captured captcha data: sitekey=${d.captcha_sitekey}`); } const errs = d?.errors?.login?._errors ?? d?.errors?.email?._errors ?? []; const code = errs[0]?.code; if (code === 'ACCOUNT_PERMANENTLY_DISABLED' || code === 'ACCOUNT_DISABLED' || code === 'ACCOUNT_LOGIN_BLOCKED') { ws.authBlocked = code; console.log(`[wsession] Auth blocked by platform: ${code}`); } } } catch {} });
+  page.on?.('request', (req: ObservedRequest) => {
+    try {
+      const u = req.url();
+      if (authPaths.some((p) => u.includes(p)) && req.method() === 'POST') {
+        ws.captchaFormData = JSON.parse(req.postData() ?? '{}');
+        ws.captchaEndpoint = u;
+        const h = req.headers();
+        ws.captchaHeaders = {};
+        for (const k of Object.keys(h)) {
+          if (k.startsWith('x-')) ws.captchaHeaders[k] = h[k];
+        }
+      }
+    } catch {}
+  });
+  page.on?.('response', async (res: ObservedResponse) => {
+    try {
+      const u = res.url();
+      if (authPaths.some((p) => u.includes(p)) && res.status() >= 400) {
+        const d = await res.json();
+        if (d.captcha_key !== undefined) {
+          ws.captchaResponse = d;
+          console.log(
+            `[wsession] Captured captcha data: sitekey=${d.captcha_sitekey}`,
+          );
+        }
+        const errs =
+          d?.errors?.login?._errors ?? d?.errors?.email?._errors ?? [];
+        const code = errs[0]?.code;
+        if (
+          code === 'ACCOUNT_PERMANENTLY_DISABLED' ||
+          code === 'ACCOUNT_DISABLED' ||
+          code === 'ACCOUNT_LOGIN_BLOCKED'
+        ) {
+          ws.authBlocked = code;
+          console.log(`[wsession] Auth blocked by platform: ${code}`);
+        }
+      }
+    } catch {}
+  });
   ctx.on?.('response', (res: ObservedResponse) => {
     try {
       if (ws.capturedResponses.length >= 500) ws.capturedResponses.shift();
-      const entry = { ts: Date.now(), method: res.request()?.method?.() ?? 'GET', url: res.url(), status: res.status(), headers: res.headers(), body: '' };
+      const entry = {
+        ts: Date.now(),
+        method: res.request()?.method?.() ?? 'GET',
+        url: res.url(),
+        status: res.status(),
+        headers: res.headers(),
+        body: '',
+      };
       ws.capturedResponses.push(entry);
-      if (state._secureCredentialTask || !shouldCaptureResponseBody(res)) return;
+      if (state._secureCredentialTask || !shouldCaptureResponseBody(res))
+        return;
       // A body we could not read is its own answer in the ledger: an empty
       // string there would read as a response that arrived empty.
-      const read: Promise<void> = res.text().then(
-        (text: string) => { entry.body = text; },
-        (error: unknown) => { entry.body = `[body unavailable: ${(error instanceof Error ? error.message : String(error))}]`; },
-      ).finally(() => { ws.pendingResponseBodies.delete(read); });
+      const read: Promise<void> = res
+        .text()
+        .then(
+          (text: string) => {
+            entry.body = text;
+          },
+          (error: unknown) => {
+            entry.body = `[body unavailable: ${error instanceof Error ? error.message : String(error)}]`;
+          },
+        )
+        .finally(() => {
+          ws.pendingResponseBodies.delete(read);
+        });
       ws.pendingResponseBodies.add(read);
     } catch {}
   });
@@ -109,13 +175,19 @@ export function observeSessionNetwork(ws: WSession, ctx: BrowserContext, page: P
 
 // Network.dataReceived accumulates proxy bytes. Keep an unavailable counter
 // distinct from a successful attachment with no observed traffic.
-async function attachEgressByteCounter(state: ObservedSessionState, ctx: BrowserContext, page: Page): Promise<void> {
+async function attachEgressByteCounter(
+  state: ObservedSessionState,
+  ctx: BrowserContext,
+  page: Page,
+): Promise<void> {
   let operation = 'BrowserContext.newCDPSession';
   try {
     if (typeof ctx.newCDPSession !== 'function') {
       throw new Error('the browser context does not expose newCDPSession');
     }
-    const attached = await ctx.newCDPSession(page) as unknown as SessionProtocol;
+    const attached = (await ctx.newCDPSession(
+      page,
+    )) as unknown as SessionProtocol;
     state._cdp = attached;
     operation = 'Network.dataReceived subscription';
     attached.on('Network.dataReceived', (e) => {

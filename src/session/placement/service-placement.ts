@@ -81,15 +81,15 @@ export function enforceWelesServicePlacement(entrypoint: string): void {
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `BLOCKED: ${entrypoint} cannot verify Weles placement through Stado: ${detail}. `
-      + 'On a machine without Stado set WELES_STANDALONE=1.',
+      `BLOCKED: ${entrypoint} cannot verify Weles placement through Stado: ${detail}. ` +
+        'On a machine without Stado set WELES_STANDALONE=1.',
     );
   }
 
   if (!rows.some((row) => row.host === localTarget)) {
     throw new Error(
-      `BLOCKED: ${entrypoint} is not placed on registry target '${localTarget}'. `
-      + `Resolve the active Weles placement with 'stado service resolve ${WELES_SERVICE} --json'.`,
+      `BLOCKED: ${entrypoint} is not placed on registry target '${localTarget}'. ` +
+        `Resolve the active Weles placement with 'stado service resolve ${WELES_SERVICE} --json'.`,
     );
   }
 }

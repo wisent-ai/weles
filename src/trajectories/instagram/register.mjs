@@ -9,7 +9,10 @@ import { autocompleteField, field } from '../_shared/page/offers.mjs';
 
 const URL = 'https://www.instagram.com/accounts/emailsignup/';
 // The SMS countries to order numbers from, in the order tried.
-const COUNTRY_ORDER = (process.env.INSTAGRAM_SMS_COUNTRIES || 'UK,NL,US').split(',').map((c) => c.trim()).filter(Boolean);
+const COUNTRY_ORDER = (process.env.INSTAGRAM_SMS_COUNTRIES || 'UK,NL,US')
+  .split(',')
+  .map((c) => c.trim())
+  .filter(Boolean);
 const NO_CODE = 'no code received';
 
 // Instagram's post-signup flow is told apart by its URL path and by the
@@ -30,8 +33,11 @@ async function visible(locator) {
 }
 
 async function codeField(page) {
-  return (await field(page, 'email_confirmation_code')) ?? (await autocompleteField(page, 'one-time-code'))
-    ?? (await visible(page.locator('input[maxlength="6"]').first()));
+  return (
+    (await field(page, 'email_confirmation_code')) ??
+    (await autocompleteField(page, 'one-time-code')) ??
+    (await visible(page.locator('input[maxlength="6"]').first()))
+  );
 }
 
 // What the page asks for right now.
@@ -39,13 +45,17 @@ async function state(page) {
   const path = pathOf(page);
   if (path.startsWith(PATH.passwordReset)) return 'password_reset';
   if (await codeField(page)) return 'code';
-  const challenged = path.startsWith(PATH.suspended) || path.startsWith(PATH.challenge);
+  const challenged =
+    path.startsWith(PATH.suspended) || path.startsWith(PATH.challenge);
   if (challenged) {
-    if (await visible(page.locator('input[type="file"]').first())) return 'selfie';
-    if (await visible(page.locator('input[type="tel"]').first())) return 'phone';
+    if (await visible(page.locator('input[type="file"]').first()))
+      return 'selfie';
+    if (await visible(page.locator('input[type="tel"]').first()))
+      return 'phone';
     return 'challenge';
   }
-  if (path.startsWith(PATH.signup) && (await field(page, 'username'))) return 'form';
+  if (path.startsWith(PATH.signup) && (await field(page, 'username')))
+    return 'form';
   return 'in';
 }
 
@@ -65,16 +75,25 @@ async function phoneVerification(s, page) {
     const country = COUNTRY_ORDER[phoneAttempt % COUNTRY_ORDER.length];
     const phone = await s.checkSms('instagram', country);
     console.log(`[ig] SMS attempt ${phoneAttempt + 1} (${country}): ${phone}`);
-    if (phone.startsWith('error')) { await pageSettled(page); continue; }
+    if (phone.startsWith('error')) {
+      await pageSettled(page);
+      continue;
+    }
     // E.164 on the re-entry field too: strip only separators. The country
     // selector's option is the one whose dial code the number starts with.
     const digits = s.resolveEnv('$INSTAGRAM_NEW_PHONE').replace(/[^\d+]/g, '');
     await page.evaluate((number) => {
       for (const sel of document.querySelectorAll('select')) {
         const match = Array.from(sel.options)
-          .filter((o) => o.value && number.startsWith(`+${o.value.replace(/\D/g, '')}`))
+          .filter(
+            (o) =>
+              o.value && number.startsWith(`+${o.value.replace(/\D/g, '')}`),
+          )
           .sort((a, b) => b.value.length - a.value.length)[0];
-        if (match) { sel.value = match.value; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+        if (match) {
+          sel.value = match.value;
+          sel.dispatchEvent(new Event('change', { bubbles: true }));
+        }
       }
     }, digits);
     await pageSettled(page);
@@ -89,7 +108,10 @@ async function phoneVerification(s, page) {
     console.log(`[ig] SMS code: ${smsCode}`);
     if (smsCode && smsCode !== NO_CODE && !page.isClosed()) {
       const code = await codeField(page);
-      if (!code) throw new Error('instagram asked for a phone, took it, and shows no code field');
+      if (!code)
+        throw new Error(
+          'instagram asked for a phone, took it, and shows no code field',
+        );
       await code.fill(smsCode);
       await pageSettled(page);
       await pressAny(s, ['confirm', 'continue', 'next']);
@@ -111,7 +133,10 @@ async function signup(s, attempt = 1) {
   // Rotate the SMS country by attempt; on an order error try the others.
   const country = COUNTRY_ORDER[(attempt - 1) % COUNTRY_ORDER.length];
   let phone = await s.checkSms('instagram', country);
-  for (const fb of COUNTRY_ORDER) { if (phone.startsWith('error') && fb !== country) phone = await s.checkSms('instagram', fb); }
+  for (const fb of COUNTRY_ORDER) {
+    if (phone.startsWith('error') && fb !== country)
+      phone = await s.checkSms('instagram', fb);
+  }
   console.log(`[ig] identity: ${id.username} / phone=${phone}`);
   if (phone.startsWith('error')) throw new Error('no_phone_number');
   const phoneNum = s.resolveEnv('$INSTAGRAM_NEW_PHONE');
@@ -122,7 +147,8 @@ async function signup(s, attempt = 1) {
   await pageSettled(page);
 
   // Cookie consent, when the page offers it.
-  if ((await s.jsClick('button', 'Allow essential')) !== 'no-element-found') await pageSettled(page);
+  if ((await s.jsClick('button', 'Allow essential')) !== 'no-element-found')
+    await pageSettled(page);
 
   await s.fill('email', digits);
   await pageSettled(page);
@@ -141,11 +167,15 @@ async function signup(s, attempt = 1) {
   await s.fill('username', id.username);
   await pageSettled(page);
 
-  await page.screenshot({ path: `${runRecordingsDir('instagram_register')}/ig_before_submit.png` });
+  await page.screenshot({
+    path: `${runRecordingsDir('instagram_register')}/ig_before_submit.png`,
+  });
   // The submit is a role="button" container, not a <button>.
   await s.click('Submit');
   await pageSettled(page);
-  await page.screenshot({ path: `${runRecordingsDir('instagram_register')}/ig_after_submit.png` });
+  await page.screenshot({
+    path: `${runRecordingsDir('instagram_register')}/ig_after_submit.png`,
+  });
 
   // Leave the signup form: the next state is whatever the page asks for. The
   // page is read until it leaves the form; an error the form shows is the
@@ -156,8 +186,14 @@ async function signup(s, attempt = 1) {
     await pageSettled(page);
     current = await state(page);
     if (current !== 'form') break;
-    const alert = page.locator('[role="alert"], #ssfErrorAlert').filter({ visible: true }).first();
-    if (await alert.count()) throw new Error(`signup_form_refused: ${(await alert.innerText()).trim()}`);
+    const alert = page
+      .locator('[role="alert"], #ssfErrorAlert')
+      .filter({ visible: true })
+      .first();
+    if (await alert.count())
+      throw new Error(
+        `signup_form_refused: ${(await alert.innerText()).trim()}`,
+      );
   }
   console.log(`[ig] after submit: path=${pathOf(page)} state=${current}`);
 
@@ -175,9 +211,11 @@ async function signup(s, attempt = 1) {
     current = await state(page);
     console.log(`[ig] onboarding: path=${pathOf(page)} state=${current}`);
     if (current === 'in') break;
-    if (current === 'password_reset') throw new Error('password_reset_redirect');
+    if (current === 'password_reset')
+      throw new Error('password_reset_redirect');
     if (current === 'code') {
-      if (!smsCode || smsCode === NO_CODE) throw new Error('sms_code_not_received');
+      if (!smsCode || smsCode === NO_CODE)
+        throw new Error('sms_code_not_received');
       await (await codeField(page)).fill(smsCode);
       await humanIdlePause('short');
       await pressAny(s, ['Continue', 'Next', 'Confirm']);
@@ -185,38 +223,60 @@ async function signup(s, attempt = 1) {
       continue;
     }
     if (current === 'selfie') throw new Error('selfie_required');
-    if (current === 'phone') { await phoneVerification(s, page); continue; }
+    if (current === 'phone') {
+      await phoneVerification(s, page);
+      continue;
+    }
     if (current === 'challenge') {
       // A challenge with neither a phone nor a selfie field: continue once;
       // one that then asks for text beside an image is an image code this
       // run does not solve.
       await pressAny(s, ['continue', 'next']);
       await pageSettled(page);
-      const text = page.locator('main input[type="text"], form input[type="text"]').first();
+      const text = page
+        .locator('main input[type="text"], form input[type="text"]')
+        .first();
       if ((await state(page)) === 'challenge' && (await text.isVisible())) {
-        throw new Error('instagram_image_captcha: Instagram asked for an image code after signup; the run stops here');
+        throw new Error(
+          'instagram_image_captcha: Instagram asked for an image code after signup; the run stops here',
+        );
       }
       continue;
     }
     if (!(await pressAny(s, ['skip', 'not now', 'next']))) {
-      throw new Error(`instagram_onboarding_unrecognised: path=${pathOf(page)} state=${current}`);
+      throw new Error(
+        `instagram_onboarding_unrecognised: path=${pathOf(page)} state=${current}`,
+      );
     }
     await pageSettled(page);
   }
 
   if (page.isClosed()) throw new Error('page_closed');
-  if (pathOf(page).startsWith(PATH.suspended)) throw new Error('account_suspended');
+  if (pathOf(page).startsWith(PATH.suspended))
+    throw new Error('account_suspended');
   // Success is the session's auth cookies, not what the page says.
   const cookies = await s.ctx.cookies();
-  const authCookies = cookies.filter(c => c.domain?.includes('instagram.com') && (c.name === 'sessionid' || c.name === 'csrftoken'));
+  const authCookies = cookies.filter(
+    (c) =>
+      c.domain?.includes('instagram.com') &&
+      (c.name === 'sessionid' || c.name === 'csrftoken'),
+  );
   if (authCookies.length < 2) {
-    console.log(`[ig] no auth cookies (cookies=${authCookies.map(c => c.name)})`);
+    console.log(
+      `[ig] no auth cookies (cookies=${authCookies.map((c) => c.name)})`,
+    );
     throw new Error('no_auth_cookies');
   }
-  console.log(`[ig] auth cookies verified: ${authCookies.map(c => c.name).join(', ')}`);
+  console.log(
+    `[ig] auth cookies verified: ${authCookies.map((c) => c.name).join(', ')}`,
+  );
 
   const result = await s.saveAccount('instagram', {
-    username: id.username, email: id.email, password: id.password, name, phone: phoneNum,
+    username: id.username,
+    email: id.email,
+    password: id.password,
+    name,
+    phone: phoneNum,
   });
   console.log(`[ig] ${result}`);
   const bound = await autoBindCharacter(id.username, 'instagram');
@@ -224,7 +284,10 @@ async function signup(s, attempt = 1) {
   return id.username;
 }
 
-const s = await WSession.start({ label: 'instagram_register', proxy: pickInstagramProxy() });
+const s = await WSession.start({
+  label: 'instagram_register',
+  proxy: pickInstagramProxy(),
+});
 try {
   const username = await signup(s, 1);
   console.log(`PASS: ${username}`);

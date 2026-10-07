@@ -1,16 +1,33 @@
-import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
+import {
+  getSocialAccount,
+  resolveAccountSession,
+} from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { detectRedditBanSignals } from '../../../../dist/platforms/reddit/ban_signals.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
-import { humanIdlePause, humanScrollPage, humanClickLocator } from '../../../../dist/human/mouse.js';
+import {
+  humanIdlePause,
+  humanScrollPage,
+  humanClickLocator,
+} from '../../../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 import { pageSettled } from '../../_shared/page/settled.mjs';
 import { restoreRedditSession } from './comment/steps/session_restore.mjs';
-import { readOwnHandle, resolveTargetPost } from './comment/steps/reddit_json.mjs';
-import { classifyInvisibleComment, confirmBlockingSignal, pollPublicVisibility } from './comment/steps/visibility.mjs';
-import { recordCommentForVerify, verifyPreviousComment } from './comment/steps/deferred_verify.mjs';
+import {
+  readOwnHandle,
+  resolveTargetPost,
+} from './comment/steps/reddit_json.mjs';
+import {
+  classifyInvisibleComment,
+  confirmBlockingSignal,
+  pollPublicVisibility,
+} from './comment/steps/visibility.mjs';
+import {
+  recordCommentForVerify,
+  verifyPreviousComment,
+} from './comment/steps/deferred_verify.mjs';
 
 // Use old.reddit.com — comment composer is a plain visible <textarea name="text">
 // inside a normal form. New reddit.com puts the composer inside <shreddit-composer>'s
@@ -24,18 +41,36 @@ import { recordCommentForVerify, verifyPreviousComment } from './comment/steps/d
 // shadowbanned within minutes of submit.
 const TARGET_URL = process.env.TARGET_URL;
 const COMMENT_BODY = process.env.COMMENT_BODY;
-if (!TARGET_URL) { console.log('FAIL: TARGET_URL env var required: the post or listing the comment goes to'); process.exit(1); }
-if (!COMMENT_BODY) { console.log('FAIL: COMMENT_BODY env var required'); process.exit(1); }
+if (!TARGET_URL) {
+  console.log(
+    'FAIL: TARGET_URL env var required: the post or listing the comment goes to',
+  );
+  process.exit(1);
+}
+if (!COMMENT_BODY) {
+  console.log('FAIL: COMMENT_BODY env var required');
+  process.exit(1);
+}
 
 const acct = await getSocialAccount('reddit');
-if (!acct) { console.log('FAIL: no active reddit account in Skarbiec'); process.exitCode = 1; }
+if (!acct) {
+  console.log('FAIL: no active reddit account in Skarbiec');
+  process.exitCode = 1;
+}
 console.log(`[trajectory] Using account: ${acct.username}`);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
-const s = await WSession.start({ label: 'reddit_comment', proxy: proxyUrl, persona });
+const s = await WSession.start({
+  label: 'reddit_comment',
+  proxy: proxyUrl,
+  persona,
+});
 
 // Translate www.reddit.com URLs → old.reddit.com so we can use the plain form.
-const oldUrl = TARGET_URL.replace(/^https?:\/\/(www\.)?reddit\.com/, 'https://old.reddit.com');
+const oldUrl = TARGET_URL.replace(
+  /^https?:\/\/(www\.)?reddit\.com/,
+  'https://old.reddit.com',
+);
 
 /** Our real handle for the post-submit verification, or false when Reddit gives none. */
 async function readHandle() {
@@ -64,7 +99,10 @@ async function writeComment() {
   await humanIdlePause('short');
   // The comment composer is the FIRST textarea[name="text"] on the page —
   // there's one per existing reply box but the top-level reply form is first.
-  const ta = s.page.locator('textarea[name="text"]').filter({ visible: true }).first();
+  const ta = s.page
+    .locator('textarea[name="text"]')
+    .filter({ visible: true })
+    .first();
   await ta.waitFor({ state: 'visible' });
   // Humanized click into textarea — moves cursor via Bezier path, lands at
   // a randomized offset inside the box, then clicks: the pre-click pointer
@@ -76,7 +114,10 @@ async function writeComment() {
   await humanType(s.page, COMMENT_BODY);
   await humanIdlePause('short');
   // Submit through the shared input path after locating the enclosing form.
-  const submitBtn = ta.locator('xpath=ancestor::form[1]').locator('button.save, button[type="submit"]').first();
+  const submitBtn = ta
+    .locator('xpath=ancestor::form[1]')
+    .locator('button.save, button[type="submit"]')
+    .first();
   await submitBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, submitBtn);
 }
@@ -109,7 +150,9 @@ let banSignal = false;
 try {
   await verifyPreviousComment(acct);
   await restoreRedditSession(s, acct);
-  await s.page.goto('https://old.reddit.com/api/me.json', { waitUntil: 'domcontentloaded' });
+  await s.page.goto('https://old.reddit.com/api/me.json', {
+    waitUntil: 'domcontentloaded',
+  });
   await humanIdlePause('deliberate');
   const handle = await readHandle();
   if (handle) console.log(`[trajectory] real handle: ${handle}`);
@@ -118,7 +161,10 @@ try {
   await s.page.goto(resolvedOldUrl, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('deliberate');
   const url = s.page.url();
-  if (/\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); process.exitCode = 1; }
+  if (/\/login/.test(url)) {
+    console.log(`FAIL: cookies stale, redirected to login (${url})`);
+    process.exitCode = 1;
+  }
 
   await writeComment();
   // The optimistic in-page check (body text appearing in page innerText) was
@@ -129,23 +175,40 @@ try {
   // JSON and confirm the comment is in the public tree.
   const found = await readLocalPost();
   const postedCommentId = found && found !== 'POSTED_NO_ID' ? found : false;
-  banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => false);
-  if (!found) throw new Error(`submit did not confirm — body did not appear in page text`);
+  banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(
+    () => false,
+  );
+  if (!found)
+    throw new Error(
+      `submit did not confirm — body did not appear in page text`,
+    );
   banSignal = await confirmBlockingSignal(s, banSignal, COMMENT_BODY);
 
-  const visibility = await pollPublicVisibility(s, { baseUrl: oldUrl.replace(/\/$/, ''), postedCommentId, handle, body: COMMENT_BODY });
+  const visibility = await pollPublicVisibility(s, {
+    baseUrl: oldUrl.replace(/\/$/, ''),
+    postedCommentId,
+    handle,
+    body: COMMENT_BODY,
+  });
   if (!visibility.publiclyVisible) {
     banSignal = await classifyInvisibleComment(s, banSignal, COMMENT_BODY);
     console.log(`[ban-signal] ${banSignal.signal}`);
-    throw new Error(`comment not publicly visible — ${banSignal.signal} (${banSignal.details?.reason ?? 'no detail'})`);
+    throw new Error(
+      `comment not publicly visible — ${banSignal.signal} (${banSignal.details?.reason ?? 'no detail'})`,
+    );
   }
   console.log('[ban-signal] healthy');
-  console.log(`PASS: commented "${COMMENT_BODY}" on ${resolvedOldUrl} (verified public, in-session)`);
+  console.log(
+    `PASS: commented "${COMMENT_BODY}" on ${resolvedOldUrl} (verified public, in-session)`,
+  );
 
   recordCommentForVerify(acct, { resolvedOldUrl, postedCommentId, handle });
 } catch (e) {
   if (e.banSignal) banSignal = e.banSignal;
-  if (!banSignal) banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => false);
+  if (!banSignal)
+    banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(
+      () => false,
+    );
   if (banSignal) console.log(`[ban-signal] ${banSignal.signal}`);
   console.log('FAIL:', e.message);
   process.exitCode = 1;
@@ -154,8 +217,22 @@ try {
     try {
       const dir = runRecordingsDir('reddit_comment');
       mkdirSync(dir, { recursive: true });
-      writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, ...banSignal, ts: new Date().toISOString() }, null, 2));
-    } catch (e) { console.log('[ban-signal] persist err:', e.message); }
+      writeFileSync(
+        join(dir, 'ban_signal.json'),
+        JSON.stringify(
+          {
+            account_id: acct.id,
+            username: acct.username,
+            ...banSignal,
+            ts: new Date().toISOString(),
+          },
+          null,
+          2,
+        ),
+      );
+    } catch (e) {
+      console.log('[ban-signal] persist err:', e.message);
+    }
   }
   await s.close();
 }

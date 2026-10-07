@@ -2,12 +2,16 @@
 // UI-only; never submits.
 
 import { chromium } from 'playwright';
-import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('9_2');
-const NEEDLE = 'Udział cykli treningowych RNM z raportem energii, CO2eq i kryteriami zielonych zamówień';
+const NEEDLE =
+  'Udział cykli treningowych RNM z raportem energii, CO2eq i kryteriami zielonych zamówień';
 
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
@@ -16,54 +20,75 @@ if (!page) {
   process.exit(1);
 }
 
-
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: UI navigation to authenticated draft section
 await humanIdlePause('long');
 await page.evaluate(() => {
-  const b = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies'));
+  const b = Array.from(document.querySelectorAll('div')).find((d) =>
+    (d.innerText || '').includes('pliki cookies'),
+  );
   if (b) b.style.pointerEvents = 'none';
 }); // allow-raw-playwright: neutralise cookie banner only
 
 async function openRow() {
   const rows = page.locator('table tbody tr');
   let menuButton = null;
-  for (let index = 0; index < await rows.count(); index += 1) {
+  for (let index = 0; index < (await rows.count()); index += 1) {
     const row = rows.nth(index);
     if (!(await row.innerText()).includes(NEEDLE)) continue;
-    const candidate = row.locator('button[aria-label="overflow-options"]').first();
+    const candidate = row
+      .locator('button[aria-label="overflow-options"]')
+      .first();
     if (await candidate.count()) menuButton = candidate;
     break;
   }
-  if (!menuButton) throw new Error(`target green indicator row not found: ${NEEDLE}`);
+  if (!menuButton)
+    throw new Error(`target green indicator row not found: ${NEEDLE}`);
   await humanClickLocator(page, menuButton);
   await humanIdlePause('deliberate');
   const item = page.getByRole('menuitem', { name: /edytuj/i }).first();
-  if (await item.count() === 0) throw new Error('edit menu item not found');
+  if ((await item.count()) === 0) throw new Error('edit menu item not found');
   await humanClickLocator(page, item);
   await humanIdlePause('long');
 }
 
 async function dumpFields() {
   return page.evaluate(() => ({
-    fields: Array.from(document.querySelectorAll('input, textarea')).map((i) => ({
-      tag: i.tagName,
-      type: i.type || null,
-      name: i.name || null,
-      value: (i.value || ''),
-      max: i.getAttribute('maxlength'),
-      readOnly: i.readOnly,
-      disabled: i.disabled,
-      label: i.id ? document.querySelector(`label[for="${CSS.escape(i.id)}"]`)?.textContent?.trim() : null,
-    })).filter((x) => x.name || x.label),
-    saves: Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz').map((b) => ({ disabled: b.disabled })),
+    fields: Array.from(document.querySelectorAll('input, textarea'))
+      .map((i) => ({
+        tag: i.tagName,
+        type: i.type || null,
+        name: i.name || null,
+        value: i.value || '',
+        max: i.getAttribute('maxlength'),
+        readOnly: i.readOnly,
+        disabled: i.disabled,
+        label: i.id
+          ? document
+              .querySelector(`label[for="${CSS.escape(i.id)}"]`)
+              ?.textContent?.trim()
+          : null,
+      }))
+      .filter((x) => x.name || x.label),
+    saves: Array.from(document.querySelectorAll('button'))
+      .filter((b) => b.innerText.trim() === 'Zapisz')
+      .map((b) => ({ disabled: b.disabled })),
   })); // allow-raw-playwright: read opened form state
 }
 
 async function setSuffix(suffix, value) {
   const loc = page.locator(`[name$="${suffix}"]`).first();
-  if (await loc.count() === 0) return { suffix, status: 'missing' };
-  const flags = await loc.evaluate((el) => ({ readOnly: el.readOnly, disabled: el.disabled })); // allow-raw-playwright: read field flags
-  if (flags.readOnly || flags.disabled) return { suffix, status: 'locked', flags, value: await loc.inputValue().catch(() => null) };
+  if ((await loc.count()) === 0) return { suffix, status: 'missing' };
+  const flags = await loc.evaluate((el) => ({
+    readOnly: el.readOnly,
+    disabled: el.disabled,
+  })); // allow-raw-playwright: read field flags
+  if (flags.readOnly || flags.disabled)
+    return {
+      suffix,
+      status: 'locked',
+      flags,
+      value: await loc.inputValue().catch(() => null),
+    };
   await humanFill(page, loc, value);
   await humanIdlePause('short');
   return { suffix, status: 'set', value };
@@ -72,7 +97,9 @@ async function setSuffix(suffix, value) {
 async function saveForm() {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  const saves = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
+  const saves = page
+    .getByRole('button', { name: 'Zapisz', exact: true })
+    .filter({ visible: true });
   const count = await saves.count();
   if (!count) throw new Error('no enabled Zapisz');
   await humanClickLocator(page, saves.nth(count - 1));
@@ -83,7 +110,9 @@ async function readRow() {
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: reload for readback
   await humanIdlePause('long');
   return page.evaluate((needle) => {
-    const rows = Array.from(document.querySelectorAll('table tbody tr')).map((r) => r.innerText.replace(/\s+/g, ' ').trim());
+    const rows = Array.from(document.querySelectorAll('table tbody tr')).map(
+      (r) => r.innerText.replace(/\s+/g, ' ').trim(),
+    );
     return rows.find((r) => r.includes(needle)) || null;
   }, NEEDLE); // allow-raw-playwright: read back exact row
 }

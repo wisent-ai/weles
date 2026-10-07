@@ -1,7 +1,9 @@
 /** The persona country a proxy URL implies, or undefined when it names none. */
 export function countryHintFromProxy(proxyUrl) {
   if (!proxyUrl) return undefined;
-  const cc = String(proxyUrl).toLowerCase().match(/\b(us|uk|gb|br|de|fr|nl|ca|au)\b/)?.[0];
+  const cc = String(proxyUrl)
+    .toLowerCase()
+    .match(/\b(us|uk|gb|br|de|fr|nl|ca|au)\b/)?.[0];
   return cc === 'uk' ? 'gb' : cc;
 }
 

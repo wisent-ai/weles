@@ -18,12 +18,22 @@ import { join } from 'node:path';
 import { runOutputPath } from '#run-output';
 import { completeGooglePhoneApproval } from '../../_shared/services/google_sso/sign_in/challenge/phone.mjs';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { readDocument, writeDocument } from '../../../../dist/state/skarbiec-records.js';
 import {
-  confirmSetupCode, onSignIn, openAuthenticatorSetup, redactKeys, revealSetupKey,
+  readDocument,
+  writeDocument,
+} from '../../../../dist/state/skarbiec-records.js';
+import {
+  confirmSetupCode,
+  onSignIn,
+  openAuthenticatorSetup,
+  redactKeys,
+  revealSetupKey,
 } from '../../_shared/services/google_sso/authenticator_enrol.mjs';
 import {
-  accountProfileDir, loginMaterial, pageDescription, signIn as signInAccount,
+  accountProfileDir,
+  loginMaterial,
+  pageDescription,
+  signIn as signInAccount,
 } from '../../_shared/services/google_sso/sign_in/account.mjs';
 
 import { pageSettled } from '../../_shared/page/settled.mjs';
@@ -53,12 +63,21 @@ function mark(stage) {
 async function signIn(page, wait, login) {
   mark('google_sign_in');
   const signed = await signInAccount(page, wait, login);
-  if (signed.ok || signed.blocked !== 'google_push_approval_required') return signed;
+  if (signed.ok || signed.blocked !== 'google_push_approval_required')
+    return signed;
   mark('google_phone_approval');
-  await completeGooglePhoneApproval(page, login.email, `google-authenticator-enrol ${login.loginItem}`);
+  await completeGooglePhoneApproval(
+    page,
+    login.email,
+    `google-authenticator-enrol ${login.loginItem}`,
+  );
   mark('google_phone_approved');
   if (onSignIn(page.url())) {
-    return { ok: false, blocked: 'google_sign_in_requires_action', ...(await pageDescription(page)) };
+    return {
+      ok: false,
+      blocked: 'google_sign_in_requires_action',
+      ...(await pageDescription(page)),
+    };
   }
   return { ok: true };
 }
@@ -66,7 +85,11 @@ async function signIn(page, wait, login) {
 async function main() {
   const loginItem = String(process.env.WELES_LOGIN_ITEM || '').trim();
   if (!loginItem) {
-    report({ ok: false, blocked: 'login_item_required', detail: 'WELES_LOGIN_ITEM must name the Skarbiec login item to enrol' });
+    report({
+      ok: false,
+      blocked: 'login_item_required',
+      detail: 'WELES_LOGIN_ITEM must name the Skarbiec login item to enrol',
+    });
     process.exitCode = 2;
     return;
   }
@@ -76,7 +99,10 @@ async function main() {
   // signed in from this host under another row.
   const userDataDir = accountProfileDir(login);
   const session = await WSession.start({
-    label: `google-authenticator-enrol-${loginItem}`, browser: 'chromium', headless: false, userDataDir,
+    label: `google-authenticator-enrol-${loginItem}`,
+    browser: 'chromium',
+    headless: false,
+    userDataDir,
   });
   const page = session.page;
   const wait = () => pageSettled(page);
@@ -86,7 +112,12 @@ async function main() {
     if (!opened.ok && opened.blocked === 'google_sign_in_required') {
       const signedIn = await signIn(page, wait, login);
       if (!signedIn.ok) {
-        report({ ok: false, login_item: loginItem, email: login.email, ...signedIn });
+        report({
+          ok: false,
+          login_item: loginItem,
+          email: login.email,
+          ...signedIn,
+        });
         process.exitCode = 3;
         return;
       }
@@ -94,21 +125,36 @@ async function main() {
       opened = await openAuthenticatorSetup(page, wait);
     }
     if (!opened.ok) {
-      report({ ok: false, login_item: loginItem, email: login.email, ...opened });
+      report({
+        ok: false,
+        login_item: loginItem,
+        email: login.email,
+        ...opened,
+      });
       process.exitCode = 4;
       return;
     }
     mark('authenticator_key_reveal');
     const revealed = await revealSetupKey(page, wait);
     if (!revealed.ok) {
-      report({ ok: false, login_item: loginItem, email: login.email, ...revealed });
+      report({
+        ok: false,
+        login_item: loginItem,
+        email: login.email,
+        ...revealed,
+      });
       process.exitCode = 5;
       return;
     }
     mark('authenticator_code_confirm');
     const confirmed = await confirmSetupCode(page, wait, revealed.secret);
     if (!confirmed.ok) {
-      report({ ok: false, login_item: loginItem, email: login.email, ...confirmed });
+      report({
+        ok: false,
+        login_item: loginItem,
+        email: login.email,
+        ...confirmed,
+      });
       process.exitCode = 6;
       return;
     }
@@ -120,18 +166,33 @@ async function main() {
     writeDocument(loginItem, current);
     const stored = String(readDocument(loginItem).fields?.totp_secret || '');
     if (stored !== revealed.secret) {
-      report({ ok: false, login_item: loginItem, email: login.email, blocked: 'seed_persist_unconfirmed',
-        detail: 'Skarbiec did not return the seed just written' });
+      report({
+        ok: false,
+        login_item: loginItem,
+        email: login.email,
+        blocked: 'seed_persist_unconfirmed',
+        detail: 'Skarbiec did not return the seed just written',
+      });
       process.exitCode = 7;
       return;
     }
-    report({ ok: true, login_item: loginItem, email: login.email, seed_written: true, url: confirmed.url });
+    report({
+      ok: true,
+      login_item: loginItem,
+      email: login.email,
+      seed_written: true,
+      url: confirmed.url,
+    });
   } finally {
     await session.close();
   }
 }
 
 main().catch((error) => {
-  report({ ok: false, blocked: error?.code || 'google_authenticator_enrol_error', error: redactKeys(String(error?.message || error)) });
+  report({
+    ok: false,
+    blocked: error?.code || 'google_authenticator_enrol_error',
+    error: redactKeys(String(error?.message || error)),
+  });
   process.exitCode = 1;
 });

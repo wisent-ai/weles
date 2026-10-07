@@ -6,7 +6,9 @@ import { activeSkarbiecBinary } from '../../../_shared/skarbiec-runtime.mjs';
 
 const HOME = os.homedir();
 let resolvedSkarbiecBinary;
-const VAULT = process.env.SKARBIEC_VAULT_FILE ?? path.join(HOME, '.stado', 'skarbiec.vault.json');
+const VAULT =
+  process.env.SKARBIEC_VAULT_FILE ??
+  path.join(HOME, '.stado', 'skarbiec.vault.json');
 // Weles marks each record with the kind it is (Skarbiec namespace
 // weles:record:<kind>) and finds one by that tag and its own context; an
 // item's id is random and nothing reads meaning out of it.
@@ -15,15 +17,20 @@ const ACCOUNT_KIND = 'trajectory-account';
 const ITEM_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,190}$/;
 
 function run(args, input) {
-  return execFileSync(resolvedSkarbiecBinary ??= activeSkarbiecBinary(), args, {
-    input,
-    encoding: 'utf8',
-    env: { ...process.env, SKARBIEC_VAULT_FILE: VAULT },
-  });
+  return execFileSync(
+    (resolvedSkarbiecBinary ??= activeSkarbiecBinary()),
+    args,
+    {
+      input,
+      encoding: 'utf8',
+      env: { ...process.env, SKARBIEC_VAULT_FILE: VAULT },
+    },
+  );
 }
 
 function requireItem(id) {
-  if (!ITEM_ID.test(String(id))) throw new Error('invalid Weles Skarbiec record id');
+  if (!ITEM_ID.test(String(id)))
+    throw new Error('invalid Weles Skarbiec record id');
   return String(id);
 }
 
@@ -31,7 +38,10 @@ function requireItem(id) {
 function recordIds(kind) {
   const tag = `${RECORD_TAG_PREFIX}${kind}`;
   return JSON.parse(run(['list']))
-    .filter((row) => !row.deleted && Array.isArray(row.tags) && row.tags.includes(tag))
+    .filter(
+      (row) =>
+        !row.deleted && Array.isArray(row.tags) && row.tags.includes(tag),
+    )
     .map((row) => String(row.id ?? row.name ?? ''))
     .filter(Boolean);
 }
@@ -43,8 +53,21 @@ function recordIds(kind) {
  */
 function setRecord(kind, id, itemKind, fields) {
   const fresh = !recordIds(kind).includes(id);
-  run(['set-json', id, '--type', itemKind, ...(fresh ? ['--tags', `${RECORD_TAG_PREFIX}${kind}`] : [])],
-    JSON.stringify({ schema: 'skarbiec.item.v2', kind: itemKind, fields, context: {} }));
+  run(
+    [
+      'set-json',
+      id,
+      '--type',
+      itemKind,
+      ...(fresh ? ['--tags', `${RECORD_TAG_PREFIX}${kind}`] : []),
+    ],
+    JSON.stringify({
+      schema: 'skarbiec.item.v2',
+      kind: itemKind,
+      fields,
+      context: {},
+    }),
+  );
 }
 
 /**
@@ -53,8 +76,13 @@ function setRecord(kind, id, itemKind, fields) {
  */
 export function accountItemFor(platform, username) {
   const wanted = String(username).trim().toLowerCase();
-  const existing = recordIds(ACCOUNT_KIND).map((id) => readAccount(id)).find((account) =>
-    account.platform === String(platform) && account.username.trim().toLowerCase() === wanted);
+  const existing = recordIds(ACCOUNT_KIND)
+    .map((id) => readAccount(id))
+    .find(
+      (account) =>
+        account.platform === String(platform) &&
+        account.username.trim().toLowerCase() === wanted,
+    );
   return existing?.id ?? randomUUID().replaceAll('-', '');
 }
 
@@ -100,8 +128,10 @@ export function findProduct(productId) {
   if (!wanted) return null;
   const id = findWelesRecordId((document, recordId) => {
     const context = document.context ?? {};
-    return context.record_kind === 'product'
-      && (recordId === wanted || String(context.product_id ?? '') === wanted);
+    return (
+      context.record_kind === 'product' &&
+      (recordId === wanted || String(context.product_id ?? '') === wanted)
+    );
   });
   if (!id) return null;
   const document = readWelesRecord(id);
@@ -110,9 +140,15 @@ export function findProduct(productId) {
 
 export function writeServiceCredentials(service, { username, password }) {
   const kind = 'service-credential';
-  const id = recordIds(kind).find((recordId) =>
-    readWelesRecord(recordId).context?.service === String(service)) ?? randomUUID().replaceAll('-', '');
-  setRecord(kind, id, 'login', { username: String(username), password: String(password) });
+  const id =
+    recordIds(kind).find(
+      (recordId) =>
+        readWelesRecord(recordId).context?.service === String(service),
+    ) ?? randomUUID().replaceAll('-', '');
+  setRecord(kind, id, 'login', {
+    username: String(username),
+    password: String(password),
+  });
   const document = readWelesRecord(id);
   document.context = {
     ...(document.context ?? {}),
@@ -126,9 +162,14 @@ export function writeServiceCredentials(service, { username, password }) {
 
 export function writeDomainStatus(domain, status) {
   const kind = 'email-domain-status';
-  const id = recordIds(kind).find((recordId) =>
-    readWelesRecord(recordId).fields?.domain === String(domain)) ?? randomUUID().replaceAll('-', '');
-  setRecord(kind, id, 'bundle', { domain: String(domain), status: String(status) });
+  const id =
+    recordIds(kind).find(
+      (recordId) => readWelesRecord(recordId).fields?.domain === String(domain),
+    ) ?? randomUUID().replaceAll('-', '');
+  setRecord(kind, id, 'bundle', {
+    domain: String(domain),
+    status: String(status),
+  });
   const document = readWelesRecord(id);
   document.context = {
     ...(document.context ?? {}),
@@ -144,11 +185,15 @@ export function writeDomainStatus(domain, status) {
 // next health run looks for exactly that mail in the inbox.
 export function writeDomainProbe(domain, marker) {
   const kind = 'email-domain-status';
-  let id = recordIds(kind).find((recordId) =>
-    readWelesRecord(recordId).fields?.domain === String(domain));
+  let id = recordIds(kind).find(
+    (recordId) => readWelesRecord(recordId).fields?.domain === String(domain),
+  );
   if (!id) {
     id = randomUUID().replaceAll('-', '');
-    setRecord(kind, id, 'bundle', { domain: String(domain), status: 'unprobed' });
+    setRecord(kind, id, 'bundle', {
+      domain: String(domain),
+      status: 'unprobed',
+    });
   }
   const document = readWelesRecord(id);
   document.context = {
@@ -163,10 +208,20 @@ export function writeDomainProbe(domain, marker) {
 
 // domain -> { marker, sentAt } for every domain with a recorded probe.
 export function readDomainProbes() {
-  return Object.fromEntries(recordIds('email-domain-status')
-    .map((id) => readWelesRecord(id))
-    .filter((document) => document.context?.probe_marker && document.fields?.domain)
-    .map((document) => [document.fields.domain, { marker: document.context.probe_marker, sentAt: document.context.probe_sent_at }]));
+  return Object.fromEntries(
+    recordIds('email-domain-status')
+      .map((id) => readWelesRecord(id))
+      .filter(
+        (document) => document.context?.probe_marker && document.fields?.domain,
+      )
+      .map((document) => [
+        document.fields.domain,
+        {
+          marker: document.context.probe_marker,
+          sentAt: document.context.probe_sent_at,
+        },
+      ]),
+  );
 }
 export function listAccounts(platform = '') {
   return recordIds(ACCOUNT_KIND)
@@ -178,9 +233,14 @@ export function listAccounts(platform = '') {
 }
 
 export function findAccount(platform, username) {
-  const normalized = String(username ?? '').trim().toLowerCase();
-  return listAccounts(platform).find((account) =>
-    account.username.trim().toLowerCase() === normalized) ?? null;
+  const normalized = String(username ?? '')
+    .trim()
+    .toLowerCase();
+  return (
+    listAccounts(platform).find(
+      (account) => account.username.trim().toLowerCase() === normalized,
+    ) ?? null
+  );
 }
 
 export function readAccount(id) {
@@ -196,7 +256,14 @@ export function readAccount(id) {
   };
 }
 
-export function writeAccount({ id, platform, username, password, metadata, displayName = '' }) {
+export function writeAccount({
+  id,
+  platform,
+  username,
+  password,
+  metadata,
+  displayName = '',
+}) {
   const item = requireItem(id);
   setRecord(ACCOUNT_KIND, item, 'bundle', {
     username: String(username),
@@ -229,9 +296,10 @@ export function replaceAccountMetadata(id, metadata) {
 
 export function updateAccountMetadata(id, update) {
   const account = readAccount(id);
-  const metadata = typeof update === 'function'
-    ? update(account.metadata)
-    : { ...account.metadata, ...(update ?? {}) };
+  const metadata =
+    typeof update === 'function'
+      ? update(account.metadata)
+      : { ...account.metadata, ...(update ?? {}) };
   writeAccount({
     id: account.id,
     platform: account.platform,

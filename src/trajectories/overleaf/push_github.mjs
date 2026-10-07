@@ -17,7 +17,10 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { overleafGoogleSignIn } from '../_shared/services/overleaf_google_sign_in.mjs';
 import { pageCondition } from '../_shared/page/settled.mjs';
-import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
+import {
+  humanIdlePause,
+  humanClickLocator,
+} from '../../../dist/human/mouse.js';
 import { humanFill } from '../../../dist/human/keyboard.js';
 import { writeFileSync } from 'node:fs';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
@@ -27,7 +30,9 @@ if (!PROJECT) PROJECT = process.env.OVERLEAF_PROJECT;
 let REPO_SLUG = process.argv[3];
 if (!REPO_SLUG) REPO_SLUG = process.env.OVERLEAF_GITHUB_REPO;
 if (!PROJECT || !REPO_SLUG) {
-  console.error('FAIL: need <PROJECT> <REPO_SLUG>. PROJECT=24-hex id or title substring; REPO_SLUG=owner/name of the linked GitHub repo (the disambiguator).');
+  console.error(
+    'FAIL: need <PROJECT> <REPO_SLUG>. PROJECT=24-hex id or title substring; REPO_SLUG=owner/name of the linked GitHub repo (the disambiguator).',
+  );
   process.exit(1);
 }
 const IS_ID = /^[0-9a-fA-F]{24}$/.test(PROJECT);
@@ -52,7 +57,9 @@ async function shot(s, tag) {
 async function dieUI(s, tag, msg) {
   console.error(`\n[pull_github] STEP FAILED: ${tag} — ${msg}`);
   const p = await shot(s, `fail_${tag}`);
-  console.error(`[pull_github] FAIL (exit 2). Inspect ${p} to correct the exact selector — do not guess.`);
+  console.error(
+    `[pull_github] FAIL (exit 2). Inspect ${p} to correct the exact selector — do not guess.`,
+  );
   await s.close();
   process.exit(2);
 }
@@ -62,7 +69,9 @@ if (!login) {
   console.error('FAIL: exact weles-google-sso-login grant unavailable.');
   process.exit(1);
 }
-console.log(`[pull_github] Google creds loaded for ${login.email}; target repo ${REPO_SLUG}`);
+console.log(
+  `[pull_github] Google creds loaded for ${login.email}; target repo ${REPO_SLUG}`,
+);
 
 const s = await WSession.start({
   label: 'push_github',
@@ -92,10 +101,13 @@ async function openGithubPanel(s) {
   // GitHub control is present, click it to surface the linked repo + the
   // pull action. Its absence is fine — innerText still drives the
   // decision and a DOM dump is on record either way.
-  const ghEntry = s.page.locator(
-    '#ide-rail-tabs-tabpane-integrations :is(button,a):has-text("GitHub")'
-  ).filter({ visible: true }).first();
-  if (await ghEntry.count() > 0) {
+  const ghEntry = s.page
+    .locator(
+      '#ide-rail-tabs-tabpane-integrations :is(button,a):has-text("GitHub")',
+    )
+    .filter({ visible: true })
+    .first();
+  if ((await ghEntry.count()) > 0) {
     await humanClickLocator(s.page, ghEntry);
     await humanIdlePause('short');
     await shot(s, 'github_detail');
@@ -105,9 +117,14 @@ async function openGithubPanel(s) {
     // Reading innerText during the checking state yields a false "not
     // linked" (proven by the captured 04_github_6755b68d.html). Wait for
     // the modal, then for the checking-status text to go.
-    const modalTitle = s.page.locator('.modal-title:has-text("Sync with GitHub")').first();
+    const modalTitle = s.page
+      .locator('.modal-title:has-text("Sync with GitHub")')
+      .first();
     await modalTitle.waitFor({ state: 'visible' });
-    await s.page.getByText('Checking project status in GitHub').first().waitFor({ state: 'hidden' });
+    await s.page
+      .getByText('Checking project status in GitHub')
+      .first()
+      .waitFor({ state: 'hidden' });
     await humanIdlePause('short');
     await shot(s, 'github_modal_loaded');
   }
@@ -116,7 +133,9 @@ async function openGithubPanel(s) {
 }
 
 try {
-  const signedIn = await overleafGoogleSignIn(s, login, { label: 'push_github' });
+  const signedIn = await overleafGoogleSignIn(s, login, {
+    label: 'push_github',
+  });
   if (!signedIn.alreadySignedIn && !/\/project(\?|$|\/)/.test(signedIn.url)) {
     await s.goto('https://www.overleaf.com/project');
   }
@@ -128,28 +147,37 @@ try {
   } else {
     const anchorSel = 'a[href*="/project/"]';
     await s.page.locator(anchorSel).first().waitFor({ state: 'visible' });
-    candidates = await s.page.evaluate(({ sel, needle }) => {
-      const want = needle.toLowerCase();
-      const seen = new Map();
-      for (const a of Array.from(document.querySelectorAll(sel))) {
-        const hrefAttr = a.getAttribute('href');
-        if (hrefAttr === null) continue;
-        const m = hrefAttr.match(/\/project\/([0-9a-fA-F]{24})(?:[/?#]|$)/);
-        if (!m) continue;
-        const id = m[1];
-        const name = a.textContent.trim();
-        if (!seen.has(id)) seen.set(id, name);
-      }
-      const out = [];
-      for (const [id, name] of seen.entries()) {
-        if (name.toLowerCase().includes(want)) out.push({ id, name });
-      }
-      return out;
-    }, { sel: anchorSel, needle: PROJECT });
+    candidates = await s.page.evaluate(
+      ({ sel, needle }) => {
+        const want = needle.toLowerCase();
+        const seen = new Map();
+        for (const a of Array.from(document.querySelectorAll(sel))) {
+          const hrefAttr = a.getAttribute('href');
+          if (hrefAttr === null) continue;
+          const m = hrefAttr.match(/\/project\/([0-9a-fA-F]{24})(?:[/?#]|$)/);
+          if (!m) continue;
+          const id = m[1];
+          const name = a.textContent.trim();
+          if (!seen.has(id)) seen.set(id, name);
+        }
+        const out = [];
+        for (const [id, name] of seen.entries()) {
+          if (name.toLowerCase().includes(want)) out.push({ id, name });
+        }
+        return out;
+      },
+      { sel: anchorSel, needle: PROJECT },
+    );
     if (candidates.length === 0) {
-      await dieUI(s, 'resolve', `no dashboard project title contains "${PROJECT}"`);
+      await dieUI(
+        s,
+        'resolve',
+        `no dashboard project title contains "${PROJECT}"`,
+      );
     }
-    console.log(`[pull_github] ${candidates.length} title match(es); disambiguating by GitHub link to ${REPO_SLUG}`);
+    console.log(
+      `[pull_github] ${candidates.length} title match(es); disambiguating by GitHub link to ${REPO_SLUG}`,
+    );
   }
 
   // For each candidate, open its GitHub panel and act ONLY on the project
@@ -168,21 +196,35 @@ try {
     const panelText = await openGithubPanel(s);
     await shot(s, `github_${tag8}`);
     if (panelText.toLowerCase().includes(REPO_LC)) {
-      console.log(`[pull_github] MATCH — project ${c.id} (${c.name}) is linked to ${REPO_SLUG}`);
-      const pushBtn = s.page.getByRole('button', { name: /push overleaf changes to github/i })
+      console.log(
+        `[pull_github] MATCH — project ${c.id} (${c.name}) is linked to ${REPO_SLUG}`,
+      );
+      const pushBtn = s.page
+        .getByRole('button', { name: /push overleaf changes to github/i })
         .or(s.page.getByText(/push overleaf changes to github/i))
-        .filter({ visible: true }).first();
+        .filter({ visible: true })
+        .first();
       await pushBtn.waitFor({ state: 'visible' });
       await humanClickLocator(s.page, pushBtn);
       await humanIdlePause('deliberate');
       // The push button opens a commit dialog (message textarea + green Sync);
       // the push does NOT run until Sync is clicked (frame_672c66b9_060.png).
-      const msgBox = s.page.getByPlaceholder(/commit message for changes made in overleaf/i)
-        .or(s.page.locator('.modal-dialog textarea')).filter({ visible: true }).first();
+      const msgBox = s.page
+        .getByPlaceholder(/commit message for changes made in overleaf/i)
+        .or(s.page.locator('.modal-dialog textarea'))
+        .filter({ visible: true })
+        .first();
       await msgBox.waitFor({ state: 'visible' });
-      await humanFill(s.page, msgBox, process.env.OVERLEAF_COMMIT_MESSAGE || 'Sync Overleaf edits to GitHub');
+      await humanFill(
+        s.page,
+        msgBox,
+        process.env.OVERLEAF_COMMIT_MESSAGE || 'Sync Overleaf edits to GitHub',
+      );
       await shot(s, `commit_dialog_${tag8}`);
-      const syncBtn = s.page.getByRole('button', { name: /^\s*sync\s*$/i }).filter({ visible: true }).first();
+      const syncBtn = s.page
+        .getByRole('button', { name: /^\s*sync\s*$/i })
+        .filter({ visible: true })
+        .first();
       await syncBtn.waitFor({ state: 'visible' });
       await humanClickLocator(s.page, syncBtn);
       await humanIdlePause('deliberate');
@@ -192,15 +234,31 @@ try {
       // HARD FAIL on any conflict/error so success is never claimed silently.
       const outcome = await pageCondition(s.page, () => {
         const low = (document.body?.innerText || '').toLowerCase();
-        if (/merge conflict|could not be (?:automatically )?merged|failed to (?:push|merge|sync)|push failed|unable to (?:push|merge)/.test(low)) return 'conflict';
-        if (!/checking project status in github|pushing changes to github|importing and merging changes in github/.test(low)) return 'settled';
+        if (
+          /merge conflict|could not be (?:automatically )?merged|failed to (?:push|merge|sync)|push failed|unable to (?:push|merge)/.test(
+            low,
+          )
+        )
+          return 'conflict';
+        if (
+          !/checking project status in github|pushing changes to github|importing and merging changes in github/.test(
+            low,
+          )
+        )
+          return 'settled';
         return false;
       });
       if (outcome === 'conflict') {
-        await dieUI(s, `push_conflict_${tag8}`, `Overleaf reported a conflict/error pushing ${c.id} to ${REPO_SLUG}`);
+        await dieUI(
+          s,
+          `push_conflict_${tag8}`,
+          `Overleaf reported a conflict/error pushing ${c.id} to ${REPO_SLUG}`,
+        );
       }
       const fin = await shot(s, `after_push_${tag8}`);
-      console.log(`\n[push_github] OK — pushed Overleaf changes (${c.id}) to GitHub (${REPO_SLUG}); result settled with no conflict/error.`);
+      console.log(
+        `\n[push_github] OK — pushed Overleaf changes (${c.id}) to GitHub (${REPO_SLUG}); result settled with no conflict/error.`,
+      );
       console.log(`[push_github] final URL: ${s.page.url()}`);
       console.log(`[push_github] post-push DOM: ${fin}`);
       pulled = true;
@@ -210,14 +268,23 @@ try {
   }
 
   if (!pulled) {
-    console.error('[pull_github] no matched project is linked to the target repo:');
+    console.error(
+      '[pull_github] no matched project is linked to the target repo:',
+    );
     for (const r of report) console.error(`  ${r}`);
-    await dieUI(s, 'nolink', `none of ${candidates.length} candidate(s) had GitHub link ${REPO_SLUG}`);
+    await dieUI(
+      s,
+      'nolink',
+      `none of ${candidates.length} candidate(s) had GitHub link ${REPO_SLUG}`,
+    );
   }
   await s.close();
   process.exit(0);
 } catch (err) {
-  console.error('[pull_github] unhandled error:', err && err.message ? err.message : err);
+  console.error(
+    '[pull_github] unhandled error:',
+    err && err.message ? err.message : err,
+  );
   const dp = await shot(s, 'exception');
   console.error(`[pull_github] DOM dump (find the exact selector here): ${dp}`);
   await s.close();

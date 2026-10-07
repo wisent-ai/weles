@@ -8,55 +8,114 @@
 import { execSync } from 'node:child_process';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { hostname, userInfo, release, cpus, totalmem, networkInterfaces } from 'node:os';
+import {
+  hostname,
+  userInfo,
+  release,
+  cpus,
+  totalmem,
+  networkInterfaces,
+} from 'node:os';
 import { isAbsolute, join, relative } from 'node:path';
 
 // Resolve the package that supplied this module, not the caller's working
 // directory. Both src/diagnostics and dist/diagnostics have this depth.
 const WELES_ROOT = join(__dirname, '..', '..');
 type CaptureFailure = {
-  field: string; operation: string; message: string;
-  code: string | number | null; exit_status: number | null; stderr: string | null;
+  field: string;
+  operation: string;
+  message: string;
+  code: string | number | null;
+  exit_status: number | null;
+  stderr: string | null;
 };
 const captureFailures: CaptureFailure[] = [];
-function captureFailure(field: string, operation: string, error: unknown): CaptureFailure {
-  const details = error as { message?: string; code?: string | number; status?: number; stderr?: string | Buffer } | null;
-  return { field, operation, message: details?.message ?? String(error),
-    code: details?.code ?? null, exit_status: details?.status ?? null,
-    stderr: details?.stderr?.toString().trim() ?? null };
+function captureFailure(
+  field: string,
+  operation: string,
+  error: unknown,
+): CaptureFailure {
+  const details = error as {
+    message?: string;
+    code?: string | number;
+    status?: number;
+    stderr?: string | Buffer;
+  } | null;
+  return {
+    field,
+    operation,
+    message: details?.message ?? String(error),
+    code: details?.code ?? null,
+    exit_status: details?.status ?? null,
+    stderr: details?.stderr?.toString().trim() ?? null,
+  };
 }
 
-function safeExec(cmd: string, field?: string, failures = captureFailures): string | null {
+function safeExec(
+  cmd: string,
+  field?: string,
+  failures = captureFailures,
+): string | null {
   try {
-    return execSync(cmd, { cwd: WELES_ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+    return execSync(cmd, {
+      cwd: WELES_ROOT,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim();
   } catch (error) {
-    if (field) failures.push(captureFailure(field, `${cmd} (cwd=${WELES_ROOT})`, error));
+    if (field)
+      failures.push(captureFailure(field, `${cmd} (cwd=${WELES_ROOT})`, error));
     return null;
   }
 }
 
 function getUser(): string | null {
-  try { return userInfo().username; } catch { return process.env.USER ?? null; }
+  try {
+    return userInfo().username;
+  } catch {
+    return process.env.USER ?? null;
+  }
 }
 
 // G13: runner machine identity. Non-internal interface addresses (local/LAN IPs
 // + MACs) and a best-effort stable machine id.
-function getLocalIps(): Array<{ iface: string; address: string; mac: string; family: string }> {
-  const out: Array<{ iface: string; address: string; mac: string; family: string }> = [];
+function getLocalIps(): Array<{
+  iface: string;
+  address: string;
+  mac: string;
+  family: string;
+}> {
+  const out: Array<{
+    iface: string;
+    address: string;
+    mac: string;
+    family: string;
+  }> = [];
   try {
     for (const [iface, addrs] of Object.entries(networkInterfaces())) {
       for (const a of addrs ?? []) {
         if (a.internal) continue;
-        out.push({ iface, address: a.address, mac: a.mac, family: String(a.family) });
+        out.push({
+          iface,
+          address: a.address,
+          mac: a.mac,
+          family: String(a.family),
+        });
       }
     }
-  } catch { /* best-effort */ }
+  } catch {
+    /* best-effort */
+  }
   return out;
 }
 function getMachineId(): string | null {
-  return safeExec('cat /etc/machine-id')
-    || safeExec(`ioreg -rd1 -c IOPlatformExpertDevice | awk -F'"' '/IOPlatformUUID/{print $4}'`)
-    || null;
+  return (
+    safeExec('cat /etc/machine-id') ||
+    safeExec(
+      `ioreg -rd1 -c IOPlatformExpertDevice | awk -F'"' '/IOPlatformUUID/{print $4}'`,
+    ) ||
+    null
+  );
 }
 // The runner's REAL public/egress IP — a DIRECT (non-proxied) fetch, fired once
 // at module load in the long-lived worker process and cached, so it adds no
@@ -67,7 +126,9 @@ void (async () => {
   try {
     const r = await fetch('https://api.ipify.org');
     if (r.ok) _publicIp = (await r.text()).trim() || null;
-  } catch { /* best-effort; remains null */ }
+  } catch {
+    /* best-effort; remains null */
+  }
 })();
 
 function getDirty(porcelain: string | null): boolean | null {
@@ -82,11 +143,19 @@ function getShort(commit: string | null): string | null {
 
 function readPkgVersion(): string | null {
   try {
-    const pkg = JSON.parse(readFileSync(join(WELES_ROOT, 'package.json'), 'utf8'));
+    const pkg = JSON.parse(
+      readFileSync(join(WELES_ROOT, 'package.json'), 'utf8'),
+    );
     if (typeof pkg.version === 'string') return pkg.version;
     throw new Error('package.json has no string version');
   } catch (error) {
-    captureFailures.push(captureFailure('weles_pkg_version', `read ${join(WELES_ROOT, 'package.json')}`, error));
+    captureFailures.push(
+      captureFailure(
+        'weles_pkg_version',
+        `read ${join(WELES_ROOT, 'package.json')}`,
+        error,
+      ),
+    );
     return null;
   }
 }
@@ -96,7 +165,10 @@ function readPkgVersion(): string | null {
 // filesystem-walk order. Used to fingerprint both dist/ (compiled helpers)
 // and src/trajectories/ (the .mjs trajectory tree which lives outside
 // dist/ and is NOT covered by weles_dist_sha256).
-function hashTree(root: string, field: string): { digest: string; file_count: number; total_bytes: number } | null {
+function hashTree(
+  root: string,
+  field: string,
+): { digest: string; file_count: number; total_bytes: number } | null {
   try {
     statSync(root);
     const files: string[] = [];
@@ -119,7 +191,11 @@ function hashTree(root: string, field: string): { digest: string; file_count: nu
       h.update('\0');
       total += buf.byteLength;
     }
-    return { digest: h.digest('hex'), file_count: files.length, total_bytes: total };
+    return {
+      digest: h.digest('hex'),
+      file_count: files.length,
+      total_bytes: total,
+    };
   } catch (error) {
     captureFailures.push(captureFailure(field, `hash tree ${root}`, error));
     return null;
@@ -133,7 +209,11 @@ function hashTree(root: string, field: string): { digest: string; file_count: nu
 // import path, run loop) flips runner_entry_sha256. Hash is over sorted
 // (relative-name + bytes) pairs so the single-file and multi-file cases are
 // stable and order-independent.
-function hashWorkerEntry(): { digest: string; file_count: number; total_bytes: number } | null {
+function hashWorkerEntry(): {
+  digest: string;
+  file_count: number;
+  total_bytes: number;
+} | null {
   const dir = join(WELES_ROOT, 'src', 'worker');
   let names: string[];
   try {
@@ -142,11 +222,19 @@ function hashWorkerEntry(): { digest: string; file_count: number; total_bytes: n
       .map((e) => e.name)
       .sort();
   } catch (error) {
-    captureFailures.push(captureFailure('runner_entry_sha256', `list ${dir}`, error));
+    captureFailures.push(
+      captureFailure('runner_entry_sha256', `list ${dir}`, error),
+    );
     return null;
   }
   if (names.length === 0) {
-    captureFailures.push(captureFailure('runner_entry_sha256', `list ${dir}`, new Error('No worker launcher MJS files were present.')));
+    captureFailures.push(
+      captureFailure(
+        'runner_entry_sha256',
+        `list ${dir}`,
+        new Error('No worker launcher MJS files were present.'),
+      ),
+    );
     return null;
   }
   const h = createHash('sha256');
@@ -160,11 +248,17 @@ function hashWorkerEntry(): { digest: string; file_count: number; total_bytes: n
       h.update('\0');
       total += buf.byteLength;
     } catch (error) {
-      captureFailures.push(captureFailure('runner_entry_sha256', `read ${join(dir, name)}`, error));
+      captureFailures.push(
+        captureFailure('runner_entry_sha256', `read ${join(dir, name)}`, error),
+      );
       return null;
     }
   }
-  return { digest: h.digest('hex'), file_count: names.length, total_bytes: total };
+  return {
+    digest: h.digest('hex'),
+    file_count: names.length,
+    total_bytes: total,
+  };
 }
 
 const STATIC = (() => {
@@ -172,7 +266,10 @@ const STATIC = (() => {
   const dirtyOut = safeExec('git status --porcelain', 'weles_dirty');
   const branch = safeExec('git rev-parse --abbrev-ref HEAD', 'weles_branch');
   const dist = hashTree(join(WELES_ROOT, 'dist'), 'weles_dist_sha256');
-  const trajTree = hashTree(join(WELES_ROOT, 'src', 'trajectories'), 'trajectories_tree_sha256');
+  const trajTree = hashTree(
+    join(WELES_ROOT, 'src', 'trajectories'),
+    'trajectories_tree_sha256',
+  );
   const runnerEntry = hashWorkerEntry();
   return {
     weles_pkg_version: readPkgVersion(),
@@ -222,12 +319,21 @@ const STATIC = (() => {
   };
 })();
 
-export function captureVersions(trajPath: string | null): Record<string, unknown> {
+export function captureVersions(
+  trajPath: string | null,
+): Record<string, unknown> {
   const failures = [...captureFailures];
-  const out: Record<string, unknown> = { ...STATIC, version_capture_failures: failures, recorded_at: new Date().toISOString() };
+  const out: Record<string, unknown> = {
+    ...STATIC,
+    version_capture_failures: failures,
+    recorded_at: new Date().toISOString(),
+  };
   // Merge the cached runner public IP (resolved async after module load) into a
   // fresh machine object so we don't mutate the shared STATIC.machine.
-  out.machine = { ...(STATIC.machine as Record<string, unknown>), public_ip: _publicIp };
+  out.machine = {
+    ...(STATIC.machine as Record<string, unknown>),
+    public_ip: _publicIp,
+  };
   if (!trajPath) return out;
   const absPath = isAbsolute(trajPath) ? trajPath : join(WELES_ROOT, trajPath);
   out.trajectory_path = trajPath;
@@ -235,24 +341,47 @@ export function captureVersions(trajPath: string | null): Record<string, unknown
     const buf = readFileSync(absPath);
     out.trajectory_sha256 = createHash('sha256').update(buf).digest('hex');
     out.trajectory_bytes = buf.byteLength;
-  } catch (error) { failures.push(captureFailure('trajectory_sha256', `read ${absPath}`, error)); }
+  } catch (error) {
+    failures.push(
+      captureFailure('trajectory_sha256', `read ${absPath}`, error),
+    );
+  }
   try {
     out.trajectory_mtime = statSync(absPath).mtime.toISOString();
-  } catch (error) { failures.push(captureFailure('trajectory_mtime', `stat ${absPath}`, error)); }
+  } catch (error) {
+    failures.push(captureFailure('trajectory_mtime', `stat ${absPath}`, error));
+  }
   // trajectory_version is the git provenance for THIS specific file: the sha
   // of the last commit that touched it, the short form, and its committed
   // timestamp. Two trajectories with the same name but different last-commit
   // shas are different versions. If the file is uncommitted, version is
   // suffixed '-dirty'.
-  const lastCommit = safeExec(`git log -1 --format=%H -- ${JSON.stringify(trajPath)}`, 'trajectory_last_commit', failures);
+  const lastCommit = safeExec(
+    `git log -1 --format=%H -- ${JSON.stringify(trajPath)}`,
+    'trajectory_last_commit',
+    failures,
+  );
   if (lastCommit) {
-    const dirtyFile = safeExec(`git status --porcelain -- ${JSON.stringify(trajPath)}`, 'trajectory_file_dirty', failures);
+    const dirtyFile = safeExec(
+      `git status --porcelain -- ${JSON.stringify(trajPath)}`,
+      'trajectory_file_dirty',
+      failures,
+    );
     const fileDirty = dirtyFile === null ? null : dirtyFile.length > 0;
-    out.trajectory_version = fileDirty === null ? null : fileDirty ? `${lastCommit.slice(0, 8)}-dirty` : lastCommit.slice(0, 8);
+    out.trajectory_version =
+      fileDirty === null
+        ? null
+        : fileDirty
+          ? `${lastCommit.slice(0, 8)}-dirty`
+          : lastCommit.slice(0, 8);
     out.trajectory_last_commit = lastCommit;
     out.trajectory_last_commit_short = lastCommit.slice(0, 8);
     out.trajectory_file_dirty = fileDirty;
-    const lastTs = safeExec(`git log -1 --format=%cI -- ${JSON.stringify(trajPath)}`, 'trajectory_last_commit_at', failures);
+    const lastTs = safeExec(
+      `git log -1 --format=%cI -- ${JSON.stringify(trajPath)}`,
+      'trajectory_last_commit_at',
+      failures,
+    );
     if (lastTs) out.trajectory_last_commit_at = lastTs;
   }
   // G5: when the repo or this trajectory is dirty, capture the FULL untruncated

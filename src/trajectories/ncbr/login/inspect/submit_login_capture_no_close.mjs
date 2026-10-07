@@ -11,27 +11,27 @@ const email = process.env.NCBR_EMAIL;
 const password = process.env.NCBR_PASSWORD;
 
 if (!email || !password) {
-  console.log(JSON.stringify({ error: 'Missing NCBR_EMAIL or NCBR_PASSWORD' }, null, 2));
+  console.log(
+    JSON.stringify({ error: 'Missing NCBR_EMAIL or NCBR_PASSWORD' }, null, 2),
+  );
   process.exit(2);
 }
 
 const browser = await chromium.connectOverCDP(endpoint);
-const context = browser.contexts()[0] || await browser.newContext();
-const page = context.pages()[0] || await context.newPage();
+const context = browser.contexts()[0] || (await browser.newContext());
+const page = context.pages()[0] || (await context.newPage());
 
 const events = [];
 function isRelevant(url, method = '') {
   const u = url.toLowerCase();
   return (
-    method !== 'GET' ||
-    u.includes('/login') ||
-    u.includes('/logowanie') ||
-    u.includes('/token') ||
-    u.includes('/refresh') ||
-    u.includes('/permissions')
-  ) && (
-    u.includes('lsi2.ncbr.gov.pl') ||
-    u.includes('/api/')
+    (method !== 'GET' ||
+      u.includes('/login') ||
+      u.includes('/logowanie') ||
+      u.includes('/token') ||
+      u.includes('/refresh') ||
+      u.includes('/permissions')) &&
+    (u.includes('lsi2.ncbr.gov.pl') || u.includes('/api/'))
   );
 }
 
@@ -39,7 +39,10 @@ page.on('request', (req) => {
   const method = req.method();
   if (!isRelevant(req.url(), method)) return;
   let postData = req.postData() || '';
-  if (postData) postData = postData.replace(password, '[REDACTED]').replace(email, '[EMAIL]');
+  if (postData)
+    postData = postData
+      .replace(password, '[REDACTED]')
+      .replace(email, '[EMAIL]');
   events.push({ kind: 'request', method, url: req.url(), postData: postData });
 });
 
@@ -52,7 +55,8 @@ page.on('response', async (res) => {
   } catch {
     text = '';
   }
-  if (text) text = text.replace(password, '[REDACTED]').replace(email, '[EMAIL]');
+  if (text)
+    text = text.replace(password, '[REDACTED]').replace(email, '[EMAIL]');
   events.push({
     kind: 'response',
     method: req.method(),
@@ -69,42 +73,61 @@ async function authStatus() {
         'https://lsi2.ncbr.gov.pl/api/beneficiary/project/433468ab-ff8a-4bd2-9f03-7da65ba73e1f/get-user-permissions',
         { credentials: 'include', headers: { Accept: 'application/json' } },
       );
-      return { status: res.status, text: (await res.text()) };
+      return { status: res.status, text: await res.text() };
     } catch (error) {
       return { error: String(error?.message || error) };
     }
   });
 }
 
-await page.goto('https://lsi2.ncbr.gov.pl/logowanie', { waitUntil: 'domcontentloaded' });
+await page.goto('https://lsi2.ncbr.gov.pl/logowanie', {
+  waitUntil: 'domcontentloaded',
+});
 await page.waitForSelector('#mail, input[name="mail"]');
 
 await humanFill(page, page.locator('#mail, input[name="mail"]').first(), email);
-await humanFill(page, page.locator('#password, input[name="password"]').first(), password);
+await humanFill(
+  page,
+  page.locator('#password, input[name="password"]').first(),
+  password,
+);
 
-const checkbox = page.locator('#isStatuteAccepted, input[name="isStatuteAccepted"]').first();
+const checkbox = page
+  .locator('#isStatuteAccepted, input[name="isStatuteAccepted"]')
+  .first();
 if (await checkbox.count()) {
   const checked = await checkbox.isChecked().catch(() => false);
   if (!checked) {
-    const label = page.locator('label:has(#isStatuteAccepted), label:has(input[name="isStatuteAccepted"])').filter({ visible: true }).first();
-    await humanClickLocator(page, await label.count() > 0 ? label : checkbox);
+    const label = page
+      .locator(
+        'label:has(#isStatuteAccepted), label:has(input[name="isStatuteAccepted"])',
+      )
+      .filter({ visible: true })
+      .first();
+    await humanClickLocator(page, (await label.count()) > 0 ? label : checkbox);
   }
 }
 
-const button = page.locator('#login-btn, button:has-text("Zaloguj się")').first();
+const button = page
+  .locator('#login-btn, button:has-text("Zaloguj się")')
+  .first();
 await button.waitFor({ state: 'visible' });
 
 const before = {
   url: page.url(),
-  fields: await page.evaluate(() => Array.from(document.querySelectorAll('input')).map((el) => ({
-    id: el.id,
-    name: el.name,
-    type: el.type,
-    valueLength: el.value?.length || 0,
-    checked: el.checked,
-    disabled: el.disabled,
-  }))),
-  loginButtonDisabled: await button.evaluate((el) => el.disabled).catch(() => null),
+  fields: await page.evaluate(() =>
+    Array.from(document.querySelectorAll('input')).map((el) => ({
+      id: el.id,
+      name: el.name,
+      type: el.type,
+      valueLength: el.value?.length || 0,
+      checked: el.checked,
+      disabled: el.disabled,
+    })),
+  ),
+  loginButtonDisabled: await button
+    .evaluate((el) => el.disabled)
+    .catch(() => null),
 };
 
 await humanClickLocator(page, button);
@@ -112,15 +135,24 @@ await humanClickLocator(page, button);
 await pageSettled(page);
 
 const auth = await authStatus();
-const bodyText = (await page.locator('body').innerText().catch(() => ''));
+const bodyText = await page
+  .locator('body')
+  .innerText()
+  .catch(() => '');
 
-console.log(JSON.stringify({
-  before,
-  afterUrl: page.url(),
-  title: await page.title().catch(() => ''),
-  auth,
-  events,
-  bodyText,
-}, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      before,
+      afterUrl: page.url(),
+      title: await page.title().catch(() => ''),
+      auth,
+      events,
+      bodyText,
+    },
+    null,
+    2,
+  ),
+);
 
 process.exit(0);

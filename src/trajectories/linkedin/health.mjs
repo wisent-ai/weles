@@ -15,16 +15,20 @@ await runHealthProbe({
     // are valid — an unauthed request gets 401 / authwall redirect instead.
     const status = resp?.status;
     const textBody = typeof body === 'string' ? body : null;
-    const csrfOnly = status === 403 && textBody && /csrf check failed/i.test(textBody);
+    const csrfOnly =
+      status === 403 && textBody && /csrf check failed/i.test(textBody);
     const ok = !!(body?.miniProfile?.entityUrn || body?.plainId || csrfOnly);
     return {
       ok,
       karma: body?.connectionsCount ?? null,
-      is_suspended: !!(body?.restricted || body?.accountStatus === 'RESTRICTED'),
+      is_suspended: !!(
+        body?.restricted || body?.accountStatus === 'RESTRICTED'
+      ),
     };
   },
   // Non-member requests can return 999 for an existing profile. A registration
   // username can also differ from the canonical profile slug, so 404 alone
   // does not establish an account restriction.
-  extractLoggedOut: (resp) => resp.status === 200 || resp.status === 999 || resp.status === 404,
+  extractLoggedOut: (resp) =>
+    resp.status === 200 || resp.status === 999 || resp.status === 404,
 });

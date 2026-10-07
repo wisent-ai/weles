@@ -30,7 +30,9 @@ export type PasswordRules = {
 export function registrationPassword(rules: PasswordRules = {}): string {
   const symbols = rules.symbols ?? SYMBOLS;
   if (!symbols) {
-    throw new Error('a provider rule named an empty symbol alphabet; name the symbols its form accepts');
+    throw new Error(
+      'a provider rule named an empty symbol alphabet; name the symbols its form accepts',
+    );
   }
   const classes = [...LETTERS_AND_DIGITS, symbols];
   const length = statedLength();
@@ -64,8 +66,8 @@ function statedLength(): number {
     const stated = Number(raw);
     if (!raw || !Number.isSafeInteger(stated) || !(stated > Number.MIN_VALUE)) {
       throw new Error(
-        `WELES_GENERATED_PASSWORD_LENGTH is ${raw ? `"${raw}", not a whole number above zero` : 'not set'}: `
-        + 'without Skarbiec declare how long a generated account password is',
+        `WELES_GENERATED_PASSWORD_LENGTH is ${raw ? `"${raw}", not a whole number above zero` : 'not set'}: ` +
+          'without Skarbiec declare how long a generated account password is',
       );
     }
     return stated;
@@ -73,8 +75,8 @@ function statedLength(): number {
   const length = minimumGeneratedLength();
   if (length === null) {
     throw new Error(
-      'Weles generates account passwords at the length the vault policy states, and it states none: '
-      + 'set it with `skarbiec policy-set min_generated_length <length>`',
+      'Weles generates account passwords at the length the vault policy states, and it states none: ' +
+        'set it with `skarbiec policy-set min_generated_length <length>`',
     );
   }
   return length;

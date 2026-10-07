@@ -9,54 +9,82 @@ import { parseAppleLoginCapabilities } from '../../../dist/utils/identity/apple-
 import { getSocialAccount } from '../../../dist/utils/credentials.js';
 import { preflightAppleChallengeRelay } from '../../auth/apple-account-placement.mjs';
 import { ADD_URL } from './create_developer_id/constants.mjs';
-import { clickButton, clickChoice, isDevPortalUrl } from './create_developer_id/portal.mjs';
+import {
+  clickButton,
+  clickChoice,
+  isDevPortalUrl,
+} from './create_developer_id/portal.mjs';
 import { placeRequestFiles } from './create_developer_id/request_files.mjs';
 import { readFileSync } from 'node:fs';
 import { signInWithCapabilities } from './create_developer_id/sign_in.mjs';
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 // Eight hex from the Stado queue, or the UUID the Weles API assigns and then
 // forces into ACTION_LOG_ID. Both name one run; refusing the second one meant
 // refusing every run Stado dispatches.
-const JOB = /^(?:[0-9a-f]{8}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+const JOB =
+  /^(?:[0-9a-f]{8}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 // The item the worker selected by role; its id carries no meaning, only shape.
 const ACCOUNT = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const guardId = (process.env.APPLE_AUTH_GUARD_ID?.trim() ?? '').toLowerCase();
 const accountId = process.env.WELES_LOGIN_ITEM?.trim() ?? '';
 const actionLogId = process.env.ACTION_LOG_ID?.trim() ?? '';
-if (!UUID.test(guardId)) throw new Error('[apple-create-developer-id] invalid guard id');
-if (!ACCOUNT.test(accountId)) throw new Error('[apple-create-developer-id] invalid Apple account item');
-if (!JOB.test(actionLogId)) throw new Error('[apple-create-developer-id] invalid Stado job id');
+if (!UUID.test(guardId))
+  throw new Error('[apple-create-developer-id] invalid guard id');
+if (!ACCOUNT.test(accountId))
+  throw new Error('[apple-create-developer-id] invalid Apple account item');
+if (!JOB.test(actionLogId))
+  throw new Error('[apple-create-developer-id] invalid Stado job id');
 
-const { csrPath, certificatePath, cleanup: removeRequestFiles } = placeRequestFiles(guardId);
+const {
+  csrPath,
+  certificatePath,
+  cleanup: removeRequestFiles,
+} = placeRequestFiles(guardId);
 
 let capabilityRefs = [];
 
 async function cancelSessionCapabilities() {
-  if (capabilityRefs.length !== 3) throw new Error('capability cleanup unavailable');
+  if (capabilityRefs.length !== 3)
+    throw new Error('capability cleanup unavailable');
   const failures = [];
   for (const capability of capabilityRefs) {
-    try { await cancelCapability(capability.capability_id, guardId); }
-    catch (error) { failures.push(error instanceof Error ? error.message : String(error)); }
+    try {
+      await cancelCapability(capability.capability_id, guardId);
+    } catch (error) {
+      failures.push(error instanceof Error ? error.message : String(error));
+    }
   }
-  if (failures.length > 0) throw new Error(`capability cleanup unconfirmed: ${failures.join('; ')}`);
+  if (failures.length > 0)
+    throw new Error(`capability cleanup unconfirmed: ${failures.join('; ')}`);
 }
 
 /** Choose the certificate type, upload the CSR and download the issued certificate. */
 async function createCertificate(page) {
   await page.goto(ADD_URL, { waitUntil: 'domcontentloaded' });
   await pageSettled(s.page);
-  if (!/developer\.apple\.com\/account\/resources\/certificates\/add/.test(page.url())) {
+  if (
+    !/developer\.apple\.com\/account\/resources\/certificates\/add/.test(
+      page.url(),
+    )
+  ) {
     throw new Error(`certificate add page unavailable at ${page.url()}`);
   }
   console.log('[apple-create-developer-id] CERTIFICATE_TYPE_PAGE');
 
   if (!(await clickChoice(page, /^Developer ID Application$/i))) {
-    const text = (await page.locator('body').innerText().catch((e) => `unreadable: ${e.message}`)).replace(/\s+/g, ' ');
+    const text = (
+      await page
+        .locator('body')
+        .innerText()
+        .catch((e) => `unreadable: ${e.message}`)
+    ).replace(/\s+/g, ' ');
     throw new Error(`Developer ID Application choice missing; page=${text}`);
   }
   await pageSettled(s.page);
-  if (!(await clickButton(page, /^continue$/i))) throw new Error('certificate type Continue control missing');
+  if (!(await clickButton(page, /^continue$/i)))
+    throw new Error('certificate type Continue control missing');
   await pageSettled(s.page);
 
   const fileInput = page.locator('input[type="file"]').first();
@@ -64,21 +92,28 @@ async function createCertificate(page) {
   await fileInput.setInputFiles(csrPath);
   console.log('[apple-create-developer-id] CSR_UPLOADED');
   await pageSettled(s.page);
-  if (!(await clickButton(page, /^continue$/i))) throw new Error('CSR Continue control missing');
+  if (!(await clickButton(page, /^continue$/i)))
+    throw new Error('CSR Continue control missing');
   await pageSettled(s.page);
 
   const downloadPromise = page.waitForEvent('download');
-  if (!(await clickButton(page, /download/i))) throw new Error('certificate Download control missing');
+  if (!(await clickButton(page, /download/i)))
+    throw new Error('certificate Download control missing');
   const download = await downloadPromise;
   await download.saveAs(certificatePath);
-  console.log(`[apple-create-developer-id] CERTIFICATE_SAVED=${certificatePath}`);
+  console.log(
+    `[apple-create-developer-id] CERTIFICATE_SAVED=${certificatePath}`,
+  );
 }
 
 console.log(`[apple-create-developer-id] account ${accountId}, CSR ${csrPath}`);
 let sessionClosed = true;
 let s = null;
 try {
-  const capabilities = parseAppleLoginCapabilities(process.env.APPLE_LOGIN_CAPABILITIES_JSON, guardId);
+  const capabilities = parseAppleLoginCapabilities(
+    process.env.APPLE_LOGIN_CAPABILITIES_JSON,
+    guardId,
+  );
   capabilityRefs = [
     capabilities.email,
     capabilities.password,
@@ -88,19 +123,29 @@ try {
   // installed relay before opening a browser or spending a password attempt.
   // The preflight reads state only and opens no native prompt.
   const preflightAccount = await getSocialAccount('apple');
-  const identity = (preflightAccount?.metadata?.email ?? preflightAccount?.username ?? '').trim();
+  const identity = (
+    preflightAccount?.metadata?.email ??
+    preflightAccount?.username ??
+    ''
+  ).trim();
   const challengeRoute = preflightAppleChallengeRelay(identity, guardId);
   console.log(
-    `[apple-create-developer-id] Apple challenge route `
-    + `${challengeRoute.holder}/${challengeRoute.user} -> ${challengeRoute.destination}`,
+    `[apple-create-developer-id] Apple challenge route ` +
+      `${challengeRoute.holder}/${challengeRoute.user} -> ${challengeRoute.destination}`,
   );
 
-  s = await WSession.start({ label: 'apple_create_developer_id', headless: process.env.WELES_HEADLESS === '1' });
+  s = await WSession.start({
+    label: 'apple_create_developer_id',
+    headless: process.env.WELES_HEADLESS === '1',
+  });
   sessionClosed = false;
   await s.page.goto(ADD_URL, { waitUntil: 'domcontentloaded' });
   await pageSettled(s.page);
 
-  const { postPasswordState, twoFactorReceipt } = await signInWithCapabilities(s, { capabilities, guardId, identity });
+  const { postPasswordState, twoFactorReceipt } = await signInWithCapabilities(
+    s,
+    { capabilities, guardId, identity },
+  );
 
   if (postPasswordState !== 'dashboard') {
     await s.page.waitForURL((url) => isDevPortalUrl(String(url)));
@@ -109,20 +154,37 @@ try {
   await createCertificate(s.page);
   // The certificate is public; it leaves in the run's own result so a caller on
   // another machine receives it without a second channel.
-  console.log(`CERTIFICATE_BASE64=${readFileSync(certificatePath).toString('base64')}`);
+  console.log(
+    `CERTIFICATE_BASE64=${readFileSync(certificatePath).toString('base64')}`,
+  );
   if (twoFactorReceipt) {
     // Certificate issuance, not filling the code, proves provider acceptance.
-    console.log(`APPLE_TWO_FACTOR_RECEIPT=${JSON.stringify({
-      ...twoFactorReceipt,
-      provider_accepted: true,
-    })}`);
+    console.log(
+      `APPLE_TWO_FACTOR_RECEIPT=${JSON.stringify({
+        ...twoFactorReceipt,
+        provider_accepted: true,
+      })}`,
+    );
   }
 } catch (error) {
-  console.error(`FAIL=${error instanceof Error ? error.message : String(error)}`);
-  try { await cancelSessionCapabilities(); } catch (cleanupError) { console.error(`[apple-create-developer-id] ${cleanupError.message}`); }
+  console.error(
+    `FAIL=${error instanceof Error ? error.message : String(error)}`,
+  );
+  try {
+    await cancelSessionCapabilities();
+  } catch (cleanupError) {
+    console.error(`[apple-create-developer-id] ${cleanupError.message}`);
+  }
   process.exitCode = 1;
 } finally {
-  if (s && !sessionClosed) { await s.close().catch((e) => console.error(`[apple-create-developer-id] close: ${e.message}`)); sessionClosed = true; }
+  if (s && !sessionClosed) {
+    await s
+      .close()
+      .catch((e) =>
+        console.error(`[apple-create-developer-id] close: ${e.message}`),
+      );
+    sessionClosed = true;
+  }
   removeRequestFiles();
 }
 process.exit(process.exitCode ?? 0);

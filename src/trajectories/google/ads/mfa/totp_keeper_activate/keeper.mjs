@@ -5,7 +5,8 @@ import { SOCK } from './settings.mjs';
 
 export async function action(cmd) {
   const answer = await keeperRequest(SOCK, cmd);
-  if (!answer.ok) throw new Error(answer.error || `keeper action failed: ${cmd.action}`);
+  if (!answer.ok)
+    throw new Error(answer.error || `keeper action failed: ${cmd.action}`);
   return answer;
 }
 

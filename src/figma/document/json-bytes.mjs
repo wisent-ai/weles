@@ -70,10 +70,12 @@ export function parseJsonBytes(bytes) {
     const token = bytes.toString('latin1', start, at);
     if (LITERALS.has(token)) return LITERALS.get(token);
     const number = Number(token);
-    if (token === '' || Number.isNaN(number)) fail(`unexpected token ${JSON.stringify(token)}`);
+    if (token === '' || Number.isNaN(number))
+      fail(`unexpected token ${JSON.stringify(token)}`);
     // `14.0` in the document is a float, and stays one when written back;
     // a fractional value such as `2.5` reads and writes the same either way.
-    if (Number.isInteger(number) && FLOAT_MARKS.test(token)) return new FloatNumber(number);
+    if (Number.isInteger(number) && FLOAT_MARKS.test(token))
+      return new FloatNumber(number);
     return number;
   }
 
@@ -103,7 +105,12 @@ export function parseJsonBytes(bytes) {
       at += 1;
       // A key such as `__proto__` is data in JSON; assignment would change
       // the object's prototype instead of adding the member.
-      Object.defineProperty(result, key, { value: value(), writable: true, enumerable: true, configurable: true });
+      Object.defineProperty(result, key, {
+        value: value(),
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
       skip();
       if (bytes[at] === COMMA) {
         at += 1;
@@ -160,7 +167,9 @@ export class FloatNumber {
   }
 
   toString() {
-    return Number.isInteger(this.value) ? `${this.value}.0` : String(this.value);
+    return Number.isInteger(this.value)
+      ? `${this.value}.0`
+      : String(this.value);
   }
 }
 
@@ -172,17 +181,32 @@ export class FloatNumber {
  */
 export function stringifyOrdered(value, indent = 0) {
   function write(item, depth) {
-    if (Array.isArray(item)) return list(item.map((entry) => write(entry, depth + 1)), '[', ']', depth);
+    if (Array.isArray(item))
+      return list(
+        item.map((entry) => write(entry, depth + 1)),
+        '[',
+        ']',
+        depth,
+      );
     if (item instanceof Map) return members([...item.entries()], depth);
     if (item instanceof FloatNumber) return item.toString();
-    if (item !== null && typeof item === 'object') return members(Object.entries(item), depth);
+    if (item !== null && typeof item === 'object')
+      return members(Object.entries(item), depth);
     if (item === undefined) return 'null';
     return JSON.stringify(item);
   }
 
   function members(entries, depth) {
     const separator = indent ? ': ' : ':';
-    return list(entries.map(([key, entry]) => `${JSON.stringify(key)}${separator}${write(entry, depth + 1)}`), '{', '}', depth);
+    return list(
+      entries.map(
+        ([key, entry]) =>
+          `${JSON.stringify(key)}${separator}${write(entry, depth + 1)}`,
+      ),
+      '{',
+      '}',
+      depth,
+    );
   }
 
   function list(parts, open, close, depth) {

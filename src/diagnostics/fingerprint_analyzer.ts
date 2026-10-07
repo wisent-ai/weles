@@ -8,7 +8,11 @@
 
 import { readFileSync, existsSync, readdirSync } from 'fs';
 import { join } from 'path';
-import { getDetectionRules, Finding, FindingSeverity } from './detection_vectors.js';
+import {
+  getDetectionRules,
+  Finding,
+  FindingSeverity,
+} from './detection_vectors.js';
 
 export interface FingerprintReport {
   meta: {
@@ -49,7 +53,8 @@ function osFromUA(ua: string): string | null {
 function browserFromUA(ua: string): string | null {
   const u = ua.toLowerCase();
   if (u.includes('firefox') && !u.includes('seamonkey')) return 'firefox';
-  if (u.includes('chrome') && !u.includes('edg') && !u.includes('opr')) return 'chrome';
+  if (u.includes('chrome') && !u.includes('edg') && !u.includes('opr'))
+    return 'chrome';
   if (u.includes('safari') && !u.includes('chrome')) return 'safari';
   if (u.includes('edg')) return 'edge';
   return null;
@@ -66,7 +71,10 @@ export function loadJson(path: string): any {
  * Pick the best baseline from a directory based on OS and browser family.
  * Baseline files should end with `.json` and contain at least a UA string.
  */
-export function pickBaseline(baselineDir: string, subject: any): { path: string; data: any } {
+export function pickBaseline(
+  baselineDir: string,
+  subject: any,
+): { path: string; data: any } {
   const files = readdirSync(baselineDir)
     .filter((f: string) => f.endsWith('.json'))
     .map((f: string) => join(baselineDir, f));
@@ -93,7 +101,11 @@ export function pickBaseline(baselineDir: string, subject: any): { path: string;
     if (browser && browser === subjectBrowser) score += 2;
     if (baselineHeadless === subjectHeadless) score += 1;
     if (!baselineHeadless && !subjectHeadless) score += 1;
-    if (!best || score > best.score || (score === best.score && p > best.path)) {
+    if (
+      !best ||
+      score > best.score ||
+      (score === best.score && p > best.path)
+    ) {
       best = { path: p, data, score };
     }
   }
@@ -120,7 +132,9 @@ export function analyze(subject: any, baseline: any): FingerprintReport {
     }
   }
 
-  findings.sort((a, b) => SEVERITY_WEIGHT[b.severity] - SEVERITY_WEIGHT[a.severity]);
+  findings.sort(
+    (a, b) => SEVERITY_WEIGHT[b.severity] - SEVERITY_WEIGHT[a.severity],
+  );
 
   const counts = { critical: 0, warning: 0, info: 0 };
   const byCategory: Record<string, number> = {};
@@ -137,7 +151,8 @@ export function analyze(subject: any, baseline: any): FingerprintReport {
   const baselineOS = osFromUA(baselineUA);
   const subjectBrowser = browserFromUA(subjectUA);
   const baselineBrowser = browserFromUA(baselineUA);
-  const baselineMatched = subjectOS === baselineOS && subjectBrowser === baselineBrowser;
+  const baselineMatched =
+    subjectOS === baselineOS && subjectBrowser === baselineBrowser;
 
   return {
     meta: {
@@ -164,11 +179,19 @@ export function printReport(report: FingerprintReport): void {
   console.log('=== Fingerprint Analysis Report ===');
   console.log(`Subject : ${report.meta.subjectPath || '<in-memory>'}`);
   console.log(`Baseline: ${report.meta.baselinePath || '<in-memory>'}`);
-  console.log(`Baseline matched family: ${report.meta.baselineMatched ? 'yes' : 'NO'}`);
-  console.log(`Subject  OS/Browser: ${report.meta.subjectOS} / ${report.meta.subjectBrowser}`);
-  console.log(`Baseline OS/Browser: ${report.meta.baselineOS} / ${report.meta.baselineBrowser}`);
+  console.log(
+    `Baseline matched family: ${report.meta.baselineMatched ? 'yes' : 'NO'}`,
+  );
+  console.log(
+    `Subject  OS/Browser: ${report.meta.subjectOS} / ${report.meta.subjectBrowser}`,
+  );
+  console.log(
+    `Baseline OS/Browser: ${report.meta.baselineOS} / ${report.meta.baselineBrowser}`,
+  );
   if (!report.meta.baselineMatched) {
-    console.log('WARNING: baseline family mismatch — cross-family differences (WebGL GPU, JA4, screen depth) are expected. Capture a baseline on the same OS/browser for a valid comparison.');
+    console.log(
+      'WARNING: baseline family mismatch — cross-family differences (WebGL GPU, JA4, screen depth) are expected. Capture a baseline on the same OS/browser for a valid comparison.',
+    );
   }
   console.log('');
   console.log(`Total findings: ${report.summary.totalFindings}`);
@@ -182,11 +205,15 @@ export function printReport(report: FingerprintReport): void {
   }
   console.log('');
   if (report.findings.length === 0) {
-    console.log('No detection vectors identified. Fingerprint looks consistent with baseline.');
+    console.log(
+      'No detection vectors identified. Fingerprint looks consistent with baseline.',
+    );
   } else {
     for (let i = 0; i < report.findings.length; i++) {
       const f = report.findings[i];
-      console.log(`#${i + 1} [${f.severity.toUpperCase()}] ${f.id} (${f.category})`);
+      console.log(
+        `#${i + 1} [${f.severity.toUpperCase()}] ${f.id} (${f.category})`,
+      );
       console.log(`    ${f.message}`);
       console.log(`    Evidence: ${JSON.stringify(f.evidence)}`);
     }

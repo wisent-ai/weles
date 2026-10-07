@@ -10,10 +10,13 @@
 console.log = (...a) => process.stderr.write(a.map(String).join(' ') + '\n');
 
 const args = {};
-for (let i = 2; i < process.argv.length; i += 2) args[process.argv[i].replace(/^--/, '')] = process.argv[i + 1];
+for (let i = 2; i < process.argv.length; i += 2)
+  args[process.argv[i].replace(/^--/, '')] = process.argv[i + 1];
 // Both are required: no ticker and no browser address are built in.
 if (!args.ticker || !args.cdp) {
-  console.error('usage: node src/trajectories/tradingview/drawings.mjs --ticker <SYMBOL> --cdp <devtools origin>');
+  console.error(
+    'usage: node src/trajectories/tradingview/drawings.mjs --ticker <SYMBOL> --cdp <devtools origin>',
+  );
   process.exit(2);
 }
 const ticker = args.ticker.toUpperCase();
@@ -22,12 +25,22 @@ const cdpUrl = args.cdp;
 console.error(`[tv_draw] querying tabs at ${cdpUrl}/json/list`);
 const tabsResp = await fetch(`${cdpUrl}/json/list`);
 const tabs = await tabsResp.json();
-const chartTab = tabs.find(t => t.url && t.url.includes('tradingview.com/chart'));
-if (!chartTab) { console.error('FAIL: no TradingView chart tab open. Navigate to TV chart with drawings.'); process.exit(1); }
+const chartTab = tabs.find(
+  (t) => t.url && t.url.includes('tradingview.com/chart'),
+);
+if (!chartTab) {
+  console.error(
+    'FAIL: no TradingView chart tab open. Navigate to TV chart with drawings.',
+  );
+  process.exit(1);
+}
 console.error(`[tv_draw] found chart tab: ${chartTab.url}`);
 const wsUrl = chartTab.webSocketDebuggerUrl;
 const ws = new WebSocket(wsUrl);
-await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
+await new Promise((resolve, reject) => {
+  ws.onopen = resolve;
+  ws.onerror = reject;
+});
 
 let msgId = 1;
 function cdp(method, params) {
@@ -60,27 +73,41 @@ function cdpEvent(method) {
 }
 const s = {
   close: async () => ws.close(),
-  page: { evaluate: async (js) => {
-    const r = await cdp('Runtime.evaluate', { expression: `(async () => { ${js.startsWith('(') ? 'return ' + js : js} })()`, awaitPromise: true, returnByValue: true });
-    if (r.exceptionDetails) throw new Error(JSON.stringify(r.exceptionDetails));
-    return r.result.value;
-  }}
+  page: {
+    evaluate: async (js) => {
+      const r = await cdp('Runtime.evaluate', {
+        expression: `(async () => { ${js.startsWith('(') ? 'return ' + js : js} })()`,
+        awaitPromise: true,
+        returnByValue: true,
+      });
+      if (r.exceptionDetails)
+        throw new Error(JSON.stringify(r.exceptionDetails));
+      return r.result.value;
+    },
+  },
 };
 
 const FS = await import('node:fs');
 const OUT_FILE = args.out || '/tmp/tv_drawings.json';
 
 try {
-
   // Enable network monitoring with large buffers
-  await cdp('Network.enable', { maxResourceBufferSize: 50_000_000, maxTotalBufferSize: 200_000_000 });
+  await cdp('Network.enable', {
+    maxResourceBufferSize: 50_000_000,
+    maxTotalBufferSize: 200_000_000,
+  });
   const apiResponses = [];
   const bodyPromises = [];
-  let msgCount = 0, respCount = 0;
+  let msgCount = 0,
+    respCount = 0;
   ws.addEventListener('message', (e) => {
     msgCount++;
     let msg;
-    try { msg = JSON.parse(e.data); } catch (_) { return; }
+    try {
+      msg = JSON.parse(e.data);
+    } catch (_) {
+      return;
+    }
     if (msg.method === 'Network.responseReceived') {
       respCount++;
       const url = msg.params.response.url;
@@ -100,16 +127,19 @@ try {
 
   // Get cookies + UA from Chrome via CDP
   const { cookies } = await cdp('Network.getAllCookies', {});
-  const tvCookies = cookies.filter(c => /tradingview/i.test(c.domain));
-  const cookieHeader = tvCookies.map(c => `${c.name}=${c.value}`).join('; ');
-  const ua = await cdp('Runtime.evaluate', { expression: 'navigator.userAgent', returnByValue: true });
+  const tvCookies = cookies.filter((c) => /tradingview/i.test(c.domain));
+  const cookieHeader = tvCookies.map((c) => `${c.name}=${c.value}`).join('; ');
+  const ua = await cdp('Runtime.evaluate', {
+    expression: 'navigator.userAgent',
+    returnByValue: true,
+  });
   const uaStr = ua.result.value;
   const headers = {
     'User-Agent': uaStr,
-    'Cookie': cookieHeader,
-    'Referer': chartTab.url,
-    'Origin': 'https://www.tradingview.com',
-    'Accept': 'application/json, text/plain, */*',
+    Cookie: cookieHeader,
+    Referer: chartTab.url,
+    Origin: 'https://www.tradingview.com',
+    Accept: 'application/json, text/plain, */*',
   };
   const bodies = [];
   const bodyErrors = [];
@@ -178,9 +208,13 @@ try {
   })()`);
 
   extracted.network_api = bodies;
-  extracted.network_urls = apiResponses.map(r => r.url);
+  extracted.network_urls = apiResponses.map((r) => r.url);
   extracted.body_errors = bodyErrors;
-  extracted.msg_stats = { total: msgCount, responses: respCount, tv_responses: apiResponses.length };
+  extracted.msg_stats = {
+    total: msgCount,
+    responses: respCount,
+    tv_responses: apiResponses.length,
+  };
   // Deep probe: look for initial state in scripts
   const scan = await s.page.evaluate(`(() => {
     const scripts = Array.from(document.querySelectorAll('script'));
@@ -196,7 +230,9 @@ try {
   })()`);
   extracted.script_probe = scan;
   FS.writeFileSync(OUT_FILE, JSON.stringify(extracted, null, 2));
-  process.stderr.write(`\n[tv_draw] dumped drawing candidates to ${OUT_FILE}\n`);
+  process.stderr.write(
+    `\n[tv_draw] dumped drawing candidates to ${OUT_FILE}\n`,
+  );
 } catch (e) {
   console.error(`FAIL: ${e.message}\n${e.stack}`);
   process.exit(1);

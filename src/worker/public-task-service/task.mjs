@@ -4,7 +4,11 @@ import { join } from 'node:path';
 
 import { PublicTaskError, TERMINAL_STATUSES, publicStatus } from './wire.mjs';
 import { UUID_RE, canonicalJson } from './wire/canonical-json.mjs';
-import { idempotencyKey, parseCancellation, parseTaskRequest } from './admission.mjs';
+import {
+  idempotencyKey,
+  parseCancellation,
+  parseTaskRequest,
+} from './admission.mjs';
 import { cleanInterruptedTemporaryFiles, readJson } from './durable-write.mjs';
 import { terminalCompletion } from './task/dispatch.mjs';
 
@@ -29,21 +33,44 @@ export function createTaskOperations({
     readReservation,
     createReservation,
   } = store;
-  const { active, queue, queued, dispatcherStatus, enqueue, removeQueued, dispatchQueue } = dispatcher;
-  const { staticReady, currentServiceIdentity, bindingServiceIdentity, serviceIdentityReadiness } = deployedIdentity;
+  const {
+    active,
+    queue,
+    queued,
+    dispatcherStatus,
+    enqueue,
+    removeQueued,
+    dispatchQueue,
+  } = dispatcher;
+  const {
+    staticReady,
+    currentServiceIdentity,
+    bindingServiceIdentity,
+    serviceIdentityReadiness,
+  } = deployedIdentity;
 
   async function existingSubmission(key, requestDigest) {
     const reservation = await readReservation(key);
     if (!reservation) return null;
     if (reservation.requestDigest !== requestDigest) {
-      throw new PublicTaskError(409, 'idempotency-conflict', 'Idempotency-Key is already bound to a different request');
+      throw new PublicTaskError(
+        409,
+        'idempotency-conflict',
+        'Idempotency-Key is already bound to a different request',
+      );
     }
     return materializeReservation(reservation);
   }
 
   async function submit(request, body) {
-    if (!staticReady) throw new PublicTaskError(503, 'service-not-ready', 'public task prerequisites are not ready');
-    if (dispatcher.draining()) throw new PublicTaskError(503, 'service-draining', 'service is draining');
+    if (!staticReady)
+      throw new PublicTaskError(
+        503,
+        'service-not-ready',
+        'public task prerequisites are not ready',
+      );
+    if (dispatcher.draining())
+      throw new PublicTaskError(503, 'service-draining', 'service is draining');
     const key = idempotencyKey(request);
     const parsed = parseTaskRequest(body, config);
     const existing = await existingSubmission(key, parsed.requestDigest);
@@ -51,16 +78,31 @@ export function createTaskOperations({
     try {
       serviceIdentity = await currentServiceIdentity();
     } catch {
-      throw new PublicTaskError(503, 'service-not-ready', 'deployed service identity is unavailable or mismatched');
+      throw new PublicTaskError(
+        503,
+        'service-not-ready',
+        'deployed service identity is unavailable or mismatched',
+      );
     }
-    if (canonicalJson(parsed.spisBinding.service) !== canonicalJson(bindingServiceIdentity(serviceIdentity))) {
-      throw new PublicTaskError(403, 'service-identity-mismatch', 'spisBinding.service does not match the deployed Weles service identity');
+    if (
+      canonicalJson(parsed.spisBinding.service) !==
+      canonicalJson(bindingServiceIdentity(serviceIdentity))
+    ) {
+      throw new PublicTaskError(
+        403,
+        'service-identity-mismatch',
+        'spisBinding.service does not match the deployed Weles service identity',
+      );
     }
     let networkTarget;
     try {
       networkTarget = await resolveTarget(parsed.executionInput.url);
     } catch {
-      throw new PublicTaskError(403, 'network-target-denied', 'target did not resolve exclusively to stable public addresses');
+      throw new PublicTaskError(
+        403,
+        'network-target-denied',
+        'target did not resolve exclusively to stable public addresses',
+      );
     }
     const now = new Date().toISOString();
     const task = {
@@ -81,9 +123,12 @@ export function createTaskOperations({
       receipt: null,
       cancellation: null,
     };
-    if (!await createReservation(key, task)) {
+    if (!(await createReservation(key, task))) {
       const raced = await existingSubmission(key, parsed.requestDigest);
-      if (!raced) throw new Error('idempotency reservation disappeared after a concurrent claim');
+      if (!raced)
+        throw new Error(
+          'idempotency reservation disappeared after a concurrent claim',
+        );
       return { status: 200, payload: publicStatus(raced, dispatcherStatus()) };
     }
     await persistTask(task);
@@ -115,9 +160,16 @@ export function createTaskOperations({
       if (Object.hasOwn(TERMINAL_STATUSES, task.status)) {
         return { status: 200, payload: publicStatus(task, dispatcherStatus()) };
       }
-      if (task.cancellation
-          && (task.cancellation.idempotencyKey !== key || task.cancellation.reason !== cancellation.reason)) {
-        throw new PublicTaskError(409, 'cancellation-conflict', 'task already has a different cancellation operation');
+      if (
+        task.cancellation &&
+        (task.cancellation.idempotencyKey !== key ||
+          task.cancellation.reason !== cancellation.reason)
+      ) {
+        throw new PublicTaskError(
+          409,
+          'cancellation-conflict',
+          'task already has a different cancellation operation',
+        );
       }
       if (!task.cancellation) {
         task.cancellation = {
@@ -159,16 +211,22 @@ export function createTaskOperations({
     // the persisted tasks.
     const identityAtRecovery = await serviceIdentityReadiness();
     if (!identityAtRecovery.ok) {
-      console.error(`[weles-public-task] restart recovery ran with no validated deployed service identity: ${identityAtRecovery.reason}`);
+      console.error(
+        `[weles-public-task] restart recovery ran with no validated deployed service identity: ${identityAtRecovery.reason}`,
+      );
     }
     const mappingEntries = await readdir(mappingRoot, { withFileTypes: true });
     await cleanInterruptedTemporaryFiles(mappingRoot, mappingEntries);
     for (const entry of mappingEntries) {
       if (entry.name.endsWith('.tmp')) continue;
       if (!entry.isFile() || !/^[0-9a-f]{64}\.json$/.test(entry.name)) {
-        throw new Error(`unexpected public task reservation entry: ${entry.name}`);
+        throw new Error(
+          `unexpected public task reservation entry: ${entry.name}`,
+        );
       }
-      await materializeReservation(validateReservation(await readJson(join(mappingRoot, entry.name))));
+      await materializeReservation(
+        validateReservation(await readJson(join(mappingRoot, entry.name))),
+      );
     }
 
     const taskEntries = await readdir(taskRoot, { withFileTypes: true });
@@ -202,8 +260,14 @@ export function createTaskOperations({
         }
         if (task.status === 'running') {
           task.completion = {
-            ...terminalCompletion({ ok: false, run_id: task.id }, false, redact, task.executionInput.url),
-            error: 'browser evidence execution was interrupted by service restart',
+            ...terminalCompletion(
+              { ok: false, run_id: task.id },
+              false,
+              redact,
+              task.executionInput.url,
+            ),
+            error:
+              'browser evidence execution was interrupted by service restart',
             completedAt: new Date().toISOString(),
           };
           await persistTask(task);
@@ -211,12 +275,18 @@ export function createTaskOperations({
         }
       });
       const recovered = await loadTask(taskId);
-      if (recovered.status === 'queued' && !recovered.completion && !recovered.cancellation) {
+      if (
+        recovered.status === 'queued' &&
+        !recovered.completion &&
+        !recovered.cancellation
+      ) {
         recoveredQueue.push({ taskId, createdAt: recovered.createdAt });
       }
     }
     recoveredQueue.sort((left, right) => {
-      const byCreatedAt = String(left.createdAt).localeCompare(String(right.createdAt));
+      const byCreatedAt = String(left.createdAt).localeCompare(
+        String(right.createdAt),
+      );
       return byCreatedAt || left.taskId.localeCompare(right.taskId);
     });
     for (const entry of recoveredQueue) {

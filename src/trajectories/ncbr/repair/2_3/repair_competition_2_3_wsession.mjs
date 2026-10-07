@@ -4,7 +4,12 @@
 import { writeFileSync } from 'node:fs';
 import { WSession } from '../../../../../dist/index.js';
 import { humanIdlePause } from '../../../../../dist/human/mouse.js';
-import { competitors14, euCompetition, nonEuCompetition, parameters23 } from './repair_competition_2_3_wsession/source.mjs';
+import {
+  competitors14,
+  euCompetition,
+  nonEuCompetition,
+  parameters23,
+} from './repair_competition_2_3_wsession/source.mjs';
 import { lsiForm } from './repair_competition_2_3_wsession/form.mjs';
 import { competitionSteps } from './repair_competition_2_3_wsession/steps.mjs';
 
@@ -12,10 +17,14 @@ const PROJECT_ID = (await import('#ncbr-settings')).projectId();
 const PROJECT_URL = `https://lsi2.ncbr.gov.pl/projekt/${PROJECT_ID}`;
 const BASE = `${PROJECT_URL}/projekt_step/`;
 const URLS = {
-  '1.4': (await import('#ncbr-settings')).sectionUrl('1_4'),
-  '2.3': (await import('#ncbr-settings')).sectionUrl('2_3'),
+  1.4: (await import('#ncbr-settings')).sectionUrl('1_4'),
+  2.3: (await import('#ncbr-settings')).sectionUrl('2_3'),
 };
-const OUT = process.env.OUT || (await import('#ncbr-settings')).applicationFile('competition_2_3_repair_evidence.json');
+const OUT =
+  process.env.OUT ||
+  (await import('#ncbr-settings')).applicationFile(
+    'competition_2_3_repair_evidence.json',
+  );
 
 const email = process.env.NCBR_EMAIL;
 const password = process.env.NCBR_PASSWORD;
@@ -25,31 +34,62 @@ if (!email || !password) {
 }
 delete process.env.NCBR_PASSWORD;
 
-const session = await WSession.start({ label: 'ncbr_repair_competition_2_3_wsession', proxy: 'direct', browser: 'chromium' });
+const session = await WSession.start({
+  label: 'ncbr_repair_competition_2_3_wsession',
+  proxy: 'direct',
+  browser: 'chromium',
+});
 const page = session.page;
 
-
 function progress(message) {
-  console.log(`[repair_competition_2_3] ${new Date().toISOString()} ${message}`);
+  console.log(
+    `[repair_competition_2_3] ${new Date().toISOString()} ${message}`,
+  );
 }
 
 const form = lsiForm({ page, session, email, password, progress });
-const { login, readSectionTables, visibleTableText, hasAnyName, clickDodaj } = form;
+const { login, readSectionTables, visibleTableText, hasAnyName, clickDodaj } =
+  form;
 const {
-  addCompetitor14, addCompetition23, dumpOpenFields, addParameter23, repairVisibleMissingNips14, validateProject,
+  addCompetitor14,
+  addCompetition23,
+  dumpOpenFields,
+  addParameter23,
+  repairVisibleMissingNips14,
+  validateProject,
 } = competitionSteps({ page, progress, URLS, PROJECT_URL, ...form });
 
 async function run() {
-  const out = { parsed: { competitors14: competitors14.length, euCompetition: euCompetition.length, nonEuCompetition: nonEuCompetition.length, parameters23: parameters23.length }, actions: [] };
+  const out = {
+    parsed: {
+      competitors14: competitors14.length,
+      euCompetition: euCompetition.length,
+      nonEuCompetition: nonEuCompetition.length,
+      parameters23: parameters23.length,
+    },
+    actions: [],
+  };
   progress(`parsed:${JSON.stringify(out.parsed)}`);
   await login();
 
   if (process.env.REPAIR_14_NIPS === '1') {
     out.repairedNips14 = await repairVisibleMissingNips14();
-    out.readback = { '1.4': await readSectionTables(URLS['1.4']) };
+    out.readback = { 1.4: await readSectionTables(URLS['1.4']) };
     if (process.env.VALIDATE === '1') out.validation = await validateProject();
     writeFileSync(OUT, JSON.stringify(out, null, 2));
-    console.log(JSON.stringify({ out: OUT, parsed: out.parsed, repairedNips14: out.repairedNips14, readback: out.readback, validation: out.validation || null }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          out: OUT,
+          parsed: out.parsed,
+          repairedNips14: out.repairedNips14,
+          readback: out.readback,
+          validation: out.validation || null,
+        },
+        null,
+        2,
+      ),
+    );
     await session.ctx.close();
     return;
   }
@@ -87,7 +127,10 @@ async function run() {
       out.actions.push({ section: '2.3 UE', skippedExisting: row.producer });
       continue;
     }
-    out.actions.push({ section: '2.3 UE', ...(await addCompetition23(0, row)) });
+    out.actions.push({
+      section: '2.3 UE',
+      ...(await addCompetition23(0, row)),
+    });
   }
   for (const row of nonEuCompetition) {
     const current = await visibleTableText();
@@ -96,7 +139,10 @@ async function run() {
       out.actions.push({ section: '2.3 nonUE', skippedExisting: row.producer });
       continue;
     }
-    out.actions.push({ section: '2.3 nonUE', ...(await addCompetition23(1, row)) });
+    out.actions.push({
+      section: '2.3 nonUE',
+      ...(await addCompetition23(1, row)),
+    });
   }
   for (const row of parameters23) {
     const current = await visibleTableText();
@@ -105,16 +151,35 @@ async function run() {
       out.actions.push({ section: '2.3 parametry', skippedExisting: row.name });
       continue;
     }
-    out.actions.push({ section: '2.3 parametry', ...(await addParameter23(row)) });
+    out.actions.push({
+      section: '2.3 parametry',
+      ...(await addParameter23(row)),
+    });
   }
 
   out.readback = {
-    '1.4': await readSectionTables(URLS['1.4']),
-    '2.3': await readSectionTables(URLS['2.3']),
+    1.4: await readSectionTables(URLS['1.4']),
+    2.3: await readSectionTables(URLS['2.3']),
   };
   if (process.env.VALIDATE === '1') out.validation = await validateProject();
   writeFileSync(OUT, JSON.stringify(out, null, 2));
-  console.log(JSON.stringify({ out: OUT, parsed: out.parsed, actions: out.actions.map((a) => ({ section: a.section, added: a.added, skippedExisting: a.skippedExisting })), readback: out.readback, validation: out.validation || null }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        out: OUT,
+        parsed: out.parsed,
+        actions: out.actions.map((a) => ({
+          section: a.section,
+          added: a.added,
+          skippedExisting: a.skippedExisting,
+        })),
+        readback: out.readback,
+        validation: out.validation || null,
+      },
+      null,
+      2,
+    ),
+  );
   await session.ctx.close();
 }
 

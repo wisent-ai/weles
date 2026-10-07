@@ -27,31 +27,46 @@ function apiBase(): string {
   if (configured) return configured.replace(/\/+$/, '');
   const port = process.env.WELES_API_PORT?.trim();
   if (!port) {
-    throw new Error('cannot start a Weles run: neither WELES_WORKER_API_BASE nor WELES_API_PORT is set in this process');
+    throw new Error(
+      'cannot start a Weles run: neither WELES_WORKER_API_BASE nor WELES_API_PORT is set in this process',
+    );
   }
   return `http://127.0.0.1:${port}`;
 }
 
 function apiToken(): string {
-  const token = process.env.WELES_API_TOKEN || process.env.WELES_CONSOLE_API_TOKEN || process.env.WELES_WORKER_TOKEN || '';
+  const token =
+    process.env.WELES_API_TOKEN ||
+    process.env.WELES_CONSOLE_API_TOKEN ||
+    process.env.WELES_WORKER_TOKEN ||
+    '';
   if (!token) {
-    throw new Error('cannot start a Weles run: none of WELES_API_TOKEN, WELES_CONSOLE_API_TOKEN, WELES_WORKER_TOKEN is set in this process');
+    throw new Error(
+      'cannot start a Weles run: none of WELES_API_TOKEN, WELES_CONSOLE_API_TOKEN, WELES_WORKER_TOKEN is set in this process',
+    );
   }
   return token;
 }
 
 /** Start `action` detached on the Weles API and return its run id. */
-export async function submitWelesRun(request: WelesRunRequest): Promise<string> {
-  if (!SAFE_ACTION.test(request.action)) throw new Error(`invalid Weles action: ${request.action}`);
+export async function submitWelesRun(
+  request: WelesRunRequest,
+): Promise<string> {
+  if (!SAFE_ACTION.test(request.action))
+    throw new Error(`invalid Weles action: ${request.action}`);
   if (request.accountItem && !ACCOUNT_ITEM.test(request.accountItem)) {
     throw new Error('accountItem must be an exact Weles Skarbiec item id');
   }
   const params = request.params ?? {};
-  if (Array.isArray(params) || typeof params !== 'object') throw new Error('params must be an object');
+  if (Array.isArray(params) || typeof params !== 'object')
+    throw new Error('params must be an object');
   const endpoint = `${apiBase()}/run`;
   const response = await fetch(endpoint, {
     method: 'POST',
-    headers: { authorization: `Bearer ${apiToken()}`, 'content-type': 'application/json' },
+    headers: {
+      authorization: `Bearer ${apiToken()}`,
+      'content-type': 'application/json',
+    },
     body: JSON.stringify({
       action: request.action,
       ...(request.accountItem ? { account_id: request.accountItem } : {}),
@@ -64,10 +79,14 @@ export async function submitWelesRun(request: WelesRunRequest): Promise<string> 
   try {
     answer = JSON.parse(text);
   } catch (error) {
-    throw new Error(`${endpoint} answered HTTP ${response.status} with a body that is not JSON (${(error as Error).message}): ${text}`);
+    throw new Error(
+      `${endpoint} answered HTTP ${response.status} with a body that is not JSON (${(error as Error).message}): ${text}`,
+    );
   }
   if (!response.ok || !answer.ok || !answer.detached_run) {
-    throw new Error(`${endpoint} refused ${request.action}: HTTP ${response.status} ${answer.error ?? text}`);
+    throw new Error(
+      `${endpoint} refused ${request.action}: HTTP ${response.status} ${answer.error ?? text}`,
+    );
   }
   return answer.detached_run;
 }
@@ -80,7 +99,9 @@ const HTTP_NOT_FOUND = 404;
  */
 export async function readWelesRun<T>(runId: string): Promise<T | null> {
   const endpoint = `${apiBase()}/diagnostics/${encodeURIComponent(runId)}/file?path=run-result.json`;
-  const response = await fetch(endpoint, { headers: { authorization: `Bearer ${apiToken()}` } });
+  const response = await fetch(endpoint, {
+    headers: { authorization: `Bearer ${apiToken()}` },
+  });
   if (response.status === HTTP_NOT_FOUND) return null;
   const text = await response.text();
   if (!response.ok) {

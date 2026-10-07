@@ -16,7 +16,8 @@ function extractTotpSecretFromValue(value) {
     // a broken credential, not an account without a secret: say so instead of
     // reading it as an empty secret and searching on.
     const secret = new URL(text).searchParams.get('secret');
-    if (secret === null) throw new Error('otpauth URI carries no secret parameter');
+    if (secret === null)
+      throw new Error('otpauth URI carries no secret parameter');
     return secret;
   }
   return text;
@@ -50,7 +51,13 @@ function findTotpSecret(value, seen = new Set()) {
       if (secret) return secret;
     }
   }
-  for (const nestedKey of ['metadata', 'meta', 'credentials', 'secrets', 'login_metadata']) {
+  for (const nestedKey of [
+    'metadata',
+    'meta',
+    'credentials',
+    'secrets',
+    'login_metadata',
+  ]) {
     if (value[nestedKey]) {
       const secret = findTotpSecret(value[nestedKey], seen);
       if (secret) return secret;
@@ -65,7 +72,9 @@ export function resolveTotpSecret(creds) {
 
 function decodeBase32Secret(secret) {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-  const clean = extractTotpSecretFromValue(secret).toUpperCase().replace(/[\s=-]/g, '');
+  const clean = extractTotpSecretFromValue(secret)
+    .toUpperCase()
+    .replace(/[\s=-]/g, '');
   if (!clean) throw new Error('empty TOTP secret');
   let bits = '';
   for (const char of clean) {
@@ -87,11 +96,14 @@ export function generateTotp(secret, options = {}) {
   const counter = Math.floor((options.now || Date.now()) / 1000 / step);
   const msg = Buffer.alloc(8);
   msg.writeBigUInt64BE(BigInt(counter));
-  const hmac = createHmac(algorithm, decodeBase32Secret(secret)).update(msg).digest();
+  const hmac = createHmac(algorithm, decodeBase32Secret(secret))
+    .update(msg)
+    .digest();
   const offset = hmac[hmac.length - 1] & 0x0f;
-  const binary = ((hmac[offset] & 0x7f) << 24)
-    | ((hmac[offset + 1] & 0xff) << 16)
-    | ((hmac[offset + 2] & 0xff) << 8)
-    | (hmac[offset + 3] & 0xff);
+  const binary =
+    ((hmac[offset] & 0x7f) << 24) |
+    ((hmac[offset + 1] & 0xff) << 16) |
+    ((hmac[offset + 2] & 0xff) << 8) |
+    (hmac[offset + 3] & 0xff);
   return String(binary % 10 ** digits).padStart(digits, '0');
 }

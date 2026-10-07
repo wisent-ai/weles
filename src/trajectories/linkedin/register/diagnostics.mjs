@@ -16,16 +16,23 @@ export function hashValue(value) {
 
 export function redactDiagnosticText(text) {
   if (typeof text !== 'string') return text;
-  const sensitiveKeys = /^(password|passwd|pwd|passcode|secret|token|csrf|csrfToken|loginCsrfParam|email|emailAddress|mail|phone|username|firstName|lastName|first-name|last-name|session_key|session_password)$/i;
+  const sensitiveKeys =
+    /^(password|passwd|pwd|passcode|secret|token|csrf|csrfToken|loginCsrfParam|email|emailAddress|mail|phone|username|firstName|lastName|first-name|last-name|session_key|session_password)$/i;
   try {
     const parsed = JSON.parse(text);
     const scrub = (value) => {
       if (Array.isArray(value)) return value.map(scrub);
       if (value && typeof value === 'object') {
-        return Object.fromEntries(Object.entries(value).map(([k, v]) => [
-          k,
-          sensitiveKeys.test(k) ? (String(k).toLowerCase().includes('email') ? '<redacted-email>' : '<redacted>') : scrub(v),
-        ]));
+        return Object.fromEntries(
+          Object.entries(value).map(([k, v]) => [
+            k,
+            sensitiveKeys.test(k)
+              ? String(k).toLowerCase().includes('email')
+                ? '<redacted-email>'
+                : '<redacted>'
+              : scrub(v),
+          ]),
+        );
       }
       return value;
     };
@@ -33,18 +40,26 @@ export function redactDiagnosticText(text) {
   } catch {}
   return text
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '<redacted-email>')
-    .replace(/((?:password|passwd|pwd|passcode|secret|token|csrf|csrfToken|loginCsrfParam|email|emailAddress|mail|phone|username|firstName|lastName|first-name|last-name|session_key|session_password)[\]"']?\s*[:=]\s*)["']?([^&;,\s"'}]+)["']?/gi, '$1"<redacted>"');
+    .replace(
+      /((?:password|passwd|pwd|passcode|secret|token|csrf|csrfToken|loginCsrfParam|email|emailAddress|mail|phone|username|firstName|lastName|first-name|last-name|session_key|session_password)[\]"']?\s*[:=]\s*)["']?([^&;,\s"'}]+)["']?/gi,
+      '$1"<redacted>"',
+    );
 }
 
 export function summarizeHeaders(headers = {}) {
-  const sensitiveHeader = /^(authorization|cookie|set-cookie|x-li-track|csrf-token|x-csrf-token|x-restli-protocol-version)$/i;
+  const sensitiveHeader =
+    /^(authorization|cookie|set-cookie|x-li-track|csrf-token|x-csrf-token|x-restli-protocol-version)$/i;
   const entries = Object.entries(headers ?? {});
   return {
     names: entries.map(([name]) => name),
-    values: Object.fromEntries(entries.map(([name, value]) => [
-      name,
-      sensitiveHeader.test(name) ? '<redacted>' : redactDiagnosticText(String(value)),
-    ])),
+    values: Object.fromEntries(
+      entries.map(([name, value]) => [
+        name,
+        sensitiveHeader.test(name)
+          ? '<redacted>'
+          : redactDiagnosticText(String(value)),
+      ]),
+    ),
   };
 }
 
@@ -78,13 +93,16 @@ function summarizePostData(postData = '') {
     const parsed = JSON.parse(postData);
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
       summary.json_keys = Object.keys(parsed);
-      summary.json_shape = Object.fromEntries(Object.entries(parsed).map(([key, value]) => {
-        if (value === null) return [key, 'null'];
-        if (Array.isArray(value)) return [key, `array:${value.length}`];
-        if (typeof value === 'string') return [key, `string:${value.length}`];
-        if (typeof value === 'object') return [key, `object:${Object.keys(value).length}`];
-        return [key, typeof value];
-      }));
+      summary.json_shape = Object.fromEntries(
+        Object.entries(parsed).map(([key, value]) => {
+          if (value === null) return [key, 'null'];
+          if (Array.isArray(value)) return [key, `array:${value.length}`];
+          if (typeof value === 'string') return [key, `string:${value.length}`];
+          if (typeof value === 'object')
+            return [key, `object:${Object.keys(value).length}`];
+          return [key, typeof value];
+        }),
+      );
     }
   } catch {}
   const redacted = redactDiagnosticText(postData);
@@ -126,7 +144,8 @@ export function summarizeResponse(res, bodyText, bodyReadError = null) {
   let bodyJsonKeys = null;
   try {
     const parsed = JSON.parse(bodyText);
-    if (parsed && typeof parsed === 'object') bodyJsonKeys = Object.keys(parsed);
+    if (parsed && typeof parsed === 'object')
+      bodyJsonKeys = Object.keys(parsed);
   } catch {}
   const headers = summarizeHeaders(res.headers?.() ?? {});
   return {
@@ -136,41 +155,87 @@ export function summarizeResponse(res, bodyText, bodyReadError = null) {
     headers_redacted: headers.values,
     body_json_keys: bodyJsonKeys,
     body_text_redacted: redactDiagnosticText(bodyText),
-    body_read_error: bodyReadError === null ? null : redactDiagnosticText(String(bodyReadError?.message ?? bodyReadError)),
+    body_read_error:
+      bodyReadError === null
+        ? null
+        : redactDiagnosticText(String(bodyReadError?.message ?? bodyReadError)),
   };
 }
 
 export async function collectSubmitState(page, stage) {
   const safeText = async (loc, max = 500) => {
     if (!(await loc.count())) return '';
-    try { return redactDiagnosticText((await loc.innerText()).replace(/\s+/g, ' ').trim()).slice(0, max); } catch { return ''; }
+    try {
+      return redactDiagnosticText(
+        (await loc.innerText()).replace(/\s+/g, ' ').trim(),
+      ).slice(0, max);
+    } catch {
+      return '';
+    }
   };
   const safeAttr = async (loc, name) => {
     if (!(await loc.count())) return null;
-    try { return await loc.getAttribute(name); } catch { return null; }
+    try {
+      return await loc.getAttribute(name);
+    } catch {
+      return null;
+    }
   };
-  const button = page.locator('button[type="submit"], button#join-form-submit').first();
-  const email = page.locator('input[name="email-address"], input#email-address, input[type="email"]').first();
-  const password = page.locator('input[name="password"], input#password, input[type="password"]').first();
-  const first = page.locator('input[name="first-name"], input#first-name').first();
+  const button = page
+    .locator('button[type="submit"], button#join-form-submit')
+    .first();
+  const email = page
+    .locator(
+      'input[name="email-address"], input#email-address, input[type="email"]',
+    )
+    .first();
+  const password = page
+    .locator('input[name="password"], input#password, input[type="password"]')
+    .first();
+  const first = page
+    .locator('input[name="first-name"], input#first-name')
+    .first();
   const last = page.locator('input[name="last-name"], input#last-name').first();
-  const alertText = await safeText(page.locator('[role="alert"], .join-form__form-body-error, .alert, .error, [class*="error"]').first(), 800);
+  const alertText = await safeText(
+    page
+      .locator(
+        '[role="alert"], .join-form__form-body-error, .alert, .error, [class*="error"]',
+      )
+      .first(),
+    800,
+  );
   const visibleText = await safeText(page.locator('body').first(), 1200);
   return {
     stage,
     url: page.url(),
     submit_button: {
       visible: await button.isVisible().catch(() => false),
-      enabled: (await button.count()) ? await button.isEnabled().catch(() => false) : false,
+      enabled: (await button.count())
+        ? await button.isEnabled().catch(() => false)
+        : false,
       text: await safeText(button, 200),
       disabled_attr: await safeAttr(button, 'disabled'),
       aria_disabled: await safeAttr(button, 'aria-disabled'),
     },
     fields: {
-      email: { visible: await email.isVisible().catch(() => false), disabled: await safeAttr(email, 'disabled'), aria_invalid: await safeAttr(email, 'aria-invalid') },
-      password: { visible: await password.isVisible().catch(() => false), disabled: await safeAttr(password, 'disabled'), aria_invalid: await safeAttr(password, 'aria-invalid') },
-      first: { visible: await first.isVisible().catch(() => false), count: await first.count() },
-      last: { visible: await last.isVisible().catch(() => false), count: await last.count() },
+      email: {
+        visible: await email.isVisible().catch(() => false),
+        disabled: await safeAttr(email, 'disabled'),
+        aria_invalid: await safeAttr(email, 'aria-invalid'),
+      },
+      password: {
+        visible: await password.isVisible().catch(() => false),
+        disabled: await safeAttr(password, 'disabled'),
+        aria_invalid: await safeAttr(password, 'aria-invalid'),
+      },
+      first: {
+        visible: await first.isVisible().catch(() => false),
+        count: await first.count(),
+      },
+      last: {
+        visible: await last.isVisible().catch(() => false),
+        count: await last.count(),
+      },
     },
     alert_text: alertText,
     body_text_sample: visibleText,

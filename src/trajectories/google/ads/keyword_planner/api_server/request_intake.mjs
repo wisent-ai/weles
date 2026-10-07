@@ -41,8 +41,20 @@ export function authorized(req) {
 }
 
 export function parseKeywords(value) {
-  if (Array.isArray(value)) return [...new Set(value.map((item) => String(item || '').trim()).filter(Boolean))];
-  return [...new Set(String(value || '').split(/[\n,]+/).map((item) => item.trim()).filter(Boolean))];
+  if (Array.isArray(value))
+    return [
+      ...new Set(
+        value.map((item) => String(item || '').trim()).filter(Boolean),
+      ),
+    ];
+  return [
+    ...new Set(
+      String(value || '')
+        .split(/[\n,]+/)
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  ];
 }
 
 export function normalizeCustomerId(value) {
@@ -50,22 +62,42 @@ export function normalizeCustomerId(value) {
 }
 
 export function safeSlug(value) {
-  return String(value || 'keywords').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80) || 'keywords';
+  return (
+    String(value || 'keywords')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 80) || 'keywords'
+  );
 }
 
 export function normalizeKeyword(value) {
-  return String(value || '').replace(/\s+/g, ' ').trim();
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 export function validateReportRequest(body) {
-  const customerId = normalizeCustomerId(body.customerId || body.customer_id || body.googleAdsCustomerId);
+  const customerId = normalizeCustomerId(
+    body.customerId || body.customer_id || body.googleAdsCustomerId,
+  );
   if (!customerId) throw new Error('customerId required');
-  const seedKeywords = parseKeywords(body.seedKeywords || body.seeds || body.keywords || body.keyword)
+  const seedKeywords = parseKeywords(
+    body.seedKeywords || body.seeds || body.keywords || body.keyword,
+  )
     .map(normalizeKeyword)
     .filter(Boolean);
-  const subject = String(body.subject || body.product || body.niche || body.brief || body.landingPage || body.url || '').trim();
-  if (!subject && !seedKeywords.length) throw new Error('subject/product/brief or seedKeywords required');
-
+  const subject = String(
+    body.subject ||
+      body.product ||
+      body.niche ||
+      body.brief ||
+      body.landingPage ||
+      body.url ||
+      '',
+  ).trim();
+  if (!subject && !seedKeywords.length)
+    throw new Error('subject/product/brief or seedKeywords required');
 
   return {
     customerId,
@@ -74,14 +106,19 @@ export function validateReportRequest(body) {
     niche: String(body.niche || '').trim(),
     audience: String(body.audience || body.targetAudience || '').trim(),
     landingPage: String(body.landingPage || body.url || '').trim(),
-    goal: String(body.goal || 'Find paid search opportunities with real Google Ads Keyword Planner metrics.').trim(),
+    goal: String(
+      body.goal ||
+        'Find paid search opportunities with real Google Ads Keyword Planner metrics.',
+    ).trim(),
     seedKeywords,
     session: String(body.session || SESSION),
   };
 }
 
 export function validateRequest(body) {
-  const customerId = normalizeCustomerId(body.customerId || body.customer_id || body.googleAdsCustomerId);
+  const customerId = normalizeCustomerId(
+    body.customerId || body.customer_id || body.googleAdsCustomerId,
+  );
   const keywords = parseKeywords(body.keywords || body.keyword);
   if (!customerId) throw new Error('customerId required');
   if (!keywords.length) throw new Error('keywords required');

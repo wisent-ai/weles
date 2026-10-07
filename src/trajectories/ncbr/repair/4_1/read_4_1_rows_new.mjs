@@ -17,11 +17,15 @@ await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
 const out = await page.evaluate(() => {
   const body = document.body.innerText || '';
-  const tables = Array.from(document.querySelectorAll('table')).map((table, i) => ({
-    i,
-    rows: table.querySelectorAll('tbody tr').length,
-    text: Array.from(table.querySelectorAll('tbody tr')).map((r) => r.innerText.trim().replace(/\s+/g, ' ')),
-  }));
+  const tables = Array.from(document.querySelectorAll('table')).map(
+    (table, i) => ({
+      i,
+      rows: table.querySelectorAll('tbody tr').length,
+      text: Array.from(table.querySelectorAll('tbody tr')).map((r) =>
+        r.innerText.trim().replace(/\s+/g, ' '),
+      ),
+    }),
+  );
   return {
     url: location.href,
     tables,

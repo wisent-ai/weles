@@ -8,40 +8,78 @@ import { join } from 'node:path';
 import { activeSkarbiecBinary } from '../_shared/skarbiec-runtime.mjs';
 
 let resolvedSkarbiecBinary;
-const VAULT = process.env.SKARBIEC_VAULT_FILE ?? join(homedir(), '.stado', 'skarbiec.vault.json');
+const VAULT =
+  process.env.SKARBIEC_VAULT_FILE ??
+  join(homedir(), '.stado', 'skarbiec.vault.json');
 const RECORD_TAG = 'weles:record:service-subscription';
-const run = (args, input) => execFileSync(resolvedSkarbiecBinary ??= activeSkarbiecBinary(), args, {
-  input,
-  encoding: 'utf8',
-  env: { ...process.env, SKARBIEC_VAULT_FILE: VAULT },
-});
+const run = (args, input) =>
+  execFileSync((resolvedSkarbiecBinary ??= activeSkarbiecBinary()), args, {
+    input,
+    encoding: 'utf8',
+    env: { ...process.env, SKARBIEC_VAULT_FILE: VAULT },
+  });
 const read = (id) => JSON.parse(run(['get', id]));
-const record = (id, document) => ({ id, ...(document.context?.subscription ?? {}) });
+const record = (id, document) => ({
+  id,
+  ...(document.context?.subscription ?? {}),
+});
 
 function subscriptionIds() {
   return JSON.parse(run(['list']))
-    .filter((row) => !row.deleted && Array.isArray(row.tags) && row.tags.includes(RECORD_TAG))
+    .filter(
+      (row) =>
+        !row.deleted &&
+        Array.isArray(row.tags) &&
+        row.tags.includes(RECORD_TAG),
+    )
     .map((row) => String(row.id ?? row.name ?? ''))
     .filter(Boolean);
 }
 
-export async function listSubscriptions({ service, status, provider, account } = {}) {
+export async function listSubscriptions({
+  service,
+  status,
+  provider,
+  account,
+} = {}) {
   return subscriptionIds()
     .map((id) => record(id, read(id)))
-    .filter((row) => (!service || row.service_name === service)
-      && (!status || row.status === status)
-      && (!provider || row.provider === provider)
-      && (!account || row.account_identifier === account))
-    .sort((left, right) => String(right.updated_at).localeCompare(String(left.updated_at)));
+    .filter(
+      (row) =>
+        (!service || row.service_name === service) &&
+        (!status || row.status === status) &&
+        (!provider || row.provider === provider) &&
+        (!account || row.account_identifier === account),
+    )
+    .sort((left, right) =>
+      String(right.updated_at).localeCompare(String(left.updated_at)),
+    );
 }
 
 export async function upsertSubscription(row) {
-  const existing = (await listSubscriptions({
-    service: row.service_name, provider: row.provider, account: row.account_identifier,
-  }))[0]?.id;
+  const existing = (
+    await listSubscriptions({
+      service: row.service_name,
+      provider: row.provider,
+      account: row.account_identifier,
+    })
+  )[0]?.id;
   const id = existing ?? randomUUID().replaceAll('-', '');
-  run(['set-json', id, '--type', 'bundle', ...(existing ? [] : ['--tags', RECORD_TAG])],
-    JSON.stringify({ schema: 'skarbiec.item.v2', kind: 'bundle', fields: { value_json: JSON.stringify(row.metadata ?? {}) }, context: {} }));
+  run(
+    [
+      'set-json',
+      id,
+      '--type',
+      'bundle',
+      ...(existing ? [] : ['--tags', RECORD_TAG]),
+    ],
+    JSON.stringify({
+      schema: 'skarbiec.item.v2',
+      kind: 'bundle',
+      fields: { value_json: JSON.stringify(row.metadata ?? {}) },
+      context: {},
+    }),
+  );
   const document = read(id);
   document.context = {
     ...(document.context ?? {}),
@@ -85,7 +123,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const rows = await upsertSubscription(row);
     console.log(JSON.stringify(rows, null, 2));
   } else {
-    console.log('Usage: node src/lib/service_subscriptions.mjs list|upsert \'<json>\'');
+    console.log(
+      "Usage: node src/lib/service_subscriptions.mjs list|upsert '<json>'",
+    );
     process.exit(1);
   }
 }

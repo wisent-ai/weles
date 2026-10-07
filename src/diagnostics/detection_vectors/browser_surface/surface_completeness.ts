@@ -35,7 +35,12 @@ export const surfaceCompletenessRules: DetectionRule[] = [
     test(s, b) {
       const st = s?.js?.window?.chromeToolbarPx;
       const bt = b?.js?.window?.chromeToolbarPx;
-      if (typeof st === 'number' && typeof bt === 'number' && bt > 2 && st <= 2) {
+      if (
+        typeof st === 'number' &&
+        typeof bt === 'number' &&
+        bt > 2 &&
+        st <= 2
+      ) {
         return {
           id: 'screen_toolbar_height',
           category: 'screen',
@@ -75,12 +80,17 @@ export const surfaceCompletenessRules: DetectionRule[] = [
     test(s, b) {
       const sb = s?.js?.battery;
       const bb = b?.js?.battery;
-      if (bb !== null && bb !== undefined && (sb === null || sb === undefined)) {
+      if (
+        bb !== null &&
+        bb !== undefined &&
+        (sb === null || sb === undefined)
+      ) {
         return {
           id: 'battery_api_missing',
           category: 'navigator',
           severity: 'info',
-          message: 'navigator.getBattery is missing on subject while baseline exposes it.',
+          message:
+            'navigator.getBattery is missing on subject while baseline exposes it.',
           evidence: { subjectBattery: sb, baselineBattery: bb },
         };
       }
@@ -95,12 +105,17 @@ export const surfaceCompletenessRules: DetectionRule[] = [
     test(s, b) {
       const sc = s?.js?.navigator?.connection;
       const bc = b?.js?.navigator?.connection;
-      if (bc !== null && bc !== undefined && (sc === null || sc === undefined)) {
+      if (
+        bc !== null &&
+        bc !== undefined &&
+        (sc === null || sc === undefined)
+      ) {
         return {
           id: 'network_information_missing',
           category: 'navigator',
           severity: 'info',
-          message: 'navigator.connection is missing on subject while baseline exposes it.',
+          message:
+            'navigator.connection is missing on subject while baseline exposes it.',
           evidence: { subjectConnection: sc, baselineConnection: bc },
         };
       }
@@ -120,7 +135,8 @@ export const surfaceCompletenessRules: DetectionRule[] = [
           id: 'chrome_loadtimes_missing',
           category: 'navigator',
           severity: 'warning',
-          message: 'chrome.loadTimes is missing on Chromium. Some anti-bot scripts check this legacy Chrome API.',
+          message:
+            'chrome.loadTimes is missing on Chromium. Some anti-bot scripts check this legacy Chrome API.',
           evidence: { subjectChrome: sc, baselineChrome: bc },
         };
       }
@@ -129,7 +145,8 @@ export const surfaceCompletenessRules: DetectionRule[] = [
           id: 'chrome_loadtimes_missing',
           category: 'navigator',
           severity: 'warning',
-          message: 'chrome.csi is missing on Chromium. Some anti-bot scripts check this legacy Chrome API.',
+          message:
+            'chrome.csi is missing on Chromium. Some anti-bot scripts check this legacy Chrome API.',
           evidence: { subjectChrome: sc, baselineChrome: bc },
         };
       }
@@ -144,7 +161,12 @@ export const surfaceCompletenessRules: DetectionRule[] = [
     test(s, b) {
       const sc = s?.js?.ownPropsCount;
       const bc = b?.js?.ownPropsCount;
-      if (typeof sc === 'number' && typeof bc === 'number' && bc > 0 && sc < bc * 0.92) {
+      if (
+        typeof sc === 'number' &&
+        typeof bc === 'number' &&
+        bc > 0 &&
+        sc < bc * 0.92
+      ) {
         return {
           id: 'window_ownprops_count_low',
           category: 'inconsistency',

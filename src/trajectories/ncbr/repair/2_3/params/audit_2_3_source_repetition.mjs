@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 
-const SRC = (await import('#ncbr-settings')).applicationFile('wersja_B_2.3_rynek_i_potencjal.md');
+const SRC = (await import('#ncbr-settings')).applicationFile(
+  'wersja_B_2.3_rynek_i_potencjal.md',
+);
 const text = readFileSync(SRC, 'utf8');
 
 function section(start, end) {
@@ -14,22 +16,37 @@ function section(start, end) {
 function countRows(block) {
   return block.split('\n').filter((line) => {
     const t = line.trim();
-    return t.startsWith('|') && !t.includes('---') && !/^\|\s*Podmiot/.test(t) && !/^\|\s*Pole\s*\|/.test(t);
+    return (
+      t.startsWith('|') &&
+      !t.includes('---') &&
+      !/^\|\s*Podmiot/.test(t) &&
+      !/^\|\s*Pole\s*\|/.test(t)
+    );
   }).length;
 }
 
 function cellEndFindings(blockName, block) {
   const findings = [];
-  const rows = block.split('\n').filter((line) => line.trim().startsWith('|') && !line.includes('---'));
+  const rows = block
+    .split('\n')
+    .filter((line) => line.trim().startsWith('|') && !line.includes('---'));
   for (const [lineIndex, line] of rows.entries()) {
     if (/^\|\s*(Podmiot|Pole)\b/.test(line.trim())) continue;
-    const cells = line.split('|').slice(1, -1).map((cell) => cell.trim()).filter(Boolean);
+    const cells = line
+      .split('|')
+      .slice(1, -1)
+      .map((cell) => cell.trim())
+      .filter(Boolean);
     for (const [cellIndex, cell] of cells.entries()) {
       if (cell.length < 70) continue;
       const suffix = cell.slice(-160);
       const finalSentence = (cell.match(/[^.!?]+[.!?]$/) || [''])[0].trim();
-      const dangling = /\b(?:do|dla|od|na|w|we|z|ze|oraz|i|ani|który|która|które|jako|przez|po|bez|nad|pod|między|wobec|według|związku|zakresie)$/i.test(cell.replace(/[.!?]\s*$/, '').trim());
-      const tinyFinalSentence = finalSentence && finalSentence.length < 28 && cell.length > 180;
+      const dangling =
+        /\b(?:do|dla|od|na|w|we|z|ze|oraz|i|ani|który|która|które|jako|przez|po|bez|nad|pod|między|wobec|według|związku|zakresie)$/i.test(
+          cell.replace(/[.!?]\s*$/, '').trim(),
+        );
+      const tinyFinalSentence =
+        finalSentence && finalSentence.length < 28 && cell.length > 180;
       if (dangling || tinyFinalSentence) {
         findings.push({
           block: blockName,
@@ -46,9 +63,18 @@ function cellEndFindings(blockName, block) {
   return findings;
 }
 
-const eu = section('## Oferta konkurencji wewnątrz UE', '## Oferta konkurencji spoza UE');
-const nonEu = section('## Oferta konkurencji spoza UE', '## Rynek docelowy dla innowacji produktowej');
-const params = section('## Parametry opisujące znaczący potencjał gospodarczy', null);
+const eu = section(
+  '## Oferta konkurencji wewnątrz UE',
+  '## Oferta konkurencji spoza UE',
+);
+const nonEu = section(
+  '## Oferta konkurencji spoza UE',
+  '## Rynek docelowy dla innowacji produktowej',
+);
+const params = section(
+  '## Parametry opisujące znaczący potencjał gospodarczy',
+  null,
+);
 
 const normalized = text.replace(/\s+/g, ' ');
 const sentences = (normalized.match(/[^.!?]{45,}[.!?]/g) || [])
@@ -69,23 +95,37 @@ const bannedPhrases = [
   'Dowód: umowa',
   'Wzmacnia to nadzór',
 ];
-const banned = Object.fromEntries(bannedPhrases.map((p) => [p, (text.match(new RegExp(p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length]));
+const banned = Object.fromEntries(
+  bannedPhrases.map((p) => [
+    p,
+    (
+      text.match(new RegExp(p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) ||
+      []
+    ).length,
+  ]),
+);
 const cellEndings = [
   ...cellEndFindings('eu', eu),
   ...cellEndFindings('nonEu', nonEu),
   ...cellEndFindings('params', params),
 ];
 
-console.log(JSON.stringify({
-  file: SRC,
-  rows: {
-    eu: countRows(eu),
-    nonEu: countRows(nonEu),
-    params: countRows(params),
-  },
-  repeatedSentenceCount: repeatedSentences.length,
-  repeatedSentences: repeatedSentences,
-  cellEndingFindingCount: cellEndings.length,
-  cellEndings: cellEndings,
-  banned,
-}, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      file: SRC,
+      rows: {
+        eu: countRows(eu),
+        nonEu: countRows(nonEu),
+        params: countRows(params),
+      },
+      repeatedSentenceCount: repeatedSentences.length,
+      repeatedSentences: repeatedSentences,
+      cellEndingFindingCount: cellEndings.length,
+      cellEndings: cellEndings,
+      banned,
+    },
+    null,
+    2,
+  ),
+);

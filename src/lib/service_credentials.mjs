@@ -5,14 +5,20 @@ import { join } from 'node:path';
 import { activeSkarbiecBinary } from '../_shared/skarbiec-runtime.mjs';
 
 let resolvedSkarbiecBinary;
-const SKARBIEC_VAULT_FILE = process.env.SKARBIEC_VAULT_FILE ?? join(homedir(), '.stado', 'skarbiec.vault.json');
+const SKARBIEC_VAULT_FILE =
+  process.env.SKARBIEC_VAULT_FILE ??
+  join(homedir(), '.stado', 'skarbiec.vault.json');
 
 function skarbiec(args, input) {
-  return execFileSync(resolvedSkarbiecBinary ??= activeSkarbiecBinary(), args, {
-    input,
-    encoding: 'utf8',
-    env: { ...process.env, SKARBIEC_VAULT_FILE },
-  });
+  return execFileSync(
+    (resolvedSkarbiecBinary ??= activeSkarbiecBinary()),
+    args,
+    {
+      input,
+      encoding: 'utf8',
+      env: { ...process.env, SKARBIEC_VAULT_FILE },
+    },
+  );
 }
 
 function readItem(id) {
@@ -25,7 +31,11 @@ function allCredentialItems() {
     .map((row) => String(row.name ?? row.id ?? ''))
     .filter(Boolean)
     .map((id) => {
-      try { return { id, document: readItem(id) }; } catch { return null; }
+      try {
+        return { id, document: readItem(id) };
+      } catch {
+        return null;
+      }
     })
     .filter(({ document } = {}) => {
       const kind = String(document?.context?.record_kind ?? '');
@@ -56,31 +66,46 @@ function redacted(row) {
     login_method: row.login_method,
     login_email: row.login_email,
     updated_at: row.updated_at,
-    metadata_keys: row.metadata && typeof row.metadata === 'object'
-      ? Object.keys(row.metadata).sort()
-      : [],
+    metadata_keys:
+      row.metadata && typeof row.metadata === 'object'
+        ? Object.keys(row.metadata).sort()
+        : [],
   };
 }
 
 export async function listCredentialSummaries({ search } = {}) {
-  const terms = String(search ?? '').toLowerCase().split(',').map((term) => term.trim()).filter(Boolean);
+  const terms = String(search ?? '')
+    .toLowerCase()
+    .split(',')
+    .map((term) => term.trim())
+    .filter(Boolean);
   return allCredentialItems()
     .map(({ id, document }) => rowFromItem(id, document))
-    .filter((row) => !terms.length || terms.some((term) => row.display_name.toLowerCase().includes(term)))
+    .filter(
+      (row) =>
+        !terms.length ||
+        terms.some((term) => row.display_name.toLowerCase().includes(term)),
+    )
     .sort((left, right) => left.display_name.localeCompare(right.display_name))
     .map(redacted);
 }
 
 export async function getCredential(id) {
-  try { return rowFromItem(String(id), readItem(id)); } catch { return null; }
+  try {
+    return rowFromItem(String(id), readItem(id));
+  } catch {
+    return null;
+  }
 }
 
 export async function patchCredential(id, patch) {
   const document = readItem(id);
   document.fields = { ...(document.fields ?? {}) };
   document.context = { ...(document.context ?? {}) };
-  if (Object.hasOwn(patch, 'login_email')) document.fields.username = patch.login_email;
-  if (Object.hasOwn(patch, 'login_password')) document.fields.password = patch.login_password;
+  if (Object.hasOwn(patch, 'login_email'))
+    document.fields.username = patch.login_email;
+  if (Object.hasOwn(patch, 'login_password'))
+    document.fields.password = patch.login_password;
   for (const key of ['category', 'display_name', 'login_method', 'metadata']) {
     if (Object.hasOwn(patch, key)) document.context[key] = patch[key];
   }
@@ -91,11 +116,25 @@ export async function patchCredential(id, patch) {
 
 export async function upsertCredential(row) {
   const id = String(row.id ?? '');
-  if (!/^[a-zA-Z0-9][a-zA-Z0-9:._-]{0,190}$/.test(id)) throw new Error('invalid Skarbiec credential item id');
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9:._-]{0,190}$/.test(id))
+    throw new Error('invalid Skarbiec credential item id');
   let document;
-  try { document = readItem(id); } catch {
-    const fields = { username: String(row.login_email ?? ''), password: String(row.login_password ?? '') };
-    skarbiec(['set-json', id, '--type', 'login'], JSON.stringify({ schema: 'skarbiec.item.v2', kind: 'login', fields, context: {} }));
+  try {
+    document = readItem(id);
+  } catch {
+    const fields = {
+      username: String(row.login_email ?? ''),
+      password: String(row.login_password ?? ''),
+    };
+    skarbiec(
+      ['set-json', id, '--type', 'login'],
+      JSON.stringify({
+        schema: 'skarbiec.item.v2',
+        kind: 'login',
+        fields,
+        context: {},
+      }),
+    );
     document = readItem(id);
   }
   document.fields = {
@@ -123,12 +162,18 @@ export async function ensureKimiGoogleSso({
   sourceCredentialId,
 } = {}) {
   if (typeof id !== 'string' || !id.trim()) {
-    throw new Error('ensure-kimi-google-sso needs an explicit destination credential id');
+    throw new Error(
+      'ensure-kimi-google-sso needs an explicit destination credential id',
+    );
   }
-  const source = sourceCredentialId ? await getCredential(sourceCredentialId) : null;
+  const source = sourceCredentialId
+    ? await getCredential(sourceCredentialId)
+    : null;
   email = email || source?.login_email;
   if (!email) {
-    throw new Error('ensure-kimi-google-sso needs the Google account address: pass it, or name a source credential that carries login_email');
+    throw new Error(
+      'ensure-kimi-google-sso needs the Google account address: pass it, or name a source credential that carries login_email',
+    );
   }
   return upsertCredential({
     id,
@@ -147,11 +192,12 @@ export async function ensureKimiGoogleSso({
   });
 }
 
-
 if (import.meta.url === `file://${process.argv[1]}`) {
   const cmd = process.argv[2];
   if (cmd === 'list') {
-    const rows = await listCredentialSummaries({ search: process.argv[3] || '' });
+    const rows = await listCredentialSummaries({
+      search: process.argv[3] || '',
+    });
     console.log(JSON.stringify(rows, null, 2));
   } else if (cmd === 'patch') {
     const id = process.argv[3];
@@ -166,7 +212,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     });
     console.log(JSON.stringify(rows.map(redacted), null, 2));
   } else {
-    console.error('Usage: node src/lib/service_credentials.mjs list [term,term] | patch <id> <json> | ensure-kimi-google-sso <id> [source_credential_id] [email]');
+    console.error(
+      'Usage: node src/lib/service_credentials.mjs list [term,term] | patch <id> <json> | ensure-kimi-google-sso <id> [source_credential_id] [email]',
+    );
     process.exit(1);
   }
 }

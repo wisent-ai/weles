@@ -35,7 +35,12 @@ import {
   writeBrowserEvidencePolicy,
 } from './browser-evidence-policy/withheld-ledger.js';
 
-export { SPIS_BROWSER_EVIDENCE_POLICY, publicAddresses, resolveBrowserEvidenceTarget, writeBrowserEvidencePolicy };
+export {
+  SPIS_BROWSER_EVIDENCE_POLICY,
+  publicAddresses,
+  resolveBrowserEvidenceTarget,
+  writeBrowserEvidencePolicy,
+};
 
 function attachPageEdgeGuards(context: BrowserContext, label: string): void {
   const attach = (page: Page) => {
@@ -91,21 +96,27 @@ function attachPageEdgeGuards(context: BrowserContext, label: string): void {
   context.on('page', attach);
 }
 
-export async function installBrowserEvidencePolicy(context: BrowserContext, label: string): Promise<void> {
+export async function installBrowserEvidencePolicy(
+  context: BrowserContext,
+  label: string,
+): Promise<void> {
   if (!enabled()) return;
   const target = configuredTarget();
   const expectedTargetAddresses = [...new Set(target.addresses)].sort();
   expectedTargetAddresses.forEach(assertPublicAddress);
   const currentTargetAddresses = await publicAddresses(target.hostname);
   if (!sameAddresses(expectedTargetAddresses, currentTargetAddresses)) {
-    throw new Error('browser-evidence target DNS changed before browser policy installation');
+    throw new Error(
+      'browser-evidence target DNS changed before browser policy installation',
+    );
   }
   writeBrowserEvidencePolicy(label);
   await context.clearPermissions();
   await context.routeWebSocket('**/*', (socket) => {
     recordEdge(label, {
       category: 'network_policy',
-      reason: 'WebSocket transport withheld because the browser-evidence boundary permits only pinned HTTP(S)',
+      reason:
+        'WebSocket transport withheld because the browser-evidence boundary permits only pinned HTTP(S)',
       source: 'browser_context',
       url: safeText(socket.url()),
     });
@@ -115,7 +126,8 @@ export async function installBrowserEvidencePolicy(context: BrowserContext, labe
     let requestedUrl: URL | null = null;
     try {
       requestedUrl = new URL(request.url());
-      const isMainNavigation = request.isNavigationRequest() && request.frame().parentFrame() === null;
+      const isMainNavigation =
+        request.isNavigationRequest() && request.frame().parentFrame() === null;
       if (['about:', 'blob:', 'data:'].includes(requestedUrl.protocol)) {
         if (isMainNavigation && requestedUrl.href !== 'about:blank') {
           throw new Error('non-network main-frame navigation denied');
@@ -123,18 +135,28 @@ export async function installBrowserEvidencePolicy(context: BrowserContext, labe
         await route.continue();
         return;
       }
-      if (!['http:', 'https:'].includes(requestedUrl.protocol) || requestedUrl.username || requestedUrl.password) {
+      if (
+        !['http:', 'https:'].includes(requestedUrl.protocol) ||
+        requestedUrl.username ||
+        requestedUrl.password
+      ) {
         throw new Error('non-HTTP(S) browser request denied');
       }
       if (request.method() !== 'GET' && request.method() !== 'HEAD') {
-        throw new Error('anonymous browser-evidence network policy permits only GET and HEAD');
+        throw new Error(
+          'anonymous browser-evidence network policy permits only GET and HEAD',
+        );
       }
       if (requestedUrl.origin !== target.origin) {
-        throw new Error('browser request left the exact admitted target origin');
+        throw new Error(
+          'browser request left the exact admitted target origin',
+        );
       }
       const addresses = await publicAddresses(target.hostname);
       if (!sameAddresses(expectedTargetAddresses, addresses)) {
-        throw new Error('target DNS differs from the admitted pinned address set');
+        throw new Error(
+          'target DNS differs from the admitted pinned address set',
+        );
       }
       await route.continue();
     } catch (error) {
@@ -160,9 +182,10 @@ export async function installBrowserEvidencePolicy(context: BrowserContext, labe
     }
   });
   await context.exposeBinding('__welesRecordWithheldEdge', (_source, raw) => {
-    const edge = raw && typeof raw === 'object' && !Array.isArray(raw)
-      ? raw as Record<string, unknown>
-      : { category: 'browser_permission_api', api: 'unknown' };
+    const edge =
+      raw && typeof raw === 'object' && !Array.isArray(raw)
+        ? (raw as Record<string, unknown>)
+        : { category: 'browser_permission_api', api: 'unknown' };
     recordEdge(label, {
       category: safeText(edge.category) || 'browser_permission_api',
       api: safeText(edge.api) || 'unknown',
@@ -184,7 +207,8 @@ export async function enforceBrowserEvidenceToolPolicy(
 ): Promise<BrowserEvidenceToolAuthorization | null> {
   if (!enabled()) return null;
   const pageUrl = safeText(session.page.url?.() ?? '');
-  let decision: { category: string; reason: string } | null = ALWAYS_WITHHELD_TOOLS[tool] ?? null;
+  let decision: { category: string; reason: string } | null =
+    ALWAYS_WITHHELD_TOOLS[tool] ?? null;
   let control: ControlDescriptor | null = null;
   let authorization: BrowserEvidenceToolAuthorization | null = null;
   const text = targetText(tool, args);
@@ -193,11 +217,22 @@ export async function enforceBrowserEvidenceToolPolicy(
     try {
       const requested = new URL(String(args.url ?? ''));
       const target = configuredTarget();
-      if (requested.protocol !== 'https:' || requested.username || requested.password || requested.origin !== target.origin) {
-        decision = { category: 'network_policy', reason: 'navigation left the exact admitted public target origin' };
+      if (
+        requested.protocol !== 'https:' ||
+        requested.username ||
+        requested.password ||
+        requested.origin !== target.origin
+      ) {
+        decision = {
+          category: 'network_policy',
+          reason: 'navigation left the exact admitted public target origin',
+        };
       }
     } catch {
-      decision = { category: 'network_policy', reason: 'navigation URL is invalid or has no admitted target binding' };
+      decision = {
+        category: 'network_policy',
+        reason: 'navigation URL is invalid or has no admitted target binding',
+      };
     }
   }
 
@@ -205,58 +240,105 @@ export async function enforceBrowserEvidenceToolPolicy(
     const key = String(args.key ?? 'Enter');
     if (Object.hasOwn(SAFE_PAGE_KEYS, key)) return null;
     decision = {
-      category: key.toLowerCase() === 'enter' ? 'form_submission' : 'system_ui_keyboard',
-      reason: key.toLowerCase() === 'enter'
-        ? 'Enter is withheld because it can submit the active form'
-        : 'keyboard chord or system-capable key withheld',
+      category:
+        key.toLowerCase() === 'enter'
+          ? 'form_submission'
+          : 'system_ui_keyboard',
+      reason:
+        key.toLowerCase() === 'enter'
+          ? 'Enter is withheld because it can submit the active form'
+          : 'keyboard chord or system-capable key withheld',
     };
   }
 
-  if (!decision && ['click', 'js_click', 'focus', 'fill', 'type_text', 'select_option'].includes(tool)) {
+  if (
+    !decision &&
+    [
+      'click',
+      'js_click',
+      'focus',
+      'fill',
+      'type_text',
+      'select_option',
+    ].includes(tool)
+  ) {
     const descriptors = await controlDescriptors(session);
-    control = tool === 'type_text'
-      ? descriptors.find((candidate) => candidate.active) ?? null
-      : matchingControl(text, descriptors);
+    control =
+      tool === 'type_text'
+        ? (descriptors.find((candidate) => candidate.active) ?? null)
+        : matchingControl(text, descriptors);
     decision = classify(text, control, pageUrl);
     if (!decision && !control) {
-      decision = { category: 'unresolved_interactive_control', reason: 'control did not resolve to one exact fresh element' };
-    } else if (!decision && control && (tool === 'click' || tool === 'js_click')) {
+      decision = {
+        category: 'unresolved_interactive_control',
+        reason: 'control did not resolve to one exact fresh element',
+      };
+    } else if (
+      !decision &&
+      control &&
+      (tool === 'click' || tool === 'js_click')
+    ) {
       if (!safeClick(control, pageUrl)) {
-        decision = { category: 'ambiguous_interactive_control', reason: 'control is not an explicit same-origin link, tab, disclosure, or safe cancellation control' };
+        decision = {
+          category: 'ambiguous_interactive_control',
+          reason:
+            'control is not an explicit same-origin link, tab, disclosure, or safe cancellation control',
+        };
       } else {
-        authorization = { invoke: async () => {
-          await control!.element.click();
-          return `clicked exact browser-evidence control: ${safeText(control!.label)}`;
-        } };
+        authorization = {
+          invoke: async () => {
+            await control!.element.click();
+            return `clicked exact browser-evidence control: ${safeText(control!.label)}`;
+          },
+        };
       }
     } else if (!decision && control && tool === 'focus') {
-      authorization = { invoke: async () => {
-        await control!.element.focus();
-        return `focused exact browser-evidence control: ${safeText(control!.label)}`;
-      } };
-    } else if (!decision && control && (tool === 'fill' || tool === 'type_text')) {
-      const searchControl = (control.type === 'search' || control.role === 'searchbox')
-        && readOnlyForm(control, pageUrl);
+      authorization = {
+        invoke: async () => {
+          await control!.element.focus();
+          return `focused exact browser-evidence control: ${safeText(control!.label)}`;
+        },
+      };
+    } else if (
+      !decision &&
+      control &&
+      (tool === 'fill' || tool === 'type_text')
+    ) {
+      const searchControl =
+        (control.type === 'search' || control.role === 'searchbox') &&
+        readOnlyForm(control, pageUrl);
       if (!searchControl || typeof args.value !== 'string') {
-        decision = { category: 'ambiguous_input_control', reason: 'only exact read-only GET search/filter inputs are permitted' };
+        decision = {
+          category: 'ambiguous_input_control',
+          reason: 'only exact read-only GET search/filter inputs are permitted',
+        };
       } else {
-        authorization = { invoke: async () => {
-          if (tool === 'fill') await control!.element.fill(String(args.value));
-          else await control!.element.type(String(args.value));
-          return `updated exact read-only search control: ${safeText(control!.label)}`;
-        } };
+        authorization = {
+          invoke: async () => {
+            if (tool === 'fill')
+              await control!.element.fill(String(args.value));
+            else await control!.element.type(String(args.value));
+            return `updated exact read-only search control: ${safeText(control!.label)}`;
+          },
+        };
       }
     } else if (!decision && control && tool === 'select_option') {
-      const filterControl = control.tag === 'select'
-        && /\b(?:filter|sort|search)\b/i.test(control.label)
-        && readOnlyForm(control, pageUrl);
+      const filterControl =
+        control.tag === 'select' &&
+        /\b(?:filter|sort|search)\b/i.test(control.label) &&
+        readOnlyForm(control, pageUrl);
       if (!filterControl || typeof args.value !== 'string') {
-        decision = { category: 'ambiguous_input_control', reason: 'only exact read-only GET filter selections are permitted' };
+        decision = {
+          category: 'ambiguous_input_control',
+          reason: 'only exact read-only GET filter selections are permitted',
+        };
       } else {
-        authorization = { invoke: async () => {
-          await control!.element.selectOption(String(args.value));
-          return `updated exact read-only filter control: ${safeText(control!.label)}`;
-        } };
+        authorization = {
+          invoke: async () => {
+            await control!.element.selectOption(String(args.value));
+            return `updated exact read-only filter control: ${safeText(control!.label)}`;
+          },
+        };
       }
     }
   }
@@ -269,13 +351,15 @@ export async function enforceBrowserEvidenceToolPolicy(
     tool,
     target: text,
     url: pageUrl,
-    control: control ? {
-      label: safeText(control.label),
-      type: safeText(control.type),
-      role: safeText(control.role),
-      href: safeText(control.href),
-      formAction: safeText(control.formAction),
-    } : null,
+    control: control
+      ? {
+          label: safeText(control.label),
+          type: safeText(control.type),
+          role: safeText(control.role),
+          href: safeText(control.href),
+          formAction: safeText(control.formAction),
+        }
+      : null,
   });
   throw new Error(`policy_withheld:${decision.category}:${decision.reason}`);
 }

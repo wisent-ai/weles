@@ -55,7 +55,9 @@ function envValue(env: EnvLike, ...keys: string[]): string {
   return '';
 }
 
-function immutableReleaseIdentity(env: EnvLike): ImmutableReleaseIdentity | undefined {
+function immutableReleaseIdentity(
+  env: EnvLike,
+): ImmutableReleaseIdentity | undefined {
   const workerVersion = envValue(env, 'WELES_WORKER_VERSION');
   const sourceRevision = envValue(env, 'WELES_SOURCE_REVISION');
   const artifactSha256 = envValue(env, 'WELES_WORKER_ARTIFACT_SHA256');
@@ -89,7 +91,8 @@ function immutableReleaseIdentity(env: EnvLike): ImmutableReleaseIdentity | unde
   if (!['candidate', 'development', 'canary', 'production'].includes(ring)) {
     throw new Error('WELES_DEPLOYMENT_RING must name a release ring');
   }
-  if (!['0', '1'].includes(claimsEnabled)) throw new Error('WELES_CLAIMS_ENABLED must be 0 or 1');
+  if (!['0', '1'].includes(claimsEnabled))
+    throw new Error('WELES_CLAIMS_ENABLED must be 0 or 1');
   if ((ring === 'production') !== (claimsEnabled === '1')) {
     throw new Error('only the production release ring may claim queued work');
   }
@@ -106,12 +109,19 @@ function immutableReleaseIdentity(env: EnvLike): ImmutableReleaseIdentity | unde
     chromium_sha256: chromiumSha256,
     firefox_release: firefoxRelease,
     firefox_sha256: firefoxSha256,
-    api_schemas: apiSchemas.split(',').map((value) => value.trim()).filter(Boolean),
+    api_schemas: apiSchemas
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean),
   };
 }
 
 export function deploymentInstanceId(env: EnvLike = process.env): string {
-  return env.WELES_INSTANCE_ID?.trim() || env.INSTANCE_ID?.trim() || `weles-${os.hostname() || 'host'}-${process.pid}`;
+  return (
+    env.WELES_INSTANCE_ID?.trim() ||
+    env.INSTANCE_ID?.trim() ||
+    `weles-${os.hostname() || 'host'}-${process.pid}`
+  );
 }
 
 export function buildDeploymentVersionValue(

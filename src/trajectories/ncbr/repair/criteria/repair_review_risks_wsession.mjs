@@ -23,23 +23,38 @@ if (!email || !password) {
 }
 delete process.env.NCBR_PASSWORD;
 
-const session = await WSession.start({ label: 'ncbr_review_risk_repair_wsession', proxy: 'direct', browser: 'chromium' });
+const session = await WSession.start({
+  label: 'ncbr_review_risk_repair_wsession',
+  proxy: 'direct',
+  browser: 'chromium',
+});
 const page = session.page;
-
 
 const form = lsiForm({ page, email, password });
 const { login } = form;
-const { repairTask5, repairIndicators92, repairManagement41, readManagement41 } = riskRepairs({ page, URL_41, URL_61, URL_92, ...form });
-
+const {
+  repairTask5,
+  repairIndicators92,
+  repairManagement41,
+  readManagement41,
+} = riskRepairs({ page, URL_41, URL_61, URL_92, ...form });
 
 async function readbackSnippets() {
   const out = {};
   await page.goto(URL_61, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 6.1 readback
   await humanIdlePause('long');
-  out.task61 = await page.evaluate(() => document.querySelector('table')?.innerText.replace(/\s+/g, ' ').trim() || ''); // allow-raw-playwright: read 6.1 table text
+  out.task61 = await page.evaluate(
+    () =>
+      document.querySelector('table')?.innerText.replace(/\s+/g, ' ').trim() ||
+      '',
+  ); // allow-raw-playwright: read 6.1 table text
   await page.goto(URL_92, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: section 9.2 readback
   await humanIdlePause('long');
-  out.indicators92 = await page.evaluate(() => document.querySelector('table')?.innerText.replace(/\s+/g, ' ').trim() || ''); // allow-raw-playwright: read 9.2 table text
+  out.indicators92 = await page.evaluate(
+    () =>
+      document.querySelector('table')?.innerText.replace(/\s+/g, ' ').trim() ||
+      '',
+  ); // allow-raw-playwright: read 9.2 table text
   return out;
 }
 
@@ -62,17 +77,34 @@ const repairedIndicators92 = await repairIndicators92();
 const validation = await validateProject(page, PROJECT_URL);
 const snippets = await readbackSnippets();
 
-console.log(JSON.stringify({
-  repairedTask5,
-  repairedIndicators92: repairedIndicators92.map((r) => ({ name: r.name, filled: r.filled })),
-  validation,
-  readback: {
-    task5Present: snippets.task61.includes(task5.name),
-    routineRiskGone: !/Publikacja czterech modeli RNM 1B-70B w formacie HuggingFace transformers z model card/i.test(snippets.task61),
-    repeatedBaselineCount: (snippets.indicators92.match(/Wartość bazowa wynosi 0, ponieważ/g) || []).length,
-    reportPhraseCount: (snippets.indicators92.match(/raport końcowy/g) || []).length,
-  },
-}, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      repairedTask5,
+      repairedIndicators92: repairedIndicators92.map((r) => ({
+        name: r.name,
+        filled: r.filled,
+      })),
+      validation,
+      readback: {
+        task5Present: snippets.task61.includes(task5.name),
+        routineRiskGone:
+          !/Publikacja czterech modeli RNM 1B-70B w formacie HuggingFace transformers z model card/i.test(
+            snippets.task61,
+          ),
+        repeatedBaselineCount: (
+          snippets.indicators92.match(/Wartość bazowa wynosi 0, ponieważ/g) ||
+          []
+        ).length,
+        reportPhraseCount: (
+          snippets.indicators92.match(/raport końcowy/g) || []
+        ).length,
+      },
+    },
+    null,
+    2,
+  ),
+);
 
 await session.ctx.close();
 process.exit(0);

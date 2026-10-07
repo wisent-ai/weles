@@ -23,8 +23,13 @@ export const SEMANTIC_SCHOLAR: SecretDefinition = {
   defaultPurpose: 'lem',
   formUrl: 'https://www.semanticscholar.org/product/api#api-key-form',
   flowName: 'semantic-scholar-api-key-request',
-  endpoints: ['/graph/v1/paper/search', '/graph/v1/paper/{paper_id}', '/graph/v1/author/search'],
-  usageText: 'We use the Semantic Scholar Academic Graph API to retrieve paper metadata, abstracts, authors, venues, citation counts, identifiers, and related-paper signals for a local research-paper assistant. Requests are used for indexing and contextualizing academic papers selected by the user, not for bulk redistribution.',
+  endpoints: [
+    '/graph/v1/paper/search',
+    '/graph/v1/paper/{paper_id}',
+    '/graph/v1/author/search',
+  ],
+  usageText:
+    'We use the Semantic Scholar Academic Graph API to retrieve paper metadata, abstracts, authors, venues, citation counts, identifiers, and related-paper signals for a local research-paper assistant. Requests are used for indexing and contextualizing academic papers selected by the user, not for bulk redistribution.',
   dailyRequests: '1000',
   requestedScopes: [],
   capabilities: ['paper_search', 'citation_metadata', 'related_papers'],
@@ -41,8 +46,13 @@ export const GITHUB_ADMIN_TOKEN: SecretDefinition = {
   defaultPurpose: 'people-router-lifecycle',
   formUrl: 'https://github.com/settings/tokens/new',
   flowName: 'github-admin-org-token-acquisition',
-  endpoints: ['/user', '/orgs/{org}/memberships/{username}', '/orgs/{org}/teams/{team}/memberships/{username}'],
-  usageText: 'We use a GitHub organization-admin token so people-router can administer employee organization and team membership during onboarding and offboarding (invite member, add/remove team membership, remove collaborator). The token must carry the admin:org scope. It is used only for lifecycle administration of the configured organization, not for repository content changes.',
+  endpoints: [
+    '/user',
+    '/orgs/{org}/memberships/{username}',
+    '/orgs/{org}/teams/{team}/memberships/{username}',
+  ],
+  usageText:
+    'We use a GitHub organization-admin token so people-router can administer employee organization and team membership during onboarding and offboarding (invite member, add/remove team membership, remove collaborator). The token must carry the admin:org scope. It is used only for lifecycle administration of the configured organization, not for repository content changes.',
   dailyRequests: '500',
   requestedScopes: ['admin:org', 'read:org'],
   capabilities: ['org_membership_admin', 'team_membership_admin'],
@@ -58,8 +68,15 @@ export const FIGMA_PERSONAL_ACCESS_TOKEN: SecretDefinition = {
   defaultPurpose: 'design-assets-export',
   formUrl: 'https://www.figma.com/settings?tab=security',
   flowName: 'figma-personal-access-token-acquisition',
-  endpoints: ['/v1/me', '/v1/files/{file_key}', '/v1/images/{file_key}', '/v1/files/{file_key}/versions', '/v1/folders/{folder_id}/files'],
-  usageText: 'We use the read-only Figma REST API to archive company design files, version metadata, published libraries, and rendered image assets in the Wisent design-assets repository. The token is stored directly in Skarbiec and is never returned in Weles results.',
+  endpoints: [
+    '/v1/me',
+    '/v1/files/{file_key}',
+    '/v1/images/{file_key}',
+    '/v1/files/{file_key}/versions',
+    '/v1/folders/{folder_id}/files',
+  ],
+  usageText:
+    'We use the read-only Figma REST API to archive company design files, version metadata, published libraries, and rendered image assets in the Wisent design-assets repository. The token is stored directly in Skarbiec and is never returned in Weles results.',
   dailyRequests: '500',
   requestedScopes: [
     'current_user:read',
@@ -72,12 +89,16 @@ export const FIGMA_PERSONAL_ACCESS_TOKEN: SecretDefinition = {
     'library_content:read',
     'team_library_content:read',
   ],
-  capabilities: ['company_design_archive', 'file_content_export', 'asset_rendering', 'version_inventory'],
+  capabilities: [
+    'company_design_archive',
+    'file_content_export',
+    'asset_rendering',
+    'version_inventory',
+  ],
   runtimeInstall: false,
   headless: false,
   storeSecretTarget: 'skarbiec',
 };
-
 
 export const SNAPCHAT_SNAP_KIT_API_TOKEN: SecretDefinition = {
   secret: 'snapchat.snap_kit_api_token',
@@ -88,7 +109,8 @@ export const SNAPCHAT_SNAP_KIT_API_TOKEN: SecretDefinition = {
   formUrl: 'https://kit.snapchat.com/manage/',
   flowName: 'snapchat-snap-kit-api-token-acquisition',
   endpoints: ['Snap Kit production API'],
-  usageText: 'We use the production Snap Kit API token to authenticate the configured Snap Kit integration. Reuse the existing organization and project when present. Create a project only when none exists, and generate the production API token without exposing it in task results.',
+  usageText:
+    'We use the production Snap Kit API token to authenticate the configured Snap Kit integration. Reuse the existing organization and project when present. Create a project only when none exists, and generate the production API token without exposing it in task results.',
   dailyRequests: '100',
   requestedScopes: [],
   capabilities: ['snap_kit_api'],
@@ -109,8 +131,14 @@ export const CLOUDFLARE_API_TOKEN: SecretDefinition = {
   defaultPurpose: 'stado-web-edge',
   formUrl: 'https://dash.cloudflare.com/profile/api-tokens',
   flowName: 'cloudflare-api-token-acquisition',
-  endpoints: ['/zones', '/zones/{zone_id}/dns_records', '/accounts/{account_id}/cfd_tunnel/{tunnel_id}/configurations', '/accounts'],
-  usageText: 'Stado moves Wisent DNS zones into this Cloudflare account and publishes web products through the account\'s existing Cloudflare Tunnel. Create a custom API token for all zones of the account with Zone: Edit, DNS: Edit and Account: Cloudflare Tunnel: Edit. The token is stored directly in Skarbiec and is never returned in Weles results.',
+  endpoints: [
+    '/zones',
+    '/zones/{zone_id}/dns_records',
+    '/accounts/{account_id}/cfd_tunnel/{tunnel_id}/configurations',
+    '/accounts',
+  ],
+  usageText:
+    "Stado moves Wisent DNS zones into this Cloudflare account and publishes web products through the account's existing Cloudflare Tunnel. Create a custom API token for all zones of the account with Zone: Edit, DNS: Edit and Account: Cloudflare Tunnel: Edit. The token is stored directly in Skarbiec and is never returned in Weles results.",
   dailyRequests: '500',
   requestedScopes: ['Zone:Edit', 'DNS:Edit', 'Account:Cloudflare Tunnel:Edit'],
   capabilities: ['zone_create', 'dns_records_edit', 'tunnel_ingress_edit'],

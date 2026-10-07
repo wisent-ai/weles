@@ -11,26 +11,86 @@
 //   SESSION                      optional keeper session, default google_ads
 //   Login identity/password/MFA are read only from the dedicated Google Ads Skarbiec item.
 
-import { SESSION, SOCK, cid, keywords, norm, preferredEmail, resolveSsoCreds, socketReady, writeResult } from './keeper/run_brief.mjs';
+import {
+  SESSION,
+  SOCK,
+  cid,
+  keywords,
+  norm,
+  preferredEmail,
+  resolveSsoCreds,
+  socketReady,
+  writeResult,
+} from './keeper/run_brief.mjs';
 import { evalState } from './keeper/keeper_browser.mjs';
-import { chooseVolumeMode, ensureAdsReady, openKeywordPlanner, submitKeywords } from './keeper/planner_navigation.mjs';
-import { parseRows, waitForResults, writeKeywordReport } from './keeper/metrics_report.mjs';
+import {
+  chooseVolumeMode,
+  ensureAdsReady,
+  openKeywordPlanner,
+  submitKeywords,
+} from './keeper/planner_navigation.mjs';
+import {
+  parseRows,
+  waitForResults,
+  writeKeywordReport,
+} from './keeper/metrics_report.mjs';
 
 async function main() {
-  if (!socketReady()) writeResult({ ok: false, blocked: 'keeper_socket_not_ready', session: SESSION, socket: SOCK }, 3);
+  if (!socketReady())
+    writeResult(
+      {
+        ok: false,
+        blocked: 'keeper_socket_not_ready',
+        session: SESSION,
+        socket: SOCK,
+      },
+      3,
+    );
   const creds = await resolveSsoCreds();
-  if (!creds?.password) writeResult({ ok: false, blocked: 'missing_google_ads_password', session: SESSION, email: preferredEmail() }, 4);
-  const steps = [{ step: 'sso_creds_resolved', source: creds.source || 'unknown' }];
+  if (!creds?.password)
+    writeResult(
+      {
+        ok: false,
+        blocked: 'missing_google_ads_password',
+        session: SESSION,
+        email: preferredEmail(),
+      },
+      4,
+    );
+  const steps = [
+    { step: 'sso_creds_resolved', source: creds.source || 'unknown' },
+  ];
 
-  if (!await ensureAdsReady(creds)) {
+  if (!(await ensureAdsReady(creds))) {
     const s = await evalState();
-    writeResult({ ok: false, blocked: 'google_ads_login_not_ready', session: SESSION, url: s.url, text: norm(s.text) }, 4);
+    writeResult(
+      {
+        ok: false,
+        blocked: 'google_ads_login_not_ready',
+        session: SESSION,
+        url: s.url,
+        text: norm(s.text),
+      },
+      4,
+    );
   }
   steps.push({ step: 'ads_ready', url: (await evalState()).url });
 
   const open = await openKeywordPlanner();
   steps.push({ step: 'planner_open', open });
-  if (!open.ok) writeResult({ ok: false, blocked: 'keyword_planner_not_opened', session: SESSION, customer: cid, keywords, open, steps }, 5);
+  if (!open.ok)
+    writeResult(
+      {
+        ok: false,
+        blocked: 'keyword_planner_not_opened',
+        session: SESSION,
+        customer: cid,
+        keywords,
+        open,
+        steps,
+      },
+      5,
+    );
 
   const already = await evalState();
   const alreadyRows = parseRows(already.text || '');
@@ -39,9 +99,21 @@ async function main() {
     writeKeywordReport({ state: already, rows: alreadyRows }, steps);
   }
 
-  if (!await chooseVolumeMode()) {
+  if (!(await chooseVolumeMode())) {
     const s = await evalState();
-    writeResult({ ok: false, blocked: 'keyword_volume_mode_not_opened', session: SESSION, customer: cid, keywords, url: s.url, text: norm(s.text), steps }, 6);
+    writeResult(
+      {
+        ok: false,
+        blocked: 'keyword_volume_mode_not_opened',
+        session: SESSION,
+        customer: cid,
+        keywords,
+        url: s.url,
+        text: norm(s.text),
+        steps,
+      },
+      6,
+    );
   }
   steps.push({ step: 'volume_mode_ready', url: (await evalState()).url });
 
@@ -53,5 +125,15 @@ async function main() {
 }
 
 main().catch((error) => {
-  writeResult({ ok: false, blocked: 'google_ads_keyword_planner_keeper_error', error: String(error?.message || error), session: SESSION, customer: cid, keywords }, 1);
+  writeResult(
+    {
+      ok: false,
+      blocked: 'google_ads_keyword_planner_keeper_error',
+      error: String(error?.message || error),
+      session: SESSION,
+      customer: cid,
+      keywords,
+    },
+    1,
+  );
 });

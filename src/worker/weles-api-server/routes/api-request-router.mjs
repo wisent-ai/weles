@@ -20,10 +20,23 @@
 
 import { createReadStream } from 'node:fs';
 
-import { isKeywordPlannerRoute, respondToKeywordPlanner } from '../../../trajectories/google/ads/keyword_planner/api_server.mjs';
+import {
+  isKeywordPlannerRoute,
+  respondToKeywordPlanner,
+} from '../../../trajectories/google/ads/keyword_planner/api_server.mjs';
 
-import { ALLOW_RAW_CREDS, ALLOW_UNAUTH, HOST, PORT, TOKEN } from '../configuration.mjs';
-import { json, readBody, requireTokenAuthorization } from '../http-exchange.mjs';
+import {
+  ALLOW_RAW_CREDS,
+  ALLOW_UNAUTH,
+  HOST,
+  PORT,
+  TOKEN,
+} from '../configuration.mjs';
+import {
+  json,
+  readBody,
+  requireTokenAuthorization,
+} from '../http-exchange.mjs';
 import { RUN_RELEASE_IDENTITY } from '../release-identity.mjs';
 import {
   decodeRunId,
@@ -58,12 +71,16 @@ export function createApiRequestHandler({
   validateAccountSecurityParams,
   validateAppPasswordParams,
 }) {
-  const { controlWorker, workerStatus } = createWorkerControl(publicTaskService);
+  const { controlWorker, workerStatus } =
+    createWorkerControl(publicTaskService);
   // Recovery changes one durable queue. Concurrent control requests are refused.
   let workerControlBusy = false;
   return async (req, res) => {
     try {
-      const url = new URL(req.url || '/', `http://${req.headers.host || `${HOST}:${PORT}`}`);
+      const url = new URL(
+        req.url || '/',
+        `http://${req.headers.host || `${HOST}:${PORT}`}`,
+      );
       if (req.method === 'GET' && url.pathname === '/healthz') {
         json(res, 200, {
           ok: true,
@@ -82,25 +99,75 @@ export function createApiRequestHandler({
           // land while a sign-in waited on the operator's phone and killed it
           // mid-wait. Only what names a run is said here, because this route
           // takes no token: the run, its action and when it started.
-          in_flight: listRunningRuns().map(({ run_id, action, kind, started_at }) => ({
-            run_id, action, kind, started_at,
-          })),
-          routes: ['GET /healthz', 'GET /api/v1/version', 'POST /api/v1/credential-operations', 'POST /api/v1/tasks', 'GET /api/v1/tasks/:task_id', 'GET /api/v1/tasks/:task_id?wait=terminal', 'POST /api/v1/tasks/:task_id/cancel', 'GET /worker/version', 'GET /worker/status', 'POST /worker/start', 'POST /worker/stop', 'POST /worker/restart', 'POST /run', 'GET /runs', 'GET /runs/:run_id', 'POST /runs/:run_id/answer', 'POST /runs/:run_id/cancel', 'GET /diagnostics/:run_id', 'GET /diagnostics/:run_id/file?path=', 'POST /weles-builder', 'POST /reauth/resolve', 'POST /reauth', 'POST /reauth/enrol-authenticator', 'POST /google-ads/keyword-volume', 'POST /google-ads/keyword-report', 'POST /pages/snapshot', 'POST /pages/form-export', 'POST /records/accounts/list', 'POST /records/accounts/get', 'POST /records/accounts/upsert', 'POST /records/accounts/update', 'POST /records/settings/get', 'POST /records/settings/set'],
+          in_flight: listRunningRuns().map(
+            ({ run_id, action, kind, started_at }) => ({
+              run_id,
+              action,
+              kind,
+              started_at,
+            }),
+          ),
+          routes: [
+            'GET /healthz',
+            'GET /api/v1/version',
+            'POST /api/v1/credential-operations',
+            'POST /api/v1/tasks',
+            'GET /api/v1/tasks/:task_id',
+            'GET /api/v1/tasks/:task_id?wait=terminal',
+            'POST /api/v1/tasks/:task_id/cancel',
+            'GET /worker/version',
+            'GET /worker/status',
+            'POST /worker/start',
+            'POST /worker/stop',
+            'POST /worker/restart',
+            'POST /run',
+            'GET /runs',
+            'GET /runs/:run_id',
+            'POST /runs/:run_id/answer',
+            'POST /runs/:run_id/cancel',
+            'GET /diagnostics/:run_id',
+            'GET /diagnostics/:run_id/file?path=',
+            'POST /weles-builder',
+            'POST /reauth/resolve',
+            'POST /reauth',
+            'POST /reauth/enrol-authenticator',
+            'POST /google-ads/keyword-volume',
+            'POST /google-ads/keyword-report',
+            'POST /pages/snapshot',
+            'POST /pages/form-export',
+            'POST /records/accounts/list',
+            'POST /records/accounts/get',
+            'POST /records/accounts/upsert',
+            'POST /records/accounts/update',
+            'POST /records/settings/get',
+            'POST /records/settings/set',
+          ],
           publicTask: publicTaskService.health,
           features: ['subscription_identity', 'fresh_profile'],
           account_source: 'skarbiec',
         });
         return;
       }
-      const credentialResponse = await credentialOperationService.handle(req, url);
+      const credentialResponse = await credentialOperationService.handle(
+        req,
+        url,
+      );
       if (credentialResponse) {
-        json(res, credentialResponse.status, credentialResponse.payload, { redact: false });
+        json(res, credentialResponse.status, credentialResponse.payload, {
+          redact: false,
+        });
         return;
       }
       try {
-        const publicResponse = await publicTaskService.handle(req, url, readBody);
+        const publicResponse = await publicTaskService.handle(
+          req,
+          url,
+          readBody,
+        );
         if (publicResponse) {
-          json(res, publicResponse.status, publicResponse.payload, { redact: false });
+          json(res, publicResponse.status, publicResponse.payload, {
+            redact: false,
+          });
           return;
         }
       } catch (error) {
@@ -108,7 +175,10 @@ export function createApiRequestHandler({
         json(
           res,
           publicError?.status ?? 500,
-          publicError?.payload ?? { error: 'internal-error', message: 'public task operation failed' },
+          publicError?.payload ?? {
+            error: 'internal-error',
+            message: 'public task operation failed',
+          },
           { redact: false },
         );
         return;
@@ -124,7 +194,9 @@ export function createApiRequestHandler({
         json(res, 200, { ok: true, worker: status });
         return;
       }
-      const workerAction = url.pathname.startsWith('/worker/') ? url.pathname.slice('/worker/'.length) : '';
+      const workerAction = url.pathname.startsWith('/worker/')
+        ? url.pathname.slice('/worker/'.length)
+        : '';
       if (workerActions[workerAction] === true && req.method === 'POST') {
         if (!requireTokenAuthorization(req, res)) return;
         if (workerControlBusy) {
@@ -135,31 +207,48 @@ export function createApiRequestHandler({
         try {
           const action = workerAction;
           const out = await controlWorker(action);
-          console.log(JSON.stringify({
-            event: 'worker_control',
-            action,
-            ok: out.ok,
-            changed: out.changed ?? false,
-            remote: req.socket.remoteAddress || null,
-            before: out.before,
-            after: out.after,
-          }));
-          const statusCode = out.ok ? 200 : (out.error === 'worker_busy' ? 409 : 502);
+          console.log(
+            JSON.stringify({
+              event: 'worker_control',
+              action,
+              ok: out.ok,
+              changed: out.changed ?? false,
+              remote: req.socket.remoteAddress || null,
+              before: out.before,
+              after: out.after,
+            }),
+          );
+          const statusCode = out.ok
+            ? 200
+            : out.error === 'worker_busy'
+              ? 409
+              : 502;
           json(res, statusCode, out);
         } finally {
           workerControlBusy = false;
         }
         return;
       }
-      const diagnosticFileMatch = /^\/diagnostics\/([^/]+)\/file$/.exec(url.pathname);
+      const diagnosticFileMatch = /^\/diagnostics\/([^/]+)\/file$/.exec(
+        url.pathname,
+      );
       if (req.method === 'GET' && diagnosticFileMatch) {
         if (!requireTokenAuthorization(req, res)) return;
         const runId = decodeRunId(diagnosticFileMatch[1]);
-        if (!runId) { json(res, 400, { ok: false, error: 'invalid_run_id' }); return; }
+        if (!runId) {
+          json(res, 400, { ok: false, error: 'invalid_run_id' });
+          return;
+        }
         const requestedPath = url.searchParams.get('path');
         const wait = url.searchParams.get('wait');
-        if (wait !== null && (wait !== 'terminal' || requestedPath !== 'run-result.json')) {
-          json(res, 400, { ok: false, error: 'wait=terminal requires path=run-result.json' });
+        if (
+          wait !== null &&
+          (wait !== 'terminal' || requestedPath !== 'run-result.json')
+        ) {
+          json(res, 400, {
+            ok: false,
+            error: 'wait=terminal requires path=run-result.json',
+          });
           return;
         }
         let file;
@@ -179,23 +268,34 @@ export function createApiRequestHandler({
         } else {
           file = diagnosticFile(runId, requestedPath);
         }
-        if (!file) { json(res, 404, { ok: false, error: 'diagnostic_file_not_found' }); return; }
+        if (!file) {
+          json(res, 404, { ok: false, error: 'diagnostic_file_not_found' });
+          return;
+        }
         res.writeHead(200, {
           'Content-Type': diagnosticsContentType(file.path),
           'Content-Length': String(file.stat.size),
           'Cache-Control': 'private, no-store',
           'X-Content-Type-Options': 'nosniff',
         });
-        createReadStream(file.path).on('error', () => res.destroy()).pipe(res);
+        createReadStream(file.path)
+          .on('error', () => res.destroy())
+          .pipe(res);
         return;
       }
       const diagnosticsMatch = /^\/diagnostics\/([^/]+)$/.exec(url.pathname);
       if (req.method === 'GET' && diagnosticsMatch) {
         if (!requireTokenAuthorization(req, res)) return;
         const runId = decodeRunId(diagnosticsMatch[1]);
-        if (!runId) { json(res, 400, { ok: false, error: 'invalid_run_id' }); return; }
+        if (!runId) {
+          json(res, 400, { ok: false, error: 'invalid_run_id' });
+          return;
+        }
         const manifest = diagnosticsManifest(runId);
-        if (!manifest) { json(res, 404, { ok: false, error: 'diagnostics_not_found' }); return; }
+        if (!manifest) {
+          json(res, 404, { ok: false, error: 'diagnostics_not_found' });
+          return;
+        }
         json(res, 200, manifest);
         return;
       }
@@ -207,12 +307,28 @@ export function createApiRequestHandler({
         await respondToDocumentImport(req, res, importWelesTrajectoryDocument);
         return;
       }
-      if (req.method === 'POST' && (url.pathname === '/reauth' || url.pathname === '/reauth/resolve')) {
-        await respondToReauth(req, res, selectLoginAccount, url.pathname === '/reauth/resolve');
+      if (
+        req.method === 'POST' &&
+        (url.pathname === '/reauth' || url.pathname === '/reauth/resolve')
+      ) {
+        await respondToReauth(
+          req,
+          res,
+          selectLoginAccount,
+          url.pathname === '/reauth/resolve',
+        );
         return;
       }
-      if (req.method === 'POST' && url.pathname === '/reauth/enrol-authenticator') {
-        await respondToAuthenticatorEnrolment(req, res, selectLoginAccount, runTrajectory);
+      if (
+        req.method === 'POST' &&
+        url.pathname === '/reauth/enrol-authenticator'
+      ) {
+        await respondToAuthenticatorEnrolment(
+          req,
+          res,
+          selectLoginAccount,
+          runTrajectory,
+        );
         return;
       }
       if (isPageRoute(req, url)) {
@@ -235,9 +351,18 @@ export function createApiRequestHandler({
         json(res, 404, { ok: false, error: 'not_found' });
         return;
       }
-      await respondToRun(req, res, runTrajectory, validateAccountSecurityParams, validateAppPasswordParams);
+      await respondToRun(
+        req,
+        res,
+        runTrajectory,
+        validateAccountSecurityParams,
+        validateAppPasswordParams,
+      );
     } catch (error) {
-      json(res, 500, { ok: false, error: String(error && error.message ? error.message : error) });
+      json(res, 500, {
+        ok: false,
+        error: String(error && error.message ? error.message : error),
+      });
     }
   };
 }

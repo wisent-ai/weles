@@ -65,44 +65,74 @@ export async function probeShadowban(
       // a new sessId each call (see config.ts:213) so each vantage exits
       // through a different residential IP. No account-cookie restoration
       // — this is the "logged-out" view of the user.
-      const pw = await resolveProxy('residential us', 'www.reddit.com')
-        .catch(() => undefined);
+      const pw = await resolveProxy('residential us', 'www.reddit.com').catch(
+        () => undefined,
+      );
       const proxyUrl = pw?.server
         ? `${pw.server.replace(/^http(s?):\/\//, 'http$1://')}`
         : undefined;
       // Build the auth-embedded URL for WSession.start.
-      const proxyForSession = pw?.server && pw.username && pw.password
-        ? `${pw.server.replace('://', `://${encodeURIComponent(pw.username)}:${encodeURIComponent(pw.password)}@`)}`
-        : proxyUrl;
+      const proxyForSession =
+        pw?.server && pw.username && pw.password
+          ? `${pw.server.replace('://', `://${encodeURIComponent(pw.username)}:${encodeURIComponent(pw.password)}@`)}`
+          : proxyUrl;
 
       session = await WSession.start({
         label: `reddit_shadowban_probe_v${i + 1}`,
         proxy: proxyForSession,
       });
 
-      const resp = await session.page.context().request.get(url, {
-        headers: {
-          'Accept': 'application/json',
-          // Plain UA — about.json sometimes 403s for bare-fetch UAs but the
-          // session UA inherits the persona.
-        },
-        ignoreHTTPSErrors: true,
-        // Playwright's request client carries its own 30s limit; 0 removes it,
-        // so Reddit's answer or the network's error ends the read.
-        timeout: 0,
-      }).catch((e: any) => ({ _err: e?.message ?? 'fetch_error', status: () => 0, text: async () => '' }));
+      const resp = await session.page
+        .context()
+        .request.get(url, {
+          headers: {
+            Accept: 'application/json',
+            // Plain UA — about.json sometimes 403s for bare-fetch UAs but the
+            // session UA inherits the persona.
+          },
+          ignoreHTTPSErrors: true,
+          // Playwright's request client carries its own 30s limit; 0 removes it,
+          // so Reddit's answer or the network's error ends the read.
+          timeout: 0,
+        })
+        .catch((e: any) => ({
+          _err: e?.message ?? 'fetch_error',
+          status: () => 0,
+          text: async () => '',
+        }));
 
-      const status = typeof (resp as any).status === 'function' ? (resp as any).status() : 0;
+      const status =
+        typeof (resp as any).status === 'function' ? (resp as any).status() : 0;
       let body = '';
-      try { body = typeof (resp as any).text === 'function' ? await (resp as any).text() : ''; } catch { /* skip */ }
+      try {
+        body =
+          typeof (resp as any).text === 'function'
+            ? await (resp as any).text()
+            : '';
+      } catch {
+        /* skip */
+      }
       let hasBody = false;
       try {
         const j = JSON.parse(body);
         hasBody = typeof j?.data?.name === 'string' && j.data.name.length > 0;
-      } catch { /* not JSON */ }
-      results.push({ vantage: i + 1, status, has_body: hasBody, exit_ip: pw?.exit_ip, err: (resp as any)._err });
+      } catch {
+        /* not JSON */
+      }
+      results.push({
+        vantage: i + 1,
+        status,
+        has_body: hasBody,
+        exit_ip: pw?.exit_ip,
+        err: (resp as any)._err,
+      });
     } catch (e: any) {
-      results.push({ vantage: i + 1, status: 0, has_body: false, err: e?.message ?? 'launch_error' });
+      results.push({
+        vantage: i + 1,
+        status: 0,
+        has_body: false,
+        err: e?.message ?? 'launch_error',
+      });
     } finally {
       if (session) await session.close().catch(() => {});
     }
@@ -110,12 +140,13 @@ export async function probeShadowban(
 
   // Tally: one logged-out vantage that sees the profile proves it public;
   // shadowbanned needs every vantage to answer 404, so no count is chosen.
-  const four_oh_four = results.filter(r => r.status === 404).length;
-  const ok = results.filter(r => r.status === 200 && r.has_body).length;
+  const four_oh_four = results.filter((r) => r.status === 404).length;
+  const ok = results.filter((r) => r.status === 200 && r.has_body).length;
 
   let verdict: ShadowbanVerdict;
   if (ok) verdict = 'healthy';
-  else if (results.length && four_oh_four === results.length) verdict = 'shadowbanned';
+  else if (results.length && four_oh_four === results.length)
+    verdict = 'shadowbanned';
   else verdict = 'indeterminate';
 
   return { verdict, username, vantages: results, ts: new Date().toISOString() };
@@ -132,24 +163,32 @@ export async function probeShadowban(
  */
 export async function probeCommentVisibility(opts: {
   postPermalinkBase: string; // e.g. 'https://old.reddit.com/r/sub/comments/abc/post-slug'
-  commentId: string;          // base36 id, e.g. 'oj0vwon'
-  expectedAuthor?: string;    // optional sanity check
-}): Promise<{ visible: boolean; status: number; exit_ip?: string; err?: string }> {
+  commentId: string; // base36 id, e.g. 'oj0vwon'
+  expectedAuthor?: string; // optional sanity check
+}): Promise<{
+  visible: boolean;
+  status: number;
+  exit_ip?: string;
+  err?: string;
+}> {
   const { postPermalinkBase, commentId, expectedAuthor } = opts;
   const url = `${postPermalinkBase.replace(/\/$/, '')}/${commentId}/.json`;
 
   let session: WSession | null = null;
   try {
-    const pw = await resolveProxy('residential us', 'old.reddit.com').catch(() => undefined);
-    const proxyForSession = pw?.server && pw.username && pw.password
-      ? `${pw.server.replace('://', `://${encodeURIComponent(pw.username)}:${encodeURIComponent(pw.password)}@`)}`
-      : pw?.server;
+    const pw = await resolveProxy('residential us', 'old.reddit.com').catch(
+      () => undefined,
+    );
+    const proxyForSession =
+      pw?.server && pw.username && pw.password
+        ? `${pw.server.replace('://', `://${encodeURIComponent(pw.username)}:${encodeURIComponent(pw.password)}@`)}`
+        : pw?.server;
     session = await WSession.start({
       label: 'reddit_visibility_probe',
       proxy: proxyForSession,
     });
     const resp = await session.page.context().request.get(url, {
-      headers: { 'Accept': 'application/json' },
+      headers: { Accept: 'application/json' },
       ignoreHTTPSErrors: true,
       timeout: 0,
     });
@@ -159,10 +198,13 @@ export async function probeCommentVisibility(opts: {
     try {
       const j = JSON.parse(body);
       const node = j?.[1]?.data?.children?.[0];
-      visible = node?.kind === 't1'
-        && node?.data?.id === commentId
-        && (!expectedAuthor || node?.data?.author === expectedAuthor);
-    } catch { /* not JSON */ }
+      visible =
+        node?.kind === 't1' &&
+        node?.data?.id === commentId &&
+        (!expectedAuthor || node?.data?.author === expectedAuthor);
+    } catch {
+      /* not JSON */
+    }
     return { visible, status, exit_ip: pw?.exit_ip };
   } catch (e: any) {
     return { visible: false, status: 0, err: e?.message ?? 'probe_error' };

@@ -32,7 +32,8 @@ export const navigatorSurfaceRules: DetectionRule[] = [
           id: 'nav_webdriver',
           category: 'navigator',
           severity: 'critical',
-          message: 'navigator.webdriver is true — the canonical automation tell.',
+          message:
+            'navigator.webdriver is true — the canonical automation tell.',
           evidence: { webdriver: true },
         };
       }
@@ -51,7 +52,8 @@ export const navigatorSurfaceRules: DetectionRule[] = [
           id: 'headless_chrome_ua',
           category: 'navigator',
           severity: 'critical',
-          message: 'User-Agent contains "HeadlessChrome" — immediate block on Cloudflare / PerimeterX / Akamai.',
+          message:
+            'User-Agent contains "HeadlessChrome" — immediate block on Cloudflare / PerimeterX / Akamai.',
           evidence: { userAgent: s?.js?.navigator?.userAgent },
         };
       }
@@ -64,8 +66,12 @@ export const navigatorSurfaceRules: DetectionRule[] = [
     category: 'navigator',
     severity: 'warning',
     test(s, b) {
-      const sLen = Array.isArray(s?.js?.navigator?.plugins) ? s.js.navigator.plugins.length : null;
-      const bLen = Array.isArray(b?.js?.navigator?.plugins) ? b.js.navigator.plugins.length : null;
+      const sLen = Array.isArray(s?.js?.navigator?.plugins)
+        ? s.js.navigator.plugins.length
+        : null;
+      const bLen = Array.isArray(b?.js?.navigator?.plugins)
+        ? b.js.navigator.plugins.length
+        : null;
       if (sLen === 0 && (bLen ?? 0) > 0) {
         return {
           id: 'nav_plugins_empty',
@@ -84,8 +90,12 @@ export const navigatorSurfaceRules: DetectionRule[] = [
     category: 'navigator',
     severity: 'info',
     test(s, b) {
-      const sLen = Array.isArray(s?.js?.navigator?.plugins) ? s.js.navigator.plugins.length : null;
-      const bLen = Array.isArray(b?.js?.navigator?.plugins) ? b.js.navigator.plugins.length : null;
+      const sLen = Array.isArray(s?.js?.navigator?.plugins)
+        ? s.js.navigator.plugins.length
+        : null;
+      const bLen = Array.isArray(b?.js?.navigator?.plugins)
+        ? b.js.navigator.plugins.length
+        : null;
       if (sLen !== null && bLen !== null && sLen !== bLen && sLen !== 0) {
         return {
           id: 'nav_plugins_length_mismatch',
@@ -126,15 +136,20 @@ export const navigatorSurfaceRules: DetectionRule[] = [
     test(s, b) {
       const sUA = String(s?.js?.navigator?.userAgent || '');
       const bUA = String(b?.js?.navigator?.userAgent || '');
-      const sOS = osFromUA(sUA), bOS = osFromUA(bUA);
-      const sBr = browserFromUA(sUA), bBr = browserFromUA(bUA);
+      const sOS = osFromUA(sUA),
+        bOS = osFromUA(bUA);
+      const sBr = browserFromUA(sUA),
+        bBr = browserFromUA(bUA);
       if ((sOS && bOS && sOS !== bOS) || (sBr && bBr && sBr !== bBr)) {
         return {
           id: 'baseline_family_mismatch',
           category: 'inconsistency',
           severity: 'info',
           message: `Subject is ${sOS}/${sBr} but baseline is ${bOS}/${bBr}. Cross-family diffs (WebGL, JA4, screen depth) may be expected; capture a baseline on the same OS/browser for an apples-to-apples comparison.`,
-          evidence: { subject: { os: sOS, browser: sBr }, baseline: { os: bOS, browser: bBr } },
+          evidence: {
+            subject: { os: sOS, browser: sBr },
+            baseline: { os: bOS, browser: bBr },
+          },
         };
       }
       return null;

@@ -30,14 +30,21 @@ export const screenGeometryRules: DetectionRule[] = [
       const bColor = b?.js?.screen?.colorDepth;
       const sPixel = s?.js?.screen?.pixelDepth;
       const bPixel = b?.js?.screen?.pixelDepth;
-      if ((sColor !== undefined && bColor !== undefined && sColor !== bColor) ||
-          (sPixel !== undefined && bPixel !== undefined && sPixel !== bPixel)) {
+      if (
+        (sColor !== undefined && bColor !== undefined && sColor !== bColor) ||
+        (sPixel !== undefined && bPixel !== undefined && sPixel !== bPixel)
+      ) {
         return {
           id: 'screen_color_depth',
           category: 'screen',
           severity: 'warning',
           message: `Screen depth differs (colorDepth ${sColor}/${bColor}, pixelDepth ${sPixel}/${bPixel}). macOS Retina/HDR should be 30/30.`,
-          evidence: { subjectColorDepth: sColor, baselineColorDepth: bColor, subjectPixelDepth: sPixel, baselinePixelDepth: bPixel },
+          evidence: {
+            subjectColorDepth: sColor,
+            baselineColorDepth: bColor,
+            subjectPixelDepth: sPixel,
+            baselinePixelDepth: bPixel,
+          },
         };
       }
       return null;
@@ -48,19 +55,26 @@ export const screenGeometryRules: DetectionRule[] = [
     name: 'screen.availTop / availLeft mismatch',
     category: 'screen',
     severity: 'warning',
-      test(s, b) {
+    test(s, b) {
       const sTop = s?.js?.screen?.availTop;
       const bTop = b?.js?.screen?.availTop;
       const sLeft = s?.js?.screen?.availLeft;
       const bLeft = b?.js?.screen?.availLeft;
-      if ((sTop !== undefined && bTop !== undefined && sTop !== bTop) ||
-          (sLeft !== undefined && bLeft !== undefined && sLeft !== bLeft)) {
+      if (
+        (sTop !== undefined && bTop !== undefined && sTop !== bTop) ||
+        (sLeft !== undefined && bLeft !== undefined && sLeft !== bLeft)
+      ) {
         return {
           id: 'screen_avail_top',
           category: 'screen',
           severity: 'warning',
           message: `screen.availTop/availLeft differ (availTop ${sTop}/${bTop}, availLeft ${sLeft}/${bLeft}). PerimeterX/Akamai read these.`,
-          evidence: { subjectAvailTop: sTop, baselineAvailTop: bTop, subjectAvailLeft: sLeft, baselineAvailLeft: bLeft },
+          evidence: {
+            subjectAvailTop: sTop,
+            baselineAvailTop: bTop,
+            subjectAvailLeft: sLeft,
+            baselineAvailLeft: bLeft,
+          },
         };
       }
       return null;

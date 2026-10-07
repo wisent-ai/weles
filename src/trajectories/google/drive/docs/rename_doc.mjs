@@ -31,20 +31,38 @@ const DOC_URL = arg('--doc') || process.env.DOC_URL;
 const TITLE = arg('--title') || process.env.DOC_TITLE;
 const LABEL = 'drive_rename_doc';
 
-if (!DOC_URL) { console.log('FAIL: --doc (or DOC_URL) required'); process.exit(2); }
-if (!TITLE) { console.log('FAIL: --title (or DOC_TITLE) required'); process.exit(2); }
+if (!DOC_URL) {
+  console.log('FAIL: --doc (or DOC_URL) required');
+  process.exit(2);
+}
+if (!TITLE) {
+  console.log('FAIL: --title (or DOC_TITLE) required');
+  process.exit(2);
+}
 
-function log(...a) { console.log('[drive_rename_doc]', ...a); }
+function log(...a) {
+  console.log('[drive_rename_doc]', ...a);
+}
 
 async function resolveCreds() {
   return readScopedLogin('googleDrive');
 }
 
 const creds = await resolveCreds();
-const s = await WSession.start({ label: LABEL, browser: process.env.BROWSER || 'chromium' });
+const s = await WSession.start({
+  label: LABEL,
+  browser: process.env.BROWSER || 'chromium',
+});
 
 try {
-  log('engine:', s.personaConfig?.browser ?? 'unknown', '| doc:', DOC_URL, '| new title:', TITLE);
+  log(
+    'engine:',
+    s.personaConfig?.browser ?? 'unknown',
+    '| doc:',
+    DOC_URL,
+    '| new title:',
+    TITLE,
+  );
   await s.page.goto(DOC_URL, { waitUntil: 'domcontentloaded' });
   await pageSettled(s.page);
 
@@ -63,7 +81,8 @@ try {
   // inside page.evaluate. Bypasses Playwright locator.boundingBox which
   // has been timing out. allow-raw-playwright: read-only DOM bbox lookup,
   // no synthetic interaction.
-  const bbox = await pageCondition(s.page, () => { // allow-raw-playwright: read-only bbox lookup
+  const bbox = await pageCondition(s.page, () => {
+    // allow-raw-playwright: read-only bbox lookup
     const candidates = [
       '.docs-title-input-label-inner',
       '.docs-title-input-label',
@@ -74,12 +93,29 @@ try {
       if (!el) continue;
       const r = el.getBoundingClientRect();
       if (r.width < 4 || r.height < 4) continue;
-      return { x: r.x + r.width / 2, y: r.y + r.height / 2, w: r.width, h: r.height, sel };
+      return {
+        x: r.x + r.width / 2,
+        y: r.y + r.height / 2,
+        w: r.width,
+        h: r.height,
+        sel,
+      };
     }
     return null;
   });
 
-  log('title label at (' + Math.round(bbox.x) + ',' + Math.round(bbox.y) + ') size ' + Math.round(bbox.w) + 'x' + Math.round(bbox.h) + ' sel=' + bbox.sel);
+  log(
+    'title label at (' +
+      Math.round(bbox.x) +
+      ',' +
+      Math.round(bbox.y) +
+      ') size ' +
+      Math.round(bbox.w) +
+      'x' +
+      Math.round(bbox.h) +
+      ' sel=' +
+      bbox.sel,
+  );
 
   // Click the title display via humanClick at the JS-computed coords.
   // Bypasses the locator boundingBox stall observed in create_doc.
@@ -88,20 +124,22 @@ try {
   // After the click an input.docs-title-input element should be present
   // and focused. Verify before typing — log existing title so we can
   // compare post-commit.
-  const before = await pageCondition(s.page, () => { // allow-raw-playwright: read-only DOM probe
+  const before = await pageCondition(s.page, () => {
+    // allow-raw-playwright: read-only DOM probe
     const inp = document.querySelector('input.docs-title-input');
     const label = document.querySelector('.docs-title-input-label-inner');
     const state = {
       inputPresent: !!inp,
-      inputVisible: inp ? (inp.offsetWidth > 0 || inp.offsetHeight > 0) : false,
+      inputVisible: inp ? inp.offsetWidth > 0 || inp.offsetHeight > 0 : false,
       inputValue: inp ? inp.value : null,
       labelText: label ? (label.textContent || '').trim() : null,
       activeIsTitle: document.activeElement === inp,
     };
-    return state.inputPresent && state.inputVisible && state.activeIsTitle ? state : null;
+    return state.inputPresent && state.inputVisible && state.activeIsTitle
+      ? state
+      : null;
   });
   log('after-click state: ' + JSON.stringify(before));
-
 
   // Select the existing text via DOM setSelectionRange on the
   // already-focused input. Both Playwright keyboard Meta+A and OS-event
@@ -112,23 +150,31 @@ try {
   // per the activeIsTitle probe above), then humanType — the typed
   // characters replace the selected text. setSelectionRange is not on
   // the humanized-actions hook's banned list.
-  await s.page.evaluate(() => { // allow-raw-playwright: read-only setSelectionRange on already-focused input, no click/focus/blur/dispatch
+  await s.page.evaluate(() => {
+    // allow-raw-playwright: read-only setSelectionRange on already-focused input, no click/focus/blur/dispatch
     const inp = document.querySelector('input.docs-title-input');
     if (!inp || document.activeElement !== inp) {
-      throw new Error('DRIVE_DOCUMENT_TITLE_FOCUS_LOST: the title input is no longer focused');
+      throw new Error(
+        'DRIVE_DOCUMENT_TITLE_FOCUS_LOST: the title input is no longer focused',
+      );
     }
     inp.setSelectionRange(0, inp.value.length);
   });
   await humanType(s.page, TITLE);
-  const typed = await s.page.evaluate(() => document.querySelector('input.docs-title-input')?.value);
+  const typed = await s.page.evaluate(
+    () => document.querySelector('input.docs-title-input')?.value,
+  );
   if (typed !== TITLE) {
-    throw new Error('DRIVE_DOCUMENT_TITLE_VALUE_MISMATCH: title input differs from the requested value');
+    throw new Error(
+      'DRIVE_DOCUMENT_TITLE_VALUE_MISMATCH: title input differs from the requested value',
+    );
   }
   await s.page.keyboard.press('Enter'); // allow-raw-playwright: commit-rename Enter press
   await pageSettled(s.page);
 
   // Read the rendered title; this local state is not server-persistence proof.
-  const after = await s.page.evaluate(() => { // allow-raw-playwright: read-only DOM probe
+  const after = await s.page.evaluate(() => {
+    // allow-raw-playwright: read-only DOM probe
     const label = document.querySelector('.docs-title-input-label-inner');
     return label ? (label.textContent || '').trim() : null;
   });
@@ -138,7 +184,9 @@ try {
     log('PASS');
     console.log('RENAMED: ' + after);
   } else {
-    throw new Error(`DRIVE_DOCUMENT_TITLE_NOT_COMMITTED: label=${JSON.stringify(after)} expected=${JSON.stringify(TITLE)}`);
+    throw new Error(
+      `DRIVE_DOCUMENT_TITLE_NOT_COMMITTED: label=${JSON.stringify(after)} expected=${JSON.stringify(TITLE)}`,
+    );
   }
 } finally {
   await s.close();

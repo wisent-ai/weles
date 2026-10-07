@@ -38,5 +38,9 @@ export function retireBody(subscriptionId) {
 
 /** One signed write to the pool. `body` is already serialized, because the signature covers it. */
 export function writePool(baseUrl, headers, body) {
-  return fetch(`${baseUrl}${SUBSCRIPTION_POOL_PATH}`, { method: 'POST', headers, body });
+  return fetch(`${baseUrl}${SUBSCRIPTION_POOL_PATH}`, {
+    method: 'POST',
+    headers,
+    body,
+  });
 }

@@ -1,5 +1,11 @@
-import { probeCommentVisibility, probeShadowban } from '../../../../../../dist/platforms/reddit/shadowban_probe.js';
-import { findAccount, updateAccountMetadata } from '../../../../_shared/skarbiec/accounts.mjs';
+import {
+  probeCommentVisibility,
+  probeShadowban,
+} from '../../../../../../dist/platforms/reddit/shadowban_probe.js';
+import {
+  findAccount,
+  updateAccountMetadata,
+} from '../../../../_shared/skarbiec/accounts.mjs';
 import { statedCount } from '../../../../_shared/inputs/stated.mjs';
 
 /**
@@ -16,9 +22,15 @@ import { statedCount } from '../../../../_shared/inputs/stated.mjs';
  * Without a captured comment id the multi-vantage account probe stands in:
  * if the WHOLE account is shadowbanned, the user-level check catches it.
  */
-export function recordCommentForVerify(acct, { resolvedOldUrl, postedCommentId, handle }) {
+export function recordCommentForVerify(
+  acct,
+  { resolvedOldUrl, postedCommentId, handle },
+) {
   const vaultAccount = findAccount('reddit', acct.username);
-  if (!vaultAccount) throw new Error(`deferred verify: reddit account ${acct.username} is not in Skarbiec, so the posted comment cannot be recorded for verification`);
+  if (!vaultAccount)
+    throw new Error(
+      `deferred verify: reddit account ${acct.username} is not in Skarbiec, so the posted comment cannot be recorded for verification`,
+    );
   updateAccountMetadata(vaultAccount.id, {
     pending_comment_verify: {
       post_url: resolvedOldUrl || null,
@@ -27,14 +39,21 @@ export function recordCommentForVerify(acct, { resolvedOldUrl, postedCommentId, 
       posted_at: new Date().toISOString(),
     },
   });
-  console.log(`[deferred-verify] recorded comment ${postedCommentId || '(no id)'} for the next run's clean-session probe`);
+  console.log(
+    `[deferred-verify] recorded comment ${postedCommentId || '(no id)'} for the next run's clean-session probe`,
+  );
 }
 
 export async function verifyPreviousComment(acct) {
   const vaultAccount = findAccount('reddit', acct.username);
   const pending = vaultAccount?.metadata?.pending_comment_verify;
   if (!pending) return;
-  const { post_url: postUrl, comment_id: commentId, handle, posted_at: postedAt } = pending;
+  const {
+    post_url: postUrl,
+    comment_id: commentId,
+    handle,
+    posted_at: postedAt,
+  } = pending;
   let stillPublic = 'unprobed';
   if (commentId && postUrl) {
     const probe = await probeCommentVisibility({
@@ -43,10 +62,18 @@ export async function verifyPreviousComment(acct) {
       expectedAuthor: handle || undefined,
     });
     stillPublic = probe.visible;
-    console.log(`[deferred-verify] permalink probe of ${commentId} posted ${postedAt}: visible=${probe.visible} status=${probe.status} exit_ip=${probe.exit_ip ?? '?'}`);
+    console.log(
+      `[deferred-verify] permalink probe of ${commentId} posted ${postedAt}: visible=${probe.visible} status=${probe.status} exit_ip=${probe.exit_ip ?? '?'}`,
+    );
   }
   if (stillPublic === 'unprobed' && handle) {
-    const probe = await probeShadowban(handle, statedCount('REDDIT_SHADOWBAN_VANTAGES', 'how many logged-out vantages probe the profile'));
+    const probe = await probeShadowban(
+      handle,
+      statedCount(
+        'REDDIT_SHADOWBAN_VANTAGES',
+        'how many logged-out vantages probe the profile',
+      ),
+    );
     console.log(`[deferred-verify] account probe: verdict=${probe.verdict}`);
     stillPublic = probe.verdict !== 'shadowbanned';
   }
@@ -55,9 +82,16 @@ export async function verifyPreviousComment(acct) {
     return rest;
   });
   if (stillPublic === false) {
-    updateAccountMetadata(vaultAccount.id, { status: 'shadowbanned', active: false });
-    console.log(`[deferred-verify] auto-flagged ${acct.username} status=shadowbanned`);
-    const error = new Error(`deferred clean-session probe: the comment posted at ${postedAt} was removed afterwards`);
+    updateAccountMetadata(vaultAccount.id, {
+      status: 'shadowbanned',
+      active: false,
+    });
+    console.log(
+      `[deferred-verify] auto-flagged ${acct.username} status=shadowbanned`,
+    );
+    const error = new Error(
+      `deferred clean-session probe: the comment posted at ${postedAt} was removed afterwards`,
+    );
     error.banSignal = {
       signal: 'shadowbanned',
       healthy: false,
@@ -68,5 +102,7 @@ export async function verifyPreviousComment(acct) {
     };
     throw error;
   }
-  console.log(`[deferred-verify] comment posted at ${postedAt} still visible from a clean session`);
+  console.log(
+    `[deferred-verify] comment posted at ${postedAt} still visible from a clean session`,
+  );
 }

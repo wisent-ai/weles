@@ -14,13 +14,19 @@ await runHealthProbe({
   banDetector: detectTwitterBanSignals,
   extractLoggedIn: (body, resp) => {
     const finalUrl = resp?.url ?? '';
-    const authed = /x\.com\/home/.test(finalUrl) && !/\/i\/flow\/login/.test(finalUrl);
+    const authed =
+      /x\.com\/home/.test(finalUrl) && !/\/i\/flow\/login/.test(finalUrl);
     const html = typeof body === 'string' ? body : '';
     return {
       ok: authed && resp?.status === 200,
       karma: null,
-      is_suspended: /your account is suspended|account has been suspended/i.test(html),
+      is_suspended:
+        /your account is suspended|account has been suspended/i.test(html),
     };
   },
-  extractLoggedOut: (resp) => resp.status === 200 && !/account suspended|page doesn'?t exist/i.test(typeof resp.body === 'string' ? resp.body : ''),
+  extractLoggedOut: (resp) =>
+    resp.status === 200 &&
+    !/account suspended|page doesn'?t exist/i.test(
+      typeof resp.body === 'string' ? resp.body : '',
+    ),
 });

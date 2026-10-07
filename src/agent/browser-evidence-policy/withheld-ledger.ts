@@ -29,12 +29,18 @@ const POLICY_FILE = 'browser_evidence_policy.json';
 const WITHHELD_FILE = 'browser_evidence_withheld_edges.ndjson';
 
 export function enabled(): boolean {
-  return process.env.WELES_BROWSER_EVIDENCE_POLICY === SPIS_BROWSER_EVIDENCE_POLICY.version;
+  return (
+    process.env.WELES_BROWSER_EVIDENCE_POLICY ===
+    SPIS_BROWSER_EVIDENCE_POLICY.version
+  );
 }
 
 export function safeText(value: unknown): string {
   if (typeof value !== 'string') return '';
-  return value.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return value
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 // A failure this policy has to name in the ledger rather than pass over: the
@@ -57,10 +63,14 @@ export function recordEdge(label: string, edge: Record<string, unknown>): void {
     recordedAt: new Date().toISOString(),
     ...edge,
   };
-  appendFileSync(join(evidenceDirectory(label), WITHHELD_FILE), `${JSON.stringify(document)}\n`, {
-    encoding: 'utf8',
-    mode: 0o600,
-  });
+  appendFileSync(
+    join(evidenceDirectory(label), WITHHELD_FILE),
+    `${JSON.stringify(document)}\n`,
+    {
+      encoding: 'utf8',
+      mode: 0o600,
+    },
+  );
 }
 
 export function writeBrowserEvidencePolicy(label: string): void {

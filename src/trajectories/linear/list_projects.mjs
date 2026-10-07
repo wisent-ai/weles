@@ -19,7 +19,9 @@ if (!apiKey && existsSync(TOKEN_PATH)) {
   apiKey = readFileSync(TOKEN_PATH, 'utf8').trim().split('\n')[0];
 }
 if (!apiKey) {
-  console.log(`FAIL: no LINEAR_API_KEY env and no ${TOKEN_PATH}; run get_api_key.mjs first`);
+  console.log(
+    `FAIL: no LINEAR_API_KEY env and no ${TOKEN_PATH}; run get_api_key.mjs first`,
+  );
   process.exit(1);
 }
 
@@ -39,7 +41,7 @@ const res = await fetch('https://api.linear.app/graphql', {
   headers: {
     'Content-Type': 'application/json',
     // Personal API keys use the raw key as Authorization (no "Bearer " prefix).
-    'Authorization': apiKey,
+    Authorization: apiKey,
   },
   body: JSON.stringify({ query: QUERY, variables }),
 });
@@ -51,7 +53,9 @@ if (!res.ok) {
 }
 
 let parsed;
-try { parsed = JSON.parse(body); } catch {
+try {
+  parsed = JSON.parse(body);
+} catch {
   console.log(`FAIL: non-JSON response: ${body}`);
   process.exit(1);
 }
@@ -62,7 +66,9 @@ if (parsed.errors) {
 
 const nodes = parsed?.data?.projects?.nodes || [];
 if (nodes.length === 0) {
-  console.log(`(no projects matching ${NAME_FILTER ? `name="${NAME_FILTER}"` : 'first 50'})`);
+  console.log(
+    `(no projects matching ${NAME_FILTER ? `name="${NAME_FILTER}"` : 'first 50'})`,
+  );
   process.exit(0);
 }
 

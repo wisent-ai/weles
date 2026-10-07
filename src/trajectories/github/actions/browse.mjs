@@ -7,7 +7,10 @@ import { detectGitHubBanSignals } from '../../../../dist/platforms/github/ban_si
 const observed = declaredObservation();
 
 await runAction({
-  platform: 'github', action: 'browse',
-  feedUrl: observed.origin, scrolls: observed.scrolls, dwellMs: observed.dwellMs,
+  platform: 'github',
+  action: 'browse',
+  feedUrl: observed.origin,
+  scrolls: observed.scrolls,
+  dwellMs: observed.dwellMs,
   banDetector: detectGitHubBanSignals,
 });

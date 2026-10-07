@@ -19,26 +19,44 @@ import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const account = process.env.OKO_TEST_ASKS_DISPOSABLE_ACCOUNT;
-if (!account) throw new Error('blocked: name the disposable signed-in Oko account in OKO_TEST_ASKS_DISPOSABLE_ACCOUNT');
+if (!account)
+  throw new Error(
+    'blocked: name the disposable signed-in Oko account in OKO_TEST_ASKS_DISPOSABLE_ACCOUNT',
+  );
 
 const stamp = `${new Date().toISOString().replace(/[-:]/g, '').replace(/\..*/, 'Z')}-${process.pid}`;
 const root = resolve('build', 'real-tests', 'operator', `oko-answer-${stamp}`);
 const requests = join(root, 'requests');
 mkdirSync(requests, { recursive: true });
 const report = join(root, 'report.txt');
-const revision = spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).stdout.trim();
-const dirty = spawnSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).stdout.trim() ? ' (dirty)' : '';
+const revision = spawnSync('git', ['rev-parse', 'HEAD'], {
+  encoding: 'utf8',
+}).stdout.trim();
+const dirty = spawnSync('git', ['status', '--porcelain'], {
+  encoding: 'utf8',
+}).stdout.trim()
+  ? ' (dirty)'
+  : '';
 writeFileSync(report, `revision: ${revision}${dirty}\nrecords: ${requests}\n`);
 process.env.WELES_OPERATOR_REQUEST_DIR = requests;
 
 const oko = (args) => {
-  const result = spawnSync(process.env.WELES_OKO_BIN || 'oko', args, { encoding: 'utf8' });
-  appendFileSync(report, `$ oko ${args.join(' ')}\nexit ${result.status}\n${result.stdout}${result.stderr}\n`);
+  const result = spawnSync(process.env.WELES_OKO_BIN || 'oko', args, {
+    encoding: 'utf8',
+  });
+  appendFileSync(
+    report,
+    `$ oko ${args.join(' ')}\nexit ${result.status}\n${result.stdout}${result.stderr}\n`,
+  );
   return result;
 };
 
 const signedIn = JSON.parse(oko(['database', 'check']).stdout);
-assert.equal(signedIn.email, account, 'the signed-in Oko account is the disposable one');
+assert.equal(
+  signedIn.email,
+  account,
+  'the signed-in Oko account is the disposable one',
+);
 
 const store = await import('../../src/operator/request.mjs');
 
@@ -47,25 +65,53 @@ try {
     kind: 'real-test-oko-answer',
     account: `real-test-${stamp}`,
     run: `tests/operator/oko_answer.mjs ${stamp}`,
-    instruction: 'This is a Weles real test of answering in Oko; nothing waits for you.',
+    instruction:
+      'This is a Weles real test of answering in Oko; nothing waits for you.',
   });
   const asked = opened.pages.find((attempt) => attempt.channel === 'oko-asks');
-  assert.ok(asked?.ok && asked.ask_id, `the request was asked through Oko: ${asked?.detail}`);
+  assert.ok(
+    asked?.ok && asked.ask_id,
+    `the request was asked through Oko: ${asked?.detail}`,
+  );
 
   const shown = JSON.parse(oko(['asks', 'show', asked.ask_id]).stdout);
-  assert.deepEqual(shown.ask.choices, [...store.OPERATOR_ANSWERS], 'the ask offers the run\'s answers as choices');
+  assert.deepEqual(
+    shown.ask.choices,
+    [...store.OPERATOR_ANSWERS],
+    "the ask offers the run's answers as choices",
+  );
 
-  const outside = oko(['asks', 'answer', asked.ask_id, '--text', 'maybe', '--on', 'oko-weles-test']);
+  const outside = oko([
+    'asks',
+    'answer',
+    asked.ask_id,
+    '--text',
+    'maybe',
+    '--on',
+    'oko-weles-test',
+  ]);
   assert.ok(outside.status, 'an answer outside the choices is refused');
   assert.match(outside.stderr, /takes one of its choices/);
 
   const answersSoFar = (opened.answers ?? []).length;
   const received = store.nextOperatorAnswer(opened.id, answersSoFar);
-  const answered = oko(['asks', 'answer', asked.ask_id, '--text', 'approved', '--on', 'oko-weles-test']);
+  const answered = oko([
+    'asks',
+    'answer',
+    asked.ask_id,
+    '--text',
+    'approved',
+    '--on',
+    'oko-weles-test',
+  ]);
   assert.ok(!answered.status, `Oko took the answer: ${answered.stderr}`);
   const answer = await received;
   appendFileSync(report, `received: ${JSON.stringify(answer)}\n`);
-  assert.equal(answer.answer, 'approved', 'the waiting side receives the answer given in Oko');
+  assert.equal(
+    answer.answer,
+    'approved',
+    'the waiting side receives the answer given in Oko',
+  );
   assert.match(answer.detail, /answered in Oko on oko-weles-test/);
 
   store.closeOperatorRequest(opened.id, true, 'real test finished');

@@ -2,12 +2,18 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanClickLocator, humanIdlePause } from '../../../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../dist/human/keyboard.js';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('7');
-const MD = readFileSync((await import('#ncbr-settings')).applicationFile('wersja_B_7_ryzyka.md'), 'utf8');
+const MD = readFileSync(
+  (await import('#ncbr-settings')).applicationFile('wersja_B_7_ryzyka.md'),
+  'utf8',
+);
 
 function field(block, label) {
   const marker = `**${label}**`;
@@ -15,14 +21,20 @@ function field(block, label) {
   if (a < 0) return '';
   const rest = block.slice(a + marker.length).replace(/^\s+/, '');
   const b = rest.search(/\n\n\*\*|\n## /);
-  return rest.slice(0, b >= 0 ? b : undefined).replace(/\s+/g, ' ').trim();
+  return rest
+    .slice(0, b >= 0 ? b : undefined)
+    .replace(/\s+/g, ' ')
+    .trim();
 }
-const risks = MD.split(/^## Ryzyka\s*$/m).slice(1).map((block) => ({
-  nazwa: field(block, 'Nazwa ryzyka'),
-  typ: field(block, 'Typ ryzyka'),
-  opis: field(block, 'Opis ryzyka'),
-  zapobieganie: field(block, 'Zapobieganie ryzyku'),
-})).filter((r) => r.nazwa && r.typ && r.opis && r.zapobieganie);
+const risks = MD.split(/^## Ryzyka\s*$/m)
+  .slice(1)
+  .map((block) => ({
+    nazwa: field(block, 'Nazwa ryzyka'),
+    typ: field(block, 'Typ ryzyka'),
+    opis: field(block, 'Opis ryzyka'),
+    zapobieganie: field(block, 'Zapobieganie ryzyku'),
+  }))
+  .filter((r) => r.nazwa && r.typ && r.opis && r.zapobieganie);
 
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
@@ -31,26 +43,38 @@ if (!page) {
   process.exit(1);
 }
 
-
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
 await page.evaluate(() => {
-  const b = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies'));
+  const b = Array.from(document.querySelectorAll('div')).find((d) =>
+    (d.innerText || '').includes('pliki cookies'),
+  );
   if (b) b.style.pointerEvents = 'none';
 }); // allow-raw-playwright: neutralise cookie banner
 
 async function clickDodaj() {
-  await humanClickLocator(page, page.locator('button:visible').filter({ hasText: /^Dodaj$/ }).first()); // allow-raw-playwright: open risk subform
+  await humanClickLocator(
+    page,
+    page
+      .locator('button:visible')
+      .filter({ hasText: /^Dodaj$/ })
+      .first(),
+  ); // allow-raw-playwright: open risk subform
   await humanIdlePause('long');
 }
 
 async function setAuto(name, search) {
-  const inp = page.locator(`input[name="${name}"], input[name$="${name}"]`).first();
+  const inp = page
+    .locator(`input[name="${name}"], input[name$="${name}"]`)
+    .first();
   await humanClickLocator(page, inp); // allow-raw-playwright: open risk type autocomplete
   await humanFill(page, inp, search); // allow-raw-playwright: filter risk type
   await humanIdlePause('deliberate');
-  const opt = page.locator("[role='listbox'] [role='option'], [role='option']").first();
-  if (await opt.count() === 0) throw new Error(`no option for ${name}: ${search}`);
+  const opt = page
+    .locator("[role='listbox'] [role='option'], [role='option']")
+    .first();
+  if ((await opt.count()) === 0)
+    throw new Error(`no option for ${name}: ${search}`);
   const picked = (await opt.textContent())?.trim();
   await opt.dispatchEvent('click'); // allow-raw-playwright: select risk type
   await humanIdlePause('short');
@@ -58,9 +82,14 @@ async function setAuto(name, search) {
 }
 
 async function fillName(name, value) {
-  const loc = page.locator(`textarea[name="${name}"], input[name="${name}"], textarea[name$="${name}"], input[name$="${name}"]`).first();
+  const loc = page
+    .locator(
+      `textarea[name="${name}"], input[name="${name}"], textarea[name$="${name}"], input[name$="${name}"]`,
+    )
+    .first();
   await loc.waitFor({ state: 'visible' });
-  const max = Number(await loc.getAttribute('maxlength')) || String(value).length;
+  const max =
+    Number(await loc.getAttribute('maxlength')) || String(value).length;
   let v = String(value || '');
   if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
   await humanFill(page, loc, v); // allow-raw-playwright: risk text field
@@ -71,18 +100,28 @@ async function fillName(name, value) {
 async function saveEnabled() {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  await humanClickLocator(page, page.locator('button:visible:not([disabled])').filter({ hasText: /^Zapisz$/ }).last()); // allow-raw-playwright: save risk subform
+  await humanClickLocator(
+    page,
+    page
+      .locator('button:visible:not([disabled])')
+      .filter({ hasText: /^Zapisz$/ })
+      .last(),
+  ); // allow-raw-playwright: save risk subform
   await humanIdlePause('long');
 }
 
 if (process.env.DIAG) {
   await clickDodaj();
-  const out = await page.evaluate(() => Array.from(document.querySelectorAll('input, textarea')).map((el) => ({
-    tag: el.tagName,
-    name: el.name || null,
-    role: el.getAttribute('role'),
-    max: el.getAttribute('maxlength'),
-  })).filter((f) => f.name));
+  const out = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('input, textarea'))
+      .map((el) => ({
+        tag: el.tagName,
+        name: el.name || null,
+        role: el.getAttribute('role'),
+        max: el.getAttribute('maxlength'),
+      }))
+      .filter((f) => f.name),
+  );
   console.log(JSON.stringify({ parsed: risks.length, fields: out }, null, 2));
   process.exit(0);
 }
@@ -91,7 +130,10 @@ const added = [];
 for (const r of risks) {
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('long');
-  const exists = await page.evaluate((needle) => (document.body.innerText || '').includes(needle), r.nazwa.slice(0, 90));
+  const exists = await page.evaluate(
+    (needle) => (document.body.innerText || '').includes(needle),
+    r.nazwa.slice(0, 90),
+  );
   if (exists) continue;
   await clickDodaj();
   const filled = [];
@@ -107,7 +149,10 @@ await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
 const readback = await page.evaluate(() => {
   const table = document.querySelector('table');
-  return { rows: table ? table.querySelectorAll('tbody tr').length : 0, text: (table?.innerText || '').replace(/\s+/g, ' ') };
+  return {
+    rows: table ? table.querySelectorAll('tbody tr').length : 0,
+    text: (table?.innerText || '').replace(/\s+/g, ' '),
+  };
 });
 console.log(JSON.stringify({ parsed: risks.length, added, readback }, null, 2));
 process.exit(0);

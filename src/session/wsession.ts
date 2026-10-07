@@ -10,22 +10,37 @@
  * click cannot).
  */
 
-import { type BrowserContext, chromium } from 'playwright'; import { AsyncNewBrowser, type AsyncNewBrowserOptions } from '../async_api.js';
+import { type BrowserContext, chromium } from 'playwright';
+import { AsyncNewBrowser, type AsyncNewBrowserOptions } from '../async_api.js';
 import { type Persona, generatePersona } from '../browser/persona.js';
 import { SessionStore } from './store.js';
 import { Capture } from '../capture/capture.js';
-import { findClickTarget, askPage, checkPage, type ScreenshottablePage } from '../vision/analyze.js';
+import {
+  findClickTarget,
+  askPage,
+  checkPage,
+  type ScreenshottablePage,
+} from '../vision/analyze.js';
 import { humanClick, humanClickLocator } from '../human/mouse.js';
 import { humanType } from '../human/keyboard.js';
 import { selectOption } from '../human/select.js';
 import { waitCloudflare } from '../cloudflare/challenge.js';
 import { solvePageCaptcha } from '../captcha/detect.js';
 import { CaptchaSolver } from '../captcha/solver.js';
-import { generateIdentity as genId, type Identity } from '../utils/identity/identity.js';
+import {
+  generateIdentity as genId,
+  type Identity,
+} from '../utils/identity/identity.js';
 import { markSignupSuccess } from '../utils/email/domain.js';
 import { snapshotSanitizedEnvironment } from '../utils/sanitize-env.js';
 import { getNumber, readCode, type SmsNumber } from '../utils/identity/sms.js';
-import { writeFileSync, mkdirSync, copyFileSync, existsSync, chmodSync } from 'node:fs';
+import {
+  writeFileSync,
+  mkdirSync,
+  copyFileSync,
+  existsSync,
+  chmodSync,
+} from 'node:fs';
 import { createHash } from 'node:crypto';
 import { startInstrumentation } from './wsession-helpers/net_record.js';
 import { join } from 'node:path';
@@ -37,18 +52,40 @@ import { costTracker } from '../utils/runtime/cost.js';
 import { loadOperatorCdpConfig } from './placement/operator-cdp.js';
 import { enforceWelesServicePlacement } from './placement/service-placement.js';
 
-import { installAtoms } from './atoms/wsession_atoms.js';  // installAtoms() is invoked at file end after WSession is declared
+import { installAtoms } from './atoms/wsession_atoms.js'; // installAtoms() is invoked at file end after WSession is declared
 import { runRecordingsDir, runRecordingsRoot } from './run-recordings.js';
-import { wsClick, wsFill, wsFillCredential, wsFillIdentity } from './wsession-helpers/finalize.js';
-import { isSkarbiecCredentialTask, wsAutoStoreCredential, wsStoreCredential } from './wsession-helpers/credential-store.js';
+import {
+  wsClick,
+  wsFill,
+  wsFillCredential,
+  wsFillIdentity,
+} from './wsession-helpers/finalize.js';
+import {
+  isSkarbiecCredentialTask,
+  wsAutoStoreCredential,
+  wsStoreCredential,
+} from './wsession-helpers/credential-store.js';
 import type { CapabilityRef } from '../utils/capability.js';
 import { assertNonCredentialInput } from '../utils/capability.js';
 import { installBrowserEvidencePolicy } from '../agent/browser-evidence-policy.js';
 import { type WSessionOptions } from './wsession/session-request.js';
-import { adoptLaunchedBrowser, openSessionBrowser } from './wsession/browser-launch.js';
+import {
+  adoptLaunchedBrowser,
+  openSessionBrowser,
+} from './wsession/browser-launch.js';
 import { observeSessionNetwork } from './wsession/network-observers.js';
-import { captureStepArtifacts, type StepArtifactFailure } from './wsession/run-provenance.js';
-import { assertFocusedLiteralInput, wsClickSelector, wsFocus, wsJsClick, wsScroll, wsSetControl } from './wsession/page-actions.js';
+import {
+  captureStepArtifacts,
+  type StepArtifactFailure,
+} from './wsession/run-provenance.js';
+import {
+  assertFocusedLiteralInput,
+  wsClickSelector,
+  wsFocus,
+  wsJsClick,
+  wsScroll,
+  wsSetControl,
+} from './wsession/page-actions.js';
 
 export type { WSessionOptions };
 
@@ -69,12 +106,39 @@ export class WSession {
   authBlocked: string | null = null;
   captchaHeaders: Record<string, string> = {};
   captchaEndpoint: string = '';
-  proxyConfig: { server: string; username?: string; password?: string; country?: string; exit_ip?: string; platform?: string } | undefined;
+  proxyConfig:
+    | {
+        server: string;
+        username?: string;
+        password?: string;
+        country?: string;
+        exit_ip?: string;
+        platform?: string;
+      }
+    | undefined;
   personaConfig: Persona | undefined;
   // Identity assigned by WSession.start when opts.platform is set; eliminates
   // per-trajectory generateIdentity + field-rename boilerplate.
-  identity: { firstName: string; lastName: string; username: string; email: string; password: string; birthMonth: string; birthDay: string; birthYear: string } | undefined;
-  capturedResponses: Array<{ ts: number; method: string; url: string; status: number; headers: Record<string, string>; body: string }> = [];
+  identity:
+    | {
+        firstName: string;
+        lastName: string;
+        username: string;
+        email: string;
+        password: string;
+        birthMonth: string;
+        birthDay: string;
+        birthYear: string;
+      }
+    | undefined;
+  capturedResponses: Array<{
+    ts: number;
+    method: string;
+    url: string;
+    status: number;
+    headers: Record<string, string>;
+    body: string;
+  }> = [];
   // Body reads still in flight for entries in capturedResponses. A caller that
   // judges captured responses awaits these first, so the judgement reads the
   // bodies that arrived instead of racing them.
@@ -91,9 +155,18 @@ export class WSession {
   private _secureCredentialTask = false;
   private _storedCredentialReceipt: string | null = null;
 
-  private constructor(ctx: BrowserContext, page: any, label: string, cap: Capture) {
-    this.ctx = ctx; this.page = page; this.label = label; this._cap = cap;
-    this._store = new SessionStore(); this._solver = new CaptchaSolver();
+  private constructor(
+    ctx: BrowserContext,
+    page: any,
+    label: string,
+    cap: Capture,
+  ) {
+    this.ctx = ctx;
+    this.page = page;
+    this.label = label;
+    this._cap = cap;
+    this._store = new SessionStore();
+    this._solver = new CaptchaSolver();
     this._secureCredentialTask = isSkarbiecCredentialTask();
     // Captcha/auth interception, the response ledger and the proxy byte
     // counter, subscribed synchronously so nothing loaded by the first
@@ -104,13 +177,17 @@ export class WSession {
   async runStep<T>(name: string, fn: () => Promise<T>): Promise<T> {
     const n = String(this._step++).padStart(3, '0');
     const label = `${n}_${name.replace(/[^a-z0-9]/gi, '_').slice(0, 30)}`;
-    const url = (typeof this.page.url === 'function' ? this.page.url() : '') ?? '';
+    const url =
+      (typeof this.page.url === 'function' ? this.page.url() : '') ?? '';
     const closed = this.page.isClosed?.() ?? false;
     const vs = this.page.viewportSize?.() ?? {};
-    const retainStepArtifacts = !this._secureCredentialTask
-      && process.env.WELES_NO_INSTRUMENT !== '1'
-      && process.env.WELES_BROWSER_EVIDENCE_POLICY !== 'spis-browser-evidence.1';
-    console.log(`[wsession] ${label} START url=${url} closed=${closed} viewport=${vs.width}x${vs.height}`);
+    const retainStepArtifacts =
+      !this._secureCredentialTask &&
+      process.env.WELES_NO_INSTRUMENT !== '1' &&
+      process.env.WELES_BROWSER_EVIDENCE_POLICY !== 'spis-browser-evidence.1';
+    console.log(
+      `[wsession] ${label} START url=${url} closed=${closed} viewport=${vs.width}x${vs.height}`,
+    );
     if (retainStepArtifacts) await captureStepArtifacts(this, 'before', label);
     try {
       const result = await fn();
@@ -124,7 +201,8 @@ export class WSession {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.log(`[wsession] ${label} ERROR ${message}`);
-      if (retainStepArtifacts) await captureStepArtifacts(this, 'error', label, error);
+      if (retainStepArtifacts)
+        await captureStepArtifacts(this, 'error', label, error);
       throw error;
     } finally {
       await (this as any)._instCheckpoints?.checkpoint(`step:${label}`);
@@ -139,54 +217,93 @@ export class WSession {
 
   static async start(opts: WSessionOptions = {}): Promise<WSession> {
     const launch = await openSessionBrowser(opts);
-    const ws = new WSession(launch.ctx, launch.page, launch.label, launch.capture);
+    const ws = new WSession(
+      launch.ctx,
+      launch.page,
+      launch.label,
+      launch.capture,
+    );
     await ws._cdpReady;
     if (launch.kind === 'launched') await adoptLaunchedBrowser(ws, launch);
     return ws;
   }
 
   async goto(url: string): Promise<string> {
-    return this.runStep(`goto_${url.split('/').pop()?.slice(0,20)}`, async () => {
-      await this.page.goto(url, { waitUntil: 'domcontentloaded' });
-      await waitCloudflare(asV(this.page));
-      return `navigated to ${this.page.url?.() ?? url}`;
-    });
+    return this.runStep(
+      `goto_${url.split('/').pop()?.slice(0, 20)}`,
+      async () => {
+        await this.page.goto(url, { waitUntil: 'domcontentloaded' });
+        await waitCloudflare(asV(this.page));
+        return `navigated to ${this.page.url?.() ?? url}`;
+      },
+    );
   }
 
   // Method bodies extracted to ./wsession-helpers/finalize.ts and to
   // ./wsession/page-actions.ts to fit the 300-line per-file cap. wsClose has
   // the BD provider classifier fix.
-  async click(target: string): Promise<string> { return wsClick(this, target); }
-  async fill(target: string, value: string): Promise<string> { return wsFill(this, target, value); }
+  async click(target: string): Promise<string> {
+    return wsClick(this, target);
+  }
+  async fill(target: string, value: string): Promise<string> {
+    return wsFill(this, target, value);
+  }
   async fillCredential(
     target: string,
     fieldClass: 'password' | 'email' | 'username' | 'token' | 'api-key',
     capability: CapabilityRef,
-  ): Promise<string> { return wsFillCredential(this, target, fieldClass, capability); }
+  ): Promise<string> {
+    return wsFillCredential(this, target, fieldClass, capability);
+  }
   async fillIdentity(
     target: string,
-    field: 'email' | 'password' | 'username' | 'first_name' | 'last_name' | 'birth_month' | 'birth_day' | 'birth_year',
+    field:
+      | 'email'
+      | 'password'
+      | 'username'
+      | 'first_name'
+      | 'last_name'
+      | 'birth_month'
+      | 'birth_day'
+      | 'birth_year',
   ): Promise<string> {
     const identity = this.identity;
     if (!identity) throw new Error('generated identity is unavailable');
     switch (field) {
-      case 'email': return wsFillIdentity(this, target, field, identity.email);
-      case 'password': return wsFillIdentity(this, target, field, identity.password);
-      case 'username': return wsFillIdentity(this, target, field, identity.username);
-      case 'first_name': return wsFillIdentity(this, target, field, identity.firstName);
-      case 'last_name': return wsFillIdentity(this, target, field, identity.lastName);
-      case 'birth_month': return wsFillIdentity(this, target, field, identity.birthMonth);
-      case 'birth_day': return wsFillIdentity(this, target, field, identity.birthDay);
-      case 'birth_year': return wsFillIdentity(this, target, field, identity.birthYear);
+      case 'email':
+        return wsFillIdentity(this, target, field, identity.email);
+      case 'password':
+        return wsFillIdentity(this, target, field, identity.password);
+      case 'username':
+        return wsFillIdentity(this, target, field, identity.username);
+      case 'first_name':
+        return wsFillIdentity(this, target, field, identity.firstName);
+      case 'last_name':
+        return wsFillIdentity(this, target, field, identity.lastName);
+      case 'birth_month':
+        return wsFillIdentity(this, target, field, identity.birthMonth);
+      case 'birth_day':
+        return wsFillIdentity(this, target, field, identity.birthDay);
+      case 'birth_year':
+        return wsFillIdentity(this, target, field, identity.birthYear);
     }
   }
-  async storeCredential(target: string, fieldClass: 'token' | 'api-key'): Promise<string> {
+  async storeCredential(
+    target: string,
+    fieldClass: 'token' | 'api-key',
+  ): Promise<string> {
     return wsStoreCredential(this, target, fieldClass);
   }
 
-  async focus(selector: string): Promise<string> { return wsFocus(this, selector); }
-  async jsClick(selector?: string, text?: string): Promise<string> { return wsJsClick(this, selector, text); }
-  async clickSelector(selector: string): Promise<string> { return wsClickSelector(this, selector); }
+  async focus(selector: string): Promise<string> {
+    return wsFocus(this, selector);
+  }
+  async jsClick(selector?: string, text?: string): Promise<string> {
+    return wsJsClick(this, selector, text);
+  }
+  async clickSelector(selector: string): Promise<string> {
+    return wsClickSelector(this, selector);
+  }
   async type(value: string): Promise<string> {
     const literal = assertNonCredentialInput(value);
     return this.runStep('type', async () => {
@@ -195,12 +312,36 @@ export class WSession {
       return 'typed';
     });
   }
-  async press(key: string): Promise<string> { return this.runStep(`press_${key}`, async () => { await this.page.keyboard.press(key); return `pressed ${key}`; }); }
-  async select(target: string, value: string): Promise<string> { return this.runStep(`select_${target}_${value}`, async () => { const result = await selectOption(this.page, target, this.resolveEnv(value)); return result ? `selected: ${result}` : 'no-select-found'; }); }
-  async setControl(selector: string, value?: unknown, checked?: unknown): Promise<string> { return wsSetControl(this, selector, value, checked); }
-  async scroll(direction: string, amount?: number): Promise<string> { return wsScroll(this, direction, amount); }
+  async press(key: string): Promise<string> {
+    return this.runStep(`press_${key}`, async () => {
+      await this.page.keyboard.press(key);
+      return `pressed ${key}`;
+    });
+  }
+  async select(target: string, value: string): Promise<string> {
+    return this.runStep(`select_${target}_${value}`, async () => {
+      const result = await selectOption(
+        this.page,
+        target,
+        this.resolveEnv(value),
+      );
+      return result ? `selected: ${result}` : 'no-select-found';
+    });
+  }
+  async setControl(
+    selector: string,
+    value?: unknown,
+    checked?: unknown,
+  ): Promise<string> {
+    return wsSetControl(this, selector, value, checked);
+  }
+  async scroll(direction: string, amount?: number): Promise<string> {
+    return wsScroll(this, direction, amount);
+  }
 
-  async read(question: string): Promise<string> { return await askPage(asV(this.page), question) ?? 'NONE'; }
+  async read(question: string): Promise<string> {
+    return (await askPage(asV(this.page), question)) ?? 'NONE';
+  }
   async solveCaptcha(): Promise<string> {
     return this.runStep('solveCaptcha', async () => {
       const result = await solvePageCaptcha(this.page, this._solver, this);
@@ -209,9 +350,24 @@ export class WSession {
     });
   }
 
-  async checkEmail(email: string, sender: string): Promise<string> { const { wsCheckEmail } = await import('./wsession-helpers/finalize.js'); return wsCheckEmail(this, email, sender); }
-  async checkSms(service: string, country = 'UK'): Promise<string> { this._smsOrder = await getNumber(service, country); if (!this._smsOrder) return 'error: no SMS number available'; this._env[`${service.toUpperCase()}_NEW_PHONE`] = this._smsOrder.phone; return `phone: ${this._smsOrder.phone}`; }
-  async pollSmsCode(): Promise<string> { if (!this._smsOrder) return 'error: no SMS order'; try { return await readCode(this._smsOrder.orderId, this._smsOrder.provider); } catch (error) { return `error: ${(error as Error).message}`; } }
+  async checkEmail(email: string, sender: string): Promise<string> {
+    const { wsCheckEmail } = await import('./wsession-helpers/finalize.js');
+    return wsCheckEmail(this, email, sender);
+  }
+  async checkSms(service: string, country = 'UK'): Promise<string> {
+    this._smsOrder = await getNumber(service, country);
+    if (!this._smsOrder) return 'error: no SMS number available';
+    this._env[`${service.toUpperCase()}_NEW_PHONE`] = this._smsOrder.phone;
+    return `phone: ${this._smsOrder.phone}`;
+  }
+  async pollSmsCode(): Promise<string> {
+    if (!this._smsOrder) return 'error: no SMS order';
+    try {
+      return await readCode(this._smsOrder.orderId, this._smsOrder.provider);
+    } catch (error) {
+      return `error: ${(error as Error).message}`;
+    }
+  }
 
   async generateIdentity(platform: string): Promise<Identity> {
     const id = await genId(platform);
@@ -227,16 +383,43 @@ export class WSession {
     return id;
   }
 
-  async saveCookies(): Promise<string> { if (!this.label) return 'no label'; await this._store.capturePlaywright(this.ctx, this.label); return 'cookies saved'; }
-  async needsLogin(): Promise<boolean> { return await checkPage(asV(this.page), 'Is this a login page?'); }
-  async screenshot(label: string): Promise<string> { return await this._cap.screenshot(this.page, label); }
+  async saveCookies(): Promise<string> {
+    if (!this.label) return 'no label';
+    await this._store.capturePlaywright(this.ctx, this.label);
+    return 'cookies saved';
+  }
+  async needsLogin(): Promise<boolean> {
+    return await checkPage(asV(this.page), 'Is this a login page?');
+  }
+  async screenshot(label: string): Promise<string> {
+    return await this._cap.screenshot(this.page, label);
+  }
 
-  async saveAccount(platform: string, data: { username: string; email: string; password: string; name?: string; status?: string }): Promise<string> { const { wsSaveAccount } = await import('./wsession-helpers/finalize.js'); return wsSaveAccount(this, platform, data); }
-  async close(): Promise<void> { const { wsClose } = await import('./wsession-helpers/finalize.js'); return wsClose(this); }
+  async saveAccount(
+    platform: string,
+    data: {
+      username: string;
+      email: string;
+      password: string;
+      name?: string;
+      status?: string;
+    },
+  ): Promise<string> {
+    const { wsSaveAccount } = await import('./wsession-helpers/finalize.js');
+    return wsSaveAccount(this, platform, data);
+  }
+  async close(): Promise<void> {
+    const { wsClose } = await import('./wsession-helpers/finalize.js');
+    return wsClose(this);
+  }
 
   resolveEnv(v: string): string {
-    const out = v.replace(/\$\{?([A-Z_][A-Z0-9_]*)\}?/g, (_, k) => this._env[k] ?? process.env[k] ?? `$${k}`);
-    if (/\$\{?[A-Z_][A-Z0-9_]*_NEW_[A-Z0-9_]*\}?/.test(out)) throw new Error('unresolved generated identity placeholder');
+    const out = v.replace(
+      /\$\{?([A-Z_][A-Z0-9_]*)\}?/g,
+      (_, k) => this._env[k] ?? process.env[k] ?? `$${k}`,
+    );
+    if (/\$\{?[A-Z_][A-Z0-9_]*_NEW_[A-Z0-9_]*\}?/.test(out))
+      throw new Error('unresolved generated identity placeholder');
     return out;
   }
 

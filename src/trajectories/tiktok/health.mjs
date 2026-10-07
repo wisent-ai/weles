@@ -21,8 +21,16 @@ await runHealthProbe({
     return {
       ok: authed && resp?.status === 200,
       karma: null,
-      is_suspended: /account has been banned|suspended|violates our community guidelines/i.test(html),
+      is_suspended:
+        /account has been banned|suspended|violates our community guidelines/i.test(
+          html,
+        ),
     };
   },
-  extractLoggedOut: (resp) => resp.status === 200 && typeof resp.body === 'string' && !/banned|account doesn'?t exist|couldn'?t find this account/i.test(resp.body),
+  extractLoggedOut: (resp) =>
+    resp.status === 200 &&
+    typeof resp.body === 'string' &&
+    !/banned|account doesn'?t exist|couldn'?t find this account/i.test(
+      resp.body,
+    ),
 });

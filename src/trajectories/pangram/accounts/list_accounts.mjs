@@ -2,9 +2,15 @@
 import { listAccounts } from '../../_shared/skarbiec/accounts.mjs';
 
 const rows = listAccounts('pangram');
-console.log(JSON.stringify(rows.map((account, i) => ({
-  i,
-  id: account.id,
-  username: account.username,
-  created_at: account.document.context?.created_at ?? null,
-})), null, 2));
+console.log(
+  JSON.stringify(
+    rows.map((account, i) => ({
+      i,
+      id: account.id,
+      username: account.username,
+      created_at: account.document.context?.created_at ?? null,
+    })),
+    null,
+    2,
+  ),
+);

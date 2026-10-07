@@ -34,12 +34,18 @@ const GENERIC_FLOW = 'generic-provider-api-key-acquisition';
 // API-key signup page from there instead of guessing a hostname from the slug.
 const GENERIC_DISCOVERY_ORIGIN = 'https://duckduckgo.com';
 
-export function genericDefinition(request: AcquireSecretRequest): SecretDefinition | null {
+export function genericDefinition(
+  request: AcquireSecretRequest,
+): SecretDefinition | null {
   const provider = request.provider?.trim().toLowerCase() ?? '';
-  if (!GENERIC_SLUG.test(provider)
-      || provider === 'microsoft'
-      || provider === ENTRA_PROVIDER
-      || Object.values(SECRET_REGISTRY).some((definition) => definition.provider === provider)) {
+  if (
+    !GENERIC_SLUG.test(provider) ||
+    provider === 'microsoft' ||
+    provider === ENTRA_PROVIDER ||
+    Object.values(SECRET_REGISTRY).some(
+      (definition) => definition.provider === provider,
+    )
+  ) {
     return null;
   }
   const item = request.credentialId?.trim().toLowerCase() || provider;
@@ -50,7 +56,8 @@ export function genericDefinition(request: AcquireSecretRequest): SecretDefiniti
   // no managed lifecycle to divert, and reaching this point still requires the
   // caller to have declared a generic provider slug of its own.
   const contract = acquiredSecretContract(item);
-  if (!contract || contract.item !== item || contract.field !== GENERIC_FIELD) return null;
+  if (!contract || contract.item !== item || contract.field !== GENERIC_FIELD)
+    return null;
   const declaredOrigin = request.signupOrigin?.trim() ?? '';
   const displayName = provider.replace(/-/g, ' ');
   return {

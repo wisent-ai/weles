@@ -27,7 +27,9 @@ export const personaConsistencyRules: DetectionRule[] = [
     severity: 'critical',
     test(s) {
       const ua = String(s?.js?.navigator?.userAgent || '');
-      const renderer = String(s?.js?.webgl1?.params?.UNMASKED_RENDERER || '').toLowerCase();
+      const renderer = String(
+        s?.js?.webgl1?.params?.UNMASKED_RENDERER || '',
+      ).toLowerCase();
       const os = osFromUA(ua);
       if (!os) return null;
       // Apple GPU on non-macOS UA.
@@ -41,7 +43,11 @@ export const personaConsistencyRules: DetectionRule[] = [
         };
       }
       // Intel UHD on macOS.
-      if (renderer.includes('intel') && os === 'macos' && !renderer.includes('apple')) {
+      if (
+        renderer.includes('intel') &&
+        os === 'macos' &&
+        !renderer.includes('apple')
+      ) {
         return {
           id: 'ua_webgl_os_inconsistency',
           category: 'inconsistency',

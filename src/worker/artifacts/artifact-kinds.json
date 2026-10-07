@@ -1,9 +1,4 @@
 {
   "why": "What a run produces and the delivery path carries: the screenshots, the videos, the DOM snapshots and the logs. The signing server and the uploading client each kept their own copy of these four names, so a kind added on one side is signed and never uploaded, or uploaded and never signed. Declared as data so adding a kind here changes both sides at once, and the locator set's type follows it.",
-  "kinds": [
-    "screenshots",
-    "videos",
-    "dom",
-    "logs"
-  ]
+  "kinds": ["screenshots", "videos", "dom", "logs"]
 }

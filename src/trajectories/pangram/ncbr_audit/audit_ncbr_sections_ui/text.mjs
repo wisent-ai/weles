@@ -2,7 +2,13 @@
 // character counts, splitting a long text into scans, cleaning markdown and PDF text.
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { MAX_SCAN_CHARS, MAX_SCAN_WORDS, MIN_CHARS, MIN_WORDS, WEL } from './settings.mjs';
+import {
+  MAX_SCAN_CHARS,
+  MAX_SCAN_WORDS,
+  MIN_CHARS,
+  MIN_WORDS,
+  WEL,
+} from './settings.mjs';
 
 export function sh(cmd, args, opts = {}) {
   const res = spawnSync(cmd, args, {
@@ -11,7 +17,10 @@ export function sh(cmd, args, opts = {}) {
     encoding: 'utf8',
     maxBuffer: opts.maxBuffer || 80 * 1024 * 1024,
   });
-  if (res.error) throw new Error(`${cmd} ${args.join(' ')} could not run: ${res.error.message}`);
+  if (res.error)
+    throw new Error(
+      `${cmd} ${args.join(' ')} could not run: ${res.error.message}`,
+    );
   return res;
 }
 
@@ -49,9 +58,7 @@ export function splitLongText(text, maxChars = MAX_SCAN_CHARS) {
   };
   const pieces = text.split(/\n{2,}/).flatMap((p) => {
     if (p.length <= maxChars) return [p];
-    return p
-      .split(/(?<=[.!?])\s+(?=[A-ZĄĆĘŁŃÓŚŹŻ0-9])/)
-      .filter(Boolean);
+    return p.split(/(?<=[.!?])\s+(?=[A-ZĄĆĘŁŃÓŚŹŻ0-9])/).filter(Boolean);
   });
   for (const piece of pieces) {
     const p = piece.trim();
@@ -68,7 +75,8 @@ export function splitLongText(text, maxChars = MAX_SCAN_CHARS) {
       const cut = current.slice(0, maxChars);
       const words = current.trim().split(/\s+/);
       let byWords = current.length;
-      if (words.length > MAX_SCAN_WORDS) byWords = words.slice(0, MAX_SCAN_WORDS).join(' ').length;
+      if (words.length > MAX_SCAN_WORDS)
+        byWords = words.slice(0, MAX_SCAN_WORDS).join(' ').length;
       const hard = Math.min(maxChars, byWords);
       const slice = current.slice(0, hard);
       const lastSpace = slice.lastIndexOf(' ');
@@ -81,7 +89,10 @@ export function splitLongText(text, maxChars = MAX_SCAN_CHARS) {
   if (chunks.length > 1) {
     const last = chunks[chunks.length - 1];
     const lastStats = stats(last);
-    if ((lastStats.words < MIN_WORDS || lastStats.chars < MIN_CHARS) && fits(`${chunks[chunks.length - 2]}\n\n${last}`)) {
+    if (
+      (lastStats.words < MIN_WORDS || lastStats.chars < MIN_CHARS) &&
+      fits(`${chunks[chunks.length - 2]}\n\n${last}`)
+    ) {
       chunks[chunks.length - 2] = `${chunks[chunks.length - 2]}\n\n${last}`;
       chunks.pop();
     }
@@ -108,8 +119,8 @@ export function cleanPdf(text) {
     .replace(/\f/g, '\n')
     .replace(/\r/g, '')
     .replace(/^\s*\d+\s*$/gm, '')
-    .replace(/^Narodowe Centrum Badań i Rozwoju.*$/gmi, '')
-    .replace(/^Wniosek o dofinansowanie projektu.*$/gmi, '')
+    .replace(/^Narodowe Centrum Badań i Rozwoju.*$/gim, '')
+    .replace(/^Wniosek o dofinansowanie projektu.*$/gim, '')
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{4,}/g, '\n\n\n')
     .trim();

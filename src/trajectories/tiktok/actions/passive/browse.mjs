@@ -7,7 +7,10 @@ import { detectTikTokBanSignals } from '../../../../../dist/platforms/tiktok/ban
 const observed = declaredObservation();
 
 await runAction({
-  platform: 'tiktok', action: 'browse',
-  feedUrl: observed.origin, scrolls: observed.scrolls, dwellMs: observed.dwellMs,
+  platform: 'tiktok',
+  action: 'browse',
+  feedUrl: observed.origin,
+  scrolls: observed.scrolls,
+  dwellMs: observed.dwellMs,
   banDetector: detectTikTokBanSignals,
 });

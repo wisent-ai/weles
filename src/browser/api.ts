@@ -4,7 +4,12 @@ import { createServer, request as httpRequest, type Server } from 'node:http';
 import { connect } from 'node:net';
 import { CDPConnection } from '../cdp/connection.js';
 import { launchChromium } from '../cdp/launcher.js';
-import { generate, toConfig, toCppConfig, type FingerprintConfig } from '../fingerprint.js';
+import {
+  generate,
+  toConfig,
+  toCppConfig,
+  type FingerprintConfig,
+} from '../fingerprint.js';
 import { buildInitScript } from '../page-init/loader.js';
 import { CDPBrowserContext } from './context.js';
 
@@ -47,7 +52,12 @@ export class CDPWeles {
   private _context: CDPBrowserContext;
   private _localProxy?: Server;
 
-  private constructor(proc: ChildProcess, connection: CDPConnection, context: CDPBrowserContext, localProxy?: Server) {
+  private constructor(
+    proc: ChildProcess,
+    connection: CDPConnection,
+    context: CDPBrowserContext,
+    localProxy?: Server,
+  ) {
     this._process = proc;
     this._connection = connection;
     this._context = context;
@@ -65,8 +75,12 @@ export class CDPWeles {
     const config = toConfig(fp, targetOs, 'chromium');
 
     // 3. Build init script (skip for custom binary — C++ handles spoofing)
-    const isCustomBinary = !!(options.chromiumPath || process.env.CHROMIUM_PATH);
-    const initScript = isCustomBinary ? '' : buildInitScript(config, options.excludeScripts);
+    const isCustomBinary = !!(
+      options.chromiumPath || process.env.CHROMIUM_PATH
+    );
+    const initScript = isCustomBinary
+      ? ''
+      : buildInitScript(config, options.excludeScripts);
 
     // 4. Proxy: if URL has auth, start a local forwarder so Chrome gets no-auth URL
     let proxyForChrome: string | undefined;
@@ -90,11 +104,12 @@ export class CDPWeles {
         };
         const expectedLocalAuthorization = `Basic ${Buffer.from(`${localAuth.username}:${localAuth.password}`).toString('base64')}`;
         const isAuthorized = (header: string | string[] | undefined): boolean =>
-          typeof header === 'string' && securelyEqual(header, expectedLocalAuthorization);
+          typeof header === 'string' &&
+          securelyEqual(header, expectedLocalAuthorization);
         const srv = createServer((req, res) => {
           if (!isAuthorized(req.headers['proxy-authorization'])) {
             res.writeHead(407, {
-              'Connection': 'close',
+              Connection: 'close',
               'Proxy-Authenticate': 'Basic realm="weles-local-proxy"',
             });
             res.end('Proxy authentication required');
@@ -119,7 +134,9 @@ export class CDPWeles {
         });
         srv.on('connect', (req, clientSocket, head) => {
           if (!isAuthorized(req.headers['proxy-authorization'])) {
-            clientSocket.end('HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm="weles-local-proxy"\r\nConnection: close\r\n\r\n');
+            clientSocket.end(
+              'HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm="weles-local-proxy"\r\nConnection: close\r\n\r\n',
+            );
             return;
           }
           const authHeader = `Basic ${Buffer.from(upstream.auth).toString('base64')}`;
@@ -142,13 +159,16 @@ export class CDPWeles {
             }
             clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
             const headerEnd = responseHead.indexOf('\r\n\r\n');
-            const rest = headerEnd >= 0 ? chunk.subarray(headerEnd + 4) : Buffer.alloc(0);
+            const rest =
+              headerEnd >= 0 ? chunk.subarray(headerEnd + 4) : Buffer.alloc(0);
             if (rest.length) clientSocket.write(rest);
             upSocket.pipe(clientSocket);
             clientSocket.pipe(upSocket);
           });
         });
-        await new Promise<void>(resolve => srv.listen(0, '127.0.0.1', resolve));
+        await new Promise<void>((resolve) =>
+          srv.listen(0, '127.0.0.1', resolve),
+        );
         const addr = srv.address() as { port: number };
         proxyForChrome = `http://${encodeURIComponent(localAuth.username)}:${encodeURIComponent(localAuth.password)}@127.0.0.1:${addr.port}`;
         localProxy = srv;
@@ -160,10 +180,16 @@ export class CDPWeles {
     // 5. Launch chromium — pass --weles-fingerprint for custom binary
     const extraArgs: string[] = [];
     if (isCustomBinary) {
-      const cppConfig = toCppConfig(config, targetOs, { chromiumPath: options.chromiumPath });
+      const cppConfig = toCppConfig(config, targetOs, {
+        chromiumPath: options.chromiumPath,
+      });
       extraArgs.push(`--weles-fingerprint=${JSON.stringify(cppConfig)}`);
     }
-    const { process: proc, wsUrl, proxyAuth } = await launchChromium({
+    const {
+      process: proc,
+      wsUrl,
+      proxyAuth,
+    } = await launchChromium({
       headless: options.headless,
       chromiumPath: options.chromiumPath,
       userDataDir: options.userDataDir,
@@ -176,7 +202,10 @@ export class CDPWeles {
     await connection.connect(wsUrl);
 
     // 7. Create browser context
-    const { browserContextId } = await connection.send('Target.createBrowserContext', {});
+    const { browserContextId } = await connection.send(
+      'Target.createBrowserContext',
+      {},
+    );
 
     // 7. Create CDPBrowserContext
     const context = new CDPBrowserContext(connection, browserContextId, {
@@ -202,7 +231,9 @@ export class CDPWeles {
     // authenticator), NOT return a hanging Promise — Reddit's anti-bot
     // detects the never-resolving Promise as anomalous and loops
     // (39x reads vs 4x on human), creating a timing fingerprint.
-    context.addInitScript(`try{var _og=navigator.credentials.get.bind(navigator.credentials);navigator.credentials.get=function(o){if(o&&o.publicKey){var exc=new DOMException('The operation is not supported.','NotAllowedError');return Promise.reject(exc)}return _og(o)}}catch(e){}`);
+    context.addInitScript(
+      `try{var _og=navigator.credentials.get.bind(navigator.credentials);navigator.credentials.get=function(o){if(o&&o.publicKey){var exc=new DOMException('The operation is not supported.','NotAllowedError');return Promise.reject(exc)}return _og(o)}}catch(e){}`,
+    );
 
     return new CDPWeles(proc, connection, context, localProxy);
   }

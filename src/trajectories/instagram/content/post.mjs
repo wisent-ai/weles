@@ -8,7 +8,10 @@
  * The generated image prompt pulls from the character's niche so the media
  * matches the persona visually.
  */
-import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
+import {
+  getSocialAccount,
+  resolveAccountSession,
+} from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
@@ -20,78 +23,151 @@ import { writeFileSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
-import { accountCharacter, findAccount, findProduct } from '../../_shared/skarbiec/accounts.mjs';
+import {
+  accountCharacter,
+  findAccount,
+  findProduct,
+} from '../../_shared/skarbiec/accounts.mjs';
 
 const ACTION = process.env.POST_PROMOTE === '1' ? 'post_promote' : 'post';
 
-
 const acct = await getSocialAccount('instagram');
-if (!acct) { console.log('FAIL: no active instagram account'); process.exit(1); }
+if (!acct) {
+  console.log('FAIL: no active instagram account');
+  process.exit(1);
+}
 
 const vaultAccount = findAccount('instagram', acct.username);
 const character = accountCharacter(vaultAccount);
-if (!character) { console.log('FAIL: no character linked'); process.exit(1); }
+if (!character) {
+  console.log('FAIL: no character linked');
+  process.exit(1);
+}
 
 let product = null;
 if (ACTION === 'post_promote') {
   const productId = process.env.PRODUCT_ID || character.promoted_product_id;
-  if (!productId) { console.log('FAIL: no product configured for post_promote'); process.exit(1); }
+  if (!productId) {
+    console.log('FAIL: no product configured for post_promote');
+    process.exit(1);
+  }
   product = findProduct(productId);
-  if (!product) { console.log('FAIL: product not found'); process.exit(1); }
+  if (!product) {
+    console.log('FAIL: product not found');
+    process.exit(1);
+  }
 }
 
-const personaCtx = { name: character.name, bio: character.bio, personality: character.personality, niche: character.niche };
-const caption = process.env.SVC_TEXT || await generatePost({ persona: personaCtx, surface: 'instagram', product });
+const personaCtx = {
+  name: character.name,
+  bio: character.bio,
+  personality: character.personality,
+  niche: character.niche,
+};
+const caption =
+  process.env.SVC_TEXT ||
+  (await generatePost({ persona: personaCtx, surface: 'instagram', product }));
 console.log(`[instagram:${ACTION}] caption: ${caption}...`);
 
-const imagePrompt = process.env.IMAGE_PROMPT || `${character.niche ?? 'casual lifestyle'} photo, authentic amateur aesthetic, natural lighting, mobile phone camera, candid composition, no text or logos`;
-const imagePath = await generateImageFile({ prompt: imagePrompt, width: 1024, height: 1024 });
+const imagePrompt =
+  process.env.IMAGE_PROMPT ||
+  `${character.niche ?? 'casual lifestyle'} photo, authentic amateur aesthetic, natural lighting, mobile phone camera, candid composition, no text or logos`;
+const imagePath = await generateImageFile({
+  prompt: imagePrompt,
+  width: 1024,
+  height: 1024,
+});
 console.log(`[instagram:${ACTION}] image file: ${imagePath}`);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
-const s = await WSession.start({ label: `instagram_${ACTION}`, proxy: proxyUrl, persona });
+const s = await WSession.start({
+  label: `instagram_${ACTION}`,
+  proxy: proxyUrl,
+  persona,
+});
 let banSignal = null;
 try {
-  const cookies = (acct.metadata?.cookies ?? []).filter(c => (c.domain ?? '').includes('instagram.com'));
+  const cookies = (acct.metadata?.cookies ?? []).filter((c) =>
+    (c.domain ?? '').includes('instagram.com'),
+  );
   if (cookies.length) await s.ctx.addCookies(cookies).catch(() => {});
   await s.goto('https://www.instagram.com/');
   checkReachable(s, 'instagram');
   await pageSettled(s.page);
-  const loggedOut = await s.page.evaluate(() => /\/accounts\/login/.test(location.pathname));
-  if (loggedOut) throw new Error('not_logged_in: cookies stale — needs instagram_login refresh');
+  const loggedOut = await s.page.evaluate(() =>
+    /\/accounts\/login/.test(location.pathname),
+  );
+  if (loggedOut)
+    throw new Error(
+      'not_logged_in: cookies stale — needs instagram_login refresh',
+    );
 
   // Hook filechooser: the Create modal calls input[type=file].click() once
   // we click "Select from computer" — Playwright catches the dialog event
   // and we feed it the generated image path directly.
   s.page.on('filechooser', async (chooser) => {
-    try { await chooser.setFiles(imagePath); console.log(`[instagram] filechooser accepted ${imagePath}`); }
-    catch (e) { console.log(`[instagram] filechooser err: ${e.message}`); }
+    try {
+      await chooser.setFiles(imagePath);
+      console.log(`[instagram] filechooser accepted ${imagePath}`);
+    } catch (e) {
+      console.log(`[instagram] filechooser err: ${e.message}`);
+    }
   });
 
   // 1. Click "Create" in left sidebar (svg aria-label="New post").
-  const createBtn = s.page.locator('a[href="#"]:has(svg[aria-label="New post"]), div[role="button"]:has(svg[aria-label="New post"]), a:has-text("Create"):has(svg)').filter({ visible: true }).first();
+  const createBtn = s.page
+    .locator(
+      'a[href="#"]:has(svg[aria-label="New post"]), div[role="button"]:has(svg[aria-label="New post"]), a:has-text("Create"):has(svg)',
+    )
+    .filter({ visible: true })
+    .first();
   await createBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, createBtn);
   await pageSettled(s.page);
   // Some IG variants split into "Post / Reel / Story" submenu.
-  const postSubmenu = s.page.locator('a:has-text("Post"), div[role="menuitem"]:has-text("Post"), span:has-text("Post")').filter({ visible: true }).first();
+  const postSubmenu = s.page
+    .locator(
+      'a:has-text("Post"), div[role="menuitem"]:has-text("Post"), span:has-text("Post")',
+    )
+    .filter({ visible: true })
+    .first();
   if (await postSubmenu.isVisible()) {
     await humanClickLocator(s.page, postSubmenu);
     await pageSettled(s.page);
   }
   // 2. Click "Select from computer" inside the Create modal — triggers
   //    filechooser, our hook above attaches the image path.
-  const selectBtn = s.page.locator('div[role="dialog"] button:has-text("Select from computer"), [role="dialog"] button:has-text("Select from device")').filter({ visible: true }).first();
+  const selectBtn = s.page
+    .locator(
+      'div[role="dialog"] button:has-text("Select from computer"), [role="dialog"] button:has-text("Select from device")',
+    )
+    .filter({ visible: true })
+    .first();
   await selectBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, selectBtn);
   // Wait for crop/preview step — image rendered in modal.
-  await s.page.locator('div[role="dialog"] img[alt*="image" i], div[role="dialog"] canvas, div[role="dialog"] [style*="background-image"]').first().waitFor({ state: 'visible' });
+  await s.page
+    .locator(
+      'div[role="dialog"] img[alt*="image" i], div[role="dialog"] canvas, div[role="dialog"] [style*="background-image"]',
+    )
+    .first()
+    .waitFor({ state: 'visible' });
   await pageSettled(s.page);
   // 3. Next through Instagram's own steps (crop, filter) until the caption
   //    box shows: Instagram decides how many there are.
-  const captionBox = s.page.locator('div[role="dialog"] textarea[aria-label*="caption" i], div[role="dialog"] div[contenteditable="true"][aria-label*="caption" i], div[role="dialog"] textarea').filter({ visible: true }).first();
+  const captionBox = s.page
+    .locator(
+      'div[role="dialog"] textarea[aria-label*="caption" i], div[role="dialog"] div[contenteditable="true"][aria-label*="caption" i], div[role="dialog"] textarea',
+    )
+    .filter({ visible: true })
+    .first();
   while (!(await captionBox.isVisible())) {
-    const next = s.page.locator('div[role="dialog"] button:has-text("Next"), div[role="dialog"] [role="button"]:has-text("Next"), div[role="dialog"] div[role="button"]:has-text("Next")').filter({ visible: true }).first();
+    const next = s.page
+      .locator(
+        'div[role="dialog"] button:has-text("Next"), div[role="dialog"] [role="button"]:has-text("Next"), div[role="dialog"] div[role="button"]:has-text("Next")',
+      )
+      .filter({ visible: true })
+      .first();
     await next.waitFor({ state: 'visible' });
     await humanClickLocator(s.page, next);
     await pageSettled(s.page);
@@ -101,21 +177,63 @@ try {
   await humanType(s.page, caption);
   await pageSettled(s.page);
   // 6. Share.
-  const shareBtn = s.page.locator('div[role="dialog"] button:has-text("Share"), div[role="dialog"] [role="button"]:has-text("Share"), div[role="dialog"] div[role="button"]:has-text("Share")').filter({ visible: true }).first();
+  const shareBtn = s.page
+    .locator(
+      'div[role="dialog"] button:has-text("Share"), div[role="dialog"] [role="button"]:has-text("Share"), div[role="dialog"] div[role="button"]:has-text("Share")',
+    )
+    .filter({ visible: true })
+    .first();
   await shareBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, shareBtn);
   // Wait for the share to complete — modal closes and "Your post has been shared" appears or modal is gone.
-  await s.page.waitForFunction(() => /Your post has been shared/i.test(document.body.innerText)
-    || !Array.from(document.querySelectorAll('div[role="dialog"] button, div[role="dialog"] [role="button"]')).some((el) => /^\s*Share\s*$/i.test(el.textContent || '')));
+  await s.page.waitForFunction(
+    () =>
+      /Your post has been shared/i.test(document.body.innerText) ||
+      !Array.from(
+        document.querySelectorAll(
+          'div[role="dialog"] button, div[role="dialog"] [role="button"]',
+        ),
+      ).some((el) => /^\s*Share\s*$/i.test(el.textContent || '')),
+  );
   await pageSettled(s.page);
-  banSignal = await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
+  banSignal = await detectInstagramBanSignals(
+    s.page,
+    s.capturedResponses,
+  ).catch(() => null);
   console.log(`[ban-signal] ${banSignal?.signal}  PASS: posted`);
 } catch (e) {
-  banSignal = e.banSignal ?? await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
+  banSignal =
+    e.banSignal ??
+    (await detectInstagramBanSignals(s.page, s.capturedResponses).catch(
+      () => null,
+    ));
   console.log(`[ban-signal] ${banSignal?.signal}  FAIL: ${e.message}`);
   process.exitCode = 1;
 } finally {
-  if (banSignal) { try { const dir = runRecordingsDir(`instagram_${ACTION}`); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: `instagram_${ACTION}`, character: character.name, product: product?.name, ...banSignal, ts: new Date().toISOString() }, null, 2)); } catch {} }
-  try { unlinkSync(imagePath); } catch {}
+  if (banSignal) {
+    try {
+      const dir = runRecordingsDir(`instagram_${ACTION}`);
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        join(dir, 'ban_signal.json'),
+        JSON.stringify(
+          {
+            account_id: acct.id,
+            username: acct.username,
+            action: `instagram_${ACTION}`,
+            character: character.name,
+            product: product?.name,
+            ...banSignal,
+            ts: new Date().toISOString(),
+          },
+          null,
+          2,
+        ),
+      );
+    } catch {}
+  }
+  try {
+    unlinkSync(imagePath);
+  } catch {}
   await s.close();
 }

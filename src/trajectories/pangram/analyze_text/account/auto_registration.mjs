@@ -13,7 +13,14 @@ import { todayKey } from './pool_rotation.mjs';
 import { statedBudget } from '../../../_shared/inputs/stated.mjs';
 
 function autoRegisterLedgerPath() {
-  return process.env.PANGRAM_AUTO_REGISTER_LEDGER_FILE || join(process.env.HOME || process.cwd(), '.weles', 'pangram-auto-register.json');
+  return (
+    process.env.PANGRAM_AUTO_REGISTER_LEDGER_FILE ||
+    join(
+      process.env.HOME || process.cwd(),
+      '.weles',
+      'pangram-auto-register.json',
+    )
+  );
 }
 
 export function readAutoRegisterLedger() {
@@ -30,7 +37,10 @@ function writeAutoRegisterLedger(ledger) {
 }
 
 export function maxAutoRegisters() {
-  return statedBudget('PANGRAM_MAX_AUTO_REGISTERS', 'how many Pangram accounts auto-registration may create in a day');
+  return statedBudget(
+    'PANGRAM_MAX_AUTO_REGISTERS',
+    'how many Pangram accounts auto-registration may create in a day',
+  );
 }
 
 export function autoRegisterCountToday(ledger) {
@@ -42,10 +52,15 @@ async function runPangramRegisterChild(reason, mode) {
   const limit = maxAutoRegisters();
   const todayCount = autoRegisterCountToday(ledger);
   if (todayCount >= limit) {
-    return { success: false, reason: `daily_auto_register_limit ${todayCount}/${limit}` };
+    return {
+      success: false,
+      reason: `daily_auto_register_limit ${todayCount}/${limit}`,
+    };
   }
 
-  const script = process.env.PANGRAM_REGISTER_SCRIPT || join(process.cwd(), 'src/trajectories/pangram/register.mjs');
+  const script =
+    process.env.PANGRAM_REGISTER_SCRIPT ||
+    join(process.cwd(), 'src/trajectories/pangram/register.mjs');
   if (!existsSync(script)) {
     return { success: false, reason: `register_script_not_found:${script}` };
   }
@@ -53,7 +68,8 @@ async function runPangramRegisterChild(reason, mode) {
   const childEnv = {
     ...process.env,
     PANGRAM_AUTO_REGISTER_RUN: '1',
-    WELES_RUN_ID: process.env.WELES_RUN_ID || `pangram-auto-register-${Date.now()}`,
+    WELES_RUN_ID:
+      process.env.WELES_RUN_ID || `pangram-auto-register-${Date.now()}`,
     ACTION: `pangram_auto_register_${mode}_${Date.now()}`,
   };
 
@@ -64,10 +80,15 @@ async function runPangramRegisterChild(reason, mode) {
     });
     let stdout = '';
     let stderr = '';
-    child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
-    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
     child.on('close', (code) => {
-      const success = code === 0 && /PASS:\s*pangram account ready/i.test(stdout);
+      const success =
+        code === 0 && /PASS:\s*pangram account ready/i.test(stdout);
       ledger[todayKey()] = ledger[todayKey()] || { count: 0, runs: [] };
       ledger[todayKey()].count += 1;
       ledger[todayKey()].runs.push({
@@ -80,7 +101,13 @@ async function runPangramRegisterChild(reason, mode) {
         stderrTail: stderr.slice(-1000),
       });
       writeAutoRegisterLedger(ledger);
-      resolve({ success, reason: success ? 'registered' : `register_failed:${code}`, stdout, stderr, ledgerDay: ledger[todayKey()] });
+      resolve({
+        success,
+        reason: success ? 'registered' : `register_failed:${code}`,
+        stdout,
+        stderr,
+        ledgerDay: ledger[todayKey()],
+      });
     });
   });
 }

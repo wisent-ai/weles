@@ -1,5 +1,10 @@
 import { createHash, createHmac } from 'node:crypto';
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import {
+  createServer,
+  type IncomingMessage,
+  type Server,
+  type ServerResponse,
+} from 'node:http';
 import type { ArtifactDeliveryConfig } from './delivery-config.js';
 import {
   RequestFailure,
@@ -13,7 +18,10 @@ import {
 } from './delivery-http.js';
 import declaredKinds from './artifact-kinds.json';
 
-export { loadArtifactDeliveryConfig, type ArtifactDeliveryConfig } from './delivery-config.js';
+export {
+  loadArtifactDeliveryConfig,
+  type ArtifactDeliveryConfig,
+} from './delivery-config.js';
 
 const SIGN_PATH = '/v1/artifacts/sign';
 const OBJECT_PATH = '/v1/artifacts/object';
@@ -40,47 +48,89 @@ export type SignedArtifactResponse = {
 
 function canonicalWelesArtifactUri(value: unknown): string {
   if (typeof value !== 'string' || value !== value.trim()) {
-    throw new RequestFailure(400, 'artifact locator must be a canonical string');
+    throw new RequestFailure(
+      400,
+      'artifact locator must be a canonical string',
+    );
   }
   if (!value.startsWith(WELES_ARTIFACT_PREFIX)) {
-    throw new RequestFailure(400, 'artifact locator must use the private Weles recordings namespace');
+    throw new RequestFailure(
+      400,
+      'artifact locator must use the private Weles recordings namespace',
+    );
   }
-  if (value.includes('\\') || value.includes('\0') || value.includes('?') || value.includes('#')) {
-    throw new RequestFailure(400, 'artifact locator contains a forbidden character');
+  if (
+    value.includes('\\') ||
+    value.includes('\0') ||
+    value.includes('?') ||
+    value.includes('#')
+  ) {
+    throw new RequestFailure(
+      400,
+      'artifact locator contains a forbidden character',
+    );
   }
   for (const character of value) {
     if (character.charCodeAt(0) < 32) {
-      throw new RequestFailure(400, 'artifact locator contains a control character');
+      throw new RequestFailure(
+        400,
+        'artifact locator contains a control character',
+      );
     }
   }
 
   const relative = value.slice(WELES_ARTIFACT_PREFIX.length);
   const parts = relative.split('/');
-  if (parts.length < 2 || parts.some((part) => !part || part === '.' || part === '..')) {
+  if (
+    parts.length < 2 ||
+    parts.some((part) => !part || part === '.' || part === '..')
+  ) {
     throw new RequestFailure(400, 'artifact locator has an invalid path');
   }
   const runId = parts.at(0) ?? '';
   const runParts = runId.split('-');
   const expectedRunPartLengths = ['8', '4', '4', '4', '12'].map(Number);
-  if (runId !== runId.toLowerCase()
-    || runParts.length !== expectedRunPartLengths.length
-    || runParts.some((part, index) => part.length !== expectedRunPartLengths.at(index) || !/^[a-f\d]+$/.test(part))) {
-    throw new RequestFailure(400, 'artifact locator must contain a canonical run UUID');
+  if (
+    runId !== runId.toLowerCase() ||
+    runParts.length !== expectedRunPartLengths.length ||
+    runParts.some(
+      (part, index) =>
+        part.length !== expectedRunPartLengths.at(index) ||
+        !/^[a-f\d]+$/.test(part),
+    )
+  ) {
+    throw new RequestFailure(
+      400,
+      'artifact locator must contain a canonical run UUID',
+    );
   }
   return value;
 }
 
 export function normalizeArtifactLocators(value: unknown): ArtifactLocatorSet {
-  if (!isRecord(value)) throw new RequestFailure(400, 'artifacts must be an object');
+  if (!isRecord(value))
+    throw new RequestFailure(400, 'artifacts must be an object');
   const keys = Object.keys(value);
-  if (keys.length !== ARTIFACT_KINDS.length || keys.some((key) => !ARTIFACT_KINDS.includes(key as ArtifactKind))) {
-    throw new RequestFailure(400, `artifacts must contain exactly ${ARTIFACT_KINDS.join(', ')}`);
+  if (
+    keys.length !== ARTIFACT_KINDS.length ||
+    keys.some((key) => !ARTIFACT_KINDS.includes(key as ArtifactKind))
+  ) {
+    throw new RequestFailure(
+      400,
+      `artifacts must contain exactly ${ARTIFACT_KINDS.join(', ')}`,
+    );
   }
 
-  const normalized = { screenshots: [], videos: [], dom: [], logs: [] } as ArtifactLocatorSet;
+  const normalized = {
+    screenshots: [],
+    videos: [],
+    dom: [],
+    logs: [],
+  } as ArtifactLocatorSet;
   for (const kind of ARTIFACT_KINDS) {
     const entries = value[kind];
-    if (!Array.isArray(entries)) throw new RequestFailure(400, `artifacts.${kind} must be an array`);
+    if (!Array.isArray(entries))
+      throw new RequestFailure(400, `artifacts.${kind} must be an array`);
     normalized[kind] = entries.map(canonicalWelesArtifactUri);
   }
   return normalized;
@@ -90,16 +140,28 @@ function signaturePayload(uri: string, expires: string): string {
   return `GET\n${OBJECT_PATH}\n${uri}\n${expires}`;
 }
 
-function artifactSignature(uri: string, expires: string, secret: string): string {
-  return createHmac('sha256', secret).update(signaturePayload(uri, expires)).digest('hex');
+function artifactSignature(
+  uri: string,
+  expires: string,
+  secret: string,
+): string {
+  return createHmac('sha256', secret)
+    .update(signaturePayload(uri, expires))
+    .digest('hex');
 }
 
-
-function signedObjectUrl(uri: string, expires: string, config: ArtifactDeliveryConfig): string {
+function signedObjectUrl(
+  uri: string,
+  expires: string,
+  config: ArtifactDeliveryConfig,
+): string {
   const url = new URL(OBJECT_PATH, config.publicBaseUrl);
   url.searchParams.set('uri', uri);
   url.searchParams.set('expires', expires);
-  url.searchParams.set('signature', artifactSignature(uri, expires, config.signingSecret));
+  url.searchParams.set(
+    'signature',
+    artifactSignature(uri, expires, config.signingSecret),
+  );
   return url.toString();
 }
 
@@ -111,9 +173,16 @@ export function signArtifactLocators(
   const artifacts = normalizeArtifactLocators(value);
   const nowSeconds = Math.floor(nowMilliseconds / MILLIS_PER_SECOND);
   const expires = String(nowSeconds + config.ttlSeconds);
-  const signed = { screenshots: [], videos: [], dom: [], logs: [] } as ArtifactLocatorSet;
+  const signed = {
+    screenshots: [],
+    videos: [],
+    dom: [],
+    logs: [],
+  } as ArtifactLocatorSet;
   for (const kind of ARTIFACT_KINDS) {
-    signed[kind] = artifacts[kind].map((uri) => signedObjectUrl(uri, expires, config));
+    signed[kind] = artifacts[kind].map((uri) =>
+      signedObjectUrl(uri, expires, config),
+    );
   }
   return {
     artifacts: signed,
@@ -121,23 +190,38 @@ export function signArtifactLocators(
   };
 }
 
-function verifiedObjectUri(url: URL, config: ArtifactDeliveryConfig, nowMilliseconds: number): string {
+function verifiedObjectUri(
+  url: URL,
+  config: ArtifactDeliveryConfig,
+  nowMilliseconds: number,
+): string {
   const keys = [...url.searchParams.keys()];
-  if (keys.length !== 3
-    || !['uri', 'expires', 'signature'].every((key) => url.searchParams.getAll(key).length === 1)) {
+  if (
+    keys.length !== 3 ||
+    !['uri', 'expires', 'signature'].every(
+      (key) => url.searchParams.getAll(key).length === 1,
+    )
+  ) {
     throw new RequestFailure(403, 'invalid artifact signature');
   }
   const uri = canonicalWelesArtifactUri(url.searchParams.get('uri'));
   const expires = url.searchParams.get('expires') ?? '';
   const signature = url.searchParams.get('signature') ?? '';
-  if (!/^\d+$/.test(expires) || !/^[a-f\d]+$/.test(signature) || signature.length !== HMAC_HEX_LENGTH) {
+  if (
+    !/^\d+$/.test(expires) ||
+    !/^[a-f\d]+$/.test(signature) ||
+    signature.length !== HMAC_HEX_LENGTH
+  ) {
     throw new RequestFailure(403, 'invalid artifact signature');
   }
   const nowSeconds = Math.floor(nowMilliseconds / MILLIS_PER_SECOND);
   const expirySeconds = Number(expires);
-  if (!Number.isSafeInteger(expirySeconds) || String(expirySeconds) !== expires
-    || expirySeconds <= nowSeconds
-    || expirySeconds - nowSeconds > config.ttlSeconds) {
+  if (
+    !Number.isSafeInteger(expirySeconds) ||
+    String(expirySeconds) !== expires ||
+    expirySeconds <= nowSeconds ||
+    expirySeconds - nowSeconds > config.ttlSeconds
+  ) {
     throw new RequestFailure(403, 'artifact URL expired');
   }
   const expected = artifactSignature(uri, expires, config.signingSecret);
@@ -147,7 +231,6 @@ function verifiedObjectUri(url: URL, config: ArtifactDeliveryConfig, nowMillisec
   return uri;
 }
 
-
 export async function handleArtifactDeliveryRequest(
   request: IncomingMessage,
   response: ServerResponse,
@@ -155,7 +238,11 @@ export async function handleArtifactDeliveryRequest(
 ): Promise<void> {
   try {
     const url = new URL(request.url ?? '/', 'http://weles.internal');
-    if (request.method === 'GET' && url.pathname === SUBSCRIPTIONS_PATH && !url.search) {
+    if (
+      request.method === 'GET' &&
+      url.pathname === SUBSCRIPTIONS_PATH &&
+      !url.search
+    ) {
       if (!bearerAuthorized(request, config.subscriptionsToken)) {
         response.setHeader('WWW-Authenticate', 'Bearer');
         throw new RequestFailure(401, 'unauthorized');
@@ -170,11 +257,20 @@ export async function handleArtifactDeliveryRequest(
         response.setHeader('WWW-Authenticate', 'Bearer');
         throw new RequestFailure(401, 'unauthorized');
       }
-      if (String(request.headers['content-type'] ?? '').split(';').at(0)?.trim() !== 'application/json') {
+      if (
+        String(request.headers['content-type'] ?? '')
+          .split(';')
+          .at(0)
+          ?.trim() !== 'application/json'
+      ) {
         throw new RequestFailure(415, 'content type must be application/json');
       }
       const body = await requestJson(request);
-      if (!isRecord(body) || Object.keys(body).length !== 1 || !Object.hasOwn(body, 'artifacts')) {
+      if (
+        !isRecord(body) ||
+        Object.keys(body).length !== 1 ||
+        !Object.hasOwn(body, 'artifacts')
+      ) {
         throw new RequestFailure(400, 'request must contain exactly artifacts');
       }
       jsonResponse(response, 200, signArtifactLocators(body.artifacts, config));
@@ -192,12 +288,15 @@ export async function handleArtifactDeliveryRequest(
       return;
     }
     const status = error instanceof RequestFailure ? error.status : 500;
-    const message = error instanceof RequestFailure ? error.message : 'internal server error';
+    const message =
+      error instanceof RequestFailure ? error.message : 'internal server error';
     jsonResponse(response, status, { error: message });
   }
 }
 
-export function createArtifactDeliveryServer(config: ArtifactDeliveryConfig): Server {
+export function createArtifactDeliveryServer(
+  config: ArtifactDeliveryConfig,
+): Server {
   return createServer((request, response) => {
     void handleArtifactDeliveryRequest(request, response, config);
   });

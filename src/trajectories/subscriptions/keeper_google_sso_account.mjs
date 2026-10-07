@@ -13,7 +13,8 @@ function parseArgs() {
   for (let i = 2; i < process.argv.length; i += 1) {
     const arg = process.argv[i];
     if (arg === '--session') out.session = process.argv[++i] || '';
-    else if (arg === '--credential-id') out.credentialId = process.argv[++i] || '';
+    else if (arg === '--credential-id')
+      out.credentialId = process.argv[++i] || '';
     else if (arg === '--target-url') out.targetUrl = process.argv[++i] || '';
     else throw new Error(`unknown arg: ${arg}`);
   }
@@ -24,12 +25,16 @@ function parseArgs() {
 
 async function action(session, cmd) {
   const answer = await keeperRequest(keeperSocket(session), cmd);
-  if (!answer.ok) throw new Error(answer.error || `keeper action failed: ${cmd.action}`);
+  if (!answer.ok)
+    throw new Error(answer.error || `keeper action failed: ${cmd.action}`);
   return answer;
 }
 
 async function text(session) {
-  const res = await action(session, { action: 'eval', js: 'document.body.innerText.slice(0,5000)' });
+  const res = await action(session, {
+    action: 'eval',
+    js: 'document.body.innerText.slice(0,5000)',
+  });
   return String(res.result || '');
 }
 
@@ -62,19 +67,26 @@ async function main() {
   const args = parseArgs();
   const credential = await getCredential(args.credentialId);
   if (!credential?.login_email || !credential?.login_password) {
-    throw new Error(`credential ${args.credentialId} missing login_email/login_password`);
+    throw new Error(
+      `credential ${args.credentialId} missing login_email/login_password`,
+    );
   }
 
   const steps = [];
   const mark = async (name) => {
-    steps.push({ name, url: await url(args.session), text: (await text(args.session)) });
+    steps.push({
+      name,
+      url: await url(args.session),
+      text: await text(args.session),
+    });
   };
 
   await mark('start');
   if ((await text(args.session)).includes('Email or phone')) {
     await action(args.session, {
       action: 'fill',
-      selector: 'input[type="email"], input[name="identifier"], input#identifierId',
+      selector:
+        'input[type="email"], input[name="identifier"], input#identifierId',
       text: credential.login_email,
     });
     await clickText(args.session, 'Next');
@@ -84,13 +96,26 @@ async function main() {
 
   const afterEmailText = await text(args.session);
   if (/recaptcha|unusual traffic|verify it'?s you/i.test(afterEmailText)) {
-    console.log(JSON.stringify({ ok: false, blocked: 'google_challenge_after_email', steps }, null, 2));
+    console.log(
+      JSON.stringify(
+        { ok: false, blocked: 'google_challenge_after_email', steps },
+        null,
+        2,
+      ),
+    );
     process.exit(2);
   }
 
-  if (!/password/i.test(afterEmailText) && /Try another way|Enter your password|Use your password/i.test(afterEmailText)) {
-    if (/Enter your password/i.test(afterEmailText)) await clickText(args.session, 'Enter your password');
-    else if (/Use your password/i.test(afterEmailText)) await clickText(args.session, 'Use your password');
+  if (
+    !/password/i.test(afterEmailText) &&
+    /Try another way|Enter your password|Use your password/i.test(
+      afterEmailText,
+    )
+  ) {
+    if (/Enter your password/i.test(afterEmailText))
+      await clickText(args.session, 'Enter your password');
+    else if (/Use your password/i.test(afterEmailText))
+      await clickText(args.session, 'Use your password');
     else await clickText(args.session, 'Try another way');
     await action(args.session, { action: 'humanidle', kind: 'deliberate' });
     await mark('password_option_clicked');
@@ -113,14 +138,29 @@ async function main() {
   for (;;) {
     const current = await url(args.session);
     if (!current.includes('accounts.google.com')) break;
-    if (/(Continue|Allow|Dalej|Kontynuuj|Zezwól|Zgadzam)/i.test(await text(args.session))) break;
+    if (
+      /(Continue|Allow|Dalej|Kontynuuj|Zezwól|Zgadzam)/i.test(
+        await text(args.session),
+      )
+    )
+      break;
     await action(args.session, { action: 'humanidle', kind: 'short' });
   }
 
   const currentText = await text(args.session);
-  if (/(Continue|Allow|Dalej|Kontynuuj|Zezwól|Zgadzam)/i.test(currentText) && (await url(args.session)).includes('accounts.google.com')) {
+  if (
+    /(Continue|Allow|Dalej|Kontynuuj|Zezwól|Zgadzam)/i.test(currentText) &&
+    (await url(args.session)).includes('accounts.google.com')
+  ) {
     try {
-      const clicked = await clickFirstText(args.session, ['Continue', 'Allow', 'Dalej', 'Kontynuuj', 'Zezwól', 'Zgadzam']);
+      const clicked = await clickFirstText(args.session, [
+        'Continue',
+        'Allow',
+        'Dalej',
+        'Kontynuuj',
+        'Zezwól',
+        'Zgadzam',
+      ]);
       await action(args.session, { action: 'humanidle', kind: 'deliberate' });
       await mark(`google_consent_${clicked}`);
     } catch {}
@@ -132,12 +172,18 @@ async function main() {
     await mark('target_loaded');
   }
 
-  console.log(JSON.stringify({
-    ok: true,
-    finalUrl: await url(args.session),
-    finalText: (await text(args.session)),
-    steps,
-  }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        finalUrl: await url(args.session),
+        finalText: await text(args.session),
+        steps,
+      },
+      null,
+      2,
+    ),
+  );
 }
 
 main().catch((error) => {

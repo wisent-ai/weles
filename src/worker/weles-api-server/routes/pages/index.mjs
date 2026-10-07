@@ -16,8 +16,16 @@
 // the host reports; a request beyond that is refused with 429 and the count,
 // never queued behind a browser it cannot see.
 
-import { json, readBody, requireTokenAuthorization } from '../../http-exchange.mjs';
-import { capturePageExport, capturePageSnapshot, PageLoadFailed } from './capture.mjs';
+import {
+  json,
+  readBody,
+  requireTokenAuthorization,
+} from '../../http-exchange.mjs';
+import {
+  capturePageExport,
+  capturePageSnapshot,
+  PageLoadFailed,
+} from './capture.mjs';
 import {
   CONCURRENT_PAGES,
   HTTP_BUSY,
@@ -27,19 +35,37 @@ import {
   HTTP_UPSTREAM_FAILED,
 } from './constants.mjs';
 import { PageTargetRefused } from './network.mjs';
-import { formExportRequest, PageRequestRefused, snapshotRequest } from './request.mjs';
+import {
+  formExportRequest,
+  PageRequestRefused,
+  snapshotRequest,
+} from './request.mjs';
 
 const ROUTES = {
   '/pages/snapshot': { parse: snapshotRequest, capture: capturePageSnapshot },
-  '/pages/form-export': { parse: formExportRequest, capture: capturePageExport },
+  '/pages/form-export': {
+    parse: formExportRequest,
+    capture: capturePageExport,
+  },
 };
 
 const REFUSALS = [
-  { type: PageRequestRefused, status: HTTP_INVALID_REQUEST, code: 'invalid_request' },
-  { type: PageTargetRefused, status: HTTP_TARGET_REFUSED, code: 'target_refused' },
+  {
+    type: PageRequestRefused,
+    status: HTTP_INVALID_REQUEST,
+    code: 'invalid_request',
+  },
+  {
+    type: PageTargetRefused,
+    status: HTTP_TARGET_REFUSED,
+    code: 'target_refused',
+  },
   { type: PageLoadFailed, status: HTTP_UPSTREAM_FAILED, code: 'page_failed' },
 ];
-const BROWSER_FAILURE = { status: HTTP_UPSTREAM_FAILED, code: 'browser_failed' };
+const BROWSER_FAILURE = {
+  status: HTTP_UPSTREAM_FAILED,
+  code: 'browser_failed',
+};
 const SERVED = { status: HTTP_OK, code: 'ok' };
 
 let openPages = 0;
@@ -57,7 +83,8 @@ function targetHost(body) {
 }
 
 function refusalOf(error) {
-  const { status, code } = REFUSALS.find(({ type }) => error instanceof type) || BROWSER_FAILURE;
+  const { status, code } =
+    REFUSALS.find(({ type }) => error instanceof type) || BROWSER_FAILURE;
   return { status, code, message: String(error?.message || error) };
 }
 
@@ -92,14 +119,16 @@ export async function respondToPage(req, res, url, browser) {
     });
   } finally {
     openPages -= 1;
-    console.log(JSON.stringify({
-      event: 'page_route',
-      route: url.pathname,
-      host: targetHost(body),
-      status: outcome.status,
-      code: outcome.code,
-      ...(outcome.message ? { error: outcome.message } : {}),
-      elapsed_ms: Date.now() - started,
-    }));
+    console.log(
+      JSON.stringify({
+        event: 'page_route',
+        route: url.pathname,
+        host: targetHost(body),
+        status: outcome.status,
+        code: outcome.code,
+        ...(outcome.message ? { error: outcome.message } : {}),
+        elapsed_ms: Date.now() - started,
+      }),
+    );
   }
 }

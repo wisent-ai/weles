@@ -16,14 +16,22 @@ function baseUrl(raw, defaultUrl) {
 
 export function dashboardUrl() {
   if (process.env.PANGRAM_ANALYZE_URL) return process.env.PANGRAM_ANALYZE_URL;
-  const base = baseUrl(process.env.PANGRAM_BASE_URL || process.env.PANGRAM_URL, 'https://www.pangram.com');
+  const base = baseUrl(
+    process.env.PANGRAM_BASE_URL || process.env.PANGRAM_URL,
+    'https://www.pangram.com',
+  );
   return `${base}/`;
 }
 
 export function inputText() {
-  const direct = process.env.PANGRAM_TEXT || process.env.SVC_TEXT || process.env.TEXT || '';
+  const direct =
+    process.env.PANGRAM_TEXT || process.env.SVC_TEXT || process.env.TEXT || '';
   if (direct.trim()) return direct;
-  const path = process.env.PANGRAM_TEXT_FILE || process.env.TEXT_FILE || process.env.MESSAGE_FILE || '';
+  const path =
+    process.env.PANGRAM_TEXT_FILE ||
+    process.env.TEXT_FILE ||
+    process.env.MESSAGE_FILE ||
+    '';
   if (path && existsSync(path)) return readFileSync(path, 'utf8');
   return '';
 }

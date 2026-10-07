@@ -12,7 +12,9 @@
 function required(name) {
   const value = (process.env[name] ?? '').trim();
   if (!value) {
-    throw new Error(`${name} is required: an observation trajectory runs only from a declared observation`);
+    throw new Error(
+      `${name} is required: an observation trajectory runs only from a declared observation`,
+    );
   }
   return value;
 }
@@ -22,11 +24,21 @@ export function declaredObservation() {
   const [platform, verb] = observation.split('.');
   const scrolls = Number.parseInt(required('GENERIC_OBSERVATION_SCROLLS'), 10);
   if (!Number.isInteger(scrolls) || scrolls < 0) {
-    throw new Error(`GENERIC_OBSERVATION_SCROLLS must be a whole scroll budget, not ${process.env.GENERIC_OBSERVATION_SCROLLS}`);
+    throw new Error(
+      `GENERIC_OBSERVATION_SCROLLS must be a whole scroll budget, not ${process.env.GENERIC_OBSERVATION_SCROLLS}`,
+    );
   }
-  const dwellMs = required('GENERIC_OBSERVATION_DWELL_MS').split(',').map((part) => Number.parseInt(part, 10));
-  if (dwellMs.length !== 2 || dwellMs.some((ms) => !Number.isInteger(ms) || ms <= 0) || dwellMs[1] < dwellMs[0]) {
-    throw new Error(`GENERIC_OBSERVATION_DWELL_MS must be an ascending millisecond range, not ${process.env.GENERIC_OBSERVATION_DWELL_MS}`);
+  const dwellMs = required('GENERIC_OBSERVATION_DWELL_MS')
+    .split(',')
+    .map((part) => Number.parseInt(part, 10));
+  if (
+    dwellMs.length !== 2 ||
+    dwellMs.some((ms) => !Number.isInteger(ms) || ms <= 0) ||
+    dwellMs[1] < dwellMs[0]
+  ) {
+    throw new Error(
+      `GENERIC_OBSERVATION_DWELL_MS must be an ascending millisecond range, not ${process.env.GENERIC_OBSERVATION_DWELL_MS}`,
+    );
   }
   return {
     observation,

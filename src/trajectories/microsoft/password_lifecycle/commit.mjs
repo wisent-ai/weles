@@ -25,8 +25,12 @@ export function writePasswordSecret(contract, password, operation) {
 
 /** Point the account at its Skarbiec credential and drop any password it still carried. */
 export function updateAccountReference(account, credentialId, tenantId) {
-  if (!account.id) throw new Error('Microsoft account has no stable Skarbiec id');
-  const metadata = { ...(account.metadata ?? {}), skarbiec_credential_id: credentialId };
+  if (!account.id)
+    throw new Error('Microsoft account has no stable Skarbiec id');
+  const metadata = {
+    ...(account.metadata ?? {}),
+    skarbiec_credential_id: credentialId,
+  };
   delete metadata.password;
   if (tenantId) metadata.skarbiec_tenant_id = tenantId;
   else delete metadata.skarbiec_tenant_id;
@@ -42,22 +46,40 @@ export function updateAccountReference(account, credentialId, tenantId) {
  * two sides agree; if it can, Skarbiec is restored to the previous password
  * too. Every outcome other than agreement throws with the cause attached.
  */
-export async function commitRotatedPassword({ contract, account, nextPassword, currentPassword, session }) {
+export async function commitRotatedPassword({
+  contract,
+  account,
+  nextPassword,
+  currentPassword,
+  session,
+}) {
   try {
     writePasswordSecret(contract, nextPassword, contract.operation);
     updateAccountReference(account, contract.credentialId, contract.tenantId);
     return;
   } catch (error) {
-    const providerRolledBack = await rollbackPassword(session, contract.accountEmail, nextPassword, currentPassword);
+    const providerRolledBack = await rollbackPassword(
+      session,
+      contract.accountEmail,
+      nextPassword,
+      currentPassword,
+    );
     if (!providerRolledBack) {
       try {
         writePasswordSecret(contract, nextPassword, contract.operation);
-        updateAccountReference(account, contract.credentialId, contract.tenantId);
+        updateAccountReference(
+          account,
+          contract.credentialId,
+          contract.tenantId,
+        );
         return;
       } catch (forwardError) {
-        throw new Error('credential commit and Microsoft rollback both failed; automatic consistency recovery failed', {
-          cause: forwardError,
-        });
+        throw new Error(
+          'credential commit and Microsoft rollback both failed; automatic consistency recovery failed',
+          {
+            cause: forwardError,
+          },
+        );
       }
     }
     let skarbiecRolledBack = false;
@@ -65,15 +87,23 @@ export async function commitRotatedPassword({ contract, account, nextPassword, c
       writePasswordSecret(contract, currentPassword, 'rollback');
       skarbiecRolledBack = true;
     } catch (rollbackError) {
-      console.log(`[microsoft] Skarbiec rollback failed: ${String(rollbackError?.message ?? rollbackError)}`);
+      console.log(
+        `[microsoft] Skarbiec rollback failed: ${String(rollbackError?.message ?? rollbackError)}`,
+      );
     }
     if (!skarbiecRolledBack) {
-      throw new Error('credential commit failed and compensating rollback did not restore both Microsoft and Skarbiec', {
-        cause: error,
-      });
+      throw new Error(
+        'credential commit failed and compensating rollback did not restore both Microsoft and Skarbiec',
+        {
+          cause: error,
+        },
+      );
     }
-    throw new Error('credential commit failed; Microsoft and Skarbiec were restored to the previous password', {
-      cause: error,
-    });
+    throw new Error(
+      'credential commit failed; Microsoft and Skarbiec were restored to the previous password',
+      {
+        cause: error,
+      },
+    );
   }
 }

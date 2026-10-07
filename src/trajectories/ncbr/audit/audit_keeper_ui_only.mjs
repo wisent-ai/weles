@@ -8,7 +8,9 @@ const SESSION = process.env.SESSION || 'ncbr-step-b';
 const PROJECT_ID = (await import('#ncbr-settings')).projectId();
 const PROJECT_URL = `https://lsi2.ncbr.gov.pl/projekt/${PROJECT_ID}`;
 const BASE = `${PROJECT_URL}/projekt_step/`;
-const OUT_DIR = process.env.OUT_DIR || (await import('#ncbr-settings')).applicationFile('audit_keeper_ui_only');
+const OUT_DIR =
+  process.env.OUT_DIR ||
+  (await import('#ncbr-settings')).applicationFile('audit_keeper_ui_only');
 const EMAIL = process.env.NCBR_EMAIL || '';
 const PASSWORD = process.env.NCBR_PASSWORD || '';
 delete process.env.NCBR_PASSWORD;
@@ -80,22 +82,42 @@ async function loginIfNeeded() {
     hasPassword: Boolean(document.querySelector('#password, input[name="password"]')),
     body: document.body.innerText,
   }))()`);
-  if (!state.hasMail || !state.hasPassword) return { status: 'already_authenticated_or_project_page', state };
+  if (!state.hasMail || !state.hasPassword)
+    return { status: 'already_authenticated_or_project_page', state };
   if (!EMAIL || !PASSWORD) return { status: 'needs_credentials', state };
-  await send({ action: 'fill', selector: '#mail, input[name="mail"]', text: EMAIL });
-  await send({ action: 'fill', selector: '#password, input[name="password"]', text: PASSWORD });
+  await send({
+    action: 'fill',
+    selector: '#mail, input[name="mail"]',
+    text: EMAIL,
+  });
+  await send({
+    action: 'fill',
+    selector: '#password, input[name="password"]',
+    text: PASSWORD,
+  });
   const check = await read(`(() => {
     const el = document.querySelector('#isStatuteAccepted, input[name="isStatuteAccepted"]');
     return el ? { present: true, checked: el.checked } : { present: false };
   })()`);
   if (check.present && !check.checked) {
-    await send({ action: 'click', selector: '#isStatuteAccepted, input[name="isStatuteAccepted"]' });
+    await send({
+      action: 'click',
+      selector: '#isStatuteAccepted, input[name="isStatuteAccepted"]',
+    });
   }
-  await send({ action: 'click', selector: '#login-btn, button:has-text("Zaloguj")' });
+  await send({
+    action: 'click',
+    selector: '#login-btn, button:has-text("Zaloguj")',
+  });
   await send({ action: 'humanidle', kind: 'long' }).catch(() => null);
   await send({ action: 'humanidle', kind: 'long' }).catch(() => null);
-  const after = await read(`(() => ({ url: location.href, body: document.body.innerText }))()`);
-  return { status: after.url.includes('/logowanie') ? 'still_login_page' : 'logged_in', after };
+  const after = await read(
+    `(() => ({ url: location.href, body: document.body.innerText }))()`,
+  );
+  return {
+    status: after.url.includes('/logowanie') ? 'still_login_page' : 'logged_in',
+    after,
+  };
 }
 
 async function discoverSections() {
@@ -166,12 +188,19 @@ async function validateOnly() {
   await nav(PROJECT_URL);
   let clicked = false;
   try {
-    await send({ action: 'click', selector: 'button:has-text("Sprawdź wniosek")' });
+    await send({
+      action: 'click',
+      selector: 'button:has-text("Sprawdź wniosek")',
+    });
     clicked = true;
     await send({ action: 'humanidle', kind: 'long' }).catch(() => null);
     await send({ action: 'humanidle', kind: 'long' }).catch(() => null);
   } catch (e) {
-    return { clicked, error: String(e?.message || e), screenshot: await screenshot('validation_failed') };
+    return {
+      clicked,
+      error: String(e?.message || e),
+      screenshot: await screenshot('validation_failed'),
+    };
   }
   const state = await read(`(() => {
     const body = document.body.innerText || '';
@@ -195,13 +224,22 @@ const out = {
 
 try {
   out.login = await loginIfNeeded();
-  if (out.login.status === 'needs_credentials' || out.login.status === 'still_login_page') {
+  if (
+    out.login.status === 'needs_credentials' ||
+    out.login.status === 'still_login_page'
+  ) {
     throw new Error(`login not ready: ${out.login.status}`);
   }
   let sections = await discoverSections();
   if (process.env.SECTION_FILTER) {
-    const wanted = new Set(process.env.SECTION_FILTER.split(',').map((s) => s.trim()).filter(Boolean));
-    sections = sections.filter(([label]) => wanted.has(String(label).split(/\s+/)[0]));
+    const wanted = new Set(
+      process.env.SECTION_FILTER.split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+    );
+    sections = sections.filter(([label]) =>
+      wanted.has(String(label).split(/\s+/)[0]),
+    );
   }
   out.discoveredSections = sections;
   const partial = join(OUT_DIR, 'partial.json');
@@ -209,39 +247,52 @@ try {
     const state = await dumpSection(label, id);
     out.sections.push(state);
     writeFileSync(partial, JSON.stringify(out, null, 2));
-    console.log(JSON.stringify({
-      progress: label,
-      fields: state.fields.length,
-      tables: state.tables.map((t) => t.rows),
-      overLimit: state.overLimitFields.length,
-      markdownHits: state.markdownLikeFields.length,
-      suspiciousEndings: state.suspiciousEndings.length,
-      shot: state.screenshot.path,
-    }));
+    console.log(
+      JSON.stringify({
+        progress: label,
+        fields: state.fields.length,
+        tables: state.tables.map((t) => t.rows),
+        overLimit: state.overLimitFields.length,
+        markdownHits: state.markdownLikeFields.length,
+        suspiciousEndings: state.suspiciousEndings.length,
+        shot: state.screenshot.path,
+      }),
+    );
   }
-  out.validation = process.env.SKIP_VALIDATION === '1' ? { skipped: true } : await validateOnly();
+  out.validation =
+    process.env.SKIP_VALIDATION === '1'
+      ? { skipped: true }
+      : await validateOnly();
   out.finishedAt = new Date().toISOString();
   const fp = join(OUT_DIR, 'audit.json');
   writeFileSync(fp, JSON.stringify(out, null, 2));
-  console.log(JSON.stringify({
-    ok: true,
-    out: fp,
-    sectionCount: out.sections.length,
-    sections: out.sections.map((s) => ({
-      label: s.label,
-      fields: s.fields.length,
-      tables: s.tables.map((t) => t.rows),
-      overLimit: s.overLimitFields.length,
-      markdownHits: s.markdownLikeFields.length,
-      suspiciousEndings: s.suspiciousEndings.length,
-      shot: s.screenshot.path,
-    })),
-    validation: out.validation,
-  }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        out: fp,
+        sectionCount: out.sections.length,
+        sections: out.sections.map((s) => ({
+          label: s.label,
+          fields: s.fields.length,
+          tables: s.tables.map((t) => t.rows),
+          overLimit: s.overLimitFields.length,
+          markdownHits: s.markdownLikeFields.length,
+          suspiciousEndings: s.suspiciousEndings.length,
+          shot: s.screenshot.path,
+        })),
+        validation: out.validation,
+      },
+      null,
+      2,
+    ),
+  );
 } catch (e) {
   out.error = String(e?.message || e);
   const fp = join(OUT_DIR, 'audit_failed.json');
   writeFileSync(fp, JSON.stringify(out, null, 2));
-  console.log(JSON.stringify({ ok: false, out: fp, error: out.error }, null, 2));
+  console.log(
+    JSON.stringify({ ok: false, out: fp, error: out.error }, null, 2),
+  );
   process.exitCode = 1;
 }

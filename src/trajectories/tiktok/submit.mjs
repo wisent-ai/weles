@@ -1,5 +1,8 @@
 import { humanType } from '../../../dist/human/keyboard.js';
-import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../dist/human/mouse.js';
 import { pageSettled } from '../_shared/page/settled.mjs';
 
 /**
@@ -38,11 +41,29 @@ export async function tiktokSubmitComment(s, text) {
       // than for the canonical high-volume handles (@tiktok / @nba).
       let authorHandles = [];
       try {
-        if (!/\/foryou/.test(currentUrl)) await s.goto('https://www.tiktok.com/foryou');
+        if (!/\/foryou/.test(currentUrl))
+          await s.goto('https://www.tiktok.com/foryou');
         await humanIdlePause('long');
-        authorHandles = await s.page.evaluate(() => [...new Set(Array.from(document.querySelectorAll('a[href*="/@"]')).map(a => { const m = (a.getAttribute('href')||'').match(/\/@([^/?#]+)/); return m ? m[1] : null; }).filter(Boolean))].slice(0, 5));
-        console.log(`[tiktok-submit] /foryou recommended authors: ${JSON.stringify(authorHandles)}`);
-      } catch { /* fall through */ }
+        authorHandles = await s.page.evaluate(() =>
+          [
+            ...new Set(
+              Array.from(document.querySelectorAll('a[href*="/@"]'))
+                .map((a) => {
+                  const m = (a.getAttribute('href') || '').match(
+                    /\/@([^/?#]+)/,
+                  );
+                  return m ? m[1] : null;
+                })
+                .filter(Boolean),
+            ),
+          ].slice(0, 5),
+        );
+        console.log(
+          `[tiktok-submit] /foryou recommended authors: ${JSON.stringify(authorHandles)}`,
+        );
+      } catch {
+        /* fall through */
+      }
       profileHandles = [...authorHandles, 'tiktok', 'spotify', 'nba'];
     }
     // Repost responses can supply video identifiers when the profile's post
@@ -60,22 +81,44 @@ export async function tiktokSubmitComment(s, text) {
           const handle = it?.author?.uniqueId;
           const id = it?.id;
           if (handle && id && !repostCandidate) {
-            repostCandidate = { handle, id, url: `https://www.tiktok.com/@${handle}/video/${id}` };
-            console.log(`[tiktok-submit] /api/repost/item_list captured: @${handle}/video/${id}`);
+            repostCandidate = {
+              handle,
+              id,
+              url: `https://www.tiktok.com/@${handle}/video/${id}`,
+            };
+            console.log(
+              `[tiktok-submit] /api/repost/item_list captured: @${handle}/video/${id}`,
+            );
             return;
           }
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     };
     s.page.on('response', onResponse);
     outer: for (const handle of profileHandles) {
       const profileUrl = `https://www.tiktok.com/@${handle}`;
       await s.goto(profileUrl);
       await pageSettled(s.page);
-      gridLoaded = await s.page.locator('a[href*="/video/"]').first().isVisible();
-      if (gridLoaded) { console.log(`[tiktok-submit] @${handle} grid loaded`); currentUrl = profileUrl; break outer; }
-      console.log(`[tiktok-submit] @${handle}: grid not shown on the settled page`);
-      if (repostCandidate) { console.log(`[tiktok-submit] using repost-list video ${repostCandidate.url} since post grid empty`); break outer; }
+      gridLoaded = await s.page
+        .locator('a[href*="/video/"]')
+        .first()
+        .isVisible();
+      if (gridLoaded) {
+        console.log(`[tiktok-submit] @${handle} grid loaded`);
+        currentUrl = profileUrl;
+        break outer;
+      }
+      console.log(
+        `[tiktok-submit] @${handle}: grid not shown on the settled page`,
+      );
+      if (repostCandidate) {
+        console.log(
+          `[tiktok-submit] using repost-list video ${repostCandidate.url} since post grid empty`,
+        );
+        break outer;
+      }
     }
     s.page.off('response', onResponse);
     if (!gridLoaded && repostCandidate) {
@@ -86,63 +129,105 @@ export async function tiktokSubmitComment(s, text) {
       gridLoaded = true; // cosmetic — we have a video URL now
     }
     if (!gridLoaded && !repostCandidate) {
-      const bodyLen = await s.page.evaluate(() => document.body?.innerText?.length || 0).catch(() => 0);
-      throw new Error(`tiktok_comment: no candidate profile rendered video grid and no repost-list candidate (bodyLen=${bodyLen})`);
+      const bodyLen = await s.page
+        .evaluate(() => document.body?.innerText?.length || 0)
+        .catch(() => 0);
+      throw new Error(
+        `tiktok_comment: no candidate profile rendered video grid and no repost-list candidate (bodyLen=${bodyLen})`,
+      );
     }
     // If we navigated directly via repost-list candidate URL we're already
     // on a /video/N page — skip the profile->click step entirely.
     let landed = /\/video\/\d+/.test(s.page.url());
     if (landed) {
-      console.log('[tiktok-submit] already on /video/ page from repost-list candidate — skipping profile click');
+      console.log(
+        '[tiktok-submit] already on /video/ page from repost-list candidate — skipping profile click',
+      );
     }
     // Click through to a video page. Try up to 4 videos in case the first
     // doesn't hydrate the right rail (same pattern as tiktok_like).
-    const videoLinks = landed ? [] : await s.page.locator('a[href*="/video/"]').all();
+    const videoLinks = landed
+      ? []
+      : await s.page.locator('a[href*="/video/"]').all();
     const candidates = videoLinks.slice(0, Math.min(4, videoLinks.length));
-    if (!landed) console.log(`[tiktok-submit] found ${candidates.length} video links on profile`);
-    if (!landed) for (let i = 0; i < candidates.length; i++) {
-      const link = candidates[i];
-      const href = await link.getAttribute('href').catch(() => '');
-      console.log(`[tiktok-submit] trying video ${i + 1}/${candidates.length}: ${href}`);
-      try {
-        await humanClickLocator(s.page, link);
-        await s.page.waitForURL(/\/video\/\d+/);
-        await pageSettled(s.page);
-        // The right rail is hydrated when the comment icon is on the settled page.
-        const commentIconProbe = s.page.locator('[data-e2e="comment-icon"], [data-e2e="browse-comment-icon"], button[aria-label*="comments" i]').filter({ visible: true }).first();
-        const found = await commentIconProbe.isVisible();
-        if (found) {
-          console.log(`[tiktok-submit] comment icon hydrated on video ${i + 1}`);
-          landed = true;
-          break;
+    if (!landed)
+      console.log(
+        `[tiktok-submit] found ${candidates.length} video links on profile`,
+      );
+    if (!landed)
+      for (let i = 0; i < candidates.length; i++) {
+        const link = candidates[i];
+        const href = await link.getAttribute('href').catch(() => '');
+        console.log(
+          `[tiktok-submit] trying video ${i + 1}/${candidates.length}: ${href}`,
+        );
+        try {
+          await humanClickLocator(s.page, link);
+          await s.page.waitForURL(/\/video\/\d+/);
+          await pageSettled(s.page);
+          // The right rail is hydrated when the comment icon is on the settled page.
+          const commentIconProbe = s.page
+            .locator(
+              '[data-e2e="comment-icon"], [data-e2e="browse-comment-icon"], button[aria-label*="comments" i]',
+            )
+            .filter({ visible: true })
+            .first();
+          const found = await commentIconProbe.isVisible();
+          if (found) {
+            console.log(
+              `[tiktok-submit] comment icon hydrated on video ${i + 1}`,
+            );
+            landed = true;
+            break;
+          }
+          console.log(
+            `[tiktok-submit] video ${i + 1} did not hydrate comment icon — retrying`,
+          );
+        } catch (e) {
+          console.log(
+            `[tiktok-submit] video ${i + 1} click failed: ${e.message}`,
+          );
         }
-        console.log(`[tiktok-submit] video ${i + 1} did not hydrate comment icon — retrying`);
-      } catch (e) {
-        console.log(`[tiktok-submit] video ${i + 1} click failed: ${e.message}`);
+        // Go back to profile to try next video.
+        if (i < candidates.length - 1) {
+          await s.page.goBack({ waitUntil: 'domcontentloaded' });
+          // Wait for profile grid to re-render.
+          await s.page
+            .locator('a[href*="/video/"]')
+            .first()
+            .waitFor({ state: 'visible' });
+        }
       }
-      // Go back to profile to try next video.
-      if (i < candidates.length - 1) {
-        await s.page.goBack({ waitUntil: 'domcontentloaded' });
-        // Wait for profile grid to re-render.
-        await s.page.locator('a[href*="/video/"]').first().waitFor({ state: 'visible' });
-      }
-    }
-    if (!landed) throw new Error('tiktok_comment: could not reach a video page with a visible comment icon');
+    if (!landed)
+      throw new Error(
+        'tiktok_comment: could not reach a video page with a visible comment icon',
+      );
   }
 
   // Dismiss intercepting overlays first — the "Introducing keyboard
   // shortcuts" tooltip (button.inapp-notif__close, aria-label="Close toast")
   // covers part of the right-rail action area and absorbs clicks.
-  for (const selX of ['button[aria-label="Close toast"]', 'button.inapp-notif__close']) {
+  for (const selX of [
+    'button[aria-label="Close toast"]',
+    'button.inapp-notif__close',
+  ]) {
     const x = s.page.locator(selX).filter({ visible: true }).first();
     if (await x.count().catch(() => 0)) {
-      try { await humanClickLocator(s.page, x); await humanIdlePause('short'); } catch {}
+      try {
+        await humanClickLocator(s.page, x);
+        await humanIdlePause('short');
+      } catch {}
     }
   }
   // The right rail is hydrated once the page settles. When we landed via
   // repost-URL navigation we skipped the click-through loop's check.
   await pageSettled(s.page);
-  const commentIcon = s.page.locator('[data-e2e="comment-icon"], [data-e2e="browse-comment-icon"], [data-e2e="feed-comment-icon"], button[aria-label*="comments" i]').filter({ visible: true }).first();
+  const commentIcon = s.page
+    .locator(
+      '[data-e2e="comment-icon"], [data-e2e="browse-comment-icon"], [data-e2e="feed-comment-icon"], button[aria-label*="comments" i]',
+    )
+    .filter({ visible: true })
+    .first();
   if (await commentIcon.isVisible()) {
     console.log('[tiktok-submit] clicking comment icon to open panel');
     await humanClickLocator(s.page, commentIcon);
@@ -152,16 +237,28 @@ export async function tiktokSubmitComment(s, text) {
   }
   // Comment input — TikTok uses a contenteditable div with class containing
   // "DraftEditor" or div[role="textbox"]. Modern selector: data-e2e="comment-input".
-  const input = s.page.locator('[data-e2e="comment-input"], [data-e2e="comment-text"], div[contenteditable="true"][role="textbox"], div.DraftEditor-editorContainer div[contenteditable="true"], div[contenteditable="true"][aria-label*="comment" i], textarea[placeholder*="comment" i]').filter({ visible: true }).first();
+  const input = s.page
+    .locator(
+      '[data-e2e="comment-input"], [data-e2e="comment-text"], div[contenteditable="true"][role="textbox"], div.DraftEditor-editorContainer div[contenteditable="true"], div[contenteditable="true"][aria-label*="comment" i], textarea[placeholder*="comment" i]',
+    )
+    .filter({ visible: true })
+    .first();
   await input.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, input);
   await humanType(s.page, text);
   // Post button — data-e2e="comment-post" once input is non-empty.
-  const post = s.page.locator('[data-e2e="comment-post"]:not([aria-disabled="true"]), button[data-e2e="comment-post"]').filter({ visible: true }).first();
+  const post = s.page
+    .locator(
+      '[data-e2e="comment-post"]:not([aria-disabled="true"]), button[data-e2e="comment-post"]',
+    )
+    .filter({ visible: true })
+    .first();
   await post.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, post);
   await s.page.waitForFunction(() => {
-    const e = document.querySelector('[data-e2e="comment-input"], div[contenteditable="true"][role="textbox"]');
+    const e = document.querySelector(
+      '[data-e2e="comment-input"], div[contenteditable="true"][role="textbox"]',
+    );
     return !e || (e.textContent ?? '').trim().length === 0;
   });
 }
@@ -169,5 +266,7 @@ export async function tiktokSubmitComment(s, text) {
 export async function tiktokSubmitPost(s, text) {
   // TikTok's web upload page is /upload, with file picker → caption → post.
   // Without a video file the trajectory can't post — fail explicitly.
-  throw new Error('tiktok_post_not_supported: TikTok requires a video upload; this trajectory does not generate one');
+  throw new Error(
+    'tiktok_post_not_supported: TikTok requires a video upload; this trajectory does not generate one',
+  );
 }

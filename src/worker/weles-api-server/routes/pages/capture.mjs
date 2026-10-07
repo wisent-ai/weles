@@ -25,14 +25,21 @@ export class PageLoadFailed extends Error {
 
 async function withLoadedPage({ openBrowser, publicAddresses }, request, work) {
   const target = await admitPublicTarget(request.url, publicAddresses);
-  const context = await openBrowser({ headless: true, ...(request.userAgent ? { userAgent: request.userAgent } : {}) });
+  const context = await openBrowser({
+    headless: true,
+    ...(request.userAgent ? { userAgent: request.userAgent } : {}),
+  });
   try {
     const refused = await guardContext(context, publicAddresses);
     const page = await context.newPage();
     await page.setViewportSize(request.viewport);
-    const response = await page.goto(target.href, { waitUntil: request.loadState });
-    if (!response) throw new PageLoadFailed(`no navigation response for ${target.href}`);
-    if (!response.ok()) throw new PageLoadFailed(`HTTP ${response.status()} for ${target.href}`);
+    const response = await page.goto(target.href, {
+      waitUntil: request.loadState,
+    });
+    if (!response)
+      throw new PageLoadFailed(`no navigation response for ${target.href}`);
+    if (!response.ok())
+      throw new PageLoadFailed(`HTTP ${response.status()} for ${target.href}`);
     const result = await work(page);
     return {
       ...result,
@@ -53,26 +60,48 @@ function readStructure() {
   const visible = (element) => {
     const style = window.getComputedStyle(element);
     const rect = element.getBoundingClientRect();
-    return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > start && rect.height > start;
+    return (
+      style.display !== 'none' &&
+      style.visibility !== 'hidden' &&
+      rect.width > start &&
+      rect.height > start
+    );
   };
   const meta = (selector) => document.querySelector(selector)?.content || '';
-  const textOf = (selector) => Array.from(document.querySelectorAll(selector))
-    .filter(visible).map((element) => clean(element.textContent)).filter(Boolean);
-  const linkOf = (selector) => Array.from(document.querySelectorAll(selector))
-    .filter(visible).map((element) => ({ text: clean(element.textContent), href: element.href }))
-    .filter((entry) => entry.text || entry.href);
-  const styles = Array.from(document.querySelectorAll('body *')).filter(visible)
+  const textOf = (selector) =>
+    Array.from(document.querySelectorAll(selector))
+      .filter(visible)
+      .map((element) => clean(element.textContent))
+      .filter(Boolean);
+  const linkOf = (selector) =>
+    Array.from(document.querySelectorAll(selector))
+      .filter(visible)
+      .map((element) => ({
+        text: clean(element.textContent),
+        href: element.href,
+      }))
+      .filter((entry) => entry.text || entry.href);
+  const styles = Array.from(document.querySelectorAll('body *'))
+    .filter(visible)
     .map((element) => window.getComputedStyle(element));
-  const unique = (values) => Array.from(new Set(values.filter((value) => value && value !== 'rgba(0, 0, 0, 0)')));
+  const unique = (values) =>
+    Array.from(
+      new Set(values.filter((value) => value && value !== 'rgba(0, 0, 0, 0)')),
+    );
   const forms = Array.from(document.querySelectorAll('form')).map((form) => ({
     action: form.action,
     method: form.method,
-    fields: Array.from(form.querySelectorAll('input,select,textarea')).map((field) => ({
-      name: field.name,
-      type: field instanceof HTMLInputElement ? field.type : field.tagName.toLowerCase(),
-      placeholder: 'placeholder' in field ? field.placeholder : '',
-      required: field.required,
-    })),
+    fields: Array.from(form.querySelectorAll('input,select,textarea')).map(
+      (field) => ({
+        name: field.name,
+        type:
+          field instanceof HTMLInputElement
+            ? field.type
+            : field.tagName.toLowerCase(),
+        placeholder: 'placeholder' in field ? field.placeholder : '',
+        required: field.required,
+      }),
+    ),
   }));
   return {
     text: clean(document.body?.innerText),
@@ -88,21 +117,36 @@ function readStructure() {
         image: meta('meta[property="og:image"]'),
       },
       twitterCard: meta('meta[name="twitter:card"]'),
-      jsonLdCount: document.querySelectorAll('script[type="application/ld+json"]').length,
+      jsonLdCount: document.querySelectorAll(
+        'script[type="application/ld+json"]',
+      ).length,
       viewport: { width: window.innerWidth, height: window.innerHeight },
-      document: { width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight },
+      document: {
+        width: document.documentElement.scrollWidth,
+        height: document.documentElement.scrollHeight,
+      },
       headings: textOf('h1,h2,h3'),
-      headingOutline: Array.from(document.querySelectorAll('h1,h2,h3')).filter(visible)
-        .map((element) => ({ level: element.tagName.toLowerCase(), text: clean(element.textContent) }))
+      headingOutline: Array.from(document.querySelectorAll('h1,h2,h3'))
+        .filter(visible)
+        .map((element) => ({
+          level: element.tagName.toLowerCase(),
+          text: clean(element.textContent),
+        }))
         .filter((heading) => heading.text),
       navigation: linkOf('nav a, header a'),
-      callsToAction: textOf('button,[role="button"],a[class*="button"],a[class*="cta"]'),
+      callsToAction: textOf(
+        'button,[role="button"],a[class*="button"],a[class*="cta"]',
+      ),
       forms,
-      landmarks: Array.from(document.querySelectorAll('header,nav,main,aside,footer,section'))
-        .map((element) => ({
-          tag: element.tagName.toLowerCase(),
-          label: clean(element.getAttribute('aria-label') || element.querySelector('h1,h2,h3')?.textContent),
-        })),
+      landmarks: Array.from(
+        document.querySelectorAll('header,nav,main,aside,footer,section'),
+      ).map((element) => ({
+        tag: element.tagName.toLowerCase(),
+        label: clean(
+          element.getAttribute('aria-label') ||
+            element.querySelector('h1,h2,h3')?.textContent,
+        ),
+      })),
       designTokens: {
         fonts: unique(styles.map((style) => style.fontFamily)),
         textColors: unique(styles.map((style) => style.color)),
@@ -116,8 +160,18 @@ function readStructure() {
 
 async function screenshotOf(page, mode) {
   if (mode === NO_SCREENSHOT) return null;
-  const image = await page.screenshot({ type: 'png', fullPage: mode === FULL_SCREENSHOT });
-  return { requested: mode, taken: mode, content_type: 'image/png', bytes: image.byteLength, embedded: true, base64: image.toString('base64') };
+  const image = await page.screenshot({
+    type: 'png',
+    fullPage: mode === FULL_SCREENSHOT,
+  });
+  return {
+    requested: mode,
+    taken: mode,
+    content_type: 'image/png',
+    bytes: image.byteLength,
+    embedded: true,
+    base64: image.toString('base64'),
+  };
 }
 
 /** The page as its whole text, its structure and, when asked, one PNG. */
@@ -132,30 +186,49 @@ export function capturePageSnapshot(browser, request) {
   });
 }
 
-const CONTENT_TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', svg: 'image/svg+xml', pdf: 'application/pdf' };
+const CONTENT_TYPES = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+  pdf: 'application/pdf',
+};
 
 /** Fill the named fields, press the button with the exact text, return the file the page downloads. */
 export function capturePageExport(browser, request) {
   return withLoadedPage(browser, request, async (page) => {
     for (const field of request.fields) {
       const input = page.locator(field.selector).first();
-      if (await input.count() === NONE_FOUND) throw new PageLoadFailed(`no element matches ${field.selector}`);
+      if ((await input.count()) === NONE_FOUND)
+        throw new PageLoadFailed(`no element matches ${field.selector}`);
       await input.fill(field.value);
     }
-    const button = page.getByRole('button', { name: request.clickText, exact: true }).first();
-    if (await button.count() === NONE_FOUND) throw new PageLoadFailed(`no button reads "${request.clickText}"`);
-    const [download] = await Promise.all([page.waitForEvent('download'), button.click()]);
+    const button = page
+      .getByRole('button', { name: request.clickText, exact: true })
+      .first();
+    if ((await button.count()) === NONE_FOUND)
+      throw new PageLoadFailed(`no button reads "${request.clickText}"`);
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      button.click(),
+    ]);
     const failure = await download.failure();
-    if (failure) throw new PageLoadFailed(`the page's download failed: ${failure}`);
+    if (failure)
+      throw new PageLoadFailed(`the page's download failed: ${failure}`);
     const bytes = await readFile(await download.path());
     const name = download.suggestedFilename();
-    const extension = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
+    const extension = name.includes('.')
+      ? name.split('.').pop().toLowerCase()
+      : '';
     return {
       filled: request.fields.map((field) => field.selector),
       clicked: request.clickText,
       download: {
         file_name: name,
-        content_type: Object.hasOwn(CONTENT_TYPES, extension) ? CONTENT_TYPES[extension] : 'application/octet-stream',
+        content_type: Object.hasOwn(CONTENT_TYPES, extension)
+          ? CONTENT_TYPES[extension]
+          : 'application/octet-stream',
         bytes: bytes.byteLength,
         base64: bytes.toString('base64'),
       },

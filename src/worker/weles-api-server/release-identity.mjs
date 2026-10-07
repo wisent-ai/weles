@@ -14,13 +14,19 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const REPO = resolve(__dirname, '../../..');
-const SOURCE_IDENTITY = JSON.parse(readFileSync(join(REPO, 'release', 'source-identity.json'), 'utf8'));
-if (SOURCE_IDENTITY.schema !== 'weles.source-identity.v1'
-    || SOURCE_IDENTITY.product !== 'weles-worker'
-    || SOURCE_IDENTITY.version !== process.env.WELES_WORKER_RELEASE_VERSION
-    || typeof SOURCE_IDENTITY.source_revision !== 'string'
-    || !/^[0-9a-f]{40}$/.test(SOURCE_IDENTITY.source_revision)) {
-  throw new Error('embedded Weles source identity does not match the deployed release');
+const SOURCE_IDENTITY = JSON.parse(
+  readFileSync(join(REPO, 'release', 'source-identity.json'), 'utf8'),
+);
+if (
+  SOURCE_IDENTITY.schema !== 'weles.source-identity.v1' ||
+  SOURCE_IDENTITY.product !== 'weles-worker' ||
+  SOURCE_IDENTITY.version !== process.env.WELES_WORKER_RELEASE_VERSION ||
+  typeof SOURCE_IDENTITY.source_revision !== 'string' ||
+  !/^[0-9a-f]{40}$/.test(SOURCE_IDENTITY.source_revision)
+) {
+  throw new Error(
+    'embedded Weles source identity does not match the deployed release',
+  );
 }
 export const RUN_RELEASE_IDENTITY = Object.freeze({
   release_version: process.env.WELES_WORKER_RELEASE_VERSION || null,

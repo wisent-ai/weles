@@ -12,7 +12,8 @@ import { refuse } from './running.mjs';
 
 export const REPO = resolve(import.meta.dirname, '..', '..', '..');
 export const HOME = process.env.HOME || homedir();
-export const PATH_PREFIX = '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin';
+export const PATH_PREFIX =
+  '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin';
 
 /** The env files the deployment owns, in the order they override each other. */
 export const ENV_FILES = [
@@ -29,18 +30,90 @@ export const ENV_FILES = [
  * one live item playing the role and no vault item is named here.
  */
 export const STARTUP_FIELDS = [
-  ['WELES_API_TOKEN', 'weles-echo-api-token-bootstrap', 'role:echo-weles-api', 'token', true],
-  ['BRAMA_WELES_REAUTH_TOKEN', 'weles-brama-reauth-token-bootstrap', 'role:brama-weles-reauth', 'token', true],
-  ['WELES_STADO_OBJECT_API_TOKEN', 'weles-object-token-bootstrap', 'role:weles-object-api', 'token', false],
-  ['WELES_STADO_MODEL_ROUTER_TOKEN', 'weles-model-router-token-bootstrap', 'role:weles-model-router', 'token', false],
-  ['WELES_STADO_MODEL_ROUTER_AGENT_ID', 'weles-model-agent-id-bootstrap', 'role:weles-model-agent-auth', 'id', false],
-  ['WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET', 'weles-model-agent-secret-bootstrap', 'role:weles-model-agent-auth', 'agent_auth_secret', false],
-  ['WELES_PUBLIC_API_BEARER', 'weles-spis-public-bearer-bootstrap', 'role:weles-spis-public-admission', 'token', true],
-  ['WELES_PUBLIC_API_ORGANIZATION_ID', 'weles-spis-public-organization-bootstrap', 'role:weles-spis-public-admission', 'organization_id', true],
-  ['WELES_RECEIPT_KEY_ID', 'weles-spis-receipt-key-id-bootstrap', 'role:weles-spis-public-admission', 'receipt_key_id', true],
-  ['WELES_RECEIPT_KEY_SET_VERSION', 'weles-spis-receipt-key-set-version-bootstrap', 'role:weles-spis-public-admission', 'receipt_key_set_version', true],
-  ['WELES_RECEIPT_PRIVATE_KEY', 'weles-spis-receipt-private-key-bootstrap', 'role:weles-spis-public-admission', 'receipt_private_key', true],
-  ['WELES_RECEIPT_PUBLIC_KEYS_JSON', 'weles-spis-receipt-public-keys-bootstrap', 'role:weles-spis-public-admission', 'receipt_public_keys_json', true],
+  [
+    'WELES_API_TOKEN',
+    'weles-echo-api-token-bootstrap',
+    'role:echo-weles-api',
+    'token',
+    true,
+  ],
+  [
+    'BRAMA_WELES_REAUTH_TOKEN',
+    'weles-brama-reauth-token-bootstrap',
+    'role:brama-weles-reauth',
+    'token',
+    true,
+  ],
+  [
+    'WELES_STADO_OBJECT_API_TOKEN',
+    'weles-object-token-bootstrap',
+    'role:weles-object-api',
+    'token',
+    false,
+  ],
+  [
+    'WELES_STADO_MODEL_ROUTER_TOKEN',
+    'weles-model-router-token-bootstrap',
+    'role:weles-model-router',
+    'token',
+    false,
+  ],
+  [
+    'WELES_STADO_MODEL_ROUTER_AGENT_ID',
+    'weles-model-agent-id-bootstrap',
+    'role:weles-model-agent-auth',
+    'id',
+    false,
+  ],
+  [
+    'WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET',
+    'weles-model-agent-secret-bootstrap',
+    'role:weles-model-agent-auth',
+    'agent_auth_secret',
+    false,
+  ],
+  [
+    'WELES_PUBLIC_API_BEARER',
+    'weles-spis-public-bearer-bootstrap',
+    'role:weles-spis-public-admission',
+    'token',
+    true,
+  ],
+  [
+    'WELES_PUBLIC_API_ORGANIZATION_ID',
+    'weles-spis-public-organization-bootstrap',
+    'role:weles-spis-public-admission',
+    'organization_id',
+    true,
+  ],
+  [
+    'WELES_RECEIPT_KEY_ID',
+    'weles-spis-receipt-key-id-bootstrap',
+    'role:weles-spis-public-admission',
+    'receipt_key_id',
+    true,
+  ],
+  [
+    'WELES_RECEIPT_KEY_SET_VERSION',
+    'weles-spis-receipt-key-set-version-bootstrap',
+    'role:weles-spis-public-admission',
+    'receipt_key_set_version',
+    true,
+  ],
+  [
+    'WELES_RECEIPT_PRIVATE_KEY',
+    'weles-spis-receipt-private-key-bootstrap',
+    'role:weles-spis-public-admission',
+    'receipt_private_key',
+    true,
+  ],
+  [
+    'WELES_RECEIPT_PUBLIC_KEYS_JSON',
+    'weles-spis-receipt-public-keys-bootstrap',
+    'role:weles-spis-public-admission',
+    'receipt_public_keys_json',
+    true,
+  ],
 ];
 
 /** `KEY=value` lines the deployment wrote, with the shell quoting it used. */
@@ -51,10 +124,16 @@ export function loadEnvFile(path) {
     if (!trimmed || trimmed.startsWith('#')) continue;
     const separator = trimmed.indexOf('=');
     if (separator <= 0) continue;
-    const key = trimmed.slice(0, separator).replace(/^export\s+/, '').trim();
+    const key = trimmed
+      .slice(0, separator)
+      .replace(/^export\s+/, '')
+      .trim();
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
     let value = trimmed.slice(separator + 1).trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
       value = value.slice(1, -1);
     }
     process.env[key] = value;
@@ -64,10 +143,14 @@ export function loadEnvFile(path) {
 /** The exact action catalog this build may dispatch. */
 export function actionAllowlist() {
   const path = join(REPO, 'src/worker/deploy/weles-action-allowlist.txt');
-  const actions = readFileSync(path, 'utf8').split(/\r?\n/).map((action) => action.trim()).filter(Boolean);
-  const invalid = !actions.length
-    || new Set(actions).size !== actions.length
-    || actions.some((action) => !/^[a-z_]+$/.test(action));
+  const actions = readFileSync(path, 'utf8')
+    .split(/\r?\n/)
+    .map((action) => action.trim())
+    .filter(Boolean);
+  const invalid =
+    !actions.length ||
+    new Set(actions).size !== actions.length ||
+    actions.some((action) => !/^[a-z_]+$/.test(action));
   if (invalid) refuse(`invalid exact Weles action catalog: ${path}`);
   return actions.join(',');
 }
@@ -96,4 +179,3 @@ export async function declaredNames(relativeModule, loader) {
     refuse(error.message);
   }
 }
-

@@ -34,8 +34,14 @@ export const CAPTURE_NAMESPACE = 'weles-captures';
 // the committed one. Same source captureVersions writes onto every action row.
 export function welesVersion() {
   const versions = captureVersions(null);
-  const pkg = typeof versions.weles_pkg_version === 'string' ? versions.weles_pkg_version : '0.0.0';
-  const commit = typeof versions.weles_commit_short === 'string' ? versions.weles_commit_short : 'unknown';
+  const pkg =
+    typeof versions.weles_pkg_version === 'string'
+      ? versions.weles_pkg_version
+      : '0.0.0';
+  const commit =
+    typeof versions.weles_commit_short === 'string'
+      ? versions.weles_commit_short
+      : 'unknown';
   return `${pkg}+${commit}${versions.weles_dirty === true ? '-dirty' : ''}`;
 }
 
@@ -68,10 +74,16 @@ export async function startCaptureSession(label, plan) {
     deviceScaleFactor: plan.viewport.device_scale_factor,
     mobile: false,
   });
-  await session.page.setViewportSize({ width: plan.viewport.width, height: plan.viewport.height });
+  await session.page.setViewportSize({
+    width: plan.viewport.width,
+    height: plan.viewport.height,
+  });
   const version = await cdp.send('Browser.getVersion');
   const renderer = String(version?.product ?? '').trim();
-  if (!renderer) throw new Error('the live browser did not report a build string; the capture would have no renderer attribution');
+  if (!renderer)
+    throw new Error(
+      'the live browser did not report a build string; the capture would have no renderer attribution',
+    );
   return { session, cdp, renderer };
 }
 
@@ -80,9 +92,15 @@ export async function startCaptureSession(label, plan) {
 // session id is carried implicitly and dropped here.
 export function screencastConnection(cdp) {
   return {
-    on(event, handler) { cdp.on(event, handler); },
-    off(event, handler) { cdp.off(event, handler); },
-    send(method, params) { return cdp.send(method, params ?? {}); },
+    on(event, handler) {
+      cdp.on(event, handler);
+    },
+    off(event, handler) {
+      cdp.off(event, handler);
+    },
+    send(method, params) {
+      return cdp.send(method, params ?? {});
+    },
   };
 }
 
@@ -96,12 +114,18 @@ export function writeLocalArtifact(label, name, bytes) {
 // we wrote, so bytes and sha256 describe the object that actually exists.
 export function fileAttribution(path) {
   const bytes = readFileSync(path);
-  return { bytes: bytes.byteLength, sha256: createHash('sha256').update(bytes).digest('hex'), buffer: bytes };
+  return {
+    bytes: bytes.byteLength,
+    sha256: createHash('sha256').update(bytes).digest('hex'),
+    buffer: bytes,
+  };
 }
 
 export function pngPixelSize(buffer) {
   if (buffer.length < 24 || buffer.readUInt32BE(0) !== 0x89504e47) {
-    throw new Error('the captured still is not a PNG, so its pixel size cannot be attributed');
+    throw new Error(
+      'the captured still is not a PNG, so its pixel size cannot be attributed',
+    );
   }
   return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
 }
@@ -111,5 +135,10 @@ export function captureKeyPrefix(artifactPrefix) {
 }
 
 export async function uploadCaptureObject(keyPrefix, name, body, contentType) {
-  return putPrivateStadoObject(CAPTURE_NAMESPACE, `${keyPrefix}${name}`, body, contentType);
+  return putPrivateStadoObject(
+    CAPTURE_NAMESPACE,
+    `${keyPrefix}${name}`,
+    body,
+    contentType,
+  );
 }

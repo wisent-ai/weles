@@ -4,8 +4,17 @@
 
 import { writeFileSync } from 'node:fs';
 import { URLS, evidence } from './repair_budget_keeper_client/settings.mjs';
-import { DIRECT_ROWS, INDIRECT_ROWS } from './repair_budget_keeper_client/rows.mjs';
-import { loginIfNeeded, repair22Factor, repair8, repairRows, validate } from './repair_budget_keeper_client/repairs.mjs';
+import {
+  DIRECT_ROWS,
+  INDIRECT_ROWS,
+} from './repair_budget_keeper_client/rows.mjs';
+import {
+  loginIfNeeded,
+  repair22Factor,
+  repair8,
+  repairRows,
+  validate,
+} from './repair_budget_keeper_client/repairs.mjs';
 
 await loginIfNeeded();
 await repair22Factor();
@@ -15,6 +24,16 @@ await repair8();
 await validate();
 
 evidence.finishedAt = new Date().toISOString();
-const outPath = process.env.OUT || (await import('#ncbr-settings')).applicationFile('keeper_budget_repair_evidence.json');
+const outPath =
+  process.env.OUT ||
+  (await import('#ncbr-settings')).applicationFile(
+    'keeper_budget_repair_evidence.json',
+  );
 writeFileSync(outPath, JSON.stringify(evidence, null, 2));
-console.log(JSON.stringify({ ok: true, outPath, lastStep: evidence.steps.at(-1) }, null, 2));
+console.log(
+  JSON.stringify(
+    { ok: true, outPath, lastStep: evidence.steps.at(-1) },
+    null,
+    2,
+  ),
+);

@@ -2,15 +2,21 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanClickLocator, humanIdlePause } from '../../../../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../../../dist/human/keyboard.js';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const SECTION_URL = (await import('#ncbr-settings')).sectionUrl('1_3');
 // People's names, phones and addresses live with the application text in the
 // private application folder, never in this repository.
-const CONTACTS_FILE = process.env.NCBR_CONTACTS_FILE
-  || (await import('#ncbr-settings')).applicationFile('contacts/applicant-contacts.json');
+const CONTACTS_FILE =
+  process.env.NCBR_CONTACTS_FILE ||
+  (await import('#ncbr-settings')).applicationFile(
+    'contacts/applicant-contacts.json',
+  );
 const APPLICANT = JSON.parse(readFileSync(CONTACTS_FILE, 'utf8'));
 const CONTACTS = APPLICANT.contacts;
 const EDORECZENIA = APPLICANT.applicant.e_doreczenie;
@@ -22,17 +28,21 @@ if (!page) {
   process.exit(1);
 }
 
-
 await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
 await page.evaluate(() => {
-  const b = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies'));
+  const b = Array.from(document.querySelectorAll('div')).find((d) =>
+    (d.innerText || '').includes('pliki cookies'),
+  );
   if (b) b.style.pointerEvents = 'none';
 }); // allow-raw-playwright: neutralise cookie banner
 
 async function clickDodajContact() {
-  const buttons = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true });
-  if (await buttons.count() <= 1) throw new Error(`contact Dodaj not found; count=${await buttons.count()}`);
+  const buttons = page
+    .getByRole('button', { name: 'Dodaj', exact: true })
+    .filter({ visible: true });
+  if ((await buttons.count()) <= 1)
+    throw new Error(`contact Dodaj not found; count=${await buttons.count()}`);
   await humanClickLocator(page, buttons.nth(1));
   await humanIdlePause('long');
 }
@@ -40,21 +50,31 @@ async function clickDodajContact() {
 if (process.env.DIAG) {
   await clickDodajContact();
   const out = await page.evaluate(() => ({
-    fields: Array.from(document.querySelectorAll('input, textarea')).map((el) => {
-      const label = el.id ? document.querySelector(`label[for="${CSS.escape(el.id)}"]`)?.textContent?.trim() : null;
-      const wrap = el.closest('label, .MuiFormControl-root, .MuiFormGroup-root, .MuiBox-root');
-      return {
-        tag: el.tagName,
-        type: el.getAttribute('type') || null,
-        name: el.getAttribute('name') || null,
-        role: el.getAttribute('role') || null,
-        max: el.getAttribute('maxlength') || null,
-        value: (el.value || ''),
-        label,
-        nearby: wrap ? wrap.textContent.trim() : null,
-      };
-    }).filter((f) => f.name || f.label || f.nearby),
-    buttons: Array.from(document.querySelectorAll('button')).map((b) => b.innerText.trim()).filter(Boolean),
+    fields: Array.from(document.querySelectorAll('input, textarea'))
+      .map((el) => {
+        const label = el.id
+          ? document
+              .querySelector(`label[for="${CSS.escape(el.id)}"]`)
+              ?.textContent?.trim()
+          : null;
+        const wrap = el.closest(
+          'label, .MuiFormControl-root, .MuiFormGroup-root, .MuiBox-root',
+        );
+        return {
+          tag: el.tagName,
+          type: el.getAttribute('type') || null,
+          name: el.getAttribute('name') || null,
+          role: el.getAttribute('role') || null,
+          max: el.getAttribute('maxlength') || null,
+          value: el.value || '',
+          label,
+          nearby: wrap ? wrap.textContent.trim() : null,
+        };
+      })
+      .filter((f) => f.name || f.label || f.nearby),
+    buttons: Array.from(document.querySelectorAll('button'))
+      .map((b) => b.innerText.trim())
+      .filter(Boolean),
   }));
   console.log(JSON.stringify(out, null, 2));
   process.exit(0);
@@ -63,7 +83,7 @@ if (process.env.DIAG) {
 async function fillAny(names, value) {
   for (const name of names) {
     const loc = page.locator(`[name="${name}"]`).first();
-    if (await loc.count() === 0) continue;
+    if ((await loc.count()) === 0) continue;
     const max = Number(await loc.getAttribute('maxlength')) || value.length;
     let v = value;
     if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
@@ -76,31 +96,56 @@ async function fillAny(names, value) {
 async function saveForm() {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  const save = page.locator('button:not([disabled])').filter({ hasText: /^Zapisz$/ }).filter({ visible: true }).last();
-  if (await save.count() === 0) throw new Error('no enabled Zapisz');
+  const save = page
+    .locator('button:not([disabled])')
+    .filter({ hasText: /^Zapisz$/ })
+    .filter({ visible: true })
+    .last();
+  if ((await save.count()) === 0) throw new Error('no enabled Zapisz');
   await humanClickLocator(page, save);
   await humanIdlePause('long');
 }
 
 async function deleteRowsContaining(needle) {
   const deleted = [];
-  while (await page.evaluate((text) => Array.from(document.querySelectorAll('table tbody tr')).some((r) => (r.innerText || '').includes(text)), needle)) {
+  while (
+    await page.evaluate(
+      (text) =>
+        Array.from(document.querySelectorAll('table tbody tr')).some((r) =>
+          (r.innerText || '').includes(text),
+        ),
+      needle,
+    )
+  ) {
     await page.evaluate((text) => {
-      const row = Array.from(document.querySelectorAll('table tbody tr')).find((candidate) => (candidate.innerText || '').includes(text));
+      const row = Array.from(document.querySelectorAll('table tbody tr')).find(
+        (candidate) => (candidate.innerText || '').includes(text),
+      );
       const btn = row?.querySelector('button[aria-label="overflow-options"]');
       if (!btn) throw new Error(`row menu not found for ${text}`);
       btn.setAttribute('data-weles-human-target', 'stale-contact-row-menu');
     }, needle); // allow-raw-playwright: locate visible stale contact row menu
-    const menuButton = page.locator('[data-weles-human-target="stale-contact-row-menu"]').first();
+    const menuButton = page
+      .locator('[data-weles-human-target="stale-contact-row-menu"]')
+      .first();
     await humanClickLocator(page, menuButton);
-    await menuButton.evaluate((element) => element.removeAttribute('data-weles-human-target'));
+    await menuButton.evaluate((element) =>
+      element.removeAttribute('data-weles-human-target'),
+    );
     await humanIdlePause('deliberate');
-    const del = page.locator('[role="menuitem"], .MuiMenuItem-root').filter({ hasText: /Usuń|Usun|Delete/ }).first();
-    if (await del.count() === 0) throw new Error(`delete menu item not found for ${needle}`);
+    const del = page
+      .locator('[role="menuitem"], .MuiMenuItem-root')
+      .filter({ hasText: /Usuń|Usun|Delete/ })
+      .first();
+    if ((await del.count()) === 0)
+      throw new Error(`delete menu item not found for ${needle}`);
     await del.dispatchEvent('click'); // allow-raw-playwright: delete stale visible contact row
     await humanIdlePause('deliberate');
-    const confirm = page.locator('button').filter({ hasText: /Usuń|Usun|Potwierdź|Tak|Delete/ }).last();
-    if (await confirm.count() > 0) await confirm.dispatchEvent('click'); // allow-raw-playwright: confirm visible delete dialog
+    const confirm = page
+      .locator('button')
+      .filter({ hasText: /Usuń|Usun|Potwierdź|Tak|Delete/ })
+      .last();
+    if ((await confirm.count()) > 0) await confirm.dispatchEvent('click'); // allow-raw-playwright: confirm visible delete dialog
     await humanIdlePause('long');
     deleted.push(needle);
   }
@@ -112,23 +157,48 @@ async function fillEdoreczeniaIfPresent() {
     const fields = Array.from(document.querySelectorAll('input, textarea'));
     const hit = fields.find((el) => {
       const id = el.id || '';
-      const label = id ? document.querySelector(`label[for="${CSS.escape(id)}"]`)?.textContent || '' : '';
-      const hay = `${el.name || ''} ${label} ${el.placeholder || ''}`.toLowerCase();
-      return hay.includes('doręc') || hay.includes('dorec') || hay.includes('ae:');
+      const label = id
+        ? document.querySelector(`label[for="${CSS.escape(id)}"]`)
+            ?.textContent || ''
+        : '';
+      const hay =
+        `${el.name || ''} ${label} ${el.placeholder || ''}`.toLowerCase();
+      return (
+        hay.includes('doręc') || hay.includes('dorec') || hay.includes('ae:')
+      );
     });
-    if (!hit || hit.disabled || hit.readOnly) return { found: Boolean(hit), filled: false };
-    const proto = hit instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    if (!hit || hit.disabled || hit.readOnly)
+      return { found: Boolean(hit), filled: false };
+    const proto =
+      hit instanceof HTMLTextAreaElement
+        ? HTMLTextAreaElement.prototype
+        : HTMLInputElement.prototype;
     const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
     if (setter) setter.call(hit, value);
     else hit.value = value;
-    hit.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }));
+    hit.dispatchEvent(
+      new InputEvent('input', {
+        bubbles: true,
+        inputType: 'insertText',
+        data: value,
+      }),
+    );
     hit.dispatchEvent(new Event('change', { bubbles: true }));
     hit.dispatchEvent(new Event('blur', { bubbles: true }));
-    return { found: true, filled: true, name: hit.name || null, id: hit.id || null };
+    return {
+      found: true,
+      filled: true,
+      name: hit.name || null,
+      id: hit.id || null,
+    };
   }, EDORECZENIA); // allow-raw-playwright: fill visible e-Doreczenia field if present
   if (result.filled) {
-    const save = page.locator('button:not([disabled])').filter({ hasText: /^Zapisz$/ }).filter({ visible: true }).last();
-    const clicked = await save.count() > 0;
+    const save = page
+      .locator('button:not([disabled])')
+      .filter({ hasText: /^Zapisz$/ })
+      .filter({ visible: true })
+      .last();
+    const clicked = (await save.count()) > 0;
     if (clicked) {
       await humanClickLocator(page, save);
       await humanIdlePause('long');
@@ -143,13 +213,31 @@ const added = [];
 for (const c of CONTACTS) {
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('long');
-  if (await page.evaluate((needle) => (document.body.innerText || '').includes(needle), `${c.imie} ${c.nazwisko}`)) continue;
+  if (
+    await page.evaluate(
+      (needle) => (document.body.innerText || '').includes(needle),
+      `${c.imie} ${c.nazwisko}`,
+    )
+  )
+    continue;
   await clickDodajContact();
   const filled = [];
   filled.push(await fillAny(['imie', 'imie_osoby_do_kontaktu'], c.imie));
-  filled.push(await fillAny(['nazwisko', 'nazwisko_osoby_do_kontaktu'], c.nazwisko));
-  filled.push(await fillAny(['telefon', 'telefon_osoby_do_kontaktu', 'nr_telefonu'], c.telefon));
-  filled.push(await fillAny(['adres_email', 'email', 'adres_email_osoby_do_kontaktu'], c.email));
+  filled.push(
+    await fillAny(['nazwisko', 'nazwisko_osoby_do_kontaktu'], c.nazwisko),
+  );
+  filled.push(
+    await fillAny(
+      ['telefon', 'telefon_osoby_do_kontaktu', 'nr_telefonu'],
+      c.telefon,
+    ),
+  );
+  filled.push(
+    await fillAny(
+      ['adres_email', 'email', 'adres_email_osoby_do_kontaktu'],
+      c.email,
+    ),
+  );
   await saveForm();
   added.push({ person: `${c.imie} ${c.nazwisko}`, filled });
 }

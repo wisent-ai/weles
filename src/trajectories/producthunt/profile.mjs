@@ -1,8 +1,15 @@
 import { WSession } from '../../../dist/session/wsession.js';
-import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../dist/utils/credentials.js';
+import {
+  getSocialAccount,
+  resolveAccountSession,
+  markCookiesStale,
+} from '../../../dist/utils/credentials.js';
 import { injectPHCookies, loginViaTwitter } from './_session.mjs';
 import { assertAuthed, AuthProbeError } from '../_shared/auth/auth-probe.mjs';
-import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/auth/cookie-freshness.mjs';
+import {
+  loadFreshCookieJarOrFail,
+  CookieJarStaleError,
+} from '../_shared/auth/cookie-freshness.mjs';
 
 // Fill a Product Hunt user profile (headline, about, location, website).
 
@@ -15,17 +22,27 @@ const HEADLINE = process.env.PH_HEADLINE;
 const ABOUT = process.env.PH_BIO;
 const LOCATION = process.env.PH_LOCATION;
 const WEBSITE = process.env.PH_WEBSITE || '';
-if (!HEADLINE || !ABOUT || !LOCATION) { console.log('FAIL: PH_HEADLINE, PH_BIO and PH_LOCATION env vars required'); process.exit(1); }
+if (!HEADLINE || !ABOUT || !LOCATION) {
+  console.log('FAIL: PH_HEADLINE, PH_BIO and PH_LOCATION env vars required');
+  process.exit(1);
+}
 
 async function fillProfile(s, acct, sessionMeta) {
   // Cookie-jar freshness gate — see _shared/auth/cookie-freshness.mjs. Skip
   // injection on stale; loginViaTwitter recovers below.
   let cookies = [];
   try {
-    cookies = loadFreshCookieJarOrFail(acct, { platform: 'producthunt', label: 'producthunt_profile', currentProxyUrl: sessionMeta.proxyUrl, currentPersona: sessionMeta.persona });
+    cookies = loadFreshCookieJarOrFail(acct, {
+      platform: 'producthunt',
+      label: 'producthunt_profile',
+      currentProxyUrl: sessionMeta.proxyUrl,
+      currentPersona: sessionMeta.persona,
+    });
   } catch (jarErr) {
     if (!(jarErr instanceof CookieJarStaleError)) throw jarErr;
-    console.log(`[ph-profile] ${jarErr.message} — falling through to SSO recovery`);
+    console.log(
+      `[ph-profile] ${jarErr.message} — falling through to SSO recovery`,
+    );
     cookies = [];
   }
   if (cookies.length) {
@@ -43,14 +60,18 @@ async function fillProfile(s, acct, sessionMeta) {
     await s.goto(EDIT_URL);
     await pageSettled(s.page);
     cur = s.page.url();
-    if (cur.includes('/login') || cur.includes('/captcha_verification')) throw new Error('still_blocked_after_relogin');
+    if (cur.includes('/login') || cur.includes('/captcha_verification'))
+      throw new Error('still_blocked_after_relogin');
   }
 
   // Positive auth probe — refuses to fill the profile form on a logged-out shell.
-  try { await assertAuthed('producthunt', s, { label: 'producthunt_profile' }); }
-  catch (probeErr) {
+  try {
+    await assertAuthed('producthunt', s, { label: 'producthunt_profile' });
+  } catch (probeErr) {
     if (probeErr instanceof AuthProbeError) {
-      try { await markCookiesStale(acct.id); } catch {}
+      try {
+        await markCookiesStale(acct.id);
+      } catch {}
       throw new Error(`auth_probe_failed: ${probeErr.message}`);
     }
     throw probeErr;
@@ -84,12 +105,19 @@ async function fillProfile(s, acct, sessionMeta) {
 }
 
 const acct = await getSocialAccount('producthunt');
-if (!acct) { console.log('FAIL: no_producthunt_account_in_db'); process.exit(1); }
+if (!acct) {
+  console.log('FAIL: no_producthunt_account_in_db');
+  process.exit(1);
+}
 console.log(`[ph-profile] using account: ${acct.username}`);
 
 const sessionOpts = await resolveAccountSession(acct);
 // This trajectory uses the Chromium navigation and input path.
-const s = await WSession.start({ label: 'producthunt_profile', ...sessionOpts, browser: 'chromium' });
+const s = await WSession.start({
+  label: 'producthunt_profile',
+  ...sessionOpts,
+  browser: 'chromium',
+});
 try {
   await fillProfile(s, acct, sessionOpts);
   console.log(`PASS: ${acct.username} profile saved`);

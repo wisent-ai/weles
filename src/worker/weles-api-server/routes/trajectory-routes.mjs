@@ -44,7 +44,8 @@ const AUTHENTICATOR_ENROL_ACTION = 'google_authenticator_enrol';
 const GOOGLE_LOGIN_METHOD = 'google_sso';
 const authenticatorEnrolments = new Map();
 
-const BUILDER_BOOTSTRAP_URL = process.env.WELES_BUILDER_BOOTSTRAP_URL || 'https://duckduckgo.com/';
+const BUILDER_BOOTSTRAP_URL =
+  process.env.WELES_BUILDER_BOOTSTRAP_URL || 'https://duckduckgo.com/';
 // Prepended to the caller's instructions so the agent self-navigates: the
 // caller supplies NO url, only the goal. The agent lands on a neutral
 // bootstrap page and drives itself to whatever site the task implies.
@@ -57,45 +58,90 @@ const BUILDER_PREAMBLE = [
   'When finished, call done(value) with a concise JSON-serializable summary plus any data or credentials the task asked for.',
 ].join(' ');
 
-export async function respondToDocumentImport(req, res, importWelesTrajectoryDocument) {
+export async function respondToDocumentImport(
+  req,
+  res,
+  importWelesTrajectoryDocument,
+) {
   if (!requireTokenAuthorization(req, res)) return;
   let body;
-  try { body = await readBody(req); }
-  catch (e) { json(res, 400, { ok: false, error: e.message }); return; }
   try {
-    const report = await importWelesTrajectoryDocument(body.source, body.target_host);
+    body = await readBody(req);
+  } catch (e) {
+    json(res, 400, { ok: false, error: e.message });
+    return;
+  }
+  try {
+    const report = await importWelesTrajectoryDocument(
+      body.source,
+      body.target_host,
+    );
     json(res, report.imported > 0 ? 201 : 200, report);
   } catch (e) {
-    json(res, 400, { ok: false, error: String(e && e.message ? e.message : e) });
+    json(res, 400, {
+      ok: false,
+      error: String(e && e.message ? e.message : e),
+    });
   }
 }
 
 // Resolve a Skarbiec subscription first; /reauth/resolve never starts a browser.
-export async function respondToReauth(req, res, selectLoginAccount, resolveOnly = false) {
+export async function respondToReauth(
+  req,
+  res,
+  selectLoginAccount,
+  resolveOnly = false,
+) {
   if (!reauthAuthorized(req)) {
     json(res, BRAMA_REAUTH_TOKEN ? 401 : 500, {
       ok: false,
-      error: BRAMA_REAUTH_TOKEN ? 'unauthorized' : 'missing_BRAMA_WELES_REAUTH_TOKEN',
+      error: BRAMA_REAUTH_TOKEN
+        ? 'unauthorized'
+        : 'missing_BRAMA_WELES_REAUTH_TOKEN',
     });
     return;
   }
   let body;
-  try { body = await readBody(req); }
-  catch (e) { json(res, 400, { ok: false, error: e.message }); return; }
-  const provider = typeof body.provider === 'string' ? body.provider.trim().toLowerCase() : '';
-  if (!REAUTH_PROVIDERS.has(provider)) { json(res, 400, { ok: false, error: 'provider must be codex|claude|kimi' }); return; }
-  const subscriptionId = typeof body.subscription_id === 'string' ? body.subscription_id.trim() : '';
-  if (!subscriptionId) {
-    json(res, 400, { ok: false, error: 'subscription_id_required', stage: 'identity',
-      message: 'An exact Skarbiec subscription id is required' });
+  try {
+    body = await readBody(req);
+  } catch (e) {
+    json(res, 400, { ok: false, error: e.message });
     return;
   }
-  const loginItem = typeof body.login_item === 'string' ? body.login_item.trim() : '';
+  const provider =
+    typeof body.provider === 'string' ? body.provider.trim().toLowerCase() : '';
+  if (!REAUTH_PROVIDERS.has(provider)) {
+    json(res, 400, { ok: false, error: 'provider must be codex|claude|kimi' });
+    return;
+  }
+  const subscriptionId =
+    typeof body.subscription_id === 'string' ? body.subscription_id.trim() : '';
+  if (!subscriptionId) {
+    json(res, 400, {
+      ok: false,
+      error: 'subscription_id_required',
+      stage: 'identity',
+      message: 'An exact Skarbiec subscription id is required',
+    });
+    return;
+  }
+  const loginItem =
+    typeof body.login_item === 'string' ? body.login_item.trim() : '';
   let account;
-  try { account = selectLoginAccount(provider, loginItem || undefined, subscriptionId); }
-  catch (e) {
-    json(res, 409, { ok: false, error: e.code || 'skarbiec_identity_unavailable',
-      stage: 'identity', message: e.message, ...(e.detail || {}) });
+  try {
+    account = selectLoginAccount(
+      provider,
+      loginItem || undefined,
+      subscriptionId,
+    );
+  } catch (e) {
+    json(res, 409, {
+      ok: false,
+      error: e.code || 'skarbiec_identity_unavailable',
+      stage: 'identity',
+      message: e.message,
+      ...(e.detail || {}),
+    });
     return;
   }
   const identity = {
@@ -108,10 +154,22 @@ export async function respondToReauth(req, res, selectLoginAccount, resolveOnly 
     account_revision: account.accountRevision,
     source_revision: RUN_RELEASE_IDENTITY.source_revision,
   };
-  if (resolveOnly) { json(res, 200, { ok: true, source: 'skarbiec', ...identity }); return; }
-  if (body.account_revision && body.account_revision !== account.accountRevision) {
-    json(res, 409, { ok: false, error: 'skarbiec_identity_changed', stage: 'identity',
-      message: 'Skarbiec account data changed after authentication was resolved', ...identity });
+  if (resolveOnly) {
+    json(res, 200, { ok: true, source: 'skarbiec', ...identity });
+    return;
+  }
+  if (
+    body.account_revision &&
+    body.account_revision !== account.accountRevision
+  ) {
+    json(res, 409, {
+      ok: false,
+      error: 'skarbiec_identity_changed',
+      stage: 'identity',
+      message:
+        'Skarbiec account data changed after authentication was resolved',
+      ...identity,
+    });
     return;
   }
   // An admitted sign-in answers as it goes, one JSON object per line: what
@@ -128,15 +186,21 @@ export async function respondToReauth(req, res, selectLoginAccount, resolveOnly 
       subscription_id: account.subscriptionId,
       account_revision: account.accountRevision,
     }),
-    () => runReauth(provider, account, (event) => {
-      hub.events.push(event);
-      for (const listener of hub.listeners) listener(event);
-    }),
+    () =>
+      runReauth(provider, account, (event) => {
+        hub.events.push(event);
+        for (const listener of hub.listeners) listener(event);
+      }),
     hub,
   );
   const progress = admission.entry.metadata;
-  res.writeHead(200, { 'Content-Type': REAUTH_PROGRESS_CONTENT_TYPE, 'Cache-Control': 'no-store' });
-  const send = (event) => { if (!res.writableEnded) res.write(`${JSON.stringify(event)}\n`); };
+  res.writeHead(200, {
+    'Content-Type': REAUTH_PROGRESS_CONTENT_TYPE,
+    'Cache-Control': 'no-store',
+  });
+  const send = (event) => {
+    if (!res.writableEnded) res.write(`${JSON.stringify(event)}\n`);
+  };
   send({ event: 'admitted', coalesced: admission.joined, ...identity });
   for (const event of progress.events) send(event);
   progress.listeners.add(send);
@@ -144,11 +208,21 @@ export async function respondToReauth(req, res, selectLoginAccount, resolveOnly 
   try {
     out = await admission.entry.promise;
   } catch (error) {
-    out = { ok: false, error: 'reauth_run_failed', message: String(error?.message || error) };
+    out = {
+      ok: false,
+      error: 'reauth_run_failed',
+      message: String(error?.message || error),
+    };
   } finally {
     progress.listeners.delete(send);
   }
-  send({ event: 'result', ...out, ...identity, refreshed: out.ok, coalesced: admission.joined });
+  send({
+    event: 'result',
+    ...out,
+    ...identity,
+    refreshed: out.ok,
+    coalesced: admission.joined,
+  });
   res.end();
 }
 
@@ -166,34 +240,65 @@ export const REAUTH_PROGRESS_CONTENT_TYPE = 'application/x-ndjson';
 // trajectory could be reached only through the general worker token, so the
 // product that reports the refusal could not order its own repair, and a
 // person pasted a one-time code instead.
-export async function respondToAuthenticatorEnrolment(req, res, selectLoginAccount, runTrajectory) {
+export async function respondToAuthenticatorEnrolment(
+  req,
+  res,
+  selectLoginAccount,
+  runTrajectory,
+) {
   if (!reauthAuthorized(req)) {
     json(res, BRAMA_REAUTH_TOKEN ? 401 : 500, {
       ok: false,
-      error: BRAMA_REAUTH_TOKEN ? 'unauthorized' : 'missing_BRAMA_WELES_REAUTH_TOKEN',
+      error: BRAMA_REAUTH_TOKEN
+        ? 'unauthorized'
+        : 'missing_BRAMA_WELES_REAUTH_TOKEN',
     });
     return;
   }
   let body;
-  try { body = await readBody(req); }
-  catch (e) { json(res, 400, { ok: false, error: e.message }); return; }
-  const provider = typeof body.provider === 'string' ? body.provider.trim().toLowerCase() : '';
+  try {
+    body = await readBody(req);
+  } catch (e) {
+    json(res, 400, { ok: false, error: e.message });
+    return;
+  }
+  const provider =
+    typeof body.provider === 'string' ? body.provider.trim().toLowerCase() : '';
   if (!REAUTH_PROVIDERS.has(provider)) {
-    json(res, 400, { ok: false, error: `provider must be one of ${[...REAUTH_PROVIDERS].join(', ')}` });
+    json(res, 400, {
+      ok: false,
+      error: `provider must be one of ${[...REAUTH_PROVIDERS].join(', ')}`,
+    });
     return;
   }
-  const subscriptionId = typeof body.subscription_id === 'string' ? body.subscription_id.trim() : '';
+  const subscriptionId =
+    typeof body.subscription_id === 'string' ? body.subscription_id.trim() : '';
   if (!subscriptionId) {
-    json(res, 400, { ok: false, error: 'subscription_id_required', stage: 'identity',
-      message: 'An exact Skarbiec subscription id is required' });
+    json(res, 400, {
+      ok: false,
+      error: 'subscription_id_required',
+      stage: 'identity',
+      message: 'An exact Skarbiec subscription id is required',
+    });
     return;
   }
-  const loginItem = typeof body.login_item === 'string' ? body.login_item.trim() : '';
+  const loginItem =
+    typeof body.login_item === 'string' ? body.login_item.trim() : '';
   let account;
-  try { account = selectLoginAccount(provider, loginItem || undefined, subscriptionId); }
-  catch (e) {
-    json(res, 409, { ok: false, error: e.code || 'skarbiec_identity_unavailable',
-      stage: 'identity', message: e.message, ...(e.detail || {}) });
+  try {
+    account = selectLoginAccount(
+      provider,
+      loginItem || undefined,
+      subscriptionId,
+    );
+  } catch (e) {
+    json(res, 409, {
+      ok: false,
+      error: e.code || 'skarbiec_identity_unavailable',
+      stage: 'identity',
+      message: e.message,
+      ...(e.detail || {}),
+    });
     return;
   }
   const identity = {
@@ -206,9 +311,18 @@ export async function respondToAuthenticatorEnrolment(req, res, selectLoginAccou
     account_revision: account.accountRevision,
     source_revision: RUN_RELEASE_IDENTITY.source_revision,
   };
-  if (body.account_revision && body.account_revision !== account.accountRevision) {
-    json(res, 409, { ok: false, error: 'skarbiec_identity_changed', stage: 'identity',
-      message: 'Skarbiec account data changed after authenticator enrolment was resolved', ...identity });
+  if (
+    body.account_revision &&
+    body.account_revision !== account.accountRevision
+  ) {
+    json(res, 409, {
+      ok: false,
+      error: 'skarbiec_identity_changed',
+      stage: 'identity',
+      message:
+        'Skarbiec account data changed after authenticator enrolment was resolved',
+      ...identity,
+    });
     return;
   }
   // The enrolment Weles ships is Google's. A password-only login has no
@@ -229,24 +343,46 @@ export async function respondToAuthenticatorEnrolment(req, res, selectLoginAccou
   const key = account.accountRef.toLowerCase();
   let entry = authenticatorEnrolments.get(key);
   if (entry && entry.loginItem !== account.loginItem) {
-    json(res, 409, { ok: false, error: 'authenticator_enrolment_in_progress',
-      message: 'This Google account is already enrolling through another login item', ...identity });
+    json(res, 409, {
+      ok: false,
+      error: 'authenticator_enrolment_in_progress',
+      message:
+        'This Google account is already enrolling through another login item',
+      ...identity,
+    });
     return;
   }
   const joined = Boolean(entry);
   if (!entry) {
     const promise = Promise.resolve()
-      .then(() => runTrajectory(AUTHENTICATOR_ENROL_ACTION, { login_item: account.loginItem }, null, false))
-      .finally(() => { authenticatorEnrolments.delete(key); });
+      .then(() =>
+        runTrajectory(
+          AUTHENTICATOR_ENROL_ACTION,
+          { login_item: account.loginItem },
+          null,
+          false,
+        ),
+      )
+      .finally(() => {
+        authenticatorEnrolments.delete(key);
+      });
     entry = { loginItem: account.loginItem, promise };
     authenticatorEnrolments.set(key, entry);
   }
   const out = await entry.promise;
-  const confirmed = out.ok === true && out.result?.ok === true
-    && out.result?.login_item === account.loginItem && out.result?.seed_written === true;
+  const confirmed =
+    out.ok === true &&
+    out.result?.ok === true &&
+    out.result?.login_item === account.loginItem &&
+    out.result?.seed_written === true;
   json(res, confirmed ? 200 : 502, {
-    ...out, ...identity, ok: confirmed, coalesced: joined,
-    blocked: out.result?.blocked ?? (confirmed ? null : 'authenticator_enrolment_unconfirmed'),
+    ...out,
+    ...identity,
+    ok: confirmed,
+    coalesced: joined,
+    blocked:
+      out.result?.blocked ??
+      (confirmed ? null : 'authenticator_enrolment_unconfirmed'),
     message: out.result?.detail ?? out.result?.error ?? null,
   });
 }
@@ -257,20 +393,44 @@ export async function respondToAuthenticatorEnrolment(req, res, selectLoginAccou
 // reusable trajectory (generic browser_task draft-first behavior).
 export async function respondToBuilder(req, res, runTrajectory) {
   if (!authorized(req)) {
-    json(res, TOKEN || ALLOW_UNAUTH ? 401 : 500, { ok: false, error: TOKEN || ALLOW_UNAUTH ? 'unauthorized' : 'missing_WELES_API_TOKEN' });
+    json(res, TOKEN || ALLOW_UNAUTH ? 401 : 500, {
+      ok: false,
+      error: TOKEN || ALLOW_UNAUTH ? 'unauthorized' : 'missing_WELES_API_TOKEN',
+    });
     return;
   }
   let raw;
-  try { raw = await readText(req); }
-  catch (e) { json(res, 400, { ok: false, error: e.message }); return; }
+  try {
+    raw = await readText(req);
+  } catch (e) {
+    json(res, 400, { ok: false, error: e.message });
+    return;
+  }
   let instructions = (raw || '').trim();
   if (instructions.startsWith('{')) {
-    try { const j = JSON.parse(instructions); if (typeof j.instructions === 'string') instructions = j.instructions.trim(); } catch { /* treat as raw text */ }
+    try {
+      const j = JSON.parse(instructions);
+      if (typeof j.instructions === 'string')
+        instructions = j.instructions.trim();
+    } catch {
+      /* treat as raw text */
+    }
   }
-  if (!instructions) { json(res, 400, { ok: false, error: 'missing_instructions' }); return; }
+  if (!instructions) {
+    json(res, 400, { ok: false, error: 'missing_instructions' });
+    return;
+  }
   const objective = `${BUILDER_PREAMBLE}\n\nTASK:\n${instructions}`;
-  const out = await runTrajectory('generic_browser_task', { url: BUILDER_BOOTSTRAP_URL, objective }, null, false);
-  if (out.error === 'no_trajectory') { json(res, 500, { ok: false, error: 'builder_trajectory_missing' }); return; }
+  const out = await runTrajectory(
+    'generic_browser_task',
+    { url: BUILDER_BOOTSTRAP_URL, objective },
+    null,
+    false,
+  );
+  if (out.error === 'no_trajectory') {
+    json(res, 500, { ok: false, error: 'builder_trajectory_missing' });
+    return;
+  }
   const doc = out.result && typeof out.result === 'object' ? out.result : {};
   const payload = {
     ok: out.ok,

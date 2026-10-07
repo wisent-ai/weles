@@ -272,19 +272,46 @@ export const FP_SCRIPT = String.raw`(async () => {
 export const NETWORK_FP_URL = 'https://tls.peet.ws/api/all';
 
 export interface NetworkFingerprint {
-  ja3?: string; ja3_hash?: string; ja4?: string; peetprint?: string; peetprint_hash?: string;
-  ciphers?: string[]; extensions?: string[]; supportedVersions?: string[]; signatureAlgorithms?: string[]; groups?: string[];
-  akamaiH2?: string; h2Frames?: unknown[]; ip?: string; userAgent?: string; headers?: Record<string, string>;
+  ja3?: string;
+  ja3_hash?: string;
+  ja4?: string;
+  peetprint?: string;
+  peetprint_hash?: string;
+  ciphers?: string[];
+  extensions?: string[];
+  supportedVersions?: string[];
+  signatureAlgorithms?: string[];
+  groups?: string[];
+  akamaiH2?: string;
+  h2Frames?: unknown[];
+  ip?: string;
+  userAgent?: string;
+  headers?: Record<string, string>;
 }
 
-export function parseNetworkFingerprint(raw: string): NetworkFingerprint | { _err: string; raw: string } {
+export function parseNetworkFingerprint(
+  raw: string,
+): NetworkFingerprint | { _err: string; raw: string } {
   try {
     const j = JSON.parse(raw);
     return {
-      ja3: j.tls?.ja3, ja3_hash: j.tls?.ja3_hash, ja4: j.tls?.ja4, peetprint: j.tls?.peetprint, peetprint_hash: j.tls?.peetprint_hash,
-      ciphers: j.tls?.ciphers, extensions: j.tls?.extensions?.map((e: any) => e.name ?? e),
-      supportedVersions: j.tls?.supported_versions, signatureAlgorithms: j.tls?.signature_algorithms, groups: j.tls?.supported_groups ?? j.tls?.elliptic_curves,
-      akamaiH2: j.http2?.akamai_fingerprint, h2Frames: j.http2?.sent_frames, ip: j.ip, userAgent: j.user_agent, headers: j.headers,
+      ja3: j.tls?.ja3,
+      ja3_hash: j.tls?.ja3_hash,
+      ja4: j.tls?.ja4,
+      peetprint: j.tls?.peetprint,
+      peetprint_hash: j.tls?.peetprint_hash,
+      ciphers: j.tls?.ciphers,
+      extensions: j.tls?.extensions?.map((e: any) => e.name ?? e),
+      supportedVersions: j.tls?.supported_versions,
+      signatureAlgorithms: j.tls?.signature_algorithms,
+      groups: j.tls?.supported_groups ?? j.tls?.elliptic_curves,
+      akamaiH2: j.http2?.akamai_fingerprint,
+      h2Frames: j.http2?.sent_frames,
+      ip: j.ip,
+      userAgent: j.user_agent,
+      headers: j.headers,
     };
-  } catch (e) { return { _err: String(e), raw: raw }; }
+  } catch (e) {
+    return { _err: String(e), raw: raw };
+  }
 }

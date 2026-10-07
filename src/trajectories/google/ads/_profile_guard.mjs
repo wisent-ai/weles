@@ -28,16 +28,23 @@ export function assertGoogleAdsProfileNotAlreadyOpen(userDataDir, label) {
   const processes = googleAdsProfileProcesses(userDataDir);
   if (!processes.length) return;
   const preview = processes
-    .map((line) => line.length > 260 ? `${line}...` : line)
+    .map((line) => (line.length > 260 ? `${line}...` : line))
     .join('\n');
-  throw new Error([
-    `[${label}] refusing to launch a new Weles session: Google Ads profile is already open`,
-    `profile=${userDataDir}`,
-    'Use the existing window via CUA/snapshot instead of starting another Playwright/WSession flow.',
-    preview,
-  ].join('\n'));
+  throw new Error(
+    [
+      `[${label}] refusing to launch a new Weles session: Google Ads profile is already open`,
+      `profile=${userDataDir}`,
+      'Use the existing window via CUA/snapshot instead of starting another Playwright/WSession flow.',
+      preview,
+    ].join('\n'),
+  );
 }
 
-export function closeAllowedByEnv(closeRequestedEnvName = 'GOOGLE_ADS_CLOSE_AFTER_HARVEST') {
-  return process.env.GOOGLE_ADS_ALLOW_CLOSE_PROFILE === '1' && process.env[closeRequestedEnvName] === '1';
+export function closeAllowedByEnv(
+  closeRequestedEnvName = 'GOOGLE_ADS_CLOSE_AFTER_HARVEST',
+) {
+  return (
+    process.env.GOOGLE_ADS_ALLOW_CLOSE_PROFILE === '1' &&
+    process.env[closeRequestedEnvName] === '1'
+  );
 }

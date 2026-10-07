@@ -7,7 +7,8 @@
 import { assertAuthed, AuthProbeError } from '../auth/auth-probe.mjs';
 import { pageSettled } from '../page/settled.mjs';
 
-const AUTH_WALL_RE = /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login)\b/;
+const AUTH_WALL_RE =
+  /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login)\b/;
 
 async function authPass({ s, cfg, feed, label }) {
   await s.goto(feed);
@@ -15,15 +16,35 @@ async function authPass({ s, cfg, feed, label }) {
   if (finalUrl.startsWith('chrome-error://')) {
     return {
       ok: false,
-      banSignal: { signal: 'proxy_failed', healthy: false, details: { final_url: finalUrl, reason: 'chrome-error: proxy CONNECT failed (likely tunnel/sticky-session issue)' } },
-      error: new Error(`proxy_failed: ${cfg.platform} navigation never left chrome-error — proxy CONNECT failed for ${feed}`),
+      banSignal: {
+        signal: 'proxy_failed',
+        healthy: false,
+        details: {
+          final_url: finalUrl,
+          reason:
+            'chrome-error: proxy CONNECT failed (likely tunnel/sticky-session issue)',
+        },
+      },
+      error: new Error(
+        `proxy_failed: ${cfg.platform} navigation never left chrome-error — proxy CONNECT failed for ${feed}`,
+      ),
     };
   }
   if (AUTH_WALL_RE.test(finalUrl)) {
     return {
       ok: false,
-      banSignal: { signal: 'checkpoint', healthy: false, details: { final_url: finalUrl, reason: 'redirected to platform login wall — stored cookies stale or session never authenticated' } },
-      error: new Error(`auth_wall: ${cfg.platform} session not authenticated — landed at ${finalUrl}`),
+      banSignal: {
+        signal: 'checkpoint',
+        healthy: false,
+        details: {
+          final_url: finalUrl,
+          reason:
+            'redirected to platform login wall — stored cookies stale or session never authenticated',
+        },
+      },
+      error: new Error(
+        `auth_wall: ${cfg.platform} session not authenticated — landed at ${finalUrl}`,
+      ),
     };
   }
   await pageSettled(s.page);
@@ -31,8 +52,18 @@ async function authPass({ s, cfg, feed, label }) {
   if (AUTH_WALL_RE.test(settledUrl)) {
     return {
       ok: false,
-      banSignal: { signal: 'checkpoint', healthy: false, details: { final_url: settledUrl, reason: 'SPA-redirected to login wall during settle — stored cookies stale' } },
-      error: new Error(`auth_wall: ${cfg.platform} session redirected to login during SPA settle — landed at ${settledUrl}`),
+      banSignal: {
+        signal: 'checkpoint',
+        healthy: false,
+        details: {
+          final_url: settledUrl,
+          reason:
+            'SPA-redirected to login wall during settle — stored cookies stale',
+        },
+      },
+      error: new Error(
+        `auth_wall: ${cfg.platform} session redirected to login during SPA settle — landed at ${settledUrl}`,
+      ),
     };
   }
   try {
@@ -56,15 +87,23 @@ async function authPass({ s, cfg, feed, label }) {
 export async function runAuthGate({ s, cfg, acct, feed, label }) {
   let result = await authPass({ s, cfg, feed, label });
   if (result.ok) return result;
-  const recoverable = result.banSignal?.signal === 'checkpoint' || /auth_(wall|probe_failed)/.test(result.error?.message ?? '');
+  const recoverable =
+    result.banSignal?.signal === 'checkpoint' ||
+    /auth_(wall|probe_failed)/.test(result.error?.message ?? '');
   if (!recoverable || typeof cfg.inlineRelogin !== 'function') return result;
-  console.log(`[auth-gate] ${cfg.platform}/${cfg.action} auth_wall on attempt 1 — running inline relogin`);
+  console.log(
+    `[auth-gate] ${cfg.platform}/${cfg.action} auth_wall on attempt 1 — running inline relogin`,
+  );
   const r = await cfg.inlineRelogin(s, acct);
   if (!r?.ok) {
-    console.log(`[auth-gate] inline relogin did not pass: ${r?.reason ?? 'unknown'}`);
+    console.log(
+      `[auth-gate] inline relogin did not pass: ${r?.reason ?? 'unknown'}`,
+    );
     return result;
   }
-  console.log(`[auth-gate] inline relogin PASSED — retrying ${cfg.platform}/${cfg.action} auth gate`);
+  console.log(
+    `[auth-gate] inline relogin PASSED — retrying ${cfg.platform}/${cfg.action} auth gate`,
+  );
   result = await authPass({ s, cfg, feed, label });
   return result;
 }

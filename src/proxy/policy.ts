@@ -39,12 +39,17 @@ const USER_PROVIDER_PATTERNS: Array<[RegExp, string]> = [
   [/_c_[a-z]{2}_s_\d+/i, 'pingproxies'],
 ];
 
-export function providerFromHost(host: string | undefined, username?: string): string | undefined {
+export function providerFromHost(
+  host: string | undefined,
+  username?: string,
+): string | undefined {
   if (host) {
-    for (const [pat, name] of HOST_PROVIDER_PATTERNS) if (pat.test(host)) return name;
+    for (const [pat, name] of HOST_PROVIDER_PATTERNS)
+      if (pat.test(host)) return name;
   }
   if (username) {
-    for (const [pat, name] of USER_PROVIDER_PATTERNS) if (pat.test(username)) return name;
+    for (const [pat, name] of USER_PROVIDER_PATTERNS)
+      if (pat.test(username)) return name;
   }
   return undefined;
 }
@@ -60,11 +65,17 @@ export function providerFromHost(host: string | undefined, username?: string): s
 //     since the exit IP changes per request, which breaks persona<->IP
 //     binding the platforms key on.
 const RETIRED_PROVIDER_HOSTS: { pattern: RegExp; reason: string }[] = [
-  { pattern: /(^|\.)pr\.oxylabs\.io$/i,        reason: 'oxylabs_residential_rotating' },
-  { pattern: /^195\.86\./,                      reason: 'oxylabs_residential_exit_range' },
-  { pattern: /^152\.233\./,                     reason: 'oxylabs_residential_exit_range' },
+  {
+    pattern: /(^|\.)pr\.oxylabs\.io$/i,
+    reason: 'oxylabs_residential_rotating',
+  },
+  { pattern: /^195\.86\./, reason: 'oxylabs_residential_exit_range' },
+  { pattern: /^152\.233\./, reason: 'oxylabs_residential_exit_range' },
   // Treat the shared ISP pool separately from the dedicated ISP endpoint.
-  { pattern: /(^|\.)isp\.oxylabs\.io$/i,        reason: 'oxylabs_shared_isp_serves_datacenter' },
+  {
+    pattern: /(^|\.)isp\.oxylabs\.io$/i,
+    reason: 'oxylabs_shared_isp_serves_datacenter',
+  },
 ];
 // Port-only signal: 7777 is the Oxylabs Residential rotating port across
 // every gateway hostname they expose. Matching by port catches CIDR drift.
@@ -72,16 +83,24 @@ const RETIRED_PROVIDER_PORTS: Record<number, string> = {
   7777: 'oxylabs_residential_rotating_port',
 };
 
-export function retiredProviderReason(host: string | undefined, port: number | string | undefined): string | undefined {
+export function retiredProviderReason(
+  host: string | undefined,
+  port: number | string | undefined,
+): string | undefined {
   const portNum = typeof port === 'string' ? Number(port) : port;
-  if (portNum && RETIRED_PROVIDER_PORTS[portNum]) return RETIRED_PROVIDER_PORTS[portNum];
+  if (portNum && RETIRED_PROVIDER_PORTS[portNum])
+    return RETIRED_PROVIDER_PORTS[portNum];
   if (host) {
-    for (const { pattern, reason } of RETIRED_PROVIDER_HOSTS) if (pattern.test(host)) return reason;
+    for (const { pattern, reason } of RETIRED_PROVIDER_HOSTS)
+      if (pattern.test(host)) return reason;
   }
   return undefined;
 }
 
-export function isProviderBlockedForPlatform(provider: string | undefined, platform: string | undefined): boolean {
+export function isProviderBlockedForPlatform(
+  provider: string | undefined,
+  platform: string | undefined,
+): boolean {
   if (!provider || !platform) return false;
   return (PROVIDER_PLATFORM_BLOCK[provider] ?? []).includes(platform);
 }
@@ -96,11 +115,16 @@ const LINKEDIN_SIGNUP_CHALLENGE_EXITS: Record<string, string> = {
   '82.21.167.146': 'linkedin_signup_probe_challenge_decodo_10002_2026_06_24',
   '48.44.47.67': 'linkedin_signup_probe_challenge_decodo_10003_2026_06_24',
   // Oxylabs Dedicated ISP ports 8001-8005: all challenged in Chrome and Weles.
-  '135.132.88.221': 'linkedin_signup_ab_challenge_oxylabs_dedicated_8001_2026_06_23',
-  '135.132.88.223': 'linkedin_signup_ab_challenge_oxylabs_dedicated_8002_2026_06_23',
-  '135.132.89.213': 'linkedin_signup_ab_challenge_oxylabs_dedicated_8003_2026_06_23',
-  '135.132.90.216': 'linkedin_signup_ab_challenge_oxylabs_dedicated_8004_2026_06_23',
-  '135.132.91.205': 'linkedin_signup_ab_challenge_oxylabs_dedicated_8005_2026_06_23',
+  '135.132.88.221':
+    'linkedin_signup_ab_challenge_oxylabs_dedicated_8001_2026_06_23',
+  '135.132.88.223':
+    'linkedin_signup_ab_challenge_oxylabs_dedicated_8002_2026_06_23',
+  '135.132.89.213':
+    'linkedin_signup_ab_challenge_oxylabs_dedicated_8003_2026_06_23',
+  '135.132.90.216':
+    'linkedin_signup_ab_challenge_oxylabs_dedicated_8004_2026_06_23',
+  '135.132.91.205':
+    'linkedin_signup_ab_challenge_oxylabs_dedicated_8005_2026_06_23',
   // Oxylabs Mobile A/B: challenge/inconclusive, not usable for signup.
   '108.30.70.246': 'linkedin_signup_ab_challenge_oxylabs_mobile_2026_06_23',
   '96.224.56.203': 'linkedin_signup_ab_challenge_oxylabs_mobile_2026_06_23',
@@ -112,12 +136,16 @@ export function isLinkedinSignupContext(): boolean {
 }
 
 export function isLinkedinWarmedSignupExperiment(): boolean {
-  return isLinkedinSignupContext() &&
+  return (
+    isLinkedinSignupContext() &&
     process.env.LINKEDIN_REGISTER_ALLOW_WARMED_SIGNUP_EXIT === '1' &&
-    !!process.env.LINKEDIN_REGISTER_WARM_PROFILE_DIR;
+    !!process.env.LINKEDIN_REGISTER_WARM_PROFILE_DIR
+  );
 }
 
-export function linkedinSignupExitBurnReason(exitIp: string | undefined): string | undefined {
+export function linkedinSignupExitBurnReason(
+  exitIp: string | undefined,
+): string | undefined {
   if (!exitIp || !isLinkedinSignupContext()) return undefined;
   // Explicit warm-signup experiment override. This is intentionally gated on a
   // supplied warm profile dir so a normal cold linkedin_register cannot
@@ -130,7 +158,8 @@ export function linkedinSignupExitBurnReason(exitIp: string | undefined): string
 // PROVIDERS lists by filtering against the policy.
 export function blockedProvidersForPlatform(platform: string): string[] {
   const out: string[] = [];
-  for (const [prov, plats] of Object.entries(PROVIDER_PLATFORM_BLOCK)) if (plats.includes(platform)) out.push(prov);
+  for (const [prov, plats] of Object.entries(PROVIDER_PLATFORM_BLOCK))
+    if (plats.includes(platform)) out.push(prov);
   return out;
 }
 
@@ -144,10 +173,15 @@ export function blockedProvidersForPlatform(platform: string): string[] {
 // has subtleCrypto.count=0 + mssdk-ttp2.tiktokw.us; the differentiator is
 // geo: success from a US exit, failure from a non-US exit.
 export type GeoCheckResult = 'match' | 'mismatch' | 'unknown';
-export async function verifyExitCountry(exitIp: string, expectedCc: string): Promise<{ result: GeoCheckResult; exitCc?: string }> {
+export async function verifyExitCountry(
+  exitIp: string,
+  expectedCc: string,
+): Promise<{ result: GeoCheckResult; exitCc?: string }> {
   if (!exitIp || !expectedCc) return { result: 'unknown' };
   try {
-    const r = await fetch(`http://ip-api.com/json/${exitIp}?fields=countryCode`);
+    const r = await fetch(
+      `http://ip-api.com/json/${exitIp}?fields=countryCode`,
+    );
     const j = (await r.json()) as { countryCode?: string };
     const exitCc = (j?.countryCode || '').toLowerCase();
     if (!exitCc) return { result: 'unknown' };
@@ -160,32 +194,69 @@ export async function verifyExitCountry(exitIp: string, expectedCc: string): Pro
 
 // Read the provider's proxy and hosting classification before binding an exit.
 // A failed measurement remains unknown rather than proving a clean address.
-export type ReputationResult = 'clean' | 'proxy' | 'hosting' | 'mobile' | 'unknown';
+export type ReputationResult =
+  | 'clean'
+  | 'proxy'
+  | 'hosting'
+  | 'mobile'
+  | 'unknown';
 export interface ExitReputation {
   result: ReputationResult;
-  country?: string; countryCode?: string; region?: string; city?: string;
-  lat?: number; lon?: number; timezone?: string;
-  isp?: string; org?: string; as?: string; asname?: string; reverse?: string;
-  proxy?: boolean; hosting?: boolean; mobile?: boolean;
+  country?: string;
+  countryCode?: string;
+  region?: string;
+  city?: string;
+  lat?: number;
+  lon?: number;
+  timezone?: string;
+  isp?: string;
+  org?: string;
+  as?: string;
+  asname?: string;
+  reverse?: string;
+  proxy?: boolean;
+  hosting?: boolean;
+  mobile?: boolean;
 }
 // Full exit-IP enrichment via ip-api.com (free tier). Returns the derived
 // reputation `result` (proxy/hosting/mobile flags collapsed) AND the raw
 // geo/ASN/ISP/reverse-DNS fields so the exact exit identity is recorded.
 // `result` is what callers gate on; the rest is provenance stored per run.
-export async function verifyExitReputation(exitIp: string): Promise<ExitReputation> {
+export async function verifyExitReputation(
+  exitIp: string,
+): Promise<ExitReputation> {
   if (!exitIp) return { result: 'unknown' };
   try {
-    const fields = 'status,country,countryCode,regionName,city,lat,lon,timezone,isp,org,as,asname,reverse,mobile,proxy,hosting';
+    const fields =
+      'status,country,countryCode,regionName,city,lat,lon,timezone,isp,org,as,asname,reverse,mobile,proxy,hosting';
     const r = await fetch(`http://ip-api.com/json/${exitIp}?fields=${fields}`);
     const j = (await r.json()) as Record<string, any>;
     if (j?.status !== 'success') return { result: 'unknown' };
-    const result: ReputationResult = j.proxy === true ? 'proxy' : j.hosting === true ? 'hosting' : j.mobile === true ? 'mobile' : 'clean';
+    const result: ReputationResult =
+      j.proxy === true
+        ? 'proxy'
+        : j.hosting === true
+          ? 'hosting'
+          : j.mobile === true
+            ? 'mobile'
+            : 'clean';
     return {
       result,
-      country: j.country, countryCode: j.countryCode, region: j.regionName, city: j.city,
-      lat: j.lat, lon: j.lon, timezone: j.timezone,
-      isp: j.isp, org: j.org, as: j.as, asname: j.asname, reverse: j.reverse,
-      proxy: j.proxy, hosting: j.hosting, mobile: j.mobile,
+      country: j.country,
+      countryCode: j.countryCode,
+      region: j.regionName,
+      city: j.city,
+      lat: j.lat,
+      lon: j.lon,
+      timezone: j.timezone,
+      isp: j.isp,
+      org: j.org,
+      as: j.as,
+      asname: j.asname,
+      reverse: j.reverse,
+      proxy: j.proxy,
+      hosting: j.hosting,
+      mobile: j.mobile,
     };
   } catch {
     return { result: 'unknown' };
@@ -203,30 +274,39 @@ export {
   type RoutingResult,
 } from './quality/platform_probes.js';
 
-
 // Enqueue an account-level top-up check when gateway CONNECT returns 407.
 const _enqueuedTopupThisProcess = new Set<string>();
 const _TOPUP_SLUG: Record<string, string> = {
-  'Bright Data': 'brightdata', 'PacketStream': 'packetstream',
+  'Bright Data': 'brightdata',
+  PacketStream: 'packetstream',
   // Oxylabs Residential + Mobile use the same trajectory; topup.mjs now
   // probes the current active plan tier and exits PASS-NOOP without
   // charging if the user is already at-or-above the requested tier
   // (currentRank >= requestedRank check). Default topup_usd: 30 maps to
   // Starter, so an existing Starter+ subscription no-ops on 407 — preventing
   // duplicate purchases. Real tier upgrades require explicit topup_usd raise.
-  'Oxylabs Residential': 'oxylabs', 'Oxylabs Mobile': 'oxylabs',
-  'IPRoyal Residential': 'iproyal', 'IPRoyal Mobile': 'iproyal',
+  'Oxylabs Residential': 'oxylabs',
+  'Oxylabs Mobile': 'oxylabs',
+  'IPRoyal Residential': 'iproyal',
+  'IPRoyal Mobile': 'iproyal',
   // Pingproxies excluded until byteful React onClick swallow on
   // "Add store credit" is fixed; topup.mjs can't fire the Stripe POST today.
 };
-export async function enqueueProviderTopup(displayName: string): Promise<{ ok: boolean; reason?: string }> {
-  if (_enqueuedTopupThisProcess.has(displayName)) return { ok: false, reason: 'already_enqueued_this_process' };
+export async function enqueueProviderTopup(
+  displayName: string,
+): Promise<{ ok: boolean; reason?: string }> {
+  if (_enqueuedTopupThisProcess.has(displayName))
+    return { ok: false, reason: 'already_enqueued_this_process' };
   const slug = _TOPUP_SLUG[displayName];
   if (!slug) return { ok: false, reason: 'no_slug' };
   try {
     const runId = await submitWelesRun({
       action: `${slug}_topup`,
-      params: { topup_usd: 30, topup_confirm: true, batch: 'auto-407-recovery' },
+      params: {
+        topup_usd: 30,
+        topup_confirm: true,
+        batch: 'auto-407-recovery',
+      },
     });
     _enqueuedTopupThisProcess.add(displayName);
     console.log(`[topup-recovery] 407 on ${displayName} -> Weles run ${runId}`);

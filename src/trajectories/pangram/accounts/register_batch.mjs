@@ -9,14 +9,25 @@ import { join } from 'node:path';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 import { statedCount } from '../../_shared/inputs/stated.mjs';
 
-const COUNT = statedCount('PANGRAM_REGISTRATION_COUNT', 'how many Pangram accounts this batch registers');
-const CONCURRENT = statedCount('PANGRAM_MAX_CONCURRENT', 'how many registrations run at once');
-const SCRIPT = process.env.PANGRAM_REGISTER_SCRIPT || join(process.cwd(), 'src/trajectories/pangram/register.mjs');
+const COUNT = statedCount(
+  'PANGRAM_REGISTRATION_COUNT',
+  'how many Pangram accounts this batch registers',
+);
+const CONCURRENT = statedCount(
+  'PANGRAM_MAX_CONCURRENT',
+  'how many registrations run at once',
+);
+const SCRIPT =
+  process.env.PANGRAM_REGISTER_SCRIPT ||
+  join(process.cwd(), 'src/trajectories/pangram/register.mjs');
 const LABEL = process.env.ACTION || 'pangram_register_batch';
 
 function redactSecrets(text) {
   return String(text || '')
-    .replace(/[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, (m) => `***@${m.split('@').pop()}`)
+    .replace(
+      /[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
+      (m) => `***@${m.split('@').pop()}`,
+    )
     .replace(/ya29\.[A-Za-z0-9._-]+/g, '<token>');
 }
 
@@ -28,13 +39,21 @@ function runRegister(index) {
     PANGRAM_AUTO_REGISTER_RUN: '1',
   };
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [SCRIPT], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [SCRIPT], {
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
     let stdout = '';
     let stderr = '';
-    child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
-    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
     child.on('close', (code) => {
-      const success = code === 0 && /PASS:\s*pangram account ready/i.test(stdout);
+      const success =
+        code === 0 && /PASS:\s*pangram account ready/i.test(stdout);
       const emailMatch = stdout.match(/email=([^\s]+)/);
       const accountMatch = stdout.match(/account saved:\s*pangram\/([^\s]+)/);
       resolve({
@@ -51,12 +70,15 @@ function runRegister(index) {
 }
 
 async function runBatch() {
-  if (!existsSync(SCRIPT)) throw new Error(`register script not found: ${SCRIPT}`);
+  if (!existsSync(SCRIPT))
+    throw new Error(`register script not found: ${SCRIPT}`);
   const results = [];
   const reportDir = runRecordingsDir(LABEL);
   mkdirSync(reportDir, { recursive: true });
 
-  console.log(`[pangram_register_batch] count=${COUNT} concurrent=${CONCURRENT} script=${SCRIPT}`);
+  console.log(
+    `[pangram_register_batch] count=${COUNT} concurrent=${CONCURRENT} script=${SCRIPT}`,
+  );
 
   for (let i = 0; i < COUNT; i += CONCURRENT) {
     const chunk = [];
@@ -65,7 +87,9 @@ async function runBatch() {
     }
     const chunkResults = await Promise.all(chunk);
     for (const r of chunkResults) {
-      console.log(`[pangram_register_batch] ${r.index + 1}/${COUNT} success=${r.success} email=${r.email || '?'}`);
+      console.log(
+        `[pangram_register_batch] ${r.index + 1}/${COUNT} success=${r.success} email=${r.email || '?'}`,
+      );
       results.push(r);
     }
   }

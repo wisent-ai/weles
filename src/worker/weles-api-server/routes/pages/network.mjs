@@ -27,7 +27,9 @@ export async function admitPublicTarget(raw, publicAddresses) {
     throw new PageTargetRefused(`not a URL: ${String(raw)}`);
   }
   if (url.protocol !== 'https:' || url.username || url.password || url.port) {
-    throw new PageTargetRefused('only credential-free HTTPS URLs on the default port are served');
+    throw new PageTargetRefused(
+      'only credential-free HTTPS URLs on the default port are served',
+    );
   }
   try {
     await publicAddresses(url.hostname);
@@ -55,7 +57,12 @@ export async function guardContext(context, publicAddresses) {
     }
     try {
       const url = new URL(raw);
-      if (url.protocol !== 'https:' || url.username || url.password || url.port) {
+      if (
+        url.protocol !== 'https:' ||
+        url.username ||
+        url.password ||
+        url.port
+      ) {
         throw new Error('not public HTTPS');
       }
       let verdict = verdicts.get(url.hostname);

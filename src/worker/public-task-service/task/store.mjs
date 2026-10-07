@@ -7,18 +7,25 @@ import { UUID_RE, isObject, sha256 } from '../wire/canonical-json.mjs';
 import { atomicJsonWrite, readJson, syncDirectory } from '../durable-write.mjs';
 
 function safeTaskFilename(taskId) {
-  if (!UUID_RE.test(taskId)) throw new PublicTaskError(400, 'invalid-task-id', 'invalid taskId');
+  if (!UUID_RE.test(taskId))
+    throw new PublicTaskError(400, 'invalid-task-id', 'invalid taskId');
   return `task-${taskId.toLowerCase()}.json`;
 }
 
-export function createTaskStore({ runResultsRoot, taskRoot, mappingRoot, organizationId }) {
+export function createTaskStore({
+  runResultsRoot,
+  taskRoot,
+  mappingRoot,
+  organizationId,
+}) {
   const taskLocks = new Map();
   // Every durable task write announces the task id, so a reader can wait for
   // the record to change instead of re-reading it on a timer.
   const changes = new EventEmitter();
   changes.setMaxListeners(0);
   const taskPath = (taskId) => join(taskRoot, safeTaskFilename(taskId));
-  const mappingPath = (key) => join(mappingRoot, `${sha256(`${organizationId}\0${key}`)}.json`);
+  const mappingPath = (key) =>
+    join(mappingRoot, `${sha256(`${organizationId}\0${key}`)}.json`);
 
   async function ensureRoots() {
     await mkdir(runResultsRoot, { recursive: true, mode: 0o700 });
@@ -32,17 +39,20 @@ export function createTaskStore({ runResultsRoot, taskRoot, mappingRoot, organiz
   async function loadTask(taskId) {
     try {
       const task = await readJson(taskPath(taskId));
-      if (!isObject(task)
-          || task.id !== taskId
-          || task.request?.organizationId !== organizationId
-          || typeof task.requestDigest !== 'string'
-          || !isObject(task.spisBinding)
-          || !isObject(task.serviceIdentity)) {
+      if (
+        !isObject(task) ||
+        task.id !== taskId ||
+        task.request?.organizationId !== organizationId ||
+        typeof task.requestDigest !== 'string' ||
+        !isObject(task.spisBinding) ||
+        !isObject(task.serviceIdentity)
+      ) {
         throw new Error('public task document failed identity validation');
       }
       return task;
     } catch (error) {
-      if (error?.code === 'ENOENT') throw new PublicTaskError(404, 'task-not-found', 'not found');
+      if (error?.code === 'ENOENT')
+        throw new PublicTaskError(404, 'task-not-found', 'not found');
       throw error;
     }
   }
@@ -82,7 +92,9 @@ export function createTaskStore({ runResultsRoot, taskRoot, mappingRoot, organiz
   async function withTaskLock(taskId, operation) {
     const previous = taskLocks.get(taskId) ?? Promise.resolve();
     let release;
-    const gate = new Promise((resolveGate) => { release = resolveGate; });
+    const gate = new Promise((resolveGate) => {
+      release = resolveGate;
+    });
     const current = previous.then(() => gate);
     taskLocks.set(taskId, current);
     await previous;
@@ -95,14 +107,16 @@ export function createTaskStore({ runResultsRoot, taskRoot, mappingRoot, organiz
   }
 
   function validateReservation(reservation) {
-    if (!isObject(reservation)
-        || reservation.schema !== 'weles.public-task-reservation.v1'
-        || !UUID_RE.test(reservation.taskId ?? '')
-        || typeof reservation.requestDigest !== 'string'
-        || !isObject(reservation.task)
-        || reservation.task.id !== reservation.taskId
-        || reservation.task.requestDigest !== reservation.requestDigest
-        || reservation.task.request?.organizationId !== organizationId) {
+    if (
+      !isObject(reservation) ||
+      reservation.schema !== 'weles.public-task-reservation.v1' ||
+      !UUID_RE.test(reservation.taskId ?? '') ||
+      typeof reservation.requestDigest !== 'string' ||
+      !isObject(reservation.task) ||
+      reservation.task.id !== reservation.taskId ||
+      reservation.task.requestDigest !== reservation.requestDigest ||
+      reservation.task.request?.organizationId !== organizationId
+    ) {
       throw new Error('public task reservation failed validation');
     }
     return reservation;
@@ -116,7 +130,8 @@ export function createTaskStore({ runResultsRoot, taskRoot, mappingRoot, organiz
       }
       return task;
     } catch (error) {
-      if (!(error instanceof PublicTaskError) || error.status !== 404) throw error;
+      if (!(error instanceof PublicTaskError) || error.status !== 404)
+        throw error;
       await persistTask(reservation.task);
       return reservation.task;
     }
@@ -148,7 +163,10 @@ export function createTaskStore({ runResultsRoot, taskRoot, mappingRoot, organiz
         requestDigest: task.requestDigest,
         task,
       };
-      await handle.writeFile(`${JSON.stringify(reservation, null, 2)}\n`, 'utf8');
+      await handle.writeFile(
+        `${JSON.stringify(reservation, null, 2)}\n`,
+        'utf8',
+      );
       await handle.sync();
     } catch (error) {
       try {

@@ -19,13 +19,14 @@ function requiredEnv(name) {
   return value;
 }
 
-
 export function requireStadoModelRouterConfig() {
   if (routerConfig) return routerConfig;
   const rawUrl = requiredEnv('STADO_MODEL_ROUTER_URL');
   const token = requiredEnv('WELES_STADO_MODEL_ROUTER_TOKEN');
   if (Buffer.byteLength(token) < 32) {
-    throw new Error('WELES_STADO_MODEL_ROUTER_TOKEN must contain at least 32 bytes');
+    throw new Error(
+      'WELES_STADO_MODEL_ROUTER_TOKEN must contain at least 32 bytes',
+    );
   }
   let parsed;
   try {
@@ -33,19 +34,40 @@ export function requireStadoModelRouterConfig() {
   } catch {
     throw new Error('STADO_MODEL_ROUTER_URL must be a valid URL');
   }
-  if (parsed.username || parsed.password || parsed.search || parsed.hash
-    || (parsed.pathname !== '/' && parsed.pathname !== '')) {
-    throw new Error('STADO_MODEL_ROUTER_URL must be an origin without credentials, path, query, or fragment');
+  if (
+    parsed.username ||
+    parsed.password ||
+    parsed.search ||
+    parsed.hash ||
+    (parsed.pathname !== '/' && parsed.pathname !== '')
+  ) {
+    throw new Error(
+      'STADO_MODEL_ROUTER_URL must be an origin without credentials, path, query, or fragment',
+    );
   }
-  const loopback = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1'
-    || parsed.hostname === '::1' || parsed.hostname === '[::1]';
-  if (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && loopback)) {
-    throw new Error('STADO_MODEL_ROUTER_URL must use HTTPS, except for loopback HTTP');
+  const loopback =
+    parsed.hostname === 'localhost' ||
+    parsed.hostname === '127.0.0.1' ||
+    parsed.hostname === '::1' ||
+    parsed.hostname === '[::1]';
+  if (
+    parsed.protocol !== 'https:' &&
+    !(parsed.protocol === 'http:' && loopback)
+  ) {
+    throw new Error(
+      'STADO_MODEL_ROUTER_URL must use HTTPS, except for loopback HTTP',
+    );
   }
-  for (const siblingName of ['WELES_STADO_OBJECT_API_TOKEN', 'WELES_ARTIFACT_DELIVERY_TOKEN', 'WELES_ARTIFACT_SIGNING_SECRET']) {
+  for (const siblingName of [
+    'WELES_STADO_OBJECT_API_TOKEN',
+    'WELES_ARTIFACT_DELIVERY_TOKEN',
+    'WELES_ARTIFACT_SIGNING_SECRET',
+  ]) {
     const sibling = String(process.env[siblingName] || '').trim();
     if (sibling && sibling === token) {
-      throw new Error(`WELES_STADO_MODEL_ROUTER_TOKEN must be distinct from ${siblingName}`);
+      throw new Error(
+        `WELES_STADO_MODEL_ROUTER_TOKEN must be distinct from ${siblingName}`,
+      );
     }
   }
   routerConfig = { baseUrl: parsed.origin, token };
@@ -56,7 +78,13 @@ function completionText(content) {
   if (typeof content === 'string') return content.trim();
   if (!Array.isArray(content)) return '';
   return content
-    .map((part) => typeof part === 'string' ? part : (typeof part?.text === 'string' ? part.text : ''))
+    .map((part) =>
+      typeof part === 'string'
+        ? part
+        : typeof part?.text === 'string'
+          ? part.text
+          : '',
+    )
     .join('')
     .trim();
 }
@@ -65,10 +93,14 @@ function completionText(content) {
 // provider refusal comes back as its error.
 export async function completeMultimodal({ base64, mimeType, prompt }) {
   if (!/^(?:audio|image)\/[a-z\d.+-]+$/i.test(String(mimeType || ''))) {
-    throw new Error(`unsupported Stado model-router media type: ${mimeType || 'missing'}`);
+    throw new Error(
+      `unsupported Stado model-router media type: ${mimeType || 'missing'}`,
+    );
   }
-  if (typeof base64 !== 'string' || !base64) throw new Error('Stado model-router media payload is empty');
-  if (typeof prompt !== 'string' || !prompt.trim()) throw new Error('Stado model-router prompt is empty');
+  if (typeof base64 !== 'string' || !base64)
+    throw new Error('Stado model-router media payload is empty');
+  if (typeof prompt !== 'string' || !prompt.trim())
+    throw new Error('Stado model-router prompt is empty');
 
   const config = requireStadoModelRouterConfig();
   const response = await fetch(`${config.baseUrl}${ROUTER_PATH}`, {
@@ -80,13 +112,18 @@ export async function completeMultimodal({ base64, mimeType, prompt }) {
     body: JSON.stringify({
       model: MULTIMODAL_SELECTOR,
       temperature: 0,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } },
-        ],
-      }],
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            {
+              type: 'image_url',
+              image_url: { url: `data:${mimeType};base64,${base64}` },
+            },
+          ],
+        },
+      ],
     }),
   });
   const responseText = await response.text();
@@ -94,13 +131,24 @@ export async function completeMultimodal({ base64, mimeType, prompt }) {
   try {
     payload = JSON.parse(responseText);
   } catch {
-    throw new Error(`Stado model-router returned invalid JSON (HTTP ${response.status})`);
+    throw new Error(
+      `Stado model-router returned invalid JSON (HTTP ${response.status})`,
+    );
   }
   if (!response.ok) {
-    const detail = typeof payload?.error?.message === 'string' ? payload.error.message : responseText;
-    throw new Error(`Stado model-router HTTP ${response.status}: ${String(detail)}`);
+    const detail =
+      typeof payload?.error?.message === 'string'
+        ? payload.error.message
+        : responseText;
+    throw new Error(
+      `Stado model-router HTTP ${response.status}: ${String(detail)}`,
+    );
   }
   const text = completionText(payload?.choices?.at(0)?.message?.content);
   if (!text) throw new Error('Stado model-router returned an empty completion');
-  return { text, model: typeof payload.model === 'string' ? payload.model : MULTIMODAL_SELECTOR };
+  return {
+    text,
+    model:
+      typeof payload.model === 'string' ? payload.model : MULTIMODAL_SELECTOR,
+  };
 }

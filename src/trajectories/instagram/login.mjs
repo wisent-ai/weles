@@ -1,4 +1,7 @@
-import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
+import {
+  getSocialAccount,
+  resolveAccountSession,
+} from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
@@ -11,20 +14,32 @@ import { pageSettled, urlMatching } from '../_shared/page/settled.mjs';
 const URL = 'https://www.instagram.com/accounts/login/';
 
 const acct = await getSocialAccount('instagram');
-if (!acct) { console.log('FAIL: no active instagram account in DB'); process.exitCode = 1; }
+if (!acct) {
+  console.log('FAIL: no active instagram account in DB');
+  process.exitCode = 1;
+}
 process.env.SVC_EMAIL = acct.metadata.email ?? acct.username;
 process.env.SVC_PASSWORD = acct.metadata.password ?? '';
 console.log(`[trajectory] Using account: ${acct.username}`);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
-const s = await WSession.start({ label: 'instagram_login', proxy: proxyUrl, persona });
+const s = await WSession.start({
+  label: 'instagram_login',
+  proxy: proxyUrl,
+  persona,
+});
 
 async function captureCookies() {
   if (!acct.id) return;
   try {
     const cookies = await s.ctx.cookies();
-    await persistFreshCookieJar(acct, cookies, { currentProxyUrl: proxyUrl, currentPersona: persona });
-  } catch (e) { console.log('[cookie-capture] err:', e.message); }
+    await persistFreshCookieJar(acct, cookies, {
+      currentProxyUrl: proxyUrl,
+      currentPersona: persona,
+    });
+  } catch (e) {
+    console.log('[cookie-capture] err:', e.message);
+  }
 }
 
 try {
@@ -38,8 +53,18 @@ try {
   // Instagram's actual selector names: email (not username) + pass (not
   // password). Earlier 'username'/'password' selectors never matched and
   // every login timed out at 30s before submit.
-  const userIn = s.page.locator('input[name="email"], input[name="username"], input[aria-label*="username" i], input[aria-label*="email" i]').filter({ visible: true }).first();
-  const pwIn = s.page.locator('input[name="pass"], input[name="password"], input[type="password"]').filter({ visible: true }).first();
+  const userIn = s.page
+    .locator(
+      'input[name="email"], input[name="username"], input[aria-label*="username" i], input[aria-label*="email" i]',
+    )
+    .filter({ visible: true })
+    .first();
+  const pwIn = s.page
+    .locator(
+      'input[name="pass"], input[name="password"], input[type="password"]',
+    )
+    .filter({ visible: true })
+    .first();
   await userIn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, userIn);
   await pageSettled(s.page);
@@ -55,22 +80,47 @@ try {
   // Instagram answers the login by routing away from /accounts/login or by
   // showing its own alert; whichever comes first ends the wait.
   const ERR_SEL = '#slfErrorAlert, [data-bloks-name*="Error"], [role="alert"]';
-  await humanClickLocator(s.page, s.page.locator('div[role="button"]').filter({ hasText: /^\s*Log in\s*$/ }).filter({ visible: true }).first());
+  await humanClickLocator(
+    s.page,
+    s.page
+      .locator('div[role="button"]')
+      .filter({ hasText: /^\s*Log in\s*$/ })
+      .filter({ visible: true })
+      .first(),
+  );
   await Promise.any([
     urlMatching(s.page, (u) => !/\/accounts\/login\/?$/.test(u)),
-    s.page.locator(ERR_SEL).filter({ hasText: /\S/ }).first().waitFor({ state: 'visible' }),
+    s.page
+      .locator(ERR_SEL)
+      .filter({ hasText: /\S/ })
+      .first()
+      .waitFor({ state: 'visible' }),
   ]);
   await pageSettled(s.page);
   const finalUrl = s.page.url();
   console.log(`[instagram_login] post-submit url=${finalUrl}`);
   // Check for inline error text
-  const err = await s.page.evaluate((sel) => Array.from(document.querySelectorAll(sel)).map(e => e.textContent?.trim()).filter(Boolean), ERR_SEL);
-  if (err.length && /incorrect|wasn't recognised|wasn't recognized|password|wait a few minutes/i.test(err.join(' '))) {
+  const err = await s.page.evaluate(
+    (sel) =>
+      Array.from(document.querySelectorAll(sel))
+        .map((e) => e.textContent?.trim())
+        .filter(Boolean),
+    ERR_SEL,
+  );
+  if (
+    err.length &&
+    /incorrect|wasn't recognised|wasn't recognized|password|wait a few minutes/i.test(
+      err.join(' '),
+    )
+  ) {
     throw new Error(`invalid_credentials_or_block: ${err.join(' | ')}`);
   }
-  if (/\/accounts\/login/.test(finalUrl)) throw new Error('login form did not submit / no redirect');
-  if (/challenge|checkpoint|two_factor/.test(finalUrl)) throw new Error(`checkpoint at ${finalUrl}`);
-  if (/accounts\/suspended|accounts\/disabled/.test(finalUrl)) throw new Error(`suspended: ${finalUrl}`);
+  if (/\/accounts\/login/.test(finalUrl))
+    throw new Error('login form did not submit / no redirect');
+  if (/challenge|checkpoint|two_factor/.test(finalUrl))
+    throw new Error(`checkpoint at ${finalUrl}`);
+  if (/accounts\/suspended|accounts\/disabled/.test(finalUrl))
+    throw new Error(`suspended: ${finalUrl}`);
   console.log(`PASS: logged in — ${finalUrl}`);
   await captureCookies();
 } catch (e) {
@@ -100,33 +150,65 @@ try {
     // before falling through to checkpoint, otherwise the burned IP stays in
     // rotation (worker.markBurned only fires on ip_blocked).
     let pageBody = '';
-    try { pageBody = (await s.page?.evaluate?.(() => document.body?.innerText ?? '')) ?? ''; } catch {}
-    const ipBlockMarkers = /Sorry,?\s+there was a problem|suspicious activity|please try again later|We restrict certain activity|you'?re using automated|temporarily blocked|We can'?t process/i;
+    try {
+      pageBody =
+        (await s.page?.evaluate?.(() => document.body?.innerText ?? '')) ?? '';
+    } catch {}
+    const ipBlockMarkers =
+      /Sorry,?\s+there was a problem|suspicious activity|please try again later|We restrict certain activity|you'?re using automated|temporarily blocked|We can'?t process/i;
     let sig;
-    if (/\/accounts\/suspended|\/accounts\/disabled/.test(finalUrl)) sig = 'suspended';
-    else if (/\/checkpoint|\/challenge|\/two_factor/.test(finalUrl)) sig = 'checkpoint';
-    else if (/ERR_HTTP_RESPONSE_CODE_FAILURE|ERR_BLOCKED_BY_RESPONSE|ERR_BLOCKED_BY_CLIENT|ERR_BLOCKED_BY_ADMINISTRATOR/.test(msg)) sig = 'ip_blocked';
-    else if (/ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED/.test(msg)) sig = 'proxy_failed';
+    if (/\/accounts\/suspended|\/accounts\/disabled/.test(finalUrl))
+      sig = 'suspended';
+    else if (/\/checkpoint|\/challenge|\/two_factor/.test(finalUrl))
+      sig = 'checkpoint';
+    else if (
+      /ERR_HTTP_RESPONSE_CODE_FAILURE|ERR_BLOCKED_BY_RESPONSE|ERR_BLOCKED_BY_CLIENT|ERR_BLOCKED_BY_ADMINISTRATOR/.test(
+        msg,
+      )
+    )
+      sig = 'ip_blocked';
+    else if (
+      /ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED/.test(msg)
+    )
+      sig = 'proxy_failed';
     else if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
     else if (ipBlockMarkers.test(pageBody)) sig = 'ip_blocked';
     // Login form rendered but the trajectory threw before redirect (locator
     // timeout, no form inputs, submit blocked). Still on instagram.com/login
     // means cookies-stale: retrying the same path will hit the same wall.
-    else if (/instagram\.com\/(accounts\/login|$)/.test(finalUrl) || /locator.*Timeout|net::ERR_TIMED_OUT/.test(msg)) sig = 'checkpoint';
+    else if (
+      /instagram\.com\/(accounts\/login|$)/.test(finalUrl) ||
+      /locator.*Timeout|net::ERR_TIMED_OUT/.test(msg)
+    )
+      sig = 'checkpoint';
     else sig = 'action_failed';
-    writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({
-      account_id: acct.id, username: acct.username, action: 'instagram_login',
-      signal: sig, healthy: false,
-      details: { final_url: finalUrl, reason: e.message ?? 'no message' },
-      ts: new Date().toISOString(),
-    }, null, 2));
+    writeFileSync(
+      join(dir, 'ban_signal.json'),
+      JSON.stringify(
+        {
+          account_id: acct.id,
+          username: acct.username,
+          action: 'instagram_login',
+          signal: sig,
+          healthy: false,
+          details: { final_url: finalUrl, reason: e.message ?? 'no message' },
+          ts: new Date().toISOString(),
+        },
+        null,
+        2,
+      ),
+    );
     // If the platform suspended the account, flip is_active=false so
     // getSocialAccount stops picking it. Same pattern as discord_login.
     if (sig === 'suspended') {
-      const { deactivateAccount } = await import('../../../dist/account/state.js');
+      const { deactivateAccount } = await import(
+        '../../../dist/account/state.js'
+      );
       await deactivateAccount(acct.id, acct.metadata, 'INSTAGRAM_SUSPENDED');
     } else if (sig === 'checkpoint') {
-      const { markCookiesStale } = await import('../../../dist/utils/credentials.js');
+      const { markCookiesStale } = await import(
+        '../../../dist/utils/credentials.js'
+      );
       if (acct.id) await markCookiesStale(acct.id);
     }
   } catch {}

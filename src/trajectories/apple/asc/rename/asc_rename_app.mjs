@@ -14,51 +14,109 @@ import { readFileSync } from 'node:fs';
 const P8_PATH = process.env.P8_PATH;
 const KID = process.env.KID;
 const ISSUER = process.env.ISSUER;
-if (!P8_PATH || !KID || !ISSUER) throw new Error('set P8_PATH, KID and ISSUER for the App Store Connect key');
+if (!P8_PATH || !KID || !ISSUER)
+  throw new Error('set P8_PATH, KID and ISSUER for the App Store Connect key');
 const BUNDLE = process.env.BUNDLE || 'ai.wisent.swiatowid';
 const NEW_NAME = process.env.NEW_NAME;
 const DRY = process.env.DRY === '1';
-if (!NEW_NAME && !DRY) { console.log('FAIL: NEW_NAME required (or DRY=1)'); process.exit(1); }
+if (!NEW_NAME && !DRY) {
+  console.log('FAIL: NEW_NAME required (or DRY=1)');
+  process.exit(1);
+}
 
 const PEM = readFileSync(P8_PATH, 'utf8');
-const b = (x) => Buffer.from(x).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+const b = (x) =>
+  Buffer.from(x)
+    .toString('base64')
+    .replace(/=+$/, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
 function jwt() {
   const n = Math.floor(Date.now() / 1000);
   const h = b(JSON.stringify({ alg: 'ES256', kid: KID, typ: 'JWT' }));
-  const p = b(JSON.stringify({ iss: ISSUER, iat: n, exp: n + 600, aud: 'appstoreconnect-v1' }));
-  const sig = crypto.createSign('SHA256').update(`${h}.${p}`).sign({ key: PEM, dsaEncoding: 'ieee-p1363' });
+  const p = b(
+    JSON.stringify({
+      iss: ISSUER,
+      iat: n,
+      exp: n + 600,
+      aud: 'appstoreconnect-v1',
+    }),
+  );
+  const sig = crypto
+    .createSign('SHA256')
+    .update(`${h}.${p}`)
+    .sign({ key: PEM, dsaEncoding: 'ieee-p1363' });
   return `${h}.${p}.${b(sig)}`;
 }
 const H = { Authorization: `Bearer ${jwt()}` };
 const API = 'https://api.appstoreconnect.apple.com/v1';
 
 async function api(path, opts = {}) {
-  const r = await fetch(`${API}${path}`, { ...opts, headers: { ...H, 'Content-Type': 'application/json', ...(opts.headers || {}) } });
+  const r = await fetch(`${API}${path}`, {
+    ...opts,
+    headers: {
+      ...H,
+      'Content-Type': 'application/json',
+      ...(opts.headers || {}),
+    },
+  });
   const t = await r.text();
-  let j; try { j = JSON.parse(t); } catch { j = t; }
-  if (!r.ok) { console.log(`HTTP ${r.status} ${opts.method || 'GET'} ${path}: ${t}`); throw new Error(`http ${r.status}`); }
+  let j;
+  try {
+    j = JSON.parse(t);
+  } catch {
+    j = t;
+  }
+  if (!r.ok) {
+    console.log(`HTTP ${r.status} ${opts.method || 'GET'} ${path}: ${t}`);
+    throw new Error(`http ${r.status}`);
+  }
   return j;
 }
 
-const apps = await api(`/apps?filter[bundleId]=${encodeURIComponent(BUNDLE)}&limit=5`);
+const apps = await api(
+  `/apps?filter[bundleId]=${encodeURIComponent(BUNDLE)}&limit=5`,
+);
 const app = (apps.data || [])[0];
-if (!app) { console.log('FAIL: app not found for bundle', BUNDLE); process.exit(1); }
-console.log('APP', app.id, '| name:', app.attributes?.name, '| bundle:', app.attributes?.bundleId);
+if (!app) {
+  console.log('FAIL: app not found for bundle', BUNDLE);
+  process.exit(1);
+}
+console.log(
+  'APP',
+  app.id,
+  '| name:',
+  app.attributes?.name,
+  '| bundle:',
+  app.attributes?.bundleId,
+);
 
 const infos = await api(`/apps/${app.id}/appInfos?limit=10`);
 for (const info of infos.data || []) {
   const state = info.attributes?.appStoreState || info.attributes?.state;
   const locs = await api(`/appInfos/${info.id}/appInfoLocalizations?limit=20`);
   for (const loc of locs.data || []) {
-    console.log(`  appInfo ${info.id} [${state}] loc ${loc.id} ${loc.attributes?.locale}: name="${loc.attributes?.name}"`);
+    console.log(
+      `  appInfo ${info.id} [${state}] loc ${loc.id} ${loc.attributes?.locale}: name="${loc.attributes?.name}"`,
+    );
     if (!DRY && NEW_NAME && loc.attributes?.name !== NEW_NAME) {
       try {
         await api(`/appInfoLocalizations/${loc.id}`, {
           method: 'PATCH',
-          body: JSON.stringify({ data: { type: 'appInfoLocalizations', id: loc.id, attributes: { name: NEW_NAME } } }),
+          body: JSON.stringify({
+            data: {
+              type: 'appInfoLocalizations',
+              id: loc.id,
+              attributes: { name: NEW_NAME },
+            },
+          }),
         });
-        console.log(`    -> renamed loc ${loc.attributes?.locale} to "${NEW_NAME}"`);
-      } catch (e) { console.log('    -> PATCH failed:', e.message); }
+        console.log(
+          `    -> renamed loc ${loc.attributes?.locale} to "${NEW_NAME}"`,
+        );
+      } catch (e) {
+        console.log('    -> PATCH failed:', e.message);
+      }
     }
   }
 }

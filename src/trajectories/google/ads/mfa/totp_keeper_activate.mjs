@@ -4,22 +4,45 @@
 // would outlive the run as a second permanent Weles process.
 
 import { assertScopedSecretWriter } from '../../../../_shared/scoped-secrets.mjs';
-import { EMAIL, GOOGLE_ADS_LOGIN, RESULT_FILE, SESSION, SOCK, USER_DATA_DIR, writeResult } from './totp_keeper_activate/settings.mjs';
+import {
+  EMAIL,
+  GOOGLE_ADS_LOGIN,
+  RESULT_FILE,
+  SESSION,
+  SOCK,
+  USER_DATA_DIR,
+  writeResult,
+} from './totp_keeper_activate/settings.mjs';
 import { requireKeeper } from './totp_keeper_activate/keeper.mjs';
 import { activateSetup } from './totp_keeper_activate/setup.mjs';
 
 async function main() {
-
   const creds = GOOGLE_ADS_LOGIN;
   if (!creds?.password || !creds?.totpSecret) {
-    writeResult({ ok: false, blocked: 'missing_google_ads_password_or_totp_secret', email: EMAIL }, 2);
+    writeResult(
+      {
+        ok: false,
+        blocked: 'missing_google_ads_password_or_totp_secret',
+        email: EMAIL,
+      },
+      2,
+    );
   }
   assertScopedSecretWriter('googleAds');
 
   try {
     await requireKeeper();
   } catch (error) {
-    writeResult({ ok: false, blocked: 'keeper_not_ready', session: SESSION, socket: SOCK, error: String(error?.message || error) }, 3);
+    writeResult(
+      {
+        ok: false,
+        blocked: 'keeper_not_ready',
+        session: SESSION,
+        socket: SOCK,
+        error: String(error?.message || error),
+      },
+      3,
+    );
   }
 
   const report = await activateSetup({ ...creds, email: EMAIL });
@@ -30,5 +53,12 @@ async function main() {
 }
 
 main().catch((error) => {
-  writeResult({ ok: false, blocked: 'google_totp_keeper_error', error: String(error?.message || error) }, 1);
+  writeResult(
+    {
+      ok: false,
+      blocked: 'google_totp_keeper_error',
+      error: String(error?.message || error),
+    },
+    1,
+  );
 });

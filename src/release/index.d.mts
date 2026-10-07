@@ -17,9 +17,21 @@ export type VersionVerdict = {
 };
 
 export type VersionInputs = {
-  decision: { current: string; change: string; next: string; added: string[]; removed: string[] };
+  decision: {
+    current: string;
+    change: string;
+    next: string;
+    added: string[];
+    removed: string[];
+  };
   baseline: { version: string };
-  declaration: { schema: string; breaking: boolean; reason: string; current: string; candidate: string };
+  declaration: {
+    schema: string;
+    breaking: boolean;
+    reason: string;
+    current: string;
+    candidate: string;
+  };
   manifest: { version: string };
 };
 

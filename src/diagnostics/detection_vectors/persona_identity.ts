@@ -38,7 +38,8 @@ export function platformFromNav(platform: string): string | null {
 export function browserFromUA(ua: string): string | null {
   const u = ua.toLowerCase();
   if (u.includes('firefox') && !u.includes('seamonkey')) return 'firefox';
-  if (u.includes('chrome') && !u.includes('edg') && !u.includes('opr')) return 'chrome';
+  if (u.includes('chrome') && !u.includes('edg') && !u.includes('opr'))
+    return 'chrome';
   if (u.includes('safari') && !u.includes('chrome')) return 'safari';
   if (u.includes('edg')) return 'edge';
   return null;

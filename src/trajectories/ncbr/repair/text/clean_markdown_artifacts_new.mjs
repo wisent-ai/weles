@@ -2,12 +2,18 @@
 // Never submits the application.
 
 import { chromium } from 'playwright';
-import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import {
+  humanClickLocator,
+  humanIdlePause,
+} from '../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../dist/human/keyboard.js';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
 const projectId = (await import('#ncbr-settings')).projectId();
-const base = ['https://', `lsi2.ncbr.gov.pl/projekt/${projectId}/projekt_step/`].join('');
+const base = [
+  'https://',
+  `lsi2.ncbr.gov.pl/projekt/${projectId}/projekt_step/`,
+].join('');
 
 const targets = [
   {
@@ -45,7 +51,7 @@ function repairTail(section, value) {
   if (section !== '10.2') return value;
   return value.replace(
     /Suwerenność cyfrowa i ograniczanie zależności strategicznej\.\s*Wisent RNM[\s\S]*$/,
-    'Suwerenność cyfrowa. Wisent RNM wzmacnia suwerenność cyfrową UE przez audytowalne modele językowe zgodne z AI Act i ogranicza zależność od dostawców spoza UE. W stosunku do pozostałych artykułów KPP projekt jest neutralny i nie narusza praw ani wolności w nich wskazanych.'
+    'Suwerenność cyfrowa. Wisent RNM wzmacnia suwerenność cyfrową UE przez audytowalne modele językowe zgodne z AI Act i ogranicza zależność od dostawców spoza UE. W stosunku do pozostałych artykułów KPP projekt jest neutralny i nie narusza praw ani wolności w nich wskazanych.',
   );
 }
 
@@ -56,31 +62,46 @@ if (!page) {
   process.exit(1);
 }
 
-
 const results = [];
 for (const target of targets) {
   await page.goto(target.url, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: navigate to existing LSI draft section only
   await humanIdlePause('long');
   const loc = page.locator(`textarea[name$="${target.suffix}"]`).first();
-  if (await loc.count() === 0) {
-    results.push({ section: target.section, suffix: target.suffix, error: 'textarea not found' });
+  if ((await loc.count()) === 0) {
+    results.push({
+      section: target.section,
+      suffix: target.suffix,
+      error: 'textarea not found',
+    });
     continue;
   }
   const before = await loc.inputValue(); // allow-raw-playwright: read existing textarea value
   let after = repairTail(target.section, plain(before));
   const max = Number(await loc.getAttribute('maxlength')) || after.length;
   if (after.length > max) {
-    throw new Error(`${target.section} cleanup too long: ${after.length}/${max}`);
+    throw new Error(
+      `${target.section} cleanup too long: ${after.length}/${max}`,
+    );
   }
   if (before !== after) {
     await humanFill(page, loc, after); // allow-raw-playwright: replace Markdown syntax with plain text in LSI textarea
     await humanIdlePause('deliberate');
-    await humanClickLocator(page, page.locator('button:visible').filter({ hasText: /^Zapisz$/ }).filter({ hasNot: page.locator('[disabled]') }).last()); // allow-raw-playwright: save changed section through visible UI
+    await humanClickLocator(
+      page,
+      page
+        .locator('button:visible')
+        .filter({ hasText: /^Zapisz$/ })
+        .filter({ hasNot: page.locator('[disabled]') })
+        .last(),
+    ); // allow-raw-playwright: save changed section through visible UI
     await humanIdlePause('long');
   }
   await page.goto(target.url, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: readback after save
   await humanIdlePause('long');
-  const read = await page.locator(`textarea[name$="${target.suffix}"]`).first().inputValue(); // allow-raw-playwright: readback value
+  const read = await page
+    .locator(`textarea[name$="${target.suffix}"]`)
+    .first()
+    .inputValue(); // allow-raw-playwright: readback value
   results.push({
     section: target.section,
     suffix: target.suffix,

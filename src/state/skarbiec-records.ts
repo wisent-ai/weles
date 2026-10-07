@@ -12,27 +12,41 @@ export interface WelesAccountRecord {
   context: Record<string, any>;
 }
 
-const SKARBIEC_RESOLVER = join(__dirname, '..', '..', 'src', '_shared', 'skarbiec-runtime.mjs');
+const SKARBIEC_RESOLVER = join(
+  __dirname,
+  '..',
+  '..',
+  'src',
+  '_shared',
+  'skarbiec-runtime.mjs',
+);
 let resolvedSkarbiecBinary: string | undefined;
 
 function activeSkarbiecBinary(operation: string): string {
   if (resolvedSkarbiecBinary) return resolvedSkarbiecBinary;
-  const result = spawnSync(process.execPath, [SKARBIEC_RESOLVER, 'active-binary'], {
-    encoding: 'utf8',
-    env: process.env,
-    maxBuffer: 1024 * 1024,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+  const result = spawnSync(
+    process.execPath,
+    [SKARBIEC_RESOLVER, 'active-binary'],
+    {
+      encoding: 'utf8',
+      env: process.env,
+      maxBuffer: 1024 * 1024,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  );
   const binary = String(result.stdout ?? '').trim();
   if (result.error || result.status !== 0 || !isAbsolute(binary)) {
-    const detail = result.error?.message
-      || String(result.stderr ?? '').trim()
-      || (result.status !== 0
+    const detail =
+      result.error?.message ||
+      String(result.stderr ?? '').trim() ||
+      (result.status !== 0
         ? `resolver exited with status ${result.status ?? 'unknown'}`
         : binary
           ? 'resolver returned a non-absolute path'
           : 'resolver returned no path');
-    throw new Error(`cannot ${operation}: Stado returned no attested active Skarbiec binary: ${detail}`);
+    throw new Error(
+      `cannot ${operation}: Stado returned no attested active Skarbiec binary: ${detail}`,
+    );
   }
   resolvedSkarbiecBinary = binary;
   return binary;
@@ -46,17 +60,22 @@ const ACCOUNT_KIND = 'trajectory-account';
 const SETTING_KIND = 'runtime-setting';
 
 function skarbiec(args: string[], input?: string): string {
-  return execFileSync(activeSkarbiecBinary(`run Skarbiec ${args[0] ?? 'operation'}`), args, {
-    input,
-    encoding: 'utf8',
-    maxBuffer: 4 * 1024 * 1024,
-    env: { ...process.env, SKARBIEC_VAULT_FILE: VAULT },
-  });
+  return execFileSync(
+    activeSkarbiecBinary(`run Skarbiec ${args[0] ?? 'operation'}`),
+    args,
+    {
+      input,
+      encoding: 'utf8',
+      maxBuffer: 4 * 1024 * 1024,
+      env: { ...process.env, SKARBIEC_VAULT_FILE: VAULT },
+    },
+  );
 }
 
 export function listCredentialItems(): Array<Record<string, any>> {
   const rows = JSON.parse(skarbiec(['list'])) as Array<Record<string, any>>;
-  if (!Array.isArray(rows)) throw new Error('Skarbiec list returned a non-array inventory');
+  if (!Array.isArray(rows))
+    throw new Error('Skarbiec list returned a non-array inventory');
   return rows.filter((row) => !row.deleted && row.state !== 'deleted');
 }
 
@@ -67,17 +86,23 @@ export function listCredentialItems(): Array<Record<string, any>> {
  * this length: it is the one place that length is stated.
  */
 export function minimumGeneratedLength(): number | null {
-  const policy = JSON.parse(skarbiec(['policy-get'])) as Record<string, unknown>;
+  const policy = JSON.parse(skarbiec(['policy-get'])) as Record<
+    string,
+    unknown
+  >;
   const stated = policy?.min_generated_length;
   if (stated === undefined || stated === null) return null;
   if (!Number.isSafeInteger(stated)) {
-    throw new Error(`Skarbiec's policy min_generated_length is not a whole number: ${JSON.stringify(stated)}`);
+    throw new Error(
+      `Skarbiec's policy min_generated_length is not a whole number: ${JSON.stringify(stated)}`,
+    );
   }
   return stated as number;
 }
 
 function itemIds(kind?: string): string[] {
-  return listCredentialItems().filter((row) => !kind || row.kind === kind)
+  return listCredentialItems()
+    .filter((row) => !kind || row.kind === kind)
     .map((row) => String(row.name ?? row.id ?? ''))
     .filter(Boolean);
 }
@@ -95,11 +120,18 @@ const ROLE = /^[a-z0-9][a-z0-9-]{0,126}$/;
 export function itemPlayingRole(role: string): string {
   if (!ROLE.test(role)) throw new Error(`invalid role ${JSON.stringify(role)}`);
   const tag = `${ROLE_TAG_PREFIX}${role}`;
-  const holders = listCredentialItems().filter((row) => Array.isArray(row.tags) && row.tags.includes(tag));
+  const holders = listCredentialItems().filter(
+    (row) => Array.isArray(row.tags) && row.tags.includes(tag),
+  );
   if (holders.length === 0) {
-    throw new Error(`no Skarbiec item carries ${tag}; store the secret for role ${role} with \`stado credentials item put --host <vault owner> --role ${role}\``);
+    throw new Error(
+      `no Skarbiec item carries ${tag}; store the secret for role ${role} with \`stado credentials item put --host <vault owner> --role ${role}\``,
+    );
   }
-  if (holders.length > 1) throw new Error(`${holders.length} Skarbiec items carry ${tag}; exactly one item may play role ${role}`);
+  if (holders.length > 1)
+    throw new Error(
+      `${holders.length} Skarbiec items carry ${tag}; exactly one item may play role ${role}`,
+    );
   return String(holders[0].id ?? holders[0].name ?? '');
 }
 
@@ -111,10 +143,16 @@ export function writeDocument(id: string, document: Record<string, any>): void {
   skarbiec(['set-json', id], JSON.stringify(document));
 }
 
-export function listServiceMetadata(category?: string): Array<Record<string, any>> {
-  return itemIds().map((id) => ({ id, document: readDocument(id) }))
-    .filter(({ document }) => document.context?.owner === 'weles'
-      || document.context?.source_kind === 'proxy')
+export function listServiceMetadata(
+  category?: string,
+): Array<Record<string, any>> {
+  return itemIds()
+    .map((id) => ({ id, document: readDocument(id) }))
+    .filter(
+      ({ document }) =>
+        document.context?.owner === 'weles' ||
+        document.context?.source_kind === 'proxy',
+    )
     .map(({ id, document }) => ({
       id,
       ...document.context,
@@ -123,7 +161,10 @@ export function listServiceMetadata(category?: string): Array<Record<string, any
     .filter((record) => !category || record.category === category);
 }
 
-function accountFromDocument(id: string, document: Record<string, any>): WelesAccountRecord {
+function accountFromDocument(
+  id: string,
+  document: Record<string, any>,
+): WelesAccountRecord {
   const fields = document.fields ?? {};
   const context = document.context ?? {};
   return {
@@ -132,7 +173,9 @@ function accountFromDocument(id: string, document: Record<string, any>): WelesAc
     username: String(fields.username ?? ''),
     password: String(fields.password ?? ''),
     active: context.active !== false,
-    metadata: fields.metadata_json ? JSON.parse(String(fields.metadata_json)) : {},
+    metadata: fields.metadata_json
+      ? JSON.parse(String(fields.metadata_json))
+      : {},
     context,
   };
 }
@@ -147,9 +190,26 @@ function recordIds(kind: string): string[] {
 }
 
 /** Replace `id`'s payload with a bundle holding exactly `fields`, written on stdin so no value is in argv. */
-function writeBundle(id: string, fields: Record<string, string>, tags: string[] = []): void {
-  skarbiec(['set-json', id, '--type', 'bundle', ...(tags.length ? ['--tags', tags.join(',')] : [])],
-    JSON.stringify({ schema: 'skarbiec.item.v2', kind: 'bundle', fields, context: {} }));
+function writeBundle(
+  id: string,
+  fields: Record<string, string>,
+  tags: string[] = [],
+): void {
+  skarbiec(
+    [
+      'set-json',
+      id,
+      '--type',
+      'bundle',
+      ...(tags.length ? ['--tags', tags.join(',')] : []),
+    ],
+    JSON.stringify({
+      schema: 'skarbiec.item.v2',
+      kind: 'bundle',
+      fields,
+      context: {},
+    }),
+  );
 }
 
 /** A new record of `kind` under a random id; returns the id. */
@@ -162,10 +222,15 @@ function createRecord(kind: string, fields: Record<string, string>): string {
 /** The account of `platform` signed in as `username`, active or not. */
 function findAccountId(platform: string, username: string): string | null {
   const wanted = username.trim().toLowerCase();
-  return recordIds(ACCOUNT_KIND).find((id) => {
-    const account = accountFromDocument(id, readDocument(id));
-    return account.platform === platform && account.username.trim().toLowerCase() === wanted;
-  }) ?? null;
+  return (
+    recordIds(ACCOUNT_KIND).find((id) => {
+      const account = accountFromDocument(id, readDocument(id));
+      return (
+        account.platform === platform &&
+        account.username.trim().toLowerCase() === wanted
+      );
+    }) ?? null
+  );
 }
 
 /**
@@ -175,7 +240,10 @@ function findAccountId(platform: string, username: string): string | null {
  * found again this way; their ids are left as they are and mean nothing.
  * Tags an item already carries are kept.
  */
-export function adoptRecords(): { tagged: Array<{ id: string; kind: string }>; skipped: number } {
+export function adoptRecords(): {
+  tagged: Array<{ id: string; kind: string }>;
+  skipped: number;
+} {
   const tagged: Array<{ id: string; kind: string }> = [];
   let skipped = 0;
   for (const row of listCredentialItems()) {
@@ -186,12 +254,18 @@ export function adoptRecords(): { tagged: Array<{ id: string; kind: string }>; s
       continue;
     }
     const context = readDocument(id).context ?? {};
-    const kind = typeof context.record_kind === 'string' ? context.record_kind : '';
+    const kind =
+      typeof context.record_kind === 'string' ? context.record_kind : '';
     if (context.owner !== 'weles' || !/^[a-z][a-z0-9-]{0,62}$/.test(kind)) {
       skipped += 1;
       continue;
     }
-    skarbiec(['retag', id, '--tags', [...tags, `${RECORD_TAG_PREFIX}${kind}`].join(',')]);
+    skarbiec([
+      'retag',
+      id,
+      '--tags',
+      [...tags, `${RECORD_TAG_PREFIX}${kind}`].join(','),
+    ]);
     tagged.push({ id, kind });
   }
   return { tagged, skipped };
@@ -201,7 +275,10 @@ export function adoptRecords(): { tagged: Array<{ id: string; kind: string }>; s
 export function listAccounts(platform?: string): WelesAccountRecord[] {
   return recordIds(ACCOUNT_KIND)
     .map((id) => accountFromDocument(id, readDocument(id)))
-    .filter((account) => account.active && (!platform || account.platform === platform));
+    .filter(
+      (account) =>
+        account.active && (!platform || account.platform === platform),
+    );
 }
 
 /** One account record whether active or not, or null when no such account exists. */
@@ -228,11 +305,17 @@ export function putAccountProfile(record: {
   metadata: Record<string, unknown>;
   displayName?: string;
 }): string {
-  const id = findAccountId(record.platform, record.username)
-    ?? createRecord(ACCOUNT_KIND, { username: record.username, metadata_json: JSON.stringify(record.metadata) });
+  const id =
+    findAccountId(record.platform, record.username) ??
+    createRecord(ACCOUNT_KIND, {
+      username: record.username,
+      metadata_json: JSON.stringify(record.metadata),
+    });
   const document = readDocument(id);
   const fields = document.fields ?? {};
-  const current = fields.metadata_json ? JSON.parse(String(fields.metadata_json)) : {};
+  const current = fields.metadata_json
+    ? JSON.parse(String(fields.metadata_json))
+    : {};
   fields.metadata_json = JSON.stringify({ ...current, ...record.metadata });
   document.fields = fields;
   document.context = {
@@ -240,7 +323,8 @@ export function putAccountProfile(record: {
     owner: 'weles',
     record_kind: 'trajectory-account',
     platform: record.platform,
-    display_name: record.displayName ?? document.context?.display_name ?? record.username,
+    display_name:
+      record.displayName ?? document.context?.display_name ?? record.username,
     active: true,
   };
   writeDocument(id, document);
@@ -254,7 +338,11 @@ export function putAccount(record: {
   metadata: Record<string, unknown>;
   displayName?: string;
 }): string {
-  const fields = { username: record.username, password: record.password, metadata_json: JSON.stringify(record.metadata) };
+  const fields = {
+    username: record.username,
+    password: record.password,
+    metadata_json: JSON.stringify(record.metadata),
+  };
   const existing = findAccountId(record.platform, record.username);
   const id = existing ?? createRecord(ACCOUNT_KIND, fields);
   if (existing) writeBundle(id, fields);
@@ -271,22 +359,36 @@ export function putAccount(record: {
   return id;
 }
 
-export function updateAccount(id: string, patch: { metadata?: Record<string, any>; active?: boolean }): boolean {
+export function updateAccount(
+  id: string,
+  patch: { metadata?: Record<string, any>; active?: boolean },
+): boolean {
   if (!recordIds(ACCOUNT_KIND).includes(id)) return false;
   const document = readDocument(id);
   const fields = document.fields ?? {};
-  const current = fields.metadata_json ? JSON.parse(String(fields.metadata_json)) : {};
-  if (patch.metadata) fields.metadata_json = JSON.stringify({ ...current, ...patch.metadata });
+  const current = fields.metadata_json
+    ? JSON.parse(String(fields.metadata_json))
+    : {};
+  if (patch.metadata)
+    fields.metadata_json = JSON.stringify({ ...current, ...patch.metadata });
   document.fields = fields;
-  document.context = { ...(document.context ?? {}), ...(patch.active === undefined ? {} : { active: patch.active }) };
+  document.context = {
+    ...(document.context ?? {}),
+    ...(patch.active === undefined ? {} : { active: patch.active }),
+  };
   writeDocument(id, document);
   return true;
 }
 
 /** The runtime setting record for `key`, or null when none was written. */
 function settingRecordId(key: string): string | null {
-  if (!/^[a-z][a-z0-9_]{0,126}$/.test(key)) throw new Error(`invalid Weles setting: ${key}`);
-  return recordIds(SETTING_KIND).find((id) => readDocument(id).context?.setting_key === key) ?? null;
+  if (!/^[a-z][a-z0-9_]{0,126}$/.test(key))
+    throw new Error(`invalid Weles setting: ${key}`);
+  return (
+    recordIds(SETTING_KIND).find(
+      (id) => readDocument(id).context?.setting_key === key,
+    ) ?? null
+  );
 }
 
 /**
@@ -304,7 +406,9 @@ export function readSetting<T>(key: string, absent: T): T {
   try {
     return JSON.parse(String(raw)) as T;
   } catch (error) {
-    throw new Error(`Weles setting ${key} holds no JSON value: ${(error as Error).message}`);
+    throw new Error(
+      `Weles setting ${key} holds no JSON value: ${(error as Error).message}`,
+    );
   }
 }
 

@@ -1,21 +1,38 @@
 import { canonicalJson, digest, isObject } from '../wire/canonical-json.mjs';
 
-export function terminalCompletion(output, aborted, _redact, requestedUrl = null) {
+export function terminalCompletion(
+  output,
+  aborted,
+  _redact,
+  requestedUrl = null,
+) {
   let completion;
   if (aborted || output?.cancelled) {
-    completion = { status: 'cancelled', result: { state: 'cancelled' }, error: null, capture: null };
+    completion = {
+      status: 'cancelled',
+      result: { state: 'cancelled' },
+      error: null,
+      capture: null,
+    };
   } else if (output?.ok) {
     const captureResult = isObject(output.result) ? output.result : null;
     let effectiveUrl = null;
     let finalUrl = null;
     try {
-      effectiveUrl = typeof captureResult?.url === 'string' ? new URL(captureResult.url).toString() : null;
-      finalUrl = typeof captureResult?.final_url === 'string' ? new URL(captureResult.final_url).toString() : null;
+      effectiveUrl =
+        typeof captureResult?.url === 'string'
+          ? new URL(captureResult.url).toString()
+          : null;
+      finalUrl =
+        typeof captureResult?.final_url === 'string'
+          ? new URL(captureResult.final_url).toString()
+          : null;
     } catch {}
-    const captureValid = typeof requestedUrl === 'string'
-      && effectiveUrl === requestedUrl
-      && typeof finalUrl === 'string'
-      && new URL(finalUrl).origin === new URL(requestedUrl).origin;
+    const captureValid =
+      typeof requestedUrl === 'string' &&
+      effectiveUrl === requestedUrl &&
+      typeof finalUrl === 'string' &&
+      new URL(finalUrl).origin === new URL(requestedUrl).origin;
     if (!captureValid) {
       completion = {
         status: 'failed',
@@ -40,7 +57,10 @@ export function terminalCompletion(output, aborted, _redact, requestedUrl = null
       capture: { requestedUrl, effectiveUrl: null, finalUrl: null },
     };
   }
-  return { ...completion, resultDigest: digest(canonicalJson(completion.result)) };
+  return {
+    ...completion,
+    resultDigest: digest(canonicalJson(completion.result)),
+  };
 }
 
 export function createDispatcher({
@@ -96,9 +116,15 @@ export function createDispatcher({
     await withTaskLock(taskId, async () => {
       const task = await loadTask(taskId);
       if (task.receipt) return;
-      const cancellationWins = Boolean(task.cancellation) || controller.signal.aborted;
+      const cancellationWins =
+        Boolean(task.cancellation) || controller.signal.aborted;
       task.completion = {
-        ...terminalCompletion(output, cancellationWins, redact, task.executionInput.url),
+        ...terminalCompletion(
+          output,
+          cancellationWins,
+          redact,
+          task.executionInput.url,
+        ),
         completedAt: new Date().toISOString(),
       };
       await persistTask(task);
@@ -110,7 +136,8 @@ export function createDispatcher({
     let controller = null;
     await withTaskLock(taskId, async () => {
       const task = await loadTask(taskId);
-      if (draining || recovering || paused || task.receipt || task.completion) return;
+      if (draining || recovering || paused || task.receipt || task.completion)
+        return;
       if (task.cancellation) {
         task.completion = {
           ...terminalCompletion(null, true, redact, task.executionInput.url),
@@ -133,11 +160,10 @@ export function createDispatcher({
     });
     if (!controller) return;
     const running = active.get(taskId);
-    const promise = executeTask(taskId, controller)
-      .finally(() => {
-        if (active.get(taskId)?.controller === controller) active.delete(taskId);
-        void dispatchQueue();
-      });
+    const promise = executeTask(taskId, controller).finally(() => {
+      if (active.get(taskId)?.controller === controller) active.delete(taskId);
+      void dispatchQueue();
+    });
     running.promise = promise;
   }
 
@@ -145,7 +171,13 @@ export function createDispatcher({
     if (dispatching || draining || recovering || paused) return;
     dispatching = true;
     try {
-      while (!draining && !recovering && !paused && active.size < concurrency && queue.length > 0) {
+      while (
+        !draining &&
+        !recovering &&
+        !paused &&
+        active.size < concurrency &&
+        queue.length > 0
+      ) {
         const taskId = queue.shift();
         queued.delete(taskId);
         try {
@@ -156,7 +188,11 @@ export function createDispatcher({
           queue.unshift(taskId);
           queued.add(taskId);
           dispatcherHealthy = false;
-          failure = { operation: 'start-task', taskId, message: redact(String(error?.message ?? error)) };
+          failure = {
+            operation: 'start-task',
+            taskId,
+            message: redact(String(error?.message ?? error)),
+          };
           break;
         }
       }
@@ -180,7 +216,8 @@ export function createDispatcher({
   }
 
   function beginRecovery() {
-    if (draining || dispatching || active.size > 0 || (recovering && !failure)) return false;
+    if (draining || dispatching || active.size > 0 || (recovering && !failure))
+      return false;
     recovering = true;
     paused = false;
     failure = null;
@@ -200,7 +237,10 @@ export function createDispatcher({
 
   async function finishRecovery(error = null) {
     failure = error
-      ? { operation: 'recover-tasks', message: redact(String(error?.message ?? error)) }
+      ? {
+          operation: 'recover-tasks',
+          message: redact(String(error?.message ?? error)),
+        }
       : null;
     dispatcherHealthy = !error;
     recovering = Boolean(error);
@@ -212,7 +252,9 @@ export function createDispatcher({
     queue.length = 0;
     queued.clear();
     for (const running of active.values()) running.controller.abort();
-    await Promise.allSettled([...active.values()].map((running) => running.promise));
+    await Promise.allSettled(
+      [...active.values()].map((running) => running.promise),
+    );
   }
 
   return Object.freeze({

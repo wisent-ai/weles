@@ -12,7 +12,10 @@ import * as vision from './vision.js';
 import { waitCloudflare } from '../../cloudflare/challenge.js';
 
 /** The page the vision helpers act on, as they declare it. */
-type DiscoveryPage = Parameters<typeof vision.click> extends [infer Page, ...unknown[]] ? Page : never;
+type DiscoveryPage =
+  Parameters<typeof vision.click> extends [infer Page, ...unknown[]]
+    ? Page
+    : never;
 
 async function walk<T>(
   page: DiscoveryPage,
@@ -35,22 +38,39 @@ async function walk<T>(
     }
     await page.waitForLoadState('networkidle');
     if (seen.has(page.url())) {
-      console.log(`[discover] navigation returned to ${page.url()}, already read, without '${what}'`);
+      console.log(
+        `[discover] navigation returned to ${page.url()}, already read, without '${what}'`,
+      );
       return null;
     }
   }
 }
 
-export async function findNumber(page: DiscoveryPage, what: string): Promise<number | null> {
-  return walk(page, what, async () => {
-    await waitCloudflare(page);
-    return vision.number(page, what);
-  }, `the navigation link, menu item, or button most likely `
-    + `to lead to a page that shows ${what}. Examples: billing, `
-    + `balance, credits, account, wallet, dashboard, overview`);
+export async function findNumber(
+  page: DiscoveryPage,
+  what: string,
+): Promise<number | null> {
+  return walk(
+    page,
+    what,
+    async () => {
+      await waitCloudflare(page);
+      return vision.number(page, what);
+    },
+    `the navigation link, menu item, or button most likely ` +
+      `to lead to a page that shows ${what}. Examples: billing, ` +
+      `balance, credits, account, wallet, dashboard, overview`,
+  );
 }
 
-export async function findText(page: DiscoveryPage, what: string): Promise<string | null> {
-  return walk(page, what, () => vision.text(page, what),
-    `the navigation link, menu item, or button most likely to lead to a page that shows ${what}`);
+export async function findText(
+  page: DiscoveryPage,
+  what: string,
+): Promise<string | null> {
+  return walk(
+    page,
+    what,
+    () => vision.text(page, what),
+    `the navigation link, menu item, or button most likely to lead to a page that shows ${what}`,
+  );
 }

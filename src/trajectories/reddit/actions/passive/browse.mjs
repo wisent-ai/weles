@@ -8,23 +8,36 @@
  * proxy via resolveAccountSession. Ban-detector at session close writes
  * ban_signal.json into recordings/reddit_browse/ for worker pool.
  */
-import { getSocialAccount, resolveAccountSession } from '../../../../../dist/utils/credentials.js';
+import {
+  getSocialAccount,
+  resolveAccountSession,
+} from '../../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../../dist/session/wsession.js';
 import { detectRedditBanSignals } from '../../../../../dist/platforms/reddit/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { humanIdlePause, humanScrollPage } from '../../../../../dist/human/mouse.js';
+import {
+  humanIdlePause,
+  humanScrollPage,
+} from '../../../../../dist/human/mouse.js';
 import { runRecordingsDir } from '../../../../../dist/session/run-recordings.js';
 import { declaredObservation } from '../../../_shared/observation.mjs';
 
 const observed = declaredObservation();
 
 const acct = await getSocialAccount('reddit');
-if (!acct) { console.log('FAIL: no active reddit account'); process.exit(1); }
+if (!acct) {
+  console.log('FAIL: no active reddit account');
+  process.exit(1);
+}
 console.log(`[browse] acct=${acct.username} origin=${observed.origin}`);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
-const s = await WSession.start({ label: 'reddit_browse', proxy: proxyUrl, persona });
+const s = await WSession.start({
+  label: 'reddit_browse',
+  proxy: proxyUrl,
+  persona,
+});
 let banSignal = null;
 try {
   await s.goto(observed.origin);
@@ -34,11 +47,19 @@ try {
     await humanScrollPage(s.page, 'down');
     await humanIdlePause(observed.dwellMs);
   }
-  banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch((e) => ({ healthy: false, signal: 'unknown_error', details: { detector_error: e.message } }));
+  banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(
+    (e) => ({
+      healthy: false,
+      signal: 'unknown_error',
+      details: { detector_error: e.message },
+    }),
+  );
   console.log(`[ban-signal] ${banSignal.signal}`);
   console.log(`PASS: scrolled ${observed.scrolls}x on ${observed.origin}`);
 } catch (e) {
-  banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
+  banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(
+    () => null,
+  );
   if (banSignal) console.log(`[ban-signal] ${banSignal.signal}`);
   console.log('FAIL:', e.message);
   process.exitCode = 1;
@@ -47,8 +68,26 @@ try {
     try {
       const dir = runRecordingsDir('reddit_browse');
       mkdirSync(dir, { recursive: true });
-      writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'reddit_browse', observation: observed.observation, origin: observed.origin, reads: observed.reads, ...banSignal, ts: new Date().toISOString() }, null, 2));
-    } catch (e) { console.log('[ban-signal] persist err:', e.message); }
+      writeFileSync(
+        join(dir, 'ban_signal.json'),
+        JSON.stringify(
+          {
+            account_id: acct.id,
+            username: acct.username,
+            action: 'reddit_browse',
+            observation: observed.observation,
+            origin: observed.origin,
+            reads: observed.reads,
+            ...banSignal,
+            ts: new Date().toISOString(),
+          },
+          null,
+          2,
+        ),
+      );
+    } catch (e) {
+      console.log('[ban-signal] persist err:', e.message);
+    }
   }
   await s.close();
 }

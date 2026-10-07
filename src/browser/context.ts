@@ -43,31 +43,56 @@ export class CDPBrowserContext {
   }
 
   setEmulation(options: Partial<EmulationSettings>): void {
-    if (options.userAgent !== undefined) this._emulation.userAgent = options.userAgent;
-    if (options.viewportWidth !== undefined) this._emulation.viewportWidth = options.viewportWidth;
-    if (options.viewportHeight !== undefined) this._emulation.viewportHeight = options.viewportHeight;
-    if (options.deviceScaleFactor !== undefined) this._emulation.deviceScaleFactor = options.deviceScaleFactor;
-    if (options.acceptLanguage !== undefined) this._emulation.acceptLanguage = options.acceptLanguage;
-    if (options.platform !== undefined) this._emulation.platform = options.platform;
+    if (options.userAgent !== undefined)
+      this._emulation.userAgent = options.userAgent;
+    if (options.viewportWidth !== undefined)
+      this._emulation.viewportWidth = options.viewportWidth;
+    if (options.viewportHeight !== undefined)
+      this._emulation.viewportHeight = options.viewportHeight;
+    if (options.deviceScaleFactor !== undefined)
+      this._emulation.deviceScaleFactor = options.deviceScaleFactor;
+    if (options.acceptLanguage !== undefined)
+      this._emulation.acceptLanguage = options.acceptLanguage;
+    if (options.platform !== undefined)
+      this._emulation.platform = options.platform;
   }
 
   addInitScript(script: string): void {
     this._initScripts.push(script);
   }
 
-  private async _initPage(targetId: string, sessionId: string): Promise<CDPPage> {
+  private async _initPage(
+    targetId: string,
+    sessionId: string,
+  ): Promise<CDPPage> {
     const page = new CDPPage(this._connection, targetId, sessionId, this);
     await page.init();
     if (this._proxyAuth) await page.setProxyAuth(this._proxyAuth);
-    await this._connection.send('Emulation.setUserAgentOverride', {
-      userAgent: this._emulation.userAgent, acceptLanguage: this._emulation.acceptLanguage, platform: this._emulation.platform,
-    }, sessionId);
-    await this._connection.send('Emulation.setDeviceMetricsOverride', {
-      width: this._emulation.viewportWidth, height: this._emulation.viewportHeight,
-      deviceScaleFactor: this._emulation.deviceScaleFactor, mobile: false,
-    }, sessionId);
+    await this._connection.send(
+      'Emulation.setUserAgentOverride',
+      {
+        userAgent: this._emulation.userAgent,
+        acceptLanguage: this._emulation.acceptLanguage,
+        platform: this._emulation.platform,
+      },
+      sessionId,
+    );
+    await this._connection.send(
+      'Emulation.setDeviceMetricsOverride',
+      {
+        width: this._emulation.viewportWidth,
+        height: this._emulation.viewportHeight,
+        deviceScaleFactor: this._emulation.deviceScaleFactor,
+        mobile: false,
+      },
+      sessionId,
+    );
     for (const script of this._initScripts) {
-      await this._connection.send('Page.addScriptToEvaluateOnNewDocument', { source: script }, sessionId);
+      await this._connection.send(
+        'Page.addScriptToEvaluateOnNewDocument',
+        { source: script },
+        sessionId,
+      );
     }
     this._pages.push(page);
     return page;
@@ -75,20 +100,37 @@ export class CDPBrowserContext {
 
   async newPage(): Promise<CDPPage> {
     const { targetId } = await this._connection.send('Target.createTarget', {
-      url: 'about:blank', browserContextId: this._browserContextId,
+      url: 'about:blank',
+      browserContextId: this._browserContextId,
     });
-    const { sessionId } = await this._connection.send('Target.attachToTarget', { targetId, flatten: true });
+    const { sessionId } = await this._connection.send('Target.attachToTarget', {
+      targetId,
+      flatten: true,
+    });
     const page = await this._initPage(targetId, sessionId);
     // Auto-attach to popups opened from this page
-    await this._connection.send('Target.setAutoAttach', {
-      autoAttach: true, waitForDebuggerOnStart: false, flatten: true,
-    }, sessionId);
-    this._connection.on('Target.attachedToTarget', (params: any) => {
-      const info = params.targetInfo ?? {};
-      if (info.type === 'page' && info.browserContextId === this._browserContextId) {
-        this._initPage(info.targetId, params.sessionId).catch(() => {});
-      }
-    }, sessionId);
+    await this._connection.send(
+      'Target.setAutoAttach',
+      {
+        autoAttach: true,
+        waitForDebuggerOnStart: false,
+        flatten: true,
+      },
+      sessionId,
+    );
+    this._connection.on(
+      'Target.attachedToTarget',
+      (params: any) => {
+        const info = params.targetInfo ?? {};
+        if (
+          info.type === 'page' &&
+          info.browserContextId === this._browserContextId
+        ) {
+          this._initPage(info.targetId, params.sessionId).catch(() => {});
+        }
+      },
+      sessionId,
+    );
     return page;
   }
 
@@ -107,7 +149,10 @@ export class CDPBrowserContext {
   async cookies(urls?: string[]): Promise<Array<Record<string, unknown>>> {
     const params: Record<string, any> = {};
     if (urls) params.urls = urls;
-    const { cookies } = await this._connection.send('Network.getCookies', params);
+    const { cookies } = await this._connection.send(
+      'Network.getCookies',
+      params,
+    );
     return cookies;
   }
 

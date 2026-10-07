@@ -4,7 +4,10 @@
 // its --weles-fingerprint flag. `../fingerprint.ts` owns generation and the
 // browser-neutral config.
 
-import type { FingerprintConfig, FingerprintVersionOptions } from '../fingerprint.js';
+import type {
+  FingerprintConfig,
+  FingerprintVersionOptions,
+} from '../fingerprint.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -41,7 +44,8 @@ const UA_TEMPLATES: Record<string, string> = {
 
 export const WEBGL_RENDERERS: Record<string, string> = {
   macos: 'ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)',
-  windows: 'ANGLE (Intel, Intel(R) UHD Graphics 620 (0x00005917) Direct3D11 vs_5_0 ps_5_0, D3D11)',
+  windows:
+    'ANGLE (Intel, Intel(R) UHD Graphics 620 (0x00005917) Direct3D11 vs_5_0 ps_5_0, D3D11)',
   linux: 'Mesa Intel(R) UHD Graphics 630 (CFL GT2)',
 };
 
@@ -79,7 +83,8 @@ export function toCppConfig(
   const languages = [...(nav.languages ?? ['en-US'])];
   if (languages.length > 0) {
     const base = languages[0].split('-')[0];
-    if (base && base !== languages[0] && !languages.includes(base)) languages.push(base);
+    if (base && base !== languages[0] && !languages.includes(base))
+      languages.push(base);
   }
   const fullVersion = realVersion ?? CHROME_STABLE_VERSION;
   const major = fullVersion.split('.')[0];
@@ -92,18 +97,30 @@ export function toCppConfig(
   // impossible and trips detection (observed: LinkedIn checkpoint right after
   // createAccount). Windows/Linux remain x86.
   const platformMap: Record<string, [string, string, string]> = {
-    macos: ['macOS', '15.5.0', 'arm'], windows: ['Windows', '15.0.0', 'x86'], linux: ['Linux', '6.5.0', 'x86'],
+    macos: ['macOS', '15.5.0', 'arm'],
+    windows: ['Windows', '15.0.0', 'x86'],
+    linux: ['Linux', '6.5.0', 'x86'],
   };
-  const [chPlatform, defaultPlatformVersion, defaultArchitecture] = platformMap[targetOs] ?? platformMap.macos;
+  const [chPlatform, defaultPlatformVersion, defaultArchitecture] =
+    platformMap[targetOs] ?? platformMap.macos;
   const chPlatformVersion =
-    process.env.WELES_CLIENT_HINTS_PLATFORM_VERSION
-    || process.env.WELES_MAC_PLATFORM_VERSION
-    || defaultPlatformVersion;
+    process.env.WELES_CLIENT_HINTS_PLATFORM_VERSION ||
+    process.env.WELES_MAC_PLATFORM_VERSION ||
+    defaultPlatformVersion;
   const chArchitecture =
-    process.env.WELES_CLIENT_HINTS_ARCHITECTURE
-    || defaultArchitecture;
+    process.env.WELES_CLIENT_HINTS_ARCHITECTURE || defaultArchitecture;
   return {
-    navigator: { userAgent: ua, platform: nav.platform, vendor: nav.vendor ?? 'Google Inc.', productSub: nav.productSub ?? '20030107', language: nav.language ?? 'en-US', languages, hardwareConcurrency: nav.hardwareConcurrency, deviceMemory: nav.deviceMemory, doNotTrack: nav.doNotTrack ?? null },
+    navigator: {
+      userAgent: ua,
+      platform: nav.platform,
+      vendor: nav.vendor ?? 'Google Inc.',
+      productSub: nav.productSub ?? '20030107',
+      language: nav.language ?? 'en-US',
+      languages,
+      hardwareConcurrency: nav.hardwareConcurrency,
+      deviceMemory: nav.deviceMemory,
+      doNotTrack: nav.doNotTrack ?? null,
+    },
     screen: (() => {
       const top = scr.availTop ?? (targetOs === 'macos' ? 30 : 0);
       const left = scr.availLeft ?? 0;
@@ -112,53 +129,91 @@ export function toCppConfig(
         height: scr.height,
         availTop: top,
         availLeft: left,
-        availWidth: scr.availWidth ?? (scr.width - left),
-        availHeight: scr.availHeight ?? (scr.height - top),
+        availWidth: scr.availWidth ?? scr.width - left,
+        availHeight: scr.availHeight ?? scr.height - top,
         colorDepth: scr.colorDepth,
         pixelDepth: scr.pixelDepth ?? scr.colorDepth,
       };
     })(),
-    webgl: { unmaskedVendor: webgl.unmaskedVendor, unmaskedRenderer: webgl.unmaskedRenderer },
-    canvas: config.canvas, audio: config.audio,
-    clientHints: { platform: chPlatform, platformVersion: chPlatformVersion, architecture: chArchitecture, bitness: '64', model: '', mobile: false, wow64: false, fullVersion,
+    webgl: {
+      unmaskedVendor: webgl.unmaskedVendor,
+      unmaskedRenderer: webgl.unmaskedRenderer,
+    },
+    canvas: config.canvas,
+    audio: config.audio,
+    clientHints: {
+      platform: chPlatform,
+      platformVersion: chPlatformVersion,
+      architecture: chArchitecture,
+      bitness: '64',
+      model: '',
+      mobile: false,
+      wow64: false,
+      fullVersion,
       // Chrome's sec-ch-ua brand ORDER is produced by a deterministic
       // version-keyed greasing algorithm. The empirical order for v147 (from
       // a side-by-side real Chrome capture) is
       //   [Google Chrome, Not.A/Brand, Chromium]
       // NOT alphabetical and NOT [Not.A/Brand, Chromium, Google Chrome] as this
       // file previously hard-coded, which TikTok's mssdk detected as non-Chrome.
-      brandList: [{ brand: 'Google Chrome', version: major }, { brand: 'Not.A/Brand', version: '8' }, { brand: 'Chromium', version: major }],
-      brandFullVersionList: [{ brand: 'Google Chrome', version: fullVersion }, { brand: 'Not.A/Brand', version: '8.0.0.0' }, { brand: 'Chromium', version: fullVersion }],
+      brandList: [
+        { brand: 'Google Chrome', version: major },
+        { brand: 'Not.A/Brand', version: '8' },
+        { brand: 'Chromium', version: major },
+      ],
+      brandFullVersionList: [
+        { brand: 'Google Chrome', version: fullVersion },
+        { brand: 'Not.A/Brand', version: '8.0.0.0' },
+        { brand: 'Chromium', version: fullVersion },
+      ],
     },
   };
 }
 
-function resolveChromiumVersion(options?: FingerprintVersionOptions): string | null {
-  if (options?.chromiumVersion && /^\d+\.\d+\.\d+\.\d+$/.test(options.chromiumVersion)) {
+function resolveChromiumVersion(
+  options?: FingerprintVersionOptions,
+): string | null {
+  if (
+    options?.chromiumVersion &&
+    /^\d+\.\d+\.\d+\.\d+$/.test(options.chromiumVersion)
+  ) {
     return options.chromiumVersion;
   }
   return detectChromiumVersion(options?.chromiumPath);
 }
 
-function detectChromiumVersion(chromiumPath = process.env.CHROMIUM_PATH): string | null {
+function detectChromiumVersion(
+  chromiumPath = process.env.CHROMIUM_PATH,
+): string | null {
   if (!chromiumPath) return null;
   // Read version from Info.plist for macOS .app bundles (--version hangs)
   if (chromiumPath.includes('.app/')) {
     try {
       const { readFileSync } = require('node:fs');
-      const plistDir = chromiumPath.replace(/\/Contents\/MacOS\/.*$/, '/Contents/Info.plist');
+      const plistDir = chromiumPath.replace(
+        /\/Contents\/MacOS\/.*$/,
+        '/Contents/Info.plist',
+      );
       const plist = readFileSync(plistDir, 'utf-8');
-      const match = plist.match(/<key>CFBundleShortVersionString<\/key>\s*<string>(\d+\.\d+\.\d+\.\d+)<\/string>/);
+      const match = plist.match(
+        /<key>CFBundleShortVersionString<\/key>\s*<string>(\d+\.\d+\.\d+\.\d+)<\/string>/,
+      );
       return match ? match[1] : null;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   }
   // Linux/other: safe to call --version since the process exits normally
   try {
     const { execSync: exec } = require('node:child_process');
-    const out = exec(`${JSON.stringify(chromiumPath)} --version 2>&1 || true`, { encoding: 'utf-8' });
+    const out = exec(`${JSON.stringify(chromiumPath)} --version 2>&1 || true`, {
+      encoding: 'utf-8',
+    });
     const match = (out as string).match(/(\d+\.\d+\.\d+\.\d+)/);
     return match ? match[1] : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------

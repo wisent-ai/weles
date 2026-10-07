@@ -1,8 +1,14 @@
-import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
+import {
+  getSocialAccount,
+  resolveAccountSession,
+} from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { detectRedditBanSignals } from '../../../dist/platforms/reddit/ban_signals.js';
 import { humanType } from '../../../dist/human/keyboard.js';
-import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
+import {
+  humanIdlePause,
+  humanClickLocator,
+} from '../../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { persistFreshCookieJar } from '../_shared/auth/cookie-freshness.mjs';
@@ -13,7 +19,10 @@ import { submitAnswered } from '../_shared/page/settled.mjs';
 const URL = 'https://www.reddit.com/login';
 
 const acct = await getSocialAccount('reddit');
-if (!acct) { console.log('FAIL: no active reddit account in Skarbiec'); process.exitCode = 1; }
+if (!acct) {
+  console.log('FAIL: no active reddit account in Skarbiec');
+  process.exitCode = 1;
+}
 process.env.SVC_EMAIL = acct.metadata.email ?? acct.username;
 process.env.SVC_PASSWORD = acct.metadata.password ?? '';
 console.log(`[trajectory] Using account: ${acct.username}`);
@@ -23,18 +32,29 @@ async function wipeStoredProxy(accountId) {
   const { proxy: _drop, ...metadata } = acct.metadata ?? {};
   replaceAccountMetadata(accountId, metadata);
   acct.metadata = metadata;
-  console.log(`[proxy-rotate] cleared stored proxy for account ${accountId} — next attempt will re-roll`);
+  console.log(
+    `[proxy-rotate] cleared stored proxy for account ${accountId} — next attempt will re-roll`,
+  );
 }
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
-const s = await WSession.start({ label: 'reddit_login', proxy: proxyUrl, persona });
+const s = await WSession.start({
+  label: 'reddit_login',
+  proxy: proxyUrl,
+  persona,
+});
 
 async function captureCookies() {
   if (!acct.id) return;
   try {
     const cookies = await s.ctx.cookies();
-    await persistFreshCookieJar(acct, cookies, { currentProxyUrl: proxyUrl, currentPersona: persona });
-  } catch (e) { console.log('[cookie-capture] err:', e.message); }
+    await persistFreshCookieJar(acct, cookies, {
+      currentProxyUrl: proxyUrl,
+      currentPersona: persona,
+    });
+  } catch (e) {
+    console.log('[cookie-capture] err:', e.message);
+  }
 }
 
 let banSignal = null;
@@ -44,24 +64,39 @@ try {
   // Login always means form login now. Action trajectories use
   // assertAuthed() from _shared/auth/auth-probe.mjs.
   await s.goto(URL);
-  const earlySignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
+  const earlySignal = await detectRedditBanSignals(
+    s.page,
+    s.capturedResponses,
+  ).catch(() => null);
   if (earlySignal?.signal === 'ip_blocked') {
     banSignal = earlySignal;
     console.log(`[ban-signal] ${earlySignal.signal} (early) — rotating proxy`);
     await wipeStoredProxy(acct.id);
-    console.log('FAIL: reddit edge blocked this exit IP; cleared stored proxy for next retry');
+    console.log(
+      'FAIL: reddit edge blocked this exit IP; cleared stored proxy for next retry',
+    );
     process.exitCode = 1;
   } else {
     // Direct Playwright login. Reddit's modern login form is inside a
     // <faceplate-form> web component — inputs live in shadow DOM, but Playwright
     // pierces open shadow roots automatically. Selectors target the slotted
     // <input> elements that bubble up: input#login-username, input#login-password.
-    const userIn = s.page.locator('input#login-username, input[name="username"], input[autocomplete="username"]').filter({ visible: true }).first();
+    const userIn = s.page
+      .locator(
+        'input#login-username, input[name="username"], input[autocomplete="username"]',
+      )
+      .filter({ visible: true })
+      .first();
     await userIn.waitFor({ state: 'visible' });
     await humanClickLocator(s.page, userIn);
     await humanIdlePause('short');
     await humanType(s.page, process.env.SVC_EMAIL);
-    const pwIn = s.page.locator('input#login-password, input[name="password"], input[type="password"]').filter({ visible: true }).first();
+    const pwIn = s.page
+      .locator(
+        'input#login-password, input[name="password"], input[type="password"]',
+      )
+      .filter({ visible: true })
+      .first();
     await pwIn.waitFor({ state: 'visible' });
     await humanClickLocator(s.page, pwIn);
     await humanIdlePause('short');
@@ -72,16 +107,32 @@ try {
     await pwIn.press('Enter');
     // The login is answered by leaving /login or by the form's own alert,
     // whose text is the failure.
-    const loginAlert = s.page.locator('[role="alert"]').filter({ visible: true }).first();
-    if (await submitAnswered(s.page, /\/login/, loginAlert) === 'message') throw new Error(`reddit login refused: ${(await loginAlert.innerText()).trim()}`);
-    banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch((e) => ({ healthy: false, signal: 'unknown_error', details: { detector_error: e.message } }));
-    console.log(`[ban-signal] ${banSignal.signal} (${JSON.stringify(banSignal.details)})`);
+    const loginAlert = s.page
+      .locator('[role="alert"]')
+      .filter({ visible: true })
+      .first();
+    if ((await submitAnswered(s.page, /\/login/, loginAlert)) === 'message')
+      throw new Error(
+        `reddit login refused: ${(await loginAlert.innerText()).trim()}`,
+      );
+    banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(
+      (e) => ({
+        healthy: false,
+        signal: 'unknown_error',
+        details: { detector_error: e.message },
+      }),
+    );
+    console.log(
+      `[ban-signal] ${banSignal.signal} (${JSON.stringify(banSignal.details)})`,
+    );
     if (banSignal?.signal === 'ip_blocked') await wipeStoredProxy(acct.id);
     else if (banSignal?.signal === 'healthy') await captureCookies();
     console.log(`PASS: logged in (${s.page.url()})`);
   }
 } catch (e) {
-  banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
+  banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(
+    () => null,
+  );
   if (banSignal) console.log(`[ban-signal] ${banSignal.signal}`);
   if (banSignal?.signal === 'ip_blocked') await wipeStoredProxy(acct.id);
   console.log('FAIL:', e.message);
@@ -91,8 +142,22 @@ try {
     try {
       const dir = runRecordingsDir('reddit_login');
       mkdirSync(dir, { recursive: true });
-      writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, ...banSignal, ts: new Date().toISOString() }, null, 2));
-    } catch (e) { console.log('[ban-signal] persist err:', e.message); }
+      writeFileSync(
+        join(dir, 'ban_signal.json'),
+        JSON.stringify(
+          {
+            account_id: acct.id,
+            username: acct.username,
+            ...banSignal,
+            ts: new Date().toISOString(),
+          },
+          null,
+          2,
+        ),
+      );
+    } catch (e) {
+      console.log('[ban-signal] persist err:', e.message);
+    }
   }
   await s.close();
 }

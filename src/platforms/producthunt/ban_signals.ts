@@ -1,9 +1,17 @@
 import type { Page } from 'playwright';
-import { detectFromConfig, type BanSignal } from '../_shared/ban_signals_base.js';
+import {
+  detectFromConfig,
+  type BanSignal,
+} from '../_shared/ban_signals_base.js';
 
 export async function detectProductHuntBanSignals(
   page: Page,
-  responses: Array<{ url: string; status: number; headers?: Record<string, string>; body?: string }> = [],
+  responses: Array<{
+    url: string;
+    status: number;
+    headers?: Record<string, string>;
+    body?: string;
+  }> = [],
 ): Promise<BanSignal> {
   return detectFromConfig(page, responses, {
     url: {
@@ -16,7 +24,11 @@ export async function detectProductHuntBanSignals(
       checkpoint: [/please verify/i, /sign in to continue/i],
     },
     responseBody: [
-      { signal: 'rate_limited', urlMatch: /\/api\//, bodyMatch: /rate_limit|too_many_requests/i },
+      {
+        signal: 'rate_limited',
+        urlMatch: /\/api\//,
+        bodyMatch: /rate_limit|too_many_requests/i,
+      },
     ],
     captchaFrameMatch: /recaptcha|hcaptcha|cloudflare.*challenge/i,
     suspiciousApiEndpoints: /\/api\//,

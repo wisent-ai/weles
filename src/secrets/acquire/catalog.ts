@@ -18,7 +18,10 @@
 // definition was built from; a second copy of those patterns could disagree with
 // the definition that uses them.
 
-import { acquiredSecretContract, isWelesManagedPasswordItem } from '../scoped-service.js';
+import {
+  acquiredSecretContract,
+  isWelesManagedPasswordItem,
+} from '../scoped-service.js';
 import type { AcquireSecretRequest } from './request.js';
 import {
   entraPasswordDefinition,
@@ -40,20 +43,20 @@ import { genericDefinition } from './catalog/unregistered-provider.js';
 export { ENTRA_ORIGIN, ENTRA_PROVIDER, ENTRA_UPN, LOWER_UUID };
 
 export type SecretDefinition = {
-	secret: string;
-	provider: string;
-	displayName: string;
-	envVars: string[];
-	defaultPurpose: string;
-	formUrl: string;
-	flowName: string;
-	endpoints: string[];
-	usageText: string;
-	dailyRequests: string;
-	requestedScopes: string[];
-	capabilities: string[];
-	runtimeInstall: boolean;
-	headless: boolean;
+  secret: string;
+  provider: string;
+  displayName: string;
+  envVars: string[];
+  defaultPurpose: string;
+  formUrl: string;
+  flowName: string;
+  endpoints: string[];
+  usageText: string;
+  dailyRequests: string;
+  requestedScopes: string[];
+  capabilities: string[];
+  runtimeInstall: boolean;
+  headless: boolean;
   storeSecretTarget: 'skarbiec';
   operations?: string[];
   // Only a derived generic definition carries this: it is the site the caller
@@ -68,25 +71,48 @@ export function normalizeSecret(request: AcquireSecretRequest): string {
   // Managed item identifiers are exact and case-sensitive. Only the deployment
   // declaration selects their lifecycle; an item's spelling does not.
   if (isWelesManagedPasswordItem(credentialId)) return credentialId;
-  const explicit = request.secret?.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  const explicit = request.secret
+    ?.trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
   if (explicit) return explicit;
   const goal = request.goal?.toLowerCase() ?? '';
-  if ((goal.includes('semantic') && goal.includes('scholar')) || goal.includes('semanticscholar') || goal.includes('s2')) {
+  if (
+    (goal.includes('semantic') && goal.includes('scholar')) ||
+    goal.includes('semanticscholar') ||
+    goal.includes('s2')
+  ) {
     return SEMANTIC_SCHOLAR.secret;
   }
-  if (goal.includes('github') && (goal.includes('admin') || goal.includes('org') || goal.includes('token'))) {
+  if (
+    goal.includes('github') &&
+    (goal.includes('admin') || goal.includes('org') || goal.includes('token'))
+  ) {
     return GITHUB_ADMIN_TOKEN.secret;
   }
-  if (goal.includes('figma') && (goal.includes('api') || goal.includes('token') || goal.includes('asset') || goal.includes('design'))) {
+  if (
+    goal.includes('figma') &&
+    (goal.includes('api') ||
+      goal.includes('token') ||
+      goal.includes('asset') ||
+      goal.includes('design'))
+  ) {
     return FIGMA_PERSONAL_ACCESS_TOKEN.secret;
   }
-  if (goal.includes('snapchat') && (goal.includes('api') || goal.includes('token') || goal.includes('snap kit'))) {
+  if (
+    goal.includes('snapchat') &&
+    (goal.includes('api') ||
+      goal.includes('token') ||
+      goal.includes('snap kit'))
+  ) {
     return SNAPCHAT_SNAP_KIT_API_TOKEN.secret;
   }
   return '';
 }
 
-export function definitionFor(request: AcquireSecretRequest): SecretDefinition | null {
+export function definitionFor(
+  request: AcquireSecretRequest,
+): SecretDefinition | null {
   const normalized = normalizeSecret(request);
   if (isWelesManagedPasswordItem(normalized)) {
     return acquiredSecretContract(normalized)?.sourceOrigin === ENTRA_ORIGIN
@@ -94,10 +120,16 @@ export function definitionFor(request: AcquireSecretRequest): SecretDefinition |
       : microsoftPasswordDefinition(normalized);
   }
   // An undeclared password must not fall through to a generic api_key writer.
-  if (request.provider === 'microsoft' || request.provider === ENTRA_PROVIDER) return null;
+  if (request.provider === 'microsoft' || request.provider === ENTRA_PROVIDER)
+    return null;
   const registered = normalized
-    ? SECRET_REGISTRY[normalized] ?? SECRET_REGISTRY[normalized.replace(/\./g, '_')] ?? null
-    : Object.values(SECRET_REGISTRY).find((definition) =>
-      acquiredSecretContract(definition.secret)?.item === request.credentialId) ?? null;
+    ? (SECRET_REGISTRY[normalized] ??
+      SECRET_REGISTRY[normalized.replace(/\./g, '_')] ??
+      null)
+    : (Object.values(SECRET_REGISTRY).find(
+        (definition) =>
+          acquiredSecretContract(definition.secret)?.item ===
+          request.credentialId,
+      ) ?? null);
   return registered ?? genericDefinition(request);
 }

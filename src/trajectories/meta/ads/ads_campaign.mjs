@@ -30,19 +30,57 @@ import { pageSettled } from '../../_shared/page/settled.mjs';
 // the login gate, the account proof, the draft and the publish. The steps it is
 // made of live in ./ads_campaign/.
 
-import { AD_ACCOUNT_ID, CAMPAIGN_NAME, PRINT_CAPABILITIES, SUBMIT, USER_DATA_DIR, VERIFY_ACCOUNT_ONLY, guardUnsupportedParams, printCapabilitiesAndExit, profilePersona, requireCampaignTarget, session, targetUrl } from './ads_campaign/campaign_request.mjs';
+import {
+  AD_ACCOUNT_ID,
+  CAMPAIGN_NAME,
+  PRINT_CAPABILITIES,
+  SUBMIT,
+  USER_DATA_DIR,
+  VERIFY_ACCOUNT_ONLY,
+  guardUnsupportedParams,
+  printCapabilitiesAndExit,
+  profilePersona,
+  requireCampaignTarget,
+  session,
+  targetUrl,
+} from './ads_campaign/campaign_request.mjs';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { clickAny, closeObstructingPanels, pageText } from './ads_campaign/panel_controls.mjs';
-import { bringBrowserToFront, ensureAdAccount, passLoginGate, visibleSelectedAdAccount } from './ads_campaign/ad_account_session.mjs';
-import { chooseObjectiveAndContinue, openCampaignCreation, reportDraftOutcomeWithoutFields } from './ads_campaign/campaign_draft.mjs';
-import { fillCampaignFields, verifyConfiguredDraft } from './ads_campaign/draft_fields.mjs';
+import {
+  clickAny,
+  closeObstructingPanels,
+  pageText,
+} from './ads_campaign/panel_controls.mjs';
+import {
+  bringBrowserToFront,
+  ensureAdAccount,
+  passLoginGate,
+  visibleSelectedAdAccount,
+} from './ads_campaign/ad_account_session.mjs';
+import {
+  chooseObjectiveAndContinue,
+  openCampaignCreation,
+  reportDraftOutcomeWithoutFields,
+} from './ads_campaign/campaign_draft.mjs';
+import {
+  fillCampaignFields,
+  verifyConfiguredDraft,
+} from './ads_campaign/draft_fields.mjs';
 
 if (PRINT_CAPABILITIES) printCapabilitiesAndExit();
 guardUnsupportedParams();
 requireCampaignTarget();
 
-console.log(`[meta-ads] profile=${USER_DATA_DIR} viewport=${process.env.WELES_VIEWPORT}`);
-const s = await WSession.start({ label: 'meta_ads_campaign', browser: process.env.BROWSER || 'chromium', proxy: process.env.PROXY_URL || session.proxyUrl || 'direct', persona: profilePersona, userDataDir: USER_DATA_DIR, pageDiagnostics: process.env.WELES_PAGE_DIAGNOSTICS === '1' });
+console.log(
+  `[meta-ads] profile=${USER_DATA_DIR} viewport=${process.env.WELES_VIEWPORT}`,
+);
+const s = await WSession.start({
+  label: 'meta_ads_campaign',
+  browser: process.env.BROWSER || 'chromium',
+  proxy: process.env.PROXY_URL || session.proxyUrl || 'direct',
+  persona: profilePersona,
+  userDataDir: USER_DATA_DIR,
+  pageDiagnostics: process.env.WELES_PAGE_DIAGNOSTICS === '1',
+});
 try {
   await bringBrowserToFront(s);
   await s.goto(targetUrl);
@@ -52,19 +90,25 @@ try {
   await ensureAdAccount(s);
   if (VERIFY_ACCOUNT_ONLY) {
     const visible = await visibleSelectedAdAccount(s);
-    console.log(`PASS: Meta Ads account verified (${visible.label || AD_ACCOUNT_ID || 'unknown'})`);
+    console.log(
+      `PASS: Meta Ads account verified (${visible.label || AD_ACCOUNT_ID || 'unknown'})`,
+    );
     process.exit(0);
   }
   await closeObstructingPanels(s);
 
-  await clickAny(s, [
-    'button:has-text("I Accept")',
-    'button:has-text("Accept")',
-    'button:has-text("Akceptuję")',
-    'button:has-text("Zgadzam się")',
-    'div[role="button"]:has-text("I Accept")',
-    'div[role="button"]:has-text("Akceptuję")',
-  ], 'policy modal accept');
+  await clickAny(
+    s,
+    [
+      'button:has-text("I Accept")',
+      'button:has-text("Accept")',
+      'button:has-text("Akceptuję")',
+      'button:has-text("Zgadzam się")',
+      'div[role="button"]:has-text("I Accept")',
+      'div[role="button"]:has-text("Akceptuję")',
+    ],
+    'policy modal accept',
+  );
   await pageSettled(s.page);
 
   const createClicked = await openCampaignCreation(s);
@@ -73,27 +117,38 @@ try {
 
   // Nothing to verify and nothing to publish: this reports the staged draft or
   // refuses, and never comes back.
-  if (!createClicked || filledCount === 0) await reportDraftOutcomeWithoutFields(s, createClicked, filledCount);
+  if (!createClicked || filledCount === 0)
+    await reportDraftOutcomeWithoutFields(s, createClicked, filledCount);
 
   if (!SUBMIT) {
     await verifyConfiguredDraft(s);
-    console.log(`PASS: staged Meta ads campaign draft "${CAMPAIGN_NAME}" (SUBMIT=0, filled=${filledCount})`);
+    console.log(
+      `PASS: staged Meta ads campaign draft "${CAMPAIGN_NAME}" (SUBMIT=0, filled=${filledCount})`,
+    );
     process.exit(0);
   }
 
-  const published = await clickAny(s, [
-    'div[role="button"]:has-text("Publish")',
-    'button:has-text("Publish")',
-    'div[role="button"]:has-text("Confirm")',
-  ], 'Publish');
+  const published = await clickAny(
+    s,
+    [
+      'div[role="button"]:has-text("Publish")',
+      'button:has-text("Publish")',
+      'div[role="button"]:has-text("Confirm")',
+    ],
+    'Publish',
+  );
   if (!published) {
     console.log('FAIL: Publish button not found');
     process.exit(1);
   }
   await pageSettled(s.page);
   const finalText = await pageText(s);
-  const status = /published|processing|in review|successfully/i.test(finalText) ? 'confirmed' : 'clicked';
-  console.log(`PASS: Meta ads campaign publish ${status} for "${CAMPAIGN_NAME}"`);
+  const status = /published|processing|in review|successfully/i.test(finalText)
+    ? 'confirmed'
+    : 'clicked';
+  console.log(
+    `PASS: Meta ads campaign publish ${status} for "${CAMPAIGN_NAME}"`,
+  );
 } catch (e) {
   console.log('FAIL:', e.message);
   process.exit(1);

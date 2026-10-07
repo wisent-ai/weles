@@ -28,8 +28,15 @@ import { createWriteStream } from 'node:fs';
 import { pageSettled } from '../../_shared/page/settled.mjs';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
-const INCLUDES = new Set((process.env.OVERLEAF_LIST_INCLUDE || '').split(',').map(s => s.trim()).filter(Boolean));
-const OUT      = process.env.OUT_JSONL ? createWriteStream(process.env.OUT_JSONL) : process.stdout;
+const INCLUDES = new Set(
+  (process.env.OVERLEAF_LIST_INCLUDE || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
+);
+const OUT = process.env.OUT_JSONL
+  ? createWriteStream(process.env.OUT_JSONL)
+  : process.stdout;
 
 const login = await getGoogleSsoCreds();
 if (!login) {
@@ -77,61 +84,89 @@ try {
 
   // Page-side scrape. Uses explicit null returns when fields are missing;
   // the calling Node process decides what to do with nulls.
-  const scraped = await s.page.evaluate(({ sel }) => {
-    function textOrNull(el) {
-      if (!el) return null;
-      const t = el.textContent;
-      if (!t) return null;
-      const trimmed = t.trim();
-      return trimmed === '' ? null : trimmed;
-    }
-    function attrOrNull(el, name) {
-      if (!el) return null;
-      const v = el.getAttribute(name);
-      if (v === null || v === '') return null;
-      return v;
-    }
-    function pickName(anchor, row) {
-      const a = textOrNull(anchor);
-      if (a !== null) return a;
-      if (!row) return null;
-      return textOrNull(row.querySelector('[data-testid="project-name"], h3, .project-name'));
-    }
-    function pickLastUpdated(row) {
-      if (!row) return null;
-      const tEl = row.querySelector('time');
-      const attr = attrOrNull(tEl, 'datetime');
-      if (attr !== null) return attr;
-      return textOrNull(tEl);
-    }
-    const links = Array.from(document.querySelectorAll(sel));
-    const byId = new Map();
-    for (const a of links) {
-      const href = a.getAttribute('href');
-      if (!href) continue;
-      const m = href.match(/\/project\/([0-9a-fA-F]{24})(?:[/?#]|$)/);
-      if (!m) continue;
-      const id = m[1];
-      if (byId.has(id)) continue;
-      // The row is the largest ancestor that links to no other project: the
-      // list's own markup bounds it, so no depth is chosen. The selector
-      // matches only links that carry an href.
-      const otherProject = (node) => Array.from(node.querySelectorAll('a[href*="/project/"]'))
-        .some((link) => !link.getAttribute('href').includes(`/project/${id}`));
-      let row = a;
-      while (row.parentElement && !otherProject(row.parentElement)) row = row.parentElement;
-      byId.set(id, {
-        id,
-        name: pickName(a, row),
-        lastUpdated: pickLastUpdated(row),
-        owner: row ? textOrNull(row.querySelector('[data-testid="project-owner"], .owner-name')) : null,
-        ownerEmail: row ? textOrNull(row.querySelector('[data-testid="project-owner-email"]')) : null,
-        archived: !!(row && row.closest && row.closest('[data-testid="archived-projects"], [data-filter="archived"]')),
-        trashed: !!(row && row.closest && row.closest('[data-testid="trashed-projects"], [data-filter="trashed"]')),
-      });
-    }
-    return Array.from(byId.values());
-  }, { sel: anchorSel });
+  const scraped = await s.page.evaluate(
+    ({ sel }) => {
+      function textOrNull(el) {
+        if (!el) return null;
+        const t = el.textContent;
+        if (!t) return null;
+        const trimmed = t.trim();
+        return trimmed === '' ? null : trimmed;
+      }
+      function attrOrNull(el, name) {
+        if (!el) return null;
+        const v = el.getAttribute(name);
+        if (v === null || v === '') return null;
+        return v;
+      }
+      function pickName(anchor, row) {
+        const a = textOrNull(anchor);
+        if (a !== null) return a;
+        if (!row) return null;
+        return textOrNull(
+          row.querySelector('[data-testid="project-name"], h3, .project-name'),
+        );
+      }
+      function pickLastUpdated(row) {
+        if (!row) return null;
+        const tEl = row.querySelector('time');
+        const attr = attrOrNull(tEl, 'datetime');
+        if (attr !== null) return attr;
+        return textOrNull(tEl);
+      }
+      const links = Array.from(document.querySelectorAll(sel));
+      const byId = new Map();
+      for (const a of links) {
+        const href = a.getAttribute('href');
+        if (!href) continue;
+        const m = href.match(/\/project\/([0-9a-fA-F]{24})(?:[/?#]|$)/);
+        if (!m) continue;
+        const id = m[1];
+        if (byId.has(id)) continue;
+        // The row is the largest ancestor that links to no other project: the
+        // list's own markup bounds it, so no depth is chosen. The selector
+        // matches only links that carry an href.
+        const otherProject = (node) =>
+          Array.from(node.querySelectorAll('a[href*="/project/"]')).some(
+            (link) => !link.getAttribute('href').includes(`/project/${id}`),
+          );
+        let row = a;
+        while (row.parentElement && !otherProject(row.parentElement))
+          row = row.parentElement;
+        byId.set(id, {
+          id,
+          name: pickName(a, row),
+          lastUpdated: pickLastUpdated(row),
+          owner: row
+            ? textOrNull(
+                row.querySelector('[data-testid="project-owner"], .owner-name'),
+              )
+            : null,
+          ownerEmail: row
+            ? textOrNull(
+                row.querySelector('[data-testid="project-owner-email"]'),
+              )
+            : null,
+          archived: !!(
+            row &&
+            row.closest &&
+            row.closest(
+              '[data-testid="archived-projects"], [data-filter="archived"]',
+            )
+          ),
+          trashed: !!(
+            row &&
+            row.closest &&
+            row.closest(
+              '[data-testid="trashed-projects"], [data-filter="trashed"]',
+            )
+          ),
+        });
+      }
+      return Array.from(byId.values());
+    },
+    { sel: anchorSel },
+  );
 
   for (const r of scraped) {
     if (!r.id) continue;
@@ -140,17 +175,27 @@ try {
     rows.push(r);
   }
 
-  rows.sort((a, b) => String(a.lastUpdated || '').localeCompare(String(b.lastUpdated || '')));
+  rows.sort((a, b) =>
+    String(a.lastUpdated || '').localeCompare(String(b.lastUpdated || '')),
+  );
   for (const r of rows) OUT.write(JSON.stringify(r) + '\n');
 
   const recent = [...rows].reverse();
-  process.stderr.write(`\n==== Overleaf dashboard (${rows.length} projects scraped) ====\n`);
-  process.stderr.write(`  id                        lastUpdated              name\n`);
+  process.stderr.write(
+    `\n==== Overleaf dashboard (${rows.length} projects scraped) ====\n`,
+  );
+  process.stderr.write(
+    `  id                        lastUpdated              name\n`,
+  );
   for (const r of recent) {
-    process.stderr.write(`  ${(r.id || '-').padEnd(24)}  ${(r.lastUpdated || '-').padEnd(22)}  ${r.name || '-'}\n`);
+    process.stderr.write(
+      `  ${(r.id || '-').padEnd(24)}  ${(r.lastUpdated || '-').padEnd(22)}  ${r.name || '-'}\n`,
+    );
   }
   if (rows.length > recent.length) {
-    process.stderr.write(`  ... ${rows.length - recent.length} older not shown\n`);
+    process.stderr.write(
+      `  ... ${rows.length - recent.length} older not shown\n`,
+    );
   }
 } catch (err) {
   pageError = err;
@@ -162,7 +207,10 @@ try {
     await s.page.screenshot({ path: snapPath, fullPage: true });
     console.error(`[list_auto] failure screenshot: ${snapPath}`);
   } catch (snapErr) {
-    console.error('[list_auto] snapshot also failed:', snapErr?.message || snapErr);
+    console.error(
+      '[list_auto] snapshot also failed:',
+      snapErr?.message || snapErr,
+    );
   }
 }
 

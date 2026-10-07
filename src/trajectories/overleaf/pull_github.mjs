@@ -32,9 +32,17 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { SessionStore } from '../../../dist/session/store.js';
 import { getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
-import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
+import {
+  humanIdlePause,
+  humanClickLocator,
+} from '../../../dist/human/mouse.js';
 import { pageCondition } from '../_shared/page/settled.mjs';
-import { IS_ID, OVERLEAF_AUTH_LABEL, REPO_LC, REPO_SLUG } from './pull_github/settings.mjs';
+import {
+  IS_ID,
+  OVERLEAF_AUTH_LABEL,
+  REPO_LC,
+  REPO_SLUG,
+} from './pull_github/settings.mjs';
 import { captureOverleafAuth, dieUI, shot } from './pull_github/evidence.mjs';
 import { signInToOverleaf } from './pull_github/sign_in.mjs';
 import { openGithubPanel } from './pull_github/github_panel.mjs';
@@ -45,7 +53,9 @@ if (!login) {
   console.error('FAIL: exact weles-google-sso-login grant unavailable.');
   process.exit(1);
 }
-console.log(`[pull_github] Google creds loaded for ${login.email}; target repo ${REPO_SLUG}`);
+console.log(
+  `[pull_github] Google creds loaded for ${login.email}; target repo ${REPO_SLUG}`,
+);
 
 const s = await WSession.start({
   label: 'pull_github',
@@ -53,11 +63,16 @@ const s = await WSession.start({
   headful: process.env.HEADLESS !== '1',
 });
 const sessionStore = new SessionStore();
-const injectedCookies = await sessionStore.injectPlaywright(s.ctx, OVERLEAF_AUTH_LABEL).catch((e) => {
-  console.log(`[pull_github] auth-cookie inject failed: ${e.message}`);
-  return false;
-});
-if (injectedCookies) console.log(`[pull_github] injected stored cookies for ${OVERLEAF_AUTH_LABEL}`);
+const injectedCookies = await sessionStore
+  .injectPlaywright(s.ctx, OVERLEAF_AUTH_LABEL)
+  .catch((e) => {
+    console.log(`[pull_github] auth-cookie inject failed: ${e.message}`);
+    return false;
+  });
+if (injectedCookies)
+  console.log(
+    `[pull_github] injected stored cookies for ${OVERLEAF_AUTH_LABEL}`,
+  );
 
 try {
   await signInToOverleaf(s, sessionStore, login);
@@ -78,47 +93,79 @@ try {
     await shot(s, `editor_${tag8}`);
     const panelText = await openGithubPanel(s);
     await shot(s, `github_${tag8}`);
-    const hasManualMergeContinue = await s.page
-      .getByRole('button', { name: /i have manually merged\.?\s*continue/i })
-      .filter({ visible: true })
-      .count() > 0;
-    if (panelText.toLowerCase().includes(REPO_LC) || (IS_ID && hasManualMergeContinue)) {
-      console.log(`[pull_github] MATCH — project ${c.id} (${c.name}) is linked to ${REPO_SLUG}`);
+    const hasManualMergeContinue =
+      (await s.page
+        .getByRole('button', { name: /i have manually merged\.?\s*continue/i })
+        .filter({ visible: true })
+        .count()) > 0;
+    if (
+      panelText.toLowerCase().includes(REPO_LC) ||
+      (IS_ID && hasManualMergeContinue)
+    ) {
+      console.log(
+        `[pull_github] MATCH — project ${c.id} (${c.name}) is linked to ${REPO_SLUG}`,
+      );
       const panelLow = panelText.toLowerCase();
-      const manualMergeBtn = s.page.getByRole('button', { name: /i have manually merged\.?\s*continue/i })
-        .filter({ visible: true }).first();
-      if (await manualMergeBtn.count() > 0) {
+      const manualMergeBtn = s.page
+        .getByRole('button', { name: /i have manually merged\.?\s*continue/i })
+        .filter({ visible: true })
+        .first();
+      if ((await manualMergeBtn.count()) > 0) {
         await humanClickLocator(s.page, manualMergeBtn);
         await humanIdlePause('deliberate');
         const outcome = await pageCondition(s.page, () => {
           const low = (document.body?.innerText || '').toLowerCase();
-          if (/merge conflict|could not be (?:automatically )?merged|failed to (?:pull|merge|sync)|merge failed|unable to merge/.test(low)) return 'conflict';
-          if (!/checking project status in github|importing and merging changes in github|i have manually merged/.test(low)) return 'settled';
+          if (
+            /merge conflict|could not be (?:automatically )?merged|failed to (?:pull|merge|sync)|merge failed|unable to merge/.test(
+              low,
+            )
+          )
+            return 'conflict';
+          if (
+            !/checking project status in github|importing and merging changes in github|i have manually merged/.test(
+              low,
+            )
+          )
+            return 'settled';
           return false;
         });
         if (outcome === 'conflict') {
-          await dieUI(s, `merge_continue_conflict_${tag8}`, `Overleaf still reports a conflict/error after manual-merge continue for ${REPO_SLUG} in ${c.id}`);
+          await dieUI(
+            s,
+            `merge_continue_conflict_${tag8}`,
+            `Overleaf still reports a conflict/error after manual-merge continue for ${REPO_SLUG} in ${c.id}`,
+          );
         }
         const fin = await shot(s, `after_merge_continue_${tag8}`);
-        console.log(`\n[pull_github] OK — completed manual-merge continuation for ${REPO_SLUG} in ${c.id}.`);
+        console.log(
+          `\n[pull_github] OK — completed manual-merge continuation for ${REPO_SLUG} in ${c.id}.`,
+        );
         console.log(`[pull_github] final URL: ${s.page.url()}`);
         console.log(`[pull_github] post-continue DOM: ${fin}`);
         await captureOverleafAuth(sessionStore, s, 'post-merge-continue');
         pulled = true;
         break;
       }
-      if (/no new commits in github since last merge|already up[ -]?to[ -]?date|up to date/.test(panelLow)) {
+      if (
+        /no new commits in github since last merge|already up[ -]?to[ -]?date|up to date/.test(
+          panelLow,
+        )
+      ) {
         const fin = await shot(s, `up_to_date_${tag8}`);
-        console.log(`\n[pull_github] OK — ${REPO_SLUG} is already up to date in ${c.id}.`);
+        console.log(
+          `\n[pull_github] OK — ${REPO_SLUG} is already up to date in ${c.id}.`,
+        );
         console.log(`[pull_github] final URL: ${s.page.url()}`);
         console.log(`[pull_github] up-to-date DOM: ${fin}`);
         await captureOverleafAuth(sessionStore, s, 'up-to-date');
         pulled = true;
         break;
       }
-      const pullBtn = s.page.getByRole('button', { name: /pull github changes/i })
+      const pullBtn = s.page
+        .getByRole('button', { name: /pull github changes/i })
         .or(s.page.getByText(/pull github changes/i))
-        .filter({ visible: true }).first();
+        .filter({ visible: true })
+        .first();
       await pullBtn.waitFor({ state: 'visible' });
       await humanClickLocator(s.page, pullBtn);
       await humanIdlePause('deliberate');
@@ -128,15 +175,31 @@ try {
       // conflict/error so success is never claimed silently.
       const outcome = await pageCondition(s.page, () => {
         const low = (document.body?.innerText || '').toLowerCase();
-        if (/merge conflict|could not be (?:automatically )?merged|failed to (?:pull|merge|sync)|merge failed|unable to merge/.test(low)) return 'conflict';
-        if (!/checking project status in github|importing and merging changes in github/.test(low)) return 'settled';
+        if (
+          /merge conflict|could not be (?:automatically )?merged|failed to (?:pull|merge|sync)|merge failed|unable to merge/.test(
+            low,
+          )
+        )
+          return 'conflict';
+        if (
+          !/checking project status in github|importing and merging changes in github/.test(
+            low,
+          )
+        )
+          return 'settled';
         return false;
       });
       if (outcome === 'conflict') {
-        await dieUI(s, `pull_conflict_${tag8}`, `Overleaf reported a conflict/error pulling ${REPO_SLUG} into ${c.id}`);
+        await dieUI(
+          s,
+          `pull_conflict_${tag8}`,
+          `Overleaf reported a conflict/error pulling ${REPO_SLUG} into ${c.id}`,
+        );
       }
       const fin = await shot(s, `after_pull_${tag8}`);
-      console.log(`\n[pull_github] OK — pulled GitHub changes (${REPO_SLUG}) into ${c.id}; result settled with no conflict/error.`);
+      console.log(
+        `\n[pull_github] OK — pulled GitHub changes (${REPO_SLUG}) into ${c.id}; result settled with no conflict/error.`,
+      );
       console.log(`[pull_github] final URL: ${s.page.url()}`);
       console.log(`[pull_github] post-pull DOM: ${fin}`);
       await captureOverleafAuth(sessionStore, s, 'post-pull');
@@ -147,14 +210,23 @@ try {
   }
 
   if (!pulled) {
-    console.error('[pull_github] no matched project is linked to the target repo:');
+    console.error(
+      '[pull_github] no matched project is linked to the target repo:',
+    );
     for (const r of report) console.error(`  ${r}`);
-    await dieUI(s, 'nolink', `none of ${candidates.length} candidate(s) had GitHub link ${REPO_SLUG}`);
+    await dieUI(
+      s,
+      'nolink',
+      `none of ${candidates.length} candidate(s) had GitHub link ${REPO_SLUG}`,
+    );
   }
   await s.close();
   process.exit(0);
 } catch (err) {
-  console.error('[pull_github] unhandled error:', err && err.message ? err.message : err);
+  console.error(
+    '[pull_github] unhandled error:',
+    err && err.message ? err.message : err,
+  );
   const dp = await shot(s, 'exception');
   console.error(`[pull_github] DOM dump (find the exact selector here): ${dp}`);
   await s.close();

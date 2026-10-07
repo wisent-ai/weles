@@ -13,15 +13,23 @@ import { pageSettled } from '../_shared/page/settled.mjs';
  * picks up the value we just set via the descriptor setter.
  */
 export async function syncReactInputValue(locator, value) {
-  await locator.evaluate((el, v) => {
-    const proto = Object.getPrototypeOf(el);
-    const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-    if (setter) setter.call(el, v);
-    else el.value = v;
-    el._valueTracker?.setValue('');
-    el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: v }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-  }, value).catch(() => {});
+  await locator
+    .evaluate((el, v) => {
+      const proto = Object.getPrototypeOf(el);
+      const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+      if (setter) setter.call(el, v);
+      else el.value = v;
+      el._valueTracker?.setValue('');
+      el.dispatchEvent(
+        new InputEvent('input', {
+          bubbles: true,
+          inputType: 'insertText',
+          data: v,
+        }),
+      );
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }, value)
+    .catch(() => {});
 }
 
 /**
@@ -39,16 +47,33 @@ export function installNetworkLogger(s) {
     registerVerifySeen: false,
     registerVerifyErrorCode: null,
   };
-  const interesting = (u) => /send_code|check_code|passport\/web\/region|passport\/web\/email|passport\/web\/user\/register|passport\/web\/register|verification\/age|captcha|verify/.test(u || '');
+  const interesting = (u) =>
+    /send_code|check_code|passport\/web\/region|passport\/web\/email|passport\/web\/user\/register|passport\/web\/register|verification\/age|captcha|verify/.test(
+      u || '',
+    );
   s.page.on('request', (req) => {
     const u = req.url();
     if (!interesting(u)) return;
-    const body = (() => { try { return req.postData() || ''; } catch { return ''; } })();
+    const body = (() => {
+      try {
+        return req.postData() || '';
+      } catch {
+        return '';
+      }
+    })();
     const h = req.headers();
-    const ttHeaders = Object.keys(h).filter(k => /tt-|ticket|passport|csrf|x-ms|x-bogus|signature/i.test(k));
+    const ttHeaders = Object.keys(h).filter((k) =>
+      /tt-|ticket|passport|csrf|x-ms|x-bogus|signature/i.test(k),
+    );
     console.log(`[req] ${req.method()} ${u}`);
-    if (ttHeaders.length) console.log(`[req-tt-hdrs] ${ttHeaders.map(k => k + '=' + (h[k] || '')).join(' | ')}`);
-    else console.log(`[req-tt-hdrs] NONE — header keys: ${Object.keys(h).join(',')}`);
+    if (ttHeaders.length)
+      console.log(
+        `[req-tt-hdrs] ${ttHeaders.map((k) => k + '=' + (h[k] || '')).join(' | ')}`,
+      );
+    else
+      console.log(
+        `[req-tt-hdrs] NONE — header keys: ${Object.keys(h).join(',')}`,
+      );
     if (body) console.log(`[req-body] ${body}`);
     if (/email\/send_code/i.test(u)) state.sendCodeSeen = true;
     if (/register_verify_login/i.test(u)) state.registerVerifySeen = true;
@@ -57,7 +82,9 @@ export function installNetworkLogger(s) {
     const u = resp.url();
     if (!interesting(u)) return;
     let body = '';
-    try { body = (await resp.text()); } catch {}
+    try {
+      body = await resp.text();
+    } catch {}
     const h = resp.headers();
     const hdrJson = JSON.stringify(h);
     console.log(`[res] ${resp.status()} ${u}`);
@@ -74,8 +101,11 @@ export function installNetworkLogger(s) {
       state.registerVerifySeen = true;
       try {
         const parsed = JSON.parse(body);
-        state.registerVerifyErrorCode = parsed?.data?.error_code ?? parsed?.error_code ?? null;
-        console.log(`[test] register_verify_login error_code=${state.registerVerifyErrorCode ?? 'missing'}`);
+        state.registerVerifyErrorCode =
+          parsed?.data?.error_code ?? parsed?.error_code ?? null;
+        console.log(
+          `[test] register_verify_login error_code=${state.registerVerifyErrorCode ?? 'missing'}`,
+        );
       } catch {}
     }
   });
@@ -92,7 +122,8 @@ export function installNetworkLogger(s) {
  */
 export async function runUsernameStep(s, id, humanClickLocator) {
   console.log('[test] username step detected — filling');
-  const unInfo = await s.page.evaluate(`(() => {
+  const unInfo = await s.page
+    .evaluate(`(() => {
     const inputs = Array.from(document.querySelectorAll('input')).filter(i => {
       const r = i.getBoundingClientRect();
       return r.width > 0 && r.height > 0 && i.offsetParent !== null;
@@ -102,10 +133,13 @@ export async function runUsernameStep(s, id, humanClickLocator) {
       return r.width > 0 && r.height > 0 && b.offsetParent !== null;
     }).map(b => ({ text: (b.textContent || '').trim().slice(0, 30), disabled: b.disabled }));
     return { inputs, btns };
-  })()`).catch(() => ({}));
+  })()`)
+    .catch(() => ({}));
   console.log(`[test] username step DOM: ${JSON.stringify(unInfo)}`);
 
-  const unLoc = s.page.locator('input[placeholder*="username" i], input[name*="username" i]').first();
+  const unLoc = s.page
+    .locator('input[placeholder*="username" i], input[name*="username" i]')
+    .first();
   if (await unLoc.count()) {
     const { humanType } = await import('../../../dist/human/keyboard.js');
     await unLoc.focus();
@@ -116,17 +150,27 @@ export async function runUsernameStep(s, id, humanClickLocator) {
     await pageSettled(s.page);
   }
 
-  const acceptedUsername = await s.page.evaluate(`(() => {
+  const acceptedUsername = await s.page
+    .evaluate(`(() => {
     const inp = document.querySelector('input[placeholder*="username" i], input[name*="username" i]');
     return inp ? (inp.value || '') : '';
-  })()`).catch(() => '');
+  })()`)
+    .catch(() => '');
   const finalUsername = acceptedUsername || id.username;
-  console.log(`[test] username field value=${JSON.stringify(acceptedUsername)} chosen=${JSON.stringify(finalUsername)}`);
+  console.log(
+    `[test] username field value=${JSON.stringify(acceptedUsername)} chosen=${JSON.stringify(finalUsername)}`,
+  );
 
   for (const txt of ['Sign up', 'Next', 'Continue', 'Done']) {
     try {
-      const btn = s.page.getByRole('button', { name: new RegExp(`^\\s*${txt}\\s*$`, 'i') }).first();
-      if ((await btn.count()) && await btn.isVisible().catch(() => false) && !(await btn.isDisabled().catch(() => false))) {
+      const btn = s.page
+        .getByRole('button', { name: new RegExp(`^\\s*${txt}\\s*$`, 'i') })
+        .first();
+      if (
+        (await btn.count()) &&
+        (await btn.isVisible().catch(() => false)) &&
+        !(await btn.isDisabled().catch(() => false))
+      ) {
         await humanClickLocator(s.page, btn);
         console.log(`[test] clicked ${txt} on username step`);
         break;
@@ -135,7 +179,10 @@ export async function runUsernameStep(s, id, humanClickLocator) {
   }
 
   // The step is done when TikTok leaves the create-username page.
-  await s.page.waitForURL((url) => !url.pathname.includes('/signup/create-username'), { timeout: 0 });
+  await s.page.waitForURL(
+    (url) => !url.pathname.includes('/signup/create-username'),
+    { timeout: 0 },
+  );
   console.log(`[test] left create-username: ${s.page.url()}`);
   return finalUsername;
 }

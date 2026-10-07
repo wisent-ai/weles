@@ -13,7 +13,10 @@ import * as login from './login.js';
 import * as vision from './vision.js';
 import { waitCloudflare } from '../../cloudflare/challenge.js';
 import { SessionStore } from '../../session/store.js';
-import { readOptionalWelesServiceSecret, type WelesServiceSecret } from '../../secrets/scoped-service.js';
+import {
+  readOptionalWelesServiceSecret,
+  type WelesServiceSecret,
+} from '../../secrets/scoped-service.js';
 
 // ---------------------------------------------------------------------------
 // Trajectory cache
@@ -34,7 +37,9 @@ export class Trajectory {
   lastSuccess: string | null;
   lastValue: number | null;
 
-  constructor(data: Partial<Trajectory> & { service: string; finalUrl: string }) {
+  constructor(
+    data: Partial<Trajectory> & { service: string; finalUrl: string },
+  ) {
     this.service = data.service;
     this.finalUrl = data.finalUrl;
     this.selector = data.selector ?? null;
@@ -47,17 +52,28 @@ export class Trajectory {
     try {
       const raw = readFileSync(join(cacheDir(), `${service}.json`), 'utf-8');
       return new Trajectory(JSON.parse(raw));
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   }
 
   save(): void {
     try {
-      writeFileSync(join(cacheDir(), `${this.service}.json`), JSON.stringify(this, null, 2));
-    } catch { /* skip */ }
+      writeFileSync(
+        join(cacheDir(), `${this.service}.json`),
+        JSON.stringify(this, null, 2),
+      );
+    } catch {
+      /* skip */
+    }
   }
 
   static invalidate(service: string): void {
-    try { unlinkSync(join(cacheDir(), `${service}.json`)); } catch { /* skip */ }
+    try {
+      unlinkSync(join(cacheDir(), `${service}.json`));
+    } catch {
+      /* skip */
+    }
   }
 }
 
@@ -93,7 +109,9 @@ export class FetchAccountValue {
     if (traj) {
       const replayValue = await this._replayTrajectory(traj);
       if (replayValue !== null) {
-        console.log(`[task] ${this.service}: cache replay hit, value=${replayValue}`);
+        console.log(
+          `[task] ${this.service}: cache replay hit, value=${replayValue}`,
+        );
         traj.lastValue = replayValue;
         traj.lastSuccess = new Date().toISOString();
         traj.save();
@@ -105,7 +123,9 @@ export class FetchAccountValue {
 
     const bal = await this._attemptWithExistingSession();
     if (bal !== null) return bal;
-    console.log(`[task] ${this.service}: first attempt returned null, clearing cookies`);
+    console.log(
+      `[task] ${this.service}: first attempt returned null, clearing cookies`,
+    );
     this._clearCookies();
     return this._attemptWithExistingSession();
   }
@@ -117,7 +137,11 @@ export class FetchAccountValue {
       if (cookies) await page.context().addCookies(cookies);
       await page.goto(traj.finalUrl, { waitUntil: 'domcontentloaded' });
       await waitCloudflare(page);
-      if (page.url().toLowerCase().includes('login') || page.url().toLowerCase().includes('signin')) return null;
+      if (
+        page.url().toLowerCase().includes('login') ||
+        page.url().toLowerCase().includes('signin')
+      )
+        return null;
       if (!traj.selector) return null;
       const el = await page.querySelector(traj.selector);
       if (!el) return null;
@@ -145,7 +169,7 @@ export class FetchAccountValue {
       await page.goto(this.url, { waitUntil: 'domcontentloaded' });
       await waitCloudflare(page);
       if (await this._isLoginPage(page)) {
-        if (!await this._loginInline(page)) return null;
+        if (!(await this._loginInline(page))) return null;
       }
       const value = await this._extractValue(page);
       if (value !== null) await this._learnTrajectory(page, value);
@@ -160,18 +184,29 @@ export class FetchAccountValue {
 
   private async _isLoginPage(page: any): Promise<boolean> {
     const url = page.url().toLowerCase();
-    if (url.includes('login') || url.includes('signin') || url.includes('sign-in')) return true;
-    return vision.boolean(page,
-      'Is this page showing a login form with username and '
-      + 'password fields, or a "Sign in" / "Log in" button as '
-      + 'the main call to action?');
+    if (
+      url.includes('login') ||
+      url.includes('signin') ||
+      url.includes('sign-in')
+    )
+      return true;
+    return vision.boolean(
+      page,
+      'Is this page showing a login form with username and ' +
+        'password fields, or a "Sign in" / "Log in" button as ' +
+        'the main call to action?',
+    );
   }
 
   private async _loginInline(page: any): Promise<boolean> {
-    const username = readOptionalWelesServiceSecret(this.secretService, 'username') ?? '';
-    const password = readOptionalWelesServiceSecret(this.secretService, 'password') ?? '';
+    const username =
+      readOptionalWelesServiceSecret(this.secretService, 'username') ?? '';
+    const password =
+      readOptionalWelesServiceSecret(this.secretService, 'password') ?? '';
     if (!username || !password) {
-      console.log(`[task] ${this.service}: exact scoped login grant unavailable`);
+      console.log(
+        `[task] ${this.service}: exact scoped login grant unavailable`,
+      );
       return false;
     }
     const ok = await login.run(page, username, password);
@@ -182,8 +217,10 @@ export class FetchAccountValue {
 
   private async _learnTrajectory(page: any, value: number): Promise<void> {
     try {
-      const selAnswer = await vision.text(page,
-        `a CSS selector that uniquely identifies the element containing ${this.what}`);
+      const selAnswer = await vision.text(
+        page,
+        `a CSS selector that uniquely identifies the element containing ${this.what}`,
+      );
       const selector = (selAnswer ?? '').trim().replace(/^[`'"]+|[`'"]+$/g, '');
       if (selector && selector.length < 200) {
         new Trajectory({
@@ -194,10 +231,14 @@ export class FetchAccountValue {
           lastSuccess: new Date().toISOString(),
           lastValue: value,
         }).save();
-        console.log(`[task] ${this.service}: trajectory cached (url=${page.url()}, selector=${JSON.stringify(selector)})`);
+        console.log(
+          `[task] ${this.service}: trajectory cached (url=${page.url()}, selector=${JSON.stringify(selector)})`,
+        );
       }
     } catch (e: any) {
-      console.log(`[task] ${this.service}: could not learn trajectory: ${e.message}`);
+      console.log(
+        `[task] ${this.service}: could not learn trajectory: ${e.message}`,
+      );
     }
   }
 
@@ -206,15 +247,27 @@ export class FetchAccountValue {
   }
 
   private _loadCookies(): any[] | null {
-    try { return new SessionStore().loadCookies(this.service); } catch { return null; }
+    try {
+      return new SessionStore().loadCookies(this.service);
+    } catch {
+      return null;
+    }
   }
 
   private _saveCookies(cookies: any[]): void {
-    try { new SessionStore().saveCookies(this.service, cookies); } catch { /* skip */ }
+    try {
+      new SessionStore().saveCookies(this.service, cookies);
+    } catch {
+      /* skip */
+    }
   }
 
   private _clearCookies(): void {
-    try { new SessionStore().saveCookies(this.service, []); } catch { /* skip */ }
+    try {
+      new SessionStore().saveCookies(this.service, []);
+    } catch {
+      /* skip */
+    }
   }
 }
 
@@ -222,16 +275,35 @@ export class FetchAccountValue {
 // Session management — uses AsyncNewBrowser (same as Python _open_session)
 // ---------------------------------------------------------------------------
 
-function _getProxy(): { server: string; username: string; password: string } | undefined {
-  const providers: Array<[WelesServiceSecret, string, (u: string, p: string) => [string, string]]> = [
-    ['oxylabsResidential', 'http://pr.oxylabs.io:7777', (u, p) => [`customer-${u}-cc-US`, p]],
-    ['pingproxiesProxy', 'http://residential.pingproxies.com:8000', (u, p) => [`${u}_c_us`, p]],
-    ['packetstreamProxy', 'http://proxy.packetstream.io:31112', (u, p) => [u, `${p}_country-US`]],
+function _getProxy():
+  | { server: string; username: string; password: string }
+  | undefined {
+  const providers: Array<
+    [WelesServiceSecret, string, (u: string, p: string) => [string, string]]
+  > = [
+    [
+      'oxylabsResidential',
+      'http://pr.oxylabs.io:7777',
+      (u, p) => [`customer-${u}-cc-US`, p],
+    ],
+    [
+      'pingproxiesProxy',
+      'http://residential.pingproxies.com:8000',
+      (u, p) => [`${u}_c_us`, p],
+    ],
+    [
+      'packetstreamProxy',
+      'http://proxy.packetstream.io:31112',
+      (u, p) => [u, `${p}_country-US`],
+    ],
   ];
   for (const [service, server, build] of providers) {
     const username = readOptionalWelesServiceSecret(service, 'username');
     const password = readOptionalWelesServiceSecret(service, 'password');
-    if (username && password) { const [user, pass] = build(username, password); return { server, username: user, password: pass }; }
+    if (username && password) {
+      const [user, pass] = build(username, password);
+      return { server, username: user, password: pass };
+    }
   }
   return undefined;
 }
@@ -245,10 +317,14 @@ async function openSession(osTarget: string): Promise<any> {
     headless: false,
     proxy,
   });
-  const page = context.pages()[0] ?? await context.newPage();
+  const page = context.pages()[0] ?? (await context.newPage());
   return page;
 }
 
 async function closeSession(page: any): Promise<void> {
-  try { await page.context().close(); } catch { /* skip */ }
+  try {
+    await page.context().close();
+  } catch {
+    /* skip */
+  }
 }

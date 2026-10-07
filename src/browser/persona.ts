@@ -41,20 +41,63 @@ export interface Persona {
 type Gpu = { vendor: string; renderer: string };
 
 const MACOS_GPUS: Gpu[] = [
-  { vendor: 'Google Inc. (Apple)', renderer: 'ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)' },
-  { vendor: 'Google Inc. (Apple)', renderer: 'ANGLE (Apple, ANGLE Metal Renderer: Apple M2, Unspecified Version)' },
-  { vendor: 'Google Inc. (Apple)', renderer: 'ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)' },
-  { vendor: 'Google Inc. (Apple)', renderer: 'ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Pro, Unspecified Version)' },
-  { vendor: 'Google Inc. (Intel Inc.)', renderer: 'ANGLE (Intel Inc., Intel(R) UHD Graphics 630, OpenGL 4.1)' },
+  {
+    vendor: 'Google Inc. (Apple)',
+    renderer:
+      'ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)',
+  },
+  {
+    vendor: 'Google Inc. (Apple)',
+    renderer:
+      'ANGLE (Apple, ANGLE Metal Renderer: Apple M2, Unspecified Version)',
+  },
+  {
+    vendor: 'Google Inc. (Apple)',
+    renderer:
+      'ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)',
+  },
+  {
+    vendor: 'Google Inc. (Apple)',
+    renderer:
+      'ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Pro, Unspecified Version)',
+  },
+  {
+    vendor: 'Google Inc. (Intel Inc.)',
+    renderer: 'ANGLE (Intel Inc., Intel(R) UHD Graphics 630, OpenGL 4.1)',
+  },
 ];
 
 const WINDOWS_GPUS: Gpu[] = [
-  { vendor: 'Google Inc. (Intel)', renderer: 'ANGLE (Intel, Intel(R) UHD Graphics 620 (0x00005917) Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-  { vendor: 'Google Inc. (Intel)', renderer: 'ANGLE (Intel, Intel(R) UHD Graphics 630 (0x00003E9B) Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-  { vendor: 'Google Inc. (Intel)', renderer: 'ANGLE (Intel, Intel(R) Iris(R) Xe Graphics (0x00009A49) Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-  { vendor: 'Google Inc. (NVIDIA)', renderer: 'ANGLE (NVIDIA, NVIDIA GeForce GTX 1650 (0x00001F82) Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-  { vendor: 'Google Inc. (NVIDIA)', renderer: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002503) Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-  { vendor: 'Google Inc. (AMD)', renderer: 'ANGLE (AMD, AMD Radeon RX 580 (0x000067DF) Direct3D11 vs_5_0 ps_5_0, D3D11)' },
+  {
+    vendor: 'Google Inc. (Intel)',
+    renderer:
+      'ANGLE (Intel, Intel(R) UHD Graphics 620 (0x00005917) Direct3D11 vs_5_0 ps_5_0, D3D11)',
+  },
+  {
+    vendor: 'Google Inc. (Intel)',
+    renderer:
+      'ANGLE (Intel, Intel(R) UHD Graphics 630 (0x00003E9B) Direct3D11 vs_5_0 ps_5_0, D3D11)',
+  },
+  {
+    vendor: 'Google Inc. (Intel)',
+    renderer:
+      'ANGLE (Intel, Intel(R) Iris(R) Xe Graphics (0x00009A49) Direct3D11 vs_5_0 ps_5_0, D3D11)',
+  },
+  {
+    vendor: 'Google Inc. (NVIDIA)',
+    renderer:
+      'ANGLE (NVIDIA, NVIDIA GeForce GTX 1650 (0x00001F82) Direct3D11 vs_5_0 ps_5_0, D3D11)',
+  },
+  {
+    vendor: 'Google Inc. (NVIDIA)',
+    renderer:
+      'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002503) Direct3D11 vs_5_0 ps_5_0, D3D11)',
+  },
+  {
+    vendor: 'Google Inc. (AMD)',
+    renderer:
+      'ANGLE (AMD, AMD Radeon RX 580 (0x000067DF) Direct3D11 vs_5_0 ps_5_0, D3D11)',
+  },
 ];
 
 const LINUX_GPUS: Gpu[] = [
@@ -106,15 +149,17 @@ const CHROME_VERSIONS = [
 const FIREFOX_VERSION = '142.0';
 
 const FIREFOX_UA_TEMPLATES: Record<string, string> = {
-  macos:   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:VER) Gecko/20100101 Firefox/VER',
-  windows: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:VER) Gecko/20100101 Firefox/VER',
-  linux:   'Mozilla/5.0 (X11; Linux x86_64; rv:VER) Gecko/20100101 Firefox/VER',
+  macos:
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:VER) Gecko/20100101 Firefox/VER',
+  windows:
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:VER) Gecko/20100101 Firefox/VER',
+  linux: 'Mozilla/5.0 (X11; Linux x86_64; rv:VER) Gecko/20100101 Firefox/VER',
 };
 
 const FIREFOX_OSCPU: Record<string, string> = {
-  macos:   'Intel Mac OS X 10.15',
+  macos: 'Intel Mac OS X 10.15',
   windows: 'Windows NT 10.0; Win64; x64',
-  linux:   'Linux x86_64',
+  linux: 'Linux x86_64',
 };
 
 export interface FirefoxNav {
@@ -144,18 +189,20 @@ export function firefoxNav(targetOs: string): FirefoxNav {
 }
 
 const COUNTRY_LOCALE: Record<string, { tz: string; lang: string }> = {
-  US:    { tz: 'America/New_York', lang: 'en-US' },
-  'US-W':{ tz: 'America/Los_Angeles', lang: 'en-US' },
-  UK:    { tz: 'Europe/London', lang: 'en-GB' },
-  GB:    { tz: 'Europe/London', lang: 'en-GB' },
-  DE:    { tz: 'Europe/Berlin', lang: 'de-DE' },
-  FR:    { tz: 'Europe/Paris', lang: 'fr-FR' },
-  NL:    { tz: 'Europe/Amsterdam', lang: 'nl-NL' },
-  CA:    { tz: 'America/Toronto', lang: 'en-CA' },
-  AU:    { tz: 'Australia/Sydney', lang: 'en-AU' },
+  US: { tz: 'America/New_York', lang: 'en-US' },
+  'US-W': { tz: 'America/Los_Angeles', lang: 'en-US' },
+  UK: { tz: 'Europe/London', lang: 'en-GB' },
+  GB: { tz: 'Europe/London', lang: 'en-GB' },
+  DE: { tz: 'Europe/Berlin', lang: 'de-DE' },
+  FR: { tz: 'Europe/Paris', lang: 'fr-FR' },
+  NL: { tz: 'Europe/Amsterdam', lang: 'nl-NL' },
+  CA: { tz: 'America/Toronto', lang: 'en-CA' },
+  AU: { tz: 'Australia/Sydney', lang: 'en-AU' },
 };
 
-function pick<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
 /**
  * Generate a coherent Persona.
@@ -165,48 +212,91 @@ function pick<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length
  * @param opts.os       Force a specific OS; by default sampled ~70% Windows,
  *                      25% macOS, 5% Linux to match real web traffic shape.
  */
-export function generatePersona(opts: { country?: string; os?: Persona['os']; browser?: Persona['browser'] } = {}): Persona {
+export function generatePersona(
+  opts: {
+    country?: string;
+    os?: Persona['os'];
+    browser?: Persona['browser'];
+  } = {},
+): Persona {
   const r = Math.random();
-  const os: Persona['os'] = opts.os ?? (r < 0.70 ? 'windows' : r < 0.95 ? 'macos' : 'linux');
+  const os: Persona['os'] =
+    opts.os ?? (r < 0.7 ? 'windows' : r < 0.95 ? 'macos' : 'linux');
   // 60/40 chromium/firefox. Both browsers now carry engine-level weles patches:
   // chromium via chromium-build (canvas noise, UA reduction, ALPS, HEVC/audio
   // shims); firefox via firefox-build (navigator.webdriver, webgl vendor/renderer
   // de-sanitize, nsScreen + window-outer overrides, juggler integration).
   // Rotation = TLS/HTTP2 fingerprint rotation (BoringSSL vs NSS → different JA4).
   const br = Math.random();
-  const browser: Persona['browser'] = opts.browser ?? (br < 0.60 ? 'chromium' : 'firefox');
+  const browser: Persona['browser'] =
+    opts.browser ?? (br < 0.6 ? 'chromium' : 'firefox');
 
-  const gpu = os === 'macos' ? pick(MACOS_GPUS) : os === 'windows' ? pick(WINDOWS_GPUS) : pick(LINUX_GPUS);
-  const screen = os === 'macos' ? pick(MACOS_SCREENS) : os === 'windows' ? pick(WINDOWS_SCREENS) : pick(LINUX_SCREENS);
+  const gpu =
+    os === 'macos'
+      ? pick(MACOS_GPUS)
+      : os === 'windows'
+        ? pick(WINDOWS_GPUS)
+        : pick(LINUX_GPUS);
+  const screen =
+    os === 'macos'
+      ? pick(MACOS_SCREENS)
+      : os === 'windows'
+        ? pick(WINDOWS_SCREENS)
+        : pick(LINUX_SCREENS);
 
-  const userAgentOs = os === 'macos' ? 'Macintosh; Intel Mac OS X 10_15_7'
-    : os === 'windows' ? 'Windows NT 10.0; Win64; x64'
-    : 'X11; Linux x86_64';
-  const platform = os === 'macos' ? 'MacIntel' : os === 'windows' ? 'Win32' : 'Linux x86_64';
+  const userAgentOs =
+    os === 'macos'
+      ? 'Macintosh; Intel Mac OS X 10_15_7'
+      : os === 'windows'
+        ? 'Windows NT 10.0; Win64; x64'
+        : 'X11; Linux x86_64';
+  const platform =
+    os === 'macos' ? 'MacIntel' : os === 'windows' ? 'Win32' : 'Linux x86_64';
 
-  const coreOptions = os === 'macos' ? [4, 8, 10, 12] : os === 'windows' ? [4, 6, 8, 12, 16] : [4, 8];
+  const coreOptions =
+    os === 'macos'
+      ? [4, 8, 10, 12]
+      : os === 'windows'
+        ? [4, 6, 8, 12, 16]
+        : [4, 8];
   const hardwareConcurrency = pick(coreOptions);
   const audioSampleRate: 44100 | 48000 = os === 'windows' ? 44100 : 48000;
 
   const country = (opts.country ?? 'US').toUpperCase();
   const locale = COUNTRY_LOCALE[country] ?? COUNTRY_LOCALE.US;
 
-  const canvasSeed = Math.floor(Math.random() * 0xFFFFFFFF);
+  const canvasSeed = Math.floor(Math.random() * 0xffffffff);
   const chromeVersion = pick(CHROME_VERSIONS);
 
-  const rendererShort = gpu.renderer.match(/Apple M\d[^,)]*|UHD Graphics \d+|GTX \d+|RTX \d+|Radeon [A-Z]+ ?\d+|Iris[^,)]*/)?.[0] ?? 'GPU';
-  console.log(`[persona] os=${os} browser=${browser} gpu=${rendererShort} screen=${screen.width}x${screen.height}@${screen.dpr} tz=${locale.tz} lang=${locale.lang}`);
+  const rendererShort =
+    gpu.renderer.match(
+      /Apple M\d[^,)]*|UHD Graphics \d+|GTX \d+|RTX \d+|Radeon [A-Z]+ ?\d+|Iris[^,)]*/,
+    )?.[0] ?? 'GPU';
+  console.log(
+    `[persona] os=${os} browser=${browser} gpu=${rendererShort} screen=${screen.width}x${screen.height}@${screen.dpr} tz=${locale.tz} lang=${locale.lang}`,
+  );
 
   // Real Chrome auto-appends ';q=0.9' to its --lang flag; real Firefox emits
   // ',en;q=0.5' from its intl.accept_languages pref. Encode per-browser so
   // weles wire matches each engine's real-world Accept-Language string.
-  const acceptLanguage = browser === 'firefox'
-    ? `${locale.lang},${locale.lang.split('-')[0]};q=0.5`
-    : `${locale.lang},${locale.lang.split('-')[0]};q=0.9`;
+  const acceptLanguage =
+    browser === 'firefox'
+      ? `${locale.lang},${locale.lang.split('-')[0]};q=0.5`
+      : `${locale.lang},${locale.lang.split('-')[0]};q=0.9`;
 
   return {
-    os, browser, chromeVersion, userAgentOs, platform, gpu, screen,
-    hardwareConcurrency, audioSampleRate,
-    timezone: locale.tz, language: locale.lang, acceptLanguage, canvasSeed,
+    os,
+    browser,
+    chromeVersion,
+    userAgentOs,
+    platform,
+    gpu,
+    screen,
+    hardwareConcurrency,
+    audioSampleRate,
+    timezone: locale.tz,
+    language: locale.lang,
+    acceptLanguage,
+    canvasSeed,
   };
 }

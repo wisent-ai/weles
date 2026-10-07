@@ -1,10 +1,14 @@
 import { FingerprintGenerator } from 'fingerprint-generator';
 import { firefoxNav } from './browser/persona.js';
 
-import { PLATFORM_MAP, WEBGL_RENDERERS, WEBGL_UNMASKED_VENDORS, ensureModernChromeUA } from './fingerprint/chromium.js';
+import {
+  PLATFORM_MAP,
+  WEBGL_RENDERERS,
+  WEBGL_UNMASKED_VENDORS,
+  ensureModernChromeUA,
+} from './fingerprint/chromium.js';
 
 export { toCppConfig } from './fingerprint/chromium.js';
-
 
 export interface GenerateOptions {
   os?: string;
@@ -81,8 +85,12 @@ export function toConfig(
   // a coherent Firefox navigator instead. Chromium: UA Reduction so the
   // navigator.js-injected UA matches real Chrome on cross-origin iframes.
   const ffNav = isChromium ? null : firefoxNav(targetOs);
-  let ua: string = ffNav ? ffNav.userAgent
-    : ensureModernChromeUA(nav.userAgent ?? '', targetOs).replace(/Chrome\/(\d+)\.\d+\.\d+\.\d+/, 'Chrome/$1.0.0.0');
+  let ua: string = ffNav
+    ? ffNav.userAgent
+    : ensureModernChromeUA(nav.userAgent ?? '', targetOs).replace(
+        /Chrome\/(\d+)\.\d+\.\d+\.\d+/,
+        'Chrome/$1.0.0.0',
+      );
 
   const platform = PLATFORM_MAP[targetOs] ?? 'MacIntel';
 
@@ -112,7 +120,9 @@ export function toConfig(
     navConfig.product = 'Gecko';
     navConfig.productSub = '20030107';
     navConfig.pdfViewerEnabled = true;
-  } else { Object.assign(navConfig, ffNav); }
+  } else {
+    Object.assign(navConfig, ffNav);
+  }
 
   const webglVendor = isChromium ? 'Google Inc.' : 'Mozilla';
 
@@ -146,7 +156,8 @@ export function toConfig(
     webgl: {
       vendor: webglVendor,
       renderer: WEBGL_RENDERERS[targetOs] ?? WEBGL_RENDERERS.macos,
-      unmaskedVendor: WEBGL_UNMASKED_VENDORS[targetOs] ?? WEBGL_UNMASKED_VENDORS.macos,
+      unmaskedVendor:
+        WEBGL_UNMASKED_VENDORS[targetOs] ?? WEBGL_UNMASKED_VENDORS.macos,
       unmaskedRenderer: WEBGL_RENDERERS[targetOs] ?? WEBGL_RENDERERS.macos,
     },
     // Canvas noise intentionally disabled: the LSB-flip noise (image_data_buffer.cc
@@ -166,14 +177,17 @@ export function toConfig(
  * navigator/screen/window/webgl getters. Empty strings / zeros disable the
  * override so partial configs are safe.
  */
-export function toFirefoxWelesPrefs(config: FingerprintConfig): Record<string, any> {
+export function toFirefoxWelesPrefs(
+  config: FingerprintConfig,
+): Record<string, any> {
   const scr = config.screen ?? {};
   const win = config.window ?? {};
   const gl = config.webgl ?? {};
   return {
     'weles.fingerprint.webdriver.force': true,
     'weles.fingerprint.webgl.vendor': gl.unmaskedVendor ?? gl.vendor ?? '',
-    'weles.fingerprint.webgl.renderer': gl.unmaskedRenderer ?? gl.renderer ?? '',
+    'weles.fingerprint.webgl.renderer':
+      gl.unmaskedRenderer ?? gl.renderer ?? '',
     'weles.fingerprint.screen.width': scr.width ?? 0,
     'weles.fingerprint.screen.height': scr.height ?? 0,
     'weles.fingerprint.screen.avail_width': scr.availWidth ?? 0,
@@ -184,4 +198,3 @@ export function toFirefoxWelesPrefs(config: FingerprintConfig): Record<string, a
     'weles.fingerprint.window.screen_y': win.screenY ?? 0,
   };
 }
-

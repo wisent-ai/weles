@@ -7,9 +7,11 @@ import { generatePersona } from '../../../../dist/browser/persona.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { pageSettled } from '../../_shared/page/settled.mjs';
 
-const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
+const USER_DATA_DIR =
+  process.env.WELES_USER_DATA_DIR ||
+  process.env.ADS_PROFILE_DIR ||
+  join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
 mkdirSync(USER_DATA_DIR, { recursive: true });
-
 
 function stableProfilePersona() {
   const p = join(USER_DATA_DIR, 'persona.json');
@@ -24,7 +26,8 @@ function sanitizedUrl(rawUrl) {
     const parsed = new URL(rawUrl);
     parsed.hash = parsed.hash ? '#<redacted>' : '';
     for (const key of [...parsed.searchParams.keys()]) {
-      if (/token|code|secret|state|session|auth/i.test(key)) parsed.searchParams.set(key, '<redacted>');
+      if (/token|code|secret|state|session|auth/i.test(key))
+        parsed.searchParams.set(key, '<redacted>');
     }
     return parsed.toString();
   } catch {
@@ -37,25 +40,42 @@ async function snapshot(page, label) {
   const data = await page.evaluate(() => {
     const textOf = (el) => {
       if (!el) return '';
-      return (el.innerText || el.textContent || el.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
+      return (
+        el.innerText ||
+        el.textContent ||
+        el.getAttribute('aria-label') ||
+        ''
+      )
+        .replace(/\s+/g, ' ')
+        .trim();
     };
     const visible = (el) => {
       const style = window.getComputedStyle(el);
       const rect = el.getBoundingClientRect();
-      return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+      return (
+        style.visibility !== 'hidden' &&
+        style.display !== 'none' &&
+        rect.width > 0 &&
+        rect.height > 0
+      );
     };
     const bodyText = textOf(document.body);
-    const controls = Array.from(document.querySelectorAll('button, [role="button"], a, [role="menuitem"], input, textarea, select, [aria-label]'))
+    const controls = Array.from(
+      document.querySelectorAll(
+        'button, [role="button"], a, [role="menuitem"], input, textarea, select, [aria-label]',
+      ),
+    )
       .filter(visible)
       .map((el) => {
         const rect = el.getBoundingClientRect();
         return {
-          text: (textOf(el) || el.getAttribute('placeholder') || ''),
+          text: textOf(el) || el.getAttribute('placeholder') || '',
           role: el.getAttribute('role') || el.tagName.toLowerCase(),
           href: el.getAttribute('href') || '',
           placeholder: el.getAttribute('placeholder') || '',
           type: el.getAttribute('type') || '',
-          disabled: el.disabled === true || el.getAttribute('aria-disabled') === 'true',
+          disabled:
+            el.disabled === true || el.getAttribute('aria-disabled') === 'true',
           x: Math.round(rect.left + rect.width / 2),
           y: Math.round(rect.top + rect.height / 2),
         };
@@ -69,26 +89,45 @@ async function snapshot(page, label) {
         login: /log in|zaloguj|hasło|password/i.test(bodyText),
         phone: /phone|mobile|telefon|numer telefonu/i.test(bodyText),
         card: /credit card|debit card|karta kredytowa|karta/i.test(bodyText),
-        alreadyVerified: /verified|zweryfikowano|confirmed|potwierdzono/i.test(bodyText),
-        blocked: /cannot|can't|nie można|niedostęp|unavailable|problem/i.test(bodyText),
+        alreadyVerified: /verified|zweryfikowano|confirmed|potwierdzono/i.test(
+          bodyText,
+        ),
+        blocked: /cannot|can't|nie można|niedostęp|unavailable|problem/i.test(
+          bodyText,
+        ),
       },
     };
   });
-  console.log(JSON.stringify({
-    stage: 'snapshot',
-    label,
-    url: sanitizedUrl(page.url?.() || ''),
-    ...data,
-    controls: data.controls.map((control) => ({ ...control, href: sanitizedUrl(control.href) })),
-  }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        stage: 'snapshot',
+        label,
+        url: sanitizedUrl(page.url?.() || ''),
+        ...data,
+        controls: data.controls.map((control) => ({
+          ...control,
+          href: sanitizedUrl(control.href),
+        })),
+      },
+      null,
+      2,
+    ),
+  );
   return data;
 }
 
-console.log(JSON.stringify({
-  stage: 'start',
-  userDataDir: USER_DATA_DIR,
-  headless: process.env.META_VERIFY_HEADLESS !== '0',
-}, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      stage: 'start',
+      userDataDir: USER_DATA_DIR,
+      headless: process.env.META_VERIFY_HEADLESS !== '0',
+    },
+    null,
+    2,
+  ),
+);
 
 const s = await WSession.start({
   label: 'meta_developer_account_verification_probe',
@@ -102,7 +141,12 @@ const s = await WSession.start({
 
 let exitCode = 0;
 try {
-  await s.page.goto('https://developers.facebook.com/async/developer/account/verification/', { waitUntil: 'domcontentloaded' }).catch(() => {});
+  await s.page
+    .goto(
+      'https://developers.facebook.com/async/developer/account/verification/',
+      { waitUntil: 'domcontentloaded' },
+    )
+    .catch(() => {});
   await snapshot(s.page, 'verification_page');
 } catch (error) {
   exitCode = 1;

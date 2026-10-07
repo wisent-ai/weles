@@ -23,20 +23,24 @@ const root = resolve('build', 'real-tests', 'operator', stamp);
 const requests = join(root, 'requests');
 mkdirSync(requests, { recursive: true });
 const report = join(root, 'report.txt');
-const revision = spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).stdout.trim();
+const revision = spawnSync('git', ['rev-parse', 'HEAD'], {
+  encoding: 'utf8',
+}).stdout.trim();
 const dirty = spawnSync('git', ['diff', '--quiet']).status ? ' (dirty)' : '';
 writeFileSync(report, `revision: ${revision}${dirty}\nrecords: ${requests}\n`);
 process.env.WELES_OPERATOR_REQUEST_DIR = requests;
 
 const store = await import('../../src/operator/request.mjs');
-const record = (label, value) => appendFileSync(report, `${label}: ${JSON.stringify(value, null, 2)}\n`);
+const record = (label, value) =>
+  appendFileSync(report, `${label}: ${JSON.stringify(value, null, 2)}\n`);
 
 try {
   const opened = store.openOperatorRequest({
     kind: 'real-test-repage',
     account: `real-test-${stamp}`,
     run: `tests/operator/repage.mjs ${stamp}`,
-    instruction: 'This is a Weles real test of asking you again; nothing waits for you.',
+    instruction:
+      'This is a Weles real test of asking you again; nothing waits for you.',
   });
   record('opened', opened);
   const reason = `Google's prompt expired at ${new Date().toISOString()} before it was approved (real test)`;
@@ -44,15 +48,28 @@ try {
   record('asked again', asked);
   const [added, ...more] = asked.pages.slice(opened.pages.length);
   assert.deepEqual(more, [], 'asking again adds exactly one page attempt');
-  assert.ok(added?.ok, `the second page reached the operator's chosen channels: ${added?.detail}`);
-  assert.equal([...asked.notes].pop()?.note, reason, 'the reason is kept as a note');
+  assert.ok(
+    added?.ok,
+    `the second page reached the operator's chosen channels: ${added?.detail}`,
+  );
+  assert.equal(
+    [...asked.notes].pop()?.note,
+    reason,
+    'the reason is kept as a note',
+  );
 
-  assert.throws(() => store.repageOperatorRequest(opened.id, ''), /why the operator is asked again/,
-    'asking again without a reason is refused');
+  assert.throws(
+    () => store.repageOperatorRequest(opened.id, ''),
+    /why the operator is asked again/,
+    'asking again without a reason is refused',
+  );
 
   store.closeOperatorRequest(opened.id, false, 'real test finished');
-  assert.throws(() => store.repageOperatorRequest(opened.id, reason), /closed at .*; it cannot be asked again/,
-    'a closed request cannot be asked again');
+  assert.throws(
+    () => store.repageOperatorRequest(opened.id, reason),
+    /closed at .*; it cannot be asked again/,
+    'a closed request cannot be asked again',
+  );
 
   appendFileSync(report, 'PASS\n');
   console.log(`PASS: ${report}`);

@@ -8,12 +8,26 @@ export function initScript(policyVersion: string): void {
       const reportingGlobal = globalThis as unknown as {
         __welesRecordWithheldEdge?: (edge: unknown) => unknown;
       };
-      void reportingGlobal.__welesRecordWithheldEdge?.({ category, api, source: 'page_api' });
+      void reportingGlobal.__welesRecordWithheldEdge?.({
+        category,
+        api,
+        source: 'page_api',
+      });
     } catch {}
   };
-  const denied = () => new DOMException('Withheld by Weles browser-evidence policy', 'NotAllowedError');
-  const denyAsyncMethods = (owner: unknown, methods: string[], category: string, prefix: string) => {
-    if (!owner || (typeof owner !== 'object' && typeof owner !== 'function')) return;
+  const denied = () =>
+    new DOMException(
+      'Withheld by Weles browser-evidence policy',
+      'NotAllowedError',
+    );
+  const denyAsyncMethods = (
+    owner: unknown,
+    methods: string[],
+    category: string,
+    prefix: string,
+  ) => {
+    if (!owner || (typeof owner !== 'object' && typeof owner !== 'function'))
+      return;
     for (const method of methods) {
       try {
         const record = owner as Record<string, unknown>;
@@ -35,8 +49,16 @@ export function initScript(policyVersion: string): void {
         configurable: false,
         value: (descriptor: PermissionDescriptor) => {
           const name = String(descriptor?.name ?? 'unknown');
-          report(name === 'notifications' ? 'notification_api' : 'browser_permission_api', `permissions.query:${name}`);
-          return Promise.resolve({ state: 'denied', onchange: null } as PermissionStatus);
+          report(
+            name === 'notifications'
+              ? 'notification_api'
+              : 'browser_permission_api',
+            `permissions.query:${name}`,
+          );
+          return Promise.resolve({
+            state: 'denied',
+            onchange: null,
+          } as PermissionStatus);
         },
       });
     }
@@ -46,7 +68,9 @@ export function initScript(policyVersion: string): void {
     Object.defineProperty(globalThis, 'Notification', {
       configurable: false,
       value: class WithheldNotification {
-        static get permission(): NotificationPermission { return 'denied'; }
+        static get permission(): NotificationPermission {
+          return 'denied';
+        }
         static async requestPermission(): Promise<NotificationPermission> {
           report('notification_api', 'Notification.requestPermission');
           return 'denied';
@@ -61,7 +85,12 @@ export function initScript(policyVersion: string): void {
 
   try {
     const media = navigator.mediaDevices;
-    denyAsyncMethods(media, ['getUserMedia', 'getDisplayMedia', 'selectAudioOutput'], 'browser_permission_api', 'mediaDevices');
+    denyAsyncMethods(
+      media,
+      ['getUserMedia', 'getDisplayMedia', 'selectAudioOutput'],
+      'browser_permission_api',
+      'mediaDevices',
+    );
   } catch {}
 
   try {
@@ -69,16 +98,34 @@ export function initScript(policyVersion: string): void {
     if (geo) {
       Object.defineProperty(geo, 'getCurrentPosition', {
         configurable: false,
-        value: (_success: PositionCallback, failure?: PositionErrorCallback) => {
+        value: (
+          _success: PositionCallback,
+          failure?: PositionErrorCallback,
+        ) => {
           report('browser_permission_api', 'geolocation.getCurrentPosition');
-          failure?.({ code: 1, message: denied().message, PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3 } as GeolocationPositionError);
+          failure?.({
+            code: 1,
+            message: denied().message,
+            PERMISSION_DENIED: 1,
+            POSITION_UNAVAILABLE: 2,
+            TIMEOUT: 3,
+          } as GeolocationPositionError);
         },
       });
       Object.defineProperty(geo, 'watchPosition', {
         configurable: false,
-        value: (_success: PositionCallback, failure?: PositionErrorCallback) => {
+        value: (
+          _success: PositionCallback,
+          failure?: PositionErrorCallback,
+        ) => {
           report('browser_permission_api', 'geolocation.watchPosition');
-          failure?.({ code: 1, message: denied().message, PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3 } as GeolocationPositionError);
+          failure?.({
+            code: 1,
+            message: denied().message,
+            PERMISSION_DENIED: 1,
+            POSITION_UNAVAILABLE: 2,
+            TIMEOUT: 3,
+          } as GeolocationPositionError);
           return -1;
         },
       });
@@ -86,20 +133,63 @@ export function initScript(policyVersion: string): void {
   } catch {}
 
   try {
-    denyAsyncMethods(navigator.clipboard, ['read', 'readText', 'write', 'writeText'], 'browser_permission_api', 'clipboard');
+    denyAsyncMethods(
+      navigator.clipboard,
+      ['read', 'readText', 'write', 'writeText'],
+      'browser_permission_api',
+      'clipboard',
+    );
   } catch {}
   const navigatorCapabilities = navigator as unknown as Record<string, unknown>;
-  denyAsyncMethods(navigatorCapabilities.usb, ['requestDevice'], 'browser_permission_api', 'usb');
-  denyAsyncMethods(navigatorCapabilities.serial, ['requestPort'], 'browser_permission_api', 'serial');
-  denyAsyncMethods(navigatorCapabilities.bluetooth, ['requestDevice'], 'browser_permission_api', 'bluetooth');
-  denyAsyncMethods(navigatorCapabilities.hid, ['requestDevice'], 'browser_permission_api', 'hid');
-  denyAsyncMethods(navigator.credentials, ['create', 'get', 'store', 'preventSilentAccess'], 'authentication_submission', 'credentials');
-  denyAsyncMethods(navigatorCapabilities.serviceWorker, ['register'], 'network_policy', 'serviceWorker');
+  denyAsyncMethods(
+    navigatorCapabilities.usb,
+    ['requestDevice'],
+    'browser_permission_api',
+    'usb',
+  );
+  denyAsyncMethods(
+    navigatorCapabilities.serial,
+    ['requestPort'],
+    'browser_permission_api',
+    'serial',
+  );
+  denyAsyncMethods(
+    navigatorCapabilities.bluetooth,
+    ['requestDevice'],
+    'browser_permission_api',
+    'bluetooth',
+  );
+  denyAsyncMethods(
+    navigatorCapabilities.hid,
+    ['requestDevice'],
+    'browser_permission_api',
+    'hid',
+  );
+  denyAsyncMethods(
+    navigator.credentials,
+    ['create', 'get', 'store', 'preventSilentAccess'],
+    'authentication_submission',
+    'credentials',
+  );
+  denyAsyncMethods(
+    navigatorCapabilities.serviceWorker,
+    ['register'],
+    'network_policy',
+    'serviceWorker',
+  );
   denyAsyncMethods(navigator, ['share'], 'system_ui', 'navigator');
 
-  for (const picker of ['showOpenFilePicker', 'showSaveFilePicker', 'showDirectoryPicker'] as const) {
+  for (const picker of [
+    'showOpenFilePicker',
+    'showSaveFilePicker',
+    'showDirectoryPicker',
+  ] as const) {
     try {
-      if (typeof (globalThis as unknown as Record<string, unknown>)[picker] !== 'function') continue;
+      if (
+        typeof (globalThis as unknown as Record<string, unknown>)[picker] !==
+        'function'
+      )
+        continue;
       Object.defineProperty(globalThis, picker, {
         configurable: false,
         value: async () => {
