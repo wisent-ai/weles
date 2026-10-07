@@ -16,21 +16,6 @@ function fit(text, max, min, extras) {
     const next = clean(`${out} ${extra}`);
     if (next.length <= max) out = next;
   }
-  for (const extra of [
-    'Dowód źródłowy, data pomiaru, właściciel wskaźnika i ścieżka kontroli są wskazane.',
-    'Raport okresowy pokaże wartości, źródła i odchylenia.',
-    'Zakres i wyłączenia są zapisane.',
-    'Dowód, rok, rynek i wersja są ujęte.',
-    'Bez duplikatów.',
-    'Rynek UE.',
-    'Wersja.',
-    'Dowód.',
-    'Kontrola.',
-  ]) {
-    if (out.length >= min) break;
-    const next = clean(`${out} ${extra}`);
-    if (next.length <= max) out = next;
-  }
   // A text longer than its field is refused, never cut at a word: a cut filed
   // shortened texts nobody wrote.
   if (out.length > max) {
