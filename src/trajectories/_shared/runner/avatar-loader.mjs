@@ -25,11 +25,12 @@ function stadoObjectConfig() {
   return { endpoint: endpoint.origin, token };
 }
 
-export async function loadAvatarFile(rawUrl, opts = {}) {
+// The avatar goes up as the operator stored it, made upright and cut to the
+// square every profile picture is, its side the image's own shorter side.
+// No size, format or quality is chosen here: the platform scales what it is
+// given, and a re-encode would only lose what the stored image holds.
+export async function loadAvatarFile(rawUrl) {
   if (!rawUrl) return null;
-  const size = opts.size || 512;
-  const format = opts.format || 'jpeg';
-  const quality = opts.quality || 88;
 
   if (!/^stado:\/\/weles\/avatars\/[^?#]+$/.test(rawUrl)) {
     throw new Error(
@@ -44,25 +45,24 @@ export async function loadAvatarFile(rawUrl, opts = {}) {
     },
   );
   if (!r.ok) {
-    console.log(`[avatar-loader] Stado object fetch failed HTTP ${r.status}`);
-    return null;
+    throw new Error(
+      `avatar ${rawUrl} could not be read from Stado's object store: HTTP ${r.status}`,
+    );
   }
   const buf = Buffer.from(await r.arrayBuffer());
 
-  let pipeline = sharp(buf)
-    .rotate()
-    .resize(size, size, { fit: 'cover', position: 'attention' });
-  if (format === 'jpeg') pipeline = pipeline.jpeg({ quality, mozjpeg: true });
-  else if (format === 'png') pipeline = pipeline.png({ compressionLevel: 9 });
-  const out = await pipeline.toBuffer();
+  const upright = await sharp(buf).rotate().toBuffer({ resolveWithObject: true });
+  const side = Math.min(upright.info.width, upright.info.height);
+  const out = await sharp(upright.data)
+    .resize(side, side, { fit: 'cover', position: 'attention' })
+    .toBuffer();
 
   const dir = join(tmpdir(), 'weles-avatars');
   mkdirSync(dir, { recursive: true });
-  const ext = format === 'jpeg' ? 'jpg' : format;
-  const path = join(dir, `${randomUUID()}.${ext}`);
+  const path = join(dir, `${randomUUID()}.${upright.info.format}`);
   writeFileSync(path, out);
   console.log(
-    `[avatar-loader] ${(buf.length / 1024).toFixed(0)}KB -> ${(out.length / 1024).toFixed(0)}KB ${size}px ${format} at ${path}`,
+    `[avatar-loader] ${upright.info.width}x${upright.info.height} ${upright.info.format} -> ${side}px square at ${path}`,
   );
   return path;
 }

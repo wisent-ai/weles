@@ -149,11 +149,7 @@ try {
   // button binding fires a filechooser; we also accept direct setInputFiles
   // on the hidden input when the binding is missing.
   if (avatarUrl) {
-    const tmpAvatar = await loadAvatarFile(avatarUrl, {
-      size: 512,
-      format: 'jpeg',
-      quality: 88,
-    });
+    const tmpAvatar = await loadAvatarFile(avatarUrl);
     if (tmpAvatar) {
       try {
         const changeBtn = s.page

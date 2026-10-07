@@ -381,11 +381,7 @@ try {
     `[li-profile] entering avatar block (avatarUrl=${avatarUrl ? 'yes' : 'none'})`,
   );
   if (avatarUrl) {
-    const tmpAvatar = await loadAvatarFile(avatarUrl, {
-      size: 800,
-      format: 'jpeg',
-      quality: 90,
-    });
+    const tmpAvatar = await loadAvatarFile(avatarUrl);
     if (tmpAvatar) {
       try {
         // 2026 design: photo upload lives behind the "Add photo" pencil on

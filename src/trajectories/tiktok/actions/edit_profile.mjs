@@ -164,11 +164,7 @@ try {
   // <input type="file" accept="image/*">. After upload, an "Apply" button
   // commits the crop.
   if (avatarUrl) {
-    const tmpAvatar = await loadAvatarFile(avatarUrl, {
-      size: 512,
-      format: 'jpeg',
-      quality: 88,
-    });
+    const tmpAvatar = await loadAvatarFile(avatarUrl);
     if (tmpAvatar) {
       try {
         const changeBtn = s.page

@@ -167,17 +167,7 @@ try {
 
   // Avatar commits can replace the document. Finish them before typing text.
   if (avatarUrl) {
-    const avatarFile = await loadAvatarFile(avatarUrl, {
-      size: 512,
-      format: 'jpeg',
-      quality: 88,
-    });
-    if (!avatarFile) {
-      throw Object.assign(
-        new Error('The requested GitHub avatar could not be loaded'),
-        { code: 'GH_PROFILE_AVATAR_UNAVAILABLE' },
-      );
-    }
+    const avatarFile = await loadAvatarFile(avatarUrl);
     const editSummary = s.page
       .locator(
         'form[aria-label="Profile picture"] summary, details summary:has-text("Edit")',

@@ -169,11 +169,7 @@ try {
   // input[data-testid="fileInput"]. Twitter's
   // crop modal shows "Apply" once the file is loaded.
   if (avatarUrl) {
-    const tmpAvatar = await loadAvatarFile(avatarUrl, {
-      size: 512,
-      format: 'jpeg',
-      quality: 88,
-    });
+    const tmpAvatar = await loadAvatarFile(avatarUrl);
     if (tmpAvatar) {
       try {
         const fileIn = s.page.locator('input[data-testid="fileInput"]').first();

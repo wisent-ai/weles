@@ -152,11 +152,7 @@ try {
   // that have never posted see "Unable to resolve profile" — make a
   // throwaway post first if your account is fresh.
   if (avatarUrl) {
-    const tmpAvatar = await loadAvatarFile(avatarUrl, {
-      size: 512,
-      format: 'jpeg',
-      quality: 88,
-    });
+    const tmpAvatar = await loadAvatarFile(avatarUrl);
     if (tmpAvatar) {
       try {
         await s.page.goto(`https://www.reddit.com/user/${acct.username}/`, {
