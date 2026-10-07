@@ -1,4 +1,8 @@
+import type { OperatorAnswer, OperatorRequest } from '../../../operator/request.mjs' with { 'resolution-mode': 'import' };
 import { operatorJson, welesOperatorConnection, type WelesApiOptions } from '../connection.js';
+
+/** The request a run waits on, as the worker observes its waiting process. */
+export type WaitingRequest = OperatorRequest & { abandoned: boolean | null };
 
 /** What a run with a live child on the worker is doing now. */
 export type RunningRun = {
@@ -14,7 +18,8 @@ export type RunningRun = {
   login_item?: string | null;
   subscription_id?: string | null;
   stage?: { stage: string; at: string } | null;
-  operator_request?: unknown;
+  /** What the run waits for from a person; null when it waits on nobody. */
+  operator_request: WaitingRequest | null;
 };
 
 /** A run's record on the worker, and what it is doing when it still runs there. */
@@ -84,5 +89,22 @@ export async function readRun(runId: string, options: WelesApiOptions = {}): Pro
 export async function cancelRun(runId: string, detail: string, options: WelesApiOptions = {}): Promise<RunningRun> {
   const { body } = await exchange(`/runs/${encodeURIComponent(runId)}/cancel`, 'POST', { detail }, options);
   if (body.run_id !== runId || !body.running) throw new Error('Weles cancelled a different run');
+  return parseRunning(body.running);
+}
+
+/**
+ * Tell a run that waits for a person what the person did: `approved` (the run
+ * reads the page and records what the provider shows) or `not_received` (the
+ * run asks the provider to send its prompt again, or ends saying it offers
+ * none). A run that waits on nobody is refused with the stage it stands at.
+ */
+export async function answerRun(
+  runId: string,
+  answer: OperatorAnswer,
+  detail: string,
+  options: WelesApiOptions = {},
+): Promise<RunningRun> {
+  const { body } = await exchange(`/runs/${encodeURIComponent(runId)}/answer`, 'POST', { answer, detail }, options);
+  if (body.run_id !== runId || !body.running) throw new Error('Weles answered a different run');
   return parseRunning(body.running);
 }

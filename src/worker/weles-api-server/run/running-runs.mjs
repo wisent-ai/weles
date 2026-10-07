@@ -8,6 +8,8 @@
 // runs, and `cancelRun` is how an operator ends one: the runner kills the
 // run's process group and records the run as cancelled, with who said so.
 
+import { isAbandoned, openRequestOfRun } from '../../../operator/request.mjs';
+
 const running = new Map();
 
 /**
@@ -20,7 +22,11 @@ export function registerRunningRun(runId, { action, kind, startedAt, cancel, des
   return () => { running.delete(runId); };
 }
 
+// `operator_request` is the open request the run waits on, read from the
+// request store, so every kind of run says when it waits for a person and
+// for what; null when it waits on nobody.
 function summary(entry) {
+  const request = openRequestOfRun(entry.runId);
   return {
     run_id: entry.runId,
     action: entry.action,
@@ -28,6 +34,7 @@ function summary(entry) {
     started_at: entry.startedAt,
     cancel_requested: entry.cancelRequested,
     ...entry.describe(),
+    operator_request: request ? { ...request, abandoned: isAbandoned(request) } : null,
   };
 }
 

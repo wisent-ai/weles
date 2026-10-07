@@ -1,20 +1,33 @@
-// `weles runs` — the runs the managed worker is running, and ending one.
+// `weles runs` — the runs the managed worker is running, what each waits for,
+// and acting on one.
 //
 // A browser run waits until the page answers, and a page that never answers
 // keeps it waiting with nothing to say so: its record still shows the last
-// stage it reached. A sign-in is coalesced per account, so such a run also
-// holds every later sign-in of that account. `list` shows each live run with
-// how long ago it last wrote anything, `show` prints what it wrote last, and
-// `cancel` ends it so the next run of that account starts fresh.
+// stage it reached. Some pages wait for a person — a Google phone approval, a
+// bank verification — and the run then names what it asked for. A sign-in is
+// coalesced per account, so such a run also holds every later sign-in of that
+// account. `list` shows each live run with how long ago it last wrote anything
+// and what it waits for, `show` prints what it wrote last, `answer` tells a
+// run waiting for a person what the person did, and `cancel` ends a run so the
+// next run of that account starts fresh.
 
 import type { ParsedCli } from '../../cli.js';
 import { UsageError } from '../usage.js';
-import { cancelRun, readRun, readRunningRuns, type RunningRun } from '../../runtime/api/runs/client.js';
+import {
+  answerRun, cancelRun, readRun, readRunningRuns, type RunningRun, type WaitingRequest,
+} from '../../runtime/api/runs/client.js';
 
 function silence(lastOutputAt: string | null, startedAt: string): string {
   const since = Date.parse(lastOutputAt ?? startedAt);
   const seconds = Math.max(0, Math.round((Date.now() - since) / 1000));
   return lastOutputAt ? `last wrote ${seconds}s ago` : `wrote nothing in ${seconds}s`;
+}
+
+/** Whether the person was told, and whether the waiting process still runs. */
+function waitingState(request: WaitingRequest): string {
+  const paged = request.pages.some((attempt) => attempt.ok) ? 'paged' : 'not paged';
+  const waiting = request.abandoned === true ? 'its process has ended' : request.abandoned === false ? 'waiting' : 'process state unknown';
+  return `${paged}, ${waiting}`;
 }
 
 function summarise(run: RunningRun): string {
@@ -27,6 +40,7 @@ function summarise(run: RunningRun): string {
     subject,
     `started ${run.started_at}`,
     silence(run.last_output_at, run.started_at),
+    run.operator_request ? `WAITS FOR YOU: ${run.operator_request.instruction} (${waitingState(run.operator_request)})` : '',
     run.cancel_requested ? `cancel requested ${run.cancel_requested.at}` : '',
   ].filter(Boolean).join('  ');
 }
@@ -41,6 +55,15 @@ function detail(run: RunningRun): string {
   if (run.kind === 'reauth') {
     lines.push(`account      ${run.provider ?? '-'} ${run.login_item ?? '-'} (subscription ${run.subscription_id ?? '-'})`);
     lines.push(`stage        ${run.stage ? `${run.stage.stage} since ${run.stage.at}` : 'none reached yet'}`);
+  }
+  const request = run.operator_request;
+  if (request) {
+    lines.push(`waits for    ${request.instruction}`);
+    lines.push(`asked        ${request.kind} for ${request.account} on ${request.host} since ${request.opened_at} (${waitingState(request)})`);
+    for (const attempt of request.pages) lines.push(`page         ${attempt.at} ${attempt.ok ? 'delivered' : 'not delivered'}: ${attempt.detail}`);
+    for (const said of request.answers ?? []) lines.push(`answered     ${said.at} ${said.answer}${said.detail ? `: ${said.detail}` : ''}`);
+    for (const note of request.notes ?? []) lines.push(`run noted    ${note.at} ${note.note}`);
+    lines.push(`answer it    weles runs answer ${run.run_id} --approved | --not-received [--detail <text>]`);
   }
   if (run.cancel_requested) lines.push(`cancelled    ${run.cancel_requested.at}: ${run.cancel_requested.detail}`);
   for (const [stream, text] of [['stderr', run.stderr_tail], ['stdout', run.stdout_tail]]) {
@@ -105,10 +128,37 @@ async function cancel(parsed: ParsedCli): Promise<void> {
   process.stdout.write(`${detail(run)}\n`);
 }
 
+/**
+ * Tell a run waiting for a person what the person did. `--approved`: the run
+ * reads the page and records what the provider shows. `--not-received`: the
+ * run asks the provider to send its prompt again, or ends saying it offers no
+ * second send. Ending the wait is `cancel`.
+ */
+async function answer(parsed: ParsedCli): Promise<void> {
+  const id = parsed.positional[1];
+  if (!id) throw new UsageError('runs answer requires <run-id>');
+  const approved = parsed.options.approved === true;
+  const notReceived = parsed.options['not-received'] === true;
+  if (approved === notReceived) {
+    throw new UsageError('runs answer requires exactly one of --approved or --not-received; ending the wait is weles runs cancel <run-id> --detail <who and why>');
+  }
+  if (parsed.options.detail !== undefined && typeof parsed.options.detail !== 'string') {
+    throw new UsageError('runs answer --detail requires <text>');
+  }
+  const said = typeof parsed.options.detail === 'string' ? parsed.options.detail.trim() : '';
+  const run = await answerRun(id, approved ? 'approved' : 'not_received', said);
+  if (parsed.options.json === true) {
+    process.stdout.write(`${JSON.stringify(run, null, 2)}\n`);
+    return;
+  }
+  process.stdout.write(`${detail(run)}\n`);
+}
+
 export async function runRuns(parsed: ParsedCli): Promise<void> {
   const action = parsed.positional[0] ?? 'list';
   if (action === 'list') return listRuns(parsed);
   if (action === 'show') return showRun(parsed);
+  if (action === 'answer') return answer(parsed);
   if (action === 'cancel') return cancel(parsed);
-  throw new UsageError(`unknown runs action: ${action}; weles runs takes list, show or cancel`);
+  throw new UsageError(`unknown runs action: ${action}; weles runs takes list, show, answer or cancel`);
 }

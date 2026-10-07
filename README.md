@@ -185,7 +185,7 @@ line, while the run goes: `admitted` (the resolved identity, and `coalesced`
 when the request joined a run already under way), `started` (run id and host),
 one `stage` per step the trajectory reports, `operator_request` when the run
 waits for a person (for example a Google phone approval: the request's id,
-account and instruction, also paged and listed by `weles operator-requests`),
+account and instruction, also paged and shown by `weles runs list|show`),
 and last `result`, the run's verdict with every stage it passed. A browser
 sign-in has no clock that ends it, so this is how a caller says what it is
 waiting for. A refusal before a run is admitted is a plain JSON answer with
@@ -196,15 +196,22 @@ A run's record shows the last stage it reached, not that it has stood on one
 page for an hour, and a sign-in is coalesced per account: every later sign-in
 of that account joins the run already under way. `weles runs list` (`GET
 /runs`) lists every run the worker has a live child for, with when it last
-wrote anything; `weles runs show <run>` (`GET /runs/:run_id`) prints the last
-lines it wrote, or its record once it finished. `weles runs cancel <run>
---detail <who and why>` (`POST /runs/:run_id/cancel`) kills the run's process
-group and records it as cancelled with that detail; a sign-in ends with
-failure `run_cancelled` at the stage it reached, and the next sign-in of that
-account starts a new run instead of joining or replaying it. A run that
-already finished is refused (409) with when; a run recorded as `running`
-that no live child answers for was left by a server that stopped. Desktop
-Running has the same list, the last output and a Cancel button. A closing
+wrote anything and, when it waits for a person, what it asked for and whether
+the person was paged (`operator_request`); `weles runs show <run>` (`GET
+/runs/:run_id`) prints the last lines it wrote, every page, answer and note of
+the request it waits on, or its record once it finished. `weles runs answer
+<run> --approved | --not-received [--detail <text>]` (`POST
+/runs/:run_id/answer`) tells a waiting run what the person did; a run that
+waits on nobody is refused (409 `run_not_waiting`) with the stage it stands
+at. `weles runs cancel <run> --detail <who and why>` (`POST
+/runs/:run_id/cancel`) kills the run's process group and records it as
+cancelled with that detail; a sign-in ends with failure `run_cancelled` at the
+stage it reached, and the next sign-in of that account starts a new run
+instead of joining or replaying it. A run that already finished is refused
+(409) with when; a run recorded as `running` that no live child answers for
+was left by a server that stopped. Desktop Running has the same list, what a
+run waits for, the last output, Approved and No prompt arrived buttons, and a
+Cancel button. A closing
 session prints `[wsession] fingerprint probe: <section>` before each part of
 its close-time fingerprint probe that waits on the browser, so a probe that
 never answers is named by the section it stands in. A Claude sign-in whose
@@ -228,22 +235,21 @@ the same run never resubmits the selected challenge. Session closure also stops
 its measurement timers, so retained results do not wait for the worker timeout.
 An authenticator code must leave Google's challenge before provider handoff.
 Without a stored seed, Weles selects an offered phone approval and records its
-actual outcome in operator requests. CLI list/show and Desktop Approvals read
-the managed worker; `--local` explicitly inspects host-local records.
+actual outcome on the request the run waits on.
 
-A request is paged by e-mail through Stado's alert channels and waits until
+A request is paged by e-mail through Stado's alert channels, names the Weles
+run that waits on it (`run_ids`; a second run that needs the same person for
+the same account joins the request instead of paging again), and waits until
 Google's page moves (approving on the phone needs nothing else) or the
-operator answers it, on the worker whose run watches the record. Google's
-device prompt announces itself in live regions ("2-Step Verification … wants
-to make sure it's really you"); what the page already announced when the wait
-began is the prompt, and only an alert it shows afterwards is read as Google's
-refusal. `weles operator-requests answer <id> --not-received` makes the run press
-Google's "Resend it", or end with `google_prompt_not_received` when Google
-offers none; `--approved` while Google still shows the prompt records what
-the page shows; `--cancel` ends the run with `operator_cancelled`. Desktop
-Approvals has the same three buttons (`POST /operator-requests/:id/answer`).
-`show` lists every answer and what the run did about it; a closed request
-refuses an answer with how it ended. A sign-in run closes its browser without
+operator answers the run. Google's device prompt announces itself in live
+regions ("2-Step Verification … wants to make sure it's really you"); what
+the page already announced when the wait began is the prompt, and only an
+alert it shows afterwards is read as Google's refusal. `weles runs answer
+<run> --not-received` makes the run press Google's "Resend it", or end with
+`google_prompt_not_received` when Google offers none; `--approved` while
+Google still shows the prompt records what the page shows; ending the wait is
+`weles runs cancel`. `weles runs show` lists every answer and what the run did
+about it. A sign-in run closes its browser without
 the close-time fingerprint probe (`WELES_FINGERPRINT=0`): its verdict does not
 wait on a detection probe, and the probe would send the signed-in browser to a
 third-party TLS echo after the provider's pages.

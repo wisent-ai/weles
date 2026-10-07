@@ -56,11 +56,11 @@ function failure(message, code) {
 // only when the operator says it never reached him.
 //
 // The wait ends on whichever comes first: Google's page leaving the device
-// prompt, or the operator answering the request (`weles operator-requests
-// answer`, Weles Desktop Approvals). `not_received` presses Google's "Resend
-// it", or ends the run saying Google offers no second send; `approved` while
-// Google still shows the prompt is recorded with what the page shows;
-// `cancel` ends the run.
+// prompt, or the operator answering the run (`weles runs answer`, Weles
+// Desktop's Running screen). `not_received` presses Google's "Resend it", or
+// ends the run saying Google offers no second send; `approved` while Google
+// still shows the prompt is recorded with what the page shows. Ending the
+// wait is `weles runs cancel`, which ends the run.
 export async function completeGooglePhoneApproval(page, account, run) {
   if (!await selectGooglePhonePrompt(page)) return false;
   const text = await page.locator('body').innerText();
@@ -116,9 +116,6 @@ export async function completeGooglePhoneApproval(page, account, run) {
       }
       seen += 1;
       const said = outcome.operator;
-      if (said.answer === 'cancel') {
-        throw failure(`the operator cancelled the Google approval wait${said.detail ? `: ${said.detail}` : ''}`, 'operator_cancelled');
-      }
       if (said.answer === 'not_received') {
         const resend = resendControl(page);
         if (!await resend.isVisible()) {

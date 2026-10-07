@@ -24,7 +24,7 @@ export async function evidenceFor(area) {
   async function connect() {
     const api = await import('../../dist/runtime/api/connection.js');
     operatorJson = api.operatorJson;
-    connection = api.welesOperatorConnection('/operator-requests');
+    connection = api.welesOperatorConnection('/runs');
   }
   async function request(path, body, authorization = connection.headers.Authorization) {
     const endpoint = new URL(path, connection.endpoint);

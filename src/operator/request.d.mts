@@ -1,6 +1,6 @@
 // Types for `request.mjs`. The implementation is plain ESM because the
-// trajectories that open requests are plain ESM; the CLI and the desktop
-// bridge are TypeScript, so the shape is declared here once.
+// trajectories that open requests are plain ESM; the worker's run views are
+// TypeScript, so the shape is declared here once.
 
 export declare const OPERATOR_REQUEST_SCHEMA: 'wisent.weles-operator-request.v1';
 
@@ -11,7 +11,7 @@ export type OperatorPageAttempt = {
   detail: string;
 };
 
-export type OperatorAnswer = 'approved' | 'not_received' | 'cancel';
+export type OperatorAnswer = 'approved' | 'not_received';
 
 export type OperatorAnswerRecord = {
   at: string;
@@ -31,6 +31,8 @@ export type OperatorRequest = {
   account: string;
   instruction: string;
   run: string;
+  /** The Weles runs waiting on this request; empty for a run no worker started. */
+  run_ids?: string[];
   run_pid?: number;
   host: string;
   opened_at: string;
@@ -50,7 +52,6 @@ export type OpenOperatorRequestInput = {
   account: string;
   instruction: string;
   run: string;
-  runPid?: number;
 };
 
 export declare function operatorRequestDir(): string;
@@ -58,7 +59,7 @@ export declare function pageBody(request: OperatorRequest): string;
 export declare function pageSubject(request: OperatorRequest): string;
 export declare function openOperatorRequest(input: OpenOperatorRequestInput): OperatorRequest;
 export declare function closeOperatorRequest(id: string, approved: boolean, detail: string): OperatorRequest;
-export declare function reopenOperatorRequest(id: string): OperatorRequest;
+export declare function openRequestOfRun(runId: string): OperatorRequest | null;
 export declare function readOperatorRequest(id: string): OperatorRequest;
 export declare function isOpen(request: OperatorRequest): boolean;
 export declare function isAbandoned(request: OperatorRequest): boolean | null;

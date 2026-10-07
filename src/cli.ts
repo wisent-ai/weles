@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import type { AsyncNewBrowserOptions } from './async_api.js';
 import { runDoctor } from './cli/diagnostics.js';
 import { runImport, runOnboarding, runRelease, runDesign } from './cli/workflows.js';
-import { runOperatorRequests } from './cli/operator-requests.js';
 import { runRuns } from './cli/worker/runs.js';
 import { runAccountSecurity } from './cli/security/account-security.js';
 import { runAppPassword } from './cli/security/app-password.js';
@@ -15,7 +14,7 @@ import { runKeeper } from './cli/keeper.js';
 import { adoptRecords } from './state/skarbiec-records.js';
 import { HELP, UsageError, exitStatusFor, printAnswer } from './cli/usage.js';
 
-type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import' | 'release' | 'design' | 'operator-requests' | 'runs' | 'account-security' | 'app-password' | 'developer-certificate' | 'login' | 'worker' | 'records' | 'keeper';
+type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import' | 'release' | 'design' | 'runs' | 'account-security' | 'app-password' | 'developer-certificate' | 'login' | 'worker' | 'records' | 'keeper';
 
 export type ParsedCli = {
   command: CliCommand;
@@ -79,13 +78,13 @@ function normalizeCommand(command?: string): CliCommand {
   if (!command || command === '--help' || command === '-h' || command === 'help') return 'help';
   if (command === '--version' || command === '-v' || command === 'version') return 'version';
   if (command === 'account-security' || command === 'app-password' || command === 'developer-certificate' || command === 'login' || command === 'worker' || command === 'records' || command === 'keeper') return command;
-  if (command === 'doctor' || command === 'open' || command === 'screenshot' || command === 'mcp' || command === 'onboarding' || command === 'import' || command === 'release' || command === 'design' || command === 'operator-requests' || command === 'runs') return command;
+  if (command === 'doctor' || command === 'open' || command === 'screenshot' || command === 'mcp' || command === 'onboarding' || command === 'import' || command === 'release' || command === 'design' || command === 'runs') return command;
   throw new UsageError(`unknown command: ${command}`);
 }
 
 function optionTakesValue(key: string): boolean {
   if (key === 'login-item' || key === 'login-role') return true;
-  return ['browser', 'os', 'locale', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'subject', 'receipt', 'keys', 'state-dir', 'host', 'decision', 'baseline', 'declaration', 'manifest', 'source-revision', 'candidate-tag', 'released', 'published-surface', 'reason', 'correcting', 'root', 'limit', 'kind', 'account', 'run', 'instruction', 'pid', 'detail', 'account-role', 'confirm', 'execution-host', 'execution-agent', 'private-key-out', 'certificate-out', 'expires-in-minutes', 'private-key', 'store-host', 'session', 'url', 'provider', 'organization', 'request'].includes(key);
+  return ['browser', 'os', 'locale', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'subject', 'receipt', 'keys', 'state-dir', 'host', 'decision', 'baseline', 'declaration', 'manifest', 'source-revision', 'candidate-tag', 'released', 'published-surface', 'reason', 'correcting', 'root', 'run', 'detail', 'account-role', 'confirm', 'execution-host', 'execution-agent', 'private-key-out', 'certificate-out', 'expires-in-minutes', 'private-key', 'store-host', 'session', 'url', 'provider', 'organization', 'request'].includes(key);
 }
 
 function cliOptionsToBrowserOptions(options: Record<string, string | boolean>): AsyncNewBrowserOptions {
@@ -206,10 +205,6 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   }
   if (parsed.command === 'design') {
     await runDesign(parsed);
-    return;
-  }
-  if (parsed.command === 'operator-requests') {
-    await runOperatorRequests(parsed);
     return;
   }
   if (parsed.command === 'runs') {

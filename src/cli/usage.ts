@@ -56,14 +56,9 @@ Usage:
   weles release adopt-baseline --released <version> --published-surface <file> --reason <text> [--correcting <version>] [--json]
   weles design export-assets --provider figma --request <export-request.json>
   weles design parse-document --provider figma <document.json[.gz]> <summary.json> <nodes.json> [<vocabulary.json>]
-  weles operator-requests list [--open] [--limit <n>] [--local] [--json]
-  weles operator-requests show <id> [--local] [--json]
-  weles operator-requests open --kind <kind> --account <account> --run <run> --instruction <text> [--pid <waiting-process>]
-  weles operator-requests answer <id> --approved|--not-received|--cancel [--detail <text>] [--local]
-  weles operator-requests close <id> --approved|--unapproved --detail <text>
-  weles operator-requests reopen <id>
   weles runs list [--json]
   weles runs show <run-id> [--json]
+  weles runs answer <run-id> --approved|--not-received [--detail <text>] [--json]
   weles runs cancel <run-id> --detail <text> [--json]
   weles account-security --provider google --login-role <skarbiec-role> [--json]
   weles account-security --run <run-id> [--json]
@@ -93,7 +88,7 @@ Options:
                           account-security reads 2FA without signing in; app-password signs in,
                           creates a Google app password and hands it to Skrzynka.
   --login-item <item>     Exact Skarbiec Google login for app-password when no role is assigned.
-  Worker, runs and operator-requests commands reach the executor at the route
+  Worker and runs commands reach the executor at the route
   'stado service directory connect weles-admission' gives, with the token of the item playing
   the worker's API role (stado credentials get --role echo-weles-api --field token);
   WELES_WORKER_API_BASE and WELES_WORKER_TOKEN override both.
@@ -106,23 +101,14 @@ Options:
   --text                  Print document body text after navigation.
   --screenshot <file>     Save a screenshot after navigation.
   --wait-for-text <text>  Wait for matching visible text before reading or capturing.
-  --open                  List only requests still waiting for the operator.
-  --limit <n>             List only the newest <n> operator requests (default: every request).
   --json                  Print the answer as one JSON document instead of key: value lines.
                           release surface always prints its JSON document: it is the file a release carries.
-  --kind <kind>           What kind of action the run needs from the operator.
-  --account <account>     The account the operator action belongs to.
-  --run <run>             The run that is waiting.
-  --instruction <text>    What the operator has to do, in his own terms.
-  --pid <process>         The process that waits on the request (default: the caller's parent);
-                          a request whose process ended is reported abandoned, never timed out.
-  --approved              The operator did the thing this request asked for (answer: Weles records what
-                          the provider still shows; close: the request ends done).
-  --unapproved            The wait ended without the operator doing it.
-  --not-received          The provider's prompt never arrived: the run asks the provider to send it again,
-                          or ends saying the provider offers no resend.
-  --cancel                End the run waiting on the request.
-  --detail <text>         One sentence saying how the wait ended, or who cancels a run and why.
+  --approved              runs answer: the person did what the run asked (approved the prompt); the run
+                          reads the page and records what the provider still shows.
+  --not-received          runs answer: the provider's prompt never arrived; the run asks the provider to
+                          send it again, or ends saying the provider offers no resend.
+  --detail <text>         One sentence: what the person saw for runs answer, who cancels a run and why
+                          for runs cancel.
 
 Onboarding explains the authorization boundary, optionally imports existing Weles
 trajectory API exports, and explains approved host execution. Importing writes
@@ -131,10 +117,13 @@ Completion still requires cryptographic verification of a real workflow receipt
 and its bound evidence digest.
 
 runs lists the runs the managed worker has a live child for, with when each last
-wrote anything; show prints what a run wrote last while it runs, or its record once
-it finished; cancel kills the run's process group and records it as cancelled with
---detail, and a cancelled sign-in no longer holds the account, so the next sign-in
-starts a new run. keeper start holds one browser session that answers JSON commands
+wrote anything and, for a run that waits for a person (a Google phone approval, a
+bank verification), what it asked for and whether the person was paged; show
+prints what a run wrote last while it runs, or its record once it finished; answer
+tells a waiting run what the person did, and a run that waits on nobody is refused
+with the stage it stands at; cancel kills the run's process group and records it as
+cancelled with --detail, and a cancelled sign-in no longer holds the account, so the
+next sign-in starts a new run. keeper start holds one browser session that answers JSON commands
 on ~/.weles/keeper/<id>/socket until its page closes. records adopt tags every Weles
 record in this vault with weles:record:<kind> from its own context.
 `;

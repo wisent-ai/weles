@@ -27,33 +27,34 @@ try {
   assert.equal(health.status, 200);
   assert.equal(health.value.sourceRevision, report.source_revision);
 
-  const denied = await request('/operator-requests', undefined, null);
+  const denied = await request('/runs', undefined, null);
   assert.equal(denied.status, 401);
   assert.equal(denied.value.error, 'unauthorized');
-  const invalid = await request('/operator-requests?limit=0');
-  assert.equal(invalid.status, 400);
-  const absent = await request(`/operator-requests/${randomUUID()}`);
+  const absent = await request(`/runs/${randomUUID()}`);
   assert.equal(absent.status, 404);
-  assert.equal(absent.value.error, 'operator_request_not_found');
+  assert.equal(absent.value.error, 'run_not_found');
+  const invalid = await request(`/runs/${randomUUID()}/answer`, { answer: 'cancel', detail: '' });
+  assert.equal(invalid.status, 400);
+  assert.equal(invalid.value.error, 'invalid_answer');
 
   if (authentication.second_factor === 'phone') {
     const expected = authentication.phone_request;
     assert.ok(expected?.id, 'the sign-in must have opened an actual phone request');
-    const persisted = await request(`/operator-requests/${expected.id}`);
+    const persisted = await request(`/runs/${authentication.sign_in.run_id}`);
     assert.equal(persisted.status, 200);
-    const row = persisted.value.requests[0];
-    assert.equal(row.account, authentication.account);
-    assert.equal(row.approved, true);
-    assert.ok(Date.parse(row.opened_at) >= Date.parse(authentication.authentication_started_at));
-    assert.ok(Date.parse(row.closed_at) >= Date.parse(row.opened_at));
-    assert.equal(row.abandoned, false);
+    const asked = persisted.value.record?.operator_request;
+    assert.equal(asked?.id, expected.id, 'the sign-in run must record the phone request it waited on');
+    assert.equal(asked.account, authentication.account);
+    assert.ok(Date.parse(asked.opened_at) >= Date.parse(authentication.authentication_started_at));
+    assert.equal(persisted.value.record.ok, true);
+    const finished = await request(`/runs/${authentication.sign_in.run_id}/answer`, { answer: 'approved', detail: '' });
+    assert.equal(finished.status, 409, 'a finished run waits for no answer');
+    assert.equal(finished.value.error, 'run_not_running_here');
     const shown = JSON.parse(command(process.env.WELES_REAL_BIN || 'weles', [
-      'operator-requests', 'show', expected.id, '--json',
+      'runs', 'show', authentication.sign_in.run_id, '--json',
     ]));
-    assert.equal(shown.id, expected.id);
-    assert.equal(shown.host, row.host);
-    assert.equal(shown.approved, true);
-    assert.equal(shown.closed_at, row.closed_at);
+    assert.equal(shown.record.operator_request.id, expected.id);
+    assert.equal(shown.record.operator_request.host, asked.host);
   }
 
   // Brama's credential is distinct from the general worker bearer. Its value
