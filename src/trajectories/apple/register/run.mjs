@@ -15,6 +15,23 @@ import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.
 
 const URL = 'https://appleid.apple.com/account';
 
+// Apple shows either one box for the whole code or one box per digit of the
+// code it sent; the code's own length says how many boxes that is. A box that
+// refuses its digit fails the signup with Playwright's error instead of being
+// skipped, which left a code half typed and the run waiting on Apple.
+async function fillCodeBoxes(boxes, code, refusal) {
+  if (boxes.length === code.length) {
+    for (const [index, digit] of [...code].entries()) await boxes[index].fill(digit);
+    return;
+  }
+  const [single, ...others] = boxes;
+  if (single && !others.length) {
+    await single.fill(code);
+    return;
+  }
+  throw new Error(`${refusal}: count=${boxes.length}, code digits=${code.length}`);
+}
+
 // One signup per run: a failure is reported with its cause, and whether to
 // spend another identity on a second run is the caller's decision.
 {
@@ -100,26 +117,14 @@ const URL = 'https://appleid.apple.com/account';
     const emailCode = await s.checkEmail(id.email, 'apple');
     if (!emailCode || /^no (code|email)|^error/i.test(emailCode)) throw new Error(`apple_email_otp_failed: ${emailCode}`);
     const emailCodeBoxes = await frame.locator('input[id*="email-verification" i], input[aria-label*="verification" i][type="tel"], input[aria-label*="digit" i]').all();
-    if (emailCodeBoxes.length >= 6) {
-      for (let i = 0; i < 6; i++) await emailCodeBoxes[i].fill(emailCode[i]).catch(() => {});
-    } else if (emailCodeBoxes.length === 1) {
-      await emailCodeBoxes[0].fill(emailCode);
-    } else {
-      throw new Error(`apple_email_otp_unexpected_inputs: count=${emailCodeBoxes.length}`);
-    }
+    await fillCodeBoxes(emailCodeBoxes, emailCode, 'apple_email_otp_unexpected_inputs');
     await humanIdlePause('deliberate');
 
     // 9. Phone OTP
     const smsCode = await s.pollSmsCode();
     if (!smsCode || /^no code|^error/i.test(smsCode)) throw new Error(`apple_sms_otp_failed: ${smsCode}`);
     const smsBoxes = await frame.locator('input[id*="phone-verification" i], input[aria-label*="phone" i][type="tel"], input[aria-label*="digit" i]').all();
-    if (smsBoxes.length >= 6) {
-      for (let i = 0; i < 6; i++) await smsBoxes[i].fill(smsCode[i]).catch(() => {});
-    } else if (smsBoxes.length === 1) {
-      await smsBoxes[0].fill(smsCode);
-    } else {
-      throw new Error(`apple_sms_otp_unexpected_inputs: count=${smsBoxes.length}`);
-    }
+    await fillCodeBoxes(smsBoxes, smsCode, 'apple_sms_otp_unexpected_inputs');
     await humanIdlePause('long');
 
     // 10. Land on appleid.apple.com/manage (or /account/done) on success.

@@ -12,13 +12,15 @@ export async function fillAppleTwoFactorCode(scope, page, code) {
     'input',
   ].join(', ')).filter({ visible: true }).all();
 
-  if (inputs.length >= 6) {
-    for (let index = 0; index < 6; index += 1) await humanFill(page, inputs[index], code[index]);
-    return { ok: true, mode: 'six_inputs', count: inputs.length };
-  }
   if (inputs.length === 1) {
     await humanFill(page, inputs[0], code);
     return { ok: true, mode: 'single_input', count: 1 };
+  }
+  // Apple shows one box per digit of the code it sent; the code's own length
+  // says how many boxes to fill.
+  if (inputs.length >= code.length) {
+    for (const [index, digit] of [...code].entries()) await humanFill(page, inputs[index], digit);
+    return { ok: true, mode: 'one_input_per_digit', count: inputs.length };
   }
   if (page?.keyboard) {
     await humanType(page, code);

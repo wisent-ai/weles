@@ -64,14 +64,18 @@ async function solveEmailPinChallenge({ page }, email) {
       }
     }
     if (!filled) {
-      let split = 0;
-      for (let i = 0; i < 6; i++) {
-        const cell = page.locator(`input[name="pin-${i + 1}"], input[name="otp-${i + 1}"]`).filter({ visible: true }).first();
-        if (await cell.count() === 0) break;
-        await humanClickLocator(page, cell); await humanType(page, code[i]);
-        split++;
+      // One box per digit of the PIN LinkedIn sent (pin-<n> or otp-<n>, in
+      // page order); every digit needs its box.
+      const boxes = await page.locator('input[name^="pin-"], input[name^="otp-"]').filter({ visible: true }).all();
+      if (boxes.length === code.length) {
+        for (const [index, digit] of [...code].entries()) {
+          await humanClickLocator(page, boxes[index]); await humanType(page, digit);
+        }
+        filled = true;
+        console.log(`[linkedin_login] PIN filled into ${boxes.length} split inputs`);
+      } else if (boxes.length) {
+        return { ok: false, reason: 'pin_inputs_do_not_match_digits', inputs: boxes.length, digits: code.length };
       }
-      if (split === 6) { filled = true; console.log('[linkedin_login] PIN filled into 6 split inputs'); }
     }
     if (!filled) return { ok: false, reason: 'no_pin_input_found' };
     const submitCandidates = [
