@@ -28,9 +28,9 @@ try {
   const apps = await s.page
     .evaluate(`(() => {
     const rows = Array.from(document.querySelectorAll('tr[data-app-id], a[href*="/apps/"]'));
-    return rows.slice(0, 20).map(r => ({
-      id: r.getAttribute('data-app-id') || r.href?.match(/apps\\/(\\d+)/)?.[1],
-      name: r.querySelector('[class*=name], [class*=title]')?.textContent?.trim() || r.textContent?.trim()?.slice(0, 60),
+    return rows.map(r => ({
+      id: r.getAttribute('data-app-id') ?? r.href?.match(/apps\\/(\\d+)/)?.[1],
+      name: r.querySelector('[class*=name], [class*=title]')?.textContent?.trim() ?? r.textContent?.trim(),
     })).filter(a => a.id);
   })()`)
     .catch(() => []);
