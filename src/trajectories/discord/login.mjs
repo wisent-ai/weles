@@ -5,7 +5,7 @@ import { resolveAccountSession } from '../../../dist/account/session.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { persistFreshCookieJar } from '../_shared/auth/cookie-freshness.mjs';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
-import { getReceived, listReceived } from '../../_shared/resend-receiving.mjs';
+import { getReceived, listReceived, receivingConfigured } from '../../_shared/resend-receiving.mjs';
 
 const URL = 'https://discord.com/login';
 
@@ -116,6 +116,11 @@ try {
       console.log(`PASS: logged in as ${acct.username} — ${s.page.url?.()}`);
       await captureCookies();
     };
+    // The newest received mail for this login, and what it held before the
+    // attempt: a new-location mail Discord sends for this attempt is the one
+    // not among these, so no clock tolerance decides which mail is new.
+    const loginInbox = async () => (await listReceived(10, formData.login)).data;
+    const seenBefore = receivingConfigured() ? new Set((await loginInbox()).map((em) => em.id)) : new Set();
     const result = await loginApi();
     console.log(`[login] ${svc.name}: status=${result?.status} response=${(JSON.stringify(result?.data) ?? '')}`);
     if (result?.status === 200 && result?.data?.token) {
@@ -127,11 +132,10 @@ try {
       // mail, then re-submit the login API call.
       console.log('[login] New location verification required, checking email...');
       const email = formData.login;
-      const loginAttemptTs = Date.now() - 30000; // mails older than this attempt belong to earlier logins
-      const emails = await listReceived(10, email);
-      const verifyMail = (emails.data || []).find((em) => {
+      const emails = await loginInbox();
+      const verifyMail = emails.find((em) => {
         const to = (em.to || []).map(t => typeof t === 'string' ? t : t.email).join(',');
-        return to.includes(email) && em.subject?.includes('Login') && new Date(em.created_at).getTime() >= loginAttemptTs;
+        return to.includes(email) && em.subject?.includes('Login') && !seenBefore.has(em.id);
       });
       if (!verifyMail) throw new Error(`discord_login: no new-location verification mail for ${email} has arrived yet; run the login again once it is in the inbox`);
       const full = await getReceived(verifyMail.id);
