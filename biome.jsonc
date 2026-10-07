@@ -1,0 +1,17 @@
+// Weles' one formatter: Biome, pinned by the package lock (@biomejs/biome).
+// The settings keep the tree's own style; release/fmt.sh runs it.
+{
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space"
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "semicolons": "always"
+    }
+  },
+  "files": {
+    "includes": ["src/**", "tests/**", "scripts/**", "release/**", "!**/dist/**", "!**/node_modules/**"]
+  }
+}
