@@ -38,6 +38,7 @@ import { isRecordRoute, respondToRecord } from './records/index.mjs';
 import { respondToRun } from './run-route.mjs';
 import { respondToOperatorAnswer, respondToOperatorRequests } from './approvals.mjs';
 import { isRunsRoute, respondToRuns } from './runs.mjs';
+import { listRunningRuns } from '../run/running-runs.mjs';
 import {
   respondToAuthenticatorEnrolment,
   respondToBuilder,
@@ -77,6 +78,14 @@ export function createApiRequestHandler({
           // is the one it built, and `stado workload run weles-api-runtime`
           // used to report a revision from a launchctl restart alone.
           sourceRevision: RUN_RELEASE_IDENTITY.source_revision,
+          // The runs a restart of this process would end, read by Stado's
+          // replace delivery before it restarts the worker. A release used to
+          // land while a sign-in waited on the operator's phone and killed it
+          // mid-wait. Only what names a run is said here, because this route
+          // takes no token: the run, its action and when it started.
+          in_flight: listRunningRuns().map(({ run_id, action, kind, started_at }) => ({
+            run_id, action, kind, started_at,
+          })),
           routes: ['GET /healthz', 'GET /api/v1/version', 'POST /api/v1/credential-operations', 'POST /api/v1/tasks', 'GET /api/v1/tasks/:task_id', 'GET /api/v1/tasks/:task_id?wait=terminal', 'POST /api/v1/tasks/:task_id/cancel', 'GET /worker/version', 'GET /worker/status', 'POST /worker/start', 'POST /worker/stop', 'POST /worker/restart', 'POST /run', 'GET /runs', 'GET /runs/:run_id', 'POST /runs/:run_id/cancel', 'GET /diagnostics/:run_id', 'GET /diagnostics/:run_id/file?path=', 'GET /operator-requests', 'GET /operator-requests/:id', 'POST /operator-requests/:id/answer', 'POST /weles-builder', 'POST /reauth/resolve', 'POST /reauth', 'POST /reauth/enrol-authenticator', 'POST /google-ads/keyword-volume', 'POST /google-ads/keyword-report', 'POST /pages/snapshot', 'POST /pages/form-export', 'POST /records/accounts/list', 'POST /records/accounts/get', 'POST /records/accounts/upsert', 'POST /records/accounts/update', 'POST /records/settings/get', 'POST /records/settings/set'],
           publicTask: publicTaskService.health,
           features: ['subscription_identity', 'fresh_profile'],
