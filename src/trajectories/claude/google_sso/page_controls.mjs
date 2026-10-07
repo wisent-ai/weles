@@ -21,11 +21,23 @@ export async function navEval(page, fn, dflt, arg) {
 // Email/password fields: humanType (CDP default = page.keyboard.type
 // per char) emits the full keydown/keyup/input sequence, which
 // Google's WIZ validator needs to enable Next. Input.insertText emits only
-// input and does not supply that sequence. Throw if the value is not retained.
+// input and does not supply that sequence. Keystrokes go to the focused
+// element, so the field must hold focus before typing: a pointer click that
+// lands on a control drawn over the field (Google's identifier page shows its
+// floating label there) leaves focus elsewhere and every keystroke is lost.
+// The field is then focused directly, and a field that still does not hold
+// focus is named in the failure. Throw if the value is not retained.
 export async function fillAndVerify(page, locator, text, humanClickLocator, humanType) {
   const editable = locator.and(page.locator('input:enabled:not([readonly]), textarea:enabled:not([readonly])'));
   await editable.waitFor({ state: 'visible' });
   await humanClickLocator(page, editable);
+  const focused = () => editable.evaluate((element) => element === element.ownerDocument.activeElement);
+  if (!(await focused())) {
+    await editable.focus();
+  }
+  if (!(await focused())) {
+    throw new Error('fillAndVerify: the field did not take focus after a pointer click and a focus call; keystrokes would be lost');
+  }
   await humanType(page, text);
   const actual = await locator.inputValue();
   if (actual !== text) {
