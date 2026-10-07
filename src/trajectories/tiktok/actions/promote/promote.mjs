@@ -11,13 +11,14 @@ await runAction({
   resolveSearchUrl: (q) =>
     `https://www.tiktok.com/tag/${encodeURIComponent(q.replace(/^#/, ''))}`,
   // The video's whole caption; a page without one is refused (runAction logs it).
-  pickPost: async (s) => ({
-    postTitle: await s.page
+  pickPost: async (s) => {
+    const caption = s.page
       .locator('[data-e2e="video-desc"], [data-e2e="browse-video-desc"]')
-      .first()
-      .innerText(),
-    postBody: '',
-  }),
+      .first();
+    if (!(await caption.count()))
+      throw new Error('the page shows no video caption to answer');
+    return { postTitle: await caption.innerText(), postBody: '' };
+  },
   submitComment: tiktokSubmitComment,
   submitTargetedComment: tiktokSubmitComment,
   banDetector: detectTikTokBanSignals,
