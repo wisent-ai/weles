@@ -27,7 +27,7 @@ import {
 } from '../../_shared/services/google_sso/sign_in/account.mjs';
 import { createAppPassword, openAppPasswords, redactAppPasswords } from './page.mjs';
 import {
-  APP_NAME, SIGN_IN_ROUNDS, SKRZYNKA_BIN_VARIABLE, SKRZYNKA_DEFAULT_BIN, SKRZYNKA_DETAIL_CHARS,
+  APP_NAME, SKRZYNKA_BIN_VARIABLE, SKRZYNKA_DEFAULT_BIN,
 } from './constants.mjs';
 
 const RUN = 'google-app-password';
@@ -45,26 +45,22 @@ function report(result) {
 /**
  * Reach the App passwords page, signing in whenever Google asks, and create
  * the password. Google may ask for the password again between the page and
- * the dialog, so the whole step is repeated after each sign-in.
+ * the dialog, so the whole step is repeated after each sign-in. It ends when
+ * Google asks again at an address it already asked at after a sign-in:
+ * signing in once more there cannot change its answer.
  */
 async function issue(page, wait, login) {
-  let last = { ok: false, blocked: 'google_sign_in_required', url: page.url(), textPreview: '' };
-  for (let round = 0; round <= SIGN_IN_ROUNDS; round++) {
-    if (round > 0) {
-      const signed = await signIn(page, wait, login);
-      if (!signed.ok) return signed;
-    }
+  const asked = new Set();
+  for (;;) {
     const opened = await openAppPasswords(page, wait);
-    if (!opened.ok) {
-      last = opened;
-      if (opened.blocked === 'google_sign_in_required') continue;
-      return opened;
-    }
-    const created = await createAppPassword(page, wait, APP_NAME);
-    if (created.ok || created.blocked !== 'google_sign_in_required') return created;
-    last = created;
+    const step = opened.ok ? await createAppPassword(page, wait, APP_NAME) : opened;
+    if (step.ok || step.blocked !== 'google_sign_in_required') return step;
+    const at = page.url();
+    if (asked.has(at)) return step;
+    asked.add(at);
+    const signed = await signIn(page, wait, login);
+    if (!signed.ok) return signed;
   }
-  return last;
 }
 
 /** Hand the password to Skrzynka on stdin; its JSON answer is the verdict. */
@@ -77,7 +73,8 @@ function giveToSkrzynka(organization, email, password) {
   if (result.error) {
     return { ok: false, blocked: 'skrzynka_unavailable', detail: `${binary}: ${result.error.message}` };
   }
-  const output = redactAppPasswords(`${result.stdout || ''}${result.stderr || ''}`).slice(0, SKRZYNKA_DETAIL_CHARS);
+  // spawnSync with an encoding answers both streams as text.
+  const output = redactAppPasswords(`${result.stdout}${result.stderr}`);
   if (result.status !== 0) {
     return { ok: false, blocked: 'skrzynka_refused_app_password', exit_status: result.status, detail: output };
   }

@@ -7,12 +7,10 @@
 import { humanClick } from '../../../../../dist/human/mouse.js';
 import { navEval } from '../page_controls.mjs';
 
-// Diagnostic slice sizes for the state read below, and the smallest box that
-// counts as a rendered control. A 1x1 tracking pixel with role="button" is not
-// an affordance; 4px is the same floor waitForEnabledThenClick uses.
+// The smallest box that counts as a rendered control. A 1x1 tracking pixel
+// with role="button" is not an affordance; 4px is the same floor
+// waitForEnabledThenClick uses. Titles, identifiers and the body are read whole.
 const GIS_MIN_BOX_PX = 4;
-const GIS_DIAG_TITLE_CHARS = 120;
-const GIS_DIAG_BODY_CHARS = 240;
 
 // One read of one page: everything the state machine decides on, collected in a
 // single evaluate so the facts cannot disagree with each other. Element centres
@@ -82,9 +80,9 @@ export const readGisState = (arg) => {
     url: location.href,
     host: location.host,
     pathname: location.pathname,
-    title: (document.title || '').slice(0, arg.maxTitle),
+    title: document.title,
     rowCount: rows.length,
-    rowIdentifiers: rows.map((el) => el.getAttribute('data-identifier').slice(0, arg.maxTitle)),
+    rowIdentifiers: rows.map((el) => el.getAttribute('data-identifier')),
     accountRow: mine ? point(mine, 'account_row') : null,
     accountRowMatchedBy: mine ? 'data_identifier' : null,
     otherAccountRow: pick('button,[role="button"],[role="link"],li,a', 'other_account',
@@ -118,7 +116,7 @@ export const readGisState = (arg) => {
     )).some(shown),
     identifierField: Array.from(document.querySelectorAll('input[type="text"][autocomplete*="username"], input#identifierId, input[name="identifier"], input[type="email"]')).some(shown),
     passwordField: Array.from(document.querySelectorAll('input[type="password"]')).some(shown),
-    bodyText: (document.body?.innerText || '').replace(/\s+/g, ' ').slice(0, arg.maxBody),
+    bodyText: document.body ? document.body.innerText.replace(/\s+/g, ' ') : '',
   };
   // Only look for the affirmative button once no row is waiting to be picked:
   // picking the account always precedes confirming it.
@@ -155,7 +153,5 @@ export async function observeGisPage(p, email) {
   return navEval(p, readGisState, null, {
     email,
     minBox: GIS_MIN_BOX_PX,
-    maxTitle: GIS_DIAG_TITLE_CHARS,
-    maxBody: GIS_DIAG_BODY_CHARS,
   });
 }

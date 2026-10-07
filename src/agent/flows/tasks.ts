@@ -71,7 +71,6 @@ export interface FetchAccountValueConfig {
   what: string;
   secretService: WelesServiceSecret;
   osTarget?: string;
-  depth?: number;
 }
 
 export class FetchAccountValue {
@@ -80,7 +79,6 @@ export class FetchAccountValue {
   what: string;
   secretService: WelesServiceSecret;
   osTarget: string;
-  depth: number;
 
   constructor(config: FetchAccountValueConfig) {
     this.service = config.service;
@@ -88,7 +86,6 @@ export class FetchAccountValue {
     this.what = config.what;
     this.secretService = config.secretService;
     this.osTarget = config.osTarget ?? 'macos';
-    this.depth = config.depth ?? 4;
   }
 
   async run(): Promise<number | null> {
@@ -205,7 +202,7 @@ export class FetchAccountValue {
   }
 
   private async _extractValue(page: any): Promise<number | null> {
-    return discover.findNumber(page, this.what, this.depth);
+    return discover.findNumber(page, this.what);
   }
 
   private _loadCookies(): any[] | null {

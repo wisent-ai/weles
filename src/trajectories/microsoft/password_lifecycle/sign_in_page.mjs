@@ -5,7 +5,7 @@ import { humanFill } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { pageSettled } from '../../_shared/page/settled.mjs';
 import {
-  CODE_FILE_MAX_BYTES, CODE_FILE_MODE, CODE_FILE_MODE_MASK,
+  CODE_FILE_MODE, CODE_FILE_MODE_MASK,
   IDENTITY_CHALLENGE, LOGIN_HOSTS, SECOND_PASSWORD_INPUT,
 } from './constants.mjs';
 
@@ -110,9 +110,8 @@ async function waitForVerificationCode() {
   const metadata = statSync(codeFile);
   if (!metadata.isFile()
       || metadata.uid !== process.getuid()
-      || (metadata.mode & CODE_FILE_MODE_MASK) !== CODE_FILE_MODE
-      || metadata.size > CODE_FILE_MAX_BYTES) {
-    throw new Error('Microsoft verification-code file failed owner, mode, or size validation');
+      || (metadata.mode & CODE_FILE_MODE_MASK) !== CODE_FILE_MODE) {
+    throw new Error('Microsoft verification-code file failed owner or mode validation');
   }
   const code = readFileSync(codeFile, 'utf8').trim();
   if (!/^\d{4,8}$/.test(code)) {

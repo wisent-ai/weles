@@ -19,7 +19,6 @@ import { waitForGooglePassword, waitForGooglePasswordResult } from '../../../../
 import { selectAuthenticatorMethod, waitForGoogleChallengeExit } from '../../../../codex/google_sso/authenticator_code.mjs';
 import { onSignIn, redactKeys } from '../authenticator_enrol.mjs';
 import { generateTotp } from '../totp_secret.mjs';
-import { MAX_HEADING_CHARS } from './constants.mjs';
 import { googlePhonePromptOffered } from './challenge/phone.mjs';
 
 /** Google's password-only challenge: the account is known, the session is not. */
@@ -50,14 +49,15 @@ export function accountProfileDir(login) {
 }
 
 /// What Google is showing, in the words a reader can act on: the address and
-/// the first visible heading, bounded and redacted, so a stop names the page
-/// that was actually there rather than the selector this code chose.
+/// the first visible heading, whole and redacted (null when the page shows
+/// none), so a stop names the page that was actually there rather than the
+/// selector this code chose.
 export async function pageDescription(page) {
   const heading = page.locator('h1, h2, [role="heading"]').filter({ visible: true }).first();
-  const text = await heading.isVisible() ? await heading.textContent() : '';
+  const text = await heading.isVisible() ? await heading.textContent() : null;
   return {
     url: redactKeys(String(page.url())),
-    heading: redactKeys(String(text || '').trim().slice(0, MAX_HEADING_CHARS)),
+    heading: text === null ? null : redactKeys(text.trim()),
   };
 }
 

@@ -13,12 +13,6 @@ import { humanFill } from '../../../../../dist/human/keyboard.js';
 import { generateTotp } from './totp_secret.mjs';
 
 const CLICKABLE = 'button, [role="button"], a, [role="link"], li, div[role="option"]';
-/** Google's TOTP period; a code entered in its last seconds is refused. */
-const TOTP_PERIOD_SECONDS = 30;
-/** Seconds left in the period below which the next period's code is used. */
-const CODE_MARGIN_SECONDS = 6;
-/** How much of a page is kept in a refusal, after the key is redacted. */
-const PREVIEW_CHARS = 1600;
 
 /** The authenticator settings page, by its direct address.
  *
@@ -33,8 +27,9 @@ export async function bodyText(page) {
   return await page.evaluate(() => document.body?.innerText || '');
 }
 
+/** A page's text for a refusal, whole, with any setup key redacted. */
 function preview(text) {
-  return redactKeys(String(text || '').slice(0, PREVIEW_CHARS));
+  return redactKeys(text);
 }
 
 export async function clickByText(page, pattern, label) {
@@ -122,13 +117,11 @@ export function redactKeys(text) {
   return String(text || '').replace(/(?:[a-z2-7]{4}\s+){7}[a-z2-7]{4}/gi, '<redacted-setup-key>');
 }
 
-/** The code for the current period, or for the next one when the current
- * period has less than the margin left: Google accepts the adjacent period,
- * so a code about to expire is replaced instead of waited out. */
+/** The code for the current period. Google accepts the adjacent period as
+ * RFC 6238 allows, so a code entered as its period ends is still taken and
+ * no margin is chosen here. */
 function freshCode(secret) {
-  const nowMs = Date.now();
-  const left = TOTP_PERIOD_SECONDS - (Math.floor(nowMs / 1000) % TOTP_PERIOD_SECONDS);
-  return generateTotp(secret, left < CODE_MARGIN_SECONDS ? { now: nowMs + left * 1000 } : {});
+  return generateTotp(secret);
 }
 
 /**

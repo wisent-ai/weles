@@ -8,10 +8,9 @@ export const IDENTITY_CHALLENGE = /verify your identity|get a code|approve sign 
 export const LOGIN_HOSTS = ['login.live.com', 'login.microsoft.com'];
 
 // The verification-code file the operator drops beside a running lifecycle:
-// owner-only mode, at most this many bytes.
+// owner-only mode; its contents are checked as a code, not by size.
 export const CODE_FILE_MODE = 0o600;
 export const CODE_FILE_MODE_MASK = 0o777;
-export const CODE_FILE_MAX_BYTES = 32;
 
 // Pages Microsoft opens during a change; the second password input marks the form.
 export const SECOND_PASSWORD_INPUT = 1;

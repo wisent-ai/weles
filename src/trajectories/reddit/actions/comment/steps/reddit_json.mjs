@@ -1,4 +1,5 @@
-import { BUSY_POST_COMMENTS, LISTING_PICK_WINDOW } from './constants.mjs';
+// Reddit's own listing page decides which posts are offered; no comment count
+// or pick window is chosen here.
 
 /** The signed-in account's handle from /api/me.json, or false when Reddit answers without one. */
 export function readOwnHandle(page) {
@@ -41,7 +42,7 @@ export async function resolveTargetPost(page, oldUrl) {
   if (/\/comments\/[a-z0-9]+\//i.test(oldUrl)) return oldUrl;
   try {
     const listingSrc = oldUrl.endsWith('/') ? oldUrl : oldUrl + '/';
-    const listingJson = listingSrc.replace(/\/$/, '/.json?limit=25');
+    const listingJson = listingSrc.replace(/\/$/, '/.json');
     const data = await page.evaluate(async (u) => {
       const r = await fetch(u, { credentials: 'include' });
       if (!r.ok) throw new Error(`listing answered HTTP ${r.status}`);
@@ -49,8 +50,8 @@ export async function resolveTargetPost(page, oldUrl) {
     }, listingJson);
     const candidates = (data?.data?.children ?? [])
       .map(c => c.data)
-      .filter(p => p && !p.locked && !p.archived && (p.num_comments ?? 0) < BUSY_POST_COMMENTS);
-    const pick = candidates[Math.floor(Math.random() * Math.min(candidates.length, LISTING_PICK_WINDOW))];
+      .filter(p => p && !p.locked && !p.archived);
+    const pick = candidates[Math.floor(Math.random() * candidates.length)];
     const resolved = pick?.permalink ? `https://old.reddit.com${pick.permalink}` : oldUrl;
     console.log(`[trajectory] resolved sub listing -> post ${resolved}`);
     return resolved;

@@ -1,57 +1,56 @@
 /**
- * Page discovery via vision — 1:1 port of weles/agent/discover.py
+ * Page discovery via vision.
  *
- * Given a page and a description, look for the value on the current
- * page; if not present, find a navigation link and click it, then
- * repeat. Generic over any dashboard.
+ * Given a page and a description, look for the value on the current page;
+ * if it is not there, follow the navigation target most likely to show it,
+ * and repeat. The walk ends when the value is found, when the page offers
+ * no navigation target, or when a click lands on a page the walk has already
+ * read: no count of steps is chosen.
  */
 
 import * as vision from './vision.js';
 import { waitCloudflare } from '../../cloudflare/challenge.js';
 
-const DEFAULT_DEPTH = 4;
+/** The page the vision helpers act on, as they declare it. */
+type DiscoveryPage = Parameters<typeof vision.click> extends [infer Page, ...unknown[]] ? Page : never;
 
-export async function findNumber(
-  page: any,
+async function walk<T>(
+  page: DiscoveryPage,
   what: string,
-  depth = DEFAULT_DEPTH,
-): Promise<number | null> {
-  for (let step = 0; step < depth; step++) {
-    await waitCloudflare(page);
-    const value = await vision.number(page, what);
+  read: () => Promise<T | null>,
+  navTarget: string,
+): Promise<T | null> {
+  const seen = new Set<string>();
+  for (;;) {
+    seen.add(page.url());
+    const value = await read();
     if (value !== null) {
-      console.log(`[discover] found '${what}' = ${value} at depth ${step}`);
+      console.log(`[discover] found '${what}' at ${page.url()}`);
       return value;
     }
-    const navTarget =
-      `the navigation link, menu item, or button most likely `
-      + `to lead to a page that shows ${what}. Examples: billing, `
-      + `balance, credits, account, wallet, dashboard, overview`;
     const clicked = await vision.click(page, navTarget);
     if (!clicked) {
-      console.log(`[discover] no navigation target at depth ${step}`);
+      console.log(`[discover] no navigation target at ${page.url()}`);
       return null;
     }
-    try { await page.waitForLoadState('networkidle'); } catch { /* skip */ }
+    await page.waitForLoadState('networkidle');
+    if (seen.has(page.url())) {
+      console.log(`[discover] navigation returned to ${page.url()}, already read, without '${what}'`);
+      return null;
+    }
   }
-  console.log(`[discover] depth ${depth} exhausted without finding '${what}'`);
-  return null;
 }
 
-export async function findText(
-  page: any,
-  what: string,
-  depth = DEFAULT_DEPTH,
-): Promise<string | null> {
-  for (let step = 0; step < depth; step++) {
-    const value = await vision.text(page, what);
-    if (value !== null) return value;
-    const navTarget =
-      `the navigation link, menu item, or button most likely `
-      + `to lead to a page that shows ${what}`;
-    const clicked = await vision.click(page, navTarget);
-    if (!clicked) return null;
-    try { await page.waitForLoadState('networkidle'); } catch { /* skip */ }
-  }
-  return null;
+export async function findNumber(page: DiscoveryPage, what: string): Promise<number | null> {
+  return walk(page, what, async () => {
+    await waitCloudflare(page);
+    return vision.number(page, what);
+  }, `the navigation link, menu item, or button most likely `
+    + `to lead to a page that shows ${what}. Examples: billing, `
+    + `balance, credits, account, wallet, dashboard, overview`);
+}
+
+export async function findText(page: DiscoveryPage, what: string): Promise<string | null> {
+  return walk(page, what, () => vision.text(page, what),
+    `the navigation link, menu item, or button most likely to lead to a page that shows ${what}`);
 }

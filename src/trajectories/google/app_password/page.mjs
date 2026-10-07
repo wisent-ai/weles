@@ -6,7 +6,7 @@
 // module can be imported and its parsing tested without a browser or a secret.
 import { humanFill } from '../../../../dist/human/keyboard.js';
 import { bodyText, clickByText, onSignIn } from '../../_shared/services/google_sso/authenticator_enrol.mjs';
-import { APP_PASSWORDS_URL, PREVIEW_CHARS } from './constants.mjs';
+import { APP_PASSWORDS_URL } from './constants.mjs';
 
 /** Google renders an app password as four groups of four lowercase letters. */
 const APP_PASSWORD_GROUPS = /\b([a-z]{4})\s+([a-z]{4})\s+([a-z]{4})\s+([a-z]{4})\b/;
@@ -23,8 +23,9 @@ export function redactAppPasswords(text) {
   return String(text || '').replace(APP_PASSWORD_ANYWHERE, '<redacted-app-password>');
 }
 
+/** A page's text for a refusal, whole, with any app password redacted. */
 function preview(text) {
-  return redactAppPasswords(String(text || '').slice(0, PREVIEW_CHARS));
+  return redactAppPasswords(text);
 }
 
 /**
