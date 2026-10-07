@@ -71,12 +71,13 @@ export async function getSocialAccount(platform: string): Promise<SocialAccount 
     : listAccounts(platform);
   const accounts = candidates.filter((account) => account?.platform === platform);
   if (!accounts.length) return null;
-  const cutoffMs = Date.now() - 24 * 3600 * 1000;
+  // An account is fresh when nothing marked its cookies stale, or a verified
+  // login minted cookies after the mark. A stale mark is lifted by that login,
+  // not by a day passing.
   const fresh = accounts.find((account) => {
     const staleMs = Date.parse(String(account?.metadata.cookies_stale_at ?? ''));
     const mintMs = Date.parse(String(account?.metadata.cookies_minted_at ?? ''));
     return !Number.isFinite(staleMs)
-      || staleMs < cutoffMs
       || (Number.isFinite(mintMs) && mintMs >= staleMs);
   }) ?? accounts[0];
   if (!fresh) return null;
