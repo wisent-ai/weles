@@ -59,7 +59,6 @@ export function createEvidenceRetention({
       completedAt: new Date().toISOString(),
     };
     task.retentionFailure = { code, quarantinedAt: new Date().toISOString() };
-    task.retentionAttempts = 0;
     await persistTask(task);
   }
 
@@ -84,21 +83,12 @@ export function createEvidenceRetention({
           error = retryError;
         }
       }
-      task.retentionAttempts = Number(task.retentionAttempts ?? 0) + 1;
-      if (task.retentionAttempts >= 3 && !task.retentionFailure) {
-        await convertEvidenceFailure(
-          task,
-          new EvidenceRetentionError('storage-retries-exhausted', 'durable evidence retention retries were exhausted'),
-        );
-        try {
-          return await finalize(task);
-        } catch {
-          task.retentionAttempts = 3;
-        }
-      }
-      task.evidenceError = task.retentionFailure
+      // The task stays pending with its error visible and is retried on the
+      // next sweep: storage that keeps refusing shows as pending, and no
+      // attempt count is chosen to turn it into a failure.
+      task.evidenceError = `${task.retentionFailure
         ? 'failed evidence receipt retention is pending'
-        : 'evidence retention is pending';
+        : 'evidence retention is pending'}: ${error.message}`;
       await persistTask(task);
       return task;
     }
