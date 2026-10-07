@@ -43,9 +43,8 @@ export async function collectDom(page) {
             (/^(tr|material-list-item)$/i.test(el.tagName || '') ||
               el.getAttribute?.('role') === 'row'),
         )
-        .map((row) => norm(row.innerText || row.textContent || ''))
-        .filter(Boolean)
-        .slice(0, 300);
+        .map((row) => norm(row.innerText ?? row.textContent))
+        .filter(Boolean);
       const controls = nodes
         .filter(
           (el) =>
@@ -61,18 +60,17 @@ export async function collectDom(page) {
         .map((el) => ({
           tag: (el.tagName || '').toLowerCase(),
           role: el.getAttribute?.('role') || '',
-          text: norm(el.innerText || el.textContent || '').slice(0, 300),
+          text: norm(el.innerText ?? el.textContent),
           aria: el.getAttribute?.('aria-label') || '',
           title: el.getAttribute?.('title') || '',
           placeholder: el.getAttribute?.('placeholder') || '',
-          value: norm(el.value || '').slice(0, 300),
+          value: norm(el.value),
         }))
         .filter((control) =>
           /keyword|planner|search|forecast|volume|result|product|service|website|language|location|competition|bid|start|get|discover/i.test(
             `${control.text} ${control.aria} ${control.title} ${control.placeholder} ${control.value}`,
           ),
-        )
-        .slice(0, 300);
+        );
       return {
         url: location.href,
         title: document.title,
