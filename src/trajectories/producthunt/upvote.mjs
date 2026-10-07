@@ -49,12 +49,9 @@ async function injectPHCookies(s, cookies) {
   console.log(`[ph-vote] injected ${normalized.length} producthunt cookies`);
 }
 
+// The whole page text: a state named past an invented cut was never seen.
 async function readPage(s) {
-  return (
-    await s.page
-      .evaluate(`(() => (document.body?.innerText ?? '').substring(0, 2000))()`)
-      .catch(() => '')
-  ).toLowerCase();
+  return (await s.page.locator('body').innerText()).toLowerCase();
 }
 
 async function navigateToFirstProduct(s) {

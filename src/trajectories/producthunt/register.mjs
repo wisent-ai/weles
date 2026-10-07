@@ -25,15 +25,9 @@ import { pageSettled } from '../_shared/page/settled.mjs';
 
 // findUsableTwitterAccount + stampLinkedTwitter live in _session.mjs.
 
+// The whole page text: a state named past an invented cut was never seen.
 async function readPage(s) {
-  return (
-    await s.page
-      .evaluate(`(() => {
-    var t = (document.body?.innerText ?? '').substring(0, 2000);
-    return t;
-  })()`)
-      .catch(() => '')
-  ).toLowerCase();
+  return (await s.page.locator('body').innerText()).toLowerCase();
 }
 
 async function signup(s) {
