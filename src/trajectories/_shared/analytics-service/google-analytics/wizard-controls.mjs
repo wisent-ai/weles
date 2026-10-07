@@ -140,8 +140,7 @@ async function clickGaNext(
                 node.hasAttribute('disabled') ||
                 node.getAttribute('aria-disabled') === 'true',
             }))
-            .filter((item) => item.text)
-            .slice(-20),
+            .filter((item) => item.text),
         )
         .then(
           (list) => list,

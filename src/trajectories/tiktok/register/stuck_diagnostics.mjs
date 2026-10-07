@@ -53,7 +53,6 @@ function readPageState(page) {
     const perf = performance
       .getEntriesByType('resource')
       .filter((e) => /tiktok|mssdk|ttwid|passport|verification/.test(e.name))
-      .slice(-50)
       .map((e) => ({
         name: e.name,
         duration: Math.round(e.duration),

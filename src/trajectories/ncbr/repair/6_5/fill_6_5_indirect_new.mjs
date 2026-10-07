@@ -237,12 +237,11 @@ if (process.env.MENU) {
     )
       .map((e) => e.textContent.trim())
       .filter(Boolean),
-    buttonsTail: Array.from(document.querySelectorAll('button'))
+    buttons: Array.from(document.querySelectorAll('button'))
       .map(
         (e) => e.textContent.trim() || e.getAttribute('aria-label') || e.title,
       )
-      .filter(Boolean)
-      .slice(-20),
+      .filter(Boolean),
   }));
   console.log(JSON.stringify({ contains, menu }, null, 2));
   process.exit(0);

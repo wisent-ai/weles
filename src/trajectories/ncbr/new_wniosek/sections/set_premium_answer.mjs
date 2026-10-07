@@ -97,13 +97,12 @@ if (process.env.DIAG) {
     buttons: Array.from(document.querySelectorAll('button'))
       .map((b) => ({ text: b.innerText.trim(), disabled: b.disabled }))
       .filter((b) => b.text),
-    bodyTail: (document.body.innerText || '').slice(-3000),
+    body: document.body.innerText,
     formControls: Array.from(
       document.querySelectorAll('.MuiFormControl-root, .MuiFormGroup-root'),
     )
       .map((e) => e.textContent.trim().replace(/\s+/g, ' '))
-      .filter(Boolean)
-      .slice(-20),
+      .filter(Boolean),
   }));
   console.log(JSON.stringify({ section: SECTION, out }, null, 2));
   process.exit(0);

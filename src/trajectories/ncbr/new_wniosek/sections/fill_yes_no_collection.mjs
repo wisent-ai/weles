@@ -132,7 +132,7 @@ if (process.env.DIAG) {
     buttons: Array.from(document.querySelectorAll('button'))
       .map((b) => ({ text: b.innerText.trim(), disabled: b.disabled }))
       .filter((b) => b.text),
-    bodyTail: (document.body.innerText || '').slice(-3000),
+    body: document.body.innerText,
   }));
   console.log(JSON.stringify({ section: SECTION, out }, null, 2));
   process.exit(0);
