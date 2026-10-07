@@ -95,8 +95,9 @@ export async function wsJsClick(
   text?: string,
 ): Promise<string> {
   return s.runStep(`jsClick_${text ?? selector}`, async () => {
-    const sel = JSON.stringify(selector ?? ''),
-      txt = JSON.stringify((text ?? '').toLowerCase());
+    // An absent text reads as `undefined` in the page script, which its own
+    // `t&&` checks skip.
+    const txt = JSON.stringify(text?.toLowerCase());
     const sr = await s.page.evaluate(
       `(()=>{var t=${txt};function F(r){var a=[];r.querySelectorAll('*').forEach(function(e){if(e.shadowRoot){var sr=e.shadowRoot;a=a.concat(Array.from(sr.querySelectorAll('[data-post-click-location] button')));a=a.concat(F(sr))}});return a}var bs=F(document);if(t&&t.indexOf('upvote')>=0&&bs.length>0){bs[0].click();return'clicked upvote (shadow)'}if(t&&t.indexOf('downvote')>=0&&bs.length>1){bs[1].click();return'clicked downvote (shadow)'}return null})()`,
     );
@@ -128,8 +129,53 @@ export async function wsJsClick(
           /* try frame eval */
         }
       }
+      // The frame's own search, as a typed function: an element by selector,
+      // else the first control whose text, label or name holds the wanted
+      // text; a label also fires its input. The clicked control is named by
+      // its whole text.
       const frameHit = await frame.evaluate(
-        `(()=>{function F(r,s){var a=Array.from(r.querySelectorAll(s));r.querySelectorAll('*').forEach(function(e){if(e.shadowRoot)a=a.concat(F(e.shadowRoot,s))});return a}var s=${sel},t=${txt};function fire(e){e.click();if((e instanceof HTMLInputElement)&&(e.type==='checkbox'||e.type==='radio')){e.checked=true;e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}))}}if(s){try{var e=F(document,s)[0];if(e){fire(e);return'clicked-frame-untrusted: '+s}}catch(e){}}if(t){var els=F(document,'label,button,a,[role="button"],[role="checkbox"],[role="radio"],input[type="checkbox"],input[type="radio"]');for(var i=0;i<els.length;i++){var x=((els[i].textContent||'')+(els[i].getAttribute('aria-label')||'')+(els[i].getAttribute('name')||'')).toLowerCase();if(x.indexOf(t)>=0){fire(els[i]);var forId=els[i].getAttribute&&els[i].getAttribute('for');if(forId){var input=document.getElementById(forId);if(input)fire(input)}return'clicked-frame-untrusted: '+x.trim().slice(0,40)}}}return null})()`,
+        ({ selector, wanted }: { selector?: string; wanted?: string }) => {
+          const all = (root: any, css: string): any[] => {
+            let found: any[] = Array.from(root.querySelectorAll(css));
+            root.querySelectorAll('*').forEach((el: any) => {
+              if (el.shadowRoot) found = found.concat(all(el.shadowRoot, css));
+            });
+            return found;
+          };
+          const fire = (el: any) => {
+            el.click();
+            if (el instanceof HTMLInputElement && (el.type === 'checkbox' || el.type === 'radio')) {
+              el.checked = true;
+              el.dispatchEvent(new Event('input', { bubbles: true }));
+              el.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          };
+          if (selector) {
+            const [el] = all(document, selector);
+            if (el) {
+              fire(el);
+              return `clicked-frame-untrusted: ${selector}`;
+            }
+          }
+          if (!wanted) return null;
+          for (const el of all(
+            document,
+            'label,button,a,[role="button"],[role="checkbox"],[role="radio"],input[type="checkbox"],input[type="radio"]',
+          )) {
+            const label = [el.textContent, el.getAttribute('aria-label'), el.getAttribute('name')]
+              .filter(Boolean)
+              .join(' ')
+              .toLowerCase();
+            if (!label.includes(wanted)) continue;
+            fire(el);
+            const forId = el.getAttribute('for');
+            const input = forId ? document.getElementById(forId) : null;
+            if (input) fire(input);
+            return `clicked-frame-untrusted: ${label.trim()}`;
+          }
+          return null;
+        },
+        { selector, wanted: text?.toLowerCase() },
       );
       if (frameHit) return frameHit;
     }
@@ -157,8 +203,41 @@ export async function wsJsClick(
         /* try eval */
       }
     }
+    // The page's own search, as a typed function: an element by selector,
+    // else the first control whose text or label holds the wanted text,
+    // named by its whole text.
     const r = await s.page.evaluate(
-      `(()=>{function F(r,s){var a=Array.from(r.querySelectorAll(s));r.querySelectorAll('*').forEach(function(e){if(e.shadowRoot)a=a.concat(F(e.shadowRoot,s))});return a}var s=${sel},t=${txt};if(s){try{var e=F(document,s)[0];if(e){e.click();return'clicked-untrusted: '+s}}catch(e){}}if(t){var els=F(document,'button,a,[role="button"],[class*="vote"],[class*="like"],[class*="star"],[class*="follow"]');for(var i=0;i<els.length;i++){var x=((els[i].textContent||'')+(els[i].getAttribute('aria-label')||'')).toLowerCase();if(x.indexOf(t)>=0){els[i].click();return'clicked-untrusted: '+(els[i].getAttribute('aria-label')||els[i].textContent||'').trim().slice(0,40)}}}return null})()`,
+      ({ selector, wanted }: { selector?: string; wanted?: string }) => {
+        const all = (root: any, css: string): any[] => {
+          let found: any[] = Array.from(root.querySelectorAll(css));
+          root.querySelectorAll('*').forEach((el: any) => {
+            if (el.shadowRoot) found = found.concat(all(el.shadowRoot, css));
+          });
+          return found;
+        };
+        if (selector) {
+          const [el] = all(document, selector);
+          if (el) {
+            el.click();
+            return `clicked-untrusted: ${selector}`;
+          }
+        }
+        if (!wanted) return null;
+        for (const el of all(
+          document,
+          'button,a,[role="button"],[class*="vote"],[class*="like"],[class*="star"],[class*="follow"]',
+        )) {
+          const label = [el.textContent, el.getAttribute('aria-label')]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+          if (!label.includes(wanted)) continue;
+          el.click();
+          return `clicked-untrusted: ${label.trim()}`;
+        }
+        return null;
+      },
+      { selector, wanted: text?.toLowerCase() },
     );
     return r ?? 'no-element-found';
   });
