@@ -152,7 +152,7 @@ async function pickAutoByName(suffix, value) {
   return null;
 }
 
-async function fillIndicator(ind, { preserveExistingTarget = false } = {}) {
+async function fillIndicator(ind) {
   await pickAutoByName('nazwa_wskaznika', ind.name);
   await fillField('nazwa_wskaznika', ind.name);
   await fillField('jednostka_miary', ind.unit);
@@ -162,12 +162,18 @@ async function fillIndicator(ind, { preserveExistingTarget = false } = {}) {
     'rok_osiagniecia_wartosci_docelowej',
     lsiYearInput(ind.targetYear),
   );
-  if (!preserveExistingTarget)
-    await fillField('wartosc_docelowa', ind.targetValue);
+  // The prepared markdown decides the target; an indicator it gives no target
+  // keeps the one the form already holds, and one with neither is refused.
+  if (ind.targetValue) await fillField('wartosc_docelowa', ind.targetValue);
   else {
-    const target = page.locator('[name$="wartosc_docelowa"]').first();
-    const cur = await target.inputValue().catch(() => '');
-    if (!cur) await fillField('wartosc_docelowa', ind.targetValue);
+    const held = await page
+      .locator('[name$="wartosc_docelowa"]')
+      .first()
+      .inputValue();
+    if (!held)
+      throw new Error(
+        `9.2 indicator "${ind.name}" has no target value in the prepared markdown and none in the form`,
+      );
   }
   await fillField('opis_metodologii', ind.methodology);
   await fillField('opis_sposobu_weryfikacji', ind.verification);
@@ -315,9 +321,7 @@ for (
   if (process.env.BASE_YEAR_ONLY) {
     await fillField('rok_bazowy', existingIndicators[i].baseYear);
   } else {
-    await fillIndicator(existingIndicators[i], {
-      preserveExistingTarget: i === 12,
-    });
+    await fillIndicator(existingIndicators[i]);
   }
   await saveForm();
   edited.push(existingIndicators[i].name);
