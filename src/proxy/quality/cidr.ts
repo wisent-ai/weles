@@ -123,38 +123,3 @@ export function recordProbe(platform: string, ip: string, result: string, bytes?
   } catch { /* best-effort diagnostic */ }
 }
 
-// Roll up the probe ledger into a clean-rate summary: overall + per /19 +
-// last-7-day window, so "is the residential pool sustainable" is answered
-// from data. Returns undefined if no ledger yet.
-export function probeLedgerStats(): {
-  total: number; form: number; challenge: number; cleanRate: number;
-  last7d: { total: number; form: number; cleanRate: number };
-  perNet19: Record<string, { total: number; form: number }>;
-} | undefined {
-  try {
-    const { readFileSync, existsSync } = require('node:fs');
-    const fp = `${process.env.HOME ?? ''}/.weles/linkedin_probe_ledger.jsonl`;
-    if (!existsSync(fp)) return undefined;
-    const lines = readFileSync(fp, 'utf8').split('\n').filter(Boolean);
-    const cutoff = Date.now() - 7 * 86400_000;
-    let total = 0, form = 0, challenge = 0, l7t = 0, l7f = 0;
-    const perNet19: Record<string, { total: number; form: number }> = {};
-    for (const ln of lines) {
-      let r: any; try { r = JSON.parse(ln); } catch { continue; }
-      total++;
-      const isForm = r.result === 'form';
-      if (isForm) form++; else if (r.result === 'challenge') challenge++;
-      if (r.net19) {
-        const e = perNet19[r.net19] ?? { total: 0, form: 0 };
-        e.total++; if (isForm) e.form++; perNet19[r.net19] = e;
-      }
-      if (Date.parse(r.ts) >= cutoff) { l7t++; if (isForm) l7f++; }
-    }
-    return {
-      total, form, challenge,
-      cleanRate: total ? form / total : 0,
-      last7d: { total: l7t, form: l7f, cleanRate: l7t ? l7f / l7t : 0 },
-      perNet19,
-    };
-  } catch { return undefined; }
-}
