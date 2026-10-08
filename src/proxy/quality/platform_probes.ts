@@ -227,7 +227,7 @@ export async function probeLinkedinSignup(
     if (bodyMarkers.signup_form && !bodyMarkers.hard_challenge)
       return {
         result: 'form',
-        bytes,
+        bytes: responseBody.bytes,
         request,
         transport,
         body_markers: bodyMarkers,
@@ -235,7 +235,7 @@ export async function probeLinkedinSignup(
       };
     return {
       result: bodyMarkers.hard_challenge ? 'challenge' : 'unknown',
-      bytes,
+      bytes: responseBody.bytes,
       request,
       transport,
       body_markers: bodyMarkers,
