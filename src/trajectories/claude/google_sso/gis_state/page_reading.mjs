@@ -112,7 +112,7 @@ export const readGisState = (arg) => {
       /^(authorize|allow|zezwól|zezwol|autoryzuj)$/i,
     ),
     // The grant screen renders Authorize and Decline disabled while it loads
-    // its authorize data: run 23bf6ab4 read the screen 70 ms after
+    // its authorize data: a run read the screen moments after
     // /v1/oauth/<org>/authorize was requested, both buttons disabled="".
     consentPending: Array.from(
       document.querySelectorAll('button,[role="button"]'),
@@ -128,8 +128,8 @@ export const readGisState = (arg) => {
       /continue with google|^google$/i,
     ),
     // claude.ai renders its "Continue with Google" button disabled until its
-    // Google library is ready: run c5f8838e failed on that page as 'unknown'
-    // two seconds after the authorize URL loaded.
+    // Google library is ready: a run failed on that page as 'unknown'
+    // moments after the authorize URL loaded.
     gisButtonPending: Array.from(
       document.querySelectorAll('button,[role="button"]'),
     ).some(
@@ -139,15 +139,15 @@ export const readGisState = (arg) => {
         /continue with google|^google$/i.test(label(el)),
     ),
     // claude.ai serves its authorize page as an app shell that renders later:
-    // run 5661801e recorded claude.ai/oauth/authorize titled "Claude" with an
-    // empty #root under [data-page-loading] and no control at all, and run
-    // c891c574 the same page with #root rendered around a [role=status]
+    // one run recorded claude.ai/oauth/authorize titled "Claude" with an
+    // empty #root under [data-page-loading] and no control at all, and another
+    // the same page with #root rendered around a [role=status]
     // [data-page-loading] spinner. Either is the app still loading: a state
     // of its own, waited out, not a failure. A rendered control outranks it,
     // because the consent, gate and app checks are classified first.
     appLoading: document.querySelector('[data-page-loading]') !== null,
     // claude.ai answers some sign-ins with an hCaptcha challenge right after
-    // Google's popup closes (run 23bf6ab4: "Drag the letter to the place where
+    // Google's popup closes (one run: "Drag the letter to the place where
     // it fits", an hcaptcha.com frame=challenge iframe over the login page).
     captchaChallenge: Array.from(
       document.querySelectorAll(

@@ -134,7 +134,7 @@ async function signIn(page, wait, login) {
  * more) before it shows a security setting, so the page is reopened after
  * each sign-in. It ends when Google asks again at an address it already
  * asked at after a sign-in: signing in once more there cannot change its
- * answer. Run 5a61d47d stopped at `google_sign_in_required` right after the
+ * answer. A run stopped at `google_sign_in_required` right after the
  * operator's phone approval, because the page was reopened only once.
  */
 async function openSignedIn(page, wait, login) {

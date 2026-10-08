@@ -58,7 +58,7 @@ export function classifyGisState(st) {
     // this step does not drive — it is named in the failure instead of guessed.
     if (st.identifierField) return 'google_identifier';
     if (st.passwordField) return 'google_password';
-    // Account already chosen, Google asking to confirm it: the state run cbf8fb03
+    // Account already chosen, Google asking to confirm it: the state a run
     // sat in for 300s. It is /v3/signin/accountchooser with NO data-identifier
     // row at all, the heading "Zalogujesz się ponownie w usłudze Claude", the
     // selected-account switcher, and "Anuluj"/"Dalej" — the affirmative button is
@@ -85,7 +85,7 @@ export function classifyGisState(st) {
   if (/(^|\.)claude\.(ai|com)$/.test(st.host) && st.appLoading)
     return 'claude_app_loading';
   // Signed in, but claude.ai answered the CLI's authorize request with the app
-  // itself: run 19ac8c0f ended on https://claude.ai/new titled "New chat -
+  // itself: a run ended on https://claude.ai/new titled "New chat -
   // Claude" as the only live page, with no grant affordance and no gate. The
   // session is exactly what the authorize URL needs, so this state is driven by
   // re-issuing that URL here rather than waited out.

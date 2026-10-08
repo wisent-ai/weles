@@ -203,7 +203,7 @@ async function clickNext(s) {
     // authed before persisting the row. PH register hit this same class
     // — a logged-out _producthunt_session_production cookie got
     // accepted as proof of auth and saveAccount persisted a row claiming
-    // someone else's identity (vinitra incident, weles 21e21eb).
+    // someone else's identity.
     try {
       await s.page.goto('https://www.youtube.com/');
       await humanIdlePause('deliberate');

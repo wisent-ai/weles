@@ -91,7 +91,7 @@ async function stateChange(page, active, url) {
 // Resolves once any page of the handoff moves on: one of the pages this round
 // read navigates away from what it showed or closes, the context opens another
 // page, or `also` (the page condition the caller waits for) settles. A wait on
-// the acting page alone missed run a7f41fd6's popup: claude.ai's gate went
+// the acting page alone missed a run's popup: claude.ai's gate went
 // disabled while Google's popup loaded, and the popup's navigation reached
 // no listener. Every listener is removed when the wait ends.
 async function anyPageChange(page, views, also) {
@@ -188,7 +188,7 @@ export async function doGoogleSso({
         // data-identifier to that identity, never a row position or label.
         // Google closes its popup once the account is confirmed, and a read
         // that started a moment before ends with 'Target page, context or
-        // browser has been closed' (run 4904c60a failed on exactly that right
+        // browser has been closed' (a run failed on exactly that right
         // after gis_confirm_continue). A page that is closed after its read
         // failed is simply gone; any other failure stands.
         let st;
@@ -218,7 +218,7 @@ export async function doGoogleSso({
       // A state this step does not drive: give its page the chance to settle
       // into a driven one, then report it by name. Google's popup is such a
       // page for the moment between the confirmed account and its closing,
-      // and run 40f115ef failed in that moment ('Target page, context or
+      // and a run failed in that moment ('Target page, context or
       // browser has been closed' from pageSettled): a page that closed while
       // it settled is gone, and the next round reads the pages that remain.
       if (!DRIVEN_VARIANTS.has(variant)) {
