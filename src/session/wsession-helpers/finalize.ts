@@ -152,11 +152,15 @@ export async function wsClick(s: WSession, target: string): Promise<string> {
           const all = (root: any, selector: string): any[] => {
             let found: any[] = Array.from(root.querySelectorAll(selector));
             root.querySelectorAll('*').forEach((el: any) => {
-              if (el.shadowRoot) found = found.concat(all(el.shadowRoot, selector));
+              if (el.shadowRoot)
+                found = found.concat(all(el.shadowRoot, selector));
             });
             return found;
           };
-          const [shadowUpvote] = all(document, '[data-post-click-location] button');
+          const [shadowUpvote] = all(
+            document,
+            '[data-post-click-location] button',
+          );
           if (wanted.includes('upvote') && shadowUpvote) {
             shadowUpvote.setAttribute('data-weles-click', mark);
             return { desc: 'upvote (shadow)' };
@@ -175,9 +179,13 @@ export async function wsClick(s: WSession, target: string): Promise<string> {
             return Boolean(box.width && box.height) && el.offsetParent !== null;
           });
           const exact = controls.find((el) => words(el) === wanted);
-          const hit = exact ?? controls.find((el) => words(el).includes(wanted));
+          const hit =
+            exact ?? controls.find((el) => words(el).includes(wanted));
           if (!hit) return null;
-          (hit.querySelector('input[type="checkbox"]') ?? hit).setAttribute('data-weles-click', mark);
+          (hit.querySelector('input[type="checkbox"]') ?? hit).setAttribute(
+            'data-weles-click',
+            mark,
+          );
           return { desc: `${exact ? 'exact' : 'partial'}:${words(hit)}` };
         },
         { wanted: target.toLowerCase().trim(), mark: marker },

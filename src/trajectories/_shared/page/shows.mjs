@@ -43,10 +43,12 @@ export function rowShowingSource(wanted) {
   );
   const [match, ...duplicates] = matches;
   if (duplicates.length) {
-    throw new Error(`row_source_ambiguous: ${JSON.stringify({
-      wanted: name,
-      rows: matches.map((row) => words(row.innerText)),
-    })}`);
+    throw new Error(
+      `row_source_ambiguous: ${JSON.stringify({
+        wanted: name,
+        rows: matches.map((row) => words(row.innerText)),
+      })}`,
+    );
   }
   return rows.indexOf(match);
 }

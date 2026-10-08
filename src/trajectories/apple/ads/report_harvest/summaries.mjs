@@ -8,23 +8,21 @@ export function responseIsRelevant(response) {
 }
 
 export function sanitizeResponses(responses) {
-  return responses
-    .filter(responseIsRelevant)
-    .map((response) => {
-      const contentType = String(response.headers?.['content-type'] || '');
-      const body = String(response.body || '');
-      return {
-        ts: response.ts,
-        method: response.method,
-        url: response.url,
-        status: response.status,
-        contentType,
-        bodyLength: body.length,
-        bodyPreview: /json|text|javascript|html|xml/i.test(contentType)
-          ? body
-          : '',
-      };
-    });
+  return responses.filter(responseIsRelevant).map((response) => {
+    const contentType = String(response.headers?.['content-type'] || '');
+    const body = String(response.body || '');
+    return {
+      ts: response.ts,
+      method: response.method,
+      url: response.url,
+      status: response.status,
+      contentType,
+      bodyLength: body.length,
+      bodyPreview: /json|text|javascript|html|xml/i.test(contentType)
+        ? body
+        : '',
+    };
+  });
 }
 
 export function summarizeReport(pageState, responses) {
@@ -78,7 +76,9 @@ export function summarizeReport(pageState, responses) {
       ),
     ),
     relevantResponseCount: responses.length,
-    relevantResponseUrls: [...new Set(responses.map((response) => response.url))],
+    relevantResponseUrls: [
+      ...new Set(responses.map((response) => response.url)),
+    ],
   };
 }
 

@@ -141,7 +141,8 @@ async function openSignedIn(page, wait, login) {
   const asked = new Set();
   for (;;) {
     const opened = await openAuthenticatorSetup(page, wait);
-    if (opened.ok || opened.blocked !== 'google_sign_in_required') return opened;
+    if (opened.ok || opened.blocked !== 'google_sign_in_required')
+      return opened;
     const at = page.url();
     if (asked.has(at)) return opened;
     asked.add(at);

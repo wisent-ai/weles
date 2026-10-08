@@ -380,11 +380,9 @@ export function loginItemMethod(loginItem: string): string {
       itemId(candidate) === loginItem || candidate.item_uid === loginItem,
   );
   if (!item)
-    fail(
-      'login_item_not_found',
-      `Skarbiec lists no login item ${loginItem}`,
-      { login_item: loginItem },
-    );
+    fail('login_item_not_found', `Skarbiec lists no login item ${loginItem}`, {
+      login_item: loginItem,
+    });
   return text(metadata(item).login_method);
 }
 

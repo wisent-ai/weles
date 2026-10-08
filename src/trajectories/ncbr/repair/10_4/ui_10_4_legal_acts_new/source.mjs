@@ -47,7 +47,12 @@ export function rowNeedles(row) {
   // An "Inne" row carries its act at the start of the saved justification, so
   // the whole act names it; the row text is read with whitespace collapsed.
   if (row.kind === 'inne')
-    return [row.act.replace(/^Inne:\s*/, '').replace(/\s+/g, ' ').trim()];
+    return [
+      row.act
+        .replace(/^Inne:\s*/, '')
+        .replace(/\s+/g, ' ')
+        .trim(),
+    ];
   if (/odpadach/i.test(row.act)) return ['odpadach'];
   if (/Prawo ochrony środowiska/i.test(row.act))
     return ['Prawo ochrony środowiska'];

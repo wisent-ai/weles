@@ -6,7 +6,9 @@
 export function pickTimelinePost(capturedResponses, urlPattern) {
   const response = capturedResponses.find((r) => urlPattern.test(r.url));
   if (!response)
-    throw new Error(`no captured response matched ${urlPattern}, so there is no post to answer`);
+    throw new Error(
+      `no captured response matched ${urlPattern}, so there is no post to answer`,
+    );
   const texts = [];
   const visit = (node) => {
     if (Array.isArray(node)) {

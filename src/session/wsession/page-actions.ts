@@ -144,7 +144,10 @@ export async function wsJsClick(
           };
           const fire = (el: any) => {
             el.click();
-            if (el instanceof HTMLInputElement && (el.type === 'checkbox' || el.type === 'radio')) {
+            if (
+              el instanceof HTMLInputElement &&
+              (el.type === 'checkbox' || el.type === 'radio')
+            ) {
               el.checked = true;
               el.dispatchEvent(new Event('input', { bubbles: true }));
               el.dispatchEvent(new Event('change', { bubbles: true }));
@@ -162,7 +165,11 @@ export async function wsJsClick(
             document,
             'label,button,a,[role="button"],[role="checkbox"],[role="radio"],input[type="checkbox"],input[type="radio"]',
           )) {
-            const label = [el.textContent, el.getAttribute('aria-label'), el.getAttribute('name')]
+            const label = [
+              el.textContent,
+              el.getAttribute('aria-label'),
+              el.getAttribute('name'),
+            ]
               .filter(Boolean)
               .join(' ')
               .toLowerCase();
