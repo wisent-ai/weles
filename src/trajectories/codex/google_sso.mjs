@@ -36,6 +36,31 @@ import {
 export { establishGoogleSession } from './google_sso/google_credentials.mjs';
 export { waitForEnabledThenClick } from './google_sso/page_controls.mjs';
 
+// auth.openai.com answers the device-authorization page by sending the browser
+// on at once, and Chromium reports the navigation it replaced as
+// net::ERR_ABORTED although the browser landed where OpenAI sent it. That abort
+// is the redirect this flow expects, not a failure: the page settles, the stage
+// records where it landed, and the loop below reads that page.
+async function gotoAuthorize(page, authorizeUrl, mark) {
+  try {
+    await page.goto(authorizeUrl, { waitUntil: 'commit' });
+  } catch (error) {
+    if (
+      !/ERR_ABORTED|interrupted by another navigation/i.test(
+        String(error.message),
+      )
+    )
+      throw error;
+    await pageSettled(page);
+    mark('authorize_redirected');
+    console.log(
+      `[google_sso] ${authorizeUrl} was replaced by a redirect; the browser landed on ${page.url()}`,
+    );
+    return;
+  }
+  await pageSettled(page);
+}
+
 export async function doGoogleSso({
   page,
   login,
@@ -61,8 +86,7 @@ export async function doGoogleSso({
   });
 
   mark('goto_authorize');
-  await page.goto(authorizeUrl, { waitUntil: 'commit' });
-  await pageSettled(page);
+  await gotoAuthorize(page, authorizeUrl, mark);
 
   mark('gis_continue');
   // GIS handoff is non-deterministic (popup | in-page consent |
@@ -283,8 +307,7 @@ export async function doGoogleSso({
           ) {
             await completeEmailVerification(page, login, mark);
           }
-          await page.goto(authorizeUrl, { waitUntil: 'commit' });
-          await pageSettled(page);
+          await gotoAuthorize(page, authorizeUrl, mark);
           continue;
         }
         // An identifier field, an exact account row and an affirmative control
@@ -323,8 +346,7 @@ export async function doGoogleSso({
       console.log(
         `[google_sso] no terminal state after ${strategy} at ${where}; reloading authorizeUrl`,
       );
-      await page.goto(authorizeUrl, { waitUntil: 'commit' });
-      await pageSettled(page);
+      await gotoAuthorize(page, authorizeUrl, mark);
     }
     const d = await navEval(
       page,
