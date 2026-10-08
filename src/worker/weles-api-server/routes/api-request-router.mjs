@@ -57,6 +57,10 @@ import {
   respondToDocumentImport,
   respondToReauth,
 } from './trajectory-routes.mjs';
+import {
+  respondToAcquire,
+  respondToAuthorize,
+} from './subscriptions/account-routes.mjs';
 
 export function createApiRequestHandler({
   buildDeploymentVersionValue,
@@ -131,6 +135,8 @@ export function createApiRequestHandler({
             'POST /reauth/resolve',
             'POST /reauth',
             'POST /reauth/enrol-authenticator',
+            'POST /reauth/authorize',
+            'POST /subscriptions/acquire',
             'POST /google-ads/keyword-volume',
             'POST /google-ads/keyword-report',
             'POST /pages/snapshot',
@@ -329,6 +335,14 @@ export function createApiRequestHandler({
           selectLoginAccount,
           runTrajectory,
         );
+        return;
+      }
+      if (req.method === 'POST' && url.pathname === '/subscriptions/acquire') {
+        await respondToAcquire(req, res);
+        return;
+      }
+      if (req.method === 'POST' && url.pathname === '/reauth/authorize') {
+        await respondToAuthorize(req, res, selectLoginAccount);
         return;
       }
       if (isPageRoute(req, url)) {

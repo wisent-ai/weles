@@ -7,6 +7,8 @@
     "codex/login": ["display", "browser-render"],
     "kimi/reauth": ["display", "browser-render"],
     "claude/reauth": ["display", "browser-render"],
+    "claude/account/acquire": ["display", "browser-render"],
+    "claude/account/authorize": ["display", "browser-render"],
     "codex/reauth": []
   }
 }

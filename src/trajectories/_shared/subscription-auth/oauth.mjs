@@ -19,6 +19,9 @@ const CLAUDE = {
     'user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload',
 };
 
+/** Each provider's authorize page, for callers that check a URL against it. */
+export const AUTHORIZE_PAGES = { claude: CLAUDE.authorize };
+
 export class AuthenticationFailure extends Error {
   constructor(code, stage, message, status = null) {
     super(message);

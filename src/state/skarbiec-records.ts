@@ -143,6 +143,19 @@ export function writeDocument(id: string, document: Record<string, any>): void {
   skarbiec(['set-json', id], JSON.stringify(document));
 }
 
+/** Write item `id` as `type` carrying exactly `tags`, the payload on stdin. */
+export function writeTaggedDocument(
+  id: string,
+  type: string,
+  document: Record<string, any>,
+  tags: string[],
+): void {
+  skarbiec(
+    ['set-json', id, '--type', type, '--tags', tags.join(',')],
+    JSON.stringify(document),
+  );
+}
+
 export function listServiceMetadata(
   category?: string,
 ): Array<Record<string, any>> {

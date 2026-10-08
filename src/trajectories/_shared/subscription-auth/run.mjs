@@ -6,6 +6,7 @@ import {
 import { requireCapabilities } from '../auth/capabilities.mjs';
 import { beginOAuth, finishOAuth, AuthenticationFailure } from './oauth.mjs';
 import { authorizeInBrowser } from './browser.mjs';
+import { declaredRedirect } from './redirect.mjs';
 
 let stage = 'identity';
 let browserStarted = false;
@@ -130,3 +131,59 @@ export async function reauthenticate(provider) {
     fail(error, provider);
   }
 }
+
+/** Complete the authorization a harness started (`WELES_AUTHORIZE_URL`) as
+ * the selected account, and print the provider's redirect for that harness. */
+export async function authorizeForHarness(provider) {
+  try {
+    mark('identity');
+    const account = selectedAccount(provider);
+    const login = readLoginMaterial(account);
+    requireCapabilities(`${provider}/account/authorize`);
+    const url = process.env.WELES_AUTHORIZE_URL;
+    if (!url)
+      throw new AuthenticationFailure(
+        'authorize_url_required',
+        'identity',
+        'The authorization request must carry the authorize URL the harness printed',
+      );
+    mark('browser_login');
+    const redirect = await authorizeInBrowser(
+      account,
+      login,
+      { provider, url, redirectUri: declaredRedirect(url) },
+      mark,
+    );
+    process.stdout.write(
+      `${JSON.stringify({
+        ok: true,
+        subscription_id: account.subscriptionId,
+        login_item: account.loginItem,
+        redirect_url: redirect,
+      })}\n`,
+    );
+  } catch (error) {
+    fail(error, provider);
+  }
+}
+
+/** Sign `account` in for Brama inside a browser session already signed in
+ * to the provider, and persist the grant on its subscription item. */
+export async function signInWithin(provider, account, session) {
+  const login = readLoginMaterial(account);
+  mark('oauth_start');
+  const transaction = await beginOAuth(provider);
+  const displayed = await authorizeInBrowser(
+    account,
+    login,
+    transaction,
+    mark,
+    session,
+  );
+  mark('token_exchange');
+  const credential = await finishOAuth(transaction, login.email, displayed);
+  mark('credential_persist');
+  persistSubscriptionGrant(account, credential);
+}
+
+export { fail as reportFailure, mark as markStage };

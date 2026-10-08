@@ -30,7 +30,7 @@ export const loginMethodDeclaration = (item: Item): string => {
     (value: string) =>
       typeof value === 'string' && !value.startsWith('weles:login-method:'),
   );
-  const tags = [...kept, 'weles:login-method:<google_sso|email_password>'].join(
+  const tags = [...kept, 'weles:login-method:<google_sso|email_password|email_code>'].join(
     ',',
   );
   return `stado credentials item retag --host <vault owner> ${itemId(item)} --tags ${tags}`;

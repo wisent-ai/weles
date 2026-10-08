@@ -29,6 +29,11 @@ export interface LoginAccount {
   accountRevision: string;
 }
 
+/** How a login row may sign in: through Google, with a password, or with the
+ * one-time code the provider mails to an inbound address Weles reads (the
+ * accounts an acquisition buys). */
+export const LOGIN_METHODS = ['google_sso', 'email_password', 'email_code'];
+
 export class LoginAccountSelectionError extends Error {
   constructor(
     readonly code: string,
@@ -300,7 +305,7 @@ function resolveAccount(
   );
   const login = eligible[0];
   const method = text(login.context.login_method) || text(context.login_method);
-  if (!['google_sso', 'email_password'].includes(method))
+  if (!LOGIN_METHODS.includes(method))
     fail(
       'login_method_unsupported',
       `Skarbiec login ${itemId(login.item)} declares unsupported login_method ${method || '(absent)'}; declare how to sign in with \`${loginMethodDeclaration(login.item)}\``,
@@ -429,7 +434,10 @@ export function readLoginMaterial(account: LoginAccount): {
         login_item: account.loginItem,
       },
     );
-  if (typeof fields.password !== 'string' || !fields.password)
+  if (
+    account.loginMethod !== 'email_code' &&
+    (typeof fields.password !== 'string' || !fields.password)
+  )
     fail(
       'login_password_missing',
       `Skarbiec login ${account.loginItem} has no password for the declared login method`,
@@ -440,7 +448,7 @@ export function readLoginMaterial(account: LoginAccount): {
     );
   return {
     email,
-    password: fields.password,
+    password: typeof fields.password === 'string' ? fields.password : '',
     loginMethod: account.loginMethod,
     ...(text(fields.totp_secret)
       ? { totpSecret: text(fields.totp_secret) }

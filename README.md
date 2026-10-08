@@ -208,6 +208,40 @@ waiting for. A refusal before a run is admitted is a plain JSON answer with
 its HTTP status. The run's record (`GET /diagnostics/<run>`, `run-result.json`)
 holds the stages reached so far while it runs.
 
+Two more runs are admitted by Brama's token and answer the same
+`application/x-ndjson` stream. `POST /subscriptions/acquire` (`provider`
+`claude`, `subscription_id` Brama chose, `plan_tier` such as
+`default_claude_max_20x`, `reason`) buys one Claude account: a fresh identity
+on an inbound domain Weles reads, the claude.ai sign-up with the code it
+mails (stages `email_code_requested`, `email_code_waiting`,
+`email_code_entered`, `onboarding`, `account_created`), the login row
+(`weles-login-<subscription>`, `login_method` `email_code`) and the
+subscription item (`brama-sub-<subscription>`, tagged `brama:subscription`,
+`brama:provider:claude-code`, `brama:id:`, `brama:account:`, `brama:login:`)
+written to the vault (`account_banked`), the Max plan with the multiplier the
+tier names paid with the purchase card (`plan_page`, `card_entry`,
+`payment_submitted`, `payment_challenge` with an `operator_request` of kind
+`payment_approval` when the card issuer holds the payment, `plan_paid`), and
+the account signed in for Brama in the same browser (`oauth_consent`,
+`token_exchange`, `credential_persist`). The `result` names `account`,
+`subscription_item`, `login_item` and `paid` whenever they exist, also when a
+later step failed, so a paid account is never unnamed. Failures are named:
+`plan_tier_unknown`, `purchase_card_missing`, `purchase_card_incomplete`,
+`phone_verification_required`, `onboarding_page_unrecognized`,
+`plan_choice_missing`, `plan_proceed_missing`, `card_entry_failed`,
+`payment_submit_missing`, `payment_declined`, `email_code_unreadable`, each
+with the page and its DOM snapshot where a page was involved.
+
+`POST /reauth/authorize` (`provider`, `subscription_id`, `authorize_url`)
+completes one OAuth authorization a coding-agent harness started, as the
+subscription's account: only the provider's own authorize page is driven, and
+only when its `redirect_uri` is the harness's `localhost` listener
+(`authorize_url_refused` otherwise). The browser catches that redirect
+(`oauth_redirect`) and `result.redirect_url` carries it back, so the harness
+(`omp login anthropic`, which reads "the final redirect URL" on stdin) mints
+and refreshes its own grant with the verifier only it holds. A login row may
+sign in with `google_sso`, `email_password` or `email_code`.
+
 A run's record shows the last stage it reached, not that it has stood on one
 page for an hour, and a sign-in is coalesced per account: every later sign-in
 of that account joins the run already under way. `weles runs list` (`GET

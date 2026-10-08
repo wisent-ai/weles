@@ -348,15 +348,32 @@ export const REAUTH_PROVIDERS = new Set(['codex', 'claude', 'kimi']);
 // happens: `started` with the run id, `stage` for every `STEP` line the
 // trajectory writes, and `operator_request` when the run opens one and so
 // waits for the operator. The finished run records every stage it passed.
-export function runReauth(provider, account, onProgress = () => {}) {
+//
+// The same runner carries the two other runs Brama orders for one account:
+// `acquire` (buy a new account and sign it in) and `authorize` (complete one
+// OAuth authorization a harness started). `trajectory` names the file under
+// src/trajectories/<provider>/, `env` adds what that run is told, and the
+// trajectory's last JSON line on stdout is the result's `answer`.
+export function runReauth(
+  provider,
+  account,
+  onProgress = () => {},
+  trajectory = 'reauth',
+  env = {},
+) {
   return new Promise((resolveRun) => {
-    const trajPath = resolve(REPO, 'src/trajectories', provider, 'reauth.mjs');
+    const trajPath = resolve(
+      REPO,
+      'src/trajectories',
+      provider,
+      `${trajectory}.mjs`,
+    );
     if (!existsSync(trajPath)) {
-      resolveRun({ ok: false, error: 'no_reauth_trajectory', provider });
+      resolveRun({ ok: false, error: `no_${trajectory}_trajectory`, provider });
       return;
     }
     const runId = randomUUID();
-    const action = `${provider}_reauth`;
+    const action = `${provider}_${trajectory.replaceAll('/', '_')}`;
     const startedAt = new Date().toISOString();
     const runResultPath = join(RUN_RESULTS_DIR, `${runId}.json`);
     try {
@@ -394,6 +411,7 @@ export function runReauth(provider, account, onProgress = () => {}) {
                 : {}),
             }
           : {}),
+        ...env,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: process.platform !== 'win32',
@@ -566,6 +584,7 @@ export function runReauth(provider, account, onProgress = () => {}) {
         failure:
           exitCode === 0 ? null : credentialFailure({ stderr_tail: stderr }),
         second_factor: lastJsonLine(stdout)?.second_factor ?? null,
+        answer: lastJsonLine(stdout) ?? null,
         provider,
         login_item: account ? account.loginItem : null,
         display_name: account ? account.displayName : null,

@@ -13,6 +13,8 @@ import {
   observeGisPage,
 } from '../../claude/google_sso/gis_state/page_reading.mjs';
 import { AuthenticationFailure } from './oauth.mjs';
+import { emailCodeSignIn, grantConsent } from './email_code.mjs';
+import { captureRedirect } from './redirect.mjs';
 
 const controls = { humanFill, humanType, humanClickLocator };
 
@@ -165,30 +167,70 @@ async function approveDevice(session, transaction, login, mark) {
   }
 }
 
-/** The session is owned by Weles on its selected host; no OS browser opener runs. */
-export async function authorizeInBrowser(account, login, transaction, mark) {
-  const session = await WSession.start({
-    label: `subscription-${account.subscriptionId}`,
-    browser: 'chromium',
-    headless: false,
-  });
+/** The session is owned by Weles on its selected host; no OS browser opener runs.
+ *
+ * `transaction.redirectUri`, when set, is a harness's own callback listener:
+ * the provider's redirect to it is caught in the browser and its URL is the
+ * answer instead of the code a console page shows. `reuse` is a session an
+ * acquisition already signed in; it is driven and left open for its owner. */
+export async function authorizeInBrowser(
+  account,
+  login,
+  transaction,
+  mark,
+  reuse = null,
+) {
+  const session =
+    reuse ??
+    (await WSession.start({
+      label: `subscription-${account.subscriptionId}`,
+      browser: 'chromium',
+      headless: false,
+    }));
   try {
     mark('browser_started');
     if (transaction.provider === 'claude') {
-      const page =
+      const redirected = transaction.redirectUri
+        ? await captureRedirect(session.page.context(), transaction.redirectUri)
+        : null;
+      const signedIn =
         login.loginMethod === 'google_sso'
-          ? await claudeGoogle({
+          ? claudeGoogle({
               page: session.page,
               login,
               authorizeUrl: transaction.url,
               mark,
               ...controls,
             })
-          : await (async () => {
+          : (async () => {
               await session.goto(transaction.url);
-              await emailPassword(session, login);
+              if (login.loginMethod === 'email_code') {
+                if (!reuse)
+                  await emailCodeSignIn(session, login, 'anthropic', mark);
+                await grantConsent(session.page, mark);
+              } else {
+                await emailPassword(session, login);
+              }
               return session.page;
             })();
+      if (redirected) {
+        // The redirect ends the walk whichever way the page got there. A
+        // sign-in step that fails after the redirect was caught is moot, and
+        // one that fails before it is the failure.
+        const walked = signedIn.then(
+          () => ({ failed: false }),
+          (error) => ({ failed: true, error }),
+        );
+        const url = await Promise.race([
+          redirected.captured,
+          walked.then((walk) =>
+            walk.failed ? Promise.reject(walk.error) : redirected.captured,
+          ),
+        ]);
+        mark('oauth_redirect');
+        return url;
+      }
+      const page = await signedIn;
       mark('oauth_callback');
       return await displayedCode(page);
     }
@@ -221,6 +263,6 @@ export async function authorizeInBrowser(account, login, transaction, mark) {
     await approveDevice(session, transaction, login, mark);
     return null;
   } finally {
-    await session.close();
+    if (!reuse) await session.close();
   }
 }
