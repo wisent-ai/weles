@@ -82,6 +82,29 @@ async function signIn(page, wait, login) {
   return { ok: true };
 }
 
+/**
+ * Reach the authenticator setup page, signing in whenever Google asks. After
+ * the first sign-in Google asks again ("Verify it's you", the password once
+ * more) before it shows a security setting, so the page is reopened after
+ * each sign-in. It ends when Google asks again at an address it already
+ * asked at after a sign-in: signing in once more there cannot change its
+ * answer. Run 5a61d47d stopped at `google_sign_in_required` right after the
+ * operator's phone approval, because the page was reopened only once.
+ */
+async function openSignedIn(page, wait, login) {
+  const asked = new Set();
+  for (;;) {
+    const opened = await openAuthenticatorSetup(page, wait);
+    if (opened.ok || opened.blocked !== 'google_sign_in_required') return opened;
+    const at = page.url();
+    if (asked.has(at)) return opened;
+    asked.add(at);
+    const signedIn = await signIn(page, wait, login);
+    if (!signedIn.ok) return signedIn;
+    mark('authenticator_setup_reopen');
+  }
+}
+
 async function main() {
   const loginItem = String(process.env.WELES_LOGIN_ITEM || '').trim();
   if (!loginItem) {
@@ -108,22 +131,7 @@ async function main() {
   const wait = () => pageSettled(page);
   try {
     mark('authenticator_setup_open');
-    let opened = await openAuthenticatorSetup(page, wait);
-    if (!opened.ok && opened.blocked === 'google_sign_in_required') {
-      const signedIn = await signIn(page, wait, login);
-      if (!signedIn.ok) {
-        report({
-          ok: false,
-          login_item: loginItem,
-          email: login.email,
-          ...signedIn,
-        });
-        process.exitCode = 3;
-        return;
-      }
-      mark('authenticator_setup_reopen');
-      opened = await openAuthenticatorSetup(page, wait);
-    }
+    const opened = await openSignedIn(page, wait, login);
     if (!opened.ok) {
       report({
         ok: false,
