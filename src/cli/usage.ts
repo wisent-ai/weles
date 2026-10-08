@@ -50,7 +50,6 @@ Usage:
   weles onboarding verify --receipt <receipt.json> --keys <receipt-keys.json> [--subject <stable-id>] [--json]
   weles import <trajectory-export.json> --host <managed-worker-hostname> [--json]
   weles open <url> [--headless] [--browser chromium|firefox] [--wait-for-text <text>] [--text] [--screenshot <file>] [--json]
-  weles screenshot <url> <file> [--headless] [--browser chromium|firefox] [--wait-for-text <text>] [--json]
   weles mcp
   weles release surface [--root <directory>]
   weles release enforce-version --decision <file> --baseline <file> --declaration <file> --manifest <file> [--json]

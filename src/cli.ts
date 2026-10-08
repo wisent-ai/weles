@@ -24,7 +24,6 @@ type CliCommand =
   | 'version'
   | 'doctor'
   | 'open'
-  | 'screenshot'
   | 'mcp'
   | 'onboarding'
   | 'import'
@@ -122,7 +121,6 @@ function normalizeCommand(command?: string): CliCommand {
   if (
     command === 'doctor' ||
     command === 'open' ||
-    command === 'screenshot' ||
     command === 'mcp' ||
     command === 'onboarding' ||
     command === 'import' ||
@@ -266,13 +264,6 @@ async function runOpen(parsed: ParsedCli): Promise<void> {
   printAnswer(out, parsed.options.json === true);
 }
 
-async function runScreenshot(parsed: ParsedCli): Promise<void> {
-  const [url, file] = parsed.positional;
-  if (!url || !file) throw new UsageError('screenshot requires <url> <file>');
-  parsed.options.screenshot = file;
-  await runOpen(parsed);
-}
-
 export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   const parsed = parseCliArgs(argv);
   if (parsed.command === 'help') {
@@ -302,10 +293,6 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   }
   if (parsed.command === 'open') {
     await runOpen(parsed);
-    return;
-  }
-  if (parsed.command === 'screenshot') {
-    await runScreenshot(parsed);
     return;
   }
   if (parsed.command === 'import') {
