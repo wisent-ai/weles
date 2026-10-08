@@ -2,8 +2,8 @@
 // trajectory so longitudinal analysis can scope by code version and stop
 // conflating outcomes produced by two different commits of the same
 // trajectory name. Until this writes to result.versions the table is silent
-// about which dist produced each row — the Mac mini's pre-00d646b dist was
-// silently ignoring FORCE_EMAIL_DOMAIN and we had no way to tell from the row.
+// about which dist produced each row — a host's older dist was silently
+// ignoring FORCE_EMAIL_DOMAIN and we had no way to tell from the row.
 
 import { execSync } from 'node:child_process';
 import { readFileSync, readdirSync, statSync } from 'node:fs';

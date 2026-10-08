@@ -3,7 +3,7 @@
 // captured HAR into a structured, SQL-queryable verdict — so "what captcha did
 // this proxy get, did it pass, and why" is a field, not a manual HAR dig.
 //
-// Grounded in real captures (4ef1c68e datacenter vs 337b88f3 residential):
+// Grounded in real captures (a datacenter run vs a residential run):
 //   - reload  body: ["rresp", tok, null, ttl, pmeta, type, ...]
 //       type  = "multicaptcha" (hard, multi-object grid) | "dynamic" (single object)
 //       pmeta = grid dims + object machine-ids (Knowledge-Graph /m/... codes)

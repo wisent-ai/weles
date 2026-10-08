@@ -125,8 +125,8 @@ const ROUTES: Record<string, (p: string) => string | null> = {
         : null,
   ads_cli_campaign: (p) =>
     p === 'meta' ? 'src/trajectories/meta/ads/cli/ads_cli_campaign.mjs' : null,
-  // Google's API campaign, performance and update trajectories were deleted in
-  // 5c639794 while these three entries kept resolving to them, so a queued
+  // Google's API campaign, performance and update trajectories were deleted
+  // while these three entries kept resolving to them, so a queued
   // google task passed dispatch and then died on the host with a
   // module-not-found. Resolving to nothing is the refusal the caller can read.
   ads_api_campaign: (p) =>
