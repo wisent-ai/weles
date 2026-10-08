@@ -42,7 +42,9 @@ function admit(req, res) {
       : http.HTTP_STATUS_INTERNAL_SERVER_ERROR,
     {
       ok: false,
-      error: BRAMA_REAUTH_TOKEN ? 'unauthorized' : 'missing_BRAMA_WELES_REAUTH_TOKEN',
+      error: BRAMA_REAUTH_TOKEN
+        ? 'unauthorized'
+        : 'missing_BRAMA_WELES_REAUTH_TOKEN',
     },
   );
   return false;
@@ -218,7 +220,11 @@ export async function respondToAuthorize(req, res, selectLoginAccount) {
   const provider = text(body.provider).toLowerCase();
   const subscriptionId = text(body.subscription_id);
   const authorizeUrl = text(body.authorize_url);
-  if (!Object.hasOwn(AUTHORIZE_PAGES, provider) || !subscriptionId || !authorizeUrl) {
+  if (
+    !Object.hasOwn(AUTHORIZE_PAGES, provider) ||
+    !subscriptionId ||
+    !authorizeUrl
+  ) {
     refuse(
       res,
       'authorization_incomplete',

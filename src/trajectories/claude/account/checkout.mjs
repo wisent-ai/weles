@@ -94,9 +94,19 @@ export async function buyPlan(session, tier, mark) {
   await pageSettled(page);
   mark('plan_page');
   if (!(await clickNamed(page, new RegExp(`\\b${multiplier}\\b`, 'i'))))
-    await failOnPage(page, 'plan_choice_missing', 'checkout', `the Max page offers no ${label} choice`);
+    await failOnPage(
+      page,
+      'plan_choice_missing',
+      'checkout',
+      `the Max page offers no ${label} choice`,
+    );
   if (!(await clickNamed(page, PROCEED)))
-    await failOnPage(page, 'plan_proceed_missing', 'checkout', `the Max page offers no control to buy ${label}`);
+    await failOnPage(
+      page,
+      'plan_proceed_missing',
+      'checkout',
+      `the Max page offers no control to buy ${label}`,
+    );
   mark('card_entry');
   const entered = await fillStripeElements(page, purchaseCard);
   if (!entered.ok)
@@ -114,7 +124,12 @@ export async function buyPlan(session, tier, mark) {
   )
     await humanFill(page, nameField, purchaseCard.name);
   if (!(await clickNamed(page, PAY)))
-    await failOnPage(page, 'payment_submit_missing', 'checkout', 'the payment form offers no control to pay');
+    await failOnPage(
+      page,
+      'payment_submit_missing',
+      'checkout',
+      'the payment form offers no control to pay',
+    );
   mark('payment_submitted');
   for (;;) {
     const outcome = await pageCondition(
@@ -122,13 +137,17 @@ export async function buyPlan(session, tier, mark) {
       (challenge) => {
         const text = document.body.innerText;
         if (
-          /declined|was not successful|insufficient funds|could not be processed|payment failed/i.test(text)
+          /declined|was not successful|insufficient funds|could not be processed|payment failed/i.test(
+            text,
+          )
         )
           return 'declined';
         if (document.querySelector(challenge)) return 'challenge';
         if (
           location.pathname.startsWith('/new') ||
-          /welcome to (claude )?max|you.re (now )?(on|subscribed)|thanks for (upgrading|subscribing)|subscription is active/i.test(text)
+          /welcome to (claude )?max|you.re (now )?(on|subscribed)|thanks for (upgrading|subscribing)|subscription is active/i.test(
+            text,
+          )
         )
           return 'paid';
         return false;
@@ -140,7 +159,12 @@ export async function buyPlan(session, tier, mark) {
       return { plan: label, tier };
     }
     if (outcome === 'declined')
-      await failOnPage(page, 'payment_declined', 'checkout', `claude.ai refused the card for ${label}`);
+      await failOnPage(
+        page,
+        'payment_declined',
+        'checkout',
+        `claude.ai refused the card for ${label}`,
+      );
     mark('payment_challenge');
     requestApproval(label);
     await pageCondition(

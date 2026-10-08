@@ -31,7 +31,9 @@ export async function waitForMailedCode(session, email, sender, mark) {
 export async function emailCodeSignIn(session, login, sender, mark) {
   const page = session.page;
   const email = page
-    .locator('input[type="email"],input[autocomplete="email"],input[name="email"]')
+    .locator(
+      'input[type="email"],input[autocomplete="email"],input[name="email"]',
+    )
     .filter({ visible: true })
     .first();
   await email.waitFor({ state: 'visible' });

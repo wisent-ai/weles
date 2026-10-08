@@ -26,7 +26,11 @@ try {
   const refused = (answer, error) => {
     assert.equal(answer.status, http.HTTP_STATUS_BAD_REQUEST);
     assert.equal(answer.value.error, error);
-    assert.equal(answer.value.run_id, undefined, 'a refusal must not start a run');
+    assert.equal(
+      answer.value.run_id,
+      undefined,
+      'a refusal must not start a run',
+    );
   };
 
   // The general worker bearer does not admit a purchase.
@@ -95,7 +99,11 @@ try {
   report.status = 'passed';
 } catch (error) {
   report.status = 'failed';
-  report.error = { name: error.name, message: error.message, stack: error.stack };
+  report.error = {
+    name: error.name,
+    message: error.message,
+    stack: error.stack,
+  };
   process.exitCode = 1; // https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/stdlib.h.html
 } finally {
   await evidence.finish();

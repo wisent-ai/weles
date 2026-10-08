@@ -15,14 +15,16 @@ const LOGIN_PAGE = new URL('/login', 'https://claude.ai');
 const APP_PATHS = /^\/(new|chats?|recents)\b/;
 
 /** The controls onboarding pages move on with. */
-const ADVANCE = /^(continue|next|get started|agree|accept|let.s go|done|skip|start)/i;
+const ADVANCE =
+  /^(continue|next|get started|agree|accept|let.s go|done|skip|start)/i;
 
 /** A name field onboarding asks to be filled. */
 const NAME_FIELD =
   'input[name*="name" i],input[placeholder*="name" i],input[autocomplete="name"],input[autocomplete="given-name"]';
 
 /** Confirmations onboarding asks to be ticked: age and terms. */
-const CONSENT = /years old|of age|age requirement|terms|agree|policy|acknowledge/i;
+const CONSENT =
+  /years old|of age|age requirement|terms|agree|policy|acknowledge/i;
 
 async function fillName(page, identity) {
   const field = page.locator(NAME_FIELD).filter({ visible: true }).first();
