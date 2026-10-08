@@ -10,7 +10,16 @@
   "platforms": {
     "darwin-arm64": {
       "runner_platform": "darwin-arm64",
-      "quality": [{"name": "fmt", "argv": ["bash", "release/fmt.sh", "--check"]}],
+      "quality": [
+        {
+          "name": "fmt",
+          "argv": [
+            "bash",
+            "release/fmt.sh",
+            "--check"
+          ]
+        }
+      ],
       "build": {
         "argv": [
           "bash",
@@ -27,7 +36,16 @@
     },
     "linux-amd64": {
       "runner_platform": "linux-amd64",
-      "quality": [{"name": "fmt", "argv": ["bash", "release/fmt.sh", "--check"]}],
+      "quality": [
+        {
+          "name": "fmt",
+          "argv": [
+            "bash",
+            "release/fmt.sh",
+            "--check"
+          ]
+        }
+      ],
       "build": {
         "argv": [
           "bash",
@@ -50,6 +68,7 @@
     "state_schema": 1,
     "minimum_stado_version": "0.15.9",
     "rollback_compatible_with": [
+      "0.7.57",
       "0.7.56",
       "0.7.55",
       "0.7.54",
