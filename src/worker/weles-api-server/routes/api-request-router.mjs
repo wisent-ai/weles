@@ -58,6 +58,7 @@ import {
   respondToReauth,
 } from './trajectory-routes.mjs';
 import {
+  respondToAccounts,
   respondToAcquire,
   respondToAuthorize,
 } from './subscriptions/account-routes.mjs';
@@ -71,6 +72,7 @@ export function createApiRequestHandler({
   accountRecords,
   publicTaskService,
   runTrajectory,
+  listLoginAccounts,
   selectLoginAccount,
   validateAccountSecurityParams,
   validateAppPasswordParams,
@@ -137,6 +139,7 @@ export function createApiRequestHandler({
             'POST /reauth/enrol-authenticator',
             'POST /reauth/authorize',
             'POST /subscriptions/acquire',
+            'POST /reauth/accounts',
             'POST /google-ads/keyword-volume',
             'POST /google-ads/keyword-report',
             'POST /pages/snapshot',
@@ -343,6 +346,10 @@ export function createApiRequestHandler({
       }
       if (req.method === 'POST' && url.pathname === '/reauth/authorize') {
         await respondToAuthorize(req, res, selectLoginAccount);
+        return;
+      }
+      if (req.method === 'POST' && url.pathname === '/reauth/accounts') {
+        await respondToAccounts(req, res, listLoginAccounts);
         return;
       }
       if (isPageRoute(req, url)) {

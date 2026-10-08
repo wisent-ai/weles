@@ -262,3 +262,44 @@ export async function respondToAuthorize(req, res, selectLoginAccount) {
     (said) => ({ redirect_url: said.redirect_url }),
   );
 }
+
+// POST /reauth/accounts: the accounts of one provider the vault's
+// subscriptions resolve to, with no secret: subscription id, account and
+// login row. A machine that holds no vault of its own (the operator's laptop)
+// reads them here to know which accounts its harness lacks, because Weles
+// resolves them from the same vault it completes their authorization from.
+// Subscriptions that do not resolve are in `errors` with their own refusal.
+export async function respondToAccounts(req, res, listLoginAccounts) {
+  if (!admit(req, res)) return;
+  let body;
+  try {
+    body = await readBody(req);
+  } catch (e) {
+    refuse(res, 'body_unreadable', e.message);
+    return;
+  }
+  const provider = text(body.provider).toLowerCase();
+  if (!Object.hasOwn(AUTHORIZE_PAGES, provider)) {
+    refuse(
+      res,
+      'provider_unsupported',
+      `Weles lists accounts of ${Object.keys(AUTHORIZE_PAGES).join(', ')}; "${provider}" is not one of them`,
+    );
+    return;
+  }
+  // `errors` holds every subscription of every provider that did not
+  // resolve: an unresolved one names no provider account to filter it by.
+  const listed = listLoginAccounts();
+  json(res, http.HTTP_STATUS_OK, {
+    ok: true,
+    provider,
+    accounts: listed.accounts
+      .filter((account) => account.provider === provider)
+      .map((account) => ({
+        subscription_id: account.subscriptionId,
+        account: account.accountRef,
+        login_item: account.loginItem,
+      })),
+    errors: listed.errors,
+  });
+}

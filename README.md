@@ -241,6 +241,12 @@ only when its `redirect_uri` is the harness's `localhost` listener
 (`omp login anthropic`, which reads "the final redirect URL" on stdin) mints
 and refreshes its own grant with the verifier only it holds. A login row may
 sign in with `google_sso`, `email_password` or `email_code`.
+`POST /reauth/accounts` (`provider`) answers, without starting anything,
+which accounts the vault's subscriptions of that provider resolve to
+(`accounts`: `subscription_id`, `account`, `login_item`) and every
+subscription that does not resolve, with its refusal (`errors`). A machine
+that holds no vault of its own (where `brama subscription hand-over` signs
+the pool's accounts into omp) reads the pool here.
 
 A run's record shows the last stage it reached, not that it has stood on one
 page for an hour, and a sign-in is coalesced per account: every later sign-in

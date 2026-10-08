@@ -79,7 +79,7 @@ const { buildDeploymentVersionValue } = await import(
   `${REPO}/dist/worker/release/deployment_version.js`
 );
 // The subscription and login identities are resolved from Skarbiec per request.
-const { selectLoginAccount } = await import(
+const { listLoginAccounts, selectLoginAccount } = await import(
   `${REPO}/dist/utils/login-accounts.js`
 );
 const { readPrivateStadoObjectIdentity, uploadArtifacts } = await import(
@@ -188,6 +188,7 @@ const server = http.createServer(
     accountRecords,
     publicTaskService,
     runTrajectory,
+    listLoginAccounts,
     selectLoginAccount,
     validateAccountSecurityParams,
     validateAppPasswordParams,
