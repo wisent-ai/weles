@@ -13,7 +13,10 @@
 // Input: WELES_LOGIN_ITEM, the Skarbiec login item (username, password,
 // totp_secret). Output: one JSON result on stdout and in the run's output
 // directory; every stop is named.
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { createConnection, createServer } from 'node:net';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { runOutputPath } from '#run-output';
 import { completeGooglePhoneApproval } from '../../_shared/services/google_sso/sign_in/challenge/phone.mjs';
@@ -22,6 +25,7 @@ import {
   readDocument,
   writeDocument,
 } from '../../../../dist/state/skarbiec-records.js';
+import { loginItemMethod } from '../../../../dist/utils/login-accounts.js';
 import {
   confirmSetupCode,
   onSignIn,
@@ -39,6 +43,48 @@ import {
 import { pageSettled } from '../../_shared/page/settled.mjs';
 const RESULT_DIR = runOutputPath('google-authenticator-enrol');
 const RESULT_FILE = join(RESULT_DIR, 'result.json');
+/// The one login method that has an authenticator to enrol.
+const GOOGLE_LOGIN_METHOD = 'google_sso';
+/// Where a running enrolment holds its Google account.
+const CLAIM_DIR = join(homedir(), '.weles', 'locks');
+
+/// Hold one Google account for this enrolment, or name the live enrolment
+/// that holds it. One account has one profile and one authenticator setup
+/// page, so a second run beside the first would fight it over both, whoever
+/// asked for it — Brama by subscription or Stado by login item. The claim is
+/// a socket listening under the account's digest: the kernel closes it with
+/// this process, so a crashed enrolment holds nothing, and a socket file that
+/// nothing answers on is taken over.
+async function claimAccount(account, loginItem) {
+  mkdirSync(CLAIM_DIR, { recursive: true });
+  const path = join(
+    CLAIM_DIR,
+    `${createHash('sha256').update(account.toLowerCase()).digest('base64url')}.sock`,
+  );
+  for (;;) {
+    const server = createServer((socket) =>
+      socket.end(JSON.stringify({ login_item: loginItem, pid: process.pid })),
+    );
+    const listening = await new Promise((resolve, reject) => {
+      server.once('error', (error) =>
+        error?.code === 'EADDRINUSE' ? resolve(false) : reject(error),
+      );
+      server.listen(path, () => resolve(true));
+    });
+    if (listening) return { server };
+    const holder = await new Promise((resolve) => {
+      let said = '';
+      const probe = createConnection(path);
+      probe.on('data', (chunk) => {
+        said += chunk;
+      });
+      probe.once('end', () => resolve(JSON.parse(said)));
+      probe.once('error', () => resolve(null));
+    });
+    if (holder) return { holder };
+    rmSync(path, { force: true });
+  }
+}
 
 // Every exit of this trajectory goes through here, so a missing directory
 // turns each one into `ENOENT … /runs/google-authenticator-enrol/result.json`
@@ -117,6 +163,44 @@ async function main() {
     return;
   }
   const login = loginMaterial(loginItem);
+  // The enrolment Weles ships is Google's. A password-only login has no
+  // authenticator to enrol, and a run for it would end in a verdict that
+  // says nothing about why.
+  const method = loginItemMethod(loginItem);
+  if (!method) {
+    throw refusal(
+      'authenticator_enrolment_undeclared_login_method',
+      `Skarbiec login ${loginItem} declares no login_method (context login_method or a weles:login-method: tag); an authenticator is enrolled only on a ${GOOGLE_LOGIN_METHOD} login`,
+    );
+  }
+  if (method !== GOOGLE_LOGIN_METHOD) {
+    throw refusal(
+      'authenticator_enrolment_unsupported_login_method',
+      `Skarbiec login ${loginItem} signs in with ${method}; an authenticator is enrolled only on a ${GOOGLE_LOGIN_METHOD} login`,
+    );
+  }
+  const claim = await claimAccount(login.email, loginItem);
+  if (claim.holder) {
+    throw refusal(
+      'authenticator_enrolment_in_progress',
+      `Google account of ${loginItem} is already enrolling through login item ${claim.holder.login_item} (pid ${claim.holder.pid})`,
+    );
+  }
+  try {
+    await enrol(loginItem, login);
+  } finally {
+    claim.server.close();
+  }
+}
+
+/// A named stop: `main().catch` reports its code as the run's `blocked`.
+function refusal(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+async function enrol(loginItem, login) {
   // One persistent profile per GOOGLE ACCOUNT, not per login item: a profile
   // per item stops at `google_push_not_approved` for an account already
   // signed in from this host under another row.

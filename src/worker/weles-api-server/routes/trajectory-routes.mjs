@@ -40,8 +40,6 @@ import { RUN_RELEASE_IDENTITY } from '../release-identity.mjs';
 /// The dispatch name of the trajectory that enrols a Google Authenticator for
 /// one Skarbiec login and writes the seed back to it.
 const AUTHENTICATOR_ENROL_ACTION = 'google_authenticator_enrol';
-/// The one login method that has an authenticator to enrol.
-const GOOGLE_LOGIN_METHOD = 'google_sso';
 const authenticatorEnrolments = new Map();
 
 const BUILDER_BOOTSTRAP_URL =
@@ -325,51 +323,36 @@ export async function respondToAuthenticatorEnrolment(
     });
     return;
   }
-  // The enrolment Weles ships is Google's. A password-only login has no
-  // authenticator to enrol, and answering `ok` for it would leave the seed
-  // absent under a verdict that says otherwise.
-  if (account.loginMethod !== GOOGLE_LOGIN_METHOD) {
-    json(res, 409, {
-      ok: false,
-      error: 'authenticator_enrolment_unsupported_login_method',
-      stage: 'identity',
-      message: `Skarbiec login ${account.loginItem} signs in with ${account.loginMethod}; an authenticator is enrolled only on a ${GOOGLE_LOGIN_METHOD} login`,
-      ...identity,
-    });
-    return;
-  }
-  // Subscription revisions differ across providers sharing one Google account.
-  // Only a live enrolment is shared; a completed refusal must not hide a repair.
+  // The login method and the one live enrolment per Google account are the
+  // action's own refusals, the same for every caller. Here only a live
+  // enrolment of the same login is joined, so this route's concurrent callers
+  // share one run; a completed refusal is not cached and cannot hide a repair.
   const key = account.accountRef.toLowerCase();
-  let entry = authenticatorEnrolments.get(key);
-  if (entry && entry.loginItem !== account.loginItem) {
-    json(res, 409, {
-      ok: false,
-      error: 'authenticator_enrolment_in_progress',
-      message:
-        'This Google account is already enrolling through another login item',
-      ...identity,
-    });
-    return;
-  }
-  const joined = Boolean(entry);
-  if (!entry) {
-    const promise = Promise.resolve()
-      .then(() =>
-        runTrajectory(
-          AUTHENTICATOR_ENROL_ACTION,
-          { login_item: account.loginItem },
-          null,
-          false,
-        ),
-      )
+  const live = authenticatorEnrolments.get(key);
+  const joined = live?.loginItem === account.loginItem;
+  const run = () =>
+    runTrajectory(
+      AUTHENTICATOR_ENROL_ACTION,
+      { login_item: account.loginItem },
+      null,
+      false,
+    );
+  let promise;
+  if (joined) {
+    promise = live.promise;
+  } else if (live) {
+    // Another login of this account is enrolling: the action answers that
+    // with its own `authenticator_enrolment_in_progress`.
+    promise = Promise.resolve().then(run);
+  } else {
+    promise = Promise.resolve()
+      .then(run)
       .finally(() => {
         authenticatorEnrolments.delete(key);
       });
-    entry = { loginItem: account.loginItem, promise };
-    authenticatorEnrolments.set(key, entry);
+    authenticatorEnrolments.set(key, { loginItem: account.loginItem, promise });
   }
-  const out = await entry.promise;
+  const out = await promise;
   const confirmed =
     out.ok === true &&
     out.result?.ok === true &&

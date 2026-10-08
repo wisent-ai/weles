@@ -370,6 +370,24 @@ export function selectLoginAccount(
   return resolveAccount(subscriptions[0], inventory, loginItem);
 }
 
+/** How one login item signs in, from its own declaration: its context's
+ * `login_method`, else its `weles:login-method:` tag; empty when it declares
+ * none. The authenticator enrolment reads it for every caller, by
+ * subscription or by login item alike. */
+export function loginItemMethod(loginItem: string): string {
+  const item = listCredentialItems().find(
+    (candidate) =>
+      itemId(candidate) === loginItem || candidate.item_uid === loginItem,
+  );
+  if (!item)
+    fail(
+      'login_item_not_found',
+      `Skarbiec lists no login item ${loginItem}`,
+      { login_item: loginItem },
+    );
+  return text(metadata(item).login_method);
+}
+
 /** Non-secret inspection; an unresolved record is an error, never an absent account. */
 export function listLoginAccounts(): {
   accounts: LoginAccount[];
