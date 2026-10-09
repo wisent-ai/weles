@@ -1,9 +1,7 @@
 // Writes one instrumentation artifact as JSON without ever holding the whole
-// document as one string. A long run's dump outgrows the largest string V8
-// can build ('Invalid string length'), so a value is serialised whole only
-// when that fits; a value that does not is written member by member, and a
-// single string too long to escape at once is written in slices. The bytes
-// match JSON.stringify of the same value with lone UTF-16 surrogates replaced
+// document as one string. Containers are streamed member by member; string
+// chunks are bounded by V8's measured string limit before JSON escaping.
+// Bytes match JSON.stringify of the same value with lone UTF-16 surrogates replaced
 // by U+FFFD.
 
 import { closeSync, openSync, writeSync } from 'node:fs';
@@ -12,7 +10,7 @@ import { constants as bufferConstants } from 'node:buffer';
 // JSON escapes one UTF-16 unit into at most six characters (\uXXXX), so a
 // slice of this many units always escapes to a string V8 can hold.
 const STRING_SLICE = Math.floor(bufferConstants.MAX_STRING_LENGTH / 6);
-const SURROGATE = /[\uD800-\uDFFF]/g;
+const SURROGATE = /[\uD800-\uDFFF]/gu;
 
 /** JSON.stringify's view of a member: its toJSON result when it has one. */
 function prepared(key: string, value: unknown): unknown {
@@ -49,57 +47,42 @@ function writeString(fd: number, text: string): void {
 
 function writeValue(
   fd: number,
-  key: string,
-  raw: unknown,
+  value: unknown,
   inArray: boolean,
   stack: Set<object>,
 ): void {
-  const value = prepared(key, raw);
-  let whole: string | undefined;
-  try {
-    whole = JSON.stringify(value, (_k, v: unknown) =>
-      typeof v === 'string' ? v.replace(SURROGATE, '\uFFFD') : v,
-    );
-  } catch (error) {
-    if (!(error instanceof RangeError)) throw error;
-  }
-  if (whole !== undefined) {
-    writeSync(fd, whole);
-    return;
-  }
-  if (
-    value === undefined ||
-    typeof value === 'function' ||
-    typeof value === 'symbol'
-  ) {
-    // Only reached inside an array: JSON.stringify writes null there.
-    if (inArray) writeSync(fd, 'null');
-    return;
-  }
   if (typeof value === 'string') {
     writeString(fd, value);
     return;
   }
-  if (value === null || typeof value !== 'object') {
-    throw new RangeError(
-      `cannot serialise a ${typeof value} too large for one string`,
-    );
+  if (
+    value === null ||
+    typeof value !== 'object' ||
+    value instanceof Number ||
+    value instanceof Boolean ||
+    value instanceof String
+  ) {
+    const scalar = JSON.stringify(value);
+    if (scalar !== undefined) writeSync(fd, scalar);
+    else if (inArray) writeSync(fd, 'null');
+    return;
   }
   if (stack.has(value))
     throw new TypeError('Converting circular structure to JSON');
   stack.add(value);
   if (Array.isArray(value)) {
     writeSync(fd, '[');
-    value.forEach((item: unknown, index) => {
+    for (const [index, item] of value.entries()) {
       if (index > 0) writeSync(fd, ',');
-      writeValue(fd, String(index), item, true, stack);
-    });
+      writeValue(fd, prepared(String(index), item), true, stack);
+    }
     writeSync(fd, ']');
   } else {
     writeSync(fd, '{');
     let first = true;
-    for (const [member, item] of Object.entries(value)) {
-      const shown = prepared(member, item);
+    for (const member in value) {
+      if (!Object.prototype.hasOwnProperty.call(value, member)) continue;
+      const shown = prepared(member, (value as Record<string, unknown>)[member]);
       if (
         shown === undefined ||
         typeof shown === 'function' ||
@@ -109,7 +92,7 @@ function writeValue(
       if (!first) writeSync(fd, ',');
       first = false;
       writeSync(fd, `${JSON.stringify(member)}:`);
-      writeValue(fd, member, shown, false, stack);
+      writeValue(fd, shown, false, stack);
     }
     writeSync(fd, '}');
   }
@@ -120,7 +103,7 @@ function writeValue(
 export function writeJsonFile(path: string, value: unknown): void {
   const fd = openSync(path, 'w');
   try {
-    writeValue(fd, '', value, false, new Set());
+    writeValue(fd, prepared('', value), false, new Set());
   } finally {
     closeSync(fd);
   }
