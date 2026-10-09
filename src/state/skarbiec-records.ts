@@ -81,12 +81,12 @@ export function listCredentialItems(): Array<Record<string, any>> {
 
 /**
  * The length the vault's administrative policy requires of a generated
- * secret (`skarbiec policy-set min_generated_length <N>`), or null when the
+ * secret (`skarbiec policy set min_generated_length <N>`), or null when the
  * operator set none. Every password Weles generates for a new account takes
  * this length: it is the one place that length is stated.
  */
 export function minimumGeneratedLength(): number | null {
-  const policy = JSON.parse(skarbiec(['policy-get'])) as Record<
+  const policy = JSON.parse(skarbiec(['policy', 'get'])) as Record<
     string,
     unknown
   >;

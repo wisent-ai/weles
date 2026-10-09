@@ -21,7 +21,7 @@ export type PasswordRules = {
 /**
  * A password for an account Weles registers or resets: one character of
  * every class, the rest from all of them, shuffled, at the length the vault's
- * policy states (`skarbiec policy-set min_generated_length <N>`). Each
+ * policy states (`skarbiec policy set min_generated_length <N>`). Each
  * trajectory used to choose its own length and alphabet (eight to thirty-two
  * characters, four hand-written generators); now the operator states the
  * length once, where Skarbiec checks every generated secret against it, and
@@ -76,7 +76,7 @@ function statedLength(): number {
   if (length === null) {
     throw new Error(
       'Weles generates account passwords at the length the vault policy states, and it states none: ' +
-        'set it with `skarbiec policy-set min_generated_length <length>`',
+        'set it with `skarbiec policy set min_generated_length <length>`',
     );
   }
   return length;

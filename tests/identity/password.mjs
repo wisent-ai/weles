@@ -6,9 +6,10 @@
 //
 // Checks:
 //  - with no min_generated_length in the vault policy, generation is refused
-//    naming `skarbiec policy-set min_generated_length`;
+//    naming `skarbiec policy set min_generated_length`;
 //  - with the policy set, a password has exactly that length, one character
-//    of every class, and `skarbiec policy-check-length` accepts it;
+//    of every class, and `skarbiec policy check` (the candidate on standard
+//    input) accepts it;
 //  - a policy shorter than the number of character classes is refused.
 //
 // Usage: node tests/identity/password.mjs   (after npm run build)
@@ -35,10 +36,11 @@ writeFileSync(report, `revision: ${revision}${dirty}\n`);
 process.env.GNUPGHOME = gnupg;
 process.env.SKARBIEC_VAULT_FILE = join(root, 'vault.json');
 
-const skarbiec = (args) => {
+const skarbiec = (args, input) => {
   const result = spawnSync('skarbiec', args, {
     encoding: 'utf8',
     env: process.env,
+    input,
   });
   appendFileSync(
     report,
@@ -59,7 +61,7 @@ const classes = [/[A-Z]/, /[a-z]/, /\d/, /[!@#$%&*]/];
 try {
   assert.throws(
     () => registrationPassword(),
-    /skarbiec policy-set min_generated_length/,
+    /skarbiec policy set min_generated_length/,
     'an unset policy is refused naming the command that sets it',
   );
 
@@ -71,7 +73,7 @@ try {
   ).passphrase;
   const stated = sample.length;
   assert.ok(
-    !skarbiec(['policy-set', 'min_generated_length', String(stated)]).status,
+    !skarbiec(['policy', 'set', 'min_generated_length', String(stated)]).status,
     'the policy is set',
   );
   const password = registrationPassword();
@@ -82,7 +84,7 @@ try {
   assert.equal(password.length, stated, 'the password has the stated length');
   for (const characterClass of classes) assert.match(password, characterClass);
   const checked = JSON.parse(
-    skarbiec(['policy-check-length', password]).stdout,
+    skarbiec(['policy', 'check'], password).stdout,
   );
   assert.equal(
     checked.ok,
@@ -92,7 +94,7 @@ try {
 
   const tooShort = classes.slice(classes.length / classes.length).length;
   assert.ok(
-    !skarbiec(['policy-set', 'min_generated_length', String(tooShort)]).status,
+    !skarbiec(['policy', 'set', 'min_generated_length', String(tooShort)]).status,
   );
   assert.throws(
     () => registrationPassword(),
