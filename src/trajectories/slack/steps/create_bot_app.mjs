@@ -57,15 +57,10 @@ const SWIATOWID_MANIFEST = {
 export async function createBotApp({ page, weles, shot }) {
   const { humanIdlePause } = await import(`${weles}/dist/human/mouse.js`);
 
-  page.on('response', async (resp) => {
-    const u = resp.url();
-    if (!/api\/apps\.manifest|api\/auth\.test/.test(u)) return;
-    try {
-      const body = await resp.text();
-      console.log(`[bot][api] ${resp.status()} ${u.split('?')[0]} -> ${body}`);
-    } catch (e) {
-      /* body unavailable */
-    }
+  page.on('response', (resp) => {
+    const url = new URL(resp.url());
+    if (!/api\/apps\.manifest|api\/auth\.test/.test(url.pathname)) return;
+    console.log(`[bot][api] ${resp.status()} ${url.origin}${url.pathname}`);
   });
 
   // Extract xoxc workspace token from the Slack web client. Cookies seat
@@ -100,10 +95,15 @@ export async function createBotApp({ page, weles, shot }) {
       multipart: { manifest, token: xoxc },
     });
   const validate = await validateResp.json();
-  console.log(`[bot][validate] ${JSON.stringify(validate)}`);
+  const validationDiagnostic = JSON.stringify({
+    status: validateResp.status(),
+    ok: validate.ok,
+    error: validate.error,
+  });
+  console.log(`[bot][validate] ${validationDiagnostic}`);
   if (!validate.ok)
     throw new Error(
-      `[bot] apps.manifest.validate failed: ${JSON.stringify(validate)}`,
+      `[bot] apps.manifest.validate failed: ${validationDiagnostic}`,
     );
 
   const createResp = await page
@@ -113,16 +113,22 @@ export async function createBotApp({ page, weles, shot }) {
       multipart: { manifest, token: xoxc },
     });
   const create = await createResp.json();
-  console.log(`[bot][create] ${JSON.stringify(create)}`);
+  const creationDiagnostic = JSON.stringify({
+    status: createResp.status(),
+    ok: create.ok,
+    error: create.error,
+    app_id: create.app_id,
+  });
+  console.log(`[bot][create] ${creationDiagnostic}`);
   if (!create.ok) {
     throw new Error(
-      `[bot] apps.manifest.create failed: ${JSON.stringify(create)}`,
+      `[bot] apps.manifest.create failed: ${creationDiagnostic}`,
     );
   }
   const appId = create.app_id;
   if (!appId)
     throw new Error(
-      `[bot] apps.manifest.create returned no app_id: ${JSON.stringify(create)}`,
+      `[bot] apps.manifest.create returned no app_id: ${creationDiagnostic}`,
     );
   console.log(`[bot] ✓ app created via API: id=${appId}`);
   await shot('08-app-created');
