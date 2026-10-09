@@ -10,30 +10,6 @@ const clean = (s) =>
     .replace(/\s+/g, ' ')
     .trim();
 
-const METHOD_EXTENSION = clean(
-  `Dodatkowo oszacowanie zostanie powiązane z harmonogramem zadań, budżetem obliczeniowym, konkretnymi artefaktami B+R oraz dokumentami odbioru. Nie zaliczamy deklaracji, materiałów sprzedażowych ani jednorazowych testów bez odtwarzalnej konfiguracji. Każdy wynik musi mieć źródło danych, datę pomiaru, właściciela odpowiedzialnego za pomiar i ścieżkę dowodową umożliwiającą ponowne przeliczenie wartości w kontroli projektu.`,
-);
-const VERIFY_EXTENSION = clean(
-  `Kontrola będzie prowadzona w cyklu kwartalnym i końcowym. Dla każdego dowodu zostanie wskazana wersja artefaktu, data, osoba odpowiedzialna, źródło danych i miejsce przechowywania. Weryfikacja nie będzie oparta na samej deklaracji zespołu; wymagany jest dokument projektowy, log techniczny, raport, faktura, umowa, protokół odbioru albo inny trwały dowód możliwy do okazania instytucji oceniającej.`,
-);
-
-function fit(text, max, target = max - 3) {
-  let out = clean(text);
-  if (out.length < target)
-    out = clean(`${out} ${max === 1000 ? METHOD_EXTENSION : VERIFY_EXTENSION}`);
-  if (out.length < target)
-    out = clean(
-      `${out} Dodatkowo opis obejmuje zakres danych, częstotliwość pomiaru, kryterium zaliczenia oraz sposób rozdzielenia wyniku projektu od działań rutynowych i komercyjnych.`,
-    );
-  // A text longer than its field is refused, never cut at a word: a cut filed
-  // shortened texts nobody wrote.
-  if (out.length > max) {
-    throw new Error(
-      `LSI_FIELD_TOO_LONG: section 2.2 text of ${out.length} characters exceeds the field maximum ${max}: ${out}`,
-    );
-  }
-  return out;
-}
 
 const rows = [
   {
@@ -45,14 +21,8 @@ const rows = [
     target: '≥95% wyniku Llama 3.1 70B przy ≤10 bln tokenów treningowych',
     baseYear: '2026',
     targetYear: '2029',
-    method: fit(
-      `Parametr jest szacowany przez kontrolowane porównanie krzywych uczenia modelu RNM 70B i modelu referencyjnego Llama 3.1 70B przy identycznej klasie sprzętu, tej samej precyzji obliczeń, porównywalnym budżecie tokenów oraz jawnie opisanej konfiguracji optymalizatora, danych i procedur bezpieczeństwa. Wartość docelowa oznacza, że model RNM osiąga co najmniej 95% wyniku referencyjnego na MMLU przy zużyciu nie większym niż 10 bln tokenów treningowych, czyli nie jest tylko demonstratorem koncepcji, ale pełnowartościowym europejskim modelem bazowym. Pomiar będzie powtarzany co 500 mld tokenów oraz po zakończeniu treningu, a wynik końcowy zostanie zestawiony z jakością, kosztem treningu, stabilnością reprezentacji i zachowaniem kompetencji po interwencjach. Takie oszacowanie odpowiada zarzutowi, że projekt nie może opierać się wyłącznie na ogólnej idei architektury: mierzymy konkretny rezultat technologiczny względem istniejącego modelu rynkowego i określonego budżetu obliczeniowego.`,
-      1000,
-    ),
-    verify: fit(
-      `Weryfikacja obejmie raporty z przebiegu treningu, logi eksperymentów, konfiguracje danych i optymalizatora, wyniki MMLU dla kolejnych checkpointów, końcowy raport porównawczy z modelem referencyjnym oraz manifest modelu RNM. Dane będą przechowywane w repozytorium projektu wraz z wersjami kodu i kartą modelu. Osiągnięcie wartości docelowej potwierdza wynik testu końcowego, powtarzalność uruchomienia ewaluacji i podpisany protokół odbioru zadania B+R.`,
-      800,
-    ),
+    method: clean(`Parametr jest szacowany przez kontrolowane porównanie krzywych uczenia modelu RNM 70B i modelu referencyjnego Llama 3.1 70B przy identycznej klasie sprzętu, tej samej precyzji obliczeń, porównywalnym budżecie tokenów oraz jawnie opisanej konfiguracji optymalizatora, danych i procedur bezpieczeństwa. Wartość docelowa oznacza, że model RNM osiąga co najmniej 95% wyniku referencyjnego na MMLU przy zużyciu nie większym niż 10 bln tokenów treningowych, czyli nie jest tylko demonstratorem koncepcji, ale pełnowartościowym europejskim modelem bazowym. Pomiar będzie powtarzany co 500 mld tokenów oraz po zakończeniu treningu, a wynik końcowy zostanie zestawiony z jakością, kosztem treningu, stabilnością reprezentacji i zachowaniem kompetencji po interwencjach. Takie oszacowanie odpowiada zarzutowi, że projekt nie może opierać się wyłącznie na ogólnej idei architektury: mierzymy konkretny rezultat technologiczny względem istniejącego modelu rynkowego i określonego budżetu obliczeniowego.`),
+    verify: clean(`Weryfikacja obejmie raporty z przebiegu treningu, logi eksperymentów, konfiguracje danych i optymalizatora, wyniki MMLU dla kolejnych checkpointów, końcowy raport porównawczy z modelem referencyjnym oraz manifest modelu RNM. Dane będą przechowywane w repozytorium projektu wraz z wersjami kodu i kartą modelu. Osiągnięcie wartości docelowej potwierdza wynik testu końcowego, powtarzalność uruchomienia ewaluacji i podpisany protokół odbioru zadania B+R.`),
   },
   {
     factor: 'Stanowi wkład w infrastrukturę krytyczną na szczeblu europejskim',
@@ -62,14 +32,8 @@ const rows = [
     target: '3 wdrożenia pilotażowe lub komercyjne',
     baseYear: '2026',
     targetYear: '2033',
-    method: fit(
-      `Parametr jest szacowany na podstawie planu wdrożenia RNM w sektorach, w których model bazowy AI staje się elementem infrastruktury cyfrowej: finansach, ochronie zdrowia, cyberbezpieczeństwie, administracji lub przemyśle. Za wdrożenie uznaje się wyłącznie przypadek, w którym podmiot z UE używa modelu RNM albo komponentu kontroli reprezentacyjnej w środowisku pilotażowym lub produkcyjnym, z udokumentowanym celem biznesowym, technicznym zakresem integracji i odpowiedzialnością za dane. Wartość trzech wdrożeń jest konserwatywna wobec modelu sprzedaży: nie liczymy zapytań testowych, materiałów marketingowych ani samego pobrania modelu. Każde wdrożenie ma pokazać, że RNM jest produktem nadającym się do użycia w regulowanym otoczeniu UE, a nie tylko publikacją badawczą.`,
-      1000,
-    ),
-    verify: fit(
-      `Monitorowanie będzie prowadzone przez rejestr wdrożeń, umowy pilotażowe lub komercyjne, protokoły odbioru, dokumentację architektury integracji, karty ryzyka, logi dostępu do modelu oraz raporty okresowe projektu. Weryfikacja wymaga wskazania kraju siedziby klienta, sektora zastosowania, zakresu wykorzystanej funkcji RNM i daty uruchomienia. Wdrożenie zostanie zaliczone dopiero po potwierdzeniu przez klienta lub partnera technicznego.`,
-      800,
-    ),
+    method: clean(`Parametr jest szacowany na podstawie planu wdrożenia RNM w sektorach, w których model bazowy AI staje się elementem infrastruktury cyfrowej: finansach, ochronie zdrowia, cyberbezpieczeństwie, administracji lub przemyśle. Za wdrożenie uznaje się wyłącznie przypadek, w którym podmiot z UE używa modelu RNM albo komponentu kontroli reprezentacyjnej w środowisku pilotażowym lub produkcyjnym, z udokumentowanym celem biznesowym, technicznym zakresem integracji i odpowiedzialnością za dane. Wartość trzech wdrożeń jest konserwatywna wobec modelu sprzedaży: nie liczymy zapytań testowych, materiałów marketingowych ani samego pobrania modelu. Każde wdrożenie ma pokazać, że RNM jest produktem nadającym się do użycia w regulowanym otoczeniu UE, a nie tylko publikacją badawczą.`),
+    verify: clean(`Monitorowanie będzie prowadzone przez rejestr wdrożeń, umowy pilotażowe lub komercyjne, protokoły odbioru, dokumentację architektury integracji, karty ryzyka, logi dostępu do modelu oraz raporty okresowe projektu. Weryfikacja wymaga wskazania kraju siedziby klienta, sektora zastosowania, zakresu wykorzystanej funkcji RNM i daty uruchomienia. Wdrożenie zostanie zaliczone dopiero po potwierdzeniu przez klienta lub partnera technicznego.`),
   },
   {
     factor: 'Wpływa na zwiększenie bezpieczeństwa dostaw',
@@ -79,14 +43,8 @@ const rows = [
     target: '24 000 000 PLN',
     baseYear: '2026',
     targetYear: '2033',
-    method: fit(
-      `Parametr szacuje wartość usług generatywnej AI, które klienci z rynku wewnętrznego UE mogą kupić od europejskiego dostawcy RNM zamiast od dostawców spoza UE. Punktem wyjścia jest docelowy model przychodowy po zakończeniu projektu oraz założenie, że 80% przychodów z klientów UE innych niż Polska zastępuje wydatki na importowane modele API, dostrajanie lub hosting modeli bazowych. Nie traktujemy tego jako abstrakcyjnej korzyści makroekonomicznej: każda kwota musi wynikać z faktury, umowy licencyjnej, wdrożeniowej albo dostępu API. Metoda odpowiada na kryterium bezpieczeństwa dostaw, bo mierzy realne przesunięcie zakupów z zależnych usług spoza UE na rozwiązanie rozwijane, utrzymywane i audytowane w UE.`,
-      1000,
-    ),
-    verify: fit(
-      `Weryfikacja będzie oparta na księgach rachunkowych Wisent Polska, fakturach sprzedaży, umowach licencyjnych i wdrożeniowych, ewidencji kraju siedziby klienta, rejestrze użycia API lub lokalnych wdrożeń oraz rocznych zestawieniach przychodów. Dla każdego klienta zostanie wskazane, czy wdrożenie zastępuje dotychczasowe usługi spoza UE lub ogranicza potrzebę ich zakupu. Wartość docelowa będzie potwierdzana narastająco po zakończeniu projektu.`,
-      800,
-    ),
+    method: clean(`Parametr szacuje wartość usług generatywnej AI, które klienci z rynku wewnętrznego UE mogą kupić od europejskiego dostawcy RNM zamiast od dostawców spoza UE. Punktem wyjścia jest docelowy model przychodowy po zakończeniu projektu oraz założenie, że 80% przychodów z klientów UE innych niż Polska zastępuje wydatki na importowane modele API, dostrajanie lub hosting modeli bazowych. Nie traktujemy tego jako abstrakcyjnej korzyści makroekonomicznej: każda kwota musi wynikać z faktury, umowy licencyjnej, wdrożeniowej albo dostępu API. Metoda odpowiada na kryterium bezpieczeństwa dostaw, bo mierzy realne przesunięcie zakupów z zależnych usług spoza UE na rozwiązanie rozwijane, utrzymywane i audytowane w UE.`),
+    verify: clean(`Weryfikacja będzie oparta na księgach rachunkowych Wisent Polska, fakturach sprzedaży, umowach licencyjnych i wdrożeniowych, ewidencji kraju siedziby klienta, rejestrze użycia API lub lokalnych wdrożeń oraz rocznych zestawieniach przychodów. Dla każdego klienta zostanie wskazane, czy wdrożenie zastępuje dotychczasowe usługi spoza UE lub ogranicza potrzebę ich zakupu. Wartość docelowa będzie potwierdzana narastająco po zakończeniu projektu.`),
   },
   {
     factor: 'Wpływa na zwiększenie zdolności produkcyjnych',
@@ -96,14 +54,8 @@ const rows = [
     target: '4 skale modeli: 1B, 8B, 30B i 70B',
     baseYear: '2026',
     targetYear: '2029',
-    method: fit(
-      `Parametr mierzy zdolność wytwarzania modeli bazowych RNM w UE, a nie samą liczbę eksperymentów. Za skalę modelu uznajemy kompletny artefakt obejmujący checkpoint, konfigurację treningu, kartę modelu, raport jakości, raport stabilności reprezentacji i procedurę uruchomienia. Sekwencja 1B, 8B, 30B i 70B odzwierciedla ścieżkę B+R: małe modele służą do testowania funkcji celu i separacji konceptów, model średni do walidacji skalowania, a 70B do porównania z referencją rynkową. Wartość docelowa pokazuje zwiększenie zdolności produkcyjnych, bo po projekcie Wisent ma posiadać powtarzalny europejski pipeline projektowania, treningu, ewaluacji i publikacji modeli, zamiast jednorazowego prototypu zależnego od cudzej architektury.`,
-      1000,
-    ),
-    verify: fit(
-      `Weryfikacja obejmie repozytoria modeli i kodu, manifesty treningu, karty modeli, raporty ewaluacji, wersjonowane konfiguracje, checksumy artefaktów, lokalizację infrastruktury obliczeniowej w UE oraz protokoły odbioru zadań B+R. Każda skala zostanie zaliczona po udokumentowaniu kompletności artefaktu i możliwości powtórzenia procedury ewaluacyjnej. Raport końcowy zestawi cztery skale z planem harmonogramu i budżetem obliczeniowym.`,
-      800,
-    ),
+    method: clean(`Parametr mierzy zdolność wytwarzania modeli bazowych RNM w UE, a nie samą liczbę eksperymentów. Za skalę modelu uznajemy kompletny artefakt obejmujący checkpoint, konfigurację treningu, kartę modelu, raport jakości, raport stabilności reprezentacji i procedurę uruchomienia. Sekwencja 1B, 8B, 30B i 70B odzwierciedla ścieżkę B+R: małe modele służą do testowania funkcji celu i separacji konceptów, model średni do walidacji skalowania, a 70B do porównania z referencją rynkową. Wartość docelowa pokazuje zwiększenie zdolności produkcyjnych, bo po projekcie Wisent ma posiadać powtarzalny europejski pipeline projektowania, treningu, ewaluacji i publikacji modeli, zamiast jednorazowego prototypu zależnego od cudzej architektury.`),
+    verify: clean(`Weryfikacja obejmie repozytoria modeli i kodu, manifesty treningu, karty modeli, raporty ewaluacji, wersjonowane konfiguracje, checksumy artefaktów, lokalizację infrastruktury obliczeniowej w UE oraz protokoły odbioru zadań B+R. Każda skala zostanie zaliczona po udokumentowaniu kompletności artefaktu i możliwości powtórzenia procedury ewaluacyjnej. Raport końcowy zestawi cztery skale z planem harmonogramu i budżetem obliczeniowym.`),
   },
   {
     factor:
@@ -114,14 +66,8 @@ const rows = [
     target: '6 państw',
     baseYear: '2026',
     targetYear: '2033',
-    method: fit(
-      `Parametr jest szacowany na podstawie planu komercjalizacji RNM na rynku wewnętrznym UE, obejmującego przedsiębiorstwa i instytucje z sektorów regulowanych w kilku państwach członkowskich. Państwo zostanie zaliczone tylko wtedy, gdy płatny klient ma siedzibę w danym kraju i korzysta z modelu RNM, biblioteki kontroli reprezentacyjnej, lokalnego wdrożenia albo dostępu API. Wartość sześciu państw wynika z modelu target-account dla dużych organizacji europejskich oraz z charakteru produktu: audytowalna AI ma zastosowanie transgraniczne, ponieważ ten sam model może być hostowany lokalnie, dostosowany do języków UE i używany zgodnie z AI Act. Parametr nie liczy pobrań open-source ani zapytań sprzedażowych, tylko faktyczne płatne użycie.`,
-      1000,
-    ),
-    verify: fit(
-      `Monitorowanie obejmie rejestr klientów z krajem siedziby, numery VAT UE lub dane rejestrowe, faktury, umowy, datę rozpoczęcia korzystania z RNM, typ użytego produktu oraz raporty okresowe sprzedaży. Weryfikacja zostanie wykonana przez zestawienie klientów według państwa i wykluczenie duplikatów w obrębie grup kapitałowych, jeżeli nie reprezentują odrębnego użycia produktu. Wynik będzie potwierdzony w sprawozdaniu końcowym i dokumentacji komercjalizacji.`,
-      800,
-    ),
+    method: clean(`Parametr jest szacowany na podstawie planu komercjalizacji RNM na rynku wewnętrznym UE, obejmującego przedsiębiorstwa i instytucje z sektorów regulowanych w kilku państwach członkowskich. Państwo zostanie zaliczone tylko wtedy, gdy płatny klient ma siedzibę w danym kraju i korzysta z modelu RNM, biblioteki kontroli reprezentacyjnej, lokalnego wdrożenia albo dostępu API. Wartość sześciu państw wynika z modelu target-account dla dużych organizacji europejskich oraz z charakteru produktu: audytowalna AI ma zastosowanie transgraniczne, ponieważ ten sam model może być hostowany lokalnie, dostosowany do języków UE i używany zgodnie z AI Act. Parametr nie liczy pobrań open-source ani zapytań sprzedażowych, tylko faktyczne płatne użycie.`),
+    verify: clean(`Monitorowanie obejmie rejestr klientów z krajem siedziby, numery VAT UE lub dane rejestrowe, faktury, umowy, datę rozpoczęcia korzystania z RNM, typ użytego produktu oraz raporty okresowe sprzedaży. Weryfikacja zostanie wykonana przez zestawienie klientów według państwa i wykluczenie duplikatów w obrębie grup kapitałowych, jeżeli nie reprezentują odrębnego użycia produktu. Wynik będzie potwierdzony w sprawozdaniu końcowym i dokumentacji komercjalizacji.`),
   },
 ];
 

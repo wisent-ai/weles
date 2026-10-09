@@ -9,47 +9,6 @@ const clean = (s) =>
     .replace(/\s+/g, ' ')
     .trim();
 
-function fit(text, max, min, extras) {
-  let out = clean(text);
-  for (const extra of extras) {
-    if (out.length >= min) break;
-    const next = clean(`${out} ${extra}`);
-    if (next.length <= max) out = next;
-  }
-  // A text longer than its field is refused, never cut at a word: a cut filed
-  // shortened texts nobody wrote.
-  if (out.length > max) {
-    throw new Error(
-      `LSI_FIELD_TOO_LONG: section 2.4 text of ${out.length} characters exceeds the field maximum ${max}: ${out}`,
-    );
-  }
-  if (!/[.!?]$/.test(out) && out.length < max) out += '.';
-  return out;
-}
-
-function name(text) {
-  return fit(text, 500, 490, [
-    'Definicja wskazuje efekt zewnętrzny, populację objętą pomiarem, rynek geograficzny UE, jednostkę miary, rok docelowy, dowód źródłowy, wyłączenia, częstotliwość kontroli oraz odpowiedzialność za ewidencję w dokumentacji projektu.',
-    'Wskaźnik obejmuje tylko efekty udokumentowane raportem technicznym, logiem systemowym, umową, benchmarkiem lub rejestrem eksperymentów.',
-    'Ujęto zakres, dowód, rynek i wyłączenia.',
-  ]);
-}
-
-function method(text) {
-  return fit(text, 1000, 990, [
-    'Metoda nie opiera się na deklaracji ogólnej, lecz na policzalnym związku między rezultatem B+R a efektem zewnętrznym: liczbie wdrożeń, języków, raportów, unikniętych treningów albo cykli objętych pomiarem środowiskowym. W każdym przypadku wartość docelowa jest powiązana z harmonogramem komercjalizacji, planem prac B+R, założeniami technicznymi architektury RNM i możliwym do odtworzenia sposobem obliczenia.',
-    'Wartość bazowa oznacza stan przed projektem, gdy Wisent nie dysponuje produkcyjnym modelem RNM z katalogiem konceptów, raportem aktywacji, rejestrem efektywności energetycznej i wdrożeniami u odbiorców UE. Wartość docelowa będzie liczona wyłącznie dla zdarzeń potwierdzonych dokumentem źródłowym.',
-    'Założenia są konserwatywne, bo nie zliczają testów marketingowych, demonstracji bez odbiorcy ani efektów niepotwierdzonych w systemach projektu.',
-  ]);
-}
-
-function verify(text) {
-  return fit(text, 1000, 990, [
-    'Weryfikacja obejmuje komplet dowodów: rejestr wdrożeń, logi inferencji lub treningu, wersję modelu i katalogu konceptów, raport benchmarku, dane billingowe infrastruktury, umowę albo protokół odbioru. Dla każdego wpisu utrwalane są data pomiaru, osoba odpowiedzialna, źródło danych, sposób obliczenia, wersja narzędzia i miejsce przechowywania dowodu.',
-    'Wartości będą kontrolowane okresowo i raportowane w dokumentacji projektu. Nie będą zaliczane wpisy podwójne, testy bezpłatne bez odbiorcy, wyniki bez logów ani wartości niespójne z ewidencją księgową, techniczną lub środowiskową.',
-    'Raport końcowy pokaże listę dowodów, wartości bazowe, wartości docelowe, odchylenia oraz sposób korekty danych.',
-  ]);
-}
 
 const rows = [
   {
@@ -119,13 +78,13 @@ function rowBlock(row, index) {
 
 | Pole | Wartość |
 |---|---|
-| Nazwa parametru | ${name(row.name)} |
+| Nazwa parametru | ${clean(row.name)} |
 | Wartość bazowa (z jednostką miary) | ${row.base} |
 | Rok bazowy | ${row.baseYear} |
 | Wartość docelowa (z jednostką miary) | ${row.target} |
 | Rok docelowy | ${row.targetYear} |
-| Metoda oszacowania wartości docelowej | ${method(row.method)} |
-| Sposób monitorowania/weryfikacji osiągnięcia zaplanowanych wartości docelowych | ${verify(row.verify)} |`;
+| Metoda oszacowania wartości docelowej | ${clean(row.method)} |
+| Sposób monitorowania/weryfikacji osiągnięcia zaplanowanych wartości docelowych | ${clean(row.verify)} |`;
 }
 
 const title = '## Parametry opisujące dodatkowe efekty zewnętrzne innowacji';

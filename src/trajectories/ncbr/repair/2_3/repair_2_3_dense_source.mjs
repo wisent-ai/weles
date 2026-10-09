@@ -1,5 +1,5 @@
 // Rewrites the section 2.3 markdown source: the competitor tables inside and outside the EU,
-// and the parameter blocks, each fitted to the application's field limits.
+// and the parameter blocks, preserving the complete authored text and clauses.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { EU, NON_EU } from './repair_2_3_dense_source/competitors.mjs';
 import { PARAMS } from './repair_2_3_dense_source/params.mjs';

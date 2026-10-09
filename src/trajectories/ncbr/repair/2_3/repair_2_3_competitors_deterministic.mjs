@@ -10,65 +10,6 @@ const clean = (s) =>
     .replace(/\s+/g, ' ')
     .trim();
 
-// A text longer than its field is refused, never cut at a word: a cut filed
-// shortened texts nobody wrote.
-function fit(text, max, min, ext) {
-  let out = clean(text);
-  while (out.length < min) out = clean(`${out} ${ext}`);
-  if (out.length > max) {
-    throw new Error(
-      `LSI_FIELD_TOO_LONG: section 2.3 text of ${out.length} characters exceeds the field maximum ${max}: ${out}`,
-    );
-  }
-  if (!/[.!?]$/.test(out) && out.length < max) out += '.';
-  return out;
-}
-
-function fitShort(text, max, min, suffixes) {
-  const base = clean(text).replace(/[.!?]$/, '');
-  const candidates = suffixes.map((suffix) => clean(`${base}. ${suffix}`));
-  const exact = candidates.find((c) => c.length >= min && c.length <= max);
-  if (exact) return exact;
-  const under = candidates
-    .filter((c) => c.length < min)
-    .sort((a, b) => b.length - a.length)[0];
-  if (under)
-    return fit(
-      under,
-      max,
-      min,
-      'Ujęto produkt, funkcje, audyt i zależność UE.',
-    );
-  const shortest = candidates.sort((a, b) => a.length - b.length)[0];
-  return fit(shortest, max, min, '');
-}
-
-function product(text) {
-  return fitShort(text, 200, 190, [
-    'Ocena: produkt, funkcje, wdrożenie, audyt, kontrola modelu, hosting, klient docelowy i zależność UE.',
-    'Ocena: produkt, funkcje, wdrożenie, audyt, kontrola modelu, hosting i zależność UE.',
-    'Ocena: produkt, funkcje, wdrożenie, audyt, kontrola, hosting i zależność UE.',
-    'Ocena: produkt, wdrożenie, audyt, kontrola i zależność UE.',
-  ]);
-}
-
-function functionality(text) {
-  return fitShort(text, 200, 190, [
-    'Ocena: funkcje użytkowe, wdrożenie, kontrola modelu, audytowalność, zależność od dostawcy i różnica wobec RNM.',
-    'Ocena: funkcje, wdrożenie, kontrola modelu, audytowalność, zależność od dostawcy i różnica wobec RNM.',
-    'Ocena: funkcje, wdrożenie, kontrola modelu, audytowalność i zależność od dostawcy.',
-    'Ocena: funkcje użytkowe, kontrola, audyt i zależność od dostawcy.',
-  ]);
-}
-
-function benefit(text) {
-  return fit(
-    text,
-    1000,
-    990,
-    'Porównanie odnosi się do produktu, miejsca w łańcuchu wartości, kontroli technologii, audytowalności, możliwości lokalnego wdrożenia w UE, zgodności z AI Act oraz wpływu na ograniczanie zależności od dostawców spoza Unii. Nie chodzi wyłącznie o lepszy wynik benchmarku, lecz o przewagę produktu B+R: RNM łączą model bazowy, katalog konceptów, raport aktywacji i interwencję na reprezentacjach w jednym stosie technologicznym. Dowodem przewagi będą cechy produktu, parametry rezultatu, raporty ewaluacji, dokumentacja wdrożenia i porównanie z ofertą rynkową.',
-  );
-}
 
 const EU = [
   [
@@ -180,7 +121,7 @@ function table(rows) {
     '|---|---|---|---|---|',
     ...rows.map(
       (r) =>
-        `| ${r[0]} | ${r[1]} | ${product(r[2])} | ${functionality(r[3])} | ${benefit(r[4])} |`,
+        `| ${r[0]} | ${r[1]} | ${clean(r[2])} | ${clean(r[3])} | ${clean(r[4])} |`,
     ),
   ].join('\n');
 }
