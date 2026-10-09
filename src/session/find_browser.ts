@@ -22,7 +22,9 @@ const LAYOUTS: Record<string, BrowserLayout> = {
     envSha256: 'WELES_CHROMIUM_RELEASE_SHA256',
     installDirName: 'weles-chromium',
     product: 'weles-chromium',
-    asset: 'weles-chromium.tar.gz',
+    // Stado publishes every platform archive of a release as release.tar.gz
+    // under the product's coordinate.
+    asset: 'release.tar.gz',
     appSubpath:
       process.platform === 'darwin'
         ? 'Chromium.app/Contents/MacOS/Chromium'
@@ -34,7 +36,7 @@ const LAYOUTS: Record<string, BrowserLayout> = {
     envSha256: 'WELES_FIREFOX_RELEASE_SHA256',
     installDirName: 'weles-firefox',
     product: 'weles-firefox',
-    asset: 'weles-firefox.tar.gz',
+    asset: 'release.tar.gz',
     appSubpath:
       process.platform === 'darwin'
         ? 'Firefox.app/Contents/MacOS/firefox'
