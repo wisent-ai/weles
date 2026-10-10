@@ -7,6 +7,7 @@ import { humanFill } from '../../../../../dist/human/keyboard.js';
 import { pageSettled } from '../../../_shared/page/settled.mjs';
 
 const endpoint = (await import('#ncbr-settings')).cdpEndpoint();
+const authUrl = (await import('#ncbr-settings')).projectPermissionsUrl();
 const email = process.env.NCBR_EMAIL;
 const password = process.env.NCBR_PASSWORD;
 
@@ -67,17 +68,17 @@ page.on('response', async (res) => {
 });
 
 async function authStatus() {
-  return await page.evaluate(async () => {
+  return await page.evaluate(async (authUrl) => {
     try {
       const res = await fetch(
-        'https://lsi2.ncbr.gov.pl/api/beneficiary/project/433468ab-ff8a-4bd2-9f03-7da65ba73e1f/get-user-permissions',
+        authUrl,
         { credentials: 'include', headers: { Accept: 'application/json' } },
       );
-      return { status: res.status, text: await res.text() };
+      return { url: authUrl, status: res.status, text: await res.text() };
     } catch (error) {
-      return { error: String(error?.message || error) };
+      return { url: authUrl, error: String(error?.message || error) };
     }
-  });
+  }, authUrl);
 }
 
 await page.goto('https://lsi2.ncbr.gov.pl/logowanie', {

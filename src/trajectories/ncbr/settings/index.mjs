@@ -48,6 +48,14 @@ export function projectUrl() {
   return declared ? declared : `${LSI2_PROJECT_BASE}${projectId()}`;
 }
 
+/** The selected application's read-only authorization probe. */
+export function projectPermissionsUrl() {
+  return new URL(
+    `/api/beneficiary/project/${encodeURIComponent(projectId())}/get-user-permissions`,
+    projectUrl(),
+  ).href;
+}
+
 /** The directory every section page of the project lives under. */
 export function sectionBase() {
   return `${projectUrl()}/projekt_step/`;
