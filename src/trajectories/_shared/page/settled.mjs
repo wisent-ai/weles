@@ -10,6 +10,8 @@
 // `pageCondition` waits until a predicate evaluated in the page holds, checked
 // on every animation frame, and returns its value.
 
+import { DOCUMENT_REPLACED, readAcrossNavigation } from './navigation/read.mjs';
+
 // Runs inside the page: resolves once the document has loaded and its DOM has
 // gone two consecutive animation frames without a mutation.
 function settleInPage() {
@@ -43,21 +45,17 @@ function settleInPage() {
   return promise;
 }
 
-const DOCUMENT_REPLACED = /Execution context was destroyed/i;
-
 export async function pageSettled(page) {
   // Both the load and the quiet DOM are awaited inside the page, so no
   // Playwright default limit applies — the page alone decides when it is done.
   // When a navigation replaces the document mid-wait, the new document is the
   // one that has to settle, so the wait moves to it; any other failure is the
   // caller's error.
-  for (;;) {
-    try {
-      await page.evaluate(settleInPage);
-      return;
-    } catch (error) {
-      if (!DOCUMENT_REPLACED.test(String(error?.message))) throw error;
-    }
+  while (
+    (await readAcrossNavigation(page, () => page.evaluate(settleInPage))) ===
+    DOCUMENT_REPLACED
+  ) {
+    // Observe the replacement document rather than retrying a dead page.
   }
 }
 
@@ -186,29 +184,17 @@ export async function popupOrNavigation(page, pattern, action) {
 // 'message' once the answer has come and the page has settled.
 export async function submitAnswered(page, stays, message) {
   for (;;) {
-    try {
-      if (page.isClosed()) {
-        throw Object.assign(
-          new Error(
-            `page closed before the form answered; last URL ${page.url()}`,
-          ),
-          { code: 'PAGE_CLOSED', pageUrl: page.url() },
-        );
-      }
-      const answer = !matchesUrl(stays, page.url())
-        ? 'navigated'
-        : (await message.isVisible())
-          ? 'message'
-          : null;
-      if (answer) {
-        await pageSettled(page);
-        return answer;
-      }
+    const answer = await readAcrossNavigation(page, async () => {
+      if (!matchesUrl(stays, page.url())) return 'navigated';
+      if (await message.isVisible()) return 'message';
       await page.evaluate(
         () => new Promise((resolve) => requestAnimationFrame(resolve)),
       );
-    } catch (error) {
-      if (!DOCUMENT_REPLACED.test(String(error?.message))) throw error;
+      return null;
+    });
+    if (answer && answer !== DOCUMENT_REPLACED) {
+      await pageSettled(page);
+      return answer;
     }
   }
 }

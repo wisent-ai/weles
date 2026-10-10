@@ -10,7 +10,7 @@ import { humanClick } from '../../../../dist/human/mouse.js';
 import {
   DOCUMENT_REPLACED,
   readAcrossNavigation,
-} from '../../_shared/services/google_sso/page_diagnostics.mjs';
+} from '../../_shared/page/navigation/read.mjs';
 import { pageCondition, pageSettled } from '../../_shared/page/settled.mjs';
 
 // In an OAuth redirect chain a navigation mid-call is the EXPECTED

@@ -15,10 +15,9 @@ import {
 } from '../../../page/settled.mjs';
 import {
   collectGoogleAuthMethods,
-  DOCUMENT_REPLACED,
   logGooglePageDiag,
-  readAcrossNavigation,
 } from '../page_diagnostics.mjs';
+import { DOCUMENT_REPLACED, readAcrossNavigation } from '../../../page/navigation/read.mjs';
 import { resolveTotpSecret } from '../totp_secret.mjs';
 import {
   clickTryAnotherWay,

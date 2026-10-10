@@ -8,40 +8,9 @@
 import { runOutputPath } from '#run-output';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { DOCUMENT_REPLACED, readAcrossNavigation } from '../../page/navigation/read.mjs';
 
 export const PAGE_TEXT_UNREADABLE = 'weles:google-page-text-unreadable';
-export const DOCUMENT_REPLACED = Symbol('weles:google-document-replaced');
-
-// Run one read of `page` and answer DOCUMENT_REPLACED when it failed because
-// the document it read went away: the main frame navigated, or the page
-// closed or crashed, while the read was pending. Those are what the page
-// itself reported, not words in Playwright's error; any other failure is
-// thrown. Events can reach this process just after the rejection, so the
-// check is made again on the next turn of the event loop before throwing.
-export async function readAcrossNavigation(page, read) {
-  let replaced = false;
-  const onNavigated = (frame) => {
-    if (frame === page.mainFrame()) replaced = true;
-  };
-  const onGone = () => {
-    replaced = true;
-  };
-  page.on('framenavigated', onNavigated);
-  page.on('close', onGone);
-  page.on('crash', onGone);
-  try {
-    return await read();
-  } catch (error) {
-    if (!replaced && !page.isClosed())
-      await new Promise((resolve) => setImmediate(resolve));
-    if (replaced || page.isClosed()) return DOCUMENT_REPLACED;
-    throw error;
-  } finally {
-    page.off('framenavigated', onNavigated);
-    page.off('close', onGone);
-    page.off('crash', onGone);
-  }
-}
 
 // The document that was there a moment ago is gone mid-read during a redirect,
 // which in a poll loop means "look again", never "the page was blank".

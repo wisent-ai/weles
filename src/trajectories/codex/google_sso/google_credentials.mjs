@@ -17,6 +17,7 @@ import {
   waitForGoogleChallengeExit,
 } from './authenticator_code.mjs';
 import { completeGooglePhoneApproval } from '../../_shared/services/google_sso/sign_in/challenge/phone.mjs';
+import { readAcrossNavigation } from '../../_shared/page/navigation/read.mjs';
 
 export async function establishGoogleSession({
   page,
@@ -226,18 +227,13 @@ export async function enterGoogleCredentials({
   mark('google_email_typed');
   // Trusted typing delivers key/input events. Dispatch focusout/blur for the
   // field's on-blur validator before observing the Next control's enabled state.
-  // best-effort blur — if the page has already navigated (Google
-  // auto-submits some flows), the evaluate fails with
-  // "Execution context was destroyed" which is HARMLESS; the
-  // navigation we wanted is already happening. Catch and continue.
-  try {
-    await gEmailIn.evaluate((el) => {
+  // Only an observed replacement may interrupt these optional blur events.
+  await readAcrossNavigation(page, () =>
+    gEmailIn.evaluate((el) => {
       el.dispatchEvent(new Event('blur', { bubbles: true }));
       el.dispatchEvent(new Event('focusout', { bubbles: true }));
-    });
-  } catch (e) {
-    if (!e.message.includes('Execution context was destroyed')) throw e;
-  }
+    }),
+  );
   await waitForEnabledThenClick(page, /next|continue|dalej/i);
   mark('google_email_submitted');
 
@@ -249,14 +245,12 @@ export async function enterGoogleCredentials({
     humanClickLocator,
     humanType,
   );
-  try {
-    await gPwIn.evaluate((el) => {
+  await readAcrossNavigation(page, () =>
+    gPwIn.evaluate((el) => {
       el.dispatchEvent(new Event('blur', { bubbles: true }));
       el.dispatchEvent(new Event('focusout', { bubbles: true }));
-    });
-  } catch (e) {
-    if (!e.message.includes('Execution context was destroyed')) throw e;
-  }
+    }),
+  );
   await waitForEnabledThenClick(page, /next|sign in|continue|dalej/i);
   await waitForGooglePasswordResult(page);
 

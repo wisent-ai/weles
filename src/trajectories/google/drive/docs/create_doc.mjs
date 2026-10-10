@@ -25,7 +25,7 @@ import { googleSso } from '../../../_shared/services/google_sso.mjs';
 import {
   DOCUMENT_REPLACED,
   readAcrossNavigation,
-} from '../../../_shared/services/google_sso/page_diagnostics.mjs';
+} from '../../../_shared/page/navigation/read.mjs';
 import {
   humanClick,
   humanClickLocator,

@@ -9,6 +9,7 @@ import { humanClickLocator } from '../../../../../../dist/human/mouse.js';
 import { pageSettled } from '../../../page/settled.mjs';
 import { logGooglePageDiag } from '../page_diagnostics.mjs';
 import { clickTryAnotherWay } from '../authenticator_challenge.mjs';
+import { readAcrossNavigation } from '../../../page/navigation/read.mjs';
 
 const PASSWORD_FIELD = 'input[type="password"], input[name="Passwd"]';
 
@@ -180,14 +181,12 @@ export async function submitGooglePassword(page, creds, passwordFieldCount) {
   // some flows, and then the document this evaluate was written against is
   // already gone — that navigation is the wanted outcome, not a failure. Any
   // other error is this page refusing the events and is raised.
-  try {
-    await pwIn.evaluate((el) => {
+  await readAcrossNavigation(page, () =>
+    pwIn.evaluate((el) => {
       el.dispatchEvent(new Event('blur', { bubbles: true }));
       el.dispatchEvent(new Event('focusout', { bubbles: true }));
-    });
-  } catch (error) {
-    if (!error.message.includes('Execution context was destroyed')) throw error;
-  }
+    }),
+  );
 
   return true;
 }

@@ -23,7 +23,7 @@ import { googleSso } from '../_shared/services/google_sso.mjs';
 import {
   DOCUMENT_REPLACED,
   readAcrossNavigation,
-} from '../_shared/services/google_sso/page_diagnostics.mjs';
+} from '../_shared/page/navigation/read.mjs';
 import { dismissGooglePostLogin } from '../_shared/services/google_sso/sign_in/redirect_watch.mjs';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { pageSettled } from '../_shared/page/settled.mjs';
