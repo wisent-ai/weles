@@ -60,20 +60,33 @@ function releasePlatform(): string | undefined {
   return undefined;
 }
 
-function exactReleaseCandidate(
-  browser: string,
-): { binary: string; receipt: string; expectedReceipt: string } | undefined {
+function exactReleaseCandidate(browser: string): {
+  binary: string;
+  receipt: string;
+  expectedReceipt: string;
+} {
   const layout = LAYOUTS[browser];
+  if (!layout) throw new Error(`unknown browser family "${browser}"`);
   const platform = releasePlatform();
-  if (!layout || !platform) return undefined;
+  if (!platform) {
+    throw new Error(
+      `unsupported browser release platform ${process.platform}-${process.arch}`,
+    );
+  }
 
   const version = process.env[layout.envVersion]?.trim();
   const digest = process.env[layout.envSha256]?.trim().toLowerCase();
-  if (!version || !digest || !SHA256_PATTERN.test(digest)) return undefined;
-  const home = process.env.HOME ?? '';
-  const installRoot =
-    process.env[layout.envDir]?.trim() ||
-    join(home, '.local/share', layout.installDirName);
+  if (!version) throw new Error(`${layout.envVersion} is not set`);
+  if (!digest) throw new Error(`${layout.envSha256} is not set`);
+  if (!SHA256_PATTERN.test(digest)) {
+    throw new Error(`${layout.envSha256} is not a SHA-256 digest`);
+  }
+  let installRoot = process.env[layout.envDir]?.trim();
+  if (!installRoot) {
+    const home = process.env.HOME?.trim();
+    if (!home) throw new Error(`${layout.envDir} and HOME are not set`);
+    installRoot = join(home, '.local/share', layout.installDirName);
+  }
   const installDir = join(installRoot, version);
   const releaseUri = `stado://releases/${layout.product}/${version}/${platform}/${layout.asset}`;
   return {
@@ -83,6 +96,34 @@ function exactReleaseCandidate(
   };
 }
 
+function verifiedBrowser(browser: string): string {
+  const candidate = exactReleaseCandidate(browser);
+  let isFile: boolean;
+  try {
+    isFile = statSync(candidate.binary).isFile();
+  } catch (error) {
+    throw new Error(
+      `inspect browser executable ${candidate.binary}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  if (!isFile)
+    throw new Error(`browser executable is not a file: ${candidate.binary}`);
+  let receipt: string;
+  try {
+    receipt = readFileSync(candidate.receipt, 'utf8');
+  } catch (error) {
+    throw new Error(
+      `read browser release receipt ${candidate.receipt}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  if (receipt !== candidate.expectedReceipt) {
+    throw new Error(
+      `browser release receipt ${candidate.receipt} does not match the selected release: expected ${JSON.stringify(candidate.expectedReceipt)}; observed ${JSON.stringify(receipt)}`,
+    );
+  }
+  return candidate.binary;
+}
+
 /**
  * Find the exact deployment-selected browser only when its verified release
  * receipt matches the requested immutable Stado coordinate and checksum.
@@ -90,26 +131,19 @@ function exactReleaseCandidate(
 export function findCustomBrowser(
   browser: string = 'chromium',
 ): string | undefined {
-  const candidate = exactReleaseCandidate(browser);
-  if (!candidate) return undefined;
   try {
-    if (!statSync(candidate.binary).isFile()) return undefined;
-    return readFileSync(candidate.receipt, 'utf8') === candidate.expectedReceipt
-      ? candidate.binary
-      : undefined;
+    return verifiedBrowser(browser);
   } catch {
     return undefined;
   }
 }
 
 export function customBrowserSearchHint(browser: string = 'chromium'): string {
-  const layout = LAYOUTS[browser];
-  if (!layout) return `unknown browser family "${browser}"`;
-  const candidate = exactReleaseCandidate(browser);
-  if (!candidate) {
-    return `set ${layout.envVersion} and ${layout.envSha256}, then install the exact Stado release for ${browser} through Stado`;
+  try {
+    return `verified browser executable: ${verifiedBrowser(browser)}`;
+  } catch (error) {
+    return `${error instanceof Error ? error.message : String(error)}; install the exact deployment-selected browser release through Stado`;
   }
-  return `verified executable not found for the configured release; expected ${candidate.binary} with matching ${candidate.receipt}`;
 }
 
 export function findCustomChromium(): string | undefined {

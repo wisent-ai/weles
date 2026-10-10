@@ -10,7 +10,10 @@ import { generate, toConfig } from './fingerprint.js';
 import { hostHardware, honestHostEnabled } from './runtime/host_hardware.js';
 import { pruneRecordings } from './runtime/prune.js';
 import { recordingsBase, runRecordingsDir } from './session/run-recordings.js';
-import { findCustomBrowser } from './session/find_browser.js';
+import {
+  customBrowserSearchHint,
+  findCustomBrowser,
+} from './session/find_browser.js';
 import type { Persona } from './browser/persona.js';
 import { CHROMIUM_ARGS } from './browser/launch/support.js';
 import { launchChromiumContext } from './browser/launch/chromium.js';
@@ -303,7 +306,7 @@ export async function AsyncNewBrowser(
     : undefined;
   if (isChromium && !selectedChromiumPath) {
     throw new Error(
-      'WELES_CHROMIUM_BINARY_NOT_FOUND: install the configured immutable Stado release',
+      `WELES_CHROMIUM_BINARY_NOT_FOUND: ${customBrowserSearchHint('chromium')}`,
     );
   }
   const chromiumPath = selectedChromiumPath ?? '';

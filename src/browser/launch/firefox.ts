@@ -1,6 +1,9 @@
 import type { BrowserContext } from 'playwright';
 import { buildInitScript } from '../../page-init/loader.js';
-import { findCustomBrowser } from '../../session/find_browser.js';
+import {
+  customBrowserSearchHint,
+  findCustomBrowser,
+} from '../../session/find_browser.js';
 import { launchWelesFirefox } from './firefox_launch.js';
 import {
   browserProvenance,
@@ -34,7 +37,7 @@ export async function launchFirefoxContext(
   const firefoxPath = findCustomBrowser('firefox');
   if (!firefoxPath) {
     throw new Error(
-      'WELES_FIREFOX_BINARY_NOT_FOUND: install the configured immutable Stado release',
+      `WELES_FIREFOX_BINARY_NOT_FOUND: ${customBrowserSearchHint('firefox')}`,
     );
   }
   const pwBrowser = await launchWelesFirefox({

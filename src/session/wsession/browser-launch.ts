@@ -30,7 +30,7 @@ import { resolveProxy } from '../../proxy/config.js';
 import { seedHumanTiming } from '../../utils/motion/timing.js';
 import type { WSession } from '../wsession.js';
 import { SessionStore } from '../store.js';
-import { findCustomBrowser } from '../find_browser.js';
+import { customBrowserSearchHint, findCustomBrowser } from '../find_browser.js';
 import {
   loadOperatorCdpConfig,
   type OperatorCdpConfig,
@@ -183,7 +183,11 @@ export async function openSessionBrowser(
     );
   }
   const cp = findCustomBrowser(bOpts.browser);
-  if (!cp) throw new Error(`Verified ${bOpts.browser} release not found`);
+  if (!cp) {
+    throw new Error(
+      `Verified ${bOpts.browser} release not found: ${customBrowserSearchHint(bOpts.browser)}`,
+    );
+  }
   if (secureCredentialTask) {
     delete process.env.SSLKEYLOGFILE;
     delete process.env.WELES_LABEL;

@@ -86,6 +86,83 @@ await test('authenticated API observes and stops its real keeper owner', async (
     expectedRevision,
     'worker source revision differs from the selected qualification',
   );
+  report.browser_admission = [];
+  for (const scenario of [
+    {
+      variable: 'WELES_CHROMIUM_RELEASE_VERSION',
+      value: undefined,
+      cause: 'WELES_CHROMIUM_RELEASE_VERSION is not set',
+    },
+    {
+      variable: 'WELES_CHROMIUM_RELEASE_SHA256',
+      value: undefined,
+      cause: 'WELES_CHROMIUM_RELEASE_SHA256 is not set',
+    },
+    {
+      variable: 'WELES_CHROMIUM_RELEASE_SHA256',
+      value: 'not-a-digest',
+      cause: 'WELES_CHROMIUM_RELEASE_SHA256 is not a SHA-256 digest',
+    },
+  ]) {
+    const environment = { ...process.env };
+    assert.ok(
+      environment.WELES_CHROMIUM_RELEASE_VERSION,
+      'the real browser version is required',
+    );
+    assert.ok(
+      environment.WELES_CHROMIUM_RELEASE_SHA256,
+      'the real browser checksum is required',
+    );
+    if (scenario.value === undefined) delete environment[scenario.variable];
+    else environment[scenario.variable] = scenario.value;
+    environment.WELES_RECORDINGS_ROOT = join(directory, 'recordings');
+    environment.WELES_RUN_ID = randomUUID();
+    const command = [
+      'open',
+      'about:blank',
+      '--browser',
+      'chromium',
+      '--headless',
+      '--json',
+    ];
+    const refused = spawn(binary, command, {
+      cwd: root,
+      env: environment,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const closed = once(refused, 'close');
+    let stdout = '';
+    let stderr = '';
+    refused.stdout.setEncoding('utf8');
+    refused.stderr.setEncoding('utf8');
+    refused.stdout.on('data', (chunk) => {
+      stdout += chunk;
+    });
+    refused.stderr.on('data', (chunk) => {
+      stderr += chunk;
+    });
+    const [exit, signal] = await closed;
+    report.browser_admission.push({
+      command: [binary, ...command],
+      variable: scenario.variable,
+      expected_cause: scenario.cause,
+      exit,
+      signal,
+      stdout,
+      stderr,
+    });
+    save();
+    assert.equal(
+      signal,
+      null,
+      'browser admission must refuse without being killed',
+    );
+    assert.ok(exit, 'invalid browser selection must fail the real CLI');
+    assert.ok(
+      `${stdout}\n${stderr}`.includes(scenario.cause),
+      'browser admission must retain the actual selection cause',
+    );
+  }
   const child = spawn(binary, args, {
     cwd: root,
     env: {
