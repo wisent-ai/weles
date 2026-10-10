@@ -146,14 +146,12 @@ export const readGisState = (arg) => {
     // of its own, waited out, not a failure. A rendered control outranks it,
     // because the consent, gate and app checks are classified first.
     appLoading: document.querySelector('[data-page-loading]') !== null,
-    // claude.ai answers some sign-ins with an hCaptcha challenge right after
-    // Google's popup closes (one run: "Drag the letter to the place where
-    // it fits", an hcaptcha.com frame=challenge iframe over the login page).
+    // Only a visible challenge blocks the handoff; providers retain hidden frames after acceptance.
     captchaChallenge: Array.from(
       document.querySelectorAll(
         'iframe[src*="hcaptcha.com"][src*="frame=challenge"], iframe[src*="recaptcha"][src*="bframe"], iframe[src*="arkoselabs"], iframe[src*="challenges.cloudflare.com"]',
       ),
-    ).some(shown),
+    ).some((frame) => frame.checkVisibility()),
     identifierField: Array.from(
       document.querySelectorAll(
         'input[type="text"][autocomplete*="username"], input#identifierId, input[name="identifier"], input[type="email"]',

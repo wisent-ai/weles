@@ -340,9 +340,11 @@ export async function doGoogleSso({
           pageCondition(
             active,
             () =>
-              !document.querySelector(
-                'iframe[src*="hcaptcha.com"][src*="frame=challenge"], iframe[src*="recaptcha"][src*="bframe"], iframe[src*="arkoselabs"], iframe[src*="challenges.cloudflare.com"]',
-              ),
+              !Array.from(
+                document.querySelectorAll(
+                  'iframe[src*="hcaptcha.com"][src*="frame=challenge"], iframe[src*="recaptcha"][src*="bframe"], iframe[src*="arkoselabs"], iframe[src*="challenges.cloudflare.com"]',
+                ),
+              ).some((frame) => frame.checkVisibility()),
           ),
         );
         continue;
