@@ -5,11 +5,11 @@ import { humanClickLocator } from '../../../../../../../dist/human/mouse.js';
 import { pageCondition, pageSettled } from '../../../../page/settled.mjs';
 import {
   closeOperatorRequest,
-  nextOperatorAnswer,
   noteOperatorRequest,
   openOperatorRequest,
   repageOperatorRequest,
 } from '#operator-request';
+import { nextApprovalEvent } from './wait.mjs';
 
 const GOOGLE_HOST = 'accounts.google.com';
 const DEVICE_PROMPT = /\/signin\/challenge\/dp(?:\/|$)/;
@@ -217,14 +217,7 @@ export async function completeGooglePhoneApproval(page, account, run) {
     let pageAnswer = watchPage(await announcedNow());
     let answer = null;
     while (!answer) {
-      const listening = new AbortController();
-      const outcome = await Promise.race([
-        pageAnswer,
-        nextOperatorAnswer(request.id, seen, listening.signal).then((said) => ({
-          operator: said,
-        })),
-      ]);
-      listening.abort();
+      const outcome = await nextApprovalEvent(pageAnswer, request.id, seen);
       if (outcome.page?.expired) {
         const at = new Date().toISOString();
         const how = `weles runs answer ${firstRun ?? '<run>'} --not-received`;
@@ -328,14 +321,7 @@ async function untilReady(page, request, seen) {
   left.catch(() => {});
   let answered = seen;
   for (;;) {
-    const listening = new AbortController();
-    const outcome = await Promise.race([
-      left,
-      nextOperatorAnswer(request.id, answered, listening.signal).then(
-        (said) => ({ operator: said }),
-      ),
-    ]);
-    listening.abort();
+    const outcome = await nextApprovalEvent(left, request.id, answered);
     if (outcome.page) {
       throw failure(
         `Google left its challenge for ${outcome.page.detail} while the run waited for the operator to be ready (asked at ${request.opened_at}); no prompt was sent, and a new run of the same action starts the sign-in again`,
