@@ -225,7 +225,7 @@ export function sharedCapabilitySocket() {
     );
   }
   const units = stadoJson(
-    ['service', 'env', 'skarbiec', '--host', host, '--json'],
+    ['service', 'env', 'show', 'skarbiec', '--host', host, '--json'],
     `Skarbiec unit environment on ${host}`,
   );
   const socket = Array.isArray(units)
