@@ -90,7 +90,7 @@ async function main() {
       text: credential.login_email,
     });
     await clickText(args.session, 'Next');
-    await action(args.session, { action: 'humanidle', kind: 'deliberate' });
+    await action(args.session, { action: 'settle' });
     await mark('email_submitted');
   }
 
@@ -117,7 +117,7 @@ async function main() {
     else if (/Use your password/i.test(afterEmailText))
       await clickText(args.session, 'Use your password');
     else await clickText(args.session, 'Try another way');
-    await action(args.session, { action: 'humanidle', kind: 'deliberate' });
+    await action(args.session, { action: 'settle' });
     await mark('password_option_clicked');
   }
 
@@ -129,7 +129,7 @@ async function main() {
       text: credential.login_password,
     });
     await action(args.session, { action: 'press', key: 'Enter' });
-    await action(args.session, { action: 'humanidle', kind: 'deliberate' });
+    await action(args.session, { action: 'settle' });
     await mark('password_submitted');
   }
 
@@ -144,7 +144,7 @@ async function main() {
       )
     )
       break;
-    await action(args.session, { action: 'humanidle', kind: 'short' });
+    await action(args.session, { action: 'settle' });
   }
 
   const currentText = await text(args.session);
@@ -161,14 +161,14 @@ async function main() {
         'Zezwól',
         'Zgadzam',
       ]);
-      await action(args.session, { action: 'humanidle', kind: 'deliberate' });
+      await action(args.session, { action: 'settle' });
       await mark(`google_consent_${clicked}`);
     } catch {}
   }
 
   if (args.targetUrl) {
     await action(args.session, { action: 'nav', url: args.targetUrl });
-    await action(args.session, { action: 'humanidle', kind: 'deliberate' });
+    await action(args.session, { action: 'settle' });
     await mark('target_loaded');
   }
 

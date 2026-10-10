@@ -30,7 +30,7 @@ export async function state() {
 }
 
 export async function idle(kind = 'deliberate') {
-  await action({ action: 'humanidle', kind }).catch(() => {});
+  await action({ action: 'settle' }).catch(() => {});
 }
 
 export async function nav(url) {
@@ -86,9 +86,7 @@ export async function clickText(values) {
 }
 
 export async function fill(selector, text) {
-  await action({ action: 'fill_fast', selector, text }).catch(() =>
-    action({ action: 'set_value', selector, text }),
-  );
+  await action({ action: 'fill', selector, text });
   await idle('short');
 }
 

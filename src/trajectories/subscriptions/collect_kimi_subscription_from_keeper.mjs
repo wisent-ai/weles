@@ -77,7 +77,7 @@ async function clickExactText(session, textValue) {
     x: result.result.x,
     y: result.result.y,
   });
-  await action(session, { action: 'humanidle', kind: 'deliberate' });
+  await action(session, { action: 'settle' });
 }
 
 function linesOf(text) {
@@ -182,7 +182,7 @@ async function main() {
     action: 'nav',
     url: 'https://www.kimi.com/membership/subscription',
   });
-  await action(args.session, { action: 'humanidle', kind: 'deliberate' });
+  await action(args.session, { action: 'settle' });
 
   const infoText = await readText(args.session);
   if (

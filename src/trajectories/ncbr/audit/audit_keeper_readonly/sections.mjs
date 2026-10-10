@@ -20,13 +20,13 @@ export async function loginIfNeeded() {
     selector: '#mail, input[name="mail"]',
     text: EMAIL,
   });
-  await send({ action: 'humanidle', kind: 'short' });
+  await send({ action: 'settle' });
   await send({
     action: 'fill',
     selector: '#password, input[name="password"]',
     text: PASSWORD,
   });
-  await send({ action: 'humanidle', kind: 'short' });
+  await send({ action: 'settle' });
   const check = await read(`(() => {
     const c = document.querySelector('#isStatuteAccepted, input[name="isStatuteAccepted"]');
     return c ? { present: true, checked: c.checked } : { present: false };
@@ -36,14 +36,14 @@ export async function loginIfNeeded() {
       action: 'click',
       selector: '#isStatuteAccepted, input[name="isStatuteAccepted"]',
     });
-    await send({ action: 'humanidle', kind: 'short' });
+    await send({ action: 'settle' });
   }
   await send({
     action: 'click',
     selector: '#login-btn, button:has-text("Zaloguj")',
   });
-  await send({ action: 'humanidle', kind: 'long' });
-  await send({ action: 'humanidle', kind: 'long' });
+  await send({ action: 'settle' });
+  await send({ action: 'settle' });
   const after = await read(
     `(() => ({ url: location.href, body: document.body.innerText }))()`,
   );
@@ -101,7 +101,7 @@ export async function inspectDocuments() {
     selector:
       'button:has-text("Dokumenty"), a:has-text("Dokumenty"), [role="button"]:has-text("Dokumenty")',
   });
-  await send({ action: 'humanidle', kind: 'long' });
+  await send({ action: 'settle' });
   const state = await read(`(() => {
     const body = document.body.innerText || '';
     return {
@@ -125,8 +125,8 @@ export async function validateOnly() {
     action: 'click',
     selector: 'button:has-text("Sprawdź wniosek")',
   });
-  await send({ action: 'humanidle', kind: 'long' });
-  await send({ action: 'humanidle', kind: 'long' });
+  await send({ action: 'settle' });
+  await send({ action: 'settle' });
   const state = await read(`(() => {
     const body = document.body.innerText || '';
     return {
@@ -170,6 +170,6 @@ export async function dumpCurrent(label) {
 export async function navigateByVisibleLabel(label) {
   await nav(PROJECT_URL);
   await send({ action: 'click', selector: `text=${JSON.stringify(label)}` });
-  await send({ action: 'humanidle', kind: 'long' });
+  await send({ action: 'settle' });
   return await dumpCurrent(label);
 }

@@ -113,11 +113,7 @@ if (process.env.ONLY) {
 }
 
 function action(args, optional = false) {
-  const result = spawnSync(
-    process.execPath,
-    ['src/_shared/keeper/action.mjs', ...args],
-    { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' },
-  );
+  const result = spawnSync(process.execPath, ['src/trajectories/_shared/keeper/action.mjs'], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8', input: JSON.stringify(args) });
   if (result.status !== 0) {
     if (optional)
       return {
@@ -127,19 +123,19 @@ function action(args, optional = false) {
         status: result.status,
       };
     throw new Error(
-      `${args.join(' ')}\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+      `${args.action}\nstdout=${result.stdout}\nstderr=${result.stderr}`,
     );
   }
   const out = String(result.stdout || '').trim();
   if (!out) {
     if (optional) return { ok: true, empty: true };
-    throw new Error(`empty keeper output for ${args.join(' ')}`);
+    throw new Error(`empty keeper output for ${args.action}`);
   }
   return JSON.parse(out);
 }
 
-const read = (js) => action(['eval', js]).result;
-const idle = (kind = 'short') => action(['humanidle', kind], true);
+const read = (js) => action({ action: 'eval', js: js }).result;
+const idle = (kind = 'short') => action({ action: 'settle' }, true);
 
 function fill(name, value) {
   const check = read(`(() => {
@@ -152,7 +148,7 @@ function fill(name, value) {
   })()`);
   if (!check?.ok)
     throw new Error(`fill precheck failed ${name}: ${JSON.stringify(check)}`);
-  action(['set_value', `${check.tag}[name="${name}"]`, value]);
+  action({ action: 'fill', selector: `${check.tag}[name="${name}"]`, text: value });
   idle('short');
   return read(`(() => {
     const name = ${JSON.stringify(name)};
@@ -188,20 +184,13 @@ function openByNeedle(needle) {
   })()`);
   if (rowText === null) throw new Error(`row not found by text: ${needle}`);
   const menuSelector = `table tbody tr:has-text(${JSON.stringify(rowText)}) button[aria-label="overflow-options"]`;
-  // A fast click first, a dispatched click when the menu did not open.
-  for (const method of ['click_fast', 'dispatch_click']) {
-    action([method, menuSelector], true);
-    idle('short');
-    const hasEdit = read(
-      `(() => Array.from(document.querySelectorAll('[role="menuitem"], li, button')).some((el) => el.offsetParent !== null && el.innerText.trim() === 'Edytuj'))()`,
-    );
-    if (hasEdit) break;
-  }
+  action({ action: 'click', selector: menuSelector });
+  idle();
   const openedMenu = read(
     `(() => Array.from(document.querySelectorAll('[role="menuitem"], li, button')).some((el) => el.offsetParent !== null && el.innerText.trim() === 'Edytuj'))()`,
   );
   if (!openedMenu) throw new Error(`edit menu did not open for row: ${needle}`);
-  action(['dispatch_click', 'text="Edytuj"']);
+  action({ action: 'click', selector: 'text="Edytuj"' });
   idle('long');
   return { row: rowText };
 }
@@ -215,14 +204,8 @@ function openParamByOrdinal(rowOrdinal) {
   if (!rowText)
     throw new Error(`parameter row not found by ordinal: ${rowOrdinal + 1}`);
   const selector = `table tbody tr:has-text(${JSON.stringify(rowText)}) button[aria-label="overflow-options"]`;
-  for (const method of ['click_fast', 'dispatch_click']) {
-    action([method, selector], true);
-    idle('short');
-    const hasEdit = read(
-      `(() => Array.from(document.querySelectorAll('[role="menuitem"], li, button')).some((el) => el.offsetParent !== null && el.innerText.trim() === 'Edytuj'))()`,
-    );
-    if (hasEdit) break;
-  }
+  action({ action: 'click', selector });
+  idle();
   const openedMenu = read(
     `(() => Array.from(document.querySelectorAll('[role="menuitem"], li, button')).some((el) => el.offsetParent !== null && el.innerText.trim() === 'Edytuj'))()`,
   );
@@ -230,15 +213,15 @@ function openParamByOrdinal(rowOrdinal) {
     throw new Error(
       `edit menu did not open for parameter row ${rowOrdinal + 1}: ${rowText}`,
     );
-  action(['dispatch_click', 'text="Edytuj"']);
+  action({ action: 'click', selector: 'text="Edytuj"' });
   idle('long');
   return { index: rowOrdinal + 1, rowText };
 }
 
 function saveSubform() {
-  action(['press', 'Tab'], true);
+  action({ action: 'press', key: 'Tab' }, true);
   idle('long');
-  action(['dispatch_click', '#collection-obj-form-save-btn']);
+  action({ action: 'click', selector: '#collection-obj-form-save-btn' });
   // The form is saved when its save button is gone. A disabled button is a
   // save in flight and is waited for; an enabled one did not take the click
   // and is pressed again.
@@ -250,13 +233,13 @@ function saveSubform() {
     })()`);
     if (!status) return { ok: true, clicks };
     if (!status.disabled) {
-      action(['dispatch_click', '#collection-obj-form-save-btn'], true);
+      action({ action: 'click', selector: '#collection-obj-form-save-btn' }, true);
       clicks += 1;
     }
   }
 }
 
-action(['nav', URL]);
+action({ action: 'nav', url: URL });
 idle('long');
 
 const synced = [];
@@ -302,7 +285,7 @@ for (const [rowIndex, row] of rows.entries()) {
   const save = saveSubform();
   console.log(JSON.stringify({ stage: 'saved', part: PART, needle, save }));
   synced.push({ needle, opened, fills, save });
-  action(['nav', URL]);
+  action({ action: 'nav', url: URL });
   idle('long');
 }
 

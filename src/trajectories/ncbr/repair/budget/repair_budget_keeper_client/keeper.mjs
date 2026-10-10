@@ -15,23 +15,23 @@ export async function ro(js) {
 
 export async function nav(url) {
   const out = await send({ action: 'nav', url });
-  await send({ action: 'humanidle', kind: 'long' });
+  await send({ action: 'settle' });
   return out;
 }
 
 export async function kclick(selector) {
   await send({ action: 'click', selector });
-  await send({ action: 'humanidle', kind: 'short' });
+  await send({ action: 'settle' });
 }
 
 export async function kfill(selector, text) {
   await send({ action: 'fill', selector, text });
-  await send({ action: 'humanidle', kind: 'short' });
+  await send({ action: 'settle' });
 }
 
 export async function press(key) {
   await send({ action: 'press', key });
-  await send({ action: 'humanidle', kind: 'short' });
+  await send({ action: 'settle' });
 }
 
 export function hasText(text) {
@@ -51,7 +51,7 @@ export async function clickLastButton(label, { requireEnabled = true } = {}) {
   if (!buttons.length) return false;
   const b = buttons[buttons.length - 1];
   await send({ action: 'humanclick', x: b.x, y: b.y });
-  await send({ action: 'humanidle', kind: 'long' });
+  await send({ action: 'settle' });
   return true;
 }
 
@@ -67,7 +67,7 @@ export async function saveOpenForm() {
   }
   const b = enabled[enabled.length - 1];
   await send({ action: 'humanclick', x: b.x, y: b.y });
-  await send({ action: 'humanidle', kind: 'long' });
+  await send({ action: 'settle' });
   return { status: 'saved' };
 }
 

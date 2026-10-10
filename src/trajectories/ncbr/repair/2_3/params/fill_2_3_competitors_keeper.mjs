@@ -54,26 +54,22 @@ const nonEu = competitorRows(
 );
 
 function action(args, optional = false) {
-  const out = spawnSync(
-    process.execPath,
-    ['src/_shared/keeper/action.mjs', ...args],
-    { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' },
-  );
+  const out = spawnSync(process.execPath, ['src/trajectories/_shared/keeper/action.mjs'], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8', input: JSON.stringify(args) });
   if (out.status !== 0) {
     if (optional) return { ok: false, stdout: out.stdout, stderr: out.stderr };
     throw new Error(
-      `${args.join(' ')}\nstdout=${out.stdout}\nstderr=${out.stderr}`,
+      `${args.action}\nstdout=${out.stdout}\nstderr=${out.stderr}`,
     );
   }
   return JSON.parse(out.stdout.trim());
 }
 
 function read(js) {
-  return action(['eval', js]).result;
+  return action({ action: 'eval', js: js }).result;
 }
 
 function idle(kind = 'short') {
-  action(['humanidle', kind], true);
+  action({ action: 'settle' }, true);
 }
 
 function tableText() {
@@ -146,13 +142,13 @@ function addRow(nth, type, row) {
   idle('deliberate');
   const save = saveSubform();
   idle('long');
-  action(['nav', URL]);
+  action({ action: 'nav', url: URL });
   idle('long');
   return { type, producer: row.producer, save, filled };
 }
 
 const added = [];
-action(['nav', URL]);
+action({ action: 'nav', url: URL });
 idle('long');
 
 for (const row of eu) {

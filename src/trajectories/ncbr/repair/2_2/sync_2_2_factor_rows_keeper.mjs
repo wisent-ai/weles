@@ -56,11 +56,7 @@ if (process.env.ONLY) {
 }
 
 function action(args, optional = false) {
-  const result = spawnSync(
-    process.execPath,
-    ['src/_shared/keeper/action.mjs', ...args],
-    { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' },
-  );
+  const result = spawnSync(process.execPath, ['src/trajectories/_shared/keeper/action.mjs'], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8', input: JSON.stringify(args) });
   if (result.status !== 0) {
     if (optional)
       return {
@@ -70,34 +66,34 @@ function action(args, optional = false) {
         status: result.status,
       };
     throw new Error(
-      `${args.join(' ')}\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+      `${args.action}\nstdout=${result.stdout}\nstderr=${result.stderr}`,
     );
   }
   const out = String(result.stdout || '').trim();
-  if (!out) throw new Error(`empty keeper output for ${args.join(' ')}`);
+  if (!out) throw new Error(`empty keeper output for ${args.action}`);
   return JSON.parse(out);
 }
 
 function read(js) {
-  return action(['eval', js]).result;
+  return action({ action: 'eval', js: js }).result;
 }
 
 function idle(kind = 'short') {
-  action(['humanidle', kind], true);
+  action({ action: 'settle' }, true);
 }
 
 function loginIfNeeded() {
-  const url = action(['url'], true);
+  const url = action({ action: 'url' }, true);
   const current = url.ok === false ? '' : String(url.url || url.result || '');
   if (!/login|logowanie|auth/i.test(current)) return false;
   const email = process.env.NCBR_EMAIL;
   const password = process.env.NCBR_PASSWORD;
   if (!email || !password)
     throw new Error('login required but NCBR_EMAIL/NCBR_PASSWORD not set');
-  action(['fill_fast', 'input#mail, input[name="mail"]', email]);
-  action(['fill_fast', 'input#password, input[name="password"]', password]);
-  action(['click_fast', 'input[name="isStatuteAccepted"]'], true);
-  action(['click_fast', 'button:has-text("Zaloguj się")']);
+  action({ action: 'fill', selector: 'input#mail, input[name="mail"]', text: email });
+  action({ action: 'fill', selector: 'input#password, input[name="password"]', text: password });
+  action({ action: 'click', selector: 'input[name="isStatuteAccepted"]' }, true);
+  action({ action: 'click', selector: 'button:has-text("Zaloguj się")' });
   idle('long');
   idle('long');
   return true;
@@ -114,11 +110,7 @@ function fill(name, value) {
   })()`);
   if (!check?.ok)
     throw new Error(`fill precheck failed ${name}: ${JSON.stringify(check)}`);
-  action([
-    'fill_fast',
-    `textarea[name="${name}"]:visible, input[name="${name}"]:visible`,
-    value,
-  ]);
+  action({ action: 'fill', selector: `textarea[name="${name}"]:visible, input[name="${name}"]:visible`, text: value });
   idle('short');
   return read(`(() => {
     const name = ${JSON.stringify(name)};
@@ -144,15 +136,15 @@ function openByParam(param) {
   })()`);
   if (idx < 0) throw new Error(`factor row not found by param: ${param}`);
   const menu = `:nth-match(table tbody tr, ${idx + 1}) button[aria-label="overflow-options"]`;
-  action(['click_fast', menu]);
+  action({ action: 'click', selector: menu });
   idle('short');
-  action(['click_fast', 'text="Edytuj"']);
+  action({ action: 'click', selector: 'text="Edytuj"' });
   idle('long');
   return { index: idx + 1 };
 }
 
 function saveSubform() {
-  action(['dispatch_click', '#collection-obj-form-save-btn']);
+  action({ action: 'click', selector: '#collection-obj-form-save-btn' });
   // The form is saved when its save button is gone. A disabled button is a
   // save in flight and is waited for; an enabled one did not take the click
   // and is pressed again.
@@ -164,7 +156,7 @@ function saveSubform() {
     })()`);
     if (!status) return { ok: true, clicks };
     if (!status.disabled) {
-      action(['dispatch_click', '#collection-obj-form-save-btn'], true);
+      action({ action: 'click', selector: '#collection-obj-form-save-btn' }, true);
       clicks += 1;
     }
   }
@@ -180,10 +172,10 @@ function allRowsText() {
   })))()`);
 }
 
-action(['nav', URL]);
+action({ action: 'nav', url: URL });
 idle('long');
 loginIfNeeded();
-action(['nav', URL]);
+action({ action: 'nav', url: URL });
 idle('long');
 
 const before = allRowsText();
@@ -229,12 +221,12 @@ for (const row of rows) {
       max: verify.max,
     }),
   );
-  action(['press', 'Tab'], true);
+  action({ action: 'press', key: 'Tab' }, true);
   idle('long');
   saveSubform();
   console.log(JSON.stringify({ stage: 'saved', param: row.param }));
   synced.push({ param: row.param, opened, paramName, method, verify });
-  action(['nav', URL]);
+  action({ action: 'nav', url: URL });
   idle('long');
 }
 

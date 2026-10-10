@@ -30,7 +30,7 @@ export async function action(cmd) {
 }
 
 export async function idle(kind = 'deliberate') {
-  await action({ action: 'humanidle', kind });
+  await action({ action: 'settle' });
 }
 
 export async function nav(url) {

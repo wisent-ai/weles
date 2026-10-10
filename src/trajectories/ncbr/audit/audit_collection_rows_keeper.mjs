@@ -59,23 +59,11 @@ async function action(cmd, optional = false) {
 const read = async (js) => (await action({ action: 'eval', js })).result;
 
 async function click(selector, optional = false) {
-  const fast = await action({ action: 'click_fast', selector }, true);
-  if (fast.ok) return fast;
-  if (optional) return fast;
-  throw new Error(`click failed: ${selector}: ${fast.error || 'unknown'}`);
+  return action({ action: 'click', selector }, optional);
 }
 
-async function dispatchClick(selector, optional = false) {
-  const res = await action({ action: 'dispatch_click', selector }, true);
-  if (res.ok) return res;
-  if (optional) return res;
-  throw new Error(
-    `dispatch click failed: ${selector}: ${res.error || 'unknown'}`,
-  );
-}
-
-async function idle(kind = 'short') {
-  await action({ action: 'humanidle', kind }, true);
+async function idle() {
+  await action({ action: 'settle' });
 }
 
 async function nav(label, id) {
@@ -210,15 +198,11 @@ async function inspectRow(row) {
   let openMenu = { ok: false, error: 'menu not attempted' };
   let menuVisible = false;
   for (const selector of selectors) {
-    // A real click first, a dispatched click when the menu did not open.
-    for (const opener of [click, dispatchClick]) {
-      openMenu = await opener(selector, true);
-      await idle('short');
-      menuVisible =
-        await read(`(() => Array.from(document.querySelectorAll('[role="menuitem"], li, button'))
-        .some((el) => Boolean(el.offsetParent) && el.innerText.trim() === 'Edytuj'))()`);
-      if (openMenu.ok && menuVisible) break;
-    }
+    openMenu = await click(selector, true);
+    await idle('short');
+    menuVisible =
+      await read(`(() => Array.from(document.querySelectorAll('[role="menuitem"], li, button'))
+      .some((el) => Boolean(el.offsetParent) && el.innerText.trim() === 'Edytuj'))()`);
     if (openMenu.ok && menuVisible) break;
   }
   if (!openMenu.ok || !menuVisible)
@@ -231,9 +215,7 @@ async function inspectRow(row) {
   const menu = await read(
     `(() => Array.from(document.querySelectorAll('[role="menu"], .MuiMenu-paper')).map((e) => e.innerText.trim()).filter(Boolean))()`,
   );
-  let edit = await dispatchClick('[role="menuitem"]:has-text("Edytuj")', true);
-  if (!edit.ok)
-    edit = await click('[role="menuitem"]:has-text("Edytuj")', true);
+  const edit = await click('[role="menuitem"]:has-text("Edytuj")', true);
   await idle('long');
   if (!edit.ok)
     return { row, editable: false, menu, error: edit.error || null };

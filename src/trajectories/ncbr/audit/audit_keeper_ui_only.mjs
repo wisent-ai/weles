@@ -60,7 +60,7 @@ async function send(cmd) {
 
 async function nav(url) {
   const out = await send({ action: 'nav', url });
-  await send({ action: 'humanidle', kind: 'long' });
+  await send({ action: 'settle' });
   return out;
 }
 
@@ -109,8 +109,8 @@ async function loginIfNeeded() {
     action: 'click',
     selector: '#login-btn, button:has-text("Zaloguj")',
   });
-  await send({ action: 'humanidle', kind: 'long' }).catch(() => null);
-  await send({ action: 'humanidle', kind: 'long' }).catch(() => null);
+  await send({ action: 'settle' }).catch(() => null);
+  await send({ action: 'settle' }).catch(() => null);
   const after = await read(
     `(() => ({ url: location.href, body: document.body.innerText }))()`,
   );
@@ -193,8 +193,8 @@ async function validateOnly() {
       selector: 'button:has-text("Sprawdź wniosek")',
     });
     clicked = true;
-    await send({ action: 'humanidle', kind: 'long' }).catch(() => null);
-    await send({ action: 'humanidle', kind: 'long' }).catch(() => null);
+    await send({ action: 'settle' }).catch(() => null);
+    await send({ action: 'settle' }).catch(() => null);
   } catch (e) {
     return {
       clicked,

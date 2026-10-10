@@ -11,7 +11,7 @@ export async function send(cmd) {
 
 export async function nav(url) {
   const out = await send({ action: 'nav', url });
-  await send({ action: 'humanidle', kind: 'long' });
+  await send({ action: 'settle' });
   return out;
 }
 

@@ -346,27 +346,23 @@ const sections = [
   },
 ];
 
-function action(args, timeout = 120000, optional = false) {
-  const out = spawnSync(
-    process.execPath,
-    ['src/_shared/keeper/action.mjs', ...args],
-    { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' },
-  );
+function action(args, optional = false) {
+  const out = spawnSync(process.execPath, ['src/trajectories/_shared/keeper/action.mjs'], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8', input: JSON.stringify(args) });
   if (out.status !== 0) {
     if (optional) return { ok: false, stdout: out.stdout, stderr: out.stderr };
     throw new Error(
-      `${args.join(' ')}\nstdout=${out.stdout}\nstderr=${out.stderr}`,
+      `${args.action}\nstdout=${out.stdout}\nstderr=${out.stderr}`,
     );
   }
   return JSON.parse(out.stdout.trim());
 }
 
-function read(js, timeout = 60000) {
-  return action(['eval', js]).result;
+function read(js) {
+  return action({ action: 'eval', js: js }).result;
 }
 
-function idle(kind = 'short') {
-  action(['humanidle', kind], 60000, true);
+function idle() {
+  action({ action: 'settle' });
 }
 
 function fillSuffix(suffix, value) {
@@ -413,7 +409,7 @@ for (const cfg of sections) {
   if (filter && !filter.has(cfg.label)) continue;
   const md = cfg.md ? file(cfg.md) : '';
   const fields = cfg.fields(md);
-  action(['nav', `${PROJECT}${cfg.id}`]);
+  action({ action: 'nav', url: `${PROJECT}${cfg.id}` });
   idle('long');
   const filled = fields.map(([suffix, value]) => fillSuffix(suffix, value));
   idle('deliberate');

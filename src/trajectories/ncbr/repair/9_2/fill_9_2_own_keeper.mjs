@@ -55,27 +55,23 @@ const ownIndicators = ownBlock
   .filter((x) => x.name && !/HarmBench|attack success rate/i.test(x.name));
 
 function action(args, optional = false) {
-  const result = spawnSync(
-    process.execPath,
-    ['src/_shared/keeper/action.mjs', ...args],
-    { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' },
-  );
+  const result = spawnSync(process.execPath, ['src/trajectories/_shared/keeper/action.mjs'], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8', input: JSON.stringify(args) });
   if (result.status !== 0) {
     if (optional)
       return { ok: false, stdout: result.stdout, stderr: result.stderr };
     throw new Error(
-      `${args.join(' ')}\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+      `${args.action}\nstdout=${result.stdout}\nstderr=${result.stderr}`,
     );
   }
   return JSON.parse(result.stdout.trim());
 }
 
 function read(js) {
-  return action(['eval', js]).result;
+  return action({ action: 'eval', js: js }).result;
 }
 
 function idle(kind = 'short') {
-  action(['humanidle', kind], true);
+  action({ action: 'settle' }, true);
 }
 
 function tableText() {
@@ -115,11 +111,11 @@ function fieldFill(name, value) {
 }
 
 function save() {
-  return action(['click', 'button:has-text("Zapisz")']);
+  return action({ action: 'click', selector: 'button:has-text("Zapisz")' });
 }
 
 const added = [];
-action(['nav', URL]);
+action({ action: 'nav', url: URL });
 idle('long');
 for (const ind of ownIndicators) {
   const current = tableText();
@@ -127,7 +123,7 @@ for (const ind of ownIndicators) {
     added.push({ name: ind.name, skipped: true });
     continue;
   }
-  action(['click', 'button:has-text("Dodaj")']);
+  action({ action: 'click', selector: 'button:has-text("Dodaj")' });
   idle('long');
   const filled = [
     ['nazwa_wskaznika', ind.name],
@@ -142,7 +138,7 @@ for (const ind of ownIndicators) {
   idle('deliberate');
   const saved = save();
   idle('long');
-  action(['nav', URL]);
+  action({ action: 'nav', url: URL });
   idle('long');
   added.push({ name: ind.name, saved, filled });
 }

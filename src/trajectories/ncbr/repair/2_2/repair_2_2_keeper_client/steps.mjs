@@ -90,7 +90,7 @@ export function loginIfNeeded() {
 export function saveMain() {
   const before = readState().buttons.filter((b) => b.text === 'Zapisz');
   const res = click('button:has-text("Zapisz")', true);
-  action(['humanidle', 'long'], true);
+  action({ action: 'settle' }, true);
   settle();
   const after = readState();
   return {
@@ -102,17 +102,17 @@ export function saveMain() {
 
 export function setMainTexts() {
   fill(fieldSelector('innowacja_produktowa_opis_rezultatu_prac_br'), OPIS);
-  action(['humanidle', 'long'], true);
+  action({ action: 'settle' }, true);
   fill(fieldSelector('innowacja_produktowa_wplyw_rezultatu_prac_br'), WPLYW);
-  action(['humanidle', 'long'], true);
+  action({ action: 'settle' }, true);
   fill(
     fieldSelector(
       'innowacja_produktowa_powiazanie_rezultatu_prac_br_z_lancuchem_wartosci',
     ),
     POWIAZANIE,
   );
-  action(['humanidle', 'long'], true);
-  action(['humanidle', 'deliberate'], true);
+  action({ action: 'settle' }, true);
+  action({ action: 'settle' }, true);
   const save = saveMain();
   evidence.steps.push({
     step: 'main_texts',
@@ -138,7 +138,7 @@ export function ensureFactorSelected(label) {
     'rezultat_prac_br_spelnia_nastepujace_czynniki',
   );
   fill(selector, label);
-  action(['humanidle', 'long'], true);
+  action({ action: 'settle' }, true);
   const options = evalRead(
     `Array.from(document.querySelectorAll('[role="option"]')).map((o) => o.textContent.trim()).filter(Boolean)`,
   );
@@ -149,7 +149,7 @@ export function ensureFactorSelected(label) {
   } else {
     press('Enter');
   }
-  action(['humanidle', 'short'], true);
+  action({ action: 'settle' }, true);
   const after = selectedFactors();
   return {
     label,
@@ -189,7 +189,7 @@ export function addFeature(row) {
 }
 
 export function saveDrawerForm() {
-  action(['humanidle', 'long'], true);
+  action({ action: 'settle' }, true);
   const out = evalRead(`(() => {
     const b = document.querySelector('#collection-obj-form-save-btn');
     if (!b) return { ok: false, reason: 'missing drawer save' };
@@ -199,16 +199,16 @@ export function saveDrawerForm() {
   })()`);
   if (!out?.ok)
     throw new Error(`drawer save failed: ${out?.reason || 'unknown'}`);
-  action(['humanidle', 'long'], true);
+  action({ action: 'settle' }, true);
   return out;
 }
 
 export function setFactorCombobox(label) {
   fill('input[name="wybrany_czynnik"]', label);
-  action(['humanidle', 'deliberate'], true);
+  action({ action: 'settle' }, true);
   const optionClick = click(`[role="option"]:has-text("${label}")`, true);
   if (!optionClick.ok) press('Enter');
-  action(['humanidle', 'short'], true);
+  action({ action: 'settle' }, true);
   return { label, optionClicked: optionClick.ok !== false };
 }
 

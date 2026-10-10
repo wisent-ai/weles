@@ -4,15 +4,11 @@ import { spawnSync } from 'node:child_process';
 import { SESSION, WELES } from './source.mjs';
 
 export function settle() {
-  action(['settle']);
+  action({ action: 'settle' });
 }
 
 export function action(args, optional = false) {
-  const result = spawnSync(
-    process.execPath,
-    ['src/keeper/action.mjs', ...args],
-    { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' },
-  );
+  const result = spawnSync(process.execPath, ['src/trajectories/_shared/keeper/action.mjs'], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8', input: JSON.stringify(args) });
   if (result.status !== 0) {
     if (optional)
       return {
@@ -21,26 +17,14 @@ export function action(args, optional = false) {
         stderr: result.stderr,
         status: result.status,
       };
-    const printable = args
-      .map((arg, i) =>
-        i >= 2 && String(arg).length > 500
-          ? `${String(arg)}...[${String(arg).length} chars]`
-          : arg,
-      )
-      .join(' ');
+    const printable = args.action;
     throw new Error(
       `${printable}\nstdout=${result.stdout}\nstderr=${result.stderr}`,
     );
   }
   const out = String(result.stdout || '').trim();
   if (!out) {
-    const printable = args
-      .map((arg, i) =>
-        i >= 2 && String(arg).length > 500
-          ? `${String(arg)}...[${String(arg).length} chars]`
-          : arg,
-      )
-      .join(' ');
+    const printable = args.action;
     throw new Error(
       `${printable}\nempty keeper response\nstderr=${result.stderr}`,
     );
@@ -49,12 +33,12 @@ export function action(args, optional = false) {
 }
 
 export function evalRead(js) {
-  return action(['eval', js]).result;
+  return action({ action: 'eval', js: js }).result;
 }
 
 export function nav(url) {
-  action(['nav', url]);
-  action(['humanidle', 'long'], true);
+  action({ action: 'nav', url: url });
+  action({ action: 'settle' }, true);
 }
 
 export function fill(selector, value) {
@@ -85,14 +69,14 @@ export function fill(selector, value) {
 }
 
 export function click(selector, optional = false) {
-  const out = action(['click', selector], optional);
-  action(['humanidle', 'short'], true);
+  const out = action({ action: 'click', selector: selector }, optional);
+  action({ action: 'settle' }, true);
   return out;
 }
 
 export function press(key) {
-  action(['press', key], true);
-  action(['humanidle', 'short'], true);
+  action({ action: 'press', key: key }, true);
+  action({ action: 'settle' }, true);
 }
 
 export function fieldSelector(suffix) {

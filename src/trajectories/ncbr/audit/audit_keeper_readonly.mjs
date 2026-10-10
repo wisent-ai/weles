@@ -45,15 +45,15 @@ try {
         action: 'click',
         selector: `tr:has-text(${JSON.stringify(process.env.EDIT_ROW_TEXT)}) button[aria-label="overflow-options"]`,
       });
-      await send({ action: 'humanidle', kind: 'deliberate' }).catch(() => null);
+      await send({ action: 'settle' }).catch(() => null);
       await send({ action: 'click', selector: `text="Edytuj"` });
-      await send({ action: 'humanidle', kind: 'long' }).catch(() => null);
+      await send({ action: 'settle' }).catch(() => null);
       const editState = await dumpCurrent(`${process.env.NAV_LABEL}__edit`);
       await send({
         action: 'click',
         selector: `button:has-text("Anuluj")`,
       }).catch(() => null);
-      await send({ action: 'humanidle', kind: 'short' }).catch(() => null);
+      await send({ action: 'settle' }).catch(() => null);
       const fp = join(
         OUT_DIR,
         `edit_${String(process.env.EDIT_ROW_TEXT).replace(/[^a-zA-Z0-9]+/g, '_')}.json`,

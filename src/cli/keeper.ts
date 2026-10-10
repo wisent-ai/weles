@@ -18,6 +18,7 @@ import {
   humanScroll,
 } from '../human/mouse.js';
 import { UsageError } from './usage.js';
+import { pageSettled } from '../browser/settled.js';
 import type { ParsedCli } from '../cli.js';
 
 type KeeperCommand = Record<string, unknown> & { action?: unknown };
@@ -56,6 +57,9 @@ export async function answerKeeperCommand(
   switch (cmd.action) {
     case 'url':
       return { ok: true, url: session.page.url() };
+    case 'settle':
+      await pageSettled(session.page);
+      return { ok: true, url: session.page.url() };
     case 'nav':
       await session.page.goto(text(cmd, 'url'), {
         waitUntil: 'domcontentloaded',
@@ -77,9 +81,12 @@ export async function answerKeeperCommand(
     case 'humanscroll':
       await humanScroll(session.page, coordinate(cmd, 'totalDeltaY'));
       return { ok: true };
-    case 'fill':
-      await humanFill(session.page, visible(session, cmd), text(cmd, 'text'));
+    case 'fill': {
+      if (typeof cmd.text !== 'string')
+        throw new Error('fill needs a string "text"; an empty string clears the field');
+      await humanFill(session.page, visible(session, cmd), cmd.text);
       return { ok: true };
+    }
     case 'type':
       await humanType(session.page, text(cmd, 'text'));
       return { ok: true };

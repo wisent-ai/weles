@@ -54,21 +54,17 @@ const rows = block
   .filter((row) => row.name);
 
 function action(args) {
-  const result = spawnSync(
-    process.execPath,
-    ['src/_shared/keeper/action.mjs', ...args],
-    { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' },
-  );
+  const result = spawnSync(process.execPath, ['src/trajectories/_shared/keeper/action.mjs'], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8', input: JSON.stringify(args) });
   if (result.status !== 0) {
     throw new Error(
-      `${args.join(' ')}\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+      `${args.action}\nstdout=${result.stdout}\nstderr=${result.stderr}`,
     );
   }
   return result.stdout.trim();
 }
 
 function settle() {
-  action(['settle']);
+  action({ action: 'settle' });
 }
 
 function fill(selector, value) {
@@ -84,12 +80,12 @@ function fill(selector, value) {
     fire(new Event('change', { bubbles: true }));
     return { ok: true, len: el.value.length };
   })()`;
-  const out = JSON.parse(action(['eval', js])).result;
+  const out = JSON.parse(action({ action: 'eval', js: js })).result;
   if (!out?.ok) throw new Error(`fill failed: ${selector} ${out?.error || ''}`);
 }
 
 function click(selector) {
-  action(['click', selector]);
+  action({ action: 'click', selector: selector });
 }
 
 function clickVisibleParameterAdd() {
@@ -99,13 +95,10 @@ function clickVisibleParameterAdd() {
 function isFormOpen() {
   return (
     JSON.parse(
-      action([
-        'eval',
-        `(() => {
-    const el = document.querySelector('textarea[name="nazwa_parametru"]');
-    return Boolean(el && el.offsetParent !== null);
-  })()`,
-      ]),
+      action({ action: 'eval', js: `(() => {
+          const el = document.querySelector('textarea[name="nazwa_parametru"]');
+          return Boolean(el && el.offsetParent !== null);
+        })()` }),
     ).result === true
   );
 }
@@ -122,13 +115,10 @@ function waitForFormClosed() {
 }
 
 function currentParamTableText() {
-  const out = action([
-    'eval',
-    `(() => {
-    const table = Array.from(document.querySelectorAll('table')).at(-1);
-    return table ? table.innerText.replace(/\\s+/g, ' ') : '';
-  })()`,
-  ]);
+  const out = action({ action: 'eval', js: `(() => {
+  const table = Array.from(document.querySelectorAll('table')).at(-1);
+  return table ? table.innerText.replace(/\\s+/g, ' ') : '';
+    })()` });
   return JSON.parse(out).result || '';
 }
 
@@ -168,13 +158,10 @@ for (const row of missing) {
   click(':nth-match(button:has-text("Zapisz"), 2)');
   if (!waitForFormClosed()) {
     const state = JSON.parse(
-      action([
-        'eval',
-        `(() => ({
-      savedInTable: document.body.innerText.includes(${JSON.stringify(row.name)}),
-      anyEnabledSave: Array.from(document.querySelectorAll('button')).some((b) => b.innerText.trim() === 'Zapisz' && !b.disabled && b.getClientRects().length)
-    }))()`,
-      ]),
+      action({ action: 'eval', js: `(() => ({
+            savedInTable: document.body.innerText.includes(${JSON.stringify(row.name)}),
+            anyEnabledSave: Array.from(document.querySelectorAll('button')).some((b) => b.innerText.trim() === 'Zapisz' && !b.disabled && b.getClientRects().length)
+          }))()` }),
     ).result;
     if (!state?.savedInTable || state?.anyEnabledSave)
       throw new Error(`form did not close after saving: ${row.name}`);

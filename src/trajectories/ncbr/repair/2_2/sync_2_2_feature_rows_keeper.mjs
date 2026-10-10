@@ -76,11 +76,7 @@ if (sourceFeatures.length < 8)
   );
 
 function action(args, optional = false) {
-  const result = spawnSync(
-    process.execPath,
-    ['src/_shared/keeper/action.mjs', ...args],
-    { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8' },
-  );
+  const result = spawnSync(process.execPath, ['src/trajectories/_shared/keeper/action.mjs'], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8', input: JSON.stringify(args) });
   if (result.status !== 0) {
     if (optional)
       return {
@@ -90,20 +86,20 @@ function action(args, optional = false) {
         status: result.status,
       };
     throw new Error(
-      `${args.join(' ')}\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+      `${args.action}\nstdout=${result.stdout}\nstderr=${result.stderr}`,
     );
   }
   const out = String(result.stdout || '').trim();
-  if (!out) throw new Error(`empty keeper output for ${args.join(' ')}`);
+  if (!out) throw new Error(`empty keeper output for ${args.action}`);
   return JSON.parse(out);
 }
 
 function read(js) {
-  return action(['eval', js]).result;
+  return action({ action: 'eval', js: js }).result;
 }
 
 function idle(kind = 'short') {
-  action(['humanidle', kind], true);
+  action({ action: 'settle' }, true);
 }
 
 function fill(name, value) {
@@ -118,11 +114,7 @@ function fill(name, value) {
   })()`);
   if (!check?.ok)
     throw new Error(`fill precheck failed ${name}: ${JSON.stringify(check)}`);
-  action([
-    'fill_fast',
-    `textarea[name="${name}"], input[name="${name}"]`,
-    value,
-  ]);
+  action({ action: 'fill', selector: `textarea[name="${name}"], input[name="${name}"]`, text: value });
   idle('short');
   const out = read(`(() => {
     const name = ${JSON.stringify(name)};
@@ -139,12 +131,9 @@ function clickRow(rowNumberOneBased) {
     return row ? row.innerText.replace(/\\s+/g, ' ') : null;
   })()`);
   if (!text) throw new Error(`row missing: ${rowNumberOneBased}`);
-  action([
-    'click',
-    `:nth-match(table tbody tr, ${rowNumberOneBased}) button[aria-label="overflow-options"]`,
-  ]);
+  action({ action: 'click', selector: `:nth-match(table tbody tr, ${rowNumberOneBased}) button[aria-label="overflow-options"]` });
   idle('short');
-  action(['click', 'text="Edytuj"']);
+  action({ action: 'click', selector: 'text="Edytuj"' });
   idle('long');
   return { ok: true, rowNumber: rowNumberOneBased, text };
 }
@@ -155,26 +144,17 @@ function deleteRow(rowNumberOneBased) {
     return row ? row.innerText.replace(/\\s+/g, ' ') : null;
   })()`);
   if (!text) throw new Error(`row missing for delete: ${rowNumberOneBased}`);
-  action([
-    'click',
-    `:nth-match(table tbody tr, ${rowNumberOneBased}) button[aria-label="overflow-options"]`,
-  ]);
+  action({ action: 'click', selector: `:nth-match(table tbody tr, ${rowNumberOneBased}) button[aria-label="overflow-options"]` });
   idle('short');
-  action(['click', 'text="Usuń"']);
+  action({ action: 'click', selector: 'text="Usuń"' });
   idle('deliberate');
-  const confirm = action(
-    [
-      'click',
-      'button:has-text("Usuń"), button:has-text("Tak"), button:has-text("Potwierdź")',
-    ],
-    true,
-  );
+  const confirm = action({ action: 'click', selector: 'button:has-text("Usuń"), button:has-text("Tak"), button:has-text("Potwierdź")' }, true,);
   idle('long');
   return { open: { ok: true, rowNumber: rowNumberOneBased, text }, confirm };
 }
 
 function saveSubform() {
-  const clicked = action(['click', '#collection-obj-form-save-btn'], true);
+  const clicked = action({ action: 'click', selector: '#collection-obj-form-save-btn' }, true);
   if (clicked.ok !== false) {
     idle('long');
     const status = read(`(() => {
@@ -183,7 +163,7 @@ function saveSubform() {
     })()`);
     if (!status.stillOpen) return { ok: true, method: 'keeper-click-id' };
     if (status.disabled) {
-      action(['click', '#collection-obj-form-cancel-btn'], true);
+      action({ action: 'click', selector: '#collection-obj-form-cancel-btn' }, true);
       idle('long');
       const closed = read(
         `(() => !document.querySelector('#collection-obj-form-save-btn'))()`,
@@ -254,7 +234,7 @@ function syncRow(rowNumberOneBased, feature) {
   return { rowNumberOneBased, opened, fills, lengthsBeforeSave, save };
 }
 
-action(['nav', URL]);
+action({ action: 'nav', url: URL });
 idle('long');
 const beforeCounts = rowCounts();
 
@@ -267,7 +247,7 @@ const rowsToSync = Math.min(dataRows, sourceFeatures.length);
 for (let dataIndex = 0; dataIndex < rowsToSync; dataIndex += 1) {
   const feature = sourceFeatures[dataIndex];
   synced.push(syncRow(dataIndex + 2, feature)); // row 1 is the "Pozostale" group row.
-  action(['nav', URL]);
+  action({ action: 'nav', url: URL });
   idle('long');
 }
 
@@ -275,7 +255,7 @@ const deleted = [];
 let countsAfterSync = rowCounts();
 while ((countsAfterSync[0] || 0) > sourceFeatures.length + 1) {
   deleted.push(deleteRow(countsAfterSync[0]));
-  action(['nav', URL]);
+  action({ action: 'nav', url: URL });
   idle('long');
   countsAfterSync = rowCounts();
 }
