@@ -2,11 +2,11 @@
 // record it in the vault, pay for the plan Brama names, and sign it in for
 // Brama in the same browser session.
 //
-// Brama asks for this through POST /subscriptions/acquire with the
-// subscription id it chose (BRAMA_SUBSCRIPTION_ID) and the plan tier the
-// pool's accounts hold (WELES_PLAN_TIER). The last stdout line is the
-// verdict; a failure after the account was recorded or paid still says so,
-// because a paid account the verdict does not name would be paid for twice.
+// Brama asks for this through POST /subscriptions/acquire. Its request
+// identity correlates the purchase; the permanent member is named from the
+// provider and the created account address. WELES_PLAN_TIER names the plan.
+// The verdict retains the account and payment state if a later step fails,
+// so a paid account is not lost merely because grant verification failed.
 
 import { WSession } from '../../../../dist/session/wsession.js';
 import { selectLoginAccount } from '../../../../dist/utils/login-accounts.js';
@@ -35,9 +35,9 @@ function required(name, meaning) {
 const done = {};
 try {
   mark('identity');
-  const subscriptionId = required(
+  const requestId = required(
     'BRAMA_SUBSCRIPTION_ID',
-    'the subscription id Brama chose for the account it buys',
+    'the correlation id Brama chose for this purchase',
   );
   const planTier = required(
     'WELES_PLAN_TIER',
@@ -45,7 +45,7 @@ try {
   );
   requireCapabilities('claude/account/acquire');
   const session = await WSession.start({
-    label: `acquire-${subscriptionId}`,
+    label: `acquire-${requestId}`,
     browser: 'chromium',
     headless: false,
     platform: 'claude',
@@ -56,12 +56,13 @@ try {
     done.account = identity.email;
     await signUp(session, identity, mark);
     const banked = bankAcquiredAccount({
-      subscriptionId,
+      requestId,
       provider: 'claude',
       bramaProvider: 'claude-code',
       email: identity.email,
       planTier,
     });
+    done.subscription_id = banked.subscriptionId;
     done.login_item = banked.loginItem;
     done.subscription_item = banked.subscriptionItem;
     mark('account_banked');
@@ -69,11 +70,11 @@ try {
     const account = selectLoginAccount(
       'claude',
       banked.loginItem,
-      subscriptionId,
+      banked.subscriptionId,
     );
     await signInWithin('claude', account, session);
     process.stdout.write(
-      `${JSON.stringify({ ok: true, subscription_id: subscriptionId, ...done })}\n`,
+      `${JSON.stringify({ ok: true, ...done })}\n`,
     );
   } finally {
     await session.close();

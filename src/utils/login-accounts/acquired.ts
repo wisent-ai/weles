@@ -11,10 +11,11 @@ import {
   readDocument,
   writeTaggedDocument,
 } from '../../state/skarbiec-records.js';
+import { slug } from './identity.js';
 
 export interface AcquiredAccount {
-  /** Brama's subscription id, chosen by Brama for this purchase. */
-  subscriptionId: string;
+  /** Correlation identity for the purchase, not the permanent pool member. */
+  requestId: string;
   /** The provider's Weles name (`claude`). */
   provider: string;
   /** Brama's provider name (`claude-code`). */
@@ -33,16 +34,18 @@ function itemIdFor(prefix: string, subscriptionId: string): string {
 export function bankAcquiredAccount(account: AcquiredAccount): {
   loginItem: string;
   subscriptionItem: string;
+  subscriptionId: string;
 } {
-  const loginItem = itemIdFor('weles-login', account.subscriptionId);
-  const subscriptionItem = itemIdFor('brama-sub', account.subscriptionId);
+  const subscriptionId = `${slug(account.bramaProvider)}-${slug(account.email)}`;
+  const loginItem = itemIdFor('weles-login', subscriptionId);
+  const subscriptionItem = itemIdFor('brama-sub', subscriptionId);
   const existing = new Set(
     listCredentialItems().map((row) => String(row.id ?? row.name)),
   );
   for (const id of [loginItem, subscriptionItem])
     if (existing.has(id))
       throw new Error(
-        `vault item ${id} already exists; an acquisition never overwrites an item, so subscription ${account.subscriptionId} needs a new id`,
+        `vault item ${id} already exists; acquisition cannot overwrite the account ${account.email}`,
       );
   const acquiredAt = new Date().toISOString();
   writeTaggedDocument(
@@ -57,6 +60,7 @@ export function bankAcquiredAccount(account: AcquiredAccount): {
         login_method: 'email_code',
         account_ref: account.email,
         acquired_at: acquiredAt,
+        acquisition_request: account.requestId,
       },
     },
     ['weles:login-method:email_code'],
@@ -76,12 +80,13 @@ export function bankAcquiredAccount(account: AcquiredAccount): {
         login_method: 'email_code',
         plan_tier: account.planTier,
         acquired_at: acquiredAt,
+        acquisition_request: account.requestId,
       },
     },
     [
       'brama:subscription',
       `brama:provider:${account.bramaProvider}`,
-      `brama:id:${account.subscriptionId}`,
+      `brama:id:${subscriptionId}`,
       `brama:account:${account.email}`,
       `brama:login:${loginItem}`,
     ],
@@ -89,7 +94,7 @@ export function bankAcquiredAccount(account: AcquiredAccount): {
   for (const id of [loginItem, subscriptionItem])
     if (!readDocument(id).context?.acquired_at)
       throw new Error(
-        `Skarbiec did not return vault item ${id} just written for subscription ${account.subscriptionId}`,
+        `Skarbiec did not return vault item ${id} just written for subscription ${subscriptionId}`,
       );
-  return { loginItem, subscriptionItem };
+  return { loginItem, subscriptionItem, subscriptionId };
 }
