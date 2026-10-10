@@ -28,6 +28,7 @@ import {
   isTerminalHost,
 } from './google_sso/openai_consent.mjs';
 import { pageSettled, urlMatching } from '../_shared/page/settled.mjs';
+import { gotoAuthorize } from './google_sso/navigation/authorize.mjs';
 import {
   clickGisTarget,
   observeGisPage,
@@ -35,31 +36,6 @@ import {
 
 export { establishGoogleSession } from './google_sso/google_credentials.mjs';
 export { waitForEnabledThenClick } from './google_sso/page_controls.mjs';
-
-// auth.openai.com answers the device-authorization page by sending the browser
-// on at once, and Chromium reports the navigation it replaced as
-// net::ERR_ABORTED although the browser landed where OpenAI sent it. That abort
-// is the redirect this flow expects, not a failure: the page settles, the stage
-// records where it landed, and the loop below reads that page.
-async function gotoAuthorize(page, authorizeUrl, mark) {
-  try {
-    await page.goto(authorizeUrl, { waitUntil: 'commit' });
-  } catch (error) {
-    if (
-      !/ERR_ABORTED|interrupted by another navigation/i.test(
-        String(error.message),
-      )
-    )
-      throw error;
-    await pageSettled(page);
-    mark('authorize_redirected');
-    console.log(
-      `[google_sso] ${authorizeUrl} was replaced by a redirect; the browser landed on ${page.url()}`,
-    );
-    return;
-  }
-  await pageSettled(page);
-}
 
 export async function doGoogleSso({
   page,
