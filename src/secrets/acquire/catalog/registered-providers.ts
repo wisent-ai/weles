@@ -119,10 +119,8 @@ export const SNAPCHAT_SNAP_KIT_API_TOKEN: SecretDefinition = {
   storeSecretTarget: 'skarbiec',
 };
 
-// The token Stado moves zones and routes tunnels with (`stado dns delegate`,
-// `stado cloudflare`). Skarbiec held only the dashboard login and a tunnel
-// token, which the Cloudflare API refuses as a bearer, so no public web edge
-// could be brought up without a person (Stado defect 8e7c5e53).
+// Stado's zone and tunnel operations require an API bearer token;
+// dashboard credentials and tunnel tokens cannot authorize those requests.
 export const CLOUDFLARE_API_TOKEN: SecretDefinition = {
   secret: 'cloudflare.api_token',
   provider: 'cloudflare',
