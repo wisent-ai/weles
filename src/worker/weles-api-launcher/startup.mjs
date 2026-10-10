@@ -3,7 +3,6 @@
  * fields it must hold before it answers anything, and the HTTP API hosted in
  * this same process.
  */
-import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -15,7 +14,7 @@ import {
   actionAllowlist,
   declaredNames,
 } from './configuration.mjs';
-import { executable, refuse, run } from './running.mjs';
+import { executable, refuse, run, runAsync, runCommand } from './running.mjs';
 
 /**
  * The address Stado's service directory published for `service` on this host
@@ -99,13 +98,21 @@ export async function startup() {
     refuse('Stado has no attested active Skarbiec binary for this host');
   process.env.SKARBIEC_BIN = skarbiecBin;
   process.env.WELES_ACTION_ALLOWLIST = actionAllowlist();
-  process.env.WELES_ENGAGEMENT_DECLARATION = await declaredNames(
-    'dist/worker/declared/engagements.js',
-    'loadDeclaredEngagements',
+  process.env.WELES_ENGAGEMENT_DECLARATION = await runAsync(
+    'load engagement declaration',
+    () =>
+      declaredNames(
+        'dist/worker/declared/engagements.js',
+        'loadDeclaredEngagements',
+      ),
   );
-  process.env.WELES_OBSERVATION_DECLARATION = await declaredNames(
-    'dist/worker/declared/observations.js',
-    'loadDeclaredObservations',
+  process.env.WELES_OBSERVATION_DECLARATION = await runAsync(
+    'load observation declaration',
+    () =>
+      declaredNames(
+        'dist/worker/declared/observations.js',
+        'loadDeclaredObservations',
+      ),
   );
 
   const acquireHelper = join(
@@ -182,7 +189,7 @@ export async function startup() {
     ),
   );
   for (const [resource, { tag, field }] of Object.entries(routes)) {
-    const declared = spawnSync(
+    const declared = runCommand(
       skarbiecBin,
       [
         'route',
@@ -196,7 +203,7 @@ export async function startup() {
         '--reason',
         'Weles declares the credential field used by this sign-in origin.',
       ],
-      { encoding: 'utf8', env: process.env },
+      `Skarbiec route declaration ${resource}`,
     );
     if (declared.error || declared.status !== 0) {
       const why = (
@@ -215,7 +222,9 @@ export async function startup() {
 
   // Acquisition configures the environment before the API module reads it.
   // The server owns its listener and draining in this process, not a child Node.
-  await import(
-    pathToFileURL(join(REPO, 'src/worker/weles-api-server.mjs')).href
+  await runAsync(
+    'import Weles HTTP API',
+    () =>
+      import(pathToFileURL(join(REPO, 'src/worker/weles-api-server.mjs')).href),
   );
 }

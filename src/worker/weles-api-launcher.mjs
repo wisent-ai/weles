@@ -12,7 +12,6 @@
  * credential operations report their actual dependency failures.
  */
 
-import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 
 import {
@@ -21,7 +20,7 @@ import {
   loadEnvFile,
 } from './weles-api-launcher/configuration.mjs';
 import { holderHealth, portHolder } from './weles-api-launcher/port.mjs';
-import { refuse } from './weles-api-launcher/running.mjs';
+import { refuse, runAsync, runCommand } from './weles-api-launcher/running.mjs';
 import { startup } from './weles-api-launcher/startup.mjs';
 import { retirePredecessors } from './weles-api-launcher/predecessors.mjs';
 
@@ -48,7 +47,7 @@ const port = process.env.WELES_API_PORT;
 // Started as com.wisent.weles, this is the host's one Weles process.
 // The units whose work it took over leave first, so a retired API still
 // holding this port does not turn the one process away below.
-retirePredecessors();
+await runAsync('retire superseded Weles units', () => retirePredecessors());
 
 // Refuse another service process before acquiring credentials. This observation
 // is not a lock: the API's bind arbitrates racing starts. Neither contender
@@ -64,12 +63,16 @@ retirePredecessors();
 // quietly — the unit exits nonzero so the fleet sees a service that is not
 // serving.
 const lsof = existsSync('/usr/sbin/lsof') ? '/usr/sbin/lsof' : 'lsof';
-const served = spawnSync(lsof, ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN'], {
-  encoding: 'utf8',
-});
+const served = runCommand(
+  lsof,
+  ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN'],
+  'inspect API listener ownership',
+);
 if (served.status === 0 && served.stdout.trim()) {
   const holder = portHolder(served.stdout);
-  const health = await holderHealth(port);
+  const health = await runAsync('inspect existing API listener health', () =>
+    holderHealth(port),
+  );
   if (health.weles) {
     refuse(
       `weles api port ${port} is already served by ${holder}, which answers /healthz as ${health.source}` +
