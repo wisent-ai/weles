@@ -23,14 +23,9 @@ const API_SCHEMA = /^weles\.[a-z0-9-]+\.v[1-9][0-9]*$/;
 
 const PLATFORMS = {
   'darwin-arm64': true,
-  'darwin-x64': true,
-  'linux-x64': true,
+  'darwin-amd64': true,
+  'linux-amd64': true,
 };
-const SLSA_PROVENANCE_V1 = 'https://slsa.dev/provenance/v1';
-const BROWSER_CANDIDATE_ATTESTATION_V1 =
-  'https://weles.wisent.com/attestations/browser-candidate/v1';
-const DEPLOYMENT_MANIFEST_ATTESTATION_V1 =
-  'https://weles.wisent.com/attestations/deployment-manifest/v1';
 
 export function parseArgs(argv = process.argv.slice(2)) {
   const values = new Map();
@@ -85,46 +80,27 @@ function exactSha(value, name) {
 function artifact(value, name) {
   const item = exactProperties(
     value,
-    [
-      'platform',
-      'url',
-      'sha256',
-      'entrypoint',
-      'provenanceUrl',
-      'provenanceRepository',
-    ],
+    ['platform', 'uri', 'sha256', 'entrypoint'],
     name,
   );
   const platform = text(item.platform, `${name}.platform`);
   if (!PLATFORMS[platform]) throw new Error(`${name}.platform is unsupported`);
-  const url = new URL(text(item.url, `${name}.url`));
-  if (url.protocol !== 'https:' || url.username || url.password || url.hash) {
-    throw new Error(
-      `${name}.url must be credential-free HTTPS without a fragment`,
-    );
+  const uri = text(item.uri, `${name}.uri`);
+  if (
+    !/^stado:\/\/releases\/[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+\/[a-z0-9-]+\/[A-Za-z0-9._-]+$/.test(
+      uri,
+    )
+  ) {
+    throw new Error(`${name}.uri must name an immutable Stado release archive`);
   }
   exactSha(item.sha256, `${name}.sha256`);
   const entrypoint = text(item.entrypoint, `${name}.entrypoint`);
-  if (entrypoint.startsWith('/') || entrypoint.split('/').includes('..'))
+  if (
+    !/^[A-Za-z0-9._/-]+$/.test(entrypoint) ||
+    entrypoint.startsWith('/') ||
+    entrypoint.split('/').includes('..')
+  )
     throw new Error(`${name}.entrypoint must stay inside the artifact`);
-  const provenance = new URL(text(item.provenanceUrl, `${name}.provenanceUrl`));
-  if (
-    provenance.protocol !== 'https:' ||
-    provenance.username ||
-    provenance.password ||
-    provenance.hash
-  ) {
-    throw new Error(
-      `${name}.provenanceUrl must be credential-free HTTPS without a fragment`,
-    );
-  }
-  if (
-    !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(
-      text(item.provenanceRepository, `${name}.provenanceRepository`),
-    )
-  ) {
-    throw new Error(`${name}.provenanceRepository is invalid`);
-  }
   return item;
 }
 
