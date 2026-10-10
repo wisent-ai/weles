@@ -15,11 +15,12 @@ export function keeperSocket(session) {
 export function keeperRequest(socket, cmd) {
   const { promise, resolve, reject } = Promise.withResolvers();
   const conn = net.createConnection(socket);
+  conn.setEncoding('utf8');
   let buf = '';
   let done = false;
   conn.on('connect', () => conn.write(`${JSON.stringify(cmd)}\n`));
   conn.on('data', (chunk) => {
-    buf += chunk.toString();
+    buf += chunk;
     const nl = buf.indexOf('\n');
     if (nl < 0 || done) return;
     done = true;

@@ -138,7 +138,7 @@ await test('keeper serves humanized fill, clear, click and explicit action refus
         await command({
           action: 'fill',
           selector: '#value',
-          text: 'Persist this exact value',
+          text: 'Zachowaj żółć — 日本語',
         })
       ).ok,
       true,
@@ -154,7 +154,7 @@ await test('keeper serves humanized fill, clear, click and explicit action refus
           js: 'document.querySelector("#saved").textContent',
         })
       ).result,
-      'Persist this exact value',
+      'Zachowaj żółć — 日本語',
     );
     assert.equal(
       (await command({ action: 'fill', selector: '#value', text: '' })).ok,
