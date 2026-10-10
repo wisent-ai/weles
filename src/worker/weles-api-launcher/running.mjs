@@ -37,11 +37,25 @@ function loadEnvFile(path) {
   }
 }
 
+/**
+ * Run one startup step and keep its answer. The step is named on stdout
+ * when it begins and when it ends, with the instant of each: a step that
+ * never returns is then the last `began` line the unit log carries, read
+ * there by whoever asks why the API never bound, instead of a log that ends
+ * at the previous step's output and says nothing about which program is
+ * still waiting on what.
+ */
 export function run(command, args, label) {
+  const began = new Date();
+  process.stdout.write(`[weles-api] ${label}: began ${began.toISOString()}\n`);
   const result = spawnSync(command, args, {
     encoding: 'utf8',
     env: process.env,
   });
+  const ended = new Date();
+  process.stdout.write(
+    `[weles-api] ${label}: ended ${ended.toISOString()} after ${ended - began} ms\n`,
+  );
   if (result.error) refuse(`${label} could not run: ${result.error.message}`);
   if (result.status !== 0) {
     refuse(
