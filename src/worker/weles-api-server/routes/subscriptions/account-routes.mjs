@@ -18,13 +18,14 @@ import { constants as http } from 'node:http2';
 import { BRAMA_REAUTH_TOKEN } from '../../configuration.mjs';
 import { json, readBody, reauthAuthorized } from '../../http-exchange.mjs';
 import { coalesceRun, runAdmissionKey } from '../../run/run-outcome.mjs';
-import { runReauth } from '../../run/trajectory-process.mjs';
+import { providersWith, runReauth, trajectoryPath } from '../../run/trajectory-process.mjs';
 import { RUN_RELEASE_IDENTITY } from '../../release-identity.mjs';
 import { REAUTH_PROGRESS_CONTENT_TYPE } from '../trajectory-routes.mjs';
 import { AUTHORIZE_PAGES } from '../../../../trajectories/_shared/subscription-auth/oauth.mjs';
 
-/** The providers Weles buys an account of. */
-const ACQUIRE_PROVIDERS = { claude: true };
+/** The trajectory under src/trajectories/<provider>/ that buys an account:
+ * a provider is bought for exactly when it has one. */
+const ACQUIRE_TRAJECTORY = 'account/acquire';
 
 /** The host a harness's own callback listener answers on. */
 const HARNESS_CALLBACK_HOST = 'localhost';
@@ -130,11 +131,11 @@ export async function respondToAcquire(req, res) {
     return;
   }
   const provider = text(body.provider).toLowerCase();
-  if (!Object.hasOwn(ACQUIRE_PROVIDERS, provider)) {
+  if (!trajectoryPath(provider, ACQUIRE_TRAJECTORY)) {
     refuse(
       res,
       'provider_unsupported',
-      `Weles buys accounts of ${Object.keys(ACQUIRE_PROVIDERS).join(', ')}; "${provider}" is not one of them`,
+      `Weles has no src/trajectories/${provider}/${ACQUIRE_TRAJECTORY}.mjs, so it cannot buy a "${provider}" account; it buys accounts of ${providersWith(ACQUIRE_TRAJECTORY).join(', ')}`,
     );
     return;
   }
@@ -167,7 +168,7 @@ export async function respondToAcquire(req, res) {
     runAdmissionKey('acquire', { provider, subscription_id: subscriptionId }),
     identity,
     (onProgress) =>
-      runReauth(provider, null, onProgress, 'account/acquire', {
+      runReauth(provider, null, onProgress, ACQUIRE_TRAJECTORY, {
         BRAMA_SUBSCRIPTION_ID: subscriptionId,
         WELES_PLAN_TIER: planTier,
         WELES_ACQUISITION_REASON: reason,

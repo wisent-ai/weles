@@ -43,12 +43,28 @@ try {
   assert.equal(general.status, http.HTTP_STATUS_UNAUTHORIZED);
   assert.equal(general.value.error, 'unauthorized');
 
+  // A provider without its own purchase trajectory is refused before a run,
+  // naming the missing file and the providers that have one; so is a
+  // provider name that is not one path segment.
+  const kimi = await request(
+    '/subscriptions/acquire',
+    {
+      provider: 'kimi',
+      subscription_id: 'kimi-acquired-test',
+      plan_tier: 'any',
+      reason: 'refusal test',
+    },
+    bearer,
+  );
+  refused(kimi, 'provider_unsupported');
+  assert.match(kimi.value.message, /src\/trajectories\/kimi\/account\/acquire\.mjs/);
+  assert.match(kimi.value.message, /it buys accounts of claude/);
   refused(
     await request(
       '/subscriptions/acquire',
       {
-        provider: 'kimi',
-        subscription_id: 'kimi-acquired-test',
+        provider: '../claude',
+        subscription_id: 'escape-test',
         plan_tier: 'any',
         reason: 'refusal test',
       },

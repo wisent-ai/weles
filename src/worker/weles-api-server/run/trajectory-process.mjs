@@ -21,9 +21,9 @@
 
 import { spawn, execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { hostname, userInfo } from 'node:os';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 
 import { RECORDINGS_ROOT, RUN_RESULTS_DIR } from '../configuration.mjs';
 import { REPO, RUN_RELEASE_IDENTITY } from '../release-identity.mjs';
@@ -337,6 +337,24 @@ export function createTrajectoryRunner({ resolveTrajectory, paramsToEnv }) {
 // and only the run status leaves the process.
 export const REAUTH_PROVIDERS = new Set(['codex', 'claude', 'kimi']);
 
+// The file src/trajectories/<provider>/<trajectory>.mjs, or null when the
+// provider is not one plain path segment (it could otherwise leave
+// src/trajectories) or has no such trajectory.
+export function trajectoryPath(provider, trajectory) {
+  if (!provider || basename(provider) !== provider || provider.startsWith('.')) return null;
+  const path = resolve(REPO, 'src/trajectories', provider, `${trajectory}.mjs`);
+  return existsSync(path) ? path : null;
+}
+
+// Every provider with a `trajectory` of its own, in name order: what a route
+// that runs that trajectory serves.
+export function providersWith(trajectory) {
+  return readdirSync(resolve(REPO, 'src/trajectories'), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && trajectoryPath(entry.name, trajectory))
+    .map((entry) => entry.name)
+    .sort();
+}
+
 // `account` is the row this run must sign in, already resolved from the caller's
 // login_item. It reaches the trajectory as <PROVIDER>_DISPLAY_NAME, which is the
 // selector every reauth/login trajectory already honours, plus WELES_LOGIN_ITEM
@@ -362,13 +380,8 @@ export function runReauth(
   env = {},
 ) {
   return new Promise((resolveRun) => {
-    const trajPath = resolve(
-      REPO,
-      'src/trajectories',
-      provider,
-      `${trajectory}.mjs`,
-    );
-    if (!existsSync(trajPath)) {
+    const trajPath = trajectoryPath(provider, trajectory);
+    if (!trajPath) {
       resolveRun({ ok: false, error: `no_${trajectory}_trajectory`, provider });
       return;
     }

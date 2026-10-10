@@ -209,9 +209,15 @@ its HTTP status. The run's record (`GET /diagnostics/<run>`, `run-result.json`)
 holds the stages reached so far while it runs.
 
 Two more runs are admitted by Brama's token and answer the same
-`application/x-ndjson` stream. `POST /subscriptions/acquire` (`provider`
-`claude`, `subscription_id` Brama chose, `plan_tier` such as
-`default_claude_max_20x`, `reason`) buys one Claude account: a fresh identity
+`application/x-ndjson` stream. `POST /subscriptions/acquire` (`provider`,
+`subscription_id` Brama chose, `plan_tier` such as `default_claude_max_20x`,
+`reason`) buys one account of `provider` by running that provider's own
+purchase trajectory, `src/trajectories/<provider>/account/acquire.mjs`: a
+provider with that file is bought for, and any other is refused
+`provider_unsupported` before a run starts, naming the missing file and the
+providers that have one. Adding a provider is adding its trajectory (and its
+declaration in Brama's `providers.json`), never another branch here. Today
+`claude` has one, and it buys one Claude account: a fresh identity
 on an inbound domain Weles reads, the claude.ai sign-up with the code it
 mails (stages `email_code_requested`, `email_code_waiting`,
 `email_code_entered`, `onboarding`, `account_created`), the login row
