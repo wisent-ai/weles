@@ -138,11 +138,15 @@ export async function serveKeeper(
   session.page.on('close', stop);
   session.page.on('crash', crashed);
   server.on('error', failed);
-  server.listen(socket, () => {
-    ownsSocket = true;
-    process.stdout.write(`${JSON.stringify(status())}\n`);
-  });
   try {
+    try {
+      server.listen(socket, () => {
+        ownsSocket = true;
+        process.stdout.write(`${JSON.stringify(status())}\n`);
+      });
+    } catch (error) {
+      void close(undefined, error);
+    }
     await done;
   } finally {
     process.off('SIGINT', stop);
