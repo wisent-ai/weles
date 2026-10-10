@@ -48,6 +48,7 @@ import { terminalRunResultFile } from '../run/run-outcome.mjs';
 import { createWorkerControl, workerActions } from '../worker-control.mjs';
 import { isPageRoute, respondToPage } from './pages/index.mjs';
 import { isRecordRoute, respondToRecord } from './records/index.mjs';
+import { isKeeperRoute, respondToKeeper } from './keepers/index.mjs';
 import { respondToRun } from './run-route.mjs';
 import { isRunsRoute, respondToRuns } from './runs.mjs';
 import { listRunningRuns } from '../run/running-runs.mjs';
@@ -195,6 +196,10 @@ export function createApiRequestHandler({
       if (req.method === 'GET' && url.pathname === '/worker/version') {
         if (!requireTokenAuthorization(req, res)) return;
         json(res, 200, { ok: true, identity: buildDeploymentVersionValue() });
+        return;
+      }
+      if (isKeeperRoute(url.pathname)) {
+        await respondToKeeper(req, res, url);
         return;
       }
       if (req.method === 'GET' && url.pathname === '/worker/status') {
