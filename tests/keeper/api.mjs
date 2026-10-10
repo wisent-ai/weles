@@ -86,6 +86,24 @@ await test('authenticated API observes and stops its real keeper owner', async (
     expectedRevision,
     'worker source revision differs from the selected qualification',
   );
+  assert.ok(
+    version.body.identity.release,
+    'the selected deployment must report its immutable release identity',
+  );
+  for (const [field, variable] of [
+    ['chromium_release', 'WELES_CHROMIUM_RELEASE_VERSION'],
+    ['chromium_sha256', 'WELES_CHROMIUM_RELEASE_SHA256'],
+    ['firefox_release', 'WELES_FIREFOX_RELEASE_VERSION'],
+    ['firefox_sha256', 'WELES_FIREFOX_RELEASE_SHA256'],
+  ]) {
+    const selected = process.env[variable]?.trim();
+    assert.ok(selected, `${variable} is required for the selected deployment`);
+    assert.equal(
+      version.body.identity.release[field],
+      selected,
+      `worker identity ${field} differs from the browser launch selection`,
+    );
+  }
   report.browser_admission = [];
   for (const scenario of [
     {

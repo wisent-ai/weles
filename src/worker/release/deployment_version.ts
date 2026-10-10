@@ -65,10 +65,10 @@ function immutableReleaseIdentity(
   const deploymentId = envValue(env, 'WELES_DEPLOYMENT_ID');
   const ring = envValue(env, 'WELES_DEPLOYMENT_RING');
   const claimsEnabled = envValue(env, 'WELES_CLAIMS_ENABLED');
-  const chromiumRelease = envValue(env, 'WELES_CHROMIUM_RELEASE');
-  const chromiumSha256 = envValue(env, 'WELES_CHROMIUM_SHA256');
-  const firefoxRelease = envValue(env, 'WELES_FIREFOX_RELEASE');
-  const firefoxSha256 = envValue(env, 'WELES_FIREFOX_SHA256');
+  const chromiumRelease = envValue(env, 'WELES_CHROMIUM_RELEASE_VERSION');
+  const chromiumSha256 = envValue(env, 'WELES_CHROMIUM_RELEASE_SHA256');
+  const firefoxRelease = envValue(env, 'WELES_FIREFOX_RELEASE_VERSION');
+  const firefoxSha256 = envValue(env, 'WELES_FIREFOX_RELEASE_SHA256');
   const apiSchemas = envValue(env, 'WELES_API_SCHEMAS');
   const values = [
     workerVersion,
