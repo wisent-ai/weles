@@ -72,6 +72,7 @@ Usage:
   weles login --run <run-id> [--json]
   weles worker <status|version|start|stop|restart> [--json]
   weles keeper start --session <id> [--url <url>] [--headless]
+  weles keeper <status|stop> --session <id>
   weles records adopt [--json]
   weles doctor [--json]
   weles version
@@ -127,6 +128,7 @@ tells a waiting run what the person did, and a run that waits on nobody is refus
 with the stage it stands at; cancel kills the run's process group and records it as
 cancelled with --detail, and a cancelled sign-in no longer holds the account, so the
 next sign-in starts a new run. keeper start holds one browser session that answers JSON commands
-on ~/.weles/keeper/<id>/socket until its page closes. records adopt tags every Weles
+on ~/.weles/keeper/<id>/socket. keeper status reads the live session and current action;
+keeper stop closes the browser and finalizes its evidence before confirming the stop. records adopt tags every Weles
 record in this vault with weles:record:<kind> from its own context.
 `;

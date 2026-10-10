@@ -5,8 +5,7 @@
 // drive their session through this socket (src/trajectories/_shared/keeper/
 // client.mjs). Every interaction goes through the humanized atoms; a command
 // that fails answers { ok: false, error } with the failure, never a retry.
-import net from 'node:net';
-import { existsSync, mkdirSync, unlinkSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { WSession } from '../session/wsession.js';
@@ -20,6 +19,8 @@ import {
 import { UsageError } from './usage.js';
 import { pageSettled } from '../browser/settled.js';
 import type { ParsedCli } from '../cli.js';
+import { serveKeeper } from './keeper/server.js';
+import { keeperControl } from './keeper/client.js';
 
 type KeeperCommand = Record<string, unknown> & { action?: unknown };
 type KeeperAnswer = Record<string, unknown> & { ok: boolean };
@@ -83,7 +84,9 @@ export async function answerKeeperCommand(
       return { ok: true };
     case 'fill': {
       if (typeof cmd.text !== 'string')
-        throw new Error('fill needs a string "text"; an empty string clears the field');
+        throw new Error(
+          'fill needs a string "text"; an empty string clears the field',
+        );
       await humanFill(session.page, visible(session, cmd), cmd.text);
       return { ok: true };
     }
@@ -116,16 +119,35 @@ export async function answerKeeperCommand(
 }
 
 export async function runKeeper(parsed: ParsedCli): Promise<void> {
-  if (parsed.positional.join(' ') !== 'start')
-    throw new UsageError(
-      'keeper takes exactly: start --session <id> [--url <url>] [--headless]',
-    );
+  const verb = parsed.positional.join(' ');
   const sessionName = parsed.options.session;
   if (typeof sessionName !== 'string' || !sessionName)
-    throw new UsageError('keeper start needs --session <id>');
+    throw new UsageError(`keeper ${verb} needs --session <id>`);
   const directory = keeperDirectory(sessionName);
-  mkdirSync(directory, { recursive: true });
   const socket = join(directory, 'socket');
+  switch (verb) {
+    case 'status':
+    case 'stop': {
+      if (
+        parsed.options.url !== undefined ||
+        parsed.options.headless !== undefined
+      )
+        throw new UsageError(
+          `keeper ${verb} does not start a browser; omit --url and --headless`,
+        );
+      let answer: unknown;
+      if (verb === 'status' && !existsSync(socket))
+        answer = { ok: true, session: sessionName, socket, state: 'stopped' };
+      else answer = await keeperControl(socket, sessionName, verb);
+      process.stdout.write(`${JSON.stringify(answer)}\n`);
+      return;
+    }
+    case 'start':
+      break;
+    default:
+      throw new UsageError('keeper takes start|status|stop --session <id>');
+  }
+  mkdirSync(directory, { recursive: true });
   if (existsSync(socket)) {
     throw new Error(
       `keeper ${sessionName} already has a socket at ${socket}; another keeper serves it, or the last one ended without removing it`,
@@ -136,53 +158,15 @@ export async function runKeeper(parsed: ParsedCli): Promise<void> {
     label: `keeper-${sessionName}`,
     headless: parsed.options.headless === true,
   });
-  const url = parsed.options.url;
-  if (typeof url === 'string' && url)
-    await session.page.goto(url, { waitUntil: 'domcontentloaded' });
-
-  const server = net.createServer((connection) => {
-    let buffer = '';
-    connection.on('data', (chunk) => {
-      buffer += chunk.toString();
-      for (
-        let newline = buffer.indexOf('\n');
-        newline >= 0;
-        newline = buffer.indexOf('\n')
-      ) {
-        const line = buffer.slice(0, newline);
-        buffer = buffer.slice(newline + 1);
-        void (async () => {
-          let answer: KeeperAnswer;
-          try {
-            answer = await answerKeeperCommand(
-              session,
-              sessionName,
-              JSON.parse(line) as KeeperCommand,
-            );
-          } catch (error) {
-            answer = {
-              ok: false,
-              error: error instanceof Error ? error.message : String(error),
-            };
-          }
-          if (!connection.destroyed)
-            connection.write(`${JSON.stringify(answer)}\n`);
-        })();
-      }
-    });
-  });
-  const removeSocket = () => {
-    if (existsSync(socket)) unlinkSync(socket);
-  };
-  process.on('exit', removeSocket);
-  session.page.on('close', () => {
-    server.close();
-    removeSocket();
-    process.exit(0);
-  });
-  server.listen(socket, () => {
-    process.stdout.write(
-      `${JSON.stringify({ session: sessionName, socket, url: session.page.url() })}\n`,
-    );
-  });
+  try {
+    const url = parsed.options.url;
+    if (typeof url === 'string' && url)
+      await session.page.goto(url, { waitUntil: 'domcontentloaded' });
+  } catch (error) {
+    await session.close();
+    throw error;
+  }
+  await serveKeeper(session, sessionName, socket, (command) =>
+    answerKeeperCommand(session, sessionName, command),
+  );
 }
