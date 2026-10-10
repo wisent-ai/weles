@@ -5,10 +5,14 @@ export const DOCUMENT_REPLACED = Symbol('weles:document-replaced');
 export async function readAcrossNavigation(page, read) {
   let replaced = false;
   let terminalCode;
-  const failure = (cause) => Object.assign(
-    new Error(`${terminalCode}: page read cannot continue; last URL ${page.url()}`, { cause }),
-    { code: terminalCode, pageUrl: page.url() },
-  );
+  const failure = (cause) =>
+    Object.assign(
+      new Error(
+        `${terminalCode}: page read cannot continue; last URL ${page.url()}`,
+        { cause },
+      ),
+      { code: terminalCode, pageUrl: page.url() },
+    );
   if (page.isClosed()) {
     terminalCode = 'PAGE_CLOSED';
     throw failure();
@@ -16,8 +20,12 @@ export async function readAcrossNavigation(page, read) {
   const onNavigated = (frame) => {
     if (frame === page.mainFrame()) replaced = true;
   };
-  const onClose = () => { terminalCode = 'PAGE_CLOSED'; };
-  const onCrash = () => { terminalCode = 'PAGE_CRASHED'; };
+  const onClose = () => {
+    terminalCode = 'PAGE_CLOSED';
+  };
+  const onCrash = () => {
+    terminalCode = 'PAGE_CRASHED';
+  };
   page.on('framenavigated', onNavigated);
   page.on('close', onClose);
   page.on('crash', onCrash);

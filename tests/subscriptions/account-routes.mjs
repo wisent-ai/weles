@@ -57,7 +57,10 @@ try {
     bearer,
   );
   refused(kimi, 'provider_unsupported');
-  assert.match(kimi.value.message, /src\/trajectories\/kimi\/account\/acquire\.mjs/);
+  assert.match(
+    kimi.value.message,
+    /src\/trajectories\/kimi\/account\/acquire\.mjs/,
+  );
   assert.match(kimi.value.message, /it buys accounts of claude/);
   refused(
     await request(

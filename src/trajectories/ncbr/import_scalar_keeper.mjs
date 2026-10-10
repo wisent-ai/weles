@@ -347,7 +347,16 @@ const sections = [
 ];
 
 function action(args, optional = false) {
-  const out = spawnSync(process.execPath, ['src/trajectories/_shared/keeper/action.mjs'], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8', input: JSON.stringify(args) });
+  const out = spawnSync(
+    process.execPath,
+    ['src/trajectories/_shared/keeper/action.mjs'],
+    {
+      cwd: WELES,
+      env: { ...process.env, SESSION },
+      encoding: 'utf8',
+      input: JSON.stringify(args),
+    },
+  );
   if (out.status !== 0) {
     if (optional) return { ok: false, stdout: out.stdout, stderr: out.stderr };
     throw new Error(

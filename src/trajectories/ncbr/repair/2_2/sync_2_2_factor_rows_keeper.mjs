@@ -56,7 +56,16 @@ if (process.env.ONLY) {
 }
 
 function action(args, optional = false) {
-  const result = spawnSync(process.execPath, ['src/trajectories/_shared/keeper/action.mjs'], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8', input: JSON.stringify(args) });
+  const result = spawnSync(
+    process.execPath,
+    ['src/trajectories/_shared/keeper/action.mjs'],
+    {
+      cwd: WELES,
+      env: { ...process.env, SESSION },
+      encoding: 'utf8',
+      input: JSON.stringify(args),
+    },
+  );
   if (result.status !== 0) {
     if (optional)
       return {
@@ -90,9 +99,20 @@ function loginIfNeeded() {
   const password = process.env.NCBR_PASSWORD;
   if (!email || !password)
     throw new Error('login required but NCBR_EMAIL/NCBR_PASSWORD not set');
-  action({ action: 'fill', selector: 'input#mail, input[name="mail"]', text: email });
-  action({ action: 'fill', selector: 'input#password, input[name="password"]', text: password });
-  action({ action: 'click', selector: 'input[name="isStatuteAccepted"]' }, true);
+  action({
+    action: 'fill',
+    selector: 'input#mail, input[name="mail"]',
+    text: email,
+  });
+  action({
+    action: 'fill',
+    selector: 'input#password, input[name="password"]',
+    text: password,
+  });
+  action(
+    { action: 'click', selector: 'input[name="isStatuteAccepted"]' },
+    true,
+  );
   action({ action: 'click', selector: 'button:has-text("Zaloguj się")' });
   idle('long');
   idle('long');
@@ -110,7 +130,11 @@ function fill(name, value) {
   })()`);
   if (!check?.ok)
     throw new Error(`fill precheck failed ${name}: ${JSON.stringify(check)}`);
-  action({ action: 'fill', selector: `textarea[name="${name}"]:visible, input[name="${name}"]:visible`, text: value });
+  action({
+    action: 'fill',
+    selector: `textarea[name="${name}"]:visible, input[name="${name}"]:visible`,
+    text: value,
+  });
   idle('short');
   return read(`(() => {
     const name = ${JSON.stringify(name)};
@@ -156,7 +180,10 @@ function saveSubform() {
     })()`);
     if (!status) return { ok: true, clicks };
     if (!status.disabled) {
-      action({ action: 'click', selector: '#collection-obj-form-save-btn' }, true);
+      action(
+        { action: 'click', selector: '#collection-obj-form-save-btn' },
+        true,
+      );
       clicks += 1;
     }
   }

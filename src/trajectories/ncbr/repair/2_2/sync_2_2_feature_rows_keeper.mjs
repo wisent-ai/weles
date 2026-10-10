@@ -76,7 +76,16 @@ if (sourceFeatures.length < 8)
   );
 
 function action(args, optional = false) {
-  const result = spawnSync(process.execPath, ['src/trajectories/_shared/keeper/action.mjs'], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8', input: JSON.stringify(args) });
+  const result = spawnSync(
+    process.execPath,
+    ['src/trajectories/_shared/keeper/action.mjs'],
+    {
+      cwd: WELES,
+      env: { ...process.env, SESSION },
+      encoding: 'utf8',
+      input: JSON.stringify(args),
+    },
+  );
   if (result.status !== 0) {
     if (optional)
       return {
@@ -114,7 +123,11 @@ function fill(name, value) {
   })()`);
   if (!check?.ok)
     throw new Error(`fill precheck failed ${name}: ${JSON.stringify(check)}`);
-  action({ action: 'fill', selector: `textarea[name="${name}"], input[name="${name}"]`, text: value });
+  action({
+    action: 'fill',
+    selector: `textarea[name="${name}"], input[name="${name}"]`,
+    text: value,
+  });
   idle('short');
   const out = read(`(() => {
     const name = ${JSON.stringify(name)};
@@ -131,7 +144,10 @@ function clickRow(rowNumberOneBased) {
     return row ? row.innerText.replace(/\\s+/g, ' ') : null;
   })()`);
   if (!text) throw new Error(`row missing: ${rowNumberOneBased}`);
-  action({ action: 'click', selector: `:nth-match(table tbody tr, ${rowNumberOneBased}) button[aria-label="overflow-options"]` });
+  action({
+    action: 'click',
+    selector: `:nth-match(table tbody tr, ${rowNumberOneBased}) button[aria-label="overflow-options"]`,
+  });
   idle('short');
   action({ action: 'click', selector: 'text="Edytuj"' });
   idle('long');
@@ -144,17 +160,30 @@ function deleteRow(rowNumberOneBased) {
     return row ? row.innerText.replace(/\\s+/g, ' ') : null;
   })()`);
   if (!text) throw new Error(`row missing for delete: ${rowNumberOneBased}`);
-  action({ action: 'click', selector: `:nth-match(table tbody tr, ${rowNumberOneBased}) button[aria-label="overflow-options"]` });
+  action({
+    action: 'click',
+    selector: `:nth-match(table tbody tr, ${rowNumberOneBased}) button[aria-label="overflow-options"]`,
+  });
   idle('short');
   action({ action: 'click', selector: 'text="Usuń"' });
   idle('deliberate');
-  const confirm = action({ action: 'click', selector: 'button:has-text("Usuń"), button:has-text("Tak"), button:has-text("Potwierdź")' }, true,);
+  const confirm = action(
+    {
+      action: 'click',
+      selector:
+        'button:has-text("Usuń"), button:has-text("Tak"), button:has-text("Potwierdź")',
+    },
+    true,
+  );
   idle('long');
   return { open: { ok: true, rowNumber: rowNumberOneBased, text }, confirm };
 }
 
 function saveSubform() {
-  const clicked = action({ action: 'click', selector: '#collection-obj-form-save-btn' }, true);
+  const clicked = action(
+    { action: 'click', selector: '#collection-obj-form-save-btn' },
+    true,
+  );
   if (clicked.ok !== false) {
     idle('long');
     const status = read(`(() => {
@@ -163,7 +192,10 @@ function saveSubform() {
     })()`);
     if (!status.stillOpen) return { ok: true, method: 'keeper-click-id' };
     if (status.disabled) {
-      action({ action: 'click', selector: '#collection-obj-form-cancel-btn' }, true);
+      action(
+        { action: 'click', selector: '#collection-obj-form-cancel-btn' },
+        true,
+      );
       idle('long');
       const closed = read(
         `(() => !document.querySelector('#collection-obj-form-save-btn'))()`,

@@ -83,9 +83,7 @@ try {
   );
   assert.equal(password.length, stated, 'the password has the stated length');
   for (const characterClass of classes) assert.match(password, characterClass);
-  const checked = JSON.parse(
-    skarbiec(['policy', 'check'], password).stdout,
-  );
+  const checked = JSON.parse(skarbiec(['policy', 'check'], password).stdout);
   assert.equal(
     checked.ok,
     true,
@@ -94,7 +92,8 @@ try {
 
   const tooShort = classes.slice(classes.length / classes.length).length;
   assert.ok(
-    !skarbiec(['policy', 'set', 'min_generated_length', String(tooShort)]).status,
+    !skarbiec(['policy', 'set', 'min_generated_length', String(tooShort)])
+      .status,
   );
   assert.throws(
     () => registrationPassword(),

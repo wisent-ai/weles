@@ -8,7 +8,10 @@
 import { runOutputPath } from '#run-output';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { DOCUMENT_REPLACED, readAcrossNavigation } from '../../page/navigation/read.mjs';
+import {
+  DOCUMENT_REPLACED,
+  readAcrossNavigation,
+} from '../../page/navigation/read.mjs';
 
 export const PAGE_TEXT_UNREADABLE = 'weles:google-page-text-unreadable';
 

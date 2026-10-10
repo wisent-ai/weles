@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -10,7 +16,10 @@ const reports = join(root, 'build/real-tests/ncbr-source-text');
 mkdirSync(reports, { recursive: true });
 const run = mkdtempSync(join(reports, 'run-'));
 const report = {
-  source_revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
+  source_revision: execFileSync('git', ['rev-parse', 'HEAD'], {
+    cwd: root,
+    encoding: 'utf8',
+  }).trim(),
   command: [process.execPath, ...process.execArgv, ...process.argv],
   operations: [],
 };
@@ -39,16 +48,19 @@ const cases = [
   },
   {
     script: '2_3/repair_2_3_competitors_deterministic.mjs',
-    file: market, headings: marketHeadings,
+    file: market,
+    headings: marketHeadings,
     refusal: 'markers missing: ## Oferta konkurencji wewnątrz UE',
     forbidden: 'Ocena: produkt, funkcje',
   },
   {
     script: '2_3/repair_2_3_dense_source.mjs',
-    file: market, headings: marketHeadings,
+    file: market,
+    headings: marketHeadings,
     refusal: 'markers missing: ## Oferta konkurencji wewnątrz UE',
     forbidden: 'To mierzy przewagę architektury, nie sam branding dostawcy.',
-    preserved: 'Weryfikacja geograficzna opiera się na siedzibie kontrahenta z umowy i faktury, nie na lokalizacji użytkownika końcowego.',
+    preserved:
+      'Weryfikacja geograficzna opiera się na siedzibie kontrahenta z umowy i faktury, nie na lokalizacji użytkownika końcowego.',
   },
   {
     script: '2_4/repair_2_4_external_effects_source.mjs',
@@ -71,7 +83,12 @@ for (const fixture of cases) {
       const operation = { command: [process.execPath, script], configured };
       report.operations.push(operation);
       try {
-        operation.stdout = execFileSync(process.execPath, [script], { cwd: root, env, encoding: 'utf8', stdio: 'pipe' });
+        operation.stdout = execFileSync(process.execPath, [script], {
+          cwd: root,
+          env,
+          encoding: 'utf8',
+          stdio: 'pipe',
+        });
         operation.outcome = 'completed';
       } catch (error) {
         operation.status = error.status;
@@ -86,20 +103,45 @@ for (const fixture of cases) {
     try {
       const before = `# Authored application\n\n${fixture.headings.join('\n\nOriginal section\n\n')}\n`;
       writeFileSync(path, before);
-      assert.throws(() => invoke(false), (error) => String(error.stderr).includes('NCBR_APPLICATION_TEXT_DIR is not set'));
+      assert.throws(
+        () => invoke(false),
+        (error) =>
+          String(error.stderr).includes('NCBR_APPLICATION_TEXT_DIR is not set'),
+      );
       assert.equal(readFileSync(path, 'utf8'), before);
       invoke();
       const written = readFileSync(path, 'utf8');
       assert.ok(written.startsWith('# Authored application\n\n'));
-      assert.ok(!written.includes(fixture.forbidden), 'no automatically selected filler');
-      if (fixture.preserved) assert.ok(written.includes(fixture.preserved), 'the full authored final clause survives');
+      assert.ok(
+        !written.includes(fixture.forbidden),
+        'no automatically selected filler',
+      );
+      if (fixture.preserved)
+        assert.ok(
+          written.includes(fixture.preserved),
+          'the full authored final clause survives',
+        );
       invoke();
-      assert.equal(readFileSync(path, 'utf8'), written, 'generation does not accumulate duplicate prose');
-      writeFileSync(join(run, fixture.script.replaceAll('/', '-') + '.md'), written);
+      assert.equal(
+        readFileSync(path, 'utf8'),
+        written,
+        'generation does not accumulate duplicate prose',
+      );
+      writeFileSync(
+        join(run, fixture.script.replaceAll('/', '-') + '.md'),
+        written,
+      );
       const unknown = '# Different document\n\nDo not replace this text.\n';
       writeFileSync(path, unknown);
-      assert.throws(() => invoke(), (error) => String(error.stderr).includes(fixture.refusal));
-      assert.equal(readFileSync(path, 'utf8'), unknown, 'refusal leaves the document unchanged');
+      assert.throws(
+        () => invoke(),
+        (error) => String(error.stderr).includes(fixture.refusal),
+      );
+      assert.equal(
+        readFileSync(path, 'utf8'),
+        unknown,
+        'refusal leaves the document unchanged',
+      );
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

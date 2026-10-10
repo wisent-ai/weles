@@ -73,9 +73,7 @@ try {
       banked.subscriptionId,
     );
     await signInWithin('claude', account, session);
-    process.stdout.write(
-      `${JSON.stringify({ ok: true, ...done })}\n`,
-    );
+    process.stdout.write(`${JSON.stringify({ ok: true, ...done })}\n`);
   } finally {
     await session.close();
   }

@@ -11,7 +11,10 @@ const reports = join(root, 'build/real-tests/instrumentation');
 mkdirSync(reports, { recursive: true });
 const directory = mkdtempSync(join(reports, 'json-file-'));
 const report = {
-  source_revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
+  source_revision: execFileSync('git', ['rev-parse', 'HEAD'], {
+    cwd: root,
+    encoding: 'utf8',
+  }).trim(),
   command: [process.execPath, ...process.execArgv, ...process.argv],
   files: [],
 };
@@ -24,16 +27,28 @@ await test('artifact preserves supplementary characters and sparse array positio
   const path = join(directory, 'unicode-and-array.json');
   const value = { text: 'A 𝄞 Z', sparse: [, 'last'], omitted: undefined };
   writeJsonFile(path, value);
-  assert.deepEqual(JSON.parse(readFileSync(path, 'utf8')), { text: 'A 𝄞 Z', sparse: [null, 'last'] });
+  assert.deepEqual(JSON.parse(readFileSync(path, 'utf8')), {
+    text: 'A 𝄞 Z',
+    sparse: [null, 'last'],
+  });
   report.files.push(path);
 });
 
 await test('each member toJSON is observed once with its property key', () => {
   const calls = [];
   const path = join(directory, 'member-key.json');
-  const value = { member: { toJSON(key) { calls.push(key); return { retained: true }; } } };
+  const value = {
+    member: {
+      toJSON(key) {
+        calls.push(key);
+        return { retained: true };
+      },
+    },
+  };
   writeJsonFile(path, value);
-  assert.deepEqual(JSON.parse(readFileSync(path, 'utf8')), { member: { retained: true } });
+  assert.deepEqual(JSON.parse(readFileSync(path, 'utf8')), {
+    member: { retained: true },
+  });
   assert.deepEqual(calls, ['member']);
   report.files.push(path);
 });
@@ -42,7 +57,10 @@ await test('a circular artifact reports the actual serialization failure', () =>
   const path = join(directory, 'circular.json');
   const value = {};
   value.self = value;
-  assert.throws(() => writeJsonFile(path, value), { name: 'TypeError', message: 'Converting circular structure to JSON' });
+  assert.throws(() => writeJsonFile(path, value), {
+    name: 'TypeError',
+    message: 'Converting circular structure to JSON',
+  });
   report.files.push(path);
 });
 console.log(`instrumentation report: ${join(directory, 'report.json')}`);

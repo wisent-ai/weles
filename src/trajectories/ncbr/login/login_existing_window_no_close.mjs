@@ -26,10 +26,10 @@ let page = context.pages()[0] || (await context.newPage());
 async function authStatus() {
   return await page.evaluate(async (authUrl) => {
     try {
-      const res = await fetch(
-        authUrl,
-        { credentials: 'include', headers: { Accept: 'application/json' } },
-      );
+      const res = await fetch(authUrl, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
       const text = await res.text();
       return { url: authUrl, status: res.status, text };
     } catch (error) {

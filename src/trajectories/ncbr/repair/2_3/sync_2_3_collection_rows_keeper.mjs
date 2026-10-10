@@ -113,7 +113,16 @@ if (process.env.ONLY) {
 }
 
 function action(args, optional = false) {
-  const result = spawnSync(process.execPath, ['src/trajectories/_shared/keeper/action.mjs'], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8', input: JSON.stringify(args) });
+  const result = spawnSync(
+    process.execPath,
+    ['src/trajectories/_shared/keeper/action.mjs'],
+    {
+      cwd: WELES,
+      env: { ...process.env, SESSION },
+      encoding: 'utf8',
+      input: JSON.stringify(args),
+    },
+  );
   if (result.status !== 0) {
     if (optional)
       return {
@@ -148,7 +157,11 @@ function fill(name, value) {
   })()`);
   if (!check?.ok)
     throw new Error(`fill precheck failed ${name}: ${JSON.stringify(check)}`);
-  action({ action: 'fill', selector: `${check.tag}[name="${name}"]`, text: value });
+  action({
+    action: 'fill',
+    selector: `${check.tag}[name="${name}"]`,
+    text: value,
+  });
   idle('short');
   return read(`(() => {
     const name = ${JSON.stringify(name)};
@@ -233,7 +246,10 @@ function saveSubform() {
     })()`);
     if (!status) return { ok: true, clicks };
     if (!status.disabled) {
-      action({ action: 'click', selector: '#collection-obj-form-save-btn' }, true);
+      action(
+        { action: 'click', selector: '#collection-obj-form-save-btn' },
+        true,
+      );
       clicks += 1;
     }
   }

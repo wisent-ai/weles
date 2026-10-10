@@ -82,7 +82,10 @@ function writeValue(
     let first = true;
     for (const member in value) {
       if (!Object.prototype.hasOwnProperty.call(value, member)) continue;
-      const shown = prepared(member, (value as Record<string, unknown>)[member]);
+      const shown = prepared(
+        member,
+        (value as Record<string, unknown>)[member],
+      );
       if (
         shown === undefined ||
         typeof shown === 'function' ||

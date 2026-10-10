@@ -121,9 +121,7 @@ export async function createBotApp({ page, weles, shot }) {
   });
   console.log(`[bot][create] ${creationDiagnostic}`);
   if (!create.ok) {
-    throw new Error(
-      `[bot] apps.manifest.create failed: ${creationDiagnostic}`,
-    );
+    throw new Error(`[bot] apps.manifest.create failed: ${creationDiagnostic}`);
   }
   const appId = create.app_id;
   if (!appId)

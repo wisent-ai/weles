@@ -70,10 +70,10 @@ page.on('response', async (res) => {
 async function authStatus() {
   return await page.evaluate(async (authUrl) => {
     try {
-      const res = await fetch(
-        authUrl,
-        { credentials: 'include', headers: { Accept: 'application/json' } },
-      );
+      const res = await fetch(authUrl, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
       return { url: authUrl, status: res.status, text: await res.text() };
     } catch (error) {
       return { url: authUrl, error: String(error?.message || error) };

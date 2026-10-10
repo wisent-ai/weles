@@ -9,7 +9,6 @@ const clean = (s) =>
     .replace(/\s+/g, ' ')
     .trim();
 
-
 const rows = [
   {
     old: 'Skumulowana liczba unikniętych pełnych cykli dotrenowywania modeli u odbiorców w UE dzięki adaptacji przez edycję reprezentacji',

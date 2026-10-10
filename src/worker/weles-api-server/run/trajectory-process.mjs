@@ -341,7 +341,8 @@ export const REAUTH_PROVIDERS = new Set(['codex', 'claude', 'kimi']);
 // provider is not one plain path segment (it could otherwise leave
 // src/trajectories) or has no such trajectory.
 export function trajectoryPath(provider, trajectory) {
-  if (!provider || basename(provider) !== provider || provider.startsWith('.')) return null;
+  if (!provider || basename(provider) !== provider || provider.startsWith('.'))
+    return null;
   const path = resolve(REPO, 'src/trajectories', provider, `${trajectory}.mjs`);
   return existsSync(path) ? path : null;
 }
@@ -350,7 +351,9 @@ export function trajectoryPath(provider, trajectory) {
 // that runs that trajectory serves.
 export function providersWith(trajectory) {
   return readdirSync(resolve(REPO, 'src/trajectories'), { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && trajectoryPath(entry.name, trajectory))
+    .filter(
+      (entry) => entry.isDirectory() && trajectoryPath(entry.name, trajectory),
+    )
     .map((entry) => entry.name)
     .sort();
 }

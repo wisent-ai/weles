@@ -10,7 +10,6 @@ const clean = (s) =>
     .replace(/\s+/g, ' ')
     .trim();
 
-
 const EU = [
   [
     'Mistral AI',

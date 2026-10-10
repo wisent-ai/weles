@@ -55,7 +55,16 @@ const ownIndicators = ownBlock
   .filter((x) => x.name && !/HarmBench|attack success rate/i.test(x.name));
 
 function action(args, optional = false) {
-  const result = spawnSync(process.execPath, ['src/trajectories/_shared/keeper/action.mjs'], { cwd: WELES, env: { ...process.env, SESSION }, encoding: 'utf8', input: JSON.stringify(args) });
+  const result = spawnSync(
+    process.execPath,
+    ['src/trajectories/_shared/keeper/action.mjs'],
+    {
+      cwd: WELES,
+      env: { ...process.env, SESSION },
+      encoding: 'utf8',
+      input: JSON.stringify(args),
+    },
+  );
   if (result.status !== 0) {
     if (optional)
       return { ok: false, stdout: result.stdout, stderr: result.stderr };
