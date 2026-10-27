@@ -49,6 +49,7 @@ export async function getCaptchaCredentials(): Promise<{
   capmonster?: string;
   nocaptcha?: string;
   nopecha?: string;
+  solvecha?: string;
 }> {
   const credentials = {
     anticaptcha: readOptionalWelesServiceSecret('antiCaptcha', 'api_key'),
@@ -57,6 +58,7 @@ export async function getCaptchaCredentials(): Promise<{
     capmonster: readOptionalWelesServiceSecret('capmonster', 'api_key'),
     nocaptcha: readOptionalWelesServiceSecret('noCaptcha', 'api_key'),
     nopecha: readOptionalWelesServiceSecret('nopecha', 'api_key'),
+    solvecha: readOptionalWelesServiceSecret('solvecha', 'api_key'),
   };
   const configured = Object.entries(credentials)
     .filter(([, value]) => value)

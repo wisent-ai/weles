@@ -1,4 +1,4 @@
-// Tile-classification consensus for reCAPTCHA v2 image grids. Runs three
+// Tile-classification consensus for reCAPTCHA v2 image grids. Runs the
 // specialist services and one authenticated Stado-routed vision model in
 // parallel, prefers the independent model result when available, otherwise
 // uses a service majority and the disagreement tiebreaker on thin majorities.
@@ -7,6 +7,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../session/run-recordings.js';
 import { askJedenAboutImage } from '../../vision/analyze.js';
+import { solvechaGridSolve } from './solvecha.js';
 
 const CATEGORY_CODES: Record<string, string> = {
   taxi: '/m/0pg52',
@@ -132,6 +133,11 @@ export async function classifyGrid(
     }
     return null;
   }
+  async function solvechaSolve(): Promise<number[] | null> {
+    const k = creds.solvecha;
+    if (!k) return null;
+    return solvechaGridSolve(k, instr, gridImgB64 as string, gridSize);
+  }
   async function capsolverSolve(): Promise<number[] | null> {
     const k = creds.capsolver;
     const q = instructionToCode(instruction);
@@ -219,8 +225,9 @@ export async function classifyGrid(
     capsolverSolve(),
     twocaptchaSolve(),
     modelSolve(),
+    solvechaSolve(),
   ]);
-  const labels = ['NopeCha', 'CapSolver', '2captcha', 'Model'];
+  const labels = ['NopeCha', 'CapSolver', '2captcha', 'Model', 'Solvecha'];
   const answers: { name: string; positions: number[] }[] = [];
   settled.forEach((s, i) => {
     const pos =

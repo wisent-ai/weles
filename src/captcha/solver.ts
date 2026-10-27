@@ -54,6 +54,7 @@ export class CaptchaSolver {
     if (this._creds.capmonster) s.push('capmonster');
     if (this._creds.nopecha) s.push('nopecha');
     if (this._creds.nocaptcha) s.push('nocaptcha');
+    if (this._creds.solvecha) s.push('solvecha');
     return s;
   }
 

@@ -11,6 +11,7 @@ export interface CaptchaCredentials {
   capmonster?: string;
   nocaptcha?: string;
   nopecha?: string;
+  solvecha?: string;
 }
 
 // The answer a provider gives once it stops solving a task. The providers have
