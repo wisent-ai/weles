@@ -63,7 +63,7 @@ export async function solveFuncaptchaToken(
     console.log(`[captcha:api] 2captcha funcaptcha surl=${surl}`);
     attempts.push({
       service: 'twocaptcha',
-      solve: () => twoCaptchaSolve(twocaptcha, params, 'funcaptcha'),
+      solve: () => twoCaptchaSolve(params, 'funcaptcha'),
     });
   }
   const capmonster = creds.capmonster;

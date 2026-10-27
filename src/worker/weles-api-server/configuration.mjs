@@ -62,3 +62,24 @@ export const ALLOW_UNAUTH = granted('WELES_API_ALLOW_UNAUTH');
 // never the default: without WELES_API_ALLOW_RAW_CREDS=1 a "raw" request is
 // refused with 403 raw_creds_forbidden and "redact" or "store" is the answer.
 export const ALLOW_RAW_CREDS = granted('WELES_API_ALLOW_RAW_CREDS');
+
+// Where the /captcha/answers/ route writes what a captcha provider pushes, and
+// where each run started here waits for it; outside the repository like the
+// detached runs' answers.
+export const CAPTCHA_ANSWERS_DIR = join(homedir(), '.stado', 'weles-captcha-answers');
+
+// The public HTTPS origin a captcha provider reaches this server's
+// /captcha/answers/ route at (a hostname routed to this service). Unset, the
+// runs started here hold no callback address and every provider solve is
+// refused naming it; a value that is not an HTTPS origin stops the server.
+function captchaCallbackOrigin() {
+  const value = stated('WELES_CAPTCHA_CALLBACK_ORIGIN');
+  if (!value) return null;
+  const origin = new URL(value);
+  if (origin.protocol !== 'https:' || origin.origin !== value.replace(/\/$/, ''))
+    throw new Error(
+      `WELES_CAPTCHA_CALLBACK_ORIGIN is ${value}: set it to the public HTTPS origin (scheme and host, no path) routed to this server`,
+    );
+  return origin.origin;
+}
+export const CAPTCHA_CALLBACK_ORIGIN = captchaCallbackOrigin();

@@ -24,6 +24,10 @@ import { json, readBody } from '../http-exchange.mjs';
 import { isPageRoute, respondToPage } from './pages/index.mjs';
 import { isRecordRoute, respondToRecord } from './records/index.mjs';
 import { isKeeperRoute, respondToKeeper } from './keepers/index.mjs';
+import {
+  isCaptchaAnswerRoute,
+  respondToCaptchaAnswer,
+} from './captcha/answers.mjs';
 import { respondToRun } from './run-route.mjs';
 import { isRunsRoute, respondToRuns } from './runs.mjs';
 import {
@@ -73,7 +77,9 @@ export function createApiRequestHandler({
   /** Whether a token-authenticated route answered the request. */
   async function answeredByRoute(req, res, url) {
     const post = req.method === 'POST';
-    if (isWorkerRoute(req, url)) await respondToWorker(req, res, url);
+    if (isCaptchaAnswerRoute(req, url))
+      await respondToCaptchaAnswer(req, res, url);
+    else if (isWorkerRoute(req, url)) await respondToWorker(req, res, url);
     else if (isKeeperRoute(url.pathname)) await respondToKeeper(req, res, url);
     else if (isDiagnosticsRoute(req, url))
       await respondToDiagnostics(req, res, url);

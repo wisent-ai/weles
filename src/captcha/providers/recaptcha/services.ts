@@ -1,16 +1,29 @@
 // reCAPTCHA v2 tokens from the two services that are not task APIs: 2captcha's
-// in.php/res.php pair and NopeCHA's token API. Each is read until the service
-// stops solving the task, and answers the token or throws naming the service,
-// the job and its refusal.
+// in.php, which pushes its answer to this run's pingback, and NopeCHA's token
+// API, which pushes nothing and is read until it stops solving the job. Each
+// answers the token or throws naming the service, the job and its refusal.
 import { constants } from 'node:http2';
 
 import {
   nopechaProxyFields,
   providerJson,
-  readUntilSolved,
   twoCaptchaSolve,
   type ProxyCredentials,
 } from '../api.js';
+
+// NopeCHA's job, read until it stops answering that it is still solving it.
+// NopeCHA takes no callback, and no interval between reads is ours to invent:
+// each read follows NopeCHA's previous answer, so its own response time paces
+// them.
+async function readUntilSolved<T>(
+  read: () => Promise<T>,
+  solving: (answer: T) => boolean,
+): Promise<T> {
+  for (;;) {
+    const answer = await read();
+    if (!solving(answer)) return answer;
+  }
+}
 
 export async function solveRecaptchaV2TwoCaptcha(
   key: string,
@@ -47,7 +60,7 @@ export async function solveRecaptchaV2TwoCaptcha(
     );
     params.set('proxytype', proxyType);
   }
-  return twoCaptchaSolve(key, params, 'recaptcha v2');
+  return twoCaptchaSolve(params, 'recaptcha v2');
 }
 
 export async function solveRecaptchaV2Nopecha(

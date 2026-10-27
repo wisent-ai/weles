@@ -12,7 +12,7 @@ import { markCaptchaChallenge } from '../events.js';
 import {
   firstSolved,
   providerJson,
-  readUntilSolved,
+  solvedTask,
   type CaptchaCredentials,
   type ServiceAttempt,
 } from './api.js';
@@ -77,50 +77,11 @@ async function capsolverCookies(
   console.log(
     `[captcha:api] capsolver AntiPerimeterx createTask type=${task.type} url=${url}`,
   );
-  const cr = await providerJson(
-    await fetch('https://api.capsolver.com/createTask', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientKey, task }),
-    }),
-    'capsolver AntiPerimeterx createTask',
-  );
-  if (cr.errorId) {
-    throw new Error(
-      `capsolver refused AntiPerimeterx createTask: ${cr.errorCode} ${cr.errorDescription}`,
-    );
-  }
-  if (!cr.taskId) {
-    throw new Error(
-      `capsolver answered AntiPerimeterx createTask without a taskId: ${JSON.stringify(cr)}`,
-    );
-  }
-  const tr = await readUntilSolved(
-    async () =>
-      providerJson(
-        await fetch('https://api.capsolver.com/getTaskResult', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ clientKey, taskId: cr.taskId }),
-        }),
-        `capsolver getTaskResult for AntiPerimeterx task ${cr.taskId}`,
-      ),
-    (answer) => !answer.errorId && answer.status === 'processing',
-  );
-  if (tr.errorId) {
-    throw new Error(
-      `capsolver AntiPerimeterx task ${cr.taskId} failed: ${tr.errorCode} ${tr.errorDescription}`,
-    );
-  }
-  if (tr.status !== 'ready') {
-    throw new Error(
-      `capsolver AntiPerimeterx task ${cr.taskId} answered status ${tr.status}, neither processing nor ready: ${JSON.stringify(tr)}`,
-    );
-  }
+  const tr = await solvedTask('https://api.capsolver.com', clientKey, task);
   const out = playwrightCookies(tr.solution?.cookies, domain);
   if (!out?.length) {
     throw new Error(
-      `capsolver AntiPerimeterx task ${cr.taskId} is ready but its solution carries no cookies: ${JSON.stringify(tr.solution)}`,
+      `capsolver AntiPerimeterx task ${tr.taskId} is ready but its solution carries no cookies: ${JSON.stringify(tr.solution)}`,
     );
   }
   return out;

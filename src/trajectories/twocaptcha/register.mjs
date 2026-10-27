@@ -1,19 +1,19 @@
 // 2Captcha registration through its native form, which takes an invisible
 // reCAPTCHA instead of the Google sign-in button. The address is the session's
 // generated identity (the domain rotator's mailbox), the reCAPTCHA sitekey is
-// the one the form itself declares, and CapSolver solves it; its token is read
-// once the task is solved (solverTaskResult). The registration counts once
+// the one the form itself declares, and CapSolver solves it; its token is
+// pushed back to the run once the task is solved (apiSolve). The registration counts once
 // 2Captcha leaves the registration page; the credentials are then kept in
 // Skarbiec.
 import { exitStatusFor } from '../../../dist/cli/usage.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { registrationPassword } from '../../../dist/utils/identity/password.js';
-import { solverTaskResult } from '../_shared/captcha/solver_task.mjs';
+import { apiSolve } from '../../../dist/captcha/providers/api.js';
 import { writeServiceCredentials } from '../_shared/skarbiec/accounts.mjs';
 import { pageSettled } from '../_shared/page/settled.mjs';
 
 const REGISTER_URL = 'https://2captcha.com/auth/register';
-const CAPSOLVER = { name: 'capsolver', url: 'https://api.capsolver.com' };
+const CAPSOLVER_API = 'https://api.capsolver.com';
 
 /** The reCAPTCHA sitekey the registration form declares. */
 async function formSitekey(page) {
@@ -32,25 +32,12 @@ async function solveInvisibleRecaptcha(sitekey) {
   const key = process.env.CAPSOLVER_API_KEY;
   if (!key)
     throw new Error('twocaptcha_register: CAPSOLVER_API_KEY is not configured');
-  const response = await fetch(`${CAPSOLVER.url}/createTask`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      clientKey: key,
-      task: {
-        type: 'ReCaptchaV2TaskProxyLess',
-        websiteURL: REGISTER_URL,
-        websiteKey: sitekey,
-        isInvisible: true,
-      },
-    }),
+  return apiSolve(CAPSOLVER_API, key, {
+    type: 'ReCaptchaV2TaskProxyLess',
+    websiteURL: REGISTER_URL,
+    websiteKey: sitekey,
+    isInvisible: true,
   });
-  const created = await response.json();
-  if (!created.taskId)
-    throw new Error(
-      `twocaptcha_register: CapSolver refused the task: ${JSON.stringify(created)}`,
-    );
-  return solverTaskResult(CAPSOLVER, key, created.taskId);
 }
 
 const s = await WSession.start({

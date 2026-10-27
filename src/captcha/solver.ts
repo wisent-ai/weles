@@ -10,8 +10,7 @@ import { markCaptchaChallenge, markAllProvidersFailed } from './events.js';
 import {
   apiSolve,
   firstSolved,
-  providerJson,
-  readUntilSolved,
+  solvedTask,
   type CaptchaCredentials,
   type ProxyCredentials,
   type ServiceAttempt,
@@ -34,55 +33,15 @@ type CloudflareClearance = {
   cookies: Record<string, string>;
 };
 
-// CapSolver's AntiCloudflareTask: the clearance it answers, or an error naming
+// CapSolver's AntiCloudflareTask: the clearance it pushes, or an error naming
 // the task and CapSolver's refusal. The clearance is bound to the browser that
 // earned it, so a solution without its token, user agent or cookies is named.
 async function capsolverClearance(
   clientKey: string,
   task: Record<string, any>,
 ): Promise<CloudflareClearance> {
-  const res = await providerJson(
-    await fetch('https://api.capsolver.com/createTask', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientKey, task }),
-    }),
-    'capsolver AntiCloudflare createTask',
-  );
-  if (res.errorId) {
-    throw new Error(
-      `capsolver refused AntiCloudflare createTask: ${res.errorCode} ${res.errorDescription}`,
-    );
-  }
-  const taskId = res.taskId;
-  if (!taskId) {
-    throw new Error(
-      `capsolver answered AntiCloudflare createTask without a taskId: ${JSON.stringify(res)}`,
-    );
-  }
-  console.log(`[captcha:api] capsolver AntiCloudflare taskId=${taskId}`);
-  const tr = await readUntilSolved(
-    async () =>
-      providerJson(
-        await fetch('https://api.capsolver.com/getTaskResult', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ clientKey, taskId }),
-        }),
-        `capsolver getTaskResult for AntiCloudflare task ${taskId}`,
-      ),
-    (answer) => !answer.errorId && answer.status === 'processing',
-  );
-  if (tr.errorId) {
-    throw new Error(
-      `capsolver AntiCloudflare task ${taskId} failed: ${tr.errorCode} ${tr.errorDescription}`,
-    );
-  }
-  if (tr.status !== 'ready') {
-    throw new Error(
-      `capsolver AntiCloudflare task ${taskId} answered status ${tr.status}, neither processing nor ready: ${JSON.stringify(tr)}`,
-    );
-  }
+  const tr = await solvedTask('https://api.capsolver.com', clientKey, task);
+  const taskId = tr.taskId;
   const sol = tr.solution;
   const missing: string[] = [];
   if (!(typeof sol?.token === 'string' && sol.token)) missing.push('token');

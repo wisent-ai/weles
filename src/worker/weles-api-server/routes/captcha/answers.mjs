@@ -1,0 +1,57 @@
+// POST /captcha/answers/<token>: the answer a captcha provider pushes for a
+// task a run of this server created.
+//
+// The providers call back without a Weles bearer, so the route is admitted by
+// what only the run and the provider know: the token in the address, which the
+// run drew at random for that one task and registered as waiting
+// (<token>.waiting in CAPTCHA_ANSWERS_DIR, src/captcha/providers/callback.ts).
+// A token no run waits for is answered 404 before its body is read. The body
+// is kept as sent, with its content type: AntiCaptcha, CapMonster and
+// CapSolver POST the getTaskResult answer as JSON, 2captcha its id and code as
+// a form, and the run reads its own provider's form. It is written beside the
+// marker under a temporary name and renamed into place, so the run that
+// watches the directory never reads half an answer.
+
+import { constants as http } from 'node:http2';
+import { access, rename, writeFile } from 'node:fs/promises';
+import { basename, join } from 'node:path';
+
+import { CAPTCHA_ANSWERS_DIR } from '../../configuration.mjs';
+import { json, readText } from '../../http-exchange.mjs';
+
+export const CAPTCHA_ANSWER_PATH = '/captcha/answers/';
+
+/** The token a POST to the answers route names, or null for any other request. */
+function answerToken(req, url) {
+  if (req.method !== 'POST' || !url.pathname.startsWith(CAPTCHA_ANSWER_PATH))
+    return null;
+  const token = url.pathname.slice(CAPTCHA_ANSWER_PATH.length);
+  if (!token || basename(token) !== token || token.startsWith('.')) return null;
+  return token;
+}
+
+export function isCaptchaAnswerRoute(req, url) {
+  return answerToken(req, url) !== null;
+}
+
+export async function respondToCaptchaAnswer(req, res, url) {
+  const token = answerToken(req, url);
+  try {
+    await access(join(CAPTCHA_ANSWERS_DIR, `${token}.waiting`));
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    json(res, http.HTTP_STATUS_NOT_FOUND, {
+      ok: false,
+      error: 'no_run_waits_for_this_answer',
+    });
+    return;
+  }
+  const answer = {
+    contentType: String(req.headers['content-type']),
+    body: await readText(req),
+  };
+  const partial = join(CAPTCHA_ANSWERS_DIR, `.${token}.json.part`);
+  await writeFile(partial, JSON.stringify(answer));
+  await rename(partial, join(CAPTCHA_ANSWERS_DIR, `${token}.json`));
+  json(res, http.HTTP_STATUS_OK, { ok: true });
+}

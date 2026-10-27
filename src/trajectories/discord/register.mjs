@@ -1,8 +1,8 @@
 // Discord registration on one sticky exit. The form is filled like a person
 // fills it; the submit's captcha challenge (an enterprise hCaptcha Discord's
 // /auth/register answer carries, which the session intercepts) is solved by
-// the first solving service whose key is configured, its token read once the
-// task is solved, and the registration is sent again with it from the page.
+// the first solving service whose key is configured, its token pushed back to
+// the run once the task is solved, and the registration is sent again with it from the page.
 // An exit Discord flags for hCaptcha rejects every solver token: that exit is
 // marked burned (resolveProxy skips burned IPs) and the run fails naming it,
 // so the next run starts on a fresh exit. After the account is saved, the
@@ -16,7 +16,7 @@ import { humanFill } from '../../../dist/human/keyboard.js';
 // burned.js is CommonJS; its export is read from the default import.
 import burnedMod from '../../../dist/proxy/burned.js';
 import { pageCondition, pageSettled } from '../_shared/page/settled.mjs';
-import { solverTaskResult } from '../_shared/captcha/solver_task.mjs';
+import { apiSolve } from '../../../dist/captcha/providers/api.js';
 import { autoBindCharacter } from '../lib/character-bind.mjs';
 import { accountItemFor } from '../_shared/skarbiec/accounts.mjs';
 import { messagesTo } from '../../_shared/mail/skrzynka-inbox.mjs';
@@ -133,20 +133,9 @@ async function solveChallenge(s, challenge) {
     ...proxyFields,
     ...(capsolver ? {} : { isEnterprise: true }),
   };
-  const response = await fetch(`${svc.url}/createTask`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ clientKey: apiKey, task }),
-  });
-  const created = await response.json();
-  if (created.errorId)
-    throw new Error(
-      `discord_register: ${svc.name} createTask refused: ${JSON.stringify(created)}`,
-    );
-  console.log(`[register] ${svc.name} task ${created.taskId} created`);
   return {
     solver: svc.name,
-    token: await solverTaskResult(svc, apiKey, created.taskId),
+    token: await apiSolve(svc.url, apiKey, task),
   };
 }
 

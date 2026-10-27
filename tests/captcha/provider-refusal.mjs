@@ -9,7 +9,10 @@
 //
 // The keys are random, so no provider account is charged; the providers and
 // hCaptcha's demo page are reached over the network as a run reaches them,
-// and the site key is read from the demo page's own markup.
+// and the site key is read from the demo page's own markup. A task names
+// the address its answer is pushed to; the providers refuse the key before
+// they would use it, so an address under the reserved example domain stands
+// in for a worker's (provider-callback.mjs covers the callback itself).
 //
 // Usage: npm run build && node --test tests/captcha/provider-refusal.mjs
 // Each run writes report.json under build/real-tests/captcha/provider-refusal-<stamp>/
@@ -39,6 +42,8 @@ const report = {
   dirty: spawnSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: root, encoding: 'utf8' }).stdout,
   refusals: [],
 };
+process.env.WELES_CAPTCHA_CALLBACK_URL = 'https://weles.example/captcha/answers/';
+process.env.WELES_CAPTCHA_ANSWERS_DIR = join(directory, 'answers');
 
 after(() => {
   report.captchaLog = captchaSnapshot();

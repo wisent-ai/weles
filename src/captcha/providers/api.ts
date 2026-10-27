@@ -1,6 +1,11 @@
 import { lookup } from 'node:dns/promises';
 import { costTracker } from '../../utils/runtime/cost.js';
 import { markAllProvidersFailed } from '../events.js';
+import {
+  providerCallback,
+  type ProviderAnswer,
+  type ProviderCallback,
+} from './callback.js';
 
 // What every captcha provider call shares: the credential set, the
 // createTask/getTaskResult exchange, and the proxy fields a task carries in
@@ -13,21 +18,6 @@ export interface CaptchaCredentials {
   capmonster?: string;
   nocaptcha?: string;
   nopecha?: string;
-}
-
-// The answer a provider gives once it stops solving a task. The providers have
-// no push or blocking answer, and no interval between reads is ours to invent:
-// each read follows the provider's previous answer, so its own response time
-// paces them. Reading once answered every task as unsolved, because the
-// providers take longer to solve than one round trip.
-export async function readUntilSolved<T>(
-  read: () => Promise<T>,
-  solving: (answer: T) => boolean,
-): Promise<T> {
-  for (;;) {
-    const answer = await read();
-    if (!solving(answer)) return answer;
-  }
 }
 
 // A provider's answer as JSON, or an error naming the call, its HTTP status
@@ -48,50 +38,77 @@ export async function providerJson(
   }
 }
 
-// Creates the task and reads its result until the provider stops solving it.
-// Answers the token, or throws naming the service, the task and the provider's
-// refusal, so a chain can say why no service solved the challenge.
-export async function apiSolve(
+// What a provider pushed, read as JSON, or an error naming the task and the
+// body that is not JSON.
+function pushedJson(answer: ProviderAnswer, what: string): any {
+  try {
+    return JSON.parse(answer.body);
+  } catch (error) {
+    throw new Error(
+      `${what} was answered with a ${answer.contentType} body that is not JSON (${error instanceof Error ? error.message : String(error)}): ${answer.body}`,
+      { cause: error },
+    );
+  }
+}
+
+// The service name an API address carries: https://api.capsolver.com is
+// capsolver, https://api.anti-captcha.com is anti-captcha.
+function serviceOf(apiUrl: string): string {
+  return apiUrl.replace('https://api.', '').replace('.com', '');
+}
+
+// Runs `create`, and when it fails stops waiting at the callback before the
+// failure is passed on: a task the provider never accepted is never answered.
+async function orAbandoned<T>(
+  callback: ProviderCallback,
+  create: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await create();
+  } catch (error) {
+    await callback.abandon();
+    throw error;
+  }
+}
+
+// Creates `task` on a createTask/getTaskResult service with the callback of
+// this run, waits for the answer the service pushes there (it carries what
+// getTaskResult would answer) and answers it once the task is ready. Throws
+// naming the service, the task and the service's refusal, so a chain can say
+// why no service solved the challenge.
+export async function solvedTask(
   apiUrl: string,
   clientKey: string,
   task: Record<string, any>,
-): Promise<string> {
-  const svc = apiUrl.replace('https://api.', '').replace('.com', '');
+): Promise<any> {
+  const svc = serviceOf(apiUrl);
+  const callback = await providerCallback(svc);
   console.log(
     `[captcha:api] ${svc} createTask type=${task.type} enterprise=${task.isEnterprise} proxy=${!!task.proxyAddress}`,
   );
-  const createRes = await providerJson(
-    await fetch(apiUrl + '/createTask', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientKey, task }),
-    }),
-    `${svc} createTask`,
-  );
-  if (createRes.errorId) {
-    throw new Error(
-      `${svc} refused createTask ${task.type}: ${createRes.errorCode} ${createRes.errorDescription}`,
+  const taskId = await orAbandoned(callback, async () => {
+    const createRes = await providerJson(
+      await fetch(apiUrl + '/createTask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientKey, task, callbackUrl: callback.url }),
+      }),
+      `${svc} createTask`,
     );
-  }
-  const taskId = createRes.taskId;
-  if (!taskId) {
-    throw new Error(
-      `${svc} answered createTask ${task.type} without a taskId: ${JSON.stringify(createRes)}`,
-    );
-  }
-  console.log(`[captcha:api] ${svc} taskId=${taskId}`);
-  const res = await readUntilSolved(
-    async () =>
-      providerJson(
-        await fetch(apiUrl + '/getTaskResult', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ clientKey, taskId }),
-        }),
-        `${svc} getTaskResult for task ${taskId}`,
-      ),
-    (answer) => !answer.errorId && answer.status === 'processing',
-  );
+    if (createRes.errorId) {
+      throw new Error(
+        `${svc} refused createTask ${task.type}: ${createRes.errorCode} ${createRes.errorDescription}`,
+      );
+    }
+    if (!createRes.taskId) {
+      throw new Error(
+        `${svc} answered createTask ${task.type} without a taskId: ${JSON.stringify(createRes)}`,
+      );
+    }
+    return createRes.taskId;
+  });
+  console.log(`[captcha:api] ${svc} taskId=${taskId}, waiting for its answer at the callback`);
+  const res = pushedJson(await callback.answer(), `${svc} task ${taskId} (${task.type})`);
   if (res.errorId) {
     throw new Error(
       `${svc} task ${taskId} (${task.type}) failed: ${res.errorCode} ${res.errorDescription}`,
@@ -99,55 +116,64 @@ export async function apiSolve(
   }
   if (res.status !== 'ready') {
     throw new Error(
-      `${svc} task ${taskId} (${task.type}) answered status ${res.status}, neither processing nor ready: ${JSON.stringify(res)}`,
+      `${svc} task ${taskId} (${task.type}) pushed status ${res.status}, not ready: ${JSON.stringify(res)}`,
     );
   }
-  // Two token fields are in use across the services: reCAPTCHA's own name and
-  // the generic one. A ready task carrying neither is named, not passed on.
+  return { ...res, taskId };
+}
+
+// The token of a solved task. Two token fields are in use across the
+// services: reCAPTCHA's own name and the generic one. A ready task carrying
+// neither is named, not passed on.
+export async function apiSolve(
+  apiUrl: string,
+  clientKey: string,
+  task: Record<string, any>,
+): Promise<string> {
+  const res = await solvedTask(apiUrl, clientKey, task);
   const t = res.solution?.gRecaptchaResponse ?? res.solution?.token;
   if (!t) {
     throw new Error(
-      `${svc} task ${taskId} (${task.type}) is ready but its solution carries no token: ${JSON.stringify(res.solution)}`,
+      `${serviceOf(apiUrl)} task ${res.taskId} (${task.type}) is ready but its solution carries no token: ${JSON.stringify(res.solution)}`,
     );
   }
-  console.log(`[captcha:api] ${svc} solved, token_chars=${t.length}`);
+  console.log(`[captcha:api] ${serviceOf(apiUrl)} solved, token_chars=${t.length}`);
   return t;
 }
 
-// 2captcha's in.php/res.php pair: creates the task with `params` (which carry
-// `key` and json=1) and reads res.php until 2captcha stops answering
-// CAPCHA_NOT_READY. `what` names the captcha in the log lines and refusals.
+// 2captcha's in.php: creates the task with `params` (which carry `key` and
+// json=1) and this run's callback as its pingback, then waits for the id and
+// code 2captcha POSTs there as a form. 2captcha only pings back to a domain
+// registered on the account; in.php refuses any other, and that refusal is
+// named. `what` names the captcha in the log lines and refusals.
 export async function twoCaptchaSolve(
-  key: string,
   params: URLSearchParams,
   what: string,
 ): Promise<string> {
+  const callback = await providerCallback('2captcha');
+  params.set('pingback', callback.url);
   console.log(`[captcha:api] 2captcha ${what} create`);
-  const cr = await providerJson(
-    await fetch('https://2captcha.com/in.php?' + params.toString()),
-    `2captcha in.php (${what})`,
-  );
-  if (!cr.status || !cr.request) {
+  const tid = await orAbandoned(callback, async () => {
+    const cr = await providerJson(
+      await fetch('https://2captcha.com/in.php?' + params.toString()),
+      `2captcha in.php (${what})`,
+    );
+    if (!cr.status || !cr.request) {
+      throw new Error(`2captcha refused ${what}: ${JSON.stringify(cr)}`);
+    }
+    return cr.request;
+  });
+  console.log(`[captcha:api] 2captcha ${what} taskId=${tid}, waiting for its pingback`);
+  const pushed = await callback.answer();
+  const form = new URLSearchParams(pushed.body);
+  const code = form.get('code');
+  if (form.get('id') !== String(tid) || !code) {
     throw new Error(
-      `2captcha refused ${what}: ${JSON.stringify(cr)}`,
+      `2captcha task ${tid} (${what}) pinged back without its id and code: ${pushed.contentType} ${pushed.body}`,
     );
   }
-  const tid = cr.request;
-  console.log(`[captcha:api] 2captcha ${what} taskId=${tid}`);
-  const read = new URLSearchParams({ key, action: 'get', id: tid, json: '1' });
-  const res = await readUntilSolved(
-    async () =>
-      providerJson(
-        await fetch('https://2captcha.com/res.php?' + read.toString()),
-        `2captcha res.php for task ${tid}`,
-      ),
-    (answer) => !answer.status && answer.request === 'CAPCHA_NOT_READY',
-  );
-  if (!res.status) {
-    throw new Error(`2captcha task ${tid} (${what}) failed: ${JSON.stringify(res)}`);
-  }
   console.log(`[captcha:api] 2captcha ${what} solved`);
-  return res.request;
+  return code;
 }
 
 // One service's attempt in a chain: the service the cost table prices and
