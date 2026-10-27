@@ -1,12 +1,18 @@
 /**
  * FunCaptcha (Arkose Labs) through every solving service whose key Weles
  * holds, in order: AntiCaptcha, 2captcha, CapMonster, CapSolver. The first
- * token any of them returns answers the challenge.
+ * token any of them returns answers the challenge; when none does, the error
+ * names every service tried and why it did not solve.
  */
 
-import { costTracker } from '../../utils/runtime/cost.js';
-import { markAllProvidersFailed, markCaptchaChallenge } from '../events.js';
-import { apiSolve, twoCaptchaSolve, type CaptchaCredentials } from './api.js';
+import { markCaptchaChallenge } from '../events.js';
+import {
+  apiSolve,
+  firstSolved,
+  twoCaptchaSolve,
+  type CaptchaCredentials,
+  type ServiceAttempt,
+} from './api.js';
 
 export async function solveFuncaptchaToken(
   creds: CaptchaCredentials,
@@ -14,12 +20,14 @@ export async function solveFuncaptchaToken(
   url: string,
   subdomain?: string,
   blob?: string,
-): Promise<string | null> {
+): Promise<string> {
   markCaptchaChallenge(); // G8
   console.log(
     `[captcha:solver] solveFuncaptcha pkey=${publicKey} subdomain=${subdomain} blob=${blob}...`,
   );
-  if (creds.anticaptcha) {
+  const attempts: ServiceAttempt[] = [];
+  const anticaptcha = creds.anticaptcha;
+  if (anticaptcha) {
     const task: Record<string, any> = {
       type: 'FunCaptchaTaskProxyless',
       websiteURL: url,
@@ -30,18 +38,13 @@ export async function solveFuncaptchaToken(
         .replace(/^https?:\/\//, '')
         .replace('iframe.arkoselabs.com', 'client-api.arkoselabs.com');
     if (blob) task.data = JSON.stringify({ blob });
-    const token = await apiSolve(
-      'https://api.anti-captcha.com',
-      creds.anticaptcha,
-      task,
-    );
-    if (token) {
-      console.log('[captcha:solver] FunCaptcha solved via anticaptcha');
-      costTracker.recordCaptcha('anticaptcha', 'funcaptcha');
-      return token;
-    }
+    attempts.push({
+      service: 'anticaptcha',
+      solve: () => apiSolve('https://api.anti-captcha.com', anticaptcha, task),
+    });
   }
-  if (creds.twocaptcha) {
+  const twocaptcha = creds.twocaptcha;
+  if (twocaptcha) {
     const sd = subdomain
       ? subdomain
           .replace(/^https?:\/\//, '')
@@ -49,7 +52,7 @@ export async function solveFuncaptchaToken(
       : '';
     const surl = sd ? `https://${sd}` : '';
     const params = new URLSearchParams({
-      key: creds.twocaptcha,
+      key: twocaptcha,
       method: 'funcaptcha',
       publickey: publicKey,
       pageurl: url,
@@ -58,13 +61,13 @@ export async function solveFuncaptchaToken(
     if (surl) params.set('surl', surl);
     if (blob) params.set('data[blob]', blob);
     console.log(`[captcha:api] 2captcha funcaptcha surl=${surl}`);
-    const token = await twoCaptchaSolve(creds.twocaptcha, params, 'funcaptcha');
-    if (token) {
-      costTracker.recordCaptcha('twocaptcha', 'funcaptcha');
-      return token;
-    }
+    attempts.push({
+      service: 'twocaptcha',
+      solve: () => twoCaptchaSolve(twocaptcha, params, 'funcaptcha'),
+    });
   }
-  if (creds.capmonster) {
+  const capmonster = creds.capmonster;
+  if (capmonster) {
     const task: Record<string, any> = {
       type: 'FunCaptchaTaskProxyless',
       websiteURL: url,
@@ -75,18 +78,13 @@ export async function solveFuncaptchaToken(
         .replace(/^https?:\/\//, '')
         .replace('iframe.arkoselabs.com', 'client-api.arkoselabs.com');
     if (blob) task.data = JSON.stringify({ blob });
-    const token = await apiSolve(
-      'https://api.capmonster.cloud',
-      creds.capmonster,
-      task,
-    );
-    if (token) {
-      console.log('[captcha:solver] FunCaptcha solved via capmonster');
-      costTracker.recordCaptcha('capmonster', 'funcaptcha');
-      return token;
-    }
+    attempts.push({
+      service: 'capmonster',
+      solve: () => apiSolve('https://api.capmonster.cloud', capmonster, task),
+    });
   }
-  if (creds.capsolver) {
+  const capsolver = creds.capsolver;
+  if (capsolver) {
     const task: Record<string, any> = {
       type: 'FunCaptchaTaskProxyLess',
       websiteURL: url,
@@ -98,18 +96,10 @@ export async function solveFuncaptchaToken(
       task.funcaptchaApiJSSubdomain = s;
     }
     if (blob) task.data = JSON.stringify({ blob });
-    const token = await apiSolve(
-      'https://api.capsolver.com',
-      creds.capsolver,
-      task,
-    );
-    if (token) {
-      console.log('[captcha:solver] FunCaptcha solved via capsolver');
-      costTracker.recordCaptcha('capsolver', 'funcaptcha');
-      return token;
-    }
+    attempts.push({
+      service: 'capsolver',
+      solve: () => apiSolve('https://api.capsolver.com', capsolver, task),
+    });
   }
-  console.log('[captcha:solver] All services failed for FunCaptcha');
-  markAllProvidersFailed('funcaptcha'); // G8
-  return null;
+  return firstSolved('funcaptcha', attempts);
 }

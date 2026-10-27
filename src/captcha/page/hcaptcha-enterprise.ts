@@ -3,6 +3,7 @@
 // again with the token, to the endpoint and with the headers it first used.
 import type { Page } from 'playwright';
 import type { CaptchaSolver } from '../solver.js';
+import { deliverCaptchaToken } from './token.js';
 
 /** What the session's network observer kept of the refused sign-in call. */
 export type CaptchaSession = {
@@ -69,9 +70,13 @@ export async function solveHcaptchaEnterprise(
   const form = session?.captchaFormData;
   if (!session || !demand || !form) {
     console.log(
-      `[captcha] No intercepted API data (captchaResponse=${!!demand} formData=${!!form}), trying basic solve`,
+      `[captcha] No intercepted API data (captchaResponse=${!!demand} formData=${!!form}), solving the widget's token for the page`,
     );
-    return Boolean(await solver.solveHcaptcha(sitekey, url));
+    // Without an intercepted form there is nothing to resubmit: the token is
+    // handed to the widget's own response fields and callbacks, and only a
+    // page that took it counts as solved.
+    const token = await solver.solveHcaptcha(sitekey, url);
+    return deliverCaptchaToken(page, 'hcaptcha', token);
   }
   const userAgent = await page.evaluate(() => navigator.userAgent);
   const demandedKey = demand.captcha_sitekey || sitekey;
@@ -93,12 +98,6 @@ export async function solveHcaptchaEnterprise(
     userAgent,
     ...(session.proxyConfig ? { proxy: session.proxyConfig } : {}),
   });
-  if (!token) {
-    console.log(
-      '[captcha] hcaptcha_enterprise_unsolved: no provider returned a token',
-    );
-    return false;
-  }
   console.log('[captcha] Enterprise hCaptcha solved, resubmitting');
   form.captcha_key = token;
   if (demand.captcha_rqtoken) form.captcha_rqtoken = demand.captcha_rqtoken;

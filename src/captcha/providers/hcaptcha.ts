@@ -7,9 +7,8 @@
  */
 
 import { lookup } from 'node:dns/promises';
-import { costTracker } from '../../utils/runtime/cost.js';
 import { markAllProvidersFailed, markCaptchaChallenge } from '../events.js';
-import { apiSolve, type CaptchaCredentials } from './api.js';
+import { apiSolve, firstSolved, type CaptchaCredentials, type ServiceAttempt } from './api.js';
 
 export type HcaptchaOptions = {
   enterprisePayload?: { rqdata: string; rqtoken?: string };
@@ -17,12 +16,14 @@ export type HcaptchaOptions = {
   proxy?: { server: string; username?: string; password?: string };
 };
 
+// The token the first service solves, or an error naming every service tried
+// and why it did not solve.
 export async function solveHcaptchaToken(
   creds: CaptchaCredentials,
   sitekey: string,
   url: string,
   options?: HcaptchaOptions,
-): Promise<string | null> {
+): Promise<string> {
   markCaptchaChallenge(); // G8
   const enterprise = !!options?.enterprisePayload;
   const useProxy = !!options?.proxy?.server;
@@ -41,7 +42,7 @@ export async function solveHcaptchaToken(
   if (useProxy) {
     const u = new URL(options!.proxy!.server);
     if (!u.port) {
-      markAllProvidersFailed('hcaptcha');
+      markAllProvidersFailed('hcaptcha', []);
       throw new Error(
         `hCaptcha proxy ${u.hostname} names no port; the solving services need one`,
       );
@@ -50,7 +51,7 @@ export async function solveHcaptchaToken(
     try {
       ({ address: ip } = await lookup(u.hostname));
     } catch (error) {
-      markAllProvidersFailed('hcaptcha');
+      markAllProvidersFailed('hcaptcha', []);
       throw new Error(
         `hCaptcha proxy ${u.hostname} did not resolve to an address the solving services accept: ${error instanceof Error ? error.message : String(error)}`,
         { cause: error },
@@ -68,31 +69,23 @@ export async function solveHcaptchaToken(
     `[captcha:solver] solveHcaptcha enterprise=${enterprise} proxy=${useProxy ? `${baseTask.proxyAddress}:${baseTask.proxyPort}` : 'none'} sitekey=${sitekey}`,
   );
   // Try all services: anticaptcha → capmonster → capsolver
-  if (creds.anticaptcha) {
-    const token = await apiSolve(
-      'https://api.anti-captcha.com',
-      creds.anticaptcha,
-      baseTask,
-    );
-    if (token) {
-      console.log('[captcha:solver] Solved via anticaptcha');
-      costTracker.recordCaptcha('anticaptcha', 'hcaptcha');
-      return token;
-    }
+  const attempts: ServiceAttempt[] = [];
+  const anticaptcha = creds.anticaptcha;
+  if (anticaptcha) {
+    attempts.push({
+      service: 'anticaptcha',
+      solve: () => apiSolve('https://api.anti-captcha.com', anticaptcha, baseTask),
+    });
   }
-  if (creds.capmonster) {
-    const token = await apiSolve(
-      'https://api.capmonster.cloud',
-      creds.capmonster,
-      baseTask,
-    );
-    if (token) {
-      console.log('[captcha:solver] Solved via capmonster');
-      costTracker.recordCaptcha('capmonster', 'hcaptcha');
-      return token;
-    }
+  const capmonster = creds.capmonster;
+  if (capmonster) {
+    attempts.push({
+      service: 'capmonster',
+      solve: () => apiSolve('https://api.capmonster.cloud', capmonster, baseTask),
+    });
   }
-  if (creds.capsolver) {
+  const capsolver = creds.capsolver;
+  if (capsolver) {
     // CapSolver: HCaptchaEnterpriseTaskProxyLess is its own task type;
     // HCaptchaTaskProxyless + isEnterprise returns ERROR_INVALID_TASK_DATA.
     const t: Record<string, any> = {
@@ -106,18 +99,10 @@ export async function solveHcaptchaToken(
           : 'HCaptchaTaskProxyLess',
     };
     delete t.isEnterprise;
-    const token = await apiSolve(
-      'https://api.capsolver.com',
-      creds.capsolver,
-      t,
-    );
-    if (token) {
-      console.log('[captcha:solver] Solved via capsolver');
-      costTracker.recordCaptcha('capsolver', 'hcaptcha');
-      return token;
-    }
+    attempts.push({
+      service: 'capsolver',
+      solve: () => apiSolve('https://api.capsolver.com', capsolver, t),
+    });
   }
-  console.log('[captcha:solver] All services failed for hCaptcha');
-  markAllProvidersFailed('hcaptcha'); // G8
-  return null;
+  return firstSolved('hcaptcha', attempts);
 }

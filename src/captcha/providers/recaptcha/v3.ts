@@ -1,160 +1,144 @@
 // reCAPTCHA v3 tokens from the remote providers, tried in the order their
-// provenance has proven useful: NopeCHA, CapSolver, AntiCaptcha.
-import { costTracker } from '../../../utils/runtime/cost.js';
-import { markAllProvidersFailed, markCaptchaChallenge } from '../../events.js';
+// provenance has proven useful: NopeCHA, CapSolver, AntiCaptcha. The first
+// token answers; when none does, the error names every service tried and why
+// it did not solve. `action` is the one the page passes to
+// grecaptcha.execute: a token minted for another action fails the site's
+// check, so the caller states it.
+import { constants } from 'node:http2';
+
+import { markCaptchaChallenge } from '../../events.js';
 import {
   apiSolve,
+  firstSolved,
   nopechaProxyFields,
+  providerJson,
   type CaptchaCredentials,
   type ProxyCredentials,
+  type ServiceAttempt,
 } from '../api.js';
 
+// AntiCaptcha queues reCAPTCHA v3 workers by the score they earn and takes
+// minScore as one of three queues, 0.3, 0.7 or 0.9, each priced by its idle
+// workers (https://anti-captcha.com/apidoc/task-types/RecaptchaV3TaskProxyless).
+// The middle queue is the one this chain has always asked for.
+const ANTICAPTCHA_V3_QUEUE = 0.7;
+
 async function solveRecaptchaV3Nopecha(
-  creds: CaptchaCredentials,
+  k: string,
   sitekey: string,
   url: string,
-  action?: string,
+  action: string,
   proxy?: ProxyCredentials,
   dataS?: string,
   enterprise?: boolean,
-): Promise<string | null> {
-  const k = creds.nopecha;
-  if (!k) return null;
+): Promise<string> {
   const body: Record<string, any> = { sitekey, url };
-  const data: Record<string, any> = {
-    action: action ?? 'verify',
-    theme: 'light',
-  };
+  const data: Record<string, any> = { action, theme: 'light' };
   if (dataS) data.s = dataS;
   body.data = data;
   if (enterprise) body.enterprise = true;
   const np = nopechaProxyFields(proxy);
   if (np) body.proxy = np;
   console.log(
-    `[captcha:api] nopecha recaptcha3 create action=${data.action} enterprise=${!!enterprise} proxy=${!!np}`,
+    `[captcha:api] nopecha recaptcha3 create action=${action} enterprise=${!!enterprise} proxy=${!!np}`,
   );
-  try {
-    const post = (await (
-      await fetch('https://api.nopecha.com/v1/token/recaptcha3', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Basic ${k}`,
-        },
-        body: JSON.stringify(body),
-      })
-    ).json()) as any;
-    const jobId = post?.data;
-    if (!jobId) {
-      console.log(
-        `[captcha:api] nopecha recaptcha3 no jobId: ${JSON.stringify(post)}`,
-      );
-      return null;
-    }
-    console.log(`[captcha:api] nopecha recaptcha3 jobId=${jobId}`);
-    // One read: the provider has no push or blocking answer.
-    const res = (await (
-      await fetch(`https://api.nopecha.com/v1/token/recaptcha3?id=${jobId}`, {
-        headers: { Authorization: `Basic ${k}` },
-      })
-    ).json()) as any;
-    if (typeof res?.data === 'string' && res.data) {
-      console.log(
-        `[captcha:api] nopecha recaptcha3 solved token_chars=${res.data.length}`,
-      );
-      return res.data;
-    }
-    if (res?.error === 14) {
-      console.log(
-        `[captcha:api] captcha_nopecha_processing: job ${jobId} has no result yet`,
-      );
-      return null;
-    }
-    console.log(
-      `[captcha:api] nopecha recaptcha3 error: ${JSON.stringify(res)}`,
-    );
-  } catch (e: any) {
-    console.log(`[captcha:api] nopecha recaptcha3 fetch err: ${e.message}`);
+  const post = await providerJson(
+    await fetch('https://api.nopecha.com/v1/token/recaptcha3', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Basic ${k}`,
+      },
+      body: JSON.stringify(body),
+    }),
+    'nopecha recaptcha3 create',
+  );
+  const jobId = post?.data;
+  if (!jobId) {
+    throw new Error(`nopecha recaptcha3 answered no job: ${JSON.stringify(post)}`);
   }
-  return null;
+  console.log(`[captcha:api] nopecha recaptcha3 jobId=${jobId}`);
+  // One read: NopeCHA answers a job it is still solving with 409 Conflict
+  // ("Incomplete job", https://nopecha.com/api-reference), and reading again
+  // at once would only spend requests; an unfinished job is this service's
+  // cause, and the chain goes on to the next service.
+  const response = await fetch(
+    `https://api.nopecha.com/v1/token/recaptcha3?id=${jobId}`,
+    { headers: { Authorization: `Basic ${k}` } },
+  );
+  const res = await providerJson(response, `nopecha recaptcha3 token read for job ${jobId}`);
+  if (response.status === constants.HTTP_STATUS_CONFLICT) {
+    throw new Error(
+      `nopecha recaptcha3 job ${jobId} was still being solved when read: ${JSON.stringify(res)}`,
+    );
+  }
+  if (typeof res?.data === 'string' && res.data) {
+    console.log(
+      `[captcha:api] nopecha recaptcha3 solved token_chars=${res.data.length}`,
+    );
+    return res.data;
+  }
+  throw new Error(
+    `nopecha recaptcha3 job ${jobId} answered HTTP ${response.status} without a token: ${JSON.stringify(res)}`,
+  );
 }
 
 export async function solveRecaptchaV3Token(
   creds: CaptchaCredentials,
   sitekey: string,
   url: string,
-  action?: string,
+  action: string,
   options?: { proxy?: ProxyCredentials; dataS?: string; enterprise?: boolean },
-): Promise<string | null> {
+): Promise<string> {
   markCaptchaChallenge(); // G8
-  // NopeCHA V3 first.
-  if (creds.nopecha) {
-    const token = await solveRecaptchaV3Nopecha(
-      creds,
-      sitekey,
-      url,
-      action,
-      options?.proxy,
-      options?.dataS,
-      options?.enterprise,
-    );
-    if (token) {
-      console.log('[captcha:solver] ReCaptchaV3 solved via nopecha');
-      costTracker.recordCaptcha('nopecha', 'recaptcha_v3');
-      return token;
-    }
-  }
-  // CapSolver V3 first (enterprise + non-enterprise), then AntiCaptcha.
-  if (creds.capsolver) {
-    const token = await apiSolve('https://api.capsolver.com', creds.capsolver, {
-      type: 'ReCaptchaV3EnterpriseTaskProxyLess',
-      websiteURL: url,
-      websiteKey: sitekey,
-      minScore: 0.9,
-      pageAction: action ?? 'verify',
+  const attempts: ServiceAttempt[] = [];
+  const nopecha = creds.nopecha;
+  if (nopecha) {
+    attempts.push({
+      service: 'nopecha',
+      solve: () =>
+        solveRecaptchaV3Nopecha(
+          nopecha,
+          sitekey,
+          url,
+          action,
+          options?.proxy,
+          options?.dataS,
+          options?.enterprise,
+        ),
     });
-    if (token) {
-      console.log(
-        '[captcha:solver] ReCaptchaV3Enterprise solved via capsolver',
-      );
-      costTracker.recordCaptcha('capsolver', 'recaptcha_v3');
-      return token;
-    }
-    const tokenV3 = await apiSolve(
-      'https://api.capsolver.com',
-      creds.capsolver,
-      {
-        type: 'ReCaptchaV3TaskProxyLess',
-        websiteURL: url,
-        websiteKey: sitekey,
-        minScore: 0.9,
-        pageAction: action ?? 'verify',
-      },
-    );
-    if (tokenV3) {
-      console.log('[captcha:solver] ReCaptchaV3 solved via capsolver');
-      costTracker.recordCaptcha('capsolver', 'recaptcha_v3');
-      return tokenV3;
+  }
+  // CapSolver takes the site's action and no score
+  // (https://docs.capsolver.com/guide/captcha/ReCaptchaV3); its enterprise
+  // task first, then the standard one.
+  const capsolver = creds.capsolver;
+  if (capsolver) {
+    for (const type of ['ReCaptchaV3EnterpriseTaskProxyLess', 'ReCaptchaV3TaskProxyLess']) {
+      attempts.push({
+        service: 'capsolver',
+        solve: () =>
+          apiSolve('https://api.capsolver.com', capsolver, {
+            type,
+            websiteURL: url,
+            websiteKey: sitekey,
+            pageAction: action,
+          }),
+      });
     }
   }
-  if (creds.anticaptcha) {
-    const token = await apiSolve(
-      'https://api.anti-captcha.com',
-      creds.anticaptcha,
-      {
-        type: 'RecaptchaV3TaskProxyless',
-        websiteURL: url,
-        websiteKey: sitekey,
-        minScore: 0.7,
-        pageAction: action ?? 'verify',
-      },
-    );
-    if (token) {
-      console.log('[captcha:solver] ReCaptchaV3 solved via anticaptcha');
-      costTracker.recordCaptcha('anticaptcha', 'recaptcha_v3');
-      return token;
-    }
+  const anticaptcha = creds.anticaptcha;
+  if (anticaptcha) {
+    attempts.push({
+      service: 'anticaptcha',
+      solve: () =>
+        apiSolve('https://api.anti-captcha.com', anticaptcha, {
+          type: 'RecaptchaV3TaskProxyless',
+          websiteURL: url,
+          websiteKey: sitekey,
+          minScore: ANTICAPTCHA_V3_QUEUE,
+          pageAction: action,
+        }),
+    });
   }
-  markAllProvidersFailed('recaptcha_v3'); // G8
-  return null;
+  return firstSolved('recaptcha_v3', attempts);
 }

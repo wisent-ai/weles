@@ -4,7 +4,7 @@
 // throws, is named in the log rather than read as "not accepted".
 import type { Frame, Page } from 'playwright';
 
-export type TokenProvider = 'recaptcha' | 'turnstile';
+export type TokenProvider = 'recaptcha' | 'turnstile' | 'hcaptcha';
 
 /** The response fields each provider's widget submits its token in. */
 const TOKEN_FIELDS: Readonly<Record<TokenProvider, readonly string[]>> =
@@ -17,6 +17,13 @@ const TOKEN_FIELDS: Readonly<Record<TokenProvider, readonly string[]>> =
       'input[name="cf-turnstile-response"]',
       'textarea[name="cf-turnstile-response"]',
       '.cf-turnstile-response',
+    ],
+    // hCaptcha submits its token as h-captcha-response and, for sites built
+    // on reCAPTCHA's form handling, also as g-recaptcha-response
+    // (https://docs.hcaptcha.com/#add-the-hcaptcha-widget-to-your-webpage).
+    hcaptcha: [
+      'textarea[name="h-captcha-response"]',
+      'textarea[name="g-recaptcha-response"]',
     ],
   });
 

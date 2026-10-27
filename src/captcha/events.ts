@@ -19,8 +19,9 @@ export interface CaptchaEvent {
   provider: string; // anticaptcha | capsolver | capmonster | twocaptcha | nocaptcha | '' (marker)
   resource: string; // task_type: recaptcha_v2 | hcaptcha | funcaptcha | perimeterx | turnstile | ...
   outcome: CaptchaOutcome;
-  cost_usd: number; // 0 for failures / markers
+  cost_usd?: number; // solved only: the price the cost table gave; no service is paid for a marker
   ts: string; // ISO timestamp
+  causes?: string[]; // all_failed only: each service tried and why it did not solve
 }
 
 // Module-level: one process == one run == one trajectory, so a module-level
@@ -28,18 +29,27 @@ export interface CaptchaEvent {
 const EVENTS: CaptchaEvent[] = [];
 let CHALLENGE_FACED = false;
 
-/** Record a successful solve. Called from the cost tracker's recordCaptcha. */
+/**
+ * Record a successful solve. Called from the cost tracker's recordCaptcha. A
+ * price that is not a finite number is refused naming the service and task,
+ * never logged as a free solve.
+ */
 export function recordCaptchaSolved(
   provider: string,
   resource: string,
   cost_usd: number,
 ): void {
+  if (!Number.isFinite(cost_usd)) {
+    throw new Error(
+      `the cost table priced the ${provider} ${resource} solve at ${cost_usd}, not a number of dollars`,
+    );
+  }
   CHALLENGE_FACED = true;
   EVENTS.push({
     provider: String(provider),
     resource: String(resource),
     outcome: 'solved',
-    cost_usd: Number.isFinite(cost_usd) ? cost_usd : 0,
+    cost_usd,
     ts: new Date().toISOString(),
   });
 }
@@ -55,7 +65,6 @@ export function markCaptchaChallenge(resource?: string): void {
       provider: '',
       resource: String(resource),
       outcome: 'failed',
-      cost_usd: 0,
       ts: new Date().toISOString(),
     });
 }
@@ -63,15 +72,18 @@ export function markCaptchaChallenge(resource?: string): void {
 /**
  * Marker pushed when EVERY configured provider failed for a given challenge, so
  * a failed-captcha run is distinguishable from a no-captcha run in the log.
+ * `causes` names each service tried and why it did not solve, so the run log
+ * says why the challenge stayed unsolved; an empty list says no service was
+ * tried, a proxy the services cannot take being one such case.
  */
-export function markAllProvidersFailed(resource: string): void {
+export function markAllProvidersFailed(resource: string, causes: string[]): void {
   CHALLENGE_FACED = true;
   EVENTS.push({
     provider: '',
     resource: String(resource),
     outcome: 'all_failed',
-    cost_usd: 0,
     ts: new Date().toISOString(),
+    causes: causes.slice(),
   });
 }
 

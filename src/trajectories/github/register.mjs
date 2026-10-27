@@ -83,7 +83,6 @@ async function solveWithServices(page, arkose, from) {
     arkose.subdomain,
     arkose.blob,
   );
-  if (!token) return false;
   const form = page
     .locator('form.js-octocaptcha-parent, form[data-octo-click-hmac]')
     .first();

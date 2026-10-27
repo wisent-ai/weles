@@ -1,4 +1,6 @@
 import { lookup } from 'node:dns/promises';
+import { costTracker } from '../../utils/runtime/cost.js';
+import { markAllProvidersFailed } from '../events.js';
 
 // What every captcha provider call shares: the credential set, the
 // createTask/getTaskResult exchange, and the proxy fields a task carries in
@@ -47,11 +49,13 @@ export async function providerJson(
 }
 
 // Creates the task and reads its result until the provider stops solving it.
+// Answers the token, or throws naming the service, the task and the provider's
+// refusal, so a chain can say why no service solved the challenge.
 export async function apiSolve(
   apiUrl: string,
   clientKey: string,
   task: Record<string, any>,
-): Promise<string | null> {
+): Promise<string> {
   const svc = apiUrl.replace('https://api.', '').replace('.com', '');
   console.log(
     `[captcha:api] ${svc} createTask type=${task.type} enterprise=${task.isEnterprise} proxy=${!!task.proxyAddress}`,
@@ -65,15 +69,15 @@ export async function apiSolve(
     `${svc} createTask`,
   );
   if (createRes.errorId) {
-    console.log(
-      `[captcha:api] ${svc} createTask error: ${createRes.errorCode} ${createRes.errorDescription}`,
+    throw new Error(
+      `${svc} refused createTask ${task.type}: ${createRes.errorCode} ${createRes.errorDescription}`,
     );
-    return null;
   }
   const taskId = createRes.taskId;
   if (!taskId) {
-    console.log(`[captcha:api] ${svc} no taskId in response`);
-    return null;
+    throw new Error(
+      `${svc} answered createTask ${task.type} without a taskId: ${JSON.stringify(createRes)}`,
+    );
   }
   console.log(`[captcha:api] ${svc} taskId=${taskId}`);
   const res = await readUntilSolved(
@@ -89,25 +93,22 @@ export async function apiSolve(
     (answer) => !answer.errorId && answer.status === 'processing',
   );
   if (res.errorId) {
-    console.log(
-      `[captcha:api] ${svc} result error: ${res.errorCode} ${res.errorDescription}`,
+    throw new Error(
+      `${svc} task ${taskId} (${task.type}) failed: ${res.errorCode} ${res.errorDescription}`,
     );
-    return null;
   }
   if (res.status !== 'ready') {
-    console.log(
-      `[captcha:api] ${svc} task ${taskId} answered status ${res.status}, neither processing nor ready: ${JSON.stringify(res)}`,
+    throw new Error(
+      `${svc} task ${taskId} (${task.type}) answered status ${res.status}, neither processing nor ready: ${JSON.stringify(res)}`,
     );
-    return null;
   }
   // Two token fields are in use across the services: reCAPTCHA's own name and
   // the generic one. A ready task carrying neither is named, not passed on.
   const t = res.solution?.gRecaptchaResponse ?? res.solution?.token;
   if (!t) {
-    console.log(
-      `[captcha:api] ${svc} task ${taskId} is ready but its solution carries no token: ${JSON.stringify(res.solution)}`,
+    throw new Error(
+      `${svc} task ${taskId} (${task.type}) is ready but its solution carries no token: ${JSON.stringify(res.solution)}`,
     );
-    return null;
   }
   console.log(`[captcha:api] ${svc} solved, token_chars=${t.length}`);
   return t;
@@ -115,22 +116,21 @@ export async function apiSolve(
 
 // 2captcha's in.php/res.php pair: creates the task with `params` (which carry
 // `key` and json=1) and reads res.php until 2captcha stops answering
-// CAPCHA_NOT_READY. `what` names the captcha in the log lines.
+// CAPCHA_NOT_READY. `what` names the captcha in the log lines and refusals.
 export async function twoCaptchaSolve(
   key: string,
   params: URLSearchParams,
   what: string,
-): Promise<string | null> {
+): Promise<string> {
   console.log(`[captcha:api] 2captcha ${what} create`);
   const cr = await providerJson(
     await fetch('https://2captcha.com/in.php?' + params.toString()),
     `2captcha in.php (${what})`,
   );
   if (!cr.status || !cr.request) {
-    console.log(
-      `[captcha:api] 2captcha ${what} create error: ${cr.request ?? cr.error_text ?? JSON.stringify(cr)}`,
+    throw new Error(
+      `2captcha refused ${what}: ${JSON.stringify(cr)}`,
     );
-    return null;
   }
   const tid = cr.request;
   console.log(`[captcha:api] 2captcha ${what} taskId=${tid}`);
@@ -143,12 +143,64 @@ export async function twoCaptchaSolve(
       ),
     (answer) => !answer.status && answer.request === 'CAPCHA_NOT_READY',
   );
-  if (res.status) {
-    console.log(`[captcha:api] 2captcha ${what} solved`);
-    return res.request;
+  if (!res.status) {
+    throw new Error(`2captcha task ${tid} (${what}) failed: ${JSON.stringify(res)}`);
   }
-  console.log(`[captcha:api] 2captcha ${what} error: ${res.request}`);
-  return null;
+  console.log(`[captcha:api] 2captcha ${what} solved`);
+  return res.request;
+}
+
+// One service's attempt in a chain: the service the cost table prices and
+// the call that answers its solution (a token, or the cookies a cookie
+// challenge yields) or throws why it could not.
+export type ServiceAttempt<T = string> = { service: string; solve: () => Promise<T> };
+
+// Tries each service in order; the first solution answers and is priced. When
+// none solves it answers every service's cause instead, so a chain with a last
+// resort of its own can try it before giving up.
+export async function trySolved<T = string>(
+  resource: string,
+  attempts: ServiceAttempt<T>[],
+): Promise<{ token: T } | { causes: string[] }> {
+  const causes: string[] = [];
+  for (const attempt of attempts) {
+    let token: T;
+    try {
+      token = await attempt.solve();
+    } catch (error) {
+      causes.push(
+        `${attempt.service}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      continue;
+    }
+    // Priced outside the attempt: a solved token whose price cannot be
+    // recorded is that failure, not a reason to pay the next service.
+    console.log(`[captcha:solver] ${resource} solved via ${attempt.service}`);
+    costTracker.recordCaptcha(attempt.service, resource);
+    return { token };
+  }
+  return { causes };
+}
+
+// The error a challenge nobody solved ends in: the run's captcha log marks it
+// all-failed with every cause, and the error lists them, so the caller learns
+// why instead of reading an absent token as "try something else".
+export function unsolved(resource: string, causes: string[]): Error {
+  markAllProvidersFailed(resource, causes);
+  if (!causes.length) {
+    return new Error(`no captcha service solves ${resource} with a key Weles holds`);
+  }
+  return new Error(`no captcha service solved ${resource}: ${causes.join('; ')}`);
+}
+
+// The first service's solution, or the error naming every service and its cause.
+export async function firstSolved<T = string>(
+  resource: string,
+  attempts: ServiceAttempt<T>[],
+): Promise<T> {
+  const outcome = await trySolved(resource, attempts);
+  if ('token' in outcome) return outcome.token;
+  throw unsolved(resource, outcome.causes);
 }
 
 export type ProxyCredentials = {

@@ -1,17 +1,20 @@
 /**
  * Unified CaptchaSolver — matches Python weles.captcha.solver API.
- * Wraps AntiCaptcha, 2captcha, CapSolver behind a single interface.
+ * Wraps AntiCaptcha, 2captcha, CapSolver behind a single interface. Every
+ * solve answers its solution or throws one error naming each service tried
+ * and why it did not solve; nothing answers an unsolved challenge as null.
  */
 
 import { getCaptchaCredentials } from '../utils/credentials.js';
-import { costTracker } from '../utils/runtime/cost.js';
 import { markCaptchaChallenge, markAllProvidersFailed } from './events.js';
 import {
   apiSolve,
+  firstSolved,
   providerJson,
   readUntilSolved,
   type CaptchaCredentials,
   type ProxyCredentials,
+  type ServiceAttempt,
 } from './providers/api.js';
 import { solveFuncaptchaToken } from './providers/funcaptcha.js';
 import {
@@ -24,13 +27,86 @@ import { solveRecaptchaV3Token } from './providers/recaptcha/v3.js';
 
 type Page = any;
 
+/** A Cloudflare clearance: bound to the user agent that earned it. */
+type CloudflareClearance = {
+  token: string;
+  userAgent: string;
+  cookies: Record<string, string>;
+};
+
+// CapSolver's AntiCloudflareTask: the clearance it answers, or an error naming
+// the task and CapSolver's refusal. The clearance is bound to the browser that
+// earned it, so a solution without its token, user agent or cookies is named.
+async function capsolverClearance(
+  clientKey: string,
+  task: Record<string, any>,
+): Promise<CloudflareClearance> {
+  const res = await providerJson(
+    await fetch('https://api.capsolver.com/createTask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientKey, task }),
+    }),
+    'capsolver AntiCloudflare createTask',
+  );
+  if (res.errorId) {
+    throw new Error(
+      `capsolver refused AntiCloudflare createTask: ${res.errorCode} ${res.errorDescription}`,
+    );
+  }
+  const taskId = res.taskId;
+  if (!taskId) {
+    throw new Error(
+      `capsolver answered AntiCloudflare createTask without a taskId: ${JSON.stringify(res)}`,
+    );
+  }
+  console.log(`[captcha:api] capsolver AntiCloudflare taskId=${taskId}`);
+  const tr = await readUntilSolved(
+    async () =>
+      providerJson(
+        await fetch('https://api.capsolver.com/getTaskResult', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientKey, taskId }),
+        }),
+        `capsolver getTaskResult for AntiCloudflare task ${taskId}`,
+      ),
+    (answer) => !answer.errorId && answer.status === 'processing',
+  );
+  if (tr.errorId) {
+    throw new Error(
+      `capsolver AntiCloudflare task ${taskId} failed: ${tr.errorCode} ${tr.errorDescription}`,
+    );
+  }
+  if (tr.status !== 'ready') {
+    throw new Error(
+      `capsolver AntiCloudflare task ${taskId} answered status ${tr.status}, neither processing nor ready: ${JSON.stringify(tr)}`,
+    );
+  }
+  const sol = tr.solution;
+  const missing: string[] = [];
+  if (!(typeof sol?.token === 'string' && sol.token)) missing.push('token');
+  if (!(typeof sol?.userAgent === 'string' && sol.userAgent)) missing.push('user agent');
+  if (!(sol?.cookies && typeof sol.cookies === 'object')) missing.push('cookies');
+  if (missing.length) {
+    throw new Error(
+      `capsolver AntiCloudflare task ${taskId} returned no ${missing.join(', ')}: ${JSON.stringify(sol)}`,
+    );
+  }
+  const { token, userAgent, cookies } = sol;
+  console.log(
+    `[captcha:solver] Cloudflare solved via capsolver token_chars=${token.length} ua=${userAgent}`,
+  );
+  return { token, userAgent, cookies };
+}
+
 export class CaptchaSolver {
   private _creds: CaptchaCredentials;
   private _initialized = false;
 
   // Credentials a caller hands in; any service it leaves out is read from Skarbiec in _ensureInit.
-  constructor(credentials: CaptchaCredentials = {}) {
-    this._creds = credentials;
+  constructor(credentials?: CaptchaCredentials) {
+    this._creds = { ...credentials };
   }
 
   private async _ensureInit(): Promise<void> {
@@ -63,6 +139,7 @@ export class CaptchaSolver {
     return this.availableServices;
   }
 
+  /** A reCAPTCHA v2 token, or true when the in-page tile solver passed it. */
   async solveRecaptchaV2(
     page: Page,
     sitekey: string,
@@ -73,44 +150,43 @@ export class CaptchaSolver {
       proxy?: ProxyCredentials;
       dataS?: string;
     },
-  ): Promise<string | boolean | null> {
+  ): Promise<string | true> {
     await this._ensureInit();
     return solveRecaptchaV2Token(this._creds, page, sitekey, options);
   }
 
+  /** A reCAPTCHA v3 token for the action the page passes to grecaptcha.execute. */
   async solveRecaptchaV3(
     sitekey: string,
     url: string,
-    action?: string,
+    action: string,
     options?: {
       proxy?: ProxyCredentials;
       dataS?: string;
       enterprise?: boolean;
     },
-  ): Promise<string | null> {
+  ): Promise<string> {
     await this._ensureInit();
     return solveRecaptchaV3Token(this._creds, sitekey, url, action, options);
   }
 
-  async solveTurnstile(sitekey: string, url: string): Promise<string | null> {
+  async solveTurnstile(sitekey: string, url: string): Promise<string> {
     await this._ensureInit();
     markCaptchaChallenge(); // G8
-    if (this._creds.capsolver) {
-      const token = await apiSolve(
-        'https://api.capsolver.com',
-        this._creds.capsolver,
-        {
-          type: 'AntiTurnstileTaskProxyLess',
-          websiteURL: url,
-          websiteKey: sitekey,
-        },
-      );
-      if (token) costTracker.recordCaptcha('capsolver', 'turnstile');
-      if (!token) markAllProvidersFailed('turnstile'); // G8
-      return token;
+    const attempts: ServiceAttempt[] = [];
+    const capsolver = this._creds.capsolver;
+    if (capsolver) {
+      attempts.push({
+        service: 'capsolver',
+        solve: () =>
+          apiSolve('https://api.capsolver.com', capsolver, {
+            type: 'AntiTurnstileTaskProxyLess',
+            websiteURL: url,
+            websiteKey: sitekey,
+          }),
+      });
     }
-    markAllProvidersFailed('turnstile'); // G8: no provider configured / all failed
-    return null;
+    return firstSolved('turnstile', attempts);
   }
 
   /**
@@ -125,109 +201,49 @@ export class CaptchaSolver {
       proxy?: { server?: string; username?: string; password?: string };
       userAgent?: string;
     },
-  ): Promise<{
-    token: string;
-    userAgent: string;
-    cookies: Record<string, string>;
-  } | null> {
+  ): Promise<CloudflareClearance> {
     await this._ensureInit();
     markCaptchaChallenge(); // G8
-    if (!this._creds.capsolver) {
-      markAllProvidersFailed('cloudflare');
-      return null;
-    }
-    const proxy = options?.proxy;
-    let proxyStr = '';
-    if (proxy?.server) {
-      const u = new URL(proxy.server);
-      // CapSolver takes host:port:user:pass; the port is the proxy's own, never one assumed for its scheme.
-      if (!u.port) {
-        console.log(`[captcha:api] capsolver AntiCloudflare: proxy ${u.host} states no port`);
-        markAllProvidersFailed('cloudflare');
-        return null;
-      }
-      const user = proxy.username ? encodeURIComponent(proxy.username) : '';
-      const pass = proxy.password ? encodeURIComponent(proxy.password) : '';
-      proxyStr = `${u.hostname}:${u.port}:${user}:${pass}`;
-    }
     const task: Record<string, any> = {
       type: 'AntiCloudflareTask',
       websiteURL: url,
     };
-    if (proxyStr) task.proxy = proxyStr;
+    const proxy = options?.proxy;
+    if (proxy?.server) {
+      const u = new URL(proxy.server);
+      // CapSolver takes host:port, or host:port:user:pass for a proxy that
+      // logs in; the port is the proxy's own, never one assumed for its scheme.
+      if (!u.port) {
+        markAllProvidersFailed('cloudflare', []);
+        throw new Error(
+          `Cloudflare proxy ${u.host} names no port; CapSolver takes the proxy as host:port`,
+        );
+      }
+      const parts = [u.hostname, u.port];
+      if (proxy.username) {
+        if (proxy.password === undefined) {
+          markAllProvidersFailed('cloudflare', []);
+          throw new Error(
+            `Cloudflare proxy ${u.host} names the user ${proxy.username} but no password; CapSolver takes the login as user and password together`,
+          );
+        }
+        parts.push(encodeURIComponent(proxy.username), encodeURIComponent(proxy.password));
+      }
+      task.proxy = parts.join(':');
+    }
     if (options?.userAgent) task.userAgent = options.userAgent;
     console.log(
-      `[captcha:solver] solveCloudflare url=${url} proxy=${!!proxyStr} ua=${!!options?.userAgent}`,
+      `[captcha:solver] solveCloudflare url=${url} proxy=${!!task.proxy} ua=${!!options?.userAgent}`,
     );
-    const res = await providerJson(
-      await fetch('https://api.capsolver.com/createTask', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientKey: this._creds.capsolver, task }),
-      }),
-      'capsolver AntiCloudflare createTask',
-    );
-    if (res.errorId) {
-      console.log(
-        `[captcha:api] capsolver AntiCloudflare createTask err: ${res.errorCode} ${res.errorDescription}`,
-      );
-      markAllProvidersFailed('cloudflare');
-      return null;
+    const attempts: ServiceAttempt<CloudflareClearance>[] = [];
+    const capsolver = this._creds.capsolver;
+    if (capsolver) {
+      attempts.push({
+        service: 'capsolver',
+        solve: () => capsolverClearance(capsolver, task),
+      });
     }
-    const taskId = res.taskId;
-    if (!taskId) {
-      console.log('[captcha:api] capsolver AntiCloudflare no taskId');
-      markAllProvidersFailed('cloudflare');
-      return null;
-    }
-    console.log(`[captcha:api] capsolver AntiCloudflare taskId=${taskId}`);
-    const tr = await readUntilSolved(
-      async () =>
-        providerJson(
-          await fetch('https://api.capsolver.com/getTaskResult', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ clientKey: this._creds.capsolver, taskId }),
-          }),
-          `capsolver getTaskResult for AntiCloudflare task ${taskId}`,
-        ),
-      (answer) => !answer.errorId && answer.status === 'processing',
-    );
-    if (tr.errorId) {
-      console.log(
-        `[captcha:api] capsolver AntiCloudflare err: ${tr.errorCode} ${tr.errorDescription}`,
-      );
-      markAllProvidersFailed('cloudflare');
-      return null;
-    }
-    if (tr.status !== 'ready') {
-      console.log(
-        `[captcha:api] capsolver AntiCloudflare task ${taskId} answered status ${tr.status}, neither processing nor ready: ${JSON.stringify(tr)}`,
-      );
-      markAllProvidersFailed('cloudflare');
-      return null;
-    }
-    // The clearance is bound to the browser that earned it: a solution without
-    // its token, user agent or cookies is unusable and is named.
-    const sol = tr.solution;
-    const missing = [
-      typeof sol?.token === 'string' && sol.token ? null : 'token',
-      typeof sol?.userAgent === 'string' && sol.userAgent ? null : 'user agent',
-      sol?.cookies && typeof sol.cookies === 'object' ? null : 'cookies',
-    ].filter((part) => part !== null);
-    if (missing.length) {
-      console.log(
-        `[captcha:api] capsolver AntiCloudflare task ${taskId} returned no ${missing.join(', ')}: ${JSON.stringify(tr.solution)}`,
-      );
-      markAllProvidersFailed('cloudflare');
-      return null;
-    }
-    const { token, userAgent, cookies } = sol;
-    console.log(
-      `[captcha:solver] Cloudflare solved via capsolver token_chars=${token.length} ua=${userAgent}`,
-    );
-    costTracker.recordCaptcha('capsolver', 'cloudflare');
-    return { token, userAgent, cookies };
+    return firstSolved('cloudflare', attempts);
   }
 
   /** An hCaptcha token; see ./providers/hcaptcha.ts. */
@@ -235,7 +251,7 @@ export class CaptchaSolver {
     sitekey: string,
     url: string,
     options?: HcaptchaOptions,
-  ): Promise<string | null> {
+  ): Promise<string> {
     await this._ensureInit();
     return solveHcaptchaToken(this._creds, sitekey, url, options);
   }
@@ -251,7 +267,7 @@ export class CaptchaSolver {
     value: string;
     domain: string;
     path: string;
-  }> | null> {
+  }>> {
     await this._ensureInit();
     return solvePerimeterXCookies(this._creds, url, userAgent, cookies, proxy);
   }
@@ -262,7 +278,7 @@ export class CaptchaSolver {
     url: string,
     subdomain?: string,
     blob?: string,
-  ): Promise<string | null> {
+  ): Promise<string> {
     await this._ensureInit();
     return solveFuncaptchaToken(this._creds, publicKey, url, subdomain, blob);
   }

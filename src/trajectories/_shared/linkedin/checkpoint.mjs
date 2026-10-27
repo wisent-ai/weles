@@ -174,15 +174,16 @@ export async function confirmLinkedinEmail(page, email) {
  * answers no token throws.
  */
 export async function injectV3LoginToken(page) {
-  const token = await new CaptchaSolver().solveRecaptchaV3(
-    RECAPTCHA_SITEKEY,
-    page.url(),
-    'login',
-  );
-  if (!token)
-    throw new Error(
-      'LINKEDIN_LOGIN_TOKEN_UNSOLVED: no captcha solving service answered the login reCAPTCHA',
+  let token;
+  try {
+    token = await new CaptchaSolver().solveRecaptchaV3(
+      RECAPTCHA_SITEKEY,
+      page.url(),
+      'login',
     );
+  } catch (error) {
+    throw new Error(`LINKEDIN_LOGIN_TOKEN_UNSOLVED: ${error.message}`, { cause: error });
+  }
   await page.evaluate((solvedToken) => {
     for (const recaptcha of [
       window.grecaptcha?.enterprise,

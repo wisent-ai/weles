@@ -120,7 +120,11 @@ export async function detectCaptcha(page: Page): Promise<CaptchaInfo | null> {
 
 type ArkoseData = { publicKey?: string; blob?: string; subdomain?: string };
 
-/** Detect captcha, solve it, and inject the token. Null means no supported CAPTCHA was present. */
+/**
+ * Detect captcha, solve it, and inject the token. Null means no supported
+ * CAPTCHA was present; a challenge no service solved throws the error naming
+ * every service tried and why.
+ */
 export async function solvePageCaptcha(
   page: Page,
   solver?: CaptchaSolver,
@@ -174,14 +178,12 @@ export async function solvePageCaptcha(
       const token = await s.solveRecaptchaV2(page, sitekey, {
         enterprise: info.type === 'recaptcha-enterprise',
       });
-      if (!token) return false;
       // A solver that clicked the widget itself answers true, not a token.
-      if (typeof token !== 'string') return true;
+      if (token === true) return true;
       return deliverCaptchaToken(page, 'recaptcha', token);
     }
     case 'turnstile': {
       const token = await s.solveTurnstile(sitekey, page.url());
-      if (!token) return false;
       return deliverCaptchaToken(page, 'turnstile', token);
     }
     case 'hcaptcha':
@@ -208,10 +210,6 @@ async function solveFuncaptchaOnPage(
     subdomain,
     blob,
   );
-  if (!token) {
-    console.log('[captcha] FunCaptcha solve failed');
-    return false;
-  }
   console.log(`[captcha] FunCaptcha solved, injecting token`);
   await page.evaluate(
     `window.postMessage({eventId:"challenge-complete",payload:{sessionToken:${JSON.stringify(token)}}},"*")`,

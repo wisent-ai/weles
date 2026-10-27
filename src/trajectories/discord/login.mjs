@@ -68,22 +68,23 @@ async function loginApi(s, formData) {
 
 /** Solve the login's hCaptcha, answer it through the login API, keep the token. */
 async function answerCaptcha(s, acct, captchaData, formData) {
-  const key = await new CaptchaSolver().solveHcaptcha(
-    captchaData.captcha_sitekey,
-    LOGIN_URL,
-    {
-      enterprisePayload: {
-        rqdata: captchaData.captcha_rqdata,
-        rqtoken: captchaData.captcha_rqtoken,
+  let key;
+  try {
+    key = await new CaptchaSolver().solveHcaptcha(
+      captchaData.captcha_sitekey,
+      LOGIN_URL,
+      {
+        enterprisePayload: {
+          rqdata: captchaData.captcha_rqdata,
+          rqtoken: captchaData.captcha_rqtoken,
+        },
+        userAgent: await s.page.evaluate(() => navigator.userAgent),
+        proxy: s.proxyConfig,
       },
-      userAgent: await s.page.evaluate(() => navigator.userAgent),
-      proxy: s.proxyConfig,
-    },
-  );
-  if (!key)
-    throw new Error(
-      'DISCORD_CAPTCHA_UNSOLVED: no captcha solving service whose key Skarbiec holds answered the login challenge',
     );
+  } catch (error) {
+    throw new Error(`DISCORD_CAPTCHA_UNSOLVED: ${error.message}`, { cause: error });
+  }
   const answered = { ...formData, captcha_key: key };
   if (captchaData.captcha_rqtoken)
     answered.captcha_rqtoken = captchaData.captcha_rqtoken;

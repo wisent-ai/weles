@@ -4,15 +4,17 @@
  * then through nocaptcha.io wanda/perimeterx/universal, either of which returns
  * the _px3/_pxde/pxcts cookies that satisfy the challenge. The keys are
  * acquired from their exact Skarbiec items. Returns Playwright-shaped cookies
- * ready for ctx.addCookies(); the caller then re-navigates and proceeds.
+ * ready for ctx.addCookies(); the caller then re-navigates and proceeds. When
+ * neither service solves it, the error names each and why it did not.
  */
 
-import { costTracker } from '../../utils/runtime/cost.js';
-import { markAllProvidersFailed, markCaptchaChallenge } from '../events.js';
+import { markCaptchaChallenge } from '../events.js';
 import {
+  firstSolved,
   providerJson,
   readUntilSolved,
   type CaptchaCredentials,
+  type ServiceAttempt,
 } from './api.js';
 
 type PlaywrightCookie = {
@@ -21,10 +23,6 @@ type PlaywrightCookie = {
   domain: string;
   path: string;
 };
-
-function message(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 // The page's cookies by name, as both services take them.
 function cookieMap(
@@ -51,104 +49,93 @@ function playwrightCookies(
   }));
 }
 
-export async function solvePerimeterXCookies(
-  creds: CaptchaCredentials,
+// CapSolver's AntiPerimeterx task: the cookies it answers, or an error naming
+// the task and CapSolver's refusal.
+async function capsolverCookies(
+  clientKey: string,
   url: string,
   userAgent: string,
+  domain: string,
   cookies?: Array<{ name: string; value: string; domain?: string }>,
   proxy?: string,
-): Promise<PlaywrightCookie[] | null> {
-  markCaptchaChallenge(); // G8
-  const u = new URL(url);
-  const domain = '.' + u.hostname.replace(/^www\./, '');
-  if (creds.capsolver) {
-    const task: Record<string, unknown> = {
-      type: proxy ? 'AntiPerimeterxTask' : 'AntiPerimeterxTaskProxyLess',
-      websiteURL: url,
-      userAgent,
-    };
-    const pageCookies = cookieMap(cookies);
-    if (Object.keys(pageCookies).length) task.cookies = pageCookies;
-    if (proxy) {
-      const pp = new URL(proxy);
-      task.proxyType = pp.protocol.replace(':', '');
-      task.proxyAddress = pp.hostname;
-      task.proxyPort = Number(pp.port);
-      if (pp.username) task.proxyLogin = decodeURIComponent(pp.username);
-      if (pp.password) task.proxyPassword = decodeURIComponent(pp.password);
-    }
-    console.log(
-      `[captcha:api] capsolver AntiPerimeterx createTask type=${task.type} url=${url}`,
+): Promise<PlaywrightCookie[]> {
+  const task: Record<string, unknown> = {
+    type: proxy ? 'AntiPerimeterxTask' : 'AntiPerimeterxTaskProxyLess',
+    websiteURL: url,
+    userAgent,
+  };
+  const pageCookies = cookieMap(cookies);
+  if (Object.keys(pageCookies).length) task.cookies = pageCookies;
+  if (proxy) {
+    const pp = new URL(proxy);
+    task.proxyType = pp.protocol.replace(':', '');
+    task.proxyAddress = pp.hostname;
+    task.proxyPort = Number(pp.port);
+    if (pp.username) task.proxyLogin = decodeURIComponent(pp.username);
+    if (pp.password) task.proxyPassword = decodeURIComponent(pp.password);
+  }
+  console.log(
+    `[captcha:api] capsolver AntiPerimeterx createTask type=${task.type} url=${url}`,
+  );
+  const cr = await providerJson(
+    await fetch('https://api.capsolver.com/createTask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientKey, task }),
+    }),
+    'capsolver AntiPerimeterx createTask',
+  );
+  if (cr.errorId) {
+    throw new Error(
+      `capsolver refused AntiPerimeterx createTask: ${cr.errorCode} ${cr.errorDescription}`,
     );
-    try {
-      const cr = await providerJson(
-        await fetch('https://api.capsolver.com/createTask', {
+  }
+  if (!cr.taskId) {
+    throw new Error(
+      `capsolver answered AntiPerimeterx createTask without a taskId: ${JSON.stringify(cr)}`,
+    );
+  }
+  const tr = await readUntilSolved(
+    async () =>
+      providerJson(
+        await fetch('https://api.capsolver.com/getTaskResult', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ clientKey: creds.capsolver, task }),
+          body: JSON.stringify({ clientKey, taskId: cr.taskId }),
         }),
-        'capsolver AntiPerimeterx createTask',
-      );
-      if (cr.errorId)
-        console.log(
-          `[captcha:api] capsolver AntiPerimeterx createTask err: ${cr.errorCode} ${cr.errorDescription}`,
-        );
-      else if (!cr.taskId)
-        console.log(
-          `[captcha:api] capsolver AntiPerimeterx createTask answered no taskId: ${JSON.stringify(cr)}`,
-        );
-      else {
-        const tr = await readUntilSolved(
-          async () =>
-            providerJson(
-              await fetch('https://api.capsolver.com/getTaskResult', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  clientKey: creds.capsolver,
-                  taskId: cr.taskId,
-                }),
-              }),
-              `capsolver getTaskResult for AntiPerimeterx task ${cr.taskId}`,
-            ),
-          (answer) => !answer.errorId && answer.status === 'processing',
-        );
-        if (tr.errorId)
-          console.log(
-            `[captcha:api] capsolver AntiPerimeterx err: ${tr.errorCode} ${tr.errorDescription}`,
-          );
-        else if (tr.status !== 'ready')
-          console.log(
-            `[captcha:api] capsolver AntiPerimeterx task ${cr.taskId} answered status ${tr.status}, neither processing nor ready: ${JSON.stringify(tr)}`,
-          );
-        else {
-          const out = playwrightCookies(tr.solution?.cookies, domain);
-          if (out?.length) {
-            console.log(
-              `[captcha:solver] PerimeterX solved via capsolver (${out.length} cookies)`,
-            );
-            costTracker.recordCaptcha('capsolver', 'perimeterx');
-            return out;
-          }
-          console.log(
-            `[captcha:api] capsolver AntiPerimeterx task ${cr.taskId} is ready but its solution carries no cookies: ${JSON.stringify(tr.solution)}`,
-          );
-        }
-      }
-    } catch (error: unknown) {
-      console.log(
-        `[captcha:api] capsolver AntiPerimeterx fetch err: ${message(error)}; trying nocaptcha`,
-      );
-    }
-  }
-  const token = creds.nocaptcha;
-  if (!token) {
-    console.log(
-      '[captcha:solver] PerimeterX: no NOCAPTCHA_API_KEY (capsolver path returned no cookies)',
+        `capsolver getTaskResult for AntiPerimeterx task ${cr.taskId}`,
+      ),
+    (answer) => !answer.errorId && answer.status === 'processing',
+  );
+  if (tr.errorId) {
+    throw new Error(
+      `capsolver AntiPerimeterx task ${cr.taskId} failed: ${tr.errorCode} ${tr.errorDescription}`,
     );
-    markAllProvidersFailed('perimeterx');
-    return null;
-  } // G8
+  }
+  if (tr.status !== 'ready') {
+    throw new Error(
+      `capsolver AntiPerimeterx task ${cr.taskId} answered status ${tr.status}, neither processing nor ready: ${JSON.stringify(tr)}`,
+    );
+  }
+  const out = playwrightCookies(tr.solution?.cookies, domain);
+  if (!out?.length) {
+    throw new Error(
+      `capsolver AntiPerimeterx task ${cr.taskId} is ready but its solution carries no cookies: ${JSON.stringify(tr.solution)}`,
+    );
+  }
+  return out;
+}
+
+// nocaptcha.io's universal PerimeterX solve: the cookies it answers, or an
+// error naming its refusal.
+async function nocaptchaCookies(
+  token: string,
+  url: string,
+  userAgent: string,
+  domain: string,
+  cookies?: Array<{ name: string; value: string; domain?: string }>,
+  proxy?: string,
+): Promise<PlaywrightCookie[]> {
   const body: Record<string, unknown> = {
     href: url,
     user_agent: userAgent,
@@ -163,41 +150,51 @@ export async function solvePerimeterXCookies(
   console.log(
     `[captcha:api] nocaptcha PerimeterX solve href=${url} proxy=${!!proxy}`,
   );
-  let j;
-  try {
-    j = await providerJson(
-      await fetch('http://api.nocaptcha.io/api/wanda/perimeterx/universal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'User-Token': token },
-        body: JSON.stringify(body),
-      }),
-      'nocaptcha PerimeterX solve',
-    );
-  } catch (error: unknown) {
-    markAllProvidersFailed('perimeterx');
-    throw new Error(
-      `PerimeterX could not be solved: nocaptcha did not answer: ${message(error)}`,
-      { cause: error },
-    );
-  }
-  // nocaptcha answers status 1 for a solve and 0 for a refusal.
+  const j = await providerJson(
+    await fetch('http://api.nocaptcha.io/api/wanda/perimeterx/universal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'User-Token': token },
+      body: JSON.stringify(body),
+    }),
+    'nocaptcha PerimeterX solve',
+  );
+  // nocaptcha answers a truthy status for a solve and a falsy one for a refusal.
   if (!j?.status) {
-    console.log(
-      `[captcha:api] nocaptcha PerimeterX err status=${j?.status} msg=${j?.msg ?? j?.message ?? JSON.stringify(j)}`,
-    );
-    markAllProvidersFailed('perimeterx');
-    return null;
-  } // G8
+    throw new Error(`nocaptcha refused the PerimeterX solve: ${JSON.stringify(j)}`);
+  }
   const out = playwrightCookies(j.data?.cookies, domain);
   if (!out?.length) {
-    console.log(
-      `[captcha:api] nocaptcha PerimeterX solved but its answer carries no cookies: ${JSON.stringify(j.data)}`,
+    throw new Error(
+      `nocaptcha solved PerimeterX but its answer carries no cookies: ${JSON.stringify(j.data)}`,
     );
-    return null;
   }
-  console.log(
-    `[captcha:solver] PerimeterX solved via nocaptcha (${out.length} cookies)`,
-  );
-  costTracker.recordCaptcha('nocaptcha', 'perimeterx');
   return out;
+}
+
+export async function solvePerimeterXCookies(
+  creds: CaptchaCredentials,
+  url: string,
+  userAgent: string,
+  cookies?: Array<{ name: string; value: string; domain?: string }>,
+  proxy?: string,
+): Promise<PlaywrightCookie[]> {
+  markCaptchaChallenge(); // G8
+  const u = new URL(url);
+  const domain = '.' + u.hostname.replace(/^www\./, '');
+  const attempts: ServiceAttempt<PlaywrightCookie[]>[] = [];
+  const capsolver = creds.capsolver;
+  if (capsolver) {
+    attempts.push({
+      service: 'capsolver',
+      solve: () => capsolverCookies(capsolver, url, userAgent, domain, cookies, proxy),
+    });
+  }
+  const nocaptcha = creds.nocaptcha;
+  if (nocaptcha) {
+    attempts.push({
+      service: 'nocaptcha',
+      solve: () => nocaptchaCookies(nocaptcha, url, userAgent, domain, cookies, proxy),
+    });
+  }
+  return firstSolved('perimeterx', attempts);
 }
