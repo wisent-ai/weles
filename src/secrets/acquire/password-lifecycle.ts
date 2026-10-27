@@ -47,18 +47,28 @@ import {
 const REQUEST_ID_LENGTH = createHash('sha256').digest('hex').length;
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
-// The trajectory each lifecycle runs for each operation it offers.
-const MICROSOFT_ACTIONS: Partial<Record<CredentialOperation, string>> = {
+// The trajectory each lifecycle runs for each operation it offers. Kept as
+// literals so a queued result names exactly the operation and trajectory the
+// result type allows, and an operation outside the map is refused by name.
+const MICROSOFT_ACTIONS = {
   adopt: 'microsoft_adopt_password',
   verify: 'microsoft_verify_password',
   rotate: 'microsoft_reset_password',
-};
-const ENTRA_ACTIONS: Partial<Record<CredentialOperation, string>> = {
+} as const;
+const ENTRA_ACTIONS = {
   adopt: 'microsoft_entra_adopt_password',
   verify: 'microsoft_entra_verify_password',
   rotate: 'microsoft_entra_reset_password',
   reset: 'microsoft_entra_reset_password',
-};
+} as const;
+
+/** Whether `actions` offers `operation`, read by its own keys. */
+function offers<Actions extends object>(
+  actions: Actions,
+  operation: CredentialOperation,
+): operation is CredentialOperation & keyof Actions {
+  return Object.hasOwn(actions, operation);
+}
 
 function normalized(value: string | null | undefined): string | undefined {
   if (typeof value !== 'string') return undefined;
@@ -104,8 +114,7 @@ export async function queueMicrosoftPasswordOperation(
   enqueue: typeof queueAction = queueAction,
 ): Promise<AcquireSecretResult> {
   const { operation } = request;
-  const action = MICROSOFT_ACTIONS[operation];
-  if (!action) {
+  if (!offers(MICROSOFT_ACTIONS, operation)) {
     return {
       status: 'unsupported_operation',
       secret: def.secret,
@@ -114,6 +123,7 @@ export async function queueMicrosoftPasswordOperation(
       message: `${operation} is not supported for a Microsoft account password`,
     };
   }
+  const action = MICROSOFT_ACTIONS[operation];
   const accountEmail = normalized(request.accountEmail);
   if (!accountEmail || !EMAIL.test(accountEmail)) {
     return {
@@ -184,8 +194,7 @@ export async function queueEntraPasswordOperation(
   enqueue: typeof queueAction = queueAction,
 ): Promise<AcquireSecretResult> {
   const { operation } = request;
-  const action = ENTRA_ACTIONS[operation];
-  if (!action) {
+  if (!offers(ENTRA_ACTIONS, operation)) {
     return {
       status: 'unsupported_operation',
       secret: def.secret,
@@ -194,6 +203,7 @@ export async function queueEntraPasswordOperation(
       message: `${operation} is not supported for a Microsoft Entra directory password`,
     };
   }
+  const action = ENTRA_ACTIONS[operation];
   const accountUpn = normalized(request.accountUpn);
   const tenantId = normalized(request.tenantId);
   const principalObjectId = normalized(request.principalObjectId);

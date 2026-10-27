@@ -8,7 +8,6 @@
  * Weles declares no key code or modifier bit of its own.
  */
 
-import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 
 type KeyDefinition = {
@@ -31,7 +30,9 @@ export type KeyDescription = {
   shifted: KeyDescription | undefined;
 };
 
-const require = createRequire(import.meta.url);
+// Weles compiles to CommonJS (tsconfig module Node18, no "type": "module"),
+// so the module's own require resolves playwright-core; import.meta is not
+// there to build another one from.
 const server = join(
   dirname(require.resolve('playwright-core/package.json')),
   'lib',

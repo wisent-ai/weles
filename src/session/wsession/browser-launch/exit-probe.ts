@@ -3,7 +3,7 @@
 
 import { isIP } from 'node:net';
 import type { BrowserContext } from 'playwright';
-import echo from '../../../trajectories/_shared/network/egress-echo.json' with { type: 'json' };
+import echo from '../../../trajectories/_shared/network/egress-echo.json';
 import type { SessionProxy } from '../session-request.js';
 
 export async function probeExitIp(launch: {

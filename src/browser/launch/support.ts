@@ -109,7 +109,12 @@ export function browserProvenance(base: {
   browserType: string;
   source: string;
   executablePath: string;
-  pid: number | null;
+  /**
+   * The browser's process id: null when Playwright hands back no process (a
+   * Firefox launch), undefined when the process it hands back reports none
+   * (Node's ChildProcess.pid before or without a spawn).
+   */
+  pid: number | null | undefined;
   /** null for a persistent context, whose Playwright handle has no browser. */
   version: string | null;
   /** The arguments the browser was started with, as Playwright was given them. */

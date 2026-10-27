@@ -185,8 +185,14 @@ export async function wsClose(s: WSession): Promise<void> {
       );
     }
   }
-  await costTracker
-    .flush()
-    .catch((e: any) => console.log(`[wsession] cost flush err: ${e.message}`));
+  // The run's cost records go to the Stado job's rollup now, not only at exit,
+  // so a close that is followed by more work in the same process keeps them.
+  try {
+    costTracker.flushLocalSync();
+  } catch (error) {
+    console.log(
+      `[wsession] cost rollup not written: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
   console.log(`[wsession] close() done`);
 }

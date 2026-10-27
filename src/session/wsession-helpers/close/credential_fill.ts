@@ -10,14 +10,12 @@ import type { WSession } from '../../wsession.js';
 import type { ElementHandle, Page } from 'playwright';
 import { fillPage } from './page_fill.js';
 import { humanFill } from '../../../human/keyboard.js';
-import { resolveObservedControl } from '../../observation/controls.js';
+import {
+  assertDeclaredControl,
+  credentialField,
+  type CredentialFieldClass,
+} from './credential_field/index.js';
 
-type CredentialFieldClass =
-  | 'password'
-  | 'email'
-  | 'username'
-  | 'token'
-  | 'api-key';
 type IdentityField =
   | 'email'
   | 'password'
@@ -27,40 +25,6 @@ type IdentityField =
   | 'birth_month'
   | 'birth_day'
   | 'birth_year';
-
-/**
- * What a field's own markup must declare to receive each credential class:
- * its input type, or a WHATWG autocomplete field name
- * (https://html.spec.whatwg.org/multipage/form-control-infrastructure.html#autofill).
- * The page states what a field takes in its markup, whatever language its
- * label is in. A secret goes only into a field that masks it; email and
- * username are not secret, so any plain text input may take them too.
- */
-interface DeclaredControl {
-  types: Record<string, true>;
-  autocomplete: Record<string, true>;
-  plainText: boolean;
-}
-
-const CREDENTIAL_CONTROLS: Record<CredentialFieldClass, DeclaredControl> = {
-  password: { types: { password: true }, autocomplete: {}, plainText: false },
-  email: {
-    types: { email: true },
-    autocomplete: { email: true, username: true },
-    plainText: true,
-  },
-  username: {
-    types: {},
-    autocomplete: { username: true, nickname: true, email: true },
-    plainText: true,
-  },
-  token: {
-    types: { password: true },
-    autocomplete: { 'one-time-code': true },
-    plainText: false,
-  },
-  'api-key': { types: { password: true }, autocomplete: {}, plainText: false },
-};
 
 /** The run identity fields that are secrets, and the class whose field they need. */
 const IDENTITY_SECRETS: Partial<Record<IdentityField, CredentialFieldClass>> = {
@@ -77,48 +41,6 @@ function webOrigin(page: Page): string {
       `credential fill requires an HTTP(S) origin; the page is ${pageUrl.protocol} (${pageUrl.origin})`,
     );
   return pageUrl.origin;
-}
-
-/** The selectors that find a field declaring this class. */
-function declaredSelectors(fieldClass: CredentialFieldClass): string[] {
-  const declared = CREDENTIAL_CONTROLS[fieldClass];
-  return [
-    ...Object.keys(declared.types).map((type) => `input[type="${type}"]`),
-    ...Object.keys(declared.autocomplete).map(
-      (name) => `input[autocomplete~="${name}" i]`,
-    ),
-  ];
-}
-
-/**
- * Refuses, before any capability is redeemed, a bound field whose own markup
- * does not declare the class, naming what the field does declare.
- */
-async function assertDeclaredControl(
-  control: ElementHandle,
-  fieldClass: CredentialFieldClass,
-  target: string,
-): Promise<void> {
-  const seen = await control.evaluate((element) => ({
-    type:
-      element instanceof HTMLInputElement
-        ? element.type
-        : element.tagName.toLowerCase(),
-    autocomplete: element.hasAttribute('autocomplete')
-      ? String(element.getAttribute('autocomplete')).toLowerCase().split(/\s+/)
-      : [],
-  }));
-  const declared = CREDENTIAL_CONTROLS[fieldClass];
-  const fits =
-    Object.hasOwn(declared.types, seen.type) ||
-    seen.autocomplete.some((name) =>
-      Object.hasOwn(declared.autocomplete, name),
-    ) ||
-    (declared.plainText && seen.type === 'text');
-  if (!fits)
-    throw new Error(
-      `[credential_target_mismatch] ${JSON.stringify(target)} is a ${seen.type} control with autocomplete ${JSON.stringify(seen.autocomplete)}; a ${fieldClass} goes only into a field whose markup declares input type ${JSON.stringify(Object.keys(declared.types))} or autocomplete ${JSON.stringify(Object.keys(declared.autocomplete))}${declared.plainText ? ' or into a plain text input' : ''}. The capability was not consumed`,
-    );
 }
 
 export class CredentialFillError extends Error {
@@ -138,72 +60,6 @@ export class CredentialFillError extends Error {
 // page that does not exist yet; the caller waits for that page (`wait_for`)
 // and fills again instead of this lookup polling for it.
 export const CREDENTIAL_FIELD_ABSENT = 'credential-field-absent';
-
-// Resolve and retain the exact node before redeeming. The old presence probe
-// and generic fill used different selectors and could fall back to a visual
-// guess after the one-shot capability had already been spent.
-async function credentialField(
-  page: Page,
-  target: string,
-  allowedOrigin: string,
-  fieldClass: CredentialFieldClass,
-): Promise<ElementHandle | null> {
-  const observed = await resolveObservedControl(page, target, allowedOrigin);
-  if (observed) return observed;
-  const explicitSelector = target
-    .trim()
-    .match(/^(?:input|textarea)(?:\[[^\]]+\])+/)?.[0];
-  const description = explicitSelector
-    ? target.slice(explicitSelector.length)
-    : target;
-  const kws = description
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, '')
-    .split(/\s+/)
-    .filter((w) => w.length > 2);
-  const sels = [
-    ...declaredSelectors(fieldClass),
-    ...kws.flatMap((k) =>
-      ['input', 'textarea', '[contenteditable]'].flatMap((t) => [
-        `${t}[name*="${k}"]`,
-        `${t}[placeholder*="${k}" i]`,
-        `${t}[aria-label*="${k}" i]`,
-      ]),
-    ),
-  ];
-  const frames = page
-    .frames()
-    .filter((frame) => new URL(frame.url()).origin === allowedOrigin);
-  const queries = explicitSelector ? [explicitSelector] : [null, ...sels];
-  for (const selector of queries) {
-    const handles: ElementHandle[] = [];
-    let selected: ElementHandle | null = null;
-    try {
-      for (const frame of frames) {
-        const locator = selector
-          ? frame.locator(selector)
-          : frame.getByLabel(target, { exact: false });
-        handles.push(...(await locator.elementHandles()));
-      }
-      for (const handle of handles) {
-        if (!(await handle.isVisible()) || !(await handle.isEditable()))
-          continue;
-        if (selected)
-          throw new Error(
-            `[credential_target_ambiguous] Multiple editable fields match ${JSON.stringify(target)}; capability not consumed`,
-          );
-        selected = handle;
-      }
-      if (selected) {
-        handles.splice(handles.indexOf(selected), 1);
-        return selected;
-      }
-    } finally {
-      await Promise.all(handles.map((handle) => handle.dispose()));
-    }
-  }
-  return null;
-}
 
 async function fillCredentialNode(
   page: Page,

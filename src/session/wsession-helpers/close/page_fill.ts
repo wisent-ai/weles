@@ -78,29 +78,15 @@ export async function fillPage(
       await element.dispose();
     }
   };
+  // A target that opens with a CSS type selector and its attribute selectors
+  // names its field by that selector. Otherwise the field is the one its label
+  // (or aria-label) names, then the one whose placeholder holds the target,
+  // then the one vision finds. Words of the target are not matched against
+  // field names: that filled whichever field shared a word with the target.
   const explicitSelector = target
     .trim()
-    .match(/^(?:input|textarea)(?:\[[^\]]+\])+/)?.[0];
-  const description = explicitSelector
-    ? target.slice(explicitSelector.length)
-    : target;
-  const kws = description
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, '')
-    .split(/\s+/)
-    .filter((w) => w.length > 2);
-  const sels = kws.flatMap((k) =>
-    ['input', 'textarea', '[contenteditable]'].flatMap((t) => [
-      `${t}[name*="${k}"]`,
-      `${t}[placeholder*="${k}" i]`,
-      `${t}[aria-label*="${k}" i]`,
-    ]),
-  );
-  if (/\b(email|e-mail)\b/i.test(target)) {
-    sels.unshift(
-      'input[type="email"], input[name*="email" i], input[autocomplete*="email" i]',
-    );
-  }
+    .match(/^[a-z]+(?:\[[^\]]+\])+/i)
+    ?.shift();
   for (const frame of [...childFrames(s, allowedOrigin), s.page]) {
     if (explicitSelector) {
       const explicit = await firstVisible(frame.locator?.(explicitSelector));
@@ -116,31 +102,21 @@ export async function fillPage(
       await fill(label);
       return 'filled label';
     }
-    for (const selector of sels) {
-      const control = await firstVisible(frame.locator?.(selector));
-      if (control) {
-        await fill(control);
-        return `filled ${selector}`;
-      }
+    const placeholder = await firstVisible(
+      frame.getByPlaceholder?.(target, { exact: false }),
+    );
+    if (placeholder) {
+      await fill(placeholder);
+      return 'filled placeholder';
     }
   }
-  const tgt = JSON.stringify(target.toLowerCase());
-  const byPlaceholder = await s.page
-    .evaluate(
-      `(()=>{var t=${tgt};for(var el of document.querySelectorAll('*')){var r=el.getBoundingClientRect();var ph=(el.getAttribute('placeholder')||'').toLowerCase();if(r.width>50&&r.height>10&&r.x>0&&ph&&ph.indexOf(t)>=0)return{x:r.x+r.width/2,y:r.y+r.height/2}}return null})()`,
-    )
-    .catch((error) => {
-      throw new Error(
-        `could not search the page for a ${target} placeholder: ${error}`,
-      );
-    });
-  const point = byPlaceholder ?? (await findClickTarget(asV(s.page), target));
+  const point = await findClickTarget(asV(s.page), target);
   if (!point) return 'no-field-found';
   await humanClick(s.page, point.x, point.y);
   if (!credentialAuthorized) await assertFocusedLiteralInput(s, value);
   // Typing after a failed select-all appends to whatever the field held, so
   // the field would be submitted with a value nobody asked for.
-  await s.page.keyboard.press('Meta+a').catch((error) => {
+  await s.page.keyboard.press('Meta+a').catch((error: unknown) => {
     throw new Error(
       `could not select the existing text of ${target} before typing: ${error}`,
     );

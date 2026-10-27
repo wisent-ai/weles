@@ -10,7 +10,7 @@ import https from 'node:https';
 import { constants as http2 } from 'node:http2';
 
 import type { ProxyConfig } from './config.js';
-import echo from '../trajectories/_shared/network/egress-echo.json' with { type: 'json' };
+import echo from '../trajectories/_shared/network/egress-echo.json';
 
 /** How each provider spells the session id inside its credentials. */
 const SESSION_PATTERNS: {
