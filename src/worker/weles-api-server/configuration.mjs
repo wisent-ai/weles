@@ -70,13 +70,14 @@ export const CAPTCHA_ANSWERS_DIR = join(homedir(), '.stado', 'weles-captcha-answ
 
 // The public HTTPS origin a captcha provider reaches this server's
 // /captcha/answers/ route at (a hostname routed to this service). Unset, the
-// runs started here hold no callback address and every provider solve is
-// refused naming it; a value that is not an HTTPS origin stops the server.
+// server starts and the runs it starts hold no callback address, so each
+// callback service's solve fails naming WELES_CAPTCHA_CALLBACK_URL; a value
+// that is not an HTTPS origin, a URL or not, stops the server naming it.
 function captchaCallbackOrigin() {
   const value = stated('WELES_CAPTCHA_CALLBACK_ORIGIN');
   if (!value) return null;
-  const origin = new URL(value);
-  if (origin.protocol !== 'https:' || origin.origin !== value.replace(/\/$/, ''))
+  const origin = URL.canParse(value) ? new URL(value) : null;
+  if (origin?.protocol !== 'https:' || origin.origin !== value.replace(/\/$/, ''))
     throw new Error(
       `WELES_CAPTCHA_CALLBACK_ORIGIN is ${value}: set it to the public HTTPS origin (scheme and host, no path) routed to this server`,
     );

@@ -1,9 +1,13 @@
-// A provider's answer reaches the run that created the task by being pushed
-// to the Weles worker, never by reading the provider again.
+// A provider that takes a callback (AntiCaptcha, CapMonster, CapSolver,
+// 2captcha) pushes its answer to the Weles worker; the run never reads it
+// from the provider again.
 //
-// 1. A run no worker told where providers can answer (no
-//    WELES_CAPTCHA_CALLBACK_URL) is refused before any provider is asked, and
-//    the refusal names the variable and who states it.
+// 0. A worker whose WELES_CAPTCHA_CALLBACK_ORIGIN is not an HTTPS origin (not
+//    an address, plain HTTP, or carrying a path) does not start, naming it.
+// 1. In a run no worker told where providers can answer (no
+//    WELES_CAPTCHA_CALLBACK_URL), each callback service is refused before it
+//    is asked, its cause in the solve's error naming the variable and who
+//    states it.
 // 2. The worker's real /captcha/answers/ route (answer-server.mjs, run with a
 //    HOME of its own) and the built run side (dist/captcha/providers/
 //    callback.js) meet: a POST to an address no run waits for is answered 404
@@ -53,18 +57,26 @@ const DEMO = 'https://accounts.hcaptcha.com/demo';
 let server;
 let route;
 
-before(async () => {
+/** The worker's declared environment with a HOME of the journey's own and `origin` as its callback origin. */
+function workerEnvironment(origin) {
   const home = join(directory, 'home');
   mkdirSync(home, { recursive: true });
-  server = spawn(process.execPath, [join(root, 'tests', 'captcha', 'answer-server.mjs')], {
+  return {
+    ...process.env,
+    HOME: home,
+    WELES_RECORDINGS_ROOT: join(directory, 'recordings'),
+    WELES_API_HOST: 'localhost',
+    WELES_API_PORT: String(process.pid),
+    WELES_CAPTCHA_CALLBACK_ORIGIN: origin,
+  };
+}
+
+const ANSWER_SERVER = join(root, 'tests', 'captcha', 'answer-server.mjs');
+
+before(async () => {
+  server = spawn(process.execPath, [ANSWER_SERVER], {
     cwd: root,
-    env: {
-      ...process.env,
-      HOME: home,
-      WELES_RECORDINGS_ROOT: join(directory, 'recordings'),
-      WELES_API_HOST: 'localhost',
-      WELES_API_PORT: String(process.pid),
-    },
+    env: workerEnvironment(''),
     stdio: ['ignore', 'pipe', 'inherit'],
   });
   const [line] = await once(createInterface({ input: server.stdout }), 'line');
@@ -93,7 +105,16 @@ async function refusal(solving) {
   return message;
 }
 
-test('a run with no callback address is refused before any provider is asked', async () => {
+test('a callback origin that is not an HTTPS origin stops the worker naming it', () => {
+  for (const origin of ['not an address', 'http://weles.example', 'https://weles.example/captcha']) {
+    const started = spawnSync(process.execPath, [ANSWER_SERVER], { cwd: root, env: workerEnvironment(origin), encoding: 'utf8' });
+    report.steps.push({ step: `origin ${origin}`, status: started.status, stderr: started.stderr.split('\n').find((line) => line.includes('WELES_CAPTCHA_CALLBACK_ORIGIN')) });
+    assert.notEqual(started.status, Number(), `the worker started with origin ${origin}`);
+    assert.match(started.stderr, new RegExp(`WELES_CAPTCHA_CALLBACK_ORIGIN is ${origin.replace(/[./]/g, '\\$&')}: set it to the public HTTPS origin`));
+  }
+});
+
+test('a callback service is refused before it is asked when the run has no callback address', async () => {
   delete process.env.WELES_CAPTCHA_CALLBACK_URL;
   delete process.env.WELES_CAPTCHA_ANSWERS_DIR;
   const solver = new CaptchaSolver({ anticaptcha: `not-issued-${randomUUID()}` });
@@ -123,11 +144,15 @@ test('the worker route hands a pushed answer to the run waiting for it', async (
     headers: { 'Content-Type': 'application/json' },
     body: pushed,
   });
-  assert.equal(posted.status, http.HTTP_STATUS_OK, await posted.text());
+  assert.equal(posted.status, http.HTTP_STATUS_OK);
+  assert.deepEqual(await posted.json(), { ok: true });
   const answer = await callback.answer();
   report.steps.push({ step: 'pushed answer', url: callback.url, answer });
   assert.deepEqual(answer, { contentType: 'application/json', body: pushed });
   assert.deepEqual(readdirSync(route.answers), []);
+  const repeated = await fetch(callback.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: pushed });
+  report.steps.push({ step: 'callback repeated after the run read it', status: repeated.status });
+  assert.equal(repeated.status, http.HTTP_STATUS_NOT_FOUND);
 });
 
 test('a provider that refuses the task leaves no run waiting', async () => {
