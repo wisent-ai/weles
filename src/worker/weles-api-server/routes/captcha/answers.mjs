@@ -6,7 +6,7 @@
 // run drew at random for that one task and registered as waiting
 // (<token>.waiting in CAPTCHA_ANSWERS_DIR, src/captcha/providers/callback.ts).
 // A token no run waits for is answered 404 before its body is read. The body
-// is kept as sent, with its content type: AntiCaptcha, CapMonster and
+// is kept as sent, with its content type (null when the request states none): AntiCaptcha, CapMonster and
 // CapSolver POST the getTaskResult answer as JSON, 2captcha its id and code as
 // a form, and the run reads its own provider's form. It is written beside the
 // marker under a temporary name and renamed into place, so the run that
@@ -46,8 +46,9 @@ export async function respondToCaptchaAnswer(req, res, url) {
     });
     return;
   }
+  const stated = req.headers['content-type'];
   const answer = {
-    contentType: String(req.headers['content-type']),
+    contentType: stated === undefined ? null : stated,
     body: await readText(req),
   };
   const partial = join(CAPTCHA_ANSWERS_DIR, `.${token}.json.part`);

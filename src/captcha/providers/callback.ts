@@ -20,8 +20,16 @@ import { watch } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-/** What a provider POSTed to the callback: its content type and body. */
-export type ProviderAnswer = { contentType: string; body: string };
+/**
+ * What a provider POSTed to the callback: its body and its content type, null
+ * when the request carried no Content-Type header.
+ */
+export type ProviderAnswer = { contentType: string | null; body: string };
+
+/** How `answer`'s body is described in a refusal: by its content type, or as having none. */
+export function bodyKind(answer: ProviderAnswer): string {
+  return answer.contentType === null ? 'a body without a Content-Type' : `a ${answer.contentType} body`;
+}
 
 /**
  * One task's callback: the address to give the provider, its answer, and

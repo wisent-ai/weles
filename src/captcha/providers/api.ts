@@ -2,6 +2,7 @@ import { lookup } from 'node:dns/promises';
 import { costTracker } from '../../utils/runtime/cost.js';
 import { markAllProvidersFailed } from '../events.js';
 import {
+  bodyKind,
   providerCallback,
   type ProviderAnswer,
   type ProviderCallback,
@@ -45,7 +46,7 @@ function pushedJson(answer: ProviderAnswer, what: string): any {
     return JSON.parse(answer.body);
   } catch (error) {
     throw new Error(
-      `${what} was answered with a ${answer.contentType} body that is not JSON (${error instanceof Error ? error.message : String(error)}): ${answer.body}`,
+      `${what} was answered with ${bodyKind(answer)} that is not JSON (${error instanceof Error ? error.message : String(error)}): ${answer.body}`,
       { cause: error },
     );
   }
@@ -169,7 +170,7 @@ export async function twoCaptchaSolve(
   const code = form.get('code');
   if (form.get('id') !== String(tid) || !code) {
     throw new Error(
-      `2captcha task ${tid} (${what}) pinged back without its id and code: ${pushed.contentType} ${pushed.body}`,
+      `2captcha task ${tid} (${what}) pinged back without its id and code, with ${bodyKind(pushed)}: ${pushed.body}`,
     );
   }
   console.log(`[captcha:api] 2captcha ${what} solved`);
