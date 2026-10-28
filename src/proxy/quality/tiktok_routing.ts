@@ -48,10 +48,12 @@ async function probeOnce(
     const found = VREGION.exec(stdout);
     return found ? found[1] : null;
   } catch (error) {
+    // curl's failure names its whole command line, the proxy credentials
+    // with it, so only the redacted words leave: the raw error is not kept
+    // as the cause, where an error-chain printer would show it.
     const said = error instanceof Error ? error.message : String(error);
     throw new Error(
       `tiktok routing probe through the exit failed: ${said.replaceAll(proxyUrl, '[proxy-url]')}`,
-      { cause: error },
     );
   }
 }

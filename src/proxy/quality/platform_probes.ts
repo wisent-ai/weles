@@ -261,7 +261,7 @@ export async function probeLinkedinSignup(
       result: 'unknown',
       request,
       transport: { curl_version: curlVersion, curl_features: curlFeatures },
-      error: String(e?.message ?? e).replace(proxyUrl, '[proxy-url]'),
+      error: String(e?.message ?? e).replaceAll(proxyUrl, '[proxy-url]'),
     };
   }
 }
