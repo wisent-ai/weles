@@ -41,6 +41,21 @@ export interface Persona extends PersonaDevice {
 }
 
 /**
+ * The Accept-Language `browser` sends for `language`: the language, then
+ * its base language weighted ';q=0.9' as Chrome adds to its --lang flag, or
+ * ';q=0.5' as Firefox's intl.accept_languages pref gives it.
+ */
+export function acceptLanguageFor(
+  browser: PersonaBrowser | (string & {}),
+  language: string,
+): string {
+  const [base] = language.split('-');
+  return browser === 'firefox'
+    ? `${language},${base};q=0.5`
+    : `${language},${base};q=0.9`;
+}
+
+/**
  * `device` dressed in the locale of the country it exits through: `exit`'s
  * country (and its observed timezone), else the country the run states.
  * Refused by name when neither names a country the locale table holds.
@@ -50,13 +65,7 @@ export function dressPersona(
   exit: ExitGeography,
 ): Persona {
   const locale = personaLocale(exit);
-  const [base] = locale.language.split('-');
-  // Real Chrome auto-appends ';q=0.9' to its --lang flag; real Firefox emits
-  // ',en;q=0.5' from its intl.accept_languages pref.
-  const acceptLanguage =
-    device.browser === 'firefox'
-      ? `${locale.language},${base};q=0.5`
-      : `${locale.language},${base};q=0.9`;
+  const acceptLanguage = acceptLanguageFor(device.browser, locale.language);
   console.log(
     `[persona] os=${device.os} browser=${device.browser} gpu=${JSON.stringify(device.gpu.renderer)} screen=${device.screen.width}x${device.screen.height}@${device.screen.dpr} country=${locale.country} tz=${locale.timezone} lang=${locale.language}`,
   );

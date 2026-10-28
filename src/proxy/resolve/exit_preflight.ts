@@ -4,6 +4,8 @@
 // was rejected, and whether the whole provider should be abandoned (a 407
 // means the account is unfunded, so every sticky would fail the same way).
 import type { LinkedInProbePersona } from '../policy.js';
+import { acceptLanguageFor } from '../../browser/persona.js';
+import { personaLocale } from '../../browser/persona/locale.js';
 import { diagHash, type ProxyPreflightAttempt } from './diagnostics.js';
 import { excludedExitReason } from './exit/excluded.js';
 import {
@@ -70,6 +72,24 @@ async function connectVerdict(
   return { rejected: true, abandonProvider: true };
 }
 
+/**
+ * The persona the platform probes present through an exit in `country`:
+ * the browser dresses the persona in that country's language once the exit
+ * is chosen (`dressPersona`), so the probe sends the same Accept-Language.
+ * A persona that already states one keeps it.
+ */
+function probedAs(
+  persona: LinkedInProbePersona | undefined,
+  country: string | undefined,
+): LinkedInProbePersona | undefined {
+  if (!persona?.browser || persona.acceptLanguage) return persona;
+  const { language } = personaLocale({ country });
+  return {
+    ...persona,
+    acceptLanguage: acceptLanguageFor(persona.browser, language),
+  };
+}
+
 /** Runs the preflight unless PROXY_SKIP_PREFLIGHT=1, in which case the exit is trusted unprobed. */
 export async function preflightExit(
   input: ExitPreflightInput,
@@ -95,6 +115,9 @@ export async function preflightExit(
   };
   const proxyUrl = `http://${encodeURIComponent(proxy.username)}:${encodeURIComponent(proxy.password)}@${proxy.host}:${input.port}`;
   let preflightContinue = false;
+  // The country the exit was measured in, else the one the run asked for:
+  // the browser is dressed in its locale, so the probes present it too.
+  let exitCountry = cc;
   try {
     const service = publicAddressService();
     const probeHost = targetHost || service.hostname;
@@ -163,6 +186,7 @@ export async function preflightExit(
         : { result: 'unknown' as const };
       attemptDiag.geo_result = geo.result;
       attemptDiag.geo_exit_cc = geo.exitCc;
+      exitCountry = geo.exitCc ?? cc;
       if (geo.result === 'mismatch') {
         attemptDiag.rejected_reason = 'geo_mismatch';
         preflightContinue = true;
@@ -177,7 +201,10 @@ export async function preflightExit(
           );
           attemptDiag.linkedin_probe_result = 'skipped_warm_profile';
         } else {
-          const probe = await probeLinkedinSignup(proxyUrl, preflightPersona);
+          const probe = await probeLinkedinSignup(
+            proxyUrl,
+            probedAs(preflightPersona, exitCountry),
+          );
           console.log(
             `[proxy] linkedin-probe exit=${exitIp} -> ${probe.result}${probe.bytes ? ` (${probe.bytes}B)` : ''}`,
           );
@@ -200,7 +227,10 @@ export async function preflightExit(
     // trajectory cannot recover from a TTP2 page bootstrap.
     if (!preflightContinue && platform === 'tiktok') {
       const { verifyTikTokRouting } = await import('../policy.js');
-      const route = await verifyTikTokRouting(proxyUrl, preflightPersona);
+      const route = await verifyTikTokRouting(
+        proxyUrl,
+        probedAs(preflightPersona, exitCountry),
+      );
       console.log(
         `[proxy] tiktok-route exit=${exitIp} -> ${route.result}${route.vregion ? ` (${route.vregion})` : ''}`,
       );

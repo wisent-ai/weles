@@ -7,8 +7,8 @@
 // 300-line cap. credentials.ts re-exports resolveAccountSession +
 // AccountSession for backwards-compat with all existing callers.
 
-import type { Persona } from '../browser/persona.js';
-import { generatePersona } from '../browser/persona.js';
+import { dressPersona, generatePersona, type Persona, type PersonaDevice } from '../browser/persona.js';
+import { sampleDevice } from '../browser/persona/device.js';
 import {
   hydratePinnedProxy,
   proxyUrl as buildProxyUrl,
@@ -71,6 +71,9 @@ export async function resolveAccountSession(
   const meta = acct.metadata as any;
   const out: AccountSession = {};
   let cfg: ProxyConfig | undefined;
+  const storedPersona = meta?.persona as Persona | undefined;
+  // The device the exit preflight presents: the stored persona, else one sampled before the proxy resolves.
+  let device: PersonaDevice | undefined;
   const action = trajectoryAction();
   const targetHost = PLATFORM_HOSTS[acct.platform];
 
@@ -242,9 +245,10 @@ export async function resolveAccountSession(
       const tried: string[] = [];
       let pw: ResolvedProxy | undefined;
       const { candidates, failing, unpriced } = await rankByCapability(action);
+      device = storedPersona ?? sampleDevice({});
       for (const winner of candidates) {
         const filter = [proxyType, winner.provider, network.country].filter(Boolean).join(' ');
-        pw = await resolveProxy(filter, targetHost);
+        pw = await resolveProxy(filter, targetHost, device);
         if (pw) {
           console.log(
             `[identity] capability pick ${winner.provider} ($${winner.cost_per_gb}/GB, ${winner.standing}) route=${proxyType} action=${action}`,
@@ -283,13 +287,7 @@ export async function resolveAccountSession(
   }
 
   if (cfg) out.proxyUrl = buildProxyUrl(cfg);
-  if (meta?.persona) {
-    out.persona = meta.persona as Persona;
-  } else {
-    out.persona = generatePersona({
-      country: cfg?.country ?? meta?.proxy?.country,
-    });
-    await backfillPersona(acct, out.persona);
-  }
+  out.persona = storedPersona ?? dressPersona(device ?? sampleDevice({}), { country: cfg?.country ?? meta?.proxy?.country });
+  if (!storedPersona) await backfillPersona(acct, out.persona);
   return out;
 }
