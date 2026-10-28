@@ -9,13 +9,16 @@
 // run's process group and records the run as cancelled, with who said so.
 
 import { isAbandoned, openRequestOfRun } from '../../../operator/request.mjs';
+import { forgetCaptchaAnswers } from '../routes/captcha/answers.mjs';
 
 const running = new Map();
 
 /**
  * Register a run for as long as its child runs. `cancel(detail)` ends it and
  * must make the runner finish the run; `describe()` returns what the run is
- * doing now. Returns the function that removes the registration.
+ * doing now. Returns the function that removes the registration, which also
+ * removes the run's captcha answers directory, so a provider calling back for
+ * a run that ended, cancelled or crashed is answered 404.
  */
 export function registerRunningRun(
   runId,
@@ -32,6 +35,7 @@ export function registerRunningRun(
   });
   return () => {
     running.delete(runId);
+    forgetCaptchaAnswers(runId);
   };
 }
 

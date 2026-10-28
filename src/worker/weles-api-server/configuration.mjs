@@ -63,21 +63,32 @@ export const ALLOW_UNAUTH = granted('WELES_API_ALLOW_UNAUTH');
 // refused with 403 raw_creds_forbidden and "redact" or "store" is the answer.
 export const ALLOW_RAW_CREDS = granted('WELES_API_ALLOW_RAW_CREDS');
 
-// Where the /captcha/answers/ route writes what a captcha provider pushes, and
-// where each run started here waits for it; outside the repository like the
+// Where the /captcha/answers/ route writes what a captcha provider pushes, one
+// directory per run (routes/captcha/answers.mjs, captchaAnswersOf), and where
+// each run started here waits for it; outside the repository like the
 // detached runs' answers.
 export const CAPTCHA_ANSWERS_DIR = join(homedir(), '.stado', 'weles-captcha-answers');
 
 // The public HTTPS origin a captcha provider reaches this server's
 // /captcha/answers/ route at (a hostname routed to this service). Unset, the
 // server starts and the runs it starts hold no callback address, so each
-// callback service's solve fails naming WELES_CAPTCHA_CALLBACK_URL; a value
-// that is not an HTTPS origin, a URL or not, stops the server naming it.
+// callback service's solve fails naming WELES_CAPTCHA_CALLBACK_URL. A value
+// is read as a URL and kept as its origin, so `https://Weles.example` and
+// `https://weles.example:443/` are the same origin; one that is not a URL,
+// is not HTTPS, or carries a path, query, fragment or credentials stops the
+// server naming it.
 function captchaCallbackOrigin() {
   const value = stated('WELES_CAPTCHA_CALLBACK_ORIGIN');
   if (!value) return null;
   const origin = URL.canParse(value) ? new URL(value) : null;
-  if (origin?.protocol !== 'https:' || origin.origin !== value.replace(/\/$/, ''))
+  const bare =
+    origin?.protocol === 'https:' &&
+    origin.pathname === '/' &&
+    !origin.search &&
+    !origin.hash &&
+    !origin.username &&
+    !origin.password;
+  if (!bare)
     throw new Error(
       `WELES_CAPTCHA_CALLBACK_ORIGIN is ${value}: set it to the public HTTPS origin (scheme and host, no path) routed to this server`,
     );
