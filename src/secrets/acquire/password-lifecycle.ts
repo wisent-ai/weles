@@ -146,9 +146,7 @@ export async function queueMicrosoftPasswordOperation(
     ...(isRequestId(request.requestId)
       ? []
       : ['one exact credential operation request id']),
-    ...(!accountId && !binding.error
-      ? ['one uniquely matching active Microsoft account']
-      : []),
+    // A binding without an account always says why.
     ...(binding.error ? [binding.error] : []),
     ...writerProblem(def.secret, request.tenantId),
     ...readerProblem(
@@ -247,11 +245,6 @@ export async function queueEntraPasswordOperation(
     ...(contract && contract.sourceOrigin === ENTRA_ORIGIN
       ? []
       : [`Entra credential source origin ${ENTRA_ORIGIN} for ${def.secret}`]),
-    ...(binding && !binding.accountId && !binding.error
-      ? [
-          'one uniquely matching active account bound to the requested Entra identity',
-        ]
-      : []),
     ...(binding && binding.error ? [binding.error] : []),
     ...writerProblem(def.secret, skarbiecTenantId),
     // A reset writes a password nobody knew, so it needs no reader.

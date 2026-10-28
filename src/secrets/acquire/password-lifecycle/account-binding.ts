@@ -5,7 +5,8 @@
 // readers therefore insist on exactly one active match and on a binding that
 // already points both ways: the account must name this credential item, and no
 // other account in the same scope may name it. Ambiguity is never resolved by
-// picking a row — it is returned as the reason nothing was queued.
+// picking a row — it is returned as the reason nothing was queued, and so is
+// the absence of any match.
 //
 // The two readers stay separate because they identify an account by different
 // evidence. A consumer account is found by the email a human types, while a
@@ -22,31 +23,54 @@ type MicrosoftAccountRow = {
   id: string;
   username: string;
   active: boolean;
-  metadata: {
+  metadata?: {
     email?: string;
     skarbiec_credential_id?: string;
     skarbiec_tenant_id?: string;
   };
 };
 
+type Binding = { accountId: string | null; error?: string };
+
+/** Whether `row` belongs to the Skarbiec tenant scope `tenant`: a row that
+ *  records no tenant (absent or JSON null) is in the unscoped vault, and only
+ *  an unscoped request reaches it. */
+function inScope(row: MicrosoftAccountRow, tenant: string | null | undefined): boolean {
+  const recorded: string | null | undefined = row.metadata?.skarbiec_tenant_id;
+  const unscoped = (value: string | null | undefined) =>
+    value === null || value === undefined;
+  if (unscoped(tenant)) return unscoped(recorded);
+  return recorded === tenant;
+}
+
+/** Whether the row's username or recorded email is `wanted`, case aside. */
+function named(row: MicrosoftAccountRow, wanted: string): boolean {
+  return (
+    row.username.trim().toLowerCase() === wanted ||
+    row.metadata?.email?.trim().toLowerCase() === wanted
+  );
+}
+
 export function microsoftAccountBinding(
   accountEmail: string,
   credentialId: string,
   tenantId?: string | null,
-): { accountId: string | null; error?: string } {
+): Binding {
   const rows = listAccounts('microsoft') as MicrosoftAccountRow[];
   const normalized = accountEmail.trim().toLowerCase();
-  const requestedTenant = tenantId ?? null;
-  const tenantRows = rows.filter(
-    (row) => (row.metadata?.skarbiec_tenant_id ?? null) === requestedTenant,
-  );
-  const matches = tenantRows.filter((row) => {
-    const username = row.username.trim().toLowerCase();
-    const email = row.metadata?.email?.trim().toLowerCase() ?? '';
-    return row.active && (username === normalized || email === normalized);
-  });
-  const account = matches[0];
-  if (matches.length !== 1 || !account) return { accountId: null };
+  const tenantRows = rows.filter((row) => inScope(row, tenantId));
+  const matches = tenantRows.filter((row) => row.active && named(row, normalized));
+  const [account, another] = matches;
+  if (another)
+    return {
+      accountId: null,
+      error: `${matches.length} active Microsoft accounts claim ${normalized}; exactly one may own the managed password`,
+    };
+  if (!account)
+    return {
+      accountId: null,
+      error: `no active Microsoft account in this scope has the username or email ${normalized}`,
+    };
   const otherOwner = tenantRows.find(
     (row) =>
       row.id !== account.id &&
@@ -75,7 +99,7 @@ export function microsoftAccountBinding(
 }
 
 type EntraAccountRow = MicrosoftAccountRow & {
-  metadata: MicrosoftAccountRow['metadata'] & {
+  metadata?: MicrosoftAccountRow['metadata'] & {
     entra_upn?: string;
     entra_tenant_id?: string;
     entra_principal_object_id?: string;
@@ -88,27 +112,28 @@ export function entraAccountBinding(
   tenantId: string,
   principalObjectId: string,
   skarbiecTenantId: string | null,
-): { accountId: string | null; error?: string } {
+): Binding {
   const rows = listAccounts('microsoft') as EntraAccountRow[];
-  const scoped = rows.filter(
-    (row) => (row.metadata?.skarbiec_tenant_id ?? null) === skarbiecTenantId,
+  const scoped = rows.filter((row) => inScope(row, skarbiecTenantId));
+  const claiming = scoped.filter(
+    (row) =>
+      row.active &&
+      (row.metadata?.entra_upn?.trim().toLowerCase() === accountUpn ||
+        named(row, accountUpn)),
   );
-  const named = scoped.filter((row) => {
-    const upn = row.metadata?.entra_upn?.trim().toLowerCase() ?? '';
-    const email =
-      row.metadata?.email?.trim().toLowerCase() ??
-      row.username.trim().toLowerCase();
-    return row.active && (upn === accountUpn || email === accountUpn);
-  });
-  if (named.length > 1)
+  const [account, another] = claiming;
+  if (another)
     return {
       accountId: null,
-      error: 'more than one active account claims the requested Entra UPN',
+      error: `${claiming.length} active accounts claim the requested Entra UPN ${accountUpn}; exactly one may own the managed password`,
     };
-  const account = named[0];
-  if (!account) return { accountId: null };
-  const metadata = account.metadata ?? {};
-  if (metadata.entra_upn?.trim().toLowerCase() !== accountUpn) {
+  if (!account)
+    return {
+      accountId: null,
+      error: `no active account in this scope has the Entra UPN, username or email ${accountUpn}`,
+    };
+  const metadata = account.metadata;
+  if (metadata?.entra_upn?.trim().toLowerCase() !== accountUpn) {
     return {
       accountId: null,
       error: `account record is missing metadata entra_upn ${accountUpn}`,
