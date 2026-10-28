@@ -20,7 +20,7 @@ import {
   responseAfterAction,
   urlMatching,
 } from '../_shared/page/settled.mjs';
-import { humanType } from '../../../dist/human/keyboard.js';
+import { humanFill } from '../../../dist/human/keyboard.js';
 
 /** Stripe Checkout's own host. */
 export const CHECKOUT_HOST = 'checkout.stripe.com';
@@ -33,11 +33,25 @@ async function visible(locator) {
   return locator.isVisible();
 }
 
-async function typeInto(page, selector, value) {
+/**
+ * Type `value` into the visible input `selector` names and confirm the input
+ * kept it: compared on its digits when `digits` (Stripe spaces a card number
+ * and slashes an expiry as it is typed), else trimmed. False when the page
+ * shows no such input. An input that did not keep the value is refused
+ * naming it and both lengths, never the value itself.
+ */
+export async function typeInto(page, selector, value, digits) {
   const input = page.locator(selector).filter({ visible: true }).first();
   if (!(await visible(input))) return false;
-  await humanClickLocator(page, input);
-  await humanType(page, value);
+  // A field Stripe prefilled (a customer's email) is replaced, not appended to.
+  await humanFill(page, input, value);
+  const read = (text) => (digits ? text.replace(/\D/g, '') : text.trim());
+  const typed = read(value);
+  const kept = read(await input.inputValue());
+  if (kept !== typed)
+    throw new Error(
+      `STRIPE_CHECKOUT_INPUT_NOT_KEPT: the checkout field ${selector} did not keep what was typed into it (${typed.length} characters typed, ${kept.length} kept)`,
+    );
   return true;
 }
 
@@ -86,6 +100,7 @@ export async function payHostedCheckout(s, { card, email }) {
       page,
       'input[name="email"], input#email, input[type="email"]',
       email,
+      false,
     ))
   )
     console.log('[stripe-checkout] contact email filled');
@@ -167,13 +182,15 @@ export async function payHostedCheckout(s, { card, email }) {
       page,
       'input[name="cardNumber"], input#cardNumber',
       card.num,
+      true,
     );
     await typeInto(
       page,
       'input[name="cardExpiry"], input#cardExpiry',
       card.exp,
+      true,
     );
-    await typeInto(page, 'input[name="cardCvc"], input#cardCvc', card.cvc);
+    await typeInto(page, 'input[name="cardCvc"], input#cardCvc', card.cvc, true);
     console.log('[stripe-checkout] filled the page form');
   } else {
     const filled = await fillStripeElements(page, {
@@ -199,12 +216,14 @@ export async function payHostedCheckout(s, { card, email }) {
       page,
       'input[name="billingName"], input#billingName',
       card.name,
+      false,
     );
   if (card.zip)
     await typeInto(
       page,
       'input[name="billingPostalCode"], input#billingPostalCode',
       card.zip,
+      false,
     );
   // A merchant that collects the billing address asks for it on the page;
   // it is the card's own (TOPUP_CARD_STREET, TOPUP_CARD_CITY), never one
@@ -214,12 +233,14 @@ export async function payHostedCheckout(s, { card, email }) {
       page,
       'input[name="billingAddressLine1"], input[autocomplete="address-line1"]',
       card.street,
+      false,
     );
   if (card.city)
     await typeInto(
       page,
       'input[name="billingLocality"], input[autocomplete="address-level2"]',
       card.city,
+      false,
     );
   await s.screenshot('before_submit');
 
