@@ -14,6 +14,7 @@ import { REPO, RUN_RELEASE_IDENTITY } from '../../release-identity.mjs';
 import { lastJsonLine, persistRunResult } from '../run-outcome.mjs';
 import { credentialFailure } from '../credential-outcome.mjs';
 import { registerRunningRun } from '../running-runs.mjs';
+import { runProgress } from './run-progress.mjs';
 import {
   liveOutput,
   runChildIdentity,
@@ -120,84 +121,19 @@ export function runReauth(
     let settled = false;
     let lastOutputAt = null;
     let cancelDetail = null;
-    const stages = [];
-    let operatorRequest = null;
-    let progressRecordError = null;
-    let progressDeliveryError = null;
-    // The run's own record says where it is while it runs, so the diagnostics
-    // route answers "what is it doing" for a caller that was not listening.
-    const recordProgress = () => {
-      try {
-        persistRunResult(runResultPath, {
-          ...RUN_RELEASE_IDENTITY,
-          action,
-          run_id: runId,
-          status: 'running',
-          started_at: startedAt,
-          completed_at: null,
-          stages,
-          operator_request: operatorRequest,
-        });
-      } catch (error) {
-        progressRecordError = `run progress could not be recorded: ${String(error?.message || error)}`;
-      }
-    };
-    // A caller that went away does not end the run; the result names why.
-    const progress = (event) => {
-      try {
-        onProgress(event);
-      } catch (error) {
-        if (progressDeliveryError === null)
-          progressDeliveryError = `progress event ${event.event} could not be delivered: ${String(error?.message || error)}`;
-      }
-    };
-    progress({
+    const progress = runProgress({
+      runId,
+      action,
+      startedAt,
+      runResultPath,
+      onProgress,
+    });
+    progress.deliver({
       event: 'started',
       run_id: runId,
       host: hostname(),
       started_at: startedAt,
     });
-    let pendingLine = '';
-    let lastStage = null;
-    const readProgress = (chunk) => {
-      const lines = `${pendingLine}${chunk}`.split('\n');
-      pendingLine = lines.pop();
-      for (const line of lines) {
-        const at = new Date().toISOString();
-        const step = /^STEP (?<stage>\S+)\s*$/.exec(line);
-        if (step) {
-          lastStage = { stage: step.groups.stage, at };
-          stages.push(lastStage);
-          recordProgress();
-          progress({
-            event: 'stage',
-            run_id: runId,
-            stage: lastStage.stage,
-            at,
-          });
-          continue;
-        }
-        if (line.startsWith('OPERATOR_REQUEST ')) {
-          try {
-            operatorRequest = JSON.parse(
-              line.slice('OPERATOR_REQUEST '.length),
-            );
-          } catch (error) {
-            operatorRequest = {
-              unreadable: String(error?.message || error),
-              line,
-            };
-          }
-          recordProgress();
-          progress({
-            event: 'operator_request',
-            run_id: runId,
-            at,
-            request: operatorRequest,
-          });
-        }
-      }
-    };
     const unregister = registerRunningRun(runId, {
       action,
       kind: 'reauth',
@@ -210,8 +146,8 @@ export function runReauth(
         provider,
         login_item: account ? account.loginItem : null,
         subscription_id: subscriptionId,
-        stage: lastStage,
-        operator_request: operatorRequest,
+        stage: progress.lastStage,
+        operator_request: progress.operatorRequest,
         ...liveOutput(stdout, stderr, lastOutputAt),
       }),
     });
@@ -221,14 +157,14 @@ export function runReauth(
       if (cancelDetail !== null) {
         // The operator ended it: nothing about the account was learned, and
         // the next sign-in is free to run.
-        const stage = lastStage ? lastStage.stage : 'identity';
+        const stage = progress.lastStage ? progress.lastStage.stage : 'identity';
         result.ok = false;
         result.failure = {
           code: 'run_cancelled',
           stage,
           message: `the run was cancelled at stage ${stage}: ${cancelDetail}`,
           retryable: true,
-          browser_started: stages.some(
+          browser_started: progress.stages.some(
             (reached) => reached.stage === 'browser_started',
           ),
         };
@@ -238,12 +174,12 @@ export function runReauth(
         : (result.failure ?? credentialFailure(result));
       if (reportedFactor(result) === null)
         result.second_factor = reportedFactor(result.failure);
-      result.stages = stages;
-      result.operator_request = operatorRequest;
-      if (progressRecordError)
-        result.progress_record_error = progressRecordError;
-      if (progressDeliveryError)
-        result.progress_delivery_error = progressDeliveryError;
+      result.stages = progress.stages;
+      result.operator_request = progress.operatorRequest;
+      if (progress.recordError)
+        result.progress_record_error = progress.recordError;
+      if (progress.deliveryError)
+        result.progress_delivery_error = progress.deliveryError;
       settled = true;
       try {
         persistRunResult(runResultPath, {
@@ -271,7 +207,7 @@ export function runReauth(
       const text = c.toString();
       lastOutputAt = new Date().toISOString();
       stderr += text;
-      readProgress(text);
+      progress.read(text);
     });
     child.once('error', (error) => {
       finish({
