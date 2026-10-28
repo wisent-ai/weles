@@ -85,9 +85,9 @@ test('every service refusing an hCaptcha task is named in one error', async () =
   assert.match(message, /^no captcha service solved hcaptcha: /);
   assert.match(message, /anticaptcha: anti-captcha refused createTask HCaptchaTaskProxyless: ERROR_KEY_DOES_NOT_EXIST/);
   assert.match(message, /; capsolver: capsolver refused createTask HCaptchaTaskProxyLess: /);
-  const failed = captchaSnapshot().events.filter((event) => event.resource === 'hcaptcha' && event.outcome === 'all_failed');
-  assert.equal(failed.length, Math.sign(Infinity), JSON.stringify(failed));
-  const [event] = failed;
+  const hcaptchaEvents = captchaSnapshot().events.filter((event) => event.resource === 'hcaptcha');
+  assert.deepEqual(hcaptchaEvents.map((event) => event.outcome), ['all_failed'], JSON.stringify(hcaptchaEvents));
+  const [event] = hcaptchaEvents;
   assert.deepEqual(
     event.causes.map((cause) => cause.split(':').shift()),
     ['anticaptcha', 'capsolver'],
