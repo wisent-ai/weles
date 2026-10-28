@@ -6,11 +6,11 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { FP_SCRIPT } from '../../../../dist/diagnostics/fingerprint_probe.js';
 import {
-  FP_SCRIPT,
   NETWORK_FP_URL,
   parseNetworkFingerprint,
-} from '../../../../dist/diagnostics/fingerprint_probe.js';
+} from '../../../../dist/diagnostics/network/fingerprint.js';
 import {
   analyze,
   pickBaseline,
