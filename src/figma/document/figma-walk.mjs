@@ -11,33 +11,28 @@ import {
   NOTHING_COUNTED,
   alphaOf,
   count,
-  effectValue,
   floatText,
   hexOf,
   isRecord,
   items,
-  paintValue,
   plainNumber,
   radiusOf,
-  textValue,
   typeOf,
   visible,
 } from './figma-values.mjs';
+import { keyPart, readStyles, readText } from './walk/layer-text.mjs';
 
 /**
- * Figma spells "as round as possible" as a radius in the thousands; that is
- * a pill, not a length on the radius scale.
+ * A node's paint lists by the field Figma keeps each in, which is also the
+ * key its bound variables are kept under; every list is read the same way.
  */
-const PILL = 1000;
-/** The node lists that hold paints, each read the same way. */
-const PAINT_LISTS = ['fills', 'strokes'];
+function paintLists(node) {
+  return { fills: node.fills, strokes: node.strokes };
+}
 /** The frame layouts whose paddings and gaps are spacings. */
-const AUTO_LAYOUTS = new Set(['HORIZONTAL', 'VERTICAL']);
+const AUTO_LAYOUTS = { HORIZONTAL: true, VERTICAL: true };
 /** The effect types that are shadows, and how CSS names each. */
-const SHADOW_KINDS = new Map([
-  ['DROP_SHADOW', 'drop'],
-  ['INNER_SHADOW', 'inset'],
-]);
+const SHADOW_KINDS = { DROP_SHADOW: 'drop', INNER_SHADOW: 'inset' };
 
 function newPage() {
   return {
@@ -65,18 +60,6 @@ function imageRef(paint, found) {
     typeof paint.imageRef === 'string'
   )
     found.add(paint.imageRef);
-}
-
-/** A field as text in a key or a name, and nothing when the node leaves it out. */
-function keyPart(value) {
-  if (value === undefined || value === null) return '';
-  return String(value);
-}
-
-/** A rounded length as text in a key, and nothing when there is none. */
-function lengthPart(length) {
-  if (length === null) return '';
-  return plainNumber(length);
 }
 
 /** Walk `payload` (a parsed REST file) and return everything the outputs need. */
@@ -129,8 +112,8 @@ export function walkDocument(payload) {
     for (const child of [...items(node.children)].reverse())
       stack.push([child, page, shown]);
     if (!shown) {
-      for (const kind of PAINT_LISTS)
-        for (const paint of items(node[kind])) imageRef(paint, walk.imageRefs);
+      for (const paints of Object.values(paintLists(node)))
+        for (const paint of items(paints)) imageRef(paint, walk.imageRefs);
       continue;
     }
     readShownNode(node, page, walk);
@@ -158,11 +141,25 @@ function spacingsOf(node) {
   ];
 }
 
+/**
+ * Whether `radius` rounds the layer's shorter side fully. Figma clamps a
+ * corner at half that side, so a radius reaching it draws a pill whatever
+ * number the designer typed; it is not a length on the radius scale. A layer
+ * the file gives no box for cannot be told apart, and its radius is kept.
+ */
+function roundsFully(node, radius) {
+  const box = node.absoluteBoundingBox;
+  if (!isRecord(box)) return false;
+  const { width, height } = box;
+  if (typeof width !== 'number' || typeof height !== 'number') return false;
+  return radius + radius >= Math.min(width, height);
+}
+
 function readShownNode(node, page, walk) {
   const stats = entry(walk.byPage, page, newPage);
   readPaints(node, page, stats, walk);
   readEffects(node, stats, walk);
-  if (AUTO_LAYOUTS.has(node.layoutMode)) {
+  if (Object.hasOwn(AUTO_LAYOUTS, node.layoutMode)) {
     for (const value of spacingsOf(node)) {
       const length = radiusOf(value);
       if (length !== null) count(walk.spacings, plainNumber(length));
@@ -174,7 +171,7 @@ function readShownNode(node, page, walk) {
   ]) {
     const radius = radiusOf(value);
     if (radius === null) continue;
-    if (radius >= PILL) stats.pills += 1;
+    if (roundsFully(node, radius)) stats.pills++;
     else stats.radii.add(radius);
   }
   readText(node, walk);
@@ -191,9 +188,9 @@ function aliasOf(paint, aliases, index) {
 
 function readPaints(node, page, stats, walk) {
   const bound = isRecord(node.boundVariables) ? node.boundVariables : {};
-  for (const kind of PAINT_LISTS) {
+  for (const [kind, paints] of Object.entries(paintLists(node))) {
     const aliases = items(bound[kind]);
-    items(node[kind]).forEach((paint, index) => {
+    items(paints).forEach((paint, index) => {
       if (!isRecord(paint)) return;
       const paintType = typeOf(paint);
       imageRef(paint, walk.imageRefs);
@@ -218,7 +215,7 @@ function readPaints(node, page, stats, walk) {
       ) {
         const variable = entry(walk.variables, alias.id, newVariable);
         count(variable.hexes, colour);
-        variable.uses += 1;
+        variable.uses++;
         count(variable.pages, page);
       } else {
         count(stats.unboundFills, colour);
@@ -239,10 +236,10 @@ function readEffects(node, stats, walk) {
     count(stats.effects, effect.type);
     // A shadow as CSS would write it, so a token can be held to one the
     // designer drew: x y blur spread colour alpha.
-    if (SHADOW_KINDS.has(effect.type) && isRecord(effect.color)) {
+    if (Object.hasOwn(SHADOW_KINDS, effect.type) && isRecord(effect.color)) {
       const offset = isRecord(effect.offset) ? effect.offset : {};
       const key = [
-        SHADOW_KINDS.get(effect.type),
+        SHADOW_KINDS[effect.type],
         shadowLength(offset.x),
         shadowLength(offset.y),
         shadowLength(effect.radius),
@@ -251,54 +248,6 @@ function readEffects(node, stats, walk) {
         floatText(alphaOf(effect.color)),
       ].join('|');
       count(walk.shadows, key);
-    }
-  }
-}
-
-function readText(node, walk) {
-  const style = node.style;
-  if (node.type !== 'TEXT' || !isRecord(style) || !style.fontFamily) return;
-  count(walk.fonts, style.fontFamily);
-  // The text set on visible layers: which sizes, line heights and weights
-  // the designer typed, so a stylesheet's 13 px can be told from a scale the
-  // library names and a size no page carries.
-  const size = radiusOf(style.fontSize);
-  if (size === null) return;
-  count(walk.textSizes, plainNumber(size));
-  const height = lengthPart(radiusOf(style.lineHeightPx));
-  count(
-    walk.textSettings,
-    [
-      style.fontFamily,
-      plainNumber(size),
-      height,
-      keyPart(style.fontWeight),
-    ].join('|'),
-  );
-}
-
-function readStyles(node, walk) {
-  if (!isRecord(node.styles)) return;
-  for (const [kind, styleId] of Object.entries(node.styles)) {
-    if (typeof styleId !== 'string' || walk.styleExamples.has(styleId))
-      continue;
-    if (kind.startsWith('fill') || kind.startsWith('stroke')) {
-      const paints = items(
-        kind.startsWith('fill') ? node.fills : node.strokes,
-      ).filter(visible);
-      const values = paints.map(paintValue).filter((value) => value !== null);
-      if (values.length)
-        walk.styleExamples.set(
-          styleId,
-          values.length === 1 ? values[0] : values,
-        );
-    } else if (kind === 'text' && isRecord(node.style)) {
-      walk.styleExamples.set(styleId, textValue(node.style));
-    } else if (kind === 'effect') {
-      walk.styleExamples.set(
-        styleId,
-        items(node.effects).filter(visible).map(effectValue),
-      );
     }
   }
 }
