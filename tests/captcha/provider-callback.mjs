@@ -21,7 +21,8 @@
 //    answers directory holds no waiting marker afterwards.
 // 4. A run whose registration with the worker ends (as it does when the run
 //    finishes, is cancelled or its child dies) takes its answers directory
-//    with it, so a late callback is answered 404.
+//    with it, so a late callback is answered 404; a worker that starts clears
+//    the answers an earlier server's runs left.
 //
 // Step 2 posts as a provider posts; that a provider really calls back needs a
 // public HTTPS origin routed to a worker (WELES_CAPTCHA_CALLBACK_ORIGIN), which
@@ -34,7 +35,7 @@ import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
-import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { constants as http } from 'node:http2';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -207,4 +208,16 @@ test('a run that ended takes its answers with it, and a late callback is answere
   assert.equal(late.status, http.HTTP_STATUS_NOT_FOUND);
   assert.equal(readdirSync(route.answers).includes(run), false, 'the ended run left its answers directory');
   await assert.rejects(callback.abandon(), /ENOENT/);
+});
+
+test('a worker that starts clears the answers an earlier server\'s runs left', async () => {
+  const stale = join(route.answers, `journey-${randomUUID()}`);
+  mkdirSync(stale, { recursive: true });
+  writeFileSync(join(stale, `${randomUUID()}.waiting`), '');
+  const restarted = spawn(process.execPath, [ANSWER_SERVER], { cwd: root, env: workerEnvironment(''), stdio: ['ignore', 'pipe', 'pipe'] });
+  await once(createInterface({ input: restarted.stdout }), 'line');
+  restarted.kill();
+  const left = existsSync(stale);
+  report.steps.push({ step: 'answers left by an earlier server', left });
+  assert.equal(left, false, 'a starting worker kept answers no run of its own waits for');
 });

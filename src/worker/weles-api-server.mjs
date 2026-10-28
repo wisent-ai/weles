@@ -132,6 +132,9 @@ const { createTrajectoryRunner } = await import(
 const { createApiRequestHandler } = await import(
   './weles-api-server/routes/api-request-router.mjs'
 );
+const { forgetEveryCaptchaAnswer } = await import(
+  './weles-api-server/routes/captcha/answers.mjs'
+);
 
 const runTrajectory = createTrajectoryRunner({
   resolveTrajectory,
@@ -177,6 +180,9 @@ const credentialOperationService = createCredentialOperationService({
     runTrajectory(action, params, accountId, false, { runId, signal }),
 });
 credentialOperationService.recover();
+// No run of this server exists yet, so every captcha answers directory left
+// by an earlier server's runs belongs to a run that is gone.
+forgetEveryCaptchaAnswer();
 
 const server = http.createServer(
   createApiRequestHandler({

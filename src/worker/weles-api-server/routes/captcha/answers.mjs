@@ -6,17 +6,19 @@
 // run drew at random for that one task and registered as waiting
 // (<token>.waiting in the run's own directory under CAPTCHA_ANSWERS_DIR,
 // src/captcha/providers/callback.ts). The run's directory is removed when the
-// run's registration ends (run/running-runs.mjs), however it ended, so a
-// token whose run is gone is answered 404 like one no run ever drew, before
-// its body is read. The body is kept as sent, with its content type (null
-// when the request states none): AntiCaptcha, CapMonster and CapSolver POST
-// the getTaskResult answer as JSON, 2captcha its id and code as a form, and
-// the run reads its own provider's form. Only the first callback of a token is
-// kept: it claims the marker by renaming it, which one request alone can do,
-// so a repeat, before or after the run read the answer, is answered 404 and
-// leaves nothing behind. The answer is written under a temporary name and
-// renamed into place, so the run that watches the directory never reads half
-// an answer.
+// run's registration ends (run/running-runs.mjs), however it ended, and the
+// whole answers root when the server starts, since no run of a new server
+// waits yet; so a token whose run is gone is answered 404 like one no run
+// ever drew, before its body is read, and so is one whose run ends while its
+// answer is being written. The body is kept as sent, with its content type
+// (null when the request states none): AntiCaptcha, CapMonster and CapSolver
+// POST the getTaskResult answer as JSON, 2captcha its id and code as a form,
+// and the run reads its own provider's form. Only the first callback of a
+// token is kept: it claims the marker by renaming it, which one request alone
+// can do, so a repeat, before or after the run read the answer, is answered
+// 404 and leaves nothing behind. The answer is written under a temporary name
+// and renamed into place, so the run that watches the directory never reads
+// half an answer.
 
 import { constants as http } from 'node:http2';
 import { rmSync } from 'node:fs';
@@ -42,6 +44,11 @@ export function captchaAnswersOf(runId) {
 /** Removes run `runId`'s captcha answers directory and everything a provider left in it. */
 export function forgetCaptchaAnswers(runId) {
   rmSync(captchaAnswersOf(runId), { recursive: true, force: true });
+}
+
+/** Removes every run's captcha answers: what an earlier server's runs left. */
+export function forgetEveryCaptchaAnswer() {
+  rmSync(CAPTCHA_ANSWERS_DIR, { recursive: true, force: true });
 }
 
 /** The run and token a POST to the answers route names, or null for any other request. */
@@ -82,14 +89,16 @@ export async function respondToCaptchaAnswer(req, res, url) {
   const claimed = join(directory, `.${token}.claimed`);
   try {
     await rename(waiting, claimed);
+    const partial = join(directory, `.${token}.json.part`);
+    await writeFile(partial, JSON.stringify(answer));
+    await rename(partial, join(directory, `${token}.json`));
+    await rm(claimed);
   } catch (error) {
+    // The marker taken by another callback, or the run's directory removed
+    // because the run ended: no run waits for this answer.
     if (error.code !== 'ENOENT') throw error;
     nobodyWaits(res);
     return;
   }
-  const partial = join(directory, `.${token}.json.part`);
-  await writeFile(partial, JSON.stringify(answer));
-  await rename(partial, join(directory, `${token}.json`));
-  await rm(claimed);
   json(res, http.HTTP_STATUS_OK, { ok: true });
 }

@@ -2,15 +2,16 @@
 // journey (provider-callback.mjs). The route module reads the worker's
 // configuration, so the journey starts this file with the variables the
 // worker's declaration states and a HOME of its own, which puts the answers
-// directory under the journey's build directory. Prints the address it
-// listens at and the answers directory as one JSON line, then serves until it
-// is killed.
+// directory under the journey's build directory. Like the worker, it clears
+// the answers an earlier server's runs left before it listens. Prints the
+// address it listens at and the answers directory as one JSON line, then
+// serves until it is killed.
 
 import { createServer } from 'node:http';
 import { constants as http } from 'node:http2';
 import { once } from 'node:events';
 
-const { isCaptchaAnswerRoute, respondToCaptchaAnswer } = await import(
+const { forgetEveryCaptchaAnswer, isCaptchaAnswerRoute, respondToCaptchaAnswer } = await import(
   '../../src/worker/weles-api-server/routes/captcha/answers.mjs'
 );
 const { json } = await import('../../src/worker/weles-api-server/http-exchange.mjs');
@@ -18,6 +19,7 @@ const { CAPTCHA_ANSWERS_DIR } = await import(
   '../../src/worker/weles-api-server/configuration.mjs'
 );
 
+forgetEveryCaptchaAnswer();
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   if (!isCaptchaAnswerRoute(req, url)) {
