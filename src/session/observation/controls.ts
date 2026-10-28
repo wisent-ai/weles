@@ -5,7 +5,6 @@ export interface FrameObservation {
   title?: string;
   text?: string;
   controls?: string[];
-  error?: string;
 }
 
 // The same browser-side description both produces an observation and resolves
@@ -40,9 +39,10 @@ function captureFrame(request: {
         : undefined;
     // What a person typed is never shown, only its length; a select's chosen
     // option is the page's own offered text, so it is.
-    const selected = control.selectedOptions?.[0]?.text
-      .replace(/\s+/g, ' ')
-      .trim();
+    const chosen = control.selectedOptions
+      ? Array.from(control.selectedOptions).shift()
+      : undefined;
+    const selected = chosen?.text.replace(/\s+/g, ' ').trim();
     let valueState: string | undefined;
     if (value) valueState = selected ? selected : `[set len=${value.length}]`;
     const role = control.getAttribute('role');
@@ -84,14 +84,11 @@ function captureFrame(request: {
   };
 }
 
+/** What one frame shows; a frame that cannot be read throws its cause. */
 export async function readFrameObservation(
   frame: Pick<Frame, 'evaluate'>,
 ): Promise<FrameObservation> {
-  try {
-    return (await frame.evaluate(captureFrame, {})) as FrameObservation;
-  } catch (error: any) {
-    return { error: String(error.message ?? error) };
-  }
+  return (await frame.evaluate(captureFrame, {})) as FrameObservation;
 }
 
 export async function resolveObservedControl(
@@ -100,16 +97,13 @@ export async function resolveObservedControl(
   allowedOrigin?: string,
 ): Promise<ElementHandle | null> {
   const target = description.trim();
-  const indexed = /^\[(\d+)\]\s*/.exec(target);
-  const control = indexed ? target.slice(indexed[0].length) : target;
-  if (
-    !indexed &&
-    !/^[a-z][a-z0-9-]* (?:role|name|type|label|value|checked|href)=/.test(
-      control,
-    )
-  )
-    return null;
-  const index = indexed ? Number(indexed[1]) : undefined;
+  // An observed description may open with its index, `[<n>] `; without one
+  // it is the form `describe` writes: a tag, then `key=value` pairs. The
+  // control is then bound only to an element whose description equals it.
+  const indexed = /^\[(?<index>\d+)\]\s*/.exec(target);
+  const control = target.replace(/^\[\d+\]\s*/, '');
+  if (!indexed && !/^[a-z][a-z\d-]* [a-z]+=/.test(control)) return null;
+  const index = indexed ? Number(indexed.groups?.index) : undefined;
   if (index !== undefined && !Number.isSafeInteger(index))
     throw new Error(
       `[observed_target_invalid] Invalid control index: ${target}`,
@@ -129,15 +123,16 @@ export async function resolveObservedControl(
       if (element) matches.push(element);
       else await handle.dispose();
     }
-    if (matches.length === 0)
+    const [match, ...others] = matches;
+    if (!match)
       throw new Error(
         `[observed_target_stale] The control is stale or absent; observe again: ${target}`,
       );
-    if (matches.length !== 1)
+    if (others.length)
       throw new Error(
         `[observed_target_ambiguous] The control matches multiple frames; use a frame-specific description: ${target}`,
       );
-    return matches[0];
+    return match;
   } catch (error) {
     await Promise.all(matches.map((element) => element.dispose()));
     throw error;
@@ -205,28 +200,4 @@ export async function clickSelectorControl(
   } finally {
     await Promise.all(handles.map((handle) => handle.dispose()));
   }
-}
-
-// Browser-side metadata only; a literal-input check must never read the value.
-export function describeInputTarget(element: Element): string {
-  if (
-    !element.matches('input, textarea, [contenteditable], [role="textbox"]') ||
-    element.matches('input[type="checkbox"], input[type="radio"]')
-  )
-    return '';
-  const input = element as HTMLInputElement;
-  return [
-    element.getAttribute('type'),
-    element.getAttribute('name'),
-    element.getAttribute('id'),
-    element.getAttribute('autocomplete'),
-    element.getAttribute('aria-label'),
-    element.getAttribute('placeholder'),
-    ...Array.from(input.labels ?? [], (label) => label.textContent ?? ''),
-    ...(element.getAttribute('aria-labelledby') ?? '')
-      .split(/\s+/)
-      .map((id) => element.ownerDocument.getElementById(id)?.textContent ?? ''),
-  ]
-    .filter(Boolean)
-    .join(' ');
 }

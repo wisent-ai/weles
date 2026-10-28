@@ -57,18 +57,17 @@ function declaredSelectors(fieldClass: CredentialFieldClass): string[] {
   ];
 }
 
-/**
- * Refuses, before any capability is redeemed, a bound field whose own markup
- * does not declare the class, naming what the field does declare.
- */
-export async function assertDeclaredControl(
-  control: ElementHandle,
-  fieldClass: CredentialFieldClass,
-  target: string,
-): Promise<void> {
+/** What a control's own markup states: its input type, or its tag for any
+ * other element, and its WHATWG autocomplete field names. */
+interface Markup {
+  type: string;
+  autocomplete: string[];
+}
+
+async function markup(control: ElementHandle): Promise<Markup> {
   // A handle may name any DOM node; a text or comment node has no markup to
   // declare a credential class, so it is refused with what it is.
-  const seen = await control.evaluate((node) => {
+  return control.evaluate((node) => {
     if (!(node instanceof Element)) {
       throw new Error(`the bound control is a ${node.nodeName} node, not an element`);
     }
@@ -79,16 +78,53 @@ export async function assertDeclaredControl(
         : [],
     };
   });
+}
+
+/** Whether `seen` declares `fieldClass` by its input type or autocomplete. */
+function declares(seen: Markup, fieldClass: CredentialFieldClass): boolean {
+  const declared = CREDENTIAL_CONTROLS[fieldClass];
+  return (
+    Object.hasOwn(declared.types, seen.type) ||
+    seen.autocomplete.some((name) => Object.hasOwn(declared.autocomplete, name))
+  );
+}
+
+/**
+ * Refuses, before any capability is redeemed, a bound field whose own markup
+ * does not declare the class, naming what the field does declare.
+ */
+export async function assertDeclaredControl(
+  control: ElementHandle,
+  fieldClass: CredentialFieldClass,
+  target: string,
+): Promise<void> {
+  const seen = await markup(control);
   const declared = CREDENTIAL_CONTROLS[fieldClass];
   const fits =
-    Object.hasOwn(declared.types, seen.type) ||
-    seen.autocomplete.some((name) =>
-      Object.hasOwn(declared.autocomplete, name),
-    ) ||
+    declares(seen, fieldClass) ||
     (declared.plainText && seen.type === 'text');
   if (!fits)
     throw new Error(
       `[credential_target_mismatch] ${JSON.stringify(target)} is a ${seen.type} control with autocomplete ${JSON.stringify(seen.autocomplete)}; a ${fieldClass} goes only into a field whose markup declares input type ${JSON.stringify(Object.keys(declared.types))} or autocomplete ${JSON.stringify(Object.keys(declared.autocomplete))}${declared.plainText ? ' or into a plain text input' : ''}. The capability was not consumed`,
+    );
+}
+
+/**
+ * Refuses literal input into a control whose own markup declares a
+ * credential class, by the same reading a credential fill is judged by: a
+ * field that takes a password, token, key, e-mail or username takes it only
+ * through fill_credential, whatever words its target is described in.
+ */
+export async function assertLiteralControl(
+  control: ElementHandle,
+): Promise<void> {
+  const seen = await markup(control);
+  const fieldClass = (
+    Object.keys(CREDENTIAL_CONTROLS) as CredentialFieldClass[]
+  ).find((candidate) => declares(seen, candidate));
+  if (fieldClass !== undefined)
+    throw new Error(
+      `[credential_target] a ${seen.type} control with autocomplete ${JSON.stringify(seen.autocomplete)} declares a ${fieldClass} field; credential fields require fill_credential with a capability reference`,
     );
 }
 

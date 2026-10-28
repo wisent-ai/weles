@@ -12,7 +12,7 @@ import {
   type ScreenshottablePage,
 } from '../../../vision/analyze.js';
 import type { WSession } from '../../wsession.js';
-import { describeInputTarget } from '../../observation/controls.js';
+import { assertLiteralControl } from './credential_field/index.js';
 import { assertFocusedLiteralInput } from '../../wsession/page-actions.js';
 
 const asV = (p: any) => p as unknown as ScreenshottablePage;
@@ -69,10 +69,7 @@ export async function fillPage(
         '[input_target_stale] The field disappeared before literal input',
       );
     try {
-      assertNonCredentialInput(
-        value,
-        await element.evaluate(describeInputTarget),
-      );
+      await assertLiteralControl(element);
       await humanFill(s.page, element, value);
     } finally {
       await element.dispose();
@@ -113,7 +110,7 @@ export async function fillPage(
   const point = await findClickTarget(asV(s.page), target);
   if (!point) return 'no-field-found';
   await humanClick(s.page, point.x, point.y);
-  if (!credentialAuthorized) await assertFocusedLiteralInput(s, value);
+  if (!credentialAuthorized) await assertFocusedLiteralInput(s);
   // Typing after a failed select-all appends to whatever the field held, so
   // the field would be submitted with a value nobody asked for.
   await s.page.keyboard.press('Meta+a').catch((error: unknown) => {
@@ -133,7 +130,7 @@ export async function wsFill(
   const pageUrl = new URL(s.page.url());
   if (!/^https?:$/.test(pageUrl.protocol))
     throw new Error('fill requires an HTTP(S) origin');
-  const literal = assertNonCredentialInput(value, target);
+  const literal = assertNonCredentialInput(value);
   return s.runStep(`fill_${target}`, () =>
     fillPage(s, target, literal, pageUrl.origin),
   );

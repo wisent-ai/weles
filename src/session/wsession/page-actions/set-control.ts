@@ -9,7 +9,9 @@
 
 import type { Frame } from 'playwright';
 import { assertNonCredentialInput } from '../../../utils/capability.js';
-import { describeInputTarget } from '../../observation/controls.js';
+import {
+  assertLiteralControl,
+} from '../../wsession-helpers/close/credential_field/index.js';
 import type { WSession } from '../../wsession.js';
 
 /** Selectors of the messages a form shows beside an invalid field. */
@@ -107,11 +109,7 @@ async function setInFrame(
   try {
     const control = handle.asElement();
     if (!control) return null;
-    if (args.value !== undefined)
-      assertNonCredentialInput(
-        args.value,
-        await control.evaluate(describeInputTarget),
-      );
+    if (args.value !== undefined) await assertLiteralControl(control);
     let state: ControlState | { error: string };
     try {
       state = await control.evaluate(setInPage, args);
@@ -125,12 +123,12 @@ async function setInFrame(
 }
 
 /**
- * The value the caller stated, as text: a string is checked for credential
- * fields first; no value means the control's value is left as it is.
+ * The value the caller stated, as text: a string may name no environment
+ * variable; no value means the control's value is left as it is. Whether the
+ * control may take it is its markup's answer (`setInFrame`).
  */
-function statedValue(value: unknown, selector: string): string | undefined {
-  if (typeof value === 'string')
-    return assertNonCredentialInput(value, selector);
+function statedValue(value: unknown): string | undefined {
+  if (typeof value === 'string') return assertNonCredentialInput(value);
   if (value === undefined || value === null) return undefined;
   return String(value);
 }
@@ -144,7 +142,7 @@ export async function wsSetControl(
   return s.runStep(`setControl_${selector}`, async () => {
     if (!selector.trim()) return 'no-selector';
     const args: SetArgs = {
-      value: statedValue(value, selector),
+      value: statedValue(value),
       checked: typeof checked === 'boolean' ? checked : undefined,
       validation: VALIDATION_MESSAGES,
     };

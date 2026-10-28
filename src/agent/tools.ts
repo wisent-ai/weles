@@ -60,8 +60,8 @@ function stringArg(args: ToolArgs, key: string): string {
   return value;
 }
 
-function literalInput(args: ToolArgs, key: string, target?: string): string {
-  return assertNonCredentialInput(stringArg(args, key), target);
+function literalInput(args: ToolArgs, key: string): string {
+  return assertNonCredentialInput(stringArg(args, key));
 }
 
 function waitState(args: ToolArgs): WaitState {
@@ -118,10 +118,11 @@ export async function dispatch(
   switch (tool) {
     case 'click':
       return session.click(stringArg(args, 'target'));
-    case 'fill': {
-      const target = stringArg(args, 'target');
-      return session.fill(target, literalInput(args, 'value', target));
-    }
+    case 'fill':
+      return session.fill(
+        stringArg(args, 'target'),
+        literalInput(args, 'value'),
+      );
     case 'fill_credential': {
       const fieldClass = stringArg(args, 'field_class');
       if (!isCredentialFieldClass(fieldClass))
@@ -171,7 +172,7 @@ export async function dispatch(
       const selector = stringArg(args, 'selector');
       const value =
         typeof args.value === 'string'
-          ? assertNonCredentialInput(args.value, selector)
+          ? assertNonCredentialInput(args.value)
           : args.value;
       return session.setControl(selector, value, args.checked);
     }

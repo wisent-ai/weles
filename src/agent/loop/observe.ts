@@ -9,7 +9,10 @@ import { join } from 'node:path';
 import { runRecordingsDir } from '../../session/run-recordings.js';
 import { callJeden } from '../jeden.js';
 import type { ToolCall } from '../loop.js';
-import { readFrameObservation } from '../../session/observation/controls.js';
+import {
+  readFrameObservation,
+  type FrameObservation,
+} from '../../session/observation/controls.js';
 import { BROWSER_TOOLS } from '../tools.js';
 
 const SYSTEM_PROMPT = `You are a browser automation agent. Choose the single next action that makes progress toward the goal.
@@ -128,8 +131,10 @@ async function pageObservation(page: any): Promise<string> {
       .filter(([, value]) => value !== undefined)
       .map(([label, value]) => `${label}: ${value}`);
   try {
+    // A main frame that cannot be read ends the observation with its cause
+    // (the catch below); a child frame that cannot be read is named in its
+    // own summary and the rest are still shown.
     const data = await readFrameObservation(page.mainFrame?.() ?? page);
-    if (data.error) return observationError(data.error);
     const frameSummaries: string[] = [];
     // Every child frame: a control the task needs can sit in any of them, and
     // the twelve-frame cut once here hid the rest from the model. A page type
@@ -139,10 +144,12 @@ async function pageObservation(page: any): Promise<string> {
         ? page.frames().filter((frame: any) => frame !== page.mainFrame?.())
         : [];
     for (const frame of frames) {
-      const frameData = await readFrameObservation(frame);
-      if (frameData.error) {
+      let frameData: FrameObservation;
+      try {
+        frameData = await readFrameObservation(frame);
+      } catch (error) {
         frameSummaries.push(
-          `FRAME url=${frame.url()}\nERROR: ${frameData.error}`,
+          `FRAME url=${frame.url()}\nERROR: ${error instanceof Error ? error.message : String(error)}`,
         );
         continue;
       }

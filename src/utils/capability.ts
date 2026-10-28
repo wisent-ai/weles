@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   CAPABILITY_RE,
   CapabilityPendingError,
@@ -51,43 +52,49 @@ function validResource(
   )
     return false;
   return (
-    RESOURCE_PREFIXES[purpose]?.some(
+    Object.hasOwn(RESOURCE_PREFIXES, purpose) &&
+    RESOURCE_PREFIXES[purpose].some(
       (prefix) =>
         resource.startsWith(prefix) && resource.length > prefix.length,
-    ) ?? false
+    )
   );
 }
-const CREDENTIAL_TARGET_RE =
-  /\b(password|passcode|secret|token|api[\s_-]*key|access[\s_-]*key|credential|verification[\s_-]*code|one[\s_-]*time[\s_-]*code|otp|username|user[\s_-]*name|e-?mail|login)\b/i;
-const SECRET_PREFIX_RE =
-  /^(?:sk|pk|ghp|gho|github_pat|xox[baprs]|eyJ)[-_A-Za-z0-9.]+$/;
 
-export function assertNonCredentialInput(
-  value: string,
-  target?: string,
-): string {
-  if (/\$\{?[A-Za-z_][A-Za-z0-9_]*\}?/.test(value)) {
+/**
+ * The SHA-256 digests of the secret material capabilities redeemed in this
+ * process. The material itself is wiped after use; its digest is kept so a
+ * literal equal to it, a secret the model saw on a page typed back, is
+ * refused wherever it would go.
+ */
+const REDEEMED = new Set<string>();
+
+function digestOf(material: Buffer): string {
+  return createHash('sha256').update(material).digest('hex');
+}
+
+/**
+ * Refuses a literal that names an environment variable instead of stating a
+ * value, or that equals secret material a capability redeemed in this
+ * process. Whether the field it goes into may take a literal at all is the
+ * field's own markup to answer (`assertLiteralControl`), never words of the
+ * target or the shape of the value.
+ */
+export function assertNonCredentialInput(value: string): string {
+  if (/\$\{?[A-Za-z_]\w*\}?/.test(value)) {
     throw new Error(
       'environment references are forbidden in model input; use a capability reference',
     );
   }
-  if (target && CREDENTIAL_TARGET_RE.test(target)) {
+  if (REDEEMED.has(digestOf(Buffer.from(value, 'utf8')))) {
     throw new Error(
-      'credential fields require fill_credential with a capability reference',
-    );
-  }
-  const compactSecret =
-    value.length >= 20 &&
-    !/\s/.test(value) &&
-    /[A-Za-z]/.test(value) &&
-    /[0-9]/.test(value);
-  if (compactSecret || SECRET_PREFIX_RE.test(value)) {
-    throw new Error(
-      'secret-shaped values require fill_credential with a capability reference',
+      '[credential_literal] the literal equals secret material a capability redeemed in this process; credential fields require fill_credential with a capability reference',
     );
   }
   return value;
 }
+
+/** What a buffer that held secret material is overwritten with: NUL bytes. */
+const WIPED = '\0';
 
 export function assertCapability(
   ref: CapabilityRef,
@@ -145,7 +152,13 @@ export async function redeemCapability(
   capabilityId: string,
   authorizationId?: string,
 ): Promise<Buffer> {
-  return requestCapability(capabilityId, 'redeem', authorizationId);
+  const material = await requestCapability(
+    capabilityId,
+    'redeem',
+    authorizationId,
+  );
+  REDEEMED.add(digestOf(material));
+  return material;
 }
 
 export async function cancelCapability(
@@ -154,10 +167,10 @@ export async function cancelCapability(
 ): Promise<void> {
   const body = await requestCapability(capabilityId, 'cancel', authorizationId);
   try {
-    if (body.length !== 0)
+    if (body.length)
       throw new Error('capability cancellation returned secret material');
   } finally {
-    body.fill(0);
+    body.fill(WIPED);
   }
 }
 
@@ -174,6 +187,6 @@ export async function withCapability<T>(
     return await consume(text);
   } finally {
     text = '';
-    bytes.fill(0);
+    bytes.fill(WIPED);
   }
 }

@@ -12,16 +12,17 @@ import { humanType } from '../../human/keyboard.js';
 import { selectOption } from '../../human/select.js';
 import type { WSession } from '../wsession.js';
 import { assertNonCredentialInput } from '../../utils/capability.js';
-import { describeInputTarget } from '../observation/controls.js';
+import {
+  assertLiteralControl,
+} from '../wsession-helpers/close/credential_field/index.js';
 
 // WSession imports every action from this module.
 export { wsJsClick } from './page-actions/js-click.js';
 export { wsSetControl } from './page-actions/set-control.js';
 
-export async function assertFocusedLiteralInput(
-  s: WSession,
-  value: string,
-): Promise<void> {
+/** Refuses literal input when the focused field, followed into the frames
+ * that hold it, is one whose markup declares a credential class. */
+export async function assertFocusedLiteralInput(s: WSession): Promise<void> {
   let frame = s.page.mainFrame();
   while (frame) {
     const handle = await frame.evaluateHandle(() => {
@@ -39,10 +40,7 @@ export async function assertFocusedLiteralInput(
         frame = child;
         continue;
       }
-      assertNonCredentialInput(
-        value,
-        await element.evaluate(describeInputTarget),
-      );
+      await assertLiteralControl(element);
       return;
     } finally {
       await handle.dispose();
@@ -127,7 +125,7 @@ export async function wsScroll(
 export async function wsType(s: WSession, value: string): Promise<string> {
   const literal = assertNonCredentialInput(value);
   return s.runStep('type', async () => {
-    await assertFocusedLiteralInput(s, literal);
+    await assertFocusedLiteralInput(s);
     await humanType(s.page, literal);
     return 'typed';
   });
