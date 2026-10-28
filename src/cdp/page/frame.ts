@@ -129,13 +129,21 @@ export class FrameTree {
     return frame;
   }
 
+  // Each event's fields as the DevTools protocol states them
+  // (https://chromedevtools.github.io/devtools-protocol/tot/Page/#event-frameAttached
+  // and #event-frameNavigated). An event missing a field the protocol
+  // requires is thrown naming it, which breaks the connection with that
+  // error, rather than filed under an empty frame id.
   private _setupListeners(): void {
     this._conn.on(
       'Page.frameAttached',
       (params: any) => {
-        const frameId: string = params.frameId;
-        const parentId: string = params.parentFrameId ?? '';
-        const parent = this._frames.get(parentId) ?? null;
+        const event = 'Page.frameAttached';
+        const frameId = required(params, 'frameId', event);
+        const parentId = required(params, 'parentFrameId', event);
+        // A parent attached before this tree listened is not known to it.
+        const known = this._frames.get(parentId);
+        const parent = known === undefined ? null : known;
         this._frames.set(
           frameId,
           new CDPFrame(frameId, this._conn, this._sessionId, '', '', parent),
@@ -147,24 +155,25 @@ export class FrameTree {
     this._conn.on(
       'Page.frameNavigated',
       (params: any) => {
-        const info = params.frame ?? {};
-        const frameId: string = info.id ?? '';
+        const event = 'Page.frameNavigated';
+        const info = params?.frame;
+        if (info === null || typeof info !== 'object')
+          throw new CDPError(
+            `the DevTools event ${event} carries no frame: ${JSON.stringify(params)}`,
+          );
+        const frameId = required(info, 'id', `${event} frame`);
+        const url = required(info, 'url', `${event} frame`);
         let frame = this._frames.get(frameId);
         if (!frame) {
-          frame = new CDPFrame(
-            frameId,
-            this._conn,
-            this._sessionId,
-            info.url ?? '',
-            info.name ?? '',
-          );
+          frame = new CDPFrame(frameId, this._conn, this._sessionId, url);
           this._frames.set(frameId, frame);
           if (!this._mainFrame) this._mainFrame = frame;
         } else {
-          frame.url = info.url ?? frame.url;
-          frame.name = info.name ?? frame.name;
+          frame.url = url;
           frame.invalidateContext();
         }
+        // The protocol leaves the name out for a frame that has none.
+        if (typeof info.name === 'string') frame.name = info.name;
       },
       this._sessionId,
     );
@@ -172,27 +181,47 @@ export class FrameTree {
     this._conn.on(
       'Page.frameDetached',
       (params: any) => {
-        this._frames.delete(params.frameId);
+        this._frames.delete(
+          required(params, 'frameId', 'Page.frameDetached'),
+        );
       },
       this._sessionId,
     );
   }
 }
 
+/** The text field `field` a DevTools event requires, or the error naming it. */
+function required(params: any, field: string, event: string): string {
+  const value = params?.[field];
+  if (typeof value !== 'string')
+    throw new CDPError(
+      `the DevTools event ${event} carries no ${field}: ${JSON.stringify(params)}`,
+    );
+  return value;
+}
+
+/**
+ * Whether `s`, which opens with `(`, closes that parenthesis before its last
+ * character: a complete call such as `(() => {...})()` rather than one
+ * parenthesised function. The open parentheses are kept as a stack, so the
+ * first one closes when the stack empties.
+ */
+function closesBeforeEnd(s: string): boolean {
+  const open: string[] = [];
+  for (const [at, char] of s.split('').entries()) {
+    if (char === '(') open.push(char);
+    else if (char === ')') {
+      open.pop();
+      if (!open.length) return s.slice(at) !== ')';
+    }
+  }
+  return false;
+}
+
 export function wrapExpression(expression: string, arg?: any): string {
   const s = expression.trim();
   // Already a complete IIFE like (() => {...})() or (function(){...})() — return as-is
-  if (s.startsWith('(') && s.endsWith(')')) {
-    const inner = s.slice(1);
-    let depth = 1;
-    for (let i = 0; i < inner.length; i++) {
-      if (inner[i] === '(') depth++;
-      else if (inner[i] === ')') {
-        depth--;
-        if (depth === 0 && i < inner.length - 1) return s;
-      }
-    }
-  }
+  if (s.startsWith('(') && s.endsWith(')') && closesBeforeEnd(s)) return s;
   if (
     s.startsWith('(') ||
     s.startsWith('function') ||
@@ -205,17 +234,48 @@ export function wrapExpression(expression: string, arg?: any): string {
   return s;
 }
 
+/** The first of `said` that is non-empty text. */
+function firstText(said: unknown[]): string | undefined {
+  return said.find(
+    (text): text is string => typeof text === 'string' && text !== '',
+  );
+}
+
+/**
+ * The value a Runtime.evaluate or Runtime.callFunctionOn answer carries
+ * (https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-evaluate).
+ * An error result or an exception is thrown with what the page said, and
+ * with the whole answer when it said no text, never as an empty message; an
+ * answer with no result, which the protocol does not allow, is thrown
+ * quoting it rather than read as an undefined value.
+ */
 export function extractValue(result: any): any {
-  const r = result?.result ?? {};
-  if (r.subtype === 'error') {
-    throw new CDPError(r.description ?? r.value ?? 'Evaluation error');
-  }
-  const exception = result?.exceptionDetails;
-  if (exception) {
-    const exObj = exception.exception ?? {};
+  const remote = result?.result;
+  if (remote === undefined)
     throw new CDPError(
-      exObj.description ?? exObj.value ?? exception.text ?? '',
+      `page evaluation answered no result: ${JSON.stringify(result)}`,
+    );
+  if (remote.subtype === 'error') {
+    const text = firstText([remote.description, remote.value]);
+    throw new CDPError(
+      text === undefined
+        ? `page evaluation answered an error object: ${JSON.stringify(remote)}`
+        : text,
     );
   }
-  return r.value;
+  const exception = result.exceptionDetails;
+  if (exception) {
+    const thrown = exception.exception;
+    const text = firstText([
+      thrown?.description,
+      thrown?.value,
+      exception.text,
+    ]);
+    throw new CDPError(
+      text === undefined
+        ? `page evaluation threw without saying what: ${JSON.stringify(exception)}`
+        : text,
+    );
+  }
+  return remote.value;
 }
