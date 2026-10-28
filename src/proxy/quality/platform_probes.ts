@@ -1,7 +1,7 @@
-// The two platform probes a candidate exit is put through before it is
-// trusted: the LinkedIn signup page as a real browser would fetch it, and
-// the region TikTok routes the exit to. Split out of policy.ts, which keeps
-// the provider rules and the geo/reputation checks.
+// The LinkedIn signup probe a candidate exit is put through before it is
+// trusted, and the persona headers every exit probe fetches with (the
+// TikTok routing probe is ./tiktok_routing.ts). Split out of policy.ts,
+// which keeps the provider rules and the geo/reputation checks.
 
 export type LinkedInProbeResult = 'form' | 'challenge' | 'unknown';
 export type LinkedInProbePersona = {
@@ -12,7 +12,8 @@ export type LinkedInProbePersona = {
   acceptLanguage?: string;
 };
 
-function linkedinProbeHeaders(
+/** The navigation headers the run's persona sends, for a probe fetched through an exit. */
+export function probeHeaders(
   persona?: LinkedInProbePersona,
 ): Record<string, string> {
   const browser = persona?.browser ?? 'chromium';
@@ -110,7 +111,7 @@ export async function probeLinkedinSignup(
 }> {
   if (!proxyUrl) return { result: 'unknown' };
   const targetUrl = 'https://www.linkedin.com/signup';
-  const headers = linkedinProbeHeaders(persona);
+  const headers = probeHeaders(persona);
   const headerOrder = Object.keys(headers);
   const request = {
     tool: 'curl' as const,
@@ -263,69 +264,4 @@ export async function probeLinkedinSignup(
       error: String(e?.message ?? e).replace(proxyUrl, '[proxy-url]'),
     };
   }
-}
-
-// Read the signup document's SIGI_STATE routing region before browser binding.
-// Missing or unreadable region evidence remains unknown.
-export type RoutingResult = 'standard' | 'high_risk' | 'unknown';
-async function probeOnce(
-  proxyUrl: string,
-): Promise<{ vregion: string | null; bytes: number }> {
-  try {
-    const { execSync } = await import('node:child_process');
-    const ua =
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36';
-    // Chromium-realistic header set (mirrors the linkedin probe pattern):
-    // a plain UA-only curl can pass while real Chromium fails — TikTok's
-    // edge gates on sec-ch-ua + Accept-Language too. Match what Chromium
-    // actually sends so probe verdict tracks browser behaviour.
-    const args = [
-      '-s',
-      '-x',
-      proxyUrl,
-      '-H',
-      `User-Agent: ${ua}`,
-      '-H',
-      'sec-ch-ua: "Google Chrome";v="147", "Not.A/Brand";v="8", "Chromium";v="147"',
-      '-H',
-      'sec-ch-ua-mobile: ?0',
-      '-H',
-      'sec-ch-ua-platform: "macOS"',
-      '-H',
-      'Accept: text/html,application/xhtml+xml,application/xml;q=0.9',
-      '-H',
-      'Accept-Language: en-US,en;q=0.9',
-      'https://www.tiktok.com/signup',
-    ];
-    const body = execSync(
-      `curl ${args.map((a) => `'${a.replace(/'/g, "'\\''")}'`).join(' ')}`,
-      { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 },
-    );
-    const m = body.match(/"vregion":"([A-Z0-9-]{1,20})"/);
-    return { vregion: m ? m[1] : null, bytes: body.length };
-  } catch {
-    return { vregion: null, bytes: 0 };
-  }
-}
-export async function verifyTikTokRouting(
-  proxyUrl: string,
-): Promise<{ result: RoutingResult; vregion?: string }> {
-  if (!proxyUrl) return { result: 'unknown' };
-  // Dual probe with Chromium-realistic headers: BrightData sticky sessions
-  // can rotate exit IPs between requests, so two back-to-back probes catch
-  // drift. Reject any sticky that on either probe (a) lacks vregion,
-  // (b) returns TTP2, (c) shows mobile-redirect markers
-  // (/login/download-app referenced in /signup body == 1340 at
-  // register_verify_login), or (d) drifts vregion across probes.
-  const a = await probeOnce(proxyUrl);
-  if (!a.vregion) return { result: 'unknown' };
-  if (/-TTP2$/i.test(a.vregion))
-    return { result: 'high_risk', vregion: a.vregion };
-  const b = await probeOnce(proxyUrl);
-  if (!b.vregion) return { result: 'unknown', vregion: a.vregion };
-  if (a.vregion !== b.vregion)
-    return { result: 'high_risk', vregion: `${a.vregion}!=${b.vregion}` };
-  if (/-TTP2$/i.test(b.vregion))
-    return { result: 'high_risk', vregion: b.vregion };
-  return { result: 'standard', vregion: a.vregion };
 }

@@ -268,11 +268,13 @@ export async function verifyExitReputation(
 // only a loose IP-trust hint and can false-positive for registration.
 export {
   probeLinkedinSignup,
-  verifyTikTokRouting,
   type LinkedInProbePersona,
   type LinkedInProbeResult,
-  type RoutingResult,
 } from './quality/platform_probes.js';
+export {
+  verifyTikTokRouting,
+  type RoutingResult,
+} from './quality/tiktok_routing.js';
 
 // Enqueue an account-level top-up check when gateway CONNECT returns 407.
 const _enqueuedTopupThisProcess = new Set<string>();

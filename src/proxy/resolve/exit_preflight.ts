@@ -200,7 +200,7 @@ export async function preflightExit(
     // trajectory cannot recover from a TTP2 page bootstrap.
     if (!preflightContinue && platform === 'tiktok') {
       const { verifyTikTokRouting } = await import('../policy.js');
-      const route = await verifyTikTokRouting(proxyUrl);
+      const route = await verifyTikTokRouting(proxyUrl, preflightPersona);
       console.log(
         `[proxy] tiktok-route exit=${exitIp} -> ${route.result}${route.vregion ? ` (${route.vregion})` : ''}`,
       );
