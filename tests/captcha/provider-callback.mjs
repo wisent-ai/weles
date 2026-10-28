@@ -146,9 +146,12 @@ test('the worker route hands a pushed answer to the run waiting for it', async (
   });
   assert.equal(posted.status, http.HTTP_STATUS_OK);
   assert.deepEqual(await posted.json(), { ok: true });
+  const early = await fetch(callback.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"status":"processing"}' });
+  report.steps.push({ step: 'callback repeated before the run read it', status: early.status });
+  assert.equal(early.status, http.HTTP_STATUS_NOT_FOUND);
   const answer = await callback.answer();
   report.steps.push({ step: 'pushed answer', url: callback.url, answer });
-  assert.deepEqual(answer, { contentType: 'application/json', body: pushed });
+  assert.deepEqual(answer, { contentType: 'application/json', body: pushed }, 'the first callback was not the one kept');
   assert.deepEqual(readdirSync(route.answers), []);
   const repeated = await fetch(callback.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: pushed });
   report.steps.push({ step: 'callback repeated after the run read it', status: repeated.status });

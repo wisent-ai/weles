@@ -7,7 +7,10 @@
 // reading once answered every task as unsolved. So a task is created with the
 // address of the Weles worker that started this run, the worker writes what
 // the provider POSTs into the answers directory, and the run waits for that
-// file: nothing is read until the provider has answered.
+// file: nothing is read until the provider has answered. A provider that
+// accepts a task and never calls back leaves the run waiting on that file,
+// its last line `waiting for its answer at the callback` (or `for its
+// pingback`), until the run is cancelled (`weles runs cancel <run-id>`).
 //
 // The worker states both values in every run it starts (run/process/
 // placement.mjs, runChildIdentity): WELES_CAPTCHA_CALLBACK_URL, the public
@@ -103,12 +106,13 @@ export async function providerCallback(service: string): Promise<ProviderCallbac
   const { arrival, close } = appeared(directory, answered);
   return {
     url: new URL(token, base).toString(),
+    // The route claimed the waiting marker when it took the answer, so only
+    // the answer itself is left to remove once it is read.
     answer: async () => {
       await arrival;
       const path = join(directory, answered);
       const answer = JSON.parse(await readFile(path, 'utf8')) as ProviderAnswer;
       await rm(path);
-      await rm(waiting);
       return answer;
     },
     abandon: async () => {
