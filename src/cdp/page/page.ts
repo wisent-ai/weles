@@ -10,9 +10,12 @@ import {
   waitForSelectorIn,
   type SelectorState,
 } from './document.js';
-
-type EventHandler = (data?: any) => void;
-type LoadState = 'load' | 'domcontentloaded';
+import {
+  LoadStates,
+  PageEvents,
+  type EventHandler,
+  type LoadState,
+} from './events/page-events.js';
 
 export class CDPPage {
   private _conn: CDPConnection;
@@ -22,11 +25,8 @@ export class CDPPage {
   private _ft: FrameTree;
   private _initScripts: string[] = [];
   private _fetch: FetchInterception;
-  private _handlers = new Map<string, EventHandler[]>();
-  private _loadResolvers: Array<() => void> = [];
-  private _dcResolvers: Array<() => void> = [];
-  private _loadFired = false;
-  private _dcFired = false;
+  private _events: PageEvents;
+  private _loads = new LoadStates();
   private _mouse: CDPMouse | null = null;
   private _keyboard: CDPKeyboard | null = null;
   private _recordVideo: any;
@@ -46,15 +46,14 @@ export class CDPPage {
     this._context = context;
     this._recordVideo = recordVideo;
     this._ft = new FrameTree(connection, sessionId);
+    this._events = new PageEvents(connection, sessionId);
 
     this._fetch = new FetchInterception(connection, sessionId);
     this._conn.on(
       'Page.loadEventFired',
       () => {
-        this._loadFired = true;
-        for (const r of this._loadResolvers) r();
-        this._loadResolvers = [];
-        this._fire('load');
+        this._loads.fire('load');
+        this._events.fire('load');
       },
       sessionId,
     );
@@ -62,10 +61,8 @@ export class CDPPage {
     this._conn.on(
       'Page.domContentEventFired',
       () => {
-        this._dcFired = true;
-        for (const r of this._dcResolvers) r();
-        this._dcResolvers = [];
-        this._fire('domcontentloaded');
+        this._loads.fire('domcontentloaded');
+        this._events.fire('domcontentloaded');
       },
       sessionId,
     );
@@ -111,7 +108,7 @@ export class CDPPage {
     this._ft.setMainFrame(frame.id, frame.url);
     this._conn.on(
       'Network.responseReceived',
-      (p: any) => this._fire('response', p),
+      (p: any) => this._events.fire('response', p),
       this._sessionId,
     );
     if (this._recordVideo) {
@@ -131,20 +128,18 @@ export class CDPPage {
     url: string,
     { waitUntil = 'load' }: { waitUntil?: LoadState } = {},
   ): Promise<void> {
-    this._loadFired = false;
-    this._dcFired = false;
+    this._loads.reset();
     const r = await this._conn.send('Page.navigate', { url }, this._sessionId);
     if (r.errorText) {
       throw new CDPNavigationError(`Navigation failed: ${r.errorText}`);
     }
-    await this._waitForLoadState(waitUntil);
+    await this._loads.wait(waitUntil);
   }
 
   async reload(): Promise<void> {
-    this._loadFired = false;
-    this._dcFired = false;
+    this._loads.reset();
     await this._conn.send('Page.reload', undefined, this._sessionId);
-    await this._waitForLoadState('load');
+    await this._loads.wait('load');
   }
 
   // Goes to the history entry before the current one; a page at the start of
@@ -208,7 +203,7 @@ export class CDPPage {
   }
 
   async waitForLoadState(state: LoadState = 'load'): Promise<void> {
-    return this._waitForLoadState(state);
+    return this._loads.wait(state);
   }
 
   waitForUrl(urlOrPattern: string | RegExp): Promise<void> {
@@ -258,20 +253,11 @@ export class CDPPage {
   }
 
   on(event: string, handler: EventHandler): void {
-    const list = this._handlers.get(event);
-    if (list) list.push(handler);
-    else this._handlers.set(event, [handler]);
-    this._conn.on(event, handler, this._sessionId);
+    this._events.on(event, handler);
   }
 
   off(event: string, handler: EventHandler): void {
-    const list = this._handlers.get(event);
-    if (list)
-      this._handlers.set(
-        event,
-        list.filter((h) => h !== handler),
-      );
-    this._conn.off(event, handler, this._sessionId);
+    this._events.off(event, handler);
   }
 
   // Stops the recording and closes the target; a failure of either is the
@@ -297,20 +283,5 @@ export class CDPPage {
     const frame = this._ft.mainFrame;
     if (!frame) throw new CDPError('No main frame');
     return frame;
-  }
-
-  private _fire(name: string, data?: any): void {
-    const handlers = this._handlers.get(name);
-    if (!handlers) return;
-    for (const h of handlers) h(data);
-  }
-
-  private _waitForLoadState(state: LoadState): Promise<void> {
-    if (state === 'domcontentloaded' && this._dcFired) return Promise.resolve();
-    if (state === 'load' && this._loadFired) return Promise.resolve();
-    const { promise, resolve } = Promise.withResolvers<void>();
-    if (state === 'domcontentloaded') this._dcResolvers.push(resolve);
-    else this._loadResolvers.push(resolve);
-    return promise;
   }
 }
