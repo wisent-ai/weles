@@ -6,8 +6,6 @@ import { EvidenceRetentionError } from '../wire.mjs';
 import { canonicalJson, sha256 } from '../wire/canonical-json.mjs';
 import { atomicBufferWrite, syncDirectory } from '../durable-write.mjs';
 import {
-  MAX_EVIDENCE_FILE_BYTES,
-  MAX_EVIDENCE_MANIFEST_BYTES,
   RECEIPT_MANIFEST_NAME,
   collectEvidenceFiles,
   publicEvidenceInventory,
@@ -136,27 +134,23 @@ export function createEvidenceManifest({
       evidenceInventory,
     };
     const manifestBytes = Buffer.from(`${canonicalJson(manifest)}\n`, 'utf8');
-    if (manifestBytes.byteLength > MAX_EVIDENCE_MANIFEST_BYTES) {
-      throw new EvidenceRetentionError(
-        'evidence-manifest-too-large',
-        'canonical evidence manifest exceeds the 4 MiB limit',
-      );
-    }
+    // The bridge that verifies the receipt reads each retained object with
+    // the byte count the manifest declares for it as its limit, so no other
+    // size is imposed here.
     const manifestPath = join(runRoot, RECEIPT_MANIFEST_NAME);
     try {
       const metadata = await lstat(manifestPath);
-      if (
-        !metadata.isFile() ||
-        metadata.isSymbolicLink() ||
-        metadata.size > MAX_EVIDENCE_MANIFEST_BYTES
-      ) {
+      if (!metadata.isFile() || metadata.isSymbolicLink()) {
         throw new EvidenceRetentionError(
           'evidence-manifest-unsafe',
-          'existing evidence manifest is unsafe or oversized',
+          'existing evidence manifest is not a regular file',
         );
       }
-      const existing = await readFile(manifestPath);
-      if (!existing.equals(manifestBytes)) {
+      const existing =
+        metadata.size === manifestBytes.byteLength
+          ? await readFile(manifestPath)
+          : null;
+      if (!existing?.equals(manifestBytes)) {
         throw new EvidenceRetentionError(
           'evidence-manifest-conflict',
           'existing evidence manifest disagrees with recomputed immutable task identity',
@@ -188,7 +182,7 @@ export function createEvidenceManifest({
     }
     const manifestReadback = await readArtifactIdentity(
       manifestUri,
-      MAX_EVIDENCE_MANIFEST_BYTES,
+      manifestBytes.byteLength,
     );
     if (
       manifestReadback.bytes !== manifestBytes.byteLength ||
@@ -199,10 +193,7 @@ export function createEvidenceManifest({
       );
     }
     for (const entry of evidenceInventory) {
-      const readback = await readArtifactIdentity(
-        entry.uri,
-        MAX_EVIDENCE_FILE_BYTES,
-      );
+      const readback = await readArtifactIdentity(entry.uri, entry.bytes);
       if (readback.bytes !== entry.bytes || readback.sha256 !== entry.sha256) {
         throw new Error(
           `durable evidence readback differs from inventory: ${entry.kind}`,

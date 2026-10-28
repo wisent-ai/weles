@@ -4,11 +4,6 @@ import { dirname, join } from 'node:path';
 import { EvidenceRetentionError } from './wire.mjs';
 import { canonicalJson, digest } from './wire/canonical-json.mjs';
 import { atomicBufferWrite, syncDirectory } from './durable-write.mjs';
-import {
-  MAX_EVIDENCE_FILE_BYTES,
-  MAX_EVIDENCE_MANIFEST_BYTES,
-  MAX_EVIDENCE_TOTAL_BYTES,
-} from './retention/inventory.mjs';
 import { createEvidenceManifest } from './retention/manifest.mjs';
 
 export { RECEIPT_SCHEMA } from './retention/manifest.mjs';
@@ -42,11 +37,6 @@ export function createEvidenceRetention({
       outcome: 'failed',
       code,
       message: String(error?.message ?? error),
-      limits: {
-        manifestBytes: MAX_EVIDENCE_MANIFEST_BYTES,
-        inventoryBytes: MAX_EVIDENCE_TOTAL_BYTES,
-        fileBytes: MAX_EVIDENCE_FILE_BYTES,
-      },
     };
     await atomicBufferWrite(
       join(diagnosticRoot, 'browser_evidence_retention_failure.json'),

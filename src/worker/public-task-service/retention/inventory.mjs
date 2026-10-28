@@ -7,9 +7,6 @@ import { EvidenceRetentionError } from '../wire.mjs';
 import { isObject } from '../wire/canonical-json.mjs';
 
 const EVIDENCE_PATH_COMPONENT_RE = /^[A-Za-z0-9._-]+$/;
-export const MAX_EVIDENCE_FILE_BYTES = 8 * 1024 * 1024;
-export const MAX_EVIDENCE_TOTAL_BYTES = 8 * 1024 * 1024;
-export const MAX_EVIDENCE_MANIFEST_BYTES = 4 * 1024 * 1024;
 export const RECEIPT_MANIFEST_NAME = 'evidence-manifest.json';
 const WITHHELD_EDGES_NAME = 'browser_evidence_withheld_edges.ndjson';
 
@@ -30,12 +27,6 @@ async function hashStableFile(path) {
       'evidence-file-unsafe',
       `evidence path is not a regular file: ${path}`,
     );
-  if (before.size > MAX_EVIDENCE_FILE_BYTES) {
-    throw new EvidenceRetentionError(
-      'evidence-file-too-large',
-      `evidence file exceeds the per-file limit: ${path}`,
-    );
-  }
   const hasher = createHash('sha256');
   await new Promise((resolveHash, rejectHash) => {
     const stream = createReadStream(path);
@@ -61,7 +52,6 @@ export async function collectEvidenceFiles(root) {
     );
   const files = [];
   const stack = [{ directory: root, relative: '' }];
-  let totalBytes = 0;
   while (stack.length > 0) {
     const current = stack.pop();
     const entries = await readdir(current.directory, { withFileTypes: true });
@@ -103,13 +93,6 @@ export async function collectEvidenceFiles(root) {
         throw new EvidenceRetentionError(
           'evidence-file-empty',
           `retained evidence file is empty: ${relativePath}`,
-        );
-      }
-      totalBytes += hashed.bytes;
-      if (totalBytes > MAX_EVIDENCE_TOTAL_BYTES) {
-        throw new EvidenceRetentionError(
-          'evidence-total-too-large',
-          'evidence bytes exceed the total limit',
         );
       }
       files.push({
