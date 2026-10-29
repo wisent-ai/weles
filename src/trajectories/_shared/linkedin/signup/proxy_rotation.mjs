@@ -83,7 +83,13 @@ export async function curlProbeLoginForm(proxyUrl) {
       'https://www.linkedin.com/login',
     ];
     execFile('curl', args, { maxBuffer: Infinity }, (err, stdout) => {
-      if (err) return resolve({ ok: false, reason: err.message });
+      // curl's failure names its whole command line, the proxy credentials
+      // with it, so the proxy URL is withheld wherever it appears.
+      if (err)
+        return resolve({
+          ok: false,
+          reason: `curl failed: ${err.message.replaceAll(proxyUrl, '[proxy-url]')}`,
+        });
       const body = (stdout ?? '').toString();
       const hasSessionKey =
         /name="session_key"|id="username"|type="email"/.test(body);
