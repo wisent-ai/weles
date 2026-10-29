@@ -46,3 +46,17 @@ if [ -n "$staged_version_files" ]; then
     exit 1
   fi
 fi
+
+# A trajectory never calls process.exit: it ends Node before the finally that
+# closes the session, so a failed run loses its network log, final dump and
+# video. A failure throws, or sets process.exitCode and returns.
+staged_trajectories="$(git diff --cached --name-only --diff-filter=ACMR -- 'src/trajectories/*.mjs' 'src/trajectories/*.js' 'src/trajectories/*.ts')"
+if [ -n "$staged_trajectories" ]; then
+  exits="$(printf '%s\n' "$staged_trajectories" | while IFS= read -r file; do git show ":$file" | grep -n 'process\.exit(' | sed "s|^|$file:|"; done)"
+  if [ -n "$exits" ]; then
+    printf '%s\n' "pre-commit blocked: staged trajectories call process.exit, which skips the finally that closes the session:"
+    printf '%s\n' "$exits"
+    printf '%s\n' "Throw the failure, or set process.exitCode and return."
+    exit 1
+  fi
+fi
