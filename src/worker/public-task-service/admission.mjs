@@ -15,10 +15,8 @@ import {
   exactPublicHttpsUrl,
   loadConfig,
 } from './admission/deployment.mjs';
-import {
-  createDeployedIdentity,
-  parseSpisBinding,
-} from './admission/identity.mjs';
+import { createDeployedIdentity } from './admission/identity.mjs';
+import { parseSpisBinding } from './admission/spis-binding.mjs';
 
 export { PUBLIC_ACTION, loadConfig, createDeployedIdentity };
 

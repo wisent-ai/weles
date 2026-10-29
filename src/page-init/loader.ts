@@ -4,15 +4,20 @@ import type { FingerprintConfig } from '../fingerprint.js';
 
 const SCRIPT_DIR = __dirname;
 
-// Shared across browsers. automation.js = navigator.webdriver scrub;
-// navigator/core.js = Navigator.prototype overrides (has its own Chrome-branching
-// guards); navigator/webrtc.js = the WebRTC leak guard; webgl.js =
-// vendor/renderer overrides.
+// Shared across browsers, concatenated in this order into one script.
+// automation_markers.js = navigator.webdriver and driver-marker scrub plus the
+// native toString registry the scripts after it use; automation.js = the
+// Chromium anti-detection (window.chrome and friends); navigator/core.js =
+// Navigator.prototype overrides (has its own Chrome-branching guards);
+// navigator/webrtc.js = the WebRTC leak guard; webgl.js = vendor/renderer
+// overrides.
 const SHARED_SCRIPTS = [
+  'automation_markers.js',
   'automation.js',
   'navigator/core.js',
   'navigator/environment.js',
   'navigator/surface.js',
+  'navigator/surface_apis.js',
   'navigator/webrtc.js',
   'webgl.js',
 ];
@@ -84,7 +89,9 @@ export function buildChromiumSupplementScripts(
     '\n' +
     readPageInitScript('navigator/environment.js') +
     '\n' +
-    readPageInitScript('navigator/surface.js');
+    readPageInitScript('navigator/surface.js') +
+    '\n' +
+    readPageInitScript('navigator/surface_apis.js');
   return [
     ...CHROMIUM_ONLY_SCRIPTS.map(readPageInitScript),
     screenPatch,

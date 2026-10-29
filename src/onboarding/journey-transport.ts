@@ -7,7 +7,7 @@ import type {
   JourneyRuntimeEvent,
   JourneyTransport,
 } from '../onboarding-runtime';
-import { isStoredBundle } from './journey-storage.js';
+import { isStoredBundle } from './storage/stored-shapes.js';
 
 export class OfflineJourneyTransport implements JourneyTransport {
   async readBundle(): Promise<JourneyBundle> {
