@@ -14,8 +14,9 @@
 // line after the result that began like JSON and did not parse in result_errors.
 
 import { spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
-import { join } from 'node:path';
+import { createHash, randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
 
 import { RUN_RESULTS_DIR } from '../../configuration.mjs';
 import { REPO, RUN_RELEASE_IDENTITY } from '../../release-identity.mjs';
@@ -90,10 +91,12 @@ export function createTrajectoryRunner({ resolveTrajectory, paramsToEnv }) {
       }
       const startedAt = new Date().toISOString();
       const runResultPath = join(RUN_RESULTS_DIR, `${runId}.json`);
+      let trajectory;
       const running = (fields) =>
         persistRunResult(runResultPath, {
           ok: null,
           ...RUN_RELEASE_IDENTITY,
+          ...trajectory,
           action,
           run_id: runId,
           status: 'running',
@@ -101,6 +104,18 @@ export function createTrajectoryRunner({ resolveTrajectory, paramsToEnv }) {
           ...fields,
         });
       try {
+        // The trajectory's version is the SHA-256 of the file this run
+        // executes, read from the release tree it runs from: a release
+        // carries no git history, and the digest changes exactly when the
+        // trajectory's code does (FIPS 180-4,
+        // https://csrc.nist.gov/pubs/fips/180-4/upd1/final).
+        const trajectoryFile = resolve(REPO, trajPath);
+        trajectory = {
+          trajectory_path: relative(REPO, trajectoryFile),
+          trajectory_version: createHash('sha256')
+            .update(readFileSync(trajectoryFile))
+            .digest('hex'),
+        };
         running({});
       } catch (error) {
         resolveRun({
