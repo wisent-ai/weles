@@ -51,7 +51,9 @@ function objectStorySpec() {
 
 function creativePayload() {
   return compactObject({
-    name: process.env.CREATIVE_NAME || process.env.AD_NAME,
+    // A creative is named only when the caller names it; Meta names an
+    // unnamed one itself, and the ad's name is not borrowed for it.
+    name: process.env.CREATIVE_NAME,
     object_story_spec: objectStorySpec(),
     asset_feed_spec: parseJsonEnv('ASSET_FEED_SPEC_JSON'),
     product_set_id: process.env.PRODUCT_SET_ID,
