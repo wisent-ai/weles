@@ -37,14 +37,14 @@ function optional(parsed: ParsedCli, key: string, standard: string): string {
   const value = parsed.options[key];
   if (value === undefined) return standard;
   if (typeof value !== 'string' || !value)
-    throw new Error(`--${key} needs a value`);
+    throw new UsageError(`--${key} needs a value`);
   return value;
 }
 
 function required(parsed: ParsedCli, key: string): string {
   const value = parsed.options[key];
   if (typeof value !== 'string' || !value)
-    throw new Error(`--${key} is required`);
+    throw new UsageError(`--${key} is required`);
   return value;
 }
 
@@ -56,17 +56,19 @@ async function start(parsed: ParsedCli): Promise<Record<string, unknown>> {
   // run; no lifetime is chosen here.
   const expiryMinutes = Number(required(parsed, 'expires-in-minutes'));
   if (!ROLE.test(accountRole))
-    throw new Error(
+    throw new UsageError(
       '--account-role must be a Skarbiec role (lowercase letters, digits and hyphens)',
     );
   if (required(parsed, 'confirm') !== CONFIRMATION_PHRASE)
-    throw new Error(`--confirm must exactly equal "${CONFIRMATION_PHRASE}"`);
+    throw new UsageError(
+      `--confirm must exactly equal "${CONFIRMATION_PHRASE}"`,
+    );
   if (!HOST.test(executionHost))
-    throw new Error(
+    throw new UsageError(
       '--execution-host must name the Stado host that runs the browser',
     );
   if (!Number.isInteger(expiryMinutes) || expiryMinutes <= 0) {
-    throw new Error(
+    throw new UsageError(
       '--expires-in-minutes must be a positive whole number of minutes',
     );
   }

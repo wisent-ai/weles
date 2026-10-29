@@ -178,7 +178,7 @@ export async function runOnboarding(parsed: ParsedCli): Promise<void> {
 function requiredOption(parsed: ParsedCli, name: string): string {
   const value = parsed.options[name];
   if (typeof value !== 'string' || !value.trim())
-    throw new Error(`--${name} is required`);
+    throw new UsageError(`--${name} is required`);
   return value;
 }
 

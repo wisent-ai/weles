@@ -50,14 +50,14 @@ function text(parsed: ParsedCli, key: string): string | undefined {
   const value = parsed.options[key];
   if (value === undefined) return undefined;
   if (typeof value !== 'string' || !value)
-    throw new Error(`--${key} needs a value`);
+    throw new UsageError(`--${key} needs a value`);
   return value;
 }
 
 // An option the command cannot run without, refused by name when missing.
 function required(parsed: ParsedCli, key: string): string {
   const value = text(parsed, key);
-  if (value === undefined) throw new Error(`--${key} is required`);
+  if (value === undefined) throw new UsageError(`--${key} is required`);
   return value;
 }
 
@@ -82,31 +82,30 @@ async function start(parsed: ParsedCli): Promise<Record<string, unknown>> {
   // run; no lifetime is chosen here.
   const expiryMinutes = Number(required(parsed, 'expires-in-minutes'));
   if (!ROLE.test(accountRole))
-    throw new Error(
+    throw new UsageError(
       '--account-role must be a Skarbiec role (lowercase letters, digits and hyphens)',
     );
   if (text(parsed, 'confirm') !== CONFIRMATION_PHRASE)
-    throw new Error(`--confirm must exactly equal "${CONFIRMATION_PHRASE}"`);
+    throw new UsageError(
+      `--confirm must exactly equal "${CONFIRMATION_PHRASE}"`,
+    );
   if (!HOST.test(executionHost))
-    throw new Error(
+    throw new UsageError(
       '--execution-host must name the Stado host that runs the browser',
     );
-  if (
-    !Number.isInteger(expiryMinutes) ||
-    Math.sign(expiryMinutes) !== Math.sign(Number.POSITIVE_INFINITY)
-  ) {
-    throw new Error(
+  if (!Number.isInteger(expiryMinutes) || expiryMinutes <= 0) {
+    throw new UsageError(
       '--expires-in-minutes must be a positive whole number of minutes',
     );
   }
   // The key is the half that matters: a certificate without it signs nothing,
   // so its destination is demanded before anything is issued.
   if (!isAbsolute(keyOut))
-    throw new Error(
+    throw new UsageError(
       '--private-key-out must be an absolute path on this machine',
     );
   if (!subject.startsWith('/CN='))
-    throw new Error(
+    throw new UsageError(
       '--subject is required: the certificate request\'s distinguished name, for example "/CN=<organization> Developer ID Application/O=<organization>/C=<country>"',
     );
   if (existsSync(keyOut))
@@ -168,12 +167,12 @@ async function read(parsed: ParsedCli): Promise<Record<string, unknown>> {
   const privateKey = text(parsed, 'private-key');
   const storeHost = text(parsed, 'store-host');
   if ((privateKey === undefined) !== (storeHost === undefined)) {
-    throw new Error(
+    throw new UsageError(
       '--private-key and --store-host go together: both store the identity in the vault, neither leaves it in files',
     );
   }
   if (!isAbsolute(certificateOut))
-    throw new Error(
+    throw new UsageError(
       '--certificate-out must be an absolute path on this machine',
     );
   if (existsSync(certificateOut))

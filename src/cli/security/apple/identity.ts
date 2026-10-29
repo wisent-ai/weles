@@ -8,6 +8,8 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 
+import { UsageError } from '../../usage.js';
+
 /** A Stado host name, as `--execution-host` and `--store-host` take it. */
 export const HOST = /^[A-Za-z\d][A-Za-z\d._-]*$/;
 // The role every darwin release recipe reads its signing identity through
@@ -66,11 +68,11 @@ export function storeSigningIdentity(
   storeHost: string,
 ): Record<string, unknown> {
   if (!isAbsolute(privateKey) || !existsSync(privateKey))
-    throw new Error(
+    throw new UsageError(
       '--private-key must be the absolute path start mode wrote the key to',
     );
   if (!HOST.test(storeHost))
-    throw new Error(
+    throw new UsageError(
       '--store-host must name the Stado host whose vault owns release secrets',
     );
   const pem = openssl(
