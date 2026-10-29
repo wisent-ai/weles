@@ -13,6 +13,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { constants as http } from 'node:http2';
 import { TOKEN, BRAMA_REAUTH_TOKEN, ALLOW_UNAUTH } from './configuration.mjs';
+import { withoutSecretShapes } from '../../capture/secret-shapes/index.cjs';
 
 // Whether the header a caller sent is `expected`, compared over equal-length
 // digests so the time taken does not tell a caller how much of a token it
@@ -54,34 +55,10 @@ export function json(res, code, obj, { redact = true } = {}) {
   res.end(body);
 }
 
-// The middle word of a <service>_<kind>_<value> token.
-const SECRET_KINDS = { secret: true, key: true, token: true, pat: true, api: true, db: true };
-
-// The secret shapes an answer never carries, each with what replaces it:
-// a JSON Web Token (three base64url segments, the first two JSON objects),
-// a PEM private key, a Slack token, an AWS access key id (AKIA or ASIA), and
-// a <service>_<kind>_<value> token whose value mixes letters and digits (an
-// identifier such as account_key_id is not one).
-const SECRET_SHAPES = [
-  [/eyJ[\w-]+\.eyJ[\w-]+\.[\w-]+/g, '[redacted-jwt]'],
-  [
-    /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
-    '[redacted-pem]',
-  ],
-  [/xox[baprs]-[A-Za-z\d-]+/g, '[redacted-slack]'],
-  [/\bA[KS]IA(?=[A-Z\d]*\d)[A-Z\d]+\b/g, '[redacted-aws]'],
-  [
-    new RegExp(
-      `\\b[a-z]+_(?:${Object.keys(SECRET_KINDS).join('|')})_(?=[A-Za-z\\d]*\\d)(?=[A-Za-z\\d]*[A-Za-z])[A-Za-z\\d]+`,
-      'gi',
-    ),
-    '[redacted-secret]',
-  ],
-];
-
 // Secret-shape redactor: never let a token leave over HTTP. Operates on the
-// serialized form so nested fields count. A value that cannot be serialized
-// cannot be redacted, so it is the error; it is never answered as it was.
+// serialized form so nested fields count, through the one list of credential
+// shapes (capture/secret-shapes). A value that cannot be serialized cannot be
+// redacted, so it is the error; it is never answered as it was.
 export function redactSecrets(obj) {
   let serialized;
   try {
@@ -92,10 +69,7 @@ export function redactSecrets(obj) {
     );
   }
   if (serialized === undefined) return obj;
-  const redacted = SECRET_SHAPES.reduce(
-    (text, [shape, replacement]) => text.replace(shape, replacement),
-    serialized,
-  );
+  const redacted = withoutSecretShapes(serialized);
   return JSON.parse(redacted);
 }
 

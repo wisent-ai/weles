@@ -2,10 +2,15 @@
 // document as one string. Containers are streamed member by member; string
 // chunks are bounded by V8's measured string limit before JSON escaping.
 // Bytes match JSON.stringify of the same value with lone UTF-16 surrogates replaced
-// by U+FFFD.
+// by U+FFFD and every credential shape (capture/secret-shapes) replaced by a
+// marker naming its kind: an artifact keeps what pages, requests and the
+// console said, and a page that shows a token or a key would otherwise put it
+// on disk.
 
 import { closeSync, openSync, writeSync } from 'node:fs';
 import { constants as bufferConstants } from 'node:buffer';
+
+import { withoutSecretShapes } from '../../../../capture/secret-shapes/index.cjs';
 
 // JSON escapes one UTF-16 unit into at most six characters (\uXXXX), so a
 // slice of this many units always escapes to a string V8 can hold.
@@ -52,7 +57,7 @@ function writeValue(
   stack: Set<object>,
 ): void {
   if (typeof value === 'string') {
-    writeString(fd, value);
+    writeString(fd, withoutSecretShapes(value));
     return;
   }
   if (
@@ -94,7 +99,7 @@ function writeValue(
         continue;
       if (!first) writeSync(fd, ',');
       first = false;
-      writeSync(fd, `${JSON.stringify(member)}:`);
+      writeSync(fd, `${JSON.stringify(withoutSecretShapes(member))}:`);
       writeValue(fd, shown, false, stack);
     }
     writeSync(fd, '}');
