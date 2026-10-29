@@ -7,6 +7,7 @@ import { autocompleteField, field } from '../_shared/page/offers.mjs';
 import { clickOffered, pageShows } from '../_shared/page/judged/seen.mjs';
 import { statedProxy } from '../_shared/inputs/stated.mjs';
 import { phoneForField } from '../_shared/inputs/phone.mjs';
+import { GOOGLE_ACCOUNTS_HOST } from '../_shared/profile/google_session.mjs';
 
 // hl=en: the month and gender options are chosen by their English names.
 const SIGNUP_URL =
@@ -271,7 +272,7 @@ console.log('\n=== Google signup ===');
 const s = await WSession.start({
   label: 'google_register',
   proxy: statedProxy('the Google signup'),
-  targetHost: 'accounts.google.com',
+  targetHost: GOOGLE_ACCOUNTS_HOST,
 });
 s.page.on('crash', () => console.log('[evt] RENDERER CRASHED'));
 s.ctx.on('close', () => console.log('[evt] ctx.close'));
