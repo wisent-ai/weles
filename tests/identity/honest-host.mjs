@@ -75,6 +75,19 @@ test('a host-system session presents the surface its own browser measured', asyn
   });
   try {
     const page = await context.newPage();
+    // The session's surface is read where the probe reads the host's: an
+    // HTTPS page under the reserved .invalid domain answered locally, since
+    // navigator.userAgentData exists only in a secure context
+    // (https://wicg.github.io/ua-client-hints/#interface) and the about:blank
+    // a new page opens on gives none.
+    const surfacePage = 'https://honest-host-session.invalid/';
+    await page.route(surfacePage, (route) =>
+      route.fulfill({
+        contentType: 'text/html',
+        body: '<!doctype html><title>honest host session</title>',
+      }),
+    );
+    await page.goto(surfacePage);
     const seen = await page.evaluate(pageSurface);
     const hints = await page.evaluate(() =>
       navigator.userAgentData.getHighEntropyValues([

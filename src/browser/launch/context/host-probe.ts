@@ -1,6 +1,6 @@
 // One measurement of the host surface: the same browser build Weles will run,
 // launched with no fingerprint configuration, reads its own WebGL strings,
-// navigator, client hints and screen from a blank page.
+// navigator, client hints and screen from an empty page in a secure context.
 
 import { chromium, firefox, type Browser, type BrowserType } from 'playwright';
 import type {
@@ -25,6 +25,32 @@ function engine(browserType: string): BrowserType {
   throw new Error(
     `WELES_HONEST_HOST_PROBE_ENGINE: honest host has no probe for browser engine ${browserType}`,
   );
+}
+
+// The page the surface is read from. navigator.userAgentData, which carries
+// the client hints, exists only in a secure context
+// (https://wicg.github.io/ua-client-hints/#interface), and the about:blank a
+// new page opens on was observed to give none, so the page is an HTTPS
+// address under the reserved .invalid domain (RFC 6761) that the browser is
+// answered locally: nothing leaves the host.
+const PROBE_PAGE = 'https://weles-host-probe.invalid/';
+
+async function openProbePage(browser: Browser, subject: string) {
+  const page = await browser.newPage();
+  await page.route(PROBE_PAGE, (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: '<!doctype html><title>weles host probe</title>',
+    }),
+  );
+  try {
+    await page.goto(PROBE_PAGE);
+  } catch (error) {
+    throw new Error(
+      `WELES_HONEST_HOST_PROBE_PAGE: ${subject} did not open the local probe page ${PROBE_PAGE}: ${(error as Error).message}`,
+    );
+  }
+  return page;
 }
 
 /** Runs in the probe page: what the unconfigured browser reports about its host. */
@@ -110,7 +136,7 @@ export async function probeHostHardware(
     );
   }
   try {
-    const page = await browser.newPage();
+    const page = await openProbePage(browser, subject);
     const reading = await page.evaluate(readSurface);
     if (!reading.webgl)
       throw new Error(
