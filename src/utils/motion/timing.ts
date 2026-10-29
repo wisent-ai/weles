@@ -13,7 +13,11 @@ let humanSeed: number | null = null;
 let drawn = Number.MIN_SAFE_INTEGER;
 
 /** The largest 32-bit word, read from a word whose every bit is set. */
-const ALL_ONES = Buffer.alloc(Uint32Array.BYTES_PER_ELEMENT, 'ff', 'hex').readUInt32BE();
+const ALL_ONES = Buffer.alloc(
+  Uint32Array.BYTES_PER_ELEMENT,
+  'ff',
+  'hex',
+).readUInt32BE();
 
 /** Set the per-run timing seed; the last call wins and the stream restarts. */
 export function seedHumanTiming(seed: number): void {
@@ -34,7 +38,10 @@ function nextWord(): number {
     );
   }
   drawn++;
-  return createHash('sha256').update(`${humanSeed}:${drawn}`).digest().readUInt32BE();
+  return createHash('sha256')
+    .update(`${humanSeed}:${drawn}`)
+    .digest()
+    .readUInt32BE();
 }
 
 /** A uniform draw over [0, 1] from the run's seeded stream. */

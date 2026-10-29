@@ -102,7 +102,8 @@ export function createRecovery({
     // again and is refused on its own. Recovery of what is already on disk
     // does not depend on that answer, so it records the refusal and restores
     // the persisted tasks.
-    const identityAtRecovery = await deployedIdentity.serviceIdentityReadiness();
+    const identityAtRecovery =
+      await deployedIdentity.serviceIdentityReadiness();
     if (!identityAtRecovery.ok)
       console.error(
         `[weles-public-task] restart recovery ran with no validated deployed service identity: ${identityAtRecovery.reason}`,

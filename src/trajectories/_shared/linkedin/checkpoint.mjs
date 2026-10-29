@@ -182,7 +182,9 @@ export async function injectV3LoginToken(page) {
       'login',
     );
   } catch (error) {
-    throw new Error(`LINKEDIN_LOGIN_TOKEN_UNSOLVED: ${error.message}`, { cause: error });
+    throw new Error(`LINKEDIN_LOGIN_TOKEN_UNSOLVED: ${error.message}`, {
+      cause: error,
+    });
   }
   await page.evaluate((solvedToken) => {
     for (const recaptcha of [

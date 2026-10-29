@@ -1,5 +1,9 @@
 import { loopbackHost } from '../../utils/runtime/service-origin.js';
-import { optionalSetting, requiredSetting, secretSetting } from '../../utils/runtime/settings.js';
+import {
+  optionalSetting,
+  requiredSetting,
+  secretSetting,
+} from '../../utils/runtime/settings.js';
 
 export interface OperatorCdpConfig {
   endpoint: string;

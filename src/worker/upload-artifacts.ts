@@ -109,8 +109,7 @@ export async function readPrivateStadoObjectIdentity(
     parsed.password ||
     parsed.search ||
     parsed.hash ||
-    privateStadoUri(parsed.hostname, parsed.pathname.replace(/^\//, '')) !==
-      uri
+    privateStadoUri(parsed.hostname, parsed.pathname.replace(/^\//, '')) !== uri
   )
     throw new Error(`Stado object readback URI is not canonical: ${uri}`);
   const config = requireStadoObjectConfig();
@@ -154,8 +153,7 @@ export async function readPrivateStadoObjectIdentity(
   }
   // An object that streamed no chunk holds no bytes: its size is then the
   // number of chunks it streamed.
-  if (!sizes.length)
-    return { bytes: sizes.length, sha256: hash.digest('hex') };
+  if (!sizes.length) return { bytes: sizes.length, sha256: hash.digest('hex') };
   return { bytes: total(sizes), sha256: hash.digest('hex') };
 }
 

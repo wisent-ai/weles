@@ -64,11 +64,17 @@ export async function earlyFingerprintCheck(s) {
       `FINGERPRINT_UNCHECKED: no baseline directory ${baselineDir} (WELES_BASELINE_DIR) to compare the early fingerprint with; set WELES_EARLY_FP=0 to register without the check`,
     );
   }
-  const { path: baselinePath, data: baseline } = pickBaseline(baselineDir, payload);
+  const { path: baselinePath, data: baseline } = pickBaseline(
+    baselineDir,
+    payload,
+  );
   const report = analyze(payload, baseline);
   report.meta.subjectPath = join(dir, 'early_fingerprint.json');
   report.meta.baselinePath = baselinePath;
-  writeFileSync(report.meta.subjectPath, JSON.stringify(payload, null, JSON_INDENT));
+  writeFileSync(
+    report.meta.subjectPath,
+    JSON.stringify(payload, null, JSON_INDENT),
+  );
   writeFileSync(
     join(dir, 'early_detection_report.json'),
     JSON.stringify(report, null, JSON_INDENT),
@@ -129,13 +135,17 @@ export const HEADLESS =
  */
 function prewarmUrls() {
   const listed = statedLinkedinUrls('LINKEDIN_REGISTER_PREWARM_URLS');
-  if (listed.length || process.env.LINKEDIN_REGISTER_DEFAULT_PREWARM !== '1') return listed;
+  if (listed.length || process.env.LINKEDIN_REGISTER_DEFAULT_PREWARM !== '1')
+    return listed;
   return [new URL('/', SIGNUP_URL).toString(), SIGNUP_URL];
 }
 export const guestPrewarmUrls = prewarmUrls();
 
 /** The warm Chromium profile directory to replay, or null when the run states none. */
-export const warmProfileDir = firstStated('LINKEDIN_REGISTER_WARM_PROFILE_DIR', 'WELES_USER_DATA_DIR');
+export const warmProfileDir = firstStated(
+  'LINKEDIN_REGISTER_WARM_PROFILE_DIR',
+  'WELES_USER_DATA_DIR',
+);
 
 // A warm profile without a manifest replays nothing. One whose manifest cannot
 // be read or is not a warm-profile manifest is refused: read as none, the
@@ -204,8 +214,24 @@ export function safeRequestedProxy(value) {
 /** The proxy facts of a session as the diagnostics record them; absent fields stay absent. */
 function sessionProxyFacts(proxyConfig) {
   if (!proxyConfig) return undefined;
-  const { server, provider, proxy_type, country, exit_ip, sticky_session_id, sticky_hash } = proxyConfig;
-  return { server, provider, proxy_type, country, exit_ip, sticky_session_id, sticky_hash };
+  const {
+    server,
+    provider,
+    proxy_type,
+    country,
+    exit_ip,
+    sticky_session_id,
+    sticky_hash,
+  } = proxyConfig;
+  return {
+    server,
+    provider,
+    proxy_type,
+    country,
+    exit_ip,
+    sticky_session_id,
+    sticky_hash,
+  };
 }
 
 export async function replayWarmProfile(s) {

@@ -41,8 +41,7 @@ export async function solveRecaptchaV2Token(
   // The services solve for a page address; one that names none is refused
   // here rather than sent as an empty websiteURL.
   const url =
-    options?.url ??
-    (typeof page?.url === 'function' ? page.url() : page?.url);
+    options?.url ?? (typeof page?.url === 'function' ? page.url() : page?.url);
   if (!url) {
     markAllProvidersFailed('recaptcha_v2', []);
     throw new Error(

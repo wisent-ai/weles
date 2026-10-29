@@ -54,7 +54,11 @@ async function probePuzzle(page) {
       // The track is the handle's nearest ancestor wider than the handle:
       // the strip the handle slides along.
       let track = null;
-      for (let p = handle.parentElement; p && p !== modal; p = p.parentElement) {
+      for (
+        let p = handle.parentElement;
+        p && p !== modal;
+        p = p.parentElement
+      ) {
         if (box(p).w > slider.w) {
           track = box(p);
           break;
@@ -68,7 +72,9 @@ async function probePuzzle(page) {
     { modalSelector: MODAL, handleSelector: HANDLE },
   );
   if (probe.missing)
-    throw new Error(`tiktok_captcha_unreadable: the captcha shows no ${probe.missing}`);
+    throw new Error(
+      `tiktok_captcha_unreadable: the captcha shows no ${probe.missing}`,
+    );
   return probe;
 }
 

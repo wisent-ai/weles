@@ -29,7 +29,9 @@ export async function getByCategory(
 ): Promise<ServiceCredential[]> {
   // listServiceMetadata answers only the records filed under `category`.
   return listServiceMetadata(category).map((record) => ({
-    display_name: record.display_name ? String(record.display_name) : String(record.id),
+    display_name: record.display_name
+      ? String(record.display_name)
+      : String(record.id),
     category,
     proxy_host: record.host ? String(record.host) : null,
     proxy_port: record.port ? String(record.port) : null,
@@ -241,7 +243,10 @@ export async function platformAdminSessionReady(
 }
 
 /** The readiness answer of a platform admin whose grant could not be read, naming the vault's error. */
-function vaultUnreadable(service: string, error: unknown): { ready: boolean; source: string } {
+function vaultUnreadable(
+  service: string,
+  error: unknown,
+): { ready: boolean; source: string } {
   return {
     ready: false,
     source: `skarbiec_error:${service}: ${error instanceof Error ? error.message : String(error)}`,

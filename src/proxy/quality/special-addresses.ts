@@ -67,11 +67,18 @@ function withoutNotes(field: string): string {
   return field.replace(/\[[^\]]*\]/g, '').trim();
 }
 
-function blockOf(prefix: string, name: string, globallyReachable: boolean, family: Family): SpecialBlock {
+function blockOf(
+  prefix: string,
+  name: string,
+  globallyReachable: boolean,
+  family: Family,
+): SpecialBlock {
   const [network, bits] = prefix.split('/');
   const length = Number(bits);
   if (!network || !bits || !Number.isInteger(length)) {
-    throw new Error(`the IANA ${family} special-purpose registry lists "${prefix}" (${name}), which is not an address prefix`);
+    throw new Error(
+      `the IANA ${family} special-purpose registry lists "${prefix}" (${name}), which is not an address prefix`,
+    );
   }
   const members = new BlockList();
   members.addSubnet(network, length, family);
@@ -81,12 +88,18 @@ function blockOf(prefix: string, name: string, globallyReachable: boolean, famil
 async function readRegistry(family: Family): Promise<SpecialBlock[]> {
   const address = REGISTRY_CSV[family];
   const answer = await fetch(address, { headers: { Accept: 'text/csv' } });
-  if (!answer.ok) throw new Error(`IANA answered ${address} with HTTP ${answer.status}`);
-  const [header, ...records] = (await answer.text()).split(/\r?\n/).filter((line) => line.trim());
+  if (!answer.ok)
+    throw new Error(`IANA answered ${address} with HTTP ${answer.status}`);
+  const [header, ...records] = (await answer.text())
+    .split(/\r?\n/)
+    .filter((line) => line.trim());
   if (!header) throw new Error(`${address} is empty`);
   const columns = csvFields(header);
   const column = (name: string): number => {
-    if (!columns.includes(name)) throw new Error(`${address} has no "${name}" column; its header is ${header}`);
+    if (!columns.includes(name))
+      throw new Error(
+        `${address} has no "${name}" column; its header is ${header}`,
+      );
     return columns.indexOf(name);
   };
   const addressAt = column(ADDRESS_COLUMN);
@@ -95,14 +108,16 @@ async function readRegistry(family: Family): Promise<SpecialBlock[]> {
   const blocks = records.flatMap((record) => {
     const fields = csvFields(record);
     const name = withoutNotes(String(fields[nameAt]));
-    const globallyReachable = withoutNotes(String(fields[reachableAt])) === 'True';
+    const globallyReachable =
+      withoutNotes(String(fields[reachableAt])) === 'True';
     return withoutNotes(String(fields[addressAt]))
       .split(',')
       .map((prefix) => prefix.trim())
       .filter(Boolean)
       .map((prefix) => blockOf(prefix, name, globallyReachable, family));
   });
-  if (!blocks.length) throw new Error(`${address} lists no special-purpose blocks`);
+  if (!blocks.length)
+    throw new Error(`${address} lists no special-purpose blocks`);
   return blocks;
 }
 
@@ -133,20 +148,28 @@ export function loadSpecialAddresses(): Promise<void> {
  */
 export function specialBlockOf(address: string): SpecialBlock | null {
   if (!registries) {
-    throw new Error(`cannot judge ${address}: the IANA special-purpose registries have not been read in this process (loadSpecialAddresses)`);
+    throw new Error(
+      `cannot judge ${address}: the IANA special-purpose registries have not been read in this process (loadSpecialAddresses)`,
+    );
   }
   if (!isIP(address)) throw new Error(`${address} is not an IP address`);
   let family: Family = 'ipv4';
   if (isIPv6(address)) family = 'ipv6';
-  const matching = registries[family].filter((block) => block.members.check(address, family));
+  const matching = registries[family].filter((block) =>
+    block.members.check(address, family),
+  );
   if (!matching.length) return null;
-  return matching.reduce((best, block) => (block.length > best.length ? block : best));
+  return matching.reduce((best, block) =>
+    block.length > best.length ? block : best,
+  );
 }
 
 /** Refuses an address that is not globally reachable, naming the IANA block it falls in. */
 export function assertGloballyReachable(address: string): void {
   const block = specialBlockOf(address);
   if (block && !block.globallyReachable) {
-    throw new Error(`non-public network address denied: ${address} is in ${block.prefix} (${block.name}), which IANA does not declare globally reachable`);
+    throw new Error(
+      `non-public network address denied: ${address} is in ${block.prefix} (${block.name}), which IANA does not declare globally reachable`,
+    );
   }
 }

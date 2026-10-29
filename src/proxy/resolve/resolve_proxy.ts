@@ -277,7 +277,10 @@ export async function resolveProxy(
       sticky_hash: hashed(String(sessId)),
       exit_reputation: exitReputation,
       tls_spki: tlsSpki
-        ? tlsSpki.split(',').map((hash) => hash.trim()).filter(Boolean)
+        ? tlsSpki
+            .split(',')
+            .map((hash) => hash.trim())
+            .filter(Boolean)
         : undefined,
     };
   }

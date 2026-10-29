@@ -17,20 +17,32 @@ import { resolve } from 'node:path';
 const root = resolve(import.meta.dirname, '..');
 // argv holds node and this script before the caller's words.
 const [, , revision, stated, ...paths] = process.argv;
-assert.ok(revision && stated && paths.length, 'usage: node tests/sizes.mjs <revision> <line-limit> <path>...');
+assert.ok(
+  revision && stated && paths.length,
+  'usage: node tests/sizes.mjs <revision> <line-limit> <path>...',
+);
 const limit = Number(stated);
-assert.ok(Number.isSafeInteger(limit), `line-limit must be a whole number, not ${stated}`);
+assert.ok(
+  Number.isSafeInteger(limit),
+  `line-limit must be a whole number, not ${stated}`,
+);
 
 // An empty pattern matches every line, so -c answers each file's line count.
-const counted = spawnSync('git', ['-C', root, 'grep', '-c', '-I', '-e', '', revision, '--', ...paths], {
-  encoding: 'utf8',
-  maxBuffer: Infinity,
-});
+const counted = spawnSync(
+  'git',
+  ['-C', root, 'grep', '-c', '-I', '-e', '', revision, '--', ...paths],
+  {
+    encoding: 'utf8',
+    maxBuffer: Infinity,
+  },
+);
 // git grep exits nonzero both when nothing matched and when it failed
 // (https://git-scm.com/docs/git-grep#_exit_status); only a failure says why on
 // standard error, so that complaint, a launch error or a signal is the failure.
-assert.ok(!counted.error && counted.signal === null && !counted.stderr,
-  `git grep at ${revision} failed (status ${counted.status}, signal ${counted.signal}${counted.error ? `, ${counted.error.message}` : ''}): ${counted.stderr}`);
+assert.ok(
+  !counted.error && counted.signal === null && !counted.stderr,
+  `git grep at ${revision} failed (status ${counted.status}, signal ${counted.signal}${counted.error ? `, ${counted.error.message}` : ''}): ${counted.stderr}`,
+);
 // Each row is `revision:path:count`; the count is the digits after the last colon.
 for (const row of counted.stdout.split('\n').filter(Boolean)) {
   const { count } = row.match(/:(?<count>\d+)$/).groups;

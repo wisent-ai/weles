@@ -14,16 +14,19 @@ import { normalizeKeyword } from './request_intake.mjs';
 const KEYWORD_PROPERTIES = {
   saturated: {
     type: 'boolean',
-    description: 'true when every materially distinct paid-search intent is already covered',
+    description:
+      'true when every materially distinct paid-search intent is already covered',
   },
   keywords: {
     type: 'array',
     items: { type: 'string' },
-    description: 'one canonical Google Ads seed keyword per materially uncovered intent; empty when saturated',
+    description:
+      'one canonical Google Ads seed keyword per materially uncovered intent; empty when saturated',
   },
   rationale: {
     type: 'string',
-    description: 'the coverage plan, or why the intents are covered, or which intent is still missing',
+    description:
+      'the coverage plan, or why the intents are covered, or which intent is still missing',
   },
 };
 
@@ -44,7 +47,9 @@ const KEYWORD_TOOL = {
 /** The answer the model gave as KEYWORD_TOOL's arguments; any other shape is the error, with the arguments. */
 export function parseKeywordRouterResponse(raw) {
   if (typeof raw !== 'string')
-    throw new Error(`model-router answered no arguments: ${JSON.stringify(raw)}`);
+    throw new Error(
+      `model-router answered no arguments: ${JSON.stringify(raw)}`,
+    );
   let parsed;
   try {
     parsed = JSON.parse(raw);
@@ -64,7 +69,9 @@ export function parseKeywordRouterResponse(raw) {
     );
   return {
     saturated: parsed.saturated,
-    keywords: [...new Set(parsed.keywords.map(normalizeKeyword).filter(Boolean))],
+    keywords: [
+      ...new Set(parsed.keywords.map(normalizeKeyword).filter(Boolean)),
+    ],
     rationale: parsed.rationale,
   };
 }

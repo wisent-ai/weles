@@ -171,7 +171,9 @@ export async function AsyncNewBrowser(
   // authority it declares; every other certificate is verified.
   const intercepting = options.proxy?.tls_spki;
   if (intercepting?.length) {
-    args.push(`--ignore-certificate-errors-spki-list=${intercepting.join(',')}`);
+    args.push(
+      `--ignore-certificate-errors-spki-list=${intercepting.join(',')}`,
+    );
   }
   return launchChromiumContext({
     options,

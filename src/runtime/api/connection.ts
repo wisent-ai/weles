@@ -21,9 +21,11 @@ const EXECUTOR_BEARER_ROLE = 'echo-weles-api';
 const EXECUTOR_BEARER_FIELD = 'token';
 
 /** A UUID in its text form, 8-4-4-4-12 hex digits (RFC 9562, section 4): https://www.rfc-editor.org/rfc/rfc9562#section-4 */
-const UUID_TEXT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_TEXT =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+const messageOf = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);
 
 function runStado(args: string[]): string {
   try {
@@ -32,8 +34,13 @@ function runStado(args: string[]): string {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
   } catch (error) {
-    const stderr = error instanceof Error && 'stderr' in error ? String(error.stderr).trim() : '';
-    throw new Error(`stado ${args.join(' ')} failed: ${stderr ? stderr : messageOf(error)}`);
+    const stderr =
+      error instanceof Error && 'stderr' in error
+        ? String(error.stderr).trim()
+        : '';
+    throw new Error(
+      `stado ${args.join(' ')} failed: ${stderr ? stderr : messageOf(error)}`,
+    );
   }
 }
 
@@ -50,12 +57,30 @@ function executorFromStado(options: WelesApiOptions): {
 } {
   const stado = options.stado ?? runStado;
   const route = JSON.parse(
-    stado(['service', 'directory', 'connect', EXECUTOR_SERVICE, '--consumer', EXECUTOR_CONSUMER, '--no-verify', '--json']),
+    stado([
+      'service',
+      'directory',
+      'connect',
+      EXECUTOR_SERVICE,
+      '--consumer',
+      EXECUTOR_CONSUMER,
+      '--no-verify',
+      '--json',
+    ]),
   ) as { url?: unknown };
   if (typeof route.url !== 'string' || !route.url) {
-    throw new Error(`stado service directory connect ${EXECUTOR_SERVICE} answered no url`);
+    throw new Error(
+      `stado service directory connect ${EXECUTOR_SERVICE} answered no url`,
+    );
   }
-  const bearer = stado(['credentials', 'get', '--role', EXECUTOR_BEARER_ROLE, '--field', EXECUTOR_BEARER_FIELD]).trim();
+  const bearer = stado([
+    'credentials',
+    'get',
+    '--role',
+    EXECUTOR_BEARER_ROLE,
+    '--field',
+    EXECUTOR_BEARER_FIELD,
+  ]).trim();
   return { endpoint: route.url, bearer };
 }
 
@@ -63,14 +88,24 @@ function required(value: string | undefined, name: string): string {
   const normalized = value?.trim();
   if (!normalized) throw new Error(`${name} is required`);
   if (value !== normalized || /\p{Cc}/u.test(value)) {
-    throw new Error(`${name} contains invalid whitespace or control characters`);
+    throw new Error(
+      `${name} contains invalid whitespace or control characters`,
+    );
   }
   return normalized;
 }
 
-function apiConnection(path: string, options: WelesApiOptions, endpointName: string, bearerName: string) {
+function apiConnection(
+  path: string,
+  options: WelesApiOptions,
+  endpointName: string,
+  bearerName: string,
+) {
   const environment = options.environment ?? process.env;
-  const raw = required(options.endpoint ?? environment[endpointName], endpointName);
+  const raw = required(
+    options.endpoint ?? environment[endpointName],
+    endpointName,
+  );
   let base: URL;
   try {
     base = new URL(raw);
@@ -78,12 +113,22 @@ function apiConnection(path: string, options: WelesApiOptions, endpointName: str
     throw new Error(`${endpointName} must be a URL: ${messageOf(error)}`);
   }
   if (base.username || base.password || base.search || base.hash) {
-    throw new Error(`${endpointName} must not contain credentials, query parameters, or a fragment`);
+    throw new Error(
+      `${endpointName} must not contain credentials, query parameters, or a fragment`,
+    );
   }
-  if (base.protocol !== 'https:' && !(base.protocol === 'http:' && loopbackHost(base.hostname))) {
-    throw new Error(`${endpointName} must use HTTPS unless it names a loopback host`);
+  if (
+    base.protocol !== 'https:' &&
+    !(base.protocol === 'http:' && loopbackHost(base.hostname))
+  ) {
+    throw new Error(
+      `${endpointName} must use HTTPS unless it names a loopback host`,
+    );
   }
-  const bearer = required(options.bearer ?? environment[bearerName], bearerName);
+  const bearer = required(
+    options.bearer ?? environment[bearerName],
+    bearerName,
+  );
   return {
     endpoint: new URL(path, base),
     fetch: options.fetch ?? fetch,
@@ -94,11 +139,21 @@ function apiConnection(path: string, options: WelesApiOptions, endpointName: str
   };
 }
 
-export function welesOperatorConnection(path: string, options: WelesApiOptions = {}) {
+export function welesOperatorConnection(
+  path: string,
+  options: WelesApiOptions = {},
+) {
   const environment = options.environment ?? process.env;
   const named = options.endpoint ?? environment.WELES_WORKER_API_BASE;
-  const resolved = named ? options : { ...options, ...executorFromStado(options) };
-  return apiConnection(path, resolved, 'WELES_WORKER_API_BASE', 'WELES_WORKER_TOKEN');
+  const resolved = named
+    ? options
+    : { ...options, ...executorFromStado(options) };
+  return apiConnection(
+    path,
+    resolved,
+    'WELES_WORKER_API_BASE',
+    'WELES_WORKER_TOKEN',
+  );
 }
 
 /** How an answer that is not JSON is named: its status, its content type, and its body or that it had none. */
@@ -116,24 +171,41 @@ function unparsedAnswer(response: Response, text: string): string {
  * reach it, so a body that is not JSON is reported as the status and text it
  * was, with the parser's reason.
  */
-export async function operatorJson(response: Response): Promise<Record<string, unknown>> {
+export async function operatorJson(
+  response: Response,
+): Promise<Record<string, unknown>> {
   const text = await response.text();
   let body: unknown;
   try {
     body = JSON.parse(text);
   } catch (error) {
-    throw new Error(`${unparsedAnswer(response, text)} is not the executor's JSON (${messageOf(error)})`);
+    throw new Error(
+      `${unparsedAnswer(response, text)} is not the executor's JSON (${messageOf(error)})`,
+    );
   }
   if (body === null || typeof body !== 'object' || Array.isArray(body)) {
-    throw new Error(`HTTP ${response.status}: the executor answered JSON that is not an object`);
+    throw new Error(
+      `HTTP ${response.status}: the executor answered JSON that is not an object`,
+    );
   }
   return body as Record<string, unknown>;
 }
 
-export function welesApiConnection(path: string, options: WelesApiOptions = {}) {
-  const connection = apiConnection(path, options, 'WELES_API_BASE', 'WELES_TOKEN');
+export function welesApiConnection(
+  path: string,
+  options: WelesApiOptions = {},
+) {
+  const connection = apiConnection(
+    path,
+    options,
+    'WELES_API_BASE',
+    'WELES_TOKEN',
+  );
   const environment = options.environment ?? process.env;
-  const organizationId = required(options.organizationId ?? environment.WISENT_ORGANIZATION_ID, 'WISENT_ORGANIZATION_ID').toLowerCase();
+  const organizationId = required(
+    options.organizationId ?? environment.WISENT_ORGANIZATION_ID,
+    'WISENT_ORGANIZATION_ID',
+  ).toLowerCase();
   if (!UUID_TEXT.test(organizationId)) {
     throw new Error('WISENT_ORGANIZATION_ID must be a UUID');
   }

@@ -56,13 +56,17 @@ export function readPointerTrace(): PointerTrace {
     throw new Error(
       `no pointer trace at ${path}: harvest one from operator-driven runs with weles pointer harvest --from <run>.inst.json`,
     );
-  const document = JSON.parse(readFileSync(path, 'utf8')) as Partial<PointerTrace>;
+  const document = JSON.parse(
+    readFileSync(path, 'utf8'),
+  ) as Partial<PointerTrace>;
   const { sources, segments, wheel } = document;
   if (
     !Array.isArray(sources) ||
     !Array.isArray(segments) ||
     !Array.isArray(wheel) ||
-    !segments.every((s) => Array.isArray(s?.points) && s.points.every(isPoint)) ||
+    !segments.every(
+      (s) => Array.isArray(s?.points) && s.points.every(isPoint),
+    ) ||
     !wheel.every(isWheelStep)
   )
     throw new Error(

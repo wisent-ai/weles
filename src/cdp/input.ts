@@ -40,7 +40,9 @@ export class CDPMouse {
 
   private _where(what: string): Point {
     if (!this._at)
-      throw new Error(`a mouse ${what} needs the pointer moved onto the page first`);
+      throw new Error(
+        `a mouse ${what} needs the pointer moved onto the page first`,
+      );
     return this._at;
   }
 
@@ -53,7 +55,11 @@ export class CDPMouse {
   }
 
   /** Move to (x, y) along a recorded segment, or in one event when instant. */
-  async move(x: number, y: number, options?: { instant?: boolean }): Promise<void> {
+  async move(
+    x: number,
+    y: number,
+    options?: { instant?: boolean },
+  ): Promise<void> {
     const to = { x, y };
     const instant = options?.instant ?? instantMode();
     if (instant) await this._moved(to);
@@ -215,12 +221,15 @@ export class CDPKeyboard {
    * `ControlOrMeta` is Meta when the driven browser runs on macOS.
    */
   async press(key: string): Promise<void> {
-    const keys = await Promise.all(chord(key).map((part) => this._resolve(part)));
+    const keys = await Promise.all(
+      chord(key).map((part) => this._resolve(part)),
+    );
     for (const part of keys) keyDescription(part);
     const pressed: string[] = [];
     for (const part of keys) {
       const described = keyDescription(part);
-      if (MODIFIERS.has(described.key) && this._held.has(described.key)) continue;
+      if (MODIFIERS.has(described.key) && this._held.has(described.key))
+        continue;
       await this.down(part);
       pressed.push(part);
     }
@@ -231,7 +240,9 @@ export class CDPKeyboard {
     if (key !== CONTROL_OR_META) return Promise.resolve(key);
     this._mac ??= this._conn
       .send('Browser.getVersion', {})
-      .then((version: { userAgent: string }) => version.userAgent.includes(MAC_USER_AGENT));
+      .then((version: { userAgent: string }) =>
+        version.userAgent.includes(MAC_USER_AGENT),
+      );
     return this._mac.then((mac) => (mac ? 'Meta' : 'Control'));
   }
 

@@ -5,10 +5,7 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import {
-  type LinkedInProbePersona,
-  probeHeaders,
-} from './platform_probes.js';
+import { type LinkedInProbePersona, probeHeaders } from './platform_probes.js';
 
 export type RoutingResult = 'standard' | 'high_risk' | 'unknown';
 

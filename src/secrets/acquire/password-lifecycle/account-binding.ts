@@ -35,7 +35,10 @@ type Binding = { accountId: string | null; error?: string };
 /** Whether `row` belongs to the Skarbiec tenant scope `tenant`: a row that
  *  records no tenant (absent or JSON null) is in the unscoped vault, and only
  *  an unscoped request reaches it. */
-function inScope(row: MicrosoftAccountRow, tenant: string | null | undefined): boolean {
+function inScope(
+  row: MicrosoftAccountRow,
+  tenant: string | null | undefined,
+): boolean {
   const recorded: string | null | undefined = row.metadata?.skarbiec_tenant_id;
   const unscoped = (value: string | null | undefined) =>
     value === null || value === undefined;
@@ -59,7 +62,9 @@ export function microsoftAccountBinding(
   const rows = listAccounts('microsoft') as MicrosoftAccountRow[];
   const normalized = accountEmail.trim().toLowerCase();
   const tenantRows = rows.filter((row) => inScope(row, tenantId));
-  const matches = tenantRows.filter((row) => row.active && named(row, normalized));
+  const matches = tenantRows.filter(
+    (row) => row.active && named(row, normalized),
+  );
   const [account, another] = matches;
   if (another)
     return {

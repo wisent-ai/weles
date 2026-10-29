@@ -50,7 +50,9 @@ export async function prewarmLinkedinGuestSession(session, urls) {
           .querySelector('meta[name="pageKey"]')
           ?.getAttribute('content'),
         authwall: /\/authwall/.test(location.href),
-        visible_text_sample: document.body.innerText.replace(/\s+/g, ' ').trim(),
+        visible_text_sample: document.body.innerText
+          .replace(/\s+/g, ' ')
+          .trim(),
       })),
     );
   }
@@ -60,18 +62,21 @@ export async function prewarmLinkedinGuestSession(session, urls) {
 
 /** The page's state at `stage`, with every link on it that leads to signup. */
 async function pageState(page, stage) {
-  const state = await page.evaluate((s) => ({
-    stage: s,
-    url: location.href,
-    title: document.title,
-    referrer: document.referrer,
-    links: Array.from(document.querySelectorAll('a[href]'), (a) => ({
-      text: a.textContent.replace(/\s+/g, ' ').trim(),
-      href: a.href,
-      tracking_control: a.getAttribute('data-tracking-control-name'),
-      visible: a.checkVisibility(),
-    })),
-  }), stage);
+  const state = await page.evaluate(
+    (s) => ({
+      stage: s,
+      url: location.href,
+      title: document.title,
+      referrer: document.referrer,
+      links: Array.from(document.querySelectorAll('a[href]'), (a) => ({
+        text: a.textContent.replace(/\s+/g, ' ').trim(),
+        href: a.href,
+        tracking_control: a.getAttribute('data-tracking-control-name'),
+        visible: a.checkVisibility(),
+      })),
+    }),
+    stage,
+  );
   const { links, ...rest } = state;
   return {
     ...rest,

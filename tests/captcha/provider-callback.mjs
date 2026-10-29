@@ -54,8 +54,14 @@ const directory = join(
   `provider-callback-${new Date().toISOString().replace(/[:.]/g, '-')}`,
 );
 const report = {
-  revision: spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim(),
-  dirty: spawnSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: root, encoding: 'utf8' }).stdout,
+  revision: spawnSync('git', ['rev-parse', 'HEAD'], {
+    cwd: root,
+    encoding: 'utf8',
+  }).stdout.trim(),
+  dirty: spawnSync('git', ['status', '--porcelain', '--untracked-files=no'], {
+    cwd: root,
+    encoding: 'utf8',
+  }).stdout,
   steps: [],
 };
 // hCaptcha's own demo page: a real page a task can name.
@@ -93,12 +99,18 @@ before(async () => {
 after(() => {
   server?.kill();
   mkdirSync(directory, { recursive: true });
-  writeFileSync(join(directory, 'report.json'), `${JSON.stringify(report, null, '\t')}\n`);
+  writeFileSync(
+    join(directory, 'report.json'),
+    `${JSON.stringify(report, null, '\t')}\n`,
+  );
 });
 
 /** Points this process's solves at the route as the worker points run `run`'s. */
 function useRoute(run) {
-  process.env.WELES_CAPTCHA_CALLBACK_URL = new URL(`/captcha/answers/${run}/`, route.origin).toString();
+  process.env.WELES_CAPTCHA_CALLBACK_URL = new URL(
+    `/captcha/answers/${run}/`,
+    route.origin,
+  ).toString();
   process.env.WELES_CAPTCHA_ANSWERS_DIR = join(route.answers, run);
   return join(route.answers, run);
 }
@@ -114,41 +126,87 @@ async function refusal(solving) {
 }
 
 test('a callback origin that is not an HTTPS origin stops the worker naming it', async () => {
-  for (const origin of ['not an address', 'http://weles.example', 'https://weles.example/captcha', 'https://user@weles.example']) {
-    const started = spawnSync(process.execPath, [ANSWER_SERVER], { cwd: root, env: workerEnvironment(origin), encoding: 'utf8' });
-    report.steps.push({ step: `origin ${origin}`, status: started.status, stderr: started.stderr.split('\n').find((line) => line.includes('WELES_CAPTCHA_CALLBACK_ORIGIN')) });
-    assert.notEqual(started.status, Number(), `the worker started with origin ${origin}`);
-    assert.match(started.stderr, new RegExp(`WELES_CAPTCHA_CALLBACK_ORIGIN is ${origin.replace(/[./@]/g, '\\$&')}: set it to the public HTTPS origin`));
+  for (const origin of [
+    'not an address',
+    'http://weles.example',
+    'https://weles.example/captcha',
+    'https://user@weles.example',
+  ]) {
+    const started = spawnSync(process.execPath, [ANSWER_SERVER], {
+      cwd: root,
+      env: workerEnvironment(origin),
+      encoding: 'utf8',
+    });
+    report.steps.push({
+      step: `origin ${origin}`,
+      status: started.status,
+      stderr: started.stderr
+        .split('\n')
+        .find((line) => line.includes('WELES_CAPTCHA_CALLBACK_ORIGIN')),
+    });
+    assert.notEqual(
+      started.status,
+      Number(),
+      `the worker started with origin ${origin}`,
+    );
+    assert.match(
+      started.stderr,
+      new RegExp(
+        `WELES_CAPTCHA_CALLBACK_ORIGIN is ${origin.replace(/[./@]/g, '\\$&')}: set it to the public HTTPS origin`,
+      ),
+    );
   }
   // Another spelling of an HTTPS origin (capitals, a closing slash) is that origin, and the worker starts.
-  const spelled = spawn(process.execPath, [ANSWER_SERVER], { cwd: root, env: workerEnvironment('https://Weles.example/'), stdio: ['ignore', 'pipe', 'pipe'] });
+  const spelled = spawn(process.execPath, [ANSWER_SERVER], {
+    cwd: root,
+    env: workerEnvironment('https://Weles.example/'),
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
   const [line] = await once(createInterface({ input: spelled.stdout }), 'line');
   spelled.kill();
-  report.steps.push({ step: 'origin https://Weles.example/', started: JSON.parse(line) });
+  report.steps.push({
+    step: 'origin https://Weles.example/',
+    started: JSON.parse(line),
+  });
 });
 
 test('a callback service is refused before it is asked when the run has no callback address', async () => {
   delete process.env.WELES_CAPTCHA_CALLBACK_URL;
   delete process.env.WELES_CAPTCHA_ANSWERS_DIR;
-  const solver = new CaptchaSolver({ anticaptcha: `not-issued-${randomUUID()}` });
+  const solver = new CaptchaSolver({
+    anticaptcha: `not-issued-${randomUUID()}`,
+  });
   const message = await refusal(solver.solveHcaptcha('site-key-unread', DEMO));
   report.steps.push({ step: 'no callback address', message });
-  assert.match(message, /anti-captcha cannot be given a task: WELES_CAPTCHA_CALLBACK_URL is not set/);
+  assert.match(
+    message,
+    /anti-captcha cannot be given a task: WELES_CAPTCHA_CALLBACK_URL is not set/,
+  );
   assert.match(message, /WELES_CAPTCHA_CALLBACK_ORIGIN/);
 });
 
 test('the worker route hands a pushed answer to the run waiting for it', async () => {
   const run = `journey-${randomUUID()}`;
   const answers = useRoute(run);
-  const stray = await fetch(new URL(`/captcha/answers/${run}/${randomUUID()}`, route.origin), {
-    method: 'POST',
-    body: '{}',
+  const stray = await fetch(
+    new URL(`/captcha/answers/${run}/${randomUUID()}`, route.origin),
+    {
+      method: 'POST',
+      body: '{}',
+    },
+  );
+  report.steps.push({
+    step: 'answer nobody waits for',
+    status: stray.status,
+    body: await stray.json(),
   });
-  report.steps.push({ step: 'answer nobody waits for', status: stray.status, body: await stray.json() });
   assert.equal(stray.status, http.HTTP_STATUS_NOT_FOUND);
 
   const callback = await providerCallback('anti-captcha');
-  assert.ok(callback.url.startsWith(process.env.WELES_CAPTCHA_CALLBACK_URL), callback.url);
+  assert.ok(
+    callback.url.startsWith(process.env.WELES_CAPTCHA_CALLBACK_URL),
+    callback.url,
+  );
   const pushed = JSON.stringify({
     status: 'ready',
     solution: { gRecaptchaResponse: `token-${randomUUID()}` },
@@ -160,15 +218,33 @@ test('the worker route hands a pushed answer to the run waiting for it', async (
   });
   assert.equal(posted.status, http.HTTP_STATUS_OK);
   assert.deepEqual(await posted.json(), { ok: true });
-  const early = await fetch(callback.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"status":"processing"}' });
-  report.steps.push({ step: 'callback repeated before the run read it', status: early.status });
+  const early = await fetch(callback.url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{"status":"processing"}',
+  });
+  report.steps.push({
+    step: 'callback repeated before the run read it',
+    status: early.status,
+  });
   assert.equal(early.status, http.HTTP_STATUS_NOT_FOUND);
   const answer = await callback.answer();
   report.steps.push({ step: 'pushed answer', url: callback.url, answer });
-  assert.deepEqual(answer, { contentType: 'application/json', body: pushed }, 'the first callback was not the one kept');
+  assert.deepEqual(
+    answer,
+    { contentType: 'application/json', body: pushed },
+    'the first callback was not the one kept',
+  );
   assert.deepEqual(readdirSync(answers), []);
-  const repeated = await fetch(callback.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: pushed });
-  report.steps.push({ step: 'callback repeated after the run read it', status: repeated.status });
+  const repeated = await fetch(callback.url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: pushed,
+  });
+  report.steps.push({
+    step: 'callback repeated after the run read it',
+    status: repeated.status,
+  });
   assert.equal(repeated.status, http.HTTP_STATUS_NOT_FOUND);
 });
 
@@ -176,9 +252,14 @@ test('a provider that refuses the task leaves no run waiting', async () => {
   const answers = useRoute(`journey-${randomUUID()}`);
   for (const [service, solve] of [
     ['anticaptcha', (solver) => solver.solveHcaptcha('site-key-unread', DEMO)],
-    ['twocaptcha', (solver) => solver.solveFuncaptcha('public-key-unread', DEMO)],
+    [
+      'twocaptcha',
+      (solver) => solver.solveFuncaptcha('public-key-unread', DEMO),
+    ],
   ]) {
-    const solver = new CaptchaSolver({ [service]: `not-issued-${randomUUID()}` });
+    const solver = new CaptchaSolver({
+      [service]: `not-issued-${randomUUID()}`,
+    });
     const message = await refusal(solve(solver));
     const left = readdirSync(answers);
     report.steps.push({ step: `${service} refuses`, message, left });
@@ -191,7 +272,9 @@ test('a run that ended takes its answers with it, and a late callback is answere
   // The worker's own registration, read with the same declaration and home
   // the route runs with, so it removes the directory the route reads.
   Object.assign(process.env, workerEnvironment(''));
-  const { registerRunningRun } = await import('../../src/worker/weles-api-server/run/running-runs.mjs');
+  const { registerRunningRun } = await import(
+    '../../src/worker/weles-api-server/run/running-runs.mjs'
+  );
   const run = `journey-${randomUUID()}`;
   const answers = useRoute(run);
   const callback = await providerCallback('anti-captcha');
@@ -203,21 +286,41 @@ test('a run that ended takes its answers with it, and a late callback is answere
     describe: () => 'waiting for a captcha callback',
   });
   unregister();
-  const late = await fetch(callback.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"status":"ready"}' });
-  report.steps.push({ step: 'callback after the run ended', status: late.status, answersLeft: readdirSync(route.answers).includes(run) });
+  const late = await fetch(callback.url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{"status":"ready"}',
+  });
+  report.steps.push({
+    step: 'callback after the run ended',
+    status: late.status,
+    answersLeft: readdirSync(route.answers).includes(run),
+  });
   assert.equal(late.status, http.HTTP_STATUS_NOT_FOUND);
-  assert.equal(readdirSync(route.answers).includes(run), false, 'the ended run left its answers directory');
+  assert.equal(
+    readdirSync(route.answers).includes(run),
+    false,
+    'the ended run left its answers directory',
+  );
   await assert.rejects(callback.abandon(), /ENOENT/);
 });
 
-test('a worker that starts clears the answers an earlier server\'s runs left', async () => {
+test("a worker that starts clears the answers an earlier server's runs left", async () => {
   const stale = join(route.answers, `journey-${randomUUID()}`);
   mkdirSync(stale, { recursive: true });
   writeFileSync(join(stale, `${randomUUID()}.waiting`), '');
-  const restarted = spawn(process.execPath, [ANSWER_SERVER], { cwd: root, env: workerEnvironment(''), stdio: ['ignore', 'pipe', 'pipe'] });
+  const restarted = spawn(process.execPath, [ANSWER_SERVER], {
+    cwd: root,
+    env: workerEnvironment(''),
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
   await once(createInterface({ input: restarted.stdout }), 'line');
   restarted.kill();
   const left = existsSync(stale);
   report.steps.push({ step: 'answers left by an earlier server', left });
-  assert.equal(left, false, 'a starting worker kept answers no run of its own waits for');
+  assert.equal(
+    left,
+    false,
+    'a starting worker kept answers no run of its own waits for',
+  );
 });

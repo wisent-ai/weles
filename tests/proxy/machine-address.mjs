@@ -7,8 +7,12 @@ import { captureFailures } from '../../dist/diagnostics/versions/failures.js';
 // beforeExit observes its final state after real network work, without polling,
 // timers, replacing fetch or exposing a new production control surface.
 process.once('beforeExit', () => {
-  console.log(JSON.stringify({
-    public_ip: machinePublicAddress(),
-    failures: captureFailures.filter((failure) => failure.field === 'machine.public_ip'),
-  }));
+  console.log(
+    JSON.stringify({
+      public_ip: machinePublicAddress(),
+      failures: captureFailures.filter(
+        (failure) => failure.field === 'machine.public_ip',
+      ),
+    }),
+  );
 });

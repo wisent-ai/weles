@@ -34,7 +34,13 @@ export function createRuntimeProbe() {
     if (probingSince !== null) return;
     const since = new Date().toISOString();
     probingSince = since;
-    console.log(JSON.stringify({ event: 'browser_runtime_probe', state: 'started', since }));
+    console.log(
+      JSON.stringify({
+        event: 'browser_runtime_probe',
+        state: 'started',
+        since,
+      }),
+    );
     // The worker posts one report. A constructor that throws ends the probe
     // as the runtime's failure before start returns; everything that fails
     // once the thread exists, a module that cannot load included, arrives as
@@ -43,12 +49,18 @@ export function createRuntimeProbe() {
     const failed = (error) => {
       if (reported) return;
       reported = true;
-      const cause = error instanceof Error ? error.stack || error.message : String(error);
-      finished({ ok: false, error: `the browser runtime probe failed: ${cause}` }, since);
+      const cause =
+        error instanceof Error ? error.stack || error.message : String(error);
+      finished(
+        { ok: false, error: `the browser runtime probe failed: ${cause}` },
+        since,
+      );
     };
     let worker;
     try {
-      worker = new Worker(new URL('./runtime-probe-worker.mjs', import.meta.url));
+      worker = new Worker(
+        new URL('./runtime-probe-worker.mjs', import.meta.url),
+      );
     } catch (error) {
       failed(error);
       return;
@@ -59,7 +71,9 @@ export function createRuntimeProbe() {
       finished(report, since);
     });
     worker.once('error', failed);
-    worker.once('exit', (code) => failed(`its worker thread exited with code ${code} before reporting`));
+    worker.once('exit', (code) =>
+      failed(`its worker thread exited with code ${code} before reporting`),
+    );
   }
 
   // What a status read answers now: the last report with when it was

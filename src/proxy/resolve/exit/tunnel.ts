@@ -59,9 +59,13 @@ export function openTunnel(
   );
   let head = '';
   const onError = (error: Error) =>
-    resolve({ failure: `CONNECT ${target}:${port} through ${proxy.host}:${proxy.port} failed: ${describeError(error)}` });
+    resolve({
+      failure: `CONNECT ${target}:${port} through ${proxy.host}:${proxy.port} failed: ${describeError(error)}`,
+    });
   const onClose = () =>
-    resolve({ failure: `the proxy closed before completing its CONNECT response: ${JSON.stringify(head)}` });
+    resolve({
+      failure: `the proxy closed before completing its CONNECT response: ${JSON.stringify(head)}`,
+    });
   socket.once('error', onError);
   socket.once('close', onClose);
   // RFC 9112 section 2.1: headers end at an empty line, not a TCP packet.
@@ -91,7 +95,11 @@ export async function readExitAddress(
   endpoint = publicAddressService(),
 ): Promise<string> {
   const service = endpoint.hostname;
-  const tunnel = await openTunnel(proxy, service, endpoint.port ? Number(endpoint.port) : undefined);
+  const tunnel = await openTunnel(
+    proxy,
+    service,
+    endpoint.port ? Number(endpoint.port) : undefined,
+  );
   if ('failure' in tunnel)
     throw new Error(`CONNECT ${service}: ${tunnel.failure}`);
   if (tunnel.status !== HTTP_OK) {
@@ -113,7 +121,10 @@ export async function readExitAddress(
     await promise;
   } catch (cause) {
     secure.destroy();
-    throw new Error(`TLS/GET ${endpoint} through ${proxy.host}:${proxy.port} failed`, { cause });
+    throw new Error(
+      `TLS/GET ${endpoint} through ${proxy.host}:${proxy.port} failed`,
+      { cause },
+    );
   }
   const [head, ...body] = Buffer.concat(chunks)
     .toString('utf8')

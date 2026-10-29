@@ -20,7 +20,8 @@ export const PAGE_INIT_FAILURE = '__weles_page_init_failure__';
  * server-reflexive candidate addresses the shim exists to strip.
  */
 const EXPOSING_PATCHES: Readonly<Record<string, string>> = {
-  webrtc: 'native WebRTC would hand the site the host and public addresses behind the proxy',
+  webrtc:
+    'native WebRTC would hand the site the host and public addresses behind the proxy',
 };
 
 /**
@@ -33,10 +34,19 @@ function reportedPatch(reported: string): string | Error {
   try {
     parsed = JSON.parse(reported);
   } catch (error) {
-    return new Error(`its report is not JSON (${error instanceof Error ? error.message : String(error)}), so which patch failed is unknown`);
+    return new Error(
+      `its report is not JSON (${error instanceof Error ? error.message : String(error)}), so which patch failed is unknown`,
+    );
   }
-  if (!parsed || typeof parsed !== 'object' || !('patch' in parsed) || typeof parsed.patch !== 'string') {
-    return new Error('its report names no patch, so which patch failed is unknown');
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    !('patch' in parsed) ||
+    typeof parsed.patch !== 'string'
+  ) {
+    return new Error(
+      'its report names no patch, so which patch failed is unknown',
+    );
   }
   return parsed.patch;
 }
@@ -46,7 +56,10 @@ function reportedPatch(reported: string): string | Error {
  * with the browser's own behaviour; a trajectory using it then fails on the
  * closed page, and the ledger says why.
  */
-async function closeExposedPage(message: ConsoleMessage, why: string): Promise<string> {
+async function closeExposedPage(
+  message: ConsoleMessage,
+  why: string,
+): Promise<string> {
   const page = message.page();
   if (!page) return `no page to close (${why})`;
   await page.close();
@@ -81,7 +94,8 @@ export function watchPageInitFailures(context: BrowserContext): void {
       keep({ at, url, reported });
       return;
     }
-    const why = typeof patch === 'string' ? EXPOSING_PATCHES[patch] : patch.message;
+    const why =
+      typeof patch === 'string' ? EXPOSING_PATCHES[patch] : patch.message;
     closeExposedPage(message, why).then(
       (action) => {
         console.log(`[page-init] ${action} (${url})`);

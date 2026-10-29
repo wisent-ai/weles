@@ -41,7 +41,10 @@ function travelled(points: Point[]): boolean {
 }
 
 /** The segments and wheel steps one frame's log holds, in the order they happened. */
-function harvestFrame(frame: FrameLog): { segments: Segment[]; wheel: WheelStep[] } {
+function harvestFrame(frame: FrameLog): {
+  segments: Segment[];
+  wheel: WheelStep[];
+} {
   const segments: Segment[] = [];
   const wheel: WheelStep[] = [];
   let travel: Point[] = [];

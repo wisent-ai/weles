@@ -43,7 +43,8 @@ function fail(step, cause) {
  */
 function run(program, args, options, step) {
   const result = spawnSync(program, args, { maxBuffer: Infinity, ...options });
-  if (result.error) fail(step, `${program} could not run: ${result.error.message}`);
+  if (result.error)
+    fail(step, `${program} could not run: ${result.error.message}`);
   if (result.signal) fail(step, `${program} was ended by ${result.signal}`);
   return result;
 }
@@ -57,31 +58,85 @@ function change(step, action) {
   }
 }
 
-if (!revision) fail('read the arguments', 'the revision to typecheck is required');
-if (extra.length) fail('read the arguments', `one revision is taken, and ${extra.join(' ')} was given after it`);
-const commit = run('git', ['rev-parse', '--verify', `${revision}^{commit}`], { cwd: root, encoding: 'utf8' }, 'resolve the revision');
-if (commit.status) fail('resolve the revision', `${revision} is not a commit here: ${commit.stderr}`);
+if (!revision)
+  fail('read the arguments', 'the revision to typecheck is required');
+if (extra.length)
+  fail(
+    'read the arguments',
+    `one revision is taken, and ${extra.join(' ')} was given after it`,
+  );
+const commit = run(
+  'git',
+  ['rev-parse', '--verify', `${revision}^{commit}`],
+  { cwd: root, encoding: 'utf8' },
+  'resolve the revision',
+);
+if (commit.status)
+  fail(
+    'resolve the revision',
+    `${revision} is not a commit here: ${commit.stderr}`,
+  );
 const sha = commit.stdout.trim();
 
 const modules = join(root, 'node_modules');
 const tsc = join(modules, '.bin', 'tsc');
-if (!existsSync(tsc)) fail('find the compiler', `${modules} holds no installed TypeScript; run npm ci in ${root}`);
+if (!existsSync(tsc))
+  fail(
+    'find the compiler',
+    `${modules} holds no installed TypeScript; run npm ci in ${root}`,
+  );
 
 tree = join(root, '.build', 'typecheck-revision', sha);
-change('clear the export directory', () => rmSync(tree, { recursive: true, force: true }));
-change('create the export directory', () => mkdirSync(tree, { recursive: true }));
-const archive = run('git', ['archive', '--format=tar', sha], { cwd: root }, 'export the revision');
-if (archive.status) fail('export the revision', `git archive ${sha} exited ${archive.status}: ${archive.stderr}`);
-const unpacked = run('tar', ['-x', '-C', tree], { input: archive.stdout }, 'unpack the revision');
-if (unpacked.status) fail('unpack the revision', `tar exited ${unpacked.status}: ${unpacked.stderr}`);
-change('give the tree the installed packages', () => symlinkSync(modules, join(tree, 'node_modules'), 'dir'));
+change('clear the export directory', () =>
+  rmSync(tree, { recursive: true, force: true }),
+);
+change('create the export directory', () =>
+  mkdirSync(tree, { recursive: true }),
+);
+const archive = run(
+  'git',
+  ['archive', '--format=tar', sha],
+  { cwd: root },
+  'export the revision',
+);
+if (archive.status)
+  fail(
+    'export the revision',
+    `git archive ${sha} exited ${archive.status}: ${archive.stderr}`,
+  );
+const unpacked = run(
+  'tar',
+  ['-x', '-C', tree],
+  { input: archive.stdout },
+  'unpack the revision',
+);
+if (unpacked.status)
+  fail(
+    'unpack the revision',
+    `tar exited ${unpacked.status}: ${unpacked.stderr}`,
+  );
+change('give the tree the installed packages', () =>
+  symlinkSync(modules, join(tree, 'node_modules'), 'dir'),
+);
 
-const checked = run(tsc, ['--noEmit', '-p', '.'], { cwd: tree, encoding: 'utf8' }, 'typecheck');
+const checked = run(
+  tsc,
+  ['--noEmit', '-p', '.'],
+  { cwd: tree, encoding: 'utf8' },
+  'typecheck',
+);
 // Every error tsc reports, at a file location or without one: an empty
 // inventory is the only answer that says the revision compiles.
-const errors = checked.stdout.split('\n').filter((line) => /\berror TS\d+:/.test(line));
+const errors = checked.stdout
+  .split('\n')
+  .filter((line) => /\berror TS\d+:/.test(line));
 if (checked.status && !errors.length) {
-  fail('typecheck', `tsc exited ${checked.status} without reporting an error: ${checked.stdout}${checked.stderr}`);
+  fail(
+    'typecheck',
+    `tsc exited ${checked.status} without reporting an error: ${checked.stdout}${checked.stderr}`,
+  );
 }
-change('remove the exported tree', () => rmSync(tree, { recursive: true, force: true }));
+change('remove the exported tree', () =>
+  rmSync(tree, { recursive: true, force: true }),
+);
 for (const error of errors) process.stdout.write(`${error}\n`);

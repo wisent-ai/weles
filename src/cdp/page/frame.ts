@@ -181,9 +181,7 @@ export class FrameTree {
     this._conn.on(
       'Page.frameDetached',
       (params: any) => {
-        this._frames.delete(
-          required(params, 'frameId', 'Page.frameDetached'),
-        );
+        this._frames.delete(required(params, 'frameId', 'Page.frameDetached'));
       },
       this._sessionId,
     );

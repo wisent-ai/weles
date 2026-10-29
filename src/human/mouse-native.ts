@@ -28,7 +28,9 @@ function runCliclick(
   });
   if (!result.error && result.signal === null && !result.status) return;
   const said = result.error ? result.error.message : result.stderr.trim();
-  const detail = sensitiveText ? said.replaceAll(sensitiveText, '[redacted]') : said;
+  const detail = sensitiveText
+    ? said.replaceAll(sensitiveText, '[redacted]')
+    : said;
   throw new Error(
     `native input ${operation} failed: error=${JSON.stringify((result.error as NodeJS.ErrnoException | undefined)?.code)}, status=${result.status}, signal=${result.signal}; ${detail}`,
   );
@@ -47,7 +49,9 @@ function parentOf(pid: number): number {
     stdio: 'pipe',
   }).trim();
   if (!/^\d+$/.test(answer))
-    throw new Error(`ps answered ${JSON.stringify(answer)} for the parent of ${pid}`);
+    throw new Error(
+      `ps answered ${JSON.stringify(answer)} for the parent of ${pid}`,
+    );
   return Number(answer);
 }
 

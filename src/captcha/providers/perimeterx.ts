@@ -121,7 +121,9 @@ async function nocaptchaCookies(
   );
   // nocaptcha answers a truthy status for a solve and a falsy one for a refusal.
   if (!j?.status) {
-    throw new Error(`nocaptcha refused the PerimeterX solve: ${JSON.stringify(j)}`);
+    throw new Error(
+      `nocaptcha refused the PerimeterX solve: ${JSON.stringify(j)}`,
+    );
   }
   const out = playwrightCookies(j.data?.cookies, domain);
   if (!out?.length) {
@@ -147,14 +149,16 @@ export async function solvePerimeterXCookies(
   if (capsolver) {
     attempts.push({
       service: 'capsolver',
-      solve: () => capsolverCookies(capsolver, url, userAgent, domain, cookies, proxy),
+      solve: () =>
+        capsolverCookies(capsolver, url, userAgent, domain, cookies, proxy),
     });
   }
   const nocaptcha = creds.nocaptcha;
   if (nocaptcha) {
     attempts.push({
       service: 'nocaptcha',
-      solve: () => nocaptchaCookies(nocaptcha, url, userAgent, domain, cookies, proxy),
+      solve: () =>
+        nocaptchaCookies(nocaptcha, url, userAgent, domain, cookies, proxy),
     });
   }
   return firstSolved('perimeterx', attempts);

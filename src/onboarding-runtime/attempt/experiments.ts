@@ -75,7 +75,10 @@ export async function resolveExperimentAssignment(
   const platform = assignmentPlatform(surface);
   if (contract.kill_switch) return { identity: control, degraded: null };
   if (platform === null) {
-    return { identity: control, degraded: `surface ${surface} names no assignment platform, so experiment ${contract.experiment_id} runs its control` };
+    return {
+      identity: control,
+      degraded: `surface ${surface} names no assignment platform, so experiment ${contract.experiment_id} runs its control`,
+    };
   }
   return transport
     .assignExperiment({
@@ -87,8 +90,20 @@ export async function resolveExperimentAssignment(
     })
     .then(
       (assignment) => {
-        if (isValidAssignment(contract, assignment.experimentId, assignment.variant)) {
-          return { identity: { experiment_id: assignment.experimentId, variant_id: assignment.variant }, degraded: null };
+        if (
+          isValidAssignment(
+            contract,
+            assignment.experimentId,
+            assignment.variant,
+          )
+        ) {
+          return {
+            identity: {
+              experiment_id: assignment.experimentId,
+              variant_id: assignment.variant,
+            },
+            degraded: null,
+          };
         }
         return {
           identity: control,

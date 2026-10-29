@@ -40,7 +40,10 @@ const server = join(
 );
 const { USKeyboardLayout, keypadLocation } = require(
   join(server, 'usKeyboardLayout.js'),
-) as { USKeyboardLayout: Record<string, KeyDefinition>; keypadLocation: number };
+) as {
+  USKeyboardLayout: Record<string, KeyDefinition>;
+  keypadLocation: number;
+};
 const { toModifiersMask } = require(
   join(server, 'chromium', 'crProtocolHelper.js'),
 ) as { toModifiersMask: (held: Set<string>) => number };

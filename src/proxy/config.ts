@@ -142,18 +142,23 @@ export function hydratePinnedProxy(pin: ProxyConfig): HydratedPin {
   if (!username || !password) {
     const secretService = secretServiceFor(provider, proxyType);
     if (!secretService)
-      return { refused: `pinned_proxy_secret_undeclared:${provider}:${proxyType}` };
+      return {
+        refused: `pinned_proxy_secret_undeclared:${provider}:${proxyType}`,
+      };
     username = readOptionalWelesServiceSecret(secretService, 'username');
     password = readOptionalWelesServiceSecret(secretService, 'password');
     if (!username || !password)
       return { refused: `pinned_proxy_secret_unread:${secretService}` };
   }
   if (proxyType === 'isp')
-    return { proxy: { ...pin, provider, proxy_type: proxyType, username, password } };
+    return {
+      proxy: { ...pin, provider, proxy_type: proxyType, username, password },
+    };
 
   // A sticky exit is rebuilt in the country and session it was pinned in.
   const sessionId = pin.sticky_session_id;
-  if (!sessionId) return { refused: 'pinned_proxy_incomplete:sticky_session_id' };
+  if (!sessionId)
+    return { refused: 'pinned_proxy_incomplete:sticky_session_id' };
   if (!pin.country) return { refused: 'pinned_proxy_incomplete:country' };
   const sticky = stickyCredentials(
     provider,

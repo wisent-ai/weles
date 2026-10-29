@@ -138,7 +138,9 @@ export async function solveRecaptchaV2Nopecha(
   );
   const jobId = post?.data;
   if (!jobId) {
-    throw new Error(`nopecha recaptcha2 answered no job: ${JSON.stringify(post)}`);
+    throw new Error(
+      `nopecha recaptcha2 answered no job: ${JSON.stringify(post)}`,
+    );
   }
   console.log(`[captcha:api] nopecha recaptcha2 jobId=${jobId}`);
   return nopechaToken('recaptcha2', k, jobId);

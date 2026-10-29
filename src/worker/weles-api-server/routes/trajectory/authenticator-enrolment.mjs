@@ -100,15 +100,11 @@ export async function respondToAuthenticatorEnrolment(
   }
   const out = await promise;
   const confirmed = confirmedEnrolment(out, account);
-  json(
-    res,
-    confirmed ? http.HTTP_STATUS_OK : http.HTTP_STATUS_BAD_GATEWAY,
-    {
-      ...out,
-      ...identity,
-      ok: confirmed,
-      coalesced: joined,
-      ...enrolmentBlock(out, confirmed),
-    },
-  );
+  json(res, confirmed ? http.HTTP_STATUS_OK : http.HTTP_STATUS_BAD_GATEWAY, {
+    ...out,
+    ...identity,
+    ok: confirmed,
+    coalesced: joined,
+    ...enrolmentBlock(out, confirmed),
+  });
 }

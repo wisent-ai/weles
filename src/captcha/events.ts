@@ -76,7 +76,10 @@ export function markCaptchaChallenge(resource?: string): void {
  * says why the challenge stayed unsolved; an empty list says no service was
  * tried, a proxy the services cannot take being one such case.
  */
-export function markAllProvidersFailed(resource: string, causes: string[]): void {
+export function markAllProvidersFailed(
+  resource: string,
+  causes: string[],
+): void {
   CHALLENGE_FACED = true;
   EVENTS.push({
     provider: '',

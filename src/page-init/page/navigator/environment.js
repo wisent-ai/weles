@@ -81,7 +81,10 @@ if (__weles.timezone && __weles.timezone.offset !== undefined) {
   } catch (error) {
     console.debug(
       '__weles_page_init_failure__',
-      JSON.stringify({ patch: 'plugins', error: String((error && error.message) || error) }),
+      JSON.stringify({
+        patch: 'plugins',
+        error: String((error && error.message) || error),
+      }),
     );
   }
 })();
@@ -97,7 +100,11 @@ if (__weles.timezone && __weles.timezone.offset !== undefined) {
   if (!declared || typeof declared !== 'object') {
     console.debug(
       '__weles_page_init_failure__',
-      JSON.stringify({ patch: 'connection', error: 'the device profile declares no navigator.connection figures; the browser reports its own' }),
+      JSON.stringify({
+        patch: 'connection',
+        error:
+          'the device profile declares no navigator.connection figures; the browser reports its own',
+      }),
     );
     return;
   }
@@ -123,7 +130,10 @@ if (__weles.timezone && __weles.timezone.offset !== undefined) {
   } catch (error) {
     console.debug(
       '__weles_page_init_failure__',
-      JSON.stringify({ patch: 'connection', error: String((error && error.message) || error) }),
+      JSON.stringify({
+        patch: 'connection',
+        error: String((error && error.message) || error),
+      }),
     );
   }
 })();
@@ -206,7 +216,10 @@ if (__weles.timezone && __weles.timezone.offset !== undefined) {
   } catch (error) {
     console.debug(
       '__weles_page_init_failure__',
-      JSON.stringify({ patch: 'bluetooth-keyboard', error: String((error && error.message) || error) }),
+      JSON.stringify({
+        patch: 'bluetooth-keyboard',
+        error: String((error && error.message) || error),
+      }),
     );
   }
 })();

@@ -31,7 +31,9 @@ function failureOf(result: SpawnSyncReturns<string | Buffer>): string {
 
 // A child ran, was not stopped by a signal, and exited with success.
 function succeeded(result: SpawnSyncReturns<string | Buffer>): boolean {
-  return !result.error && !result.signal && result.status !== null && !result.status;
+  return (
+    !result.error && !result.signal && result.status !== null && !result.status
+  );
 }
 
 /** Run openssl with `argv`, refusing with its own words when it fails. */

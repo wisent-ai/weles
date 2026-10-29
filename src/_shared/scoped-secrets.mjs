@@ -132,20 +132,16 @@ export function writeScopedSecretItem(serviceName, fields) {
     const args = [...command, '--type', service.kind];
     // Stado writes as itself: the child gets no Skarbiec consumer, token or
     // endpoint of this process, which Stado would refuse as an override.
-    const result = spawnSync(
-      program,
-      args,
-      {
-        input,
-        encoding: 'buffer',
-        maxBuffer: Infinity,
-        stdio: ['pipe', 'ignore', 'pipe'],
-        env: {
-          HOME: homedir(),
-          ...(process.env.PATH ? { PATH: process.env.PATH } : {}),
-        },
+    const result = spawnSync(program, args, {
+      input,
+      encoding: 'buffer',
+      maxBuffer: Infinity,
+      stdio: ['pipe', 'ignore', 'pipe'],
+      env: {
+        HOME: homedir(),
+        ...(process.env.PATH ? { PATH: process.env.PATH } : {}),
       },
-    );
+    });
     if (result.error || result.status || result.signal) {
       const exited = result.error
         ? `failed: ${result.error.message}${
@@ -169,7 +165,10 @@ export function writeScopedSecretItem(serviceName, fields) {
       const forms = Object.values(normalized)
         .map(String)
         .filter((value) => value)
-        .flatMap((value) => [value, JSON.stringify(value).replace(/^"|"$/g, '')])
+        .flatMap((value) => [
+          value,
+          JSON.stringify(value).replace(/^"|"$/g, ''),
+        ])
         .sort((left, right) => right.length - left.length);
       const capturedStderr = result.stderr
         ? forms.reduce(
@@ -177,29 +176,33 @@ export function writeScopedSecretItem(serviceName, fields) {
             result.stderr.toString('utf8'),
           )
         : undefined;
-      const stderr = capturedStderr !== undefined
-        ? (() => {
-            const said = capturedStderr.trim();
-            return said ? `: ${said}` : ' and wrote nothing to stderr';
-          })()
-        : ' and no stderr was captured';
+      const stderr =
+        capturedStderr !== undefined
+          ? (() => {
+              const said = capturedStderr.trim();
+              return said ? `: ${said}` : ' and wrote nothing to stderr';
+            })()
+          : ' and no stderr was captured';
       // spawnSync reports pid 0 when no child was created, so only a started
       // child's pid is quoted as an observation.
       const started = result.pid ? ` (pid ${result.pid})` : '';
-      throw Object.assign(new Error(
-        `scoped Skarbiec write failed for ${serviceName}: ${program} ${args.join(' ')} ${exited}${started}${stderr}`,
-        { cause: result.error },
-      ), {
-        execution: {
-          program,
-          arguments: args,
-          pid: result.pid,
-          status: result.status,
-          signal: result.signal,
-          stderrCaptured: Buffer.isBuffer(result.stderr),
-          stderr: capturedStderr,
+      throw Object.assign(
+        new Error(
+          `scoped Skarbiec write failed for ${serviceName}: ${program} ${args.join(' ')} ${exited}${started}${stderr}`,
+          { cause: result.error },
+        ),
+        {
+          execution: {
+            program,
+            arguments: args,
+            pid: result.pid,
+            status: result.status,
+            signal: result.signal,
+            stderrCaptured: Buffer.isBuffer(result.stderr),
+            stderr: capturedStderr,
+          },
         },
-      });
+      );
     }
   } finally {
     // An empty string zero-fills a Buffer.

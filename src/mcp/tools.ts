@@ -13,28 +13,31 @@ const browserTools: ToolDefinition[] = [
     name: 'weles_browser_start',
     description:
       'Launch a Weles browser context via AsyncNewBrowser and return a browserId.',
-    inputSchema: objectSchema({
-      headless: {
-        type: 'boolean',
-        description: 'Run without a visible browser window.',
+    inputSchema: objectSchema(
+      {
+        headless: {
+          type: 'boolean',
+          description: 'Run without a visible browser window.',
+        },
+        browser: {
+          type: 'string',
+          enum: ['chromium', 'firefox'],
+          description: 'Browser engine.',
+        },
+        os: {
+          type: 'string',
+          enum: ['macos', 'windows', 'linux'],
+          description: 'Persona OS.',
+        },
+        locale: { type: 'string', description: 'Locale, for example en-US.' },
+        userDataDir: {
+          type: 'string',
+          description: 'Persistent browser profile directory.',
+        },
+        proxy: { type: 'string', description: 'Proxy server URL.' },
       },
-      browser: {
-        type: 'string',
-        enum: ['chromium', 'firefox'],
-        description: 'Browser engine.',
-      },
-      os: {
-        type: 'string',
-        enum: ['macos', 'windows', 'linux'],
-        description: 'Persona OS.',
-      },
-      locale: { type: 'string', description: 'Locale, for example en-US.' },
-      userDataDir: {
-        type: 'string',
-        description: 'Persistent browser profile directory.',
-      },
-      proxy: { type: 'string', description: 'Proxy server URL.' },
-    }, ['browser', 'os']),
+      ['browser', 'os'],
+    ),
   },
   {
     name: 'weles_browser_close',

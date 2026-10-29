@@ -12,9 +12,7 @@ import { humanType } from '../../human/keyboard.js';
 import { selectOption } from '../../human/select.js';
 import type { WSession } from '../wsession.js';
 import { assertNonCredentialInput } from '../../utils/capability.js';
-import {
-  assertLiteralControl,
-} from '../wsession-helpers/close/credential_field/index.js';
+import { assertLiteralControl } from '../wsession-helpers/close/credential_field/index.js';
 
 // WSession imports every action from this module.
 export { wsJsClick } from './page-actions/js-click.js';

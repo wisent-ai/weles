@@ -13,7 +13,8 @@ import { humanClickLocator } from '../../../../dist/human/mouse.js';
 const CONSENT_SUBMIT = 'form button[type="submit"], form input[type="submit"]';
 
 /** The Codex consent page, by origin and path. */
-const CONSENT_PAGE = 'https://auth.openai.com/sign-in-with-chatgpt/codex/consent';
+const CONSENT_PAGE =
+  'https://auth.openai.com/sign-in-with-chatgpt/codex/consent';
 
 // The URLs that end OpenAI's half, as host name and path prefix: any path on
 // the hosts Codex CLI receives its token from (platform.openai.com,
@@ -36,7 +37,10 @@ export function isTerminalUrl(href) {
   const url = new URL(href);
   const hostname = url.hostname.toLowerCase();
   const pathname = url.pathname.toLowerCase();
-  return TERMINAL_URLS.some((terminal) => terminal.hostname === hostname && pathname.startsWith(terminal.path));
+  return TERMINAL_URLS.some(
+    (terminal) =>
+      terminal.hostname === hostname && pathname.startsWith(terminal.path),
+  );
 }
 
 export async function handleCodexConsentPage(page, mark) {
@@ -50,7 +54,10 @@ export async function handleCodexConsentPage(page, mark) {
     (selector) => {
       const control = document.querySelector(selector);
       if (!control) return { found: false };
-      return { found: true, disabled: control.matches(':disabled, [aria-disabled="true"]') };
+      return {
+        found: true,
+        disabled: control.matches(':disabled, [aria-disabled="true"]'),
+      };
     },
     { found: false },
     CONSENT_SUBMIT,
@@ -73,6 +80,9 @@ export async function handleCodexConsentPage(page, mark) {
     await page.waitForURL((next) => isTerminalUrl(next.href));
     return true;
   } catch (e) {
-    throw new Error(`post-consent: no terminal redirect (final=${page.url()})`, { cause: e });
+    throw new Error(
+      `post-consent: no terminal redirect (final=${page.url()})`,
+      { cause: e },
+    );
   }
 }

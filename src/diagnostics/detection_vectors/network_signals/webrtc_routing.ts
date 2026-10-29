@@ -34,7 +34,9 @@ function isNonPublic(address: string): boolean {
 }
 
 /** The candidate addresses the probe recorded, as text. */
-function candidateAddresses(subject: { js?: { webRTC?: { localIPs?: unknown } } } | undefined): string[] {
+function candidateAddresses(
+  subject: { js?: { webRTC?: { localIPs?: unknown } } } | undefined,
+): string[] {
   const ips = subject?.js?.webRTC?.localIPs;
   if (!Array.isArray(ips)) return [];
   return ips.filter((ip: unknown): ip is string => typeof ip === 'string');
@@ -49,9 +51,11 @@ function egressAddress(recorded: unknown): string | null {
   const text = recorded.trim();
   if (isIP(text)) return text;
   const bracketed = text.match(/^\[(?<address>[^\]]+)\](?::\d+)?$/);
-  if (bracketed?.groups && isIP(bracketed.groups.address)) return bracketed.groups.address;
+  if (bracketed?.groups && isIP(bracketed.groups.address))
+    return bracketed.groups.address;
   const withPort = text.match(/^(?<address>[^:]+):\d+$/);
-  if (withPort?.groups && isIP(withPort.groups.address)) return withPort.groups.address;
+  if (withPort?.groups && isIP(withPort.groups.address))
+    return withPort.groups.address;
   return null;
 }
 
@@ -65,7 +69,9 @@ export const webrtcRoutingRules: DetectionRule[] = [
     category: 'network',
     severity: 'warning',
     test(s) {
-      const local = candidateAddresses(s).filter((ip) => isIP(ip) && isNonPublic(ip));
+      const local = candidateAddresses(s).filter(
+        (ip) => isIP(ip) && isNonPublic(ip),
+      );
       if (!local.length) return null;
       return {
         id: 'webrtc_local_ip_exposed',
@@ -84,7 +90,9 @@ export const webrtcRoutingRules: DetectionRule[] = [
     test(s) {
       const egressRaw = s?.network?.ip;
       const egressIP = egressAddress(egressRaw);
-      const rtcPublic = candidateAddresses(s).filter((ip) => isIP(ip) && !isNonPublic(ip));
+      const rtcPublic = candidateAddresses(s).filter(
+        (ip) => isIP(ip) && !isNonPublic(ip),
+      );
       if (!egressIP || !rtcPublic.length) return null;
       if (rtcPublic.includes(egressIP)) return null;
       return {

@@ -3,7 +3,14 @@
 // about the login behind it.
 import { createHash } from 'node:crypto';
 import { readDocument } from '../../state/skarbiec-records.js';
-import { itemId, providerName, sameAccount, tag, text, type Item } from './identity.js';
+import {
+  itemId,
+  providerName,
+  sameAccount,
+  tag,
+  text,
+  type Item,
+} from './identity.js';
 
 export type LoginAccountProvider = 'claude' | 'codex' | 'kimi';
 
@@ -68,7 +75,8 @@ function agreed(
   item: Item,
   field: string,
   places: Declared[],
-  same: (left: string, right: string) => boolean = (left, right) => left === right,
+  same: (left: string, right: string) => boolean = (left, right) =>
+    left === right,
 ): string {
   const said = places.filter(({ value }) => value);
   const [first, ...rest] = said;
@@ -80,7 +88,9 @@ function agreed(
       {
         item: itemId(item),
         field,
-        places: Object.fromEntries(said.map(({ where, value }) => [where, value])),
+        places: Object.fromEntries(
+          said.map(({ where, value }) => [where, value]),
+        ),
       },
     );
   return first.value;
@@ -115,18 +125,31 @@ export function metadata(
   const document = readDocument(itemId(item));
   const context = document.context;
   const value = parsed(item, 'fields.value', document.fields?.value);
-  const declared = parsed(item, 'fields.value metadata', member(value, 'metadata'));
+  const declared = parsed(
+    item,
+    'fields.value metadata',
+    member(value, 'metadata'),
+  );
   const legacyItem = `${provider.toUpperCase()}_SERVICE_CREDENTIAL_ID`;
   return {
     ...context,
     login_method: agreed(item, 'login_method', [
       { where: 'context.login_method', value: text(context?.login_method) },
-      { where: 'the weles:login-method: tag', value: tag(item, 'weles:login-method:') },
+      {
+        where: 'the weles:login-method: tag',
+        value: tag(item, 'weles:login-method:'),
+      },
     ]),
     login_item: agreed(item, 'login_item', [
       { where: 'context.login_item', value: text(context?.login_item) },
-      { where: 'metadata.login_item', value: text(member(declared, 'login_item')) },
-      { where: `metadata.${legacyItem}`, value: text(member(declared, legacyItem)) },
+      {
+        where: 'metadata.login_item',
+        value: text(member(declared, 'login_item')),
+      },
+      {
+        where: `metadata.${legacyItem}`,
+        value: text(member(declared, legacyItem)),
+      },
     ]),
     account_ref: agreed(
       item,

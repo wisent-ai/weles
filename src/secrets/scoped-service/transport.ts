@@ -7,7 +7,10 @@
 import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { resolvedAcquiredSecretContract, SERVICE_CONTRACTS } from './contracts.js';
+import {
+  resolvedAcquiredSecretContract,
+  SERVICE_CONTRACTS,
+} from './contracts.js';
 import {
   acquisitionStderr,
   SkarbiecAcquisitionError,
@@ -87,7 +90,9 @@ function succeeded(
     result.stdout?.fill('');
     const ended = result.error
       ? `failed: ${result.error.message}${
-          result.signal || result.status !== null ? `; ${helperEnd(result)}` : ''
+          result.signal || result.status !== null
+            ? `; ${helperEnd(result)}`
+            : ''
         }`
       : helperEnd(result);
     const error = refuse(result.stderr?.toString('utf8'), ended);
@@ -200,9 +205,7 @@ export function readAcquiredField(
   // A deployment that runs its own acquisition helper names it; the release's
   // helper runs otherwise.
   const configured = process.env.SKARBIEC_WELES_READER_ACQUIRE_COMMAND?.trim();
-  const helper = configured
-    ? configured
-    : deployedFile('skarbiec-acquire.mjs');
+  const helper = configured ? configured : deployedFile('skarbiec-acquire.mjs');
   const scopeFile = acquisitionScopesFile(tenantId);
   // Resolve the authority once and pass that exact directory-owned endpoint to
   // the acquisition subprocess.
@@ -232,9 +235,7 @@ export function readAcquiredField(
         null,
       );
     const { reason, lines } = acquisitionStderr(stderr);
-    const diagnosis = lines.length
-      ? lines.join(' | ')
-      : 'no diagnosis';
+    const diagnosis = lines.length ? lines.join(' | ') : 'no diagnosis';
     return new SkarbiecAcquisitionError(
       `workload-bound Skarbiec acquisition failed for ${coordinate}/${field} as consumer ${consumer} against ${endpoint}: the helper ${ended}: ${diagnosis}`,
       { item: coordinate, field, consumer },

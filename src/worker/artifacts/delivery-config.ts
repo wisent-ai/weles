@@ -44,7 +44,10 @@ export function loadArtifactDeliveryConfig(
   const clientToken = secretSetting(env, 'WELES_ARTIFACT_DELIVERY_TOKEN');
   const signingSecret = secretSetting(env, 'WELES_ARTIFACT_SIGNING_SECRET');
   const stadoApiToken = requiredSetting(env, 'WELES_STADO_OBJECT_API_TOKEN');
-  const subscriptionsToken = secretSetting(env, 'OKO_WELES_SUBSCRIPTIONS_TOKEN');
+  const subscriptionsToken = secretSetting(
+    env,
+    'OKO_WELES_SUBSCRIPTIONS_TOKEN',
+  );
   const serviceCredentials = [
     clientToken,
     signingSecret,

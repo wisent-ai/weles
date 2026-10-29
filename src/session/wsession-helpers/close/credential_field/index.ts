@@ -69,10 +69,15 @@ async function markup(control: ElementHandle): Promise<Markup> {
   // declare a credential class, so it is refused with what it is.
   return control.evaluate((node) => {
     if (!(node instanceof Element)) {
-      throw new Error(`the bound control is a ${node.nodeName} node, not an element`);
+      throw new Error(
+        `the bound control is a ${node.nodeName} node, not an element`,
+      );
     }
     return {
-      type: node instanceof HTMLInputElement ? node.type : node.tagName.toLowerCase(),
+      type:
+        node instanceof HTMLInputElement
+          ? node.type
+          : node.tagName.toLowerCase(),
       autocomplete: node.hasAttribute('autocomplete')
         ? String(node.getAttribute('autocomplete')).toLowerCase().split(/\s+/)
         : [],
@@ -101,8 +106,7 @@ export async function assertDeclaredControl(
   const seen = await markup(control);
   const declared = CREDENTIAL_CONTROLS[fieldClass];
   const fits =
-    declares(seen, fieldClass) ||
-    (declared.plainText && seen.type === 'text');
+    declares(seen, fieldClass) || (declared.plainText && seen.type === 'text');
   if (!fits)
     throw new Error(
       `[credential_target_mismatch] ${JSON.stringify(target)} is a ${seen.type} control with autocomplete ${JSON.stringify(seen.autocomplete)}; a ${fieldClass} goes only into a field whose markup declares input type ${JSON.stringify(Object.keys(declared.types))} or autocomplete ${JSON.stringify(Object.keys(declared.autocomplete))}${declared.plainText ? ' or into a plain text input' : ''}. The capability was not consumed`,

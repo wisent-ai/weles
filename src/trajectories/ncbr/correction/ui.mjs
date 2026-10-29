@@ -164,7 +164,10 @@ export async function save(
           .filter({ visible: true }),
         label: saveButton,
       }
-    : { button: page.locator(selector).filter({ visible: true }), label: 'Zapisz' };
+    : {
+        button: page.locator(selector).filter({ visible: true }),
+        label: 'Zapisz',
+      };
   const response = await responseAfterAction(
     page,
     (request) =>

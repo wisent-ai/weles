@@ -45,8 +45,10 @@ async function capsolverClearance(
   const sol = tr.solution;
   const missing: string[] = [];
   if (!(typeof sol?.token === 'string' && sol.token)) missing.push('token');
-  if (!(typeof sol?.userAgent === 'string' && sol.userAgent)) missing.push('user agent');
-  if (!(sol?.cookies && typeof sol.cookies === 'object')) missing.push('cookies');
+  if (!(typeof sol?.userAgent === 'string' && sol.userAgent))
+    missing.push('user agent');
+  if (!(sol?.cookies && typeof sol.cookies === 'object'))
+    missing.push('cookies');
   if (missing.length) {
     throw new Error(
       `capsolver AntiCloudflare task ${taskId} returned no ${missing.join(', ')}: ${JSON.stringify(sol)}`,
@@ -186,7 +188,10 @@ export class CaptchaSolver {
             `Cloudflare proxy ${u.host} names the user ${proxy.username} but no password; CapSolver takes the login as user and password together`,
           );
         }
-        parts.push(encodeURIComponent(proxy.username), encodeURIComponent(proxy.password));
+        parts.push(
+          encodeURIComponent(proxy.username),
+          encodeURIComponent(proxy.password),
+        );
       }
       task.proxy = parts.join(':');
     }
@@ -221,12 +226,14 @@ export class CaptchaSolver {
     userAgent: string,
     cookies?: Array<{ name: string; value: string; domain?: string }>,
     proxy?: string,
-  ): Promise<Array<{
-    name: string;
-    value: string;
-    domain: string;
-    path: string;
-  }>> {
+  ): Promise<
+    Array<{
+      name: string;
+      value: string;
+      domain: string;
+      path: string;
+    }>
+  > {
     await this._ensureInit();
     return solvePerimeterXCookies(this._creds, url, userAgent, cookies, proxy);
   }

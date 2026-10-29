@@ -45,7 +45,7 @@ const LABEL = 'slack-user-token';
 const workspace = slackWorkspace();
 statedText(
   ['WELES_CREDENTIAL_CONSTRAINTS'],
-  'the Skarbiec item the user token is stored in (a run\'s constraints, passed by the worker)',
+  "the Skarbiec item the user token is stored in (a run's constraints, passed by the worker)",
 );
 const APP_ID = process.env.SLACK_APP_ID;
 // The app is named and granted before the browser starts, so a run that would

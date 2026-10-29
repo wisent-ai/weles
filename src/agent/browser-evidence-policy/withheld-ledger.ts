@@ -55,7 +55,10 @@ export function describeEdgeFailure(error: unknown): string {
 
 /** The run's evidence directory; a run without a label has nowhere its evidence belongs, and is refused. */
 function evidenceDirectory(label: string): string {
-  if (!label) throw new Error('the browser-evidence ledger needs the run label that names its recordings directory');
+  if (!label)
+    throw new Error(
+      'the browser-evidence ledger needs the run label that names its recordings directory',
+    );
   const directory = runRecordingsDir(label);
   mkdirSync(directory, { recursive: true });
   return directory;
@@ -82,7 +85,10 @@ export function recordEdge(label: string, edge: Record<string, unknown>): void {
  * kept as itself, not named for it.
  */
 export function receiveWithheldEdge(label: string, raw: unknown): void {
-  const edge = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
+  const edge =
+    raw && typeof raw === 'object' && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
+      : null;
   const category = edge ? safeText(edge.category) : '';
   const api = edge ? safeText(edge.api) : '';
   const reason = edge ? safeText(edge.reason) : '';
@@ -94,7 +100,12 @@ export function receiveWithheldEdge(label: string, raw: unknown): void {
     });
     return;
   }
-  recordEdge(label, reason ? { category, api, reason, source: 'page_api' } : { category, api, source: 'page_api' });
+  recordEdge(
+    label,
+    reason
+      ? { category, api, reason, source: 'page_api' }
+      : { category, api, source: 'page_api' },
+  );
 }
 
 export function writeBrowserEvidencePolicy(label: string): void {

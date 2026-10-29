@@ -1,13 +1,7 @@
 // Coverage probes of what the page itself and the session around it showed:
 // the page-side access log, console and errors, rendering, WebRTC and input
 // hooks, the host, provenance and the recording's sibling files.
-import {
-  accessProbe,
-  errorOf,
-  len,
-  present,
-  type Probe,
-} from './read.js';
+import { accessProbe, errorOf, len, present, type Probe } from './read.js';
 
 export const PAGE_PROBES: readonly Probe[] = [
   {
@@ -67,7 +61,8 @@ export const PAGE_PROBES: readonly Probe[] = [
   {
     id: 'E.host.snapshots',
     collector: 'host snapshot bundle',
-    expected: 'process, network, DNS, power, route, lsof, and platform summaries',
+    expected:
+      'process, network, DNS, power, route, lsof, and platform summaries',
     emitted: (ws) => present(ws._instHostSnapshots),
     attempted: () => true,
     evidence: (ws) => [

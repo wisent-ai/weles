@@ -78,9 +78,8 @@ function detectInDocument(): CaptchaInfo | null {
   const arkoseSrc = arkose?.getAttribute('src');
   if (!arkose || !arkoseSrc) return null;
   const address = new URL(arkoseSrc, location.href);
-  const pathKey = address.pathname.match(
-    /\/(?<key>[A-F\d]+(?:-[A-F\d]+)+)\//i,
-  )?.groups?.key;
+  const pathKey = address.pathname.match(/\/(?<key>[A-F\d]+(?:-[A-F\d]+)+)\//i)
+    ?.groups?.key;
   const info: CaptchaInfo = { type: 'funcaptcha', subdomain: address.origin };
   const key = param(arkose, 'pkey') || pathKey;
   if (key) info.sitekey = key;

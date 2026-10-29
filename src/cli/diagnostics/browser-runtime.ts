@@ -1,7 +1,10 @@
 import { execFile } from 'node:child_process';
 import { readFileSync, statSync } from 'node:fs';
 import { promisify } from 'node:util';
-import { bundledFfmpegPath, findPlaywrightManifest } from '../../runtime/media-tools.js';
+import {
+  bundledFfmpegPath,
+  findPlaywrightManifest,
+} from '../../runtime/media-tools.js';
 
 const probeExecutable = promisify(execFile);
 
@@ -50,17 +53,23 @@ export async function inspectBrowserRuntime(): Promise<BrowserRuntimeReport> {
     if (typeof declared?.revision !== 'string' || !declared.revision.trim())
       throw new Error(`${manifest} declares no ffmpeg revision`);
     const executable = bundledFfmpegPath();
-    if (!executable) throw new Error(`${manifest} resolves no bundled ffmpeg executable`);
+    if (!executable)
+      throw new Error(`${manifest} resolves no bundled ffmpeg executable`);
     const command = [executable, '-version'];
     const component: RuntimeComponent = {
-      name: 'ffmpeg', revision: declared.revision, expectedPath: executable,
-      present: false, ok: false, command,
+      name: 'ffmpeg',
+      revision: declared.revision,
+      expectedPath: executable,
+      present: false,
+      ok: false,
+      command,
     };
     report.components = [component];
     try {
       const metadata = statSync(executable);
       component.present = metadata.isFile();
-      if (!component.present) throw new Error(`${executable} is not a regular file`);
+      if (!component.present)
+        throw new Error(`${executable} is not a regular file`);
       const { stdout } = await probeExecutable(executable, ['-version'], {
         encoding: 'utf8',
       });
@@ -68,13 +77,17 @@ export async function inspectBrowserRuntime(): Promise<BrowserRuntimeReport> {
       component.ok = true;
       report.ok = true;
     } catch (cause) {
-      const failure = (cause instanceof Error ? cause : new Error(String(cause))) as ProbeFailure;
+      const failure = (
+        cause instanceof Error ? cause : new Error(String(cause))
+      ) as ProbeFailure;
       component.error = `probe ${command.join(' ')}: ${failure.message}; repair the packaged recording runtime`;
       component.failure = {
         code: typeof failure.code === 'string' ? failure.code : undefined,
-        errno: failure.errno, syscall: failure.syscall,
+        errno: failure.errno,
+        syscall: failure.syscall,
         status: typeof failure.code === 'number' ? failure.code : undefined,
-        signal: failure.signal, stderr: failure.stderr?.toString(),
+        signal: failure.signal,
+        stderr: failure.stderr?.toString(),
       };
     }
   } catch (cause) {

@@ -125,7 +125,11 @@ export async function queueSemanticScholarFollowup(
   delayMs: number,
   attempt: number,
   tenantId: string | null,
-): Promise<{ queued: boolean; action_log_id: string; scheduled_at: string | null }> {
+): Promise<{
+  queued: boolean;
+  action_log_id: string;
+  scheduled_at: string | null;
+}> {
   const key = `semantic_followup_${sourceActionLogId}_${attempt}`
     .replace(/[^a-z\d_]/gi, '_')
     .toLowerCase();

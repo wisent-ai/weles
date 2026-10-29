@@ -8,7 +8,12 @@
 
 import { lookup } from 'node:dns/promises';
 import { markAllProvidersFailed, markCaptchaChallenge } from '../events.js';
-import { apiSolve, firstSolved, type CaptchaCredentials, type ServiceAttempt } from './api.js';
+import {
+  apiSolve,
+  firstSolved,
+  type CaptchaCredentials,
+  type ServiceAttempt,
+} from './api.js';
 
 export type HcaptchaOptions = {
   enterprisePayload?: { rqdata: string; rqtoken?: string };
@@ -74,14 +79,16 @@ export async function solveHcaptchaToken(
   if (anticaptcha) {
     attempts.push({
       service: 'anticaptcha',
-      solve: () => apiSolve('https://api.anti-captcha.com', anticaptcha, baseTask),
+      solve: () =>
+        apiSolve('https://api.anti-captcha.com', anticaptcha, baseTask),
     });
   }
   const capmonster = creds.capmonster;
   if (capmonster) {
     attempts.push({
       service: 'capmonster',
-      solve: () => apiSolve('https://api.capmonster.cloud', capmonster, baseTask),
+      solve: () =>
+        apiSolve('https://api.capmonster.cloud', capmonster, baseTask),
     });
   }
   const capsolver = creds.capsolver;

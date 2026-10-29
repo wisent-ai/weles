@@ -19,7 +19,10 @@ function readRunFile(runId, action, name) {
   const file = diagnosticFile(runId, `${action}/${name}`);
   if (!file) return null;
   try {
-    return { path: file.path, value: JSON.parse(readFileSync(file.path, 'utf8')) };
+    return {
+      path: file.path,
+      value: JSON.parse(readFileSync(file.path, 'utf8')),
+    };
   } catch (error) {
     throw new Error(
       `credential_operation_unreadable: ${file.path} is not JSON: ${error.message}`,

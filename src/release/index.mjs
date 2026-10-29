@@ -105,8 +105,7 @@ export async function surface(root = repositoryRoot()) {
 
   const mcpPaths = await serverModules(root, 'src/mcp.ts', 'src/mcp', '.ts');
   for (const tool of mcpTools(program, mcpPaths)) published.add(tool);
-  for (const route of httpRoutes(program, apiServerPaths))
-    published.add(route);
+  for (const route of httpRoutes(program, apiServerPaths)) published.add(route);
 
   const compatibility = await jsonAt(root, 'release/compatibility-policy.json');
   if (

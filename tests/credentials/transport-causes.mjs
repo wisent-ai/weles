@@ -23,7 +23,8 @@ import { networkInterfaces } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const source = (path) => fileURLToPath(new URL(`../../src/${path}`, import.meta.url));
+const source = (path) =>
+  fileURLToPath(new URL(`../../src/${path}`, import.meta.url));
 const OAUTH = source('trajectories/_shared/subscription-auth/oauth.mjs');
 const AUTHORITY = source('worker/weles-api-server/credentials/authority.mjs');
 const CHAIN = source('_shared/error-chain/index.cjs');
@@ -40,8 +41,12 @@ if (process.env[SIGN_IN_CHILD]) {
     answer = { answered: await beginOAuth('kimi') };
   } catch (error) {
     answer = {
-      code: error.code, stage: error.stage, status: error.status,
-      endpoint: error.endpoint, message: error.message, causes: causeChain(error),
+      code: error.code,
+      stage: error.stage,
+      status: error.status,
+      endpoint: error.endpoint,
+      message: error.message,
+      causes: causeChain(error),
     };
   }
   process.stdout.write(JSON.stringify(answer));
@@ -101,13 +106,30 @@ function ran(run) {
 }
 
 function signIn(report, proxy) {
-  const run = spawnSync(process.execPath, [PROXY_OPTION, fileURLToPath(import.meta.url)], {
-    env: { ...process.env, [SIGN_IN_CHILD]: 'yes', HTTPS_PROXY: proxy, NO_PROXY: '' },
-    encoding: 'utf8',
+  const run = spawnSync(
+    process.execPath,
+    [PROXY_OPTION, fileURLToPath(import.meta.url)],
+    {
+      env: {
+        ...process.env,
+        [SIGN_IN_CHILD]: 'yes',
+        HTTPS_PROXY: proxy,
+        NO_PROXY: '',
+      },
+      encoding: 'utf8',
+    },
+  );
+  report.commands.push({
+    argv: [process.execPath, PROXY_OPTION],
+    proxy,
+    status: run.status,
+    signal: run.signal,
+    stderr: run.stderr,
   });
-  report.commands.push({ argv: [process.execPath, PROXY_OPTION], proxy,
-    status: run.status, signal: run.signal, stderr: run.stderr });
-  assert.ok(ran(run), `the sign-in process failed: ${run.error} ${run.signal} ${run.stderr}`);
+  assert.ok(
+    ran(run),
+    `the sign-in process failed: ${run.error} ${run.signal} ${run.stderr}`,
+  );
   return JSON.parse(run.stdout);
 }
 
@@ -121,7 +143,12 @@ function sent(origin, headers) {
       });
       response.on('error', failed);
       // Node's own HTTP parser answers a request it refuses with no body.
-      response.on('end', () => answered({ status: response.statusCode, body: body ? JSON.parse(body) : null }));
+      response.on('end', () =>
+        answered({
+          status: response.statusCode,
+          body: body ? JSON.parse(body) : null,
+        }),
+      );
     });
     call.on('error', failed);
     call.end();
@@ -141,15 +168,25 @@ async function qualify() {
   let server;
   const failures = [];
   try {
-    const preflight = spawnSync(process.execPath, [PROXY_OPTION, '--version'], { encoding: 'utf8' });
-    report.commands.push({ argv: [process.execPath, PROXY_OPTION, '--version'],
-      status: preflight.status, stderr: preflight.stderr });
-    assert.ok(ran(preflight), `this Node does not take ${PROXY_OPTION}: ${preflight.stderr}`);
+    const preflight = spawnSync(process.execPath, [PROXY_OPTION, '--version'], {
+      encoding: 'utf8',
+    });
+    report.commands.push({
+      argv: [process.execPath, PROXY_OPTION, '--version'],
+      status: preflight.status,
+      stderr: preflight.stderr,
+    });
+    assert.ok(
+      ran(preflight),
+      `this Node does not take ${PROXY_OPTION}: ${preflight.stderr}`,
+    );
     report.executed_modules = [];
     for (const path of [OAUTH, AUTHORITY, CHAIN])
       report.executed_modules.push({
         path,
-        sha256: createHash('sha256').update(await readFile(path)).digest('hex'),
+        sha256: createHash('sha256')
+          .update(await readFile(path))
+          .digest('hex'),
       });
     const kimi = 'https://auth.kimi.com/api/oauth/device_authorization';
     const host = loopback();
@@ -162,14 +199,20 @@ async function qualify() {
     assert.equal(missing.stage, 'oauth_exchange');
     assert.equal(missing.endpoint, kimi);
     assert.ok(has(missing.causes, 'ENOTFOUND'), JSON.stringify(missing.causes));
-    assert.ok(names(missing.message, 'ENOTFOUND', unresolvable), missing.message);
+    assert.ok(
+      names(missing.message, 'ENOTFOUND', unresolvable),
+      missing.message,
+    );
 
     const refused = signIn(report, `http://${host}:${port}`);
     report.sign_in_closed_proxy = refused;
     assert.equal(refused.code, 'oauth_transport_failed');
     assert.equal(refused.stage, 'oauth_exchange');
     assert.equal(refused.endpoint, kimi);
-    assert.ok(has(refused.causes, 'ECONNREFUSED'), JSON.stringify(refused.causes));
+    assert.ok(
+      has(refused.causes, 'ECONNREFUSED'),
+      JSON.stringify(refused.causes),
+    );
     assert.ok(names(refused.message, 'ECONNREFUSED', port), refused.message);
 
     // A real fetch failure whose levels carry extra enumerable text (a
@@ -194,7 +237,9 @@ async function qualify() {
 
     await mkdir(area, { recursive: true });
     const tokenFile = join(area, 'admission-token');
-    await writeFile(tokenFile, randomUUID(), { mode: constants.S_IRUSR | constants.S_IWUSR });
+    await writeFile(tokenFile, randomUUID(), {
+      mode: constants.S_IRUSR | constants.S_IWUSR,
+    });
     const skarbiec = new URL(`https://${randomUUID()}.invalid`);
     const { createCredentialAuthority } = await import(AUTHORITY);
     const authorize = createCredentialAuthority({
@@ -209,19 +254,35 @@ async function qualify() {
         response.end(JSON.stringify({ consumer }));
       } catch (error) {
         response.writeHead(error.status);
-        response.end(JSON.stringify({ code: error.code, message: error.message,
-          causes: causeChain(error) }));
+        response.end(
+          JSON.stringify({
+            code: error.code,
+            message: error.message,
+            causes: causeChain(error),
+          }),
+        );
       }
     });
     const origin = `http://${host}:${await listening(server, host)}`;
 
-    const unavailable = await sent(origin, { Authorization: `Bearer ${randomUUID()}` });
+    const unavailable = await sent(origin, {
+      Authorization: `Bearer ${randomUUID()}`,
+    });
     report.admission_unresolvable_skarbiec = unavailable;
     assert.equal(unavailable.status, http.HTTP_STATUS_SERVICE_UNAVAILABLE);
     assert.equal(unavailable.body.code, 'WELES_CREDENTIAL_AUTH_UNAVAILABLE');
-    assert.ok(unavailable.body.message.includes(skarbiec.origin), unavailable.body.message);
-    assert.ok(has(unavailable.body.causes, 'ENOTFOUND'), JSON.stringify(unavailable.body.causes));
-    assert.ok(names(unavailable.body.message, 'ENOTFOUND', skarbiec.hostname), unavailable.body.message);
+    assert.ok(
+      unavailable.body.message.includes(skarbiec.origin),
+      unavailable.body.message,
+    );
+    assert.ok(
+      has(unavailable.body.causes, 'ENOTFOUND'),
+      JSON.stringify(unavailable.body.causes),
+    );
+    assert.ok(
+      names(unavailable.body.message, 'ENOTFOUND', skarbiec.hostname),
+      unavailable.body.message,
+    );
 
     const twice = await sent(origin, [
       'Authorization',
@@ -245,7 +306,10 @@ async function qualify() {
   }
   for (const [what, cleanup] of [
     ['closing the admission server', () => server && closed(server)],
-    ['removing the fixture home', () => rm(area, { recursive: true, force: true })],
+    [
+      'removing the fixture home',
+      () => rm(area, { recursive: true, force: true }),
+    ],
   ]) {
     try {
       await cleanup();

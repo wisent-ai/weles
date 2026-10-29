@@ -116,7 +116,10 @@ export async function readChallengeOutcome(
  * none when it recorded neither.
  */
 function recordedEnvironmentNames(m: Record<string, unknown>): string[] {
-  if (Array.isArray(m.env_names)) return m.env_names.filter((name): name is string => typeof name === 'string');
+  if (Array.isArray(m.env_names))
+    return m.env_names.filter(
+      (name): name is string => typeof name === 'string',
+    );
   const recorded = m.env_all;
   if (recorded && typeof recorded === 'object' && !Array.isArray(recorded)) {
     return environmentNames(recorded as Record<string, string | undefined>);

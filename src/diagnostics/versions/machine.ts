@@ -10,7 +10,10 @@ import {
   totalmem,
   userInfo,
 } from 'node:os';
-import { parsePublicAddress, publicAddressService } from '../../utils/runtime/public-address.js';
+import {
+  parsePublicAddress,
+  publicAddressService,
+} from '../../utils/runtime/public-address.js';
 import { captureFailure, captureFailures, safeExec } from './failures.js';
 
 /** Where each platform keeps a machine id that survives reboots. */
@@ -22,7 +25,9 @@ const MACHINE_ID_READERS: Readonly<
     try {
       id = readFileSync('/etc/machine-id', 'utf8').trim();
     } catch (error) {
-      captureFailures.push(captureFailure(field, 'read /etc/machine-id', error));
+      captureFailures.push(
+        captureFailure(field, 'read /etc/machine-id', error),
+      );
     }
     return id;
   },

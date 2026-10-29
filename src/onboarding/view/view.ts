@@ -141,7 +141,8 @@ export function render(
     control_plane: plane.connected ? 'connected' : 'offline',
     journey_source: client.source,
   };
-  if (plane.undeliveredEvents) view.undelivered_events = plane.undeliveredEvents;
+  if (plane.undeliveredEvents)
+    view.undelivered_events = plane.undeliveredEvents;
   if (client.degraded.length) view.degraded = [...client.degraded];
   if (claims)
     view.verified_receipt = {

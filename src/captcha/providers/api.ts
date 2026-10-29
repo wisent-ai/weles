@@ -108,8 +108,13 @@ export async function solvedTask(
     }
     return createRes.taskId;
   });
-  console.log(`[captcha:api] ${svc} taskId=${taskId}, waiting for its answer at the callback`);
-  const res = pushedJson(await callback.answer(), `${svc} task ${taskId} (${task.type})`);
+  console.log(
+    `[captcha:api] ${svc} taskId=${taskId}, waiting for its answer at the callback`,
+  );
+  const res = pushedJson(
+    await callback.answer(),
+    `${svc} task ${taskId} (${task.type})`,
+  );
   if (res.errorId) {
     throw new Error(
       `${svc} task ${taskId} (${task.type}) failed: ${res.errorCode} ${res.errorDescription}`,
@@ -138,7 +143,9 @@ export async function apiSolve(
       `${serviceOf(apiUrl)} task ${res.taskId} (${task.type}) is ready but its solution carries no token: ${JSON.stringify(res.solution)}`,
     );
   }
-  console.log(`[captcha:api] ${serviceOf(apiUrl)} solved, token_chars=${t.length}`);
+  console.log(
+    `[captcha:api] ${serviceOf(apiUrl)} solved, token_chars=${t.length}`,
+  );
   return t;
 }
 
@@ -164,7 +171,9 @@ export async function twoCaptchaSolve(
     }
     return cr.request;
   });
-  console.log(`[captcha:api] 2captcha ${what} taskId=${tid}, waiting for its pingback`);
+  console.log(
+    `[captcha:api] 2captcha ${what} taskId=${tid}, waiting for its pingback`,
+  );
   const pushed = await callback.answer();
   const form = new URLSearchParams(pushed.body);
   const code = form.get('code');
@@ -180,7 +189,10 @@ export async function twoCaptchaSolve(
 // One service's attempt in a chain: the service the cost table prices and
 // the call that answers its solution (a token, or the cookies a cookie
 // challenge yields) or throws why it could not.
-export type ServiceAttempt<T = string> = { service: string; solve: () => Promise<T> };
+export type ServiceAttempt<T = string> = {
+  service: string;
+  solve: () => Promise<T>;
+};
 
 // Tries each service in order; the first solution answers and is priced. When
 // none solves it answers every service's cause instead, so a chain with a last
@@ -215,9 +227,13 @@ export async function trySolved<T = string>(
 export function unsolved(resource: string, causes: string[]): Error {
   markAllProvidersFailed(resource, causes);
   if (!causes.length) {
-    return new Error(`no captcha service solves ${resource} with a key Weles holds`);
+    return new Error(
+      `no captcha service solves ${resource} with a key Weles holds`,
+    );
   }
-  return new Error(`no captcha service solved ${resource}: ${causes.join('; ')}`);
+  return new Error(
+    `no captcha service solved ${resource}: ${causes.join('; ')}`,
+  );
 }
 
 // The first service's solution, or the error naming every service and its cause.

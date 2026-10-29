@@ -123,7 +123,8 @@ export async function refreshStickyIfDead(
   cfg: ProxyConfig,
   targetHost: string | undefined,
 ): Promise<ProxyConfig | null> {
-  const host = targetHost === undefined ? new URL(echo.url).hostname : targetHost;
+  const host =
+    targetHost === undefined ? new URL(echo.url).hostname : targetHost;
   if (process.env.PROXY_SKIP_PREFLIGHT === '1') return cfg;
   if (await preflight(cfg, host)) return cfg;
   // One fresh session id: an expired sticky is the case this repairs; a proxy

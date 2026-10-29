@@ -19,7 +19,11 @@
 // child is spawned.
 
 import { constants as http } from 'node:http2';
-import { json, readBody, requireTokenAuthorization } from '../http-exchange.mjs';
+import {
+  json,
+  readBody,
+  requireTokenAuthorization,
+} from '../http-exchange.mjs';
 import { runAdmissionKey } from '../run/run-outcome.mjs';
 import { runReauth } from '../run/process/reauth-process.mjs';
 import { admittedReauthAccount } from './trajectory/reauth-account.mjs';
@@ -41,14 +45,20 @@ export async function respondToDocumentImport(
   try {
     body = await readBody(req);
   } catch (error) {
-    json(res, http.HTTP_STATUS_BAD_REQUEST, { ok: false, error: failure(error) });
+    json(res, http.HTTP_STATUS_BAD_REQUEST, {
+      ok: false,
+      error: failure(error),
+    });
     return;
   }
   let report;
   try {
     report = await importWelesTrajectoryDocument(body.source, body.target_host);
   } catch (error) {
-    json(res, http.HTTP_STATUS_BAD_REQUEST, { ok: false, error: failure(error) });
+    json(res, http.HTTP_STATUS_BAD_REQUEST, {
+      ok: false,
+      error: failure(error),
+    });
     return;
   }
   // A report that imported any document created it; one that imported
@@ -80,7 +90,11 @@ export async function respondToReauth(
   }
   const { account, identity, provider } = admitted;
   if (resolveOnly) {
-    json(res, http.HTTP_STATUS_OK, { ok: true, source: 'skarbiec', ...identity });
+    json(res, http.HTTP_STATUS_OK, {
+      ok: true,
+      source: 'skarbiec',
+      ...identity,
+    });
     return;
   }
   // An admitted sign-in answers as it goes (trajectory/progress.mjs); its

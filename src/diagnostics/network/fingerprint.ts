@@ -36,7 +36,10 @@ export function parseNetworkFingerprint(
     return { _err: String(error), raw };
   }
   if (j === null || typeof j !== 'object')
-    return { _err: 'the echo service answered JSON that is not an object', raw };
+    return {
+      _err: 'the echo service answered JSON that is not an object',
+      raw,
+    };
   return {
     ja3: j.tls?.ja3,
     ja3_hash: j.tls?.ja3_hash,

@@ -48,8 +48,10 @@ export interface FingerprintReport {
 
 function familyOf(fingerprint: any): BrowserFamily {
   const navigator = fingerprint?.js?.navigator;
-  const platform = typeof navigator?.platform === 'string' ? navigator.platform : null;
-  const vendor = typeof navigator?.vendor === 'string' ? navigator.vendor : null;
+  const platform =
+    typeof navigator?.platform === 'string' ? navigator.platform : null;
+  const vendor =
+    typeof navigator?.vendor === 'string' ? navigator.vendor : null;
   return { platform, vendor };
 }
 
@@ -91,10 +93,18 @@ export function pickBaseline(
   const subjectFamily = familyOf(subject);
   const matching = candidates
     .filter((candidate) => sameFamily(familyOf(candidate.data), subjectFamily))
-    .sort((left, right) => String(right.data?.capturedAt).localeCompare(String(left.data?.capturedAt)));
+    .sort((left, right) =>
+      String(right.data?.capturedAt).localeCompare(
+        String(left.data?.capturedAt),
+      ),
+    );
   const [chosen] = matching;
   if (!chosen) {
-    const held = [...new Set(candidates.map((candidate) => described(familyOf(candidate.data))))];
+    const held = [
+      ...new Set(
+        candidates.map((candidate) => described(familyOf(candidate.data))),
+      ),
+    ];
     throw new Error(
       `No baseline in ${baselineDir} was captured in the subject's browser family (${described(subjectFamily)}); it holds ${held.join('; ')}`,
     );
@@ -104,7 +114,11 @@ export function pickBaseline(
 
 /** Findings grouped by severity, most severe first in the order the groups are declared. */
 function bySeverity(findings: Finding[]): Record<FindingSeverity, Finding[]> {
-  const groups: Record<FindingSeverity, Finding[]> = { critical: [], warning: [], info: [] };
+  const groups: Record<FindingSeverity, Finding[]> = {
+    critical: [],
+    warning: [],
+    info: [],
+  };
   for (const finding of findings) groups[finding.severity].push(finding);
   return groups;
 }
@@ -114,11 +128,15 @@ export function summarize(findings: Finding[]): FingerprintSummary {
   const groups = bySeverity(findings);
   const categories: Record<string, Finding[]> = {};
   for (const finding of findings) {
-    if (!Object.hasOwn(categories, finding.category)) categories[finding.category] = [];
+    if (!Object.hasOwn(categories, finding.category))
+      categories[finding.category] = [];
     categories[finding.category].push(finding);
   }
   const byCategory = Object.fromEntries(
-    Object.entries(categories).map(([category, members]) => [category, members.length]),
+    Object.entries(categories).map(([category, members]) => [
+      category,
+      members.length,
+    ]),
   );
   return {
     totalFindings: findings.length,

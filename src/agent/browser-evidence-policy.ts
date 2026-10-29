@@ -130,7 +130,9 @@ export async function installBrowserEvidencePolicy(
       }
     }
   });
-  await context.exposeBinding('__welesRecordWithheldEdge', (_source, raw) => receiveWithheldEdge(label, raw));
+  await context.exposeBinding('__welesRecordWithheldEdge', (_source, raw) =>
+    receiveWithheldEdge(label, raw),
+  );
   await context.addInitScript(initScript, SPIS_BROWSER_EVIDENCE_POLICY.version);
   attachPageEdgeGuards(context, label);
 }

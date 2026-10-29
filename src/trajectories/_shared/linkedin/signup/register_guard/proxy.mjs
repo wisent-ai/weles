@@ -99,7 +99,9 @@ export async function assertLinkedinProxyStable(
   try {
     const res = await session.ctx.request.get('https://api.ipify.org');
     if (!res.ok())
-      throw new Error(`exit address service answered ${res.status()} ${res.statusText()}`);
+      throw new Error(
+        `exit address service answered ${res.status()} ${res.statusText()}`,
+      );
     actual = (await res.text()).trim();
   } catch (e) {
     throw new Error(
@@ -152,8 +154,7 @@ export function assertLinkedinDedicatedIspProxy(session, requestedProxy) {
     );
   }
   const server = serverAddress(cfg.server);
-  if (server.error)
-    throw new Error(`PROXY_NOT_DEDICATED_ISP: ${server.error}`);
+  if (server.error) throw new Error(`PROXY_NOT_DEDICATED_ISP: ${server.error}`);
   if (!cfg.provider) {
     throw new Error(
       `PROXY_NOT_DEDICATED_ISP: missing_provider server=${server.host} requested=${requested}`,

@@ -32,7 +32,10 @@ try {
   );
   report.source_diff = command('git', ['diff', '--', 'src', 'tests/security']);
   const binary = process.env.WELES_REAL_BIN;
-  assert.ok(binary, 'WELES_REAL_BIN names the weles binary under test; none is assumed');
+  assert.ok(
+    binary,
+    'WELES_REAL_BIN names the weles binary under test; none is assumed',
+  );
   report.cli_version = command(binary, ['version']);
   await evidence.connect();
   const health = await request('/healthz');

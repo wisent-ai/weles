@@ -32,12 +32,17 @@ export const CAPTCHA_ANSWER_PATH = '/captcha/answers/';
 
 /** Whether `segment` is one plain path segment, never a way out of its directory. */
 function plain(segment) {
-  return Boolean(segment) && basename(segment) === segment && !segment.startsWith('.');
+  return (
+    Boolean(segment) &&
+    basename(segment) === segment &&
+    !segment.startsWith('.')
+  );
 }
 
 /** The directory the answers of run `runId` are written to and waited for in. */
 export function captchaAnswersOf(runId) {
-  if (!plain(runId)) throw new Error(`run id ${runId} cannot name a captcha answers directory`);
+  if (!plain(runId))
+    throw new Error(`run id ${runId} cannot name a captcha answers directory`);
   return join(CAPTCHA_ANSWERS_DIR, runId);
 }
 
@@ -55,7 +60,9 @@ export function forgetEveryCaptchaAnswer() {
 function answerAddress(req, url) {
   if (req.method !== 'POST' || !url.pathname.startsWith(CAPTCHA_ANSWER_PATH))
     return null;
-  const [run, token, ...rest] = url.pathname.slice(CAPTCHA_ANSWER_PATH.length).split('/');
+  const [run, token, ...rest] = url.pathname
+    .slice(CAPTCHA_ANSWER_PATH.length)
+    .split('/');
   if (rest.length || !plain(run) || !plain(token)) return null;
   return { directory: captchaAnswersOf(run), token };
 }

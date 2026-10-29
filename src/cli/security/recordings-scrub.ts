@@ -28,34 +28,54 @@ async function envelopes(root: string): Promise<string[]> {
 
 /** Whether `file` held environment values and was rewritten to their names. */
 async function scrubEnvelope(file: string): Promise<boolean> {
-  const envelope = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+  const envelope = JSON.parse(await readFile(file, 'utf8')) as Record<
+    string,
+    unknown
+  >;
   const recorded = envelope.env_all;
   if (recorded === undefined) return false;
-  if (recorded === null || typeof recorded !== 'object' || Array.isArray(recorded)) {
-    throw new Error(`env_all is ${JSON.stringify(recorded)}, not an environment object`);
+  if (
+    recorded === null ||
+    typeof recorded !== 'object' ||
+    Array.isArray(recorded)
+  ) {
+    throw new Error(
+      `env_all is ${JSON.stringify(recorded)}, not an environment object`,
+    );
   }
   delete envelope.env_all;
-  envelope.env_names = environmentNames(recorded as Record<string, string | undefined>);
+  envelope.env_names = environmentNames(
+    recorded as Record<string, string | undefined>,
+  );
   await writeFile(file, `${JSON.stringify(envelope, null, '\t')}\n`);
   return true;
 }
 
 export async function runRecordingsScrub(parsed: ParsedCli): Promise<void> {
   const [verb, ...rest] = parsed.positional;
-  if (verb !== 'scrub' || rest.length) throw new UsageError('recordings takes exactly: scrub [--json]');
+  if (verb !== 'scrub' || rest.length)
+    throw new UsageError('recordings takes exactly: scrub [--json]');
   const root = recordingsBase();
   const scrubbed: string[] = [];
   const clean: string[] = [];
   const failed: { file: string; error: string }[] = [];
   for (const file of await envelopes(root)) {
     try {
-      (await scrubEnvelope(file) ? scrubbed : clean).push(file);
+      ((await scrubEnvelope(file)) ? scrubbed : clean).push(file);
     } catch (error) {
-      failed.push({ file, error: error instanceof Error ? error.message : String(error) });
+      failed.push({
+        file,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
-  printAnswer({ root, scrubbed, clean: clean.length, failed }, parsed.options.json === true);
+  printAnswer(
+    { root, scrubbed, clean: clean.length, failed },
+    parsed.options.json === true,
+  );
   if (failed.length) {
-    throw new ScrubIncomplete(`${failed.length} recording envelope(s) under ${root} could not be scrubbed; each is listed with why`);
+    throw new ScrubIncomplete(
+      `${failed.length} recording envelope(s) under ${root} could not be scrubbed; each is listed with why`,
+    );
   }
 }

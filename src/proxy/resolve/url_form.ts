@@ -41,7 +41,9 @@ export async function resolveUrlFormProxy(
   const u = new URL(proxy);
   // The proxy is dialled at the port the URL names; a URL without one would be handed out as "host:".
   if (!u.port) {
-    throw new Error(`proxy URL for ${u.hostname} names no port; state the proxy's port in the URL`);
+    throw new Error(
+      `proxy URL for ${u.hostname} names no port; state the proxy's port in the URL`,
+    );
   }
   // The diagnostics record the target only when the caller named one.
   let statedTarget: string | null = null;

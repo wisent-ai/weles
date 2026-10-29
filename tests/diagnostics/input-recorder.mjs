@@ -16,7 +16,10 @@ const scripts = ['property_trap.js', 'input_recorder.js'].map((name) =>
 );
 const required = (name) => {
   const value = process.env[name];
-  if (!value?.trim()) throw new Error(`${name} is required: it names the real Chromium the journey types into`);
+  if (!value?.trim())
+    throw new Error(
+      `${name} is required: it names the real Chromium the journey types into`,
+    );
   return value;
 };
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -25,9 +28,13 @@ let failure;
 let browser;
 try {
   const executablePath = required('WELES_TEST_CHROMIUM');
-  evidence.report.chromium = { path: executablePath, sha256: hash(await readFile(executablePath)) };
+  evidence.report.chromium = {
+    path: executablePath,
+    sha256: hash(await readFile(executablePath)),
+  };
   evidence.report.source_digests = {};
-  for (const script of scripts) evidence.report.source_digests[script] = hash(await readFile(script));
+  for (const script of scripts)
+    evidence.report.source_digests[script] = hash(await readFile(script));
 
   browser = await chromium.launch({ executablePath });
   const context = await browser.newContext();
@@ -54,7 +61,8 @@ try {
   // property_trap.js's flush() answers the log as JSON text.
   const written = await page.evaluate(() => {
     const api = globalThis[Symbol.for('weles.inst')];
-    if (!api || typeof api.flush !== 'function') throw new Error('weles.inst.flush is unavailable');
+    if (!api || typeof api.flush !== 'function')
+      throw new Error('weles.inst.flush is unavailable');
     return api.flush();
   });
   const log = JSON.parse(written);
@@ -63,15 +71,28 @@ try {
 
   // An entry's fields may be kept as JSON text inside the entry, so a key is
   // looked for written plainly and written escaped.
-  assert.ok(!written.includes(secret), 'the typed password appears in the instrumentation log');
+  assert.ok(
+    !written.includes(secret),
+    'the typed password appears in the instrumentation log',
+  );
   for (const character of new Set(secret)) {
-    for (const form of [`"key":"${character}"`, `\\"key\\":\\"${character}\\"`]) {
-      assert.ok(!written.includes(form), `the key that typed ${JSON.stringify(character)} is recorded`);
+    for (const form of [
+      `"key":"${character}"`,
+      `\\"key\\":\\"${character}\\"`,
+    ]) {
+      assert.ok(
+        !written.includes(form),
+        `the key that typed ${JSON.stringify(character)} is recorded`,
+      );
     }
   }
-  assert.ok(written.includes('input_event'), 'the recorder logged no field write at all, so it proved nothing');
   assert.ok(
-    written.includes(`len":${secret.length}`) || written.includes(`len\\":${secret.length}`),
+    written.includes('input_event'),
+    'the recorder logged no field write at all, so it proved nothing',
+  );
+  assert.ok(
+    written.includes(`len":${secret.length}`) ||
+      written.includes(`len\\":${secret.length}`),
     `the recorded field write does not state the value's length ${secret.length}`,
   );
   evidence.report.status = 'passed';
@@ -86,13 +107,23 @@ try {
     } catch (cause) {
       evidence.report.status = 'failed';
       evidence.report.cleanup_error = cause.stack;
-      failure = failure ? new AggregateError([failure, cause], 'journey and browser close failed') : cause;
+      failure = failure
+        ? new AggregateError(
+            [failure, cause],
+            'journey and browser close failed',
+          )
+        : cause;
     }
   }
   try {
     await evidence.finish();
   } catch (cause) {
-    failure = failure ? new AggregateError([failure, cause], 'journey and evidence publication failed') : cause;
+    failure = failure
+      ? new AggregateError(
+          [failure, cause],
+          'journey and evidence publication failed',
+        )
+      : cause;
   }
 }
 if (failure) throw failure;

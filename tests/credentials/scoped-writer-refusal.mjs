@@ -8,7 +8,15 @@
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
-import { chmod, mkdir, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  mkdir,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { evidenceFor } from '../security/evidence.mjs';
@@ -42,7 +50,9 @@ async function identity(path) {
   const resolved = await realpath(path);
   return {
     path: resolved,
-    sha256: createHash('sha256').update(await readFile(resolved)).digest('hex'),
+    sha256: createHash('sha256')
+      .update(await readFile(resolved))
+      .digest('hex'),
   };
 }
 
@@ -55,13 +65,18 @@ async function retainedState(directory, credentials) {
     } else if (entry.isFile()) {
       const bytes = await readFile(path);
       for (const value of credentials)
-        assert.ok(!bytes.includes(value), `a refused write persisted a credential in ${path}`);
+        assert.ok(
+          !bytes.includes(value),
+          `a refused write persisted a credential in ${path}`,
+        );
       files.push({
         path,
         sha256: createHash('sha256').update(bytes).digest('hex'),
       });
     } else {
-      assert.fail(`the isolated fixture contains an unexpected file type at ${path}`);
+      assert.fail(
+        `the isolated fixture contains an unexpected file type at ${path}`,
+      );
     }
   }
   return files;
@@ -71,25 +86,42 @@ try {
   const stado = required('STADO_BIN');
   assert.ok(isAbsolute(stado), 'STADO_BIN must be an absolute path');
   report.source_status = evidence.command('git', [
-    'status', '--porcelain', '--untracked-files=all',
+    'status',
+    '--porcelain',
+    '--untracked-files=all',
   ]);
-  assert.equal(report.source_status, '', 'the executed checkout must be clean and committed');
-  report.source_tree = evidence.command('git', ['rev-parse', 'HEAD^{tree}']).trim();
+  assert.equal(
+    report.source_status,
+    '',
+    'the executed checkout must be clean and committed',
+  );
+  report.source_tree = evidence
+    .command('git', ['rev-parse', 'HEAD^{tree}'])
+    .trim();
   report.executables = {
     node: await identity(process.execPath),
     stado: await identity(stado),
   };
   report.stado_version = evidence.command(stado, ['--version']).trim();
-  report.executed_modules = await Promise.all([
-    import.meta.url,
-    new URL('../security/evidence.mjs', import.meta.url),
-    new URL('../../src/_shared/scoped-secrets.mjs', import.meta.url),
-    new URL('../../src/_shared/skarbiec-runtime.mjs', import.meta.url),
-    new URL('../../src/_shared/local-credentials.mjs', import.meta.url),
-    new URL('../../dist/secrets/scoped-service/transport.js', import.meta.url),
-    new URL('../../dist/secrets/scoped-service/catalog/services.js', import.meta.url),
-  ].map((path) => identity(new URL(path))));
-  report.qualified_surface = 'shared ESM writer refusal only; not acquired or reader paths';
+  report.executed_modules = await Promise.all(
+    [
+      import.meta.url,
+      new URL('../security/evidence.mjs', import.meta.url),
+      new URL('../../src/_shared/scoped-secrets.mjs', import.meta.url),
+      new URL('../../src/_shared/skarbiec-runtime.mjs', import.meta.url),
+      new URL('../../src/_shared/local-credentials.mjs', import.meta.url),
+      new URL(
+        '../../dist/secrets/scoped-service/transport.js',
+        import.meta.url,
+      ),
+      new URL(
+        '../../dist/secrets/scoped-service/catalog/services.js',
+        import.meta.url,
+      ),
+    ].map((path) => identity(new URL(path))),
+  );
+  report.qualified_surface =
+    'shared ESM writer refusal only; not acquired or reader paths';
   delete process.env.WELES_CREDENTIALS_FILE;
   delete process.env.WELES_STADO_BIN;
 
@@ -125,7 +157,10 @@ try {
     cause_code: notRun?.cause?.code,
     execution: notRun?.execution,
   });
-  assert.ok(notRun instanceof Error, 'an unrunnable Stado must refuse the write');
+  assert.ok(
+    notRun instanceof Error,
+    'an unrunnable Stado must refuse the write',
+  );
   assert.ok(
     !(notRun instanceof TypeError),
     `the actual spawn failure was masked: ${notRun.message}`,
@@ -144,7 +179,10 @@ try {
   // The values carry a quote and a backslash, which the JSON the helper reads
   // escapes, so neither the written form nor the escaped one may remain.
   const escaping = Object.fromEntries(
-    Object.keys(service.fields).map((field) => [field, `${randomUUID()}"\\${randomUUID()}`]),
+    Object.keys(service.fields).map((field) => [
+      field,
+      `${randomUUID()}"\\${randomUUID()}`,
+    ]),
   );
   const echoing = join(home, 'stado-echoing-its-input');
   await writeFile(
@@ -166,15 +204,30 @@ try {
     message: echoed?.message,
     execution: echoed?.execution,
   });
-  assert.ok(echoed instanceof Error, 'a refusing program must refuse the write');
+  assert.ok(
+    echoed instanceof Error,
+    'a refusing program must refuse the write',
+  );
   assert.equal(echoed.execution.stderrCaptured, true);
-  assert.ok(echoed.execution.status, 'the echoing program must exit with a refusal');
-  assert.ok(echoed.execution.stderr.includes('[redacted]'), 'the echoed values must be redacted in place');
+  assert.ok(
+    echoed.execution.status,
+    'the echoing program must exit with a refusal',
+  );
+  assert.ok(
+    echoed.execution.stderr.includes('[redacted]'),
+    'the echoed values must be redacted in place',
+  );
   for (const value of Object.values(escaping)) {
     for (const form of [value, JSON.stringify(value)]) {
       const body = form.replace(/^"|"$/g, '');
-      assert.ok(!echoed.message.includes(body), 'the refusal quoted a written value');
-      assert.ok(!echoed.execution.stderr.includes(body), 'the execution record kept a written value');
+      assert.ok(
+        !echoed.message.includes(body),
+        'the refusal quoted a written value',
+      );
+      assert.ok(
+        !echoed.execution.stderr.includes(body),
+        'the execution record kept a written value',
+      );
     }
   }
 
@@ -232,7 +285,10 @@ try {
     report.status = 'failed';
     report.cleanup_error = error.stack ?? String(error);
     failure = failure
-      ? new AggregateError([failure, error], 'qualification and fixture cleanup failed')
+      ? new AggregateError(
+          [failure, error],
+          'qualification and fixture cleanup failed',
+        )
       : error;
   }
   try {
@@ -241,7 +297,10 @@ try {
     report.status = 'failed';
     report.publication_error = error.stack ?? String(error);
     failure = failure
-      ? new AggregateError([failure, error], 'qualification and report publication failed')
+      ? new AggregateError(
+          [failure, error],
+          'qualification and report publication failed',
+        )
       : error;
   }
 }

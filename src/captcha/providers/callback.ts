@@ -31,7 +31,9 @@ export type ProviderAnswer = { contentType: string | null; body: string };
 
 /** How `answer`'s body is described in a refusal: by its content type, or as having none. */
 export function bodyKind(answer: ProviderAnswer): string {
-  return answer.contentType === null ? 'a body without a Content-Type' : `a ${answer.contentType} body`;
+  return answer.contentType === null
+    ? 'a body without a Content-Type'
+    : `a ${answer.contentType} body`;
 }
 
 /**
@@ -57,7 +59,10 @@ function stated(name: string, meaning: string, service: string): string {
 // Waits for `file` to appear in `directory`. The watch starts before the file
 // is looked for, so an answer written between the two is not missed; `close`
 // stops the watch of a task that will never be answered.
-function appeared(directory: string, file: string): { arrival: Promise<void>; close: () => void } {
+function appeared(
+  directory: string,
+  file: string,
+): { arrival: Promise<void>; close: () => void } {
   const { promise, resolve, reject } = Promise.withResolvers<void>();
   const watcher = watch(directory, (_event, name) => {
     if (name !== file) return;
@@ -66,7 +71,11 @@ function appeared(directory: string, file: string): { arrival: Promise<void>; cl
   });
   watcher.on('error', (error) => {
     watcher.close();
-    reject(new Error(`watching ${directory} for ${file} failed: ${error.message}`, { cause: error }));
+    reject(
+      new Error(`watching ${directory} for ${file} failed: ${error.message}`, {
+        cause: error,
+      }),
+    );
   });
   readFile(join(directory, file)).then(
     () => {
@@ -76,7 +85,11 @@ function appeared(directory: string, file: string): { arrival: Promise<void>; cl
     (error: NodeJS.ErrnoException) => {
       if (error.code === 'ENOENT') return;
       watcher.close();
-      reject(new Error(`reading ${join(directory, file)} failed: ${error.message}`, { cause: error }));
+      reject(
+        new Error(`reading ${join(directory, file)} failed: ${error.message}`, {
+          cause: error,
+        }),
+      );
     },
   );
   return { arrival: promise, close: () => watcher.close() };
@@ -87,7 +100,9 @@ function appeared(directory: string, file: string): { arrival: Promise<void>; cl
  * before the address is handed out, so the worker accepts the provider's POST
  * from the moment the task exists.
  */
-export async function providerCallback(service: string): Promise<ProviderCallback> {
+export async function providerCallback(
+  service: string,
+): Promise<ProviderCallback> {
   const base = stated(
     'WELES_CAPTCHA_CALLBACK_URL',
     'the Weles worker that started the run states it from its WELES_CAPTCHA_CALLBACK_ORIGIN, the public HTTPS origin routed to it',

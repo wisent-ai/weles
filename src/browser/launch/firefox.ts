@@ -10,7 +10,10 @@ import {
   attachProtocolHandlerWatcher,
   readDiagnosticScript,
 } from './support.js';
-import type { ContextLaunchInput, RuntimeFingerprintConfig } from './support.js';
+import type {
+  ContextLaunchInput,
+  RuntimeFingerprintConfig,
+} from './support.js';
 import {
   WEBAUTHN_REJECT_SCRIPT,
   ARKOSE_OBSERVER_SCRIPT_STOCK,

@@ -8,17 +8,16 @@
 /** Where a run states the country it exits from when no proxy exit reports one. */
 export const STATED_PERSONA_COUNTRY = 'WELES_PERSONA_COUNTRY';
 
-const COUNTRY_LOCALE: Record<string, { timezone: string; language: string }> =
-  {
-    US: { timezone: 'America/New_York', language: 'en-US' },
-    UK: { timezone: 'Europe/London', language: 'en-GB' },
-    GB: { timezone: 'Europe/London', language: 'en-GB' },
-    DE: { timezone: 'Europe/Berlin', language: 'de-DE' },
-    FR: { timezone: 'Europe/Paris', language: 'fr-FR' },
-    NL: { timezone: 'Europe/Amsterdam', language: 'nl-NL' },
-    CA: { timezone: 'America/Toronto', language: 'en-CA' },
-    AU: { timezone: 'Australia/Sydney', language: 'en-AU' },
-  };
+const COUNTRY_LOCALE: Record<string, { timezone: string; language: string }> = {
+  US: { timezone: 'America/New_York', language: 'en-US' },
+  UK: { timezone: 'Europe/London', language: 'en-GB' },
+  GB: { timezone: 'Europe/London', language: 'en-GB' },
+  DE: { timezone: 'Europe/Berlin', language: 'de-DE' },
+  FR: { timezone: 'Europe/Paris', language: 'fr-FR' },
+  NL: { timezone: 'Europe/Amsterdam', language: 'nl-NL' },
+  CA: { timezone: 'America/Toronto', language: 'en-CA' },
+  AU: { timezone: 'Australia/Sydney', language: 'en-AU' },
+};
 
 /** What the run knows about where its browser exits: the exit's country and, when observed, its timezone. */
 export interface ExitGeography {

@@ -7,14 +7,23 @@
 // 300-line cap. credentials.ts re-exports resolveAccountSession +
 // AccountSession for backwards-compat with all existing callers.
 
-import { dressPersona, generatePersona, type Persona, type PersonaDevice } from '../browser/persona.js';
+import {
+  dressPersona,
+  generatePersona,
+  type Persona,
+  type PersonaDevice,
+} from '../browser/persona.js';
 import { sampleDevice } from '../browser/persona/device.js';
 import {
   hydratePinnedProxy,
   proxyUrl as buildProxyUrl,
   resolveProxy,
 } from '../proxy/config.js';
-import type { HydratedPin, ProxyConfig, ResolvedProxy } from '../proxy/config.js';
+import type {
+  HydratedPin,
+  ProxyConfig,
+  ResolvedProxy,
+} from '../proxy/config.js';
 import { isBurned } from '../proxy/burned.js';
 import {
   noExitCause,
@@ -126,7 +135,8 @@ export async function resolveAccountSession(
         savedProxy.provider ??
         policy.providerFromHost(parsed.hostname, parsed.username);
       if (!provider) throw new Error('unknown_provider');
-      cfg = pinned(hydratePinnedProxy({
+      cfg = pinned(
+        hydratePinnedProxy({
           host: parsed.hostname,
           port: Number(parsed.port),
           protocol: parsed.protocol.replace(/:$/, ''),
@@ -142,7 +152,8 @@ export async function resolveAccountSession(
           sticky_session_id: savedProxy.sticky_session_id,
           sticky_hash: savedProxy.sticky_hash,
           city: savedProxy.city,
-        }));
+        }),
+      );
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       throw new Error(`pinned_proxy_invalid:${action}:${reason}`);
@@ -185,10 +196,19 @@ export async function resolveAccountSession(
     // A saved proxy states its pool type, protocol and, for a sticky exit,
     // its country; hydratePinnedProxy refuses one that does not.
     if (!savedProxy.protocol) {
-      throw new Error(`pinned_proxy_invalid:${action}:${host}:${savedProxy.port} records no protocol`);
+      throw new Error(
+        `pinned_proxy_invalid:${action}:${host}:${savedProxy.port} records no protocol`,
+      );
     }
-    const hydrated = hydratePinnedProxy({ ...savedProxy, host, port: savedProxy.port, protocol: savedProxy.protocol, provider });
-    if ('refused' in hydrated) throw new Error(`pinned_proxy_invalid:${action}:${hydrated.refused}`);
+    const hydrated = hydratePinnedProxy({
+      ...savedProxy,
+      host,
+      port: savedProxy.port,
+      protocol: savedProxy.protocol,
+      provider,
+    });
+    if ('refused' in hydrated)
+      throw new Error(`pinned_proxy_invalid:${action}:${hydrated.refused}`);
     cfg = hydrated.proxy;
   } else if (savedProxy?.server) {
     try {
@@ -197,7 +217,8 @@ export async function resolveAccountSession(
         savedProxy.provider ??
         policy.providerFromHost(parsed.hostname, savedProxy.username);
       if (!provider) throw new Error('unknown_provider');
-      cfg = pinned(hydratePinnedProxy({
+      cfg = pinned(
+        hydratePinnedProxy({
           host: parsed.hostname,
           port: Number(parsed.port),
           protocol: parsed.protocol.replace(/:$/, ''),
@@ -209,7 +230,8 @@ export async function resolveAccountSession(
           sticky_session_id: savedProxy.sticky_session_id,
           sticky_hash: savedProxy.sticky_hash,
           city: savedProxy.city,
-        }));
+        }),
+      );
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       throw new Error(`pinned_proxy_invalid:${action}:${reason}`);
@@ -240,14 +262,19 @@ export async function resolveAccountSession(
   } else if (!cfg) {
     // The pool type and country the run's network names; a run that needs a proxy names its type.
     const proxyType = network.proxyType;
-    if (!proxyType) throw new Error(`proxy_type_unstated:${action}:${acct.platform}: ${network.reason}, and names no proxy type to resolve`);
+    if (!proxyType)
+      throw new Error(
+        `proxy_type_unstated:${action}:${acct.platform}: ${network.reason}, and names no proxy type to resolve`,
+      );
     try {
       const tried: string[] = [];
       let pw: ResolvedProxy | undefined;
       const { candidates, failing, unpriced } = await rankByCapability(action);
       device = storedPersona ?? sampleDevice({});
       for (const winner of candidates) {
-        const filter = [proxyType, winner.provider, network.country].filter(Boolean).join(' ');
+        const filter = [proxyType, winner.provider, network.country]
+          .filter(Boolean)
+          .join(' ');
         pw = await resolveProxy(filter, targetHost, device);
         if (pw) {
           console.log(
@@ -287,7 +314,11 @@ export async function resolveAccountSession(
   }
 
   if (cfg) out.proxyUrl = buildProxyUrl(cfg);
-  out.persona = storedPersona ?? dressPersona(device ?? sampleDevice({}), { country: cfg?.country ?? meta?.proxy?.country });
+  out.persona =
+    storedPersona ??
+    dressPersona(device ?? sampleDevice({}), {
+      country: cfg?.country ?? meta?.proxy?.country,
+    });
   if (!storedPersona) await backfillPersona(acct, out.persona);
   return out;
 }

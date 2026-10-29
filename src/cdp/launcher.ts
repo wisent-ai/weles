@@ -105,7 +105,9 @@ export async function launchChromium(
   if (options.proxyServer) {
     // Chrome takes the proxy without its credentials; a URL carrying them is
     // split, and one it cannot parse (host:port) is handed over as given.
-    const pu = URL.canParse(options.proxyServer) ? new URL(options.proxyServer) : null;
+    const pu = URL.canParse(options.proxyServer)
+      ? new URL(options.proxyServer)
+      : null;
     if (pu && pu.username) {
       proxyAuth = {
         username: decodeURIComponent(pu.username),
