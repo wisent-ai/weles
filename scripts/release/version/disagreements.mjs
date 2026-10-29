@@ -1,29 +1,40 @@
 #!/usr/bin/env node
 // The disagreements between the three version documents of one committed
-// revision, one line each; nothing when they agree.
+// revision, or of the staged index, one line each; nothing when they agree.
 //
 // The version gate judges a tree against `released-surface.json` (the
 // surface Stado serves and its version), `release/version-change.json` (that
 // release as `current`, the version this tree becomes as `candidate`) and
 // `package.json` (the version this tree builds). They agree when the
 // baseline's version is the declaration's current and package.json's version
-// is its candidate. This reads the three documents of a commit as Git holds
-// them, so it judges what was committed, not a working tree, and needs no
-// build. A document Git cannot show, or one that holds no version, is
+// is its candidate. This reads the three documents as Git holds them, so it
+// judges what was committed (`--revision`) or what is about to be committed
+// (`--index`, which the pre-commit hook runs), not a working tree, and needs
+// no build. A document Git cannot show, or one that holds no version, is
 // refused naming the revision and the path.
 //
 // Usage: node scripts/release/version/disagreements.mjs --revision <commit>
+//        node scripts/release/version/disagreements.mjs --index
 
 import { execFileSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
 
-const { values } = parseArgs({ options: { revision: { type: 'string' } } });
-if (!values.revision) {
-  throw new Error('--revision is required: name the commit whose version documents are compared');
+const { values } = parseArgs({
+  options: { revision: { type: 'string' }, index: { type: 'boolean' } },
+});
+if (values.index === true && values.revision) {
+  throw new Error('--revision and --index name two different trees: pass one of them');
 }
-const revision = values.revision;
+if (values.index !== true && !values.revision) {
+  throw new Error(
+    '--revision or --index is required: name the commit whose version documents are compared, or --index for the staged ones',
+  );
+}
+// Git's `:<path>` names a path in the index, `<commit>:<path>` one in a commit.
+const revision = values.index === true ? '' : values.revision;
+const tree = values.index === true ? 'the index' : revision;
 
-/** The JSON document `path` holds at `revision`, as Git stores it. */
+/** The JSON document `path` holds at `revision` (or in the index), as Git stores it. */
 function committed(path) {
   let shown;
   try {
@@ -41,7 +52,7 @@ function committed(path) {
 function text(document, field, path) {
   const value = document[field];
   if (typeof value !== 'string') {
-    throw new Error(`${path} at ${revision} names no ${field}`);
+    throw new Error(`${path} at ${tree} names no ${field}`);
   }
   return value;
 }

@@ -32,3 +32,17 @@ if [ -f scripts/lint/check_browser_boundary.mjs ]; then
     node scripts/lint/check_browser_boundary.mjs $staged_browser_files
   fi
 fi
+
+# The three version documents agree in what is about to be committed: a bump
+# of package.json without release/version-change.json's candidate, or a
+# baseline without its current, is refused here instead of in the version gate.
+staged_version_files="$(git diff --cached --name-only --diff-filter=ACMR -- released-surface.json release/version-change.json package.json)"
+if [ -n "$staged_version_files" ]; then
+  version_disagreements="$(node scripts/release/version/disagreements.mjs --index)"
+  if [ -n "$version_disagreements" ]; then
+    printf '%s\n' "pre-commit blocked: the staged version documents disagree:"
+    printf '%s\n' "$version_disagreements"
+    printf '%s\n' "Run the steps docs/versions.md lists (adopt-published, npm version, declare-candidate) and stage their documents."
+    exit 1
+  fi
+fi

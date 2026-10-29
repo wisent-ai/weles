@@ -53,10 +53,16 @@ It reads `released-surface.json`, `release/version-change.json` and
 `package.json` as Git holds them at that commit and prints one line per
 disagreement, nothing when they agree: `released-surface.json names <version>,
 release/version-change.json's current is <version>` and `package.json names
-<version>, release/version-change.json's candidate is <version>`. A missing
-`--revision`, a document Git cannot show (`git show <commit>:<path> failed:
-<git's words>`) and a document that names no version (`<path> at <commit>
-names no <field>`) are refused, exit 1.
+<version>, release/version-change.json's candidate is <version>`. Naming
+neither `--revision` nor `--index`, or both, a document Git cannot show (`git
+show <commit>:<path> failed: <git's words>`) and a document that names no
+version (`<path> at <commit> names no <field>`) are refused, exit 1.
+
+`--index` reads the same three documents from the staged index instead of a
+commit. The pre-commit hook (`.githooks/pre-commit`) runs it whenever one of
+them is staged and refuses the commit with each disagreement, so a bump of
+`package.json` that skipped `declare-candidate`, or a baseline written without
+its current, never reaches `main`.
 
 `tests/release/published-baseline.mjs` runs both scripts against the real
 Stado in a scratch copy of the checkout under `build/real-tests/`, and checks
