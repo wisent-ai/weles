@@ -16,7 +16,10 @@ export interface SolverAnswer {
  * joined by `rowSeparator`. */
 export function tileLabels(gridSize: number, rowSeparator: string): string {
   const rows = Array.from({ length: gridSize }, (_, row) =>
-    Array.from({ length: gridSize }, (_, column) => row * gridSize + column).join(' '),
+    Array.from(
+      { length: gridSize },
+      (_, column) => row * gridSize + column,
+    ).join(' '),
   );
   return rows.join(rowSeparator);
 }
@@ -25,11 +28,16 @@ export function tileLabels(gridSize: number, rowSeparator: string): string {
  * none is refused with what it said. */
 export function parsedTiles(answer: string): number[] {
   const found = answer.match(/\[[\d,\s]*\]/);
-  if (!found) throw new Error(`the vision model named no tiles: ${JSON.stringify(answer)}`);
+  if (!found)
+    throw new Error(
+      `the vision model named no tiles: ${JSON.stringify(answer)}`,
+    );
   const [listed] = found;
   const tiles: unknown = JSON.parse(listed);
   if (!Array.isArray(tiles) || !tiles.every(Number.isInteger))
-    throw new Error(`the vision model's tiles are not whole numbers: ${listed}`);
+    throw new Error(
+      `the vision model's tiles are not whole numbers: ${listed}`,
+    );
   return tiles as number[];
 }
 
@@ -46,10 +54,14 @@ export async function disagreementTiebreaker(
   );
   const modelPositions = parsedTiles(answer);
   const modelSet = new Set<number>(modelPositions);
-  console.log(`[recaptcha] Model disagreement-tiebreaker: ${JSON.stringify(modelPositions)}`);
+  console.log(
+    `[recaptcha] Model disagreement-tiebreaker: ${JSON.stringify(modelPositions)}`,
+  );
   let best: number[] = [];
   for (const solverAnswer of answers) {
-    const overlap = solverAnswer.positions.filter((position) => modelSet.has(position));
+    const overlap = solverAnswer.positions.filter((position) =>
+      modelSet.has(position),
+    );
     if (overlap.length > best.length) best = overlap;
   }
   if (best.length) {

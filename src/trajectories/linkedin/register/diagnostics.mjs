@@ -32,7 +32,9 @@ export function hashValue(value) {
 
 /** The message of a thrown value, redacted. */
 function cause(error) {
-  return redactDiagnosticText(error instanceof Error ? error.message : String(error));
+  return redactDiagnosticText(
+    error instanceof Error ? error.message : String(error),
+  );
 }
 
 /** A reading that failed, carrying why. */
@@ -55,7 +57,12 @@ function scrubbed(value) {
     return Object.fromEntries(
       Object.entries(value).map(([key, inner]) => {
         if (!SENSITIVE_KEYS.test(key)) return [key, scrubbed(inner)];
-        return [key, key.toLowerCase().includes('email') ? '<redacted-email>' : '<redacted>'];
+        return [
+          key,
+          key.toLowerCase().includes('email')
+            ? '<redacted-email>'
+            : '<redacted>',
+        ];
       }),
     );
   }
@@ -66,7 +73,9 @@ export function redactDiagnosticText(text) {
   if (typeof text !== 'string') return text;
   const parsed = parsedJson(text);
   if ('value' in parsed) return JSON.stringify(scrubbed(parsed.value));
-  return text.replace(EMAIL, '<redacted-email>').replace(SENSITIVE_ASSIGNMENT, '$1"<redacted>"');
+  return text
+    .replace(EMAIL, '<redacted-email>')
+    .replace(SENSITIVE_ASSIGNMENT, '$1"<redacted>"');
 }
 
 export function summarizeHeaders(headers) {
@@ -76,7 +85,9 @@ export function summarizeHeaders(headers) {
     values: Object.fromEntries(
       entries.map(([name, value]) => [
         name,
-        SENSITIVE_HEADER.test(name) ? '<redacted>' : redactDiagnosticText(String(value)),
+        SENSITIVE_HEADER.test(name)
+          ? '<redacted>'
+          : redactDiagnosticText(String(value)),
       ]),
     ),
   };
@@ -106,10 +117,16 @@ function summarizePostData(postData) {
       ? {
           keys: Object.keys(parsed.value),
           shape: Object.fromEntries(
-            Object.entries(parsed.value).map(([key, value]) => [key, shapeOf(value)]),
+            Object.entries(parsed.value).map(([key, value]) => [
+              key,
+              shapeOf(value),
+            ]),
           ),
         }
-      : { not_an_object: 'error' in parsed ? parsed.error : shapeOf(parsed.value) },
+      : {
+          not_an_object:
+            'error' in parsed ? parsed.error : shapeOf(parsed.value),
+        },
     markers: {
       has_apfc: /\bapfc\b/.test(postData),
       has_recaptcha: /recaptcha/i.test(postData),
@@ -143,7 +160,11 @@ export function summarizeRequest(req) {
 /** The shape of a response body that was read. */
 function bodyRead(bodyText) {
   const parsed = parsedJson(bodyText);
-  if ('error' in parsed) return { text_redacted: redactDiagnosticText(bodyText), not_json: parsed.error };
+  if ('error' in parsed)
+    return {
+      text_redacted: redactDiagnosticText(bodyText),
+      not_json: parsed.error,
+    };
   const keys =
     parsed.value !== null && typeof parsed.value === 'object'
       ? { json_keys: Object.keys(parsed.value) }
@@ -164,7 +185,10 @@ export function summarizeResponse(res, bodyText, bodyReadError) {
     url: res.url(),
     header_names: headers.names,
     headers_redacted: headers.values,
-    body: bodyReadError === null ? bodyRead(bodyText) : { read_error: cause(bodyReadError) },
+    body:
+      bodyReadError === null
+        ? bodyRead(bodyText)
+        : { read_error: cause(bodyReadError) },
   };
 }
 
@@ -182,21 +206,31 @@ export async function collectSubmitState(page, stage) {
   const text = (loc) =>
     probed(async () =>
       (await present(loc))
-        ? redactDiagnosticText((await loc.innerText()).replace(/\s+/g, ' ').trim())
+        ? redactDiagnosticText(
+            (await loc.innerText()).replace(/\s+/g, ' ').trim(),
+          )
         : { absent: true },
     );
   const attr = (loc, name) =>
-    probed(async () => ((await present(loc)) ? await loc.getAttribute(name) : { absent: true }));
+    probed(async () =>
+      (await present(loc)) ? await loc.getAttribute(name) : { absent: true },
+    );
   const visible = (loc) => probed(() => loc.isVisible());
   const count = (loc) => probed(() => loc.count());
-  const button = page.locator('button[type="submit"], button#join-form-submit').first();
+  const button = page
+    .locator('button[type="submit"], button#join-form-submit')
+    .first();
   const email = page
-    .locator('input[name="email-address"], input#email-address, input[type="email"]')
+    .locator(
+      'input[name="email-address"], input#email-address, input[type="email"]',
+    )
     .first();
   const password = page
     .locator('input[name="password"], input#password, input[type="password"]')
     .first();
-  const first = page.locator('input[name="first-name"], input#first-name').first();
+  const first = page
+    .locator('input[name="first-name"], input#first-name')
+    .first();
   const last = page.locator('input[name="last-name"], input#last-name').first();
   return {
     stage,
@@ -226,7 +260,9 @@ export async function collectSubmitState(page, stage) {
     },
     alert_text: await text(
       page
-        .locator('[role="alert"], .join-form__form-body-error, .alert, .error, [class*="error"]')
+        .locator(
+          '[role="alert"], .join-form__form-body-error, .alert, .error, [class*="error"]',
+        )
         .first(),
     ),
     body_text_sample: await text(page.locator('body').first()),
@@ -236,5 +272,8 @@ export async function collectSubmitState(page, stage) {
 export async function writeSubmitDiagnostics(label, payload) {
   const dir = runRecordingsDir('linkedin_register');
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, `${label}.json`), JSON.stringify(payload, null, INDENT));
+  writeFileSync(
+    join(dir, `${label}.json`),
+    JSON.stringify(payload, null, INDENT),
+  );
 }

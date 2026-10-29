@@ -25,7 +25,9 @@ export function attachServiceWorkers(
  * the deepest ancestor chain of each captured document, summed, since a
  * pierced tree nests every frame's document inside its host element.
  */
-function snapshotDepth(snapshot: { documents: { nodes: { parentIndex: number[] } }[] }): number {
+function snapshotDepth(snapshot: {
+  documents: { nodes: { parentIndex: number[] } }[];
+}): number {
   let total = Number();
   for (const document of snapshot.documents) {
     const parents = document.nodes.parentIndex;
@@ -105,7 +107,10 @@ export async function captureFinalCdpSnapshots(ws: any): Promise<void> {
 // Playwright-side page-level event hooks. Complements the CDP Page.* events
 // (which fire on the browser side) by also capturing what Playwright's own
 // event surface sees — popup/download/dialog/filechooser.
-export function attachPagePlaywrightEvents(ws: { page?: Page; _instPlaywrightEvents?: unknown[] }): void {
+export function attachPagePlaywrightEvents(ws: {
+  page?: Page;
+  _instPlaywrightEvents?: unknown[];
+}): void {
   const page = ws.page;
   if (!page) return;
   const events: unknown[] = [];
@@ -122,7 +127,11 @@ export function attachPagePlaywrightEvents(ws: { page?: Page; _instPlaywrightEve
     });
   });
   page.on('filechooser', (chooser) => {
-    events.push({ t: Date.now(), phase: 'filechooser', isMultiple: chooser.isMultiple() });
+    events.push({
+      t: Date.now(),
+      phase: 'filechooser',
+      isMultiple: chooser.isMultiple(),
+    });
   });
   page.on('dialog', (dialog) => {
     events.push({
@@ -137,7 +146,12 @@ export function attachPagePlaywrightEvents(ws: { page?: Page; _instPlaywrightEve
     events.push({ t: Date.now(), phase: 'worker', url: worker.url() });
   });
   page.on('framenavigated', (frame) => {
-    events.push({ t: Date.now(), phase: 'frameNavigated', url: frame.url(), name: frame.name() });
+    events.push({
+      t: Date.now(),
+      phase: 'frameNavigated',
+      url: frame.url(),
+      name: frame.name(),
+    });
   });
 }
 
@@ -147,12 +161,18 @@ function messageOf(error: unknown): string {
 }
 
 /** A sibling file whose stat failed, with why. */
-function statFailed(name: string, error: unknown): { name: string; error: string } {
+function statFailed(
+  name: string,
+  error: unknown,
+): { name: string; error: string } {
   return { name, error: `stat_failed: ${messageOf(error)}` };
 }
 
 /** The directory that could not be listed, with why. */
-function listFailed(dir: string, error: unknown): { dir: string; error: string }[] {
+function listFailed(
+  dir: string,
+  error: unknown,
+): { dir: string; error: string }[] {
   return [{ dir, error: `list_failed: ${messageOf(error)}` }];
 }
 

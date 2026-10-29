@@ -114,13 +114,18 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
   writeFileSync(join(diagDir, 'captcha_challenge_page.png'), pageScreenshot);
 
   let positions = await classifyGrid(bframe, entry.instruction, gridSize);
-  if (positions) console.log(`[recaptcha] Solver: ${JSON.stringify(positions)}`);
+  if (positions)
+    console.log(`[recaptcha] Solver: ${JSON.stringify(positions)}`);
   // No voter answered: the authenticated Stado-routed vision model reads the
   // whole page; its failure ends the solve with its cause.
   if (!positions) {
     const prompt = `reCAPTCHA: "${instruction}"\nTiles, labelled row by row:\n${tileLabels(gridSize, '\n')}\nReturn ONLY a JSON array of the labels of the matching tiles.`;
     positions = parsedTiles(
-      await askPage(page as unknown as ScreenshottablePage, prompt, pageScreenshot),
+      await askPage(
+        page as unknown as ScreenshottablePage,
+        prompt,
+        pageScreenshot,
+      ),
     );
     console.log(`[recaptcha] Model: ${JSON.stringify(positions)}`);
   }
@@ -132,7 +137,10 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
       await tiles.nth(tile).click({ force: true });
       console.log(`[recaptcha] Tile ${tile}`);
     } catch (e: any) {
-      throw new Error(`RECAPTCHA_TILE_CLICK_FAILED: tile ${tile}: ${e.message}`, { cause: e });
+      throw new Error(
+        `RECAPTCHA_TILE_CLICK_FAILED: tile ${tile}: ${e.message}`,
+        { cause: e },
+      );
     }
     await pageSettled(bframe);
   }
@@ -166,8 +174,7 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
     const err = await observedFrame.evaluate(
       `(() => { for (const e of document.querySelectorAll('.rc-imageselect-error-select-more, .rc-imageselect-incorrect-response')) { if (e.offsetParent !== null) return { message: e.textContent, state: e.className }; } return null; })()`,
     );
-    if (err)
-      throw new Error(`RECAPTCHA_REJECTED: ${err.message || err.state}`);
+    if (err) throw new Error(`RECAPTCHA_REJECTED: ${err.message || err.state}`);
     await pageSettled(observedFrame);
   }
 }

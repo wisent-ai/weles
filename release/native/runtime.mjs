@@ -66,7 +66,9 @@ function command(program, args) {
         : `exited ${result.status}`;
     const said = [result.stderr, result.stdout].filter(Boolean).join('\n');
     throw new Error(
-      said ? `${line} ${ended}: ${said}` : `${line} ${ended} and printed nothing`,
+      said
+        ? `${line} ${ended}: ${said}`
+        : `${line} ${ended} and printed nothing`,
     );
   }
   if (result.stderr) process.stderr.write(result.stderr);

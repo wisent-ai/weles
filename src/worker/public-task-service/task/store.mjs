@@ -21,7 +21,11 @@ const RESERVATION_SCHEMA = 'weles.public-task-reservation.v1';
 
 function safeTaskFilename(taskId) {
   if (!UUID_RE.test(taskId))
-    throw new PublicTaskError(http.HTTP_STATUS_BAD_REQUEST, 'invalid-task-id', 'invalid taskId');
+    throw new PublicTaskError(
+      http.HTTP_STATUS_BAD_REQUEST,
+      'invalid-task-id',
+      'invalid taskId',
+    );
   return `task-${taskId.toLowerCase()}.json`;
 }
 
@@ -84,7 +88,11 @@ export function createTaskStore({
   async function loadTask(taskId) {
     const read = await present(taskPath(taskId), readJson);
     if (read.absent)
-      throw new PublicTaskError(http.HTTP_STATUS_NOT_FOUND, 'task-not-found', 'not found');
+      throw new PublicTaskError(
+        http.HTTP_STATUS_NOT_FOUND,
+        'task-not-found',
+        'not found',
+      );
     return identified(read.value, taskId);
   }
 
@@ -136,7 +144,9 @@ export function createTaskStore({
   }
 
   async function withTaskLock(taskId, operation) {
-    const previous = taskLocks.has(taskId) ? taskLocks.get(taskId) : Promise.resolve();
+    const previous = taskLocks.has(taskId)
+      ? taskLocks.get(taskId)
+      : Promise.resolve();
     let release;
     const gate = new Promise((resolveGate) => {
       release = resolveGate;
@@ -218,7 +228,10 @@ export function createTaskStore({
         requestDigest: task.requestDigest,
         task,
       };
-      await handle.writeFile(`${JSON.stringify(reservation, null, INDENT)}\n`, 'utf8');
+      await handle.writeFile(
+        `${JSON.stringify(reservation, null, INDENT)}\n`,
+        'utf8',
+      );
       await handle.sync();
     } catch (error) {
       try {

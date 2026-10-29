@@ -16,7 +16,10 @@ import { humanFill } from '../../../dist/human/keyboard.js';
 // burned.js is CommonJS; its export is read from the default import.
 import burnedMod from '../../../dist/proxy/burned.js';
 import { pageCondition, pageSettled } from '../_shared/page/settled.mjs';
-import { apiSolve, proxyTaskFields } from '../../../dist/captcha/providers/api.js';
+import {
+  apiSolve,
+  proxyTaskFields,
+} from '../../../dist/captcha/providers/api.js';
 import { autoBindCharacter } from '../lib/character-bind.mjs';
 import { accountItemFor } from '../_shared/skarbiec/accounts.mjs';
 import { messagesTo } from '../../_shared/mail/skrzynka-inbox.mjs';

@@ -10,7 +10,11 @@ import { join } from 'node:path';
 import { runRecordingsDir } from '../../session/run-recordings.js';
 import { getCaptchaCredentials } from '../../utils/credentials.js';
 import { askJedenAboutImage } from '../../vision/analyze.js';
-import { disagreementTiebreaker, parsedTiles, tileLabels } from './consensus.js';
+import {
+  disagreementTiebreaker,
+  parsedTiles,
+  tileLabels,
+} from './consensus.js';
 
 // The challenge words CapSolver's ReCaptchaV2Classification takes as Google's
 // object codes; an instruction naming none is not sent to CapSolver.
@@ -73,7 +77,9 @@ function said(error: unknown): string {
 async function gridImage(bframe: any): Promise<string> {
   const handle = await bframe.$(GRID_SELECTOR);
   if (!handle)
-    throw new Error(`RECAPTCHA_GRID_UNSEEN: no element of ${GRID_SELECTOR} is in the challenge frame`);
+    throw new Error(
+      `RECAPTCHA_GRID_UNSEEN: no element of ${GRID_SELECTOR} is in the challenge frame`,
+    );
   return (await handle.screenshot()).toString('base64');
 }
 
@@ -85,7 +91,10 @@ export async function classifyGrid(
   const image = await gridImage(bframe);
   const diagDir = runRecordingsDir('vision');
   mkdirSync(diagDir, { recursive: true });
-  writeFileSync(join(diagDir, 'extracted_grid_latest.png'), Buffer.from(image, 'base64'));
+  writeFileSync(
+    join(diagDir, 'extracted_grid_latest.png'),
+    Buffer.from(image, 'base64'),
+  );
   const creds = await getCaptchaCredentials();
   const instr = instruction.replace(/\n/g, ' ').trim();
 
@@ -98,20 +107,36 @@ export async function classifyGrid(
     const post = (await (
       await fetch('https://api.nopecha.com/v1/recognition/recaptcha', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Basic ${k}` },
-        body: JSON.stringify({ type: 'recaptcha', task: instr, image_data: [image], grid: `${gridSize}x${gridSize}` }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Basic ${k}`,
+        },
+        body: JSON.stringify({
+          type: 'recaptcha',
+          task: instr,
+          image_data: [image],
+          grid: `${gridSize}x${gridSize}`,
+        }),
       })
     ).json()) as any;
     const jobId = post?.data;
-    if (!jobId) throw new Error(`nopecha took no grid job: ${JSON.stringify(post)}`);
+    if (!jobId)
+      throw new Error(`nopecha took no grid job: ${JSON.stringify(post)}`);
     const g = (await (
-      await fetch(`https://api.nopecha.com/v1/recognition/recaptcha?id=${jobId}`, {
-        headers: { Authorization: `Basic ${k}` },
-      })
+      await fetch(
+        `https://api.nopecha.com/v1/recognition/recaptcha?id=${jobId}`,
+        {
+          headers: { Authorization: `Basic ${k}` },
+        },
+      )
     ).json()) as any;
     if (!Array.isArray(g?.data))
-      throw new Error(`nopecha grid job ${jobId} answered no tiles: ${JSON.stringify(g)}`);
-    return (g.data as boolean[]).flatMap((chosen, tile) => (chosen ? [tile] : []));
+      throw new Error(
+        `nopecha grid job ${jobId} answered no tiles: ${JSON.stringify(g)}`,
+      );
+    return (g.data as boolean[]).flatMap((chosen, tile) =>
+      chosen ? [tile] : [],
+    );
   }
   // CapSolver answers the chosen tiles' indices in its createTask answer.
   async function capsolverSolve(): Promise<number[] | null> {
@@ -122,7 +147,10 @@ export async function classifyGrid(
       await fetch('https://api.capsolver.com/createTask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientKey: k, task: { type: 'ReCaptchaV2Classification', image, question: q } }),
+        body: JSON.stringify({
+          clientKey: k,
+          task: { type: 'ReCaptchaV2Classification', image, question: q },
+        }),
       })
     ).json()) as any;
     if (!Array.isArray(d.solution?.objects))
@@ -142,7 +170,9 @@ export async function classifyGrid(
     { name: 'CapSolver', solve: capsolverSolve },
     { name: 'Model', solve: modelSolve },
   ];
-  const settled = await Promise.allSettled(voters.map((voter) => voter.solve()));
+  const settled = await Promise.allSettled(
+    voters.map((voter) => voter.solve()),
+  );
   const answers: { name: string; positions: number[] }[] = [];
   settled.forEach((outcome, index) => {
     const { name } = voters[index];
@@ -150,7 +180,9 @@ export async function classifyGrid(
       console.log(`[recaptcha] ${name} failed: ${said(outcome.reason)}`);
       return;
     }
-    console.log(`[recaptcha] ${name}: ${outcome.value ? JSON.stringify(outcome.value) : 'not asked'}`);
+    console.log(
+      `[recaptcha] ${name}: ${outcome.value ? JSON.stringify(outcome.value) : 'not asked'}`,
+    );
     if (outcome.value) answers.push({ name, positions: outcome.value });
   });
   const [first, ...others] = answers;
@@ -165,7 +197,9 @@ export async function classifyGrid(
       .filter((a) => a !== modelAnswer)
       .map((a) => `${a.name}=${JSON.stringify(a.positions)}`)
       .join(', ');
-    console.log(`[recaptcha] Submitting model answer: ${JSON.stringify(modelAnswer.positions)} (other solvers: ${rest})`);
+    console.log(
+      `[recaptcha] Submitting model answer: ${JSON.stringify(modelAnswer.positions)} (other solvers: ${rest})`,
+    );
     return modelAnswer.positions.slice().sort((a, b) => a - b);
   }
   // A tile is in the consensus when more of the answering voters chose it
@@ -177,7 +211,9 @@ export async function classifyGrid(
       return votes > answers.length - votes;
     })
     .sort((a, b) => a - b);
-  console.log(`[recaptcha] No model answer; majority of ${answers.length}: ${JSON.stringify(majority)}`);
+  console.log(
+    `[recaptcha] No model answer; majority of ${answers.length}: ${JSON.stringify(majority)}`,
+  );
   if (majority.length) return majority;
   return disagreementTiebreaker(answers, image, instr, gridSize);
 }

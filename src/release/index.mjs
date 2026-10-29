@@ -107,7 +107,10 @@ export async function surface(root = repositoryRoot()) {
   for (const tool of mcpTools(program, mcpPaths)) published.add(tool);
   for (const route of httpRoutes(program, apiServerPaths)) published.add(route);
 
-  const compatibility = await jsonAt(root, 'release/policy/compatibility-policy.json');
+  const compatibility = await jsonAt(
+    root,
+    'release/policy/compatibility-policy.json',
+  );
   if (
     !Array.isArray(compatibility.api?.supportedSchemas) ||
     !compatibility.api.supportedSchemas.length
