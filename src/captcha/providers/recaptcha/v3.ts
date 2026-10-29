@@ -4,8 +4,6 @@
 // it did not solve. `action` is the one the page passes to
 // grecaptcha.execute: a token minted for another action fails the site's
 // check, so the caller states it.
-import { constants } from 'node:http2';
-
 import { markCaptchaChallenge } from '../../events.js';
 import {
   apiSolve,
@@ -16,6 +14,7 @@ import {
   type ProxyCredentials,
   type ServiceAttempt,
 } from '../api.js';
+import { nopechaToken } from './services.js';
 
 // AntiCaptcha queues reCAPTCHA v3 workers by the score they earn and takes
 // minScore as one of three queues, 0.3, 0.7 or 0.9, each priced by its idle
@@ -58,29 +57,9 @@ async function solveRecaptchaV3Nopecha(
     throw new Error(`nopecha recaptcha3 answered no job: ${JSON.stringify(post)}`);
   }
   console.log(`[captcha:api] nopecha recaptcha3 jobId=${jobId}`);
-  // One read: NopeCHA answers a job it is still solving with 409 Conflict
-  // ("Incomplete job", https://nopecha.com/api-reference), and reading again
-  // at once would only spend requests; an unfinished job is this service's
-  // cause, and the chain goes on to the next service.
-  const response = await fetch(
-    `https://api.nopecha.com/v1/token/recaptcha3?id=${jobId}`,
-    { headers: { Authorization: `Basic ${k}` } },
-  );
-  const res = await providerJson(response, `nopecha recaptcha3 token read for job ${jobId}`);
-  if (response.status === constants.HTTP_STATUS_CONFLICT) {
-    throw new Error(
-      `nopecha recaptcha3 job ${jobId} was still being solved when read: ${JSON.stringify(res)}`,
-    );
-  }
-  if (typeof res?.data === 'string' && res.data) {
-    console.log(
-      `[captcha:api] nopecha recaptcha3 solved token_chars=${res.data.length}`,
-    );
-    return res.data;
-  }
-  throw new Error(
-    `nopecha recaptcha3 job ${jobId} answered HTTP ${response.status} without a token: ${JSON.stringify(res)}`,
-  );
+  // The job is read until it is solved, as the v2 path reads it, so the
+  // token NopeCHA charges for is collected.
+  return nopechaToken('recaptcha3', k, jobId);
 }
 
 export async function solveRecaptchaV3Token(

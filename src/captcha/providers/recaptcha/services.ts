@@ -1,8 +1,10 @@
 // reCAPTCHA v2 tokens from the two services that are not task APIs: 2captcha's
 // in.php, which pushes its answer to this run's pingback, and NopeCHA's token
-// API, which pushes nothing and is read until it stops solving the job. Each
-// answers the token or throws naming the service, the job and its refusal.
+// API, which pushes nothing and is read until it stops solving the job (the
+// one reader both the v2 and the v3 NopeCHA paths use). Each answers the
+// token or throws naming the service, the job and its refusal.
 import { constants } from 'node:http2';
+import { setTimeout as waitFor } from 'node:timers/promises';
 
 import {
   nopechaProxyFields,
@@ -11,17 +13,57 @@ import {
   type ProxyCredentials,
 } from '../api.js';
 
-// NopeCHA's job, read until it stops answering that it is still solving it.
-// NopeCHA takes no callback, and no interval between reads is ours to invent:
-// each read follows NopeCHA's previous answer, so its own response time paces
-// them.
-async function readUntilSolved<T>(
-  read: () => Promise<T>,
-  solving: (answer: T) => boolean,
-): Promise<T> {
+// NopeCHA answers a token job it is still solving with HTTP 409 and states
+// the wait before the next read: "Job is incomplete. Recommended wait time
+// before retrying the request is 500ms."
+// (https://nopecha.com/api-reference#409_IncompleteJob)
+const NOPECHA_INCOMPLETE_JOB_WAIT_MS = 500;
+
+/**
+ * The token of NopeCHA job `jobId` on its `endpoint` (recaptcha2 or
+ * recaptcha3). NopeCHA takes no callback and states no time by which a job
+ * is solved, so, like a provider that pushes its answer (../callback.ts),
+ * the job is read until it is no longer incomplete, NopeCHA's own wait
+ * apart, and the wait is said once, naming the job, so a run that waits
+ * shows what it waits on until it is cancelled (`weles runs cancel
+ * <run-id>`). A job that ends without a token is refused naming the job,
+ * NopeCHA's answer and the time waited.
+ */
+export async function nopechaToken(
+  endpoint: 'recaptcha2' | 'recaptcha3',
+  key: string,
+  jobId: string,
+): Promise<string> {
+  const startedAt = Date.now();
+  let announced = false;
   for (;;) {
-    const answer = await read();
-    if (!solving(answer)) return answer;
+    const response = await fetch(
+      `https://api.nopecha.com/v1/token/${endpoint}?id=${encodeURIComponent(jobId)}`,
+      { headers: { Authorization: `Basic ${key}` } },
+    );
+    const answer = await providerJson(
+      response,
+      `nopecha ${endpoint} token read for job ${jobId}`,
+    );
+    if (response.status !== constants.HTTP_STATUS_CONFLICT) {
+      const waited = Date.now() - startedAt;
+      if (typeof answer?.data === 'string' && answer.data) {
+        console.log(
+          `[captcha:api] nopecha ${endpoint} solved token_chars=${answer.data.length} after ${waited}ms`,
+        );
+        return answer.data;
+      }
+      throw new Error(
+        `nopecha ${endpoint} job ${jobId} answered HTTP ${response.status} without a token after ${waited}ms: ${JSON.stringify(answer)}`,
+      );
+    }
+    if (!announced) {
+      console.log(
+        `[captcha:api] nopecha ${endpoint} job ${jobId} is still being solved; reading it again every ${NOPECHA_INCOMPLETE_JOB_WAIT_MS}ms, as NopeCHA asks, until it answers or the run is cancelled`,
+      );
+      announced = true;
+    }
+    await waitFor(NOPECHA_INCOMPLETE_JOB_WAIT_MS);
   }
 }
 
@@ -99,31 +141,5 @@ export async function solveRecaptchaV2Nopecha(
     throw new Error(`nopecha recaptcha2 answered no job: ${JSON.stringify(post)}`);
   }
   console.log(`[captcha:api] nopecha recaptcha2 jobId=${jobId}`);
-  // NopeCHA answers a job it is still solving with 409 Conflict; the token
-  // is read again until it answers anything else.
-  const { status, answer: res } = await readUntilSolved(
-    async () => {
-      const response = await fetch(
-        `https://api.nopecha.com/v1/token/recaptcha2?id=${jobId}`,
-        { headers: { Authorization: `Basic ${k}` } },
-      );
-      return {
-        status: response.status,
-        answer: await providerJson(
-          response,
-          `nopecha recaptcha2 token read for job ${jobId}`,
-        ),
-      };
-    },
-    (read) => read.status === constants.HTTP_STATUS_CONFLICT,
-  );
-  if (typeof res?.data === 'string' && res.data) {
-    console.log(
-      `[captcha:api] nopecha recaptcha2 solved token_chars=${res.data.length}`,
-    );
-    return res.data;
-  }
-  throw new Error(
-    `nopecha recaptcha2 job ${jobId} answered HTTP ${status} without a token: ${JSON.stringify(res)}`,
-  );
+  return nopechaToken('recaptcha2', k, jobId);
 }
