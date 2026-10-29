@@ -83,8 +83,16 @@ export function loadPlan() {
       );
     }
     for (const row of scope.rows || []) {
-      if (!row.rowNeedle || !row.matchField || !row.matchNeedle)
-        throw new Error(`incomplete row identity in ${scope.label}`);
+      // A row is found by what it is about, judged by the model over every
+      // row's text; a spelling to search for misses the next way it is typed.
+      if ('rowNeedle' in row)
+        throw new Error(
+          `${scope.label}: rowNeedle is no longer read; state what the row is about as rowSubject`,
+        );
+      if (!row.rowSubject || !row.matchField || !row.matchNeedle)
+        throw new Error(
+          `incomplete row identity in ${scope.label}: each row needs rowSubject (a sentence naming what the row is about), matchField and matchNeedle`,
+        );
     }
   }
   return { plan, mode, projectUrl, planSha256: sha256(raw) };

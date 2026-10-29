@@ -1,4 +1,5 @@
 import { normalize } from './plan.mjs';
+import { rowAbout } from '../../_shared/page/judged/matched.mjs';
 import {
   pageSettled,
   responseAfterAction,
@@ -92,18 +93,18 @@ export async function openRow(page, collection, row, projectUrl) {
     .locator('table tbody tr')
     .filter({ has: page.locator('button[aria-label="overflow-options"]') });
   await candidates.first().waitFor({ state: 'visible' });
-  // Cells are separate elements, so a needle spanning cells (a first and last name) must match the row's visible text.
+  // Cells are separate elements, so the model reads each row's whole visible
+  // text, and judges which row the plan's subject sentence is about however the
+  // row spells it.
   const texts = await candidates.evaluateAll((nodes) =>
     nodes.map((node) => node.innerText.replace(/\s+/g, ' ').trim()),
   ); // allow-raw-playwright: read-only row texts
-  const needle = normalize(row.rowNeedle);
-  const matching = texts.filter((text) => text.includes(needle));
-  const [only, ...others] = matching;
-  if (only === undefined || others.length)
+  const index = await rowAbout(texts, row.rowSubject);
+  if (index === null)
     throw new Error(
-      `${collection.label}: row is not unique: ${row.rowNeedle} (matched ${matching.length} of ${texts.length})`,
+      `${collection.label}: no row is about ${row.rowSubject} (the model read ${texts.length} row(s))`,
     );
-  const rows = candidates.nth(texts.indexOf(only));
+  const rows = candidates.nth(index);
   await clickSafe(
     rows.locator('button[aria-label="overflow-options"]'),
     'row menu',
