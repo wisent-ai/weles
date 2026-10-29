@@ -17,10 +17,17 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { parseArgs } from 'node:util';
 import { stadoBinary } from '../../src/_shared/skarbiec-runtime.mjs';
 
 const ROOT = resolve(import.meta.dirname, '..', '..');
 const OUTPUT = join(ROOT, '.wisent-output');
+const EXIT_SUCCESS = 0; // https://pubs.opengroup.org/onlinepubs/9799919799/functions/exit.html EXIT_SUCCESS
+const EXIT_FAILURE = 1; // https://pubs.opengroup.org/onlinepubs/9799919799/functions/exit.html EXIT_FAILURE
+// A SHA-256 digest in hex is as long as the hex of any SHA-256 digest.
+const SHA256_HEX_LENGTH = createHash('sha256').digest('hex').length;
+// The receipts are indented as the rest of the release JSON is.
+const JSON_INDENT = '  ';
 const PLATFORMS = [
   {
     os: 'darwin',
@@ -45,10 +52,21 @@ async function digest(path) {
 }
 
 function command(program, args) {
+  const line = `${program} ${args.join(' ')}`;
   const result = spawnSync(program, args, { cwd: ROOT, encoding: 'utf8' });
-  if (result.error || result.status !== 0) {
+  if (result.error) {
+    throw new Error(`${line} could not run: ${result.error.message}`, {
+      cause: result.error,
+    });
+  }
+  if (result.status !== EXIT_SUCCESS) {
+    const ended =
+      result.status === null
+        ? `was ended by signal ${result.signal}`
+        : `exited ${result.status}`;
+    const said = [result.stderr, result.stdout].filter(Boolean).join('\n');
     throw new Error(
-      `${program} ${args.join(' ')} failed (exit ${result.status ?? 'none'}, signal ${result.signal ?? 'none'}): ${result.error?.message || result.stderr || result.stdout || 'no diagnostic output'}`,
+      said ? `${line} ${ended}: ${said}` : `${line} ${ended} and printed nothing`,
     );
   }
   if (result.stderr) process.stderr.write(result.stderr);
@@ -63,7 +81,9 @@ function declaredInput(platform) {
   if (
     !input ||
     !/^stado:\/\//.test(input.uri) ||
-    !/^[0-9a-f]{64}$/.test(input.sha256)
+    typeof input.sha256 !== 'string' ||
+    input.sha256.length !== SHA256_HEX_LENGTH ||
+    !/^[\da-f]+$/.test(input.sha256)
   ) {
     throw new Error(
       `missing immutable native input ${platform.input} in .wisent-release.json`,
@@ -93,7 +113,7 @@ async function fetchInputs() {
     await verifyArchive(archive, input);
     writeFileSync(
       join(directory, 'input.json'),
-      `${JSON.stringify(input, null, 2)}\n`,
+      `${JSON.stringify(input, null, JSON_INDENT)}\n`,
     );
     process.stdout.write(
       `${platform.name}: ${input.uri} SHA-256 ${input.sha256}\n`,
@@ -111,34 +131,6 @@ function localPlatform() {
       `no native worker input is declared for ${process.platform}-${process.arch}`,
     );
   return platform;
-}
-
-/**
- * Put this host's native runtime where the server looks for it.
- *
- * The two-step `fetch` then `stage` belongs to a release publisher that has
- * already unpacked its inputs. A managed runtime built from a git checkout —
- * what `stado workload run weles-api-runtime` maintains — has neither, and
- * without the binaries `weles-api-launcher.mjs` refuses to start with
- * `required Weles native runtime is unavailable`, and the host's API sits in a
- * restart loop while every report calls the unit restarted. One command, one
- * platform, the declared digest verified.
- */
-async function install(destination) {
-  const platform = localPlatform();
-  const input = declaredInput(platform);
-  const directory = join(OUTPUT, 'native-inputs', platform.name);
-  mkdirSync(directory, { recursive: true });
-  const archive = join(directory, 'release.tar.gz');
-  if (!existsSync(archive) || (await digest(archive)) !== input.sha256) {
-    command(stadoBinary(), ['storage', 'get', input.uri, archive]);
-  }
-  await verifyArchive(archive, input);
-  writeFileSync(
-    join(directory, 'input.json'),
-    `${JSON.stringify(input, null, 2)}\n`,
-  );
-  await stage(destination, archive);
 }
 
 /**
@@ -181,7 +173,8 @@ async function stage(destination, source) {
       accessSync(binary, constants.X_OK);
       const installed = join(output, name);
       copyFileSync(binary, installed);
-      chmodSync(installed, 0o755);
+      // The staged binary keeps the executable mode it was published with.
+      chmodSync(installed, statSync(binary).mode);
       const version = command(installed, ['--version']);
       binaries.push({ name, sha256: await digest(installed), version });
     }
@@ -193,29 +186,28 @@ async function stage(destination, source) {
     };
     writeFileSync(
       join(dirname(output), 'runtime.json'),
-      `${JSON.stringify(receipt, null, 2)}\n`,
+      `${JSON.stringify(receipt, null, JSON_INDENT)}\n`,
     );
-    process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify(receipt, null, JSON_INDENT)}\n`);
   } finally {
     if (unpacked) rmSync(unpacked, { recursive: true, force: true });
   }
 }
 
 try {
-  const [action, destination, input] = process.argv.slice(2);
+  const {
+    positionals: [action, destination, input],
+  } = parseArgs({ allowPositionals: true, strict: true });
   if (action === 'fetch' && !destination) await fetchInputs();
   else if (action === 'stage' && destination) await stage(destination, input);
-  else if (action === 'install' && destination && !input)
-    await install(destination);
   else {
     throw new Error(
       'usage: node release/native/runtime.mjs fetch ' +
         '| stage <destination-bin-directory> [<input-directory-or-archive>] ' +
-        "(without one, the input Stado hands the build for this host's platform) " +
-        '| install <destination-bin-directory>',
+        "(without one, the input Stado hands the build for this host's platform)",
     );
   }
 } catch (error) {
   process.stderr.write(`native runtime: ${error.message}\n`);
-  process.exitCode = 1;
+  process.exitCode = EXIT_FAILURE;
 }
