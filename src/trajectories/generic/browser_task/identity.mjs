@@ -36,7 +36,7 @@ export function identityInstructions(platform) {
   if (!platform) return [];
   const prefix = platform.toUpperCase().replace(/[^A-Z0-9]+/g, '_');
   const instructions = [
-    'Weles generated a registration email identity through its domain rotator / Resend inbox for this run.',
+    'Weles generated a registration email identity on an inbound domain whose mail Skrzynka receives for this run.',
     'Use fill_identity(target, field) for generated email, password, username, first_name, last_name, and birth-date fields. The generated values stay inside WSession and never appear in model tool arguments or results.',
     `If the site sends an email confirmation, call check_email("$${prefix}_NEW_EMAIL", "") and follow the returned code, link, or instructions before attempting to sign in.`,
     'Do not return raw API keys in done(value). Store newly issued token or API-key material only through store_credential.',

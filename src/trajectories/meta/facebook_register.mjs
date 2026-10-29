@@ -8,7 +8,8 @@
 //   Gender select
 //   Mobile-or-email single text input
 //   Password
-// Verification: email code sent via Resend (wisentmedia.com receiving).
+// Verification: the email code Facebook sends, read from Skrzynka
+// (_shared/inputs/mailed_code.mjs).
 // Some IPs trigger a phone-SMS gate instead — JuicySMS handles that branch.
 
 import { WSession } from '../../../dist/session/wsession.js';
