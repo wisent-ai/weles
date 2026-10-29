@@ -62,9 +62,13 @@ export async function takeScreenshot(
 
 /** The function a model calls when it will not answer a page question. */
 export const REFUSE = 'refuse';
-const refuseTool = pageFunction(REFUSE, 'Decline to answer, saying why.', {
-  reason: { type: 'string' },
-});
+export const refuseTool = pageFunction(
+  REFUSE,
+  'Decline to answer, saying why.',
+  {
+    reason: { type: 'string' },
+  },
+);
 
 /**
  * One question about `screenshot`, recorded in the run's vision folder: a
