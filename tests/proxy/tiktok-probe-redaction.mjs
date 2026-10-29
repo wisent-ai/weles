@@ -22,6 +22,8 @@ import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { describeError } from '../../dist/_shared/error-chain/index.cjs';
+import { acceptLanguageFor } from '../../dist/browser/persona.js';
+import { sampleDevice } from '../../dist/browser/persona/device.js';
 import { verifyTikTokRouting } from '../../dist/proxy/quality/tiktok_routing.js';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -70,7 +72,13 @@ test("a refused TikTok probe names curl's failure and none of the proxy credenti
   const proxyUrl = `http://${encodeURIComponent(user)}:${encodeURIComponent(password)}@127.0.0.1:${port}`;
   report.port = port;
 
-  const thrown = await verifyTikTokRouting(proxyUrl).then(
+  // The probe presents the persona a run hands it; one it lacks is refused
+  // before curl starts (tests/proxy/probe-persona.mjs).
+  const persona = {
+    ...sampleDevice({ browser: 'chromium' }),
+    acceptLanguage: acceptLanguageFor('chromium', 'en-US'),
+  };
+  const thrown = await verifyTikTokRouting(proxyUrl, persona).then(
     (route) =>
       assert.fail(
         `the probe through a refused proxy answered ${JSON.stringify(route)}`,

@@ -15,6 +15,7 @@ import {
   solveHcaptchaEnterprise,
   type CaptchaSession,
 } from './page/hcaptcha-enterprise.js';
+import { CAPTCHA_SOURCES, type CaptchaSources } from './vendors.js';
 
 interface CaptchaInfo {
   type: string;
@@ -27,9 +28,13 @@ interface CaptchaInfo {
 /**
  * Runs in each frame's document, so a vendor widget wrapped in a same-origin
  * iframe one level below the page is found. A widget's key is read from its
- * data attribute or from its frame address's query or fragment.
+ * data attribute or from its frame address's query or fragment. The vendors'
+ * sources are handed in, because the function runs in the page and reaches
+ * nothing of this module.
  */
-function detectInDocument(): CaptchaInfo | null {
+function detectInDocument(sources: CaptchaSources): CaptchaInfo | null {
+  const frames = (markers: readonly string[]): string =>
+    markers.map((marker) => `iframe[src*="${marker}"]`).join(', ');
   const param = (element: Element, name: string): string | null => {
     const src = element.getAttribute('src');
     if (!src) return null;
@@ -40,7 +45,7 @@ function detectInDocument(): CaptchaInfo | null {
     );
   };
   for (const frame of Array.from(
-    document.querySelectorAll('iframe[src*="recaptcha"]'),
+    document.querySelectorAll(frames(sources.recaptcha)),
   )) {
     const key = param(frame, 'k');
     if (!key) continue;
@@ -55,7 +60,7 @@ function detectInDocument(): CaptchaInfo | null {
     ?.getAttribute('data-sitekey');
   if (recaptchaKey) return { type: 'recaptcha', sitekey: recaptchaKey };
   const turnstile = document.querySelector(
-    'iframe[src*="challenges.cloudflare.com"], .cf-turnstile',
+    `${frames(sources.turnstile)}, .cf-turnstile`,
   );
   if (turnstile) {
     const key =
@@ -65,16 +70,14 @@ function detectInDocument(): CaptchaInfo | null {
     if (key) return { type: 'turnstile', sitekey: key };
   }
   const hcaptcha = document.querySelector(
-    'iframe[src*="hcaptcha.com"], .h-captcha',
+    `${frames(sources.hcaptcha)}, .h-captcha`,
   );
   if (hcaptcha) {
     const key =
       hcaptcha.getAttribute('data-sitekey') || param(hcaptcha, 'sitekey');
     return key ? { type: 'hcaptcha', sitekey: key } : { type: 'hcaptcha' };
   }
-  const arkose = document.querySelector(
-    'iframe[src*="arkoselabs"], iframe[src*="funcaptcha"]',
-  );
+  const arkose = document.querySelector(frames(sources.funcaptcha));
   const arkoseSrc = arkose?.getAttribute('src');
   if (!arkose || !arkoseSrc) return null;
   const address = new URL(arkoseSrc, location.href);
@@ -97,7 +100,7 @@ export async function detectCaptcha(page: Page): Promise<CaptchaInfo | null> {
   for (const frame of frames) {
     let info: CaptchaInfo | null = null;
     try {
-      info = await frame.evaluate(detectInDocument);
+      info = await frame.evaluate(detectInDocument, CAPTCHA_SOURCES);
     } catch (error) {
       console.log(
         `[captcha] frame ${frame.url()} could not be searched: ${String(error)}`,

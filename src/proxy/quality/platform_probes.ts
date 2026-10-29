@@ -1,65 +1,30 @@
 // The LinkedIn signup probe a candidate exit is put through before it is
-// trusted, and the persona headers every exit probe fetches with (the
-// TikTok routing probe is ./tiktok_routing.ts). Split out of policy.ts,
+// trusted (the TikTok routing probe is ./tiktok_routing.ts; the persona
+// headers both fetch with are ./probe_headers.ts). Split out of policy.ts,
 // which keeps the provider rules and the geo/reputation checks.
 
-export type LinkedInProbeResult = 'form' | 'challenge' | 'unknown';
-export type LinkedInProbePersona = {
-  os?: 'macos' | 'windows' | 'linux' | string;
-  browser?: 'chromium' | 'firefox' | 'webkit' | string;
-  chromeVersion?: string;
-  userAgentOs?: string;
-  acceptLanguage?: string;
-};
+import { captchaVendor } from '../../captcha/vendors.js';
+import { type LinkedInProbePersona, probeHeaders } from './probe_headers.js';
 
-/** The navigation headers the run's persona sends, for a probe fetched through an exit. */
-export function probeHeaders(
-  persona?: LinkedInProbePersona,
-): Record<string, string> {
-  const browser = persona?.browser ?? 'chromium';
-  const acceptLanguage =
-    persona?.acceptLanguage ??
-    (browser === 'firefox' ? 'en-US,en;q=0.5' : 'en-US,en;q=0.9');
-  const chromeMajor =
-    (persona?.chromeVersion ?? '147.0.0.0').split('.')[0] || '147';
-  if (browser === 'firefox') {
-    const os =
-      persona?.os === 'windows'
-        ? 'Windows NT 10.0; Win64; x64'
-        : persona?.os === 'linux'
-          ? 'X11; Linux x86_64'
-          : 'Macintosh; Intel Mac OS X 10.15';
-    return {
-      'User-Agent': `Mozilla/5.0 (${os}; rv:142.0) Gecko/20100101 Firefox/142.0`,
-      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': acceptLanguage,
-      'Upgrade-Insecure-Requests': '1',
-    };
+export { type LinkedInProbePersona, probeHeaders };
+export type LinkedInProbeResult = 'form' | 'challenge' | 'unknown';
+
+/** Where LinkedIn sends a visitor it challenges before any page of its own. */
+const CHECKPOINT_PATH = '/checkpoint/';
+
+/**
+ * The addresses the page's frames and scripts load, resolved against the
+ * page as the browser resolves them. A `src` no browser could load (not a
+ * URL) loads nothing and is not one.
+ */
+function embeddedSources(body: string, page: string): URL[] {
+  const sources: URL[] = [];
+  for (const [tag] of body.matchAll(/<(?:iframe|script)\b[^>]*>/gi)) {
+    const src = /\ssrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(tag);
+    const value = (src?.[1] ?? src?.[2] ?? src?.[3])?.replaceAll('&amp;', '&');
+    if (value && URL.canParse(value, page)) sources.push(new URL(value, page));
   }
-  const uaOs = persona?.userAgentOs ?? 'Macintosh; Intel Mac OS X 10_15_7';
-  const chPlatform =
-    persona?.os === 'windows'
-      ? '"Windows"'
-      : persona?.os === 'linux'
-        ? '"Linux"'
-        : '"macOS"';
-  return {
-    'User-Agent': `Mozilla/5.0 (${uaOs}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeMajor}.0.0.0 Safari/537.36`,
-    Accept:
-      'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-    'Accept-Language': acceptLanguage,
-    'Cache-Control': 'no-cache',
-    Pragma: 'no-cache',
-    Priority: 'u=0, i',
-    'sec-ch-ua': `"Google Chrome";v="${chromeMajor}", "Not.A/Brand";v="8", "Chromium";v="${chromeMajor}"`,
-    'sec-ch-ua-mobile': '?0',
-    'sec-ch-ua-platform': chPlatform,
-    'sec-fetch-dest': 'document',
-    'sec-fetch-mode': 'navigate',
-    'sec-fetch-site': 'none',
-    'sec-fetch-user': '?1',
-    'Upgrade-Insecure-Requests': '1',
-  };
+  return sources;
 }
 
 export async function probeLinkedinSignup(
@@ -100,6 +65,8 @@ export async function probeLinkedinSignup(
     signup_form: boolean;
     challenge_dialog_template: boolean;
     invisible_recaptcha_enterprise_anchor: boolean;
+    checkpoint_redirect: boolean;
+    challenge_sources: string[];
     hard_challenge: boolean;
   };
   response_body?: {
@@ -111,7 +78,14 @@ export async function probeLinkedinSignup(
 }> {
   if (!proxyUrl) return { result: 'unknown' };
   const targetUrl = 'https://www.linkedin.com/signup';
-  const headers = probeHeaders(persona);
+  let headers: Record<string, string>;
+  try {
+    headers = probeHeaders(persona);
+  } catch (error) {
+    // A persona the probe cannot present is the probe's own refusal, kept
+    // with the verdict, not a guess at the browser.
+    return { result: 'unknown', error: (error as Error).message };
+  }
   const headerOrder = Object.keys(headers);
   const request = {
     tool: 'curl' as const,
@@ -181,25 +155,28 @@ export async function probeLinkedinSignup(
       text: body,
       bytes: body.length,
     };
-    const invisibleRecaptchaEnterpriseAnchor =
-      /(?:google\.com\/)?recaptcha\/enterprise\/anchor[\s\S]{0,500}(?:[?&]|%26)size(?:=|%3D)invisible/i.test(
-        body,
+    // A hard challenge is structure, not words on the page: LinkedIn sending
+    // the request to its checkpoint, a frame of that checkpoint, or a frame or
+    // script a captcha vendor serves. reCAPTCHA Enterprise's invisible anchor
+    // is LinkedIn's passive check on every signup page and challenges no one.
+    const sources = embeddedSources(body, targetUrl);
+    const invisibleRecaptchaEnterpriseAnchor = sources.some(
+      (source) =>
+        source.pathname.includes('/recaptcha/enterprise/anchor') &&
+        source.searchParams.get('size') === 'invisible',
+    );
+    const checkpointRedirect =
+      typeof meta.redirect_url === 'string' &&
+      URL.canParse(meta.redirect_url) &&
+      new URL(meta.redirect_url).pathname.startsWith(CHECKPOINT_PATH);
+    const challengeSources = sources.filter((source) => {
+      if (source.pathname.startsWith(CHECKPOINT_PATH)) return true;
+      const vendor = captchaVendor(source);
+      return (
+        vendor !== null &&
+        !(vendor === 'recaptcha' && invisibleRecaptchaEnterpriseAnchor)
       );
-    // A hard challenge is a captcha provider's script or frame on the page, or
-    // LinkedIn's own checkpoint challenge frame.
-    const hardCaptcha =
-      [
-        'checkpoint/challenge',
-        'challengeIframe',
-        'px-cloud.net',
-        'arkoselabs.com',
-        'funcaptcha.com',
-        'hcaptcha.com',
-      ].some((marker) => body.includes(marker)) ||
-      (['google.com/recaptcha', 'recaptcha.net'].some((marker) =>
-        body.includes(marker),
-      ) &&
-        !invisibleRecaptchaEnterpriseAnchor);
+    });
     const bodyMarkers = {
       login_form: /name="session_key"|id="username"|input type="email"/.test(
         body,
@@ -208,7 +185,11 @@ export async function probeLinkedinSignup(
         /name="email-address"|id="email-address"|join-form-submit/.test(body),
       challenge_dialog_template: body.includes('challenge-dialog'),
       invisible_recaptcha_enterprise_anchor: invisibleRecaptchaEnterpriseAnchor,
-      hard_challenge: hardCaptcha,
+      checkpoint_redirect: checkpointRedirect,
+      challenge_sources: challengeSources.map(
+        (source) => `${source.origin}${source.pathname}`,
+      ),
+      hard_challenge: checkpointRedirect || challengeSources.length > 0,
     };
     const transport = {
       curl_version: curlVersion,
