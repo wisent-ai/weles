@@ -4,11 +4,17 @@ import { randomUUID } from 'node:crypto';
 import { WSession } from '../../../dist/session/wsession.js';
 import { CaptchaSolver } from '../../../dist/captcha/solver.js';
 import { registrationPassword } from '../../../dist/utils/identity/password.js';
+import {
+  markSignupSuccess,
+  pickDomain,
+} from '../../../dist/utils/email/domain.js';
 import { pageSettled } from '../_shared/page/settled.mjs';
 import { writeServiceCredentials } from '../_shared/skarbiec/accounts.mjs';
 
-// SadCaptcha rejects gmail aliases; use a fresh wisentmedia.com mailbox instead.
-const EMAIL = `svc.sad.${randomUUID()}@wisentmedia.com`;
+// SadCaptcha rejects gmail aliases, so the address is a fresh mailbox on an
+// inbound domain Weles receives mail for (the recorded domains, or
+// FORCE_EMAIL_DOMAIN / AGENT_EMAIL_DOMAINS / AGENT_DOMAIN); none is assumed.
+const EMAIL = `svc.sad.${randomUUID()}@${await pickDomain('sadcaptcha')}`;
 const password = registrationPassword();
 
 console.log(`[trajectory] registering: ${EMAIL}`);
@@ -57,6 +63,7 @@ try {
     username: EMAIL,
     password,
   });
+  await markSignupSuccess(EMAIL, 'sadcaptcha');
   console.log(`PASS: registered ${EMAIL}; credentials persisted to ${item}`);
 } finally {
   // A failure is thrown on to the runner, which reports it and exits failed.

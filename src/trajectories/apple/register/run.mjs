@@ -2,7 +2,7 @@
 // the cross_login flow can inject Apple cookies into reddit/tiktok/twitter/
 // linkedin/github/producthunt for `Sign in with Apple` SSO.
 //
-// Flow: country → name → DOB → email (own wisentmedia.com) → password+confirm
+// Flow: country → name → DOB → email (generateIdentity's inbound domain) → password+confirm
 //   → phone (rented in the country Apple's phone field is set to) → email-OTP
 //   → phone-OTP → land on /manage
 // Apple's signup form is rendered inside an iframe hosted at appleid.apple.com
@@ -151,7 +151,7 @@ async function fillCodeBoxes(boxes, code, refusal) {
       }
     }
 
-    // 4. Apple ID email = wisentmedia.com address from generateIdentity
+    // 4. Apple ID email = the inbound-domain address generateIdentity picked
     const emailIn = frame
       .locator(
         'input[name="appleId"], input[name="email"], input[type="email"], input[autocomplete="email"]',
