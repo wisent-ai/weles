@@ -1,9 +1,9 @@
-// What this facade may say out loud inside the Weles process: the caller's
-// token, the keeper session it asks for, the diagnostics directory it writes
-// into, the keeper runner it spawns, and the two filters that keep Google
-// credentials out of every child environment and out of every printed line.
-// It binds no port and starts no keeper: the Weles API process serves its
-// routes.
+// What this facade may say out loud inside the Weles process: the keeper
+// session it asks for, the diagnostics directory it writes into, the keeper
+// runner it spawns, and the two filters that keep Google credentials out of
+// every child environment and out of every printed line. It binds no port,
+// starts no keeper and takes no token of its own: the Weles API process
+// serves its routes behind WELES_API_TOKEN.
 
 import { runOutputPath } from '#run-output';
 import { dirname, join, resolve } from 'node:path';
@@ -17,11 +17,6 @@ export const RUNNER = join(here, '..', 'keeper.mjs');
 // must name its own (request_intake.mjs requestSession refuses it).
 export const SESSION =
   process.env.SESSION || process.env.GOOGLE_ADS_KEEPER_SESSION;
-export const API_TOKEN =
-  process.env.WELES_KEYWORD_PLANNER_API_TOKEN ||
-  process.env.WELES_CONSOLE_API_TOKEN;
-export const ALLOW_UNAUTH =
-  process.env.WELES_KEYWORD_PLANNER_API_ALLOW_UNAUTH === '1';
 export const DIAG_DIR =
   process.env.GOOGLE_ADS_DIAG_DIR ||
   runOutputPath('google-ads-keyword-planner', 'api');

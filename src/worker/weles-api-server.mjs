@@ -25,8 +25,8 @@
 //   WELES_API_ALLOW_RAW_CREDS  "1" grants creds "raw"; unset refuses it
 //   WELES_RECORDINGS_ROOT  required; the release launcher exports it
 //   WELES_API_BASE, WELES_TOKEN, WISENT_ORGANIZATION_ID for destination imports
-//   WELES_KEYWORD_PLANNER_API_TOKEN and the model-router variables for the
-//                    keyword-planner routes (see keyword_planner/api_server.mjs)
+//   the model-router variables for the keyword-planner routes (see
+//                    keyword_planner/api_server.mjs), which take WELES_API_TOKEN
 //   plus the worker browser, proxy, Stado, and Skarbiec configuration
 //
 // Routes:

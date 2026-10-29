@@ -24,9 +24,8 @@ function headerIs(header, expected) {
   return timingSafeEqual(digest(header), digest(expected));
 }
 
-// Whether the request carries `token` as its bearer or its x-api-key; every
-// Weles facade that takes its own token admits callers through this check.
-export function carriesToken(req, token) {
+// Whether the request carries `token` as its bearer or its x-api-key.
+function carriesToken(req, token) {
   return (
     headerIs(req.headers.authorization, `Bearer ${token}`) ||
     headerIs(req.headers['x-api-key'], token)

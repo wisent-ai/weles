@@ -1,20 +1,12 @@
-// What counts as a Keyword Planner request: the facade's own token, demanded
-// before any work, and the two request shapes it accepts — a bare keyword
-// volume check and a keyword report brief that names a product. Bodies are
-// read and answers written by the API's shared exchange
-// (`src/worker/weles-api-server/http-exchange.mjs`). The customer id and
-// keywords are read by the shared request readers (`../request.mjs`); a field
-// a request does not carry stays absent.
+// What counts as a Keyword Planner request: the two request shapes it
+// accepts — a bare keyword volume check and a keyword report brief that names
+// a product. Callers are admitted, bodies read and answers written by the
+// API's shared exchange (`src/worker/weles-api-server/http-exchange.mjs`). The
+// customer id and keywords are read by the shared request readers
+// (`../request.mjs`); a field a request does not carry stays absent.
 
-import { ALLOW_UNAUTH, API_TOKEN, SESSION } from './service_settings.mjs';
+import { SESSION } from './service_settings.mjs';
 import { customerIdOf, keywordsOf, squash } from '../request.mjs';
-import { carriesToken } from '../../../../../worker/weles-api-server/http-exchange.mjs';
-
-export function authorized(req) {
-  if (ALLOW_UNAUTH) return true;
-  if (!API_TOKEN) return false;
-  return carriesToken(req, API_TOKEN);
-}
 
 /** A file-name fragment of `value`: lowercase letters and digits joined by dashes. */
 export function safeSlug(value) {

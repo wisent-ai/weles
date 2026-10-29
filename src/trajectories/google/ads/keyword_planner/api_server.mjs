@@ -6,11 +6,10 @@
 //
 // There is no separate keyword-planner server or unit. POST /google-ads/keyword-volume
 // and POST /google-ads/keyword-report are answered by the one Weles process
-// (src/worker/weles-api-server.mjs), authenticated with this facade's own bearer.
+// (src/worker/weles-api-server.mjs), behind the same WELES_API_TOKEN as every
+// other token-authenticated route (requireTokenAuthorization).
 //
 // Env of the Weles process:
-//   WELES_KEYWORD_PLANNER_API_TOKEN required unless WELES_KEYWORD_PLANNER_API_ALLOW_UNAUTH=1
-//                                   (WELES_CONSOLE_API_TOKEN is accepted in its place)
 //   SESSION / GOOGLE_ADS_KEEPER_SESSION the keeper session a request runs in when
 //                                   it names none; with neither, a request without
 //                                   `session` is refused
@@ -22,20 +21,15 @@
 //   WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET required Brama request-signing secret
 
 import { existsSync } from 'node:fs';
+import { RUNNER, redact } from './api_server/service_settings.mjs';
 import {
-  ALLOW_UNAUTH,
-  API_TOKEN,
-  RUNNER,
-  redact,
-} from './api_server/service_settings.mjs';
-import {
-  authorized,
   validateReportRequest,
   validateRequest,
 } from './api_server/request_intake.mjs';
 import {
   json,
   readBody,
+  requireTokenAuthorization,
 } from '../../../../worker/weles-api-server/http-exchange.mjs';
 import { runKeywordPlanner } from './api_server/keeper_harvest.mjs';
 import { generateKeywordsWithRouter } from './api_server/model_router.mjs';
@@ -47,7 +41,6 @@ import {
   HTTP_INVALID_REQUEST,
   HTTP_OK,
   HTTP_SERVER_MISCONFIGURED,
-  HTTP_UNAUTHORIZED,
   HTTP_UPSTREAM_FAILED,
 } from '../../../../worker/weles-api-server/routes/http-status.mjs';
 
@@ -63,16 +56,7 @@ export function isKeywordPlannerRoute(req, url) {
 
 export async function respondToKeywordPlanner(req, res, url) {
   try {
-    if (!authorized(req)) {
-      const configured = API_TOKEN || ALLOW_UNAUTH;
-      json(res, configured ? HTTP_UNAUTHORIZED : HTTP_SERVER_MISCONFIGURED, {
-        ok: false,
-        error: configured
-          ? 'unauthorized'
-          : 'missing_WELES_KEYWORD_PLANNER_API_TOKEN',
-      });
-      return;
-    }
+    if (!requireTokenAuthorization(req, res)) return;
 
     if (!existsSync(RUNNER)) {
       json(res, HTTP_SERVER_MISCONFIGURED, {
