@@ -78,12 +78,17 @@ export async function fillPage(
   // A target that opens with a CSS type selector and its attribute selectors
   // names its field by that selector. Otherwise the field is the one its label
   // (or aria-label) names, then the one whose placeholder holds the target,
-  // then the one vision finds. Words of the target are not matched against
-  // field names: that filled whichever field shared a word with the target.
+  // then the one whose form name is the whole target, then the one vision
+  // finds. Words of the target are not matched against field names: that
+  // filled whichever field shared a word with the target. A page that states
+  // a field only by its form name (`<input name="email">`, no label or
+  // placeholder) is still found by that name, compared whole and without
+  // regard to case.
   const explicitSelector = target
     .trim()
     .match(/^[a-z]+(?:\[[^\]]+\])+/i)
     ?.shift();
+  const namedSelector = `[name="${target.trim().replace(/["\\]/g, '\\$&')}" i]`;
   for (const frame of [...childFrames(s, allowedOrigin), s.page]) {
     if (explicitSelector) {
       const explicit = await firstVisible(frame.locator?.(explicitSelector));
@@ -105,6 +110,11 @@ export async function fillPage(
     if (placeholder) {
       await fill(placeholder);
       return 'filled placeholder';
+    }
+    const named = await firstVisible(frame.locator?.(namedSelector));
+    if (named) {
+      await fill(named);
+      return 'filled name';
     }
   }
   const point = await findClickTarget(asV(s.page), target);
