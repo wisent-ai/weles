@@ -423,7 +423,7 @@
           logAccess(
             'EventTarget',
             'addEventListener:' + type,
-            String(this?.constructor?.name || 'unknown'),
+            String(this?.constructor?.name),
           );
           return o.call(this, type, listener, opts);
         },

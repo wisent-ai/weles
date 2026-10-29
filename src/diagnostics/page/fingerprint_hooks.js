@@ -481,7 +481,7 @@
           ' saveData=' +
           c.saveData +
           ' type=' +
-          (c.type || 'unknown'),
+          c.type,
       );
     }
   } catch (e) {
