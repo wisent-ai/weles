@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
-export const origin = (await import('#ncbr-settings')).lsi2Origin();
+const settings = await import('#ncbr-settings');
+export const origin = settings.lsi2Origin();
 export const normalize = (value) =>
   String(value ?? '')
     .replace(/\s+/g, ' ')
@@ -61,7 +62,7 @@ export function loadPlan() {
     );
   if (!Array.isArray(plan.sections) || !Array.isArray(plan.collections))
     throw new Error('sections and collections must be arrays');
-  const projectUrl = `${origin}/projekt/${project.id}`;
+  const projectUrl = settings.projectUrlFor(project.id);
   for (const scope of [...plan.sections, ...plan.collections]) {
     const recommendations = scope.url === `${projectUrl}/recomendations`;
     if (

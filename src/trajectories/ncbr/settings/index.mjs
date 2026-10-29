@@ -47,8 +47,17 @@ export function projectId() {
 
 /** The project's page: NCBR_PROJECT_URL, or the LSI2 page of NCBR_PROJECT_ID. */
 export function projectUrl() {
+  return projectUrlFor(projectId());
+}
+
+/**
+ * The page of project `id`: NCBR_PROJECT_URL when it is declared, else the
+ * LSI2 project page of `id`. Every NCBR script builds a project address here,
+ * whether its id comes from NCBR_PROJECT_ID or from a correction plan.
+ */
+export function projectUrlFor(id) {
   const declared = process.env.NCBR_PROJECT_URL?.trim();
-  return declared ? declared : `${LSI2_PROJECT_BASE}${projectId()}`;
+  return declared ? declared : `${LSI2_PROJECT_BASE}${id}`;
 }
 
 /**
