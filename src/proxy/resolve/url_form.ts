@@ -49,11 +49,10 @@ export async function resolveUrlFormProxy(
   let statedTarget: string | null = null;
   if (targetHost) statedTarget = targetHost;
   // Toxicity policy on URL-form path: reject providers blocked for target.
-  const {
-    providerFromHost,
-    isProviderBlockedForPlatform,
-    retiredProviderReason,
-  } = await import('../policy.js');
+  const { providerFromHost, isProviderBlockedForPlatform } = await import(
+    '../policy.js'
+  );
+  const { retiredProviderReason } = await import('./exit/retired.js');
   const platformForBlock = platformFromTarget(targetHost);
   const provFromUrl = providerFromHost(
     u.hostname,

@@ -132,9 +132,8 @@ export async function resolveProxy(
     attempts.push(rejection(row, undefined, 'proxy_type_undeclared'));
   }
 
-  const { retiredProviderReason, isProviderBlockedForPlatform } = await import(
-    '../policy.js'
-  );
+  const { isProviderBlockedForPlatform } = await import('../policy.js');
+  const { retiredProviderReason } = await import('./exit/retired.js');
   const { isBurned } = await import('../burned.js');
   for (const row of candidates) {
     const retiredReason = retiredProviderReason(row.proxy_host, row.proxy_port);

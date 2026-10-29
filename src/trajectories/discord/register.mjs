@@ -16,7 +16,7 @@ import { humanFill } from '../../../dist/human/keyboard.js';
 // burned.js is CommonJS; its export is read from the default import.
 import burnedMod from '../../../dist/proxy/burned.js';
 import { pageCondition, pageSettled } from '../_shared/page/settled.mjs';
-import { apiSolve } from '../../../dist/captcha/providers/api.js';
+import { apiSolve, proxyTaskFields } from '../../../dist/captcha/providers/api.js';
 import { autoBindCharacter } from '../lib/character-bind.mjs';
 import { accountItemFor } from '../_shared/skarbiec/accounts.mjs';
 import { messagesTo } from '../../_shared/mail/skrzynka-inbox.mjs';
@@ -77,20 +77,15 @@ function onThisMachine(address) {
  * The proxy fields of the solver's task: the session's own gateway by
  * address, which the services require; a proxy only this machine can reach
  * is replaced by the public tunnel CAPTCHA_PROXY_URL names, and without one
- * the task is solved proxyless.
+ * the task is solved proxyless. Either proxy is read as the solver reads one
+ * (`proxyTaskFields`): a URL that names no port, or a host that does not
+ * resolve, fails the registration naming the host.
  */
 async function solverProxyFields(proxy) {
   if (!proxy) return null;
   const gateway = new URL(proxy.server);
   const { address } = await lookup(gateway.hostname);
-  if (!onThisMachine(address))
-    return {
-      proxyType: 'http',
-      proxyAddress: address,
-      proxyPort: Number(gateway.port),
-      proxyLogin: proxy.username,
-      proxyPassword: proxy.password,
-    };
+  if (!onThisMachine(address)) return proxyTaskFields(proxy);
   const tunnel = process.env.CAPTCHA_PROXY_URL;
   if (!tunnel) {
     console.log(
@@ -100,13 +95,11 @@ async function solverProxyFields(proxy) {
   }
   const t = new URL(tunnel);
   console.log(`[register] captcha via tunnel proxy ${t.host}`);
-  return {
-    proxyType: 'http',
-    proxyAddress: t.hostname,
-    proxyPort: Number(t.port),
-    proxyLogin: decodeURIComponent(t.username),
-    proxyPassword: decodeURIComponent(t.password),
-  };
+  return proxyTaskFields({
+    server: `${t.protocol}//${t.host}`,
+    username: decodeURIComponent(t.username),
+    password: decodeURIComponent(t.password),
+  });
 }
 
 /** The token the first configured solving service returns for Discord's challenge. */

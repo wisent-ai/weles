@@ -8,7 +8,7 @@ import {
   parseCancellation,
   parseTaskRequest,
 } from './admission.mjs';
-import { terminalCompletion } from './task/dispatch.mjs';
+import { terminalCompletion } from './task/completion.mjs';
 import { createRecovery } from './task/recover.mjs';
 
 /** The message of a failure, whatever was thrown. */

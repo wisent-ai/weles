@@ -3,10 +3,9 @@
 // startInstrumentation() at WSession.start; data lands on ws._instXxx arrays
 // that net_record.ts's buildDumpPayload includes in the merged inst dump.
 
-import type { BrowserContext } from 'playwright';
+import type { BrowserContext, Page } from 'playwright';
 import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { execSync } from 'node:child_process';
 export { attachCdpLifecycle } from './capture/cdp_lifecycle.js';
 
 // Service worker registration events. Fires when the page registers / activates
@@ -14,19 +13,35 @@ export { attachCdpLifecycle } from './capture/cdp_lifecycle.js';
 // their logic via SW for cross-frame state.
 export function attachServiceWorkers(
   ctx: BrowserContext,
-  swEvents: any[],
+  swEvents: unknown[],
 ): void {
-  try {
-    (ctx as any).on?.('serviceworker', (sw: any) => {
-      try {
-        swEvents.push({
-          t: Date.now(),
-          phase: 'register',
-          url: sw.url?.() ?? null,
-        });
-      } catch {}
+  ctx.on('serviceworker', (sw) => {
+    swEvents.push({ t: Date.now(), phase: 'register', url: sw.url() });
+  });
+}
+
+/**
+ * How many levels the pierced DOM tree can hold, measured from a DOMSnapshot:
+ * the deepest ancestor chain of each captured document, summed, since a
+ * pierced tree nests every frame's document inside its host element.
+ */
+function snapshotDepth(snapshot: { documents: { nodes: { parentIndex: number[] } }[] }): number {
+  let total = Number();
+  for (const document of snapshot.documents) {
+    const parents = document.nodes.parentIndex;
+    let deepest = Number();
+    parents.forEach((_, index) => {
+      const chain: number[] = [];
+      let node = index;
+      while (Object.hasOwn(parents, node)) {
+        chain.push(node);
+        node = parents[node];
+      }
+      deepest = Math.max(deepest, chain.length);
     });
-  } catch {}
+    total += deepest;
+  }
+  return total;
 }
 
 // Final-state CDP captures invoked from finalDump: DOMSnapshot of every frame
@@ -57,188 +72,113 @@ export async function captureFinalCdpSnapshots(ws: any): Promise<void> {
   } catch (e: any) {
     ws._instDomSnapshotError = String(e?.message ?? e);
   }
-  try {
-    ws._instDomPiercedTree = await cdp.send('DOM.getDocument', {
-      depth: -1,
-      pierce: true,
-    });
-  } catch (e: any) {
-    ws._instDomPiercedTreeError = String(e?.message ?? e);
+  if (ws._instDomSnapshot) {
+    try {
+      ws._instDomPiercedTree = await cdp.send('DOM.getDocument', {
+        depth: snapshotDepth(ws._instDomSnapshot),
+        pierce: true,
+      });
+    } catch (e: any) {
+      ws._instDomPiercedTreeError = String(e?.message ?? e);
+    }
+  } else {
+    ws._instDomPiercedTreeError =
+      'not captured: its depth is measured from the DOM snapshot, which failed';
   }
   try {
     const chunks: string[] = [];
-    const handler = (e: any) => {
-      chunks.push(e?.chunk ?? '');
+    const handler = (e: { chunk: string }) => {
+      chunks.push(e.chunk);
     };
     cdp.on('HeapProfiler.addHeapSnapshotChunk', handler);
     await cdp.send('HeapProfiler.takeHeapSnapshot', {
       reportProgress: false,
       captureNumericValue: true,
     });
-    cdp.off?.('HeapProfiler.addHeapSnapshotChunk', handler);
+    cdp.off('HeapProfiler.addHeapSnapshotChunk', handler);
     ws._instHeapSnapshot = chunks.join('');
   } catch (e: any) {
     ws._instHeapSnapshotError = String(e?.message ?? e);
   }
 }
 
-// One-shot OS-level snapshots at session start.
-export function captureHostSnapshots(ws: any): void {
-  const probe = (cmd: string) => {
-    try {
-      return execSync(cmd, { encoding: 'utf8' });
-    } catch (e: any) {
-      return 'ERR: ' + String(e?.message ?? e);
-    }
-  };
-  const isMac = process.platform === 'darwin';
-  ws._instHostSnapshots = {
-    ps: probe(
-      isMac ? 'ps -axo pid,ppid,user,command' : 'ps -axo pid,ppid,user,cmd',
-    ),
-    ifconfig: probe(isMac ? 'ifconfig' : 'ip -j addr'),
-    route: probe(isMac ? 'netstat -rn' : 'ip -j route'),
-    netstat: probe(isMac ? 'netstat -an -p tcp' : 'ss -tan'),
-    top: probe(
-      isMac
-        ? 'top -l 1 -n 20 -stats pid,command,cpu,mem,state'
-        : 'top -bn1 -w 200 | head -30',
-    ),
-    vmstat: probe(isMac ? 'vm_stat' : 'free -m'),
-    uptime: probe('uptime'),
-    resolv: probe(
-      isMac
-        ? 'scutil --dns 2>/dev/null || cat /etc/resolv.conf'
-        : 'cat /etc/resolv.conf',
-    ),
-    pmset: probe(
-      isMac
-        ? 'pmset -g batt; pmset -g therm'
-        : 'cat /sys/class/power_supply/BAT0/uevent 2>/dev/null || echo no-battery',
-    ),
-    sysctl_net: probe(
-      isMac
-        ? 'sysctl -a 2>/dev/null | grep -E "net\\." | head -200'
-        : 'sysctl -a 2>/dev/null | grep -E "net\\." | head -200',
-    ),
-    launchctl: isMac
-      ? probe('launchctl list | head -100')
-      : probe(
-          'systemctl list-units --type=service --state=running | head -100',
-        ),
-    arp: probe(isMac ? 'arp -an' : 'ip neigh'),
-    dns_cache: isMac
-      ? probe(
-          'dscacheutil -cachedump -entries 2>/dev/null || echo cache-disabled',
-        )
-      : probe('resolvectl statistics 2>/dev/null || echo no-resolvectl'),
-    thermal: isMac
-      ? probe(
-          'powermetrics -n 1 -i 100 --samplers smc 2>/dev/null | head -50 || echo needs-sudo',
-        )
-      : probe('sensors 2>/dev/null || echo no-sensors'),
-    lsof_node: probe(
-      `lsof -p ${process.pid} 2>/dev/null | head -100 || echo lsof-failed`,
-    ),
-    sockstat: isMac
-      ? probe('netstat -an -p tcp -p udp 2>/dev/null | head -80')
-      : probe('ss -tani 2>/dev/null | head -80'),
-    captured_at: new Date().toISOString(),
-  };
-}
-
 // Playwright-side page-level event hooks. Complements the CDP Page.* events
 // (which fire on the browser side) by also capturing what Playwright's own
 // event surface sees — popup/download/dialog/filechooser.
-export function attachPagePlaywrightEvents(ws: any): void {
-  if (!ws.page) return;
-  ws._instPlaywrightEvents = [];
-  const push = (e: any) => {
-    try {
-      ws._instPlaywrightEvents.push(e);
-    } catch {}
-  };
-  try {
-    ws.page.on?.('popup', (p: any) =>
-      push({ t: Date.now(), phase: 'popup', url: p?.url?.() ?? null }),
-    );
-  } catch {}
-  try {
-    ws.page.on?.('download', (d: any) =>
-      push({
-        t: Date.now(),
-        phase: 'download',
-        url: d?.url?.() ?? null,
-        suggestedFilename: d?.suggestedFilename?.() ?? null,
-      }),
-    );
-  } catch {}
-  try {
-    ws.page.on?.('filechooser', (f: any) =>
-      push({
-        t: Date.now(),
-        phase: 'filechooser',
-        isMultiple: f?.isMultiple?.() ?? null,
-      }),
-    );
-  } catch {}
-  try {
-    ws.page.on?.('dialog', (d: any) =>
-      push({
-        t: Date.now(),
-        phase: 'dialog',
-        type: d?.type?.(),
-        message: d?.message?.(),
-        defaultValue: d?.defaultValue?.(),
-      }),
-    );
-  } catch {}
-  try {
-    ws.page.on?.('worker', (w: any) =>
-      push({ t: Date.now(), phase: 'worker', url: w?.url?.() ?? null }),
-    );
-  } catch {}
-  try {
-    ws.page.on?.('framenavigated', (f: any) =>
-      push({
-        t: Date.now(),
-        phase: 'frameNavigated',
-        url: f?.url?.() ?? null,
-        name: f?.name?.() ?? null,
-      }),
-    );
-  } catch {}
+export function attachPagePlaywrightEvents(ws: { page?: Page; _instPlaywrightEvents?: unknown[] }): void {
+  const page = ws.page;
+  if (!page) return;
+  const events: unknown[] = [];
+  ws._instPlaywrightEvents = events;
+  page.on('popup', (popup) => {
+    events.push({ t: Date.now(), phase: 'popup', url: popup.url() });
+  });
+  page.on('download', (download) => {
+    events.push({
+      t: Date.now(),
+      phase: 'download',
+      url: download.url(),
+      suggestedFilename: download.suggestedFilename(),
+    });
+  });
+  page.on('filechooser', (chooser) => {
+    events.push({ t: Date.now(), phase: 'filechooser', isMultiple: chooser.isMultiple() });
+  });
+  page.on('dialog', (dialog) => {
+    events.push({
+      t: Date.now(),
+      phase: 'dialog',
+      type: dialog.type(),
+      message: dialog.message(),
+      defaultValue: dialog.defaultValue(),
+    });
+  });
+  page.on('worker', (worker) => {
+    events.push({ t: Date.now(), phase: 'worker', url: worker.url() });
+  });
+  page.on('framenavigated', (frame) => {
+    events.push({ t: Date.now(), phase: 'frameNavigated', url: frame.url(), name: frame.name() });
+  });
+}
+
+/** The message of a thrown value. */
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** A sibling file whose stat failed, with why. */
+function statFailed(name: string, error: unknown): { name: string; error: string } {
+  return { name, error: `stat_failed: ${messageOf(error)}` };
+}
+
+/** The directory that could not be listed, with why. */
+function listFailed(dir: string, error: unknown): { dir: string; error: string }[] {
+  return [{ dir, error: `list_failed: ${messageOf(error)}` }];
 }
 
 // Sibling-file manifest: list every file currently in recordings/<label>/
 // other than the inst.json itself, with size + mtime. Lets the inst dump
 // reference its webm / DOM / screenshots / network.ndjson companions by path
 // instead of inlining them.
-export function buildSiblingManifest(dir: string, instFn: string): any[] {
+export function buildSiblingManifest(dir: string, instFn: string): unknown[] {
+  let names: string[];
   try {
-    return readdirSync(dir)
-      .filter((n) => join(dir, n) !== instFn)
-      .map((n) => {
-        try {
-          const s = statSync(join(dir, n));
-          return { name: n, size: s.size, mtime: s.mtimeMs };
-        } catch (statError) {
-          return {
-            name: n,
-            error: `stat_failed: ${statError instanceof Error ? statError.message : String(statError)}`,
-          };
-        }
-      });
+    names = readdirSync(dir);
   } catch (error) {
     // An empty manifest reads as a run that left no companions; the dump
     // says the directory could not be listed instead.
-    return [
-      {
-        dir,
-        error: `list_failed: ${error instanceof Error ? error.message : String(error)}`,
-      },
-    ];
+    return listFailed(dir, error);
   }
+  return names
+    .filter((n) => join(dir, n) !== instFn)
+    .map((n) => {
+      try {
+        const s = statSync(join(dir, n));
+        return { name: n, size: s.size, mtime: s.mtimeMs };
+      } catch (statError) {
+        return statFailed(n, statError);
+      }
+    });
 }
 
 // Process-wide output capture. Each WSession owns its own list of the lines
@@ -281,15 +221,16 @@ function patchStreamsOnce(): void {
   teeStream(process.stderr);
 }
 export function attachStdoutCapture(ws: { _instStdout?: ConsoleLine[] }): void {
-  try {
-    patchStreamsOnce();
-    const lines: ConsoleLine[] = [];
-    ws._instStdout = lines;
-    SESSION_LINES.add(new WeakRef(lines));
-  } catch {}
+  patchStreamsOnce();
+  const lines: ConsoleLine[] = [];
+  ws._instStdout = lines;
+  SESSION_LINES.add(new WeakRef(lines));
 }
+/** The lines this session printed, or why none were captured. */
 export function sliceStdout(ws: {
   _instStdout?: ConsoleLine[];
-}): ConsoleLine[] {
-  return ws._instStdout ?? [];
+}): ConsoleLine[] | { not_captured: string } {
+  return ws._instStdout === undefined
+    ? { not_captured: 'stdout capture was never attached to this session' }
+    : ws._instStdout;
 }

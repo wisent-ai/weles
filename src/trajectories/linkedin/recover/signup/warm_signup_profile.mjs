@@ -208,14 +208,11 @@ try {
       origin_count: storage.origins.length,
       origins: storage.origins.map((o) => o.origin),
     },
-    // The register run reuses this profile when it is named, and the two
-    // switches below are turned on for it to accept the warmed exit and
-    // skip its own prewarm.
+    // The register run reuses this profile when it is named: naming it is
+    // what lets that run accept the warmed exit, and the switch below is
+    // turned on for it to skip its own prewarm.
     next_register_env: { LINKEDIN_REGISTER_WARM_PROFILE_DIR: profileDir },
-    next_register_switches: [
-      'LINKEDIN_REGISTER_ALLOW_WARMED_SIGNUP_EXIT',
-      'LINKEDIN_REGISTER_DEFAULT_PREWARM',
-    ],
+    next_register_switches: ['LINKEDIN_REGISTER_DEFAULT_PREWARM'],
   };
   const summaryPath = join(outDir, 'warm_signup_profile.json');
   writeFileSync(summaryPath, JSON.stringify(summary, null, JSON_INDENT));

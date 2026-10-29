@@ -2,241 +2,239 @@
  * Evidence one submit boundary of the LinkedIn signup run leaves on disk: the
  * shape of the request and of the response, the on-page state of the form, and
  * the redaction that keeps credentials, e-mail addresses and session tokens out
- * of every record written from here.
+ * of every record written from here. A reading that fails is recorded with
+ * its cause, never as an empty, hidden or absent value.
  */
 import { createHash } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
+const SENSITIVE_KEYS =
+  /^(password|passwd|pwd|passcode|secret|token|csrf|csrfToken|loginCsrfParam|email|emailAddress|mail|phone|username|firstName|lastName|first-name|last-name|session_key|session_password)$/i;
+
+const SENSITIVE_HEADER =
+  /^(authorization|cookie|set-cookie|x-li-track|csrf-token|x-csrf-token|x-restli-protocol-version)$/i;
+
+const EMAIL = /[A-Z\d._%+-]+@[A-Z\d.-]+\.[A-Z][A-Z]+/gi;
+
+const SENSITIVE_ASSIGNMENT =
+  /((?:password|passwd|pwd|passcode|secret|token|csrf|csrfToken|loginCsrfParam|email|emailAddress|mail|phone|username|firstName|lastName|first-name|last-name|session_key|session_password)[\]"']?\s*[:=]\s*)["']?([^&;,\s"'}]+)["']?/gi;
+
+/** The written record's indentation. */
+const INDENT = '  ';
+
+/** The SHA-256 of an identity string, so runs can be matched without it. */
 export function hashValue(value) {
-  if (typeof value !== 'string' || !value) return null;
-  return createHash('sha256').update(value).digest('hex').slice(0, 16);
+  if (typeof value !== 'string' || value === '') return null;
+  return createHash('sha256').update(value).digest('hex');
+}
+
+/** The message of a thrown value, redacted. */
+function cause(error) {
+  return redactDiagnosticText(error instanceof Error ? error.message : String(error));
+}
+
+/** A reading that failed, carrying why. */
+function failed(error) {
+  return { error: cause(error) };
+}
+
+/** `text` parsed as JSON, or why it is not JSON. */
+function parsedJson(text) {
+  try {
+    return { value: JSON.parse(text) };
+  } catch (error) {
+    return failed(error);
+  }
+}
+
+function scrubbed(value) {
+  if (Array.isArray(value)) return value.map(scrubbed);
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, inner]) => {
+        if (!SENSITIVE_KEYS.test(key)) return [key, scrubbed(inner)];
+        return [key, key.toLowerCase().includes('email') ? '<redacted-email>' : '<redacted>'];
+      }),
+    );
+  }
+  return value;
 }
 
 export function redactDiagnosticText(text) {
   if (typeof text !== 'string') return text;
-  const sensitiveKeys =
-    /^(password|passwd|pwd|passcode|secret|token|csrf|csrfToken|loginCsrfParam|email|emailAddress|mail|phone|username|firstName|lastName|first-name|last-name|session_key|session_password)$/i;
-  try {
-    const parsed = JSON.parse(text);
-    const scrub = (value) => {
-      if (Array.isArray(value)) return value.map(scrub);
-      if (value && typeof value === 'object') {
-        return Object.fromEntries(
-          Object.entries(value).map(([k, v]) => [
-            k,
-            sensitiveKeys.test(k)
-              ? String(k).toLowerCase().includes('email')
-                ? '<redacted-email>'
-                : '<redacted>'
-              : scrub(v),
-          ]),
-        );
-      }
-      return value;
-    };
-    return JSON.stringify(scrub(parsed));
-  } catch {}
-  return text
-    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '<redacted-email>')
-    .replace(
-      /((?:password|passwd|pwd|passcode|secret|token|csrf|csrfToken|loginCsrfParam|email|emailAddress|mail|phone|username|firstName|lastName|first-name|last-name|session_key|session_password)[\]"']?\s*[:=]\s*)["']?([^&;,\s"'}]+)["']?/gi,
-      '$1"<redacted>"',
-    );
+  const parsed = parsedJson(text);
+  if ('value' in parsed) return JSON.stringify(scrubbed(parsed.value));
+  return text.replace(EMAIL, '<redacted-email>').replace(SENSITIVE_ASSIGNMENT, '$1"<redacted>"');
 }
 
-export function summarizeHeaders(headers = {}) {
-  const sensitiveHeader =
-    /^(authorization|cookie|set-cookie|x-li-track|csrf-token|x-csrf-token|x-restli-protocol-version)$/i;
-  const entries = Object.entries(headers ?? {});
+export function summarizeHeaders(headers) {
+  const entries = Object.entries(headers);
   return {
     names: entries.map(([name]) => name),
     values: Object.fromEntries(
       entries.map(([name, value]) => [
         name,
-        sensitiveHeader.test(name)
-          ? '<redacted>'
-          : redactDiagnosticText(String(value)),
+        SENSITIVE_HEADER.test(name) ? '<redacted>' : redactDiagnosticText(String(value)),
       ]),
     ),
   };
 }
 
-function summarizePostData(postData = '') {
-  if (!postData) {
-    return {
-      present: false,
-      length: 0,
-      json_keys: null,
-      json_shape: null,
-      markers: {},
-      redacted: '',
-    };
-  }
-  const summary = {
+function shapeOf(value) {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return `array:${value.length}`;
+  if (typeof value === 'string') return `string:${value.length}`;
+  if (typeof value === 'object') return `object:${Object.keys(value).length}`;
+  return typeof value;
+}
+
+/** A request body's shape; `postData` is null when the request sent none. */
+function summarizePostData(postData) {
+  if (postData === null) return { present: false };
+  const parsed = parsedJson(postData);
+  const object =
+    'value' in parsed &&
+    parsed.value !== null &&
+    typeof parsed.value === 'object' &&
+    !Array.isArray(parsed.value);
+  return {
     present: true,
     length: postData.length,
-    json_keys: null,
-    json_shape: null,
+    json: object
+      ? {
+          keys: Object.keys(parsed.value),
+          shape: Object.fromEntries(
+            Object.entries(parsed.value).map(([key, value]) => [key, shapeOf(value)]),
+          ),
+        }
+      : { not_an_object: 'error' in parsed ? parsed.error : shapeOf(parsed.value) },
     markers: {
       has_apfc: /\bapfc\b/.test(postData),
       has_recaptcha: /recaptcha/i.test(postData),
       has_email: /email/i.test(postData),
       has_password: /password/i.test(postData),
     },
-    redacted: '',
+    redacted: redactDiagnosticText(postData),
   };
-  try {
-    const parsed = JSON.parse(postData);
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      summary.json_keys = Object.keys(parsed);
-      summary.json_shape = Object.fromEntries(
-        Object.entries(parsed).map(([key, value]) => {
-          if (value === null) return [key, 'null'];
-          if (Array.isArray(value)) return [key, `array:${value.length}`];
-          if (typeof value === 'string') return [key, `string:${value.length}`];
-          if (typeof value === 'object')
-            return [key, `object:${Object.keys(value).length}`];
-          return [key, typeof value];
-        }),
-      );
-    }
-  } catch {}
-  summary.redacted = redactDiagnosticText(postData);
-  return summary;
 }
 
+/** A Playwright request's shape, or null when there was no request. */
 export function summarizeRequest(req) {
-  if (!req) return null;
-  let post = null;
-  let postDataReadError = null;
+  if (req === null) return null;
+  const headers = summarizeHeaders(req.headers());
+  let post;
   try {
-    post = summarizePostData(req.postData() ?? '');
+    post = { value: summarizePostData(req.postData()) };
   } catch (error) {
-    postDataReadError = redactDiagnosticText(String(error?.message ?? error));
+    post = failed(error);
   }
-  const headers = summarizeHeaders(req.headers?.() ?? {});
   return {
-    method: req.method?.() ?? null,
-    url: req.url?.() ?? null,
-    resource_type: req.resourceType?.() ?? null,
+    method: req.method(),
+    url: req.url(),
+    resource_type: req.resourceType(),
     header_names: headers.names,
     headers_redacted: headers.values,
-    post_data_present: post?.present ?? null,
-    post_data_length: post?.length ?? null,
-    post_data_json_keys: post?.json_keys ?? null,
-    post_data_json_shape: post?.json_shape ?? null,
-    post_data_markers: post?.markers ?? null,
-    post_data_redacted: post?.redacted ?? null,
-    post_data_read_error: postDataReadError,
+    post_data: post,
   };
 }
 
-export function summarizeResponse(res, bodyText, bodyReadError = null) {
-  if (!res) return null;
-  let bodyJsonKeys = null;
-  try {
-    const parsed = JSON.parse(bodyText);
-    if (parsed && typeof parsed === 'object')
-      bodyJsonKeys = Object.keys(parsed);
-  } catch {}
-  const headers = summarizeHeaders(res.headers?.() ?? {});
+/** The shape of a response body that was read. */
+function bodyRead(bodyText) {
+  const parsed = parsedJson(bodyText);
+  if ('error' in parsed) return { text_redacted: redactDiagnosticText(bodyText), not_json: parsed.error };
+  const keys =
+    parsed.value !== null && typeof parsed.value === 'object'
+      ? { json_keys: Object.keys(parsed.value) }
+      : { json_shape: shapeOf(parsed.value) };
+  return { text_redacted: redactDiagnosticText(bodyText), ...keys };
+}
+
+/**
+ * A Playwright response's shape with the body `bodyText` read from it, or
+ * the `bodyReadError` that stopped the body being read (null when it was
+ * read); null when there was no response.
+ */
+export function summarizeResponse(res, bodyText, bodyReadError) {
+  if (res === null) return null;
+  const headers = summarizeHeaders(res.headers());
   return {
-    status: res.status?.() ?? null,
-    url: res.url?.() ?? null,
+    status: res.status(),
+    url: res.url(),
     header_names: headers.names,
     headers_redacted: headers.values,
-    body_json_keys: bodyJsonKeys,
-    body_text_redacted: redactDiagnosticText(bodyText),
-    body_read_error:
-      bodyReadError === null
-        ? null
-        : redactDiagnosticText(String(bodyReadError?.message ?? bodyReadError)),
+    body: bodyReadError === null ? bodyRead(bodyText) : { read_error: cause(bodyReadError) },
   };
+}
+
+/** What `read` answers, or the redacted reason it could not answer. */
+async function probed(read) {
+  try {
+    return { value: await read() };
+  } catch (error) {
+    return failed(error);
+  }
 }
 
 export async function collectSubmitState(page, stage) {
-  const safeText = async (loc) => {
-    if (!(await loc.count())) return '';
-    try {
-      return redactDiagnosticText(
-        (await loc.innerText()).replace(/\s+/g, ' ').trim(),
-      );
-    } catch {
-      return '';
-    }
-  };
-  const safeAttr = async (loc, name) => {
-    if (!(await loc.count())) return null;
-    try {
-      return await loc.getAttribute(name);
-    } catch {
-      return null;
-    }
-  };
-  const button = page
-    .locator('button[type="submit"], button#join-form-submit')
-    .first();
+  const present = async (loc) => Boolean(await loc.count());
+  const text = (loc) =>
+    probed(async () =>
+      (await present(loc))
+        ? redactDiagnosticText((await loc.innerText()).replace(/\s+/g, ' ').trim())
+        : { absent: true },
+    );
+  const attr = (loc, name) =>
+    probed(async () => ((await present(loc)) ? await loc.getAttribute(name) : { absent: true }));
+  const visible = (loc) => probed(() => loc.isVisible());
+  const count = (loc) => probed(() => loc.count());
+  const button = page.locator('button[type="submit"], button#join-form-submit').first();
   const email = page
-    .locator(
-      'input[name="email-address"], input#email-address, input[type="email"]',
-    )
+    .locator('input[name="email-address"], input#email-address, input[type="email"]')
     .first();
   const password = page
     .locator('input[name="password"], input#password, input[type="password"]')
     .first();
-  const first = page
-    .locator('input[name="first-name"], input#first-name')
-    .first();
+  const first = page.locator('input[name="first-name"], input#first-name').first();
   const last = page.locator('input[name="last-name"], input#last-name').first();
-  const alertText = await safeText(
-    page
-      .locator(
-        '[role="alert"], .join-form__form-body-error, .alert, .error, [class*="error"]',
-      )
-      .first(),
-  );
-  const visibleText = await safeText(page.locator('body').first());
   return {
     stage,
     url: page.url(),
     submit_button: {
-      visible: await button.isVisible().catch(() => false),
-      enabled: (await button.count())
-        ? await button.isEnabled().catch(() => false)
-        : false,
-      text: await safeText(button),
-      disabled_attr: await safeAttr(button, 'disabled'),
-      aria_disabled: await safeAttr(button, 'aria-disabled'),
+      visible: await visible(button),
+      enabled: await probed(async () =>
+        (await present(button)) ? await button.isEnabled() : { absent: true },
+      ),
+      text: await text(button),
+      disabled_attr: await attr(button, 'disabled'),
+      aria_disabled: await attr(button, 'aria-disabled'),
     },
     fields: {
       email: {
-        visible: await email.isVisible().catch(() => false),
-        disabled: await safeAttr(email, 'disabled'),
-        aria_invalid: await safeAttr(email, 'aria-invalid'),
+        visible: await visible(email),
+        disabled: await attr(email, 'disabled'),
+        aria_invalid: await attr(email, 'aria-invalid'),
       },
       password: {
-        visible: await password.isVisible().catch(() => false),
-        disabled: await safeAttr(password, 'disabled'),
-        aria_invalid: await safeAttr(password, 'aria-invalid'),
+        visible: await visible(password),
+        disabled: await attr(password, 'disabled'),
+        aria_invalid: await attr(password, 'aria-invalid'),
       },
-      first: {
-        visible: await first.isVisible().catch(() => false),
-        count: await first.count(),
-      },
-      last: {
-        visible: await last.isVisible().catch(() => false),
-        count: await last.count(),
-      },
+      first: { visible: await visible(first), count: await count(first) },
+      last: { visible: await visible(last), count: await count(last) },
     },
-    alert_text: alertText,
-    body_text_sample: visibleText,
+    alert_text: await text(
+      page
+        .locator('[role="alert"], .join-form__form-body-error, .alert, .error, [class*="error"]')
+        .first(),
+    ),
+    body_text_sample: await text(page.locator('body').first()),
   };
 }
 
 export async function writeSubmitDiagnostics(label, payload) {
   const dir = runRecordingsDir('linkedin_register');
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, `${label}.json`), JSON.stringify(payload, null, 2));
+  writeFileSync(join(dir, `${label}.json`), JSON.stringify(payload, null, INDENT));
 }

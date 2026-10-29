@@ -1,13 +1,19 @@
-// Tile-classification consensus for reCAPTCHA v2 image grids. Runs three
+// Tile-classification consensus for reCAPTCHA v2 image grids. Runs two
 // specialist services and one authenticated Stado-routed vision model in
 // parallel, prefers the independent model result when available, otherwise
-// uses a service majority and the disagreement tiebreaker on thin majorities.
-// Element screenshots track live cell replacement between rounds.
+// uses the tiles most answering voters chose and the disagreement tiebreaker
+// when no tile has such a majority. Tiles are numbered from zero, left to
+// right and top to bottom, the order the challenge table lists its cells in.
+// A voter that fails is logged with its cause and leaves the others to vote.
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../session/run-recordings.js';
+import { getCaptchaCredentials } from '../../utils/credentials.js';
 import { askJedenAboutImage } from '../../vision/analyze.js';
+import { disagreementTiebreaker, parsedTiles, tileLabels } from './consensus.js';
 
+// The challenge words CapSolver's ReCaptchaV2Classification takes as Google's
+// object codes; an instruction naming none is not sent to CapSolver.
 const CATEGORY_CODES: Record<string, string> = {
   taxi: '/m/0pg52',
   taxis: '/m/0pg52',
@@ -45,6 +51,10 @@ const CATEGORY_CODES: Record<string, string> = {
   stairs: '/m/01lynh',
 };
 
+// The bframe elements that hold the challenge image, payload first.
+const GRID_SELECTOR =
+  'div.rc-imageselect-payload, table.rc-imageselect-table-33, table.rc-imageselect-table-44, table.rc-imageselect-table';
+
 export function instructionToCode(instruction: string): string | null {
   const text = instruction.toLowerCase();
   const keys = Object.keys(CATEGORY_CODES).sort((a, b) => b.length - a.length);
@@ -55,229 +65,119 @@ export function instructionToCode(instruction: string): string | null {
   return null;
 }
 
+function said(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** The challenge image as base64, or why it could not be taken. */
+async function gridImage(bframe: any): Promise<string> {
+  const handle = await bframe.$(GRID_SELECTOR);
+  if (!handle)
+    throw new Error(`RECAPTCHA_GRID_UNSEEN: no element of ${GRID_SELECTOR} is in the challenge frame`);
+  return (await handle.screenshot()).toString('base64');
+}
+
 export async function classifyGrid(
   bframe: any,
   instruction: string,
   gridSize: number,
 ): Promise<number[] | null> {
-  let gridImgB64: string | null = null;
-  try {
-    const targetSel =
-      'div.rc-imageselect-payload, table.rc-imageselect-table-33, table.rc-imageselect-table-44, table.rc-imageselect-table';
-    const handle = await bframe.$(targetSel);
-    if (handle) {
-      const buf = await handle.screenshot({ type: 'jpeg', quality: 90 });
-      gridImgB64 = buf.toString('base64');
-    }
-  } catch (error) {
-    console.log(
-      `[recaptcha] grid screenshot err: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-  if (!gridImgB64) return null;
-  const diagDir = runRecordingsDir('vision'); // G17: recordings/<run_uuid>/vision/
+  const image = await gridImage(bframe);
+  const diagDir = runRecordingsDir('vision');
   mkdirSync(diagDir, { recursive: true });
-  writeFileSync(
-    join(diagDir, 'extracted_grid_latest.png'),
-    Buffer.from(gridImgB64, 'base64'),
-  );
-  const { getCaptchaCredentials: getCreds } = await import(
-    '../../utils/credentials.js'
-  );
-  const creds = await getCreds();
+  writeFileSync(join(diagDir, 'extracted_grid_latest.png'), Buffer.from(image, 'base64'));
+  const creds = await getCaptchaCredentials();
   const instr = instruction.replace(/\n/g, ' ').trim();
 
+  // NopeCHA answers one flag per tile, in tile order. One read: NopeCHA has
+  // no push or blocking answer, so a job it has not finished is named with
+  // what it answered.
   async function nopechaSolve(): Promise<number[] | null> {
     const k = creds.nopecha;
     if (!k) return null;
-    try {
-      const post = (await (
-        await fetch('https://api.nopecha.com/v1/recognition/recaptcha', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Basic ${k}`,
-          },
-          body: JSON.stringify({
-            type: 'recaptcha',
-            task: instr,
-            image_data: [gridImgB64],
-            grid: `${gridSize}x${gridSize}`,
-          }),
-        })
-      ).json()) as any;
-      const jobId = post?.data;
-      if (!jobId) return null;
-      // One read: NopeCHA has no push or blocking answer.
-      const g = (await (
-        await fetch(
-          `https://api.nopecha.com/v1/recognition/recaptcha?id=${jobId}`,
-          { headers: { Authorization: `Basic ${k}` } },
-        )
-      ).json()) as any;
-      if (Array.isArray(g?.data))
-        return (g.data as boolean[])
-          .map((v, i) => (v ? i + 1 : 0))
-          .filter(Boolean);
-      if (g?.error === 14)
-        console.log(
-          `[recaptcha] captcha_nopecha_processing: grid job ${jobId} has no result yet`,
-        );
-    } catch (error) {
-      // A rejected key or an unreachable service reads as "no answer" to the
-      // caller; the log says which it was.
-      console.log(
-        `[recaptcha] captcha_nopecha_failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-    return null;
+    const post = (await (
+      await fetch('https://api.nopecha.com/v1/recognition/recaptcha', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Basic ${k}` },
+        body: JSON.stringify({ type: 'recaptcha', task: instr, image_data: [image], grid: `${gridSize}x${gridSize}` }),
+      })
+    ).json()) as any;
+    const jobId = post?.data;
+    if (!jobId) throw new Error(`nopecha took no grid job: ${JSON.stringify(post)}`);
+    const g = (await (
+      await fetch(`https://api.nopecha.com/v1/recognition/recaptcha?id=${jobId}`, {
+        headers: { Authorization: `Basic ${k}` },
+      })
+    ).json()) as any;
+    if (!Array.isArray(g?.data))
+      throw new Error(`nopecha grid job ${jobId} answered no tiles: ${JSON.stringify(g)}`);
+    return (g.data as boolean[]).flatMap((chosen, tile) => (chosen ? [tile] : []));
   }
+  // CapSolver answers the chosen tiles' indices in its createTask answer.
   async function capsolverSolve(): Promise<number[] | null> {
     const k = creds.capsolver;
     const q = instructionToCode(instruction);
     if (!k || !q) return null;
-    try {
-      const d = (await (
-        await fetch('https://api.capsolver.com/createTask', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            clientKey: k,
-            task: {
-              type: 'ReCaptchaV2Classification',
-              image: gridImgB64,
-              question: q,
-            },
-          }),
-        })
-      ).json()) as any;
-      return Array.isArray(d.solution?.objects)
-        ? (d.solution.objects as number[]).map((i) => i + 1)
-        : null;
-    } catch (error) {
-      console.log(
-        `[recaptcha] captcha_capsolver_failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      return null;
-    }
-  }
-  async function twocaptchaSolve(): Promise<number[] | null> {
-    const k = creds.twocaptcha;
-    if (!k) return null;
-    const c = (await (
-      await fetch('https://api.2captcha.com/createTask', {
+    const d = (await (
+      await fetch('https://api.capsolver.com/createTask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientKey: k,
-          task: {
-            type: 'GridTask',
-            body: gridImgB64,
-            comment: instr,
-            rows: gridSize,
-            columns: gridSize,
-          },
-        }),
+        body: JSON.stringify({ clientKey: k, task: { type: 'ReCaptchaV2Classification', image, question: q } }),
       })
     ).json()) as any;
-    if (!c.taskId) return null;
-    // One read: 2captcha has no push or blocking answer.
-    const r = (await (
-      await fetch('https://api.2captcha.com/getTaskResult', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientKey: k, taskId: c.taskId }),
-      })
-    ).json()) as any;
-    if (r.status === 'ready') return r.solution?.click ?? null;
-    if (!r.errorId)
-      console.log(
-        `[recaptcha] captcha_2captcha_processing: grid task ${c.taskId} has no result yet`,
-      );
-    return null;
+    if (!Array.isArray(d.solution?.objects))
+      throw new Error(`capsolver classified no tiles: ${JSON.stringify(d)}`);
+    return d.solution.objects as number[];
   }
   async function modelSolve(): Promise<number[] | null> {
-    try {
-      const grid =
-        gridSize === 3 ? '1 2 3 / 4 5 6 / 7 8 9' : '1-4/5-8/9-12/13-16';
-      const b64 = gridImgB64 as string;
-      const answer = await askJedenAboutImage(
-        Buffer.from(b64, 'base64'),
-        `reCAPTCHA grid (${grid}). Instruction: "${instr}". Return ONLY a JSON array of positions, e.g. [1,4,7].`,
-        'tier_image',
-      );
-      const match = answer.match(/\[[\d,\s]*\]/);
-      if (!match) return null;
-      const positions = JSON.parse(match[0]);
-      return Array.isArray(positions) ? (positions as number[]) : null;
-    } catch {
-      return null;
-    }
-  }
-  const settled = await Promise.allSettled([
-    nopechaSolve(),
-    capsolverSolve(),
-    twocaptchaSolve(),
-    modelSolve(),
-  ]);
-  const labels = ['NopeCha', 'CapSolver', '2captcha', 'Model'];
-  const answers: { name: string; positions: number[] }[] = [];
-  settled.forEach((s, i) => {
-    const pos =
-      s.status === 'fulfilled' && Array.isArray(s.value)
-        ? (s.value as number[])
-        : null;
-    console.log(
-      `[recaptcha] ${labels[i]}: ${pos ? JSON.stringify(pos) : 'null'}`,
+    const answer = await askJedenAboutImage(
+      Buffer.from(image, 'base64'),
+      `reCAPTCHA grid, tiles labelled ${tileLabels(gridSize, ' / ')}. Instruction: "${instr}". Return ONLY a JSON array of the labels of the matching tiles.`,
+      'tier_image',
     );
-    if (pos) answers.push({ name: labels[i], positions: pos });
+    return parsedTiles(answer);
+  }
+  const voters = [
+    { name: 'NopeCha', solve: nopechaSolve },
+    { name: 'CapSolver', solve: capsolverSolve },
+    { name: 'Model', solve: modelSolve },
+  ];
+  const settled = await Promise.allSettled(voters.map((voter) => voter.solve()));
+  const answers: { name: string; positions: number[] }[] = [];
+  settled.forEach((outcome, index) => {
+    const { name } = voters[index];
+    if (outcome.status === 'rejected') {
+      console.log(`[recaptcha] ${name} failed: ${said(outcome.reason)}`);
+      return;
+    }
+    console.log(`[recaptcha] ${name}: ${outcome.value ? JSON.stringify(outcome.value) : 'not asked'}`);
+    if (outcome.value) answers.push({ name, positions: outcome.value });
   });
-  if (answers.length === 0) return null;
-  if (answers.length === 1) {
-    const positions = await modelSolve();
-    if (positions) {
-      console.log(`[recaptcha] Model tiebreaker: ${JSON.stringify(positions)}`);
-      answers.push({ name: 'Model', positions });
-    }
-    if (answers.length === 1) {
-      console.log(`[recaptcha] Only ${answers[0].name} responded`);
-      return answers[0].positions;
-    }
+  const [first, ...others] = answers;
+  if (!first) return null;
+  if (!others.length) {
+    console.log(`[recaptcha] Only ${first.name} responded`);
+    return first.positions;
   }
   const modelAnswer = answers.find((a) => a.name === 'Model');
-  if (modelAnswer && modelAnswer.positions.length > 0) {
-    console.log(
-      `[recaptcha] Submitting model answer: ${JSON.stringify(modelAnswer.positions)} (other solvers: ${answers
-        .filter((a) => a.name !== 'Model')
-        .map((a) => `${a.name}=${JSON.stringify(a.positions)}`)
-        .join(', ')})`,
-    );
+  if (modelAnswer?.positions.length) {
+    const rest = answers
+      .filter((a) => a !== modelAnswer)
+      .map((a) => `${a.name}=${JSON.stringify(a.positions)}`)
+      .join(', ');
+    console.log(`[recaptcha] Submitting model answer: ${JSON.stringify(modelAnswer.positions)} (other solvers: ${rest})`);
     return modelAnswer.positions.slice().sort((a, b) => a - b);
   }
-  const tally = new Map<number, number>();
-  for (const a of answers)
-    for (const p of new Set(a.positions)) {
-      if (!tally.has(p)) tally.set(p, 1);
-      else tally.set(p, (tally.get(p) as number) + 1);
-    }
-  const majority = [...tally.entries()]
-    .filter(([, c]) => c >= 2)
-    .map(([p]) => p)
+  // A tile is in the consensus when more of the answering voters chose it
+  // than did not.
+  const chosen = [...new Set(answers.flatMap((a) => a.positions))];
+  const majority = chosen
+    .filter((tile) => {
+      const votes = answers.filter((a) => a.positions.includes(tile)).length;
+      return votes > answers.length - votes;
+    })
     .sort((a, b) => a - b);
-  console.log(
-    `[recaptcha] No model answer; consensus (≥2 of ${answers.length}): ${JSON.stringify(majority)}`,
-  );
-  const minT = gridSize === 3 ? 1 : 2;
-  if (majority.length < minT) {
-    const { disagreementTiebreaker } = await import('./consensus.js');
-    const t = await disagreementTiebreaker(
-      answers,
-      gridImgB64,
-      instr,
-      gridSize,
-      minT,
-    );
-    if (t && t.length > 0) return t;
-  }
-  return majority.length > 0 ? majority : answers[0].positions;
+  console.log(`[recaptcha] No model answer; majority of ${answers.length}: ${JSON.stringify(majority)}`);
+  if (majority.length) return majority;
+  return disagreementTiebreaker(answers, image, instr, gridSize);
 }

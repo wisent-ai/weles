@@ -108,8 +108,7 @@ export function applyMentions(text, ids) {
 export async function mentionIdsForTarget(target, loadMembers) {
   if (!TAGGING_ENABLED || mentionMode() === 'none' || !isChannelTarget(target))
     return [];
-  const stated =
-    process.env.SLACK_MENTION_USER_IDS || process.env.SLACK_MENTION_USER_ID;
+  const stated = process.env.SLACK_MENTION_USER_IDS;
   if (stated) return [...new Set(parseCsv(stated))];
 
   const groups = parseMatcherGroups(

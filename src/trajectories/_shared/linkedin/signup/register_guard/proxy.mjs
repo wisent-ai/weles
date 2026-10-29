@@ -2,10 +2,11 @@
 // failure, and the assertions that it is the requested, stable, dedicated ISP exit.
 //
 // Every judgement reads the resolved proxy record (provider, proxy_type, sticky_session_id,
-// server) and the one retirement policy in proxy/policy; nothing is guessed from words or
-// address shapes in the request, and no environment switch lets a registration run unproxied.
+// server) and the one retirement record, Skarbiec's retired_proxy_pools setting; nothing is
+// guessed from words or address shapes in the request, and no environment switch lets a
+// registration run unproxied.
 import { isIP } from 'node:net';
-import { retiredProviderReason } from '../../../../../../dist/proxy/policy.js';
+import { retiredProviderReason } from '../../../../../../dist/proxy/resolve/exit/retired.js';
 import {
   requestsNoProxy,
   requestsUrlForm,

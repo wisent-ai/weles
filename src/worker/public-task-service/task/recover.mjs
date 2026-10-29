@@ -8,7 +8,7 @@ import { join } from 'node:path';
 
 import { UUID_RE } from '../wire/canonical-json.mjs';
 import { cleanInterruptedTemporaryFiles, readJson } from '../durable-write.mjs';
-import { terminalCompletion } from './dispatch.mjs';
+import { terminalCompletion } from './completion.mjs';
 
 /** A reservation is stored under the SHA-256 of its idempotency key, in hex. */
 const RESERVATION_FILE = new RegExp(

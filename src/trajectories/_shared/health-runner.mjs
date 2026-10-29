@@ -187,11 +187,10 @@ export async function runHealthProbe(cfg) {
       skipped: `metadata.status=${status}: registration never completed, so a login cannot recover it`,
     };
   } else if (signal === 'checkpoint' && acct.id) {
-    const accountItem =
-      acct.metadata?.login_item || acct.metadata?.vault_login_item;
+    const accountItem = acct.metadata?.login_item;
     snapshot.recovery = { accountItem };
     if (!accountItem)
-      snapshot.recovery.error = 'the account names no Skarbiec login item';
+      snapshot.recovery.error = `account ${acct.id} names no Skarbiec login item in metadata.login_item, so no login can be started to recover it`;
     else {
       try {
         snapshot.recovery.run = await submitWelesRun({
