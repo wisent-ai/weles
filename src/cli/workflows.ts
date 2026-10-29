@@ -289,11 +289,14 @@ const DESIGN_ACTIONS: Record<string, Handler> = {
 };
 
 export async function runDesign(parsed: ParsedCli): Promise<void> {
+  // The action is read first, so a missing or unknown one is answered with
+  // the actions design takes, as every other command group answers it.
+  const [action] = parsed.positional;
+  const handler = verbHandler('design', DESIGN_ACTIONS, action);
   if (parsed.options.provider !== DESIGN_PROVIDER) {
     throw new UsageError(
       `design needs --provider naming the design tool; Weles implements ${DESIGN_PROVIDER}`,
     );
   }
-  const [action] = parsed.positional;
-  return verbHandler('design', DESIGN_ACTIONS, action)(parsed);
+  return handler(parsed);
 }
