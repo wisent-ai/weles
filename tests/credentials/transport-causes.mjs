@@ -58,12 +58,15 @@ function loopback() {
   return entry.address;
 }
 
-// Without a port, listen asks the operating system for one nothing holds; a
-// bind the system refuses is the error this answers.
+// Port 0 asks the operating system for one nothing holds ("If port is
+// omitted or is 0, the operating system will assign an arbitrary unused
+// port", https://nodejs.org/api/net.html#serverlistenport-host-backlog-callback;
+// an options object without a port is refused by Node 24); a bind the system
+// refuses is the error this answers.
 function listening(server, host) {
   return new Promise((ready, failed) => {
     server.once('error', failed);
-    server.listen({ host }, () => {
+    server.listen({ host, port: 0 }, () => {
       server.off('error', failed);
       ready(server.address().port);
     });
@@ -117,7 +120,8 @@ function sent(origin, headers) {
         body += chunk;
       });
       response.on('error', failed);
-      response.on('end', () => answered({ status: response.statusCode, body: JSON.parse(body) }));
+      // Node's own HTTP parser answers a request it refuses with no body.
+      response.on('end', () => answered({ status: response.statusCode, body: body ? JSON.parse(body) : null }));
     });
     call.on('error', failed);
     call.end();
@@ -226,8 +230,16 @@ async function qualify() {
       `Bearer ${randomUUID()}`,
     ]);
     report.admission_two_bearers = twice;
-    assert.equal(twice.status, http.HTTP_STATUS_UNAUTHORIZED);
-    assert.equal(twice.body.code, 'WELES_CREDENTIAL_UNAUTHORIZED');
+    // Node 24's HTTP parser was observed refusing a request carrying
+    // Authorization twice with 400 and no body before any handler runs; a
+    // parser that takes it hands it to the authority, which must refuse it.
+    // Either way Skarbiec is never asked.
+    if (twice.status === http.HTTP_STATUS_BAD_REQUEST) {
+      assert.equal(twice.body, null, JSON.stringify(twice.body));
+    } else {
+      assert.equal(twice.status, http.HTTP_STATUS_UNAUTHORIZED);
+      assert.equal(twice.body.code, 'WELES_CREDENTIAL_UNAUTHORIZED');
+    }
   } catch (error) {
     failures.push(error);
   }
