@@ -42,7 +42,7 @@ if [ -n "$staged_version_files" ]; then
   if [ -n "$version_disagreements" ]; then
     printf '%s\n' "pre-commit blocked: the staged version documents disagree:"
     printf '%s\n' "$version_disagreements"
-    printf '%s\n' "Run the steps docs/versions.md lists (adopt-published, npm version, declare-candidate) and stage their documents."
+    printf '%s\n' "Run the steps https://weles.wisent.com/docs/versions lists (adopt-published, npm version, declare-candidate) and stage their documents."
     exit 1
   fi
 fi

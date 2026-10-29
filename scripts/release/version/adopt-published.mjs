@@ -7,7 +7,7 @@
 // the exact source revision it was built from (`stado release fetch`), takes
 // the surface document the build carried out of the runtime payload, and
 // writes both documents through adoptBaseline. It is run by hand before
-// `npm version`, as docs/versions.md lists, so each bump starts from what is
+// `npm version`, as https://weles.wisent.com/docs/versions lists, so each bump starts from what is
 // published; no npm lifecycle script runs it, since only the caller knows the
 // platform whose archive to read.
 //

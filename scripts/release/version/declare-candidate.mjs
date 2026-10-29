@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Name the version `npm version` just wrote into package.json as the
 // declaration's candidate. It is run by hand after `npm version`, which
-// itself follows adopt-published (docs/versions.md lists the three commands),
+// itself follows adopt-published (https://weles.wisent.com/docs/versions lists the three commands),
 // so the declaration says which release this tree replaces and which version
 // it becomes, the two things the version gate compares with the baseline and
 // the manifest.

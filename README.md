@@ -205,9 +205,15 @@ node docs/examples/resolve-action.mjs generic_keeper_task reddit.search
 ## Wisent integrations
 
 How Weles works with Brama (reauthentication, account acquisition, OAuth
-authorization and the runs that wait for a person), Skarbiec, Stado and Jeden,
-how mobile egress runs through Stado, and how the passwords of registered
-accounts are generated is in [docs/integrations.md](docs/integrations.md).
+authorization and the runs that wait for a person) is at
+[weles.wisent.com/docs/brama-reauthentication](https://weles.wisent.com/docs/brama-reauthentication);
+Skarbiec, Stado and Jeden, mobile egress through Stado, and how registered
+accounts get their passwords and inbox domains are at
+[weles.wisent.com/docs/fleet-products](https://weles.wisent.com/docs/fleet-products).
+Run evidence is described at
+[weles.wisent.com/docs/recordings](https://weles.wisent.com/docs/recordings) and
+the version documents at
+[weles.wisent.com/docs/versions](https://weles.wisent.com/docs/versions).
 
 ## Benchmark against rivals
 
