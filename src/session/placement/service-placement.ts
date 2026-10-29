@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
 
 const WELES_SERVICE = 'com.wisent.weles';
@@ -31,14 +31,18 @@ function stadoBinary(): string {
   throw new Error('no Stado binary on this host; set STADO_BIN');
 }
 
+// The placement question is asked of this host's Stado exactly as the host
+// itself is configured: its own `STADO_CONFIG` (or Stado's own search for
+// one) and its own store, which the unit Stado installed hands this process.
+// Pointing `STADO_CONFIG` at a file that does not exist used to mean "no
+// configuration"; Stado now refuses that selection naming the missing file,
+// and a store root forced to `~/.stado/local-storage` read a copy of the
+// registry that only the registry authority keeps current. Only the object
+// API endpoint and bearer this process holds for its own uploads are withheld,
+// so they cannot stand in for the host's.
 function stado(arguments_: string[]): string {
   const binary = stadoBinary();
-  const environment: NodeJS.ProcessEnv = {
-    ...process.env,
-    STADO_CONFIG: join(homedir(), '.stado', 'local-placement-config.absent'),
-    WC_STORAGE_BACKEND: 'local',
-    WC_LOCAL_STORAGE_PATH: join(homedir(), '.stado', 'local-storage'),
-  };
+  const environment: NodeJS.ProcessEnv = { ...process.env };
   delete environment.STADO_API_TOKEN;
   delete environment.STADO_API_URL;
   return execFileSync(binary, arguments_, {
@@ -80,8 +84,10 @@ export function enforceWelesServicePlacement(entrypoint: string): void {
     rows = parsed as ServiceStatusRow[];
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
+    const selected = process.env.STADO_CONFIG?.trim();
     throw new Error(
-      `BLOCKED: ${entrypoint} cannot verify Weles placement through Stado: ${detail}. ` +
+      `BLOCKED: ${entrypoint} cannot verify Weles placement through Stado on host ${hostname()} ` +
+        `(Stado configuration: ${selected ? `STADO_CONFIG=${selected}` : "Stado's own search, STADO_CONFIG unset"}): ${detail}. ` +
         'On a machine without Stado set WELES_STANDALONE=1.',
     );
   }
