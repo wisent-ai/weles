@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import type { Persona, PersonaDevice } from '../../browser/persona.js';
 import type { Identity } from '../../utils/identity/identity.js';
-import type { ExitReputation } from '../../proxy/policy.js';
+import type { ExitReputation } from '../../proxy/quality/exit_geography.js';
 import { environmentNames } from '../../utils/sanitize-env.js';
 import { recordingsDir } from '../run-recordings.js';
 import type { SessionProxy } from './session-request.js';

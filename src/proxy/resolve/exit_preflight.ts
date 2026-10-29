@@ -4,6 +4,7 @@
 // was rejected, and whether the whole provider should be abandoned (a 407
 // means the account is unfunded, so every sticky would fail the same way).
 import type { LinkedInProbePersona } from '../policy.js';
+import { verifyExitCountry } from '../quality/exit_geography.js';
 import { acceptLanguageFor } from '../../browser/persona.js';
 import { personaLocale } from '../../browser/persona/locale.js';
 import { diagHash, type ProxyPreflightAttempt } from './diagnostics.js';
@@ -178,9 +179,7 @@ export async function preflightExit(
     // /signup, not /login, because login-form access can false-positive
     // for register runs.
     if (!preflightContinue && exitIp) {
-      const { verifyExitCountry, probeLinkedinSignup } = await import(
-        '../policy.js'
-      );
+      const { probeLinkedinSignup } = await import('../policy.js');
       const geo = cc
         ? await verifyExitCountry(exitIp, cc)
         : { result: 'unknown' as const };

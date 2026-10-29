@@ -8,12 +8,11 @@ import { markCaptchaChallenge } from '../../events.js';
 import {
   apiSolve,
   firstSolved,
-  nopechaProxyFields,
   providerJson,
   type CaptchaCredentials,
-  type ProxyCredentials,
   type ServiceAttempt,
 } from '../api.js';
+import { nopechaProxyFields, type ProxyCredentials } from './proxy.js';
 import { nopechaToken } from './services.js';
 
 // AntiCaptcha queues reCAPTCHA v3 workers by the score they earn and takes

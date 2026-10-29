@@ -5,7 +5,11 @@
 // override for the target platform, else the row's own; a row for which none
 // is stated is skipped by name instead of being given a country.
 import { lookup, resolve4 } from 'node:dns/promises';
-import type { ExitReputation, LinkedInProbePersona } from '../policy.js';
+import type { LinkedInProbePersona } from '../policy.js';
+import {
+  type ExitReputation,
+  verifyExitReputation,
+} from '../quality/exit_geography.js';
 import type { ResolvedProxy } from '../config.js';
 import { readOptionalWelesServiceSecret } from '../../secrets/scoped-service.js';
 import {
@@ -238,7 +242,6 @@ export async function resolveProxy(
     let exitReputation: ExitReputation | undefined;
     let exitReputationError: string | undefined;
     if (exitIp) {
-      const { verifyExitReputation } = await import('../policy.js');
       await verifyExitReputation(exitIp).then(
         (reputation) => {
           exitReputation = reputation;

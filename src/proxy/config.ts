@@ -7,7 +7,7 @@ import {
   readOptionalWelesServiceSecret,
 } from '../secrets/scoped-service.js';
 import { providerFromHost } from './policy.js';
-import type { ExitReputation } from './policy.js';
+import type { ExitReputation } from './quality/exit_geography.js';
 import {
   proxyTypeOf,
   secretServiceFor,

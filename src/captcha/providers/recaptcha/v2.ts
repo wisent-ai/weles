@@ -8,13 +8,12 @@ import { solveRecaptchaV2 as solveRecaptchaV2InPage } from '../../recaptcha.js';
 import { markCaptchaChallenge, markAllProvidersFailed } from '../../events.js';
 import {
   apiSolve,
-  proxyTaskFields,
   trySolved,
   unsolved,
   type CaptchaCredentials,
-  type ProxyCredentials,
   type ServiceAttempt,
 } from '../api.js';
+import { proxyTaskFields, type ProxyCredentials } from './proxy.js';
 import {
   solveRecaptchaV2Nopecha,
   solveRecaptchaV2TwoCaptcha,

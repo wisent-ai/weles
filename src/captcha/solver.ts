@@ -12,9 +12,9 @@ import {
   firstSolved,
   solvedTask,
   type CaptchaCredentials,
-  type ProxyCredentials,
   type ServiceAttempt,
 } from './providers/api.js';
+import type { ProxyCredentials } from './providers/recaptcha/proxy.js';
 import { solveFuncaptchaToken } from './providers/funcaptcha.js';
 import {
   solveHcaptchaToken,
