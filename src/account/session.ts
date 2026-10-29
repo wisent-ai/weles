@@ -14,34 +14,22 @@ import {
   type PersonaDevice,
 } from '../browser/persona.js';
 import { sampleDevice } from '../browser/persona/device.js';
-import {
-  hydratePinnedProxy,
-  proxyUrl as buildProxyUrl,
-  resolveProxy,
-} from '../proxy/config.js';
-import type {
-  HydratedPin,
-  ProxyConfig,
-  ResolvedProxy,
-} from '../proxy/config.js';
-import { isBurned } from '../proxy/burned.js';
+import { proxyUrl as buildProxyUrl, resolveProxy } from '../proxy/config.js';
+import type { ProxyConfig, ResolvedProxy } from '../proxy/config.js';
 import {
   noExitCause,
   rankByCapability,
   taskNetworkRequirements,
 } from '../proxy/capability.js';
-import { refreshStickyIfDead } from '../proxy/sticky.js';
 import type { SocialAccount } from '../utils/credentials.js';
-import {
-  backfillPersona,
-  backfillProxy,
-  burnAccount,
-  clearDeadProxy,
-} from './repair.js';
+import { hasSavedProxy, pinnedProxy, type SavedProxy } from './pinned_proxy.js';
+import { backfillPersona, backfillProxy } from './repair.js';
 
 export interface AccountSession {
   proxyUrl?: string;
   persona?: Persona;
+  /** Whether proxyUrl is the account's own pin, which is never swapped. */
+  pinned?: boolean;
 }
 
 const PLATFORM_HOSTS: Record<string, string> = {
@@ -55,12 +43,6 @@ const PLATFORM_HOSTS: Record<string, string> = {
   producthunt: 'www.producthunt.com',
   pangram: 'www.pangram.com',
 };
-
-/** The proxy a saved pin rebuilds into; a pin that cannot be rebuilt throws why. */
-function pinned(hydrated: HydratedPin): ProxyConfig {
-  if ('refused' in hydrated) throw new Error(hydrated.refused);
-  return hydrated.proxy;
-}
 
 // The action this run performs, as the worker states it (runChildIdentity
 // sets ACTION for every run it spawns). Which network the run needs is read
@@ -87,14 +69,8 @@ export async function resolveAccountSession(
   const targetHost = PLATFORM_HOSTS[acct.platform];
 
   const network = taskNetworkRequirements(action, acct.platform);
-  const savedProxy = meta?.proxy as
-    | (Partial<ProxyConfig> & { server?: string; exit_ip_url?: string })
-    | undefined;
-  const hasSavedProxy = Boolean(
-    savedProxy?.exit_ip_url ||
-      (savedProxy?.host && savedProxy?.port) ||
-      savedProxy?.server,
-  );
+  const savedProxy = meta?.proxy as SavedProxy | undefined;
+  const saved = hasSavedProxy(savedProxy);
 
   // First-party direct egress (NO proxy). taskNetworkRequirements already routes
   // the platforms with no datacenter blacklist — GitHub, Producthunt, Pangram —
@@ -120,137 +96,16 @@ export async function resolveAccountSession(
 
   if (
     network.route === 'direct' &&
-    !hasSavedProxy &&
+    !saved &&
     process.env.WELES_FORCE_PROXY !== '1'
   ) {
     if (meta?.persona) out.persona = meta.persona as Persona;
     return out;
   }
 
-  const policy = await import('../proxy/policy.js');
-  if (savedProxy?.exit_ip_url) {
-    try {
-      const parsed = new URL(savedProxy.exit_ip_url);
-      const provider =
-        savedProxy.provider ??
-        policy.providerFromHost(parsed.hostname, parsed.username);
-      if (!provider) throw new Error('unknown_provider');
-      cfg = pinned(
-        hydratePinnedProxy({
-          host: parsed.hostname,
-          port: Number(parsed.port),
-          protocol: parsed.protocol.replace(/:$/, ''),
-          username: parsed.username
-            ? decodeURIComponent(parsed.username)
-            : undefined,
-          password: parsed.password
-            ? decodeURIComponent(parsed.password)
-            : undefined,
-          country: savedProxy.country,
-          provider,
-          proxy_type: savedProxy.proxy_type,
-          sticky_session_id: savedProxy.sticky_session_id,
-          sticky_hash: savedProxy.sticky_hash,
-          city: savedProxy.city,
-        }),
-      );
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      throw new Error(`pinned_proxy_invalid:${action}:${reason}`);
-    }
-  } else if (savedProxy?.host && savedProxy?.port) {
-    const host = savedProxy.host;
-    if (await isBurned(host, acct.platform))
-      throw new Error(
-        `pinned_proxy_burned:${action}:${host}:${savedProxy.port}`,
-      );
-    const retiredReason = policy.retiredProviderReason(host, savedProxy.port);
-    if (retiredReason) {
-      console.log(
-        `[identity] retiring account ${acct.username}: stored proxy ${host}:${savedProxy.port} is from a retired pool (${retiredReason})`,
-      );
-      await burnAccount(acct, `retired_proxy:${retiredReason}`);
-      throw new Error(
-        `retired_proxy:${retiredReason}:${host}:${savedProxy.port}`,
-      );
-    }
-    // A pool that is retired is declared in proxy/policy.ts and refused above;
-    // a pin naming no provider Weles knows cannot be rebuilt.
-    const provider =
-      savedProxy.provider ?? policy.providerFromHost(host, savedProxy.username);
-    if (!provider) {
-      await burnAccount(acct, 'retired_proxy:unknown_provider');
-      throw new Error(
-        `pinned_proxy_unavailable:${action}:${host}:${savedProxy.port}: the pin names no provider and its host is no provider's`,
-      );
-    }
-    try {
-      const { isCellFail } = await import('../proxy/capability.js');
-      if (await isCellFail(provider, action)) {
-        throw new Error(`capability_failed:${provider}:${action}`);
-      }
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      if (reason.startsWith('capability_failed:')) throw error;
-    }
-    // A saved proxy states its pool type, protocol and, for a sticky exit,
-    // its country; hydratePinnedProxy refuses one that does not.
-    if (!savedProxy.protocol) {
-      throw new Error(
-        `pinned_proxy_invalid:${action}:${host}:${savedProxy.port} records no protocol`,
-      );
-    }
-    const hydrated = hydratePinnedProxy({
-      ...savedProxy,
-      host,
-      port: savedProxy.port,
-      protocol: savedProxy.protocol,
-      provider,
-    });
-    if ('refused' in hydrated)
-      throw new Error(`pinned_proxy_invalid:${action}:${hydrated.refused}`);
-    cfg = hydrated.proxy;
-  } else if (savedProxy?.server) {
-    try {
-      const parsed = new URL(savedProxy.server);
-      const provider =
-        savedProxy.provider ??
-        policy.providerFromHost(parsed.hostname, savedProxy.username);
-      if (!provider) throw new Error('unknown_provider');
-      cfg = pinned(
-        hydratePinnedProxy({
-          host: parsed.hostname,
-          port: Number(parsed.port),
-          protocol: parsed.protocol.replace(/:$/, ''),
-          username: savedProxy.username,
-          password: savedProxy.password,
-          country: savedProxy.country,
-          provider,
-          proxy_type: savedProxy.proxy_type,
-          sticky_session_id: savedProxy.sticky_session_id,
-          sticky_hash: savedProxy.sticky_hash,
-          city: savedProxy.city,
-        }),
-      );
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      throw new Error(`pinned_proxy_invalid:${action}:${reason}`);
-    }
-  }
-  if (hasSavedProxy && cfg) {
-    const refreshed = await refreshStickyIfDead(cfg, targetHost);
-    if (refreshed) {
-      cfg = refreshed;
-      await backfillProxy(acct, cfg);
-    } else {
-      // A provider the pinned proxy never recorded is named so, not "unknown".
-      const reason = `dead_pinned_proxy:${action}:${cfg.provider ? cfg.provider : 'provider_not_recorded'}`;
-      console.log(
-        `[identity] failing over account ${acct.username}: ${reason}`,
-      );
-      await clearDeadProxy(acct, reason);
-      cfg = undefined;
-    }
+  if (saved) {
+    cfg = await pinnedProxy(acct, savedProxy!, action, targetHost);
+    out.pinned = true;
   }
 
   if (!cfg && process.env.PROXY_URL) {
@@ -304,7 +159,9 @@ export async function resolveAccountSession(
           sticky_hash: pw.sticky_hash,
           city: pw.city,
         };
+        // The exit assigned now is the account's pin from here on.
         await backfillProxy(acct, cfg);
+        out.pinned = true;
       }
     } catch (e) {
       const reason = e instanceof Error ? e.message : String(e);

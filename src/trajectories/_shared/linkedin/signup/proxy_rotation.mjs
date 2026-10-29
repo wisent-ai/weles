@@ -1,5 +1,13 @@
 import { pageSettled } from '../../page/settled.mjs';
-// Provider rotation + form-rendering probe for linkedin_login.mjs.
+import { statedProxy } from '../../inputs/stated.mjs';
+// Reaching LinkedIn's login form through the account's one proxy.
+//
+// An account that has a pinned proxy keeps it: the exit LinkedIn knows the
+// account by is never swapped for another, so a pinned exit that LinkedIn
+// will not serve the form through ends the login with that refusal. Only an
+// account without a pin, browsing through the proxy request the run states
+// (PROXY_URL), may be given a fresh exit of that same request, probed first
+// with the headers the session's own persona sends.
 
 export async function pageHasLoginForm(page) {
   await pageSettled(page);
@@ -17,39 +25,23 @@ export async function pageHasLoginForm(page) {
   return r.visibleEmailInputs > 0;
 }
 
-// Defer to resolveProxy in src/proxy/config.ts so per-provider sticky
-// formats (oxylabs `customer-X-cc-us-sessid-N`, iproyal
-// `pw_country-us_session-N`, pingproxies `user_c_us_s_N`, brightdata
-// `user-country-us-session-N`) come from a single source of truth.
-// Reproducing them inline is how the IPRoyal `_lifetime-30m` suffix bug
-// happened (ERR_PROXY_AUTH_UNSUPPORTED at 04:47).
-export async function freshProviderUrl(provider) {
-  try {
-    const mod = await import('../../../../../dist/proxy/config.js');
-    // Request the ISP tier through the configured provider resolver.
-    const tier = 'isp';
-    const pw = await mod.resolveProxy(
-      `${tier} ${provider} us`,
-      'www.linkedin.com',
+// A fresh exit of the stated proxy request, as a proxy URL carrying its
+// credentials, resolved by the one resolver (src/proxy/config.ts) with the
+// session's persona, so the resolver's own preflight probes it as the
+// browser that will use it. A request the resolver cannot satisfy is thrown
+// with the resolver's words.
+async function freshExit(request, persona) {
+  const mod = await import('../../../../../dist/proxy/config.js');
+  const pw = await mod.resolveProxy(request, 'www.linkedin.com', persona);
+  if (!pw?.server)
+    throw new Error(
+      `LINKEDIN_PROXY_UNRESOLVED: the stated proxy request "${request}" resolved no exit for www.linkedin.com`,
     );
-    if (!pw?.server || !pw?.username) return null;
-    const u = new URL(pw.server);
-    u.username = encodeURIComponent(pw.username);
-    u.password = encodeURIComponent(pw.password ?? '');
-    return u.toString();
-  } catch {
-    return null;
-  }
+  const u = new URL(pw.server);
+  if (pw.username) u.username = encodeURIComponent(pw.username);
+  if (pw.password) u.password = encodeURIComponent(pw.password);
+  return u.toString();
 }
-
-// Providers in the order this trajectory prefers them, each once; a
-// rotation cycles through them for as many fresh exits as the budget allows.
-export const PROVIDER_ROTATION = Object.freeze([
-  'oxylabs',
-  'iproyal',
-  'pingproxies',
-  'brightdata',
-]);
 
 // How many fresh proxy exits one login may probe is the operator's decision:
 // LINKEDIN_PROXY_EXIT_BUDGET, required, a positive whole number.
@@ -64,73 +56,58 @@ export function proxyExitBudget() {
   return budget;
 }
 
-// curl-based preflight: hit /login through the proxy and check whether the
-// response body contains the markers a real form has. Cheap (no Chromium
-// boot) — lets us probe many stickies before committing to one. A clean
-// exit serves an HTML body containing `name="session_key"` and an email
-// input; a flagged exit serves a stripped shell missing both.
-export async function curlProbeLoginForm(proxyUrl) {
+// Fetches /login through `proxyUrl` with the persona's navigation headers and
+// answers whether the body holds the markers a real form has. A curl that
+// fails is thrown with curl's words, the proxy URL withheld.
+async function exitServesLoginForm(proxyUrl, persona) {
   const { execFile } = await import('node:child_process');
-  return await new Promise((resolve) => {
-    const ua =
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36';
-    const args = [
-      '-s',
-      '-x',
-      proxyUrl,
+  const { promisify } = await import('node:util');
+  const { probeHeaders } = await import(
+    '../../../../../dist/proxy/quality/platform_probes.js'
+  );
+  const headers = probeHeaders(persona);
+  const args = [
+    '-sS',
+    '--compressed',
+    '-x',
+    proxyUrl,
+    ...Object.entries(headers).flatMap(([name, value]) => [
       '-H',
-      `User-Agent: ${ua}`,
-      'https://www.linkedin.com/login',
-    ];
-    execFile('curl', args, { maxBuffer: Infinity }, (err, stdout) => {
-      // curl's failure names its whole command line, the proxy credentials
-      // with it, so the proxy URL is withheld wherever it appears.
-      if (err)
-        return resolve({
-          ok: false,
-          reason: `curl failed: ${err.message.replaceAll(proxyUrl, '[proxy-url]')}`,
-        });
-      const body = (stdout ?? '').toString();
-      const hasSessionKey =
-        /name="session_key"|id="username"|type="email"/.test(body);
-      resolve({ ok: hasSessionKey, bodyLen: body.length });
+      `${name}: ${value}`,
+    ]),
+    'https://www.linkedin.com/login',
+  ];
+  try {
+    const { stdout } = await promisify(execFile)('curl', args, {
+      encoding: 'utf8',
+      maxBuffer: Infinity,
     });
-  });
-}
-
-// Cycle PROVIDER_ROTATION using curl preflight for at most `budget` fresh
-// exits. Returns the first proxy URL that the curl probe says renders the real
-// form and how many exits it took, or null with every exit spent.
-// Caller can write that sessid to metadata.proxy so subsequent logins try
-// the cached working sticky first.
-export async function findUnflaggedSticky(budget) {
-  for (let i = 0; i < budget; i++) {
-    const provider = PROVIDER_ROTATION[i % PROVIDER_ROTATION.length];
-    const url = await freshProviderUrl(provider);
-    if (!url) {
-      console.log(`[preflight] ${provider}: no creds — skipping`);
-      continue;
-    }
-    const r = await curlProbeLoginForm(url);
-    console.log(
-      `[preflight] exit ${i + 1}/${budget} provider=${provider} ok=${r.ok} body=${r.bodyLen ?? '-'} reason=${r.reason ?? ''}`,
+    return {
+      ok: /name="session_key"|id="username"|type="email"/.test(stdout),
+      bodyLen: stdout.length,
+    };
+  } catch (error) {
+    throw new Error(
+      `LINKEDIN_LOGIN_PROBE_FAILED: ${String(error?.message ?? error).replaceAll(proxyUrl, '[proxy-url]')}`,
     );
-    if (r.ok) return { url, provider, attempts: i + 1 };
   }
-  return null;
 }
 
-// Goto /login with sticky-rotation on stripped-shell / chrome-error. The
-// trajectory's old single-attempt path failed permanently when the
-// initial proxy IP was edge-flagged by LinkedIn. Now: on those two errors
-// we curl-probe fresh stickies via findUnflaggedSticky, tear down the
-// session, and restart with the working URL. Caller passes restartFn to
-// rebuild the WSession with the new proxy. Returns the (possibly fresh)
-// session + the proxyUrl actually in use.
-export async function gotoLoginRotating({ session, persona, restartFn }) {
+// Goto /login. A chrome-error document or a page without the form on a
+// pinned exit ends the login with that refusal; on a stated request the
+// session is restarted on fresh exits of the same request until one serves
+// the form or LINKEDIN_PROXY_EXIT_BUDGET is spent. Caller passes restartFn
+// to rebuild the WSession with the new proxy. Returns the (possibly fresh)
+// session + the proxyUrl actually in use (null when the first one served).
+export async function gotoLoginRotating({
+  session,
+  persona,
+  pinned,
+  restartFn,
+}) {
   let s = session;
   let activeProxy = null;
-  let remaining = proxyExitBudget();
+  let remaining = null;
   let rotations = 0;
   while (true) {
     // The two outcomes a fresh exit can cure are read from the page itself:
@@ -150,20 +127,33 @@ export async function gotoLoginRotating({ session, persona, restartFn }) {
       );
       return { session: s, proxyUrl: activeProxy };
     }
-    rotations += 1;
-    console.log(
-      `[linkedin_login] ${refusal} — rotating sticky (${remaining} exits left in LINKEDIN_PROXY_EXIT_BUDGET)`,
+    if (pinned)
+      throw new Error(
+        `LINKEDIN_PINNED_EXIT_REFUSED: ${refusal} on the account's pinned proxy; the account keeps its one exit, so the login ends here`,
+      );
+    const request = statedProxy(
+      'the LinkedIn login, whose account has no proxy pin,',
     );
-    const fresh = await findUnflaggedSticky(remaining);
+    remaining ??= proxyExitBudget();
+    let fresh = null;
+    while (!fresh && remaining > 0) {
+      remaining -= 1;
+      const candidate = await freshExit(request, persona);
+      const served = await exitServesLoginForm(candidate, persona);
+      console.log(
+        `[linkedin_login] probed a fresh exit of "${request}": form=${served.ok} body=${served.bodyLen} (${remaining} left in LINKEDIN_PROXY_EXIT_BUDGET)`,
+      );
+      if (served.ok) fresh = candidate;
+    }
     if (!fresh)
       throw new Error(
-        `no_unflagged_sticky_found: LINKEDIN_PROXY_EXIT_BUDGET spent after ${rotations} rotations: ${refusal}`,
+        `no_unflagged_exit_found: LINKEDIN_PROXY_EXIT_BUDGET spent after ${rotations} rotation(s) of "${request}": ${refusal}`,
       );
-    remaining -= fresh.attempts;
+    rotations += 1;
     await s
       .close()
       .catch((e) => console.log(`[session] close failed: ${e.message}`));
-    s = await restartFn(fresh.url, persona);
-    activeProxy = fresh.url;
+    s = await restartFn(fresh, persona);
+    activeProxy = fresh;
   }
 }

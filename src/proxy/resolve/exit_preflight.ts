@@ -106,7 +106,7 @@ export async function preflightExit(
     isBurned,
   } = input;
   let exitIp = '';
-  if (process.env.PROXY_SKIP_PREFLIGHT)
+  if (process.env.PROXY_SKIP_PREFLIGHT === '1')
     return { exitIp, rejected: false, abandonProvider: false };
   const proxy: ProxyEndpoint = {
     host: input.host,
