@@ -17,6 +17,7 @@ import { registerRunningRun } from '../running-runs.mjs';
 import { runProgress } from './run-progress.mjs';
 import {
   liveOutput,
+  providersWith,
   runChildIdentity,
   signalRunProcess,
   trajectoryPath,
@@ -26,10 +27,12 @@ import {
 // Providers whose reauth trajectory can run on the host on demand. This is the
 // "call Weles on the host to authenticate" step: the broker decides WHICH
 // provider + method, weles-api runs that provider's reauth trajectory locally,
-// and only the run status leaves the process.
-export const REAUTH_PROVIDERS = new Set(
-  Object.keys({ codex: true, claude: true, kimi: true }),
-);
+// and only the run status leaves the process. A provider signs in exactly when
+// it has src/trajectories/<provider>/reauth.mjs, as /subscriptions/acquire
+// buys exactly when it has account/acquire.mjs: no list beside the
+// trajectories says it.
+export const REAUTH_TRAJECTORY = 'reauth';
+export const REAUTH_PROVIDERS = new Set(providersWith(REAUTH_TRAJECTORY));
 
 // `account` is the row this run must sign in, already resolved from the caller's
 // login_item. It reaches the trajectory as <PROVIDER>_DISPLAY_NAME, which is the
@@ -59,7 +62,7 @@ export function runReauth(
   provider,
   account,
   onProgress = () => {},
-  trajectory = 'reauth',
+  trajectory = REAUTH_TRAJECTORY,
   env = {},
 ) {
   return new Promise((resolveRun) => {
