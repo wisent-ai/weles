@@ -44,10 +44,14 @@ interface AuthResponsePayload {
   };
 }
 
-/** Bytes reported for one loaded resource. */
+/**
+ * Bytes reported for one loaded resource. Both lengths are required fields of
+ * Network.dataReceived
+ * (https://chromedevtools.github.io/devtools-protocol/tot/Network/#event-dataReceived).
+ */
 interface DataReceivedPayload {
-  encodedDataLength?: number;
-  dataLength?: number;
+  encodedDataLength: number;
+  dataLength: number;
 }
 
 /** The two protocol calls this counter needs from an attached session. */
@@ -198,10 +202,9 @@ async function attachEgressByteCounter(
     state._cdp = attached;
     operation = 'Network.dataReceived subscription';
     attached.on('Network.dataReceived', (e) => {
-      // encodedDataLength is on-the-wire bytes (post-compression); older
-      // Chromium revisions report dataLength instead.
-      const n = Number(e?.encodedDataLength ?? e?.dataLength ?? 0);
-      if (n > 0) state._proxyBytes += n;
+      // encodedDataLength is the bytes on the wire (after compression), the
+      // ones the proxy carried; the protocol always states it.
+      state._proxyBytes += e.encodedDataLength;
     });
     operation = 'Network.enable';
     await attached.send('Network.enable');

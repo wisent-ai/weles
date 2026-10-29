@@ -181,15 +181,16 @@ export function createPublicTaskService(options) {
     const isGet = request.method === 'GET' && Boolean(taskMatch);
     const isCancel = request.method === 'POST' && Boolean(cancelMatch);
     if (!isSubmit && !isGet && !isCancel) return null;
-    const [mediaType] = String(request.headers['content-type']).split(';');
-    if (
-      (isSubmit || isCancel) &&
-      mediaType.trim().toLowerCase() !== 'application/json'
-    ) {
+    const stated = request.headers['content-type'];
+    const mediaType =
+      stated === undefined ? null : stated.split(';')[0].trim().toLowerCase();
+    if ((isSubmit || isCancel) && mediaType !== 'application/json') {
       throw new PublicTaskError(
         http.HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE,
         'unsupported-media-type',
-        'public task bodies require Content-Type: application/json',
+        mediaType === null
+          ? 'public task bodies require Content-Type: application/json; the request sent no Content-Type'
+          : `public task bodies require Content-Type: application/json; the request sent ${mediaType}`,
       );
     }
     if (!bearerAuthorized(request, config.bearer)) {

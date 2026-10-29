@@ -86,9 +86,8 @@ async function readRegistry(family: Family): Promise<SpecialBlock[]> {
   if (!header) throw new Error(`${address} is empty`);
   const columns = csvFields(header);
   const column = (name: string): number => {
-    const index = columns.indexOf(name);
-    if (index < Number()) throw new Error(`${address} has no "${name}" column; its header is ${header}`);
-    return index;
+    if (!columns.includes(name)) throw new Error(`${address} has no "${name}" column; its header is ${header}`);
+    return columns.indexOf(name);
   };
   const addressAt = column(ADDRESS_COLUMN);
   const nameAt = column(NAME_COLUMN);

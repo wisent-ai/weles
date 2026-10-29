@@ -65,16 +65,31 @@ async function waitForWritableLocator(page) {
   return hit;
 }
 
+// How many leading characters the public checker gets typed key by key
+// before the rest is filled: PANGRAM_PUBLIC_HUMAN_WARMUP_CHARS, a whole
+// number of characters. Unset, nothing is typed first; a value that is not a
+// whole number is refused naming it, never read as zero.
+function publicWarmupChars() {
+  const stated = process.env.PANGRAM_PUBLIC_HUMAN_WARMUP_CHARS;
+  if (stated === undefined || stated === '') return 0;
+  if (!/^\d+$/.test(stated.trim()))
+    throw new Error(
+      `pangram_warmup_invalid: PANGRAM_PUBLIC_HUMAN_WARMUP_CHARS is ${JSON.stringify(stated)}, not a whole number of characters; set it to one, or unset it to type nothing first`,
+    );
+  return Number(stated.trim());
+}
+
 export async function fillInput(page, text) {
   const hit = await waitForWritableLocator(page);
   await hit.locator.scrollIntoViewIfNeeded();
-  await humanClickLocator(page, hit.locator).catch(() => hit.locator.focus());
-  if (process.env.PANGRAM_NO_ACCOUNT === '1') {
-    const warmupChars = Math.max(
-      0,
-      Number(process.env.PANGRAM_PUBLIC_HUMAN_WARMUP_CHARS || 0),
+  await humanClickLocator(page, hit.locator).catch((error) => {
+    console.log(
+      `[pangram] the human click on ${hit.selector} failed, so the field is focused directly: ${error instanceof Error ? error.message : String(error)}`,
     );
-    const warmup = text.slice(0, warmupChars);
+    return hit.locator.focus();
+  });
+  if (process.env.PANGRAM_NO_ACCOUNT === '1') {
+    const warmup = text.slice(0, publicWarmupChars());
     if (warmup) await humanType(page, warmup);
   }
   await humanFill(page, hit.locator, text);
