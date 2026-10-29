@@ -33,7 +33,19 @@ try {
   const context = await browser.newContext();
   for (const script of scripts) await context.addInitScript({ path: script });
   const page = await context.newPage();
-  await page.setContent('<form><input id="user" type="text"><input id="secret" type="password"></form>');
+  // The form is a page the browser navigates to, as a run's pages are:
+  // setContent rewrites the open document, and document.open() erases the
+  // listeners the recorder put on it (HTML, "document open steps"), so a
+  // form set that way is typed into with no recorder listening. The address
+  // is under the reserved .invalid domain and answered locally.
+  const formPage = 'https://input-recorder.invalid/';
+  await page.route(formPage, (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: '<!doctype html><form><input id="user" type="text"><input id="secret" type="password"></form>',
+    }),
+  );
+  await page.goto(formPage);
 
   // A value no page could hold by chance, typed key by key as a person would.
   const secret = randomUUID();

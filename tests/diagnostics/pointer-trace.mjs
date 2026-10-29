@@ -53,9 +53,18 @@ try {
   const context = await browser.newContext();
   for (const script of scripts) await context.addInitScript({ path: script });
   const page = await context.newPage();
-  await page.setContent(
-    '<div style="height:300vh;padding:10vh 10vw"><button id="a">first</button><p>between</p><button id="b">second</button><p>after</p><button id="c">third</button></div>',
+  // The controls are a page the browser navigates to, as a run's pages are:
+  // setContent rewrites the open document, and document.open() erases the
+  // listeners the recorder put on it (HTML, "document open steps"). The
+  // address is under the reserved .invalid domain and answered locally.
+  const controlsPage = 'https://pointer-trace.invalid/';
+  await page.route(controlsPage, (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: '<!doctype html><div style="height:300vh;padding:10vh 10vw"><button id="a">first</button><p>between</p><button id="b">second</button><p>after</p><button id="c">third</button></div>',
+    }),
   );
+  await page.goto(controlsPage);
   const boxes = await Promise.all(['#a', '#b', '#c'].map((id) => page.locator(id).boundingBox()));
 
   // Travel between controls, each ended by a press, as the recorder sees a
@@ -65,8 +74,13 @@ try {
     await page.mouse.down();
     await page.mouse.up();
   }
-  const viewport = await page.evaluate(() => ({ height: innerHeight, scrollX }));
+  const viewport = await page.evaluate(() => ({ height: innerHeight, scrollX, scrollY }));
   await page.mouse.wheel(viewport.scrollX, viewport.height);
+  // mouse.wheel returns before the page has handled the event
+  // (https://playwright.dev/docs/api/class-mouse#mouse-wheel), and the page
+  // scrolls only after its wheel listeners ran, so the log is read once the
+  // page has moved from where it stood.
+  await page.waitForFunction((before) => scrollY !== before, viewport.scrollY);
   const dump = join(recordings, 'operator.inst.json');
   writeFileSync(dump, JSON.stringify({ accesses: [{ url: page.url(), log: await flushed(page) }] }));
   const empty = join(recordings, 'automated.inst.json');
