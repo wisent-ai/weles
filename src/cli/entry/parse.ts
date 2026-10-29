@@ -55,6 +55,7 @@ const VALUE_OPTIONS: Readonly<Record<string, true>> = Object.freeze({
   released: true,
   'published-surface': true,
   reason: true,
+  source: true,
   correcting: true,
   root: true,
   run: true,

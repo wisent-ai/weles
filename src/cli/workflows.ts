@@ -227,6 +227,7 @@ const RELEASE_ACTIONS: Record<string, Handler> = {
       publishedSurfacePath: requiredOption(parsed, 'published-surface'),
       released: requiredOption(parsed, 'released'),
       reason: requiredOption(parsed, 'reason'),
+      source: requiredOption(parsed, 'source'),
       correcting: optionalOption(parsed, 'correcting'),
       baselinePath: optionalOption(parsed, 'baseline'),
       declarationPath: optionalOption(parsed, 'declaration'),

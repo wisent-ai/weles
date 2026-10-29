@@ -51,11 +51,17 @@ function isBehind(candidate, recorded) {
  * baseline that shrinks lets a surface that was removed pass as newly added.
  * Naming the version being overridden is the difference between correcting a
  * claim and losing one.
+ *
+ * `source` names the published artifact the surface was read from, its first
+ * word a marker (`stado://releases/<product>/<version>/<platform>`). Stado's
+ * release submit refuses a baseline that names none, because nothing could
+ * then verify which release the baseline describes.
  */
 export function adoptedDocuments({
   publishedSurface,
   released,
   reason,
+  source,
   recorded,
   correcting,
 }) {
@@ -75,6 +81,11 @@ export function adoptedDocuments({
       'a reason is required: it is what the next reader of the declaration has',
     );
   }
+  if (typeof source !== 'string' || !source.trim()) {
+    throw new Error(
+      'a source is required: the published artifact the surface was read from, which Stado verifies the baseline against',
+    );
+  }
   if (
     recorded !== null &&
     isBehind(released, recorded) &&
@@ -91,7 +102,7 @@ export function adoptedDocuments({
     // The published document carries no version of its own — `surface` reads
     // it from the declaration, which at build time still named the previous
     // release. Stamping it here is what makes the baseline self-describing.
-    baseline: { surface, version: released },
+    baseline: { surface, version: released, source: source.trim() },
     declaration: {
       schema: 'weles.version-change.v1',
       current: released,
@@ -110,6 +121,7 @@ export async function adoptBaseline({
   publishedSurfacePath,
   released,
   reason,
+  source,
   correcting,
   root = repositoryRoot(),
   baselinePath = join(root, 'released-surface.json'),
@@ -136,6 +148,7 @@ export async function adoptBaseline({
     publishedSurface,
     released,
     reason,
+    source,
     recorded,
     correcting,
   });

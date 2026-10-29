@@ -176,5 +176,6 @@
     "task-status:running",
     "task-status:succeeded"
   ],
-  "version": "0.7.62"
+  "version": "0.7.62",
+  "source": "stado://releases/weles-worker/0.7.62/darwin-arm64 source_revision=efced2a50dd82d002da31cb7779fd01f454e3d3e -- the signed release Stado serves; the surface is the released-surface.json its runtime payload carries"
 }

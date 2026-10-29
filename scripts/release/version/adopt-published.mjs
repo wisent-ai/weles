@@ -152,6 +152,7 @@ const written = await adoptBaseline({
   publishedSurfacePath: join(directory, 'released-surface.json'),
   released: version,
   reason: `${product} ${version} is the release Stado serves; its ${platform} archive, built from ${source}, published this surface.`,
+  source: `stado://releases/${product}/${version}/${platform} source_revision=${source} -- the signed release Stado serves; the surface is the released-surface.json its runtime payload carries`,
   root,
   baselinePath: join(root, 'released-surface.json'),
   declarationPath: join(root, 'release', 'version-change.json'),

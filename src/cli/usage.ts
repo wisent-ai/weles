@@ -60,7 +60,7 @@ Usage:
   weles release surface [--root <directory>]
   weles release enforce --decision <file> --baseline <file> --declaration <file> --manifest <file> [--json]
   weles release validate --manifest <file> --source-revision <sha> --candidate-tag <tag> [--json]
-  weles release adopt --released <version> --published-surface <file> --reason <text> [--correcting <version>] [--json]
+  weles release adopt --released <version> --published-surface <file> --reason <text> --source <published artifact> [--correcting <version>] [--json]
   weles design export --provider figma --request <export-request.json>
   weles design parse --provider figma <document.json[.gz]> <summary.json> <nodes.json> [<vocabulary.json>]
   weles runs list [--json]
