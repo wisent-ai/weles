@@ -10,18 +10,21 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 
+import { withoutSecretShapes } from '../capture/secret-shapes/index.cjs';
+
 /** The exit status of a run that succeeded, C's EXIT_SUCCESS: https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/stdlib.h.html */
 const EXIT_SUCCESS = 0;
 
 /**
- * Hide credentials git may echo: the token shapes GitHub issues
- * (https://github.blog/engineering/platform-security/behind-githubs-new-authentication-token-formats/)
- * and the user part of a URL that carries one.
+ * Hide credentials git may echo: every credential shape Weles redacts
+ * (capture/secret-shapes, which holds the token shapes GitHub issues) and the
+ * user part of a URL that carries one.
  */
 function redacted(text) {
-  return text
-    .replace(/\b(?:gh[pousr]_|github_pat_)\w+/g, '[redacted]')
-    .replace(/([a-z][a-z+.-]*:\/\/)[^@\s/]+@/gi, '$1[redacted]@');
+  return withoutSecretShapes(text).replace(
+    /([a-z][a-z+.-]*:\/\/)[^@\s/]+@/gi,
+    '$1[redacted]@',
+  );
 }
 
 /** Publish only the managed figma tree in an existing, explicitly selected checkout. */
