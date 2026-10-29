@@ -107,6 +107,13 @@ function answerOf(
   return answer;
 }
 
+/**
+ * The model route did not answer at all: the connection failed or broke
+ * before an answer was read. Distinct from a refusal the route answered, so
+ * a caller asks the alternative Stado resolves only for this.
+ */
+export class RouteUnreachable extends Error {}
+
 /** Single-turn inference uses the caller's Brama identity; native tools require modelOnly: false. */
 export async function completeThroughRouter(
   cfg: ModelRouterConfig,
@@ -129,7 +136,7 @@ export async function completeThroughRouter(
     headers: routeHeaders(cfg, body),
     body,
   }).catch((error: unknown) => {
-    throw new Error(
+    throw new RouteUnreachable(
       `${cfg.direct ? 'WELES_MODEL_ENDPOINT' : 'Brama'} POST ${address} for ${model} failed: ${describeError(error)}`,
       { cause: error },
     );
@@ -137,7 +144,7 @@ export async function completeThroughRouter(
   // A connection lost while the answer's body is read is the same transport
   // failure, now with the status the answer had already given.
   const text = await response.text().catch((error: unknown) => {
-    throw new Error(
+    throw new RouteUnreachable(
       `${cfg.direct ? 'WELES_MODEL_ENDPOINT' : 'Brama'} POST ${address} for ${model} answered HTTP ${response.status}, and its body could not be read: ${describeError(error)}`,
       { cause: error },
     );

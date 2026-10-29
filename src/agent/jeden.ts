@@ -2,8 +2,10 @@ import { execFile } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../session/run-recordings.js';
+import { insteadOfBrama } from './model/alternative.js';
 import {
   completeThroughRouter,
+  RouteUnreachable,
   type JedenResult,
   type ModelOnlyOptions,
 } from './model/router-call.js';
@@ -11,6 +13,13 @@ import {
   loadModelRouterConfig,
   type ModelRouterConfig,
 } from './model/router-config.js';
+
+/**
+ * Brama did not answer this process's last model call: the next one asks
+ * Stado which alternative stands (its kept proof, so no second knock on a
+ * Brama it already found down) instead of knocking on Brama first.
+ */
+let bramaUnanswered = false;
 
 // Text decisions use this workload's Brama alias. Image questions use `best`,
 // which selects an image-capable model from the same caller's authorized pool.
@@ -108,7 +117,23 @@ export async function callJeden(
   // Only a caller that explicitly wants the agent runtime's tools
   // (`modelOnly: false`) spawns the binary.
   if (options.modelOnly !== false) {
-    return completeThroughRouter(cfg, prompt, options);
+    const asked =
+      bramaUnanswered && !cfg.direct
+        ? insteadOfBrama('it did not answer this process before', cfg, false)
+        : cfg;
+    try {
+      const answered = await completeThroughRouter(asked, prompt, options);
+      if (asked === cfg) bramaUnanswered = false;
+      return answered;
+    } catch (error) {
+      if (asked.direct || !(error instanceof RouteUnreachable)) throw error;
+      bramaUnanswered = true;
+      return completeThroughRouter(
+        insteadOfBrama(error.message, cfg, true),
+        prompt,
+        options,
+      );
+    }
   }
   const binary =
     setting('WELES_JEDEN_BIN') ??
