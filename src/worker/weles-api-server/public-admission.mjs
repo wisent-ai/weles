@@ -30,23 +30,28 @@ const PUBLIC_ADMISSION_ENDPOINT_FILE =
   process.env.WELES_ADMISSION_ENDPOINT_FILE ||
   join(homedir(), '.stado', 'forwards', 'weles-admission.local');
 
-function readBoundedRegularText(path, maximumBytes) {
+// A document Stado published on this host, read whole. Its size is Stado's,
+// not a cap Weles invents; what is refused is a path that is not a regular
+// file of its own (a link could point anywhere) or that holds nothing.
+function readPublishedText(path) {
   const metadata = lstatSync(path);
-  if (
-    !metadata.isFile() ||
-    metadata.isSymbolicLink() ||
-    metadata.size < 1 ||
-    metadata.size > maximumBytes
-  ) {
-    throw new Error(`Stado-published local document is unsafe: ${path}`);
-  }
+  if (metadata.isSymbolicLink())
+    throw new Error(
+      `Stado-published local document ${path} is a symbolic link; Stado writes it as a regular file, so republish it with Stado`,
+    );
+  if (!metadata.isFile())
+    throw new Error(
+      `Stado-published local document ${path} is not a regular file; republish it with Stado`,
+    );
+  if (metadata.size === 0)
+    throw new Error(
+      `Stado-published local document ${path} is empty; republish it with Stado`,
+    );
   return readFileSync(path, 'utf8');
 }
 
 export function readPublicServiceIdentity() {
-  const placement = JSON.parse(
-    readBoundedRegularText(PUBLIC_PLACEMENT_POLICY_FILE, 64 * 1024),
-  );
+  const placement = JSON.parse(readPublishedText(PUBLIC_PLACEMENT_POLICY_FILE));
   const placementGeneration = placement?._source?.registry_generation;
   if (
     placement?.schema_version !== 1 ||
@@ -76,7 +81,7 @@ export function readPublicServiceIdentity() {
   }
 
   const published = JSON.parse(
-    readBoundedRegularText(PUBLIC_SERVICE_DIRECTORY_FILE, 64 * 1024),
+    readPublishedText(PUBLIC_SERVICE_DIRECTORY_FILE),
   );
   const service = published?.service;
   if (
@@ -111,9 +116,8 @@ export function readPublicServiceIdentity() {
   ) {
     throw new Error('published Weles service-directory endpoint is invalid');
   }
-  const transportText = readBoundedRegularText(
+  const transportText = readPublishedText(
     PUBLIC_ADMISSION_ENDPOINT_FILE,
-    2 * 1024,
   ).trim();
   const transportEndpoint = new URL(transportText);
   if (transportEndpoint.toString() !== service.endpoint) {

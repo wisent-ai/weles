@@ -11,8 +11,6 @@ import { createConnection } from 'node:net';
 export const CAPABILITY_RE = /^[0-9a-f]{64}$/;
 export const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const RESPONSE_LIMIT = 1024 * 1024;
-const CONTROL_LIMIT = 4096;
 const PROOF_DOMAIN = Buffer.from('SKARBIEC-WORKLOAD-PROOF\0v1\0', 'utf8');
 
 export class CapabilityPendingError extends Error {
@@ -159,12 +157,10 @@ export async function requestCapability(
         chunk.fill(0);
         return;
       }
+      // The broker's answer is read whole: Skarbiec's redeem protocol
+      // (skarbiec.redeem.v1) states no size, so a cap here would refuse a
+      // valid secret by a number nobody stated.
       total += chunk.length;
-      if (total > RESPONSE_LIMIT + CONTROL_LIMIT) {
-        chunk.fill(0);
-        fail(new Error('broker response oversized'));
-        return;
-      }
       chunks.push(chunk);
     });
     // Preserve the operation and kernel cause. A live broker process alone
@@ -195,11 +191,7 @@ export async function requestCapability(
         reject(typeof error === 'string' ? new Error(error) : error);
       };
       const newline = response.indexOf(0x0a);
-      if (
-        newline < 1 ||
-        newline > CONTROL_LIMIT ||
-        response.subarray(0, newline).includes(0x0d)
-      ) {
+      if (newline < 1 || response.subarray(0, newline).includes(0x0d)) {
         rejectResponse('invalid broker control line');
         return;
       }
