@@ -20,6 +20,8 @@ const USAGE =
 
 export async function runPointer(parsed: ParsedCli): Promise<void> {
   const [verb, ...sources] = parsed.positional;
+  if (verb !== 'harvest' && verb !== 'show')
+    throw new UsageError(`weles pointer takes harvest, show, not ${verb}`);
   if (Object.keys(parsed.options).some((key) => key !== 'json'))
     throw new UsageError(USAGE);
   const json = parsed.options.json === true;

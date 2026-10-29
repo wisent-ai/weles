@@ -142,6 +142,8 @@ export async function answerKeeperCommand(
 
 export async function runKeeper(parsed: ParsedCli): Promise<void> {
   const verb = parsed.positional.join(' ');
+  if (verb !== 'start' && verb !== 'status' && verb !== 'stop')
+    throw new UsageError(`weles keeper takes start, status, stop, not ${verb}`);
   const sessionName = parsed.options.session;
   if (typeof sessionName !== 'string' || !sessionName)
     throw new UsageError(`keeper ${verb} needs --session <id>`);

@@ -53,8 +53,10 @@ async function scrubEnvelope(file: string): Promise<boolean> {
 
 export async function runRecordingsScrub(parsed: ParsedCli): Promise<void> {
   const [verb, ...rest] = parsed.positional;
-  if (verb !== 'scrub' || rest.length)
-    throw new UsageError('recordings takes exactly: scrub [--json]');
+  if (verb !== 'scrub')
+    throw new UsageError(`weles recordings takes scrub, not ${verb}`);
+  if (rest.length)
+    throw new UsageError('recordings scrub takes no positional argument');
   const root = recordingsBase();
   const scrubbed: string[] = [];
   const clean: string[] = [];

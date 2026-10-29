@@ -90,11 +90,11 @@ async function runVersion(): Promise<void> {
 }
 
 async function runRecords(parsed: ParsedCli): Promise<void> {
-  if (
-    parsed.positional.join(' ') !== 'adopt' ||
-    Object.keys(parsed.options).some((key) => key !== 'json')
-  )
-    throw new UsageError('records takes exactly: adopt [--json]');
+  const action = parsed.positional.join(' ');
+  if (action !== 'adopt')
+    throw new UsageError(`weles records takes adopt, not ${action}`);
+  if (Object.keys(parsed.options).some((key) => key !== 'json'))
+    throw new UsageError('records adopt takes only --json');
   printAnswer(adoptRecords(), parsed.options.json === true);
 }
 
