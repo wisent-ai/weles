@@ -31,7 +31,7 @@ service_snapshot="${WELES_PUBLIC_SERVICE_DIRECTORY_FILE:-$HOME/.stado/forwards/w
 # to TARGET's vault, which are the same store only when the two are the same
 # machine. Run from an operator laptop against a fleet host, the listing was
 # empty, the generator ran, and `vault-item-put` carried a freshly minted
-# authority to the host - `skarbiec set-json`, so a new revision over whatever
+# authority to the host - `skarbiec set`, so a new revision over whatever
 # was there. A first run like that provisions the fleet; the second would
 # silently replace a key set Spis had been told to
 # trust, and receipts signed under the old one would verify against nothing.
