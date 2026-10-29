@@ -57,7 +57,9 @@ export async function runTopup(run) {
         `${code}_PAY_CONTROL_ABSENT: ${s.page.url()} offers no pay or checkout button; nothing was charged`,
       );
     await pageSettled(s.page);
-    console.log(`PASS-CHARGED: checkout initiated, url=${s.page.url()}`);
+    console.log(
+      `PASS-CHARGED-PENDING: checkout opened for $${usd} at ${s.page.url()}; the charge completes there and the provider's balance reads the result`,
+    );
   } finally {
     await s.close();
   }

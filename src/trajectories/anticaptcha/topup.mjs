@@ -82,7 +82,9 @@ try {
     throw new Error(
       `clicking $${amount} did not reach Stripe's checkout (now on ${url}); nothing was charged`,
     );
-  console.log(`PASS-CHARGED: redirected to ${url} (complete payment there)`);
+  console.log(
+    `PASS-CHARGED-PENDING: redirected to Stripe's checkout (${url}); the $${amount} charge completes there and anticaptcha balance reads the result`,
+  );
 } finally {
   await s.close();
 }
