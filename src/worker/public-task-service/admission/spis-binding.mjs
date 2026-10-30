@@ -2,84 +2,49 @@
 // catalog, record and attempt it serves, and the exact Weles service identity
 // Spis authorized. Every key and URI is recomputed from its parts and must
 // match, so a binding cannot point the evidence at another record.
-import { PublicTaskError } from '../wire.mjs';
+import { DeclaredError } from '../../../errors/index.cjs';
+import { causes } from '../../../errors/operations/admission.cjs';
 import { isObject, sha256Text } from '../wire/canonical-json.mjs';
 import { PUBLIC_ACTION } from './deployment.mjs';
 
 // A non-empty string; no length is chosen here. A path component is held to
 // the portable character set and the URI to its exact stado:// shape below.
-function bindingText(value, name) {
-  if (typeof value !== 'string' || !value.trim()) {
-    throw new PublicTaskError(
-      400,
-      'invalid-spis-binding',
-      `${name} must be a non-empty string`,
-    );
-  }
+function portableBindingComponent(value, name) {
+  if (
+    typeof value !== 'string' ||
+    value === '.' ||
+    value === '..' ||
+    !/^[A-Za-z0-9._-]+$/.test(value)
+  )
+    throw new DeclaredError(causes.SPIS_COMPONENT, {
+      field: name,
+      value: JSON.stringify(value) ?? typeof value,
+    });
   return value;
 }
 
-function portableBindingComponent(value, name) {
-  const text = bindingText(value, name);
-  if (text === '.' || text === '..' || !/^[A-Za-z0-9._-]+$/.test(text)) {
-    throw new PublicTaskError(
-      400,
-      'invalid-spis-binding',
-      `${name} must be one strict portable non-dot path component`,
-    );
-  }
-  return text;
-}
-
-function exactStadoUri(value, name) {
-  const text = bindingText(value, name);
-  let parsed;
-  try {
-    parsed = new URL(text);
-  } catch {
-    throw new PublicTaskError(
-      400,
-      'invalid-spis-binding',
-      `${name} must be an exact stado:// URI`,
-    );
-  }
-  const pathParts = parsed.pathname.split('/');
-  if (
-    parsed.protocol !== 'stado:' ||
-    !parsed.hostname ||
-    !parsed.pathname.startsWith('/') ||
-    parsed.username ||
-    parsed.password ||
-    parsed.search ||
-    parsed.hash ||
-    pathParts.some((part) => part === '.' || part === '..') ||
-    parsed.toString() !== text
-  ) {
-    throw new PublicTaskError(
-      400,
-      'invalid-spis-binding',
-      `${name} must be an exact stado:// URI`,
-    );
-  }
-  return text;
+// The keys `value` holds that `allowed` does not name, and those it lacks.
+function keyDifference(value, allowed) {
+  const keys = Object.keys(value);
+  return {
+    undeclared: keys.filter((key) => !Object.hasOwn(allowed, key)),
+    missing: Object.keys(allowed).filter((key) => !keys.includes(key)),
+  };
 }
 
 // Exactly the keys `allowed` names: none missing, none unknown.
 function hasExactKeys(value, allowed) {
-  const keys = Object.keys(value);
-  return (
-    keys.every((key) => Object.hasOwn(allowed, key)) &&
-    keys.length === Object.keys(allowed).length
-  );
+  const { undeclared, missing } = keyDifference(value, allowed);
+  return !undeclared.length && !missing.length;
 }
+
+const listed = (keys) => (keys.length ? keys.join(', ') : 'none');
 
 export function parseSpisBinding(value) {
   if (!isObject(value))
-    throw new PublicTaskError(
-      400,
-      'invalid-spis-binding',
-      'input.spisBinding must be an object',
-    );
+    throw new DeclaredError(causes.SPIS_NOT_OBJECT, {
+      value: JSON.stringify(value) ?? typeof value,
+    });
   const allowed = Object.freeze({
     artifact_uri: true,
     attempt: true,
@@ -95,52 +60,41 @@ export function parseSpisBinding(value) {
     source_input_sha256: true,
     source_revision: true,
   });
-  if (!hasExactKeys(value, allowed)) {
-    throw new PublicTaskError(
-      400,
-      'invalid-spis-binding',
-      'input.spisBinding has missing or unknown fields',
-    );
-  }
-  if (value.schema !== 'weles.spis-browser-evidence-binding.v1') {
-    throw new PublicTaskError(
-      400,
-      'invalid-spis-binding',
-      'unsupported input.spisBinding schema',
-    );
-  }
+  const difference = keyDifference(value, allowed);
+  if (difference.undeclared.length || difference.missing.length)
+    throw new DeclaredError(causes.SPIS_FIELDS, {
+      undeclared: listed(difference.undeclared),
+      missing: listed(difference.missing),
+      declared: Object.keys(allowed).join(', '),
+    });
+  if (value.schema !== 'weles.spis-browser-evidence-binding.v1')
+    throw new DeclaredError(causes.SPIS_SCHEMA, {
+      schema: JSON.stringify(value.schema),
+    });
   if (
     !Number.isSafeInteger(value.attempt) ||
     value.attempt < 1 ||
     value.attempt > 0xffffffff
-  ) {
-    throw new PublicTaskError(
-      400,
-      'invalid-spis-binding',
-      'spisBinding.attempt must be a positive safe integer',
-    );
-  }
+  )
+    throw new DeclaredError(causes.SPIS_ATTEMPT, {
+      attempt: JSON.stringify(value.attempt),
+    });
   if (
     typeof value.source_revision !== 'string' ||
     !/^[0-9a-f]{40}$/.test(value.source_revision)
-  ) {
-    throw new PublicTaskError(
-      400,
-      'invalid-spis-binding',
-      'spisBinding.source_revision must be a full lowercase Git revision',
-    );
-  }
+  )
+    throw new DeclaredError(causes.SPIS_REVISION, {
+      value: JSON.stringify(value.source_revision),
+    });
   for (const field of ['source_input_sha256', 'reference_sha256']) {
     if (
       typeof value[field] !== 'string' ||
       !/^[0-9a-f]{64}$/.test(value[field])
-    ) {
-      throw new PublicTaskError(
-        400,
-        'invalid-spis-binding',
-        `spisBinding.${field} must be a lowercase SHA-256`,
-      );
-    }
+    )
+      throw new DeclaredError(causes.SPIS_DIGEST, {
+        field: `spisBinding.${field}`,
+        value: JSON.stringify(value[field]),
+      });
   }
   const service = value.service;
   const serviceAllowed = Object.freeze({
@@ -169,23 +123,17 @@ export function parseSpisBinding(value) {
     !/^weles-worker@\d+\.\d+\.\d+$/.test(service.release_id) ||
     typeof service.source_revision !== 'string' ||
     !/^[0-9a-f]{40}$/.test(service.source_revision)
-  ) {
-    throw new PublicTaskError(
-      400,
-      'invalid-spis-binding',
-      'spisBinding.service is not the exact authorized Weles service identity',
-    );
-  }
-  let endpoint;
-  try {
-    endpoint = new URL(service.endpoint);
-  } catch {
-    throw new PublicTaskError(
-      400,
-      'invalid-spis-binding',
-      'spisBinding.service.endpoint must be an absolute task API base URL',
-    );
-  }
+  )
+    throw new DeclaredError(causes.SPIS_SERVICE, {
+      value: JSON.stringify(service),
+    });
+  const endpointRefused = () =>
+    new DeclaredError(causes.SPIS_ENDPOINT, {
+      value: JSON.stringify(service.endpoint),
+    });
+  if (typeof service.endpoint !== 'string' || !URL.canParse(service.endpoint))
+    throw endpointRefused();
+  const endpoint = new URL(service.endpoint);
   if (
     !['http:', 'https:'].includes(endpoint.protocol) ||
     endpoint.username ||
@@ -194,13 +142,8 @@ export function parseSpisBinding(value) {
     endpoint.hash ||
     endpoint.pathname !== '/api/v1' ||
     endpoint.toString() !== service.endpoint
-  ) {
-    throw new PublicTaskError(
-      400,
-      'invalid-spis-binding',
-      'spisBinding.service.endpoint must be the exact /api/v1 base URL',
-    );
-  }
+  )
+    throw endpointRefused();
   const runId = portableBindingComponent(value.run_id, 'spisBinding.run_id');
   const catalog = portableBindingComponent(
     value.catalog,
@@ -228,13 +171,17 @@ export function parseSpisBinding(value) {
     attemptId !== expectedAttemptId ||
     value.artifact_uri !== `${baseUri}/artifacts.tar.gz` ||
     value.output_uri !== `${baseUri}/worker-output.log`
-  ) {
-    throw new PublicTaskError(
-      400,
-      'invalid-spis-binding',
-      'spisBinding keys, attempt identity, or artifact URIs are not canonical',
-    );
-  }
+  )
+    throw new DeclaredError(causes.SPIS_CANONICAL, {
+      record_key: recordKey,
+      expected_record_key: expectedRecordKey,
+      attempt_id: attemptId,
+      expected_attempt_id: expectedAttemptId,
+      artifact_uri: JSON.stringify(value.artifact_uri),
+      expected_artifact_uri: `${baseUri}/artifacts.tar.gz`,
+      output_uri: JSON.stringify(value.output_uri),
+      expected_output_uri: `${baseUri}/worker-output.log`,
+    });
   return {
     schema: value.schema,
     run_id: runId,
@@ -246,8 +193,9 @@ export function parseSpisBinding(value) {
     source_revision: value.source_revision,
     source_input_sha256: value.source_input_sha256,
     reference_sha256: value.reference_sha256,
-    artifact_uri: exactStadoUri(value.artifact_uri, 'spisBinding.artifact_uri'),
-    output_uri: exactStadoUri(value.output_uri, 'spisBinding.output_uri'),
+    // Both equal the stado:// URIs recomputed above from portable parts.
+    artifact_uri: value.artifact_uri,
+    output_uri: value.output_uri,
     service: {
       name: service.name,
       consumer: service.consumer,

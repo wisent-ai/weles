@@ -1,3 +1,5 @@
+import { DeclaredError } from '../errors/index.cjs';
+
 // The invocation itself is wrong: a missing argument or flag, an unknown
 // command or action, flags that contradict each other. A class rather than a
 // phrase, so the entry point tells it from a failure of a well-formed command
@@ -15,8 +17,13 @@ const USAGE_STATUS = 2; // https://www.gnu.org/software/bash/manual/html_node/Ex
 /** The status of any other failure, and of a command whose run answered a failure. */
 export const FAILURE_STATUS = 1; // https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/stdlib.h.html
 
-/** The exit status for a failure the CLI caught. */
+/**
+ * The exit status for a failure the CLI caught: a declared cause's own (2 for
+ * a usage refusal, 69 when retrying unchanged can help, 1 otherwise), 2 for
+ * any other usage error, 1 for everything else.
+ */
 export function exitStatusFor(error: unknown): number {
+  if (error instanceof DeclaredError) return error.exitCode;
   return error instanceof UsageError ? USAGE_STATUS : FAILURE_STATUS;
 }
 
@@ -83,6 +90,9 @@ Usage:
   weles recordings scrub [--json]
   weles pointer harvest <run>.inst.json... [--json]
   weles pointer show [--json]
+  weles errors list [--json]
+  weles errors show <operation> [--json]
+  weles errors check [--root <checkout>] [--json]
   weles doctor [--json]
   weles version
 
@@ -146,4 +156,8 @@ pointer harvest reads the instrumentation dumps of runs a person drove and keeps
 travel between presses and the wheel steps in WELES_RECORDINGS_ROOT/pointer-trace.json; every
 move and scroll replays that trace, and a host without one refuses to move the pointer, naming
 the file. pointer show says what the trace holds and which dumps it came from.
+errors list names the operations that declare every way they fail; errors show prints one
+operation's causes (what failed, why, the state shown, the fix, the code, the exit status and
+the test that provokes it); errors check refuses a declaration that lacks one of them and a
+generic error sentence in the source, one that names no failed step, cause or fix.
 `;

@@ -3,6 +3,8 @@ import { Buffer } from 'node:buffer';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AsyncNewBrowserOptions } from './async_api.js';
+import { DeclaredError } from './errors/index.cjs';
+import { causes, engineCause } from './errors/operations/browser.cjs';
 import { callPageOperation } from './mcp/page-ops.js';
 import {
   addBrowser,
@@ -11,6 +13,7 @@ import {
   dropBrowser,
   getPage,
   getBrowser,
+  shown,
   textResult,
 } from './mcp/state.js';
 
@@ -53,11 +56,29 @@ function packageVersion(): string {
   return pkg.version;
 }
 
+/** The engines and operating systems weles_browser_start declares. */
+const ENGINES = ['chromium', 'firefox'];
+const SYSTEMS = ['macos', 'windows', 'linux'];
+
+/** `value` of argument `name`, refused unless it is one of `allowed`. */
+function oneOf(
+  value: unknown,
+  name: string,
+  allowed: string[],
+  unknown: typeof causes.ENGINE_UNKNOWN,
+): string {
+  const text = asString(value, name);
+  if (!allowed.includes(text))
+    throw new DeclaredError(unknown, { value: shown(text) });
+  return text;
+}
+
 function browserOptions(args: Record<string, unknown>): AsyncNewBrowserOptions {
-  const options: AsyncNewBrowserOptions = {};
+  const options: AsyncNewBrowserOptions = {
+    browser: oneOf(args.browser, 'browser', ENGINES, causes.ENGINE_UNKNOWN),
+    os: oneOf(args.os, 'os', SYSTEMS, causes.OS_UNKNOWN),
+  };
   if (typeof args.headless === 'boolean') options.headless = args.headless;
-  if (typeof args.browser === 'string') options.browser = args.browser;
-  if (typeof args.os === 'string') options.os = args.os;
   if (typeof args.locale === 'string') options.locale = args.locale;
   if (typeof args.userDataDir === 'string')
     options.userDataDir = args.userDataDir;
@@ -65,14 +86,37 @@ function browserOptions(args: Record<string, unknown>): AsyncNewBrowserOptions {
   return options;
 }
 
+/**
+ * Call one tool. Every failure is a declared cause of the browser session
+ * catalogue: an argument or id this server refuses is raised as such, and
+ * what the browser engine reports is classified by its own words and quoted
+ * whole, naming the tool and page it happened on.
+ */
 export async function callWelesMcpTool(
   name: string,
   args: Record<string, unknown> = {},
 ) {
+  try {
+    return await dispatchTool(name, args);
+  } catch (error) {
+    const page = typeof args.pageId === 'string' ? args.pageId : 'none';
+    const values: Record<string, string> = { tool: name, page };
+    if (typeof args.url === 'string') values.url = args.url;
+    if (typeof args.method === 'string') values.method = args.method;
+    else values.method = 'GET';
+    if (typeof args.browser === 'string') values.engine = args.browser;
+    if (typeof args.userDataDir === 'string') values.profile = args.userDataDir;
+    if (error instanceof DeclaredError) throw error.naming(values);
+    throw engineCause(error, values);
+  }
+}
+
+async function dispatchTool(name: string, args: Record<string, unknown>) {
   if (name === 'weles_browser_start') {
+    const options = browserOptions(args);
     routeConsoleToStderr();
     const { AsyncNewBrowser } = await import('./async_api.js');
-    const context = await AsyncNewBrowser(browserOptions(args));
+    const context = await AsyncNewBrowser(options);
     return textResult({ browserId: addBrowser(context) });
   }
 
@@ -168,7 +212,28 @@ export async function callWelesMcpTool(
 
   const result = await callPageOperation(name, args);
   if (result) return result;
-  throw new Error(`unknown tool: ${name}`);
+  throw new DeclaredError(causes.TOOL_UNKNOWN, {
+    tool: name,
+    tools: welesMcpTools.map((tool) => tool.name).join(', '),
+  });
+}
+
+/**
+ * A JSON-RPC error of a failure: the declared cause's sentence as the
+ * message and its cause, fix and documentation as `data`. A failure that is
+ * not a declared cause is this server's own defect, answered with its words.
+ */
+function rpcError(error: unknown): {
+  code: number;
+  message: string;
+  data?: unknown;
+} {
+  if (error instanceof DeclaredError)
+    return { code: -32000, message: error.message, data: error.answer() };
+  return {
+    code: -32000,
+    message: `weles mcp failed outside its declared causes, which is its defect: ${error instanceof Error ? error.message : String(error)}`,
+  };
 }
 
 function send(message: JsonRpcResponse | Record<string, unknown>): void {
@@ -208,7 +273,7 @@ async function handle(request: JsonRpcRequest): Promise<void> {
 
     if (request.method === 'tools/call') {
       const { params } = request;
-      if (!params) throw new Error('tools/call carries no params');
+      if (!params) throw new DeclaredError(causes.CALL_WITHOUT_PARAMS);
       const name = asString(params.name, 'name');
       const args =
         params.arguments && typeof params.arguments === 'object'
@@ -219,16 +284,24 @@ async function handle(request: JsonRpcRequest): Promise<void> {
       return;
     }
 
+    const unknown = new DeclaredError(causes.METHOD_UNKNOWN, {
+      method: request.method,
+    });
     send({
       jsonrpc: '2.0',
       id,
       // https://www.jsonrpc.org/specification#error_object (method not found)
-      error: { code: -32601, message: `method not found: ${request.method}` },
+      error: { code: -32601, message: unknown.message, data: unknown.answer() },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    // A refusal raised before any tool was named (tools/call without a name)
+    // names the method it refused.
+    const named =
+      error instanceof DeclaredError
+        ? error.naming({ tool: String(request.method) })
+        : error;
     // https://www.jsonrpc.org/specification#error_object (server error range)
-    send({ jsonrpc: '2.0', id, error: { code: -32000, message } });
+    send({ jsonrpc: '2.0', id, error: rpcError(named) });
   }
 }
 
@@ -248,12 +321,20 @@ export function startMcpServer(): void {
       try {
         request = JSON.parse(line) as JsonRpcRequest;
       } catch (error) {
-        const cause = error instanceof Error ? error.message : String(error);
+        const refused = new DeclaredError(
+          causes.REQUEST_NOT_JSON,
+          { answer: error instanceof Error ? error.message : String(error) },
+          { cause: error },
+        );
         send({
           jsonrpc: '2.0',
           id: null,
           // https://www.jsonrpc.org/specification#error_object (parse error)
-          error: { code: -32700, message: `parse error: ${cause}` },
+          error: {
+            code: -32700,
+            message: refused.message,
+            data: refused.answer(),
+          },
         });
         continue;
       }

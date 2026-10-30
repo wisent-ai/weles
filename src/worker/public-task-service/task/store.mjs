@@ -1,10 +1,11 @@
 import { EventEmitter, once } from 'node:events';
 import { constants as fsMode } from 'node:fs';
 import { mkdir, open, rm } from 'node:fs/promises';
-import { constants as http } from 'node:http2';
 import { join } from 'node:path';
 
-import { PublicTaskError, TERMINAL_STATUSES } from '../wire.mjs';
+import { DeclaredError } from '../../../errors/index.cjs';
+import { causes } from '../../../errors/operations/admission.cjs';
+import { TERMINAL_STATUSES } from '../wire.mjs';
 import { UUID_RE, isObject, sha256 } from '../wire/canonical-json.mjs';
 import { atomicJsonWrite, readJson, syncDirectory } from '../durable-write.mjs';
 
@@ -21,11 +22,10 @@ const RESERVATION_SCHEMA = 'weles.public-task-reservation.v1';
 
 function safeTaskFilename(taskId) {
   if (!UUID_RE.test(taskId))
-    throw new PublicTaskError(
-      http.HTTP_STATUS_BAD_REQUEST,
-      'invalid-task-id',
-      'invalid taskId',
-    );
+    throw new DeclaredError(causes.TASK_ID, {
+      path: `/api/v1/tasks/${taskId}`,
+      task_id: JSON.stringify(taskId),
+    });
   return `task-${taskId.toLowerCase()}.json`;
 }
 
@@ -69,31 +69,45 @@ export function createTaskStore({
     await syncDirectory(mappingRoot);
   }
 
-  /** `task` as the task `taskId` of this organization, or a thrown refusal. */
-  function identified(task, taskId) {
-    if (
-      !isObject(task) ||
-      task.id !== taskId ||
-      !isObject(task.request) ||
-      task.request.organizationId !== organizationId ||
-      typeof task.requestDigest !== 'string' ||
-      !isObject(task.spisBinding) ||
-      !isObject(task.serviceIdentity)
-    ) {
-      throw new Error('public task document failed identity validation');
-    }
-    return task;
+  /** What is wrong with `task` as the task `taskId` of this organization, or null. */
+  function identityProblem(task, taskId) {
+    if (!isObject(task)) return 'the document is not a JSON object';
+    if (task.id !== taskId) return `it names task ${JSON.stringify(task.id)}`;
+    if (!isObject(task.request)) return 'it holds no request';
+    if (task.request.organizationId !== organizationId)
+      return `it belongs to organization ${JSON.stringify(task.request.organizationId)}`;
+    if (typeof task.requestDigest !== 'string')
+      return 'it holds no request digest';
+    if (!isObject(task.spisBinding)) return 'it holds no Spis binding';
+    if (!isObject(task.serviceIdentity)) return 'it holds no service identity';
+    return null;
   }
 
   async function loadTask(taskId) {
-    const read = await present(taskPath(taskId), readJson);
-    if (read.absent)
-      throw new PublicTaskError(
-        http.HTTP_STATUS_NOT_FOUND,
-        'task-not-found',
-        'not found',
+    const file = taskPath(taskId);
+    let read;
+    try {
+      read = await present(file, readJson);
+    } catch (error) {
+      throw new DeclaredError(
+        causes.RECORD_UNREADABLE,
+        { task_id: taskId, file, answer: error.message },
+        { cause: error },
       );
-    return identified(read.value, taskId);
+    }
+    if (read.absent)
+      throw new DeclaredError(causes.TASK_NOT_FOUND, {
+        task_id: taskId,
+        root: taskRoot,
+      });
+    const problem = identityProblem(read.value, taskId);
+    if (problem)
+      throw new DeclaredError(causes.RECORD_UNREADABLE, {
+        task_id: taskId,
+        file,
+        answer: problem,
+      });
+    return read.value;
   }
 
   async function persistTask(task) {
@@ -186,9 +200,16 @@ export function createTaskStore({
       await persistTask(reservation.task);
       return reservation.task;
     }
-    const task = identified(read.value, reservation.taskId);
+    const problem = identityProblem(read.value, reservation.taskId);
+    if (problem)
+      throw new Error(
+        `public task ${reservation.taskId} under ${taskRoot} is not the task its reservation names: ${problem}`,
+      );
+    const task = read.value;
     if (task.requestDigest !== reservation.requestDigest) {
-      throw new Error('public task reservation disagrees with task state');
+      throw new Error(
+        `public task ${reservation.taskId} records request digest ${task.requestDigest}, its reservation ${reservation.requestDigest}`,
+      );
     }
     return task;
   }

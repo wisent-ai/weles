@@ -66,7 +66,8 @@ runtime_required=(
   dist/worker/params/analytics-actions.js
   dist/worker/release/deployment_version.js
   dist/worker/upload-artifacts.js
-  dist/agent/browser-evidence-policy.js
+  dist/agent/browser-evidence-policy/withheld-ledger.js
+  dist/agent/browser-evidence-policy/pinned-network.js
   dist/async_api.js
   dist/state/skarbiec-records.js
   dist/runtime/import.js

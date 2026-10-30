@@ -103,9 +103,14 @@ async function fillCredentialNode(
   } catch (error) {
     if (error instanceof CredentialFillError) throw error;
     // Input libraries can include the typed value in their errors. Keep only
-    // the exception class at this secret boundary, never its message or stack.
+    // the exception class at this secret boundary, never its message or stack;
+    // a thrown value that is no Error is named by its type.
+    const thrown =
+      error instanceof Error
+        ? `${error.name} thrown`
+        : `a ${typeof error} thrown instead of an Error`;
     throw new CredentialFillError(
-      `input or verification failed (${error instanceof Error ? error.name : 'unknown error'})`,
+      `typing into the field or reading it back threw (${thrown}; its message is withheld because it may hold the credential): the field left the page, the page navigated, or the browser closed while typing`,
       origin,
       target,
     );

@@ -1,7 +1,5 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 
-import { PublicTaskError } from '../wire.mjs';
-
 export const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -27,39 +25,38 @@ export function containsLoneSurrogate(value) {
 // serialization, restricted to null, booleans, strings, safe integers, arrays,
 // and plain objects. IEEE-754 fractional values are deliberately outside the
 // public contract so producer and verifier cannot round the same request apart.
-export function canonicalJson(value) {
+//
+// A request reaches this only after admission refused every value it cannot
+// hold (admission/deployment.mjs assertBoundedJson, a declared cause each), so
+// a refusal here is Weles' own defect: a value it built itself that canonical
+// JSON cannot carry. It is thrown naming the value's path and kind.
+export function canonicalJson(value, path = 'value') {
   if (typeof value === 'number' && !Number.isSafeInteger(value)) {
-    throw new PublicTaskError(
-      400,
-      'invalid-json-number',
-      'canonical public JSON permits safe integers only',
+    throw new TypeError(
+      `canonical JSON of ${path} cannot carry ${value}: it permits safe integers only, and the value was built by Weles, not admitted from a request`,
     );
   }
   if (typeof value === 'string' && containsLoneSurrogate(value)) {
-    throw new PublicTaskError(
-      400,
-      'invalid-json-string',
-      'canonical public JSON rejects lone UTF-16 surrogates',
+    throw new TypeError(
+      `canonical JSON of ${path} cannot carry a string holding a lone UTF-16 surrogate, and the value was built by Weles, not admitted from a request`,
     );
   }
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (Array.isArray(value))
+    return `[${value.map((entry, index) => canonicalJson(entry, `${path}[${index}]`)).join(',')}]`;
   if (isObject(value)) {
     const keys = Object.keys(value).sort();
-    if (keys.some(containsLoneSurrogate)) {
-      throw new PublicTaskError(
-        400,
-        'invalid-json-string',
-        'canonical public JSON rejects lone UTF-16 surrogates',
+    const lone = keys.find(containsLoneSurrogate);
+    if (lone !== undefined) {
+      throw new TypeError(
+        `canonical JSON of ${path} cannot carry a key holding a lone UTF-16 surrogate, and the value was built by Weles, not admitted from a request`,
       );
     }
-    return `{${keys.map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
+    return `{${keys.map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key], `${path}.${key}`)}`).join(',')}}`;
   }
   const encoded = JSON.stringify(value);
   if (encoded === undefined)
-    throw new PublicTaskError(
-      400,
-      'invalid-json',
-      'request contains a non-JSON value',
+    throw new TypeError(
+      `canonical JSON of ${path} cannot carry a ${typeof value}, which JSON has no form for`,
     );
   return encoded;
 }

@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { constants as http } from 'node:http2';
+import { dirname } from 'node:path';
 
-import { PublicTaskError, TERMINAL_STATUSES, publicStatus } from './wire.mjs';
+import { DeclaredError } from '../../errors/index.cjs';
+import { causes } from '../../errors/operations/admission.cjs';
+import { TERMINAL_STATUSES, publicStatus } from './wire.mjs';
 import { canonicalJson } from './wire/canonical-json.mjs';
 import {
   idempotencyKey,
@@ -58,11 +61,11 @@ export function createTaskOperations({
     const reservation = await readReservation(key);
     if (!reservation) return null;
     if (reservation.requestDigest !== requestDigest)
-      throw new PublicTaskError(
-        http.HTTP_STATUS_CONFLICT,
-        'idempotency-conflict',
-        'Idempotency-Key is already bound to a different request',
-      );
+      throw new DeclaredError(causes.IDEMPOTENCY_CONFLICT, {
+        key,
+        bound: reservation.requestDigest,
+        digest: requestDigest,
+      });
     return materializeReservation(reservation);
   }
 
@@ -72,57 +75,70 @@ export function createTaskOperations({
     try {
       serviceIdentity = await currentServiceIdentity();
     } catch (error) {
-      // The public answer stays fixed; the service log carries the cause.
-      console.error(
-        `[public-task] service identity unavailable: ${failure(error)}`,
-      );
-      throw new PublicTaskError(
-        http.HTTP_STATUS_SERVICE_UNAVAILABLE,
-        'service-not-ready',
-        'deployed service identity is unavailable or mismatched',
+      // The caller holds the admission bearer, so it is told what failed
+      // with the paths redacted the way every answer is.
+      throw new DeclaredError(
+        causes.IDENTITY_UNREADABLE,
+        { answer: redact(failure(error)) },
+        { cause: error },
       );
     }
-    if (
-      canonicalJson(parsed.spisBinding.service) !==
-      canonicalJson(bindingServiceIdentity(serviceIdentity))
-    )
-      throw new PublicTaskError(
-        http.HTTP_STATUS_FORBIDDEN,
-        'service-identity-mismatch',
-        'spisBinding.service does not match the deployed Weles service identity',
-      );
+    const deployed = bindingServiceIdentity(serviceIdentity);
+    if (canonicalJson(parsed.spisBinding.service) !== canonicalJson(deployed))
+      throw new DeclaredError(causes.IDENTITY_MISMATCH, {
+        bound: canonicalJson(parsed.spisBinding.service),
+        deployed: canonicalJson(deployed),
+      });
     return serviceIdentity;
   }
 
-  /** The network target the URL resolves to, refused publicly with the cause logged. */
+  /**
+   * The network target the URL resolves to, or the declared cause: a host
+   * with no DNS answer, a host on an address that is not public, or address
+   * registries that could not be read to judge it.
+   */
   async function networkTargetFor(url) {
+    const host = new URL(url).hostname;
     try {
       return await resolveTarget(url);
     } catch (error) {
-      console.error(`[public-task] target refused: ${failure(error)}`);
-      throw new PublicTaskError(
-        http.HTTP_STATUS_FORBIDDEN,
-        'network-target-denied',
-        'target did not resolve exclusively to stable public addresses',
+      const answer = failure(error);
+      let cause = causes.TARGET_REGISTRY;
+      if (/^non-public network address denied/.test(answer))
+        cause = causes.TARGET_NOT_PUBLIC;
+      else if (
+        ['ENOTFOUND', 'ENODATA', 'EAI_AGAIN', 'ESERVFAIL'].includes(
+          error?.code,
+        ) ||
+        /^network hostname has no addresses/.test(answer)
+      )
+        cause = causes.TARGET_UNRESOLVED;
+      throw new DeclaredError(cause, { host, answer }, { cause: error });
+    }
+  }
+
+  /** `write`, or the declared cause when the task state cannot be written. */
+  async function recorded(write) {
+    try {
+      return await write();
+    } catch (error) {
+      if (error instanceof DeclaredError) throw error;
+      throw new DeclaredError(
+        causes.STATE_UNWRITABLE,
+        { root: dirname(mappingRoot), answer: redact(failure(error)) },
+        { cause: error },
       );
     }
   }
 
   async function submit(request, body) {
     if (!staticReady)
-      throw new PublicTaskError(
-        http.HTTP_STATUS_SERVICE_UNAVAILABLE,
-        'service-not-ready',
-        'public task prerequisites are not ready',
-      );
-    if (dispatcher.draining())
-      throw new PublicTaskError(
-        http.HTTP_STATUS_SERVICE_UNAVAILABLE,
-        'service-draining',
-        'service is draining',
-      );
-    const key = idempotencyKey(request);
-    const parsed = parseTaskRequest(body, config);
+      throw new DeclaredError(causes.NOT_READY, {
+        prerequisites: JSON.stringify(deployedIdentity.readinessStatus()),
+      });
+    if (dispatcher.draining()) throw new DeclaredError(causes.DRAINING);
+    const key = idempotencyKey(request, '/api/v1/tasks');
+    const parsed = parseTaskRequest(await body(), config);
     await existingSubmission(key, parsed.requestDigest);
     const serviceIdentity = await serviceIdentityFor(parsed);
     const networkTarget = await networkTargetFor(parsed.executionInput.url);
@@ -145,15 +161,15 @@ export function createTaskOperations({
       receipt: null,
       cancellation: null,
     };
-    if (!(await createReservation(key, task))) {
+    if (!(await recorded(() => createReservation(key, task)))) {
       const raced = await existingSubmission(key, parsed.requestDigest);
       if (!raced)
         throw new Error(
-          'idempotency reservation disappeared after a concurrent claim',
+          `the Idempotency-Key reservation another request created for this key disappeared under ${mappingRoot} before it could be read: something other than this worker removed it`,
         );
       return answer(http.HTTP_STATUS_OK, raced);
     }
-    await persistTask(task);
+    await recorded(() => persistTask(task));
     await enqueue(task.id);
     return answer(http.HTTP_STATUS_ACCEPTED, await loadTask(task.id));
   }
@@ -173,8 +189,8 @@ export function createTaskOperations({
   }
 
   async function cancel(request, taskId, body) {
-    const key = idempotencyKey(request);
-    const cancellation = parseCancellation(body, config);
+    const key = idempotencyKey(request, `/api/v1/tasks/${taskId}/cancel`);
+    const cancellation = parseCancellation(await body(), config);
     let controller = null;
     const response = await withTaskLock(taskId, async () => {
       const task = await loadTask(taskId);
@@ -185,11 +201,11 @@ export function createTaskOperations({
         (task.cancellation.idempotencyKey !== key ||
           task.cancellation.reason !== cancellation.reason)
       )
-        throw new PublicTaskError(
-          http.HTTP_STATUS_CONFLICT,
-          'cancellation-conflict',
-          'task already has a different cancellation operation',
-        );
+        throw new DeclaredError(causes.CANCELLATION_CONFLICT, {
+          task_id: taskId,
+          recorded_key: task.cancellation.idempotencyKey,
+          recorded_reason: JSON.stringify(task.cancellation.reason),
+        });
       if (!task.cancellation)
         task.cancellation = {
           idempotencyKey: key,

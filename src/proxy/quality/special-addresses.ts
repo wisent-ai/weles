@@ -9,6 +9,7 @@
 // checks after it are synchronous, so a per-request route handler can call
 // them. A check before the registries were read is refused, never answered.
 import { BlockList, isIP, isIPv6 } from 'node:net';
+import { describeError } from '../../_shared/error-chain/index.cjs';
 
 type Family = 'ipv4' | 'ipv6';
 
@@ -87,7 +88,18 @@ function blockOf(
 
 async function readRegistry(family: Family): Promise<SpecialBlock[]> {
   const address = REGISTRY_CSV[family];
-  const answer = await fetch(address, { headers: { Accept: 'text/csv' } });
+  // fetch's own message is "fetch failed"; what failed (the DNS answer, the
+  // refused connection, the proxy) is in its causes, named here whole.
+  const answer = await fetch(address, {
+    headers: { Accept: 'text/csv' },
+  }).catch((error: unknown) => {
+    throw new Error(
+      `IANA ${address} could not be fetched: ${describeError(error)}`,
+      {
+        cause: error,
+      },
+    );
+  });
   if (!answer.ok)
     throw new Error(`IANA answered ${address} with HTTP ${answer.status}`);
   const [header, ...records] = (await answer.text())

@@ -35,6 +35,14 @@
             "--test",
             "tests/release/placement-journey.mjs"
           ]
+        },
+        {
+          "name": "error-standard",
+          "argv": [
+            "node",
+            "--test",
+            "tests/release/error-standard.mjs"
+          ]
         }
       ],
       "test_products": [
@@ -77,6 +85,14 @@
             "node",
             "--test",
             "tests/release/placement-journey.mjs"
+          ]
+        },
+        {
+          "name": "error-standard",
+          "argv": [
+            "node",
+            "--test",
+            "tests/release/error-standard.mjs"
           ]
         }
       ],

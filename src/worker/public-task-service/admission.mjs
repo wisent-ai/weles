@@ -1,6 +1,9 @@
-import { constants as http } from 'node:http2';
-
-import { PublicTaskError } from './wire.mjs';
+// What the public task API admits: a task, a cancellation, an Idempotency-Key
+// and a bearer. Every refusal is one declared cause of the admission
+// catalogue (src/errors/operations/admission.cjs), naming what failed, why,
+// what was sent and what fixes it.
+import { DeclaredError } from '../../errors/index.cjs';
+import { causes } from '../../errors/operations/admission.cjs';
 import {
   canonicalJson,
   constantTimeTextEqual,
@@ -48,109 +51,93 @@ const CANCELLATION_FIELDS = Object.freeze([
   'schema',
 ]);
 
+/** A value as a refusal shows it: JSON, or what JSON has no form for. */
+function shown(value) {
+  const text = JSON.stringify(value);
+  return text === undefined ? `no value (${typeof value})` : text;
+}
+
 export function parseTaskRequest(body, config) {
   if (!isObject(body) || body.schema !== TASK_SCHEMA) {
-    throw new PublicTaskError(
-      http.HTTP_STATUS_BAD_REQUEST,
-      'unsupported-task-schema',
-      'unsupported task schema',
-    );
+    throw new DeclaredError(causes.TASK_SCHEMA, {
+      expected: TASK_SCHEMA,
+      schema: isObject(body) ? shown(body.schema) : `a ${shown(body)} body`,
+    });
   }
   assertBoundedJson(body, 'task');
-  assertDeclaredFields(body, TASK_FIELDS, 'task', 'invalid-task');
-  if (body.organizationId !== config.organizationId) {
-    throw new PublicTaskError(
-      http.HTTP_STATUS_FORBIDDEN,
-      'organization-denied',
-      'organizationId is outside the authenticated tenant',
-    );
-  }
+  assertDeclaredFields(
+    body,
+    TASK_FIELDS,
+    'task',
+    causes.TASK_FIELDS,
+    TASK_SCHEMA,
+  );
+  if (body.organizationId !== config.organizationId)
+    throw new DeclaredError(causes.ORGANIZATION, {
+      organization: shown(body.organizationId),
+    });
   const origin = exactHttpsOrigin(body.origin);
-  if (!config.allowedOrigins.has('*') && !config.allowedOrigins.has(origin)) {
-    throw new PublicTaskError(
-      http.HTTP_STATUS_FORBIDDEN,
-      'origin-denied',
-      'origin is not allowed by service policy',
-    );
-  }
-  if (body.action !== PUBLIC_ACTION) {
-    throw new PublicTaskError(
-      http.HTTP_STATUS_FORBIDDEN,
-      'action-denied',
-      'action is not allowed by service policy',
-    );
-  }
+  if (!config.allowedOrigins.has('*') && !config.allowedOrigins.has(origin))
+    throw new DeclaredError(causes.ORIGIN_DENIED, {
+      origin,
+      allowed: [...config.allowedOrigins].join(', '),
+    });
+  if (body.action !== PUBLIC_ACTION)
+    throw new DeclaredError(causes.ACTION_DENIED, {
+      action: shown(body.action),
+      allowed: PUBLIC_ACTION,
+    });
   if (!isObject(body.input))
-    throw new PublicTaskError(
-      http.HTTP_STATUS_BAD_REQUEST,
-      'invalid-input',
-      'input must be an object',
-    );
-  assertDeclaredFields(body.input, INPUT_FIELDS, 'task.input', 'invalid-input');
-  assertBoundedJson(body.input);
+    throw new DeclaredError(causes.INPUT_NOT_OBJECT, {
+      input: shown(body.input),
+    });
+  assertDeclaredFields(
+    body.input,
+    INPUT_FIELDS,
+    'task.input',
+    causes.INPUT_FIELDS,
+    TASK_SCHEMA,
+  );
   const url = exactPublicHttpsUrl(body.input.product_url);
-  if (new URL(url).origin !== origin) {
-    throw new PublicTaskError(
-      http.HTTP_STATUS_FORBIDDEN,
-      'origin-target-mismatch',
-      'task origin must equal the exact browser target origin',
-    );
-  }
-  if (
-    typeof body.input.objective !== 'string' ||
-    !body.input.objective.trim()
-  ) {
-    throw new PublicTaskError(
-      http.HTTP_STATUS_BAD_REQUEST,
-      'invalid-input',
-      'input.objective must be a non-empty string',
-    );
-  }
+  const target = new URL(url).origin;
+  if (target !== origin)
+    throw new DeclaredError(causes.TARGET_MISMATCH, { url, origin, target });
+  if (typeof body.input.objective !== 'string' || !body.input.objective.trim())
+    throw new DeclaredError(causes.OBJECTIVE, {
+      objective: shown(body.input.objective),
+    });
   if (
     !Array.isArray(body.input.constraints) ||
     canonicalJson(body.input.constraints) !==
       canonicalJson(config.policy.constraints)
-  ) {
-    throw new PublicTaskError(
-      http.HTTP_STATUS_BAD_REQUEST,
-      'invalid-input',
-      'input.constraints must equal the exact typed browser-evidence constraint array',
-    );
-  }
+  )
+    throw new DeclaredError(causes.CONSTRAINTS, {
+      policy: config.policy.version,
+      constraints: shown(body.input.constraints),
+      expected: shown(config.policy.constraints),
+    });
   const spisBinding = parseSpisBinding(body.input.spisBinding);
   if (
     !Array.isArray(body.credentialRefs) ||
     body.credentialRefs.some(
       (entry) => typeof entry !== 'string' || !entry.trim(),
     )
-  ) {
-    throw new PublicTaskError(
-      http.HTTP_STATUS_BAD_REQUEST,
-      'invalid-credential-refs',
-      'credentialRefs must be a string array',
-    );
-  }
-  if (body.credentialRefs.length) {
-    throw new PublicTaskError(
-      http.HTTP_STATUS_FORBIDDEN,
-      'credential-refs-denied',
-      'browser-evidence tasks cannot receive credential references',
-    );
-  }
-  if (body.evidencePolicy !== 'full') {
-    throw new PublicTaskError(
-      http.HTTP_STATUS_BAD_REQUEST,
-      'invalid-evidence-policy',
-      'browser-evidence tasks require evidencePolicy=full',
-    );
-  }
-  if (typeof body.justification !== 'string' || !body.justification.trim()) {
-    throw new PublicTaskError(
-      http.HTTP_STATUS_BAD_REQUEST,
-      'invalid-justification',
-      'justification must be a non-empty string',
-    );
-  }
+  )
+    throw new DeclaredError(causes.CREDENTIAL_REFS, {
+      value: shown(body.credentialRefs),
+    });
+  if (body.credentialRefs.length)
+    throw new DeclaredError(causes.CREDENTIAL_DENIED, {
+      value: shown(body.credentialRefs),
+    });
+  if (body.evidencePolicy !== 'full')
+    throw new DeclaredError(causes.EVIDENCE_POLICY, {
+      value: shown(body.evidencePolicy),
+    });
+  if (typeof body.justification !== 'string' || !body.justification.trim())
+    throw new DeclaredError(causes.JUSTIFICATION, {
+      value: shown(body.justification),
+    });
   const request = {
     schema: body.schema,
     organizationId: body.organizationId,
@@ -179,51 +166,64 @@ export function parseTaskRequest(body, config) {
 
 export function parseCancellation(body, config) {
   if (!isObject(body) || body.schema !== CANCELLATION_SCHEMA) {
-    throw new PublicTaskError(
-      http.HTTP_STATUS_BAD_REQUEST,
-      'unsupported-cancellation-schema',
-      'unsupported cancellation schema',
-    );
+    throw new DeclaredError(causes.CANCELLATION_SCHEMA, {
+      expected: CANCELLATION_SCHEMA,
+      schema: isObject(body) ? shown(body.schema) : `a ${shown(body)} body`,
+    });
   }
   assertBoundedJson(body, 'cancellation');
   assertDeclaredFields(
     body,
     CANCELLATION_FIELDS,
     'cancellation',
-    'invalid-cancellation',
+    causes.CANCELLATION_FIELDS,
+    CANCELLATION_SCHEMA,
   );
-  if (body.organizationId !== config.organizationId) {
-    throw new PublicTaskError(
-      http.HTTP_STATUS_FORBIDDEN,
-      'organization-denied',
-      'organizationId is outside the authenticated tenant',
-    );
-  }
-  if (typeof body.reason !== 'string' || !body.reason.trim()) {
-    throw new PublicTaskError(
-      http.HTTP_STATUS_BAD_REQUEST,
-      'invalid-cancellation',
-      'reason must be a non-empty string',
-    );
-  }
+  if (body.organizationId !== config.organizationId)
+    throw new DeclaredError(causes.ORGANIZATION, {
+      organization: shown(body.organizationId),
+    });
+  if (typeof body.reason !== 'string' || !body.reason.trim())
+    throw new DeclaredError(causes.REASON, { value: shown(body.reason) });
   return { organizationId: config.organizationId, reason: body.reason };
 }
 
-export function idempotencyKey(request) {
+/** The request's Idempotency-Key, or the declared cause it is refused with. */
+export function idempotencyKey(request, path) {
   const value = request.headers['idempotency-key'];
-  if (typeof value !== 'string' || !IDEMPOTENCY_RE.test(value)) {
-    throw new PublicTaskError(
-      http.HTTP_STATUS_BAD_REQUEST,
-      'invalid-idempotency-key',
-      'valid Idempotency-Key header is required',
-    );
-  }
+  const where = { method: request.method, path };
+  if (typeof value !== 'string')
+    throw new DeclaredError(causes.IDEMPOTENCY_MISSING, where);
+  if (!IDEMPOTENCY_RE.test(value))
+    throw new DeclaredError(causes.IDEMPOTENCY_INVALID, {
+      ...where,
+      key: JSON.stringify(value),
+    });
   return value;
 }
 
-export function bearerAuthorized(request, expected) {
+/**
+ * Nothing when the request carries `expected` as its bearer; otherwise the
+ * declared cause: no bearer at all, or one this worker does not admit. The
+ * presented bearer is never shown, only its length.
+ */
+export function assertBearer(request, expected, path) {
   const authorization = request.headers.authorization;
-  if (typeof authorization !== 'string') return false;
+  const where = { method: request.method, path };
+  if (typeof authorization !== 'string')
+    throw new DeclaredError(causes.BEARER_MISSING, {
+      ...where,
+      authorization: 'none',
+    });
   const match = /^Bearer\s+(?<token>.+)$/i.exec(authorization);
-  return Boolean(match && constantTimeTextEqual(match.groups.token, expected));
+  if (!match)
+    throw new DeclaredError(causes.BEARER_MISSING, {
+      ...where,
+      authorization: `a ${authorization.split(/\s/)[0]} credential, not Bearer`,
+    });
+  if (!constantTimeTextEqual(match.groups.token, expected))
+    throw new DeclaredError(causes.BEARER_WRONG, {
+      ...where,
+      length: match.groups.token.length,
+    });
 }

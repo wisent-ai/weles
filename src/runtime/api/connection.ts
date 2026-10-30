@@ -1,4 +1,6 @@
 import { execFileSync } from 'node:child_process';
+import { DeclaredError, messageOf } from '../../errors/index.cjs';
+import { causes } from '../../errors/operations/executor.cjs';
 import { loopbackHost } from '../../utils/runtime/service-origin.js';
 
 export type WelesApiOptions = {
@@ -24,22 +26,39 @@ const EXECUTOR_BEARER_FIELD = 'token';
 const UUID_TEXT =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const messageOf = (error: unknown) =>
-  error instanceof Error ? error.message : String(error);
-
+/**
+ * One `stado` command's standard output, or the declared cause: Stado cannot
+ * be run at all, or it ran and refused, quoted in its own words.
+ */
 function runStado(args: string[]): string {
+  const program = process.env.WELES_STADO_BIN?.trim() || 'stado';
   try {
-    return execFileSync('stado', args, {
+    return execFileSync(program, args, {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
     });
   } catch (error) {
-    const stderr =
-      error instanceof Error && 'stderr' in error
-        ? String(error.stderr).trim()
-        : '';
-    throw new Error(
-      `stado ${args.join(' ')} failed: ${stderr ? stderr : messageOf(error)}`,
+    const failed = error as NodeJS.ErrnoException & {
+      status?: number | null;
+      signal?: string | null;
+      stderr?: unknown;
+    };
+    const command = args.join(' ');
+    if (failed.code === 'ENOENT' || failed.code === 'EACCES')
+      throw new DeclaredError(
+        causes.STADO_UNAVAILABLE,
+        { command, answer: `${program}: ${messageOf(error)}` },
+        { cause: error },
+      );
+    const said = String(failed.stderr ?? '').trim();
+    throw new DeclaredError(
+      causes.STADO_REFUSED,
+      {
+        command,
+        status: failed.status ?? `on signal ${failed.signal}`,
+        answer: said || 'it printed nothing on standard error',
+      },
+      { cause: error },
     );
   }
 }
@@ -56,23 +75,49 @@ function executorFromStado(options: WelesApiOptions): {
   bearer: string;
 } {
   const stado = options.stado ?? runStado;
-  const route = JSON.parse(
-    stado([
-      'service',
-      'directory',
-      'connect',
-      EXECUTOR_SERVICE,
-      '--consumer',
-      EXECUTOR_CONSUMER,
-      '--no-verify',
-      '--json',
-    ]),
-  ) as { url?: unknown };
-  if (typeof route.url !== 'string' || !route.url) {
-    throw new Error(
-      `stado service directory connect ${EXECUTOR_SERVICE} answered no url`,
+  const connect = [
+    'service',
+    'directory',
+    'connect',
+    EXECUTOR_SERVICE,
+    '--consumer',
+    EXECUTOR_CONSUMER,
+    '--no-verify',
+    '--json',
+  ];
+  let printed: string;
+  try {
+    printed = stado(connect);
+  } catch (error) {
+    // Stado ran and said it places no such service here: no route.
+    if (
+      error instanceof DeclaredError &&
+      error.declared.id === causes.STADO_REFUSED.id
+    )
+      throw new DeclaredError(
+        causes.ROUTE_UNRESOLVED,
+        { answer: error.message },
+        { cause: error },
+      );
+    throw error;
+  }
+  let route: { url?: unknown };
+  try {
+    route = JSON.parse(printed);
+  } catch (error) {
+    throw new DeclaredError(
+      causes.STADO_ANSWER,
+      {
+        command: connect.join(' '),
+        answer: `${printed.length} characters that are not JSON: ${messageOf(error)}`,
+      },
+      { cause: error },
     );
   }
+  if (typeof route?.url !== 'string' || !route.url)
+    throw new DeclaredError(causes.ROUTE_UNRESOLVED, {
+      answer: `stado ${connect.join(' ')} answered no url: ${printed.trim()}`,
+    });
   const bearer = stado([
     'credentials',
     'get',
@@ -86,12 +131,12 @@ function executorFromStado(options: WelesApiOptions): {
 
 function required(value: string | undefined, name: string): string {
   const normalized = value?.trim();
-  if (!normalized) throw new Error(`${name} is required`);
-  if (value !== normalized || /\p{Cc}/u.test(value)) {
-    throw new Error(
-      `${name} contains invalid whitespace or control characters`,
-    );
-  }
+  if (!normalized) throw new DeclaredError(causes.VARIABLE_MISSING, { name });
+  if (value !== normalized || /\p{Cc}/u.test(value))
+    throw new DeclaredError(causes.VARIABLE_INVALID, {
+      name,
+      length: String(value?.length),
+    });
   return normalized;
 }
 
@@ -106,25 +151,24 @@ function apiConnection(
     options.endpoint ?? environment[endpointName],
     endpointName,
   );
-  let base: URL;
-  try {
-    base = new URL(raw);
-  } catch (error) {
-    throw new Error(`${endpointName} must be a URL: ${messageOf(error)}`);
-  }
-  if (base.username || base.password || base.search || base.hash) {
-    throw new Error(
-      `${endpointName} must not contain credentials, query parameters, or a fragment`,
-    );
-  }
-  if (
-    base.protocol !== 'https:' &&
-    !(base.protocol === 'http:' && loopbackHost(base.hostname))
-  ) {
-    throw new Error(
-      `${endpointName} must use HTTPS unless it names a loopback host`,
-    );
-  }
+  const invalid = (answer: string) =>
+    new DeclaredError(causes.ENDPOINT_INVALID, {
+      name: endpointName,
+      value: raw,
+      answer,
+    });
+  if (!URL.canParse(raw)) throw invalid('it does not parse as a URL');
+  const base = new URL(raw);
+  if (base.username || base.password)
+    throw invalid('it carries a user or password');
+  if (base.search || base.hash) throw invalid('it carries a query or fragment');
+  if (base.protocol !== 'https:' && base.protocol !== 'http:')
+    throw invalid(`its scheme is ${base.protocol}`);
+  if (base.protocol === 'http:' && !loopbackHost(base.hostname))
+    throw new DeclaredError(causes.ENDPOINT_INSECURE, {
+      name: endpointName,
+      value: raw,
+    });
   const bearer = required(
     options.bearer ?? environment[bearerName],
     bearerName,
@@ -206,9 +250,12 @@ export function welesApiConnection(
     options.organizationId ?? environment.WISENT_ORGANIZATION_ID,
     'WISENT_ORGANIZATION_ID',
   ).toLowerCase();
-  if (!UUID_TEXT.test(organizationId)) {
-    throw new Error('WISENT_ORGANIZATION_ID must be a UUID');
-  }
+  if (!UUID_TEXT.test(organizationId))
+    throw new DeclaredError(causes.ENDPOINT_INVALID, {
+      name: 'WISENT_ORGANIZATION_ID',
+      value: organizationId,
+      answer: 'an organization id is a UUID',
+    });
   return {
     ...connection,
     organizationId,

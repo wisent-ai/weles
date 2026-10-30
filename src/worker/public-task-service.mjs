@@ -1,8 +1,9 @@
 import { constants as http } from 'node:http2';
 import { join } from 'node:path';
 
+import { DeclaredError } from '../errors/index.cjs';
+import { causes } from '../errors/operations/admission.cjs';
 import {
-  PublicTaskError,
   STATUS_SCHEMA,
   publicTaskErrorResponse,
 } from './public-task-service/wire.mjs';
@@ -10,7 +11,7 @@ import {
   CANCELLATION_SCHEMA,
   PUBLIC_ACTION,
   TASK_SCHEMA,
-  bearerAuthorized,
+  assertBearer,
   createDeployedIdentity,
   loadConfig,
 } from './public-task-service/admission.mjs';
@@ -181,48 +182,46 @@ export function createPublicTaskService(options) {
     const isGet = request.method === 'GET' && Boolean(taskMatch);
     const isCancel = request.method === 'POST' && Boolean(cancelMatch);
     if (!isSubmit && !isGet && !isCancel) return null;
+    const where = { method: request.method, path: url.pathname };
     const stated = request.headers['content-type'];
     const mediaType =
       stated === undefined ? null : stated.split(';')[0].trim().toLowerCase();
-    if ((isSubmit || isCancel) && mediaType !== 'application/json') {
-      throw new PublicTaskError(
-        http.HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE,
-        'unsupported-media-type',
-        mediaType === null
-          ? 'public task bodies require Content-Type: application/json; the request sent no Content-Type'
-          : `public task bodies require Content-Type: application/json; the request sent ${mediaType}`,
-      );
-    }
-    if (!bearerAuthorized(request, config.bearer)) {
-      throw new PublicTaskError(
-        http.HTTP_STATUS_UNAUTHORIZED,
-        'unauthorized',
-        'unauthorized',
-      );
-    }
-    if (isSubmit && dispatcher.dispatcherStatus().recovering) {
-      throw new PublicTaskError(
-        http.HTTP_STATUS_SERVICE_UNAVAILABLE,
-        'worker-recovering',
-        'task admission is paused while the worker recovers its durable state',
-      );
-    }
-    if (isSubmit) return operations.submit(request, await readBody(request));
+    if ((isSubmit || isCancel) && mediaType === null)
+      throw new DeclaredError(causes.MEDIA_TYPE_MISSING, where);
+    if ((isSubmit || isCancel) && mediaType !== 'application/json')
+      throw new DeclaredError(causes.MEDIA_TYPE_WRONG, {
+        ...where,
+        media_type: mediaType,
+      });
+    assertBearer(request, config.bearer, url.pathname);
+    if (isSubmit && dispatcher.dispatcherStatus().recovering)
+      throw new DeclaredError(causes.RECOVERING, {
+        dispatcher: JSON.stringify(dispatcher.dispatcherStatus()),
+      });
+    // The body is read when the operation needs it, so a request refused
+    // before then is refused for that reason and not for its body.
+    const body = () =>
+      readBody(request).catch((error) => {
+        throw new DeclaredError(
+          causes.BODY_NOT_JSON,
+          { ...where, answer: error.message },
+          { cause: error },
+        );
+      });
+    if (isSubmit) return operations.submit(request, body);
     if (isGet) {
       const [, taskId] = taskMatch;
       const wait = url.searchParams.get('wait');
       if (wait === null) return operations.getTask(taskId);
-      if (wait !== 'terminal') {
-        throw new PublicTaskError(
-          http.HTTP_STATUS_BAD_REQUEST,
-          'invalid-wait',
-          'wait accepts only "terminal"',
-        );
-      }
+      if (wait !== 'terminal')
+        throw new DeclaredError(causes.WAIT_INVALID, {
+          path: url.pathname,
+          wait,
+        });
       return operations.awaitTask(taskId);
     }
     const [, cancelId] = cancelMatch;
-    return operations.cancel(request, cancelId, await readBody(request));
+    return operations.cancel(request, cancelId, body);
   }
 
   async function restartWorker() {

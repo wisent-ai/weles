@@ -28,6 +28,7 @@ const COMMANDS: Readonly<Record<string, CliCommand>> = Object.freeze({
   recordings: 'recordings',
   keeper: 'keeper',
   pointer: 'pointer',
+  errors: 'errors',
 });
 
 /** The options that take the argument after them as their value. */

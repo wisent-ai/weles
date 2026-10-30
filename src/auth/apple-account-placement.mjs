@@ -7,6 +7,9 @@
 
 import { spawnSync } from 'node:child_process';
 import { stadoBinary } from '../_shared/skarbiec-runtime.mjs';
+import { DeclaredError } from '../errors/index.cjs';
+import { causes } from '../errors/operations/executor.cjs';
+import { causes as signin } from '../errors/operations/sign-in.cjs';
 
 const EXIT_SUCCESS = 0; // https://pubs.opengroup.org/onlinepubs/9799919799/functions/exit.html EXIT_SUCCESS
 
@@ -16,24 +19,42 @@ const EXIT_SUCCESS = 0; // https://pubs.opengroup.org/onlinepubs/9799919799/func
  * answer carries capabilities, so only its length is named.
  */
 function readStadoJson(argv) {
-  const command = `stado ${argv.join(' ')}`;
-  const result = spawnSync(stadoBinary(), argv, { encoding: 'utf8' });
-  if (result.error) {
-    throw new Error(`${command} could not be run: ${result.error.message}`);
-  }
-  if (result.status !== EXIT_SUCCESS) {
-    let ended = `exited ${result.status}`;
-    if (result.status === null) ended = `ended on signal ${result.signal}`;
-    const said = result.stderr.trim();
-    throw new Error(
-      `${command} ${ended}: ${said === '' ? 'it printed nothing on stderr' : said}`,
+  const command = argv.join(' ');
+  let program;
+  try {
+    program = stadoBinary();
+  } catch (error) {
+    throw new DeclaredError(
+      causes.STADO_UNAVAILABLE,
+      { command, answer: error.message },
+      { cause: error },
     );
+  }
+  const result = spawnSync(program, argv, { encoding: 'utf8' });
+  if (result.error)
+    throw new DeclaredError(
+      causes.STADO_UNAVAILABLE,
+      { command, answer: `${program}: ${result.error.message}` },
+      { cause: result.error },
+    );
+  if (result.status !== EXIT_SUCCESS) {
+    const said = result.stderr.trim();
+    throw new DeclaredError(causes.STADO_REFUSED, {
+      command,
+      status: result.status ?? `on signal ${result.signal}`,
+      answer: said === '' ? 'it printed nothing on standard error' : said,
+    });
   }
   try {
     return JSON.parse(result.stdout);
   } catch (error) {
-    throw new Error(
-      `${command} printed ${result.stdout.length} characters that are not JSON: ${error.message}`,
+    throw new DeclaredError(
+      causes.STADO_ANSWER,
+      {
+        command,
+        answer: `${result.stdout.length} characters that are not JSON: ${error.message}`,
+      },
+      { cause: error },
     );
   }
 }
@@ -50,7 +71,11 @@ function runChallengeCommand(argv, expectedStatus) {
     typeof report.destination !== 'string' ||
     !report.destination
   ) {
-    throw new Error(`Stado did not confirm Apple challenge ${expectedStatus}`);
+    throw new DeclaredError(signin.CHALLENGE_NOT_CONFIRMED, {
+      command: argv.join(' '),
+      expected: expectedStatus,
+      answer: JSON.stringify(report),
+    });
   }
   return report;
 }
@@ -114,9 +139,11 @@ export function issueAppleLoginCapabilities({
     !report.capabilities ||
     typeof report.capabilities !== 'object'
   ) {
-    throw new Error(
-      'Stado did not issue Apple capabilities on the execution host',
-    );
+    // The answer carries capabilities, so only what names them is shown.
+    throw new DeclaredError(signin.CAPABILITIES_NOT_ISSUED, {
+      host: executionHost,
+      answer: `status ${JSON.stringify(report?.status)}, target ${JSON.stringify(report?.target)}, capabilities ${report?.capabilities && typeof report.capabilities === 'object' ? 'present' : 'absent'}`,
+    });
   }
   return report.capabilities;
 }

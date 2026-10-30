@@ -20,6 +20,8 @@ import { runWorker } from './cli/worker/index.js';
 import { runKeeper } from './cli/keeper.js';
 import { runPointer } from './cli/pointer.js';
 import { adoptRecords } from './state/skarbiec-records.js';
+import { DeclaredError } from './errors/index.cjs';
+import { runErrors } from './cli/errors.js';
 import { HELP, UsageError, exitStatusFor, printAnswer } from './cli/usage.js';
 
 export type CliCommand =
@@ -41,7 +43,8 @@ export type CliCommand =
   | 'records'
   | 'recordings'
   | 'keeper'
-  | 'pointer';
+  | 'pointer'
+  | 'errors';
 
 export type ParsedCli = {
   command: CliCommand;
@@ -129,6 +132,7 @@ const COMMAND_RUNS: Readonly<
   recordings: runRecordingsScrub,
   keeper: runKeeper,
   pointer: runPointer,
+  errors: runErrors,
 });
 
 /** The arguments after the interpreter and this script. */
@@ -152,10 +156,24 @@ export async function runCli(argv = commandLine()): Promise<void> {
   await COMMAND_RUNS[parsed.command](parsed);
 }
 
+/**
+ * How a failure is reported: `weles: <what failed, why, observed>` on standard
+ * error, and for a declared cause the fix and the cause's id under it; with
+ * --json the declared cause's answer is also printed as one JSON document on
+ * standard output.
+ */
+function reportFailure(error: unknown, argv: string[]): void {
+  const message = error instanceof Error ? error.message : String(error);
+  process.stderr.write(`weles: ${message}\n`);
+  if (error instanceof DeclaredError) {
+    process.stderr.write(`${error.explanation()}\n`);
+    if (argv.includes('--json'))
+      process.stdout.write(`${JSON.stringify(error.answer(), null, 2)}\n`);
+  }
+  process.exitCode = exitStatusFor(error);
+}
+
 if (require.main === module) {
-  runCli().catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error);
-    process.stderr.write(`weles: ${message}\n`);
-    process.exitCode = exitStatusFor(error);
-  });
+  const argv = commandLine();
+  runCli(argv).catch((error: unknown) => reportFailure(error, argv));
 }
