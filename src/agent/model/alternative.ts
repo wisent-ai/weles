@@ -1,144 +1,98 @@
-// What Weles asks when Brama does not answer it: Stado's capability
-// resolution (`stado capabilities resolve inference --consumer weles`), which
-// proves Brama again and hands out the next alternative the operator
-// declared — any OpenAI-compatible endpoint, its model and the role of the
-// item holding its key — or refuses naming every alternative's product,
-// route and cause. A run therefore stops only when no alternative answers,
-// and then says by name what it could not reach; the report it makes lets
-// Stado record the outage and show which alternative served Weles instead.
-import { execFileSync } from 'node:child_process';
-import type { ModelRouterConfig } from './router-config.js';
+// Where Weles's model request goes when no model route is named, or when the
+// named Brama did not answer: handed whole to Stado (`stado capabilities call
+// inference --consumer weles --json`), which asks the first alternative in
+// its selected order that answers it — Brama, or a statement recorded for
+// that exact request — and prints that answer, or refuses naming every
+// alternative with its cause and the command that answers the kept request.
+// Weles names no alternative and reads no key then, so one Stado gains later
+// is used with no change here.
+import { execFile } from 'node:child_process';
 
 const CONSUMER = 'weles';
-const FAMILY = 'inference';
-const REPORTED = 'brama';
+/** The command each request is handed to. */
+export const STADO_CALL = [
+  'capabilities',
+  'call',
+  'inference',
+  '--consumer',
+  CONSUMER,
+  '--json',
+] as const;
 
-type Unreachable = { product: string; route: string; cause: string };
+/** The command, as refusals and results name it. */
+export const callOperation = `stado ${STADO_CALL.join(' ')}`;
 
-type Answer = {
-  provider: string;
-  route: string;
-  model?: string | null;
-  key_role?: string | null;
-};
+/** Stado could not hand the request to any alternative, or could not run. */
+export class NoAlternativeAnswered extends Error {}
 
-/** One Stado call's printed answer and, when it exited non-zero, why. */
-type Ran = { stdout: string; refused?: string };
-
-const messageOf = (error: unknown) =>
-  error instanceof Error ? error.message : String(error);
-
-function runStado(args: string[]): Ran {
+/** The sentence Stado's failure envelope carries, else its last `Error:` line. */
+function refusalOf(stdout: string, stderr: string): string {
   try {
-    return {
-      stdout: execFileSync('stado', args, {
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'pipe'],
-      }),
-    };
-  } catch (error) {
-    // execFileSync's error carries the exit status and both streams.
-    const exited = error as {
-      status?: number | null;
-      stdout?: unknown;
-      stderr?: unknown;
-    };
-    if (typeof exited.status === 'number')
-      return {
-        stdout: String(exited.stdout ?? '').trim(),
-        refused: `stado ${args.join(' ')} exited ${String(exited.status)}: ${String(exited.stderr ?? '').trim()}`,
-      };
-    throw new Error(
-      `stado ${args.join(' ')} could not run: ${messageOf(error)}`,
-      {
-        cause: error,
-      },
-    );
-  }
-}
-
-/** Every alternative a refusal envelope names, as one sentence. */
-function named(printed: string): string | undefined {
-  try {
-    const envelope = JSON.parse(printed) as {
-      details?: { unreachable?: Unreachable[] };
-    };
-    const items = envelope.details?.unreachable ?? [];
-    const sentence = items
-      .map((item) => `${item.product} at ${item.route}: ${item.cause}`)
-      .join('; ');
-    return sentence || undefined;
+    const envelope = JSON.parse(stdout) as { message?: unknown };
+    if (typeof envelope.message === 'string' && envelope.message)
+      return envelope.message;
   } catch {
-    return undefined;
+    // Not an envelope: Stado ended before printing one.
   }
+  const lines = stderr
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .reverse();
+  const error = lines.find((line) => line.startsWith('Error: '));
+  return error ? error.slice('Error: '.length) : (lines[0] ?? 'it said nothing');
 }
 
 /**
- * The route Weles asks instead of Brama, which did not answer it with
- * `cause`; `brama` is the configuration Brama was asked through, handed back
- * when Stado proves Brama answering again. `failed` reports Brama refused, so
- * Stado proves it again now instead of answering from its kept proof.
+ * One chat-completions `body`, answered by the alternative Stado chose: the
+ * answer's text, as an endpoint would have sent it. Refused with
+ * NoAlternativeAnswered carrying Stado's sentence, or naming the command
+ * when Stado cannot run.
  */
-export function insteadOfBrama(
-  cause: string,
-  brama: ModelRouterConfig,
-  failed: boolean,
-): ModelRouterConfig {
-  const args = ['capabilities', 'resolve', FAMILY, '--consumer', CONSUMER];
-  if (failed) args.push('--failed', REPORTED);
-  args.push('--json');
-  let ran: Ran;
-  try {
-    ran = runStado(args);
-  } catch (error) {
-    throw new Error(
-      `Brama did not answer Weles (${cause}), and no alternative could be asked: ${messageOf(error)}`,
-      { cause: error },
-    );
-  }
-  if (ran.refused !== undefined)
-    throw new Error(
-      `Brama did not answer Weles (${cause}), and no inference alternative answers: ${named(ran.stdout) ?? ran.refused}`,
-    );
-  let answer: Answer;
-  try {
-    answer = JSON.parse(ran.stdout) as Answer;
-  } catch (error) {
-    throw new Error(
-      `Brama did not answer Weles (${cause}); Stado's resolution printed no answer to read: ${ran.stdout.trim()}`,
-      { cause: error },
-    );
-  }
-  if (answer.provider === REPORTED) return brama;
-  if (!answer.model)
-    throw new Error(
-      `Brama did not answer Weles (${cause}); ${answer.provider} at ${answer.route} answers in its place but declares no model: set capabilities.inference.endpoint.model`,
-    );
-  let key: string | undefined;
-  if (answer.key_role) {
-    const read = runStado([
-      'credentials',
-      'get',
-      '--role',
-      answer.key_role,
-      '--field',
-      'token',
-    ]);
-    if (read.refused !== undefined)
-      throw new Error(
-        `Brama did not answer Weles (${cause}); ${answer.provider} at ${answer.route} answers in its place, but the key of role ${answer.key_role} cannot be read: ${read.refused}`,
-      );
-    key = read.stdout.trim();
-  }
-  process.stderr.write(
-    `Brama did not answer Weles (${cause}); asking ${answer.provider} at ${answer.route} for ${answer.model} in its place\n`,
+export function callStado(body: string): Promise<string> {
+  const { promise, resolve, reject } = Promise.withResolvers<string>();
+  const child = execFile(
+    'stado',
+    [...STADO_CALL],
+    { encoding: 'utf8', maxBuffer: Number.MAX_SAFE_INTEGER },
+    (error, stdout, stderr) => {
+      if (error) {
+        if (typeof error.code !== 'number') {
+          reject(
+            new NoAlternativeAnswered(
+              `\`${callOperation}\` could not run: ${error.message}; install Stado, or name a model route with WELES_MODEL_ENDPOINT`,
+              { cause: error },
+            ),
+          );
+          return;
+        }
+        reject(
+          new NoAlternativeAnswered(
+            `no inference alternative answered \`${callOperation}\` (exit ${String(error.code)}): ${refusalOf(stdout, stderr)}`,
+            { cause: error },
+          ),
+        );
+        return;
+      }
+      let printed: { answer?: unknown };
+      try {
+        printed = JSON.parse(stdout) as { answer?: unknown };
+      } catch (parseError) {
+        reject(
+          new Error(
+            `\`${callOperation}\` printed an answer that is not JSON: ${stdout.trim()}`,
+            { cause: parseError },
+          ),
+        );
+        return;
+      }
+      if (printed.answer === undefined || printed.answer === null) {
+        reject(new Error(`\`${callOperation}\` printed no answer: ${stdout.trim()}`));
+        return;
+      }
+      resolve(JSON.stringify(printed.answer));
+    },
   );
-  return {
-    routerUrl: answer.route.replace(/\/+$/, ''),
-    ...(key ? { routerToken: key } : {}),
-    agentId: brama.agentId,
-    model: answer.model,
-    imageModel: answer.model,
-    direct: true,
-  };
+  child.stdin?.end(body);
+  return promise;
 }
