@@ -36,13 +36,18 @@ function modulesUnder(root) {
 const context = vm.createContext({});
 const externals = new Map();
 
-async function external(url) {
-  if (!externals.has(url)) {
-    const namespace = await import(url);
+// An import's attributes (`with { type: 'json' }`) are part of how Node loads
+// it: a JSON module imported without them is refused. They are carried into
+// the import here, and keyed with the URL, so a module the source imports as
+// JSON is checked as the JSON module it is.
+async function external(url, attributes) {
+  const key = `${url}#${JSON.stringify(attributes)}`;
+  if (!externals.has(key)) {
+    const namespace = await import(url, { with: attributes });
     const names = Object.keys(namespace);
-    externals.set(url, { names, namespace });
+    externals.set(key, { names, namespace });
   }
-  const { names, namespace } = externals.get(url);
+  const { names, namespace } = externals.get(key);
   return new vm.SyntheticModule(
     names,
     function init() {
@@ -69,12 +74,13 @@ async function link(path) {
     }
     return graph.get(url);
   };
-  const linker = async (specifier, referencing) => {
+  const linker = async (specifier, referencing, extra) => {
     const url = import.meta.resolve(specifier, referencing.identifier);
     if (url.startsWith('file:') && url.endsWith('.mjs'))
       return sourceModule(url);
-    const key = `external:${url}`;
-    if (!graph.has(key)) graph.set(key, await external(url));
+    const attributes = extra?.attributes ?? extra?.assert ?? {};
+    const key = `external:${url}#${JSON.stringify(attributes)}`;
+    if (!graph.has(key)) graph.set(key, await external(url, attributes));
     return graph.get(key);
   };
   await sourceModule(pathToFileURL(path).href).link(linker);
