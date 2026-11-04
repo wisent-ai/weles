@@ -1,5 +1,5 @@
 import { readFileSync, realpathSync } from 'node:fs';
-import { dirname, join, resolve, sep } from 'node:path';
+import { dirname, isAbsolute, join, normalize, resolve, sep } from 'node:path';
 import { serviceOrigin } from '../../dist/utils/runtime/service-origin.js';
 
 /** The host Figma serves its files from; www.figma.com is a name under it. */
@@ -56,7 +56,25 @@ export function readExportRequest(path) {
     root,
     text(credential?.signingKeyFile, 'credential.signingKeyFile'),
   );
-  const output = join(checkout, 'figma');
+  // The managed directory the export replaces, relative to the checkout:
+  // `figma` unless the request names another one (a repository holding
+  // several design libraries keeps each in its own directory).
+  const managed =
+    input?.output === undefined
+      ? 'figma'
+      : normalize(text(input.output, 'output')).replace(/[\\/]+$/, '');
+  if (
+    isAbsolute(managed) ||
+    managed === '.' ||
+    managed === '..' ||
+    managed.startsWith(`..${sep}`) ||
+    managed.split(/[\\/]/).includes('.git')
+  ) {
+    throw new Error(
+      `design export output must be a directory inside the checkout, relative to it and outside .git: ${JSON.stringify(input.output)}`,
+    );
+  }
+  const output = join(checkout, managed);
   for (const [label, file] of [
     ['request', path],
     ['inventory', inventoryPath],
@@ -66,7 +84,7 @@ export function readExportRequest(path) {
     const actual = realpathSync(file);
     if (actual === output || actual.startsWith(`${output}${sep}`)) {
       throw new Error(
-        `design export ${label} must be outside the managed figma directory`,
+        `design export ${label} must be outside the managed output directory ${managed}`,
       );
     }
   }
@@ -112,6 +130,7 @@ export function readExportRequest(path) {
   });
   return {
     checkout,
+    output: managed,
     remote,
     branch,
     endpoint,

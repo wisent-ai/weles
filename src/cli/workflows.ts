@@ -249,7 +249,12 @@ export async function runRelease(parsed: ParsedCli): Promise<void> {
 /**
  * `weles design export --provider figma --request <file>` exports
  * the inventory named in that request to its existing checkout. The request
- * also names the Git remote, branch and scoped credential acquisition inputs.
+ * also names the Git remote, branch and scoped credential acquisition inputs,
+ * and optionally `output`: the directory, relative to the checkout, the
+ * export replaces, commits and pushes (`figma` when omitted; a repository
+ * with several design libraries names `libraries/<name>/figma`). An output
+ * outside the checkout, the checkout itself, inside `.git`, or an existing
+ * directory without an export inventory is refused.
  * No organization, account, checkout or SSH key is selected by this command.
  *
  * `weles design parse --provider figma <document.json[.gz]>
