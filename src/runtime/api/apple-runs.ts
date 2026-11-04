@@ -154,7 +154,7 @@ export async function issueAppleAuthorization(
 
 /** Start one Apple action detached on the managed executor; the answer is its run id. */
 export async function startAppleRun(
-  action: 'apple_login' | 'apple_create_developer_id',
+  action: 'apple_login' | 'apple_create_developer_id' | 'apple_accept_agreement',
   authorization: AppleAuthorization,
   extraParams: Record<string, string>,
   options: WelesApiOptions = {},

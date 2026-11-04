@@ -23,6 +23,7 @@ const COMMANDS: Readonly<Record<string, CliCommand>> = Object.freeze({
   password: 'password',
   certificate: 'certificate',
   login: 'login',
+  agreement: 'agreement',
   worker: 'worker',
   records: 'records',
   recordings: 'recordings',

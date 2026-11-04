@@ -138,6 +138,8 @@ export const STANDARD_ROUTES: Record<string, (p: string) => string | null> = {
       : `src/trajectories/${p}/login.mjs`,
   create_developer_id: (p) =>
     p === 'apple' ? 'src/trajectories/apple/create_developer_id.mjs' : null,
+  accept_agreement: (p) =>
+    p === 'apple' ? 'src/trajectories/apple/accept_agreement.mjs' : null,
   login_search: (p) =>
     p === 'gmail' ? 'src/trajectories/gmail/gmail_login_search.mjs' : null,
   // Cross-platform OAuth login. Action shape: <platform>_login_via_<provider>,

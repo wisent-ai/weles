@@ -76,7 +76,8 @@ export function applyAppleActionParams(
   }
   if (
     trajPath.endsWith('/apple/login.mjs') ||
-    trajPath.endsWith('/apple/create_developer_id.mjs')
+    trajPath.endsWith('/apple/create_developer_id.mjs') ||
+    trajPath.endsWith('/apple/accept_agreement.mjs')
   ) {
     const guardId = params.apple_auth_guard_id;
     if (

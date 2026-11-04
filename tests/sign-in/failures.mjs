@@ -232,6 +232,38 @@ test('login_refuses_run_without_an_id', async () => {
   failed('run-id-missing', await weles(['login', '--run', ' ']), ['--run']);
 });
 
+/** A complete `weles agreement` start line, with `changes` applied. */
+function agreement(changes = {}) {
+  const args = start({
+    confirm: 'AUTHORIZE ONE APPLE AGREEMENT ACCEPTANCE',
+    ...changes,
+  });
+  args[0] = 'agreement';
+  return args;
+}
+
+test('agreement_refuses_the_login_phrase', async () => {
+  // Accepting Apple's agreement binds the team, so the login's phrase does not
+  // authorize it.
+  failed('confirmation-mismatch', await weles(agreement({ confirm: PHRASE })), [
+    `"${PHRASE}"`,
+  ]);
+});
+
+test('agreement_refuses_a_provider_it_cannot_accept_for', async () => {
+  failed(
+    'provider-unsupported',
+    await weles(agreement({ provider: 'google' })),
+    ['"google"'],
+  );
+});
+
+test('agreement_refuses_run_without_an_id', async () => {
+  failed('run-id-missing', await weles(['agreement', '--run', ' ']), [
+    '--run',
+  ]);
+});
+
 test('login_from_an_install_without_the_issuer_names_the_module', async () => {
   // An install of the built tree alone, without the src/auth it ships.
   const install = join(work, 'install-without-auth');

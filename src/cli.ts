@@ -15,6 +15,7 @@ import { runAccountSecurity } from './cli/security/account-security.js';
 import { runAppPassword } from './cli/security/app-password.js';
 import { runAppleDeveloperId } from './cli/security/apple-developer-id.js';
 import { runAppleLogin } from './cli/security/apple-login.js';
+import { runAppleAgreement } from './cli/security/apple-agreement.js';
 import { runRecordingsScrub } from './cli/security/recordings-scrub.js';
 import { runWorker } from './cli/worker/index.js';
 import { runKeeper } from './cli/keeper.js';
@@ -39,6 +40,7 @@ export type CliCommand =
   | 'password'
   | 'certificate'
   | 'login'
+  | 'agreement'
   | 'worker'
   | 'records'
   | 'recordings'
@@ -127,6 +129,7 @@ const COMMAND_RUNS: Readonly<
   password: runAppPassword,
   certificate: runAppleDeveloperId,
   login: runAppleLogin,
+  agreement: runAppleAgreement,
   worker: runWorker,
   records: runRecords,
   recordings: runRecordingsScrub,

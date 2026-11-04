@@ -83,6 +83,8 @@ Usage:
   weles certificate --run <run-id> --certificate-out <abs> [--private-key <abs> --store-host <host>] [--json]
   weles login --provider apple [--account-role <role>] --confirm "AUTHORIZE ONE APPLE LOGIN" --execution-host <host> --expires-in-minutes <n> [--execution-agent <agent>] [--json]
   weles login --run <run-id> [--json]
+  weles agreement --provider apple [--account-role <role>] --confirm "AUTHORIZE ONE APPLE AGREEMENT ACCEPTANCE" --execution-host <host> --expires-in-minutes <n> [--execution-agent <agent>] [--json]
+  weles agreement --run <run-id> [--json]
   weles worker <status|version|start|stop|restart> [--json]
   weles keeper start --session <id> [--url <url>] [--headless]
   weles keeper <status|stop> --session <id>
