@@ -19,6 +19,20 @@ export const STADO_CALL = [
   '--json',
 ] as const;
 
+/**
+ * The command for one request. A request no alternative answers yet is
+ * waited on until a statement is recorded for it when the run sets
+ * WELES_AWAIT_STATEMENT=1 (Stado's --await-statement), instead of refused:
+ * a run someone attends answers its page questions with `stado capabilities
+ * attestation record`, and the run goes on in the same session; a run
+ * nobody attends leaves it unset and is refused naming the request.
+ */
+function stadoCall(): string[] {
+  return process.env.WELES_AWAIT_STATEMENT === '1'
+    ? [...STADO_CALL, '--await-statement']
+    : [...STADO_CALL];
+}
+
 /** The command, as refusals and results name it. */
 export const callOperation = `stado ${STADO_CALL.join(' ')}`;
 
@@ -53,7 +67,7 @@ export function callStado(body: string): Promise<string> {
   const { promise, resolve, reject } = Promise.withResolvers<string>();
   const child = execFile(
     'stado',
-    [...STADO_CALL],
+    stadoCall(),
     { encoding: 'utf8', maxBuffer: Number.MAX_SAFE_INTEGER },
     (error, stdout, stderr) => {
       if (error) {
