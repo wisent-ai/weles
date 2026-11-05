@@ -155,8 +155,9 @@ record in this vault with weles:record:<kind> from its own context. recordings s
 every session_meta.json under WELES_RECORDINGS_ROOT that still holds env_all, keeping only the
 variable names (env_names) as a new run does, and lists each file it changed or could not read.
 pointer harvest reads the instrumentation dumps of runs a person drove and keeps the pointer's
-travel between presses and the wheel steps in WELES_RECORDINGS_ROOT/pointer-trace.json; every
-move and scroll replays that trace, and a host without one refuses to move the pointer, naming
+travel between presses and the wheel steps in the trace this Weles ships
+(src/human/pointer/pointer-trace.json), committed and released with the code; every move and
+scroll replays that trace, and a Weles released without one refuses to move the pointer, naming
 the file. pointer show says what the trace holds and which dumps it came from.
 errors list names the operations that declare every way they fail; errors show prints one
 operation's causes (what failed, why, the state shown, the fix, the code, the exit status and

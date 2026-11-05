@@ -225,10 +225,16 @@ export function readScopedLogin(serviceName) {
   const service = loginService(serviceName);
   const email = readScopedSecret(serviceName, 'username');
   const password = readScopedSecret(serviceName, 'password');
-  if (!Object.hasOwn(service.fields, 'totp_secret')) return { email, password };
+  // The item the login is stored in, so a sign-in that has to store
+  // something back for this account (its authenticator seed) writes it to
+  // the same item.
+  const loginItem = service.item;
+  if (!Object.hasOwn(service.fields, 'totp_secret'))
+    return { email, password, loginItem };
   return {
     email,
     password,
+    loginItem,
     totpSecret: readScopedSecret(serviceName, 'totp_secret'),
   };
 }

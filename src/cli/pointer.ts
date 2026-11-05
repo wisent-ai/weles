@@ -2,8 +2,8 @@
 //
 //   weles pointer harvest <run>.inst.json... [--json]
 //       harvest the travel between presses and the wheel steps from the named
-//       instrumentation dumps of runs a person drove, into
-//       $WELES_RECORDINGS_ROOT/pointer-trace.json
+//       instrumentation dumps of runs a person drove, into the trace this
+//       Weles ships (src/human/pointer/pointer-trace.json)
 //   weles pointer show [--json]
 //       what the trace holds and where it came from
 import type { ParsedCli } from '../cli.js';

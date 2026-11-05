@@ -27,13 +27,15 @@ const required = (name) => {
 };
 // Throwaway state lives in the checkout's ignored build directory.
 const recordings = join(root, '.build', 'pointer-trace-journey');
+// The journey's own trace file: the packaged one Weles ships is never written.
+const traceFile = join(recordings, 'pointer-trace.json');
 const cli = (...args) => {
   const ran = spawnSync(
     process.execPath,
     [join(root, 'dist/cli.js'), ...args],
     {
       encoding: 'utf8',
-      env: { ...process.env, WELES_RECORDINGS_ROOT: recordings },
+      env: { ...process.env, WELES_RECORDINGS_ROOT: recordings, WELES_POINTER_TRACE: traceFile },
     },
   );
   evidence.report.commands.push({
@@ -126,7 +128,7 @@ try {
   const answer = JSON.parse(harvested.stdout);
   assert.ok(answer.segments, 'the harvest kept no segment of travel');
   assert.ok(answer.wheel_steps, 'the harvest kept no wheel step');
-  assert.ok(existsSync(join(recordings, 'pointer-trace.json')));
+  assert.ok(existsSync(traceFile));
 
   const shown = cli('pointer', 'show', '--json');
   assert.ok(succeeded(shown), shown.stderr);
@@ -134,6 +136,7 @@ try {
 
   // A replayed move ends on the requested target: the first control's corner.
   process.env.WELES_RECORDINGS_ROOT = recordings;
+  process.env.WELES_POINTER_TRACE = traceFile;
   const { seedHumanTiming } = await import(
     join(root, 'dist/utils/motion/timing.js')
   );

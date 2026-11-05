@@ -121,6 +121,7 @@ export function readLoginMaterial(account: LoginAccount): {
   email: string;
   password: string;
   loginMethod: string;
+  loginItem: string;
   totpSecret?: string;
 } {
   const document = readDocument(account.loginItem);
@@ -160,6 +161,7 @@ export function readLoginMaterial(account: LoginAccount): {
     email,
     password: typeof fields.password === 'string' ? fields.password : '',
     loginMethod: account.loginMethod,
+    loginItem: account.loginItem,
     ...(text(fields.totp_secret)
       ? { totpSecret: text(fields.totp_secret) }
       : {}),

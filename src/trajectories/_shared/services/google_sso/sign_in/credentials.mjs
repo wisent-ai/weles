@@ -21,6 +21,7 @@ import {
 } from '../../../profile/google_session.mjs';
 import { resolveOtp } from './challenge/seed.mjs';
 import { completeGooglePhoneApproval } from './challenge/phone.mjs';
+import { enrolAfterApproval } from '../enrol_in_session.mjs';
 import {
   requireAuthenticatorCode,
   selectAuthenticatorMethod,
@@ -227,6 +228,9 @@ export async function enterGoogleCredentials({
     ))
   ) {
     mark('google_2fa_phone', { required: true, method: 'phone' });
+    // The approval signed a seedless account in: its seed is enrolled and
+    // stored now, so no later sign-in of it waits on the phone again.
+    await enrolAfterApproval(page.context(), login.loginItem);
     return;
   }
   if (!(await otpField().isVisible())) {

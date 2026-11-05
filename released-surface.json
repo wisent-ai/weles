@@ -146,6 +146,7 @@
     "mcp:weles_page_evaluate",
     "mcp:weles_page_events",
     "mcp:weles_page_fill",
+    "mcp:weles_page_fill_secret",
     "mcp:weles_page_goto",
     "mcp:weles_page_init_script",
     "mcp:weles_page_new",

@@ -23,6 +23,7 @@ import {
   handleGoogleAuthenticatorTotp,
 } from '../authenticator_challenge.mjs';
 import { onGoogleSignIn } from '../../../profile/google_session.mjs';
+import { enrolAfterApproval } from '../enrol_in_session.mjs';
 
 /** Google's device prompt: approval on the account owner's phone. */
 const DEVICE_PROMPT_ROUTE = '/signin/challenge/dp';
@@ -157,6 +158,10 @@ export async function watchGoogleRedirect(page, session, creds, opts) {
         console.log(
           `[google_sso] device prompt approved; redirected to ${promptUrl}`,
         );
+        // The approval is the one moment a seedless account is signed in:
+        // its seed is enrolled and stored now, so no later sign-in waits on
+        // the phone again.
+        await enrolAfterApproval(page.context(), creds.loginItem);
         return true;
       }
       if (onRoute(promptUrl, [DEVICE_PROMPT_ROUTE, METHOD_SELECTION_ROUTE])) {

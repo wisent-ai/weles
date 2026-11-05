@@ -103,6 +103,26 @@ const browserTools: ToolDefinition[] = [
     ),
   },
   {
+    name: 'weles_page_fill_secret',
+    description:
+      'Fill a CSS selector with one field of a Skarbiec item, read by Weles itself: the value never travels in the call, the answer or the log.',
+    inputSchema: objectSchema(
+      {
+        pageId: { type: 'string' },
+        selector: { type: 'string' },
+        item: {
+          type: 'string',
+          description: 'Skarbiec item id or item uid.',
+        },
+        field: {
+          type: 'string',
+          description: 'Field of the item, for example username or password.',
+        },
+      },
+      ['pageId', 'selector', 'item', 'field'],
+    ),
+  },
+  {
     name: 'weles_page_screenshot',
     description:
       'Capture a Weles page screenshot. Saves to path when provided, otherwise returns base64 PNG.',

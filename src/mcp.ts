@@ -6,6 +6,7 @@ import type { AsyncNewBrowserOptions } from './async_api.js';
 import { DeclaredError } from './errors/index.cjs';
 import { causes, engineCause } from './errors/operations/browser.cjs';
 import { callPageOperation } from './mcp/page-ops.js';
+import { fillSecret } from './mcp/secret-fill.js';
 import {
   addBrowser,
   addPage,
@@ -172,6 +173,8 @@ async function dispatchTool(name: string, args: Record<string, unknown>) {
     await page.locator(selector).fill(asString(args.value, 'value'));
     return textResult({ filled: selector });
   }
+
+  if (name === 'weles_page_fill_secret') return fillSecret(args);
 
   if (name === 'weles_page_screenshot') {
     const page = getPage(args.pageId);
