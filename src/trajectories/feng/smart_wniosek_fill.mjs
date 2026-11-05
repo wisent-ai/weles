@@ -2,7 +2,7 @@
 import { urlMatching } from '../_shared/page/settled.mjs';
 import { operatorAction } from './operator/actions.mjs';
 // Auto-wypełnianie wniosku SMART na generatorze PARP (lsi2.parp.gov.pl)
-// z draftów lokalnych Wisent Polska.
+// z lokalnych draftów wnioskodawcy (katalog podany parserowi).
 //
 // Workflow:
 //   1) parser draftów (parse_drafts.mjs) ekstrahuje JSON {name: {value, length}}
