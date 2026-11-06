@@ -8,6 +8,7 @@
 // thrown with its banSignal attached.
 
 import { assertAuthed, AuthProbeError } from '../auth/auth-probe.mjs';
+import { HEALTH_SIGNAL } from '../auth/ban-signal.mjs';
 import { pageSettled } from '../page/settled.mjs';
 import { checkReachable } from '../action/reachable.mjs';
 
@@ -30,7 +31,7 @@ export async function runAuthGate({ s, cfg, acct, feed, label }) {
     return;
   } catch (error) {
     if (
-      error.banSignal?.signal !== 'checkpoint' ||
+      error.banSignal?.signal !== HEALTH_SIGNAL.checkpoint ||
       typeof cfg.inlineRelogin !== 'function'
     )
       throw error;

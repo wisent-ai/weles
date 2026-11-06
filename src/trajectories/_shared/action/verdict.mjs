@@ -11,7 +11,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
-import { banSignalOf, HEALTH_UNREAD } from '../auth/ban-signal.mjs';
+import { banSignalOf, HEALTH_SIGNAL, HEALTH_UNREAD } from '../auth/ban-signal.mjs';
 
 const INDENT = '  ';
 
@@ -84,6 +84,6 @@ export async function keepVerdict(label, acct, banSignal, run = {}) {
       INDENT,
     ),
   );
-  if (banSignal.signal === 'checkpoint' && acct?.id)
+  if (banSignal.signal === HEALTH_SIGNAL.checkpoint && acct?.id)
     await markCookiesStale(acct.id);
 }

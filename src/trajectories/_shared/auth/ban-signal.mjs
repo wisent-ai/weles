@@ -7,6 +7,20 @@
 
 export const HEALTH_UNREAD = 'health_unread';
 
+// The health signals every platform's probe and detector share: healthy, a
+// checkpoint (signed out, a login recovers it), suspended, shadowbanned, and
+// unknown when a probe read neither a verdict nor a signed-in page. A
+// platform detector may name a narrower signal of its own; these are the
+// ones the shared health and verdict code decide on.
+export const HEALTH_SIGNAL = Object.freeze({
+  healthy: 'healthy',
+  checkpoint: 'checkpoint',
+  suspended: 'suspended',
+  shadowbanned: 'shadowbanned',
+  unknown: 'unknown',
+  unread: HEALTH_UNREAD,
+});
+
 export async function banSignalOf(detect, session, moment) {
   let failure;
   try {

@@ -33,7 +33,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { submitWelesRun } from '../../../dist/worker/run-submit/index.js';
-import { banSignalOf, HEALTH_UNREAD } from './auth/ban-signal.mjs';
+import { banSignalOf, HEALTH_SIGNAL, HEALTH_UNREAD } from './auth/ban-signal.mjs';
 import { navigationRefusal } from './page/navigation/refused.mjs';
 import { HTTP_OK } from '../../worker/weles-api-server/routes/http-status.mjs';
 
@@ -155,16 +155,16 @@ export async function runHealthProbe(cfg) {
   const detected = loggedIn.signal;
 
   let signal;
-  if (extracted.is_suspended) signal = 'suspended';
+  if (extracted.is_suspended) signal = HEALTH_SIGNAL.suspended;
   // A detector that could not read the page decides nothing; the read's own
   // record keeps why.
   else if (detected && !detected.healthy && detected.signal !== HEALTH_UNREAD)
     signal = detected.signal;
-  else if (shadowbanned) signal = 'shadowbanned';
-  else if (extracted.ok || detected?.healthy) signal = 'healthy';
+  else if (shadowbanned) signal = HEALTH_SIGNAL.shadowbanned;
+  else if (extracted.ok || detected?.healthy) signal = HEALTH_SIGNAL.healthy;
   else if (loggedIn.refusal && loggedIn.refusal !== 'reached')
     signal = loggedIn.refusal;
-  else signal = 'unknown';
+  else signal = HEALTH_SIGNAL.unknown;
 
   const snapshot = {
     account_id: acct.id,
@@ -182,11 +182,11 @@ export async function runHealthProbe(cfg) {
   // A checkpoint starts the platform's login for this account, unless its
   // registration never completed.
   const status = acct.metadata?.status;
-  if (signal === 'checkpoint' && acct.id && UNREGISTERED.has(status)) {
+  if (signal === HEALTH_SIGNAL.checkpoint && acct.id && UNREGISTERED.has(status)) {
     snapshot.recovery = {
       skipped: `metadata.status=${status}: registration never completed, so a login cannot recover it`,
     };
-  } else if (signal === 'checkpoint' && acct.id) {
+  } else if (signal === HEALTH_SIGNAL.checkpoint && acct.id) {
     const accountItem = acct.metadata?.login_item;
     snapshot.recovery = { accountItem };
     if (!accountItem)
@@ -219,7 +219,7 @@ export async function runHealthProbe(cfg) {
     throw new Error(
       `HEALTH_RECOVERY_NOT_STARTED: ${acct.username} reads checkpoint and ${snapshot.recovery.error} (snapshot ${filePath})`,
     );
-  if (signal === 'unknown')
+  if (signal === HEALTH_SIGNAL.unknown)
     throw new Error(
       `HEALTH_UNKNOWN: the probe of ${acct.username} read neither a verdict nor a signed-in page (snapshot ${filePath})`,
     );
