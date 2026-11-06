@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { STATUS_CODES } from 'node:http';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { evidenceFor } from './evidence.mjs';
+import { STATUS, evidenceFor } from './evidence.mjs';
 
 // The HTTP status RFC 9110 gives `reason`, read from Node's own table.
 function statusOf(reason) {
@@ -120,7 +120,7 @@ try {
     evidence.runs.add(persisted.value.run_id);
 
   if (persisted.value.status === 'running') {
-    report.status = 'awaiting_observation';
+    report.status = STATUS.awaitingObservation;
     // Not a pass: the run ends unfinished and says how to resume.
     throw new Error(
       'Admission and persisted identity agree; the provider observation is not finished. Resume with --admission-report.',
@@ -142,9 +142,9 @@ try {
     command(binary, ['security', '--run', run.id, '--json']),
   );
   assert.deepEqual(readBack.result, observed);
-  report.status = 'passed';
+  report.status = STATUS.passed;
 } catch (error) {
-  if (report.status !== 'awaiting_observation') report.status = 'failed';
+  if (report.status !== STATUS.awaitingObservation) report.status = STATUS.failed;
   report.error = {
     name: error.name,
     message: error.message,
