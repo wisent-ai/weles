@@ -18,6 +18,13 @@ export const NONTERMINAL_STATUSES = Object.freeze({
   queued: true,
   running: true,
 });
+// The two states this service assigns before a task ends, by name: a task is
+// queued when admitted and running once dispatched; the terminal ones come
+// from terminalCompletion.
+export const TASK_STATUS = Object.freeze({
+  queued: 'queued',
+  running: 'running',
+});
 
 export class EvidenceRetentionError extends Error {
   constructor(code, message) {

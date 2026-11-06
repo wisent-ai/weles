@@ -1,4 +1,5 @@
 import { terminalCompletion } from './completion.mjs';
+import { TASK_STATUS } from '../wire.mjs';
 
 // A promise's outcome as a value: the error stays whole for whoever reports it.
 function settled(promise) {
@@ -108,9 +109,9 @@ export function createDispatcher({
         await retainCompletion(task);
         return;
       }
-      if (task.status !== 'queued' || active.has(task.id)) return;
+      if (task.status !== TASK_STATUS.queued || active.has(task.id)) return;
       controller = new AbortController();
-      task.status = 'running';
+      task.status = TASK_STATUS.running;
       task.startedAt = new Date().toISOString();
       await persistTask(task);
       if (draining || recovering) {

@@ -7,6 +7,7 @@ import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { UUID_RE } from '../wire/canonical-json.mjs';
+import { TASK_STATUS } from '../wire.mjs';
 import { cleanInterruptedTemporaryFiles, readJson } from '../durable-write.mjs';
 import { terminalCompletion } from './completion.mjs';
 
@@ -77,7 +78,7 @@ export function createRecovery({
         ...terminalCompletion(null, true, redact, task.executionInput.url),
         completedAt: new Date().toISOString(),
       };
-    } else if (task.status === 'running') {
+    } else if (task.status === TASK_STATUS.running) {
       task.completion = {
         ...terminalCompletion(
           { ok: false, run_id: task.id },
@@ -114,7 +115,7 @@ export function createRecovery({
       await withTaskLock(taskId, async () => settle(await loadTask(taskId)));
       const recovered = await loadTask(taskId);
       if (
-        recovered.status === 'queued' &&
+        recovered.status === TASK_STATUS.queued &&
         !recovered.completion &&
         !recovered.cancellation
       )

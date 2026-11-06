@@ -4,7 +4,7 @@ import { dirname } from 'node:path';
 
 import { DeclaredError } from '../../errors/index.cjs';
 import { causes } from '../../errors/operations/admission.cjs';
-import { TERMINAL_STATUSES, publicStatus } from './wire.mjs';
+import { TASK_STATUS, TERMINAL_STATUSES, publicStatus } from './wire.mjs';
 import { canonicalJson } from './wire/canonical-json.mjs';
 import {
   idempotencyKey,
@@ -152,7 +152,7 @@ export function createTaskOperations({
       serviceIdentity,
       executionInput: parsed.executionInput,
       networkTarget,
-      status: 'queued',
+      status: TASK_STATUS.queued,
       createdAt: now,
       updatedAt: now,
       result: null,
