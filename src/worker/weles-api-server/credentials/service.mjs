@@ -11,7 +11,12 @@ import {
   createCredentialAuthority,
   CredentialAdmissionError,
 } from './authority.mjs';
-import { createCredentialStore, requestIdentity } from './store.mjs';
+import {
+  advance,
+  createCredentialStore,
+  requestIdentity,
+  unfinished,
+} from './store.mjs';
 import { finishedCredentialReply } from './outcome.mjs';
 import { admittedAcquisition, refusalResponse } from './admission.mjs';
 
@@ -43,7 +48,7 @@ export function createCredentialOperationService({
       record.startedAt ? 'unknown' : 'none',
     );
     record.reply.actionLogId = `credential-${record.request.request_id}`;
-    record.phase = 'finished';
+    advance(record, 'finished');
     record.finishedAt = new Date().toISOString();
     store.save(record);
   }
@@ -61,7 +66,7 @@ export function createCredentialOperationService({
             );
             return;
           }
-          record.phase = 'running';
+          advance(record, 'running');
           record.startedAt = new Date().toISOString();
           store.save(record);
           const out = await runTrajectory({
@@ -70,7 +75,7 @@ export function createCredentialOperationService({
             signal: controller.signal,
           });
           record.reply = finishedCredentialReply(record, task.action, out);
-          record.phase = 'finished';
+          advance(record, 'finished');
           record.finishedAt = new Date().toISOString();
           store.save(record);
         } catch (error) {
@@ -98,13 +103,13 @@ export function createCredentialOperationService({
     running.set(record.request.request_id, { controller, promise });
   }
 
-  // The phases of a credential operation that has not finished: one in them
-  // with no executor here was interrupted.
-  const UNFINISHED = { queued: true, running: true };
+  // A queued or running operation with no executor here was interrupted; one
+  // still admitting is answered by the call admitting it.
+  const EXECUTING = new Set(['queued', 'running']);
 
   function reconcileExecutor(record) {
     if (
-      Object.hasOwn(UNFINISHED, record.phase) &&
+      EXECUTING.has(record.phase) &&
       !running.has(record.request.request_id)
     ) {
       settleFailure(
@@ -182,11 +187,11 @@ export function createCredentialOperationService({
           throw new Error(
             'credential acquisition queued no executable trajectory',
           );
-        record.phase = 'queued';
+        advance(record, 'queued');
         store.save(record);
         start(record, task);
       } else {
-        record.phase = 'finished';
+        advance(record, 'finished');
         record.finishedAt = new Date().toISOString();
         store.save(record);
       }
@@ -201,7 +206,7 @@ export function createCredentialOperationService({
   return {
     recover() {
       for (const record of store.records()) {
-        if (record.phase !== 'finished') {
+        if (unfinished(record.phase)) {
           settleFailure(
             record,
             'WELES_CREDENTIAL_EXECUTION_INTERRUPTED',

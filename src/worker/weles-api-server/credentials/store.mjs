@@ -57,6 +57,38 @@ function requestIdOf(name) {
   return isRequestId(id) ? id : undefined;
 }
 
+/**
+ * The phases a credential operation's record moves through, each with the
+ * phases it may move to: admitted, then queued for its trajectory, running
+ * it, and finished; admission and a failure at any point finish it. A
+ * finished record moves nowhere.
+ */
+export const PHASES = Object.freeze({
+  admitting: Object.freeze(['queued', 'finished']),
+  queued: Object.freeze(['running', 'finished']),
+  running: Object.freeze(['finished']),
+  finished: Object.freeze([]),
+});
+
+/** Whether a record in `phase` has not finished. */
+export function unfinished(phase) {
+  return phase !== 'finished';
+}
+
+/**
+ * Move `record` to `next`, or refuse naming both phases and the moves its
+ * current phase allows: the one place a phase changes.
+ */
+export function advance(record, next) {
+  const allowed = PHASES[record.phase];
+  if (!allowed.includes(next)) {
+    throw new Error(
+      `credential operation ${record.request.request_id} cannot move from ${record.phase} to ${next}; from ${record.phase} it moves to ${allowed.length ? allowed.join(' or ') : 'nothing'}`,
+    );
+  }
+  record.phase = next;
+}
+
 export function createCredentialStore(root) {
   mkdirSync(root, { recursive: true, mode: constants.S_IRWXU });
   function pathFor(id) {
@@ -93,6 +125,13 @@ export function createCredentialStore(root) {
         http.HTTP_STATUS_SERVICE_UNAVAILABLE,
         'WELES_CREDENTIAL_STATE_INVALID',
         `credential admission record identity is invalid: ${path}`,
+      );
+    }
+    if (!Object.hasOwn(PHASES, record.phase)) {
+      throw new CredentialAdmissionError(
+        http.HTTP_STATUS_SERVICE_UNAVAILABLE,
+        'WELES_CREDENTIAL_STATE_INVALID',
+        `credential admission record ${path} names the phase ${JSON.stringify(record.phase)}; the phases are ${Object.keys(PHASES).join(', ')}`,
       );
     }
     return record;
