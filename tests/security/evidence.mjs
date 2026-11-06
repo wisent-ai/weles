@@ -18,6 +18,7 @@ export const STATUS = Object.freeze({
   failed: 'failed',
   awaitingObservation: 'awaiting_observation',
 });
+
 export async function evidenceFor(area) {
   const root = fileURLToPath(new URL('../../', import.meta.url));
   const directory = join(root, 'build/real-tests', area, randomUUID());
