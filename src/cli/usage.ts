@@ -62,7 +62,7 @@ Usage:
   weles onboarding import <trajectory-export.json> --host <managed-worker-hostname> [--subject <stable-id>] [--json]
   weles onboarding verify --receipt <receipt.json> --keys <receipt-keys.json> [--subject <stable-id>] [--json]
   weles import <trajectory-export.json> --host <managed-worker-hostname> [--json]
-  weles open <url> [--headless] [--browser chromium|firefox] [--wait-for-text <text>] [--text] [--screenshot <file>] [--json]
+  weles open <url> --os macos|windows|linux --browser chromium|firefox [--locale <tag>] [--headless] [--wait-for-text <text>] [--text] [--screenshot <file>] [--json]
   weles mcp
   weles release surface [--root <directory>]
   weles release enforce --decision <file> --baseline <file> --declaration <file> --manifest <file> [--json]
@@ -118,7 +118,9 @@ Options:
   --headless              Launch without a visible browser window.
   --browser <name>        Browser engine passed to AsyncNewBrowser: chromium or firefox (required by open).
   --os <name>             Persona OS passed to AsyncNewBrowser: macos, windows or linux (required by open).
-  --locale <locale>       Locale passed to AsyncNewBrowser.
+  --locale <tag>          open: the language the page reads, a BCP 47 tag (pl-PL, de): Chromium's
+                          --lang, Firefox's intl.accept_languages and the Accept-Language header,
+                          as a persona's language sets them; a tag that does not parse is refused.
   --user-data-dir <dir>   Browser profile directory.
   --proxy <url>           Proxy server URL.
   --text                  Print document body text after navigation.

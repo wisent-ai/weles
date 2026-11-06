@@ -28,10 +28,12 @@ export function launchFingerprint(input: {
   persona: Persona | undefined;
   userAgent: string | undefined;
   headless: boolean;
+  /** The page's language: the persona's, else the launch's `locale`. */
+  language?: string;
   /** The measured host surface, given only when the target system is the host's. */
   host?: HostHardware;
 }): RuntimeFingerprintConfig {
-  const { targetOs, browserType, persona, headless, host } = input;
+  const { targetOs, browserType, persona, headless, host, language } = input;
   const isChromium = browserType === 'chromium';
   const size = persona?.screen;
   const sample = new FingerprintGenerator({
@@ -60,17 +62,20 @@ export function launchFingerprint(input: {
   // solver's UA so a returned clearance cookie stays valid).
   if (input.userAgent) fpConfig.navigator.userAgent = input.userAgent;
 
+  if (language) {
+    const n = fpConfig.navigator;
+    n.language = language;
+    // navigator.languages is [primary, bare language] when the primary has a
+    // region tag, as real Firefox and Chrome expand it.
+    const [bare] = language.split('-');
+    n.languages = bare === language ? [language] : [language, bare];
+  }
+
   if (persona) {
     const n = fpConfig.navigator;
     n.platform = persona.platform;
     n.hardwareConcurrency = persona.hardwareConcurrency;
     if (persona.deviceMemory) n.deviceMemory = persona.deviceMemory;
-    n.language = persona.language;
-    // navigator.languages is [primary, bare language] when the primary has a
-    // region tag, as real Firefox and Chrome expand it.
-    const [bare] = persona.language.split('-');
-    n.languages =
-      bare === persona.language ? [persona.language] : [persona.language, bare];
     fpConfig.screen = {
       ...fpConfig.screen,
       width: persona.screen.width,

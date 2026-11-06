@@ -27,6 +27,8 @@ export interface ContextLaunchInput {
   launchOpts: LaunchOptions;
   pageDiagnostics: boolean;
   browserType: string;
+  /** The page's language: the persona's, else the launch's `locale`. */
+  language?: string;
 }
 
 export function readDiagnosticScript(name: string): string {
