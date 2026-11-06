@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { constants as http } from 'node:http2';
 import { parseArgs } from 'node:util';
-import { evidenceFor } from './evidence.mjs';
+import { STATUS, evidenceFor } from './evidence.mjs';
 
 const evidence = await evidenceFor('app-password-account');
 const { report, command, request } = evidence;
@@ -137,7 +137,7 @@ try {
   if (typeof persisted.value.run_id === 'string')
     evidence.runs.add(persisted.value.run_id);
   if (persisted.value.status === 'running') {
-    report.status = 'awaiting_observation';
+    report.status = STATUS.awaitingObservation;
     throw new Error(
       'The actual managed run is still active; resume with --admission-report and the same fixture',
     );
@@ -205,9 +205,9 @@ try {
       'the resulting stored credential must really authenticate to Gmail',
     );
   }
-  report.status = 'passed';
+  report.status = STATUS.passed;
 } catch (error) {
-  if (report.status !== 'awaiting_observation') report.status = 'failed';
+  if (report.status !== STATUS.awaitingObservation) report.status = STATUS.failed;
   report.error = {
     name: error.name,
     message: error.message,

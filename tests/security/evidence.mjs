@@ -8,6 +8,16 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 
+// Where a security journey stands: running until its steps end, then passed
+// or failed, or awaiting_observation when the provider has not finished the
+// run the journey started (not a pass: it ends unfinished and says how to
+// resume).
+export const STATUS = Object.freeze({
+  running: 'running',
+  passed: 'passed',
+  failed: 'failed',
+  awaitingObservation: 'awaiting_observation',
+});
 export async function evidenceFor(area) {
   const root = fileURLToPath(new URL('../../', import.meta.url));
   const directory = join(root, 'build/real-tests', area, randomUUID());
@@ -22,7 +32,7 @@ export async function evidenceFor(area) {
     operations: [],
     recordings: [],
     recording_errors: [],
-    status: 'running',
+    status: STATUS.running,
   };
   const runs = new Set();
   let connection;
@@ -119,7 +129,7 @@ export async function evidenceFor(area) {
           await retain(run);
         } catch (error) {
           report.recording_errors.push({ run_id: run, message: error.message });
-          report.status = 'failed';
+          report.status = STATUS.failed;
           process.exitCode = 1;
         }
       }

@@ -6,7 +6,7 @@ import { readFile } from 'node:fs/promises';
 import { constants as http } from 'node:http2';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { evidenceFor } from './evidence.mjs';
+import { STATUS, evidenceFor } from './evidence.mjs';
 
 /** The command `setting` names, else the one of that name on PATH. */
 function commandNamed(setting, name) {
@@ -176,9 +176,9 @@ try {
     before.value.account_revision,
     'refused enrolment must not change the account or its authenticator',
   );
-  report.status = 'passed';
+  report.status = STATUS.passed;
 } catch (error) {
-  report.status = 'failed';
+  report.status = STATUS.failed;
   report.error = {
     name: error.name,
     message: error.message,
