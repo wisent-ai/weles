@@ -1,5 +1,24 @@
 import { editedValue, normalize, sha256 } from './plan.mjs';
 
+// How a declared choice field is filled: a native <select>, or the
+// autocomplete input LSI2 renders in its place. A plan declares `select`; the
+// page decides whether that select is native or an autocomplete. A field
+// without a control is typed text.
+export const CONTROL = Object.freeze({
+  select: 'select',
+  autocomplete: 'autocomplete',
+});
+
+// The control a declared field carries, refused by name when the plan
+// declares one this module cannot fill.
+function declaredControl(field) {
+  if (field.control === undefined) return undefined;
+  if (field.control === CONTROL.select) return CONTROL.select;
+  throw new Error(
+    `${field.name ?? field.namePattern}: control ${JSON.stringify(field.control)} is not one a plan declares; a plan declares ${CONTROL.select} or no control`,
+  );
+}
+
 export async function oneField(page, name) {
   const matching = page.locator(`[name$=${JSON.stringify(name)}]`);
   await matching.first().waitFor({ state: 'attached' });
@@ -72,15 +91,16 @@ export async function prepareFields(page, declared, plan, scope) {
       }));
       let expected;
       let optionLabel;
-      let control = field.control;
-      if (field.control === 'select' && state.tag !== 'SELECT') {
-        control = 'autocomplete';
+      const declaredKind = declaredControl(field);
+      let control = declaredKind;
+      if (declaredKind === CONTROL.select && state.tag !== 'SELECT') {
+        control = CONTROL.autocomplete;
         const display = await choiceInput(locator).inputValue();
         optionLabel = field.labelIncludes;
         expected = normalize(display).includes(normalize(optionLabel))
           ? before
           : null;
-      } else if (field.control === 'select') {
+      } else if (declaredKind === CONTROL.select) {
         const options = state.options.filter((option) =>
           normalize(option.label).includes(normalize(field.labelIncludes)),
         );
@@ -116,14 +136,14 @@ export async function prepareFields(page, declared, plan, scope) {
 export async function fillPrepared(page, fields) {
   const ordered = [...fields].sort(
     (a, b) =>
-      Number(b.control === 'autocomplete') -
-      Number(a.control === 'autocomplete'),
+      Number(b.control === CONTROL.autocomplete) -
+      Number(a.control === CONTROL.autocomplete),
   );
   for (const field of ordered) {
     if (field.before === field.expected) continue;
     const locator = await oneField(page, field.name);
-    if (field.control === 'select') await locator.selectOption(field.expected);
-    else if (field.control === 'autocomplete') {
+    if (field.control === CONTROL.select) await locator.selectOption(field.expected);
+    else if (field.control === CONTROL.autocomplete) {
       const input = choiceInput(locator);
       await input
         .locator('xpath=ancestor::*[contains(@class,"MuiInputBase-root")][1]')
@@ -191,12 +211,12 @@ export async function verifyPrepared(page, fields) {
     const actual = await locator.inputValue();
     field.actual = actual;
     field.persisted = actual === field.expected;
-    if (field.control === 'select') {
+    if (field.control === CONTROL.select) {
       field.actualLabel = await locator.locator('option:checked').textContent();
       field.persisted &&=
         normalize(field.actualLabel) === normalize(field.optionLabel);
     }
-    if (field.control === 'autocomplete') {
+    if (field.control === CONTROL.autocomplete) {
       const display = choiceInput(locator);
       await page.waitForFunction(
         (element) => element.isConnected && element.value.trim() !== '',
