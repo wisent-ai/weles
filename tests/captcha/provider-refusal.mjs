@@ -38,17 +38,27 @@ const directory = join(
   `provider-refusal-${new Date().toISOString().replace(/[:.]/g, '-')}`,
 );
 const report = {
-  revision: spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim(),
-  dirty: spawnSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: root, encoding: 'utf8' }).stdout,
+  revision: spawnSync('git', ['rev-parse', 'HEAD'], {
+    cwd: root,
+    encoding: 'utf8',
+  }).stdout.trim(),
+  dirty: spawnSync('git', ['status', '--porcelain', '--untracked-files=no'], {
+    cwd: root,
+    encoding: 'utf8',
+  }).stdout,
   refusals: [],
 };
-process.env.WELES_CAPTCHA_CALLBACK_URL = 'https://weles.example/captcha/answers/';
+process.env.WELES_CAPTCHA_CALLBACK_URL =
+  'https://weles.example/captcha/answers/';
 process.env.WELES_CAPTCHA_ANSWERS_DIR = join(directory, 'answers');
 
 after(() => {
   report.captchaLog = captchaSnapshot();
   mkdirSync(directory, { recursive: true });
-  writeFileSync(join(directory, 'report.json'), `${JSON.stringify(report, null, '\t')}\n`);
+  writeFileSync(
+    join(directory, 'report.json'),
+    `${JSON.stringify(report, null, '\t')}\n`,
+  );
 });
 
 // hCaptcha's own demo page, which states the site key it serves in its markup.
@@ -57,8 +67,12 @@ const HCAPTCHA_DEMO = 'https://accounts.hcaptcha.com/demo';
 async function demoSiteKey() {
   const response = await fetch(HCAPTCHA_DEMO);
   const page = await response.text();
-  const sitekey = page.match(/data-sitekey="(?<sitekey>[^"]+)"/)?.groups?.sitekey;
-  assert.ok(sitekey, `${HCAPTCHA_DEMO} answered HTTP ${response.status} without a data-sitekey in its markup`);
+  const sitekey = page.match(/data-sitekey="(?<sitekey>[^"]+)"/)?.groups
+    ?.sitekey;
+  assert.ok(
+    sitekey,
+    `${HCAPTCHA_DEMO} answered HTTP ${response.status} without a data-sitekey in its markup`,
+  );
   report.sitekey = sitekey;
   return sitekey;
 }
@@ -67,7 +81,10 @@ async function demoSiteKey() {
 async function refused(solve, solving) {
   let message;
   await assert.rejects(solving, (error) => {
-    assert.ok(error instanceof Error, `the solve threw ${String(error)}, not an Error`);
+    assert.ok(
+      error instanceof Error,
+      `the solve threw ${String(error)}, not an Error`,
+    );
     message = error.message;
     return true;
   });
@@ -81,25 +98,57 @@ test('every service refusing an hCaptcha task is named in one error', async () =
     anticaptcha: `not-issued-${randomUUID()}`,
     capsolver: `not-issued-${randomUUID()}`,
   });
-  const message = await refused('hcaptcha', solver.solveHcaptcha(sitekey, HCAPTCHA_DEMO));
+  const message = await refused(
+    'hcaptcha',
+    solver.solveHcaptcha(sitekey, HCAPTCHA_DEMO),
+  );
   assert.match(message, /^no captcha service solved hcaptcha: /);
-  assert.match(message, /anticaptcha: anti-captcha refused createTask HCaptchaTaskProxyless: ERROR_KEY_DOES_NOT_EXIST/);
-  assert.match(message, /; capsolver: capsolver refused createTask HCaptchaTaskProxyLess: /);
-  const hcaptchaEvents = captchaSnapshot().events.filter((event) => event.resource === 'hcaptcha');
-  assert.deepEqual(hcaptchaEvents.map((event) => event.outcome), ['all_failed'], JSON.stringify(hcaptchaEvents));
+  assert.match(
+    message,
+    /anticaptcha: anti-captcha refused createTask HCaptchaTaskProxyless: ERROR_KEY_DOES_NOT_EXIST/,
+  );
+  assert.match(
+    message,
+    /; capsolver: capsolver refused createTask HCaptchaTaskProxyLess: /,
+  );
+  const hcaptchaEvents = captchaSnapshot().events.filter(
+    (event) => event.resource === 'hcaptcha',
+  );
+  assert.deepEqual(
+    hcaptchaEvents.map((event) => event.outcome),
+    ['all_failed'],
+    JSON.stringify(hcaptchaEvents),
+  );
   const [event] = hcaptchaEvents;
   assert.deepEqual(
     event.causes.map((cause) => cause.split(':').shift()),
     ['anticaptcha', 'capsolver'],
   );
-  assert.equal(Object.hasOwn(event, 'cost_usd'), false, 'an unsolved challenge was priced');
+  assert.equal(
+    Object.hasOwn(event, 'cost_usd'),
+    false,
+    'an unsolved challenge was priced',
+  );
 });
 
 test('a challenge no held key can solve is refused naming none', async () => {
   const sitekey = await demoSiteKey();
-  const solver = new CaptchaSolver({ anticaptcha: `not-issued-${randomUUID()}` });
-  const message = await refused('turnstile', solver.solveTurnstile(sitekey, HCAPTCHA_DEMO));
-  assert.equal(message, 'no captcha service solves turnstile with a key Weles holds');
-  const failed = captchaSnapshot().events.filter((event) => event.resource === 'turnstile' && event.outcome === 'all_failed');
-  assert.deepEqual(failed.map((event) => event.causes), [[]]);
+  const solver = new CaptchaSolver({
+    anticaptcha: `not-issued-${randomUUID()}`,
+  });
+  const message = await refused(
+    'turnstile',
+    solver.solveTurnstile(sitekey, HCAPTCHA_DEMO),
+  );
+  assert.equal(
+    message,
+    'no captcha service solves turnstile with a key Weles holds',
+  );
+  const failed = captchaSnapshot().events.filter(
+    (event) => event.resource === 'turnstile' && event.outcome === 'all_failed',
+  );
+  assert.deepEqual(
+    failed.map((event) => event.causes),
+    [[]],
+  );
 });

@@ -1,4 +1,5 @@
 anticaptcha_balance
+apple_accept_agreement
 apple_ads_report_harvest
 apple_create_developer_id
 apple_login

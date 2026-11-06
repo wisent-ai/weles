@@ -39,14 +39,19 @@ async function decodedTokenClaims(payload) {
   if (!parsed.ok) return parsed;
   const { value } = parsed;
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    return { ok: false, reason: 'a token-shaped value whose payload is not a JSON object' };
+    return {
+      ok: false,
+      reason: 'a token-shaped value whose payload is not a JSON object',
+    };
   }
   return { ok: true, value };
 }
 
 // A claim's text, trimmed and lowercased, or null when the token states none.
 function claim(claims, name) {
-  return typeof claims[name] === 'string' ? claims[name].trim().toLowerCase() : null;
+  return typeof claims[name] === 'string'
+    ? claims[name].trim().toLowerCase()
+    : null;
 }
 
 // The identities the token-shaped values carry, and what could not be read of
@@ -115,14 +120,19 @@ function storedTokenValues(page) {
         .flatMap((store) => Object.values({ ...store }))
         .filter((value) => typeof value === 'string'),
     ),
-    (cause) => `the authorized context token storage could not be read: ${cause}`,
+    (cause) =>
+      `the authorized context token storage could not be read: ${cause}`,
   );
 }
 
 async function authorizedClaims(page, sink) {
   const stored = await storedTokenValues(page);
   if (!stored.ok) {
-    return { ok: false, reason: stored.reason, ...(await claimedIdentities(sink)) };
+    return {
+      ok: false,
+      reason: stored.reason,
+      ...(await claimedIdentities(sink)),
+    };
   }
   return { ok: true, ...(await claimedIdentities([...stored.value, ...sink])) };
 }
@@ -154,7 +164,10 @@ export async function assertEntraIdentity(session, contract, sink) {
   const { identities } = claims;
   clearBearerTokens(sink);
   if (!identities.length) {
-    const causes = [...(claims.ok ? [] : [claims.reason]), ...claims.unreadable];
+    const causes = [
+      ...(claims.ok ? [] : [claims.reason]),
+      ...claims.unreadable,
+    ];
     return {
       ok: false,
       code: 'ENTRA_IDENTITY_UNVERIFIED',
@@ -214,7 +227,8 @@ export async function tenantOfUpnDomain(accountUpn) {
   const discovery = `${SIGN_IN_ORIGIN}/${encodeURIComponent(domain)}/v2.0/.well-known/openid-configuration`;
   const requested = await settled(
     fetch(discovery),
-    (cause) => `the OpenID configuration of the UPN domain ${domain} could not be requested: ${cause}`,
+    (cause) =>
+      `the OpenID configuration of the UPN domain ${domain} could not be requested: ${cause}`,
   );
   if (!requested.ok) return requested;
   const response = requested.value;
@@ -226,7 +240,8 @@ export async function tenantOfUpnDomain(accountUpn) {
   }
   const read = await settled(
     response.json(),
-    (cause) => `the OpenID configuration of the UPN domain ${domain} was not readable JSON: ${cause}`,
+    (cause) =>
+      `the OpenID configuration of the UPN domain ${domain} was not readable JSON: ${cause}`,
   );
   if (!read.ok) return read;
   const document = read.value;

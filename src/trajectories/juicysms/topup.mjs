@@ -108,9 +108,19 @@ try {
   await required('cardExpiry', card.exp);
   await required('cardCvc', card.cvc);
   if (card.name)
-    await typeInto(s.page, 'input[name="billingName"], input#billingName', card.name, false);
+    await typeInto(
+      s.page,
+      'input[name="billingName"], input#billingName',
+      card.name,
+      false,
+    );
   if (card.zip)
-    await typeInto(s.page, 'input[name="billingPostalCode"], input#billingPostalCode', card.zip, false);
+    await typeInto(
+      s.page,
+      'input[name="billingPostalCode"], input#billingPostalCode',
+      card.zip,
+      false,
+    );
   const pay = s.page
     .locator('button[type="submit"]:has-text("Pay")')
     .filter({ visible: true })

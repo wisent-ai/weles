@@ -8,7 +8,10 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { CostTracker as SharedCostTracker, type CostRecord } from '@wisent/cost-tracker';
+import {
+  CostTracker as SharedCostTracker,
+  type CostRecord,
+} from '@wisent/cost-tracker';
 import { recordCaptchaSolved } from '../../captcha/events.js';
 
 interface CostRollup {
@@ -22,12 +25,20 @@ function storedRollup(path: string): CostRollup {
   try {
     text = readFileSync(path, 'utf8');
   } catch (error) {
-    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return { cost_usd: Number(), service_costs: {} };
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT')
+      return { cost_usd: Number(), service_costs: {} };
     throw error;
   }
   const parsed: unknown = JSON.parse(text);
-  if (!parsed || typeof parsed !== 'object' || !('cost_usd' in parsed) || !('service_costs' in parsed)) {
-    throw new Error(`${path} is not a cost rollup (cost_usd and service_costs)`);
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    !('cost_usd' in parsed) ||
+    !('service_costs' in parsed)
+  ) {
+    throw new Error(
+      `${path} is not a cost rollup (cost_usd and service_costs)`,
+    );
   }
   return parsed as CostRollup;
 }
@@ -37,7 +48,10 @@ function addedTo(rollup: CostRollup, records: CostRecord[]): CostRollup {
   const service_costs = { ...rollup.service_costs };
   let cost_usd = rollup.cost_usd;
   for (const record of records) {
-    service_costs[record.service] = (Object.hasOwn(service_costs, record.service) ? service_costs[record.service] : Number()) + record.cost_usd;
+    service_costs[record.service] =
+      (Object.hasOwn(service_costs, record.service)
+        ? service_costs[record.service]
+        : Number()) + record.cost_usd;
     cost_usd += record.cost_usd;
   }
   return { cost_usd, service_costs };
@@ -91,9 +105,16 @@ class WelesCostTracker {
     const fresh = records.slice(this.written);
     if (!fresh.length) return;
     if (!this.runId) {
-      throw new Error(`ACTION_LOG_ID is not set, so ${fresh.length} cost records of this run have no rollup file to go to`);
+      throw new Error(
+        `ACTION_LOG_ID is not set, so ${fresh.length} cost records of this run have no rollup file to go to`,
+      );
     }
-    const path = join(process.cwd(), 'recordings', '_costs', `${this.runId}.json`);
+    const path = join(
+      process.cwd(),
+      'recordings',
+      '_costs',
+      `${this.runId}.json`,
+    );
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, JSON.stringify(addedTo(storedRollup(path), fresh)));
     this.written = records.length;
@@ -104,7 +125,9 @@ class WelesCostTracker {
     try {
       this.flushLocalSync();
     } catch (flushError) {
-      process.stderr.write(`[cost] cost rollup not written: ${flushError instanceof Error ? flushError.message : String(flushError)}\n`);
+      process.stderr.write(
+        `[cost] cost rollup not written: ${flushError instanceof Error ? flushError.message : String(flushError)}\n`,
+      );
     }
   }
 }

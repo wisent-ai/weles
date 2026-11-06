@@ -97,7 +97,10 @@ export async function admittedReauthAccount(req, selectLoginAccount, purpose) {
     account_revision: account.accountRevision,
     source_revision: RUN_RELEASE_IDENTITY.source_revision,
   };
-  if (body.account_revision && body.account_revision !== account.accountRevision)
+  if (
+    body.account_revision &&
+    body.account_revision !== account.accountRevision
+  )
     throw new RouteRefusal(http.HTTP_STATUS_CONFLICT, {
       ok: false,
       error: 'skarbiec_identity_changed',

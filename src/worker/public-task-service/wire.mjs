@@ -1,11 +1,14 @@
+import { DeclaredError } from '../../errors/index.cjs';
+
 export const STATUS_SCHEMA = 'weles.task-status.v1';
 // The exact status vocabulary this service can put on the wire. `queued` and
 // `running` are the only nonterminal states it assigns; `succeeded`, `failed`
 // and `cancelled` are the only ones terminalCompletion can produce, and
 // receiptFor signs `succeeded` as outcome `completed`. There is no `leased`,
 // `pending_review` or `rejected` status here: a submission this service
-// refuses is an HTTP PublicTaskError with no task and no receipt, never a
-// rejected outcome.
+// refuses is a declared cause of the admission catalogue
+// (src/errors/operations/admission.cjs) answered over HTTP with no task and
+// no receipt, never a rejected outcome.
 export const TERMINAL_STATUSES = Object.freeze({
   succeeded: true,
   failed: true,
@@ -16,13 +19,6 @@ export const NONTERMINAL_STATUSES = Object.freeze({
   running: true,
 });
 
-export class PublicTaskError extends Error {
-  constructor(status, code, message) {
-    super(message);
-    this.status = status;
-    this.code = code;
-  }
-}
 export class EvidenceRetentionError extends Error {
   constructor(code, message) {
     super(message);
@@ -68,12 +64,14 @@ export function publicStatus(task, dispatcher, redact) {
   };
 }
 
+/**
+ * The HTTP answer of a declared refusal: its status, the code the answer has
+ * always carried as `error`, the sentence naming what failed, why and what was
+ * sent, the cause, the fix and whether retrying helps. Null for anything that
+ * is not a declared cause, which the router answers as its own failure.
+ */
 export function publicTaskErrorResponse(error) {
-  if (error instanceof PublicTaskError) {
-    return {
-      status: error.status,
-      payload: { error: error.code, message: error.message },
-    };
-  }
+  if (error instanceof DeclaredError)
+    return { status: error.status, payload: error.answer() };
   return null;
 }

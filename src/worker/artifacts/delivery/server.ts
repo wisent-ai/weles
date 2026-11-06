@@ -49,7 +49,10 @@ function verifiedObjectUri(
 ): string {
   const parts = signedObjectParts(url);
   if (!parts || !/^\d+$/.test(parts.expires))
-    throw new RequestFailure(HTTP_STATUS_FORBIDDEN, 'invalid artifact signature');
+    throw new RequestFailure(
+      HTTP_STATUS_FORBIDDEN,
+      'invalid artifact signature',
+    );
   const uri = canonicalWelesArtifactUri(parts.uri);
   const { expires, signature } = parts;
   const nowSeconds = Math.floor(nowMilliseconds / MILLIS_PER_SECOND);
@@ -63,7 +66,10 @@ function verifiedObjectUri(
     throw new RequestFailure(HTTP_STATUS_FORBIDDEN, 'artifact URL expired');
   const expected = artifactSignature(uri, expires, config.signingSecret);
   if (!constantTimeTextEqual(signature, expected))
-    throw new RequestFailure(HTTP_STATUS_FORBIDDEN, 'invalid artifact signature');
+    throw new RequestFailure(
+      HTTP_STATUS_FORBIDDEN,
+      'invalid artifact signature',
+    );
   return uri;
 }
 

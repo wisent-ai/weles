@@ -241,10 +241,20 @@ export function attachCompleteNetRecord(
     const u = sock.url();
     reqs.push({ t: Date.now(), phase: 'ws-open', url: u });
     sock.on('framesent', (f: { payload: unknown }) => {
-      reqs.push({ t: Date.now(), phase: 'ws-tx', url: u, payload: framePayload(f.payload) });
+      reqs.push({
+        t: Date.now(),
+        phase: 'ws-tx',
+        url: u,
+        payload: framePayload(f.payload),
+      });
     });
     sock.on('framereceived', (f: { payload: unknown }) => {
-      reqs.push({ t: Date.now(), phase: 'ws-rx', url: u, payload: framePayload(f.payload) });
+      reqs.push({
+        t: Date.now(),
+        phase: 'ws-rx',
+        url: u,
+        payload: framePayload(f.payload),
+      });
     });
     sock.on('close', () => {
       reqs.push({ t: Date.now(), phase: 'ws-close', url: u });

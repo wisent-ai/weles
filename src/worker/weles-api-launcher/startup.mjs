@@ -20,14 +20,17 @@ import { notAFile, refuse, run, runAsync, runCommand } from './running.mjs';
  * The address Stado's service directory published for `service` on this host
  * (`~/.stado/forwards/<service>.local`). No port is written here: the
  * resolver adapter's bind is the host's declaration, and a guessed one reaches
- * whatever listens there.
+ * whatever listens there. With `optional`, a host the directory publishes no
+ * such service on (no marker at all) answers `undefined`; a marker that exists
+ * but cannot be read, or is empty, is refused either way.
  */
-function forwardedAddress(service) {
+function forwardedAddress(service, { optional = false } = {}) {
   const marker = join(HOME, '.stado/forwards', `${service}.local`);
   let address = '';
   try {
     address = readFileSync(marker, 'utf8').trim();
   } catch (error) {
+    if (optional && error.code === 'ENOENT') return undefined;
     refuse(
       `no ${service} address: ${marker} cannot be read (${error.message}); let \`stado service directory publish\` write it`,
     );
@@ -150,7 +153,14 @@ export async function startup() {
   // expression would never win. This is the alias Brama serves for Weles; the
   // model behind it is the route table's decision, not this file's.
   process.env.WELES_AGENT_MODEL = 'weles';
-  process.env.STADO_MODEL_ROUTER_URL = forwardedAddress('brama');
+  // Brama is one model route among Stado's alternatives, not a dependency:
+  // a host the directory publishes no Brama on leaves STADO_MODEL_ROUTER_URL
+  // unset, and the agent asks Stado's inference alternatives
+  // (agent/model/router-config.ts). Requiring the marker kept Weles down on
+  // every host without a Brama.
+  const brama = forwardedAddress('brama', { optional: true });
+  if (brama) process.env.STADO_MODEL_ROUTER_URL = brama;
+  else delete process.env.STADO_MODEL_ROUTER_URL;
   process.env.STADO_API_URL = forwardedAddress('stado-object-api');
   process.env.STADO_API_TOKEN = process.env.WELES_STADO_OBJECT_API_TOKEN;
   // Which vault serves Weles is Skarbiec's to choose: the one Stado declares

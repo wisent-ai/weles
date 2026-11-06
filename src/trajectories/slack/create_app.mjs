@@ -35,7 +35,7 @@ const manifest = botManifest();
 // none is refused before the browser starts.
 statedText(
   ['WELES_CREDENTIAL_CONSTRAINTS'],
-  'the Skarbiec item the bot token is stored in (a run\'s constraints, passed by the worker)',
+  "the Skarbiec item the bot token is stored in (a run's constraints, passed by the worker)",
 );
 const login = statedSlackLogin();
 

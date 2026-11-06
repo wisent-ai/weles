@@ -8,13 +8,12 @@ import { solveRecaptchaV2 as solveRecaptchaV2InPage } from '../../recaptcha.js';
 import { markCaptchaChallenge, markAllProvidersFailed } from '../../events.js';
 import {
   apiSolve,
-  proxyTaskFields,
   trySolved,
   unsolved,
   type CaptchaCredentials,
-  type ProxyCredentials,
   type ServiceAttempt,
 } from '../api.js';
+import { proxyTaskFields, type ProxyCredentials } from './proxy.js';
 import {
   solveRecaptchaV2Nopecha,
   solveRecaptchaV2TwoCaptcha,
@@ -41,8 +40,7 @@ export async function solveRecaptchaV2Token(
   // The services solve for a page address; one that names none is refused
   // here rather than sent as an empty websiteURL.
   const url =
-    options?.url ??
-    (typeof page?.url === 'function' ? page.url() : page?.url);
+    options?.url ?? (typeof page?.url === 'function' ? page.url() : page?.url);
   if (!url) {
     markAllProvidersFailed('recaptcha_v2', []);
     throw new Error(

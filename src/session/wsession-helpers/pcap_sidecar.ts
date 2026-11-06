@@ -107,7 +107,10 @@ type SessionOpener = {
 };
 
 /** The CDP session the connection opened for an attached worker, from whichever handle this Playwright exposes; null when neither does. */
-function workerSession(cdp: SessionOpener, sessionId: string): WorkerSession | null {
+function workerSession(
+  cdp: SessionOpener,
+  sessionId: string,
+): WorkerSession | null {
   const viaConnection = cdp._connection?.session?.(sessionId);
   if (viaConnection) return viaConnection;
   const direct = cdp.session?.(sessionId);
@@ -190,7 +193,12 @@ export function attachWorkerInventory(ws: any): void {
         };
         for (const [event, phase] of Object.entries(WORKER_EVENTS)) {
           childCdp.on(event, (ev: unknown) => {
-            we.push({ t: Date.now(), targetId: ti.targetId, phase, payload: ev });
+            we.push({
+              t: Date.now(),
+              targetId: ti.targetId,
+              phase,
+              payload: ev,
+            });
           });
         }
       } else {

@@ -6,12 +6,8 @@
 import { constants } from 'node:http2';
 import { setTimeout as waitFor } from 'node:timers/promises';
 
-import {
-  nopechaProxyFields,
-  providerJson,
-  twoCaptchaSolve,
-  type ProxyCredentials,
-} from '../api.js';
+import { providerJson, twoCaptchaSolve } from '../api.js';
+import { nopechaProxyFields, type ProxyCredentials } from './proxy.js';
 
 // NopeCHA answers a token job it is still solving with HTTP 409 and states
 // the wait before the next read: "Job is incomplete. Recommended wait time
@@ -138,7 +134,9 @@ export async function solveRecaptchaV2Nopecha(
   );
   const jobId = post?.data;
   if (!jobId) {
-    throw new Error(`nopecha recaptcha2 answered no job: ${JSON.stringify(post)}`);
+    throw new Error(
+      `nopecha recaptcha2 answered no job: ${JSON.stringify(post)}`,
+    );
   }
   console.log(`[captcha:api] nopecha recaptcha2 jobId=${jobId}`);
   return nopechaToken('recaptcha2', k, jobId);

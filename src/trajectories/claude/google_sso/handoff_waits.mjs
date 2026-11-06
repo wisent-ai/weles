@@ -104,7 +104,13 @@ function challengeGone() {
  * operator ends a state that never moves with `weles runs cancel`. Answers
  * whether `variant` was one of them.
  */
-export async function awaitPendingVariant({ page, views, active, variant, mark }) {
+export async function awaitPendingVariant({
+  page,
+  views,
+  active,
+  variant,
+  mark,
+}) {
   if (variant === 'claude_gis_gate_pending') {
     // claude.ai enables its Google button itself, or moves on.
     mark('gis_gate_pending');

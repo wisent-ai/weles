@@ -119,14 +119,21 @@ export async function humanMove(
   const off = cdpInput() ? null : await getOffsetFromPage(page);
   const to = { x, y };
   const stated =
-    startX !== undefined && startY !== undefined ? { x: startX, y: startY } : undefined;
+    startX !== undefined && startY !== undefined
+      ? { x: startX, y: startY }
+      : undefined;
   const from = stated ?? lastPointer.get(page) ?? recordedApproach(to);
   await emitPath(page, off, [...replayedPath(from, to), to]);
   lastPointer.set(page, to);
 }
 
 /** A point inside `box`, drawn from the run's seeded timing source: where a hand lands on a target. */
-function pointIn(box: { x: number; y: number; width: number; height: number }): Point {
+function pointIn(box: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}): Point {
   return {
     x: box.x + box.width * humanRandom(),
     y: box.y + box.height * humanRandom(),
@@ -152,7 +159,10 @@ async function press(page: any, point: Point): Promise<void> {
  *
  * Throws when the bounding box can't be resolved — no degraded path.
  */
-export async function humanClickLocator(page: any, locator: any): Promise<void> {
+export async function humanClickLocator(
+  page: any,
+  locator: any,
+): Promise<void> {
   const target = pointIn(await settledTargetBox(page, locator));
   await humanMove(page, target.x, target.y);
   await press(page, target);

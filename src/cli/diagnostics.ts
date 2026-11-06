@@ -135,7 +135,8 @@ function inspectManagedRuntime(): ManagedRuntimeReport {
         : 'this host runs no managed Weles API runtime';
     } else if (!declaredRevision) {
       report.ok = true;
-      report.detail = 'the unit declares no revision, so this reports what is installed and compares nothing';
+      report.detail =
+        'the unit declares no revision, so this reports what is installed and compares nothing';
     } else if (builtRevision !== declaredRevision) {
       report.detail = `the installed runtime is ${builtRevision} and the unit declares ${declaredRevision}; deliver the matching managed Weles release through Stado product delivery`;
     } else {
@@ -167,4 +168,3 @@ function readRevisionMarker(path: string): string | null {
     );
   }
 }
-

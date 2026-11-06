@@ -227,6 +227,7 @@ const RELEASE_ACTIONS: Record<string, Handler> = {
       publishedSurfacePath: requiredOption(parsed, 'published-surface'),
       released: requiredOption(parsed, 'released'),
       reason: requiredOption(parsed, 'reason'),
+      source: requiredOption(parsed, 'source'),
       correcting: optionalOption(parsed, 'correcting'),
       baselinePath: optionalOption(parsed, 'baseline'),
       declarationPath: optionalOption(parsed, 'declaration'),
@@ -248,7 +249,12 @@ export async function runRelease(parsed: ParsedCli): Promise<void> {
 /**
  * `weles design export --provider figma --request <file>` exports
  * the inventory named in that request to its existing checkout. The request
- * also names the Git remote, branch and scoped credential acquisition inputs.
+ * also names the Git remote, branch and scoped credential acquisition inputs,
+ * and optionally `output`: the directory, relative to the checkout, the
+ * export replaces, commits and pushes (`figma` when omitted; a repository
+ * with several design libraries names `libraries/<name>/figma`). An output
+ * outside the checkout, the checkout itself, inside `.git`, or an existing
+ * directory without an export inventory is refused.
  * No organization, account, checkout or SSH key is selected by this command.
  *
  * `weles design parse --provider figma <document.json[.gz]>
@@ -289,11 +295,14 @@ const DESIGN_ACTIONS: Record<string, Handler> = {
 };
 
 export async function runDesign(parsed: ParsedCli): Promise<void> {
+  // The action is read first, so a missing or unknown one is answered with
+  // the actions design takes, as every other command group answers it.
+  const [action] = parsed.positional;
+  const handler = verbHandler('design', DESIGN_ACTIONS, action);
   if (parsed.options.provider !== DESIGN_PROVIDER) {
     throw new UsageError(
       `design needs --provider naming the design tool; Weles implements ${DESIGN_PROVIDER}`,
     );
   }
-  const [action] = parsed.positional;
-  return verbHandler('design', DESIGN_ACTIONS, action)(parsed);
+  return handler(parsed);
 }

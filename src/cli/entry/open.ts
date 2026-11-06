@@ -18,8 +18,19 @@ function cliOptionsToBrowserOptions(
   if (typeof options.browser === 'string')
     browserOptions.browser = options.browser;
   if (typeof options.os === 'string') browserOptions.os = options.os;
-  if (typeof options.locale === 'string')
-    browserOptions.locale = options.locale;
+  if (typeof options.locale === 'string') {
+    // The page's language: Chromium's --lang, Firefox's
+    // intl.accept_languages and the Accept-Language header all take it.
+    let canonical: string;
+    try {
+      [canonical] = Intl.getCanonicalLocales(options.locale);
+    } catch {
+      throw new UsageError(
+        `--locale ${JSON.stringify(options.locale)} is not a BCP 47 language tag; give one such as pl-PL or de`,
+      );
+    }
+    browserOptions.locale = canonical;
+  }
   if (typeof options['user-data-dir'] === 'string')
     browserOptions.userDataDir = options['user-data-dir'];
   if (typeof options.proxy === 'string')

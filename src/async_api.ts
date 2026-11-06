@@ -15,7 +15,7 @@ import {
   customBrowserSearchHint,
   findCustomBrowser,
 } from './session/find_browser.js';
-import type { Persona } from './browser/persona.js';
+import { acceptLanguageFor, type Persona } from './browser/persona.js';
 import {
   CHROMIUM_ARGS,
   type PreparedContextOptions,
@@ -103,12 +103,21 @@ export async function AsyncNewBrowser(
           withScreen: honestScreenEnabled(headless),
         })
       : undefined;
+  // The page's language: the persona's, else the caller's `locale`. It is
+  // set where a real browser sets it (the fingerprint's navigator.language,
+  // Chromium's --lang, Firefox's intl.accept_languages) and in the
+  // Accept-Language header, never through CDP emulation, which pages detect.
+  const language = persona?.language ?? options.locale;
+  const acceptLanguage =
+    persona?.acceptLanguage ??
+    (language ? acceptLanguageFor(browserType, language) : undefined);
   const fpConfig = launchFingerprint({
     targetOs,
     browserType,
     persona,
     userAgent: options.userAgent,
     headless,
+    language,
     host,
   });
   const window = launchWindow({ fpConfig, persona, headless, isChromium });
@@ -119,8 +128,8 @@ export async function AsyncNewBrowser(
     viewport: { width: window.width, height: window.height },
     screen: { width: window.width, height: window.height },
     deviceScaleFactor: window.dpr,
-    ...(persona?.acceptLanguage
-      ? { extraHTTPHeaders: { 'accept-language': persona.acceptLanguage } }
+    ...(acceptLanguage
+      ? { extraHTTPHeaders: { 'accept-language': acceptLanguage } }
       : {}),
   };
   if (evidencePolicy) {
@@ -157,6 +166,7 @@ export async function AsyncNewBrowser(
       launchOpts,
       pageDiagnostics,
       browserType,
+      language,
     });
 
   const args = [...CHROMIUM_ARGS];
@@ -166,12 +176,14 @@ export async function AsyncNewBrowser(
     );
   }
   if (evidencePolicy) args.push(...evidencePolicyArgs());
-  if (persona?.language) args.push(`--lang=${persona.language}`);
+  if (language) args.push(`--lang=${language}`);
   // A provider that intercepts TLS by design is trusted for exactly the
   // authority it declares; every other certificate is verified.
   const intercepting = options.proxy?.tls_spki;
   if (intercepting?.length) {
-    args.push(`--ignore-certificate-errors-spki-list=${intercepting.join(',')}`);
+    args.push(
+      `--ignore-certificate-errors-spki-list=${intercepting.join(',')}`,
+    );
   }
   return launchChromiumContext({
     options,

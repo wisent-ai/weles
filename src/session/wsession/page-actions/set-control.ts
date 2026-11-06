@@ -9,9 +9,7 @@
 
 import type { Frame } from 'playwright';
 import { assertNonCredentialInput } from '../../../utils/capability.js';
-import {
-  assertLiteralControl,
-} from '../../wsession-helpers/close/credential_field/index.js';
+import { assertLiteralControl } from '../../wsession-helpers/close/credential_field/index.js';
 import type { WSession } from '../../wsession.js';
 
 /** Selectors of the messages a form shows beside an invalid field. */

@@ -2,8 +2,8 @@
 //
 //   weles pointer harvest <run>.inst.json... [--json]
 //       harvest the travel between presses and the wheel steps from the named
-//       instrumentation dumps of runs a person drove, into
-//       $WELES_RECORDINGS_ROOT/pointer-trace.json
+//       instrumentation dumps of runs a person drove, into the trace this
+//       Weles ships (src/human/pointer/pointer-trace.json)
 //   weles pointer show [--json]
 //       what the trace holds and where it came from
 import type { ParsedCli } from '../cli.js';
@@ -20,6 +20,8 @@ const USAGE =
 
 export async function runPointer(parsed: ParsedCli): Promise<void> {
   const [verb, ...sources] = parsed.positional;
+  if (verb !== 'harvest' && verb !== 'show')
+    throw new UsageError(`weles pointer takes harvest, show, not ${verb}`);
   if (Object.keys(parsed.options).some((key) => key !== 'json'))
     throw new UsageError(USAGE);
   const json = parsed.options.json === true;

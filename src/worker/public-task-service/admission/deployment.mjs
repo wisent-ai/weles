@@ -1,7 +1,7 @@
 import { createPrivateKey, createPublicKey, KeyObject } from 'node:crypto';
-import { constants as http } from 'node:http2';
 
-import { PublicTaskError } from '../wire.mjs';
+import { DeclaredError } from '../../../errors/index.cjs';
+import { causes } from '../../../errors/operations/admission.cjs';
 import {
   UUID_RE,
   canonicalJson,
@@ -128,20 +128,10 @@ export function loadConfig(environment, policy) {
 // The task's JSON shape: safe integers and no lone surrogates. No length,
 // count or depth is chosen here; which fields exist is assertDeclaredFields'.
 export function assertBoundedJson(value, path = 'input') {
-  if (typeof value === 'string' && containsLoneSurrogate(value)) {
-    throw new PublicTaskError(
-      http.HTTP_STATUS_BAD_REQUEST,
-      'invalid-input',
-      `${path} rejects lone UTF-16 surrogates`,
-    );
-  }
-  if (typeof value === 'number' && !Number.isSafeInteger(value)) {
-    throw new PublicTaskError(
-      http.HTTP_STATUS_BAD_REQUEST,
-      'invalid-input',
-      `${path} permits safe integers only`,
-    );
-  }
+  if (typeof value === 'string' && containsLoneSurrogate(value))
+    throw new DeclaredError(causes.LONE_SURROGATE, { path });
+  if (typeof value === 'number' && !Number.isSafeInteger(value))
+    throw new DeclaredError(causes.UNSAFE_NUMBER, { path, value });
   if (Array.isArray(value)) {
     for (const [index, entry] of value.entries())
       assertBoundedJson(entry, `${path}[${index}]`);
@@ -150,22 +140,20 @@ export function assertBoundedJson(value, path = 'input') {
   if (!isObject(value)) return;
   const entries = Object.entries(value);
   for (const [key, entry] of entries) {
-    if (containsLoneSurrogate(key)) {
-      throw new PublicTaskError(
-        http.HTTP_STATUS_BAD_REQUEST,
-        'invalid-input',
-        `${path} contains a key with a lone UTF-16 surrogate`,
-      );
-    }
+    if (containsLoneSurrogate(key))
+      throw new DeclaredError(causes.LONE_SURROGATE, {
+        path: `a key of ${path}`,
+      });
     assertBoundedJson(entry, `${path}.${key}`);
   }
 }
 
 // Refuses an object whose fields are not exactly the declared ones, naming
-// every undeclared and every missing field by its path. A credential has no
-// field of its own here: it enters a task only as a reference in
-// credentialRefs, so whatever a key is called, an undeclared one is refused.
-export function assertDeclaredFields(value, declared, path, code) {
+// every undeclared and every missing field by its path, as the declared
+// `cause` of that object. A credential has no field of its own here: it
+// enters a task only as a reference in credentialRefs, so whatever a key is
+// called, an undeclared one is refused.
+export function assertDeclaredFields(value, declared, path, cause, schema) {
   const named = (keys) => keys.map((key) => `${path}.${key}`).join(', ');
   const undeclared = Object.keys(value).filter(
     (key) => !declared.includes(key),
@@ -175,70 +163,43 @@ export function assertDeclaredFields(value, declared, path, code) {
   if (undeclared.length) reasons.push(`undeclared fields ${named(undeclared)}`);
   if (missing.length) reasons.push(`missing fields ${named(missing)}`);
   if (!reasons.length) return;
-  throw new PublicTaskError(
-    http.HTTP_STATUS_BAD_REQUEST,
-    code,
-    `${path} has ${reasons.join(' and ')}`,
-  );
+  throw new DeclaredError(cause, {
+    reasons: `${path} has ${reasons.join(' and ')}`,
+    declared: named(declared),
+    schema,
+  });
 }
 
 export function exactHttpsOrigin(value) {
-  if (typeof value !== 'string') {
-    throw new PublicTaskError(
-      http.HTTP_STATUS_BAD_REQUEST,
-      'invalid-origin',
-      'origin must be an exact HTTPS origin',
-    );
-  }
-  let parsed;
-  try {
-    parsed = new URL(value);
-  } catch (error) {
-    throw new PublicTaskError(
-      http.HTTP_STATUS_BAD_REQUEST,
-      'invalid-origin',
-      `origin must be an exact HTTPS origin: ${error.message}`,
-    );
-  }
-  if (parsed.protocol !== 'https:' || parsed.origin !== value) {
-    throw new PublicTaskError(
-      http.HTTP_STATUS_BAD_REQUEST,
-      'invalid-origin',
-      'origin must be an exact HTTPS origin',
-    );
-  }
+  const refused = (answer) =>
+    new DeclaredError(causes.ORIGIN_INVALID, {
+      origin: JSON.stringify(value),
+      answer,
+    });
+  if (typeof value !== 'string') throw refused(`it is a ${typeof value}`);
+  if (!URL.canParse(value)) throw refused('it does not parse as a URL');
+  const parsed = new URL(value);
+  if (parsed.protocol !== 'https:')
+    throw refused(`its scheme is ${parsed.protocol}`);
+  if (parsed.origin !== value)
+    throw refused(`its origin reads as ${parsed.origin}`);
   return value;
 }
 
 export function exactPublicHttpsUrl(value) {
-  if (typeof value !== 'string') {
-    throw new PublicTaskError(
-      http.HTTP_STATUS_BAD_REQUEST,
-      'invalid-input',
-      'input.product_url must be a public HTTPS URL',
-    );
-  }
-  let parsed;
-  try {
-    parsed = new URL(value);
-  } catch (error) {
-    throw new PublicTaskError(
-      http.HTTP_STATUS_BAD_REQUEST,
-      'invalid-input',
-      `input.product_url must be a public HTTPS URL: ${error.message}`,
-    );
-  }
-  if (
-    parsed.protocol !== 'https:' ||
-    parsed.username ||
-    parsed.password ||
-    parsed.toString() !== value
-  ) {
-    throw new PublicTaskError(
-      http.HTTP_STATUS_BAD_REQUEST,
-      'invalid-input',
-      'input.product_url must be exact canonical HTTPS without credentials',
-    );
-  }
+  const refused = (answer) =>
+    new DeclaredError(causes.PRODUCT_URL, {
+      url: JSON.stringify(value),
+      answer,
+    });
+  if (typeof value !== 'string') throw refused(`it is a ${typeof value}`);
+  if (!URL.canParse(value)) throw refused('it does not parse as a URL');
+  const parsed = new URL(value);
+  if (parsed.protocol !== 'https:')
+    throw refused(`its scheme is ${parsed.protocol}`);
+  if (parsed.username || parsed.password)
+    throw refused('it carries a user or password');
+  if (parsed.toString() !== value)
+    throw refused(`written canonically it reads ${parsed.toString()}`);
   return parsed.toString();
 }

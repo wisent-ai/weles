@@ -24,7 +24,9 @@ await runHealthProbe({
       /csrf check failed/i.test(body);
     const profile = body && typeof body === 'object' ? body : {};
     return {
-      ok: Boolean(profile.miniProfile?.entityUrn || profile.plainId || csrfOnly),
+      ok: Boolean(
+        profile.miniProfile?.entityUrn || profile.plainId || csrfOnly,
+      ),
       karma:
         typeof profile.connectionsCount === 'number'
           ? profile.connectionsCount

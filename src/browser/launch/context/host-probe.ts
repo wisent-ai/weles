@@ -60,9 +60,7 @@ async function readSurface(): Promise<PageReading> {
   const nav = navigator as Navigator & {
     deviceMemory?: number;
     userAgentData?: {
-      getHighEntropyValues(
-        hints: string[],
-      ): Promise<Partial<HostClientHints>>;
+      getHighEntropyValues(hints: string[]): Promise<Partial<HostClientHints>>;
     };
   };
   // Gecko exposes neither client hints nor deviceMemory; both stay absent.

@@ -1,3 +1,5 @@
+import { DeclaredError } from '../errors/index.cjs';
+
 // The invocation itself is wrong: a missing argument or flag, an unknown
 // command or action, flags that contradict each other. A class rather than a
 // phrase, so the entry point tells it from a failure of a well-formed command
@@ -15,8 +17,13 @@ const USAGE_STATUS = 2; // https://www.gnu.org/software/bash/manual/html_node/Ex
 /** The status of any other failure, and of a command whose run answered a failure. */
 export const FAILURE_STATUS = 1; // https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/stdlib.h.html
 
-/** The exit status for a failure the CLI caught. */
+/**
+ * The exit status for a failure the CLI caught: a declared cause's own (2 for
+ * a usage refusal, 69 when retrying unchanged can help, 1 otherwise), 2 for
+ * any other usage error, 1 for everything else.
+ */
 export function exitStatusFor(error: unknown): number {
+  if (error instanceof DeclaredError) return error.exitCode;
   return error instanceof UsageError ? USAGE_STATUS : FAILURE_STATUS;
 }
 
@@ -55,12 +62,12 @@ Usage:
   weles onboarding import <trajectory-export.json> --host <managed-worker-hostname> [--subject <stable-id>] [--json]
   weles onboarding verify --receipt <receipt.json> --keys <receipt-keys.json> [--subject <stable-id>] [--json]
   weles import <trajectory-export.json> --host <managed-worker-hostname> [--json]
-  weles open <url> [--headless] [--browser chromium|firefox] [--wait-for-text <text>] [--text] [--screenshot <file>] [--json]
+  weles open <url> --os macos|windows|linux --browser chromium|firefox [--locale <tag>] [--headless] [--wait-for-text <text>] [--text] [--screenshot <file>] [--json]
   weles mcp
   weles release surface [--root <directory>]
   weles release enforce --decision <file> --baseline <file> --declaration <file> --manifest <file> [--json]
   weles release validate --manifest <file> --source-revision <sha> --candidate-tag <tag> [--json]
-  weles release adopt --released <version> --published-surface <file> --reason <text> [--correcting <version>] [--json]
+  weles release adopt --released <version> --published-surface <file> --reason <text> --source <published artifact> [--correcting <version>] [--json]
   weles design export --provider figma --request <export-request.json>
   weles design parse --provider figma <document.json[.gz]> <summary.json> <nodes.json> [<vocabulary.json>]
   weles runs list [--json]
@@ -76,6 +83,8 @@ Usage:
   weles certificate --run <run-id> --certificate-out <abs> [--private-key <abs> --store-host <host>] [--json]
   weles login --provider apple [--account-role <role>] --confirm "AUTHORIZE ONE APPLE LOGIN" --execution-host <host> --expires-in-minutes <n> [--execution-agent <agent>] [--json]
   weles login --run <run-id> [--json]
+  weles agreement --provider apple [--account-role <role>] --confirm "AUTHORIZE ONE APPLE AGREEMENT ACCEPTANCE" --execution-host <host> --expires-in-minutes <n> [--execution-agent <agent>] [--json]
+  weles agreement --run <run-id> [--json]
   weles worker <status|version|start|stop|restart> [--json]
   weles keeper start --session <id> [--url <url>] [--headless]
   weles keeper <status|stop> --session <id>
@@ -83,6 +92,9 @@ Usage:
   weles recordings scrub [--json]
   weles pointer harvest <run>.inst.json... [--json]
   weles pointer show [--json]
+  weles errors list [--json]
+  weles errors show <operation> [--json]
+  weles errors check [--root <checkout>] [--json]
   weles doctor [--json]
   weles version
 
@@ -106,7 +118,9 @@ Options:
   --headless              Launch without a visible browser window.
   --browser <name>        Browser engine passed to AsyncNewBrowser: chromium or firefox (required by open).
   --os <name>             Persona OS passed to AsyncNewBrowser: macos, windows or linux (required by open).
-  --locale <locale>       Locale passed to AsyncNewBrowser.
+  --locale <tag>          open: the language the page reads, a BCP 47 tag (pl-PL, de): Chromium's
+                          --lang, Firefox's intl.accept_languages and the Accept-Language header,
+                          as a persona's language sets them; a tag that does not parse is refused.
   --user-data-dir <dir>   Browser profile directory.
   --proxy <url>           Proxy server URL.
   --text                  Print document body text after navigation.
@@ -143,7 +157,12 @@ record in this vault with weles:record:<kind> from its own context. recordings s
 every session_meta.json under WELES_RECORDINGS_ROOT that still holds env_all, keeping only the
 variable names (env_names) as a new run does, and lists each file it changed or could not read.
 pointer harvest reads the instrumentation dumps of runs a person drove and keeps the pointer's
-travel between presses and the wheel steps in WELES_RECORDINGS_ROOT/pointer-trace.json; every
-move and scroll replays that trace, and a host without one refuses to move the pointer, naming
+travel between presses and the wheel steps in the trace this Weles ships
+(src/human/pointer/pointer-trace.json), committed and released with the code; every move and
+scroll replays that trace, and a Weles released without one refuses to move the pointer, naming
 the file. pointer show says what the trace holds and which dumps it came from.
+errors list names the operations that declare every way they fail; errors show prints one
+operation's causes (what failed, why, the state shown, the fix, the code, the exit status and
+the test that provokes it); errors check refuses a declaration that lacks one of them and a
+generic error sentence in the source, one that names no failed step, cause or fix.
 `;

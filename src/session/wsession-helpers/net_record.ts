@@ -19,10 +19,10 @@ import {
   attachServiceWorkers,
   attachCdpLifecycle,
   attachStdoutCapture,
-  captureHostSnapshots,
   captureFinalCdpSnapshots,
   attachPagePlaywrightEvents,
 } from './capture_extras.js';
+import { captureHostSnapshots } from './capture/host_snapshots.js';
 import { startPcap, stopPcap, attachWorkerInventory } from './pcap_sidecar.js';
 import { recordingsDir } from '../run-recordings.js';
 import { attachInstrumentationCheckpoints } from './capture/checkpoints/activity.js';

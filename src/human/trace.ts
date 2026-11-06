@@ -29,7 +29,8 @@ function trace(): PointerTrace {
 /** One of `items`, drawn from the run's seeded timing source. */
 function drawn<T>(items: readonly T[]): T {
   const item = items[humanIndex(items.length)];
-  if (item === undefined) throw new Error('the pointer trace holds nothing to draw from');
+  if (item === undefined)
+    throw new Error('the pointer trace holds nothing to draw from');
   return item;
 }
 

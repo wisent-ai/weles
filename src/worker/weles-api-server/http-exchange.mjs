@@ -75,7 +75,10 @@ export function redactSecrets(obj) {
 export function requireTokenAuthorization(req, res) {
   if (tokenAuthorized(req)) return true;
   if (TOKEN)
-    json(res, http.HTTP_STATUS_UNAUTHORIZED, { ok: false, error: 'unauthorized' });
+    json(res, http.HTTP_STATUS_UNAUTHORIZED, {
+      ok: false,
+      error: 'unauthorized',
+    });
   else
     json(res, http.HTTP_STATUS_INTERNAL_SERVER_ERROR, {
       ok: false,

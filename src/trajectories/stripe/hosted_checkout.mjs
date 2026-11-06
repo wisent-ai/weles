@@ -190,7 +190,12 @@ export async function payHostedCheckout(s, { card, email }) {
       card.exp,
       true,
     );
-    await typeInto(page, 'input[name="cardCvc"], input#cardCvc', card.cvc, true);
+    await typeInto(
+      page,
+      'input[name="cardCvc"], input#cardCvc',
+      card.cvc,
+      true,
+    );
     console.log('[stripe-checkout] filled the page form');
   } else {
     const filled = await fillStripeElements(page, {

@@ -19,24 +19,40 @@ const scripts = ['property_trap.js', 'input_recorder.js'].map((name) =>
 );
 const required = (name) => {
   const value = process.env[name];
-  if (!value?.trim()) throw new Error(`${name} is required: it names the real Chromium the journey drives`);
+  if (!value?.trim())
+    throw new Error(
+      `${name} is required: it names the real Chromium the journey drives`,
+    );
   return value;
 };
 // Throwaway state lives in the checkout's ignored build directory.
 const recordings = join(root, '.build', 'pointer-trace-journey');
+// The journey's own trace file: the packaged one Weles ships is never written.
+const traceFile = join(recordings, 'pointer-trace.json');
 const cli = (...args) => {
-  const ran = spawnSync(process.execPath, [join(root, 'dist/cli.js'), ...args], {
-    encoding: 'utf8',
-    env: { ...process.env, WELES_RECORDINGS_ROOT: recordings },
+  const ran = spawnSync(
+    process.execPath,
+    [join(root, 'dist/cli.js'), ...args],
+    {
+      encoding: 'utf8',
+      env: { ...process.env, WELES_RECORDINGS_ROOT: recordings, WELES_POINTER_TRACE: traceFile },
+    },
+  );
+  evidence.report.commands.push({
+    args,
+    status: ran.status,
+    stdout: ran.stdout,
+    stderr: ran.stderr,
   });
-  evidence.report.commands.push({ args, status: ran.status, stdout: ran.stdout, stderr: ran.stderr });
   return ran;
 };
 // A run succeeded when it started, no signal ended it and it exited zero
 // (https://nodejs.org/api/child_process.html#child_processspawnsynccommand-args-options).
 const succeeded = (ran) => !ran.error && ran.signal === null && !ran.status;
 const flushed = async (page) =>
-  JSON.parse(await page.evaluate(() => globalThis[Symbol.for('weles.inst')].flush()));
+  JSON.parse(
+    await page.evaluate(() => globalThis[Symbol.for('weles.inst')].flush()),
+  );
 const corners = (box) => [
   { x: box.x, y: box.y },
   { x: box.x + box.width, y: box.y + box.height },
@@ -49,7 +65,9 @@ try {
   mkdirSync(recordings, { recursive: true });
   evidence.report.commands = [];
 
-  browser = await chromium.launch({ executablePath: required('WELES_TEST_CHROMIUM') });
+  browser = await chromium.launch({
+    executablePath: required('WELES_TEST_CHROMIUM'),
+  });
   const context = await browser.newContext();
   for (const script of scripts) await context.addInitScript({ path: script });
   const page = await context.newPage();
@@ -65,7 +83,9 @@ try {
     }),
   );
   await page.goto(controlsPage);
-  const boxes = await Promise.all(['#a', '#b', '#c'].map((id) => page.locator(id).boundingBox()));
+  const boxes = await Promise.all(
+    ['#a', '#b', '#c'].map((id) => page.locator(id).boundingBox()),
+  );
 
   // Travel between controls, each ended by a press, as the recorder sees a
   // person's hand; then one wheel step of a viewport.
@@ -74,7 +94,11 @@ try {
     await page.mouse.down();
     await page.mouse.up();
   }
-  const viewport = await page.evaluate(() => ({ height: innerHeight, scrollX, scrollY }));
+  const viewport = await page.evaluate(() => ({
+    height: innerHeight,
+    scrollX,
+    scrollY,
+  }));
   await page.mouse.wheel(viewport.scrollX, viewport.height);
   // mouse.wheel returns before the page has handled the event
   // (https://playwright.dev/docs/api/class-mouse#mouse-wheel), and the page
@@ -82,7 +106,12 @@ try {
   // page has moved from where it stood.
   await page.waitForFunction((before) => scrollY !== before, viewport.scrollY);
   const dump = join(recordings, 'operator.inst.json');
-  writeFileSync(dump, JSON.stringify({ accesses: [{ url: page.url(), log: await flushed(page) }] }));
+  writeFileSync(
+    dump,
+    JSON.stringify({
+      accesses: [{ url: page.url(), log: await flushed(page) }],
+    }),
+  );
   const empty = join(recordings, 'automated.inst.json');
   writeFileSync(empty, JSON.stringify({ accesses: null }));
 
@@ -99,7 +128,7 @@ try {
   const answer = JSON.parse(harvested.stdout);
   assert.ok(answer.segments, 'the harvest kept no segment of travel');
   assert.ok(answer.wheel_steps, 'the harvest kept no wheel step');
-  assert.ok(existsSync(join(recordings, 'pointer-trace.json')));
+  assert.ok(existsSync(traceFile));
 
   const shown = cli('pointer', 'show', '--json');
   assert.ok(succeeded(shown), shown.stderr);
@@ -107,7 +136,10 @@ try {
 
   // A replayed move ends on the requested target: the first control's corner.
   process.env.WELES_RECORDINGS_ROOT = recordings;
-  const { seedHumanTiming } = await import(join(root, 'dist/utils/motion/timing.js'));
+  process.env.WELES_POINTER_TRACE = traceFile;
+  const { seedHumanTiming } = await import(
+    join(root, 'dist/utils/motion/timing.js')
+  );
   const { humanMove } = await import(join(root, 'dist/human/mouse.js'));
   seedHumanTiming(Date.now());
   const [target] = corners(boxes.findLast(Boolean));
@@ -116,7 +148,11 @@ try {
     .filter((entry) => entry.o === 'Input' && entry.p === 'pointermove')
     .map((entry) => JSON.parse(entry.vs));
   const last = moved.findLast(Boolean);
-  assert.deepEqual(last, target, `the replayed move ended at ${JSON.stringify(last)}`);
+  assert.deepEqual(
+    last,
+    target,
+    `the replayed move ended at ${JSON.stringify(last)}`,
+  );
   evidence.report.replayed_points = moved.length;
   evidence.report.status = 'passed';
 } catch (cause) {
@@ -128,14 +164,24 @@ try {
     try {
       await browser.close();
     } catch (cause) {
-      failure = failure ? new AggregateError([failure, cause], 'journey and browser close failed') : cause;
+      failure = failure
+        ? new AggregateError(
+            [failure, cause],
+            'journey and browser close failed',
+          )
+        : cause;
     }
   }
   rmSync(recordings, { recursive: true, force: true });
   try {
     await evidence.finish();
   } catch (cause) {
-    failure = failure ? new AggregateError([failure, cause], 'journey and evidence publication failed') : cause;
+    failure = failure
+      ? new AggregateError(
+          [failure, cause],
+          'journey and evidence publication failed',
+        )
+      : cause;
   }
 }
 if (failure) throw failure;

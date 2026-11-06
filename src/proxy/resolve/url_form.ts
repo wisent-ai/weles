@@ -41,17 +41,18 @@ export async function resolveUrlFormProxy(
   const u = new URL(proxy);
   // The proxy is dialled at the port the URL names; a URL without one would be handed out as "host:".
   if (!u.port) {
-    throw new Error(`proxy URL for ${u.hostname} names no port; state the proxy's port in the URL`);
+    throw new Error(
+      `proxy URL for ${u.hostname} names no port; state the proxy's port in the URL`,
+    );
   }
   // The diagnostics record the target only when the caller named one.
   let statedTarget: string | null = null;
   if (targetHost) statedTarget = targetHost;
   // Toxicity policy on URL-form path: reject providers blocked for target.
-  const {
-    providerFromHost,
-    isProviderBlockedForPlatform,
-    retiredProviderReason,
-  } = await import('../policy.js');
+  const { providerFromHost, isProviderBlockedForPlatform } = await import(
+    '../policy.js'
+  );
+  const { retiredProviderReason } = await import('./exit/retired.js');
   const platformForBlock = platformFromTarget(targetHost);
   const provFromUrl = providerFromHost(
     u.hostname,

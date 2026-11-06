@@ -3,24 +3,40 @@
 // page, so it carries its own helpers and reaches the host only through the
 // __welesRecordWithheldEdge binding the context installs.
 export function initScript(policyVersion: string): void {
-  const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+  const messageOf = (error: unknown) =>
+    error instanceof Error ? error.message : String(error);
   // A report the binding could not take leaves the ledger short of an edge the
   // page reached; it is written to the page console, which the run captures.
   const reportFailed = (api: string, error: unknown) =>
-    console.error(`[weles] withheld ${api} was not recorded: ${messageOf(error)}`);
+    console.error(
+      `[weles] withheld ${api} was not recorded: ${messageOf(error)}`,
+    );
   const report = (category: string, api: string, reason?: string) => {
-    const record = (globalThis as unknown as { __welesRecordWithheldEdge?: (edge: unknown) => unknown }).__welesRecordWithheldEdge;
+    const record = (
+      globalThis as unknown as {
+        __welesRecordWithheldEdge?: (edge: unknown) => unknown;
+      }
+    ).__welesRecordWithheldEdge;
     if (typeof record !== 'function') {
-      reportFailed(api, new Error('the __welesRecordWithheldEdge binding is not installed'));
+      reportFailed(
+        api,
+        new Error('the __welesRecordWithheldEdge binding is not installed'),
+      );
       return;
     }
     try {
-      Promise.resolve(record({ category, api, reason, source: 'page_api' })).catch((error: unknown) => reportFailed(api, error));
+      Promise.resolve(
+        record({ category, api, reason, source: 'page_api' }),
+      ).catch((error: unknown) => reportFailed(api, error));
     } catch (error) {
       reportFailed(api, error);
     }
   };
-  const denied = () => new DOMException('Withheld by Weles browser-evidence policy', 'NotAllowedError');
+  const denied = () =>
+    new DOMException(
+      'Withheld by Weles browser-evidence policy',
+      'NotAllowedError',
+    );
   // A withholding the page refused to install leaves that API reachable; the
   // ledger records it as unenforced, with the page's reason, as a refusal the
   // network route could not deliver is, instead of the run carrying a policy
@@ -72,11 +88,26 @@ export function initScript(policyVersion: string): void {
 
   withhold('permissions.query', () => {
     if (!navigator.permissions) return;
-    replace(navigator.permissions, 'query', (descriptor: PermissionDescriptor) => {
-      const name = descriptor && descriptor.name ? String(descriptor.name) : '(no permission named)';
-      report(name === 'notifications' ? 'notification_api' : 'browser_permission_api', `permissions.query:${name}`);
-      return Promise.resolve({ state: 'denied', onchange: null } as PermissionStatus);
-    });
+    replace(
+      navigator.permissions,
+      'query',
+      (descriptor: PermissionDescriptor) => {
+        const name =
+          descriptor && descriptor.name
+            ? String(descriptor.name)
+            : '(no permission named)';
+        report(
+          name === 'notifications'
+            ? 'notification_api'
+            : 'browser_permission_api',
+          `permissions.query:${name}`,
+        );
+        return Promise.resolve({
+          state: 'denied',
+          onchange: null,
+        } as PermissionStatus);
+      },
+    );
   });
 
   withhold('Notification', () =>
@@ -104,25 +135,45 @@ export function initScript(policyVersion: string): void {
   withhold('geolocation', () => {
     const geo = navigator.geolocation;
     if (!geo) return;
-    replace(geo, 'getCurrentPosition', (_success: PositionCallback, failure?: PositionErrorCallback) => {
-      report('browser_permission_api', 'geolocation.getCurrentPosition');
-      failure?.(positionDenied());
-    });
-    replace(geo, 'watchPosition', (_success: PositionCallback, failure?: PositionErrorCallback) => {
-      report('browser_permission_api', 'geolocation.watchPosition');
-      failure?.(positionDenied());
-      // No watch was started; the id names none.
-      return Number();
-    });
+    replace(
+      geo,
+      'getCurrentPosition',
+      (_success: PositionCallback, failure?: PositionErrorCallback) => {
+        report('browser_permission_api', 'geolocation.getCurrentPosition');
+        failure?.(positionDenied());
+      },
+    );
+    replace(
+      geo,
+      'watchPosition',
+      (_success: PositionCallback, failure?: PositionErrorCallback) => {
+        report('browser_permission_api', 'geolocation.watchPosition');
+        failure?.(positionDenied());
+        // No watch was started; the id names none.
+        return Number();
+      },
+    );
   });
 
   const navigatorCapabilities = navigator as unknown as Record<string, unknown>;
   denyMethods(navigator.clipboard, 'browser_permission_api', 'clipboard');
   for (const device of ['usb', 'serial', 'bluetooth', 'hid']) {
-    denyMethods(navigatorCapabilities[device], 'browser_permission_api', device);
+    denyMethods(
+      navigatorCapabilities[device],
+      'browser_permission_api',
+      device,
+    );
   }
-  denyMethods(navigator.credentials, 'authentication_submission', 'credentials');
-  denyMethods(navigatorCapabilities.serviceWorker, 'network_policy', 'serviceWorker');
+  denyMethods(
+    navigator.credentials,
+    'authentication_submission',
+    'credentials',
+  );
+  denyMethods(
+    navigatorCapabilities.serviceWorker,
+    'network_policy',
+    'serviceWorker',
+  );
   withhold('navigator.share', () => {
     if (typeof navigatorCapabilities.share !== 'function') return;
     replace(navigator, 'share', async () => {
@@ -134,20 +185,36 @@ export function initScript(policyVersion: string): void {
   // The File System Access pickers (show…Picker) and every RTCPeerConnection
   // constructor the page's global object carries, by the names it gives them.
   const globals = Object.getOwnPropertyNames(globalThis);
-  for (const picker of globals.filter((name) => name.startsWith('show') && name.endsWith('Picker'))) {
+  for (const picker of globals.filter(
+    (name) => name.startsWith('show') && name.endsWith('Picker'),
+  )) {
     withhold(picker, () => {
-      if (typeof (globalThis as unknown as Record<string, unknown>)[picker] !== 'function') return;
+      if (
+        typeof (globalThis as unknown as Record<string, unknown>)[picker] !==
+        'function'
+      )
+        return;
       replace(globalThis, picker, async () => {
         report('system_ui', picker);
         throw denied();
       });
     });
   }
-  for (const rtcName of globals.filter((name) => name.endsWith('RTCPeerConnection'))) {
-    withhold(rtcName, () => replace(globalThis, rtcName, withheldClass('network_policy', rtcName)));
+  for (const rtcName of globals.filter((name) =>
+    name.endsWith('RTCPeerConnection'),
+  )) {
+    withhold(rtcName, () =>
+      replace(globalThis, rtcName, withheldClass('network_policy', rtcName)),
+    );
   }
 
-  withhold('PaymentRequest', () => replace(globalThis, 'PaymentRequest', withheldClass('purchase_subscription_payment', 'PaymentRequest')));
+  withhold('PaymentRequest', () =>
+    replace(
+      globalThis,
+      'PaymentRequest',
+      withheldClass('purchase_subscription_payment', 'PaymentRequest'),
+    ),
+  );
   withhold('window.open', () =>
     replace(globalThis, 'open', () => {
       report('system_ui', 'window.open');

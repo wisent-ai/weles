@@ -25,7 +25,9 @@ import { startup } from './weles-api-launcher/startup.mjs';
 import { retirePredecessors } from './weles-api-launcher/predecessors.mjs';
 
 // The unit's PATH, led by the product's own tools; a unit started without one gets just those.
-process.env.PATH = process.env.PATH ? `${PATH_PREFIX}:${process.env.PATH}` : PATH_PREFIX;
+process.env.PATH = process.env.PATH
+  ? `${PATH_PREFIX}:${process.env.PATH}`
+  : PATH_PREFIX;
 // The release identity the unit was started with outranks any env file's; it is kept only when both halves are set.
 const releaseVersion = process.env.WELES_WORKER_RELEASE_VERSION;
 const releaseSha256 = process.env.WELES_WORKER_RELEASE_SHA256;

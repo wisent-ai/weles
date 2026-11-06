@@ -118,7 +118,10 @@ export function askThroughOko(request) {
   try {
     asked = JSON.parse(result.stdout);
   } catch (error) {
-    return notAsked(at, `oko asks ask answered unreadable JSON: ${error.message}`);
+    return notAsked(
+      at,
+      `oko asks ask answered unreadable JSON: ${error.message}`,
+    );
   }
   const askId = asked.ask?.id;
   if (!askId) {

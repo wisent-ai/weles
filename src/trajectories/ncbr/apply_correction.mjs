@@ -103,7 +103,7 @@ async function correctRow(page, collection, row) {
   await openRow(page, collection, row, projectUrl);
   const result = {
     scope: collection.label,
-    rowNeedle: row.rowNeedle,
+    rowSubject: row.rowSubject,
     beforeFields: await snapshotFields(page),
   };
   results.push(result);
@@ -192,7 +192,7 @@ try {
         reportPath,
         results: results.map((result) => ({
           scope: result.scope,
-          rowNeedle: result.rowNeedle,
+          rowSubject: result.rowSubject,
           fields: result.fields?.map(({ name, persisted, sha256 }) => ({
             name,
             persisted,

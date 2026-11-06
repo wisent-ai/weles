@@ -2,7 +2,9 @@
 // frames, and the elements a credential may be shown in.
 
 export type CredentialElement = {
-  evaluate: <Value>(pageFunction: (element: Element) => Value) => Promise<Value>;
+  evaluate: <Value>(
+    pageFunction: (element: Element) => Value,
+  ) => Promise<Value>;
 };
 
 export type CredentialLocator = {

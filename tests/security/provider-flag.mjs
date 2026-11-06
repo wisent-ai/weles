@@ -97,7 +97,11 @@ refuse(
   '--run reads a started run back and takes no --provider',
 );
 // The retired hyphenated names are no commands: each is refused as unknown.
-for (const retired of ['app-password', 'account-security', 'developer-certificate']) {
+for (const retired of [
+  'app-password',
+  'account-security',
+  'developer-certificate',
+]) {
   refuse([retired, '--provider', 'google'], retired);
 }
 

@@ -6,6 +6,8 @@
 
 import { randomUUID } from 'node:crypto';
 import type { BrowserContext, Page } from 'playwright';
+import { DeclaredError } from '../errors/index.cjs';
+import { causes } from '../errors/operations/browser.cjs';
 
 /** The indentation a structured result is printed with, for a person to read. */
 const INDENT = '  ';
@@ -78,9 +80,24 @@ export function dropBrowser(browserId: string): BrowserSlot {
   return browser;
 }
 
+/** A value as a refusal shows it: JSON, or what JSON has no form for. */
+export function shown(value: unknown): string {
+  const text = JSON.stringify(value);
+  return text === undefined ? 'not given' : text;
+}
+
 export function asString(value: unknown, name: string): string {
-  if (typeof value !== 'string' || value === '')
-    throw new Error(`${name} must be a non-empty string`);
+  if (value === undefined || value === '')
+    throw new DeclaredError(causes.ARGUMENT_MISSING, {
+      name,
+      value: shown(value),
+    });
+  if (typeof value !== 'string')
+    throw new DeclaredError(causes.ARGUMENT_TYPE, {
+      name,
+      value: shown(value),
+      expected: 'a non-empty string',
+    });
   return value;
 }
 
@@ -95,28 +112,43 @@ export function asOptionalNumber(
     !Number.isFinite(value) ||
     value < Number.MIN_VALUE
   )
-    throw new Error(`${name} must be a positive number`);
+    throw new DeclaredError(causes.ARGUMENT_TYPE, {
+      name,
+      value: shown(value),
+      expected: 'a positive number',
+    });
   return value;
 }
 
 export function getBrowser(browserId: unknown): BrowserSlot {
   const id = asString(browserId, 'browserId');
   const browser = browsers.get(id);
-  if (!browser) throw new Error(`unknown browserId: ${id}`);
+  if (!browser)
+    throw new DeclaredError(causes.BROWSER_ID_UNKNOWN, {
+      id,
+      open: browsers.size ? [...browsers.keys()].join(', ') : 'none',
+    });
   return browser;
+}
+
+function unknownPage(id: string): DeclaredError {
+  return new DeclaredError(causes.PAGE_ID_UNKNOWN, {
+    id,
+    open: pages.size ? [...pages.keys()].join(', ') : 'none',
+  });
 }
 
 export function getPage(pageId: unknown): Page {
   const id = asString(pageId, 'pageId');
   const page = pages.get(id);
-  if (!page) throw new Error(`unknown pageId: ${id}`);
+  if (!page) throw unknownPage(id);
   return page;
 }
 
 export function getPageEvents(pageId: unknown): PageEvents {
   const id = asString(pageId, 'pageId');
   const events = pageEvents.get(id);
-  if (!events) throw new Error(`unknown pageId: ${id}`);
+  if (!events) throw unknownPage(id);
   return events;
 }
 

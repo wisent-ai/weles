@@ -52,7 +52,8 @@ export const PROTOCOL_PROBES: readonly Probe[] = [
   {
     id: 'C.cdp.metrics_tracing_coverage',
     collector: 'metrics, tracing, and coverage',
-    expected: 'Performance/Memory activity checkpoints, Tracing, JS/CSS coverage',
+    expected:
+      'Performance/Memory activity checkpoints, Tracing, JS/CSS coverage',
     emitted: (ws) =>
       Boolean(len(ws._instMetricsHistory) + len(ws._instTracing)) ||
       present(ws._instJsCoverageData),
@@ -87,10 +88,13 @@ export const PROTOCOL_PROBES: readonly Probe[] = [
   {
     id: 'D.network.cdp_extra',
     collector: 'CDP network extra-info',
-    expected: 'wire headers, cookie blocking, cache, WebSocket handshake events',
+    expected:
+      'wire headers, cookie blocking, cache, WebSocket handshake events',
     emitted: (ws) => Boolean(len(ws._instCdpNetwork)),
     attempted: (ws) => Boolean(ws._cdp),
-    evidence: (ws) => [{ field: 'cdp_network', count: len(ws._instCdpNetwork) }],
+    evidence: (ws) => [
+      { field: 'cdp_network', count: len(ws._instCdpNetwork) },
+    ],
   },
   {
     id: 'D.network.pcap',

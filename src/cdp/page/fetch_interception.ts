@@ -22,7 +22,11 @@ export class CDPRoute {
   private _conn: CDPConnection;
   private _sid: string;
   private _rid: string;
-  constructor(conn: CDPConnection, sid: string, params: FetchRequestPausedParams) {
+  constructor(
+    conn: CDPConnection,
+    sid: string,
+    params: FetchRequestPausedParams,
+  ) {
     this._conn = conn;
     this._sid = sid;
     this.request = params.request;
@@ -36,11 +40,19 @@ export class CDPRoute {
     );
   }
   /** Answers the paused request with the response the caller states: its status is required, headers and body as given. */
-  async fulfill(o: { status: number; headers?: Record<string, string>; body?: string }) {
+  async fulfill(o: {
+    status: number;
+    headers?: Record<string, string>;
+    body?: string;
+  }) {
     if (!Number.isInteger(o.status)) {
-      throw new Error(`a fulfilled response needs its HTTP status; got ${JSON.stringify(o.status)}`);
+      throw new Error(
+        `a fulfilled response needs its HTTP status; got ${JSON.stringify(o.status)}`,
+      );
     }
-    const headers = o.headers ? Object.entries(o.headers).map(([name, value]) => ({ name, value })) : [];
+    const headers = o.headers
+      ? Object.entries(o.headers).map(([name, value]) => ({ name, value }))
+      : [];
     const body = o.body ? Buffer.from(o.body).toString('base64') : '';
     await this._conn.send(
       'Fetch.fulfillRequest',

@@ -65,14 +65,20 @@ function writerPrompt(input: WelesTrajectoryWriterInput): string {
  * answer: the schema asked for strings, so anything else is the writer's
  * failure, not a step to drop.
  */
-function draftStrings(answer: Record<string, unknown>, field: string, raw: string): string[] {
+function draftStrings(
+  answer: Record<string, unknown>,
+  field: string,
+  raw: string,
+): string[] {
   const value = answer[field];
   if (!Array.isArray(value)) {
     throw new Error(`the trajectory writer's ${field} is not a list: ${raw}`);
   }
   return value.map((item, position) => {
     if (typeof item !== 'string' || !item.trim()) {
-      throw new Error(`the trajectory writer's ${field} entry ${position} is not a nonblank string: ${raw}`);
+      throw new Error(
+        `the trajectory writer's ${field} entry ${position} is not a nonblank string: ${raw}`,
+      );
     }
     return item.trim();
   });
@@ -105,7 +111,9 @@ export async function writeWelesTrajectoryDraft(
     );
   }
   if (!answer || typeof answer !== 'object' || Array.isArray(answer)) {
-    throw new Error(`the trajectory writer's write_trajectory arguments are not an object: ${routed.raw}`);
+    throw new Error(
+      `the trajectory writer's write_trajectory arguments are not an object: ${routed.raw}`,
+    );
   }
   const fields = answer as Record<string, unknown>;
   const steps = [
@@ -122,6 +130,9 @@ export async function writeWelesTrajectoryDraft(
     routerUrl: routed.routerUrl,
     raw: routed.raw,
     steps,
-    guidance: [header, ...steps.map((step, index) => `${index + 1}. ${step}`)].join('\n'),
+    guidance: [
+      header,
+      ...steps.map((step, index) => `${index + 1}. ${step}`),
+    ].join('\n'),
   };
 }

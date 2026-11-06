@@ -21,26 +21,19 @@ import { join } from 'node:path';
 import { runOutputPath } from '#run-output';
 import { completeGooglePhoneApproval } from '../../_shared/services/google_sso/sign_in/challenge/phone.mjs';
 import { WSession } from '../../../../dist/session/wsession.js';
-import {
-  persistEnrolledSeed,
-  validateExpectedAccount,
-} from './account-binding.mjs';
+import { validateExpectedAccount } from './account-binding.mjs';
 import { loginItemMethod } from '../../../../dist/utils/login-accounts.js';
 import {
-  confirmSetupCode,
   onSignIn,
-  openAuthenticatorSetup,
   redactKeys,
-  revealSetupKey,
 } from '../../_shared/services/google_sso/authenticator_enrol.mjs';
+import { enrolOnPage } from '../../_shared/services/google_sso/enrol_in_session.mjs';
 import {
   accountProfileDir,
   loginMaterial,
   pageDescription,
   signIn as signInAccount,
 } from '../../_shared/services/google_sso/sign_in/account.mjs';
-
-import { pageSettled } from '../../_shared/page/settled.mjs';
 const RESULT_DIR = runOutputPath('google-authenticator-enrol');
 const RESULT_FILE = join(RESULT_DIR, 'result.json');
 /// The one login method that has an authenticator to enrol.
@@ -128,30 +121,6 @@ async function signIn(page, wait, login) {
   return { ok: true };
 }
 
-/**
- * Reach the authenticator setup page, signing in whenever Google asks. After
- * the first sign-in Google asks again ("Verify it's you", the password once
- * more) before it shows a security setting, so the page is reopened after
- * each sign-in. It ends when Google asks again at an address it already
- * asked at after a sign-in: signing in once more there cannot change its
- * answer. A run stopped at `google_sign_in_required` right after the
- * operator's phone approval, because the page was reopened only once.
- */
-async function openSignedIn(page, wait, login) {
-  const asked = new Set();
-  for (;;) {
-    const opened = await openAuthenticatorSetup(page, wait);
-    if (opened.ok || opened.blocked !== 'google_sign_in_required')
-      return opened;
-    const at = page.url();
-    if (asked.has(at)) return opened;
-    asked.add(at);
-    const signedIn = await signIn(page, wait, login);
-    if (!signedIn.ok) return signedIn;
-    mark('authenticator_setup_reopen');
-  }
-}
-
 async function main() {
   const loginItem = String(process.env.WELES_LOGIN_ITEM || '').trim();
   if (!loginItem) {
@@ -207,70 +176,45 @@ async function enrol(loginItem, login) {
   // per item stops at `google_push_not_approved` for an account already
   // signed in from this host under another row.
   const userDataDir = accountProfileDir(login);
+  // Whether the browser shows a window is the host's (WELES_HEADLESS), as for
+  // every session: a run on a person's own computer must not open one there.
+  // The setup key Google shows is the seed itself, so this session records
+  // nothing a page carries: no video, no response bodies, no network
+  // instrumentation dump and no close-time fingerprint page. Any of them
+  // would hold the seed in plaintext in the recordings store, where no vault
+  // guards it.
+  process.env.WELES_NO_RESPONSE_BODIES = '1';
+  process.env.WELES_NO_INSTRUMENT = '1';
+  process.env.WELES_FINGERPRINT = '0';
   const session = await WSession.start({
     label: `google-authenticator-enrol-${loginItem}`,
     browser: 'chromium',
-    headless: false,
     userDataDir,
+    record: false,
   });
-  const page = session.page;
-  const wait = () => pageSettled(page);
+  // The exit status names the stage a run stopped at, as it always has.
+  const STAGE_EXIT = {
+    authenticator_setup_open: 4,
+    authenticator_key_reveal: 5,
+    authenticator_code_confirm: 6,
+    authenticator_seed_write: 7,
+  };
   try {
     mark('authenticator_setup_open');
-    const opened = await openSignedIn(page, wait, login);
-    if (!opened.ok) {
-      report({
-        ok: false,
-        login_item: loginItem,
-        email: login.email,
-        ...opened,
-      });
-      process.exitCode = 4;
-      return;
-    }
-    mark('authenticator_key_reveal');
-    const revealed = await revealSetupKey(page, wait);
-    if (!revealed.ok) {
-      report({
-        ok: false,
-        login_item: loginItem,
-        email: login.email,
-        ...revealed,
-      });
-      process.exitCode = 5;
-      return;
-    }
-    mark('authenticator_code_confirm');
-    const confirmed = await confirmSetupCode(page, wait, revealed.secret);
-    if (!confirmed.ok) {
-      report({
-        ok: false,
-        login_item: loginItem,
-        email: login.email,
-        ...confirmed,
-      });
-      process.exitCode = 6;
-      return;
-    }
-    mark('authenticator_seed_write');
-    const persisted = persistEnrolledSeed(login, revealed.secret);
-    if (!persisted.ok) {
-      report({
-        login_item: loginItem,
-        email: login.email,
-        ...persisted,
-      });
-      process.exitCode = 7;
-      return;
-    }
+    const enrolled = await enrolOnPage(session.page, login, (p, w) => {
+      mark('authenticator_setup_reopen');
+      return signIn(p, w, login);
+    });
+    const { stage, ...result } = enrolled;
     report({
-      ok: true,
       login_item: loginItem,
       email: login.email,
-      expected_account: process.env.WELES_EXPECTED_ACCOUNT,
-      seed_written: true,
-      url: confirmed.url,
+      ...(result.ok
+        ? { expected_account: process.env.WELES_EXPECTED_ACCOUNT }
+        : {}),
+      ...result,
     });
+    if (!result.ok) process.exitCode = STAGE_EXIT[stage];
   } finally {
     await session.close();
   }

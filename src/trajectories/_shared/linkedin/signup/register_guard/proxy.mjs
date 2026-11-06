@@ -2,10 +2,11 @@
 // failure, and the assertions that it is the requested, stable, dedicated ISP exit.
 //
 // Every judgement reads the resolved proxy record (provider, proxy_type, sticky_session_id,
-// server) and the one retirement policy in proxy/policy; nothing is guessed from words or
-// address shapes in the request, and no environment switch lets a registration run unproxied.
+// server) and the one retirement record, Skarbiec's retired_proxy_pools setting; nothing is
+// guessed from words or address shapes in the request, and no environment switch lets a
+// registration run unproxied.
 import { isIP } from 'node:net';
-import { retiredProviderReason } from '../../../../../../dist/proxy/policy.js';
+import { retiredProviderReason } from '../../../../../../dist/proxy/resolve/exit/retired.js';
 import {
   requestsNoProxy,
   requestsUrlForm,
@@ -99,7 +100,9 @@ export async function assertLinkedinProxyStable(
   try {
     const res = await session.ctx.request.get('https://api.ipify.org');
     if (!res.ok())
-      throw new Error(`exit address service answered ${res.status()} ${res.statusText()}`);
+      throw new Error(
+        `exit address service answered ${res.status()} ${res.statusText()}`,
+      );
     actual = (await res.text()).trim();
   } catch (e) {
     throw new Error(
@@ -152,8 +155,7 @@ export function assertLinkedinDedicatedIspProxy(session, requestedProxy) {
     );
   }
   const server = serverAddress(cfg.server);
-  if (server.error)
-    throw new Error(`PROXY_NOT_DEDICATED_ISP: ${server.error}`);
+  if (server.error) throw new Error(`PROXY_NOT_DEDICATED_ISP: ${server.error}`);
   if (!cfg.provider) {
     throw new Error(
       `PROXY_NOT_DEDICATED_ISP: missing_provider server=${server.host} requested=${requested}`,

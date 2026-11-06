@@ -16,8 +16,12 @@ function controlAction(req, url) {
   return named.groups.action;
 }
 
-export function createWorkerRoutes(publicTaskService, buildDeploymentVersionValue) {
-  const { controlWorker, workerStatus } = createWorkerControl(publicTaskService);
+export function createWorkerRoutes(
+  publicTaskService,
+  buildDeploymentVersionValue,
+) {
+  const { controlWorker, workerStatus } =
+    createWorkerControl(publicTaskService);
   let busy = false;
 
   async function control(req, res, action) {

@@ -47,8 +47,9 @@ export async function selectOption(
     (node: Element) => node instanceof HTMLSelectElement,
   );
   if (native) {
-    const labels: string[] = await combobox.evaluate((node: HTMLSelectElement) =>
-      Array.from(node.options, (option) => option.label),
+    const labels: string[] = await combobox.evaluate(
+      (node: HTMLSelectElement) =>
+        Array.from(node.options, (option) => option.label),
     );
     const label = labels.find((candidate) => wholeName(value).test(candidate));
     if (label === undefined)
@@ -65,7 +66,9 @@ export async function selectOption(
   if (only === undefined || others.length) {
     const offered = await page
       .getByRole('option')
-      .evaluateAll((nodes: Element[]) => nodes.map((node) => node.textContent?.trim()));
+      .evaluateAll((nodes: Element[]) =>
+        nodes.map((node) => node.textContent?.trim()),
+      );
     throw new Error(
       `the combobox "${target}" shows ${others.length ? 'more than one' : 'no'} option "${value}"; it shows ${JSON.stringify(offered)}`,
     );

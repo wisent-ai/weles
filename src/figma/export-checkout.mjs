@@ -8,7 +8,7 @@ import {
   renameSync,
   rmSync,
 } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { withoutSecretShapes } from '../capture/secret-shapes/index.cjs';
 
@@ -27,8 +27,8 @@ function redacted(text) {
   );
 }
 
-/** Publish only the managed figma tree in an existing, explicitly selected checkout. */
-export function prepareExport({ checkout, remote, branch }) {
+/** Publish only the managed design tree (`output`, relative to the checkout) in an existing, explicitly selected checkout. */
+export function prepareExport({ checkout, output, remote, branch }) {
   function git(args) {
     const [verb] = args;
     // git's whole output is read: no size is guessed for it.
@@ -95,11 +95,11 @@ export function prepareExport({ checkout, remote, branch }) {
         '--ignored',
         '--exclude-standard',
         '--',
-        'figma',
+        output,
       ])
     ) {
       throw new Error(
-        'design export refuses ignored files inside the managed figma directory',
+        `design export refuses ignored files inside the managed directory ${output}`,
       );
     }
     if (git(['rev-parse', 'HEAD']) !== revision) {
@@ -120,11 +120,11 @@ export function prepareExport({ checkout, remote, branch }) {
       `design export refuses divergent ${remote}/${branch}: local ${revision}, remote ${remoteRevision}`,
     );
   }
-  const currentRoot = join(checkout, 'figma');
+  const currentRoot = join(checkout, output);
   if (existsSync(currentRoot)) {
     if (!lstatSync(currentRoot).isDirectory())
       throw new Error(
-        'design export figma output must be a directory, not a symlink or file',
+        `design export output ${output} must be a directory, not a symlink or file`,
       );
     const manifest = JSON.parse(
       readFileSync(join(currentRoot, 'inventory.json'), 'utf8'),
@@ -134,7 +134,7 @@ export function prepareExport({ checkout, remote, branch }) {
       typeof manifest.generatedAt !== 'string'
     ) {
       throw new Error(
-        'design export refuses a figma directory without an export inventory',
+        `design export refuses ${output}, a directory without an export inventory`,
       );
     }
   }
@@ -176,19 +176,21 @@ export function prepareExport({ checkout, remote, branch }) {
         const hadPrevious = existsSync(currentRoot);
         if (hadPrevious) renameSync(currentRoot, previous);
         try {
+          // A new library's directory does not exist before its first export.
+          mkdirSync(dirname(currentRoot), { recursive: true });
           renameSync(exportRoot, currentRoot);
         } catch (error) {
           if (hadPrevious) renameSync(previous, currentRoot);
           throw error;
         }
         try {
-          git(['add', '--', 'figma']);
+          git(['add', '--', output]);
           const changes = git([
             'diff',
             '--cached',
             '--name-only',
             '--',
-            'figma',
+            output,
           ]);
           if (changes) {
             // The export's day: the date part of its ISO 8601 timestamp.
@@ -199,7 +201,7 @@ export function prepareExport({ checkout, remote, branch }) {
               '-m',
               `Export Figma design assets ${day}`,
               '--',
-              'figma',
+              output,
             ]);
             git(['push', repository, `HEAD:refs/heads/${branch}`]);
           }

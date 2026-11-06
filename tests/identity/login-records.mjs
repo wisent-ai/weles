@@ -28,7 +28,12 @@ let failure;
 let initialized = false;
 
 function accepted(program, args, input) {
-  const result = spawnSync(program, args, { encoding: 'utf8', cwd: root, env: process.env, input });
+  const result = spawnSync(program, args, {
+    encoding: 'utf8',
+    cwd: root,
+    env: process.env,
+    input,
+  });
   report.operations.push({
     command: [program, ...args],
     exit_status: result.status,
@@ -49,25 +54,38 @@ try {
   process.env.SKARBIEC_VAULT_FILE = join(directory, 'vault.json');
   report.vault_file = process.env.SKARBIEC_VAULT_FILE;
   const skarbiec = activeSkarbiecBinary();
-  report.skarbiec_binary_sha256 = createHash('sha256').update(readFileSync(skarbiec)).digest('hex');
+  report.skarbiec_binary_sha256 = createHash('sha256')
+    .update(readFileSync(skarbiec))
+    .digest('hex');
   accepted(skarbiec, ['init', 'Weles login record test']);
   initialized = true;
 
   // The vault file is read when the records module loads, so it is imported
   // only after the journey's own vault is named.
-  const { metadata } = await import('../../dist/utils/login-accounts/records.js');
+  const { metadata } = await import(
+    '../../dist/utils/login-accounts/records.js'
+  );
   const login = (document, tags) => {
     const id = `weles-login-records-${randomUUID()}`;
-    accepted(skarbiec, ['set', id, '--type', 'login', '--tags', tags.join(',')], JSON.stringify(document));
+    accepted(
+      skarbiec,
+      ['set', id, '--type', 'login', '--tags', tags.join(',')],
+      JSON.stringify(document),
+    );
     return { id, kind: 'login', tags };
   };
   const refused = (item, code, ...named) => {
     assert.throws(
       () => metadata(item, 'claude'),
       (error) => {
-        report.operations.push({ read: item.id, refused: error.code, message: error.message });
+        report.operations.push({
+          read: item.id,
+          refused: error.code,
+          message: error.message,
+        });
         assert.equal(error.code, code, error.message);
-        for (const word of named) assert.ok(error.message.includes(word), error.message);
+        for (const word of named)
+          assert.ok(error.message.includes(word), error.message);
         return true;
       },
     );
@@ -75,16 +93,26 @@ try {
   const address = `login-${randomUUID()}@example.com`;
 
   refused(
-    login({ context: { login_method: 'google_sso' }, fields: { username: address } }, [
-      'weles:login-method:email_password',
-    ]),
+    login(
+      {
+        context: { login_method: 'google_sso' },
+        fields: { username: address },
+      },
+      ['weles:login-method:email_password'],
+    ),
     'login_record_conflict',
     'login_method',
     'context.login_method (google_sso)',
     'the weles:login-method: tag (email_password)',
   );
   refused(
-    login({ context: { account_ref: address }, fields: { username: `other-${address}` } }, []),
+    login(
+      {
+        context: { account_ref: address },
+        fields: { username: `other-${address}` },
+      },
+      [],
+    ),
     'login_record_conflict',
     'account_ref',
     'fields.username',
@@ -96,9 +124,16 @@ try {
   );
 
   const agreeing = metadata(
-    login({ context: { login_method: 'google_sso', account_ref: address.toUpperCase() }, fields: { username: address } }, [
-      'weles:login-method:google_sso',
-    ]),
+    login(
+      {
+        context: {
+          login_method: 'google_sso',
+          account_ref: address.toUpperCase(),
+        },
+        fields: { username: address },
+      },
+      ['weles:login-method:google_sso'],
+    ),
     'claude',
   );
   assert.equal(agreeing.login_method, 'google_sso');
@@ -107,7 +142,11 @@ try {
 } catch (error) {
   failure = error;
   report.status = initialized ? 'failed' : 'blocked';
-  report.error = { name: error.name, message: error.message, stack: error.stack };
+  report.error = {
+    name: error.name,
+    message: error.message,
+    stack: error.stack,
+  };
 } finally {
   await evidence.finish();
 }

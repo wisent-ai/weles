@@ -13,28 +13,31 @@ const browserTools: ToolDefinition[] = [
     name: 'weles_browser_start',
     description:
       'Launch a Weles browser context via AsyncNewBrowser and return a browserId.',
-    inputSchema: objectSchema({
-      headless: {
-        type: 'boolean',
-        description: 'Run without a visible browser window.',
+    inputSchema: objectSchema(
+      {
+        headless: {
+          type: 'boolean',
+          description: 'Run without a visible browser window.',
+        },
+        browser: {
+          type: 'string',
+          enum: ['chromium', 'firefox'],
+          description: 'Browser engine.',
+        },
+        os: {
+          type: 'string',
+          enum: ['macos', 'windows', 'linux'],
+          description: 'Persona OS.',
+        },
+        locale: { type: 'string', description: 'Locale, for example en-US.' },
+        userDataDir: {
+          type: 'string',
+          description: 'Persistent browser profile directory.',
+        },
+        proxy: { type: 'string', description: 'Proxy server URL.' },
       },
-      browser: {
-        type: 'string',
-        enum: ['chromium', 'firefox'],
-        description: 'Browser engine.',
-      },
-      os: {
-        type: 'string',
-        enum: ['macos', 'windows', 'linux'],
-        description: 'Persona OS.',
-      },
-      locale: { type: 'string', description: 'Locale, for example en-US.' },
-      userDataDir: {
-        type: 'string',
-        description: 'Persistent browser profile directory.',
-      },
-      proxy: { type: 'string', description: 'Proxy server URL.' },
-    }, ['browser', 'os']),
+      ['browser', 'os'],
+    ),
   },
   {
     name: 'weles_browser_close',
@@ -97,6 +100,26 @@ const browserTools: ToolDefinition[] = [
         value: { type: 'string' },
       },
       ['pageId', 'selector', 'value'],
+    ),
+  },
+  {
+    name: 'weles_page_fill_secret',
+    description:
+      'Fill a CSS selector with one field of a Skarbiec item, read by Weles itself: the value never travels in the call, the answer or the log.',
+    inputSchema: objectSchema(
+      {
+        pageId: { type: 'string' },
+        selector: { type: 'string' },
+        item: {
+          type: 'string',
+          description: 'Skarbiec item id or item uid.',
+        },
+        field: {
+          type: 'string',
+          description: 'Field of the item, for example username or password.',
+        },
+      },
+      ['pageId', 'selector', 'item', 'field'],
     ),
   },
   {

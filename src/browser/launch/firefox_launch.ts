@@ -21,7 +21,8 @@ import {
 
 interface FirefoxLaunchInput {
   launchOpts: Record<string, any>;
-  persona?: { language?: string } | null;
+  /** The page's language (the persona's, else the launch's locale). */
+  language?: string;
   nav: Record<string, any>;
   fpConfig: FingerprintConfig;
   proxy?: { server: string; username?: string; password?: string };
@@ -30,13 +31,13 @@ interface FirefoxLaunchInput {
 export async function launchWelesFirefox(
   input: FirefoxLaunchInput,
 ): Promise<Browser> {
-  const { launchOpts, persona, nav, fpConfig, proxy } = input;
+  const { launchOpts, language, nav, fpConfig, proxy } = input;
   // Firefox derives navigator.languages and Accept-Language from this preference;
   // include the base language after a regional language tag.
-  const _accLang = persona?.language
-    ? persona.language.includes('-')
-      ? `${persona.language}, ${persona.language.split('-')[0]}`
-      : persona.language
+  const _accLang = language
+    ? language.includes('-')
+      ? `${language}, ${language.split('-')[0]}`
+      : language
     : 'en-US, en';
   // webgl.{renderer,vendor}-string-override force Gecko's GL implementation to return our values for both 0x1f00/0x1f01 (sanitized) and 0x9245/0x9246 (UNMASKED_*_WEBGL). Without these, RFP-style placeholders ("Apple M1, or similar") leak even with resistFingerprinting:false. Read the already-Firefox-stripped values from fpConfig.webgl (async_api bdc03ff strips ANGLE/Google-Inc. wrappers).
   const _glR =

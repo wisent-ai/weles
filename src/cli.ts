@@ -15,11 +15,14 @@ import { runAccountSecurity } from './cli/security/account-security.js';
 import { runAppPassword } from './cli/security/app-password.js';
 import { runAppleDeveloperId } from './cli/security/apple-developer-id.js';
 import { runAppleLogin } from './cli/security/apple-login.js';
+import { runAppleAgreement } from './cli/security/apple-agreement.js';
 import { runRecordingsScrub } from './cli/security/recordings-scrub.js';
 import { runWorker } from './cli/worker/index.js';
 import { runKeeper } from './cli/keeper.js';
 import { runPointer } from './cli/pointer.js';
 import { adoptRecords } from './state/skarbiec-records.js';
+import { DeclaredError } from './errors/index.cjs';
+import { runErrors } from './cli/errors.js';
 import { HELP, UsageError, exitStatusFor, printAnswer } from './cli/usage.js';
 
 export type CliCommand =
@@ -37,11 +40,13 @@ export type CliCommand =
   | 'password'
   | 'certificate'
   | 'login'
+  | 'agreement'
   | 'worker'
   | 'records'
   | 'recordings'
   | 'keeper'
-  | 'pointer';
+  | 'pointer'
+  | 'errors';
 
 export type ParsedCli = {
   command: CliCommand;
@@ -90,11 +95,11 @@ async function runVersion(): Promise<void> {
 }
 
 async function runRecords(parsed: ParsedCli): Promise<void> {
-  if (
-    parsed.positional.join(' ') !== 'adopt' ||
-    Object.keys(parsed.options).some((key) => key !== 'json')
-  )
-    throw new UsageError('records takes exactly: adopt [--json]');
+  const action = parsed.positional.join(' ');
+  if (action !== 'adopt')
+    throw new UsageError(`weles records takes adopt, not ${action}`);
+  if (Object.keys(parsed.options).some((key) => key !== 'json'))
+    throw new UsageError('records adopt takes only --json');
   printAnswer(adoptRecords(), parsed.options.json === true);
 }
 
@@ -124,11 +129,13 @@ const COMMAND_RUNS: Readonly<
   password: runAppPassword,
   certificate: runAppleDeveloperId,
   login: runAppleLogin,
+  agreement: runAppleAgreement,
   worker: runWorker,
   records: runRecords,
   recordings: runRecordingsScrub,
   keeper: runKeeper,
   pointer: runPointer,
+  errors: runErrors,
 });
 
 /** The arguments after the interpreter and this script. */
@@ -152,10 +159,24 @@ export async function runCli(argv = commandLine()): Promise<void> {
   await COMMAND_RUNS[parsed.command](parsed);
 }
 
+/**
+ * How a failure is reported: `weles: <what failed, why, observed>` on standard
+ * error, and for a declared cause the fix and the cause's id under it; with
+ * --json the declared cause's answer is also printed as one JSON document on
+ * standard output.
+ */
+function reportFailure(error: unknown, argv: string[]): void {
+  const message = error instanceof Error ? error.message : String(error);
+  process.stderr.write(`weles: ${message}\n`);
+  if (error instanceof DeclaredError) {
+    process.stderr.write(`${error.explanation()}\n`);
+    if (argv.includes('--json'))
+      process.stdout.write(`${JSON.stringify(error.answer(), null, 2)}\n`);
+  }
+  process.exitCode = exitStatusFor(error);
+}
+
 if (require.main === module) {
-  runCli().catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error);
-    process.stderr.write(`weles: ${message}\n`);
-    process.exitCode = exitStatusFor(error);
-  });
+  const argv = commandLine();
+  runCli(argv).catch((error: unknown) => reportFailure(error, argv));
 }

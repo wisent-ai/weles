@@ -87,24 +87,38 @@ const RUNTIME_EXPECTATIONS = {
       probe.report !== null,
       `The run declares a finished runtime report, and the status has none: ${probe.said} (probingSince ${probe.probingSince})`,
     );
-    assert.ok(typeof probe.probedAt === 'string', `A runtime report states no time it was probed: ${JSON.stringify(probe)}`);
+    assert.ok(
+      typeof probe.probedAt === 'string',
+      `A runtime report states no time it was probed: ${JSON.stringify(probe)}`,
+    );
     const runtime = probe.report;
-    assert.ok(typeof runtime.ok === 'boolean', `The runtime report states no ok: ${JSON.stringify(runtime)}`);
+    assert.ok(
+      typeof runtime.ok === 'boolean',
+      `The runtime report states no ok: ${JSON.stringify(runtime)}`,
+    );
     // The inspector states a components list once it resolved the encoder,
     // and only an error when it could not: a list that is absent is said as
     // absent, never counted as no failing component.
     const listed = Array.isArray(runtime.components);
-    const failing = listed ? runtime.components.filter((component) => component.ok !== true) : null;
+    const failing = listed
+      ? runtime.components.filter((component) => component.ok !== true)
+      : null;
     if (runtime.ok) {
       assert.ok(
         listed && runtime.components.length && !failing.length,
         `A ready browser runtime names no probed component, or one of them failed: ${JSON.stringify(runtime)}`,
       );
     } else if (!(typeof runtime.error === 'string' && runtime.error.trim())) {
-      assert.ok(listed, `A failing browser runtime states neither its resolution error nor its components: ${JSON.stringify(runtime)}`);
+      assert.ok(
+        listed,
+        `A failing browser runtime states neither its resolution error nor its components: ${JSON.stringify(runtime)}`,
+      );
       assert.ok(
         failing.length &&
-          failing.every((component) => typeof component.error === 'string' && component.error.trim()),
+          failing.every(
+            (component) =>
+              typeof component.error === 'string' && component.error.trim(),
+          ),
         `A failing browser runtime does not say why: ${JSON.stringify(runtime)}`,
       );
     }
@@ -156,9 +170,14 @@ function command(program, args) {
 try {
   binary = realpathSync(required('WELES_BIN'));
   report.binary = binary;
-  report.binary_sha256 = createHash('sha256').update(readFileSync(binary)).digest('hex');
+  report.binary_sha256 = createHash('sha256')
+    .update(readFileSync(binary))
+    .digest('hex');
   report.expected = declared('WELES_TEST_IDENTITY_STATE', EXPECTATIONS);
-  report.runtime_expected = declared('WELES_TEST_RUNTIME_STATE', RUNTIME_EXPECTATIONS);
+  report.runtime_expected = declared(
+    'WELES_TEST_RUNTIME_STATE',
+    RUNTIME_EXPECTATIONS,
+  );
   report.revision = command('git', ['rev-parse', 'HEAD']).trim();
   report.checkout_status = command('git', ['status', '--porcelain']);
   const status = JSON.parse(command(binary, ['worker', 'status', '--json']));

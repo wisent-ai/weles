@@ -20,6 +20,12 @@ import {
   point,
 } from './escalation.js';
 import { askedAboutImage, REFUSE, takeScreenshot } from './recorded.js';
+import {
+  functionFromTranscript,
+  TRANSCRIBED_TIER,
+  textFromTranscript,
+  transcribe,
+} from './transcribed.js';
 
 /** Minimal page interface — any object that exposes a CDP-compatible screenshot. */
 export interface ScreenshottablePage {
@@ -63,8 +69,10 @@ export async function askJedenAboutImage(
 }
 
 /**
- * Screenshot the page and ask Jeden an open-ended question about it.
- * Raises VisionRefusedError on safety refusal.
+ * Screenshot the page and ask Jeden an open-ended question about it. A
+ * refusal escalates: the screenshot is transcribed and the question asked of
+ * the transcription (`transcribed.ts`); VisionRefusedError, with every
+ * reason, only when that is refused too.
  */
 export async function askPage(
   page: ScreenshottablePage,
@@ -73,11 +81,27 @@ export async function askPage(
   tier = 'tier_0_bare',
 ): Promise<string> {
   const screenshot = imageBytes ?? (await takeScreenshot(page));
+  const refused = (said: string) => said.trimStart().startsWith(REFUSAL_MARKER);
   const answer = await askJedenAboutImage(screenshot, question, tier);
-  if (answer.trimStart().startsWith(REFUSAL_MARKER)) {
-    throw new VisionRefusedError(question, answer);
-  }
-  return answer;
+  if (!refused(answer)) return answer;
+  console.log(`  [vision] ${tier} refused, escalating to ${TRANSCRIBED_TIER}`);
+  const read = await transcribe(screenshot);
+  if ('refused' in read)
+    throw new VisionRefusedError(
+      question,
+      `${answer}; the transcription was refused too: ${read.refused}`,
+    );
+  const again = await textFromTranscript(
+    question,
+    read.transcript,
+    REFUSAL_MARKER,
+  );
+  if (refused(again))
+    throw new VisionRefusedError(
+      question,
+      `${answer}; asked of the transcription: ${again}`,
+    );
+  return again;
 }
 
 /**
@@ -95,10 +119,29 @@ export async function askPageFunction(
   return askImageFunction(screenshot, question, tools, tier);
 }
 
+/** The function a model called and its arguments, or why there are none. */
+function called(
+  question: string,
+  answer: string,
+  functionName: string | undefined,
+): { name: string; args: Record<string, unknown> } {
+  if (functionName === undefined)
+    throw new PageQuestionError(question, `no function was called: ${answer}`);
+  try {
+    return { name: functionName, args: JSON.parse(answer) };
+  } catch (parseError) {
+    throw new PageQuestionError(
+      question,
+      `the ${functionName} arguments are not JSON (${String(parseError)}): ${answer}`,
+    );
+  }
+}
+
 /**
  * Have the model answer `question` about `image` by calling one of `tools`:
- * the function it called and its arguments. A model that will not answer
- * calls the declared refusal, raised as VisionRefusedError.
+ * the function it called and its arguments. A model that calls the declared
+ * refusal is asked again of the image's transcription; VisionRefusedError,
+ * with both reasons, only when that is refused too.
  */
 export async function askImageFunction(
   image: Buffer,
@@ -106,26 +149,25 @@ export async function askImageFunction(
   tools: readonly FunctionTool[],
   tier: string,
 ): Promise<{ name: string; args: Record<string, unknown> }> {
-  const { answer, functionName } = await askedAboutImage(
-    image,
-    question,
-    tier,
-    tools,
-  );
-  if (functionName === undefined)
-    throw new PageQuestionError(question, `no function was called: ${answer}`);
-  let args: Record<string, unknown>;
-  try {
-    args = JSON.parse(answer);
-  } catch (parseError) {
-    throw new PageQuestionError(
+  const asked = await askedAboutImage(image, question, tier, tools);
+  const first = called(question, asked.answer, asked.functionName);
+  if (first.name !== REFUSE) return first;
+  console.log(`  [vision] ${tier} refused, escalating to ${TRANSCRIBED_TIER}`);
+  const reason = String(first.args.reason);
+  const read = await transcribe(image);
+  if ('refused' in read)
+    throw new VisionRefusedError(
       question,
-      `the ${functionName} arguments are not JSON (${String(parseError)}): ${answer}`,
+      `${reason}; the transcription was refused too: ${read.refused}`,
     );
-  }
-  if (functionName === REFUSE)
-    throw new VisionRefusedError(question, String(args.reason));
-  return { name: functionName, args };
+  const again = await functionFromTranscript(question, read.transcript, tools);
+  const second = called(question, again.answer, again.functionName);
+  if (second.name === REFUSE)
+    throw new VisionRefusedError(
+      question,
+      `${reason}; asked of the transcription: ${String(second.args.reason)}`,
+    );
+  return second;
 }
 
 const shownTool = pageFunction(

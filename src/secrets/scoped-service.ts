@@ -2,8 +2,14 @@
 // credential contract grants, and, from scoped-service/acquired/, the shape
 // check and the write of a credential a browser job acquired.
 
-import { SERVICE_CONTRACTS, resolvedAcquiredSecretContract } from './scoped-service/contracts.js';
-import { readScopedField, readAcquiredField } from './scoped-service/transport.js';
+import {
+  SERVICE_CONTRACTS,
+  resolvedAcquiredSecretContract,
+} from './scoped-service/contracts.js';
+import {
+  readScopedField,
+  readAcquiredField,
+} from './scoped-service/transport.js';
 import { welesManagedCredentialReaderMismatch } from './scoped-service/transport/grants.js';
 import { SkarbiecAcquisitionError } from './scoped-service/acquisition-failure.js';
 import type { WelesServiceSecret } from './scoped-service/transport.js';

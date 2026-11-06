@@ -108,7 +108,9 @@ export async function askLlm(
         ),
       );
     } catch (error) {
-      console.error(`[weles] the step record ${logPath} could not be written: ${error instanceof Error ? error.message : String(error)}`);
+      console.error(
+        `[weles] the step record ${logPath} could not be written: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
   return decision;

@@ -32,7 +32,11 @@ export function captureFailure(
   operation: string,
   error: unknown,
 ): CaptureFailure {
-  const failure: CaptureFailure = { field, operation, message: describeError(error) };
+  const failure: CaptureFailure = {
+    field,
+    operation,
+    message: describeError(error),
+  };
   if (!(error instanceof Error)) return failure;
   const { code, status, stderr } = error as ProcessError;
   if (code !== undefined) failure.code = code;

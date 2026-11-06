@@ -15,7 +15,10 @@ import type {
   JourneyTransport,
 } from '../plane/contracts';
 import { IDENTIFIER, SHA256 } from '../journey/identifiers';
-import { evaluateJourneyCondition, selectNextScreen } from '../journey/decision';
+import {
+  evaluateJourneyCondition,
+  selectNextScreen,
+} from '../journey/decision';
 import { journeyEvent } from './progress';
 import { loadJourneyBundle, type LoadedBundle } from './bundle-source';
 import { openAttempt } from './opening';
@@ -71,24 +74,56 @@ export class JourneyClient {
     const bundle = this.#bundle;
     const progress = this.#progress;
     if (!bundle || !progress) return null;
-    const screen = bundle.definition.screens.find((candidate) => candidate.screen_id === progress.current_screen_id);
+    const screen = bundle.definition.screens.find(
+      (candidate) => candidate.screen_id === progress.current_screen_id,
+    );
     if (!screen) return null;
     return screen;
   }
 
   start(evidenceRevision: string) {
     return this.#serialized(async () => {
-      const { productId, journeyId, subjectHash, scopeKind, canonicalFallback, storage, transport } = this.#options;
-      const loaded = await loadJourneyBundle({ productId, journeyId, transport, storage, canonicalFallback });
+      const {
+        productId,
+        journeyId,
+        subjectHash,
+        scopeKind,
+        canonicalFallback,
+        storage,
+        transport,
+      } = this.#options;
+      const loaded = await loadJourneyBundle({
+        productId,
+        journeyId,
+        transport,
+        storage,
+        canonicalFallback,
+      });
       this.#bundle = loaded.bundle;
       this.#source = loaded.source;
       const opened = await openAttempt({
-        productId, journeyId, subjectHash, scopeKind, transport, storage, bundle: loaded.bundle, evidenceRevision,
+        productId,
+        journeyId,
+        subjectHash,
+        scopeKind,
+        transport,
+        storage,
+        bundle: loaded.bundle,
+        evidenceRevision,
       });
       this.#degraded = [...loaded.degraded, ...opened.degraded];
-      const eventName = opened.isResume ? 'onboarding_resumed' : 'onboarding_started';
-      await this.#commit(opened.progress, [this.#event(opened.progress, eventName, {}, evidenceRevision)]);
-      return { bundle: loaded.bundle, source: loaded.source, progress: this.#progress, degraded: this.degraded };
+      const eventName = opened.isResume
+        ? 'onboarding_resumed'
+        : 'onboarding_started';
+      await this.#commit(opened.progress, [
+        this.#event(opened.progress, eventName, {}, evidenceRevision),
+      ]);
+      return {
+        bundle: loaded.bundle,
+        source: loaded.source,
+        progress: this.#progress,
+        degraded: this.degraded,
+      };
     });
   }
 
@@ -100,46 +135,81 @@ export class JourneyClient {
     return this.#serialized(async () => {
       const { bundle, progress } = this.#started();
       const routingEvidence =
-        progress.variant_id !== undefined && !Object.prototype.hasOwnProperty.call(evidence, 'experiment_variant')
+        progress.variant_id !== undefined &&
+        !Object.prototype.hasOwnProperty.call(evidence, 'experiment_variant')
           ? { ...evidence, experiment_variant: progress.variant_id }
           : evidence;
-      const decision = selectNextScreen(bundle.definition, progress.current_screen_id, routingEvidence);
+      const decision = selectNextScreen(
+        bundle.definition,
+        progress.current_screen_id,
+        routingEvidence,
+      );
       if (!decision) return null;
       const completedScreenId = progress.current_screen_id;
       const next = {
         ...progress,
         current_screen_id: decision.selected_next_screen_id,
-        completed_screen_ids: [...new Set([...progress.completed_screen_ids, completedScreenId])],
+        completed_screen_ids: [
+          ...new Set([...progress.completed_screen_ids, completedScreenId]),
+        ],
         evidence_revision: evidenceRevision,
       };
       await this.#commit(next, [
-        this.#event(next, 'onboarding_step_completed', {}, evidenceRevision, decision, completedScreenId),
+        this.#event(
+          next,
+          'onboarding_step_completed',
+          {},
+          evidenceRevision,
+          decision,
+          completedScreenId,
+        ),
       ]);
       return decision;
     });
   }
 
-  complete(evidence: JourneyEvidence, evidenceRevision: string, properties: Properties = {}) {
+  complete(
+    evidence: JourneyEvidence,
+    evidenceRevision: string,
+    properties: Properties = {},
+  ) {
     return this.#serialized(async () => {
       const { progress } = this.#started();
       const screen = this.screen;
       if (
         !screen ||
         !!screen.transitions.length ||
-        (screen.completion_evidence && !evaluateJourneyCondition(screen.completion_evidence, evidence))
+        (screen.completion_evidence &&
+          !evaluateJourneyCondition(screen.completion_evidence, evidence))
       ) {
         return false;
       }
       const completedScreenId = progress.current_screen_id;
       const next: JourneyProgress = {
         ...progress,
-        completed_screen_ids: [...new Set([...progress.completed_screen_ids, completedScreenId])],
+        completed_screen_ids: [
+          ...new Set([...progress.completed_screen_ids, completedScreenId]),
+        ],
         status: 'completed',
         evidence_revision: evidenceRevision,
       };
       await this.#commit(next, [
-        this.#event(next, 'onboarding_step_completed', properties, evidenceRevision, undefined, completedScreenId),
-        this.#event(next, 'onboarding_completed', properties, evidenceRevision, undefined, completedScreenId),
+        this.#event(
+          next,
+          'onboarding_step_completed',
+          properties,
+          evidenceRevision,
+          undefined,
+          completedScreenId,
+        ),
+        this.#event(
+          next,
+          'onboarding_completed',
+          properties,
+          evidenceRevision,
+          undefined,
+          completedScreenId,
+        ),
       ]);
       return true;
     });
@@ -149,19 +219,45 @@ export class JourneyClient {
     return this.#serialized(async () => {
       if (!this.#progress) throw new Error('journey client has not started');
       if (this.#progress.first_action_completed) return false;
-      const next = { ...this.#progress, first_action_completed: true, evidence_revision: evidenceRevision };
-      await this.#commit(next, [this.#event(next, 'onboarding_first_action_completed', properties, evidenceRevision)]);
+      const next = {
+        ...this.#progress,
+        first_action_completed: true,
+        evidence_revision: evidenceRevision,
+      };
+      await this.#commit(next, [
+        this.#event(
+          next,
+          'onboarding_first_action_completed',
+          properties,
+          evidenceRevision,
+        ),
+      ]);
       return true;
     });
   }
 
-  observeFirstSuccess(evidence: JourneyEvidence, evidenceRevision: string, properties: Properties = {}) {
+  observeFirstSuccess(
+    evidence: JourneyEvidence,
+    evidenceRevision: string,
+    properties: Properties = {},
+  ) {
     return this.#serialized(async () => {
       const { bundle, progress } = this.#started();
       if (evidence[bundle.definition.first_success_fact] !== true) return false;
       if (progress.first_success_observed) return false;
-      const next = { ...progress, first_success_observed: true, evidence_revision: evidenceRevision };
-      await this.#commit(next, [this.#event(next, 'onboarding_first_success_observed', properties, evidenceRevision)]);
+      const next = {
+        ...progress,
+        first_success_observed: true,
+        evidence_revision: evidenceRevision,
+      };
+      await this.#commit(next, [
+        this.#event(
+          next,
+          'onboarding_first_success_observed',
+          properties,
+          evidenceRevision,
+        ),
+      ]);
       return true;
     });
   }
@@ -178,11 +274,21 @@ export class JourneyClient {
     await this.#moved('in_progress', 'onboarding_resumed', evidenceRevision);
   }
 
-  #moved(status: JourneyProgress['status'], eventName: JourneyEventName, evidenceRevision: string) {
+  #moved(
+    status: JourneyProgress['status'],
+    eventName: JourneyEventName,
+    evidenceRevision: string,
+  ) {
     return this.#serialized(async () => {
       if (!this.#progress) throw new Error('journey client has not started');
-      const next: JourneyProgress = { ...this.#progress, status, evidence_revision: evidenceRevision };
-      await this.#commit(next, [this.#event(next, eventName, {}, evidenceRevision)]);
+      const next: JourneyProgress = {
+        ...this.#progress,
+        status,
+        evidence_revision: evidenceRevision,
+      };
+      await this.#commit(next, [
+        this.#event(next, eventName, {}, evidenceRevision),
+      ]);
     });
   }
 
@@ -217,7 +323,14 @@ export class JourneyClient {
     screenId?: string,
   ) {
     if (!this.#progress) throw new Error('journey client has not started');
-    const event = this.#event(this.#progress, eventName, properties, evidenceRevision, decision, screenId);
+    const event = this.#event(
+      this.#progress,
+      eventName,
+      properties,
+      evidenceRevision,
+      decision,
+      screenId,
+    );
     await this.#options.storage.appendEvent(event);
     await this.#deliver([event]);
   }
@@ -232,7 +345,8 @@ export class JourneyClient {
 
   /** The started attempt's bundle and progress; a transition before start() is refused. */
   #started(): { bundle: JourneyBundle; progress: JourneyProgress } {
-    if (!this.#bundle || !this.#progress) throw new Error('journey client has not started');
+    if (!this.#bundle || !this.#progress)
+      throw new Error('journey client has not started');
     return { bundle: this.#bundle, progress: this.#progress };
   }
 
@@ -257,11 +371,13 @@ export class JourneyClient {
   async #deliver(events: readonly JourneyRuntimeEvent[]) {
     for (const event of events) {
       // A refused collect, or a collected event that could not be dequeued, is recorded; flush() sends it again.
-      const refusal = await this.#options.transport.collectEvent(event)
+      const refusal = await this.#options.transport
+        .collectEvent(event)
         .then(() => this.#options.storage.removeEvent(event.event_id))
         .then(
           () => null,
-          (error: unknown) => `event ${event.event_name} ${event.event_id} stays queued: ${error instanceof Error ? error.message : String(error)}`,
+          (error: unknown) =>
+            `event ${event.event_name} ${event.event_id} stays queued: ${error instanceof Error ? error.message : String(error)}`,
         );
       if (refusal !== null) {
         this.#degraded = [...this.#degraded, refusal];

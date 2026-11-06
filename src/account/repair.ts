@@ -1,6 +1,6 @@
-// What resolving a session writes back to the account record: a dead proxy
-// cleared with its failover noted, a proxy or persona backfilled onto an older
-// item, and an account retired with its pinned pool. An account that was not
+// What resolving a session writes back to the account record: a proxy or
+// persona backfilled onto an older item, and an account retired with its
+// pinned pool. An account that was not
 // read from Skarbiec has no record to write. A write Skarbiec refuses, or one
 // whose record Skarbiec no longer holds, fails the session with the account,
 // the change and the cause: a session that went on would act on a record
@@ -39,38 +39,13 @@ function writeAccount(
   }
 }
 
-export async function clearDeadProxy(
-  acct: SocialAccount,
-  reason: string,
-): Promise<void> {
-  const metadata: Record<string, any> = { ...acct.metadata };
-  const previous = metadata.proxy as Partial<ProxyConfig> | undefined;
-  delete metadata.proxy;
-  metadata.proxy_failover = {
-    at: new Date().toISOString(),
-    reason,
-    previous: previous
-      ? {
-          host: previous.host,
-          port: previous.port,
-          provider: previous.provider,
-          proxy_type: previous.proxy_type,
-        }
-      : null,
-  };
-  (acct as any).metadata = metadata;
-
-  if (!recorded(acct)) return;
-  writeAccount(acct, `clearing its dead proxy (${reason})`, { metadata });
-}
-
 export async function backfillProxy(
   acct: SocialAccount,
   cfg: ProxyConfig,
 ): Promise<void> {
   if (!recorded(acct)) return;
-  // Registration-time endpoints stay pinned until an authenticated CONNECT
-  // preflight proves the route is dead and clearDeadProxy records the failover.
+  // A pin is the account's one exit and is never overwritten; a pinned
+  // proxy that stops working ends the session (account/pinned_proxy.ts).
   const existingHost = (acct.metadata as any)?.proxy?.host;
   const existingPort = (acct.metadata as any)?.proxy?.port;
   if (

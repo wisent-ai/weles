@@ -1,7 +1,9 @@
 // One single-turn chat completion through the configured model route: Brama
-// with this workload's bearer and signed identity, or the direct provider.
+// with this workload's bearer and signed identity, the direct provider, or,
+// with neither named, Stado's inference alternatives.
 import { createHash, createHmac } from 'node:crypto';
 import { describeError } from '../../_shared/error-chain/index.cjs';
+import { callOperation, callStado } from './alternative.js';
 import { modelMessageContent } from './message.js';
 import type { ModelRouterConfig } from './router-config.js';
 
@@ -107,7 +109,14 @@ function answerOf(
   return answer;
 }
 
-/** Single-turn inference uses the caller's Brama identity; native tools require modelOnly: false. */
+/**
+ * The model route did not answer at all: the connection failed or broke
+ * before an answer was read. Distinct from a refusal the route answered, so
+ * a caller asks the alternative Stado resolves only for this.
+ */
+export class RouteUnreachable extends Error {}
+
+/** Single-turn inference uses the caller's Brama identity, the named provider, or Stado's alternatives; native tools require modelOnly: false. */
 export async function completeThroughRouter(
   cfg: ModelRouterConfig,
   prompt: string,
@@ -123,27 +132,9 @@ export async function completeThroughRouter(
     ...(tools ? { tools, tool_choice: 'required' } : {}),
     ...(maxOutputTokens === undefined ? {} : { max_tokens: maxOutputTokens }),
   });
-  const address = `${cfg.routerUrl}/v1/chat/completions`;
-  const response = await fetch(address, {
-    method: 'POST',
-    headers: routeHeaders(cfg, body),
-    body,
-  }).catch((error: unknown) => {
-    throw new Error(
-      `${cfg.direct ? 'WELES_MODEL_ENDPOINT' : 'Brama'} POST ${address} for ${model} failed: ${describeError(error)}`,
-      { cause: error },
-    );
-  });
-  // A connection lost while the answer's body is read is the same transport
-  // failure, now with the status the answer had already given.
-  const text = await response.text().catch((error: unknown) => {
-    throw new Error(
-      `${cfg.direct ? 'WELES_MODEL_ENDPOINT' : 'Brama'} POST ${address} for ${model} answered HTTP ${response.status}, and its body could not be read: ${describeError(error)}`,
-      { cause: error },
-    );
-  });
-  if (!response.ok)
-    throw new Error(`model router ${response.status} for ${model}: ${text}`);
+  const text = cfg.viaStado
+    ? await callStado(body)
+    : await posted(cfg, body, model);
   let payload: CompletionPayload;
   try {
     payload = JSON.parse(text) as CompletionPayload;
@@ -156,11 +147,41 @@ export async function completeThroughRouter(
   return {
     raw: answerOf(choice, text, model, options),
     model,
-    routerUrl: cfg.routerUrl,
+    routerUrl: cfg.viaStado ? callOperation : cfg.routerUrl,
     finishReason: choice?.finish_reason,
     usage: payload.usage,
     functionName: tools
       ? soleCall(choice?.message?.tool_calls)?.function?.name
       : undefined,
   };
+}
+
+/** `body` posted to the named route's chat completions; the answer's text. */
+async function posted(
+  cfg: ModelRouterConfig,
+  body: string,
+  model: string,
+): Promise<string> {
+  const address = `${cfg.routerUrl}/v1/chat/completions`;
+  const response = await fetch(address, {
+    method: 'POST',
+    headers: routeHeaders(cfg, body),
+    body,
+  }).catch((error: unknown) => {
+    throw new RouteUnreachable(
+      `${cfg.direct ? 'WELES_MODEL_ENDPOINT' : 'Brama'} POST ${address} for ${model} failed: ${describeError(error)}`,
+      { cause: error },
+    );
+  });
+  // A connection lost while the answer's body is read is the same transport
+  // failure, now with the status the answer had already given.
+  const text = await response.text().catch((error: unknown) => {
+    throw new RouteUnreachable(
+      `${cfg.direct ? 'WELES_MODEL_ENDPOINT' : 'Brama'} POST ${address} for ${model} answered HTTP ${response.status}, and its body could not be read: ${describeError(error)}`,
+      { cause: error },
+    );
+  });
+  if (!response.ok)
+    throw new Error(`model router ${response.status} for ${model}: ${text}`);
+  return text;
 }

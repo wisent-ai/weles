@@ -160,7 +160,9 @@ export function runReauth(
       if (cancelDetail !== null) {
         // The operator ended it: nothing about the account was learned, and
         // the next sign-in is free to run.
-        const stage = progress.lastStage ? progress.lastStage.stage : 'identity';
+        const stage = progress.lastStage
+          ? progress.lastStage.stage
+          : 'identity';
         result.ok = false;
         result.failure = {
           code: 'run_cancelled',

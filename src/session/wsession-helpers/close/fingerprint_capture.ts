@@ -22,7 +22,11 @@ const JSON_INDENT = '\t';
 
 /** The network fingerprint fields compared between the early and the close-time capture. */
 type DriftField = 'ja4' | 'peetprint_hash' | 'akamaiH2';
-const DRIFT_FIELDS: Record<DriftField, true> = { ja4: true, peetprint_hash: true, akamaiH2: true };
+const DRIFT_FIELDS: Record<DriftField, true> = {
+  ja4: true,
+  peetprint_hash: true,
+  akamaiH2: true,
+};
 
 /**
  * The TLS extension a resumed session adds after the target site was visited
@@ -32,7 +36,10 @@ const DRIFT_FIELDS: Record<DriftField, true> = { ja4: true, peetprint_hash: true
 const PSK_EXTENSION = 'pre_shared_key (41)';
 
 /** The findings a PSK-only drift explains: the early and close-time TLS fingerprints differ by resumption alone. */
-const PSK_EXPLAINED_FINDINGS: Record<string, true> = { tls_ja4_mismatch: true, tls_peetprint_mismatch: true };
+const PSK_EXPLAINED_FINDINGS: Record<string, true> = {
+  tls_ja4_mismatch: true,
+  tls_peetprint_mismatch: true,
+};
 
 export function recordingsDir(label?: string): string {
   return label ? runRecordingsDir(label) : runRecordingsRoot();
@@ -41,7 +48,12 @@ export function recordingsDir(label?: string): string {
 function extensionsOf(network: any): Set<string> {
   const listed = network?.extensions;
   if (!Array.isArray(listed)) return new Set();
-  return new Set(listed.filter((extension: unknown): extension is string => typeof extension === 'string' && !extension.startsWith('TLS_GREASE')));
+  return new Set(
+    listed.filter(
+      (extension: unknown): extension is string =>
+        typeof extension === 'string' && !extension.startsWith('TLS_GREASE'),
+    ),
+  );
 }
 
 function fieldOf(network: any, field: DriftField): string | null {
@@ -62,28 +74,52 @@ function compareDrift(label: string, network: any): boolean {
   const early = JSON.parse(readFileSync(earlyPath, 'utf-8'));
   const earlyExtensions = extensionsOf(early?.network);
   const finalExtensions = extensionsOf(network);
-  const added = [...finalExtensions].filter((extension) => !earlyExtensions.has(extension));
-  const removed = [...earlyExtensions].filter((extension) => !finalExtensions.has(extension));
+  const added = [...finalExtensions].filter(
+    (extension) => !earlyExtensions.has(extension),
+  );
+  const removed = [...earlyExtensions].filter(
+    (extension) => !finalExtensions.has(extension),
+  );
   const pskDrift = added.join(',') === PSK_EXTENSION && !removed.length;
-  const drift: Record<string, { early: string; final: string; pskExpected: boolean }> = {};
+  const drift: Record<
+    string,
+    { early: string; final: string; pskExpected: boolean }
+  > = {};
   for (const field of Object.keys(DRIFT_FIELDS) as DriftField[]) {
     const before = fieldOf(early?.network, field);
     const after = fieldOf(network, field);
-    if (before && after && before !== after) drift[field] = { early: before, final: after, pskExpected: pskDrift };
+    if (before && after && before !== after)
+      drift[field] = { early: before, final: after, pskExpected: pskDrift };
   }
   const changed = Object.keys(drift);
   if (changed.length) {
     const driftPath = join(recordingsDir(label), 'network_drift.json');
-    writeFileSync(driftPath, JSON.stringify({ capturedAt: new Date().toISOString(), pskDrift, drift }, null, JSON_INDENT));
-    console.log(`[wsession] network drift detected: ${changed.join(', ')}${pskDrift ? ' (expected PSK resumption)' : ''} — saved ${driftPath}`);
+    writeFileSync(
+      driftPath,
+      JSON.stringify(
+        { capturedAt: new Date().toISOString(), pskDrift, drift },
+        null,
+        JSON_INDENT,
+      ),
+    );
+    console.log(
+      `[wsession] network drift detected: ${changed.join(', ')}${pskDrift ? ' (expected PSK resumption)' : ''} — saved ${driftPath}`,
+    );
   }
   return pskDrift;
 }
 
 /** The report without the TLS mismatches a PSK-only drift explains, counted again by the analyzer's own summary. */
 function withoutPskFindings(report: FingerprintReport): FingerprintReport {
-  const findings = report.findings.filter((finding) => !Object.hasOwn(PSK_EXPLAINED_FINDINGS, finding.id));
-  return { ...report, meta: { ...report.meta, pskDriftExplained: true }, findings, summary: summarize(findings) };
+  const findings = report.findings.filter(
+    (finding) => !Object.hasOwn(PSK_EXPLAINED_FINDINGS, finding.id),
+  );
+  return {
+    ...report,
+    meta: { ...report.meta, pskDriftExplained: true },
+    findings,
+    summary: summarize(findings),
+  };
 }
 
 export async function wsCaptureFingerprint(s: WSession): Promise<void> {
@@ -98,14 +134,18 @@ export async function wsCaptureFingerprint(s: WSession): Promise<void> {
         console.log(`[wsession] fingerprint probe: ${section}`);
       })
       .catch((error: Error) =>
-        console.log(`[wsession] fingerprint probe sections unannounced: ${error.message}`),
+        console.log(
+          `[wsession] fingerprint probe sections unannounced: ${error.message}`,
+        ),
       );
     const js = await s.page.evaluate(FP_SCRIPT);
     let network: any;
     try {
       console.log(`[wsession] fingerprint probe: network ${NETWORK_FP_URL}`);
       await s.page.goto(NETWORK_FP_URL, { waitUntil: 'domcontentloaded' });
-      const raw = await s.page.evaluate(`document.body.innerText || document.body.textContent || ''`);
+      const raw = await s.page.evaluate(
+        `document.body.innerText || document.body.textContent || ''`,
+      );
       network = parseNetworkFingerprint(raw);
     } catch (e: any) {
       network = { _err: String(e?.message ?? e) };
@@ -124,12 +164,19 @@ export async function wsCaptureFingerprint(s: WSession): Promise<void> {
     writeFileSync(fpPath, JSON.stringify(payload, null, JSON_INDENT));
     console.log(`[wsession] fingerprint saved ${fpPath}`);
 
-    const baselineDir = process.env.WELES_BASELINE_DIR || join(process.cwd(), 'recordings', 'baselines');
+    const baselineDir =
+      process.env.WELES_BASELINE_DIR ||
+      join(process.cwd(), 'recordings', 'baselines');
     if (!existsSync(baselineDir)) {
-      console.log(`[wsession] detection report not written: no baseline directory ${baselineDir} (WELES_BASELINE_DIR)`);
+      console.log(
+        `[wsession] detection report not written: no baseline directory ${baselineDir} (WELES_BASELINE_DIR)`,
+      );
       return;
     }
-    const { path: baselinePath, data: baseline } = pickBaseline(baselineDir, payload);
+    const { path: baselinePath, data: baseline } = pickBaseline(
+      baselineDir,
+      payload,
+    );
     let report = analyze(payload, baseline);
     report.meta.subjectPath = fpPath;
     report.meta.baselinePath = baselinePath;
@@ -138,17 +185,25 @@ export async function wsCaptureFingerprint(s: WSession): Promise<void> {
     try {
       pskDrift = compareDrift(s.label, network);
     } catch (error) {
-      console.log(`[wsession] network drift compare error: ${error instanceof Error ? error.message : String(error)}`);
+      console.log(
+        `[wsession] network drift compare error: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
     if (pskDrift) {
       const before = report.summary.totalFindings;
       report = withoutPskFindings(report);
-      console.log(`[wsession] PSK drift explained: removed TLS mismatch findings, ${before} -> ${report.summary.totalFindings}`);
+      console.log(
+        `[wsession] PSK drift explained: removed TLS mismatch findings, ${before} -> ${report.summary.totalFindings}`,
+      );
     }
     const reportPath = join(recordingsDir(s.label), 'detection_report.json');
     writeFileSync(reportPath, JSON.stringify(report, null, JSON_INDENT));
-    console.log(`[wsession] detection report saved ${reportPath} critical=${report.summary.critical} warning=${report.summary.warning}`);
+    console.log(
+      `[wsession] detection report saved ${reportPath} critical=${report.summary.critical} warning=${report.summary.warning}`,
+    );
   } catch (error) {
-    console.log(`[wsession] fingerprint capture error: ${error instanceof Error ? error.message : String(error)}`);
+    console.log(
+      `[wsession] fingerprint capture error: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 }

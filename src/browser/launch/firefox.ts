@@ -10,7 +10,10 @@ import {
   attachProtocolHandlerWatcher,
   readDiagnosticScript,
 } from './support.js';
-import type { ContextLaunchInput, RuntimeFingerprintConfig } from './support.js';
+import type {
+  ContextLaunchInput,
+  RuntimeFingerprintConfig,
+} from './support.js';
 import {
   WEBAUTHN_REJECT_SCRIPT,
   ARKOSE_OBSERVER_SCRIPT_STOCK,
@@ -47,8 +50,8 @@ export async function launchFirefoxContext(
     launchOpts,
     pageDiagnostics,
     browserType,
+    language,
   } = input;
-  const persona = options.persona;
   const nav = fpConfig.navigator;
   const realizedFingerprint = fpConfig;
   const initScript = buildInitScript(fpConfig, options.excludeScripts);
@@ -61,7 +64,7 @@ export async function launchFirefoxContext(
   }
   const pwBrowser = await launchWelesFirefox({
     launchOpts,
-    persona,
+    language,
     nav,
     fpConfig,
     proxy: options.proxy,

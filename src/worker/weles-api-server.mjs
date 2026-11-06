@@ -86,11 +86,16 @@ const { listLoginAccounts, selectLoginAccount } = await import(
 const { readPrivateStadoObjectIdentity, uploadArtifacts } = await import(
   `${REPO}/dist/worker/upload-artifacts.js`
 );
-const {
-  publicAddresses,
-  resolveBrowserEvidenceTarget,
-  SPIS_BROWSER_EVIDENCE_POLICY,
-} = await import(`${REPO}/dist/agent/browser-evidence-policy.js`);
+// Each from the module that owns it: the policy from its ledger, the address
+// checks from the pinned network. Read from browser-evidence-policy.js, which
+// stopped re-exporting them, the policy arrived undefined and the server
+// refused to start with "browser-evidence policy is invalid".
+const { SPIS_BROWSER_EVIDENCE_POLICY } = await import(
+  `${REPO}/dist/agent/browser-evidence-policy/withheld-ledger.js`
+);
+const { publicAddresses, resolveBrowserEvidenceTarget } = await import(
+  `${REPO}/dist/agent/browser-evidence-policy/pinned-network.js`
+);
 const { AsyncNewBrowser } = await import(`${REPO}/dist/async_api.js`);
 const accountRecords = await import(`${REPO}/dist/state/skarbiec-records.js`);
 const { createPublicTaskService, publicTaskErrorResponse } = await import(

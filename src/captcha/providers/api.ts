@@ -1,4 +1,3 @@
-import { lookup } from 'node:dns/promises';
 import { costTracker } from '../../utils/runtime/cost.js';
 import { markAllProvidersFailed } from '../events.js';
 import {
@@ -8,9 +7,9 @@ import {
   type ProviderCallback,
 } from './callback.js';
 
-// What every captcha provider call shares: the credential set, the
-// createTask/getTaskResult exchange, and the proxy fields a task carries in
-// the two dialects the providers speak.
+// What every captcha provider call shares: the credential set and the
+// createTask/getTaskResult exchange. The proxy fields a reCAPTCHA task
+// carries are in recaptcha/proxy.ts.
 
 export interface CaptchaCredentials {
   anticaptcha?: string;
@@ -108,8 +107,13 @@ export async function solvedTask(
     }
     return createRes.taskId;
   });
-  console.log(`[captcha:api] ${svc} taskId=${taskId}, waiting for its answer at the callback`);
-  const res = pushedJson(await callback.answer(), `${svc} task ${taskId} (${task.type})`);
+  console.log(
+    `[captcha:api] ${svc} taskId=${taskId}, waiting for its answer at the callback`,
+  );
+  const res = pushedJson(
+    await callback.answer(),
+    `${svc} task ${taskId} (${task.type})`,
+  );
   if (res.errorId) {
     throw new Error(
       `${svc} task ${taskId} (${task.type}) failed: ${res.errorCode} ${res.errorDescription}`,
@@ -138,7 +142,9 @@ export async function apiSolve(
       `${serviceOf(apiUrl)} task ${res.taskId} (${task.type}) is ready but its solution carries no token: ${JSON.stringify(res.solution)}`,
     );
   }
-  console.log(`[captcha:api] ${serviceOf(apiUrl)} solved, token_chars=${t.length}`);
+  console.log(
+    `[captcha:api] ${serviceOf(apiUrl)} solved, token_chars=${t.length}`,
+  );
   return t;
 }
 
@@ -164,7 +170,9 @@ export async function twoCaptchaSolve(
     }
     return cr.request;
   });
-  console.log(`[captcha:api] 2captcha ${what} taskId=${tid}, waiting for its pingback`);
+  console.log(
+    `[captcha:api] 2captcha ${what} taskId=${tid}, waiting for its pingback`,
+  );
   const pushed = await callback.answer();
   const form = new URLSearchParams(pushed.body);
   const code = form.get('code');
@@ -180,7 +188,10 @@ export async function twoCaptchaSolve(
 // One service's attempt in a chain: the service the cost table prices and
 // the call that answers its solution (a token, or the cookies a cookie
 // challenge yields) or throws why it could not.
-export type ServiceAttempt<T = string> = { service: string; solve: () => Promise<T> };
+export type ServiceAttempt<T = string> = {
+  service: string;
+  solve: () => Promise<T>;
+};
 
 // Tries each service in order; the first solution answers and is priced. When
 // none solves it answers every service's cause instead, so a chain with a last
@@ -215,9 +226,13 @@ export async function trySolved<T = string>(
 export function unsolved(resource: string, causes: string[]): Error {
   markAllProvidersFailed(resource, causes);
   if (!causes.length) {
-    return new Error(`no captcha service solves ${resource} with a key Weles holds`);
+    return new Error(
+      `no captcha service solves ${resource} with a key Weles holds`,
+    );
   }
-  return new Error(`no captcha service solved ${resource}: ${causes.join('; ')}`);
+  return new Error(
+    `no captcha service solved ${resource}: ${causes.join('; ')}`,
+  );
 }
 
 // The first service's solution, or the error naming every service and its cause.
@@ -228,63 +243,4 @@ export async function firstSolved<T = string>(
   const outcome = await trySolved(resource, attempts);
   if ('token' in outcome) return outcome.token;
   throw unsolved(resource, outcome.causes);
-}
-
-export type ProxyCredentials = {
-  server?: string;
-  username?: string;
-  password?: string;
-};
-
-// The proxy URL a task names, which must carry its port: the services take
-// the proxy as address and port, and a URL without one read as port NaN, so
-// the task went out naming no usable proxy.
-function proxyUrl(server: string): URL {
-  const u = new URL(server);
-  if (!u.port)
-    throw new Error(
-      `captcha proxy ${u.hostname} names no port; the solving services need one`,
-    );
-  return u;
-}
-
-// The proxy fields of a createTask task. The services require the proxy by IP
-// address, so a host that does not resolve fails here with its cause rather
-// than going out as a name the services refuse.
-export async function proxyTaskFields(
-  proxy?: ProxyCredentials,
-): Promise<Record<string, any> | null> {
-  if (!proxy?.server) return null;
-  const u = proxyUrl(proxy.server);
-  let ip: string;
-  try {
-    ({ address: ip } = await lookup(u.hostname));
-  } catch (error) {
-    throw new Error(
-      `captcha proxy ${u.hostname} did not resolve to an address the solving services accept: ${error instanceof Error ? error.message : String(error)}`,
-      { cause: error },
-    );
-  }
-  return {
-    proxyType: u.protocol.replace(':', ''),
-    proxyAddress: ip,
-    proxyPort: Number(u.port),
-    proxyLogin: proxy.username,
-    proxyPassword: proxy.password,
-  };
-}
-
-export function nopechaProxyFields(
-  proxy?: ProxyCredentials,
-): Record<string, any> | null {
-  if (!proxy?.server) return null;
-  const u = proxyUrl(proxy.server);
-  const out: Record<string, any> = {
-    scheme: u.protocol.replace(':', ''),
-    host: u.hostname,
-    port: Number(u.port),
-  };
-  if (proxy.username) out.username = proxy.username;
-  if (proxy.password) out.password = proxy.password;
-  return out;
 }

@@ -14,8 +14,14 @@ import { existsSync, readdirSync } from 'node:fs';
 import { userInfo } from 'node:os';
 import { basename, resolve } from 'node:path';
 
-import { CAPTCHA_CALLBACK_ORIGIN, RECORDINGS_ROOT } from '../../configuration.mjs';
-import { CAPTCHA_ANSWER_PATH, captchaAnswersOf } from '../../routes/captcha/answers.mjs';
+import {
+  CAPTCHA_CALLBACK_ORIGIN,
+  RECORDINGS_ROOT,
+} from '../../configuration.mjs';
+import {
+  CAPTCHA_ANSWER_PATH,
+  captchaAnswersOf,
+} from '../../routes/captcha/answers.mjs';
 import { REPO } from '../../release-identity.mjs';
 import { runOutputs } from '../run-outcome.mjs';
 
@@ -129,7 +135,10 @@ export function runChildIdentity(runId, action) {
     WELES_CAPTCHA_ANSWERS_DIR: captchaAnswersOf(runId),
     ...(CAPTCHA_CALLBACK_ORIGIN
       ? {
-          WELES_CAPTCHA_CALLBACK_URL: new URL(`${CAPTCHA_ANSWER_PATH}${runId}/`, CAPTCHA_CALLBACK_ORIGIN).toString(),
+          WELES_CAPTCHA_CALLBACK_URL: new URL(
+            `${CAPTCHA_ANSWER_PATH}${runId}/`,
+            CAPTCHA_CALLBACK_ORIGIN,
+          ).toString(),
         }
       : {}),
     ACTION_LOG_ID: runId,

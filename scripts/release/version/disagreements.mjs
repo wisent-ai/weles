@@ -23,7 +23,9 @@ const { values } = parseArgs({
   options: { revision: { type: 'string' }, index: { type: 'boolean' } },
 });
 if (values.index === true && values.revision) {
-  throw new Error('--revision and --index name two different trees: pass one of them');
+  throw new Error(
+    '--revision and --index name two different trees: pass one of them',
+  );
 }
 if (values.index !== true && !values.revision) {
   throw new Error(
@@ -43,7 +45,9 @@ function committed(path) {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
   } catch (error) {
-    throw new Error(`git show ${revision}:${path} failed: ${error.stderr || error.message}`);
+    throw new Error(
+      `git show ${revision}:${path} failed: ${error.stderr || error.message}`,
+    );
   }
   return JSON.parse(shown);
 }
@@ -57,15 +61,23 @@ function text(document, field, path) {
   return value;
 }
 
-const baseline = text(committed('released-surface.json'), 'version', 'released-surface.json');
+const baseline = text(
+  committed('released-surface.json'),
+  'version',
+  'released-surface.json',
+);
 const declaration = committed('release/version-change.json');
 const current = text(declaration, 'current', 'release/version-change.json');
 const candidate = text(declaration, 'candidate', 'release/version-change.json');
 const manifest = text(committed('package.json'), 'version', 'package.json');
 
 if (baseline !== current) {
-  console.log(`released-surface.json names ${baseline}, release/version-change.json's current is ${current}`);
+  console.log(
+    `released-surface.json names ${baseline}, release/version-change.json's current is ${current}`,
+  );
 }
 if (manifest !== candidate) {
-  console.log(`package.json names ${manifest}, release/version-change.json's candidate is ${candidate}`);
+  console.log(
+    `package.json names ${manifest}, release/version-change.json's candidate is ${candidate}`,
+  );
 }

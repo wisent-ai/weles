@@ -1,11 +1,16 @@
 // The pointer trace Weles moves by: segments of a person's pointer travel
 // between two presses, and the wheel steps they scrolled with, harvested from
-// operator-driven runs by `weles pointer harvest`. It lives beside the runs
-// it came from, under WELES_RECORDINGS_ROOT. Nothing else supplies pointer
-// geometry: a host without a harvested trace moves no pointer.
+// operator-driven runs by `weles pointer harvest`.
+//
+// It is part of Weles, not of a host: the file lives in this package
+// (src/human/pointer/pointer-trace.json), is committed with the code that
+// replays it, and travels in every release, which packs src/. A trace kept
+// under one host's recordings root went with that host: the only one was on
+// a machine that went off the network, and every other host then refused
+// every pointer move. `harvest` writes the packaged file, so a new trace is
+// delivered the way code is: committed, released, installed.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { recordingsBase } from '../../session/run-recordings.js';
 
 export type Point = { readonly x: number; readonly y: number };
 export type WheelStep = { readonly dx: number; readonly dy: number };
@@ -22,8 +27,16 @@ export type PointerTrace = {
 
 export const TRACE_FILE = 'pointer-trace.json';
 
+/**
+ * The packaged trace: src/human/pointer/ of this Weles, from src/ or dist/.
+ * WELES_POINTER_TRACE names another file, for a test journey that harvests
+ * a trace of its own and must not overwrite the one Weles ships.
+ */
 export function pointerTracePath(): string {
-  return join(recordingsBase(), TRACE_FILE);
+  return (
+    process.env.WELES_POINTER_TRACE?.trim() ||
+    join(__dirname, '..', '..', '..', 'src', 'human', 'pointer', TRACE_FILE)
+  );
 }
 
 function isPoint(value: unknown): value is Point {
@@ -54,15 +67,19 @@ export function readPointerTrace(): PointerTrace {
   const path = pointerTracePath();
   if (!existsSync(path))
     throw new Error(
-      `no pointer trace at ${path}: harvest one from operator-driven runs with weles pointer harvest --from <run>.inst.json`,
+      `no pointer trace at ${path}: this Weles was released without one; harvest it from operator-driven runs with weles pointer harvest <run>.inst.json in the Weles checkout, commit it and release`,
     );
-  const document = JSON.parse(readFileSync(path, 'utf8')) as Partial<PointerTrace>;
+  const document = JSON.parse(
+    readFileSync(path, 'utf8'),
+  ) as Partial<PointerTrace>;
   const { sources, segments, wheel } = document;
   if (
     !Array.isArray(sources) ||
     !Array.isArray(segments) ||
     !Array.isArray(wheel) ||
-    !segments.every((s) => Array.isArray(s?.points) && s.points.every(isPoint)) ||
+    !segments.every(
+      (s) => Array.isArray(s?.points) && s.points.every(isPoint),
+    ) ||
     !wheel.every(isWheelStep)
   )
     throw new Error(

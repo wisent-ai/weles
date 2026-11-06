@@ -27,6 +27,30 @@
           "release/stado-build.sh"
         ]
       },
+      "tests": [
+        {
+          "name": "placement-journey",
+          "argv": [
+            "node",
+            "--test",
+            "tests/release/placement-journey.mjs"
+          ]
+        },
+        {
+          "name": "error-standard",
+          "argv": [
+            "node",
+            "--test",
+            "tests/release/error-standard.mjs"
+          ]
+        }
+      ],
+      "test_products": [
+        {
+          "product": "stado",
+          "surface": "cli"
+        }
+      ],
       "stage": {
         "payload/weles-worker.tar.gz": "payload/weles-worker.tar.gz",
         "bin/start": "bin/start",
@@ -54,6 +78,30 @@
           "release/stado-build.sh"
         ]
       },
+      "tests": [
+        {
+          "name": "placement-journey",
+          "argv": [
+            "node",
+            "--test",
+            "tests/release/placement-journey.mjs"
+          ]
+        },
+        {
+          "name": "error-standard",
+          "argv": [
+            "node",
+            "--test",
+            "tests/release/error-standard.mjs"
+          ]
+        }
+      ],
+      "test_products": [
+        {
+          "product": "stado",
+          "surface": "cli"
+        }
+      ],
       "stage": {
         "payload/weles-worker.tar.gz": "payload/weles-worker.tar.gz",
         "bin/start": "bin/start",

@@ -23,11 +23,13 @@ const COMMANDS: Readonly<Record<string, CliCommand>> = Object.freeze({
   password: 'password',
   certificate: 'certificate',
   login: 'login',
+  agreement: 'agreement',
   worker: 'worker',
   records: 'records',
   recordings: 'recordings',
   keeper: 'keeper',
   pointer: 'pointer',
+  errors: 'errors',
 });
 
 /** The options that take the argument after them as their value. */
@@ -55,6 +57,7 @@ const VALUE_OPTIONS: Readonly<Record<string, true>> = Object.freeze({
   released: true,
   'published-surface': true,
   reason: true,
+  source: true,
   correcting: true,
   root: true,
   run: true,

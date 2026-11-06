@@ -19,14 +19,15 @@ await contend(async ({ prompt }) => {
   let payload;
   try {
     payload = JSON.parse(text);
-  } catch {
-    throw new Error(`${endpoint} answered HTTP ${response.status} with a body that is not JSON: ${text.slice(0, 400)}`);
+  } catch (error) {
+    throw new Error(`${endpoint} answered HTTP ${response.status} with a body that is not JSON (${error.message}): ${text}`);
   }
   if (!response.ok) {
-    throw new Error(`${endpoint} answered HTTP ${response.status}: ${JSON.stringify(payload).slice(0, 400)}`);
+    throw new Error(`${endpoint} answered HTTP ${response.status}: ${JSON.stringify(payload)}`);
   }
   if (payload.ok !== true) {
-    throw new Error(`Weles run ${payload.run_id ?? "(no run id)"} did not succeed: ${JSON.stringify(payload).slice(0, 400)}`);
+    const run = "run_id" in payload ? `run ${payload.run_id}` : "a run whose answer names no run_id";
+    throw new Error(`${endpoint} ended ${run} without its value (ok is ${JSON.stringify(payload.ok)}), so the task has no answer to score; the run's own answer says why: ${JSON.stringify(payload)}`);
   }
   const steps = payload.trajectory_draft?.steps;
   return {

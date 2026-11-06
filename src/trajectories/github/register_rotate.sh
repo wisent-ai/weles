@@ -13,7 +13,7 @@ cd "$(dirname "$0")/../../.." || exit 1
 if [[ -f .env ]]; then set -a; . .env; set +a; fi
 
 MAX_ATTEMPTS=${MAX_ATTEMPTS:?set MAX_ATTEMPTS to how many proxy exits to try}
-PROXY_URL=${PROXY_URL:-residential}
+PROXY_URL=${PROXY_URL:?set PROXY_URL to the proxy URL or provider filter each attempt resolves a fresh exit from, or direct for none}
 export WELES_DISABLE_RECORDING=${WELES_DISABLE_RECORDING:-1}
 export PROXY_URL
 

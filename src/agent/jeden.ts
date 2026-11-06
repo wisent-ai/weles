@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { runRecordingsDir } from '../session/run-recordings.js';
 import {
   completeThroughRouter,
+  RouteUnreachable,
   type JedenResult,
   type ModelOnlyOptions,
 } from './model/router-call.js';
@@ -11,6 +12,18 @@ import {
   loadModelRouterConfig,
   type ModelRouterConfig,
 } from './model/router-config.js';
+
+/**
+ * The named Brama did not answer this process's last model call: the next
+ * one goes to Stado's inference alternatives instead of knocking on that
+ * address first.
+ */
+let bramaUnanswered = false;
+
+/** `cfg` with every request handed to Stado's inference alternatives. */
+function throughStado(cfg: ModelRouterConfig): ModelRouterConfig {
+  return { ...cfg, routerUrl: '', viaStado: true };
+}
 
 // Text decisions use this workload's Brama alias. Image questions use `best`,
 // which selects an image-capable model from the same caller's authorized pool.
@@ -78,8 +91,9 @@ function runJedenProcess(
   return promise;
 }
 
-/** The model route the child is given: the direct provider, or Brama with this workload's identity. */
+/** The model route the child is given: the direct provider, Brama with this workload's identity, or, through Stado, none, so Jeden hands its own requests to Stado. */
 function routingEnvironment(cfg: ModelRouterConfig): NodeJS.ProcessEnv {
+  if (cfg.viaStado) return {};
   if (cfg.direct)
     return {
       JEDEN_MODEL_ENDPOINT: cfg.routerUrl,
@@ -108,7 +122,23 @@ export async function callJeden(
   // Only a caller that explicitly wants the agent runtime's tools
   // (`modelOnly: false`) spawns the binary.
   if (options.modelOnly !== false) {
-    return completeThroughRouter(cfg, prompt, options);
+    const named = !cfg.direct && !cfg.viaStado;
+    const asked = bramaUnanswered && named ? throughStado(cfg) : cfg;
+    try {
+      const answered = await completeThroughRouter(asked, prompt, options);
+      if (asked === cfg) bramaUnanswered = false;
+      return answered;
+    } catch (error) {
+      if (!named || asked !== cfg || !(error instanceof RouteUnreachable))
+        throw error;
+      // The named Brama did not answer: Stado's alternatives are asked the
+      // same request, and say which one answered or why none did.
+      bramaUnanswered = true;
+      process.stderr.write(
+        `Brama did not answer Weles (${error.message}); handing the request to Stado's inference alternatives\n`,
+      );
+      return completeThroughRouter(throughStado(cfg), prompt, options);
+    }
   }
   const binary =
     setting('WELES_JEDEN_BIN') ??

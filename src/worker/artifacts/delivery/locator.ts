@@ -29,9 +29,7 @@ export function canonicalWelesArtifactUri(value: unknown): string {
     throw refused('artifact locator contains a forbidden character');
   if (CONTROL_CHARACTER.test(value))
     throw refused('artifact locator contains a control character');
-  const [runId, ...path] = value
-    .slice(WELES_ARTIFACT_PREFIX.length)
-    .split('/');
+  const [runId, ...path] = value.slice(WELES_ARTIFACT_PREFIX.length).split('/');
   if (
     !path.length ||
     [runId, ...path].some((part) => !part || part === '.' || part === '..')

@@ -89,7 +89,7 @@ export async function submitObserved(
         },
       );
     }
-    diagnostics.response = summarizeResponse(response, text);
+    diagnostics.response = summarizeResponse(response, text, null);
     if (!response.ok())
       throw Object.assign(
         new Error(`LinkedIn signup returned HTTP ${response.status()}`),

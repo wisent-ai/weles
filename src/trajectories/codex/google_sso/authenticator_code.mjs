@@ -76,14 +76,25 @@ export async function requireAuthenticatorCode(page, code) {
 // A challenge that is still displayed is pending, not evidence of refusal.
 // Observe its exit or the code input's explicit invalid state; browser errors
 // remain observation errors rather than being relabeled as a rejected code.
+// The code it waits on came from the account's stored seed, so an invalid
+// input says the seed is not current: Google no longer holds it as the
+// account's authenticator (it was replaced or removed), or this host's clock
+// is off. The run says so, marks the factor's seed rejected, and stays
+// fatal: the same seed would be refused again.
 export async function waitForGoogleChallengeExit(page) {
   const observed = await googleChallengeState(page, true);
   if (observed.challenge === false) return;
-  throw challengeFailure(
+  const error = challengeFailure(
     'provider_challenge_refused',
-    'Google marks the verification input invalid',
+    "Google rejected the code the stored authenticator seed produced, so the seed in the Skarbiec login item (totp_secret) is not the account's current authenticator, or this host's clock is off; enrol a new seed with `weles run google/authenticator/enrol` after checking the clock",
     observed,
   );
+  error.second_factor = {
+    required: true,
+    method: 'authenticator',
+    seed: 'rejected',
+  };
+  throw error;
 }
 
 // Select only an authenticator method the supplied login can answer: the

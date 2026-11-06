@@ -148,7 +148,8 @@ export async function respondToRun(
         : http.HTTP_STATUS_INTERNAL_SERVER_ERROR,
       {
         ok: false,
-        error: TOKEN || ALLOW_UNAUTH ? 'unauthorized' : 'missing_WELES_API_TOKEN',
+        error:
+          TOKEN || ALLOW_UNAUTH ? 'unauthorized' : 'missing_WELES_API_TOKEN',
       },
     );
     return;

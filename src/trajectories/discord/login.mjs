@@ -83,7 +83,9 @@ async function answerCaptcha(s, acct, captchaData, formData) {
       },
     );
   } catch (error) {
-    throw new Error(`DISCORD_CAPTCHA_UNSOLVED: ${error.message}`, { cause: error });
+    throw new Error(`DISCORD_CAPTCHA_UNSOLVED: ${error.message}`, {
+      cause: error,
+    });
   }
   const answered = { ...formData, captcha_key: key };
   if (captchaData.captcha_rqtoken)

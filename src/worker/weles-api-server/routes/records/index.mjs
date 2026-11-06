@@ -76,7 +76,8 @@ function publicService(record) {
     id: record.id,
     display_name: stated('display_name'),
     category: record.category,
-    balance_usd: typeof record.balance_usd === 'number' ? record.balance_usd : null,
+    balance_usd:
+      typeof record.balance_usd === 'number' ? record.balance_usd : null,
     last_balance_check: stated('last_balance_check'),
     last_probe: stated('last_probe'),
     topup: stated('topup'),
@@ -88,7 +89,9 @@ const ROUTES = {
     accounts: records.listAccounts(platformFilter(body)).map(publicAccount),
   }),
   '/records/services/list': (records, body) => ({
-    services: records.listServiceMetadata(serviceCategory(body)).map(publicService),
+    services: records
+      .listServiceMetadata(serviceCategory(body))
+      .map(publicService),
   }),
   '/records/accounts/get': (records, body) => ({
     account: publicAccount(existing(records, accountId(body))),

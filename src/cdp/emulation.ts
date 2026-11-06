@@ -11,7 +11,11 @@ export async function setUserAgent(
   platform?: string,
   acceptLanguage?: string,
 ): Promise<void> {
-  const params: { userAgent: string; platform?: string; acceptLanguage?: string } = { userAgent };
+  const params: {
+    userAgent: string;
+    platform?: string;
+    acceptLanguage?: string;
+  } = { userAgent };
   if (platform !== undefined) params.platform = platform;
   if (acceptLanguage !== undefined) params.acceptLanguage = acceptLanguage;
   await conn.send('Emulation.setUserAgentOverride', params, sessionId);

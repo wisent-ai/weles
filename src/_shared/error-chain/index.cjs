@@ -19,14 +19,18 @@
 // into a refusal.
 function codeOf(value) {
   const { code } = value;
-  return typeof code === 'string' || typeof code === 'number' ? String(code) : undefined;
+  return typeof code === 'string' || typeof code === 'number'
+    ? String(code)
+    : undefined;
 }
 
 function level(value) {
   if (!(value instanceof Error)) return String(value);
   const named = value.message.trim() ? value.message : value.name;
   const code = codeOf(value);
-  return code === undefined || named.includes(code) ? named : `${named} (code ${code})`;
+  return code === undefined || named.includes(code)
+    ? named
+    : `${named} (code ${code})`;
 }
 
 /**
@@ -44,7 +48,8 @@ function describeError(value) {
     const parts = [level(current)];
     if (current instanceof AggregateError && current.errors.length)
       parts.push(`each of [${current.errors.map(walk).join('; ')}]`);
-    if (current.cause !== undefined) parts.push(`caused by ${walk(current.cause)}`);
+    if (current.cause !== undefined)
+      parts.push(`caused by ${walk(current.cause)}`);
     return parts.join('; ');
   };
   return walk(value);

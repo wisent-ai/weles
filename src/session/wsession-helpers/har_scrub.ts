@@ -6,7 +6,13 @@
 // the HAR, every request body is taken out of it, and a HAR that cannot be
 // rewritten is removed rather than left in the recordings with its bodies.
 
-import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../run-recordings.js';
 

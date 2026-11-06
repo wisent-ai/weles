@@ -67,7 +67,11 @@ export const ALLOW_RAW_CREDS = granted('WELES_API_ALLOW_RAW_CREDS');
 // directory per run (routes/captcha/answers.mjs, captchaAnswersOf), and where
 // each run started here waits for it; outside the repository like the
 // detached runs' answers.
-export const CAPTCHA_ANSWERS_DIR = join(homedir(), '.stado', 'weles-captcha-answers');
+export const CAPTCHA_ANSWERS_DIR = join(
+  homedir(),
+  '.stado',
+  'weles-captcha-answers',
+);
 
 // The public HTTPS origin a captcha provider reaches this server's
 // /captcha/answers/ route at (a hostname routed to this service). Unset, the

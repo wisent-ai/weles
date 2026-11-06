@@ -21,7 +21,10 @@
     };
     const stripLocalCandidates = function (sdp) {
       if (typeof sdp !== 'string') return sdp;
-      return sdp.split(/(?<=\n)/).filter((line) => relayedOnly(line.trim())).join('');
+      return sdp
+        .split(/(?<=\n)/)
+        .filter((line) => relayedOnly(line.trim()))
+        .join('');
     };
     function RTCPeerConnectionShim(configuration) {
       const pc = new Original(configuration);
@@ -76,7 +79,10 @@
   } catch (error) {
     console.debug(
       '__weles_page_init_failure__',
-      JSON.stringify({ patch: 'webrtc', error: String((error && error.message) || error) }),
+      JSON.stringify({
+        patch: 'webrtc',
+        error: String((error && error.message) || error),
+      }),
     );
   }
 })();

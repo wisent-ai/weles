@@ -7,12 +7,15 @@
 
 import { readFileSync } from 'node:fs';
 import type { Cookie } from 'playwright';
+import { DeclaredError, messageOf } from '../errors/index.cjs';
+import { causes } from '../errors/operations/browser.cjs';
 import {
   asOptionalNumber,
   asString,
   getBrowser,
   getPage,
   getPageEvents,
+  shown,
   textResult,
 } from './state.js';
 
@@ -20,19 +23,51 @@ type LoadState = 'load' | 'domcontentloaded' | 'networkidle' | 'commit';
 type ElementState = 'attached' | 'detached' | 'visible' | 'hidden';
 
 function stringRecord(value: unknown, name: string): Record<string, string> {
+  if (value === undefined)
+    throw new DeclaredError(causes.ARGUMENT_MISSING, {
+      name,
+      value: shown(value),
+    });
   if (!value || typeof value !== 'object' || Array.isArray(value))
-    throw new Error(`${name} must be an object of strings`);
+    throw new DeclaredError(causes.ARGUMENT_TYPE, {
+      name,
+      value: shown(value),
+      expected: 'an object of strings',
+    });
   const entries = Object.entries(value as Record<string, unknown>);
   for (const [key, item] of entries) {
     if (typeof item !== 'string')
-      throw new Error(`${name}.${key} must be a string`);
+      throw new DeclaredError(causes.ARGUMENT_TYPE, {
+        name: `${name}.${key}`,
+        value: shown(item),
+        expected: 'a string',
+      });
   }
   return Object.fromEntries(entries) as Record<string, string>;
 }
 
+function requiredNumber(value: unknown, name: string): number {
+  const number = asOptionalNumber(value, name);
+  if (number === undefined)
+    throw new DeclaredError(causes.ARGUMENT_MISSING, {
+      name,
+      value: shown(value),
+    });
+  return number;
+}
+
 function stringList(value: unknown, name: string): string[] {
+  if (value === undefined)
+    throw new DeclaredError(causes.ARGUMENT_MISSING, {
+      name,
+      value: shown(value),
+    });
   if (!Array.isArray(value) || value.some((item) => typeof item !== 'string'))
-    throw new Error(`${name} must be an array of strings`);
+    throw new DeclaredError(causes.ARGUMENT_TYPE, {
+      name,
+      value: shown(value),
+      expected: 'an array of strings',
+    });
   return value as string[];
 }
 
@@ -77,14 +112,36 @@ async function queryElement(args: Record<string, unknown>) {
 // each origin's localStorage once per tab session, on its first document.
 async function applyStorage(args: Record<string, unknown>) {
   const path = asString(args.path, 'path');
-  const state = JSON.parse(readFileSync(path, 'utf8')) as {
-    cookies?: unknown;
-    origins?: unknown;
-  };
-  if (!Array.isArray(state.cookies) || !Array.isArray(state.origins)) {
-    throw new Error(
-      `${path} is not a storage state: it needs cookies and origins arrays`,
+  let text: string;
+  try {
+    text = readFileSync(path, 'utf8');
+  } catch (error) {
+    throw new DeclaredError(
+      causes.STORAGE_UNREADABLE,
+      { path, answer: messageOf(error) },
+      { cause: error },
     );
+  }
+  let state: { cookies?: unknown; origins?: unknown };
+  try {
+    state = JSON.parse(text);
+  } catch (error) {
+    throw new DeclaredError(
+      causes.STORAGE_NOT_STATE,
+      { path, answer: `it is not JSON: ${messageOf(error)}` },
+      { cause: error },
+    );
+  }
+  if (
+    !state ||
+    typeof state !== 'object' ||
+    !Array.isArray(state.cookies) ||
+    !Array.isArray(state.origins)
+  ) {
+    throw new DeclaredError(causes.STORAGE_NOT_STATE, {
+      path,
+      answer: `it holds ${state && typeof state === 'object' ? `the keys ${Object.keys(state).join(', ') || 'none'}` : shown(state)}, not cookies and origins arrays`,
+    });
   }
   const { context } = getBrowser(args.browserId);
   if (state.cookies.length) await context.addCookies(state.cookies as Cookie[]);
@@ -136,9 +193,8 @@ export async function callPageOperation(
     return textResult(JSON.stringify(await handle.jsonValue()));
   }
   if (name === 'weles_page_viewport') {
-    const width = asOptionalNumber(args.width, 'width');
-    const height = asOptionalNumber(args.height, 'height');
-    if (!width || !height) throw new Error('width and height are required');
+    const width = requiredNumber(args.width, 'width');
+    const height = requiredNumber(args.height, 'height');
     await getPage(args.pageId).setViewportSize({ width, height });
     return textResult({ width, height });
   }
@@ -150,8 +206,7 @@ export async function callPageOperation(
   }
   if (name === 'weles_page_route') {
     const pattern = asString(args.pattern, 'pattern');
-    const status = asOptionalNumber(args.status, 'status');
-    if (!status) throw new Error('status is required');
+    const status = requiredNumber(args.status, 'status');
     const contentType = asString(args.contentType, 'contentType');
     const body = typeof args.body === 'string' ? args.body : '';
     await getPage(args.pageId).route(pattern, (route) =>

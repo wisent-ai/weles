@@ -1,10 +1,11 @@
 // Sign the active LinkedIn account in and keep its session.
 //
 // The proxy is the account's own, resolved by resolveAccountSession (its
-// pinned exit, or a fresh static ISP exit for an account without one), so
-// the login leaves from the address the account was registered from; a login
-// page the proxy cannot reach rotates to a working sticky
-// (gotoLoginRotating). The account's stored PerimeterX
+// pinned exit, or a static ISP exit pinned to an account without one), so
+// the login leaves from the address the account was registered from; a
+// pinned exit LinkedIn serves no form through ends the login, and only a
+// run that states its own PROXY_URL is rotated (gotoLoginRotating). The
+// account's stored PerimeterX
 // storage is restored before the page hydrates. An edge checkpoint before
 // the form, or after the submit, goes through the captcha solver; a degraded
 // shell with no form is refused. The account signs in with its password, or
@@ -20,6 +21,7 @@ import {
 } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { pageSettled } from '../_shared/page/settled.mjs';
+import { statedProxy } from '../_shared/inputs/stated.mjs';
 import { persistFreshCookieJar } from '../_shared/auth/cookie-freshness.mjs';
 import { keepVerdict } from '../_shared/action/verdict.mjs';
 import {
@@ -69,7 +71,14 @@ const USE_GOOGLE_SSO =
 if (process.env.WELES_NOPECHA_EXT === undefined)
   process.env.WELES_NOPECHA_EXT = '0';
 
-let { proxyUrl, persona } = await resolveAccountSession(acct);
+const accountSession = await resolveAccountSession(acct);
+let { persona } = accountSession;
+// The account's pinned proxy, or the proxy the run states when it has none;
+// a pinned account is never moved to another exit.
+const pinned = accountSession.pinned === true;
+let proxyUrl =
+  accountSession.proxyUrl ??
+  statedProxy('the LinkedIn login, whose account has no proxy pin,');
 // The account's own persona; when it has none, the session dresses one in
 // the locale of the exit it launches through, and later restarts keep it.
 const startSession = (proxy, sessionPersona) =>
@@ -121,6 +130,7 @@ try {
   const rotated = await gotoLoginRotating({
     session: s,
     persona,
+    pinned,
     restartFn: startSession,
   });
   s = rotated.session;

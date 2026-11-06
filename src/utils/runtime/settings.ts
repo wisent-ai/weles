@@ -19,7 +19,10 @@ export function requiredSetting(env: NodeJS.ProcessEnv, name: string): string {
 }
 
 /** The value of `name`, trimmed, or null when the setting is unset or blank. */
-export function optionalSetting(env: NodeJS.ProcessEnv, name: string): string | null {
+export function optionalSetting(
+  env: NodeJS.ProcessEnv,
+  name: string,
+): string | null {
   const value = env[name]?.trim();
   return value ? value : null;
 }
@@ -55,11 +58,17 @@ export function tcpPortSetting(env: NodeJS.ProcessEnv, name: string): number {
 }
 
 /** A whole number of `unit` above zero that `name` holds. */
-export function positiveWholeSetting(env: NodeJS.ProcessEnv, name: string, unit: string): number {
+export function positiveWholeSetting(
+  env: NodeJS.ProcessEnv,
+  name: string,
+  unit: string,
+): number {
   const raw = requiredSetting(env, name);
   const count = Number(raw);
   if (!Number.isSafeInteger(count) || count !== Math.abs(count) || !count) {
-    throw new Error(`${name} is ${JSON.stringify(raw)}, not a whole number of ${unit} above zero`);
+    throw new Error(
+      `${name} is ${JSON.stringify(raw)}, not a whole number of ${unit} above zero`,
+    );
   }
   return count;
 }

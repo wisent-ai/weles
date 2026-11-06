@@ -83,7 +83,10 @@ async function ensureSession() {
   if (status.sessionId) return status.sessionId;
   const created = await wda('POST', '/session', {
     capabilities: {
-      alwaysMatch: { bundleId: APP_STORE_BUNDLE, shouldWaitForQuiescence: true },
+      alwaysMatch: {
+        bundleId: APP_STORE_BUNDLE,
+        shouldWaitForQuiescence: true,
+      },
     },
   });
   const sid = created.value?.sessionId

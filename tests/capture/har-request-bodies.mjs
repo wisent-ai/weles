@@ -6,7 +6,13 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
@@ -43,7 +49,9 @@ async function formServer() {
     });
   });
   // No port is named, so the system chooses a free one.
-  await new Promise((listening) => server.listen(undefined, 'localhost', listening));
+  await new Promise((listening) =>
+    server.listen(undefined, 'localhost', listening),
+  );
   const { address, family, port } = server.address();
   const host = family === 'IPv6' ? `[${address}]` : address;
   return { server, url: `http://${host}:${port}/` };
@@ -62,7 +70,9 @@ await test('a password a form posts is in the sealed HAR and in no spelling afte
     await page.goto(url);
     await page.fill('input[type="password"]', password);
     await Promise.all([
-      page.waitForResponse((response) => response.request().method() === 'POST'),
+      page.waitForResponse(
+        (response) => response.request().method() === 'POST',
+      ),
       page.click('button'),
     ]);
     await context.close();
@@ -82,12 +92,14 @@ await test('a password a form posts is in the sealed HAR and in no spelling afte
   );
   scrubHar(har);
   const scrubbed = readFileSync(har, 'utf8');
-  for (const spelling of spellings) assert.ok(!scrubbed.includes(spelling), spelling);
+  for (const spelling of spellings)
+    assert.ok(!scrubbed.includes(spelling), spelling);
   const posts = JSON.parse(scrubbed).log.entries.filter(
     (entry) => entry.request.method === 'POST',
   );
   assert.ok(posts.length, 'the HAR keeps the POST entry');
-  for (const post of posts) assert.match(post.request.postData.text, /withheld/);
+  for (const post of posts)
+    assert.match(post.request.postData.text, /withheld/);
   report.files.push(har);
 });
 

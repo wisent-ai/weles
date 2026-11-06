@@ -5,11 +5,7 @@
 // steps are saved as a new reusable trajectory (generic browser_task
 // draft-first behavior).
 import { constants as http } from 'node:http2';
-import {
-  ALLOW_RAW_CREDS,
-  ALLOW_UNAUTH,
-  TOKEN,
-} from '../../configuration.mjs';
+import { ALLOW_RAW_CREDS, ALLOW_UNAUTH, TOKEN } from '../../configuration.mjs';
 import { authorized, json, readText } from '../../http-exchange.mjs';
 import { RouteRefusal, answerRefusal } from './refusal.mjs';
 

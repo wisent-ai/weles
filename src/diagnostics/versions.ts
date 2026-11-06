@@ -113,7 +113,9 @@ function trajectoryFields(
     out.trajectory_sha256 = createHash('sha256').update(bytes).digest('hex');
     out.trajectory_bytes = bytes.byteLength;
   } catch (error) {
-    failures.push(captureFailure('trajectory_sha256', `read ${absPath}`, error));
+    failures.push(
+      captureFailure('trajectory_sha256', `read ${absPath}`, error),
+    );
   }
   try {
     out.trajectory_mtime = statSync(absPath).mtime.toISOString();

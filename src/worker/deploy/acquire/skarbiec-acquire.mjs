@@ -18,13 +18,21 @@ const LOOPBACK_NAME = 'localhost';
 // The write is synchronous: stderr is a pipe to the reader, where Node's
 // process.stderr.write is asynchronous and process.exit may drop the line.
 function stop(reason, message) {
-  writeSync(process.stderr.fd, `${message}\nSKARBIEC_ACQUIRE_REASON ${reason}\n`);
+  writeSync(
+    process.stderr.fd,
+    `${message}\nSKARBIEC_ACQUIRE_REASON ${reason}\n`,
+  );
   process.exit(EXIT_FAILURE);
 }
 
 const [, , scopeFile, consumer, item, field, ...extraArgs] = process.argv;
-if (extraArgs.length || [scopeFile, consumer, item, field].some((value) => !value)) {
-  throw new Error('usage: skarbiec-acquire.mjs <scope-file> <consumer> <item> <field>');
+if (
+  extraArgs.length ||
+  [scopeFile, consumer, item, field].some((value) => !value)
+) {
+  throw new Error(
+    'usage: skarbiec-acquire.mjs <scope-file> <consumer> <item> <field>',
+  );
 }
 const request = { consumer, item, field };
 
@@ -33,9 +41,18 @@ const exactName = /^[A-Za-z\d._-]+$/;
 // is `acquire:role:<role>#<field>` and Skarbiec redeems the one live item
 // tagged `stado:role:<role>`, so neither this catalog nor the caller names a
 // vault item.
-const exactCoordinate = (value) => exactName.test(value.startsWith('role:') ? value.slice('role:'.length) : value);
-if (!exactName.test(consumer) || !exactCoordinate(item) || !exactName.test(field)) {
-  throw new Error('consumer and field must be exact names, and item an exact name or role:<exact name>');
+const exactCoordinate = (value) =>
+  exactName.test(
+    value.startsWith('role:') ? value.slice('role:'.length) : value,
+  );
+if (
+  !exactName.test(consumer) ||
+  !exactCoordinate(item) ||
+  !exactName.test(field)
+) {
+  throw new Error(
+    'consumer and field must be exact names, and item an exact name or role:<exact name>',
+  );
 }
 
 const scopeKeys = readFileSync(scopeFile, 'utf8')
@@ -58,7 +75,9 @@ const scopeKeys = readFileSync(scopeFile, 'utf8')
     return line;
   });
 if (!scopeKeys.length || new Set(scopeKeys).size !== scopeKeys.length) {
-  throw new Error(`Skarbiec bootstrap scope catalog ${scopeFile} must be nonempty and duplicate-free`);
+  throw new Error(
+    `Skarbiec bootstrap scope catalog ${scopeFile} must be nonempty and duplicate-free`,
+  );
 }
 if (!scopeKeys.includes([consumer, item, field].join('|'))) {
   // Name the table that was read and how big it is: this refusal is produced
@@ -75,25 +94,34 @@ if (!scopeKeys.includes([consumer, item, field].join('|'))) {
 // Skarbiec that does not answer is refused as authority_unreachable by the
 // request itself (transport.mjs), naming the operation and its cause.
 const endpointText = process.env.WC_SKARBIEC_URL?.trim();
-if (!endpointText) throw new Error('WC_SKARBIEC_URL must come from the Stado service directory');
-if (!URL.canParse(endpointText)) throw new Error(`WC_SKARBIEC_URL ${JSON.stringify(endpointText)} is not a URL`);
+if (!endpointText)
+  throw new Error('WC_SKARBIEC_URL must come from the Stado service directory');
+if (!URL.canParse(endpointText))
+  throw new Error(
+    `WC_SKARBIEC_URL ${JSON.stringify(endpointText)} is not a URL`,
+  );
 const endpoint = new URL(endpointText);
-const loopback = endpoint.hostname === LOOPBACK_NAME || loopbackAddress(endpoint.hostname);
+const loopback =
+  endpoint.hostname === LOOPBACK_NAME || loopbackAddress(endpoint.hostname);
 if (
   endpoint.username ||
   endpoint.password ||
   endpoint.search ||
   endpoint.hash ||
   (endpoint.pathname !== '/' && endpoint.pathname !== '') ||
-  (endpoint.protocol !== 'https:' && !(endpoint.protocol === 'http:' && loopback))
+  (endpoint.protocol !== 'https:' &&
+    !(endpoint.protocol === 'http:' && loopback))
 ) {
-  throw new Error(`Skarbiec endpoint ${endpoint.origin} must be an HTTPS origin or an HTTP origin on this machine's loopback`);
+  throw new Error(
+    `Skarbiec endpoint ${endpoint.origin} must be an HTTPS origin or an HTTP origin on this machine's loopback`,
+  );
 }
 
 const proof = workloadProof(process.env, request);
 
 /** The HTTP status the specification names `name`, as Node's own table of statuses holds it. */
-const statusNamed = (name) => Object.keys(STATUS_CODES).find((code) => STATUS_CODES[code] === name);
+const statusNamed = (name) =>
+  Object.keys(STATUS_CODES).find((code) => STATUS_CODES[code] === name);
 // Skarbiec's statuses for a proved workload: Not Found is a field the item
 // does not carry (skarbiec README, acquisition), Unauthorized a tuple no grant
 // covers. Any other refusal is `refused`.
@@ -104,7 +132,9 @@ const REFUSAL_BY_STATUS = {
 
 async function refuse(stage, response) {
   const detail = await readRefusalDetail(response);
-  const reason = Object.hasOwn(REFUSAL_BY_STATUS, response.status) ? REFUSAL_BY_STATUS[response.status] : 'refused';
+  const reason = Object.hasOwn(REFUSAL_BY_STATUS, response.status)
+    ? REFUSAL_BY_STATUS[response.status]
+    : 'refused';
   stop(
     reason,
     `Skarbiec ${stage} at ${endpoint.origin} refused ${consumer} for ${item}#${field}: HTTP ${response.status}` +
@@ -114,10 +144,17 @@ async function refuse(stage, response) {
   );
 }
 
-const commonHeaders = { 'Content-Type': 'application/json', 'X-Consumer': consumer };
+const commonHeaders = {
+  'Content-Type': 'application/json',
+  'X-Consumer': consumer,
+};
 const post = acquisitionPost({ endpoint, consumer, item, field, stop });
 
-const issueResponse = await post('/v1/acquisitions', commonHeaders, JSON.stringify({ id: item, field, ...proof }));
+const issueResponse = await post(
+  '/v1/acquisitions',
+  commonHeaders,
+  JSON.stringify({ id: item, field, ...proof }),
+);
 if (!issueResponse.ok) await refuse('acquisition issue', issueResponse);
 const token = issuedBearer(await issueResponse.json(), request);
 
@@ -127,4 +164,6 @@ const readResponse = await post(
   JSON.stringify({ id: item, field }),
 );
 if (!readResponse.ok) await refuse('one-time read', readResponse);
-process.stdout.write(readValue(await readResponse.json(), request, endpoint.origin));
+process.stdout.write(
+  readValue(await readResponse.json(), request, endpoint.origin),
+);

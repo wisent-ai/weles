@@ -20,8 +20,15 @@ const NONCE_BYTES = createHash('sha256').digest().length;
 /** The workload id as Skarbiec accepts one: nonempty, without surrounding space, with no control character. */
 function workloadIdFrom(environment) {
   const workloadId = environment.SKARBIEC_WORKLOAD_ID;
-  if (typeof workloadId !== 'string' || !workloadId || workloadId.trim() !== workloadId || /\p{Cc}/u.test(workloadId)) {
-    throw new Error('SKARBIEC_WORKLOAD_ID must be nonempty text without surrounding space or control characters');
+  if (
+    typeof workloadId !== 'string' ||
+    !workloadId ||
+    workloadId.trim() !== workloadId ||
+    /\p{Cc}/u.test(workloadId)
+  ) {
+    throw new Error(
+      'SKARBIEC_WORKLOAD_ID must be nonempty text without surrounding space or control characters',
+    );
   }
   return workloadId;
 }
@@ -30,11 +37,20 @@ function workloadIdFrom(environment) {
 function signingKeyFrom(environment) {
   const signingKeyFile = environment.SKARBIEC_WORKLOAD_SIGNING_KEY_FILE;
   if (!signingKeyFile || !isAbsolute(signingKeyFile)) {
-    throw new Error('SKARBIEC_WORKLOAD_SIGNING_KEY_FILE must be an absolute path');
+    throw new Error(
+      'SKARBIEC_WORKLOAD_SIGNING_KEY_FILE must be an absolute path',
+    );
   }
   const metadata = lstatSync(signingKeyFile);
-  if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.uid !== process.getuid() || metadata.mode & UNSAFE_BITS) {
-    throw new Error(`unsafe Skarbiec workload signing key file ${signingKeyFile}: it must be a regular file this user owns, closed to group and others`);
+  if (
+    !metadata.isFile() ||
+    metadata.isSymbolicLink() ||
+    metadata.uid !== process.getuid() ||
+    metadata.mode & UNSAFE_BITS
+  ) {
+    throw new Error(
+      `unsafe Skarbiec workload signing key file ${signingKeyFile}: it must be a regular file this user owns, closed to group and others`,
+    );
   }
   return readFileSync(signingKeyFile);
 }
@@ -49,7 +65,16 @@ export function workloadProof(environment, { consumer, item, field }) {
   const timestamp = Math.floor(Date.now() / MILLISECONDS_PER_SECOND);
   const nonce = randomBytes(NONCE_BYTES).toString('base64url');
   const payload = Buffer.from(
-    ['SKARBIEC-WORKLOAD-ACQUISITION', 'v1', consumer, item, field, workloadId, String(timestamp), nonce].join('\0'),
+    [
+      'SKARBIEC-WORKLOAD-ACQUISITION',
+      'v1',
+      consumer,
+      item,
+      field,
+      workloadId,
+      String(timestamp),
+      nonce,
+    ].join('\0'),
     'utf8',
   );
   const signingKey = signingKeyFrom(environment);
@@ -91,7 +116,13 @@ export function issuedBearer(issued, { consumer, item, field }) {
 // The fields of the one-time read answer, each with whether it must be
 // there: the binding it echoes (consumer, item, field), the value, and the
 // provider Skarbiec declares only when the item names one.
-const READ_ANSWER_FIELDS = { consumer: true, field: true, item: true, value: true, provider: false };
+const READ_ANSWER_FIELDS = {
+  consumer: true,
+  field: true,
+  item: true,
+  value: true,
+  provider: false,
+};
 
 function typeOf(value) {
   if (value === null) return 'null';
@@ -102,12 +133,16 @@ function typeOf(value) {
 export function readValue(result, { consumer, item, field }, origin) {
   const answer = Object(result);
   const keys = Object.keys(answer);
-  const providerValid = !Object.hasOwn(answer, 'provider') || (typeof answer.provider === 'string' && Boolean(answer.provider));
+  const providerValid =
+    !Object.hasOwn(answer, 'provider') ||
+    (typeof answer.provider === 'string' && Boolean(answer.provider));
   if (
     answer.consumer === consumer &&
     answer.item === item &&
     answer.field === field &&
-    !Object.entries(READ_ANSWER_FIELDS).some(([key, required]) => required && !keys.includes(key)) &&
+    !Object.entries(READ_ANSWER_FIELDS).some(
+      ([key, required]) => required && !keys.includes(key),
+    ) &&
     !keys.some((key) => !Object.hasOwn(READ_ANSWER_FIELDS, key)) &&
     typeof answer.value === 'string' &&
     answer.value &&

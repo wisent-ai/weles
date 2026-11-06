@@ -93,15 +93,14 @@ async function request(action: WorkerAction) {
 
 export async function runWorker(parsed: ParsedCli): Promise<void> {
   const [action] = parsed.positional;
+  const actions = Object.keys(protocol.mutates).join(', ');
+  if (!Object.hasOwn(protocol.mutates, action))
+    throw new UsageError(`weles worker takes ${actions}, not ${action}`);
   if (
     parsed.positional.length !== 1 ||
-    !Object.hasOwn(protocol.mutates, action) ||
     Object.keys(parsed.options).some((key) => key !== 'json')
-  ) {
-    throw new UsageError(
-      `worker requires ${Object.keys(protocol.mutates).join(', ')}; only --json is accepted`,
-    );
-  }
+  )
+    throw new UsageError(`worker requires ${actions}; only --json is accepted`);
   // Check the resident contract before an older endpoint can interpret a
   // control request as permission to recreate the retired native worker.
   const mutates = protocol.mutates[action as WorkerAction];

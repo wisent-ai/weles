@@ -8,12 +8,11 @@ import { markCaptchaChallenge } from '../../events.js';
 import {
   apiSolve,
   firstSolved,
-  nopechaProxyFields,
   providerJson,
   type CaptchaCredentials,
-  type ProxyCredentials,
   type ServiceAttempt,
 } from '../api.js';
+import { nopechaProxyFields, type ProxyCredentials } from './proxy.js';
 import { nopechaToken } from './services.js';
 
 // AntiCaptcha queues reCAPTCHA v3 workers by the score they earn and takes
@@ -54,7 +53,9 @@ async function solveRecaptchaV3Nopecha(
   );
   const jobId = post?.data;
   if (!jobId) {
-    throw new Error(`nopecha recaptcha3 answered no job: ${JSON.stringify(post)}`);
+    throw new Error(
+      `nopecha recaptcha3 answered no job: ${JSON.stringify(post)}`,
+    );
   }
   console.log(`[captcha:api] nopecha recaptcha3 jobId=${jobId}`);
   // The job is read until it is solved, as the v2 path reads it, so the
@@ -92,7 +93,10 @@ export async function solveRecaptchaV3Token(
   // task first, then the standard one.
   const capsolver = creds.capsolver;
   if (capsolver) {
-    for (const type of ['ReCaptchaV3EnterpriseTaskProxyLess', 'ReCaptchaV3TaskProxyLess']) {
+    for (const type of [
+      'ReCaptchaV3EnterpriseTaskProxyLess',
+      'ReCaptchaV3TaskProxyLess',
+    ]) {
       attempts.push({
         service: 'capsolver',
         solve: () =>
